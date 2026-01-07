@@ -1,0 +1,24 @@
+{
+  "name": "multi-agent-os",
+  "version": "1.0.0",
+  "description": "Multi-Agent Coordination Framework - Orchestration, Sentinel Protocol, Worktree Policy, Status Maps",
+  "author": {
+    "name": "Vek - Desenvolvimento de Software",
+    "email": "emilson.moraes@vectorinf.com.br",
+    "url": "https://github.com/ekson73/multi-agent-os"
+  },
+  "repository": "https://github.com/ekson73/multi-agent-os",
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "orchestration",
+    "multi-agent",
+    "sentinel",
+    "observability",
+    "git-worktrees"
+  ],
+  "engines": {
+    "claude-code": ">=1.0.0"
+  },
+  "hooks": "./hooks/hooks.json"
+}
