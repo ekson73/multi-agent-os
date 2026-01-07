@@ -24,6 +24,16 @@ A comprehensive framework for orchestrating AI agents in software development wo
 - Catch-22 scenario handling
 - Orphan branch cleanup
 
+### 🔄 Hierarchical Merge Protocol v1.0
+- Parent-child branch convergence
+- Child Completion Constraint (merge only when children complete)
+- Exception prefixes for hotfix/emergency scenarios
+
+### 📚 Framework as Source of Truth
+- Canonical protocols for multi-agent coordination
+- Consumer projects adapt (not duplicate) protocols
+- Versioned updates with backward compatibility
+
 ## Installation
 
 ```bash
@@ -43,6 +53,14 @@ After installation, the framework components are available in `~/.claude/`:
 - `~/.claude/sentinel/` - Anomaly detection rules
 - `~/.claude/statusmap/` - Observability templates
 - `~/.claude/skills/` - Reusable agent skills
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Worktrees Guide](docs/worktrees-guide.md) | Complete guide for multi-agent worktree coordination |
+| [Hierarchical Merge Protocol](protocols/hierarchical-merge-protocol.md) | Branch convergence and merge rules |
+| [Framework Consumption](docs/framework-consumption.md) | How downstream projects consume this framework |
 
 ## License
 
