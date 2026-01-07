@@ -1,66 +1,165 @@
-# Multi-Agent OS (multi-agent-os)
+# Multi-Agent OS
 
-A comprehensive framework for orchestrating AI agents in software development workflows.
+A comprehensive Claude Code plugin for orchestrating AI agents in software development workflows.
 
 ## Features
 
-### 🛡️ Sentinel Protocol
+### Sentinel Protocol
 - 10 detection rules for anomaly prevention
 - Loop detection, scope creep, stagnation alerts
 - Error cascade prevention
+- Health score calculation
 
-### 📊 Status Map System
+### Status Map System
 - 10 template types for different contexts
 - Human-centric observability
 - Automatic template inference
 
-### 🔀 Anti-Conflict Protocol v3.1
+### Anti-Conflict Protocol v3.2
 - 7-phase workflow with mandatory QA
 - Git worktree integration
 - Lock file coordination
 
-### 📁 Worktree Policy v1.1
+### Worktree Policy v1.1
 - Multi-agent branch isolation
 - Catch-22 scenario handling
 - Orphan branch cleanup
 
-### 🔄 Hierarchical Merge Protocol v1.0
+### Hierarchical Merge Protocol v1.0
 - Parent-child branch convergence
-- Child Completion Constraint (merge only when children complete)
-- Exception prefixes for hotfix/emergency scenarios
+- Child Completion Constraint
+- Exception prefixes for hotfix/emergency
 
-### 📚 Framework as Source of Truth
-- Canonical protocols for multi-agent coordination
-- Consumer projects adapt (not duplicate) protocols
-- Versioned updates with backward compatibility
+### TTL Policy
+- Content freshness management
+- PROV tags for provenance tracking
+- Automatic expiration alerts
 
 ## Installation
 
-```bash
-# Clone the framework
-git clone https://github.com/ekson73/multi-agent-os.git ~/.multi-agent-os
+### As Claude Code Plugin
 
-# Run install script
-cd ~/.multi-agent-os
-./install/install.sh
+```bash
+# Clone the plugin
+git clone https://github.com/ekson73/multi-agent-os.git
+
+# Install in user scope
+claude plugins install /path/to/multi-agent-os
+
+# Or use directly
+claude --plugin-dir /path/to/multi-agent-os
 ```
 
-## Usage
+### Project-Level Installation
 
-After installation, the framework components are available in `~/.claude/`:
+Add to your project's `.claude/settings.json`:
 
-- `~/.claude/protocols/` - Coordination protocols
-- `~/.claude/sentinel/` - Anomaly detection rules
-- `~/.claude/statusmap/` - Observability templates
-- `~/.claude/skills/` - Reusable agent skills
+```json
+{
+  "plugins": [
+    "/path/to/multi-agent-os"
+  ]
+}
+```
+
+## Plugin Structure
+
+```
+multi-agent-os/
+├── .claude-plugin/
+│   └── plugin.json           ← Plugin manifest
+├── hooks/
+│   └── hooks.json            ← Hook configuration
+├── plugin-scripts/           ← Hook executables
+│   ├── session-start.sh
+│   ├── pre-delegate.sh
+│   ├── post-delegate.sh
+│   └── session-end.sh
+├── commands/                 ← Slash commands
+│   ├── sync.md
+│   ├── audit.md
+│   ├── status.md
+│   ├── worktree.md
+│   └── delegate.md
+├── agents/                   ← Agent definitions
+│   ├── orchestrator.md
+│   ├── sentinel-monitor.md
+│   ├── qa-validator.md
+│   └── consolidator.md
+├── skills/                   ← Skills (subdirectory format)
+│   ├── audit/SKILL.md
+│   ├── agent-select/SKILL.md
+│   ├── context-prep/SKILL.md
+│   ├── hierarchical-merge/SKILL.md
+│   ├── worktree-policy/SKILL.md
+│   ├── anti-conflict/SKILL.md
+│   ├── status-map/SKILL.md
+│   └── ttl-policy/SKILL.md
+├── protocols/                ← Protocol documentation
+├── sentinel/                 ← Sentinel Protocol files
+├── statusmap/                ← Status Map templates
+└── docs/                     ← Additional documentation
+```
+
+## Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `/sync` | Sync from framework to consumer |
+| `/audit` | On-demand session auditing |
+| `/status` | Display status map |
+| `/worktree` | Manage git worktrees |
+| `/delegate` | Delegate to sub-agent |
+
+## Available Skills
+
+| Skill | Description |
+|-------|-------------|
+| `audit` | Sentinel Protocol auditing |
+| `agent-select` | Agent selection algorithm |
+| `context-prep` | Pre-delegation context |
+| `hierarchical-merge` | Branch merge rules |
+| `worktree-policy` | Worktree enforcement |
+| `anti-conflict` | Conflict prevention |
+| `status-map` | Status visualization |
+| `ttl-policy` | Content freshness |
+
+## Available Agents
+
+| Agent | Description |
+|-------|-------------|
+| `orchestrator` | Master coordinator |
+| `sentinel-monitor` | Anomaly detection |
+| `qa-validator` | Quality assurance |
+| `consolidator` | Output synthesis |
+
+## Hooks
+
+The plugin automatically hooks into Claude Code lifecycle:
+
+| Hook | Trigger |
+|------|---------|
+| `SessionStart` | Session initialization |
+| `PreToolUse[Task]` | Before delegation |
+| `PostToolUse[Task]` | After delegation |
+| `Stop` | Session end |
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [Worktrees Guide](docs/worktrees-guide.md) | Complete guide for multi-agent worktree coordination |
-| [Hierarchical Merge Protocol](protocols/hierarchical-merge-protocol.md) | Branch convergence and merge rules |
-| [Framework Consumption](docs/framework-consumption.md) | How downstream projects consume this framework |
+| [Worktrees Guide](docs/worktrees-guide.md) | Multi-agent worktree coordination |
+| [Hierarchical Merge Protocol](protocols/hierarchical-merge-protocol.md) | Branch convergence rules |
+| [Framework Consumption](docs/framework-consumption.md) | Consumer project integration |
+
+## Self-Referential Usage
+
+This plugin can use itself during development:
+
+```bash
+# In multi-agent-os directory
+claude --plugin-dir .
+```
 
 ## License
 
@@ -68,4 +167,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-*Created by Emilson Moraes | Powered by Claude Code*
+*Multi-Agent OS v1.0.0 | Created by Emilson Moraes | Powered by Claude Code*
