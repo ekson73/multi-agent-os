@@ -345,23 +345,29 @@ For smaller files or contexts where full headers are excessive, use **PROV** (Pr
 
 ### PROV Tag Formats
 
-#### Format: COMPACT (3 lines)
+**IMPORTANT**: Always use **full GitHub URL** for traceability, enabling:
+- Click-to-navigate for manual review
+- Automated sync scripts
+- Existence validation
+- Unambiguous source identification
+
+#### Format: COMPACT (1 line, recommended)
 
 ```html
-<!-- PROV: multi-agent-os/protocols/hmp.md | v1.0 | sync:2026-01-07 | TTL:90d | exp:2026-04-07 -->
+<!-- PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md | v1.0 | sync:2026-01-07 | TTL:90d | exp:2026-04-07 -->
 ```
 
-#### Format: INLINE (1 line, Markdown-safe)
+#### Format: INLINE (1 line, Markdown-safe comment)
 
 ```markdown
-[//]: # (PROV: multi-agent-os/hmp.md@v1.0|2026-01-07|TTL90)
+[//]: # (PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07)
 ```
 
 #### Format: JSON (for .json files)
 
 ```json
 {
-  "_prov": "multi-agent-os/protocols/hmp.md|v1.0|2026-01-07|TTL90",
+  "_prov": "github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07",
   ...rest of file...
 }
 ```
@@ -369,23 +375,30 @@ For smaller files or contexts where full headers are excessive, use **PROV** (Pr
 #### Format: YAML (for .yaml/.yml files)
 
 ```yaml
-# PROV: multi-agent-os/protocols/hmp.md|v1.0|2026-01-07|TTL90
+# PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07
 ...rest of file...
 ```
 
 ### PROV Tag Specification
 
 ```
-PROV: {source-path} | v{version} | sync:{YYYY-MM-DD} | TTL:{days}d | exp:{YYYY-MM-DD}
+PROV: {full-url} | v{version} | sync:{YYYY-MM-DD} | TTL:{days}d | exp:{YYYY-MM-DD}
 ```
 
 | Field | Format | Example |
 |-------|--------|---------|
-| `source-path` | `{repo}/{path}` | `multi-agent-os/protocols/hmp.md` |
+| `full-url` | Complete GitHub URL to source file | `github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md` |
 | `version` | `v{semver}` | `v1.0` |
 | `sync` | `sync:{ISO-date}` | `sync:2026-01-07` |
 | `TTL` | `TTL:{days}d` | `TTL:90d` |
 | `exp` | `exp:{ISO-date}` | `exp:2026-04-07` |
+
+**Why full URL instead of relative path?**
+
+| Approach | Traceability | Automation | Navigation |
+|----------|--------------|------------|------------|
+| Relative path (`repo/file.md`) | Requires knowledge of base URL | Scripts need URL construction | Manual lookup required |
+| **Full URL** | Complete and unambiguous | Direct use in scripts | Click-to-navigate |
 
 ### When to Use Each Format
 
