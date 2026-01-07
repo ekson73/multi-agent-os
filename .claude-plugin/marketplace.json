@@ -15,7 +15,7 @@
         "name": "Vek - Desenvolvimento de Software",
         "email": "emilson.moraes@vectorinf.com.br"
       },
-      "source": ".",
+      "source": "./",
       "category": "ai-agents",
       "keywords": [
         "ai-agents",
