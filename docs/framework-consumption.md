@@ -257,7 +257,7 @@ When duplicating content from framework to consumer project, add this header:
 <!-- ═══════════════════════════════════════════════════════════════════════
      SOURCE OF TRUTH: multi-agent-os (framework)
      ═══════════════════════════════════════════════════════════════════════
-     Canonical: github.com/ekson73/multi-agent-os/{path-to-file}
+     Canonical: https://github.com/ekson73/multi-agent-os/blob/main/{path-to-file}
      Version: {version}
      Last sync: {YYYY-MM-DD}
 
@@ -282,7 +282,7 @@ When duplicating content from framework to consumer project, add this header:
 
 | Field | Description | Example |
 |-------|-------------|---------|
-| `Canonical` | Full URL to source file in framework | `github.com/ekson73/multi-agent-os/protocols/hmp.md` |
+| `Canonical` | Full URL to source file in framework | `https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md` |
 | `Version` | Version of the protocol being consumed | `v1.0` |
 | `Last sync` | Date content was synced from framework | `2026-01-07` |
 | `Type` | Content type (from TTL table) | `Protocol/Standard` |
@@ -354,20 +354,20 @@ For smaller files or contexts where full headers are excessive, use **PROV** (Pr
 #### Format: COMPACT (1 line, recommended)
 
 ```html
-<!-- PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md | v1.0 | sync:2026-01-07 | TTL:90d | exp:2026-04-07 -->
+<!-- PROV: https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md | v1.0 | sync:2026-01-07 | TTL:90d | exp:2026-04-07 -->
 ```
 
 #### Format: INLINE (1 line, Markdown-safe comment)
 
 ```markdown
-[//]: # (PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07)
+[//]: # (PROV: https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07)
 ```
 
 #### Format: JSON (for .json files)
 
 ```json
 {
-  "_prov": "github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07",
+  "_prov": "https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07",
   ...rest of file...
 }
 ```
@@ -375,7 +375,7 @@ For smaller files or contexts where full headers are excessive, use **PROV** (Pr
 #### Format: YAML (for .yaml/.yml files)
 
 ```yaml
-# PROV: github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07
+# PROV: https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md|v1.0|2026-01-07|TTL90|exp:2026-04-07
 ...rest of file...
 ```
 
@@ -387,7 +387,7 @@ PROV: {full-url} | v{version} | sync:{YYYY-MM-DD} | TTL:{days}d | exp:{YYYY-MM-D
 
 | Field | Format | Example |
 |-------|--------|---------|
-| `full-url` | Complete GitHub URL to source file | `github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md` |
+| `full-url` | Complete GitHub URL to source file | `https://github.com/ekson73/multi-agent-os/blob/main/protocols/hmp.md` |
 | `version` | `v{semver}` | `v1.0` |
 | `sync` | `sync:{ISO-date}` | `sync:2026-01-07` |
 | `TTL` | `TTL:{days}d` | `TTL:90d` |
