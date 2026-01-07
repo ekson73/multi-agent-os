@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$comment": "Sentinel Protocol Configuration v1.0.0",
+  "_documentation": {
+    "version": "1.0.0",
+    "author": "Claude-Orch-Prime-20260106-86fa",
+    "created": "2026-01-06",
+    "description": "Configuration file for the Sentinel Protocol anomaly detection system"
+  },
+  "version": "1.0.0",
+  "detection": {
+    "_comment": "Detection rules thresholds - adjust based on system behavior",
+    "loop": {
+      "similarity_threshold": 0.85,
+      "description": "Task similarity threshold for loop detection (0.0-1.0)",
+      "valid_range": {
+        "min": 0.70,
+        "max": 0.95
+      }
+    },
+    "depth": {
+      "max_delegation_depth": 3,
+      "description": "Maximum allowed delegation chain depth",
+      "valid_range": {
+        "min": 2,
+        "max": 5
+      }
+    },
+    "drift": {
+      "relevance_threshold": 0.50,
+      "description": "Minimum task relevance for drift detection (0.0-1.0)",
+      "valid_range": {
+        "min": 0.30,
+        "max": 0.70
+      }
+    },
+    "stagnation": {
+      "timeout_ms": 300000,
+      "description": "Execution timeout in milliseconds (default 5 min)",
+      "valid_range": {
+        "min": 60000,
+        "max": 600000
+      }
+    },
+    "error_cascade": {
+      "consecutive_threshold": 2,
+      "non_consecutive_threshold": 3,
+      "description": "Consecutive/non-consecutive errors before alert",
+      "valid_range": {
+        "min": 2,
+        "max": 5
+      }
+    },
+    "token_bloat": {
+      "multiplier": 3.0,
+      "description": "Token usage multiplier for bloat detection (expected * multiplier)",
+      "valid_range": {
+        "min": 2.0,
+        "max": 5.0
+      }
+    },
+    "retry_storm": {
+      "max_retries_per_minute": 5,
+      "time_window_ms": 60000,
+      "description": "Max retries within time window before blocking",
+      "valid_range": {
+        "min": 3,
+        "max": 10
+      }
+    },
+    "agent_mismatch": {
+      "score_difference_threshold": 0.20,
+      "description": "Score difference to flag suboptimal agent selection",
+      "valid_range": {
+        "min": 0.10,
+        "max": 0.40
+      }
+    },
+    "escalation_abuse": {
+      "max_escalation_rate": 0.50,
+      "consecutive_escalations": 3,
+      "description": "Max escalation rate and consecutive count before abuse detection",
+      "valid_range": {
+        "min": 0.30,
+        "max": 0.70
+      }
+    },
+    "chain_break": {
+      "enabled": true,
+      "description": "Detect when delegation chain is unexpectedly broken"
+    }
+  },
+  "rules": {
+    "_comment": "Rule-specific configurations including severity and auto-block settings",
+    "RULE-001": {
+      "name": "Loop Detection",
+      "category": "structural",
+      "severity": "HIGH",
+      "auto_block": true,
+      "enabled": true
+    },
+    "RULE-002": {
+      "name": "Depth Violation",
+      "category": "structural",
+      "severity": "HIGH",
+      "auto_block": true,
+      "enabled": true
+    },
+    "RULE-003": {
+      "name": "Task Drift",
+      "category": "behavioral",
+      "severity": "MEDIUM",
+      "auto_block": false,
+      "enabled": true
+    },
+    "RULE-004": {
+      "name": "Error Cascade",
+      "category": "behavioral",
+      "severity": "HIGH",
+      "auto_block": "conditional",
+      "auto_block_threshold": 3,
+      "enabled": true
+    },
+    "RULE-005": {
+      "name": "Stagnation",
+      "category": "performance",
+      "severity": "MEDIUM",
+      "auto_block": false,
+      "enabled": true
+    },
+    "RULE-006": {
+      "name": "Agent Mismatch",
+      "category": "structural",
+      "severity": "LOW",
+      "auto_block": false,
+      "enabled": true
+    },
+    "RULE-007": {
+      "name": "Chain Break",
+      "category": "structural",
+      "severity": "MEDIUM",
+      "auto_block": false,
+      "enabled": true
+    },
+    "RULE-008": {
+      "name": "Escalation Abuse",
+      "category": "behavioral",
+      "severity": "MEDIUM",
+      "auto_block": "conditional",
+      "enabled": true
+    },
+    "RULE-009": {
+      "name": "Token Bloat",
+      "category": "performance",
+      "severity": "LOW",
+      "auto_block": false,
+      "enabled": true
+    },
+    "RULE-010": {
+      "name": "Retry Storm",
+      "category": "performance",
+      "severity": "HIGH",
+      "auto_block": true,
+      "enabled": true
+    }
+  },
+  "rule_execution_order": [
+    "RULE-010",
+    "RULE-001",
+    "RULE-002",
+    "RULE-004",
+    "RULE-007",
+    "RULE-003",
+    "RULE-008",
+    "RULE-005",
+    "RULE-006",
+    "RULE-009"
+  ],
+  "persistence": {
+    "_comment": "Audit log storage configuration",
+    "log_format": "jsonl",
+    "log_directory": ".claude/audit",
+    "session_file_pattern": "session_{YYYYMMDD}_{hex}.jsonl",
+    "index_file": "session_index.json",
+    "retention": {
+      "active_days": 7,
+      "archive_days": 30,
+      "auto_rotate": true,
+      "compress_archives": true
+    },
+    "backup": {
+      "enabled": false,
+      "frequency": "daily",
+      "destination": null
+    }
+  },
+  "alerts": {
+    "_comment": "Alert configuration and notification channels",
+    "enabled": true,
+    "channels": [
+      "in_conversation",
+      "log"
+    ],
+    "severity_filter": "MEDIUM",
+    "severity_levels": {
+      "HIGH": {
+        "color": "red",
+        "emoji": "red_circle",
+        "immediate_notify": true
+      },
+      "MEDIUM": {
+        "color": "yellow",
+        "emoji": "warning",
+        "immediate_notify": false
+      },
+      "LOW": {
+        "color": "green",
+        "emoji": "information_source",
+        "immediate_notify": false
+      }
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url": null,
+      "channel": "#sentinel-alerts",
+      "mention_on_high": "@channel",
+      "rate_limit_per_minute": 10
+    },
+    "discord": {
+      "enabled": false,
+      "webhook_url": null,
+      "mention_role": null
+    },
+    "email": {
+      "enabled": false,
+      "recipients": [],
+      "subject_prefix": "[Sentinel]"
+    }
+  },
+  "health_score": {
+    "_comment": "Health scoring system for orchestration quality monitoring",
+    "base_score": 100,
+    "minimum_score": 0,
+    "maximum_score": 100,
+    "deductions": {
+      "loop_detected": -20,
+      "depth_violation": -15,
+      "error_cascade": -15,
+      "chain_break": -10,
+      "task_drift": -10,
+      "escalation_abuse": -10,
+      "retry_storm": -10,
+      "stagnation": -5,
+      "agent_mismatch": -3,
+      "token_bloat": -2
+    },
+    "bonuses": {
+      "clean_delegation": 2,
+      "fast_execution": 1,
+      "successful_recovery": 5,
+      "optimal_agent_selection": 1
+    },
+    "thresholds": {
+      "excellent": 90,
+      "good": 70,
+      "fair": 50,
+      "poor": 30,
+      "critical": 0
+    },
+    "threshold_descriptions": {
+      "excellent": "Orchestration operating optimally",
+      "good": "Minor issues detected, no intervention needed",
+      "fair": "Some concerns, review recommended",
+      "poor": "Significant issues, intervention recommended",
+      "critical": "Critical state, immediate action required"
+    }
+  },
+  "hooks": {
+    "_comment": "Integration with hookify for enforcement",
+    "enforcement_mode": "soft",
+    "strict_mode_enabled": false,
+    "compliance_tracking": true,
+    "enforcement_modes": {
+      "soft": {
+        "description": "Log violations, suggest corrections, allow continuation",
+        "block_on_high_severity": false
+      },
+      "moderate": {
+        "description": "Log violations, require acknowledgment for HIGH severity",
+        "block_on_high_severity": true,
+        "allow_override": true
+      },
+      "strict": {
+        "description": "Block all violations, require explicit approval to continue",
+        "block_on_high_severity": true,
+        "allow_override": false
+      }
+    }
+  },
+  "session": {
+    "_comment": "Session management configuration",
+    "id_format": "uuid_v4",
+    "auto_start": true,
+    "persist_on_error": true,
+    "max_task_history": 100,
+    "cleanup_on_complete": false
+  },
+  "metrics": {
+    "_comment": "Metrics collection for analysis",
+    "enabled": true,
+    "collect_timing": true,
+    "collect_token_usage": true,
+    "collect_agent_stats": true,
+    "aggregation_interval_ms": 60000,
+    "export": {
+      "enabled": false,
+      "format": "prometheus",
+      "endpoint": null
+    }
+  },
+  "debug": {
+    "_comment": "Debug and development settings",
+    "verbose_logging": false,
+    "trace_delegations": false,
+    "dump_state_on_error": true,
+    "mock_mode": false
+  }
+}

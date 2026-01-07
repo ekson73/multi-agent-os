@@ -1,0 +1,352 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://vek.com.br/schemas/sentinel/trace/v1.0.0",
+  "title": "Sentinel Protocol Trace Schema",
+  "description": "JSON Schema for Sentinel Protocol trace events (v1.0.0). Provides OpenTelemetry GenAI-compatible tracing for multi-agent orchestration systems.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "trace_id",
+    "span_id",
+    "session_id",
+    "timestamp",
+    "operation",
+    "agent",
+    "task",
+    "metrics",
+    "analysis",
+    "context"
+  ],
+  "properties": {
+    "trace_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique trace identifier (UUID v4)",
+      "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "W3C Trace Context compliant span identifier (16 hex characters)",
+      "examples": ["1234567890abcdef"]
+    },
+    "parent_span_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{16}$",
+      "description": "Parent span identifier for distributed tracing (null for root spans)",
+      "examples": ["fedcba0987654321", null]
+    },
+    "session_id": {
+      "type": "string",
+      "pattern": "^Claude-Orch-Prime-[0-9]{8}-[0-9a-f]{4}$",
+      "description": "Orchestration session identifier following Claude-Orch-Prime-{YYYYMMDD}-{4hex} format",
+      "examples": ["Claude-Orch-Prime-20260106-c614"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with timezone offset",
+      "examples": ["2026-01-06T21:45:00-03:00"]
+    },
+    "gen_ai.operation.name": {
+      "type": "string",
+      "enum": ["delegate", "execute", "escalate", "error"],
+      "description": "OpenTelemetry GenAI semantic convention: operation name"
+    },
+    "gen_ai.request.model": {
+      "type": "string",
+      "description": "OpenTelemetry GenAI semantic convention: model identifier",
+      "examples": ["claude-opus-4-5-20251101", "claude-sonnet-4-20250514"]
+    },
+    "gen_ai.usage.input_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "OpenTelemetry GenAI semantic convention: input token count"
+    },
+    "gen_ai.usage.output_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "OpenTelemetry GenAI semantic convention: output token count"
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "phase"],
+      "description": "Operation details for the trace event",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["delegate", "execute", "escalate", "error"],
+          "description": "Type of operation being traced"
+        },
+        "phase": {
+          "type": "string",
+          "enum": ["pre", "post"],
+          "description": "Phase of operation: pre (before execution) or post (after execution)"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Duration of operation in milliseconds (0 for pre-phase events)",
+          "default": 0
+        }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "depth"],
+      "description": "Agent identification and hierarchy information",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique agent identifier",
+          "examples": ["Claude-Dev-c614-001", "Claude-Analyst-c614-002"]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "Analyst",
+            "Architect",
+            "Dev",
+            "PM",
+            "PO",
+            "QA",
+            "DevOps",
+            "UX",
+            "Editor",
+            "Consolidator",
+            "Custom"
+          ],
+          "description": "Agent role/type classification"
+        },
+        "parent_id": {
+          "type": ["string", "null"],
+          "description": "Parent agent identifier (null for orchestrator)",
+          "examples": ["Claude-Orch-Prime-20260106-c614", null]
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Delegation depth in agent hierarchy (0 = orchestrator, max 5)"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description"],
+      "description": "Task specification and acceptance criteria",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique task identifier",
+          "examples": ["task-001", "VKS-542-impl"]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "Human-readable task description"
+        },
+        "success_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "List of criteria that define task success",
+          "default": [],
+          "examples": [["Tests pass", "No regressions", "Code reviewed"]]
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tokens_input", "tokens_output", "success"],
+      "description": "Performance and cost metrics",
+      "properties": {
+        "tokens_input": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of input tokens consumed"
+        },
+        "tokens_output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of output tokens generated"
+        },
+        "cost_usd": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Estimated cost in USD (null if not calculated)"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the operation completed successfully"
+        },
+        "error": {
+          "type": ["string", "null"],
+          "description": "Error message if operation failed (null on success)",
+          "maxLength": 5000
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rules_triggered", "severity", "blocked"],
+      "description": "Sentinel analysis results and recommendations",
+      "properties": {
+        "rules_triggered": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$"
+          },
+          "description": "List of rule IDs that were triggered",
+          "default": [],
+          "examples": [["LOOP-001", "DEPTH-002", "TOKEN-003"]]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW", "NONE"],
+          "description": "Highest severity level of triggered rules"
+        },
+        "recommended_action": {
+          "type": ["string", "null"],
+          "description": "Recommended action based on analysis (null if no action needed)",
+          "examples": ["Block delegation", "Warn and continue", null]
+        },
+        "blocked": {
+          "type": "boolean",
+          "description": "Whether the operation was blocked by Sentinel"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delegation_chain", "task_similarity_score", "loop_risk"],
+      "description": "Contextual information for pattern detection",
+      "properties": {
+        "delegation_chain": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Ordered list of agent IDs in the delegation chain",
+          "examples": [["Claude-Orch-Prime-20260106-c614", "Claude-Dev-c614-001"]]
+        },
+        "task_similarity_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Similarity score (0-1) between current task and recent tasks in chain"
+        },
+        "loop_risk": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"],
+          "description": "Assessed risk of delegation loop based on patterns"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "trace_id": "550e8400-e29b-41d4-a716-446655440000",
+      "span_id": "1234567890abcdef",
+      "parent_span_id": null,
+      "session_id": "Claude-Orch-Prime-20260106-c614",
+      "timestamp": "2026-01-06T21:45:00-03:00",
+      "gen_ai.operation.name": "delegate",
+      "gen_ai.request.model": "claude-opus-4-5-20251101",
+      "gen_ai.usage.input_tokens": 1500,
+      "gen_ai.usage.output_tokens": 2000,
+      "operation": {
+        "name": "delegate",
+        "phase": "pre",
+        "duration_ms": 0
+      },
+      "agent": {
+        "id": "Claude-Dev-c614-001",
+        "type": "Dev",
+        "parent_id": "Claude-Orch-Prime-20260106-c614",
+        "depth": 1
+      },
+      "task": {
+        "id": "task-001",
+        "description": "Implement feature X",
+        "success_criteria": ["Tests pass", "No regressions"]
+      },
+      "metrics": {
+        "tokens_input": 1500,
+        "tokens_output": 2000,
+        "cost_usd": 0.0525,
+        "success": true,
+        "error": null
+      },
+      "analysis": {
+        "rules_triggered": [],
+        "severity": "NONE",
+        "recommended_action": null,
+        "blocked": false
+      },
+      "context": {
+        "delegation_chain": ["Claude-Orch-Prime-20260106-c614"],
+        "task_similarity_score": 0.15,
+        "loop_risk": "none"
+      }
+    },
+    {
+      "trace_id": "660f9511-f30c-52e5-b827-557766551111",
+      "span_id": "abcdef1234567890",
+      "parent_span_id": "1234567890abcdef",
+      "session_id": "Claude-Orch-Prime-20260106-c614",
+      "timestamp": "2026-01-06T21:50:30-03:00",
+      "gen_ai.operation.name": "escalate",
+      "gen_ai.request.model": "claude-sonnet-4-20250514",
+      "gen_ai.usage.input_tokens": 800,
+      "gen_ai.usage.output_tokens": 150,
+      "operation": {
+        "name": "escalate",
+        "phase": "post",
+        "duration_ms": 5500
+      },
+      "agent": {
+        "id": "Claude-Dev-c614-001",
+        "type": "Dev",
+        "parent_id": "Claude-Orch-Prime-20260106-c614",
+        "depth": 1
+      },
+      "task": {
+        "id": "task-001",
+        "description": "Implement feature X",
+        "success_criteria": ["Tests pass", "No regressions"]
+      },
+      "metrics": {
+        "tokens_input": 800,
+        "tokens_output": 150,
+        "cost_usd": 0.012,
+        "success": false,
+        "error": "Build failed: missing dependency"
+      },
+      "analysis": {
+        "rules_triggered": ["RETRY-001"],
+        "severity": "LOW",
+        "recommended_action": "Retry with additional context",
+        "blocked": false
+      },
+      "context": {
+        "delegation_chain": ["Claude-Orch-Prime-20260106-c614", "Claude-Dev-c614-001"],
+        "task_similarity_score": 0.85,
+        "loop_risk": "medium"
+      }
+    }
+  ]
+}

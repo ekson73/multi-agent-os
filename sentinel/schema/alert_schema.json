@@ -1,0 +1,272 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://vek.com.br/schemas/sentinel/alert/v1.0.0",
+  "title": "Sentinel Protocol Alert Schema",
+  "description": "JSON Schema for Sentinel Protocol alert events (v1.0.0)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "alert_id",
+    "timestamp",
+    "session_id",
+    "severity",
+    "rule",
+    "source",
+    "details",
+    "action",
+    "notification"
+  ],
+  "properties": {
+    "alert_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the alert (UUID v4)",
+      "examples": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp with timezone when the alert was generated",
+      "examples": ["2026-01-06T21:50:00-03:00"]
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the orchestration session where the alert occurred",
+      "examples": ["Claude-Orch-Prime-20260106-c614"]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["HIGH", "MEDIUM", "LOW"],
+      "description": "Severity level of the alert",
+      "examples": ["HIGH"]
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Information about the rule that triggered the alert",
+      "required": ["id", "name", "category"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^RULE-[0-9]{3}$",
+          "description": "Unique rule identifier (e.g., RULE-001)",
+          "examples": ["RULE-001", "RULE-002", "RULE-010"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable rule name",
+          "examples": ["Loop Detection", "Depth Violation", "Retry Storm"]
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Structural", "Behavioral", "Performance"],
+          "description": "Category of the rule",
+          "examples": ["Structural"]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Information about the source that triggered the alert",
+      "required": ["trace_id", "agent_id", "task_id"],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "UUID of the triggering trace event",
+          "examples": ["550e8400-e29b-41d4-a716-446655440000"]
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of the agent involved in the alert",
+          "examples": ["Claude-Dev-c614-001", "Claude-Analyst-c614-002"]
+        },
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of the task that caused the alert",
+          "examples": ["task-001", "task-002"]
+        }
+      }
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Detailed information about the alert",
+      "required": ["description", "evidence", "threshold_violated", "actual_value"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable description of what triggered the alert",
+          "examples": [
+            "Same task delegated to same agent type",
+            "Maximum delegation depth exceeded",
+            "Excessive retry attempts detected"
+          ]
+        },
+        "evidence": {
+          "type": "object",
+          "description": "Rule-specific evidence data supporting the alert",
+          "examples": [
+            {
+              "loop_chain": ["Agent-A", "Agent-B", "Agent-A"],
+              "similarity_score": 0.92,
+              "original_task": "Analyze requirements",
+              "repeated_task": "Analyze requirements for module X"
+            },
+            {
+              "current_depth": 4,
+              "max_allowed": 3,
+              "delegation_chain": ["Orch", "PM", "Analyst", "Dev", "QA"]
+            },
+            {
+              "retry_count": 7,
+              "time_window_ms": 60000,
+              "operation": "API call to external service"
+            }
+          ]
+        },
+        "threshold_violated": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the threshold or limit that was violated",
+          "examples": [
+            "similarity_threshold",
+            "max_delegation_depth",
+            "max_retries_per_minute"
+          ]
+        },
+        "actual_value": {
+          "description": "The actual value that violated the threshold (can be any type)",
+          "examples": [0.92, 4, 7]
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Action taken or recommended in response to the alert",
+      "required": ["type", "auto_applied", "recommended", "resolution"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["BLOCK", "ALERT", "LOG", "SUGGEST"],
+          "description": "Type of action taken or to be taken",
+          "examples": ["BLOCK"]
+        },
+        "auto_applied": {
+          "type": "boolean",
+          "description": "Whether the action was automatically applied by the system",
+          "examples": [true, false]
+        },
+        "recommended": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Recommended action to resolve the issue",
+          "examples": [
+            "Modify task or use different agent",
+            "Reduce delegation chain",
+            "Implement exponential backoff"
+          ]
+        },
+        "resolution": {
+          "type": ["string", "null"],
+          "description": "Resolution taken, or null if not yet resolved",
+          "examples": [null, "User acknowledged and continued", "Task was modified"]
+        }
+      }
+    },
+    "notification": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Information about notification delivery and acknowledgment",
+      "required": [
+        "sent",
+        "channels",
+        "acknowledged",
+        "acknowledged_by",
+        "acknowledged_at"
+      ],
+      "properties": {
+        "sent": {
+          "type": "boolean",
+          "description": "Whether the notification was sent",
+          "examples": [true, false]
+        },
+        "channels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "List of channels through which the notification was sent",
+          "examples": [
+            ["in_conversation"],
+            ["in_conversation", "slack"],
+            ["email", "dashboard"]
+          ]
+        },
+        "acknowledged": {
+          "type": "boolean",
+          "description": "Whether the alert has been acknowledged",
+          "examples": [true, false]
+        },
+        "acknowledged_by": {
+          "type": ["string", "null"],
+          "description": "Identifier of who acknowledged the alert, or null if not acknowledged",
+          "examples": [null, "user@example.com", "system-auto"]
+        },
+        "acknowledged_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of acknowledgment, or null if not acknowledged",
+          "examples": [null, "2026-01-06T22:00:00-03:00"]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "alert_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "timestamp": "2026-01-06T21:50:00-03:00",
+      "session_id": "Claude-Orch-Prime-20260106-c614",
+      "severity": "HIGH",
+      "rule": {
+        "id": "RULE-001",
+        "name": "Loop Detection",
+        "category": "Structural"
+      },
+      "source": {
+        "trace_id": "550e8400-e29b-41d4-a716-446655440000",
+        "agent_id": "Claude-Dev-c614-001",
+        "task_id": "task-001"
+      },
+      "details": {
+        "description": "Same task delegated to same agent type",
+        "evidence": {
+          "similarity_score": 0.92
+        },
+        "threshold_violated": "similarity_threshold",
+        "actual_value": 0.92
+      },
+      "action": {
+        "type": "BLOCK",
+        "auto_applied": true,
+        "recommended": "Modify task or use different agent",
+        "resolution": null
+      },
+      "notification": {
+        "sent": true,
+        "channels": ["in_conversation"],
+        "acknowledged": false,
+        "acknowledged_by": null,
+        "acknowledged_at": null
+      }
+    }
+  ]
+}

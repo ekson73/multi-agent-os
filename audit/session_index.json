@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$comment": "Sentinel Protocol Session Index v1.0.0",
+  "version": "1.0.0",
+  "last_updated": "2026-01-06T11:28:13-03:00",
+  "sessions": [
+    {
+      "session_id": "Claude-Orch-Prime-20260106-0000",
+      "file": "session_20260106_0000.jsonl",
+      "status": "active",
+      "started_at": "2026-01-06T11:28:13-03:00",
+      "ended_at": null,
+      "duration_minutes": null,
+      "orchestrator": {
+        "id": "Claude-Orch-Prime-20260106-0000",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "agents": {
+        "total_spawned": 0,
+        "types": {
+          "Dev": 0,
+          "Analyst": 0,
+          "Architect": 0,
+          "QA": 0,
+          "PO": 0,
+          "Editor": 0
+        }
+      },
+      "metrics": {
+        "trace_count": 0,
+        "delegation_count": 0,
+        "error_count": 0,
+        "anomaly_count": 0,
+        "max_depth_reached": 0,
+        "tokens_total": 0
+      },
+      "health": {
+        "score": 100,
+        "status": "excellent",
+        "last_calculated": null
+      },
+      "anomalies": {
+        "HIGH": 0,
+        "MEDIUM": 0,
+        "LOW": 0,
+        "rules_triggered": []
+      }
+    }
+  ],
+  "statistics": {
+    "total_sessions": 1,
+    "active_sessions": 1,
+    "completed_sessions": 0,
+    "archived_sessions": 0,
+    "average_health_score": 100,
+    "total_traces_all_time": 0,
+    "total_anomalies_all_time": 0
+  }
+}
