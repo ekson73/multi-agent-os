@@ -1,7 +1,7 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
      CANONICAL SOURCE
      ═══════════════════════════════════════════════════════════════════════
-     Repository: github.com/ekson73/multi-agent-os
+     Repository: https://github.com/ekson73/multi-agent-os
      Path: protocols/hierarchical-merge-protocol.md
      Version: v1.0
 
