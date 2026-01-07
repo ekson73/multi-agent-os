@@ -1,3 +1,26 @@
+<!-- ═══════════════════════════════════════════════════════════════════════
+     CANONICAL SOURCE
+     ═══════════════════════════════════════════════════════════════════════
+     Repository: github.com/ekson73/multi-agent-os
+     Path: protocols/hierarchical-merge-protocol.md
+     Version: v1.0
+
+     TTL POLICY:
+     Type: Protocol/Standard
+     TTL: 90 days
+     Next Review: 2026-04-07
+
+     CONSUMPTION INSTRUCTIONS:
+     When duplicating to consumer projects, add a CONSUMER HEADER with:
+     - SOURCE OF TRUTH pointing back to this file (Canonical URL)
+     - Last sync date (ISO 8601)
+     - Calculated expiration date (sync_date + TTL)
+     - Status indicator (FRESH/EXPIRING/EXPIRED)
+     - Actions by state (what to do when FRESH/EXPIRING/EXPIRED)
+
+     See: docs/framework-consumption.md for full template
+     ═══════════════════════════════════════════════════════════════════════ -->
+
 # Hierarchical Merge Protocol v1.0
 
 ## Overview

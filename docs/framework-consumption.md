@@ -232,6 +232,198 @@ If network isolation requires local copy:
 
 ---
 
+## TTL Policy & Consumer Header Template
+
+### TTL by Information Type
+
+When consuming framework content, calculate expiration based on content type:
+
+| Type | TTL (days) | Rationale |
+|------|------------|-----------|
+| Protocol/Standard | 90 | Core protocols are stable |
+| API Documentation | 60 | Interfaces change moderately |
+| Configuration | 30 | Configs may need frequent updates |
+| Roadmap/Timeline | 14 | Time-sensitive information |
+| Security Policy | 90 | Security requires stability |
+| Decision Record | 180 | Decisions are long-lived |
+| Tutorial/Guide | 60 | Examples may need updates |
+| Reference Data | 30 | Data freshness matters |
+
+### Consumer Header Template
+
+When duplicating content from framework to consumer project, add this header:
+
+```html
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SOURCE OF TRUTH: multi-agent-os (framework)
+     ═══════════════════════════════════════════════════════════════════════
+     Canonical: github.com/ekson73/multi-agent-os/{path-to-file}
+     Version: {version}
+     Last sync: {YYYY-MM-DD}
+
+     TTL POLICY:
+     Type: {type-from-table-above}
+     TTL: {days} days
+     Expires: {sync-date + TTL}
+     Status: {FRESH|EXPIRING|EXPIRED}
+
+     ACTIONS BY STATE:
+     🟢 FRESH (now < expires-7d): Use normally
+     🟡 EXPIRING (expires-7d < now < expires): Alert, plan review
+     🔴 EXPIRED (now >= expires): Block usage until refresh from upstream
+
+     Este conteudo e CONSUMIDO do framework multi-agent-os.
+     Atualizacoes devem ser feitas UPSTREAM FIRST, depois sincronizadas aqui.
+     Customizacoes locais sao permitidas, mas devem ser claramente marcadas.
+     ═══════════════════════════════════════════════════════════════════════ -->
+```
+
+### Header Field Definitions
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `Canonical` | Full URL to source file in framework | `github.com/ekson73/multi-agent-os/protocols/hmp.md` |
+| `Version` | Version of the protocol being consumed | `v1.0` |
+| `Last sync` | Date content was synced from framework | `2026-01-07` |
+| `Type` | Content type (from TTL table) | `Protocol/Standard` |
+| `TTL` | Time-to-live in days | `90 days` |
+| `Expires` | Calculated date (sync + TTL) | `2026-04-07` |
+| `Status` | Current freshness state | `FRESH`, `EXPIRING`, or `EXPIRED` |
+
+### Status State Machine
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  TTL STATUS STATE MACHINE                                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  SYNC ───► 🟢 FRESH ──────────────────────► 🟡 EXPIRING ───► 🔴 EXPIRED │
+│            │                                │                │          │
+│            │  (now < expires - 7d)          │  (7d window)   │          │
+│            │                                │                │          │
+│            │                                │                ▼          │
+│            │                                │           BLOCK USAGE     │
+│            │                                │                │          │
+│            │                                │                ▼          │
+│            │                                │           REFRESH         │
+│            │                                │           FROM UPSTREAM   │
+│            └────────────────────────────────┴───────────────────────────│
+│                                                         │               │
+│                                                         ▼               │
+│                                                    SYNC again           │
+│                                                    (back to FRESH)      │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Agent Behavior by Status
+
+| Status | Agent Should | Human Should |
+|--------|--------------|--------------|
+| 🟢 FRESH | Use content normally | No action needed |
+| 🟡 EXPIRING | Warn human, suggest review | Schedule sync review |
+| 🔴 EXPIRED | Block usage, require refresh | Sync from upstream |
+
+---
+
+## PROV Tag — Compact Provenance Stamp
+
+For smaller files or contexts where full headers are excessive, use **PROV** (Provenance) tags.
+
+### Why "PROV"?
+
+| Term Considered | Verdict |
+|-----------------|---------|
+| PEDIGREE | Good but biology-oriented |
+| LINEAGE | Too genealogical |
+| ORIGIN | Too generic |
+| DNA | Confusing with bioinformatics |
+| FINGERPRINT | Confusing with hashes |
+| **PROV** | **Winner** — short, data-lineage standard |
+
+**PROV** is used in data engineering and ML for tracking data provenance (origin + transformations).
+
+### PROV Tag Formats
+
+#### Format: COMPACT (3 lines)
+
+```html
+<!-- PROV: multi-agent-os/protocols/hmp.md | v1.0 | sync:2026-01-07 | TTL:90d | exp:2026-04-07 -->
+```
+
+#### Format: INLINE (1 line, Markdown-safe)
+
+```markdown
+[//]: # (PROV: multi-agent-os/hmp.md@v1.0|2026-01-07|TTL90)
+```
+
+#### Format: JSON (for .json files)
+
+```json
+{
+  "_prov": "multi-agent-os/protocols/hmp.md|v1.0|2026-01-07|TTL90",
+  ...rest of file...
+}
+```
+
+#### Format: YAML (for .yaml/.yml files)
+
+```yaml
+# PROV: multi-agent-os/protocols/hmp.md|v1.0|2026-01-07|TTL90
+...rest of file...
+```
+
+### PROV Tag Specification
+
+```
+PROV: {source-path} | v{version} | sync:{YYYY-MM-DD} | TTL:{days}d | exp:{YYYY-MM-DD}
+```
+
+| Field | Format | Example |
+|-------|--------|---------|
+| `source-path` | `{repo}/{path}` | `multi-agent-os/protocols/hmp.md` |
+| `version` | `v{semver}` | `v1.0` |
+| `sync` | `sync:{ISO-date}` | `sync:2026-01-07` |
+| `TTL` | `TTL:{days}d` | `TTL:90d` |
+| `exp` | `exp:{ISO-date}` | `exp:2026-04-07` |
+
+### When to Use Each Format
+
+| Context | Recommended Format |
+|---------|-------------------|
+| Main protocol docs (CLAUDE.md, README.md) | **FULL** (15-line header) |
+| Section-level content in larger files | **COMPACT** (3-line) |
+| Config files, small utilities | **INLINE** (1-line) |
+| JSON/YAML configs | **JSON/YAML** format |
+| Code comments | **INLINE** |
+
+### PROV vs Full Header Decision Tree
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PROV FORMAT SELECTION                                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Is content > 100 lines?                                                │
+│    YES → Use FULL header                                                │
+│    NO  ↓                                                                │
+│                                                                         │
+│  Is content a standalone file?                                          │
+│    YES → Use COMPACT (3-line)                                           │
+│    NO  ↓                                                                │
+│                                                                         │
+│  Is content embedded in another file?                                   │
+│    YES → Use INLINE (1-line)                                            │
+│    NO  → Use COMPACT (3-line)                                           │
+│                                                                         │
+│  Is file JSON/YAML?                                                     │
+│    YES → Use JSON/YAML format                                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Framework Files Reference
 
 | Directory | Content | Consumer Access |
