@@ -17,8 +17,5 @@
     "observability",
     "git-worktrees"
   ],
-  "engines": {
-    "claude-code": ">=1.0.0"
-  },
   "hooks": "./hooks/hooks.json"
 }
