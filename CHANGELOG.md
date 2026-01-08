@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Changed
+- Version sync between CHANGELOG.md and plugin.json pending (plugin.json shows 1.0.0)
 
 ## [1.1.0] - 2026-01-08
+
+> **Note**: Plugin manifest (`plugin.json`) version should be updated to 1.1.0 to match this release.
 
 ### Added
 
@@ -95,7 +98,7 @@ _No unreleased changes._
 - `sentinel/lib/alert_handler.md` - Alert routing logic
 
 #### Status Map System v1.0.0
-- 9 template types for different contexts:
+- 9 individual template types + 1 consolidated reference file (10 total):
   - PULSE (1-line, every response)
   - COMPACT (6-line, every 5 responses)
   - SESSION_START (session begin)
@@ -105,6 +108,7 @@ _No unreleased changes._
   - ERROR_DEBUG (error diagnosis)
   - PRE_COMMIT (commit validation)
   - FULL_REPORT (complete audit)
+  - `statusmap_templates.md` (consolidated reference)
 - Automatic template inference engine
 - Semaphore indicators (green/yellow/red)
 
