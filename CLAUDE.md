@@ -271,5 +271,31 @@ See `docs/framework-consumption.md` for full guidance.
 
 ---
 
+## Organizational Identity (MVV)
+
+### Mission (A Práxis)
+
+> **Prover um framework de orquestração para agentes AI em ambientes de desenvolvimento de software, através de protocolos formalizados de coordenação, observabilidade embutida e prevenção de conflitos, para resolver o problema de múltiplos agentes trabalhando em paralelo no mesmo repositório sem colidir, entrar em loops, ou perder visibilidade.**
+
+### Vision (A Teleologia)
+
+> **Tornar-se o padrão de facto para orquestração de agentes AI em desenvolvimento de software, onde qualquer equipe que use múltiplos AI agents possa adotar este framework como "sistema operacional" para coordenação, assim como Kubernetes é o padrão para orquestração de containers.**
+
+### Values (A Ética)
+
+| Value | Description |
+|-------|-------------|
+| **Protocol-First** | Behaviors governed by documented protocols, not implicit conventions |
+| **Human Observability** | Automated systems always provide visibility for humans, not just machine logs |
+| **Source of Truth Discipline** | Single source of truth per concept, with expiration and sync mechanisms |
+| **Defensive Automation** | Automation detects and blocks anomalous behaviors before causing damage |
+| **Hierarchical Convergence** | Parallel work converges through controlled hierarchies, not direct merges |
+
+---
+
+*MVV extracted via ontological analysis by Claude-Analyst-eed7-001 | 2026-01-08*
+
+---
+
 *Multi-Agent OS v1.0.0 | Plugin for Claude Code*
 *Analysis by: Claude-Analyst-c614-plugin | 2026-01-08T21:30:00-03:00*
