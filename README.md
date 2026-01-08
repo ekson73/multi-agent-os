@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://claude.ai/code)
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue)](https://github.com/ekson73/multi-agent-os)
+[![Version](https://img.shields.io/badge/Version-1.1.0-blue)](https://github.com/ekson73/multi-agent-os)
 [![Sentinel](https://img.shields.io/badge/Sentinel-Protocol-green)](https://github.com/ekson73/multi-agent-os/tree/main/sentinel)
 
 A comprehensive Claude Code plugin for orchestrating AI agents in software development workflows.
@@ -39,6 +39,12 @@ A comprehensive Claude Code plugin for orchestrating AI agents in software devel
 - Content freshness management
 - PROV tags for provenance tracking
 - Automatic expiration alerts
+
+### MVV Generator (v1.1.0)
+- 8-dimension ontological analysis (Context, Purpose, Taxonomy, Semantics, Lineage, Epistemology, Ontology, Aesthetics)
+- Mission/Vision/Values synthesis pipeline
+- Automated organizational identity extraction
+- `/mvv` command for one-shot execution
 
 ## Installation
 
@@ -177,4 +183,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-*Multi-Agent OS v1.0.0 | Created by Emilson Moraes | Powered by Claude Code*
+*Multi-Agent OS v1.1.0 | Created by Emilson Moraes | Powered by Claude Code*
