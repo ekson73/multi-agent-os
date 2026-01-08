@@ -1,10 +1,11 @@
-# Context Preparation Skill
+---
+name: context-prep
+description: Prepare optimal context package before delegating tasks to sub-agents
+version: 1.0.0
+author: Claude-Orch-Prime
+---
 
-## Metadata
-- **Skill ID**: context-prep
-- **Version**: 1.0.0
-- **Author**: Claude-Orch-Prime
-- **Created**: 2026-01-06
+# Context Preparation Skill
 
 ## Purpose
 

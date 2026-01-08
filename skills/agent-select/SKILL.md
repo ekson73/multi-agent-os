@@ -1,10 +1,11 @@
-# Agent Selection Skill
+---
+name: agent-select
+description: Analyze tasks and recommend optimal sub-agent(s) for execution
+version: 1.0.0
+author: Claude-Orch-Prime-20260106-86fa
+---
 
-## Metadata
-- **Skill ID**: agent-select
-- **Version**: 1.0.0
-- **Author**: Claude-Orch-Prime-20260106-86fa
-- **Created**: 2026-01-06
+# Agent Selection Skill
 
 ## Purpose
 

@@ -1,11 +1,11 @@
-# Audit Skill
+---
+name: audit
+description: On-demand audit and analysis of agent orchestration flows via Sentinel Protocol
+version: 1.1.0
+author: Claude-Orch-Prime-20260106-86fa
+---
 
-## Metadata
-- **Skill ID**: audit
-- **Version**: 1.1.0
-- **Author**: Claude-Orch-Prime-20260106-86fa (implemented 2026-01-06)
-- **Created**: 2026-01-06
-- **Part of**: Sentinel Protocol
+# Audit Skill
 
 ## Purpose
 
