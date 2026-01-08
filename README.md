@@ -99,7 +99,9 @@ multi-agent-os/
 │   ├── worktree-policy/SKILL.md
 │   ├── anti-conflict/SKILL.md
 │   ├── status-map/SKILL.md
-│   └── ttl-policy/SKILL.md
+│   ├── ttl-policy/SKILL.md
+│   ├── ontological-analysis/SKILL.md  ← NEW: 8-dimension analysis
+│   └── mvv-synthesis/SKILL.md         ← NEW: MVV generation
 ├── protocols/                ← Protocol documentation
 ├── sentinel/                 ← Sentinel Protocol files
 ├── statusmap/                ← Status Map templates
@@ -115,6 +117,7 @@ multi-agent-os/
 | `/status` | Display status map |
 | `/worktree` | Manage git worktrees |
 | `/delegate` | Delegate to sub-agent |
+| `/mvv` | Generate Mission, Vision, Values |
 
 ## Available Skills
 
@@ -128,6 +131,8 @@ multi-agent-os/
 | `anti-conflict` | Conflict prevention |
 | `status-map` | Status visualization |
 | `ttl-policy` | Content freshness |
+| `ontological-analysis` | 8-dimension philosophical analysis |
+| `mvv-synthesis` | Mission/Vision/Values synthesis |
 
 ## Available Agents
 
