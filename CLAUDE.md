@@ -227,7 +227,8 @@ See `docs/framework-consumption.md` for full guidance.
 - None - plugin validates successfully
 
 ### Improvements (P1)
-- [ ] Add CHANGELOG.md for version tracking
+- [x] Add CHANGELOG.md for version tracking (completed 2026-01-08)
+- [x] Add version-sync GitHub Action (completed 2026-01-08)
 - [ ] Add example consumer project
 - [ ] Add automated TTL checking script
 - [ ] Add Prometheus metrics export
