@@ -1,5 +1,10 @@
 # Multi-Agent OS
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://claude.ai/code)
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue)](https://github.com/ekson73/multi-agent-os)
+[![Sentinel](https://img.shields.io/badge/Sentinel-Protocol-green)](https://github.com/ekson73/multi-agent-os/tree/main/sentinel)
+
 A comprehensive Claude Code plugin for orchestrating AI agents in software development workflows.
 
 ## Features
