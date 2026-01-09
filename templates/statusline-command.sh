@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # /**
 #  * Enriched Status Line for Claude Code with Multi-Agent-OS Integration
-#  * @version 1.0.1
+#  * @version 1.0.2
 #  * @author Multi-Agent-OS Framework
 #  * @context Displays model, project, branch, worktree, state, cost, and context metrics
 #  * @reason Provides real-time visibility into session state and resource usage
@@ -19,6 +19,12 @@ fi
 
 # Read JSON input from stdin
 INPUT=$(cat)
+
+# Validate JSON input
+if ! echo "$INPUT" | jq empty 2>/dev/null; then
+  echo "Claude | Invalid JSON input"
+  exit 0
+fi
 
 # ============================================================================
 # CORE DATA EXTRACTION
