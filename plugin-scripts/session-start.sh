@@ -84,9 +84,11 @@ SETTINGS
 configure_statusline_settings() {
   local settings="$1"
   local dest="${CLAUDE_DIR}/statusline-command.sh"
-  
+
   # Use jq if available for safe JSON manipulation
   if command -v jq &> /dev/null; then
+    # Create backup before modifying
+    cp "$settings" "${settings}.bak"
     local tmp=$(mktemp)
     jq --arg cmd "bash ${dest}" '. + {statusline: {command: $cmd}}' "$settings" > "$tmp" && mv "$tmp" "$settings"
   fi

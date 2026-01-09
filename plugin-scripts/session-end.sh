@@ -19,7 +19,13 @@ SESSION_LOG="${AUDIT_DIR}/session_${SESSION_ID}.jsonl"
 
 # Calculate basic health score
 HEALTH_SCORE=100
+
+# Check if session log exists before counting errors
+if [ -f "$SESSION_LOG" ]; then
 ERROR_COUNT=$(grep -c '"success":false' "$SESSION_LOG" 2>/dev/null || echo 0)
+else
+  ERROR_COUNT=0
+fi
 HEALTH_SCORE=$((HEALTH_SCORE - (ERROR_COUNT * 10)))
 [ $HEALTH_SCORE -lt 0 ] && HEALTH_SCORE=0
 

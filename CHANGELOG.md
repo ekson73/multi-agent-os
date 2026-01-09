@@ -5,10 +5,31 @@ All notable changes to the Multi-Agent OS plugin will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [Unreleased]
 
-### Changed
-- Version sync between CHANGELOG.md and plugin.json pending (plugin.json shows 1.0.0)
+## [1.2.0] - 2026-01-09
+
+### Added
+- Auto-install statusline feature in session-start.sh hook
+- Statusline script template (`templates/statusline-command.sh`) with:
+  - Model and version display
+  - Project and branch info
+  - Worktree detection
+  - Session state from MAOS registry
+  - Cost and context usage metrics
+  - Visual semaphores for context consumption
+
+### Fixed
+- BUG-001: Arithmetic increment with `set -e` in validate-plugin.sh (Critical)
+  - Changed `((VAR++))` to `((VAR++)) || true` to prevent exit on 0-to-1 increment
+- BUG-002: grep failure in session-end.sh when session log does not exist (High)
+  - Added existence check before grep -c
+- BUG-003: Missing JSON validation in statusline-command.sh (High)
+  - Added validation at start, graceful exit on invalid input
+  - Changed shebang from `#!/bin/bash` to `#!/usr/bin/env bash`
+- BUG-004: settings.json overwrite without backup in session-start.sh (High)
+  - Added `.bak` file creation before modifying user settings
 
 ## [1.1.0] - 2026-01-08
 
@@ -152,6 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.2.0 | 2026-01-09 | Statusline, bug fixes (BUG-001 to BUG-004) |
 | 1.1.0 | 2026-01-08 | MVV Generator, CLAUDE.md, worktree infra |
 | 1.0.0 | 2026-01-07 | Full plugin release, Sentinel, Status Map |
 | 0.9.0 | 2026-01-07 | Initial framework structure |

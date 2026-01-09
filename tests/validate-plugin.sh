@@ -26,12 +26,12 @@ pass() {
 
 fail() {
     echo "  ✗ $1"
-    ((ERRORS++))
+    ((ERRORS++)) || true
 }
 
 warn() {
     echo "  ⚠ $1"
-    ((WARNINGS++))
+    ((WARNINGS++)) || true
 }
 
 # Check required directories
@@ -119,7 +119,7 @@ for skill_dir in "$PLUGIN_ROOT/skills"/*/; do
         skill_name=$(basename "$skill_dir")
         if [ -f "${skill_dir}SKILL.md" ]; then
             pass "skills/$skill_name/SKILL.md exists"
-            ((SKILL_COUNT++))
+            ((SKILL_COUNT++)) || true
         else
             fail "skills/$skill_name/ missing SKILL.md"
         fi
@@ -147,7 +147,7 @@ for cmd in "$PLUGIN_ROOT/commands"/*.md; do
             else
                 warn "$cmd_name missing frontmatter"
             fi
-            ((COMMAND_COUNT++))
+            ((COMMAND_COUNT++)) || true
         fi
     fi
 done
@@ -173,7 +173,7 @@ for agent in "$PLUGIN_ROOT/agents"/*.md; do
             else
                 warn "$agent_name missing frontmatter"
             fi
-            ((AGENT_COUNT++))
+            ((AGENT_COUNT++)) || true
         fi
     fi
 done
