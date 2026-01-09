@@ -1,7 +1,7 @@
 {
-  "name": "multi-agent-os",
-  "version": "1.1.0",
-  "description": "Multi-Agent Coordination Framework - Orchestration, Sentinel Protocol, Worktree Policy, Status Maps",
+  "name": "maos",
+  "version": "1.2.0",
+  "description": "MAOS (Multi-Agent OS) - Coordination Framework for AI Agents with Orchestration, Sentinel Protocol, Worktree Policy, Status Maps",
   "author": {
     "name": "Vek - Desenvolvimento de Software",
     "email": "emilson.moraes@vectorinf.com.br",
@@ -10,6 +10,7 @@
   "repository": "https://github.com/ekson73/multi-agent-os",
   "license": "MIT",
   "keywords": [
+    "maos",
     "ai-agents",
     "orchestration",
     "multi-agent",
