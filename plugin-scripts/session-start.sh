@@ -90,6 +90,7 @@ configure_statusline_settings() {
     # Create backup before modifying
     cp "$settings" "${settings}.bak"
     local tmp=$(mktemp)
+    trap 'rm -f "$tmp" 2>/dev/null' EXIT
     jq --arg cmd "bash ${dest}" '. + {statusline: {command: $cmd}}' "$settings" > "$tmp" && mv "$tmp" "$settings"
   fi
   # If jq not available, skip - user can configure manually

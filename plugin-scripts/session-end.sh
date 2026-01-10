@@ -29,6 +29,9 @@ fi
 HEALTH_SCORE=$((HEALTH_SCORE - (ERROR_COUNT * 10)))
 [ $HEALTH_SCORE -lt 0 ] && HEALTH_SCORE=0
 
+# Ensure audit directory exists before writing
+mkdir -p "$AUDIT_DIR"
+
 # Log session end
 cat >> "$SESSION_LOG" << EOF
 {"event":"session_end","timestamp":"${TIMESTAMP}","session_id":"${SESSION_ID}","health_score":${HEALTH_SCORE}}

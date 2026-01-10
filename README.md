@@ -30,6 +30,11 @@ A comprehensive Claude Code plugin for orchestrating AI agents in software devel
 - Catch-22 scenario handling
 - Orphan branch cleanup
 
+### Statusline Auto-install
+- Automatic statusline template installation
+- Settings.json auto-configuration
+- Checksum-based update detection
+
 ### Hierarchical Merge Protocol v1.0
 - Parent-child branch convergence
 - Child Completion Constraint
