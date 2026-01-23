@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
 
+> **🔗 HERANÇA DE CONTEXTO GLOBAL**
+> Antes de iniciar qualquer tarefa, leia e incorpore:
+> - `~/.claude/CLAUDE.md` → Diretrizes C01/C02/C03 (Core Directive, Main Instructions, Iterative Loop)
+> - `~/Projects/CLAUDE.md` → Contexto do workspace multi-projeto
+
 ## Repository Overview
 
 **Multi-Agent OS** is a Claude Code plugin for orchestrating AI agents in software development workflows. It provides:
