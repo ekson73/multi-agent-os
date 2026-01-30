@@ -37,11 +37,11 @@
 ```markdown
 @{reviewer}
 
-All {N} issues addressed in commit `{hash}`.
+All {N} findings have been addressed.
 
-| Finding | Fix | Commit |
-|---------|-----|--------|
-| ... | ... | ... |
+| Finding | Fix | Commit(s) |
+|---------|-----|-----------|
+| ... | ... | `{hash}` |
 
 Tests: {N}/{N} passing ✅
 
@@ -52,9 +52,10 @@ Could you please re-review?
 
 | Situação | Timeout | Ação |
 |----------|---------|------|
-| Re-review bot | 10 min | Verificar comentários |
-| Review humano | 30 min | Escalar |
-| Sem resposta | 15 min | Merge se críticos OK |
+| Re-review bot | 15 min | Verificar comentários |
+| Review humano | 4 horas | Lembrete amigável no PR |
+| Sem resposta (bot) | 30 min | Merge se críticos OK |
+| Sem resposta (humano) | 1 dia útil | Escalar para líder |
 
 ---
 *Extends C07 (PR Review Protocol) | Full spec: `docs/pr-reviewer-communication.md`*
