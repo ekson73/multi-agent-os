@@ -8,6 +8,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-01-30
+
+### Added
+
+#### Governance Subsystem
+- `plugin-scripts/governance/` - Git worktree enforcement hooks
+  - `worktree-gate.sh` - Unified gatekeeper for C04 protocol enforcement
+  - `auto-name-session.sh` - Automatic session naming based on project/branch/worktree
+  - `lib/common.sh` - Shared constants and utilities
+  - `lib/json-rpc.sh` - MCP-JSON-RPC error emission helpers
+  - `lib/worktree-utils.sh` - Git worktree detection utilities
+
+#### Enforcement Rules
+- **RF01**: Block branch creation outside of git worktree
+- **RF02**: Block checkout in main working directory
+- **RF03**: Block commits to main/master branches
+- **RF04**: MCP-JSON-RPC error format (stderr) for AI agent recovery
+- **RF05**: Human-readable error messages for interactive sessions
+- **RF06**: Bypass flag (`--force-no-worktree`, `--maos-bypass`)
+
+#### Test Suite
+- `tests/governance/` - Comprehensive unit tests for governance subsystem
+  - `test-common.sh` - Tests for common.sh library
+  - `test-json-rpc.sh` - Tests for JSON-RPC error emission
+  - `test-worktree-utils.sh` - Tests for worktree detection
+  - `test-worktree-gate.sh` - Integration tests for gate script
+  - `run-all.sh` - Test suite runner
+
+### Changed
+- `hooks/hooks.json` - Added Bash matcher for worktree-gate.sh
+- `hooks/hooks.json` - Added auto-name-session.sh to SessionStart
+
+### Technical Details
+- All scripts use `set -euo pipefail` for safety
+- Errors emitted in MCP-JSON-RPC format to stderr (C06 compliant)
+- Exit codes: 0=allow, 2=block (C06 standard)
+- Error codes: -32000 (commit), -32001 (branch), -32002 (checkout)
+- Audit logging to `~/.claude/audit/governance_*.jsonl`
+
+### Migration Notes
+After installing v1.3.0, you can remove duplicate hooks from user settings:
+- `~/.claude/hooks/enforce-worktree.sh`
+- `~/.claude/hooks/prevent-main-commit.sh`
+- `~/.claude/hooks/auto-name-session.sh`
+
+These are now consolidated in the MAOS plugin governance subsystem.
+
+## [1.2.1] - 2026-01-10
+
+### Fixed
+- Version sync: plugin.json now matches CHANGELOG (was 1.2.1 vs 1.2.0)
+- Note: No code changes, only version metadata alignment
+
 ## [1.2.0] - 2026-01-09
 
 ### Added
@@ -173,6 +226,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.3.0 | 2026-01-30 | Governance subsystem, worktree enforcement hooks |
+| 1.2.1 | 2026-01-10 | Version sync fix |
 | 1.2.0 | 2026-01-09 | Statusline, bug fixes (BUG-001 to BUG-004) |
 | 1.1.0 | 2026-01-08 | MVV Generator, CLAUDE.md, worktree infra |
 | 1.0.0 | 2026-01-07 | Full plugin release, Sentinel, Status Map |
