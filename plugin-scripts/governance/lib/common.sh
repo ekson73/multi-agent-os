@@ -71,8 +71,9 @@ log_audit() {
 
     if [[ -d "$audit_dir" ]]; then
         local log_file="${audit_dir}/governance_$(date +%Y%m%d).jsonl"
+        # Escape event and session_id for valid JSON
         printf '{"timestamp":"%s","event":"%s","session":"%s","data":%s}\n' \
-            "$(get_timestamp)" "$event" "$session_id" "$data" >> "$log_file"
+            "$(get_timestamp)" "$(json_escape "$event")" "$(json_escape "$session_id")" "$data" >> "$log_file"
     fi
 }
 
@@ -80,12 +81,13 @@ log_audit() {
 # STRING UTILITIES
 # =============================================================================
 
-# Escape string for JSON
+# Escape string for JSON (handles common control characters)
 json_escape() {
     local str="$1"
     str="${str//\\/\\\\}"
     str="${str//\"/\\\"}"
     str="${str//$'\n'/\\n}"
+    str="${str//$'\r'/\\r}"
     str="${str//$'\t'/\\t}"
     echo "$str"
 }

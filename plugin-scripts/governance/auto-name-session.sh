@@ -19,9 +19,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="${SCRIPT_DIR}/lib"
 
-# Source common if available
+# Source common if available (provides json_escape)
 if [[ -f "${LIB_DIR}/common.sh" ]]; then
     source "${LIB_DIR}/common.sh"
+else
+    # Minimal json_escape fallback if common.sh not available
+    json_escape() {
+        local str="$1"
+        str="${str//\\/\\\\}"
+        str="${str//\"/\\\"}"
+        echo "$str"
+    }
+fi
+
+# Verify jq is available (required for registry operations)
+if ! command -v jq &>/dev/null; then
+    echo '{"status":"error","message":"jq is required but not installed"}' >&2
+    exit 0  # Exit gracefully, don't block session
 fi
 
 # =============================================================================
@@ -107,13 +121,13 @@ if jq --arg sid "$SESSION_ID" --arg name "$SESSION_NAME" '.sessions[$sid] = $nam
     mv "$TMP_FILE" "$REGISTRY"
 fi
 
-# Output for MAOS session tracking
+# Output for MAOS session tracking (escape user-controlled values)
 cat << OUTPUT
 {
   "status": "success",
   "action": "session_named",
-  "session_id": "${SESSION_ID}",
-  "session_name": "${SESSION_NAME}",
+  "session_id": "$(json_escape "$SESSION_ID")",
+  "session_name": "$(json_escape "$SESSION_NAME")",
   "is_worktree": $([ -n "$WORKTREE" ] && echo "true" || echo "false")
 }
 OUTPUT

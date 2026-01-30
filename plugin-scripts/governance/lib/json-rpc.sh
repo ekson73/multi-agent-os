@@ -76,11 +76,12 @@ error_commit_blocked() {
     local branch="$1"
     local command="${2:-git commit}"
 
-    local extra="\"branch\":\"${branch}\",\"action\":\"${command}\",\"protocol\":\"C04 - Git Worktree Protocol\""
+    # Escape all user-controlled values for valid JSON
+    local extra="\"branch\":\"$(json_escape "$branch")\",\"action\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol\""
 
     json_error \
         "$ERR_COMMIT_BLOCKED" \
-        "Direct commits to ${branch} branch are not allowed" \
+        "Direct commits to $(json_escape "$branch") branch are not allowed" \
         "PreToolUse:Bash" \
         "Create a feature branch first using git worktree: git worktree add .worktrees/feature -b feature/your-change" \
         "$extra"
@@ -91,7 +92,8 @@ error_branch_blocked() {
     local branch_name="$1"
     local command="$2"
 
-    local extra="\"branch\":\"${branch_name}\",\"command\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol v2.0\""
+    # Escape all user-controlled values for valid JSON
+    local extra="\"branch\":\"$(json_escape "$branch_name")\",\"command\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol v2.0\""
 
     json_error \
         "$ERR_BRANCH_BLOCKED" \
@@ -106,7 +108,8 @@ error_checkout_blocked() {
     local target="$1"
     local command="$2"
 
-    local extra="\"target\":\"${target}\",\"command\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol v2.0\""
+    # Escape all user-controlled values for valid JSON
+    local extra="\"target\":\"$(json_escape "$target")\",\"command\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol v2.0\""
 
     json_error \
         "$ERR_CHECKOUT_BLOCKED" \

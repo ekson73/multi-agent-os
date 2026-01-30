@@ -50,14 +50,16 @@ is_in_worktree() {
 #  * @return 0 if in main repo, 1 otherwise
 #  */
 is_in_main_repo() {
-    local toplevel
-    local git_dir
+    # Use is_in_worktree as authoritative check and invert logic
+    # This ensures consistent behavior from subdirectories
+    is_in_worktree
+    local status=$?
 
-    toplevel=$(git rev-parse --show-toplevel 2>/dev/null) || return 1
-    git_dir=$(git rev-parse --git-dir 2>/dev/null) || return 1
-
-    # Main repo has .git as directory
-    [[ -d "${toplevel}/.git" ]] && [[ "$git_dir" == ".git" ]]
+    if [[ $status -eq 1 ]]; then
+        return 0  # is_in_worktree returned 1 (main repo)
+    else
+        return 1  # is_in_worktree returned 0 (worktree) or 2 (not git)
+    fi
 }
 
 # =============================================================================
@@ -156,9 +158,20 @@ extract_checkout_target() {
     local command="$1"
     local target=""
 
-    # Extract last argument (typically the branch name)
-    if [[ "$command" =~ git[[:space:]]+(checkout|switch)[[:space:]]+([^[:space:]]+)$ ]]; then
-        target="${BASH_REMATCH[2]}"
+    # Extract first non-flag argument after checkout/switch
+    # Handles: git checkout main, git checkout main --force, git switch develop -f
+    if [[ "$command" =~ git[[:space:]]+(checkout|switch)[[:space:]]+ ]]; then
+        # Get everything after checkout/switch
+        local args="${command#*checkout }"
+        args="${args#*switch }"
+
+        # Find first argument that doesn't start with -
+        for arg in $args; do
+            if [[ ! "$arg" =~ ^- ]]; then
+                target="$arg"
+                break
+            fi
+        done
     fi
 
     echo "${target:-unknown}"
