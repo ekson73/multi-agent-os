@@ -93,9 +93,10 @@ Could you please re-review the changes?
 
 | Situação | Timeout | Ação |
 |----------|---------|------|
-| Aguardando re-review de bot | 10 min | Verificar novos comentários |
-| Aguardando review humano | 30 min | Escalar ou delegar |
-| Sem resposta após correções | 15 min | Considerar merge se críticos resolvidos |
+| Aguardando re-review de bot | 15 min | Verificar novos comentários |
+| Aguardando review humano | 4 horas | Lembrete amigável no PR |
+| Sem resposta (bot) | 30 min | Considerar merge se críticos resolvidos |
+| Sem resposta (humano) | 1 dia útil | Escalar para líder da equipe |
 
 ## Integração com C07
 
