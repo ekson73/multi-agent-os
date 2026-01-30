@@ -303,5 +303,5 @@ See `docs/framework-consumption.md` for full guidance.
 
 ---
 
-*Multi-Agent OS v1.2.0 | Plugin for Claude Code*
+*Multi-Agent OS v1.3.0 | Plugin for Claude Code*
 *Analysis by: Claude-Analyst-c614-plugin | 2026-01-08T21:30:00-03:00*
