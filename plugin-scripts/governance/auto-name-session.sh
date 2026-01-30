@@ -43,13 +43,21 @@ fi
 # Registry file location
 REGISTRY="${HOME}/.claude/session-registry.json"
 
+# Security: Validate registry is not a symlink (prevent symlink attack)
+if [[ -L "$REGISTRY" ]]; then
+    echo '{"status":"error","message":"Registry file is a symlink, refusing to write"}' >&2
+    exit 1
+fi
+
 # Initialize registry if needed
 if [[ ! -f "$REGISTRY" ]]; then
+    # Ensure parent directory exists
+    mkdir -p "$(dirname "$REGISTRY")"
     echo '{"sessions": {}}' > "$REGISTRY"
 fi
 
-# Check if session already registered
-EXISTING=$(jq -r ".sessions[\"$SESSION_ID\"] // empty" "$REGISTRY" 2>/dev/null || echo "")
+# Check if session already registered (using --arg to prevent jq injection)
+EXISTING=$(jq -r --arg sid "$SESSION_ID" '.sessions[$sid] // empty' "$REGISTRY" 2>/dev/null || echo "")
 if [[ -n "$EXISTING" ]]; then
     exit 0  # Already registered
 fi
@@ -87,12 +95,16 @@ fi
 # REGISTRATION
 # =============================================================================
 
-# Register session name
+# Register session name (using --arg to prevent jq injection)
 TMP_FILE=$(mktemp)
-if jq ".sessions[\"$SESSION_ID\"] = \"$SESSION_NAME\"" "$REGISTRY" > "$TMP_FILE" 2>/dev/null; then
+trap 'rm -f "$TMP_FILE"' EXIT
+if jq --arg sid "$SESSION_ID" --arg name "$SESSION_NAME" '.sessions[$sid] = $name' "$REGISTRY" > "$TMP_FILE" 2>/dev/null; then
+    # Security: Final symlink check before overwrite
+    if [[ -L "$REGISTRY" ]]; then
+        echo '{"status":"error","message":"Registry became symlink during operation"}' >&2
+        exit 1
+    fi
     mv "$TMP_FILE" "$REGISTRY"
-else
-    rm -f "$TMP_FILE"
 fi
 
 # Output for MAOS session tracking

@@ -62,8 +62,8 @@ if is_branch_creation "$COMMAND"; then
     if is_in_main_repo; then
         BRANCH_NAME=$(extract_branch_name "$COMMAND")
 
-        # Log blocked action
-        log_audit "branch_blocked" "{\"branch\":\"${BRANCH_NAME}\",\"command\":\"$(json_escape "$COMMAND")\"}"
+        # Log blocked action (escape all user-controlled values)
+        log_audit "branch_blocked" "{\"branch\":\"$(json_escape "$BRANCH_NAME")\",\"command\":\"$(json_escape "$COMMAND")\"}"
 
         # Emit JSON-RPC error (always, for AI agent)
         error_branch_blocked "$BRANCH_NAME" "$COMMAND"
@@ -88,8 +88,8 @@ if is_checkout_command "$COMMAND"; then
     if is_in_main_repo; then
         TARGET=$(extract_checkout_target "$COMMAND")
 
-        # Log blocked action
-        log_audit "checkout_blocked" "{\"target\":\"${TARGET}\",\"command\":\"$(json_escape "$COMMAND")\"}"
+        # Log blocked action (escape all user-controlled values)
+        log_audit "checkout_blocked" "{\"target\":\"$(json_escape "$TARGET")\",\"command\":\"$(json_escape "$COMMAND")\"}"
 
         # Emit JSON-RPC error
         error_checkout_blocked "$TARGET" "$COMMAND"
@@ -114,8 +114,8 @@ if is_commit_command "$COMMAND"; then
     CURRENT_BRANCH=$(get_current_branch)
 
     if [[ "$CURRENT_BRANCH" =~ $PROTECTED_BRANCHES ]]; then
-        # Log blocked action
-        log_audit "commit_blocked" "{\"branch\":\"${CURRENT_BRANCH}\",\"command\":\"$(json_escape "$COMMAND")\"}"
+        # Log blocked action (escape all user-controlled values)
+        log_audit "commit_blocked" "{\"branch\":\"$(json_escape "$CURRENT_BRANCH")\",\"command\":\"$(json_escape "$COMMAND")\"}"
 
         # Emit JSON-RPC error
         error_commit_blocked "$CURRENT_BRANCH" "$COMMAND"
