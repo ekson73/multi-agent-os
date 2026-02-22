@@ -18,6 +18,5 @@
     "observability",
     "git-worktrees",
     "governance"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }
