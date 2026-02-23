@@ -1,9 +1,9 @@
 # Migration Plan: VekOps MCP Hub → maos-mcp-hub
 
 > **Date:** 2026-02-22
-> **Source:** `~/Projects/vks-jss-sales-api/scripts/` (vekops-mcp-hub + bitbucket_pipeline)
-> **Destination:** `~/Projects/multi-agent-os/mcp-tools/maos-mcp-hub/`
-> **Status:** COMPLETED (Phases 1–5) — awaiting review before publish
+> **Source:** `vks-jss-sales-api/scripts/` (vekops-mcp-hub + bitbucket_pipeline)
+> **Destination:** `ekson73/multi-agent-os/mcp-tools/maos-mcp-hub/`
+> **Status:** ✅ COMPLETED — All 6 phases done
 
 ## Target Structure
 
@@ -14,15 +14,20 @@ multi-agent-os/
 │       ├── hub.py               ← gateway (renamed from vekops-mcp-hub.py)
 │       ├── cli.py               ← test CLI (renamed from mcp-cli.py)
 │       ├── requirements.txt
+│       ├── .env.example
+│       ├── .gitignore
+│       ├── LICENSE              ← MIT
 │       ├── README.md
-│       ├── MIGRATION-PLAN.md    ← this file
+│       ├── MIGRATION-PLAN.md   ← this file
 │       ├── servers/
+│       │   ├── __init__.py
 │       │   └── bitbucket/
 │       │       ├── __init__.py
 │       │       ├── server.py
-│       │       └── tools.py
+│       │       └── tools.py    ← 42 tools
 │       └── lib/
-│           └── bitbucket/       ← renamed from bitbucket_pipeline
+│           ├── __init__.py
+│           └── bitbucket/      ← renamed from bitbucket_pipeline
 │               ├── __init__.py
 │               ├── client.py
 │               ├── analyzer.py
@@ -52,44 +57,60 @@ multi-agent-os/
 - [x] Move mcp-servers/bitbucket/ → servers/bitbucket/
 - [x] Update all import paths (bitbucket_pipeline → lib.bitbucket)
 - [x] Rename HUB_NAME to "maos-mcp-hub"
-- [x] SERVERS_DIR updated to "servers/" (was "mcp-servers/")
+- [x] SERVERS_DIR updated to "servers/"
 
 ### Phase 3: Config ✅
 - [x] Create .env.example with all required env vars
-- [x] requirements.txt created (fastmcp, httpx, aiolimiter, pydantic)
-- [x] WARNING honored: no credentials in any files
+- [x] requirements.txt (fastmcp, httpx, aiolimiter, pydantic, python-dotenv)
+- [x] Zero credentials in any files
 
 ### Phase 4: Docs ✅
-- [x] README.md with generic setup instructions (architecture diagram, tool list, add-server guide, Claude Desktop config)
-- [x] requirements.txt
+- [x] README.md (architecture, setup, 42-tool table, add-server guide, Claude config)
+- [x] LICENSE (MIT)
+- [x] .gitignore
 
 ### Phase 5: Test ✅
-- [x] Validate hub discovers bitbucket server (42 tools loaded)
-- [x] Validate tool listing works (`python3 cli.py list-servers`)
-- [x] Validate imports resolve correctly (`from hub import discover_mcp_servers`)
-- [x] venv created, dependencies installed, all tests pass
+- [x] Hub discovers bitbucket server (42 tools loaded, zero warnings)
+- [x] CLI works (`python3 cli.py list-servers`)
+- [x] Imports resolve correctly
+- [x] venv created, dependencies installed
 
-### Phase 6: Publish
-- [ ] Commit + push to ekson73/multi-agent-os (awaiting manual review)
-- [ ] Update vek-claude-plugins marketplace (sync multi-agent-os content)
+### Phase 6: Publish ✅
+- [x] Commit + push to `ekson73/multi-agent-os` — commit `20df6d9`
+- [x] Commit + push removal from `vks-jss-sales-api` — commit `fe021f1a`
+- [x] Sync `vek-claude-plugins` marketplace — commit `6a54211`
+- [x] Remove old `vekops-mcp-hub` MCP server from `~/.claude.json`
+- [x] Add new `maos-mcp-hub` MCP server pointing to multi-agent-os
 
-## Cleanup Details (6 Vek refs)
+## QA Report
 
-| # | File | Line | Current | Replace With |
-|---|------|------|---------|-------------|
-| 1 | client.py | 48 | `vek_bitbucket_username` | Remove fallback |
-| 2 | client.py | 52 | `vek_bitbucket_password` | Remove fallback |
-| 3 | client.py | 557 | `VEK_APP_ENDPOINT` | `APP_ENDPOINT` |
-| 4 | client.py | 598-599 | `VEK_REPO_ID`/`vks-jss-sales-api` | `MY_REPO_ID`/`my-repo` |
-| 5 | client.py | 632-633 | `VEK_WORKSPACE_ID`/`vek-servicos` | `MY_WORKSPACE_ID`/`my-workspace` |
-| 6 | tools.py | 2043 | `VEK_PREVIEW=true,SLUG=vks-1134-*` | `DEPLOY_ENV=staging,VERSION=v1.0` |
+**Agent:** maos-mcp-hub-qa (Sonnet 4.6, 4min)
+**Veredito:** ✅ APROVADO
 
-## Singleton Fix (13 tools)
+### Corrections made during QA:
+1. `lib/bitbucket/__init__.py` — removed `__author__ = "Vector Informatica"` (Vek leak)
+2. `hub.py` — replaced `ghp_your_token` placeholder (triggered credential scan)
+3. Removed all `__pycache__/` directories
+4. Created `.gitignore`
+5. Created `LICENSE` (MIT)
+6. Added `python-dotenv` to requirements.txt + `load_dotenv()` in hub.py/cli.py
 
-Replace `client = BitbucketPipelineClient()` with `client = get_client()` in:
-- get_commit_details, get_commit_build_statuses, get_builds_for_commit, compare_commit_builds
-- get_pull_requests, get_pr_details, get_pr_build_statuses, create_pull_request
-- list_pipeline_schedules, get_pipeline_config, get_ssh_key_info
-- trigger_pipeline, list_branches
+### Completeness Check:
+- **Agent:** maos-migration-completeness (Sonnet 4.6, 2min)
+- **Result:** 16/16 files migrated, zero external dependencies, source files cleaned
 
-For tools with `repo_slug` param: `client = BitbucketPipelineClient(repo_slug=repo_slug) if repo_slug else get_client()`
+## Cleanup Details (6 Vek refs — all removed)
+
+| # | File | Original | Replaced With |
+|---|------|----------|--------------|
+| 1 | client.py:48 | `vek_bitbucket_username` | Removed (fallback eliminated) |
+| 2 | client.py:52 | `vek_bitbucket_password` | Removed (fallback eliminated) |
+| 3 | client.py:557 | `VEK_APP_ENDPOINT` | `APP_ENDPOINT` |
+| 4 | client.py:598-599 | `VEK_REPO_ID`/`vks-jss-sales-api` | `MY_REPO_ID`/`my-repo` |
+| 5 | client.py:632-633 | `VEK_WORKSPACE_ID`/`vek-servicos` | `MY_WORKSPACE_ID`/`my-workspace` |
+| 6 | tools.py:2043 | `VEK_PREVIEW=true,SLUG=vks-1134-*` | `DEPLOY_ENV=staging,VERSION=v1.0` |
+
+## Singleton Fix (13 tools — all fixed)
+
+All `client = BitbucketPipelineClient()` replaced with `client = get_client()`.
+Tools with `repo_slug` param use: `client = BitbucketPipelineClient(repo_slug=repo_slug) if repo_slug else get_client()`
