@@ -82,7 +82,7 @@ from fastmcp import FastMCP
 # Load .env file if present (for local development)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 except ImportError:
     pass  # python-dotenv not installed — env vars must be set externally
 
