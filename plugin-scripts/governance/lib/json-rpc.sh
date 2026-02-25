@@ -79,10 +79,31 @@ error_commit_blocked() {
     # Escape all user-controlled values for valid JSON
     local extra="\"branch\":\"$(json_escape "$branch")\",\"action\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol\""
 
+    # Detect git provider from remote URL — emit targeted commands, not a generic list
+    local remote_url create_pr_cmd view_comments_cmd post_comment_cmd
+    remote_url=$(git config --get remote.origin.url 2>/dev/null || echo "unknown")
+
+    if [[ "$remote_url" == *"github.com"* ]]; then
+        create_pr_cmd='gh pr create --title "<title>" --body "<body>"'
+        view_comments_cmd='gh pr view <number> --json comments,reviews'
+        post_comment_cmd='gh pr comment <number> --body "<message>"'
+    elif [[ "$remote_url" == *"bitbucket.org"* ]]; then
+        create_pr_cmd='MCP bitbucket_create_pull_request (or BB REST API)'
+        view_comments_cmd='MCP bitbucket_get_pr_details or bitbucket_get_pull_requests'
+        post_comment_cmd='MCP or BB REST API to post a PR comment'
+    elif [[ "$remote_url" == *"gitlab.com"* ]]; then
+        create_pr_cmd='glab mr create --title "<title>" --description "<body>"'
+        view_comments_cmd='glab mr view <number> --comments'
+        post_comment_cmd='glab mr comment <number> --message "<message>"'
+    else
+        create_pr_cmd='use the provider CLI, MCP tool, or REST API to open a PR'
+        view_comments_cmd='use the provider CLI, MCP tool, or REST API to list PR comments'
+        post_comment_cmd='use the provider CLI, MCP tool, or REST API to post a PR comment'
+    fi
+
+    # Note: unquoted <<INSTRUCTIONS so provider variables expand correctly.
+    # Angle-bracket placeholders (<feature>, <title>) are not shell variables and are unaffected.
     local instructions
-    # Note: unquoted <<INSTRUCTIONS delimiter (not <<'INSTRUCTIONS') is intentional.
-    # Apostrophes inside $(cat <<'...') break bash $() parsing (treated as string delimiters).
-    # Content has no shell variables to expand, so unquoted delimiter is safe and equivalent.
     instructions="$(cat <<INSTRUCTIONS
 MANDATORY WORKFLOW (do not skip any step):
 
@@ -95,27 +116,17 @@ MANDATORY WORKFLOW (do not skip any step):
    git push -u origin <branch>
 
 3. CREATE PULL REQUEST (MANDATORY — no direct merge allowed):
-   Detect the git provider from the remote URL, then use the appropriate tool:
-   - GitHub    (github.com):    gh pr create --title "..." --body "..."
-   - Bitbucket (bitbucket.org): MCP bitbucket_create_pull_request, or BB REST API
-   - GitLab    (gitlab.com):    glab mr create --title "..." --description "..."
-   - Other:                     use the provider CLI, MCP tool, or REST API
+   $create_pr_cmd
 
 4. CHECK REVIEW BOT COMMENTS (MANDATORY — do not skip):
    After PR is created, poll for automated review comments (CodeRabbitAI,
-   Copilot, Qodo, Dependabot, etc.) using the provider tool.
-   Poll every 60s — bots typically take 1-3 minutes to complete.
-   - GitHub:    gh pr view <number> --json comments,reviews
-   - Bitbucket: MCP bitbucket_get_pr_details or bitbucket_get_pull_requests
-   - GitLab:    glab mr view <number> --comments
-   - Other:     use the provider CLI, MCP tool, or REST API
+   Copilot, Qodo, Dependabot, etc.). Poll every 60s (bots take 1-3 min).
+   $view_comments_cmd
 
    For EACH bot comment/suggestion:
    a) ACCEPT + IMPLEMENT: apply the fix -> commit -> push (PR updates automatically)
    b) REJECT: post a reply on the PR with the technical reason for rejection
-      - GitHub:    gh pr comment <number> --body "Rejected: <reason>"
-      - Bitbucket: MCP or REST API to post a PR comment
-      - GitLab:    glab mr comment <number> --message "Rejected: <reason>"
+      $post_comment_cmd
 
 5. MERGE only after: PR reviewed + all accepted items implemented + rejections documented.
 INSTRUCTIONS
