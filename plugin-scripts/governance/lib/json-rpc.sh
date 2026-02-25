@@ -79,8 +79,60 @@ error_commit_blocked() {
     # Escape all user-controlled values for valid JSON
     local extra="\"branch\":\"$(json_escape "$branch")\",\"action\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol\""
 
+    # Detect git provider: SCM_PROVIDER env var takes precedence, then URL pattern matching.
+    # URL matching uses broad patterns (*github*, *bitbucket*, *gitlab*) to cover
+    # both public SaaS (github.com) and enterprise/self-hosted instances (github.mycompany.com).
+    local remote_url provider scm_hostname create_pr_cmd view_comments_cmd post_comment_cmd
+    remote_url=$(git config --get remote.origin.url 2>/dev/null || echo "unknown")
+
+    # Extract hostname from remote URL (supports both https and git@host:org/repo formats)
+    scm_hostname=$(echo "$remote_url" | sed -E 's|https?://([^/:]+).*|\1|; s|git@([^:]+):.*|\1|' 2>/dev/null || echo "")
+
+    # Provider resolution: explicit env var > URL pattern
+    if [[ -n "${SCM_PROVIDER:-}" ]]; then
+        provider="$SCM_PROVIDER"
+    elif [[ "$remote_url" == *"github"* ]]; then
+        provider="github"
+    elif [[ "$remote_url" == *"bitbucket"* ]]; then
+        provider="bitbucket"
+    elif [[ "$remote_url" == *"gitlab"* ]]; then
+        provider="gitlab"
+    else
+        provider="other"
+    fi
+
+    # Enterprise host flags: only added when hostname differs from the public SaaS host
+    local gh_flag="" glab_flag=""
+    [[ "$provider" == "github"    && "$scm_hostname" != "github.com"    && -n "$scm_hostname" ]] && gh_flag=" --hostname $scm_hostname"
+    [[ "$provider" == "gitlab"    && "$scm_hostname" != "gitlab.com"    && -n "$scm_hostname" ]] && glab_flag=" --server https://$scm_hostname"
+
+    case "$provider" in
+        github)
+            create_pr_cmd="gh pr create${gh_flag} --title \"<title>\" --body \"<body>\""
+            view_comments_cmd="gh pr view${gh_flag} <number> --json comments,reviews"
+            post_comment_cmd="gh pr comment${gh_flag} <number> --body \"<message>\""
+            ;;
+        bitbucket)
+            create_pr_cmd='MCP bitbucket_create_pull_request (or BB REST API)'
+            view_comments_cmd='MCP bitbucket_get_pr_details or bitbucket_get_pull_requests'
+            post_comment_cmd='MCP or BB REST API to post a PR comment'
+            ;;
+        gitlab)
+            create_pr_cmd="glab mr create${glab_flag} --title \"<title>\" --description \"<body>\""
+            view_comments_cmd="glab mr view${glab_flag} <number> --comments"
+            post_comment_cmd="glab mr comment${glab_flag} <number> --message \"<message>\""
+            ;;
+        *)
+            create_pr_cmd='use the provider CLI, MCP tool, or REST API to open a PR'
+            view_comments_cmd='use the provider CLI, MCP tool, or REST API to list PR comments'
+            post_comment_cmd='use the provider CLI, MCP tool, or REST API to post a PR comment'
+            ;;
+    esac
+
+    # Note: unquoted <<INSTRUCTIONS so provider variables expand correctly.
+    # Angle-bracket placeholders (<feature>, <title>) are not shell variables and are unaffected.
     local instructions
-    instructions="$(cat <<'INSTRUCTIONS'
+    instructions="$(cat <<INSTRUCTIONS
 MANDATORY WORKFLOW (do not skip any step):
 
 1. CREATE WORKTREE + FEATURE BRANCH:
@@ -91,18 +143,18 @@ MANDATORY WORKFLOW (do not skip any step):
    git add <files> && git commit -m "<type>(<scope>): <description>"
    git push -u origin <branch>
 
-3. CREATE PR (MANDATORY — no direct merge allowed):
-   gh pr create --title "<type>(<scope>): <description>" --body "..."
+3. CREATE PULL REQUEST (MANDATORY — no direct merge allowed):
+   $create_pr_cmd
 
-4. REVIEW BOT COMMENTS (MANDATORY — do not skip):
-   After PR is created, check for automated review comments from bots
-   (CodeRabbitAI, GitHub Copilot, Dependabot, etc.):
-   gh pr view <number> --json comments,reviews
+4. CHECK REVIEW BOT COMMENTS (MANDATORY — do not skip):
+   After PR is created, poll for automated review comments (CodeRabbitAI,
+   Copilot, Qodo, Dependabot, etc.). Poll every 60s (bots take 1-3 min).
+   $view_comments_cmd
 
    For EACH bot comment/suggestion:
-   a) ACCEPT + IMPLEMENT: apply the fix → commit → push (same branch, PR updates automatically)
-   b) REJECT: post a reply on the PR explaining the technical reason for rejection
-      gh pr comment <number> --body "Rejected: <reason>"
+   a) ACCEPT + IMPLEMENT: apply the fix -> commit -> push (PR updates automatically)
+   b) REJECT: post a reply on the PR with the technical reason for rejection
+      $post_comment_cmd
 
 5. MERGE only after: PR reviewed + all accepted items implemented + rejections documented.
 INSTRUCTIONS
