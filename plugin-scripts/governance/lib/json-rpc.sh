@@ -79,11 +79,40 @@ error_commit_blocked() {
     # Escape all user-controlled values for valid JSON
     local extra="\"branch\":\"$(json_escape "$branch")\",\"action\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol\""
 
+    local instructions
+    instructions="$(cat <<'INSTRUCTIONS'
+MANDATORY WORKFLOW (do not skip any step):
+
+1. CREATE WORKTREE + FEATURE BRANCH:
+   git worktree add .worktrees/<feature> -b <type>/<feature>
+   Then work inside the worktree directory.
+
+2. COMMIT + PUSH inside the worktree:
+   git add <files> && git commit -m "<type>(<scope>): <description>"
+   git push -u origin <branch>
+
+3. CREATE PR (MANDATORY — no direct merge allowed):
+   gh pr create --title "<type>(<scope>): <description>" --body "..."
+
+4. REVIEW BOT COMMENTS (MANDATORY — do not skip):
+   After PR is created, check for automated review comments from bots
+   (CodeRabbitAI, GitHub Copilot, Dependabot, etc.):
+   gh pr view <number> --json comments,reviews
+
+   For EACH bot comment/suggestion:
+   a) ACCEPT + IMPLEMENT: apply the fix → commit → push (same branch, PR updates automatically)
+   b) REJECT: post a reply on the PR explaining the technical reason for rejection
+      gh pr comment <number> --body "Rejected: <reason>"
+
+5. MERGE only after: PR reviewed + all accepted items implemented + rejections documented.
+INSTRUCTIONS
+)"
+
     json_error \
         "$ERR_COMMIT_BLOCKED" \
         "Direct commits to $(json_escape "$branch") branch are not allowed" \
         "PreToolUse:Bash" \
-        "Create a feature branch first using git worktree: git worktree add .worktrees/feature -b feature/your-change" \
+        "$instructions" \
         "$extra"
 }
 
