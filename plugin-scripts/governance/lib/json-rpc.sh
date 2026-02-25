@@ -80,7 +80,10 @@ error_commit_blocked() {
     local extra="\"branch\":\"$(json_escape "$branch")\",\"action\":\"$(json_escape "$command")\",\"protocol\":\"C04 - Git Worktree Protocol\""
 
     local instructions
-    instructions="$(cat <<'INSTRUCTIONS'
+    # Note: unquoted <<INSTRUCTIONS delimiter (not <<'INSTRUCTIONS') is intentional.
+    # Apostrophes inside $(cat <<'...') break bash $() parsing (treated as string delimiters).
+    # Content has no shell variables to expand, so unquoted delimiter is safe and equivalent.
+    instructions="$(cat <<INSTRUCTIONS
 MANDATORY WORKFLOW (do not skip any step):
 
 1. CREATE WORKTREE + FEATURE BRANCH:
@@ -91,18 +94,28 @@ MANDATORY WORKFLOW (do not skip any step):
    git add <files> && git commit -m "<type>(<scope>): <description>"
    git push -u origin <branch>
 
-3. CREATE PR (MANDATORY — no direct merge allowed):
-   gh pr create --title "<type>(<scope>): <description>" --body "..."
+3. CREATE PULL REQUEST (MANDATORY — no direct merge allowed):
+   Detect the git provider from the remote URL, then use the appropriate tool:
+   - GitHub    (github.com):    gh pr create --title "..." --body "..."
+   - Bitbucket (bitbucket.org): MCP bitbucket_create_pull_request, or BB REST API
+   - GitLab    (gitlab.com):    glab mr create --title "..." --description "..."
+   - Other:                     use the provider CLI, MCP tool, or REST API
 
-4. REVIEW BOT COMMENTS (MANDATORY — do not skip):
-   After PR is created, check for automated review comments from bots
-   (CodeRabbitAI, GitHub Copilot, Dependabot, etc.):
-   gh pr view <number> --json comments,reviews
+4. CHECK REVIEW BOT COMMENTS (MANDATORY — do not skip):
+   After PR is created, poll for automated review comments (CodeRabbitAI,
+   Copilot, Qodo, Dependabot, etc.) using the provider tool.
+   Poll every 60s — bots typically take 1-3 minutes to complete.
+   - GitHub:    gh pr view <number> --json comments,reviews
+   - Bitbucket: MCP bitbucket_get_pr_details or bitbucket_get_pull_requests
+   - GitLab:    glab mr view <number> --comments
+   - Other:     use the provider CLI, MCP tool, or REST API
 
    For EACH bot comment/suggestion:
-   a) ACCEPT + IMPLEMENT: apply the fix → commit → push (same branch, PR updates automatically)
-   b) REJECT: post a reply on the PR explaining the technical reason for rejection
-      gh pr comment <number> --body "Rejected: <reason>"
+   a) ACCEPT + IMPLEMENT: apply the fix -> commit -> push (PR updates automatically)
+   b) REJECT: post a reply on the PR with the technical reason for rejection
+      - GitHub:    gh pr comment <number> --body "Rejected: <reason>"
+      - Bitbucket: MCP or REST API to post a PR comment
+      - GitLab:    glab mr comment <number> --message "Rejected: <reason>"
 
 5. MERGE only after: PR reviewed + all accepted items implemented + rejections documented.
 INSTRUCTIONS
