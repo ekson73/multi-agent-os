@@ -347,5 +347,3 @@ MIT License — see [LICENSE](LICENSE) for details.
 Contributions welcome! To add a new MCP server integration, see [Adding a New Server](#adding-a-new-server) above.
 
 Issues and PRs: [github.com/your-org/multi-agent-os](https://github.com/your-org/multi-agent-os)
-
-Signed-by: codex-agent 2026-03-04T01:44:52Z
