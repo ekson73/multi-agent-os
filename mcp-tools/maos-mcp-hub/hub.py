@@ -30,7 +30,7 @@ Features:
 Environment Variables:
     Server-specific (defined by each server in servers/)
     Example:
-        BITBUCKET_USERNAME, BITBUCKET_APP_PASSWORD (for bitbucket server)
+        BITBUCKET_EMAIL, BITBUCKET_USERNAME, BITBUCKET_API_TOKEN (for bitbucket server)
         GITHUB_TOKEN (for github server)
 
 Usage:
@@ -54,8 +54,9 @@ Claude Desktop configuration:
           "command": "python3",
           "args": ["/path/to/hub.py"],
           "env": {
+            "BITBUCKET_EMAIL": "your-email@company.com",
             "BITBUCKET_USERNAME": "your_username",
-            "BITBUCKET_APP_PASSWORD": "your_app_password",
+            "BITBUCKET_API_TOKEN": "your_bitbucket_api_token",
             "GITHUB_TOKEN": "your_github_token_here"
           }
         }

@@ -19,11 +19,14 @@ class BitbucketPipelineClient:
     Async HTTP client for Bitbucket Cloud Pipelines API v2.0
 
     Handles authentication, API calls, and response parsing.
-    Supports both Basic Auth (App Passwords) and Bearer tokens (Atlassian Cloud tokens).
+    Supports both Basic Auth and Bearer tokens.
 
     Environment variables:
-        BITBUCKET_USERNAME: Bitbucket username (required for Basic Auth)
-        BITBUCKET_APP_PASSWORD: App password or Bearer token (ATCTT3x prefix = Bearer)
+        BITBUCKET_EMAIL: Atlassian account email (preferred for Basic Auth with API token)
+        JIRA_EMAIL: Shared fallback email for Basic Auth principal
+        BITBUCKET_USERNAME: Bitbucket username (legacy/basic fallback)
+        BITBUCKET_API_TOKEN: Bitbucket API token (primary variable)
+        BITBUCKET_APP_PASSWORD: Legacy fallback variable (deprecated alias)
         BITBUCKET_REPO_SLUG: Override repo slug (format: workspace/repo-name)
     """
 
@@ -40,30 +43,37 @@ class BitbucketPipelineClient:
             ValueError: If required environment variables are missing or
                        if repository slug cannot be determined
         """
-        self.username = os.getenv("BITBUCKET_USERNAME")
-        self.app_password = os.getenv("BITBUCKET_APP_PASSWORD")
+        # Shared principal resolution order:
+        # BITBUCKET_EMAIL -> JIRA_EMAIL -> BITBUCKET_USERNAME
+        self.auth_user = (
+            os.getenv("BITBUCKET_EMAIL")
+            or os.getenv("JIRA_EMAIL")
+            or os.getenv("BITBUCKET_USERNAME")
+        )
+        self.api_token = os.getenv("BITBUCKET_API_TOKEN") or os.getenv("BITBUCKET_APP_PASSWORD")
 
-        if not self.app_password:
+        if not self.api_token:
             raise ValueError(
                 "Missing required credentials. "
-                "Please set BITBUCKET_APP_PASSWORD environment variable."
+                "Please set BITBUCKET_API_TOKEN environment variable "
+                "(legacy fallback: BITBUCKET_APP_PASSWORD)."
             )
 
-        # /**
-        #  * Auto-detect auth type from token prefix
-        #  * @context ATCTT3x prefix = Atlassian Cloud Bearer token (not Basic Auth)
-        #  * @reason Bearer tokens return 401 when used as Basic Auth password
-        #  * @impact All API calls use correct auth method automatically
-        #  */
-        self.use_bearer = (
-            self.app_password.startswith("ATCTT3x")
-            or os.getenv("BITBUCKET_AUTH_TYPE", "").lower() == "bearer"
-        )
+        auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "").strip().lower()
+        if auth_type in {"bearer", "basic"}:
+            self.use_bearer = auth_type == "bearer"
+        else:
+            # Auto-detect bearer token format unless auth type is explicitly forced.
+            # Official Bitbucket API tokens use Basic auth; legacy bearer tokens
+            # (ATCTT3x...) continue supported for compatibility.
+            self.use_bearer = self.api_token.startswith("ATCTT3x")
 
-        if not self.use_bearer and not self.username:
+        if not self.use_bearer and not self.auth_user:
             raise ValueError(
-                "Missing BITBUCKET_USERNAME (required for Basic Auth). "
-                "Set BITBUCKET_AUTH_TYPE=bearer to use token-only auth."
+                "Missing Basic-auth principal. "
+                "Set BITBUCKET_EMAIL (preferred), JIRA_EMAIL (shared fallback), "
+                "or BITBUCKET_USERNAME; "
+                "or set BITBUCKET_AUTH_TYPE=bearer for token-only auth."
             )
 
         # Repo slug: explicit param > env var > git remote
@@ -79,9 +89,9 @@ class BitbucketPipelineClient:
 
         # Pre-compute auth kwargs for all httpx calls
         if self.use_bearer:
-            self._auth_kwargs = {"headers": {"Authorization": f"Bearer {self.app_password}"}}
+            self._auth_kwargs = {"headers": {"Authorization": f"Bearer {self.api_token}"}}
         else:
-            self._auth_kwargs = {"auth": (self.username, self.app_password)}
+            self._auth_kwargs = {"auth": (self.auth_user, self.api_token)}
 
     def _get_repo_slug(self) -> str:
         """
@@ -115,15 +125,19 @@ class BitbucketPipelineClient:
                 return match.group(1)
             else:
                 raise ValueError(
-                    f"Cannot parse Bitbucket repository slug from URL: {url}"
+                    f"Cannot parse Bitbucket repository slug from URL: {url}. "
+                    "Pass repo_slug in the tool call or set BITBUCKET_REPO_SLUG."
                 )
 
         except subprocess.CalledProcessError as e:
             raise ValueError(
-                f"Failed to get git remote URL: {e.stderr.strip()}"
+                f"Failed to get git remote URL: {e.stderr.strip()}. "
+                "Pass repo_slug in the tool call or set BITBUCKET_REPO_SLUG."
             ) from e
         except subprocess.TimeoutExpired:
-            raise ValueError("Git command timed out") from None
+            raise ValueError(
+                "Git command timed out. Pass repo_slug in the tool call or set BITBUCKET_REPO_SLUG."
+            ) from None
 
     async def get_pipelines(
         self, sort: str = "-created_on", pagelen: int = 25

@@ -90,11 +90,30 @@ cp .env.example .env
 Edit `.env` with your credentials:
 
 ```env
+BITBUCKET_EMAIL=your-email@company.com
 BITBUCKET_USERNAME=your_username
-BITBUCKET_APP_PASSWORD=your_app_password
+BITBUCKET_API_TOKEN=your_bitbucket_api_token
 BITBUCKET_WORKSPACE=your_workspace
-BITBUCKET_REPO_SLUG=your_workspace/your_repo
+# Optional default repo (recommended empty for multi-repo)
+BITBUCKET_REPO_SLUG=
+JIRA_EMAIL=your-email@company.com
+JIRA_API_TOKEN=your_jira_token
+# Optional fallback shared token for Jira/Confluence:
+ATLASSIAN_API_TOKEN=
+JIRA_CLOUD_ID=your-cloud-id
 ```
+
+### Token Policy (Operational)
+
+Use app-scoped env vars by default. Reusing the same secret across vars is allowed when desired.
+
+- Bitbucket: `BITBUCKET_API_TOKEN` (primary) -> `BITBUCKET_APP_PASSWORD` (legacy fallback).
+- Jira: `JIRA_API_TOKEN` (primary) -> `ATLASSIAN_API_TOKEN` (fallback).
+- Confluence (future tools): `CONFLUENCE_API_TOKEN` (primary) -> `ATLASSIAN_API_TOKEN` (fallback).
+
+Multi-repo recommendation:
+- Keep `BITBUCKET_REPO_SLUG` empty.
+- Pass `repo_slug` in each Bitbucket tool call.
 
 ### 4. Test the CLI
 
@@ -106,7 +125,7 @@ python3 cli.py list-servers
 python3 cli.py bitbucket list-tools
 
 # Call a tool directly
-python3 cli.py bitbucket get_recent_builds '{"count": 5}'
+python3 cli.py bitbucket get_recent_builds '{"count": 5, "repo_slug": "your_workspace/your_repo"}'
 ```
 
 ### 5. Configure Claude Desktop
@@ -120,10 +139,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "command": "/path/to/.venv/bin/python3",
       "args": ["/path/to/maos-mcp-hub/hub.py"],
       "env": {
+        "BITBUCKET_EMAIL": "your-email@company.com",
         "BITBUCKET_USERNAME": "your_username",
-        "BITBUCKET_APP_PASSWORD": "your_app_password",
-        "BITBUCKET_WORKSPACE": "your_workspace",
-        "BITBUCKET_REPO_SLUG": "your_workspace/your_repo"
+        "BITBUCKET_API_TOKEN": "your_bitbucket_api_token",
+        "BITBUCKET_WORKSPACE": "your_workspace"
       }
     }
   }
@@ -294,16 +313,26 @@ python3 hub.py --help
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BITBUCKET_USERNAME` | For Basic Auth | Your Bitbucket username |
-| `BITBUCKET_APP_PASSWORD` | Yes | App password or Bearer token |
-| `BITBUCKET_WORKSPACE` | Recommended | Your workspace slug |
-| `BITBUCKET_REPO_SLUG` | Optional | Default repo (`workspace/repo`) |
+| `BITBUCKET_EMAIL` | Recommended | Atlassian account email (preferred for Basic auth with API token) |
+| `JIRA_EMAIL` | Optional fallback | Shared principal fallback for Bitbucket Basic auth |
+| `BITBUCKET_USERNAME` | Legacy fallback | Bitbucket username (fallback for Basic auth) |
+| `BITBUCKET_API_TOKEN` | Yes | Bitbucket API token (primary variable) |
+| `BITBUCKET_APP_PASSWORD` | Legacy | Deprecated alias (fallback only) |
+| `BITBUCKET_WORKSPACE` | Optional | Workspace slug (fallback/context) |
+| `BITBUCKET_REPO_SLUG` | Optional | Default repo (`workspace/repo`) — prefer empty in multi-repo mode |
 | `BITBUCKET_AUTH_TYPE` | Optional | Force `bearer` or `basic` auth |
+| `JIRA_EMAIL` | Yes (jira tools) | Atlassian account email for Jira Basic auth |
+| `JIRA_API_TOKEN` | Preferred (jira tools) | Jira token (first lookup for Jira client) |
+| `ATLASSIAN_API_TOKEN` | Optional | Shared fallback token for Jira/Confluence |
+| `CONFLUENCE_API_TOKEN` | Optional | Reserved for Confluence tooling |
+| `JIRA_CLOUD_ID` | Yes (jira tools) | Jira Cloud ID (tenant UUID) |
 | `DEEPSEEK_API_KEY` | Optional | AI diagnosis (DeepSeek) |
 | `GOOGLE_API_KEY` | Optional | AI diagnosis (Gemini) |
 | `MISTRAL_API_KEY` | Optional | AI diagnosis (Mistral) |
 
-**Auth detection:** If `BITBUCKET_APP_PASSWORD` starts with `ATCTT3x`, Bearer auth is used automatically.
+**Auth detection:** If `BITBUCKET_AUTH_TYPE` is not set, auth auto-detects bearer format (`ATCTT3x...`) and otherwise uses Basic auth (`email + token`) following Bitbucket API token docs. Basic principal resolution order: `BITBUCKET_EMAIL` -> `JIRA_EMAIL` -> `BITBUCKET_USERNAME`.
+
+**Multi-repo recommendation:** Leave `BITBUCKET_REPO_SLUG` empty and pass `repo_slug` in each Bitbucket tool call.
 
 ---
 
