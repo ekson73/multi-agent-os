@@ -1059,6 +1059,7 @@ class BitbucketPipelineClient:
             json=payload,
             timeout=30.0,
             limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent operation: avoid duplicate PR creation
         )
 
     async def get_pipeline_schedules(self) -> dict:

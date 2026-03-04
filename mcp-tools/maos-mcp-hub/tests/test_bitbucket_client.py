@@ -4,7 +4,7 @@ import httpx
 import respx
 
 from lib.bitbucket.client import BitbucketPipelineClient
-from lib.common.errors import NotFoundError
+from lib.common.errors import NotFoundError, RateLimitError
 
 
 def _setup_env(monkeypatch):
@@ -147,6 +147,41 @@ def test_get_pr_statuses_retries_on_429(monkeypatch):
             data = await client.get_pr_statuses(42, pagelen=5)
             assert data["values"][0]["state"] == "SUCCESSFUL"
             assert route.call_count == 2
+
+        await client.close()
+
+    asyncio.run(run())
+
+
+def test_create_pull_request_does_not_retry_on_429(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setattr("lib.common.http._backoff_seconds", lambda *args, **kwargs: 0)
+
+    async def run():
+        client = BitbucketPipelineClient(repo_slug="workspace/repo")
+        with respx.mock(assert_all_called=True) as router:
+            route = router.post(
+                "https://api.bitbucket.org/2.0/repositories/workspace/repo/pullrequests"
+            ).mock(
+                side_effect=[
+                    httpx.Response(429, text='{"error":"rate limit"}'),
+                    httpx.Response(201, json={"id": 777}),
+                ]
+            )
+
+            try:
+                await client.create_pull_request(
+                    title="feat: no-retry-post",
+                    source_branch="feature/no-retry",
+                    destination_branch="main",
+                )
+                raise AssertionError("Expected RateLimitError was not raised")
+            except RateLimitError as exc:
+                assert exc.status_code == 429
+                assert "/pullrequests" in exc.endpoint
+
+            # Non-idempotent POST must not retry automatically.
+            assert route.call_count == 1
 
         await client.close()
 
