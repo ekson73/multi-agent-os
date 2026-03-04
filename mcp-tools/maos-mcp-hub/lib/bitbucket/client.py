@@ -13,6 +13,8 @@ from typing import Optional
 from urllib.parse import quote
 from aiolimiter import AsyncLimiter
 
+from lib.common.http import request_json, request_text
+
 
 class BitbucketPipelineClient:
     """
@@ -83,6 +85,10 @@ class BitbucketPipelineClient:
             or self._get_repo_slug()
         )
         self.base_url = f"https://api.bitbucket.org/2.0/repositories/{self.repo_slug}"
+        self._provider_name = "Bitbucket"
+        self._auth_hint = (
+            "Verifique BITBUCKET_API_TOKEN e (quando auth basic) BITBUCKET_EMAIL/JIRA_EMAIL/BITBUCKET_USERNAME."
+        )
 
         # Rate limiter: 1000 requests per hour (Bitbucket Cloud API limit)
         self.rate_limiter = AsyncLimiter(max_rate=1000, time_period=3600)
@@ -153,17 +159,18 @@ class BitbucketPipelineClient:
             dict: Bitbucket API response with 'values' array and pagination info
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pipelines",
-                    params={"sort": sort, "pagelen": pagelen},
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pipelines",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"sort": sort, "pagelen": pagelen},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def get_pipeline(self, build_number: int) -> dict:
         """
@@ -176,16 +183,17 @@ class BitbucketPipelineClient:
             dict: Pipeline object with full details
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if build not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pipelines/{build_number}",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pipelines/{build_number}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def get_pipeline_steps(self, build_number: int) -> dict:
         """
@@ -198,16 +206,17 @@ class BitbucketPipelineClient:
             dict: Response with 'values' array of step objects
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pipelines/{build_number}/steps/",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pipelines/{build_number}/steps/",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def get_step_log(self, build_number: int, step_uuid: str) -> str:
         """
@@ -221,7 +230,7 @@ class BitbucketPipelineClient:
             str: Raw log output (plain text)
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if logs not available)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         # Ensure UUID has curly braces (API requires them)
         if not step_uuid.startswith("{"):
@@ -231,14 +240,16 @@ class BitbucketPipelineClient:
         # This is required by Bitbucket API
         step_uuid_encoded = quote(step_uuid, safe="")
 
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                response = await client.get(
-                    f"{self.base_url}/pipelines/{build_number}/steps/{step_uuid_encoded}/log",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.text
+        return await request_text(
+            method="GET",
+            url=f"{self.base_url}/pipelines/{build_number}/steps/{step_uuid_encoded}/log",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=60.0,
+            follow_redirects=True,
+            limiter=self.rate_limiter,
+        )
 
     async def get_step_logs(self, build_number: int, step_name: str) -> dict:
         """
@@ -256,7 +267,7 @@ class BitbucketPipelineClient:
 
         Raises:
             ValueError: If step name not found
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         # Get all steps for this build
         steps_data = await self.get_pipeline_steps(build_number)

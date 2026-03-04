@@ -30,6 +30,9 @@ hub.py                          ← Universal MCP gateway (STDIO transport)
 │       └── tools.py            ← Tool implementations (TOOLS dict)
 │
 ├── lib/                        ← Shared client libraries
+│   ├── common/
+│   │   ├── errors.py           ← Typed API errors (Auth/NotFound/RateLimit/etc.)
+│   │   └── http.py             ← Shared HTTP layer (retry/backoff/rate-limit/redaction)
 │   └── bitbucket/
 │       ├── client.py           ← Bitbucket Cloud API client (async httpx)
 │       ├── analyzer.py         ← AI-powered failure analysis
@@ -43,6 +46,8 @@ hub.py                          ← Universal MCP gateway (STDIO transport)
 │
 ├── cli.py                      ← Development/testing CLI
 ├── requirements.txt
+├── requirements-dev.txt
+├── tests/
 ├── .env.example
 └── README.md
 ```
@@ -79,6 +84,7 @@ source .venv/bin/activate      # Linux/macOS
 # .venv\Scripts\activate       # Windows
 
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### 3. Configure environment
@@ -150,6 +156,12 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```
 
 Restart Claude Desktop. You'll see **42 Bitbucket tools** available.
+
+### 6. Run tests (pilot D65)
+
+```bash
+pytest -q tests/test_bitbucket_client.py tests/test_jira_client.py
+```
 
 ---
 
@@ -347,3 +359,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 Contributions welcome! To add a new MCP server integration, see [Adding a New Server](#adding-a-new-server) above.
 
 Issues and PRs: [github.com/your-org/multi-agent-os](https://github.com/your-org/multi-agent-os)
+
+---
+
+Agent Signature: `codex-cli` | Timestamp: `2026-03-04T08:52:33-03:00`
