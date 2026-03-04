@@ -130,11 +130,13 @@ async def request_json(
     auth_kwargs: Optional[dict[str, Any]] = None,
     params: Optional[dict[str, Any]] = None,
     json: Optional[dict[str, Any]] = None,
+    data: Optional[dict[str, Any]] = None,
+    files: Optional[dict[str, Any]] = None,
     timeout: float = 30.0,
     follow_redirects: bool = False,
     limiter: Optional[AsyncLimiter] = None,
     max_retries: int = 3,
-) -> dict[str, Any]:
+) -> Any:
     """Perform request and parse JSON with retry + structured errors.
 
     `max_retries` means retries after the initial attempt.
@@ -149,12 +151,24 @@ async def request_json(
                 async with limiter:
                     async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
                         response = await client.request(
-                            method, url, params=params, json=json, **auth_kwargs
+                            method,
+                            url,
+                            params=params,
+                            json=json,
+                            data=data,
+                            files=files,
+                            **auth_kwargs,
                         )
             else:
                 async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
                     response = await client.request(
-                        method, url, params=params, json=json, **auth_kwargs
+                        method,
+                        url,
+                        params=params,
+                        json=json,
+                        data=data,
+                        files=files,
+                        **auth_kwargs,
                     )
 
             response.raise_for_status()
@@ -220,6 +234,123 @@ async def request_text(
 
             response.raise_for_status()
             return response.text
+
+        except httpx.HTTPStatusError as exc:
+            mapped = _map_http_status_error(
+                exc, provider=provider, endpoint=url, auth_hint=auth_hint
+            )
+            last_error = mapped
+            if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
+                await asyncio.sleep(_retry_delay(exc, attempt))
+                continue
+            raise mapped
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+            last_error = NetworkError(
+                sanitize_exception(exc),
+                0,
+                url,
+                provider,
+                "Erro de rede/transporte. Verifique conectividade e tente novamente.",
+            )
+            if attempt < attempts:
+                await asyncio.sleep(_backoff_seconds(attempt))
+                continue
+            raise last_error
+
+    if isinstance(last_error, ApiError):
+        raise last_error
+    raise ApiError("Erro desconhecido", 0, url, provider)
+
+
+async def request_bytes(
+    *,
+    method: str,
+    url: str,
+    provider: str,
+    auth_hint: str,
+    auth_kwargs: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any]] = None,
+    timeout: float = 30.0,
+    follow_redirects: bool = False,
+    limiter: Optional[AsyncLimiter] = None,
+    max_retries: int = 3,
+) -> bytes:
+    """Perform request and return raw bytes with retry + structured errors."""
+    auth_kwargs = auth_kwargs or {}
+    attempts = max(1, max_retries + 1)
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            if limiter:
+                async with limiter:
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                        response = await client.request(method, url, params=params, **auth_kwargs)
+            else:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                    response = await client.request(method, url, params=params, **auth_kwargs)
+
+            response.raise_for_status()
+            return response.content
+
+        except httpx.HTTPStatusError as exc:
+            mapped = _map_http_status_error(
+                exc, provider=provider, endpoint=url, auth_hint=auth_hint
+            )
+            last_error = mapped
+            if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
+                await asyncio.sleep(_retry_delay(exc, attempt))
+                continue
+            raise mapped
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+            last_error = NetworkError(
+                sanitize_exception(exc),
+                0,
+                url,
+                provider,
+                "Erro de rede/transporte. Verifique conectividade e tente novamente.",
+            )
+            if attempt < attempts:
+                await asyncio.sleep(_backoff_seconds(attempt))
+                continue
+            raise last_error
+
+    if isinstance(last_error, ApiError):
+        raise last_error
+    raise ApiError("Erro desconhecido", 0, url, provider)
+
+
+async def request_empty(
+    *,
+    method: str,
+    url: str,
+    provider: str,
+    auth_hint: str,
+    auth_kwargs: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any]] = None,
+    json: Optional[dict[str, Any]] = None,
+    timeout: float = 30.0,
+    follow_redirects: bool = False,
+    limiter: Optional[AsyncLimiter] = None,
+    max_retries: int = 3,
+) -> int:
+    """Perform request expecting empty body and return HTTP status code."""
+    auth_kwargs = auth_kwargs or {}
+    attempts = max(1, max_retries + 1)
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            if limiter:
+                async with limiter:
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                        response = await client.request(method, url, params=params, json=json, **auth_kwargs)
+            else:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                    response = await client.request(method, url, params=params, json=json, **auth_kwargs)
+
+            response.raise_for_status()
+            return response.status_code
 
         except httpx.HTTPStatusError as exc:
             mapped = _map_http_status_error(

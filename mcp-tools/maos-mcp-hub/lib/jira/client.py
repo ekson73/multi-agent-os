@@ -8,12 +8,11 @@ Authentication uses Basic Auth (email:api_token) as per Atlassian Cloud standard
 """
 
 import base64
-import httpx
 import os
 from typing import Optional
 from aiolimiter import AsyncLimiter
 
-from lib.common.http import request_json
+from lib.common.http import request_bytes, request_empty, request_json
 
 
 class JiraClient:
@@ -155,29 +154,31 @@ class JiraClient:
         Raises:
             httpx.HTTPError: If API request fails (404 if attachment not found)
         """
-        # First get the attachment metadata to find the content URL
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/attachment/{attachment_id}",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                metadata = response.json()
+        # First get attachment metadata to resolve the content URL.
+        metadata = await request_json(
+            method="GET",
+            url=f"{self.base_url}/attachment/{attachment_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
         content_url = metadata.get("content")
         if not content_url:
             raise ValueError(f"Attachment {attachment_id} has no content URL")
 
-        # Download the actual content
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
-                response = await client.get(
-                    content_url,
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.content
+        return await request_bytes(
+            method="GET",
+            url=content_url,
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=60.0,
+            follow_redirects=True,
+            limiter=self.rate_limiter,
+        )
 
     async def download_attachment_by_name(self, issue_key: str, filename: str) -> bytes:
         """
@@ -231,18 +232,22 @@ class JiraClient:
             "X-Atlassian-Token": "no-check",
         }
 
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                with open(filepath, "rb") as f:
-                    response = await client.post(
-                        f"{self.base_url}/issue/{issue_key}/attachments",
-                        headers=headers,
-                        files={"file": (fname, f)},
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    # API returns array of attachments
-                    return result[0] if isinstance(result, list) and result else result
+        with open(filepath, "rb") as f:
+            result = await request_json(
+                method="POST",
+                url=f"{self.base_url}/issue/{issue_key}/attachments",
+                provider=self._provider_name,
+                auth_hint=self._auth_hint,
+                auth_kwargs={"headers": headers},
+                files={"file": (fname, f)},
+                timeout=120.0,
+                limiter=self.rate_limiter,
+                # POST upload is non-idempotent.
+                max_retries=0,
+            )
+
+        # API usually returns array; keep backward-compatible shape.
+        return result[0] if isinstance(result, list) and result else result
 
     async def delete_attachment(self, attachment_id: str) -> dict:
         """
@@ -257,18 +262,26 @@ class JiraClient:
         Raises:
             httpx.HTTPError: If API request fails (404 if not found, 403 if no permission)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.delete(
-                    f"{self.base_url}/attachment/{attachment_id}",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
+        status = await request_empty(
+            method="DELETE",
+            url=f"{self.base_url}/attachment/{attachment_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            # DELETE can have side effects; avoid automatic retries.
+            max_retries=0,
+        )
 
-                if response.status_code == 204:
-                    return {
-                        "status": "deleted",
-                        "attachment_id": attachment_id,
-                        "message": "Attachment deleted successfully",
-                    }
-                return response.json()
+        if status == 204:
+            return {
+                "status": "deleted",
+                "attachment_id": attachment_id,
+                "message": "Attachment deleted successfully",
+            }
+        return {
+            "status": "success",
+            "attachment_id": attachment_id,
+            "http_status": status,
+        }
