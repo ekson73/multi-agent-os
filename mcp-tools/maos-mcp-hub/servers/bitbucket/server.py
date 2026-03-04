@@ -10,9 +10,10 @@ SERVER_INFO = {
     "mcp_server": "hub.py",
     "env_vars": {
         "BITBUCKET_EMAIL": "Atlassian account email (preferred for Basic auth with API token)",
+        "JIRA_EMAIL": "(Optional) Shared fallback email for Basic auth principal",
         "BITBUCKET_USERNAME": "Bitbucket username (legacy/basic fallback)",
         "BITBUCKET_API_TOKEN": "Bitbucket API token (primary variable)",
-        "BITBUCKET_APP_PASSWORD": "(Legacy alias) old app-password variable",
+        "BITBUCKET_APP_PASSWORD": "(Legacy alias) old app-password or bearer token (ATCTT3x...)",
         "BITBUCKET_REPO_SLUG": "(Optional) Override repo slug (workspace/repo-name)",
         "BITBUCKET_AUTH_TYPE": "(Optional) Force auth type: 'bearer' or 'basic'",
         "DEEPSEEK_API_KEY": "(Optional) DeepSeek AI API key for enhanced diagnosis",

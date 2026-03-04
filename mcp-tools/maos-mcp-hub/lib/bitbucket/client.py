@@ -23,6 +23,7 @@ class BitbucketPipelineClient:
 
     Environment variables:
         BITBUCKET_EMAIL: Atlassian account email (preferred for Basic Auth with API token)
+        JIRA_EMAIL: Shared fallback email for Basic Auth principal
         BITBUCKET_USERNAME: Bitbucket username (legacy/basic fallback)
         BITBUCKET_API_TOKEN: Bitbucket API token (primary variable)
         BITBUCKET_APP_PASSWORD: Legacy fallback variable (deprecated alias)
@@ -42,6 +43,8 @@ class BitbucketPipelineClient:
             ValueError: If required environment variables are missing or
                        if repository slug cannot be determined
         """
+        # Shared principal resolution order:
+        # BITBUCKET_EMAIL -> JIRA_EMAIL -> BITBUCKET_USERNAME
         self.auth_user = (
             os.getenv("BITBUCKET_EMAIL")
             or os.getenv("JIRA_EMAIL")
@@ -59,17 +62,17 @@ class BitbucketPipelineClient:
         auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "").strip().lower()
         if auth_type in {"bearer", "basic"}:
             self.use_bearer = auth_type == "bearer"
-        elif os.getenv("BITBUCKET_API_TOKEN"):
-            # Official Bitbucket API token flow for REST APIs defaults to Basic auth.
-            self.use_bearer = False
         else:
-            # Legacy compatibility mode for existing envs.
+            # Auto-detect bearer token format unless auth type is explicitly forced.
+            # Official Bitbucket API tokens use Basic auth; legacy bearer tokens
+            # (ATCTT3x...) continue supported for compatibility.
             self.use_bearer = self.api_token.startswith("ATCTT3x")
 
         if not self.use_bearer and not self.auth_user:
             raise ValueError(
                 "Missing Basic-auth principal. "
-                "Set BITBUCKET_EMAIL (preferred) or BITBUCKET_USERNAME; "
+                "Set BITBUCKET_EMAIL (preferred), JIRA_EMAIL (shared fallback), "
+                "or BITBUCKET_USERNAME; "
                 "or set BITBUCKET_AUTH_TYPE=bearer for token-only auth."
             )
 

@@ -20,35 +20,44 @@ from lib.bitbucket.validators import validate_build_number, validate_step_name, 
 
 # Global singleton instances
 _client = None
+_clients_by_repo: dict[str, BitbucketPipelineClient] = {}
 _analyzer = None
+_analyzers_by_repo: dict[str, PipelineAnalyzer] = {}
 _health = None
+_health_by_repo: dict[str, HealthMonitor] = {}
 
 
 def get_client(repo_slug: str = "") -> BitbucketPipelineClient:
-    """Get BitbucketPipelineClient (repo override bypasses singleton)"""
-    global _client
+    """Get BitbucketPipelineClient with singleton cache (global + per-repo)."""
+    global _client, _clients_by_repo
     if repo_slug:
-        return BitbucketPipelineClient(repo_slug=repo_slug)
+        if repo_slug not in _clients_by_repo:
+            _clients_by_repo[repo_slug] = BitbucketPipelineClient(repo_slug=repo_slug)
+        return _clients_by_repo[repo_slug]
     if _client is None:
         _client = BitbucketPipelineClient()
     return _client
 
 
 def get_analyzer(repo_slug: str = "") -> PipelineAnalyzer:
-    """Get PipelineAnalyzer (repo override bypasses singleton)"""
-    global _analyzer
+    """Get PipelineAnalyzer cache (global + per-repo)."""
+    global _analyzer, _analyzers_by_repo
     if repo_slug:
-        return PipelineAnalyzer(get_client(repo_slug))
+        if repo_slug not in _analyzers_by_repo:
+            _analyzers_by_repo[repo_slug] = PipelineAnalyzer(get_client(repo_slug))
+        return _analyzers_by_repo[repo_slug]
     if _analyzer is None:
         _analyzer = PipelineAnalyzer(get_client())
     return _analyzer
 
 
 def get_health(repo_slug: str = "") -> HealthMonitor:
-    """Get HealthMonitor (repo override bypasses singleton)"""
-    global _health
+    """Get HealthMonitor cache (global + per-repo)."""
+    global _health, _health_by_repo
     if repo_slug:
-        return HealthMonitor(get_client(repo_slug))
+        if repo_slug not in _health_by_repo:
+            _health_by_repo[repo_slug] = HealthMonitor(get_client(repo_slug))
+        return _health_by_repo[repo_slug]
     if _health is None:
         _health = HealthMonitor(get_client())
     return _health
@@ -511,7 +520,7 @@ async def get_test_case_reasons(build_number: int, step_name: str, test_case_nam
 # ============================================================================
 
 
-async def get_recent_deployments(environment: str = None, count: int = 5, repo_slug: str = "") -> dict:
+async def get_recent_deployments(environment: str | None = None, count: int = 5, repo_slug: str = "") -> dict:
     """
     Get recent deployments for the repository
 
@@ -1589,7 +1598,11 @@ async def get_ssh_key_info(repo_slug: str = "") -> dict:
 
 # @mcp.tool() -- Removed: Hub handles registration
 async def diagnose_pipeline_failure(
-    build_number: int, step_name: str = None, use_ai: bool = False, repo_slug: str = ""
+    build_number: int,
+    step_name: str | None = None,
+    *,
+    use_ai: bool = False,
+    repo_slug: str = "",
 ) -> dict:
     """
     🔍 HYBRID AI DIAGNOSIS: Analyze pipeline failure with pattern matching + contextual instructions
@@ -2012,11 +2025,16 @@ async def get_knowledge_base_stats(repo_slug: str = "") -> dict:
 
     Example:
         get_knowledge_base_stats()
+        
+    Args:
+        repo_slug: Accepted for API compatibility in multi-repo mode.
+                   Currently unused because KB stats are global to the hub instance.
 
     Related Tools:
     - save_successful_fix: Add new fixes to knowledge base
     - search_learned_fixes: Search for similar fixes
     """
+    _ = repo_slug
     try:
         from lib.bitbucket.knowledge_base import KnowledgeBase
 

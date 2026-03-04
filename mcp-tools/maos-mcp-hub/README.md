@@ -314,6 +314,7 @@ python3 hub.py --help
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `BITBUCKET_EMAIL` | Recommended | Atlassian account email (preferred for Basic auth with API token) |
+| `JIRA_EMAIL` | Optional fallback | Shared principal fallback for Bitbucket Basic auth |
 | `BITBUCKET_USERNAME` | Legacy fallback | Bitbucket username (fallback for Basic auth) |
 | `BITBUCKET_API_TOKEN` | Yes | Bitbucket API token (primary variable) |
 | `BITBUCKET_APP_PASSWORD` | Legacy | Deprecated alias (fallback only) |
@@ -329,7 +330,7 @@ python3 hub.py --help
 | `GOOGLE_API_KEY` | Optional | AI diagnosis (Gemini) |
 | `MISTRAL_API_KEY` | Optional | AI diagnosis (Mistral) |
 
-**Auth detection:** If `BITBUCKET_AUTH_TYPE` is not set, `BITBUCKET_API_TOKEN` defaults to Basic auth (`email + token`) following Bitbucket API token docs. Legacy alias continues supported as fallback.
+**Auth detection:** If `BITBUCKET_AUTH_TYPE` is not set, auth auto-detects bearer format (`ATCTT3x...`) and otherwise uses Basic auth (`email + token`) following Bitbucket API token docs. Basic principal resolution order: `BITBUCKET_EMAIL` -> `JIRA_EMAIL` -> `BITBUCKET_USERNAME`.
 
 **Multi-repo recommendation:** Leave `BITBUCKET_REPO_SLUG` empty and pass `repo_slug` in each Bitbucket tool call.
 
@@ -346,3 +347,5 @@ MIT License — see [LICENSE](LICENSE) for details.
 Contributions welcome! To add a new MCP server integration, see [Adding a New Server](#adding-a-new-server) above.
 
 Issues and PRs: [github.com/your-org/multi-agent-os](https://github.com/your-org/multi-agent-os)
+
+Signed-by: codex-agent 2026-03-04T01:44:52Z
