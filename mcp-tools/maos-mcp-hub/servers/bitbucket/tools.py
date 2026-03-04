@@ -1392,7 +1392,13 @@ async def get_pull_requests(state: str = "OPEN", count: int = 10, repo_slug: str
             "pull_requests": formatted_prs
         }
 
-    except httpx.HTTPStatusError as e:
+    except ApiError as e:
+        return {
+            "error": "Failed to get pull requests",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
+    except Exception as e:
         return {"error": f"Failed to get pull requests: {sanitize_error(e)}"}
 
 
@@ -1443,9 +1449,15 @@ async def get_pr_details(pr_id: int, repo_slug: str = "") -> dict:
             }
         }
 
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Pull request #{pr_id} not found"}
+        return {
+            "error": "Failed to get PR details",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
+    except Exception as e:
         return {"error": f"Failed to get PR details: {sanitize_error(e)}"}
 
 
@@ -1507,9 +1519,15 @@ async def get_pr_build_statuses(pr_id: int, repo_slug: str = "") -> dict:
             "statuses": formatted_statuses
         }
 
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Pull request #{pr_id} not found"}
+        return {
+            "error": "Failed to get PR build statuses",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
+    except Exception as e:
         return {"error": f"Failed to get PR build statuses: {sanitize_error(e)}"}
 
 
@@ -1555,17 +1573,19 @@ async def create_pull_request(
             "created_on": pr.get("created_on", "")
         }
 
-    except httpx.HTTPStatusError as e:
-        error_detail = ""
-        try:
-            error_body = e.response.json()
-            error_detail = error_body.get("error", {}).get("message", str(e))
-        except Exception:
-            error_detail = str(e)
-
+    except ApiError as e:
         return {
             "success": False,
-            "error": f"Failed to create PR: {error_detail}",
+            "error": f"Failed to create PR: {sanitize_exception(e)}",
+            "hint": e.hint,
+            "status_code": e.status_code,
+            "source_branch": source_branch,
+            "destination_branch": destination_branch
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to create PR: {sanitize_error(e)}",
             "source_branch": source_branch,
             "destination_branch": destination_branch
         }
