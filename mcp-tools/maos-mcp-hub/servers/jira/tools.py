@@ -16,6 +16,8 @@ from typing import Optional
 import httpx
 
 from lib.jira.client import JiraClient
+from lib.common.errors import ApiError
+from lib.common.http import sanitize_exception
 
 
 # ============================================================================
@@ -201,6 +203,10 @@ async def get_issue(issue_key: str, format: str = "markdown") -> dict:
             "attachment_count": len(fields.get("attachment", [])),
         }
 
+    except ApiError as e:
+        if e.status_code == 404:
+            return {"error": f"Issue {issue_key} not found"}
+        return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             return {"error": f"Issue {issue_key} not found"}

@@ -13,6 +13,8 @@ import os
 from typing import Optional
 from aiolimiter import AsyncLimiter
 
+from lib.common.http import request_json
+
 
 class JiraClient:
     """
@@ -59,6 +61,10 @@ class JiraClient:
             )
 
         self.base_url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3"
+        self._provider_name = "Jira"
+        self._auth_hint = (
+            "Verifique JIRA_EMAIL e JIRA_API_TOKEN (ou ATLASSIAN_API_TOKEN fallback)."
+        )
 
         # Rate limiter: 300 requests per hour (conservative for Jira Cloud)
         self.rate_limiter = AsyncLimiter(max_rate=300, time_period=3600)
@@ -94,15 +100,16 @@ class JiraClient:
         if fields:
             params["fields"] = fields
 
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/issue/{issue_key}",
-                    params=params,
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/issue/{issue_key}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params=params,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     # ========================================================================
     # Attachments API

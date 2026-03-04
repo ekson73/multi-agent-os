@@ -16,6 +16,8 @@ from lib.bitbucket.client import BitbucketPipelineClient
 from lib.bitbucket.analyzer import PipelineAnalyzer
 from lib.bitbucket.health import HealthMonitor
 from lib.bitbucket.validators import validate_build_number, validate_step_name, sanitize_error
+from lib.common.errors import ApiError
+from lib.common.http import sanitize_exception
 
 
 # Global singleton instances
@@ -74,7 +76,19 @@ async def get_recent_builds(count: int = 5, repo_slug: str = "") -> dict:
         return {"error": "count must be between 1 and 50"}
 
     client = get_client(repo_slug)
-    pipelines = await client.get_pipelines(pagelen=count)
+    try:
+        pipelines = await client.get_pipelines(pagelen=count)
+    except ApiError as e:
+        return {
+            "error": "Failed to fetch recent builds",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
+    except Exception as e:
+        return {
+            "error": "Failed to fetch recent builds",
+            "details": sanitize_exception(e),
+        }
 
     builds = []
     for p in pipelines.get("values", []):
@@ -100,8 +114,17 @@ async def get_build_details(build_number: int, repo_slug: str = "") -> dict:
 
     try:
         build = await client.get_pipeline(build_number)
+    except ApiError as e:
+        return {
+            "error": f"Failed to fetch build {build_number}",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
     except Exception as e:
-        return {"error": f"Failed to fetch build {build_number}", "details": str(e)}
+        return {
+            "error": f"Failed to fetch build {build_number}",
+            "details": sanitize_exception(e),
+        }
 
     return {
         "build_number": build["build_number"],
@@ -161,8 +184,17 @@ async def get_step_logs(build_number: int, step_name: str, repo_slug: str = "") 
 
     try:
         steps_data = await client.get_pipeline_steps(build_number)
+    except ApiError as e:
+        return {
+            "error": f"Failed to fetch steps for build {build_number}",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+        }
     except Exception as e:
-        return {"error": f"Failed to fetch steps for build {build_number}", "details": str(e)}
+        return {
+            "error": f"Failed to fetch steps for build {build_number}",
+            "details": sanitize_exception(e),
+        }
 
     # Find step by name
     step = next((s for s in steps_data.get("values", []) if s.get("name") == step_name), None)
@@ -186,9 +218,20 @@ async def get_step_logs(build_number: int, step_name: str, repo_slug: str = "") 
             "result": step.get("state", {}).get("result", {}).get("name", "N/A"),
             "logs": logs,
         }
+    except ApiError as e:
+        return {
+            "error": "Logs not available",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+            "step_name": step_name,
+            "step_uuid": step_uuid,
+            "state": step.get("state", {}).get("name", "UNKNOWN"),
+            "result": step.get("state", {}).get("result", {}).get("name", "N/A"),
+        }
     except Exception as e:
         return {
-            "error": f"Logs not available: {str(e)}",
+            "error": "Logs not available",
+            "details": sanitize_exception(e),
             "step_name": step_name,
             "step_uuid": step_uuid,
             "state": step.get("state", {}).get("name", "UNKNOWN"),
