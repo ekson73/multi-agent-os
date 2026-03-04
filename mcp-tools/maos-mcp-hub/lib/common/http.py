@@ -82,6 +82,33 @@ def _retry_delay(exc: httpx.HTTPStatusError, attempt: int) -> float:
     return max(local, retry_after)
 
 
+def _rewind_multipart_files(files: dict[str, Any]) -> None:
+    """Rewind multipart file objects before retrying a request."""
+    for value in files.values():
+        candidate = value
+        if isinstance(value, tuple) and len(value) >= 2:
+            candidate = value[1]
+
+        if candidate is None or isinstance(candidate, (bytes, bytearray, str)):
+            continue
+
+        seek = getattr(candidate, "seek", None)
+        if callable(seek):
+            try:
+                seek(0)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise ValueError(
+                    "Multipart retry requires rewindable file objects. "
+                    "Use bytes payloads or set max_retries=0."
+                ) from exc
+            continue
+
+        raise ValueError(
+            "Multipart retry requires rewindable file objects. "
+            "Use bytes payloads or set max_retries=0."
+        )
+
+
 def _map_http_status_error(
     error: httpx.HTTPStatusError,
     *,
@@ -130,14 +157,17 @@ async def request_json(
     auth_kwargs: Optional[dict[str, Any]] = None,
     params: Optional[dict[str, Any]] = None,
     json: Optional[dict[str, Any]] = None,
+    data: Optional[dict[str, Any]] = None,
+    files: Optional[dict[str, Any]] = None,
     timeout: float = 30.0,
     follow_redirects: bool = False,
     limiter: Optional[AsyncLimiter] = None,
     max_retries: int = 3,
-) -> dict[str, Any]:
+) -> Any:
     """Perform request and parse JSON with retry + structured errors.
 
     `max_retries` means retries after the initial attempt.
+    For multipart payloads (`files`), retries require rewindable file objects.
     """
     auth_kwargs = auth_kwargs or {}
     attempts = max(1, max_retries + 1)
@@ -145,16 +175,31 @@ async def request_json(
 
     for attempt in range(1, attempts + 1):
         try:
+            if files is not None and attempt > 1:
+                _rewind_multipart_files(files)
+
             if limiter:
                 async with limiter:
                     async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
                         response = await client.request(
-                            method, url, params=params, json=json, **auth_kwargs
+                            method,
+                            url,
+                            params=params,
+                            json=json,
+                            data=data,
+                            files=files,
+                            **auth_kwargs,
                         )
             else:
                 async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
                     response = await client.request(
-                        method, url, params=params, json=json, **auth_kwargs
+                        method,
+                        url,
+                        params=params,
+                        json=json,
+                        data=data,
+                        files=files,
+                        **auth_kwargs,
                     )
 
             response.raise_for_status()
@@ -168,7 +213,7 @@ async def request_json(
             if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
                 await asyncio.sleep(_retry_delay(exc, attempt))
                 continue
-            raise mapped
+            raise mapped from exc
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
             last_error = NetworkError(
                 sanitize_exception(exc),
@@ -180,7 +225,7 @@ async def request_json(
             if attempt < attempts:
                 await asyncio.sleep(_backoff_seconds(attempt))
                 continue
-            raise last_error
+            raise last_error from exc
 
     if isinstance(last_error, ApiError):
         raise last_error
@@ -229,7 +274,7 @@ async def request_text(
             if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
                 await asyncio.sleep(_retry_delay(exc, attempt))
                 continue
-            raise mapped
+            raise mapped from exc
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
             last_error = NetworkError(
                 sanitize_exception(exc),
@@ -241,7 +286,129 @@ async def request_text(
             if attempt < attempts:
                 await asyncio.sleep(_backoff_seconds(attempt))
                 continue
-            raise last_error
+            raise last_error from exc
+
+    if isinstance(last_error, ApiError):
+        raise last_error
+    raise ApiError("Erro desconhecido", 0, url, provider)
+
+
+async def request_bytes(
+    *,
+    method: str,
+    url: str,
+    provider: str,
+    auth_hint: str,
+    auth_kwargs: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any]] = None,
+    timeout: float = 30.0,
+    follow_redirects: bool = False,
+    limiter: Optional[AsyncLimiter] = None,
+    max_retries: int = 3,
+) -> bytes:
+    """Perform request and return raw bytes with retry + structured errors."""
+    auth_kwargs = auth_kwargs or {}
+    attempts = max(1, max_retries + 1)
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            if limiter:
+                async with limiter:
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                        response = await client.request(method, url, params=params, **auth_kwargs)
+            else:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                    response = await client.request(method, url, params=params, **auth_kwargs)
+
+            response.raise_for_status()
+            return response.content
+
+        except httpx.HTTPStatusError as exc:
+            mapped = _map_http_status_error(
+                exc, provider=provider, endpoint=url, auth_hint=auth_hint
+            )
+            last_error = mapped
+            if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
+                await asyncio.sleep(_retry_delay(exc, attempt))
+                continue
+            raise mapped from exc
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+            last_error = NetworkError(
+                sanitize_exception(exc),
+                0,
+                url,
+                provider,
+                "Erro de rede/transporte. Verifique conectividade e tente novamente.",
+            )
+            if attempt < attempts:
+                await asyncio.sleep(_backoff_seconds(attempt))
+                continue
+            raise last_error from exc
+
+    if isinstance(last_error, ApiError):
+        raise last_error
+    raise ApiError("Erro desconhecido", 0, url, provider)
+
+
+async def request_empty(
+    *,
+    method: str,
+    url: str,
+    provider: str,
+    auth_hint: str,
+    auth_kwargs: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any]] = None,
+    json: Optional[dict[str, Any]] = None,
+    timeout: float = 30.0,
+    follow_redirects: bool = False,
+    limiter: Optional[AsyncLimiter] = None,
+    max_retries: int = 3,
+) -> int:
+    """Perform request expecting empty body and return HTTP status code.
+
+    `max_retries` means retries after the initial attempt (default: 3).
+    For non-idempotent methods (e.g., DELETE with side effects), callers
+    should set `max_retries=0` or provide explicit idempotency handling.
+    """
+    auth_kwargs = auth_kwargs or {}
+    attempts = max(1, max_retries + 1)
+    last_error: Optional[Exception] = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            if limiter:
+                async with limiter:
+                    async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                        response = await client.request(method, url, params=params, json=json, **auth_kwargs)
+            else:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=follow_redirects) as client:
+                    response = await client.request(method, url, params=params, json=json, **auth_kwargs)
+
+            response.raise_for_status()
+            return response.status_code
+
+        except httpx.HTTPStatusError as exc:
+            mapped = _map_http_status_error(
+                exc, provider=provider, endpoint=url, auth_hint=auth_hint
+            )
+            last_error = mapped
+            if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
+                await asyncio.sleep(_retry_delay(exc, attempt))
+                continue
+            raise mapped from exc
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
+            last_error = NetworkError(
+                sanitize_exception(exc),
+                0,
+                url,
+                provider,
+                "Erro de rede/transporte. Verifique conectividade e tente novamente.",
+            )
+            if attempt < attempts:
+                await asyncio.sleep(_backoff_seconds(attempt))
+                continue
+            raise last_error from exc
 
     if isinstance(last_error, ApiError):
         raise last_error

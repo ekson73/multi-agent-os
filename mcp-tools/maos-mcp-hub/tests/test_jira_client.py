@@ -1,9 +1,10 @@
 import asyncio
 
 import httpx
+import pytest
 import respx
 
-from lib.common.errors import AuthError
+from lib.common.errors import AuthError, NotFoundError
 from lib.jira.client import JiraClient
 
 
@@ -17,7 +18,7 @@ def test_get_issue_success(monkeypatch):
     monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
     monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
 
-    async def run():
+    async def run() -> None:
         client = JiraClient()
         with respx.mock(assert_all_called=True) as router:
             router.get(
@@ -36,7 +37,7 @@ def test_get_issue_maps_401_to_auth_error(monkeypatch):
     monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
     monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
 
-    async def run():
+    async def run() -> None:
         client = JiraClient()
         with respx.mock(assert_all_called=True) as router:
             router.get(
@@ -61,3 +62,104 @@ def test_jira_fallback_to_atlassian_token(monkeypatch):
     client = JiraClient()
     assert client.api_token == "shared-token"
 
+
+def test_download_attachment_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(
+                "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/10001"
+            ).mock(return_value=httpx.Response(200, json={"id": "10001", "content": "https://api.atlassian.com/mock/content/10001"}))
+            router.get("https://api.atlassian.com/mock/content/10001").mock(return_value=httpx.Response(200, content=b"hello-md"))
+
+            content = await client.download_attachment("10001")
+            assert content == b"hello-md"
+
+    asyncio.run(run())
+
+
+def test_upload_attachment_success(monkeypatch, tmp_path):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    file_path = tmp_path / "sample.md"
+    file_path.write_text("# sample\n", encoding="utf-8")
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.post(
+                "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/issue/VKS-1247/attachments"
+            ).mock(return_value=httpx.Response(200, json=[{"id": "20001", "filename": "sample.md"}]))
+
+            result = await client.upload_attachment("VKS-1247", str(file_path))
+            assert result["id"] == "20001"
+            assert result["filename"] == "sample.md"
+
+    asyncio.run(run())
+
+
+def test_delete_attachment_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.delete(
+                "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/30001"
+            ).mock(return_value=httpx.Response(204))
+
+            result = await client.delete_attachment("30001")
+            assert result["status"] == "deleted"
+            assert result["attachment_id"] == "30001"
+
+    asyncio.run(run())
+
+
+def test_delete_attachment_maps_404_to_not_found(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.delete(
+                "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/40401"
+            ).mock(return_value=httpx.Response(404, text='{"error":"not found"}'))
+
+            with pytest.raises(NotFoundError) as exc_info:
+                await client.delete_attachment("40401")
+            exc = exc_info.value
+            assert exc.status_code == 404
+            assert "/attachment/40401" in exc.endpoint
+
+    asyncio.run(run())
+
+
+def test_delete_attachment_maps_403_to_auth_error(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.delete(
+                "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/40301"
+            ).mock(return_value=httpx.Response(403, text='{"error":"forbidden"}'))
+
+            with pytest.raises(AuthError) as exc_info:
+                await client.delete_attachment("40301")
+            exc = exc_info.value
+            assert exc.status_code == 403
+            assert "/attachment/40301" in exc.endpoint
+
+    asyncio.run(run())
