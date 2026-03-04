@@ -905,17 +905,18 @@ class BitbucketPipelineClient:
                   }
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pullrequests",
-                    params={"state": state, "pagelen": pagelen},
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pullrequests",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"state": state, "pagelen": pagelen},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def get_pull_request(self, pr_id: int) -> dict:
         """
@@ -941,16 +942,17 @@ class BitbucketPipelineClient:
                   }
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if PR not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pullrequests/{pr_id}",
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pullrequests/{pr_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def get_pr_statuses(self, pr_id: int, pagelen: int = 50) -> dict:
         """
@@ -979,17 +981,18 @@ class BitbucketPipelineClient:
                   }
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if PR not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"{self.base_url}/pullrequests/{pr_id}/statuses",
-                    params={"pagelen": pagelen},
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pullrequests/{pr_id}/statuses",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"pagelen": pagelen},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
 
     async def create_pull_request(
         self,
@@ -1024,7 +1027,7 @@ class BitbucketPipelineClient:
                   }
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         payload = {
             "title": title,
@@ -1047,15 +1050,17 @@ class BitbucketPipelineClient:
         if reviewers:
             payload["reviewers"] = [{"uuid": uuid} for uuid in reviewers]
 
-        async with self.rate_limiter:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/pullrequests",
-                    json=payload,
-                    **self._auth_kwargs,
-                )
-                response.raise_for_status()
-                return response.json()
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/pullrequests",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent operation: avoid duplicate PR creation
+        )
 
     async def get_pipeline_schedules(self) -> dict:
         """
