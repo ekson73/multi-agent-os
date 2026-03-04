@@ -1,6 +1,7 @@
 import asyncio
 
 import httpx
+import pytest
 import respx
 
 from lib.common.errors import AuthError, NotFoundError
@@ -134,12 +135,11 @@ def test_delete_attachment_maps_404_to_not_found(monkeypatch):
                 "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/40401"
             ).mock(return_value=httpx.Response(404, text='{"error":"not found"}'))
 
-            try:
+            with pytest.raises(NotFoundError) as exc_info:
                 await client.delete_attachment("40401")
-                raise AssertionError("Expected NotFoundError was not raised")
-            except NotFoundError as exc:
-                assert exc.status_code == 404
-                assert "/attachment/40401" in exc.endpoint
+            exc = exc_info.value
+            assert exc.status_code == 404
+            assert "/attachment/40401" in exc.endpoint
 
     asyncio.run(run())
 
@@ -156,11 +156,10 @@ def test_delete_attachment_maps_403_to_auth_error(monkeypatch):
                 "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3/attachment/40301"
             ).mock(return_value=httpx.Response(403, text='{"error":"forbidden"}'))
 
-            try:
+            with pytest.raises(AuthError) as exc_info:
                 await client.delete_attachment("40301")
-                raise AssertionError("Expected AuthError was not raised")
-            except AuthError as exc:
-                assert exc.status_code == 403
-                assert "/attachment/40301" in exc.endpoint
+            exc = exc_info.value
+            assert exc.status_code == 403
+            assert "/attachment/40301" in exc.endpoint
 
     asyncio.run(run())
