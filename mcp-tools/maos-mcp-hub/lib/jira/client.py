@@ -7,12 +7,18 @@ Jira Cloud REST API to manage issues and attachments.
 Authentication uses Basic Auth (email:api_token) as per Atlassian Cloud standard.
 """
 
+import asyncio
 import base64
 import os
 from typing import Optional
 from aiolimiter import AsyncLimiter
 
 from lib.common.http import request_bytes, request_empty, request_json
+
+
+def _read_file_bytes(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read()
 
 
 class JiraClient:
@@ -136,7 +142,7 @@ class JiraClient:
                   ]
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         issue = await self.get_issue(issue_key, fields="attachment")
         return issue.get("fields", {}).get("attachment", [])
@@ -152,7 +158,7 @@ class JiraClient:
             bytes: Raw file content
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if attachment not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         # First get attachment metadata to resolve the content URL.
         metadata = await request_json(
@@ -193,7 +199,7 @@ class JiraClient:
 
         Raises:
             ValueError: If attachment with given filename not found
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         attachments = await self.list_attachments(issue_key)
         for att in attachments:
@@ -218,7 +224,7 @@ class JiraClient:
 
         Raises:
             FileNotFoundError: If filepath doesn't exist
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"File not found: {filepath}")
@@ -232,19 +238,19 @@ class JiraClient:
             "X-Atlassian-Token": "no-check",
         }
 
-        with open(filepath, "rb") as f:
-            result = await request_json(
-                method="POST",
-                url=f"{self.base_url}/issue/{issue_key}/attachments",
-                provider=self._provider_name,
-                auth_hint=self._auth_hint,
-                auth_kwargs={"headers": headers},
-                files={"file": (fname, f)},
-                timeout=120.0,
-                limiter=self.rate_limiter,
-                # POST upload is non-idempotent.
-                max_retries=0,
-            )
+        content = await asyncio.to_thread(_read_file_bytes, filepath)
+        result = await request_json(
+            method="POST",
+            url=f"{self.base_url}/issue/{issue_key}/attachments",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs={"headers": headers},
+            files={"file": (fname, content)},
+            timeout=120.0,
+            limiter=self.rate_limiter,
+            # POST upload is non-idempotent.
+            max_retries=0,
+        )
 
         # API usually returns array; keep backward-compatible shape.
         return result[0] if isinstance(result, list) and result else result
@@ -260,7 +266,7 @@ class JiraClient:
             dict: Success confirmation
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if not found, 403 if no permission)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         status = await request_empty(
             method="DELETE",
