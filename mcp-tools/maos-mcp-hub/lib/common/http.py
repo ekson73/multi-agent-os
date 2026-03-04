@@ -7,6 +7,8 @@ from __future__ import annotations
 import asyncio
 import random
 import re
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Optional
 
 import httpx
@@ -27,7 +29,12 @@ def sanitize_text(value: str) -> str:
     text = value
     text = re.sub(r"Basic [A-Za-z0-9+/=]+", "Basic ***", text)
     text = re.sub(r"Bearer [A-Za-z0-9._=-]+", "Bearer ***", text)
-    text = re.sub(r"(token|password|secret|api[_-]?key)[=:\\s]+[^\\s,\\)]+", r"\1=***", text, flags=re.IGNORECASE)
+    text = re.sub(
+        r"(token|password|secret|api[_-]?key)[=:\s]+[^\s,)]+",
+        r"\1=***",
+        text,
+        flags=re.IGNORECASE,
+    )
     return text
 
 
@@ -39,6 +46,40 @@ def _backoff_seconds(attempt: int, base: float = 0.5, cap: float = 8.0) -> float
     # Exponential backoff + jitter to reduce thundering herd.
     delay = min(cap, base * (2 ** max(0, attempt - 1)))
     return delay + random.uniform(0, 0.3)
+
+
+def _retry_after_seconds(raw: Optional[str]) -> Optional[float]:
+    """Parse Retry-After header as seconds or HTTP-date."""
+    if not raw:
+        return None
+
+    value = raw.strip()
+    if not value:
+        return None
+
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        pass
+
+    try:
+        dt = parsedate_to_datetime(value)
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return max(0.0, (dt - datetime.now(timezone.utc)).total_seconds())
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _retry_delay(exc: httpx.HTTPStatusError, attempt: int) -> float:
+    """Honor Retry-After when present, never less than local backoff."""
+    local = _backoff_seconds(attempt)
+    retry_after = _retry_after_seconds(exc.response.headers.get("Retry-After"))
+    if retry_after is None:
+        return local
+    return max(local, retry_after)
 
 
 def _map_http_status_error(
@@ -94,9 +135,12 @@ async def request_json(
     limiter: Optional[AsyncLimiter] = None,
     max_retries: int = 3,
 ) -> dict[str, Any]:
-    """Perform request and parse JSON with retry + structured errors."""
+    """Perform request and parse JSON with retry + structured errors.
+
+    `max_retries` means retries after the initial attempt.
+    """
     auth_kwargs = auth_kwargs or {}
-    attempts = max(1, max_retries)
+    attempts = max(1, max_retries + 1)
     last_error: Optional[Exception] = None
 
     for attempt in range(1, attempts + 1):
@@ -122,7 +166,7 @@ async def request_json(
             )
             last_error = mapped
             if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
-                await asyncio.sleep(_backoff_seconds(attempt))
+                await asyncio.sleep(_retry_delay(exc, attempt))
                 continue
             raise mapped
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
@@ -156,9 +200,12 @@ async def request_text(
     limiter: Optional[AsyncLimiter] = None,
     max_retries: int = 3,
 ) -> str:
-    """Perform request and return response text with retry + structured errors."""
+    """Perform request and return response text with retry + structured errors.
+
+    `max_retries` means retries after the initial attempt.
+    """
     auth_kwargs = auth_kwargs or {}
-    attempts = max(1, max_retries)
+    attempts = max(1, max_retries + 1)
     last_error: Optional[Exception] = None
 
     for attempt in range(1, attempts + 1):
@@ -180,7 +227,7 @@ async def request_text(
             )
             last_error = mapped
             if isinstance(mapped, (RateLimitError, ServerError)) and attempt < attempts:
-                await asyncio.sleep(_backoff_seconds(attempt))
+                await asyncio.sleep(_retry_delay(exc, attempt))
                 continue
             raise mapped
         except (httpx.TimeoutException, httpx.NetworkError, httpx.TransportError) as exc:
@@ -199,4 +246,3 @@ async def request_text(
     if isinstance(last_error, ApiError):
         raise last_error
     raise ApiError("Erro desconhecido", 0, url, provider)
-

@@ -381,6 +381,14 @@ async def get_test_reports(build_number: int, step_name: str, repo_slug: str = "
             "has_failures": report.get("failed_test_count", 0) > 0,
         }
 
+    except ApiError as e:
+        return {
+            "error": "Failed to get test reports",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+            "build_number": build_number,
+            "step_name": step_name,
+        }
     except httpx.HTTPStatusError as e:
         return {
             "error": f"Failed to get test reports: {sanitize_error(e)}",
@@ -459,6 +467,14 @@ async def get_test_cases(build_number: int, step_name: str, status: str = "all",
             "count": len(formatted_cases),
         }
 
+    except ApiError as e:
+        return {
+            "error": "Failed to get test cases",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+            "build_number": build_number,
+            "step_name": step_name,
+        }
     except httpx.HTTPStatusError as e:
         return {
             "error": f"Failed to get test cases: {sanitize_error(e)}",
@@ -549,6 +565,15 @@ async def get_test_case_reasons(build_number: int, step_name: str, test_case_nam
             "failure_reasons": formatted_reasons,
         }
 
+    except ApiError as e:
+        return {
+            "error": "Failed to get test case reasons",
+            "details": sanitize_exception(e),
+            "hint": e.hint,
+            "build_number": build_number,
+            "step_name": step_name,
+            "test_case_name": test_case_name,
+        }
     except httpx.HTTPStatusError as e:
         return {
             "error": f"Failed to get test case reasons: {sanitize_error(e)}",

@@ -18,6 +18,10 @@ class ApiError(Exception):
     provider: str
     hint: Optional[str] = None
 
+    def __post_init__(self) -> None:
+        # Keep Exception.args compatible with standard exception handling.
+        super().__init__(self.message)
+
     def __str__(self) -> str:
         base = (
             f"{self.provider} API error ({self.status_code}) at {self.endpoint}: "
@@ -46,4 +50,3 @@ class ServerError(ApiError):
 
 class NetworkError(ApiError):
     """Network/timeout/transport error."""
-

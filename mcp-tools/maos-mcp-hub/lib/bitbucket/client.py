@@ -159,7 +159,7 @@ class BitbucketPipelineClient:
             dict: Bitbucket API response with 'values' array and pagination info
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         return await request_json(
             method="GET",
@@ -183,7 +183,7 @@ class BitbucketPipelineClient:
             dict: Pipeline object with full details
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if build not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         return await request_json(
             method="GET",
@@ -206,7 +206,7 @@ class BitbucketPipelineClient:
             dict: Response with 'values' array of step objects
 
         Raises:
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         return await request_json(
             method="GET",
@@ -230,7 +230,7 @@ class BitbucketPipelineClient:
             str: Raw log output (plain text)
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if logs not available)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         # Ensure UUID has curly braces (API requires them)
         if not step_uuid.startswith("{"):
@@ -267,7 +267,7 @@ class BitbucketPipelineClient:
 
         Raises:
             ValueError: If step name not found
-            httpx.HTTPError: If API request fails
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         # Get all steps for this build
         steps_data = await self.get_pipeline_steps(build_number)

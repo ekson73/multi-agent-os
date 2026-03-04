@@ -13,8 +13,6 @@ import base64
 import re
 from typing import Optional
 
-import httpx
-
 from lib.jira.client import JiraClient
 from lib.common.errors import ApiError
 from lib.common.http import sanitize_exception
@@ -207,10 +205,6 @@ async def get_issue(issue_key: str, format: str = "markdown") -> dict:
         if e.status_code == 404:
             return {"error": f"Issue {issue_key} not found"}
         return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
-            return {"error": f"Issue {issue_key} not found"}
-        return {"error": f"Jira API error: {_sanitize_error(e)}"}
     except Exception as e:
         return {"error": f"Unexpected error: {_sanitize_error(e)}"}
 
@@ -249,10 +243,10 @@ async def list_attachments(issue_key: str) -> dict:
             ],
         }
 
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Issue {issue_key} not found"}
-        return {"error": f"Jira API error: {_sanitize_error(e)}"}
+        return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
     except Exception as e:
         return {"error": f"Unexpected error: {_sanitize_error(e)}"}
 
@@ -305,10 +299,10 @@ async def download_attachment(issue_key: str, filename: str) -> dict:
 
     except ValueError as e:
         return {"error": str(e)}
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Attachment '{filename}' not found on {issue_key}"}
-        return {"error": f"Jira API error: {_sanitize_error(e)}"}
+        return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
     except Exception as e:
         return {"error": f"Unexpected error: {_sanitize_error(e)}"}
 
@@ -351,12 +345,12 @@ async def upload_attachment(issue_key: str, filepath: str, filename: str = "") -
 
     except FileNotFoundError as e:
         return {"error": str(e)}
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Issue {issue_key} not found"}
-        if e.response.status_code == 403:
+        if e.status_code == 403:
             return {"error": f"No permission to upload attachments to {issue_key}"}
-        return {"error": f"Jira API error: {_sanitize_error(e)}"}
+        return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
     except Exception as e:
         return {"error": f"Unexpected error: {_sanitize_error(e)}"}
 
@@ -382,12 +376,12 @@ async def delete_attachment(attachment_id: str) -> dict:
     try:
         return await client.delete_attachment(attachment_id)
 
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status_code == 404:
             return {"error": f"Attachment {attachment_id} not found"}
-        if e.response.status_code == 403:
+        if e.status_code == 403:
             return {"error": f"No permission to delete attachment {attachment_id}"}
-        return {"error": f"Jira API error: {_sanitize_error(e)}"}
+        return {"error": f"Jira API error: {sanitize_exception(e)}", "hint": e.hint}
     except Exception as e:
         return {"error": f"Unexpected error: {_sanitize_error(e)}"}
 

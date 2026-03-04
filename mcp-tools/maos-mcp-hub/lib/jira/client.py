@@ -94,7 +94,7 @@ class JiraClient:
             dict: Issue data with key, fields (summary, description, status, etc.)
 
         Raises:
-            httpx.HTTPError: If API request fails (404 if issue not found)
+            ApiError: If API request fails (auth/not-found/rate-limit/server/network)
         """
         params = {}
         if fields:
