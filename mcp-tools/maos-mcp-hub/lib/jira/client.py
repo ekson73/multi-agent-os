@@ -23,7 +23,8 @@ class JiraClient:
 
     Environment variables:
         JIRA_EMAIL: Atlassian account email
-        JIRA_API_TOKEN: API token from https://id.atlassian.com/manage-profile/security/api-tokens
+        JIRA_API_TOKEN: Jira-specific API token (preferred)
+        ATLASSIAN_API_TOKEN: Shared fallback token for Jira/Confluence (optional)
         JIRA_CLOUD_ID: Cloud instance ID (UUID format)
     """
 
@@ -39,12 +40,13 @@ class JiraClient:
             ValueError: If required environment variables are missing
         """
         self.email = os.getenv("JIRA_EMAIL")
-        self.api_token = os.getenv("JIRA_API_TOKEN")
+        self.api_token = os.getenv("JIRA_API_TOKEN") or os.getenv("ATLASSIAN_API_TOKEN")
         self.cloud_id = cloud_id or os.getenv("JIRA_CLOUD_ID")
 
         if not self.api_token:
             raise ValueError(
-                "Missing required JIRA_API_TOKEN. "
+                "Missing required Jira token. Set JIRA_API_TOKEN "
+                "(preferred) or ATLASSIAN_API_TOKEN (fallback). "
                 "Generate at https://id.atlassian.com/manage-profile/security/api-tokens"
             )
         if not self.email:

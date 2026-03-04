@@ -15,7 +15,8 @@ SERVER_INFO = {
     "mcp_server": "hub.py",
     "env_vars": {
         "JIRA_EMAIL": "Atlassian account email for Basic Auth",
-        "JIRA_API_TOKEN": "API token from id.atlassian.com (not password)",
+        "JIRA_API_TOKEN": "Jira-specific API token (preferred)",
+        "ATLASSIAN_API_TOKEN": "Shared fallback token for Jira/Confluence (optional)",
         "JIRA_CLOUD_ID": "Cloud instance UUID (e.g., 023bcd49-f455-4451-a096-c50c42c811d7)",
     },
     "tools": [

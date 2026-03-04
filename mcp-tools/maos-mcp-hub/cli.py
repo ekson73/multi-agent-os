@@ -32,8 +32,10 @@ Examples:
 Environment Variables:
     Server-specific (see server documentation)
     Example for bitbucket:
+        BITBUCKET_EMAIL          - Atlassian account email (preferred for Basic auth)
         BITBUCKET_USERNAME       - Bitbucket username
-        BITBUCKET_APP_PASSWORD   - Bitbucket app password
+        BITBUCKET_API_TOKEN      - Bitbucket API token
+        BITBUCKET_APP_PASSWORD   - Legacy fallback alias
 """
 
 import sys
