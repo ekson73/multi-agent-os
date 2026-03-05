@@ -128,7 +128,7 @@ git worktree list --porcelain
 
 # 3) Validar se alteracao tracked local e obsoleta vs origin/main
 git fetch origin
-git diff -- path/to/file origin/main -- path/to/file
+git diff origin/main -- path/to/file
 
 # 4) Sincronizar apenas apos limpar drift local
 git pull --ff-only
