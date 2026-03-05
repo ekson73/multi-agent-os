@@ -3,7 +3,7 @@
 
 Este diretorio armazena git worktrees para uso por multiplos AI agents trabalhando em paralelo.
 
-**Versao**: 1.5 | **Atualizado**: 2026-01-07
+**Versao**: 1.6 | **Atualizado**: 2026-03-05
 
 ---
 
@@ -119,6 +119,7 @@ Regra operacional:
 3. smoke/read-only pode rodar em qualquer worktree, desde que `repo_slug/workspace` sejam explicitos quando o remote local nao for o alvo.
 
 Checklist rapido de saneamento:
+
 ```bash
 # 1) Inventariar drift no checkout primario
 git status --short
@@ -136,7 +137,7 @@ git pull --ff-only
 
 Observacao:
 1. backups locais de `.env` e `*.bak-*` nao devem ser versionados;
-2. manter esses artefatos ignorados no escopo do modulo evita ruído operacional.
+2. manter esses artefatos ignorados no escopo do módulo evita ruído operacional.
 
 ---
 
