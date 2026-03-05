@@ -15,6 +15,8 @@ ENV/
 .env
 *.env.local
 *.env.*.local
+.env.bak-*
+.env.env.bak-*
 
 # macOS
 .DS_Store
@@ -31,6 +33,11 @@ ENV/
 # Logs
 *.log
 logs/
+
+# Local backup artifacts (editor/agent generated)
+*.bak
+*.bak-*
+*.tmp
 
 # Build artifacts
 dist/

@@ -3,7 +3,7 @@
 
 Este diretorio armazena git worktrees para uso por multiplos AI agents trabalhando em paralelo.
 
-**Versao**: 1.5 | **Atualizado**: 2026-01-07
+**Versao**: 1.6 | **Atualizado**: 2026-03-05
 
 ---
 
@@ -105,6 +105,39 @@ done
 | Multiplas sessoes no mesmo worktree | Falta de verificacao pre-sessao | Mover uma sessao para outro worktree |
 | Branch orfa | Worktree removido sem deletar branch | Avaliar e deletar se merged |
 | Heartbeat > completed_at | Sessao continuou apos ser marcada completa | Atualizar completed_at |
+
+### Contencao de Drift no Checkout Primario (D74)
+
+Sintoma tipico:
+1. `main` com arquivo tracked modificado e varios `*.bak-*` untracked;
+2. `git pull --ff-only` bloqueado no checkout primario;
+3. alteracoes locais intermediarias que ja foram superadas em `origin/main`.
+
+Regra operacional:
+1. checkout primario (`/repo`) e de coordenacao, nao de edicao;
+2. toda edicao de codigo deve ocorrer em worktree dedicado fora do checkout primario;
+3. smoke/read-only pode rodar em qualquer worktree, desde que `repo_slug/workspace` sejam explicitos quando o remote local nao for o alvo.
+
+Checklist rapido de saneamento:
+
+```bash
+# 1) Inventariar drift no checkout primario
+git status --short
+
+# 2) Conferir worktrees vivos
+git worktree list --porcelain
+
+# 3) Validar se alteracao tracked local e obsoleta vs origin/main
+git fetch origin
+git diff origin/main -- path/to/file
+
+# 4) Sincronizar apenas apos limpar drift local
+git pull --ff-only
+```
+
+Observacao:
+1. backups locais de `.env` e `*.bak-*` nao devem ser versionados;
+2. manter esses artefatos ignorados no escopo do módulo evita ruído operacional.
 
 ---
 
@@ -478,11 +511,12 @@ Todos os agentes devem registrar suas tarefas:
 | Campo | Valor |
 |-------|-------|
 | Criado por | `Claude-Orch-Alpha` |
-| Atualizado por | `Claude-Orch-Prime-20260107-val1` |
-| Data | 2026-01-07 |
-| Versao | 1.5 |
+| Atualizado por | `Codex-GPT5` |
+| Data | 2026-03-05 |
+| Versao | 1.6 |
 
 **Changelog**:
+- v1.6 (2026-03-05): Contencao de drift no checkout primario + checklist de saneamento + higiene de artefatos locais
 - v1.5 (2026-01-07): Guardrails de Integridade v1.0 - 6 regras + checklist + erros comuns
 - v1.4 (2026-01-06): Politica simplificada - worktree obrigatorio para modificacoes (3 excecoes)
 - v1.3 (2026-01-06): Nomenclatura de diretorios e branches padronizada
@@ -490,4 +524,4 @@ Todos os agentes devem registrar suas tarefas:
 - v1.1 (2026-01-06): Referencia a Enhanced Anti-Conflict Protocol v2.0 em CLAUDE.md
 - v1.0 (2026-01-06): Versao inicial
 
-*Assinatura: Claude-Orch-Prime-20260107-val1 | 2026-01-07T00:35:00-03:00*
+*Assinatura: Codex-GPT5 | 2026-03-05T10:00:00-03:00*
