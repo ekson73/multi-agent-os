@@ -8,6 +8,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-03-08
+
+### Added
+
+#### Rules (rules/)
+- `action-now-protocol.md` (C15) — Eisenhower matrix for task prioritization with interdependency analysis
+- `ai-native-errors.md` (C06) — MCP-JSON-RPC error protocol with recovery instructions
+- `context-before-commit.md` (R01) — Context analysis before git commit (scope determination)
+
+#### Documentation (docs/)
+- `git-worktree-protocol.md` — Complete C04 git worktree protocol specification
+- `git-workflow-standard.md` — Standard git workflow patterns
+- `pr-review-protocol-spec.md` — PR review protocol full specification (C07)
+- `mcp-jsonrpc-errors.md` — MCP-JSON-RPC error format reference
+- `naming-conventions.md` — File and directory naming conventions
+- `session-report-standard.md` — Session report format standard
+- `session-audit-standard.md` — Session audit format standard
+- `glossary-global-terms.md` — Global glossary of terms
+- `ralph-loop-pattern.md` — Ralph Loop pattern documentation
+- `error-codes-registry.md` — Error codes registry
+- `ai-native-environment.md` — AI-native environment setup
+- `auto-catchup-protocol.md` — Auto catch-up protocol for session continuity
+- `session-identifiers-research.md` — Research on session identity patterns
+
+#### Specs (docs/specs/)
+- `auto-shard-agent-architecture.md` — Auto-shard agent architecture design
+- `auto-shard-agent-brd.md` — Auto-shard agent business requirements
+- `claude-md-sharding-spec.md` — CLAUDE.md sharding specification
+- `sync-skill-interface.md` — Sync skill interface specification
+- `sync-to-git-spec.md` — Sync-to-git specification
+
+#### Agents (agents/)
+- `code-reviewer.md` — Automated code review agent
+- `data-analyst.md` — Data analysis and reporting agent
+- `debugger.md` — Debugging specialist agent
+
+#### Skills (skills/)
+- `skill-writer/SKILL.md` — Skill creation and authoring tool
+- `sync-to-git/SKILL.md` — Git synchronization skill
+
+#### Commands (commands/)
+- `auto-shard/` — CLAUDE.md sharding utility (8 files: SKILL.md, 6 operations, 1 script)
+  - `operations/analyze.md` — Analyze CLAUDE.md for sharding opportunities
+  - `operations/classify.md` — Classify content into shard categories
+  - `operations/generate.md` — Generate shard files
+  - `operations/recursive.md` — Recursive sharding for deep hierarchies
+  - `operations/update-refs.md` — Update cross-references after sharding
+  - `operations/validate.md` — Validate shard integrity
+  - `scripts/detect-large-file.sh` — Detect files exceeding size thresholds
+- `code/analyze/dependencies.md` — Dependency analysis command
+- `analyze/research/quick-web-research.md` — Quick web research command
+
+### Technical Details
+- 36 new files consolidated from user-scope (`~/.claude/`) generic artifacts
+- All files verified: no personal or proprietary data included
+- Personal file paths sanitized in session-identifiers-research.md
+- New `rules/` directory created at project root for reusable enforcement rules
+
 ## [1.3.0] - 2026-01-30
 
 ### Added
@@ -226,6 +284,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| 1.4.0 | 2026-03-08 | Consolidate 36 community artifacts: rules, docs, agents, skills, commands |
 | 1.3.0 | 2026-01-30 | Governance subsystem, worktree enforcement hooks |
 | 1.2.1 | 2026-01-10 | Version sync fix |
 | 1.2.0 | 2026-01-09 | Statusline, bug fixes (BUG-001 to BUG-004) |
