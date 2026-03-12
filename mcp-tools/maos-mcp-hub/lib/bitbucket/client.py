@@ -994,6 +994,48 @@ class BitbucketPipelineClient:
             limiter=self.rate_limiter,
         )
 
+    async def get_pr_comments(self, pr_id: int, pagelen: int = 50) -> dict:
+        """
+        Get all comments for a specific pull request
+
+        Args:
+            pr_id: Pull request ID
+            pagelen: Page length
+
+        Returns:
+            dict: Comments for the pull request
+        """
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/pullrequests/{pr_id}/comments",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"pagelen": pagelen},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    async def merge_pull_request(self, pr_id: int) -> dict:
+        """
+        Merge a specific pull request
+
+        Args:
+            pr_id: Pull request ID
+
+        Returns:
+            dict: PR details after merge
+        """
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/pullrequests/{pr_id}/merge",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
     async def create_pull_request(
         self,
         title: str,

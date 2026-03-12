@@ -29,53 +29,73 @@ _health = None
 _health_by_repo: dict[str, HealthMonitor] = {}
 
 
-def get_client(repo_slug: str = "") -> BitbucketPipelineClient:
+
+def get_client(workspace: str = "", repo_slug: str = "") -> BitbucketPipelineClient:
     """Get BitbucketPipelineClient with singleton cache (global + per-repo)."""
     global _client, _clients_by_repo
-    if repo_slug:
-        if repo_slug not in _clients_by_repo:
-            _clients_by_repo[repo_slug] = BitbucketPipelineClient(repo_slug=repo_slug)
-        return _clients_by_repo[repo_slug]
+    full_slug = ""
+    if workspace and repo_slug:
+        full_slug = f"{workspace}/{repo_slug}"
+    elif repo_slug:
+        full_slug = repo_slug
+    
+    if full_slug:
+        if full_slug not in _clients_by_repo:
+            _clients_by_repo[full_slug] = BitbucketPipelineClient(repo_slug=full_slug)
+        return _clients_by_repo[full_slug]
     if _client is None:
         _client = BitbucketPipelineClient()
     return _client
 
 
-def get_analyzer(repo_slug: str = "") -> PipelineAnalyzer:
+def get_analyzer(workspace: str = "", repo_slug: str = "") -> PipelineAnalyzer:
     """Get PipelineAnalyzer cache (global + per-repo)."""
     global _analyzer, _analyzers_by_repo
-    if repo_slug:
-        if repo_slug not in _analyzers_by_repo:
-            _analyzers_by_repo[repo_slug] = PipelineAnalyzer(get_client(repo_slug))
-        return _analyzers_by_repo[repo_slug]
+    full_slug = ""
+    if workspace and repo_slug:
+        full_slug = f"{workspace}/{repo_slug}"
+    elif repo_slug:
+        full_slug = repo_slug
+        
+    if full_slug:
+        if full_slug not in _analyzers_by_repo:
+            _analyzers_by_repo[full_slug] = PipelineAnalyzer(get_client(workspace, repo_slug))
+        return _analyzers_by_repo[full_slug]
     if _analyzer is None:
         _analyzer = PipelineAnalyzer(get_client())
     return _analyzer
 
 
-def get_health(repo_slug: str = "") -> HealthMonitor:
+def get_health(workspace: str = "", repo_slug: str = "") -> HealthMonitor:
     """Get HealthMonitor cache (global + per-repo)."""
     global _health, _health_by_repo
-    if repo_slug:
-        if repo_slug not in _health_by_repo:
-            _health_by_repo[repo_slug] = HealthMonitor(get_client(repo_slug))
-        return _health_by_repo[repo_slug]
+    full_slug = ""
+    if workspace and repo_slug:
+        full_slug = f"{workspace}/{repo_slug}"
+    elif repo_slug:
+        full_slug = repo_slug
+        
+    if full_slug:
+        if full_slug not in _health_by_repo:
+            _health_by_repo[full_slug] = HealthMonitor(get_client(workspace, repo_slug))
+        return _health_by_repo[full_slug]
     if _health is None:
         _health = HealthMonitor(get_client())
     return _health
 
 
 # ============================================================================
+
 # TOOL IMPLEMENTATIONS
 # ============================================================================
 
 
-async def get_recent_builds(count: int = 5, repo_slug: str = "") -> dict:
+async def get_recent_builds(count: int = 5, workspace: str = "", repo_slug: str = "") -> dict:
     """Get the most recent pipeline builds"""
     if count < 1 or count > 50:
         return {"error": "count must be between 1 and 50"}
 
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
     try:
         pipelines = await client.get_pipelines(pagelen=count)
     except ApiError as e:
@@ -104,13 +124,13 @@ async def get_recent_builds(count: int = 5, repo_slug: str = "") -> dict:
     return {"builds": builds, "count": len(builds)}
 
 
-async def get_build_details(build_number: int, repo_slug: str = "") -> dict:
+async def get_build_details(build_number: int, workspace: str = "", repo_slug: str = "") -> dict:
     """Get detailed information about a specific build"""
     validation_error = validate_build_number(build_number)
     if validation_error:
         return validation_error
 
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         build = await client.get_pipeline(build_number)
@@ -142,13 +162,13 @@ async def get_build_details(build_number: int, repo_slug: str = "") -> dict:
     }
 
 
-async def get_build_steps(build_number: int, repo_slug: str = "") -> dict:
+async def get_build_steps(build_number: int, workspace: str = "", repo_slug: str = "") -> dict:
     """Get all steps for a specific build"""
     validation_error = validate_build_number(build_number)
     if validation_error:
         return validation_error
 
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         steps_data = await client.get_pipeline_steps(build_number)
@@ -170,7 +190,7 @@ async def get_build_steps(build_number: int, repo_slug: str = "") -> dict:
     return {"build_number": build_number, "steps": steps, "count": len(steps)}
 
 
-async def get_step_logs(build_number: int, step_name: str, repo_slug: str = "") -> dict:
+async def get_step_logs(build_number: int, step_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """Get logs for a specific build step"""
     validation_error = validate_build_number(build_number)
     if validation_error:
@@ -180,7 +200,7 @@ async def get_step_logs(build_number: int, step_name: str, repo_slug: str = "") 
     if validation_error:
         return validation_error
 
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         steps_data = await client.get_pipeline_steps(build_number)
@@ -239,26 +259,26 @@ async def get_step_logs(build_number: int, step_name: str, repo_slug: str = "") 
         }
 
 
-async def analyze_failures(count: int = 10, repo_slug: str = "") -> dict:
+async def analyze_failures(count: int = 10, workspace: str = "", repo_slug: str = "") -> dict:
     """Analyze patterns in recent failed builds"""
     if count < 1 or count > 50:
         return {"error": "count must be between 1 and 50"}
 
-    analyzer = get_analyzer(repo_slug)
+    analyzer = get_analyzer(workspace=workspace, repo_slug=repo_slug)
     return await analyzer.analyze_failure_patterns(count)
 
 
-async def auto_diagnose(build_number: int, repo_slug: str = "") -> dict:
+async def auto_diagnose(build_number: int, workspace: str = "", repo_slug: str = "") -> dict:
     """Automatically diagnose a failed build with actionable suggestions"""
     validation_error = validate_build_number(build_number)
     if validation_error:
         return validation_error
 
-    analyzer = get_analyzer(repo_slug)
+    analyzer = get_analyzer(workspace=workspace, repo_slug=repo_slug)
     return await analyzer.diagnose_build(build_number)
 
 
-async def compare_builds(build1: int, build2: int, repo_slug: str = "") -> dict:
+async def compare_builds(build1: int, build2: int, workspace: str = "", repo_slug: str = "") -> dict:
     """Compare two builds step-by-step"""
     validation_error = validate_build_number(build1)
     if validation_error:
@@ -270,27 +290,27 @@ async def compare_builds(build1: int, build2: int, repo_slug: str = "") -> dict:
         validation_error["parameter"] = "build2"
         return validation_error
 
-    analyzer = get_analyzer(repo_slug)
+    analyzer = get_analyzer(workspace=workspace, repo_slug=repo_slug)
     return await analyzer.compare_builds(build1, build2)
 
 
-async def check_pipeline_health(repo_slug: str = "") -> dict:
+async def check_pipeline_health(workspace: str = "", repo_slug: str = "") -> dict:
     """Check overall pipeline health and metrics"""
-    health = get_health(repo_slug)
+    health = get_health(workspace=workspace, repo_slug=repo_slug)
     health_data = await health.check_health()
     return health_data.model_dump()
 
 
-async def check_alerts(repo_slug: str = "") -> dict:
+async def check_alerts(workspace: str = "", repo_slug: str = "") -> dict:
     """Check for pipeline alerts and issues"""
-    health = get_health(repo_slug)
+    health = get_health(workspace=workspace, repo_slug=repo_slug)
     return await health.check_alerts()
 
 
-async def get_executive_summary(repo_slug: str = "") -> dict:
+async def get_executive_summary(workspace: str = "", repo_slug: str = "") -> dict:
     """Generate comprehensive executive summary report"""
-    health = get_health(repo_slug)
-    analyzer = get_analyzer(repo_slug)
+    health = get_health(workspace=workspace, repo_slug=repo_slug)
+    analyzer = get_analyzer(workspace=workspace, repo_slug=repo_slug)
 
     # Gather all data in parallel
     health_data, alerts_data, failure_patterns = await asyncio.gather(
@@ -316,7 +336,7 @@ async def get_executive_summary(repo_slug: str = "") -> dict:
 # ============================================================================
 
 
-async def get_test_reports(build_number: int, step_name: str, repo_slug: str = "") -> dict:
+async def get_test_reports(build_number: int, step_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get test report summary for a pipeline step
 
@@ -327,7 +347,7 @@ async def get_test_reports(build_number: int, step_name: str, repo_slug: str = "
     Returns:
         dict: Test report summary with counts and duration
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         # Get steps to resolve step_name → step_uuid
@@ -397,7 +417,7 @@ async def get_test_reports(build_number: int, step_name: str, repo_slug: str = "
         }
 
 
-async def get_test_cases(build_number: int, step_name: str, status: str = "all", repo_slug: str = "") -> dict:
+async def get_test_cases(build_number: int, step_name: str, status: str = "all", workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get test cases for a pipeline step with optional status filter
 
@@ -409,7 +429,7 @@ async def get_test_cases(build_number: int, step_name: str, status: str = "all",
     Returns:
         dict: List of test cases matching the filter
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         # Get steps to resolve step_name → step_uuid
@@ -483,7 +503,7 @@ async def get_test_cases(build_number: int, step_name: str, status: str = "all",
         }
 
 
-async def get_test_case_reasons(build_number: int, step_name: str, test_case_name: str, repo_slug: str = "") -> dict:
+async def get_test_case_reasons(build_number: int, step_name: str, test_case_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get failure reasons (stack trace) for a specific test case
 
@@ -495,7 +515,7 @@ async def get_test_case_reasons(build_number: int, step_name: str, test_case_nam
     Returns:
         dict: Failure reasons with message and stack trace
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         # Get steps to resolve step_name → step_uuid
@@ -588,7 +608,7 @@ async def get_test_case_reasons(build_number: int, step_name: str, test_case_nam
 # ============================================================================
 
 
-async def get_recent_deployments(environment: str | None = None, count: int = 5, repo_slug: str = "") -> dict:
+async def get_recent_deployments(environment: str | None = None, count: int = 5, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get recent deployments for the repository
 
@@ -600,7 +620,7 @@ async def get_recent_deployments(environment: str | None = None, count: int = 5,
         dict: Recent deployments with status and timestamps
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_deployments(environment=environment, pagelen=count)
 
         deployments = []
@@ -631,7 +651,7 @@ async def get_recent_deployments(environment: str | None = None, count: int = 5,
         }
 
 
-async def get_deployment_details(deployment_uuid: str, repo_slug: str = "") -> dict:
+async def get_deployment_details(deployment_uuid: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get detailed information about a specific deployment
 
@@ -642,7 +662,7 @@ async def get_deployment_details(deployment_uuid: str, repo_slug: str = "") -> d
         dict: Deployment details including environment, state, and timeline
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_deployment(deployment_uuid)
 
         state_info = data.get("state", {})
@@ -675,7 +695,7 @@ async def get_deployment_details(deployment_uuid: str, repo_slug: str = "") -> d
         }
 
 
-async def get_environments(repo_slug: str = "") -> dict:
+async def get_environments(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all deployment environments configured for the repository
 
@@ -683,7 +703,7 @@ async def get_environments(repo_slug: str = "") -> dict:
         dict: List of environments with names, slugs, and types
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_environments()
 
         environments = []
@@ -709,7 +729,7 @@ async def get_environments(repo_slug: str = "") -> dict:
         return {"error": f"Failed to get environments: {sanitize_error(e)}"}
 
 
-async def get_environment_variables(environment_name: str, repo_slug: str = "") -> dict:
+async def get_environment_variables(environment_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all variables configured for a specific environment
 
@@ -723,7 +743,7 @@ async def get_environment_variables(environment_name: str, repo_slug: str = "") 
         Secured variables will not show the "value" field (Bitbucket security policy)
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         # First, get environment UUID by name
         envs_data = await client.get_environments()
@@ -775,7 +795,7 @@ async def get_environment_variables(environment_name: str, repo_slug: str = "") 
         }
 
 
-async def get_repository_variables(repo_slug: str = "") -> dict:
+async def get_repository_variables(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all pipeline variables configured at repository level
 
@@ -786,7 +806,7 @@ async def get_repository_variables(repo_slug: str = "") -> dict:
         Secured variables will not show the "value" field (Bitbucket security policy)
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_repository_variables()
 
         variables = []
@@ -815,7 +835,7 @@ async def get_repository_variables(repo_slug: str = "") -> dict:
         return {"error": f"Failed to get repository variables: {sanitize_error(e)}"}
 
 
-async def get_workspace_variables(repo_slug: str = "") -> dict:
+async def get_workspace_variables(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all pipeline variables configured at workspace level
 
@@ -826,7 +846,7 @@ async def get_workspace_variables(repo_slug: str = "") -> dict:
         Secured variables will not show the "value" field (Bitbucket security policy)
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_workspace_variables()
 
         variables = []
@@ -861,7 +881,7 @@ async def get_workspace_variables(repo_slug: str = "") -> dict:
 # ============================================================================
 
 
-async def list_caches(repo_slug: str = "") -> dict:
+async def list_caches(workspace: str = "", repo_slug: str = "") -> dict:
     """
     List all configured pipeline caches for the repository
 
@@ -869,7 +889,7 @@ async def list_caches(repo_slug: str = "") -> dict:
         dict: List of caches with names, paths, and enabled status
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         data = await client.get_caches()
 
         caches = []
@@ -889,7 +909,7 @@ async def list_caches(repo_slug: str = "") -> dict:
         return {"error": f"Failed to list caches: {sanitize_error(e)}"}
 
 
-async def get_cache_details(cache_name: str, repo_slug: str = "") -> dict:
+async def get_cache_details(cache_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get details about a specific cache including size and content URI
 
@@ -903,7 +923,7 @@ async def get_cache_details(cache_name: str, repo_slug: str = "") -> dict:
         Returns 404 if cache has never been used (no content yet)
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         # Get cache configuration first
         caches_data = await client.get_caches()
@@ -957,7 +977,7 @@ async def get_cache_details(cache_name: str, repo_slug: str = "") -> dict:
         }
 
 
-async def clear_cache(cache_name: str, repo_slug: str = "") -> dict:
+async def clear_cache(cache_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Clear (delete) a specific pipeline cache
 
@@ -973,7 +993,7 @@ async def clear_cache(cache_name: str, repo_slug: str = "") -> dict:
         - Next build will recreate cache from scratch
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         # Verify cache exists first
         caches_data = await client.get_caches()
@@ -1012,7 +1032,7 @@ async def clear_cache(cache_name: str, repo_slug: str = "") -> dict:
         }
 
 
-async def analyze_cache_efficiency(repo_slug: str = "") -> dict:
+async def analyze_cache_efficiency(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Analyze cache efficiency across all configured caches
 
@@ -1020,7 +1040,7 @@ async def analyze_cache_efficiency(repo_slug: str = "") -> dict:
         dict: Efficiency metrics and recommendations
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         # Get all caches
         caches_data = await client.get_caches()
@@ -1111,7 +1131,7 @@ async def analyze_cache_efficiency(repo_slug: str = "") -> dict:
 # COMMITS & BUILD STATUS TOOLS (Sprint 4)
 # ============================================================================
 
-async def get_commit_details(commit_hash: str, repo_slug: str = "") -> dict:
+async def get_commit_details(commit_hash: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get detailed information about a specific commit
 
@@ -1121,7 +1141,7 @@ async def get_commit_details(commit_hash: str, repo_slug: str = "") -> dict:
     Returns:
         dict: Commit details with author, date, message, parents
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         commit = await client.get_commit(commit_hash)
@@ -1149,7 +1169,7 @@ async def get_commit_details(commit_hash: str, repo_slug: str = "") -> dict:
         return {"error": f"Failed to get commit details: {sanitize_error(e)}"}
 
 
-async def get_commit_build_statuses(commit_hash: str, repo_slug: str = "") -> dict:
+async def get_commit_build_statuses(commit_hash: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all build statuses for a specific commit
 
@@ -1161,7 +1181,7 @@ async def get_commit_build_statuses(commit_hash: str, repo_slug: str = "") -> di
     Returns:
         dict: Build statuses with state, name, URL, timestamps
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         statuses_response = await client.get_commit_statuses(commit_hash)
@@ -1217,7 +1237,7 @@ async def get_commit_build_statuses(commit_hash: str, repo_slug: str = "") -> di
         return {"error": f"Failed to get commit statuses: {sanitize_error(e)}"}
 
 
-async def get_builds_for_commit(commit_hash: str, repo_slug: str = "") -> dict:
+async def get_builds_for_commit(commit_hash: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all Bitbucket Pipeline builds for a specific commit (aggregation)
 
@@ -1229,7 +1249,7 @@ async def get_builds_for_commit(commit_hash: str, repo_slug: str = "") -> dict:
     Returns:
         dict: Complete build information for the commit
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         # Get commit details
@@ -1278,7 +1298,7 @@ async def get_builds_for_commit(commit_hash: str, repo_slug: str = "") -> dict:
         return {"error": f"Failed to get builds for commit: {sanitize_error(e)}"}
 
 
-async def compare_commit_builds(commit_hash1: str, commit_hash2: str, repo_slug: str = "") -> dict:
+async def compare_commit_builds(commit_hash1: str, commit_hash2: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Compare build statuses between two commits (aggregation + analysis)
 
@@ -1291,7 +1311,7 @@ async def compare_commit_builds(commit_hash1: str, commit_hash2: str, repo_slug:
     Returns:
         dict: Comparative analysis of builds between commits
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         # Get builds for both commits
@@ -1355,7 +1375,7 @@ async def compare_commit_builds(commit_hash1: str, commit_hash2: str, repo_slug:
 # PULL REQUESTS & CONFIGURATION TOOLS (Sprint 5)
 # ============================================================================
 
-async def get_pull_requests(state: str = "OPEN", count: int = 10, repo_slug: str = "") -> dict:
+async def get_pull_requests(state: str = "OPEN", count: int = 10, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get pull requests for the repository
 
@@ -1366,7 +1386,7 @@ async def get_pull_requests(state: str = "OPEN", count: int = 10, repo_slug: str
     Returns:
         dict: List of pull requests with title, author, branches, dates
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         prs_response = await client.get_pull_requests(state=state, pagelen=count)
@@ -1402,7 +1422,7 @@ async def get_pull_requests(state: str = "OPEN", count: int = 10, repo_slug: str
         return {"error": f"Failed to get pull requests: {sanitize_error(e)}"}
 
 
-async def get_pr_details(pr_id: int, repo_slug: str = "") -> dict:
+async def get_pr_details(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get detailed information about a specific pull request
 
@@ -1412,7 +1432,7 @@ async def get_pr_details(pr_id: int, repo_slug: str = "") -> dict:
     Returns:
         dict: PR details with reviewers, description, merge info
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         pr = await client.get_pull_request(pr_id)
@@ -1461,7 +1481,7 @@ async def get_pr_details(pr_id: int, repo_slug: str = "") -> dict:
         return {"error": f"Failed to get PR details: {sanitize_error(e)}"}
 
 
-async def get_pr_build_statuses(pr_id: int, repo_slug: str = "") -> dict:
+async def get_pr_build_statuses(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all build statuses for a specific pull request
 
@@ -1471,7 +1491,7 @@ async def get_pr_build_statuses(pr_id: int, repo_slug: str = "") -> dict:
     Returns:
         dict: Build statuses with overall state
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         statuses_response = await client.get_pr_statuses(pr_id)
@@ -1536,7 +1556,7 @@ async def create_pull_request(
     source_branch: str,
     destination_branch: str,
     description: str = "",
-    repo_slug: str = "",
+    workspace: str = "", repo_slug: str = "",
 ) -> dict:
     """
     Create a new pull request
@@ -1551,7 +1571,7 @@ async def create_pull_request(
     Returns:
         dict: Created PR details including ID and URL
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         pr = await client.create_pull_request(
@@ -1590,15 +1610,94 @@ async def create_pull_request(
             "destination_branch": destination_branch
         }
 
+async def get_pr_comments(pr_id: int, pagelen: int = 50, workspace: str = "", repo_slug: str = "") -> dict:
+    """
+    Get all comments for a specific pull request
 
-async def list_pipeline_schedules(repo_slug: str = "") -> dict:
+    Args:
+        pr_id: Pull request ID
+        pagelen: Items per page
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override
+    """
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        response = await client.get_pr_comments(pr_id=pr_id, pagelen=pagelen)
+        comments = response.get("values", [])
+        
+        formatted_comments = []
+        for c in comments:
+            formatted_comments.append({
+                "id": c.get("id"),
+                "content": c.get("content", {}).get("raw", ""),
+                "author": c.get("user", {}).get("display_name", "Unknown"),
+                "created_on": c.get("created_on", ""),
+                "updated_on": c.get("updated_on", "")
+            })
+
+        return {
+            "pr_id": pr_id,
+            "total_comments": len(formatted_comments),
+            "comments": formatted_comments
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {"error": f"Pull request #{pr_id} not found or no comments"}
+        return {
+            "error": "Failed to get PR comments",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"error": f"Failed to get PR comments: {sanitize_error(e)}"}
+
+
+async def merge_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+    """
+    Merge a pull request
+    
+    Args:
+        pr_id: Pull request ID
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override
+    """
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        pr = await client.merge_pull_request(pr_id=pr_id)
+        
+        return {
+            "success": True,
+            "pr_id": pr.get("id"),
+            "state": pr.get("state", ""),
+            "title": pr.get("title", ""),
+            "merged_by": pr.get("closed_by", {}).get("display_name", "") if pr.get("closed_by") else "Unknown",
+            "merge_commit": pr.get("merge_commit", {}).get("hash", "")[:8] if pr.get("merge_commit") else None
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {"error": f"Pull request #{pr_id} not found"}
+        return {
+            "success": False,
+            "error": "Failed to merge PR",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"error": f"Failed to merge PR: {sanitize_error(e)}"}
+
+
+async def list_pipeline_schedules(workspace: str = "", repo_slug: str = "") -> dict:
     """
     List all configured pipeline schedules (cron-based triggers)
 
     Returns:
         dict: Pipeline schedules with cron patterns and target branches
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         schedules_response = await client.get_pipeline_schedules()
@@ -1624,14 +1723,14 @@ async def list_pipeline_schedules(repo_slug: str = "") -> dict:
         return {"error": f"Failed to get pipeline schedules: {sanitize_error(e)}"}
 
 
-async def get_pipeline_config(repo_slug: str = "") -> dict:
+async def get_pipeline_config(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get pipeline configuration for the repository
 
     Returns:
         dict: Pipeline configuration status and settings
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         config = await client.get_pipeline_configuration()
@@ -1650,14 +1749,14 @@ async def get_pipeline_config(repo_slug: str = "") -> dict:
         return {"error": f"Failed to get pipeline configuration: {sanitize_error(e)}"}
 
 
-async def get_ssh_key_info(repo_slug: str = "") -> dict:
+async def get_ssh_key_info(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get pipeline SSH key pair information
 
     Returns:
         dict: SSH public key and fingerprint (private key never exposed)
     """
-    client = get_client(repo_slug)
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
 
     try:
         ssh_keys = await client.get_pipeline_ssh_keys()
@@ -1690,7 +1789,7 @@ async def diagnose_pipeline_failure(
     step_name: str | None = None,
     *,
     use_ai: bool = False,
-    repo_slug: str = "",
+    workspace: str = "", repo_slug: str = "",
 ) -> dict:
     """
     🔍 HYBRID AI DIAGNOSIS: Analyze pipeline failure with pattern matching + contextual instructions
@@ -1821,7 +1920,7 @@ async def diagnose_pipeline_failure(
         from lib.bitbucket.client import BitbucketPipelineClient
         from lib.bitbucket.analyzer import PipelineAnalyzer
 
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         analyzer = PipelineAnalyzer(client)
 
         # Choose method based on use_ai parameter
@@ -1847,7 +1946,7 @@ async def diagnose_pipeline_failure(
 
 # @mcp.tool() -- Removed: Hub handles registration
 async def save_successful_fix(
-    build_number: int, solution_description: str, fix_type: str = "manual", repo_slug: str = ""
+    build_number: int, solution_description: str, fix_type: str = "manual", workspace: str = "", repo_slug: str = ""
 ) -> dict:
     """
     💾 ADMIN TOOL: Save successful fix to knowledge base for auto-learning
@@ -1909,7 +2008,7 @@ async def save_successful_fix(
         from lib.bitbucket.patterns import match_error_patterns
         from lib.bitbucket.client import BitbucketPipelineClient
 
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         kb = KnowledgeBase()
 
         # Get original build to create error signature
@@ -2068,7 +2167,7 @@ async def search_learned_fixes(
 
 
 # @mcp.tool() -- Removed: Hub handles registration
-async def get_knowledge_base_stats(repo_slug: str = "") -> dict:
+async def get_knowledge_base_stats(workspace: str = "", repo_slug: str = "") -> dict:
     """
     📊 ADMIN TOOL: Get knowledge base statistics
 
@@ -2145,7 +2244,7 @@ async def trigger_pipeline(
     branch: str,
     custom_pipeline: str = "",
     variables: str = "",
-    repo_slug: str = "",
+    workspace: str = "", repo_slug: str = "",
 ) -> dict:
     """
     Trigger a pipeline on a specific branch
@@ -2163,7 +2262,7 @@ async def trigger_pipeline(
         dict: Pipeline trigger result with build_number, uuid, state, and URL
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         # Parse variables string into API format
         var_list = []
@@ -2204,7 +2303,7 @@ async def trigger_pipeline(
         return {"success": False, "error": f"Failed to trigger pipeline: {sanitize_error(e)}"}
 
 
-async def stop_pipeline(pipeline_uuid: str, repo_slug: str = "") -> dict:
+async def stop_pipeline(pipeline_uuid: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Stop a running pipeline
 
@@ -2216,7 +2315,7 @@ async def stop_pipeline(pipeline_uuid: str, repo_slug: str = "") -> dict:
         dict: Stop result with status
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         result = await client.stop_pipeline(pipeline_uuid)
         return {"success": True, **result}
 
@@ -2237,7 +2336,7 @@ async def list_branches(
     query: str = "",
     sort: str = "-target.date",
     count: int = 25,
-    repo_slug: str = "",
+    workspace: str = "", repo_slug: str = "",
 ) -> dict:
     """
     List branches in a Bitbucket repository
@@ -2252,7 +2351,7 @@ async def list_branches(
         dict: List of branches with name, commit hash, and last update
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
 
         cql_query = f'name ~ "{query}"' if query else None
         result = await client.get_branches(query=cql_query, sort=sort, pagelen=min(count, 100))
@@ -2276,7 +2375,7 @@ async def list_branches(
         return {"success": False, "error": f"Failed to list branches: {sanitize_error(e)}"}
 
 
-async def get_branch(branch_name: str, repo_slug: str = "") -> dict:
+async def get_branch(branch_name: str, workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get details about a specific branch
 
@@ -2288,7 +2387,7 @@ async def get_branch(branch_name: str, repo_slug: str = "") -> dict:
         dict: Branch details including commit hash, merge strategies, and existence status
     """
     try:
-        client = get_client(repo_slug)
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
         result = await client.get_branch(branch_name)
 
         return {
@@ -2355,6 +2454,8 @@ TOOLS = {
     "get_pr_details": get_pr_details,
     "get_pr_build_statuses": get_pr_build_statuses,
     "create_pull_request": create_pull_request,  # Sprint 7 - 2026-02-06 (Eko autonomy)
+    "get_pr_comments": get_pr_comments,
+    "merge_pull_request": merge_pull_request,
     "list_pipeline_schedules": list_pipeline_schedules,
     "get_pipeline_config": get_pipeline_config,
     "get_ssh_key_info": get_ssh_key_info,
