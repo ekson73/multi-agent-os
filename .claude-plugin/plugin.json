@@ -1,7 +1,7 @@
 {
   "name": "maos",
-  "version": "1.4.0",
-  "description": "MAOS (Multi-Agent OS) - Coordination Framework for AI Agents with Orchestration, Sentinel Protocol, Worktree Governance, Status Maps",
+  "version": "1.5.0",
+  "description": "MAOS (Multi-Agent OS) - Coordination Framework for AI Agents with Orchestration, Sentinel Protocol, Worktree Governance, Status Maps, Forge Meta-Agent, Governance Protocols",
   "author": {
     "name": "Vek - Desenvolvimento de Software",
     "email": "emilson.moraes@vectorinf.com.br",
@@ -17,6 +17,10 @@
     "sentinel",
     "observability",
     "git-worktrees",
-    "governance"
+    "governance",
+    "forge",
+    "rbad",
+    "validation",
+    "agent-design"
   ]
 }

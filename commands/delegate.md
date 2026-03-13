@@ -26,6 +26,11 @@ Delegates a task to a specialized sub-agent with automatic context preparation a
 | `devops` | CI/CD, infrastructure |
 | `editor` | Documentation, terminology |
 | `consolidator` | Synthesis, merging outputs |
+| `forge` | Meta-agent creator — creates specialized agents on demand |
+| `governance-auditor` | Standards governance, compliance auditing, pattern enforcement |
+| `naming-organizer` | Digital organization, taxonomy, naming conventions |
+| `data-validator` | Data validation, evidence capture, truth verification |
+| `validation-auditor` | Second-line active auditing, drift detection, integrity verification |
 
 ## Examples
 

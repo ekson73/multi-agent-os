@@ -61,6 +61,21 @@ Analyze a task and recommend the optimal sub-agent(s) for execution. Uses keywor
 │  ──────────────────────────────────┼───────────────────────────────── │
 │  consolidate, merge, compile,      │  Claude-Consolidator              │
 │  synthesize, combine outputs       │                                   │
+│  ──────────────────────────────────┼───────────────────────────────── │
+│  create agent, new agent, meta,    │  Claude-Forge                     │
+│  specialized agent, no agent fits  │  (meta-agent creator)             │
+│  ──────────────────────────────────┼───────────────────────────────── │
+│  governance, standards, compliance,│  Claude-Governance-Auditor        │
+│  audit patterns, naming convention │                                   │
+│  ──────────────────────────────────┼───────────────────────────────── │
+│  organize, taxonomy, naming,       │  Claude-Naming-Organizer          │
+│  restructure, directory, rename    │                                   │
+│  ──────────────────────────────────┼───────────────────────────────── │
+│  validate data, verify claim,      │  Claude-Data-Validator            │
+│  evidence, price check, metric     │                                   │
+│  ──────────────────────────────────┼───────────────────────────────── │
+│  audit validation, drift, hash,    │  Claude-Validation-Auditor        │
+│  second-line, verify evidence      │                                   │
 │                                                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -112,6 +127,10 @@ def select_agent(task_description: str) -> list[str]:
     # If multiple agents score similarly, check for parallel pattern
     if requires_parallel_execution(task_description):
         return get_parallel_pattern_agents(task_description)
+
+    # If no agent scores above threshold, suggest forge as meta-agent
+    if max(scores.values()) < THRESHOLD:
+        return ["forge"]  # Meta-agent creates specialized agent on demand
 
     # Single agent selection
     return [max(scores, key=scores.get)]

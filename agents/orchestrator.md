@@ -69,6 +69,13 @@ Before delegating, always check:
 | devops | Infrastructure | general-purpose |
 | editor | Documentation | general-purpose |
 | consolidator | Synthesis | general-purpose |
+| forge | Meta-agent creator — creates specialized agents on demand | general-purpose |
+| governance-auditor | Standards governance, compliance, pattern enforcement | general-purpose |
+| naming-organizer | Digital organization, taxonomy, naming conventions | general-purpose |
+| data-validator | Data validation, evidence capture, truth verification | general-purpose |
+| validation-auditor | Second-line active auditing, drift detection | general-purpose |
+
+> **Note**: When no existing agent fits the task, delegate to `forge` to create a specialized agent.
 
 ## Commands
 

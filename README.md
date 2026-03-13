@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://claude.ai/code)
-[![Version](https://img.shields.io/badge/Version-1.4.0-blue)](https://github.com/ekson73/multi-agent-os)
+[![Version](https://img.shields.io/badge/Version-1.5.0-blue)](https://github.com/ekson73/multi-agent-os)
 [![Sentinel](https://img.shields.io/badge/Sentinel-Protocol-green)](https://github.com/ekson73/multi-agent-os/tree/main/sentinel)
 
 A comprehensive Claude Code plugin for orchestrating AI agents in software development workflows.
@@ -97,11 +97,16 @@ multi-agent-os/
 │   ├── status.md
 │   ├── worktree.md
 │   └── delegate.md
-├── agents/                   ← Agent definitions
+├── agents/                   ← Agent definitions (9 agents)
 │   ├── orchestrator.md
 │   ├── sentinel-monitor.md
 │   ├── qa-validator.md
-│   └── consolidator.md
+│   ├── consolidator.md
+│   ├── forge.md              ← Meta-agent creator (Goldilocks + RBAD + 33 Socratic Questions)
+│   ├── governance-auditor.md ← Standards & compliance guardian
+│   ├── naming-organizer.md   ← Digital organization & taxonomy
+│   ├── data-validator.md     ← Truth & evidence verification (11 validation types)
+│   └── validation-auditor.md ← Second-line active auditing
 ├── skills/                   ← Skills (subdirectory format)
 │   ├── audit/SKILL.md
 │   ├── agent-select/SKILL.md
@@ -113,7 +118,11 @@ multi-agent-os/
 │   ├── ttl-policy/SKILL.md
 │   ├── ontological-analysis/SKILL.md  ← NEW: 8-dimension analysis
 │   └── mvv-synthesis/SKILL.md         ← NEW: MVV generation
-├── protocols/                ← Protocol documentation
+├── protocols/                ← Governance protocols
+│   ├── exit-hygiene.md       ← Session exit hygiene (zero loose ends)
+│   ├── agent-delegation.md   ← Delegation chain & Forge bootstrap
+│   ├── rbad.md               ← Role-Based Agent Design (6-category taxonomy)
+│   └── action-priority.md    ← Eisenhower Matrix for task prioritization
 ├── sentinel/                 ← Sentinel Protocol files
 ├── statusmap/                ← Status Map templates
 └── docs/                     ← Additional documentation
@@ -153,6 +162,11 @@ multi-agent-os/
 | `sentinel-monitor` | Anomaly detection |
 | `qa-validator` | Quality assurance |
 | `consolidator` | Output synthesis |
+| `forge` | Meta-agent creator — creates specialized agents using Goldilocks Principle + RBAD |
+| `governance-auditor` | Standards governance, compliance auditing, pattern enforcement |
+| `naming-organizer` | Digital organization, taxonomy, naming conventions |
+| `data-validator` | Data validation, evidence capture, truth verification (11 types) |
+| `validation-auditor` | Second-line active auditing, drift detection, integrity verification |
 
 ## Hooks
 
@@ -172,6 +186,11 @@ The plugin automatically hooks into Claude Code lifecycle:
 | [Worktrees Guide](docs/worktrees-guide.md) | Multi-agent worktree coordination |
 | [Hierarchical Merge Protocol](protocols/hierarchical-merge-protocol.md) | Branch convergence rules |
 | [Framework Consumption](docs/framework-consumption.md) | Consumer project integration |
+| [Agent Format](docs/agent-format.md) | YAML frontmatter specification for agents |
+| [Exit Hygiene](protocols/exit-hygiene.md) | Session exit protocol (zero loose ends) |
+| [Agent Delegation](protocols/agent-delegation.md) | Delegation chain & Forge bootstrap |
+| [RBAD](protocols/rbad.md) | Role-Based Agent Design taxonomy |
+| [Action Priority](protocols/action-priority.md) | Eisenhower Matrix for prioritization |
 
 ## Self-Referential Usage
 
@@ -188,4 +207,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-*Multi-Agent OS v1.4.0 | Created by Emilson Moraes | Powered by Claude Code*
+*Multi-Agent OS v1.5.0 | Created by Emilson Moraes | Powered by Claude Code*
