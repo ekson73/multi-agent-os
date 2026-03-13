@@ -12,6 +12,8 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | sentinel-monitor | `sentinel-monitor.md` | Anomaly detection |
 | qa-validator | `qa-validator.md` | Quality assurance |
 | consolidator | `consolidator.md` | Output synthesis |
+| legacy-archaeologist | `legacy-archaeologist.md` | Legacy codebase reverse-engineering |
+| memory-curator | `memory-curator.md` | Knowledge/memory hygiene and curation |
 
 ## Agent Categories
 
@@ -26,6 +28,12 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 
 ### Synthesis
 - `consolidator` — Merge parallel outputs
+
+### Archaeology
+- `legacy-archaeologist` — Reverse-engineer legacy codebases (Delphi, COBOL, VB6, etc.)
+
+### Knowledge Management
+- `memory-curator` — Audit and maintain persistent memory/knowledge quality
 
 ## Agent Naming Convention
 

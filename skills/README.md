@@ -16,6 +16,7 @@ This folder contains reusable skills for the Multi-Agent OS framework. Skills fo
 | `anti-conflict` | `anti-conflict/SKILL.md` | Prevent file conflicts between agents |
 | `status-map` | `status-map/SKILL.md` | Generate ASCII status visualizations |
 | `ttl-policy` | `ttl-policy/SKILL.md` | Manage content freshness policies |
+| `find-docs` | `find-docs/SKILL.md` | Library documentation lookup via Context7 |
 
 ## Skill Categories
 
@@ -34,6 +35,9 @@ This folder contains reusable skills for the Multi-Agent OS framework. Skills fo
 
 ### Governance Skills
 - `ttl-policy` — Content freshness and expiration
+
+### Developer Tools
+- `find-docs` — Up-to-date library documentation and code examples via Context7 CLI
 
 ## Directory Structure
 
@@ -54,8 +58,10 @@ skills/
 │   └── SKILL.md                 ← Conflict prevention skill
 ├── status-map/
 │   └── SKILL.md                 ← Status visualization skill
-└── ttl-policy/
-    └── SKILL.md                 ← TTL management skill
+├── ttl-policy/
+│   └── SKILL.md                 ← TTL management skill
+└── find-docs/
+    └── SKILL.md                 ← Library docs lookup skill
 ```
 
 ## SKILL.md Structure
