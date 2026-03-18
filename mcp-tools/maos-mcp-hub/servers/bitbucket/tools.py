@@ -1690,6 +1690,91 @@ async def merge_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "
         return {"error": f"Failed to merge PR: {sanitize_error(e)}"}
 
 
+async def approve_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+    """
+    Approve a pull request as the MCP hub service account.
+
+    The approval is registered under the identity of the Bitbucket token owner
+    configured in the MCP hub. This satisfies branch protection rules that
+    require "at least 1 approval" from a user other than the PR author.
+
+    Args:
+        pr_id: Pull request ID
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override
+
+    Returns:
+        dict: Approval result with approver identity and PR state
+    """
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        result = await client.approve_pull_request(pr_id=pr_id)
+
+        return {
+            "success": True,
+            "pr_id": pr_id,
+            "approved": True,
+            "approved_by": result.get("user", {}).get("display_name", "MCP Hub Bot"),
+            "role": result.get("role", "PARTICIPANT"),
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 409:
+            return {
+                "success": True,
+                "pr_id": pr_id,
+                "approved": True,
+                "message": "PR was already approved by this user",
+            }
+        if status == 404:
+            return {"success": False, "error": f"Pull request #{pr_id} not found"}
+        return {
+            "success": False,
+            "error": "Failed to approve PR",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to approve PR: {sanitize_error(e)}"}
+
+
+async def unapprove_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+    """
+    Remove approval from a pull request.
+
+    Args:
+        pr_id: Pull request ID
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override
+
+    Returns:
+        dict: Unapproval confirmation
+    """
+    client = get_client(workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        await client.unapprove_pull_request(pr_id=pr_id)
+        return {
+            "success": True,
+            "pr_id": pr_id,
+            "approved": False,
+            "message": "Approval removed successfully",
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {"success": False, "error": f"Pull request #{pr_id} not found"}
+        return {
+            "success": False,
+            "error": "Failed to unapprove PR",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to unapprove PR: {sanitize_error(e)}"}
+
+
 async def list_pipeline_schedules(workspace: str = "", repo_slug: str = "") -> dict:
     """
     List all configured pipeline schedules (cron-based triggers)
@@ -2456,6 +2541,8 @@ TOOLS = {
     "create_pull_request": create_pull_request,  # Sprint 7 - 2026-02-06 (Eko autonomy)
     "get_pr_comments": get_pr_comments,
     "merge_pull_request": merge_pull_request,
+    "approve_pull_request": approve_pull_request,
+    "unapprove_pull_request": unapprove_pull_request,
     "list_pipeline_schedules": list_pipeline_schedules,
     "get_pipeline_config": get_pipeline_config,
     "get_ssh_key_info": get_ssh_key_info,

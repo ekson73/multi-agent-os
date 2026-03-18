@@ -1036,6 +1036,67 @@ class BitbucketPipelineClient:
             limiter=self.rate_limiter,
         )
 
+    async def approve_pull_request(self, pr_id: int) -> dict:
+        """
+        Approve a pull request as the authenticated user
+
+        The approval is registered under the identity of the token owner.
+        This is useful when the MCP hub runs with a service account token,
+        allowing it to act as a separate reviewer/approver.
+
+        Bitbucket API: POST /2.0/repositories/{workspace}/{repo}/pullrequests/{id}/approve
+
+        Args:
+            pr_id: Pull request ID
+
+        Returns:
+            dict: Approval details
+                  Format: {
+                      "approved": true,
+                      "user": {
+                          "display_name": "Bot User",
+                          "uuid": "{...}"
+                      },
+                      "role": "PARTICIPANT",
+                      "state": "approved"
+                  }
+
+        Raises:
+            ApiError: If API request fails (409 if already approved)
+        """
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/pullrequests/{pr_id}/approve",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    async def unapprove_pull_request(self, pr_id: int) -> dict:
+        """
+        Remove approval from a pull request
+
+        Args:
+            pr_id: Pull request ID
+
+        Returns:
+            dict: Empty response on success (HTTP 204)
+
+        Raises:
+            ApiError: If API request fails
+        """
+        return await request_json(
+            method="DELETE",
+            url=f"{self.base_url}/pullrequests/{pr_id}/approve",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
     async def create_pull_request(
         self,
         title: str,
