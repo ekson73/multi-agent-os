@@ -5,16 +5,9 @@
 set -e
 
 # Obter o nome da branch atual
-BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
 
-if [ "$?" -ne 0 ]; then
-    echo "❌ Erro ao ler a branch atual."
-    exit 1
-fi
-
-PROTECTED_BRANCHES="^(main|master|develop)$"
-
-if [[ "$BRANCH_NAME" =~ $PROTECTED_BRANCHES ]]; then
+if echo "$BRANCH_NAME" | grep -Eq '^(main|master|develop)$'; then
     echo ""
     echo "🛑 [GAAS: ACTION REJECTED] POLICY VIOLATION 🛑"
     echo "Agente/User tentou commitar diretamente na branch restrita: '$BRANCH_NAME'"
@@ -22,7 +15,7 @@ if [[ "$BRANCH_NAME" =~ $PROTECTED_BRANCHES ]]; then
     echo "🔥 DIRETRIZ C04 (ZERO-TRUST MULTI-AGENT):"
     echo "1. Nunca use o repositório Raiz para trabalhar."
     echo "2. Aborte essa operação (git reset --soft HEAD~ ou desfaça o add)."
-    echo "3. Crie uma Worktree isolada: git worktree add .worktrees/agent-feature -b agent-feature"
+    echo "3. Crie uma Worktree isolada: ./scripts/new-worktree.sh <sua-branch>"
     echo ""
     exit 1
 fi
