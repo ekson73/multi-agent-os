@@ -248,7 +248,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ║  TASK DETAILS                                                                ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║  Task ID:        task-003                                                    ║
-║  Description:    Review VKS-550 for MVP inclusion criteria                   ║
+║  Description:    Review PROJ-550 for MVP inclusion criteria                   ║
 ║  Complexity:     MEDIUM                                                      ║
 ║  Est. Duration:  45s                                                         ║
 ║                                                                              ║
@@ -863,7 +863,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ║                                                                              ║
 ║  [+] Commits Made (2)                                                        ║
 ║      a1b2c3d feat(statusmap): add 8 ASCII status map templates               ║
-║      e4f5g6h docs: update recursive analysis with VKS-550                    ║
+║      e4f5g6h docs: update recursive analysis with PROJ-550                    ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  PENDING ITEMS                                                               ║
@@ -898,7 +898,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ║  2. Complete Sentinel integration test                                       ║
 ║     → Run `/audit session` after next multi-agent task                       ║
 ║                                                                              ║
-║  3. Review VKS-550 assessment with PO                                        ║
+║  3. Review PROJ-550 assessment with PO                                        ║
 ║     → File: 03_documents/vks550_mvp_assessment_2027Q3.md                     ║
 ║                                                                              ║
 ║  4. Consider increasing Sentinel health score threshold                      ║
@@ -1100,7 +1100,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Recent Commits (Last 5)                                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  e4f5g6h  2026-01-06 17:45  docs: update recursive analysis with VKS-550   │
+│  e4f5g6h  2026-01-06 17:45  docs: update recursive analysis with PROJ-550   │
 │  a1b2c3d  2026-01-06 15:30  feat(statusmap): add 8 ASCII status map templ  │
 │  7656d9b  2026-01-06 10:00  refactor(notebooklm): harmonize dates to ISO   │
 │  2b3a45c  2026-01-05 22:00  refactor(harmonization): apply ISO 8601 dates  │
@@ -1228,7 +1228,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 │ # │ Task                                           │ Status   │ Duration    │
 ├───┼────────────────────────────────────────────────┼──────────┼─────────────┤
 │ 1 │ Create Status Map templates                    │ COMPLETE │ 45m         │
-│ 2 │ Review VKS-550 MVP inclusion                   │ COMPLETE │ 38s         │
+│ 2 │ Review PROJ-550 MVP inclusion                   │ COMPLETE │ 38s         │
 │ 3 │ Update recursive analysis                      │ COMPLETE │ 42s         │
 │ 4 │ Harmonize NotebookLM inputs                    │ COMPLETE │ 15m         │
 │ 5 │ Create backlog executivo markdown              │ COMPLETE │ 28s         │

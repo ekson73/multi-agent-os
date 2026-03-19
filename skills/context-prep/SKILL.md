@@ -114,7 +114,7 @@ Return control to parent if:
 
 **Input**:
 ```
-/context-prep task="Analyze VKS-550 for inclusion in MVP" agent_type="Claude-PO"
+/context-prep task="Analyze PROJ-550 for inclusion in MVP" agent_type="Claude-PO"
 ```
 
 **Output**:
@@ -128,7 +128,7 @@ Return control to parent if:
 - **Depth**: 1
 
 ### Task Description
-Analyze whether VKS-550 (Precificacao/Pricing) should be included in the MVP scope.
+Analyze whether PROJ-550 (Precificacao/Pricing) should be included in the MVP scope.
 Provide recommendation with justification based on value, effort, and dependencies.
 
 ### Success Criteria
@@ -138,14 +138,14 @@ Provide recommendation with justification based on value, effort, and dependenci
 - [ ] Risk assessment
 
 ### Constraints
-- **Scope**: Only VKS-550 decision, not re-planning entire roadmap
+- **Scope**: Only PROJ-550 decision, not re-planning entire roadmap
 - **Format**: Structured recommendation with pros/cons
 - **Time**: Single response
 
 ### Context Files
 - `02_processed_data/roadmap_macro_2027Q3.csv` — Timeline baseline
 - `03_documents/analise_critica_recursiva_2027Q3.md` — Previous analysis (section 8)
-- `01_source_data/BacklogInicialVekSales_ALFA.md` — VKS-550 description
+- `01_source_data/BacklogInicialOrgSales_ALFA.md` — PROJ-550 description
 
 ### Anti-Loop Check
 - Chain: Orch-Prime → Claude-PO

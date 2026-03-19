@@ -35,7 +35,7 @@ Delegates a task to a specialized sub-agent with automatic context preparation a
 ## Examples
 
 ```
-/delegate analyst "Analyze VKS-550 for MVP inclusion"
+/delegate analyst "Analyze PROJ-550 for MVP inclusion"
 /delegate qa "Validate the plugin proposal"
 /delegate consolidator "Merge outputs from all agents"
 ```
@@ -69,7 +69,7 @@ Before delegating, checks:
 Delegation Started
 ─────────────────────────────────────────────────
 Agent: Claude-PO-c614-001
-Task: Analyze VKS-550 for MVP inclusion
+Task: Analyze PROJ-550 for MVP inclusion
 Depth: 1
 Chain: Orch-Prime → PO
 

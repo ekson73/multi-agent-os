@@ -138,7 +138,7 @@ All traces are persisted to JSONL files for historical analysis:
     "parent_agent": "Claude-Orch-Prime-20260106-86fa",
     "delegation_depth": 1,
     "task_id": "task-001",
-    "task_description": "Analyze VKS-550 for MVP inclusion",
+    "task_description": "Analyze PROJ-550 for MVP inclusion",
     "target_agent": "Claude-PO"
   },
   "metrics": {
