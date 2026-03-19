@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://vek.com.br/schemas/sentinel/trace/v1.0.0",
+  "$id": "https://acme-corp.example.com/schemas/sentinel/trace/v1.0.0",
   "title": "Sentinel Protocol Trace Schema",
   "description": "JSON Schema for Sentinel Protocol trace events (v1.0.0). Provides OpenTelemetry GenAI-compatible tracing for multi-agent orchestration systems.",
   "type": "object",

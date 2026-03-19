@@ -250,7 +250,7 @@ We are willing to beta test this feature and provide feedback if Anthropic is in
 **Contact**:
 Emilson de Queiroz Moraes
 Email: emilson.moraes@gmail.com
-Role: DevOps Engineer & AI Evangelist @ Vek
+Role: DevOps Engineer & AI Evangelist @ Acme Corp
 Location: Florianópolis, SC, Brazil
 
 ---

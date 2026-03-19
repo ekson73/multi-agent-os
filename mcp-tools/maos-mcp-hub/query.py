@@ -12,7 +12,7 @@ password = os.getenv("BITBUCKET_APP_PASSWORD") or os.getenv("BITBUCKET_API_TOKEN
 auth_string = f"{username}:{password}"
 base64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
 
-url = "https://api.bitbucket.org/2.0/repositories/vek-servicos/vks-jss-sales-api/pullrequests?state=OPEN"
+url = "https://api.bitbucket.org/2.0/repositories/acme-org/my-example-api/pullrequests?state=OPEN"
 req = urllib.request.Request(url)
 req.add_header("Authorization", f"Basic {base64_auth}")
 req.add_header("Accept", "application/json")

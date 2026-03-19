@@ -146,7 +146,7 @@ Definir arquitetura para versionamento seguro de configurações MCP (Model Cont
 | **Public** | Nenhuma | Sim (completo) | `sequential-thinking-mcp` |
 | **OAuth Browser** | Via navegador | Sim (sem secret) | `atlasian-rovo-mcp`, `exa-mcp` |
 | **API Key** | Token estático | Template + secret | `ref-tools-mcp`, `zapier-mcp` |
-| **App Password** | Credencial de serviço | Template + secret | `vekops-mcp-hub` |
+| **App Password** | Credencial de serviço | Template + secret | `orgops-mcp-hub` |
 
 ### 4.2 Por Tipo de Conexão
 
@@ -228,7 +228,7 @@ claude mcp list
 
 ```bash
 # 1. Clone do repositório personal
-git clone git@github.com:vek-emilsonmoraes-pws/dot-claude.git ~/.claude/personal
+git clone git@github.com:org-user-pws/dot-claude.git ~/.claude/personal
 
 # 2. Setup symlinks (configs gerais)
 ~/.claude/personal/dotclaude-configs/scripts/setup-symlinks.sh

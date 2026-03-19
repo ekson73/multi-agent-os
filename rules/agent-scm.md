@@ -327,7 +327,7 @@ ACCOUNTS:
   | Account | CLI Profile | Content |
   |---------|-------------|---------|
   | emilson.moraes@gmail.com | default | GitHub notifications |
-  | user@acme-corp.example.com | vek | Jira, Confluence, Bitbucket |
+  | user@acme-corp.example.com | org | Jira, Confluence, Bitbucket |
 
 EXECUCAO:
   1. AUDITAR PRIMEIRO (NUNCA arquivar sem ler):

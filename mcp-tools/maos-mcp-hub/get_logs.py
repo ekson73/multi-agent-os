@@ -12,7 +12,7 @@ auth_string = f"{username}:{password}"
 base64_auth = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
 
 # Get steps for pipeline 997
-url = "https://api.bitbucket.org/2.0/repositories/vek-servicos/vks-jss-sales-api/pipelines/997/steps/"
+url = "https://api.bitbucket.org/2.0/repositories/acme-org/my-example-api/pipelines/997/steps/"
 req = urllib.request.Request(url)
 req.add_header("Authorization", f"Basic {base64_auth}")
 req.add_header("Accept", "application/json")
@@ -30,7 +30,7 @@ except Exception as e:
     print(f"Error fetching steps: {e}")
 
 if uuid:
-    log_url = f"https://api.bitbucket.org/2.0/repositories/vek-servicos/vks-jss-sales-api/pipelines/997/steps/{uuid}/log"
+    log_url = f"https://api.bitbucket.org/2.0/repositories/acme-org/my-example-api/pipelines/997/steps/{uuid}/log"
     print(f"\nFetching logs for UUID: {uuid}")
     log_req = urllib.request.Request(log_url)
     log_req.add_header("Authorization", f"Basic {base64_auth}")

@@ -92,41 +92,41 @@ Workspace variables:
     NODE_OUTPUT_PATH
     SNYK_TOKEN
     TZ
-    VEK_CLIENT_ID
-    $$$$VEK_CLIENT_SECRET
-    $$$$VEK_CLIENT_TOKEN
-    VEK_DB_ENCRYPTION_SECRET_KEY
-    VEK_DEPLOY_AWS_ACCESS_KEY_ID
-    VEK_DEPLOY_AWS_SECRET_ACCESS_KEY
-    VEK_DEPLOY_CF_S3_BUCKET
-    VEK_DEPLOY_EBS_S3_BUCKET
-    VEK_DISCORD_WEBHOOK_URL
-    VEK_DOCKER_REGISTRY
-    VEK_K8S_CLUSTER_NAME
-    VEK_NVD_API_KEY
+    ORG_CLIENT_ID
+    $$$$ORG_CLIENT_SECRET
+    $$$$ORG_CLIENT_TOKEN
+    ORG_DB_ENCRYPTION_SECRET_KEY
+    ORG_DEPLOY_AWS_ACCESS_KEY_ID
+    ORG_DEPLOY_AWS_SECRET_ACCESS_KEY
+    ORG_DEPLOY_CF_S3_BUCKET
+    ORG_DEPLOY_EBS_S3_BUCKET
+    ORG_DISCORD_WEBHOOK_URL
+    ORG_DOCKER_REGISTRY
+    ORG_K8S_CLUSTER_NAME
+    ORG_NVD_API_KEY
     WEBMANIA_APP_KEY
     WEBMANIA_APP_SECRET
-    vek_cvd_android_sec_deploy_key
-    vek_cvd_android_sec_deploy_user
-    vek_cvd_android_sec_git_repository
-    vek_deploy_gitlab_password
-    vek_deploy_gitlab_token
-    vek_deploy_gitlab_user
-    vek_deploy_oracle_pass
-    vek_deploy_oracle_user
-    vek_deploy_sftp_server
-    vek_deploy_sftp_user
-    vek_deploy_ssh_key_private_file
-    vek_deploy_ssh_key_public_file
-    vek_framework_deploy_key
-    vek_framework_deploy_user
-    vek_framework_git_repository
+    org_cvd_android_sec_deploy_key
+    org_cvd_android_sec_deploy_user
+    org_example_mobile_git_repository
+    org_deploy_gitlab_password
+    org_deploy_gitlab_token
+    org_deploy_gitlab_user
+    org_deploy_oracle_pass
+    org_deploy_oracle_user
+    org_deploy_sftp_server
+    org_deploy_sftp_user
+    org_deploy_ssh_key_private_file
+    org_deploy_ssh_key_public_file
+    org_framework_deploy_key
+    org_framework_deploy_user
+    org_example_framework_git_repository
 
 Repository variables:
-    VEK_APP_ENDPOINT
-    VEK_APP_NAME
-    VEK_DB_USERNAME
-    VEK_REDIS_USERNAME
+    ORG_APP_ENDPOINT
+    ORG_APP_NAME
+    ORG_DB_USERNAME
+    ORG_REDIS_USERNAME
 
 Images used:
     build : docker.io/jdxcode/mise@sha256:5a8052083323de2aa581f31b8aecf78f1e18e987b76a6656cc03154aae474716
@@ -148,18 +148,18 @@ declare -x BITBUCKET_COMMIT="075dce44abd1519cc4e4af25c72f215d30456a4d"
 declare -x BITBUCKET_DEPLOYMENT_ENVIRONMENT="dev-002"
 declare -x BITBUCKET_DEPLOYMENT_ENVIRONMENT_UUID="{b2ba4d4e-156c-4baa-abb8-c0376baf72d7}"
 declare -x BITBUCKET_DOCKER_HOST_INTERNAL="10.36.172.241"
-declare -x BITBUCKET_GIT_HTTP_ORIGIN="http://bitbucket.org/vek-servicos/vks-jss-sales-api"
-declare -x BITBUCKET_GIT_SSH_ORIGIN="git@bitbucket.org:vek-servicos/vks-jss-sales-api.git"
+declare -x BITBUCKET_GIT_HTTP_ORIGIN="http://bitbucket.org/acme-org/my-example-api"
+declare -x BITBUCKET_GIT_SSH_ORIGIN="git@bitbucket.org:acme-org/my-example-api.git"
 declare -x BITBUCKET_PACKAGES_TOKEN="$BITBUCKET_STEP_OIDC_TOKEN"
 declare -x BITBUCKET_PIPELINES_VARIABLES_PATH="/opt/atlassian/pipelines/agent/tmp/pipeline-variables.env"
 declare -x BITBUCKET_PIPELINE_UUID="{24fe41b9-2156-4be7-a866-d65c9bb2a054}"
 declare -x BITBUCKET_PROJECT_KEY="VKS"
 declare -x BITBUCKET_PROJECT_UUID="{ff8e5a59-5c9f-445a-a7e9-c31b67ac922a}"
-declare -x BITBUCKET_REPO_FULL_NAME="vek-servicos/vks-jss-sales-api"
+declare -x BITBUCKET_REPO_FULL_NAME="acme-org/my-example-api"
 declare -x BITBUCKET_REPO_IS_PRIVATE="true"
-declare -x BITBUCKET_REPO_OWNER="vek-servicos"
+declare -x BITBUCKET_REPO_OWNER="acme-org"
 declare -x BITBUCKET_REPO_OWNER_UUID="{9fa8ba00-f9e2-422d-b7c1-39e911f08a00}"
-declare -x BITBUCKET_REPO_SLUG="vks-jss-sales-api"
+declare -x BITBUCKET_REPO_SLUG="my-example-api"
 declare -x BITBUCKET_REPO_UUID="{15525c8e-877f-4004-952f-a095f0b4c732}"
 declare -x BITBUCKET_SSH_KEY_FILE="/opt/atlassian/pipelines/agent/ssh/id_rsa"
 declare -x BITBUCKET_STEP_OIDC_TOKEN="$BITBUCKET_STEP_OIDC_TOKEN"
@@ -167,7 +167,7 @@ declare -x BITBUCKET_STEP_RUN_NUMBER="1"
 declare -x BITBUCKET_STEP_TRIGGERER_UUID="{aa7bbb0c-6387-4319-b762-b9d071f10072}"
 declare -x BITBUCKET_STEP_UUID="{452be252-d9cf-43bf-9949-a035cb88f095}"
 declare -x BITBUCKET_TEST_METADATA_FILE_PATH="/opt/atlassian/pipelines/agent/build/.bitbucket/pipelines/generated/test-case/meta-data.json"
-declare -x BITBUCKET_WORKSPACE="vek-servicos"
+declare -x BITBUCKET_WORKSPACE="acme-org"
 declare -x CARGO_HOME="/usr/local/cargo"
 declare -x CF_ACCOUNT_ID="dbd1a1d6e9e0dfbfd8e11fdbac3ac58e"
 declare -x CF_API_TOKEN="$CF_API_TOKEN"
@@ -178,15 +178,15 @@ declare -x DOCKER_HOST="tcp://localhost:2375"
 declare -x ELASTIC_APM_SECRET_TOKEN="$ELASTIC_APM_SECRET_TOKEN"
 declare -x FLUTTER_OPTC="--no-version-check --suppress-analytics --no-wrap --no-color --prefixed-errors --quiet"
 declare -x FLY_API_TOKEN="$FLY_API_TOKEN"
-declare -x FLY_ORG="vek-servicos"
+declare -x FLY_ORG="acme-org"
 declare -x FLY_REGION="iad"
 declare -x GRADLE_OPTS="-Dorg.gradle.parallel=false -Dorg.gradle.daemon=false -Dorg.gradle.configureondemand=false -Dorg.gradle.daemon.idletimeout=10000 -Dorg.gradle.console=auto -Dorg.gradle.logging.level=lifecycle -Dorg.gradle.debug=false"
 declare -x HOME="/root"
 declare -x HOSTNAME="452be252-d9cf-43bf-9949-a035cb88f095-xh8z2"
 declare -x JFROG_IDE_ACCESS_TOKEN="$JFROG_IDE_ACCESS_TOKEN"
-declare -x JFROG_IDE_SERVER_ID="vek"
-declare -x JFROG_IDE_URL="https://jfrog.vek.im"
-declare -x JFROG_IDE_USERNAME="$vek_deploy_gitlab_user"
+declare -x JFROG_IDE_SERVER_ID="acme"
+declare -x JFROG_IDE_URL="https://jfrog.acme-corp.example.com"
+declare -x JFROG_IDE_USERNAME="$org_deploy_gitlab_user"
 declare -x KUBERNETES_PORT="tcp://10.35.128.1:443"
 declare -x KUBERNETES_PORT_443_TCP="tcp://10.35.128.1:443"
 declare -x KUBERNETES_PORT_443_TCP_ADDR="10.35.128.1"
@@ -209,39 +209,39 @@ declare -x RUST_VERSION="1.92.0"
 declare -x SHLVL="1"
 declare -x SNYK_TOKEN="$SNYK_TOKEN"
 declare -x TZ="UTC"
-declare -x VEK_APP_ENDPOINT="/vks-jss-sales-api"
-declare -x VEK_APP_NAME="vks-jss-sales-api"
-declare -x VEK_CLIENT_ID="VEK_8df6v2Z9kF7aQ1rM"
-declare -x $$$$VEK_CLIENT_SECRET="$$$$VEK_CLIENT_SECRET"
-declare -x $$$$VEK_CLIENT_TOKEN="$$$$VEK_CLIENT_TOKEN"
-declare -x VEK_DB_ENCRYPTION_SECRET_KEY="$VEK_DB_ENCRYPTION_SECRET_KEY"
-declare -x VEK_DB_USERNAME="vekdbadmin"
-declare -x VEK_DEPLOY_AWS_ACCESS_KEY_ID="AKIAJ3QXF3A4GXNORTSQ"
-declare -x VEK_DEPLOY_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
-declare -x VEK_DEPLOY_CF_S3_BUCKET="cloudfront.vek.com.br"
-declare -x VEK_DEPLOY_EBS_S3_BUCKET="elasticbeanstalk-us-east-1-853982059333"
-declare -x VEK_DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1395156307186552954/-bMCGv5MaV3wgF4IC82QLI0nHWMxGV5aonKJuudwRtRTQpOhXdkrhboe0nojcjs9VkWH"
-declare -x VEK_DOCKER_REGISTRY="853982059333.dkr.ecr.us-east-1.amazonaws.com"
-declare -x VEK_K8S_CLUSTER_NAME="k8s-eks-prd-002"
-declare -x VEK_NVD_API_KEY="$VEK_NVD_API_KEY"
-declare -x VEK_REDIS_USERNAME="vek-default"
+declare -x ORG_APP_ENDPOINT="/my-example-api"
+declare -x ORG_APP_NAME="my-example-api"
+declare -x ORG_CLIENT_ID="ORG_8df6v2Z9kF7aQ1rM"
+declare -x $$$$ORG_CLIENT_SECRET="$$$$ORG_CLIENT_SECRET"
+declare -x $$$$ORG_CLIENT_TOKEN="$$$$ORG_CLIENT_TOKEN"
+declare -x ORG_DB_ENCRYPTION_SECRET_KEY="$ORG_DB_ENCRYPTION_SECRET_KEY"
+declare -x ORG_DB_USERNAME="vekdbadmin"
+declare -x ORG_DEPLOY_AWS_ACCESS_KEY_ID="AKIAJ3QXF3A4GXNORTSQ"
+declare -x ORG_DEPLOY_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+declare -x ORG_DEPLOY_CF_S3_BUCKET="cdn.acme-corp.example.com"
+declare -x ORG_DEPLOY_EBS_S3_BUCKET="elasticbeanstalk-us-east-1-853982059333"
+declare -x ORG_DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1395156307186552954/-bMCGv5MaV3wgF4IC82QLI0nHWMxGV5aonKJuudwRtRTQpOhXdkrhboe0nojcjs9VkWH"
+declare -x ORG_DOCKER_REGISTRY="853982059333.dkr.ecr.us-east-1.amazonaws.com"
+declare -x ORG_K8S_CLUSTER_NAME="k8s-eks-prd-002"
+declare -x ORG_NVD_API_KEY="$ORG_NVD_API_KEY"
+declare -x ORG_REDIS_USERNAME="org-default"
 declare -x WEBMANIA_APP_KEY="$WEBMANIA_APP_KEY"
 declare -x WEBMANIA_APP_SECRET="$WEBMANIA_APP_SECRET"
-declare -x vek_cvd_android_sec_deploy_key="$vek_cvd_android_sec_deploy_key"
-declare -x vek_cvd_android_sec_deploy_user="$vek_cvd_android_sec_deploy_user"
-declare -x vek_cvd_android_sec_git_repository="git@bitbucket.org:vek-servicos/cvd-android-sec.git"
-declare -x vek_deploy_gitlab_password="$vek_deploy_gitlab_password"
-declare -x vek_deploy_gitlab_token="$vek_deploy_gitlab_token"
-declare -x vek_deploy_gitlab_user="$vek_deploy_gitlab_user"
-declare -x vek_deploy_oracle_pass="$vek_deploy_oracle_pass"
-declare -x vek_deploy_oracle_user="$vek_deploy_oracle_user"
-declare -x vek_deploy_sftp_server="sftp.$vek_deploy_sftp_user.com.br"
-declare -x vek_deploy_sftp_user="$vek_deploy_sftp_user"
-declare -x vek_deploy_ssh_key_private_file="$vek_deploy_ssh_key_private_file"
-declare -x vek_deploy_ssh_key_public_file="$vek_deploy_ssh_key_public_file"
-declare -x vek_framework_deploy_key="$vek_framework_deploy_key"
-declare -x vek_framework_deploy_user="gitlab+deploy-token-326093"
-declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-framework-lib.git"
+declare -x org_cvd_android_sec_deploy_key="$org_cvd_android_sec_deploy_key"
+declare -x org_cvd_android_sec_deploy_user="$org_cvd_android_sec_deploy_user"
+declare -x org_example_mobile_git_repository="git@bitbucket.org:acme-org/my-example-mobile.git"
+declare -x org_deploy_gitlab_password="$org_deploy_gitlab_password"
+declare -x org_deploy_gitlab_token="$org_deploy_gitlab_token"
+declare -x org_deploy_gitlab_user="$org_deploy_gitlab_user"
+declare -x org_deploy_oracle_pass="$org_deploy_oracle_pass"
+declare -x org_deploy_oracle_user="$org_deploy_oracle_user"
+declare -x org_deploy_sftp_server="sftp.$org_deploy_sftp_user.com.br"
+declare -x org_deploy_sftp_user="$org_deploy_sftp_user"
+declare -x org_deploy_ssh_key_private_file="$org_deploy_ssh_key_private_file"
+declare -x org_deploy_ssh_key_public_file="$org_deploy_ssh_key_public_file"
+declare -x org_framework_deploy_key="$org_framework_deploy_key"
+declare -x org_framework_deploy_user="gitlab+deploy-token-326093"
+declare -x org_example_framework_git_repository="git@bitbucket.org:acme-org/my-example-lib.git"
 
 + bash scripts/fly-deploy.sh
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"init","message":"aims-lib.sh loaded successfully","level":"info"}}
@@ -264,7 +264,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:14Z","key":"protocol_version","value":"7.0.0-JSON-RPC","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:14Z","key":"environment","value":"unknown","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"common-deploy.sh loaded","message":"SUCCESS","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Framework VEK Common modular carregado (T004 SPOF mitigated)","message":"SUCCESS","level":"info"}}
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Framework ORG Common modular carregado (T004 SPOF mitigated)","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"common-mcp.sh loaded - MCP v2.3 YAGNI ABSOLUTO activated","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"T004 Modular loading concluído - SPOF eliminado com compatibilidade total","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"main","message":"common.sh carregado","level":"info"}}
@@ -276,7 +276,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"main","message":"common.sh carregado","level":"info"}}
 [0;36m[STEP][0m Normalizando variáveis CI/CD (Bitbucket)
 [0;34m[INFO][0m 🌍 Branch → Environment: develop → dev
-[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato VEK
+[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato ORG
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Configurando ambiente da aplicação","message":"STARTING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Validando configuração JFrog","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Configuração JFrog válida","message":"SUCCESS","level":"info"}}
@@ -284,8 +284,8 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"migration","message":"Script migrated to AIMS-PROTOCOL","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:14Z","key":"protocol_version","value":"AIMS-7.0.1","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"initialization","message":"Iniciando load-runtime-secrets.sh","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"check_execution_context","message":"Checking runtime secrets context: env='dev' app='vks-jss-sales-api'","level":"info"}}
-[0;34m[INFO][0m Loading runtime secrets for env='dev' app='vks-jss-sales-api'
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"check_execution_context","message":"Checking runtime secrets context: env='dev' app='my-example-api'","level":"info"}}
+[0;34m[INFO][0m Loading runtime secrets for env='dev' app='my-example-api'
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Installing dependencies for script: load-runtime-secrets","message":"STARTING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:14Z","key":"script","value":"load-runtime-secrets","context":"dependency_install"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:14Z","function":"Phase 1: Bootstrap - Installing base mise + project dependencies","message":"RUNNING","level":"info"}}
@@ -357,41 +357,41 @@ To install and activate, run:
 [0;36m[STEP][0m 🚀 Iniciando carregamento de runtime secrets...
 [0;34m[INFO][0m 🚀 Método único: TOML Resolver (arquitetura definitiva)
 [0;36m[STEP][0m 🚀 Carregando secrets via TOML Resolver (ARQUITETURA ÚNICA)...
-[0;34m[INFO][0m 🔧 Configuração AWS: prefix='/vek-sales', region='us-east-1'
+[0;34m[INFO][0m 🔧 Configuração AWS: prefix='/org-sales', region='us-east-1'
 [0;34m[INFO][0m 🔍 Referências AWS detectadas, validando credenciais...
 [1;33m[WARNING][0m ⚠️ AWS indisponível - usando apenas valores offline do TOML
 [0;34m[INFO][0m 📋 Processando nível: global
-[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='global' aws_prefix='/vek-sales' aws_region='us-east-1'
-[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='global' → aws_path='global' → full_aws_path='/vek-sales/global'
-[0;34m[INFO][0m   🔍 Processando: global → /vek-sales/global
+[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='global' aws_prefix='/org-sales' aws_region='us-east-1'
+[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='global' → aws_path='global' → full_aws_path='/org-sales/global'
+[0;34m[INFO][0m   🔍 Processando: global → /org-sales/global
 [0;34m[INFO][0m   ⚠️  AWS indisponível - usando apenas valores offline
 [0;34m[INFO][0m   📄 Buscando valores TOML offline: [global]
 [0;34m[INFO][0m   ✅ TOML: 1 variáveis carregadas
 [0;34m[INFO][0m   🎯 Nível global: 0 AWS + 1 TOML + 0 exportadas
 [0;34m[INFO][0m 📋 Processando nível: env.dev
-[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='env.dev' aws_prefix='/vek-sales' aws_region='us-east-1'
-[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='env.dev' → aws_path='env/dev' → full_aws_path='/vek-sales/env/dev'
-[0;34m[INFO][0m   🔍 Processando: env.dev → /vek-sales/env/dev
+[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='env.dev' aws_prefix='/org-sales' aws_region='us-east-1'
+[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='env.dev' → aws_path='env/dev' → full_aws_path='/org-sales/env/dev'
+[0;34m[INFO][0m   🔍 Processando: env.dev → /org-sales/env/dev
 [0;34m[INFO][0m   ⚠️  AWS indisponível - usando apenas valores offline
 [0;34m[INFO][0m   📄 Buscando valores TOML offline: [env.dev]
 [0;34m[INFO][0m   ✅ TOML: 1 variáveis carregadas
 [0;34m[INFO][0m   🎯 Nível env.dev: 0 AWS + 1 TOML + 0 exportadas
-[0;34m[INFO][0m 📋 Processando nível: app.vks-jss-sales-api
-[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='app.vks-jss-sales-api' aws_prefix='/vek-sales' aws_region='us-east-1'
-[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='app.vks-jss-sales-api' → aws_path='app/vks-jss-sales-api' → full_aws_path='/vek-sales/app/vks-jss-sales-api'
-[0;34m[INFO][0m   🔍 Processando: app.vks-jss-sales-api → /vek-sales/app/vks-jss-sales-api
+[0;34m[INFO][0m 📋 Processando nível: app.my-example-api
+[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='app.my-example-api' aws_prefix='/org-sales' aws_region='us-east-1'
+[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='app.my-example-api' → aws_path='app/my-example-api' → full_aws_path='/org-sales/app/my-example-api'
+[0;34m[INFO][0m   🔍 Processando: app.my-example-api → /org-sales/app/my-example-api
 [0;34m[INFO][0m   ⚠️  AWS indisponível - usando apenas valores offline
-[0;34m[INFO][0m   📄 Buscando valores TOML offline: [app.vks-jss-sales-api]
+[0;34m[INFO][0m   📄 Buscando valores TOML offline: [app.my-example-api]
 [0;34m[INFO][0m   ✅ TOML: 1 variáveis carregadas
-[0;34m[INFO][0m   🎯 Nível app.vks-jss-sales-api: 0 AWS + 1 TOML + 0 exportadas
-[0;34m[INFO][0m 📋 Processando nível: aqn.vks-jss-sales-api-dev
-[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='aqn.vks-jss-sales-api-dev' aws_prefix='/vek-sales' aws_region='us-east-1'
-[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='aqn.vks-jss-sales-api-dev' → aws_path='aqn/vks-jss-sales-api-dev' → full_aws_path='/vek-sales/aqn/vks-jss-sales-api-dev'
-[0;34m[INFO][0m   🔍 Processando: aqn.vks-jss-sales-api-dev → /vek-sales/aqn/vks-jss-sales-api-dev
+[0;34m[INFO][0m   🎯 Nível app.my-example-api: 0 AWS + 1 TOML + 0 exportadas
+[0;34m[INFO][0m 📋 Processando nível: aqn.my-example-api-dev
+[0;34m[INFO][0m 🔄 [DEBUG] INICIANDO process_level_optimized: level='aqn.my-example-api-dev' aws_prefix='/org-sales' aws_region='us-east-1'
+[0;34m[INFO][0m 🔄 [DEBUG] Path conversion: level='aqn.my-example-api-dev' → aws_path='aqn/my-example-api-dev' → full_aws_path='/org-sales/aqn/my-example-api-dev'
+[0;34m[INFO][0m   🔍 Processando: aqn.my-example-api-dev → /org-sales/aqn/my-example-api-dev
 [0;34m[INFO][0m   ⚠️  AWS indisponível - usando apenas valores offline
-[0;34m[INFO][0m   📄 Buscando valores TOML offline: [aqn.vks-jss-sales-api-dev]
+[0;34m[INFO][0m   📄 Buscando valores TOML offline: [aqn.my-example-api-dev]
 [0;34m[INFO][0m   ✅ TOML: 1 variáveis carregadas
-[0;34m[INFO][0m   🎯 Nível aqn.vks-jss-sales-api-dev: 0 AWS + 1 TOML + 0 exportadas
+[0;34m[INFO][0m   🎯 Nível aqn.my-example-api-dev: 0 AWS + 1 TOML + 0 exportadas
 [0;32m[SUCCESS][0m ✅ TOML Resolver: 4 níveis processados com sucesso!
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:29Z","function":"Installing dependencies for script: set-pre-build-env","message":"STARTING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:29Z","key":"script","value":"set-pre-build-env","context":"dependency_install"}}
@@ -408,10 +408,10 @@ To install and activate, run:
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"migration","message":"Script migrated to AIMS-PROTOCOL","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:32Z","key":"protocol_version","value":"AIMS-7.0.1","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"initialization","message":"Iniciando load-runtime-secrets.sh","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"check_execution_context","message":"Checking runtime secrets context: env='dev' app='vks-jss-sales-api'","level":"info"}}
-[0;34m[INFO][0m Loading runtime secrets for env='dev' app='vks-jss-sales-api'
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"check_execution_context","message":"Checking runtime secrets context: env='dev' app='my-example-api'","level":"info"}}
+[0;34m[INFO][0m Loading runtime secrets for env='dev' app='my-example-api'
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"main","message":"Iniciando Fly.io Deploy principal","level":"info"}}
-[0;36m[HEADER][0m [1m=== ✈️ VEK FLY.IO DEPLOY ===[0m
+[0;36m[HEADER][0m [1m=== ✈️ ORG FLY.IO DEPLOY ===[0m
 [0;34m[INFO][0m 📁 Diretório atual: /opt/atlassian/pipelines/agent/build
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:32Z","function":"main","message":"Verificando pré-requisitos para deploy no Fly.io","level":"info"}}
 [0;36m[STEP][0m Validando dependências do Fly.io
@@ -430,10 +430,10 @@ To install and activate, run:
 {"jsonrpc":"2.0","method":"ai/metric","params":{"timestamp":"2026-03-12T21:21:53Z","name":"validation_docker_dependencies_duration","value":"21","unit":"seconds","context":"general"}}
 21
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"main","message":"Todos os pré-requisitos Fly.io validados com sucesso","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"main","message":"Verificando/Criando app no Fly.io: vks-jss-sales-api-dev","level":"info"}}
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"main","message":"Verificando/Criando app no Fly.io: my-example-api-dev","level":"info"}}
 [0;36m[STEP][0m 🛠️ Verificando/Criando app no Fly.io...
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"main","message":"Criando app vks-jss-sales-api-dev","level":"info"}}
-[1;33m[WARNING][0m 🆕 App vks-jss-sales-api-dev não existe. Criando...
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"main","message":"Criando app my-example-api-dev","level":"info"}}
+[1;33m[WARNING][0m 🆕 App my-example-api-dev não existe. Criando...
 scripts/lib/aims-lib.sh: line 565: flyctl: command not found
 {"jsonrpc":"2.0","method":"ai/metric","params":{"timestamp":"2026-03-12T21:21:53Z","name":"fly_app_create_duration","value":"0","unit":"seconds","context":"general"}}
 0
@@ -452,18 +452,18 @@ declare -x BITBUCKET_DEPLOYMENT_ENVIRONMENT="dev-002"
 declare -x BITBUCKET_DEPLOYMENT_ENVIRONMENT_UUID="{b2ba4d4e-156c-4baa-abb8-c0376baf72d7}"
 declare -x BITBUCKET_DOCKER_HOST_INTERNAL="10.36.172.241"
 declare -x BITBUCKET_EXIT_CODE="40"
-declare -x BITBUCKET_GIT_HTTP_ORIGIN="http://bitbucket.org/vek-servicos/vks-jss-sales-api"
-declare -x BITBUCKET_GIT_SSH_ORIGIN="git@bitbucket.org:vek-servicos/vks-jss-sales-api.git"
+declare -x BITBUCKET_GIT_HTTP_ORIGIN="http://bitbucket.org/acme-org/my-example-api"
+declare -x BITBUCKET_GIT_SSH_ORIGIN="git@bitbucket.org:acme-org/my-example-api.git"
 declare -x BITBUCKET_PACKAGES_TOKEN="$BITBUCKET_STEP_OIDC_TOKEN"
 declare -x BITBUCKET_PIPELINES_VARIABLES_PATH="/opt/atlassian/pipelines/agent/tmp/pipeline-variables.env"
 declare -x BITBUCKET_PIPELINE_UUID="{24fe41b9-2156-4be7-a866-d65c9bb2a054}"
 declare -x BITBUCKET_PROJECT_KEY="VKS"
 declare -x BITBUCKET_PROJECT_UUID="{ff8e5a59-5c9f-445a-a7e9-c31b67ac922a}"
-declare -x BITBUCKET_REPO_FULL_NAME="vek-servicos/vks-jss-sales-api"
+declare -x BITBUCKET_REPO_FULL_NAME="acme-org/my-example-api"
 declare -x BITBUCKET_REPO_IS_PRIVATE="true"
-declare -x BITBUCKET_REPO_OWNER="vek-servicos"
+declare -x BITBUCKET_REPO_OWNER="acme-org"
 declare -x BITBUCKET_REPO_OWNER_UUID="{9fa8ba00-f9e2-422d-b7c1-39e911f08a00}"
-declare -x BITBUCKET_REPO_SLUG="vks-jss-sales-api"
+declare -x BITBUCKET_REPO_SLUG="my-example-api"
 declare -x BITBUCKET_REPO_UUID="{15525c8e-877f-4004-952f-a095f0b4c732}"
 declare -x BITBUCKET_SSH_KEY_FILE="/opt/atlassian/pipelines/agent/ssh/id_rsa"
 declare -x BITBUCKET_STEP_OIDC_TOKEN="$BITBUCKET_STEP_OIDC_TOKEN"
@@ -471,7 +471,7 @@ declare -x BITBUCKET_STEP_RUN_NUMBER="1"
 declare -x BITBUCKET_STEP_TRIGGERER_UUID="{aa7bbb0c-6387-4319-b762-b9d071f10072}"
 declare -x BITBUCKET_STEP_UUID="{452be252-d9cf-43bf-9949-a035cb88f095}"
 declare -x BITBUCKET_TEST_METADATA_FILE_PATH="/opt/atlassian/pipelines/agent/build/.bitbucket/pipelines/generated/test-case/meta-data.json"
-declare -x BITBUCKET_WORKSPACE="vek-servicos"
+declare -x BITBUCKET_WORKSPACE="acme-org"
 declare -x CARGO_HOME="/usr/local/cargo"
 declare -x CF_ACCOUNT_ID="dbd1a1d6e9e0dfbfd8e11fdbac3ac58e"
 declare -x CF_API_TOKEN="$CF_API_TOKEN"
@@ -482,15 +482,15 @@ declare -x DOCKER_HOST="tcp://localhost:2375"
 declare -x ELASTIC_APM_SECRET_TOKEN="$ELASTIC_APM_SECRET_TOKEN"
 declare -x FLUTTER_OPTC="--no-version-check --suppress-analytics --no-wrap --no-color --prefixed-errors --quiet"
 declare -x FLY_API_TOKEN="$FLY_API_TOKEN"
-declare -x FLY_ORG="vek-servicos"
+declare -x FLY_ORG="acme-org"
 declare -x FLY_REGION="iad"
 declare -x GRADLE_OPTS="-Dorg.gradle.parallel=false -Dorg.gradle.daemon=false -Dorg.gradle.configureondemand=false -Dorg.gradle.daemon.idletimeout=10000 -Dorg.gradle.console=auto -Dorg.gradle.logging.level=lifecycle -Dorg.gradle.debug=false"
 declare -x HOME="/root"
 declare -x HOSTNAME="452be252-d9cf-43bf-9949-a035cb88f095-xh8z2"
 declare -x JFROG_IDE_ACCESS_TOKEN="$JFROG_IDE_ACCESS_TOKEN"
-declare -x JFROG_IDE_SERVER_ID="vek"
-declare -x JFROG_IDE_URL="https://jfrog.vek.im"
-declare -x JFROG_IDE_USERNAME="$vek_deploy_gitlab_user"
+declare -x JFROG_IDE_SERVER_ID="acme"
+declare -x JFROG_IDE_URL="https://jfrog.acme-corp.example.com"
+declare -x JFROG_IDE_USERNAME="$org_deploy_gitlab_user"
 declare -x KUBERNETES_PORT="tcp://10.35.128.1:443"
 declare -x KUBERNETES_PORT_443_TCP="tcp://10.35.128.1:443"
 declare -x KUBERNETES_PORT_443_TCP_ADDR="10.35.128.1"
@@ -513,39 +513,39 @@ declare -x RUST_VERSION="1.92.0"
 declare -x SHLVL="1"
 declare -x SNYK_TOKEN="$SNYK_TOKEN"
 declare -x TZ="UTC"
-declare -x VEK_APP_ENDPOINT="/vks-jss-sales-api"
-declare -x VEK_APP_NAME="vks-jss-sales-api"
-declare -x VEK_CLIENT_ID="VEK_8df6v2Z9kF7aQ1rM"
-declare -x $$$$VEK_CLIENT_SECRET="$$$$VEK_CLIENT_SECRET"
-declare -x $$$$VEK_CLIENT_TOKEN="$$$$VEK_CLIENT_TOKEN"
-declare -x VEK_DB_ENCRYPTION_SECRET_KEY="$VEK_DB_ENCRYPTION_SECRET_KEY"
-declare -x VEK_DB_USERNAME="vekdbadmin"
-declare -x VEK_DEPLOY_AWS_ACCESS_KEY_ID="AKIAJ3QXF3A4GXNORTSQ"
-declare -x VEK_DEPLOY_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
-declare -x VEK_DEPLOY_CF_S3_BUCKET="cloudfront.vek.com.br"
-declare -x VEK_DEPLOY_EBS_S3_BUCKET="elasticbeanstalk-us-east-1-853982059333"
-declare -x VEK_DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1395156307186552954/-bMCGv5MaV3wgF4IC82QLI0nHWMxGV5aonKJuudwRtRTQpOhXdkrhboe0nojcjs9VkWH"
-declare -x VEK_DOCKER_REGISTRY="853982059333.dkr.ecr.us-east-1.amazonaws.com"
-declare -x VEK_K8S_CLUSTER_NAME="k8s-eks-prd-002"
-declare -x VEK_NVD_API_KEY="$VEK_NVD_API_KEY"
-declare -x VEK_REDIS_USERNAME="vek-default"
+declare -x ORG_APP_ENDPOINT="/my-example-api"
+declare -x ORG_APP_NAME="my-example-api"
+declare -x ORG_CLIENT_ID="ORG_8df6v2Z9kF7aQ1rM"
+declare -x $$$$ORG_CLIENT_SECRET="$$$$ORG_CLIENT_SECRET"
+declare -x $$$$ORG_CLIENT_TOKEN="$$$$ORG_CLIENT_TOKEN"
+declare -x ORG_DB_ENCRYPTION_SECRET_KEY="$ORG_DB_ENCRYPTION_SECRET_KEY"
+declare -x ORG_DB_USERNAME="vekdbadmin"
+declare -x ORG_DEPLOY_AWS_ACCESS_KEY_ID="AKIAJ3QXF3A4GXNORTSQ"
+declare -x ORG_DEPLOY_AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+declare -x ORG_DEPLOY_CF_S3_BUCKET="cdn.acme-corp.example.com"
+declare -x ORG_DEPLOY_EBS_S3_BUCKET="elasticbeanstalk-us-east-1-853982059333"
+declare -x ORG_DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1395156307186552954/-bMCGv5MaV3wgF4IC82QLI0nHWMxGV5aonKJuudwRtRTQpOhXdkrhboe0nojcjs9VkWH"
+declare -x ORG_DOCKER_REGISTRY="853982059333.dkr.ecr.us-east-1.amazonaws.com"
+declare -x ORG_K8S_CLUSTER_NAME="k8s-eks-prd-002"
+declare -x ORG_NVD_API_KEY="$ORG_NVD_API_KEY"
+declare -x ORG_REDIS_USERNAME="org-default"
 declare -x WEBMANIA_APP_KEY="$WEBMANIA_APP_KEY"
 declare -x WEBMANIA_APP_SECRET="$WEBMANIA_APP_SECRET"
-declare -x vek_cvd_android_sec_deploy_key="$vek_cvd_android_sec_deploy_key"
-declare -x vek_cvd_android_sec_deploy_user="$vek_cvd_android_sec_deploy_user"
-declare -x vek_cvd_android_sec_git_repository="git@bitbucket.org:vek-servicos/cvd-android-sec.git"
-declare -x vek_deploy_gitlab_password="$vek_deploy_gitlab_password"
-declare -x vek_deploy_gitlab_token="$vek_deploy_gitlab_token"
-declare -x vek_deploy_gitlab_user="$vek_deploy_gitlab_user"
-declare -x vek_deploy_oracle_pass="$vek_deploy_oracle_pass"
-declare -x vek_deploy_oracle_user="$vek_deploy_oracle_user"
-declare -x vek_deploy_sftp_server="sftp.$vek_deploy_sftp_user.com.br"
-declare -x vek_deploy_sftp_user="$vek_deploy_sftp_user"
-declare -x vek_deploy_ssh_key_private_file="$vek_deploy_ssh_key_private_file"
-declare -x vek_deploy_ssh_key_public_file="$vek_deploy_ssh_key_public_file"
-declare -x vek_framework_deploy_key="$vek_framework_deploy_key"
-declare -x vek_framework_deploy_user="gitlab+deploy-token-326093"
-declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-framework-lib.git"
+declare -x org_cvd_android_sec_deploy_key="$org_cvd_android_sec_deploy_key"
+declare -x org_cvd_android_sec_deploy_user="$org_cvd_android_sec_deploy_user"
+declare -x org_example_mobile_git_repository="git@bitbucket.org:acme-org/my-example-mobile.git"
+declare -x org_deploy_gitlab_password="$org_deploy_gitlab_password"
+declare -x org_deploy_gitlab_token="$org_deploy_gitlab_token"
+declare -x org_deploy_gitlab_user="$org_deploy_gitlab_user"
+declare -x org_deploy_oracle_pass="$org_deploy_oracle_pass"
+declare -x org_deploy_oracle_user="$org_deploy_oracle_user"
+declare -x org_deploy_sftp_server="sftp.$org_deploy_sftp_user.com.br"
+declare -x org_deploy_sftp_user="$org_deploy_sftp_user"
+declare -x org_deploy_ssh_key_private_file="$org_deploy_ssh_key_private_file"
+declare -x org_deploy_ssh_key_public_file="$org_deploy_ssh_key_public_file"
+declare -x org_framework_deploy_key="$org_framework_deploy_key"
+declare -x org_framework_deploy_user="gitlab+deploy-token-326093"
+declare -x org_example_framework_git_repository="git@bitbucket.org:acme-org/my-example-lib.git"
 
 + bash scripts/discord-send.sh --ci "__Fly Deploy__ ${BITBUCKET_DEPLOYMENT_ENVIRONMENT}"
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"init","message":"aims-lib.sh loaded successfully","level":"info"}}
@@ -568,7 +568,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:53Z","key":"protocol_version","value":"7.0.0-JSON-RPC","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/context","params":{"timestamp":"2026-03-12T21:21:53Z","key":"environment","value":"unknown","context":"active"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"common-deploy.sh loaded","message":"SUCCESS","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"Framework VEK Common modular carregado (T004 SPOF mitigated)","message":"SUCCESS","level":"info"}}
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"Framework ORG Common modular carregado (T004 SPOF mitigated)","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"common-mcp.sh loaded - MCP v2.3 YAGNI ABSOLUTO activated","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:53Z","function":"T004 Modular loading concluído - SPOF eliminado com compatibilidade total","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:54Z","function":"main","message":"common.sh carregado","level":"info"}}
@@ -590,7 +590,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:54Z","function":"Validando modo de execução: ci","message":"RUNNING","level":"info"}}
 [0;36m[STEP][0m Normalizando variáveis CI/CD (Bitbucket)
 [0;34m[INFO][0m 🌍 Branch → Environment: develop → dev
-[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato VEK
+[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato ORG
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:54Z","function":"Validando variáveis obrigatórias","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:54Z","function":"Validando variáveis obrigatórias Discord","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:54Z","function":"Todas as variáveis obrigatórias estão presentes","message":"SUCCESS","level":"info"}}
@@ -606,7 +606,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Gerando nova configuração Discord","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Armazenando no cache: discord_config_Bitbucket","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Inicializando cache Discord","message":"RUNNING","level":"info"}}
-{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Diretório cache criado: /tmp/vek-discord-cache","message":"SUCCESS","level":"info"}}
+{"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Diretório cache criado: /tmp/org-discord-cache","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Cache Discord inicializado","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Valor armazenado no cache: discord_config_Bitbucket","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Configuração Discord cacheada para provider: Bitbucket","message":"SUCCESS","level":"info"}}
@@ -614,7 +614,7 @@ declare -x vek_framework_git_repository="git@bitbucket.org:vek-servicos/vek-ftr-
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Container detectado: runtime=kubernetes, id=unknown","message":"SUCCESS","level":"info"}}
 [0;36m[STEP][0m Normalizando variáveis CI/CD (Bitbucket)
 [0;34m[INFO][0m 🌍 Branch → Environment: develop → dev
-[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato VEK
+[0;32m[SUCCESS][0m ✅ Variáveis CI/CD normalizadas para formato ORG
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Configurando status do pipeline","message":"RUNNING","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Status configurado: ❌ Failed","message":"SUCCESS","level":"info"}}
 {"jsonrpc":"2.0","method":"ai/status","params":{"timestamp":"2026-03-12T21:21:55Z","function":"Ambiente CI/CD configurado com otimização T006","message":"SUCCESS","level":"info"}}

@@ -2,7 +2,7 @@
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      PROJETO: multi-agent-os
-     Extraído de: Temporary Prompts - vek-sales-mvp-presentation.md
+     Extraído de: Temporary Prompts - org-sales-mvp-presentation.md
      Data de Extração: 2026-01-14
      Clusters Incluídos: C15, C16
      Foco: Research sobre worktrees órfãos e inter-comunicação entre agentes
@@ -355,6 +355,6 @@ Combinar as melhores características:
 
 ---
 
-_Extraído de: Temporary Prompts - vek-sales-mvp-presentation.md_
+_Extraído de: Temporary Prompts - org-sales-mvp-presentation.md_
 _Data de Extração: 2026-01-14_
 _Extração por: Claude-Cowork_

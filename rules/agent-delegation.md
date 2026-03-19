@@ -1,14 +1,14 @@
-# Agent Delegation — Vek Overlay [C14]
+# Agent Delegation — Organization Overlay [C14]
 
 <!-- Auto-loaded rule | Version: 2.0.0 | 2026-03-13 -->
 <!-- Community protocol: multi-agent-os/protocols/agent-delegation.md (MAOS plugin) -->
-<!-- This file contains ONLY Vek-specific extensions to the community protocol -->
+<!-- This file contains ONLY Org-specific extensions to the community protocol -->
 
 > **Community Protocol**: For the full Agent Delegation protocol (delegation chain,
 > context format, Forge definition, bootstrap, anti-patterns), see MAOS
-> `protocols/agent-delegation.md`. This overlay adds Vek-specific registry only.
+> `protocols/agent-delegation.md`. This overlay adds Org-specific registry only.
 
-## Vek Agent Registry (Ecossistema Atual)
+## Org Agent Registry (Ecossistema Atual)
 
 | Dominio | Agente | Ativacao |
 |---------|--------|----------|
@@ -26,7 +26,7 @@
 | Validacao de dados | **Aletheia** → data-validator (MAOS) | `Task(subagent_type="data-validator")` |
 | Auditoria de validacoes | **Astraea** → validation-auditor (MAOS) | `Task(subagent_type="validation-auditor")` |
 
-## Vek-Specific Persistence Paths
+## Org-Specific Persistence Paths
 
 ```
 Agentes globais:     ~/.claude/rules/agent-{SIGLA}.md
@@ -34,7 +34,7 @@ Agentes de projeto:  .claude/rules/agent-{SIGLA}.md
 Forge (MAOS):        multi-agent-os/agents/forge.md (plugin auto-discovered)
 ```
 
-## Integracao com C13 (Exit Hygiene — Vek)
+## Integracao com C13 (Exit Hygiene — Org)
 
 Ao fechar uma sessao, verificar:
 - [ ] Delegacoes ativas tem rastreabilidade (Jira, MEMORY.md, PR comment)?
@@ -42,5 +42,5 @@ Ao fechar uma sessao, verificar:
 
 ---
 
-*v2.0.0 | 2026-03-13 | Slimmed to Vek-only overlay; community protocol migrated to MAOS protocols/agent-delegation.md*
+*v2.0.0 | 2026-03-13 | Slimmed to Org-only overlay; community protocol migrated to MAOS protocols/agent-delegation.md*
 *v1.2.0 | 2026-03-11 | Last full version before MAOS migration*

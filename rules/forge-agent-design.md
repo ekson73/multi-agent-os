@@ -1,17 +1,17 @@
-# Forge Agent Design — RBAD Vek Overlay [C14.1]
+# Forge Agent Design — RBAD Organization Overlay [C14.1]
 
 <!-- Auto-loaded rule | Version: 2.0.0 | 2026-03-13 -->
 <!-- Community protocol: multi-agent-os/protocols/rbad.md (MAOS plugin) -->
-<!-- This file contains ONLY Vek-specific extensions to the community RBAD protocol -->
+<!-- This file contains ONLY Org-specific extensions to the community RBAD protocol -->
 
 > **Community Protocol**: For the full RBAD protocol (Goldilocks Principle, Atomicity,
 > 6-Category Taxonomy, Decision Framework, anti-patterns), see MAOS `protocols/rbad.md`.
-> This overlay adds Vek-specific harmonization and persistence paths only.
+> This overlay adds Org-specific harmonization and persistence paths only.
 
-## Vek Persistence Paths
+## Organization Persistence Paths
 
 ```
-ONDE SALVAR (Vek):
+ONDE SALVAR (Org):
   Global (todos os projetos): ~/.claude/rules/agent-{SIGLA}.md
   Projeto-especifico:         .claude/rules/agent-{SIGLA}.md
   MAOS plugin (community):    multi-agent-os/agents/{name}.md
@@ -21,31 +21,31 @@ NAMING:
   agent-dev-be.md, agent-dev-angular.md, agent-dev-java.md
 ```
 
-## Harmonizacao com AGENTS.md (Vek Projetos)
+## Harmonizacao com AGENTS.md (Organization Projects)
 
-Projetos Vek (ex: `vks-jss-sales-api`) possuem AGENTS.md com regras locais
-(Panteao Vek, protocolos de validacao). Hierarquia:
+Organization projects (ex: `my-example-api`) possuem AGENTS.md com regras locais
+(Org Pantheon, protocolos de validacao). Hierarquia:
 
 ```
 multi-agent-os/protocols/rbad.md (MAOS — community source of truth)
   ↓
-~/.claude/rules/forge-agent-design.md (este — Vek overlay)
+~/.claude/rules/forge-agent-design.md (este — org overlay)
   ↓
 {projeto}/AGENTS.md (projeto-local — pode estender com roles especificos)
   ↓
 ~/.claude/rules/agent-{sigla}.md (agentes criados — persistencia global)
 ```
 
-### Regras Vek
+### Organization Rules
 
 - Projeto-local AGENTS.md pode definir roles adicionais do dominio
 - Nomes mitologicos (Themis, Eunomia, Aletheia, Astraea) sao validos como Cat.6
-  — funcao metaforica documentada e reconhecivel pela equipe Vek
+  — funcao metaforica documentada e reconhecivel pela org team
 - Nomes agora mapeados para MAOS community: Themis→governance-auditor,
   Eunomia→naming-organizer, Aletheia→data-validator, Astraea→validation-auditor
-- NUNCA `.claude/agents/` (namespace nao padronizado para Vek)
+- NUNCA `.claude/agents/` (namespace nao padronizado for org)
 
-## Vek-Specific Roles (Extensoes Cat.3)
+## Org-Specific Roles (Extensoes Cat.3)
 
 | Role | Escopo Atomico |
 |------|----------------|
@@ -55,5 +55,5 @@ multi-agent-os/protocols/rbad.md (MAOS — community source of truth)
 
 ---
 
-*v2.0.0 | 2026-03-13 | Slimmed to Vek-only overlay; RBAD protocol migrated to MAOS protocols/rbad.md*
+*v2.0.0 | 2026-03-13 | Slimmed to Org-only overlay; RBAD protocol migrated to MAOS protocols/rbad.md*
 *v1.1.0 | 2026-03-11 | Last full version before MAOS migration*

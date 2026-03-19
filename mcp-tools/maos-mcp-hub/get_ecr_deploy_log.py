@@ -10,7 +10,7 @@ from lib.bitbucket.client import BitbucketPipelineClient
 
 async def main():
     try:
-        client = BitbucketPipelineClient(repo_slug="vek-servicos/vks-jss-sales-api")
+        client = BitbucketPipelineClient(repo_slug="acme-org/my-example-api")
         steps_data = await client.get_pipeline_steps(997)
         step_uuid = None
         for step in steps_data.get("values", []):

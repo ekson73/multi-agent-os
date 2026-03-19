@@ -181,7 +181,7 @@ gog gmail thread modify {threadId} --remove INBOX -a emilson.moraes@gmail.com -y
 | Account | gog Profile | Content |
 |---------|-------------|---------|
 | `emilson.moraes@gmail.com` | default | GitHub notifications |
-| `user@acme-corp.example.com` | vek | Jira, Confluence, Bitbucket |
+| `user@acme-corp.example.com` | org | Jira, Confluence, Bitbucket |
 
 ### Email classification
 

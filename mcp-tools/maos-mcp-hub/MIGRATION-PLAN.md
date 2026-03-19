@@ -1,7 +1,7 @@
-# Migration Plan: VekOps MCP Hub → maos-mcp-hub
+# Migration Plan: OrgOps MCP Hub → maos-mcp-hub
 
 > **Date:** 2026-02-22
-> **Source:** `vks-jss-sales-api/scripts/` (vekops-mcp-hub + bitbucket_pipeline)
+> **Source:** `my-example-api/scripts/` (orgops-mcp-hub + bitbucket_pipeline)
 > **Destination:** `ekson73/multi-agent-os/mcp-tools/maos-mcp-hub/`
 > **Status:** ✅ COMPLETED — All 6 phases done
 
@@ -11,7 +11,7 @@
 multi-agent-os/
 ├── mcp-tools/
 │   └── maos-mcp-hub/
-│       ├── hub.py               ← gateway (renamed from vekops-mcp-hub.py)
+│       ├── hub.py               ← gateway (renamed from orgops-mcp-hub.py)
 │       ├── cli.py               ← test CLI (renamed from mcp-cli.py)
 │       ├── requirements.txt
 │       ├── .env.example
@@ -42,16 +42,16 @@ multi-agent-os/
 
 ## Phases
 
-### Phase 1: Cleanup (remove Vek-specific refs) ✅
-- [x] Remove `vek_bitbucket_username/password` fallback (client.py:48,52)
-- [x] Genericize docstrings `VEK_*` → `MY_*` (client.py:557-633, tools.py:2043)
+### Phase 1: Cleanup (remove Org-specific refs) ✅
+- [x] Remove `org_bitbucket_username/password` fallback (client.py:48,52)
+- [x] Genericize docstrings `ORG_*` → `MY_*` (client.py:557-633, tools.py:2043)
 - [x] Remove `VKS-1133`/`VKS-1134` refs from docstrings (tools.py, server.py)
 - [x] Fix singleton inconsistency (13 tools in tools.py → all use `get_client()`)
 - [x] Fix SyntaxWarning `\d` (tools.py: inside docstring → escaped)
 
 ### Phase 2: Restructure ✅
 - [x] Copy files to multi-agent-os/mcp-tools/maos-mcp-hub/
-- [x] Rename vekops-mcp-hub.py → hub.py
+- [x] Rename orgops-mcp-hub.py → hub.py
 - [x] Rename mcp-cli.py → cli.py
 - [x] Move bitbucket_pipeline/ → lib/bitbucket/
 - [x] Move mcp-servers/bitbucket/ → servers/bitbucket/
@@ -77,9 +77,9 @@ multi-agent-os/
 
 ### Phase 6: Publish ✅
 - [x] Commit + push to `ekson73/multi-agent-os` — commit `20df6d9`
-- [x] Commit + push removal from `vks-jss-sales-api` — commit `fe021f1a`
-- [x] Sync `vek-claude-plugins` marketplace — commit `6a54211`
-- [x] Remove old `vekops-mcp-hub` MCP server from `~/.claude.json`
+- [x] Commit + push removal from `my-example-api` — commit `fe021f1a`
+- [x] Sync `org-claude-plugins` marketplace — commit `6a54211`
+- [x] Remove old `orgops-mcp-hub` MCP server from `~/.claude.json`
 - [x] Add new `maos-mcp-hub` MCP server pointing to multi-agent-os
 
 ## QA Report
@@ -88,7 +88,7 @@ multi-agent-os/
 **Veredito:** ✅ APROVADO
 
 ### Corrections made during QA:
-1. `lib/bitbucket/__init__.py` — removed `__author__ = "Acme Corp"` (Vek leak)
+1. `lib/bitbucket/__init__.py` — removed `__author__ = "Acme Corp"` (company leak)
 2. `hub.py` — replaced `ghp_your_token` placeholder (triggered credential scan)
 3. Removed all `__pycache__/` directories
 4. Created `.gitignore`
@@ -99,16 +99,16 @@ multi-agent-os/
 - **Agent:** maos-migration-completeness (Sonnet 4.6, 2min)
 - **Result:** 16/16 files migrated, zero external dependencies, source files cleaned
 
-## Cleanup Details (6 Vek refs — all removed)
+## Cleanup Details (6 company refs — all removed)
 
 | # | File | Original | Replaced With |
 |---|------|----------|--------------|
-| 1 | client.py:48 | `vek_bitbucket_username` | Removed (fallback eliminated) |
-| 2 | client.py:52 | `vek_bitbucket_password` | Removed (fallback eliminated) |
-| 3 | client.py:557 | `VEK_APP_ENDPOINT` | `APP_ENDPOINT` |
-| 4 | client.py:598-599 | `VEK_REPO_ID`/`vks-jss-sales-api` | `MY_REPO_ID`/`my-repo` |
-| 5 | client.py:632-633 | `VEK_WORKSPACE_ID`/`vek-servicos` | `MY_WORKSPACE_ID`/`my-workspace` |
-| 6 | tools.py:2043 | `VEK_PREVIEW=true,SLUG=vks-1134-*` | `DEPLOY_ENV=staging,VERSION=v1.0` |
+| 1 | client.py:48 | `org_bitbucket_username` | Removed (fallback eliminated) |
+| 2 | client.py:52 | `org_bitbucket_password` | Removed (fallback eliminated) |
+| 3 | client.py:557 | `ORG_APP_ENDPOINT` | `APP_ENDPOINT` |
+| 4 | client.py:598-599 | `ORG_REPO_ID`/`my-example-api` | `MY_REPO_ID`/`my-repo` |
+| 5 | client.py:632-633 | `ORG_WORKSPACE_ID`/`acme-org` | `MY_WORKSPACE_ID`/`my-workspace` |
+| 6 | tools.py:2043 | `ORG_PREVIEW=true,SLUG=vks-1134-*` | `DEPLOY_ENV=staging,VERSION=v1.0` |
 
 ## Singleton Fix (13 tools — all fixed)
 

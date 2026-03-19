@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://vek.com.br/schemas/sentinel/alert/v1.0.0",
+  "$id": "https://acme-corp.example.com/schemas/sentinel/alert/v1.0.0",
   "title": "Sentinel Protocol Alert Schema",
   "description": "JSON Schema for Sentinel Protocol alert events (v1.0.0)",
   "type": "object",

@@ -71,7 +71,7 @@ O diretório `~/.claude/` contém configurações de três naturezas:
 | # | Solução | Resumo | Viabilidade |
 |---|---------|--------|-------------|
 | S1 | Monorepo + .gitignore | Tudo em 1 repo, ignorar pessoal | ⚠️ Médio |
-| S2 | Git Submodules | Personal como submodule do vek | ❌ Complexo |
+| S2 | Git Submodules | Personal como submodule do org | ❌ Complexo |
 | S3 | Git Subtree | Merge de repos com histórico | ❌ Complexo |
 | S4 | Chezmoi | Templates com conditionals | ❌ Overhead |
 | S5 | VCSH | Multi-repos mesmo diretório | ⚠️ Médio |
@@ -86,15 +86,15 @@ O diretório `~/.claude/` contém configurações de três naturezas:
 
 ```bash
 # Setup
-git init --bare ~/.claude/.git-vek
+git init --bare ~/.claude/.git-org
 git init --bare ~/.claude/.git-personal
 
 # Aliases
-alias claude-vek='git --git-dir=$HOME/.claude/.git-vek --work-tree=$HOME/.claude'
+alias claude-org='git --git-dir=$HOME/.claude/.git-org --work-tree=$HOME/.claude'
 alias claude-personal='git --git-dir=$HOME/.claude/.git-personal --work-tree=$HOME/.claude'
 
 # Cada repo rastreia apenas seus arquivos
-claude-vek add CLAUDE.md docs/ rules/pr-review-protocol.md
+claude-org add CLAUDE.md docs/ rules/pr-review-protocol.md
 claude-personal add rules/user-rules.md
 ```
 
@@ -152,7 +152,7 @@ Se existir `~/.claude/personal/CLAUDE.md`, incorporar:
 
 #### S10: Personal Primary + Work Subdirectory
 
-**Conceito**: Inverso do S9 - `~/.claude/` = personal, `~/.claude/vek/` = corporativo.
+**Conceito**: Inverso do S9 - `~/.claude/` = personal, `~/.claude/org/` = corporativo.
 
 ```bash
 # Setup
@@ -254,7 +254,7 @@ git checkout personal/main -- personal/
 
 #### S13: Symlink Reverso (Personal Fora)
 
-**Conceito**: `~/.claude/` = vek completo, `~/.claude-personal/` = repo pessoal separado, symlinks de arquivos específicos.
+**Conceito**: `~/.claude/` = org completo, `~/.claude-personal/` = repo pessoal separado, symlinks de arquivos específicos.
 
 ```bash
 # Setup
@@ -272,7 +272,7 @@ ln -sf ~/.claude-personal/CLAUDE.md ~/.claude/personal/CLAUDE.md
 
 **Contras**:
 - Symlinks podem quebrar
-- Git do vek vê symlinks, não conteúdo
+- Git do org vê symlinks, não conteúdo
 - Mais complexo que S9
 
 **Viabilidade**: ⚠️ Médio
@@ -448,7 +448,7 @@ Se o arquivo acima existir, suas configurações sobrescrevem as corporativas.
 
 1. **Raiz clara**: Fácil de encontrar e entender
 2. **Git próprio**: Pode ter seu próprio `.git/` sem conflito
-3. **Gitignore simples**: Apenas `personal/` no .gitignore do vek
+3. **Gitignore simples**: Apenas `personal/` no .gitignore do org
 4. **Escalável**: Pode ter subdiretórios (docs, rules, templates pessoais)
 
 ---

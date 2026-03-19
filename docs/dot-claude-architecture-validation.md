@@ -10,13 +10,13 @@
 
 ## 1. Resumo Executivo
 
-A analise do BA propoe a solucao **S9+S14 Hybrid** para gerenciar `~/.claude/` com dois repositorios Git (Vek corporativo + Personal). Esta validacao arquitetural **CONFIRMA a viabilidade tecnica** com ajustes importantes.
+A analise do BA propoe a solucao **S9+S14 Hybrid** para gerenciar `~/.claude/` com dois repositorios Git (Org corporativo + Personal). Esta validacao arquitetural **CONFIRMA a viabilidade tecnica** com ajustes importantes.
 
 ### Veredicto
 
 | Item | Status | Observacao |
 |------|--------|------------|
-| Solucao S9 (Vek Primary) | **APROVADA** | Estrutura de diretorios viavel |
+| Solucao S9 (Org Primary) | **APROVADA** | Estrutura de diretorios viavel |
 | Include via @path | **SUPORTADO NATIVAMENTE** | Claude Code v2.0.64+ |
 | Auto-load .d/ style | **SUPORTADO** via `~/.claude/rules/` | Nativo no Claude Code |
 | Precedencia | **RESOLVIDA** | Posicional via @import inline |
@@ -73,7 +73,7 @@ O Claude Code implementa auto-load via diretorio `rules/`:
 - Mesma prioridade que `~/.claude/CLAUDE.md`
 
 **Implicacao Arquitetural**:
-- Regras Vek corporativas devem ir em `~/.claude/rules/` (auto-load)
+- Organization Rules corporativas devem ir em `~/.claude/rules/` (auto-load)
 - Regras Personal via `@import` chain (nao auto-load, para isolamento)
 
 ### GAP03: Script de Migracao
@@ -92,8 +92,8 @@ backup_current_config()
 # 2. Verificar estado Git atual
 detect_git_status()
 
-# 3. Clonar Vek repo
-clone_vek_repo()
+# 3. Clonar Org repo
+clone_org_repo()
 
 # 4. Criar/Clonar Personal
 setup_personal_repo()
@@ -111,30 +111,30 @@ validate_imports()
 dry_run_validation()
 ```
 
-### GAP07: Regras de Precedencia Vek vs Personal
+### GAP07: Regras de Precedencia Org vs Personal
 
 **Status**: RESOLVIDO - Padrao Sanduiche
 
 A precedencia e determinada pela **posicao do @import** no arquivo:
 
 ```markdown
-# ~/.claude/CLAUDE.md (Vek)
+# ~/.claude/CLAUDE.md (Org)
 
-## [VEK BASE] - Carregado PRIMEIRO
+## [ORG BASE] - Carregado PRIMEIRO
 Regras corporativas obrigatorias...
 
 ## Personal Context
 @~/.claude/personal/CLAUDE.md
 
-## [VEK ENFORCE] - Carregado POR ULTIMO (opcional)
+## [ORG ENFORCE] - Carregado POR ULTIMO (opcional)
 Regras que NAO podem ser sobrescritas...
 ```
 
 **Padrao Sanduiche**:
 ```
-VEK_BASE (fundacao)
+ORG_BASE (fundacao)
     -> PERSONAL_OVERRIDE (customizacao)
-        -> VEK_ENFORCE (garantias)
+        -> ORG_ENFORCE (garantias)
 ```
 
 ---
@@ -169,10 +169,10 @@ VEK_BASE (fundacao)
 │                                    │                                         │
 │                                    ▼                                         │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │ 4. USER MEMORY (Vek Corporate)  ◄──────────────────────────────────┐ │   │
+│  │ 4. USER MEMORY (Org Corporate)  ◄──────────────────────────────────┐ │   │
 │  │    ~/.claude/CLAUDE.md                                              │ │   │
 │  │    │                                                                │ │   │
-│  │    ├── [VEK BASE RULES]                                             │ │   │
+│  │    ├── [ORG BASE RULES]                                             │ │   │
 │  │    │                                                                │ │   │
 │  │    ├── @~/.claude/personal/CLAUDE.md  ◄─────────────────────┐      │ │   │
 │  │    │    │                                                    │      │ │   │
@@ -181,13 +181,13 @@ VEK_BASE (fundacao)
 │  │    │         └── @~/.claude/personal/rules/pref.md          │      │ │   │
 │  │    │              (chain import, max 5 hops)                 │      │ │   │
 │  │    │                                                         │      │ │   │
-│  │    └── [VEK ENFORCEMENT] (nao pode ser sobrescrito)         │      │ │   │
+│  │    └── [ORG ENFORCEMENT] (nao pode ser sobrescrito)         │      │ │   │
 │  │                                                              │      │ │   │
 │  └──────────────────────────────────────────────────────────────│──────┘ │   │
 │                                    │                            │         │   │
 │                                    ▼                            │         │   │
 │  ┌──────────────────────────────────────────────────────────────│──────┐ │   │
-│  │ 5. USER RULES (Vek Rules - auto-load)                        │      │ │   │
+│  │ 5. USER RULES (Org Rules - auto-load)                        │      │ │   │
 │  │    ~/.claude/rules/*.md ─────────────────────────────────────┘      │ │   │
 │  └──────────────────────────────────────────────────────────────────────┘ │   │
 │                                    │                                         │
@@ -203,20 +203,20 @@ VEK_BASE (fundacao)
 ### Estrutura de Diretorios Final
 
 ```
-~/.claude/                              # VEK REPO (git@github.com:vek-servicos/dot-claude.git)
-├── .git/                               # Git Vek
+~/.claude/                              # ORG REPO (git@github.com:acme-org/dot-claude.git)
+├── .git/                               # Git Org
 ├── .gitignore                          # Contem: personal/, projects/, plugins/, debug/
 │
-├── CLAUDE.md                           # USER MEMORY - Vek + @import personal
+├── CLAUDE.md                           # USER MEMORY - Org + @import personal
 │   # Conteudo:
-│   # ## Vek Corporate Context
+│   # ## Org Corporate Context
 │   # [regras base]
 │   # ## Personal Context
 │   # @~/.claude/personal/CLAUDE.md
-│   # ## Vek Enforcement
+│   # ## Org Enforcement
 │   # [regras finais]
 │
-├── rules/                              # USER RULES - Auto-load (Vek)
+├── rules/                              # USER RULES - Auto-load (Org)
 │   ├── core-directive.md               # C01 compacto
 │   ├── git-workflow.md                 # Git conventions
 │   ├── ai-native.md                    # AI patterns
@@ -262,12 +262,12 @@ VEK_BASE (fundacao)
 
 ### GAP01: @path Include - Implementacao
 
-**Sintaxe no CLAUDE.md Vek**:
+**Sintaxe no CLAUDE.md Org**:
 
 ```markdown
 # ~/.claude/CLAUDE.md
 
-## Vek Corporate Context
+## Org Corporate Context
 
 [... regras corporativas base ...]
 
@@ -281,7 +281,7 @@ VEK_BASE (fundacao)
 
 ---
 
-## Vek Enforcement
+## Org Enforcement
 
 > Regras abaixo NAO podem ser sobrescritas pelo personal.
 
@@ -292,7 +292,7 @@ VEK_BASE (fundacao)
 
 O Claude Code tenta ler o arquivo referenciado. Se nao existir:
 - A referencia `@~/.claude/personal/CLAUDE.md` sera tratada como texto literal
-- Recomendacao: Adicionar texto condicional no Vek CLAUDE.md
+- Recomendacao: Adicionar texto condicional no Org CLAUDE.md
 
 **Texto condicional sugerido**:
 
@@ -305,19 +305,19 @@ O Claude Code tenta ler o arquivo referenciado. Se nao existir:
 @~/.claude/personal/CLAUDE.md
 ```
 
-### GAP02: .d/ Style - Separacao Vek/Personal
+### GAP02: .d/ Style - Separacao Org/Personal
 
 **Regra de ouro**:
-- `~/.claude/rules/*.md` = Vek (auto-load, versionado no repo Vek)
+- `~/.claude/rules/*.md` = Org (auto-load, versionado no org repo)
 - `~/.claude/personal/rules/*.md` = Personal (via @import chain, NAO auto-load)
 
 **Por que Personal rules nao ficam em ~/.claude/rules/?**
 
 | Problema | Consequencia |
 |----------|--------------|
-| Namespace collision | Vek e Personal com mesmo nome de arquivo |
+| Namespace collision | Org e Personal com mesmo nome de arquivo |
 | Git isolation | Nao da para ter dois .git no mesmo diretorio |
-| Merge conflicts | Atualizacoes Vek podem conflitar |
+| Merge conflicts | Atualizacoes Org podem conflitar |
 
 **Solucao: @import chain no personal/CLAUDE.md**:
 
@@ -334,7 +334,7 @@ O Claude Code tenta ler o arquivo referenciado. Se nao existir:
 ```
 
 Isso mantem:
-- Vek rules em auto-load (obrigatorio para todos)
+- Org rules em auto-load (obrigatorio para todos)
 - Personal rules isoladas (apenas para quem tem personal)
 - Maximo 5 hops de recursao (suficiente)
 
@@ -348,7 +348,7 @@ Isso mantem:
 │  ORDEM DE LEITURA (primeiro -> ultimo)                                  │
 │  ════════════════════════════════════                                   │
 │                                                                          │
-│  1. ~/.claude/CLAUDE.md [VEK BASE]                                      │
+│  1. ~/.claude/CLAUDE.md [ORG BASE]                                      │
 │       │                                                                  │
 │       ├── Core Directive (C01)                                          │
 │       ├── Main Instructions (C02)                                        │
@@ -363,12 +363,12 @@ Isso mantem:
 │       └── @~/.claude/personal/rules/*.md (chain)                        │
 │              │                                                           │
 │              ▼                                                           │
-│  3. ~/.claude/CLAUDE.md [VEK ENFORCE] (pos-@import)                     │
+│  3. ~/.claude/CLAUDE.md [ORG ENFORCE] (pos-@import)                     │
 │       │                                                                  │
 │       └── Regras que NAO podem ser sobrescritas                         │
 │              │                                                           │
 │              ▼                                                           │
-│  4. ~/.claude/rules/*.md [VEK RULES - auto-load]                        │
+│  4. ~/.claude/rules/*.md [ORG RULES - auto-load]                        │
 │       │                                                                  │
 │       ├── core-directive.md                                              │
 │       ├── git-workflow.md                                                │
@@ -384,17 +384,17 @@ Isso mantem:
 
 | Cenario | Quem vence | Motivo |
 |---------|------------|--------|
-| Vek diz "pt-BR", Personal diz "en-US" | Personal | Carregado depois do Vek Base |
-| Personal diz "skip tests", Vek Enforce diz "always test" | Vek Enforce | Pos-@import |
-| Vek rules/ diz X, Vek CLAUDE.md diz Y | rules/ | Auto-load apos CLAUDE.md |
+| Org diz "pt-BR", Personal diz "en-US" | Personal | Carregado depois do Org Base |
+| Personal diz "skip tests", Org Enforce diz "always test" | Org Enforce | Pos-@import |
+| Org rules/ diz X, Org CLAUDE.md diz Y | rules/ | Auto-load apos CLAUDE.md |
 
 ---
 
 ## 5. Decisoes Arquiteturais (ADR Format)
 
-### ADR-001: Estrutura Vek Primary com Personal Subdirectory
+### ADR-001: Estrutura Org Primary com Personal Subdirectory
 
-**Titulo**: Adocao da estrutura S9 (Vek Primary + Personal Subdirectory)
+**Titulo**: Adocao da estrutura S9 (Org Primary + Personal Subdirectory)
 
 **Contexto**:
 - Necessidade de separar conteudo corporativo de pessoal
@@ -403,12 +403,12 @@ Isso mantem:
 - Claude Code le `~/.claude/CLAUDE.md` como User Memory
 
 **Decisao**:
-Adotar `~/.claude/` como clone do repo Vek, com `~/.claude/personal/` como clone do repo Personal, gitignored pelo Vek.
+Adotar `~/.claude/` como clone do org repo, com `~/.claude/personal/` como clone do repo Personal, gitignored pelo Org.
 
 **Consequencias**:
-- (+) Governanca clara: Vek controla base
+- (+) Governanca clara: Org controla base
 - (+) Isolamento: Personal e um subdirectory com .git proprio
-- (+) Onboarding simples: Clone Vek, funciona
+- (+) Onboarding simples: Clone Org, funciona
 - (+) Flexibilidade: Personal e opcional
 - (-) Duas operacoes git (uma em cada repo)
 - (-) Personal rules nao sao auto-loaded
@@ -423,7 +423,7 @@ Adotar `~/.claude/` como clone do repo Vek, com `~/.claude/personal/` como clone
 - Precisamos garantir que Personal seja lido
 
 **Decisao**:
-Usar `@~/.claude/personal/CLAUDE.md` no Vek CLAUDE.md para incluir Personal.
+Usar `@~/.claude/personal/CLAUDE.md` no Org CLAUDE.md para incluir Personal.
 
 **Consequencias**:
 - (+) Nativo, sem ferramentas extras
@@ -434,7 +434,7 @@ Usar `@~/.claude/personal/CLAUDE.md` no Vek CLAUDE.md para incluir Personal.
 
 ### ADR-003: Padrao Sanduiche para Precedencia
 
-**Titulo**: Vek Base -> Personal Override -> Vek Enforce
+**Titulo**: Org Base -> Personal Override -> Org Enforce
 
 **Contexto**:
 - @import expande inline na posicao declarada
@@ -442,10 +442,10 @@ Usar `@~/.claude/personal/CLAUDE.md` no Vek CLAUDE.md para incluir Personal.
 - Algumas regras corporativas nao podem ser sobrescritas
 
 **Decisao**:
-Estruturar o Vek CLAUDE.md em tres blocos:
-1. Vek Base (antes do @import)
+Estruturar o Org CLAUDE.md em tres blocos:
+1. Org Base (antes do @import)
 2. @import Personal (meio)
-3. Vek Enforce (depois do @import)
+3. Org Enforce (depois do @import)
 
 **Consequencias**:
 - (+) Flexibilidade controlada
@@ -453,7 +453,7 @@ Estruturar o Vek CLAUDE.md em tres blocos:
 - (+) Transparente (ordem de leitura e evidente)
 - (-) Requer disciplina na estruturacao do arquivo
 
-### ADR-004: Vek Rules em Auto-Load, Personal via Chain
+### ADR-004: Org Rules em Auto-Load, Personal via Chain
 
 **Titulo**: Separacao de regras por mecanismo de carregamento
 
@@ -463,13 +463,13 @@ Estruturar o Vek CLAUDE.md em tres blocos:
 - Nao e possivel ter dois .git em `~/.claude/rules/`
 
 **Decisao**:
-- Vek rules: `~/.claude/rules/` (auto-load, obrigatorio)
+- Org rules: `~/.claude/rules/` (auto-load, obrigatorio)
 - Personal rules: `~/.claude/personal/rules/` (via @import chain)
 
 **Consequencias**:
 - (+) Isolamento Git perfeito
 - (+) Sem namespace collision
-- (+) Vek rules sempre carregadas
+- (+) Org rules sempre carregadas
 - (-) Personal rules requerem @import explicito no personal/CLAUDE.md
 - (-) Limite de 5 hops (suficiente na pratica)
 
@@ -499,9 +499,9 @@ detect_state() {
     # Verificar se tem arquivos nao commitados
 }
 
-# 3. Clone Vek
-clone_vek() {
-    # git clone git@github.com:vek-servicos/dot-claude.git ~/.claude.new
+# 3. Clone Org
+clone_org() {
+    # git clone git@github.com:acme-org/dot-claude.git ~/.claude.new
     # Validar clone
 }
 
@@ -510,7 +510,7 @@ migrate_files() {
     # Identificar arquivos pessoais (email, DOB, etc)
     # Mover para personal/
     # Identificar arquivos universais
-    # Manter se nao conflitam com Vek
+    # Manter se nao conflitam com Org
 }
 
 # 5. Setup Personal
@@ -541,7 +541,7 @@ migrate-to-dual-repo.sh [OPTIONS]
 OPTIONS:
   --dry-run           Mostra o que seria feito sem executar
   --backup-only       Apenas faz backup, nao migra
-  --vek-repo URL      URL do repo Vek (default: git@github.com:vek-servicos/dot-claude.git)
+  --org-repo URL      URL do org repo (default: git@github.com:acme-org/dot-claude.git)
   --personal-repo URL URL do repo Personal (opcional)
   --force             Ignora verificacoes de seguranca
   --verbose           Output detalhado
@@ -561,10 +561,10 @@ OPTIONS:
 | API keys | NUNCA em CLAUDE.md | .env ou secret manager |
 | Credenciais Git | ~/.gitconfig (separado) | Nao relacionado |
 
-### Gitignore Obrigatorio (Vek)
+### Gitignore Obrigatorio (Org)
 
 ```gitignore
-# ~/.claude/.gitignore (Vek repo)
+# ~/.claude/.gitignore (Org repo)
 
 # Runtime - NUNCA versionar
 projects/
@@ -618,11 +618,11 @@ personal/
 
 ## 9. Proximos Passos
 
-1. **CRIAR** repo `vek-servicos/dot-claude` no GitHub (privado)
-2. **ESTRUTURAR** o CLAUDE.md Vek com padrao sanduiche
+1. **CRIAR** repo `acme-org/dot-claude` no GitHub (privado)
+2. **ESTRUTURAR** o CLAUDE.md Org com padrao sanduiche
 3. **MIGRAR** rules/ existentes para o novo repo
 4. **IMPLEMENTAR** script migrate-to-dual-repo.sh
-5. **TESTAR** com segundo usuario Vek
+5. **TESTAR** com segundo usuario Org
 6. **DOCUMENTAR** setup no README do repo
 
 ---
