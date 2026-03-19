@@ -1,0 +1,35 @@
+#!/bin/bash
+# GaaS: Local Enforcement (Pre-push Hook)
+# Garante higiene e nomenclatura correta antes da poluição do remote origin.
+
+set -e
+
+# Lendo ref do stdin para push (formato padrão do git pre-push)
+while read local_ref local_sha remote_ref remote_sha
+do
+    # Ignora pushes de deleção (sha = zerado)
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
+
+    # Extrai só o nome da branch remote_ref
+    BRANCH=$(echo $remote_ref | sed 's|^refs/heads/||')
+
+    # Expressão Regular Oficial para validação (ex: feat/algo, chore/algo, bugfix/algo)
+    VALID_PATTERN="^(feature|feat|bugfix|fix|chore|docs|refactor|test|ci|hotfix)\/.*$"
+    
+    # Branch pai pode passar limpo, mas sub-branches precisam nomear certo
+    if [[ "$BRANCH" != "main" && "$BRANCH" != "master" && "$BRANCH" != "develop" ]]; then
+        if ! [[ "$BRANCH" =~ $VALID_PATTERN ]]; then
+            echo ""
+            echo "🛑 [GAAS: ACTION REJECTED] INVALID BRANCH NAMING 🛑"
+            echo "Branch: '$BRANCH' não obedece ao Padrão de Nomenclatura."
+            echo "A branch DEVE começar com tipo/ação. (Ex: feat/auth-login, chore/update-docs)"
+            echo "Renomeie a branch antes de tentar realizar o Push."
+            exit 1
+        fi
+    fi
+done
+
+echo "✅ [GAAS: PRE-PUSH] Naming conventions checks passed."
+exit 0

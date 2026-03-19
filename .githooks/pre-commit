@@ -1,0 +1,31 @@
+#!/bin/bash
+# GaaS: Local Enforcement (Pre-commit Hook)
+# Previne que Agentes/Humanos façam checkout e commitem na branch raiz (C04 Protocol).
+
+set -e
+
+# Obter o nome da branch atual
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+if [ "$?" -ne 0 ]; then
+    echo "❌ Erro ao ler a branch atual."
+    exit 1
+fi
+
+PROTECTED_BRANCHES="^(main|master|develop)$"
+
+if [[ "$BRANCH_NAME" =~ $PROTECTED_BRANCHES ]]; then
+    echo ""
+    echo "🛑 [GAAS: ACTION REJECTED] POLICY VIOLATION 🛑"
+    echo "Agente/User tentou commitar diretamente na branch restrita: '$BRANCH_NAME'"
+    echo ""
+    echo "🔥 DIRETRIZ C04 (ZERO-TRUST MULTI-AGENT):"
+    echo "1. Nunca use o repositório Raiz para trabalhar."
+    echo "2. Aborte essa operação (git reset --soft HEAD~ ou desfaça o add)."
+    echo "3. Crie uma Worktree isolada: git worktree add .worktrees/agent-feature -b agent-feature"
+    echo ""
+    exit 1
+fi
+
+echo "✅ [GAAS: PRE-COMMIT] Branch validation passed. ($BRANCH_NAME)"
+exit 0
