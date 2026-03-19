@@ -98,8 +98,8 @@ gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -j \
   | python3 -c "import json,sys; [print(t['id']) for t in json.loads(sys.stdin.read()).get('threads',[])]" \
   | xargs -I{} gog gmail thread modify {} --remove INBOX -a emilson.moraes@gmail.com -y
 
-# Check vectorinf account
-gog gmail search '{repo}' -a emilson.moraes@vectorinf.com.br -p
+# Check acme-corp account
+gog gmail search '{repo}' -a user@acme-corp.example.com -p
 ```
 
 ## 9. Cleanup Worktree
@@ -131,7 +131,7 @@ X  qodo self-review without agent.toml
 X  qodo -q (suppresses output)
 X  gog gmail threads (use singular: thread)
 X  Archiving emails BEFORE auditing reviews
-X  Using Gmail MCP for @vectorinf.com.br (not connected)
+X  Using Gmail MCP for @acme-corp.example.com (not connected)
 ```
 
 ---

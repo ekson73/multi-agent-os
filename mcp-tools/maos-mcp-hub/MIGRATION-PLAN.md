@@ -88,7 +88,7 @@ multi-agent-os/
 **Veredito:** ✅ APROVADO
 
 ### Corrections made during QA:
-1. `lib/bitbucket/__init__.py` — removed `__author__ = "Vector Informatica"` (Vek leak)
+1. `lib/bitbucket/__init__.py` — removed `__author__ = "Acme Corp"` (Vek leak)
 2. `hub.py` — replaced `ghp_your_token` placeholder (triggered credential scan)
 3. Removed all `__pycache__/` directories
 4. Created `.gitignore`

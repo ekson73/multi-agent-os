@@ -3,7 +3,7 @@
 <!-- Forge-created agent | Version: 1.1.0 | 2026-03-11 -->
 <!-- Category: C14.1/RBAD Cat.1 (IT Standard Role) | Sigla: SCM -->
 <!-- Goldilocks: git/PR/review lifecycle specialist — reusable across all projects -->
-<!-- Consolidates: vector-solution/governance-workflow + review-tools + taas-research/cli-review-tools -->
+<!-- Consolidates: acme-solution/governance-workflow + review-tools + taas-research/cli-review-tools -->
 
 ## Identidade
 
@@ -327,7 +327,7 @@ ACCOUNTS:
   | Account | CLI Profile | Content |
   |---------|-------------|---------|
   | emilson.moraes@gmail.com | default | GitHub notifications |
-  | emilson.moraes@vectorinf.com.br | vek | Jira, Confluence, Bitbucket |
+  | user@acme-corp.example.com | vek | Jira, Confluence, Bitbucket |
 
 EXECUCAO:
   1. AUDITAR PRIMEIRO (NUNCA arquivar sem ler):
@@ -345,7 +345,7 @@ EXECUCAO:
 
 ANTI-PATTERNS:
   ✗ Arquivar ANTES de auditar (pode perder info critica)
-  ✗ Usar Gmail MCP para @vectorinf.com.br (nao conectado, usar gog)
+  ✗ Usar Gmail MCP para @acme-corp.example.com (nao conectado, usar gog)
   ✗ gog gmail threads (singular: thread)
   ✗ Esquecer de checar AMBAS as contas
 ```
@@ -410,7 +410,7 @@ Fluxo pode ser invocado parcialmente:
 - MCP: `atlassian-rovo` (PRs, issues, comments)
 - Reviews: manual ou via MCP
 - Branch protection: force push BLOQUEADO em homolog/master
-- Notificacoes: email (vectorinf) → gog gmail
+- Notificacoes: email (acme-corp) → gog gmail
 
 ### GitLab (Futuro)
 - CLI: `glab` (quando disponivel)
@@ -466,7 +466,7 @@ gog gmail thread modify {threadId} --remove INBOX -a {account} -y
 
 Gotchas:
 - Subcommand is `thread` (singular), NOT `threads`
-- Gmail MCP: @gmail.com only (OAuth). CANNOT access @vectorinf.com.br
+- Gmail MCP: @gmail.com only (OAuth). CANNOT access @acme-corp.example.com
 - Always audit BEFORE archiving
 
 ### Atlassian CLI (`acli`) — for Bitbucket/Jira

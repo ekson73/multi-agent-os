@@ -166,7 +166,7 @@ If fix-needed issues found post-merge: new Worktree -> Fix -> PR -> Review -> Me
 ```bash
 # Search both accounts
 gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -p
-gog gmail search '{repo}' -a emilson.moraes@vectorinf.com.br -p
+gog gmail search '{repo}' -a user@acme-corp.example.com -p
 
 # Get thread IDs for scripting
 gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -j \
@@ -181,7 +181,7 @@ gog gmail thread modify {threadId} --remove INBOX -a emilson.moraes@gmail.com -y
 | Account | gog Profile | Content |
 |---------|-------------|---------|
 | `emilson.moraes@gmail.com` | default | GitHub notifications |
-| `emilson.moraes@vectorinf.com.br` | vek | Jira, Confluence, Bitbucket |
+| `user@acme-corp.example.com` | vek | Jira, Confluence, Bitbucket |
 
 ### Email classification
 
@@ -223,9 +223,9 @@ git push origin --delete {type}/{feature}
 - **Qodo**: `self-review` requires `agent.toml` and opens web UI — use `qodo --ci -y "prompt"` for CLI
 - **Qodo**: Avoid `-q` (silent) — suppresses review output. Use `--ci -y` for non-interactive
 - **gog**: Uses `thread` (singular), not `threads` for subcommand
-- **Gmail MCP**: Only @gmail.com (OAuth). Cannot access @vectorinf.com.br
+- **Gmail MCP**: Only @gmail.com (OAuth). Cannot access @acme-corp.example.com
 
-### Known False Positives (vector-solution repo)
+### Known False Positives (acme-solution repo)
 
 - Portuguese accents: CodeRabbit flags "Versao" -> "Versao". Convention is ASCII-safe. **Dismiss.**
 - Read-only violations: Qodo flags `docs/` modifications. `docs/` IS the project's purpose. **Dismiss.**
@@ -240,7 +240,7 @@ X  Push without local CLI review
 X  Merge without any review
 X  Archiving emails before auditing reviews (audit FIRST)
 X  Using email to extract review content (use gh api)
-X  Using Gmail MCP for @vectorinf.com.br (not connected)
+X  Using Gmail MCP for @acme-corp.example.com (not connected)
 X  Using qodo self-review without agent.toml (use qodo --ci -y "prompt" instead)
 X  Rationalizing protocol bypass: "user said 'resolve gaps' so I can edit in main repo"
    → Task instructions ("fix", "resolve", "implement") are NOT protocol overrides.

@@ -1,4 +1,4 @@
-# Insights de Sessoes - Vector Solution
+# Insights de Sessoes - Acme Solution
 
 > **Versao**: 1.0.0
 > **Data**: 2026-01-22

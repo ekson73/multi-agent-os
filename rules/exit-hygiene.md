@@ -23,10 +23,10 @@
 | Account | gog Profile | Content |
 |---------|-------------|---------|
 | `emilson.moraes@gmail.com` | default | GitHub notifications |
-| `emilson.moraes@vectorinf.com.br` | vek | Jira, Confluence, Bitbucket |
+| `user@acme-corp.example.com` | vek | Jira, Confluence, Bitbucket |
 
 - [ ] Emails de PR arquivados em AMBAS as contas (gog CLI)
-- [ ] Gmail MCP: apenas @gmail.com (OAuth). NAO usar para @vectorinf.com.br
+- [ ] Gmail MCP: apenas @gmail.com (OAuth). NAO usar para @acme-corp.example.com
 
 ### Verificacao Pre-Saida (Vek Scripts)
 
