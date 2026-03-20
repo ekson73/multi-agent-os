@@ -14,7 +14,7 @@
 | **Branches** | `{tipo}/{feature}-{identificador}` |
 | **Commits** | Conventional Commits (feat, fix, docs, chore, refactor) |
 | **PRs** | Sempre com descrição e checklist |
-| **Worktrees** | OBRIGATÓRIO para todas modificações (ver `git-worktree-protocol.md`) |
+| **Worktrees** | OBRIGATÓRIO para todas as modificações (ver `git-worktree-protocol.md`) |
 | **Co-Author** | OBRIGATÓRIO para AI — ver `co-author-standard.md` |
 | **Bootstrap** | OBRIGATÓRIO para agents — ver `agent-bootstrap-protocol.md` |
 
@@ -34,7 +34,7 @@ Exemplos:
 Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>
 Co-Authored-By: Antigravity (Google/Gemini-2.5-Pro) <noreply+antigravity@google.com>
 Co-Authored-By: Amazon-Q (Amazon/Nova-Pro) <noreply+amazon-q@amazon.com>
-Co-Authored-By: Copilot (GitHub/GPT-4o) <noreply+copilot@github.com>
+Co-Authored-By: Copilot (GitHub/GPT-4o) <copilot@users.noreply.github.com>
 ```
 
 Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
@@ -48,7 +48,6 @@ Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
 | `feature/` | Nova funcionalidade |
 | `bugfix/` | Correção de bug não-urgente → develop |
 | `hotfix/` | Correção de produção urgente → master + develop |
-| `release/` | Preparação de release → master + develop |
 | `chore/` | Manutenção, configuração |
 | `docs/` | Documentação |
 | `refactor/` | Refatoração sem mudança de comportamento |
@@ -59,7 +58,7 @@ Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
 
 - Existing `fix/*` branches may be merged as-is
 - New branches MUST use `bugfix/` (non-urgent → develop) or `hotfix/` (urgent → master + develop)
-- CI pipelines keep backward-compat with `fix/*` (see `bitbucket-pipelines.yml`)
+- CI pipelines keep backward-compat with `fix/*` (git-provider agnostic)
 
 ---
 
