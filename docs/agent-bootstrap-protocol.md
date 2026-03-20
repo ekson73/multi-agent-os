@@ -109,7 +109,7 @@ In an ai-first project, review timing is based on **AI agent response time**, no
 | AI agent peer review | **1-3 minutes** | Agent-to-agent review via MCP/API |
 | Human review | **30 min - 24 hours** | Escalation path, not default |
 
-> **Default flow**: Agent → local review (30s) → push → bot review (2-5min) → fix → merge.
+> **Default flow**: Agent → local review (30 seconds) → push → bot review (2–5 minutes) → fix → merge.
 > Human review is an **escalation path**, not the default gate.
 
 ---

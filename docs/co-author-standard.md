@@ -125,7 +125,7 @@ git commit -m "[autonomous] chore: update dependency checksums"
 
 ## Rules
 
-1. **MANDATORY**: Every commit involving an AI agent MUST include `Co-Authored-By`
+1. **MANDATORY**: Every **supervised** commit involving an AI agent MUST include `Co-Authored-By`
 2. **FORMAT**: Must follow `{AgentName} ({Provider}/{Model})` — all 3 entities required
 3. **SUPERVISED**: When a human supervises, the human is `Author` (git config) and
    the agent is `Co-Authored-By`

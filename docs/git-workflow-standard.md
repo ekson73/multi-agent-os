@@ -20,7 +20,7 @@
 
 ### Co-Author Format (MANDATORY for AI Agents)
 
-```
+```text
 Co-Authored-By: {AgentName} ({Provider}/{Model}) <noreply+{agent}@{provider-domain}>
 ```
 
