@@ -55,6 +55,12 @@ Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
 
 > **DEPRECATED**: `fix/` — usar `bugfix/` para non-urgent, `hotfix/` para urgent
 
+### Migration from v1.0.0
+
+- Existing `fix/*` branches may be merged as-is
+- New branches MUST use `bugfix/` (non-urgent → develop) or `hotfix/` (urgent → master + develop)
+- CI pipelines keep backward-compat with `fix/*` (see `bitbucket-pipelines.yml`)
+
 ---
 
 ## Conventional Commits

@@ -50,7 +50,7 @@ Every AI agent MUST execute this checklist **before writing any file** in any re
 │  □ 3. READ    docs/git-worktree-protocol.md (if exists)               │
 │  □ 4. READ    docs/co-author-standard.md (if exists)                  │
 │  □ 5. READ    docs/pr-review-protocol-spec.md (if exists)             │
-│  □ 6. CHECK   Am I in a worktree? (Decision Checkpoint PG-2)          │
+│  □ 6. CHECK   Am I in a worktree? (see pr-governance-unified.md Step 1) │
 │  □ 7. CHECK   Do I have the correct Co-Author format?                 │
 │  □ 8. CHECK   Are CLI review tools available? (coderabbit, qodo)      │
 │  □ 9. CHECK   Is gog CLI available for email audit?                   │
@@ -172,8 +172,9 @@ of them send notification emails for PRs, reviews, comments, and pipeline failur
 # Check what tools are available for email audit
 echo "=== Email Audit Tools ==="
 which gog >/dev/null 2>&1     && echo "✅ gog CLI available" || echo "⬜ gog not found"
-# Check MCP servers
-echo "Note: Ask user if they want email audit as part of the process"
+# Note: MCP servers are detected automatically by the AI agent's runtime.
+# No manual detection needed here — agents have MCP tool access by default.
+echo "Tip: Ask user if they want email audit as part of the process"
 ```
 
 ### Flow
