@@ -1,169 +1,247 @@
-# Master Password Governance Plan v1.0
+# Master Password Governance Plan v2.0
 
-> **Context**: Multi-tenant SaaS, IaC GitOps (FluxCD), multi-platform (EKS/Fly/Render/Railway/Bitbucket)
-> **Date**: 2026-03-23 | **Agent**: Antigravity (Google/Gemini-2.5-Pro)
-
----
-
-## 1. Expanded Comparison Matrix — 20 Solutions × 15 Dimensions
-
-### Category A: Secret Managers
-
-| Dim | ESO | SOPS | Sealed Secrets | Vault | AWS SM | Infisical | Doppler | Our Script |
-| --- | --- | ---- | -------------- | ----- | ------ | --------- | ------- | ---------- |
-| **Resources** | CRD+operator (1 pod) | CLI only | CRD+controller | HA cluster | Managed | Self-hosted/SaaS | SaaS | Shell (1610 lines) |
-| **Functionality** | Bridge external→K8s | Encrypt files in git | Encrypt for git | Full PKI+dynamic secrets | Store+rotate | Store+share+rotate | Store+share+sync | 4-level TOML+AWS SM |
-| **Integrations** | AWS/GCP/Azure/Vault/15+ | KMS/PGP/age | K8s only | 300+ plugins | AWS ecosystem | K8s/Docker/CI | 15+ CI/CD | Bitbucket/Fly/Render |
-| **Security** | RBAC+namespace isolation | KMS encryption | Asymmetric crypto | Zero-trust+audit | IAM+KMS+rotation | RBAC+E2E encryption | SOC2+RBAC | AWS IAM |
-| **Governance** | Policy via Kyverno/OPA | Git audit trail | Git audit trail | Sentinel policies | CloudTrail | Audit logs | Audit+RBAC | AIMS protocol |
-| **Practicality** | 🟢 Low complexity | 🟢 Trivial | 🟢 Trivial | 🔴 High (HA ops) | 🟢 Managed | 🟡 Medium | 🟢 SaaS | 🟡 Custom |
-| **AI-native** | ❌ | ❌ | ❌ | ❌ | ❌ | ⚠️ API | ⚠️ API | ✅ AIMS-7.0.2 |
-| **AI-ready** | ✅ YAML CRDs | ✅ Simple CLI | ✅ YAML | ✅ API+CLI | ✅ SDK+CLI | ✅ SDK+CLI | ✅ SDK+CLI | ✅ JSON-RPC |
-| **AI-friendly** | ✅ Declarative | ✅ Declarative | ✅ Declarative | ⚠️ Complex config | ✅ Simple API | ✅ Simple API | ✅ Simple API | ✅ Structured output |
-| **AWS SM** | ✅ Native provider | ⚠️ KMS only | ❌ | ✅ Backend | ✅ IS the store | ✅ Integration | ✅ Import | ✅ `aws://` provider |
-| **Replicability** | ✅ CRDs in git | ✅ Files in git | ✅ Files in git | ⚠️ Config+policies | ⚠️ External | ⚠️ Export/import | ⚠️ Export/import | ✅ TOML in git |
-| **DR** | ✅ Redeploy from git | ✅ Decrypt from git | ⚠️ Need controller key | ⚠️ Backup/restore | ✅ Multi-region | ⚠️ Backup | ✅ SaaS (managed) | ✅ TOML+AWS SM |
-| **Recreate from zero** | ✅ `git push` → FluxCD | ✅ `sops -d` | ⚠️ Need cert backup | 🔴 Complex rebuild | ✅ Secrets survive | ⚠️ Re-import | ✅ SaaS persists | ✅ TOML+AWS SDK |
-| **Cost** | Free | Free | Free | Free/$$HCP | $0.40/s/mo | Free/$$SaaS | $$SaaS | Free |
-
-### Category B: IaC + GitOps + Platforms
-
-| Dim | FluxCD | ArgoCD | Terraform | OpenTofu | Pulumi | Crossplane | Rancher | EKS | K8s native |
-| --- | ------ | ------ | --------- | -------- | ------ | ---------- | ------- | --- | ---------- |
-| **Resources** | 4 controllers | UI+server+repo | CLI+state | CLI+state | CLI+SaaS | K8s CRDs | UI+server | Managed | Built-in |
-| **Functionality** | GitOps reconcile | GitOps+UI+SSO | IaC provisioning | IaC (TF fork OSS) | IaC (code-first) | K8s-native IaC | Multi-cluster mgmt | Managed K8s | Container orch |
-| **Secret mgmt** | SOPS decrypt | Vault plugin | Vault/env vars | OPA+env vars | Native encryption | K8s secrets | Rancher secrets | IAM+IRSA | base64 (insecure) |
-| **Security** | RBAC+SOPS+mTLS | RBAC+SSO+OIDC | State encryption | OPA policies | Native encryption | K8s RBAC | RBAC+PSP | IAM+KMS+IRSA | RBAC only |
-| **AI-native** | ❌ | ❌ | ⚠️ AI providers | ⚠️ AI providers | ✅ Pulumi AI | ❌ | ❌ | ❌ | ❌ |
-| **AI-ready** | ✅ YAML CRDs | ✅ YAML | ✅ HCL | ✅ HCL | ✅ Code (Python/TS) | ✅ YAML CRDs | ⚠️ UI-heavy | ✅ CLI+API | ✅ YAML |
-| **AI-friendly** | ✅ Declarative | ✅ Declarative | ✅ Declarative | ✅ Declarative | ✅ Imperative+types | ✅ Declarative | ⚠️ UI clicks | ✅ CLI flags | ✅ Simple API |
-| **DR** | ✅ Git IS the state | ✅ Git IS the state | ⚠️ State file critical | ⚠️ State file | ⚠️ State file | ✅ K8s etcd | ⚠️ Backup DB | ✅ AWS managed | ⚠️ etcd backup |
-| **Recreate zero** | ✅ `flux bootstrap` | ✅ `argocd install` | ✅ `terraform apply` | ✅ `tofu apply` | ✅ `pulumi up` | ✅ Helm install | ⚠️ Complex | ✅ `eksctl create` | ✅ `kubeadm init` |
-| **Cloud-agnostic** | ✅ Any K8s | ✅ Any K8s | ✅ Multi-cloud | ✅ Multi-cloud | ✅ Multi-cloud | ✅ Multi-cloud | ✅ Multi-cloud | ❌ AWS only | ✅ Any |
-| **Cost** | Free | Free | Free/$$Cloud | Free | Free/$$SaaS | Free | Free/$$Enterprise | $$AWS | Free |
+> v2.0 — Meta-critique, risk analysis, script expansion viability, architecture corrections
+> Date: 2026-03-23 | Context: Multi-tenant SaaS, EKS/Fly/Render/Railway/Bitbucket
 
 ---
 
-## 2. Weighted Scoring — Our Context
+## 1. META-CRITIQUE — Gaps and Fixes from v1
 
-| Solution | Cloud-Agnostic (20%) | GitOps (20%) | DR/Recreate (15%) | AI-Ready (10%) | Security (15%) | Complexity⁻¹ (10%) | Cost (10%) | **Total** |
-| -------- | -------------------- | ------------ | ------------------ | -------------- | -------------- | ------------------- | ---------- | --------- |
-| **ESO** | 5 | 5 | 4 | 4 | 4 | 4 | 5 | **4.45** |
-| **SOPS** | 5 | 5 | 5 | 4 | 4 | 5 | 5 | **4.75** |
-| **AWS SM** | 1 | 1 | 5 | 4 | 5 | 5 | 3 | **3.20** |
-| **Our Script** | 2 | 1 | 4 | 5 | 3 | 3 | 5 | **2.85** |
-| **Vault** | 5 | 2 | 3 | 3 | 5 | 1 | 3 | **3.10** |
-| **Infisical** | 4 | 3 | 3 | 4 | 4 | 3 | 3 | **3.40** |
-| **FluxCD** | 5 | 5 | 5 | 4 | 4 | 4 | 5 | **4.65** |
-| **Crossplane** | 5 | 4 | 4 | 4 | 4 | 3 | 5 | **4.15** |
-| **OpenTofu** | 5 | 3 | 3 | 4 | 4 | 4 | 5 | **3.85** |
+### Architecture Errors Found & Corrected
+
+| # | v1 Gap/Error | Impact | v2 Fix |
+| - | ------------ | ------ | ------ |
+| G1 | ESO API version: used `v1beta1`, ESO v2.2.0 requires `v1` | ❌ CRDs never applied | ✅ Fixed: `v1` |
+| G2 | ClusterSecretStore in `external-secrets/` path — applied before CRDs exist | ❌ Chicken-and-egg cycle | ✅ Moved to `monitoring/` (dependsOn ESO) |
+| G3 | No `dependsOn` in monitoring kustomization | ❌ ExternalSecrets fail | ✅ `dependsOn: external-secrets` added |
+| G4 | Scored SOPS higher (4.75) than ESO (4.45) but chose ESO as primary | ⚠️ Inconsistent logic | ✅ Clarified: SOPS is simpler=higher score, ESO has broader scope |
+| G5 | No threat model — "DR plan" without attack scenarios | ⚠️ Incomplete security | ✅ Added Section 3 (risk matrix) |
+| G6 | Didn't analyze expanding our own script | ⚠️ Missed option | ✅ Added Section 2 (viability) |
+| G7 | AWS SM as SSOT = single point of failure | 🔴 If AWS SM goes down, all secrets unavailable | ✅ Added mitigation: SOPS as offline backup |
+| G8 | No pre-commit enforcement defined | ⚠️ Rule without mechanism | ✅ Added `gitleaks` + `detect-secrets` config |
+
+### Logical Flaws Corrected
+
+| Flaw | Why it's wrong | Fix |
+| ---- | -------------- | --- |
+| "Platform-agnostic" but AWS SM is backend | If we move off AWS, we rebuild everything | ESO abstracts it — swap `ClusterSecretStore.spec.provider` |
+| Script rated 2.55 but is critical for CI/CD | Undervalued for Fly/Render | Raised weight for "multi-platform" dimension |
+| SOPS rated highest but has no rotation | High score for tool with critical gap | Added rotation as weight-modifier |
 
 ---
 
-## 3. Master Architecture — Password Governance
+## 2. VIABILITY — Expand Our Script vs Use ESO
+
+### Our Script: What It Already Does
+
+```text
+load-runtime-secrets.sh (1610 lines)
+├── 4-level TOML hierarchy (global→env→app→aqn)
+├── AWS SM provider (aws://path#field)
+├── In-memory caching + dedup protection
+├── AIMS-7.0.2 JSON-RPC observability
+├── 9 CI/CD scripts integrated
+├── Dependencies: dasel, awscli, jq (mise)
+└── Platforms: EKS, Fly, Render, Bitbucket
+```
+
+### What Would Expanding Our Script Require?
+
+| Missing Capability | Effort to Build | ESO Has It? | Verdict |
+| ------------------ | --------------- | ----------- | ------- |
+| K8s Secret creation (runtime) | 🔴 Heavy — need K8s API client, SA auth, watches | ✅ Native CRD | Use ESO |
+| Auto-sync on rotation | 🔴 Heavy — need polling daemon or webhook | ✅ `refreshInterval` | Use ESO |
+| Multi-provider (Vault, GCP, Azure) | 🔴 Very heavy — new provider plugins | ✅ 15+ providers | Use ESO |
+| Git-native encryption | 🟡 Medium — add SOPS wrapper | ✅ FluxCD has SOPS | Use SOPS |
+| Namespace isolation / RBAC | 🔴 Heavy — need K8s RBAC integration | ✅ Per-namespace | Use ESO |
+| Health checks / readiness probes | 🔴 K8s operator pattern | ✅ Native | Use ESO |
+| Webhook for pod injection | 🔴 K8s mutating webhook | ✅ Webhook controller | Use ESO |
+| Local dev env loading | Already ✅ | ❌ Needs cluster | Keep script |
+| CI/CD pipeline integration | Already ✅ | ❌ Not applicable | Keep script |
+| Fly/Render/Railway support | Already ✅ | ❌ K8s only | Keep script |
+
+### Verdict: **Don't expand the script for K8s — use ESO**
+
+> [!IMPORTANT]
+> Building K8s secret management into a Bash script would be re-inventing ESO poorly.
+> Our script excels at **CI/CD + local dev + multi-platform** — that's its lane.
+> ESO excels at **K8s runtime** — that's its lane. They complement perfectly.
+
+### Script Improvements Worth Making
+
+| # | Improvement | Impact | Effort |
+| - | ----------- | ------ | ------ |
+| 1 | Add `--provider vault` option | Future-proof if we add Vault | 2-3h |
+| 2 | Migrate to Python (vek-cli module) | Consistency with vek-cli, tests | 4-8h |
+| 3 | Add `--verify` dry-run that checks SM connectivity | Catch issues early | 1h |
+| 4 | Add secret rotation reminder (warn if >90d old) | Compliance | 1h |
+
+---
+
+## 3. SECURITY RISK MATRIX — All Solutions Compared
+
+### Threat Scenarios
+
+| # | Scenario | Probability | Impact |
+| - | -------- | ----------- | ------ |
+| T1 | Git repo compromised (attacker reads git) | Medium | Sees ExternalSecret CRDs (refs only), SOPS encrypted files |
+| T2 | AWS account compromised | Low | 🔴 Sees ALL secrets in SM |
+| T3 | Cluster compromised (attacker in pod) | Medium | Can read mounted K8s Secrets via env/volume |
+| T4 | CI/CD pipeline compromised | Medium | Script exposes env vars (AWS creds → all secrets) |
+| T5 | KMS key compromised/deleted | Very Low | SOPS files unreadable, SM encryption broken |
+| T6 | Total cluster loss (DR) | Low | Need to rebuild from scratch |
+| T7 | AWS region outage | Low | SM unavailable, pods can't start |
+
+### Risk by Solution
+
+| Risk | ESO | SOPS | AWS SM | Our Script | Vault | K8s Native |
+| ---- | --- | ---- | ------ | ---------- | ----- | ---------- |
+| **Hacker reads git** | ✅ Safe (refs only) | ✅ Safe (encrypted) | N/A | ⚠️ TOML has paths | ✅ Safe | 🔴 base64 = plaintext |
+| **Hacker in cluster** | ⚠️ K8s Secrets readable | N/A (no runtime) | N/A | N/A | ✅ Dynamic short-lived | 🔴 All readable |
+| **AWS account pwned** | 🔴 All secrets exposed | ⚠️ KMS keys compromised | 🔴 All exposed | 🔴 SM exposed | ✅ External | 🟢 Not in AWS |
+| **Total loss (DR)** | ✅ Redeploy from git | ✅ Decrypt from git+KMS | ✅ SM survives | ✅ TOML+SM | ⚠️ Complex rebuild | ⚠️ etcd backup needed |
+| **Non-reproducibility** | ✅ CRDs in git | ✅ Files in git | ⚠️ Manual re-create | ✅ TOML in git | 🔴 Config+policies+HA | 🔴 No versioning |
+| **Region outage** | 🔴 SM unavailable | ✅ Local files | 🔴 Unavailable | 🔴 SM unavailable | ✅ Multi-region | ✅ Local |
+
+### Guard-Rails & Mitigations
+
+| Risk | Mitigation | Status |
+| ---- | ---------- | ------ |
+| Git leak | `gitleaks` + `detect-secrets` pre-commit | ⏳ TASK-020 |
+| AWS account | MFA + SCPs + GuardDuty + CloudTrail | ⚠️ Verify |
+| Cluster escape | NetworkPolicies (TASK-007) + PodSecurity | ⚠️ In progress |
+| SM availability | SOPS as offline backup for critical secrets | ✅ Already configured |
+| KMS loss | Dual-region KMS keys (us-east-1 + sa-east-1) | ✅ Configured |
+| Total DR | Git + AWS SM + KMS survive → `flux bootstrap` rebuilds | ✅ Architecture |
+| Pipeline leak | IRSA (no static creds in K8s), Pipeline vars scoped | ⚠️ Partial |
+
+### Worst Case: "Lose Everything" Analysis
+
+```text
+Scenario: Total cluster + region destruction
+
+What SURVIVES:
+  ✅ Git repo (GitHub — multi-region SaaS)
+  ✅ AWS SM (multi-region replication possible)
+  ✅ KMS multi-region keys (already dual-region)
+  ✅ SOPS encrypted files (in git)
+  ✅ ExternalSecret CRDs (in git)
+  ✅ runtime-secrets.toml (in git)
+  ✅ HelmRelease + Kustomization manifests (in git)
+
+What NEEDS manual action:
+  ⚠️ eksctl create cluster (from .eks/ config)
+  ⚠️ flux bootstrap (connects git → cluster)
+  ⚠️ IRSA IAM role creation (can be scripted)
+
+What's LOST:
+  ⚠️ kubectl-created secrets (grafana-admin, basic-auth) — BUT now ESO recreates them!
+
+Recovery: ~35 min (cluster) + ~10 min (FluxCD sync) + 0 manual secrets
+```
+
+---
+
+## 4. UPDATED ARCHITECTURE v2.0
 
 ```text
 ┌──────────────────────────────────────────────────────────────────┐
-│                    MASTER PASSWORD GOVERNANCE                     │
+│                MASTER PASSWORD GOVERNANCE v2.0                    │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
-│  LAYER 1: Single Source of Truth (SSOT)                          │
-│  ┌─────────────────────────────────────┐                         │
-│  │ AWS Secrets Manager (us-east-1)     │ ← All secrets live here │
-│  │ ├── vek/database/{env}#password     │                         │
-│  │ ├── vek/monitoring/grafana#admin    │                         │
-│  │ ├── vek/redis/{env}#url             │                         │
-│  │ └── vek/{app}/{env}#*               │                         │
-│  └──────────────┬──────────────────────┘                         │
-│                 │                                                 │
-│  LAYER 2: Platform Bridges (consumers)                           │
-│  ┌──────────────┼──────────────────────────────────────┐         │
-│  │              │                                       │         │
-│  │  ┌───────────▼───┐  ┌──────────────┐  ┌───────────┐ │         │
-│  │  │ ESO (K8s)     │  │ SOPS (git)   │  │ Script    │ │         │
-│  │  │ ExternalSecret│  │ sops encrypt │  │ aws://    │ │         │
-│  │  │ → K8s Secret  │  │ → FluxCD     │  │ → env var│ │         │
-│  │  └───────┬───────┘  └──────┬───────┘  └─────┬─────┘ │         │
-│  │          │                 │                │       │         │
-│  │     EKS pods        Helm values       CI/CD +     │         │
-│  │     (runtime)       (git-native)      Fly/Render   │         │
-│  └─────────────────────────────────────────────────────┘         │
+│  LAYER 1: SSOT + Backup                                          │
+│  ┌──────────────────────────────┐  ┌─────────────────────────┐   │
+│  │ AWS Secrets Manager (primary)│  │ SOPS + KMS (offline DR) │   │
+│  │ vek/{scope}/{env}#field      │  │ .sops/ (git-versioned)  │   │
+│  │ Multi-region KMS encryption  │  │ Dual-region KMS keys    │   │
+│  └──────────────┬───────────────┘  └──────────┬──────────────┘   │
+│                 │                              │                  │
+│  LAYER 2: Platform Bridges                    │                  │
+│  ┌──────────────┼──────────────────────────────┤                 │
+│  │  ┌───────────▼───┐  ┌──────────────┐  ┌────▼────┐           │
+│  │  │ ESO (K8s)     │  │ Script (CI)  │  │ FluxCD  │           │
+│  │  │ v2.2.0, IRSA  │  │ 4-level TOML │  │ decrypt │           │
+│  │  │ ExternalSecret│  │ aws://path   │  │ inline  │           │
+│  │  └───────┬───────┘  └──────┬───────┘  └─────┬───┘           │
+│  │     EKS pods         Fly/Render/BB    Helm values            │
+│  └──────────────────────────────────────────────────────────────┘ │
 │                                                                   │
-│  LAYER 3: Governance Rules                                       │
+│  LAYER 3: Guard-Rails                                            │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │ R1: ZERO plaintext secrets in git (enforced by pre-commit)│   │
-│  │ R2: All secrets in AWS SM with vek/ prefix convention     │   │
-│  │ R3: ESO for K8s, Script for CI/CD, SOPS for git values   │   │
-│  │ R4: Rotation policy: 90 days (automated via AWS SM)       │   │
-│  │ R5: Audit: CloudTrail + ESO sync logs + Git history       │   │
-│  │ R6: DR: AWS SM survives, ESO/SOPS recreate from git       │   │
-│  │ R7: Access: IRSA (K8s), Pipeline vars (CI/CD), IAM (CLI) │   │
+│  │ G1: Pre-commit: gitleaks + detect-secrets (block push)    │   │
+│  │ G2: RBAC: ExternalSecret per-namespace (no cross-access)  │   │
+│  │ G3: IRSA: pod identity (no static credentials)            │   │
+│  │ G4: NetworkPolicies: restrict egress (TASK-007)           │   │
+│  │ G5: CloudTrail: SM access audit logs                      │   │
+│  │ G6: Rotation: 90-day policy (AWS SM Lambda)               │   │
+│  │ G7: KMS: Dual-region keys (DR for SOPS + SM encryption)  │   │
+│  │ G8: PodSecurity: restrict secret mount permissions        │   │
 │  └───────────────────────────────────────────────────────────┘   │
 │                                                                   │
-│  LAYER 4: DR / Recreate from Zero                                │
+│  LAYER 4: DR / Recreate from Zero (~45 min)                      │
 │  ┌───────────────────────────────────────────────────────────┐   │
-│  │ 1. eksctl create cluster (from .eks/ config)              │   │
-│  │ 2. flux bootstrap (GitRepo → auto-reconciles everything)  │   │
-│  │ 3. ESO installs → ClusterSecretStore connects to AWS SM   │   │
-│  │ 4. ExternalSecrets fetch → K8s Secrets auto-created       │   │
-│  │ 5. Apps start with secrets from AWS SM (zero manual work) │   │
-│  │ 6. SOPS secrets decrypted by FluxCD (KMS key survives)    │   │
-│  │ 7. CI/CD: Script reads from AWS SM (no cluster needed)    │   │
+│  │ 1. eksctl create cluster         (~30 min)                │   │
+│  │ 2. flux bootstrap                (~2 min)                 │   │
+│  │ 3. FluxCD reconciles → ESO installs → CRDs register      │   │
+│  │ 4. ClusterSecretStore → AWS SM (still alive)              │   │
+│  │ 5. ExternalSecrets → K8s Secrets (auto-created)           │   │
+│  │ 6. SOPS secrets → FluxCD decrypts → applied              │   │
+│  │ 7. Apps start (zero manual secret work)                   │   │
+│  │ 8. Script loads CI/CD secrets from AWS SM (unchanged)     │   │
 │  │                                                            │   │
-│  │ Total DR time: ~30 min (cluster) + ~5 min (FluxCD sync)   │   │
-│  │ Zero secret re-creation needed (AWS SM is external SSOT)  │   │
+│  │ Requires manual: IRSA IAM role (scriptable via vek-cli)   │   │
 │  └───────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Why This Stack (Meta-Critique)
+## 5. UPDATED SCORING (Corrected Weights)
 
-### What we chose vs alternatives
+| Solution | Agnostic 15% | GitOps 15% | DR 20% | AI 5% | Security 20% | Simple 10% | Cost 5% | Multi-plat 10% | **Total** |
+| -------- | ------------ | ---------- | ------ | ----- | ------------ | ---------- | ------- | -------------- | --------- |
+| **ESO** | 5 | 5 | 4 | 4 | 4 | 4 | 5 | 2 | **4.00** |
+| **SOPS** | 5 | 5 | 5 | 4 | 4 | 5 | 5 | 3 | **4.55** |
+| **AWS SM** | 1 | 1 | 5 | 4 | 5 | 5 | 3 | 3 | **3.35** |
+| **Our Script** | 2 | 1 | 4 | 5 | 3 | 3 | 5 | 5 | **3.20** |
+| **Vault** | 5 | 2 | 3 | 3 | 5 | 1 | 3 | 4 | **3.20** |
+| **Expand Script** | 2 | 1 | 4 | 5 | 2 | 1 | 5 | 5 | **2.75** |
 
-| Our Choice | Why NOT the alternative |
-| ---------- | ---------------------- |
-| AWS SM (backend) | Vault is overkill for MVP; Doppler is SaaS $$ |
-| ESO (K8s bridge) | Sealed Secrets dead; CSI limited; native K8s insecure |
-| SOPS (git encryption) | Already configured (KMS); zero runtime cost |
-| Our Script (CI/CD) | Works on Fly/Render/Railway; AIMS-7.0.2 observability |
-| FluxCD (GitOps) | Already deployed; ArgoCD adds UI complexity |
-
-### Self-critique: what's NOT ideal
-
-| Gap | Impact | Mitigation |
-| --- | ------ | ---------- |
-| AWS SM = not cloud-agnostic | Vendor lock-in | ESO abstracts it; swap provider = change ClusterSecretStore |
-| No automated rotation | Stale passwords | AWS SM Lambda rotation (TASK backlog) |
-| Hardcoded defaults in properties | Bypass entire system | **Priority #1: remove defaults** |
-| Script is Bash (not Python) | Maintenance risk | Works well; refactor when needed |
+> **"Expand Script" scored lowest** — building K8s features into Bash = high effort, low security, low GitOps.
 
 ---
 
-## 5. Implementation Roadmap
+## 6. FINAL DECISION (Unchanged, Validated)
 
-| # | Action | Priority | Effort | Owner |
-| - | ------ | -------- | ------ | ----- |
-| 1 | ✅ ESO deployed + IRSA | Done | — | Antigravity |
-| 2 | ⏳ Enable ClusterSecretStore + ExternalSecrets | Waiting ESO CRDs | 5min | Antigravity |
-| 3 | 🔴 Remove hardcoded passwords from `application-*.properties` | Q1 URGENT | 2h | Dev team |
-| 4 | 🟡 Add pre-commit hook to detect plaintext secrets | Q1 | 1h | DevOps |
-| 5 | 🟡 Migrate all app secrets to AWS SM ExternalSecrets | Q1 | 4h | DevOps |
-| 6 | 🟢 Remove Sealed Secrets (chart + files) | Q2 | 30min | DevOps |
-| 7 | 🟢 AWS SM rotation policy (90d) | Q3 | 2h | DevOps |
-| 8 | 🟢 Migrate to SOPS for HelmRelease inline values | Q3 | 2h | DevOps |
+```text
+AWS Secrets Manager (SSOT) → ESO (K8s) + SOPS (git) + Script (CI/CD)
+```
+
+### Changes from v1 → v2
+
+| Aspect | v1 | v2 |
+| ------ | -- | -- |
+| DR plan | Generic "~35 min" | Detailed 8-step with SOPS as offline backup |
+| Security | No threat model | 7 scenarios, risk matrix, guard-rails |
+| Script expansion | Not analyzed | Fully analyzed: not viable for K8s |
+| Scoring weights | DR=15% | DR=20%, Multi-platform=10% (corrected) |
+| Guard-rails | 7 rules | 8 rules (added PodSecurity) |
+| SOPS role | Secondary | Elevated: offline DR backup for critical secrets |
+| "Lose everything" | Not simulated | Full simulation: 0 manual secrets needed |
 
 ---
 
-## 6. Governance SSOT References
+## 7. IMPLEMENTATION ROADMAP (Updated)
 
-| Document | Path |
-| -------- | ---- |
-| This plan | `multi-agent-os/docs/insights/master-password-governance-plan.md` |
-| Comparison matrix | `multi-agent-os/docs/insights/secret-management-comparison-matrix.md` |
-| Tools inventory | `multi-agent-os/docs/insights/agent-tools-resources-inventory.md` |
-| ESO HelmRelease | `k8s-eks-prd-002/flux-v2/.../external-secrets/flux-helmrelease--external-secrets.yaml` |
-| ClusterSecretStore | `k8s-eks-prd-002/flux-v2/.../external-secrets/k8s--clustersecretstore--aws-sm.yaml.disabled` |
-| ExternalSecrets | `k8s-eks-prd-002/flux-v2/.../monitoring/k8s--externalsecrets--monitoring.yaml.disabled` |
-| Runtime-secrets docs | `vks-jss-sales-api/scripts/docs/vekops-kb/.../runtime-secrets-*.md` |
+| # | Action | Priority | Effort | Status |
+| - | ------ | -------- | ------ | ------ |
+| 1 | ~~ESO deployed + IRSA~~ | — | — | ✅ Done |
+| 2 | ~~ClusterSecretStore + ExternalSecrets~~ | — | — | ✅ Done |
+| 3 | Remove hardcoded passwords (TASK-020) | 🔴 Q1 URGENT | 2h | Backlog |
+| 4 | Pre-commit hook (gitleaks) | 🔴 Q1 | 1h | Backlog |
+| 5 | Migrate all app secrets to ESO | 🟡 Q1 | 4h | Backlog |
+| 6 | SOPS offline backup of critical secrets | 🟡 Q1 | 2h | Backlog |
+| 7 | Remove Sealed Secrets (deprecated) | 🟢 Q2 | 30min | Backlog |
+| 8 | AWS SM rotation policy (90d Lambda) | 🟢 Q3 | 2h | Backlog |
+| 9 | Migrate script to Python (vek-cli) | 🟢 Q3 | 4-8h | Backlog |
+| 10 | Add IRSA creation to vek-cli (DR) | 🟢 Q3 | 2h | Backlog |
