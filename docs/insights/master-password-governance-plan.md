@@ -112,3 +112,8 @@ After 3 PDCA iterations (Plan→v1, Do→v2, Check→v3), the architecture is **
 - ✅ Roles are clearly scoped (backend / K8s bridge / CI/CD bridge)
 - ✅ Gaps are identified and backlogged
 - 🔴 One immediate fix: `secrets.py` hardcoded password
+
+> [!IMPORTANT]
+> **Core Swap Criterion**: If a solution/provider/architecture proves significantly better than AWS SM
+> in relevant dimensions AND at comparable cost (~$0.40/secret/mo), we CAN reconsider replacement.
+> ESO abstracts the backend — swap = change `ClusterSecretStore.spec.provider` only.
