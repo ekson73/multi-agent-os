@@ -1,119 +1,123 @@
-# Master Password Governance — PDCA Convergence v3.0
+# Master Secret Governance — Final Solution v4.0
 
-> PDCA Loop #3 — Incorporating vek-cli inventory findings
-> Date: 2026-03-23 12:04 BRT
-
----
-
-## PDCA Loop Summary
-
-### Plan (v1): 11 solutions evaluated → hybrid ESO + SOPS + AWS SM + Script
-### Do (v2): Deployed ESO, created IRSA, synced secrets, fixed CRD ordering
-### Check (v3): New insights from vek-cli inventory
-
-| # | New Finding | Impact on v2 |
-| - | ----------- | ------------ |
-| F1 | `secrets.py` has **hardcoded password** (`admin:prom-password`) | 🔴 vek-cli itself is a vulnerability |
-| F2 | vek-cli has **zero ESO commands** | 🟡 No way to manage ESO via CLI |
-| F3 | Script is a **config resolver**, not just secret loader | 🟡 Rename needed, role clarified |
-| F4 | TASK-019 exists: migrate shell→Python | 🟢 Script will become vek-cli module |
-| F5 | 4-level TOML hierarchy is the **unique differentiator** | 🟢 No solution replicates this |
-| F6 | SOPS is a **supporting tool**, not a standalone solution | 🟡 Demote from "solution" to "layer" |
-
-### Act (v3): Converge to 3 solutions + 1 layer
+> PDCA Loop #4 (final) — Converged, impact-assessed, AI-agent-optimized
+> Date: 2026-03-23 12:17 BRT
 
 ---
 
-## CONVERGED: 3 Solutions + 1 Encryption Layer
+## 1. FINAL ARCHITECTURE
 
 ```text
-┌──────────────────────────────────────────────────────────────┐
-│              FINAL ARCHITECTURE (3 solutions)                 │
-│                                                               │
-│  ┌────────────────────────────────────────────────────┐      │
-│  │ SOLUTION 1: AWS Secrets Manager (SSOT Backend)     │      │
-│  │ Role: Single source of truth for ALL secrets       │      │
-│  │ Scope: All platforms, all environments             │      │
-│  │ Score: 3.35 (low because AWS-only, but REQUIRED)   │      │
-│  └────────────────────┬───────────────────────────────┘      │
-│                       │                                       │
-│          ┌────────────┼────────────────┐                     │
-│          │                             │                      │
-│  ┌───────▼──────────┐   ┌─────────────▼──────────────┐      │
-│  │ SOLUTION 2: ESO  │   │ SOLUTION 3: vek-env-resolver│      │
-│  │ (K8s Bridge)     │   │ (CI/CD + Multi-plat Bridge) │      │
-│  │                  │   │                              │      │
-│  │ Scope:           │   │ Scope:                       │      │
-│  │  • EKS runtime   │   │  • Bitbucket pipelines       │      │
-│  │  • K8s Secrets    │   │  • Fly.io deploys            │      │
-│  │  • Auto-sync      │   │  • Render deploys            │      │
-│  │  • IRSA auth      │   │  • Local development         │      │
-│  │                  │   │  • 4-level TOML hierarchy     │      │
-│  │ Score: 4.00      │   │  Score: 3.20 → 3.65*          │      │
-│  └──────────────────┘   └──────────────────────────────┘      │
-│                                                               │
-│  LAYER (not solution): SOPS + KMS                            │
-│  Role: Encrypt files at rest in git (FluxCD decrypts)        │
-│  NOT a secret manager — it's an encryption mechanism         │
-│                                                               │
-│  * Score corrected: multi-platform weight increased           │
-└──────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────┐
+│               SECRET GOVERNANCE — FINAL                    │
+│                                                            │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │         AWS Secrets Manager (SSOT Backend)          │   │
+│  │  MVP: ~$4-20/mo | Production: evaluate Vault       │   │
+│  └────────────────────┬───────────────────────────────┘   │
+│                       │                                    │
+│          ┌────────────┼─────────────────┐                 │
+│          │                              │                  │
+│  ┌───────▼──────────┐    ┌──────────────▼─────────────┐   │
+│  │   ESO v2.2.0     │    │  vek-env-resolver          │   │
+│  │   (K8s Bridge)   │    │  (CI/CD + Multi-plat)      │   │
+│  │                  │    │                             │   │
+│  │  ClusterSecret   │    │  4-level TOML hierarchy     │   │
+│  │  Store → Secret  │    │  aws://path#field provider  │   │
+│  │  IRSA auth       │    │  9+ CI/CD scripts           │   │
+│  │  Auto-sync 1h    │    │  Fly/Render/BB/Local        │   │
+│  └──────────────────┘    └─────────────────────────────┘   │
+│                                                            │
+│  LAYER: SOPS + KMS (git encryption, not a manager)        │
+│                                                            │
+│  FUTURE: Vault evaluation when ≥100 secrets or SOC2       │
+│  SWAP: Change ClusterSecretStore.spec.provider (5 min)    │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Why 3, Not 1?
+## 2. vek-cli ENCAPSULATION — Análise
 
-| Claim | Reality |
-| ----- | ------- |
-| "Use one tool for everything" | **Impossible** — K8s needs CRDs, Fly/Render need env vars |
-| "Our script can do EKS too" | **Not viable** — reinventing ESO (10 missing capabilities) |
-| "ESO can do CI/CD too" | **Not applicable** — ESO requires K8s cluster |
-| "AWS SM directly everywhere" | **Partially true** — but each platform needs a bridge |
+### Pergunta: Encapsular todas as tools de secrets em vek-cli?
 
-> **The 3 solutions are not alternatives — they're complementary layers consuming the same backend.**
+| Tool Nativa | Hoje no vek-cli? | Encapsular? | Justificativa |
+| ----------- | ----------------- | ----------- | ------------- |
+| `kubectl get externalsecret` | ❌ | ✅ **Sim** | `secrets eso status` — UX padronizada |
+| `kubectl get clustersecretstore` | ❌ | ✅ **Sim** | `secrets eso store` — health check |
+| `aws secretsmanager get-secret-value` | ❌ | ✅ **Sim** | `secrets sm get` — fetch simplificado |
+| `flux reconcile` | ❌ (via monitor) | 🟡 Parcial | `gitops reconcile` — já planejado |
+| `sops --encrypt/--decrypt` | ❌ | ✅ **Sim** | `secrets sops encrypt/decrypt` |
+| `gitleaks detect` | ❌ | ✅ **Sim** | `secrets scan` — pre-commit |
+| `htpasswd -nb` | ❌ | ✅ **Sim** | `secrets generate-auth` |
+
+### Proposta: `vek-cli secrets` Module v2.0
+
+```text
+vek-cli.py secrets
+├── eso status      # kubectl get externalsecret -A + clustersecretstore
+├── eso create      # Create ExternalSecret CRD from template
+├── eso sync        # Force ESO refresh (annotate for immediate sync)
+├── sm get          # aws secretsmanager get-secret-value (formatted)
+├── sm list         # aws secretsmanager list-secrets --filter
+├── sm rotate       # Trigger rotation or warn if >90d
+├── sops encrypt    # sops --encrypt --in-place
+├── sops decrypt    # sops --decrypt (stdout only, never write plaintext)
+├── scan            # gitleaks detect --source .
+├── generate-auth   # htpasswd + base64 (replace old hardcoded)
+└── verify          # Full health check: SM + ESO + SOPS + scan
+```
+
+### AI Agents: vek-cli vs Tools Nativas?
+
+| Aspecto | vek-cli | Tool Nativa (kubectl, aws, sops) |
+| ------- | ------- | -------------------------------- |
+| **Discovery** | `--help` lista tudo | Agent precisa saber qual tool |
+| **Guard-rails** | `--dry-run` padronizado | Cada tool tem flags diferentes |
+| **Output** | Formatado, JSON structured | Raw, varia por tool |
+| **Context** | Já carrega cluster, region, config | Agent precisa inferir/perguntar |
+| **Composability** | Um comando = pipeline completo | Agent compõe N comandos |
+| **Learning curve** | 1 CLI = 1 help | N CLIs × N helps |
+| **AGENTS.md** | Já documentado | Cada tool separada |
+
+### Recomendação
+
+> [!TIP]
+> **Para AI agents: vek-cli > tools nativas**
+> - Agent chama `vek-cli secrets verify --dry-run` (1 comando, contexto completo)
+> - vs. `kubectl get css && kubectl get es -A && aws sm list-secrets && gitleaks detect` (4 comandos)
+>
+> **Para humanos experts: tools nativas são válidas** para troubleshooting ad-hoc
+
+**Conclusão**: Encapsular em vek-cli faz sentido TANTO para AI agents quanto para padronização DevOps. Mas manter acesso direto às tools nativas para troubleshooting.
 
 ---
 
-## Corrected Risk Matrix (after PDCA)
+## 3. IMPACT-FIRST RISK ASSESSMENT
 
-| Threat | Mitigation | Residual Risk |
-| ------ | ---------- | ------------- |
-| 🔴 Hardcoded passwords in properties | TASK-020 (remove + rotate) | **Blocked on dev team** |
-| 🔴 Hardcoded password in vek-cli secrets.py | Fix immediately (line 22) | **Can fix now** |
-| 🟡 No pre-commit secret detection | TASK-020 (add gitleaks) | Medium |
-| 🟡 AWS SM = single cloud dependency | ESO abstracts provider swap | Low |
-| 🟡 Script rename pending | TASK-021 (Q2) | Low |
-| 🟢 ESO not in vek-cli | Add after TASK-019 (shell→Python) | Low |
+| Mudança | Impact Assessment | Mitigação |
+| ------- | ----------------- | --------- |
+| ESO deployed | ✅ Aditivo (novo CRD, não muda nada existente) | Rollback: delete HelmRelease |
+| ClusterSecretStore | ✅ Aditivo (cria nova fonte de secrets) | Rollback: delete resource |
+| ExternalSecrets | ✅ Aditivo (cria K8s Secrets automaticamente) | Rollback: delete ES |
+| monitoring dependsOn | ⚠️ Mudança de comportamento (monitoring aguarda ESO) | Rollback: remove dependsOn |
+| secrets.py fix | ✅ Corretivo (remove vulnerabilidade) | N/A — era bug |
+| Vault (futuro) | 🟡 Seria substitutivo (troca backend) | ESO abstrai — swap provider |
 
 ---
 
-## Actionable Queue (Priority Order)
+## 4. ACTIONABLE QUEUE (Final, Prioritized)
 
-| # | Action | Severity | Effort | Status |
-| - | ------ | -------- | ------ | ------ |
-| 1 | ~~Deploy ESO v2.2.0~~ | — | — | ✅ Done |
+| # | Task | Prioridade | Esforço | Status |
+| - | ---- | ---------- | ------- | ------ |
+| 1 | ~~ESO v2.2.0 deploy~~ | — | — | ✅ Done |
 | 2 | ~~ClusterSecretStore + ExternalSecrets~~ | — | — | ✅ Syncing |
-| 3 | **Fix secrets.py hardcoded password** | 🔴 CRITICAL | 5min | **Now** |
-| 4 | **TASK-020**: Remove property defaults | 🔴 CRITICAL | 2h | Backlog |
-| 5 | **TASK-006**: Remediate .env | 🔴 HIGH | 1h | Backlog |
-| 6 | **TASK-007**: NetworkPolicies | 🟡 HIGH | 2h | Backlog |
-| 7 | **TASK-019**: Shell→Python migration | 🟢 Q2 | 8h | Backlog |
-| 8 | **TASK-021**: Rename script | 🟢 Q2 | 2h | Backlog |
-
----
-
-## Convergence Confirmed
-
-After 3 PDCA iterations (Plan→v1, Do→v2, Check→v3), the architecture is **converged**:
-
-- ✅ No new solutions needed
-- ✅ No existing solution should be removed
-- ✅ Roles are clearly scoped (backend / K8s bridge / CI/CD bridge)
-- ✅ Gaps are identified and backlogged
-- 🔴 One immediate fix: `secrets.py` hardcoded password
-
-> [!IMPORTANT]
-> **Core Swap Criterion**: If a solution/provider/architecture proves significantly better than AWS SM
-> in relevant dimensions AND at comparable cost (~$0.40/secret/mo), we CAN reconsider replacement.
-> ESO abstracts the backend — swap = change `ClusterSecretStore.spec.provider` only.
+| 3 | ~~secrets.py hardcoded password fix~~ | — | — | ✅ Pushed |
+| 4 | **TASK-020** Remove hardcoded props | 🔴 Q1 URGENT | 2h | Backlog |
+| 5 | **TASK-022** Review 10-day changes | 🔴 Q1 | 2h | Backlog |
+| 6 | **TASK-006** Remediate .env | 🔴 Q1 | 1h | Backlog |
+| 7 | **TASK-007** NetworkPolicies | 🟡 Q1 | 2h | IP |
+| 8 | **TASK-019** Shell→Python CLI | 🟢 Q2 | 8h | Backlog |
+| 9 | **TASK-021** Rename script | 🟢 Q2 | 2h | Backlog |
+| 10 | **NEW** vek-cli secrets v2.0 module | 🟢 Q2 | 4h | → TASK-023 |
+| 11 | **NEW** Vault production evaluation | 🟢 Q3 | 8h | → TASK-024 |
