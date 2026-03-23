@@ -214,6 +214,7 @@ assessment:
 | -------- | -------- | ----- |
 | This protocol | `multi-agent-os/docs/insights/multi-agent-swarm-governance-v2.md` | Open-source |
 | Eisenhower method | `multi-agent-os/docs/insights/eisenhower-dependency-prioritization.md` | Open-source |
+| **Tools inventory** | `multi-agent-os/docs/insights/agent-tools-resources-inventory.md` | Open-source |
 | Previous v1 protocol | `multi-agent-os/docs/insights/multi-agent-backlog-governance.md` | Superseded |
 | Domain backlog | `vek-devops-backlog/backlog/MASTER-PLAN-execution-order.md` | Vek-specific |
 | Cross-project inventory | `vek-devops-backlog/inventory/cross-project-inventory.md` | Vek-specific |
