@@ -137,14 +137,69 @@
 > [!IMPORTANT]
 > The architecture is sound. The gap is NOT tooling — it's **discipline**: someone bypassed the system by hardcoding passwords as defaults in `application-*.properties`.
 
-## Why NOT the others?
+## Phased Strategy: MVP → Production
 
-| Excluded | Reason |
-| -------- | ------ |
-| **Vault** | Overkill for MVP phase — needs HA, unsealing, operator overhead |
-| **Sealed Secrets** | Controller not installed, project in maintenance mode, ESO supersedes |
-| **Doppler** | SaaS cost, vendor lock-in |
-| **Infisical** | Too new, adds another system to maintain |
-| **CSI Driver** | Volume-mount only, no K8s Secret object creation |
-| **K8s Native** | Base64 ≠ encryption, plaintext in etcd |
-| **SSM PS** | AWS-only, no rotation policy, ESO can bridge if needed later |
+> [!IMPORTANT]
+> **Core Swap Criterion**: If a solution proves significantly better than AWS SM
+> in relevant dimensions AND at comparable cost, we CAN reconsider the core backend.
+> ESO abstracts the backend — swap = change `ClusterSecretStore.spec.provider` only.
+
+### Cost Comparison (Our Scale: 10-50 secrets)
+
+| Backend | Monthly Cost | Dynamic Secrets | Multi-Cloud | HA Complexity |
+| ------- | ------------ | --------------- | ----------- | ------------- |
+| **AWS SM** | **~$4-20** | ❌ (Lambda rotation) | ❌ AWS-only | 🟢 Managed |
+| **Vault OSS** | **~$150-300** (infra) | ✅ Native | ✅ Any cloud | 🔴 Self-managed HA, unseal |
+| **Vault HCP** | **~$150+** (SaaS) | ✅ Native | ✅ Any cloud | 🟢 Managed |
+| **Infisical** | **~$0-50** | ⚠️ Partial | ✅ Any cloud | 🟡 Self-hosted |
+
+### MVP Phase (Now → 6 months)
+
+**Decision: AWS SM + ESO** ✅ Already deployed
+
+| Why | Detail |
+| --- | ------ |
+| Cost | AWS SM ~$4-20/mo vs Vault ~$150-300/mo (37x cheaper) |
+| Simplicity | Zero HA management, zero unsealing |
+| ESO bridges | Already syncing grafana + prometheus secrets |
+| Ship fast | MVP needs speed, not enterprise features |
+
+### Production Phase (6+ months) — Evaluate Vault
+
+| Vault Advantage | Relevance for Production |
+| --------------- | ----------------------- |
+| **Dynamic secrets** | DB creds expire after 1h — no rotation Lambda needed |
+| **PKI engine** | Auto-generated TLS certs for mTLS between services |
+| **Transit encryption** | App-level encryption without managing keys |
+| **Multi-cloud** | If we expand beyond AWS (GCP, Azure) |
+| **Granular ACLs** | Per-tenant, per-service policy trees |
+| **Audit logging** | Every secret access logged (compliance) |
+
+**When to trigger Vault evaluation:**
+1. ≥ 100 secrets (cost gap narrows: $40/mo SM vs ~$200/mo Vault)
+2. Need dynamic DB credentials (security hardening)
+3. Multi-cloud expansion (GCP/Azure)
+4. Compliance requires audit-grade logging (SOC2, ISO27001)
+
+**Migration effort if we switch to Vault:**
+```text
+1. Deploy Vault (Helm chart, 3 replicas HA) — 4h
+2. Configure AWS auth backend in Vault — 1h
+3. Migrate secrets from AWS SM → Vault — 2h
+4. Change ClusterSecretStore.spec.provider: vault — 5min
+5. ExternalSecrets: update remoteRef paths — 1h
+6. Update vek-env-resolver TOML providers — 2h
+Total: ~10h (1 sprint, 1 person)
+```
+
+### Excluded (with justification)
+
+| Solution | Verdict | Reconsider When? |
+| -------- | ------- | ---------------- |
+| Sealed Secrets | ❌ Maintenance mode, ESO supersedes | Never |
+| Doppler | ❌ SaaS cost + vendor lock-in | Never |
+| CSI Driver | ❌ Volume-mount only, no K8s Secret | Never |
+| K8s Native | ❌ base64 ≠ encryption | Never |
+| SSM PS | ❌ AWS SM is strictly better | Never |
+| Infisical | ⏸️ Promising but young | When GA + 3y maturity |
+
