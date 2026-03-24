@@ -635,6 +635,86 @@ class BitbucketPipelineClient:
                 response.raise_for_status()
                 return response.json()
 
+    async def create_repository_variable(
+        self, key: str, value: str, secured: bool = False
+    ) -> dict:
+        """
+        Create or update a pipeline variable at repository level
+
+        Args:
+            key: Variable name (e.g., "AWS_OIDC_ROLE_ARN")
+            value: Variable value
+            secured: If True, value is encrypted and hidden in UI/API reads
+
+        Returns:
+            dict: Created variable details
+
+        Raises:
+            httpx.HTTPError: If API request fails
+        """
+        async with self.rate_limiter:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Check if variable already exists
+                existing = await self.get_repository_variables()
+                existing_var = next(
+                    (v for v in existing.get("values", []) if v.get("key") == key),
+                    None,
+                )
+
+                payload = {"key": key, "value": value, "secured": secured}
+
+                if existing_var:
+                    # Update existing variable
+                    var_uuid = existing_var["uuid"]
+                    response = await client.put(
+                        f"{self.base_url}/pipelines_config/variables/{var_uuid}",
+                        json=payload,
+                        **self._auth_kwargs,
+                    )
+                else:
+                    # Create new variable
+                    response = await client.post(
+                        f"{self.base_url}/pipelines_config/variables/",
+                        json=payload,
+                        **self._auth_kwargs,
+                    )
+
+                response.raise_for_status()
+                return response.json()
+
+    async def delete_repository_variable(self, key: str) -> dict:
+        """
+        Delete a pipeline variable at repository level
+
+        Args:
+            key: Variable name to delete
+
+        Returns:
+            dict: Deletion confirmation
+
+        Raises:
+            httpx.HTTPError: If API request fails
+            ValueError: If variable not found
+        """
+        async with self.rate_limiter:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                existing = await self.get_repository_variables()
+                existing_var = next(
+                    (v for v in existing.get("values", []) if v.get("key") == key),
+                    None,
+                )
+
+                if not existing_var:
+                    raise ValueError(f"Variable '{key}' not found in repository")
+
+                var_uuid = existing_var["uuid"]
+                response = await client.delete(
+                    f"{self.base_url}/pipelines_config/variables/{var_uuid}",
+                    **self._auth_kwargs,
+                )
+                response.raise_for_status()
+                return {"deleted": key, "uuid": var_uuid}
+
     async def get_workspace_variables(self) -> dict:
         """
         Get all pipeline variables configured at workspace level

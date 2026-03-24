@@ -45,6 +45,8 @@ SERVER_INFO = {
         "get_environments",
         "get_environment_variables",
         "get_repository_variables",
+        "set_repository_variable",
+        "delete_repository_variable",
         "get_workspace_variables",
         # Cache Management Tools (Sprint 3)
         "list_caches",

@@ -835,6 +835,64 @@ async def get_repository_variables(workspace: str = "", repo_slug: str = "") -> 
         return {"error": f"Failed to get repository variables: {sanitize_error(e)}"}
 
 
+async def set_repository_variable(
+    key: str, value: str, secured: bool = False, workspace: str = "", repo_slug: str = ""
+) -> dict:
+    """
+    Create or update a pipeline variable at repository level
+
+    Args:
+        key: Variable name (e.g., "AWS_OIDC_ROLE_ARN")
+        value: Variable value (e.g., "arn:aws:iam::123456789:role/MyRole")
+        secured: If True, value is encrypted and hidden in UI/API reads (default: False)
+        repo_slug: Optional repo override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Created/updated variable details including key, secured status, and action taken
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.create_repository_variable(
+            key=key, value=value, secured=secured
+        )
+
+        return {
+            "success": True,
+            "key": result.get("key", key),
+            "secured": result.get("secured", secured),
+            "uuid": result.get("uuid"),
+            "action": "updated" if result.get("uuid") else "created",
+        }
+
+    except httpx.HTTPStatusError as e:
+        return {"error": f"Failed to set repository variable: {sanitize_error(e)}"}
+
+
+async def delete_repository_variable(
+    key: str, workspace: str = "", repo_slug: str = ""
+) -> dict:
+    """
+    Delete a pipeline variable at repository level
+
+    Args:
+        key: Variable name to delete
+        repo_slug: Optional repo override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Deletion confirmation with key and uuid
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.delete_repository_variable(key=key)
+
+        return {"success": True, **result}
+
+    except ValueError as e:
+        return {"error": str(e)}
+    except httpx.HTTPStatusError as e:
+        return {"error": f"Failed to delete repository variable: {sanitize_error(e)}"}
+
+
 async def get_workspace_variables(workspace: str = "", repo_slug: str = "") -> dict:
     """
     Get all pipeline variables configured at workspace level
