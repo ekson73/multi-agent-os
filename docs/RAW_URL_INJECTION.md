@@ -28,3 +28,11 @@ Cole o bloco abaixo nos seus provedores (ou no header do RAG do seu Agente Autô
 1. **SSOT (Single Source of Truth):** Quando a política muda, muda apenas na `main` do repositório Mestre. No dia seguinte, todos os agentes em todos os projetos que forem invocados já consumirão a nova regra automaticamente pela internet.
 2. **Context Ratio Otimizado:** O LLM não será penalizado gastando 20.000 tokens na aba de configurações nativas da plataforma (preservando o budget de ferramentas do Gemini/MCP).
 3. **Escudo de Prompt Injection:** Como a base `ekson73/multi-agent-os` só aceita Pull Requests curados por humanos aprovadores, mitigamos incidentes de *Prompt Injection* disfarçados em URLs externas (Zero-Trust Model respeitado).
+
+---
+
+## See Also
+
+- [`why-not-symlinks.md`](./why-not-symlinks.md) — Why symlinks are not a valid alternative for sharing AI context files
+- [`gaas-architecture-manifesto.md`](./gaas-architecture-manifesto.md) — The 3-motor enforcement architecture (GaaS)
+- [`framework-consumption.md`](./framework-consumption.md) — How consumers should reference the framework

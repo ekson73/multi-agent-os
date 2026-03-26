@@ -177,6 +177,22 @@ Implementar o GaaS e o unico modo de atingir o nirvana do **Zero-Trust** em time
 
 ---
 
+## Anti-Patterns
+
+### Symlinks for Governance File Sharing
+
+Using symbolic links (symlinks) to share AI context files (CLAUDE.md, .cursorrules, AGENTS.md) across repositories is a **known anti-pattern** that violates GaaS principles. Symlinks with absolute paths:
+
+- **Break Motor 2 (CI/CD):** CI runners cannot resolve local filesystem paths, causing pipeline failures that bypass all remote governance checks
+- **Bypass Motor 1 (Local Hooks):** Dangling symlinks produce silent failures where hooks may not find the governance files they need to enforce
+- **Undermine Zero-Trust:** Symlinks expose local filesystem structure (usernames, directory layouts) in git history, violating the information disclosure principle
+
+A real-world incident demonstrated that 47 committed symlinks blocked an entire team's CI pipeline for 10 days across all branches.
+
+**Use instead:** Raw URL Injection (C15 Protocol) or layered composition via sync scripts. See [`why-not-symlinks.md`](./why-not-symlinks.md) for the full analysis, decision matrix, and recommended alternatives.
+
+---
+
 ## Leitura Complementar
 
 - `docs/GaaS_INSTALLATION_GUIDE.md` — Como instalar os 3 motores em qualquer repo
