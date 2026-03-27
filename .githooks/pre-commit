@@ -1,8 +1,13 @@
-#!/bin/bash
+#!/bin/sh
 # GaaS: Local Enforcement (Pre-commit Hook)
 # Previne que Agentes/Humanos façam checkout e commitem na branch raiz (C04 Protocol).
+# Previne que symlinks com caminhos absolutos sejam commitados (portabilidade).
 
 set -e
+
+# ─────────────────────────────────────────────────────────
+# 1. Branch Validation (C04 Protocol)
+# ─────────────────────────────────────────────────────────
 
 # Obter o nome da branch atual
 BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null || echo "detached")
@@ -21,4 +26,67 @@ if echo "$BRANCH_NAME" | grep -Eq '^(main|master|develop)$'; then
 fi
 
 echo "✅ [GAAS: PRE-COMMIT] Branch validation passed. ($BRANCH_NAME)"
+
+# ─────────────────────────────────────────────────────────
+# 2. Absolute Symlink Detection
+#    Symlinks with absolute paths break portability (CI, other
+#    developers, worktrees). Only relative symlinks are allowed.
+# ─────────────────────────────────────────────────────────
+
+ABSOLUTE_SYMLINKS=""
+ABSOLUTE_COUNT=0
+
+# List all staged new/added files that are symlinks (mode 120000)
+STAGED_SYMLINKS=$(git diff --cached --diff-filter=ACM --raw | grep '^:.*120000' || true)
+
+if [ -n "$STAGED_SYMLINKS" ]; then
+    echo "$STAGED_SYMLINKS" | while IFS= read -r line; do
+        # Extract the blob hash and file path from the raw diff line
+        # Format: :old_mode new_mode old_hash new_hash status\tpath
+        BLOB_HASH=$(echo "$line" | awk '{print $4}')
+        FILE_PATH=$(echo "$line" | awk '{print $NF}')
+
+        # Read the symlink target from the staged blob
+        TARGET=$(git cat-file -p "$BLOB_HASH")
+
+        # Check if the target is an absolute path (starts with /)
+        case "$TARGET" in
+            /*)
+                echo "  BLOCKED: $FILE_PATH -> $TARGET" >&2
+                # Write to a temp file so the count survives the subshell
+                printf '%s\t%s\n' "$FILE_PATH" "$TARGET" >> "${GIT_DIR:-.git}/pre-commit-symlinks.tmp"
+                ;;
+        esac
+    done
+
+    # Check if any absolute symlinks were found (temp file exists and is non-empty)
+    TMPFILE="${GIT_DIR:-.git}/pre-commit-symlinks.tmp"
+    if [ -f "$TMPFILE" ] && [ -s "$TMPFILE" ]; then
+        ABSOLUTE_COUNT=$(wc -l < "$TMPFILE" | tr -d ' ')
+
+        echo ""
+        echo "🛑 [GAAS: ACTION REJECTED] ABSOLUTE SYMLINKS DETECTED 🛑"
+        echo "Found $ABSOLUTE_COUNT symlink(s) with absolute paths."
+        echo "Absolute symlinks break CI, other machines, and worktrees."
+        echo ""
+        echo "Blocked files:"
+        while IFS='	' read -r fpath target; do
+            echo "  - $fpath -> $target"
+        done < "$TMPFILE"
+        echo ""
+        echo "🔧 HOW TO FIX:"
+        echo "1. Remove the symlink:  git rm <file>"
+        echo "2. Replace it with one of:"
+        echo "   a) A relative symlink:  ln -s ../relative/path <file>"
+        echo "   b) The actual file content (copy instead of link)"
+        echo "   c) A raw URL reference (for external resources)"
+        echo "3. Stage and commit again."
+        echo ""
+
+        rm -f "$TMPFILE"
+        exit 1
+    fi
+    rm -f "$TMPFILE"
+fi
+
 exit 0
