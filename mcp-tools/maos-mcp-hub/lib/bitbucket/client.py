@@ -99,6 +99,72 @@ class BitbucketPipelineClient:
         else:
             self._auth_kwargs = {"auth": (self.auth_user, self.api_token)}
 
+    @classmethod
+    def for_account(cls, account_id: str, repo_slug: Optional[str] = None) -> "BitbucketPipelineClient":
+        """
+        Create a client using credentials from a named account.
+
+        Reads BITBUCKET_ACCOUNT_{ID}_* env vars for per-account credentials.
+        Falls back to the default client if the account is "default" or empty.
+
+        Env vars read (where PREFIX = BITBUCKET_ACCOUNT_{UPPER_ID}_):
+            {PREFIX}USERNAME or {PREFIX}EMAIL  — Basic auth principal
+            {PREFIX}APP_PASSWORD or {PREFIX}API_TOKEN  — credential
+            {PREFIX}AUTH_TYPE  — "basic" or "bearer" (falls back to global)
+        """
+        if not account_id or account_id == "default":
+            return cls(repo_slug=repo_slug)
+
+        prefix = f"BITBUCKET_ACCOUNT_{account_id.upper()}_"
+
+        token = os.getenv(f"{prefix}APP_PASSWORD") or os.getenv(f"{prefix}API_TOKEN")
+        if not token:
+            raise ValueError(
+                f"No credentials found for account '{account_id}'. "
+                f"Set {prefix}APP_PASSWORD or {prefix}API_TOKEN."
+            )
+
+        user = (
+            os.getenv(f"{prefix}USERNAME")
+            or os.getenv(f"{prefix}EMAIL")
+        )
+
+        auth_type = os.getenv(f"{prefix}AUTH_TYPE", "").strip().lower()
+        if not auth_type:
+            auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "").strip().lower()
+
+        instance = cls.__new__(cls)
+        instance.auth_user = user
+        instance.api_token = token
+
+        if auth_type in {"bearer", "basic"}:
+            instance.use_bearer = auth_type == "bearer"
+        else:
+            instance.use_bearer = token.startswith("ATCTT3x")
+
+        if not instance.use_bearer and not instance.auth_user:
+            raise ValueError(
+                f"Account '{account_id}' uses Basic auth but no principal set. "
+                f"Set {prefix}USERNAME or {prefix}EMAIL."
+            )
+
+        instance.repo_slug = (
+            repo_slug
+            or os.getenv("BITBUCKET_REPO_SLUG")
+            or instance._get_repo_slug()
+        )
+        instance.base_url = f"https://api.bitbucket.org/2.0/repositories/{instance.repo_slug}"
+        instance._provider_name = "Bitbucket"
+        instance._auth_hint = f"Account '{account_id}' credentials."
+        instance.rate_limiter = AsyncLimiter(max_rate=1000, time_period=3600)
+
+        if instance.use_bearer:
+            instance._auth_kwargs = {"headers": {"Authorization": f"Bearer {instance.api_token}"}}
+        else:
+            instance._auth_kwargs = {"auth": (instance.auth_user, instance.api_token)}
+
+        return instance
+
     def _get_repo_slug(self) -> str:
         """
         Extract repository slug (workspace/repo-name) from git remote URL

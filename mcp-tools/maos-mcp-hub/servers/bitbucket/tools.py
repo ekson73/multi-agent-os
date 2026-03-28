@@ -30,6 +30,9 @@ _health_by_repo: dict[str, HealthMonitor] = {}
 
 
 
+_account_clients: dict[str, BitbucketPipelineClient] = {}
+
+
 def get_client(workspace: str = "", repo_slug: str = "") -> BitbucketPipelineClient:
     """Get BitbucketPipelineClient with singleton cache (global + per-repo)."""
     global _client, _clients_by_repo
@@ -38,7 +41,7 @@ def get_client(workspace: str = "", repo_slug: str = "") -> BitbucketPipelineCli
         full_slug = f"{workspace}/{repo_slug}"
     elif repo_slug:
         full_slug = repo_slug
-    
+
     if full_slug:
         if full_slug not in _clients_by_repo:
             _clients_by_repo[full_slug] = BitbucketPipelineClient(repo_slug=full_slug)
@@ -46,6 +49,26 @@ def get_client(workspace: str = "", repo_slug: str = "") -> BitbucketPipelineCli
     if _client is None:
         _client = BitbucketPipelineClient()
     return _client
+
+
+def get_client_for_account(account: str = "", workspace: str = "", repo_slug: str = "") -> BitbucketPipelineClient:
+    """Get client for a specific account, falling back to default."""
+    if not account or account == "default":
+        return get_client(workspace=workspace, repo_slug=repo_slug)
+
+    full_slug = ""
+    if workspace and repo_slug:
+        full_slug = f"{workspace}/{repo_slug}"
+    elif repo_slug:
+        full_slug = repo_slug
+
+    cache_key = f"{account}:{full_slug}"
+    if cache_key not in _account_clients:
+        _account_clients[cache_key] = BitbucketPipelineClient.for_account(
+            account_id=account,
+            repo_slug=full_slug or None,
+        )
+    return _account_clients[cache_key]
 
 
 def get_analyzer(workspace: str = "", repo_slug: str = "") -> PipelineAnalyzer:
@@ -1614,6 +1637,7 @@ async def create_pull_request(
     source_branch: str,
     destination_branch: str,
     description: str = "",
+    account: str = "",
     workspace: str = "", repo_slug: str = "",
 ) -> dict:
     """
@@ -1624,12 +1648,14 @@ async def create_pull_request(
         source_branch: Source branch name (e.g., "feature/pipeline-warning")
         destination_branch: Destination branch name (e.g., "develop")
         description: PR description in markdown (optional)
+        account: Named account to use (e.g., "emilson"). Default uses the bot account.
+                 Use a human account so AI review bots (Rovo Dev, CodeRabbit) recognize the author.
         repo_slug: Optional repo override (format: "workspace/repo-name")
 
     Returns:
         dict: Created PR details including ID and URL
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
         pr = await client.create_pull_request(
@@ -1712,16 +1738,17 @@ async def get_pr_comments(pr_id: int, pagelen: int = 50, workspace: str = "", re
         return {"error": f"Failed to get PR comments: {sanitize_error(e)}"}
 
 
-async def merge_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+async def merge_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
     """
     Merge a pull request
-    
+
     Args:
         pr_id: Pull request ID
+        account: Named account to use (e.g., "emilson"). Useful when bot lacks write access to destination branch.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
         pr = await client.merge_pull_request(pr_id=pr_id)
@@ -1748,23 +1775,24 @@ async def merge_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "
         return {"error": f"Failed to merge PR: {sanitize_error(e)}"}
 
 
-async def approve_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
     """
-    Approve a pull request as the MCP hub service account.
+    Approve a pull request.
 
-    The approval is registered under the identity of the Bitbucket token owner
-    configured in the MCP hub. This satisfies branch protection rules that
-    require "at least 1 approval" from a user other than the PR author.
+    When using the default bot account, the approval satisfies branch protection
+    rules that require "at least 1 approval" from a user other than the PR author.
+    When using a named account, the approval is registered under that identity.
 
     Args:
         pr_id: Pull request ID
+        account: Named account to use (e.g., "emilson"). Default uses the bot account.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
 
     Returns:
         dict: Approval result with approver identity and PR state
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
         result = await client.approve_pull_request(pr_id=pr_id)
@@ -1797,19 +1825,20 @@ async def approve_pull_request(pr_id: int, workspace: str = "", repo_slug: str =
         return {"success": False, "error": f"Failed to approve PR: {sanitize_error(e)}"}
 
 
-async def unapprove_pull_request(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+async def unapprove_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
     """
     Remove approval from a pull request.
 
     Args:
         pr_id: Pull request ID
+        account: Named account to use. Default uses the bot account.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
 
     Returns:
         dict: Unapproval confirmation
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
         await client.unapprove_pull_request(pr_id=pr_id)
