@@ -1,6 +1,6 @@
 # Co-Author Standard for AI-Generated Commits
 
-> **Version**: 2.0.0
+> **Version**: 2.1.0
 > **Date**: 2026-03-20
 > **Status**: MANDATORY for all AI agents
 > **Scope**: All repos in the ecosystem (git-provider agnostic)

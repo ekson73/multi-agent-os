@@ -1,6 +1,6 @@
 # Agent Bootstrap Protocol — Mandatory Pre-Flight Checklist
 
-> **Version**: 2.0.0
+> **Version**: 2.1.0
 > **Date**: 2026-03-20
 > **Status**: MANDATORY for all AI agents
 > **Scope**: All repos, all git providers (GitHub, Bitbucket, GitLab, etc.)
@@ -73,8 +73,7 @@ done
 echo "=== Worktree Status ==="
 git worktree list
 echo "Current branch: $(git branch --show-current)"
-GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
-IS_WORKTREE=$([ -f "$GIT_DIR" ] || [[ "$GIT_DIR" == *".git/worktrees/"* ]] && echo YES || echo NO)
+IS_WORKTREE=$([ -f .git ] && echo YES || echo NO)
 echo "Am I in a worktree? $IS_WORKTREE"
 ```
 

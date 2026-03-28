@@ -1,6 +1,6 @@
 # Git Workflow Standard (Work)
 
-> **Versão**: 2.0.0 (2026-03-20)
+> **Versão**: 2.1.0 (2026-03-27)
 > **Status**: Aprovado
 > **Propagado de**: `~/.claude/CLAUDE.md`
 > **Nota**: Preferências pessoais (idioma, tom, formato) → `~/.claude/personal/CLAUDE.md`
