@@ -30,7 +30,8 @@ Formato obrigatório que identifica as **3 entidades**:
 - **Model**: LLM específico (Claude-4-Sonnet, Gemini-2.5-Pro, GPT-4o)
 
 Exemplos:
-```
+
+```text
 Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>
 Co-Authored-By: Antigravity (Google/Gemini-2.5-Pro) <noreply+antigravity@google.com>
 Co-Authored-By: Amazon-Q (Amazon/Nova-Pro) <noreply+amazon-q@amazon.com>
@@ -58,13 +59,13 @@ Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
 
 - Existing `fix/*` branches may be merged as-is
 - New branches MUST use `bugfix/` (non-urgent → develop) or `hotfix/` (urgent → master + develop)
-- CI pipelines keep backward-compat with `fix/*` (git-provider agnostic)
+- CI pipelines should keep backward-compat with `fix/*` during migration
 
 ---
 
 ## Conventional Commits
 
-```
+```text
 {tipo}({escopo}): {descrição curta}
 
 {corpo opcional}
@@ -72,10 +73,13 @@ Full spec: [`docs/co-author-standard.md`](co-author-standard.md)
 Co-Authored-By: {AgentName} ({Provider}/{Model}) <noreply+{agent}@{provider-domain}>
 ```
 
+> **Nota**: O trailer `Co-Authored-By` e obrigatorio somente quando um AI agent participa do commit.
+> Commits 100% humanos nao precisam incluir esse trailer.
+
 ### Tipos
 
 | Tipo | Descrição |
-|------|-----------| 
+|------|-----------|
 | `feat` | Nova funcionalidade |
 | `fix` | Correção de bug |
 | `docs` | Documentação |
@@ -86,7 +90,7 @@ Co-Authored-By: {AgentName} ({Provider}/{Model}) <noreply+{agent}@{provider-doma
 
 ### Exemplo
 
-```
+```text
 feat(auth): add OAuth2 login flow
 
 Implemented Google OAuth2 authentication with PKCE.
@@ -104,5 +108,6 @@ Before writing ANY file, AI agents MUST execute the
 
 ---
 
+*v2.1.0 | 2026-03-27 | Fixed: MD040 fence languages, trailing whitespace, conditional Co-Authored-By note, CI migration wording*
 *v2.0.0 | 2026-03-20 | Updated Co-Author format to 3-entity standard. Added Agent Bootstrap reference. Aligned branch types with D16 Git Flow.*
 *v1.0.0 | 2026-01-22 | Initial version*

@@ -33,7 +33,7 @@ Every AI agent MUST execute this checklist **before writing any file** in any re
 │  □ 3. READ    docs/git-worktree-protocol.md (if exists)               │
 │  □ 4. READ    docs/co-author-standard.md (if exists)                  │
 │  □ 5. READ    docs/pr-review-protocol-spec.md (if exists)             │
-│  □ 6. CHECK   Am I in a worktree? (see worktree protocol Step 1)      │
+│  □ 6. CHECK   Am I in a worktree? (see rules/pr-governance-unified.md) │
 │  □ 7. CHECK   Do I have the correct Co-Author format?                 │
 │  □ 8. CHECK   Are CLI review tools available? (coderabbit, qodo)      │
 │  □ 9. CHECK   Are email audit tools available? (gog, etc.)            │
@@ -73,7 +73,8 @@ done
 echo "=== Worktree Status ==="
 git worktree list
 echo "Current branch: $(git branch --show-current)"
-IS_WORKTREE=$([ "$(git rev-parse --git-dir)" != ".git" ] && echo YES || echo NO)
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+IS_WORKTREE=$([ -f "$GIT_DIR" ] || [[ "$GIT_DIR" == *".git/worktrees/"* ]] && echo YES || echo NO)
 echo "Am I in a worktree? $IS_WORKTREE"
 ```
 
@@ -104,9 +105,9 @@ In an ai-first project, review timing is based on **AI agent response time**, no
 
 | Review Type | TTL | Rationale |
 |-------------|-----|-----------|
-| Local CLI review (CodeRabbit/Qodo) | **30-90 seconds** | Agent runs tool, reads output, fixes |
-| Bot review on PR (CodeRabbit, Copilot, Qodo) | **2-5 minutes** | Bots process PR, agent reads comments |
-| AI agent peer review | **1-3 minutes** | Agent-to-agent review via MCP/API |
+| Local CLI review (CodeRabbit/Qodo) | **30 - 90 seconds** | Agent runs tool, reads output, fixes |
+| Bot review on PR (CodeRabbit, Copilot, Qodo) | **2 - 5 minutes** | Bots process PR, agent reads comments |
+| AI agent peer review | **1 - 3 minutes** | Agent-to-agent review via MCP/API |
 | Human review | **30 min - 24 hours** | Escalation path, not default |
 
 > **Default flow**: Agent → local review (30 seconds) → push → bot review (2–5 minutes) → fix → merge.
@@ -189,6 +190,7 @@ AFTER MERGE:
 
 ---
 
+*v2.1.0 | 2026-03-27 | Fixed: worktree detection (file-based check), governance doc path (rules/), TTL notation consistency*
 *v2.0.0 | 2026-03-20 | Git-provider agnostic. TTL ai-design. Positive framing. Fixed: which→command -v, MCP comment, PG-2 cross-ref*
 *v1.0.0 | 2026-03-20 | Initial version*
 

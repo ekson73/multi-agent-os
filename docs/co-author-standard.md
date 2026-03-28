@@ -17,7 +17,8 @@ This ensures traceability, accountability, and transparency in an ai-first proje
 
 ## Standard Format
 
-The human author is always set via `git config user.name` / `user.email`.
+The human author is always set via `git config user.name` / `user.email` (this populates the
+standard `Author` field in git; there is no `Authored-By` trailer -- do NOT add one to commits).
 The AI agent adds a `Co-Authored-By` git trailer:
 
 ```text
@@ -143,11 +144,13 @@ Agents SHOULD validate their Co-Author format before committing:
 ```bash
 # Regex validation: Name (Provider/Model) <email>
 # Uses grep -E for POSIX/macOS portability (not grep -P which is GNU-only)
-echo "$CO_AUTHOR" | grep -qE '^.+ \(.+/.+\) <.+@.+>$' && echo "VALID" || echo "INVALID"
+echo "$CO_AUTHOR" | grep -qE '^[^()<>]+ \([A-Za-z0-9.-]+/[A-Za-z0-9._-]+\) <[a-zA-Z0-9.+_-]+@[a-zA-Z0-9.-]+>$' \
+  && echo "VALID" || echo "INVALID"
 ```
 
 ---
 
+*v2.1.0 | 2026-03-27 | Fixed: stricter validation regex, Authored-By clarification, tightened grep pattern*
 *v2.0.0 | 2026-03-20 | Fixed: rule contradiction (human/autonomous), grep portability, email format note, git-provider agnostic*
 *v1.0.0 | 2026-03-20 | Initial version*
 
