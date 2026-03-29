@@ -144,7 +144,7 @@ Agents SHOULD validate their Co-Author format before committing:
 ```bash
 # Regex validation: Name (Provider/Model) <email>
 # Uses grep -E for POSIX/macOS portability (not grep -P which is GNU-only)
-echo "$CO_AUTHOR" | grep -qE '^[^()<>]+ \([A-Za-z0-9.-]+/[A-Za-z0-9._-]+\) <[a-zA-Z0-9.+_-]+@[a-zA-Z0-9.-]+>$' \
+echo "$CO_AUTHOR" | grep -qE '^[^()<>]+ \([A-Za-z0-9.-]+/[A-Za-z0-9._-]+\) <[a-zA-Z0-9.+_-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>$' \
   && echo "VALID" || echo "INVALID"
 ```
 
