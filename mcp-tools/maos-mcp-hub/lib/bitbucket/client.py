@@ -15,6 +15,12 @@ from aiolimiter import AsyncLimiter
 
 from lib.common.http import request_json, request_text
 
+_VALID_ACCOUNT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+# Maximum number of per-account client instances kept in memory.
+# Once the limit is reached the oldest entry (FIFO) is evicted.
+MAX_ACCOUNT_CLIENTS = 32
+
 
 class BitbucketPipelineClient:
     """
@@ -32,6 +38,58 @@ class BitbucketPipelineClient:
         BITBUCKET_REPO_SLUG: Override repo slug (format: workspace/repo-name)
     """
 
+    # ------------------------------------------------------------------
+    # Private helpers (shared between __init__ and for_account)
+    # ------------------------------------------------------------------
+
+    def _configure_auth(self, auth_user: Optional[str], api_token: str, auth_type: str) -> None:
+        """Resolve auth strategy and pre-compute httpx auth kwargs.
+
+        Args:
+            auth_user: Basic-auth principal (email or username). May be None for bearer.
+            api_token: API token or app password.
+            auth_type: Explicit auth type ("bearer" or "basic"), or empty for auto-detect.
+        """
+        self.auth_user = auth_user
+        self.api_token = api_token
+
+        auth_type = (auth_type or "").strip().lower()
+        if auth_type in {"bearer", "basic"}:
+            self.use_bearer = auth_type == "bearer"
+        else:
+            # Auto-detect bearer token format unless auth type is explicitly forced.
+            # Official Bitbucket API tokens use Basic auth; legacy bearer tokens
+            # (ATCTT3x...) continue supported for compatibility.
+            self.use_bearer = api_token.startswith("ATCTT3x")
+
+        # Pre-compute auth kwargs for all httpx calls
+        if self.use_bearer:
+            self._auth_kwargs = {"headers": {"Authorization": f"Bearer {self.api_token}"}}
+        else:
+            self._auth_kwargs = {"auth": (self.auth_user, self.api_token)}
+
+    def _configure_repo(self, repo_slug: Optional[str], auth_hint: str) -> None:
+        """Resolve repo slug and set base URL / metadata.
+
+        Args:
+            repo_slug: Explicit slug or None for auto-detection.
+            auth_hint: Human-readable hint shown in error messages.
+        """
+        self.repo_slug = (
+            repo_slug
+            or os.getenv("BITBUCKET_REPO_SLUG")
+            or self._get_repo_slug()
+        )
+        self.base_url = f"https://api.bitbucket.org/2.0/repositories/{self.repo_slug}"
+        self._provider_name = "Bitbucket"
+        self._auth_hint = auth_hint
+        # Rate limiter: 1000 requests per hour (Bitbucket Cloud API limit)
+        self.rate_limiter = AsyncLimiter(max_rate=1000, time_period=3600)
+
+    # ------------------------------------------------------------------
+    # Constructors
+    # ------------------------------------------------------------------
+
     def __init__(self, repo_slug: Optional[str] = None):
         """
         Initialize the Bitbucket Pipeline client
@@ -47,28 +105,25 @@ class BitbucketPipelineClient:
         """
         # Shared principal resolution order:
         # BITBUCKET_EMAIL -> JIRA_EMAIL -> BITBUCKET_USERNAME
-        self.auth_user = (
+        auth_user = (
             os.getenv("BITBUCKET_EMAIL")
             or os.getenv("JIRA_EMAIL")
             or os.getenv("BITBUCKET_USERNAME")
         )
-        self.api_token = os.getenv("BITBUCKET_API_TOKEN") or os.getenv("BITBUCKET_APP_PASSWORD")
+        api_token = os.getenv("BITBUCKET_API_TOKEN") or os.getenv("BITBUCKET_APP_PASSWORD")
 
-        if not self.api_token:
+        if not api_token:
             raise ValueError(
                 "Missing required credentials. "
                 "Please set BITBUCKET_API_TOKEN environment variable "
                 "(legacy fallback: BITBUCKET_APP_PASSWORD)."
             )
 
-        auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "").strip().lower()
-        if auth_type in {"bearer", "basic"}:
-            self.use_bearer = auth_type == "bearer"
-        else:
-            # Auto-detect bearer token format unless auth type is explicitly forced.
-            # Official Bitbucket API tokens use Basic auth; legacy bearer tokens
-            # (ATCTT3x...) continue supported for compatibility.
-            self.use_bearer = self.api_token.startswith("ATCTT3x")
+        self._configure_auth(
+            auth_user=auth_user,
+            api_token=api_token,
+            auth_type=os.getenv("BITBUCKET_AUTH_TYPE", ""),
+        )
 
         if not self.use_bearer and not self.auth_user:
             raise ValueError(
@@ -78,26 +133,40 @@ class BitbucketPipelineClient:
                 "or set BITBUCKET_AUTH_TYPE=bearer for token-only auth."
             )
 
-        # Repo slug: explicit param > env var > git remote
-        self.repo_slug = (
-            repo_slug
-            or os.getenv("BITBUCKET_REPO_SLUG")
-            or self._get_repo_slug()
-        )
-        self.base_url = f"https://api.bitbucket.org/2.0/repositories/{self.repo_slug}"
-        self._provider_name = "Bitbucket"
-        self._auth_hint = (
-            "Verifique BITBUCKET_API_TOKEN e (quando auth basic) BITBUCKET_EMAIL/JIRA_EMAIL/BITBUCKET_USERNAME."
+        self._configure_repo(
+            repo_slug=repo_slug,
+            auth_hint=(
+                "Verifique BITBUCKET_API_TOKEN e (quando auth basic) "
+                "BITBUCKET_EMAIL/JIRA_EMAIL/BITBUCKET_USERNAME."
+            ),
         )
 
-        # Rate limiter: 1000 requests per hour (Bitbucket Cloud API limit)
-        self.rate_limiter = AsyncLimiter(max_rate=1000, time_period=3600)
+    @staticmethod
+    def validate_account_id(account_id: str) -> str:
+        """Normalize and validate an account identifier.
 
-        # Pre-compute auth kwargs for all httpx calls
-        if self.use_bearer:
-            self._auth_kwargs = {"headers": {"Authorization": f"Bearer {self.api_token}"}}
-        else:
-            self._auth_kwargs = {"auth": (self.auth_user, self.api_token)}
+        The account_id is used to construct env-var names
+        (``BITBUCKET_ACCOUNT_{ID}_*``), so it must only contain characters
+        that are safe for that purpose: lowercase alphanumeric, hyphens,
+        and underscores.
+
+        Args:
+            account_id: Raw account identifier supplied by the caller.
+
+        Returns:
+            Normalized (stripped + lowercased) account_id.
+
+        Raises:
+            ValueError: If the account_id contains invalid characters.
+        """
+        normalized = account_id.strip().lower()
+        if not _VALID_ACCOUNT_ID_RE.match(normalized):
+            raise ValueError(
+                f"Invalid account_id '{account_id}'. "
+                "Only lowercase alphanumeric characters, hyphens, and "
+                "underscores are allowed (must start with alphanumeric)."
+            )
+        return normalized
 
     @classmethod
     def for_account(cls, account_id: str, repo_slug: Optional[str] = None) -> "BitbucketPipelineClient":
@@ -112,9 +181,10 @@ class BitbucketPipelineClient:
             {PREFIX}APP_PASSWORD or {PREFIX}API_TOKEN  — credential
             {PREFIX}AUTH_TYPE  — "basic" or "bearer" (falls back to global)
         """
-        if not account_id or account_id == "default":
+        if not account_id or account_id.strip().lower() == "default":
             return cls(repo_slug=repo_slug)
 
+        account_id = cls.validate_account_id(account_id)
         prefix = f"BITBUCKET_ACCOUNT_{account_id.upper()}_"
 
         token = os.getenv(f"{prefix}APP_PASSWORD") or os.getenv(f"{prefix}API_TOKEN")
@@ -129,18 +199,12 @@ class BitbucketPipelineClient:
             or os.getenv(f"{prefix}EMAIL")
         )
 
-        auth_type = os.getenv(f"{prefix}AUTH_TYPE", "").strip().lower()
-        if not auth_type:
-            auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "").strip().lower()
+        auth_type = os.getenv(f"{prefix}AUTH_TYPE", "")
+        if not auth_type.strip():
+            auth_type = os.getenv("BITBUCKET_AUTH_TYPE", "")
 
         instance = cls.__new__(cls)
-        instance.auth_user = user
-        instance.api_token = token
-
-        if auth_type in {"bearer", "basic"}:
-            instance.use_bearer = auth_type == "bearer"
-        else:
-            instance.use_bearer = token.startswith("ATCTT3x")
+        instance._configure_auth(auth_user=user, api_token=token, auth_type=auth_type)
 
         if not instance.use_bearer and not instance.auth_user:
             raise ValueError(
@@ -148,20 +212,10 @@ class BitbucketPipelineClient:
                 f"Set {prefix}USERNAME or {prefix}EMAIL."
             )
 
-        instance.repo_slug = (
-            repo_slug
-            or os.getenv("BITBUCKET_REPO_SLUG")
-            or instance._get_repo_slug()
+        instance._configure_repo(
+            repo_slug=repo_slug,
+            auth_hint=f"Account '{account_id}' credentials.",
         )
-        instance.base_url = f"https://api.bitbucket.org/2.0/repositories/{instance.repo_slug}"
-        instance._provider_name = "Bitbucket"
-        instance._auth_hint = f"Account '{account_id}' credentials."
-        instance.rate_limiter = AsyncLimiter(max_rate=1000, time_period=3600)
-
-        if instance.use_bearer:
-            instance._auth_kwargs = {"headers": {"Authorization": f"Bearer {instance.api_token}"}}
-        else:
-            instance._auth_kwargs = {"auth": (instance.auth_user, instance.api_token)}
 
         return instance
 

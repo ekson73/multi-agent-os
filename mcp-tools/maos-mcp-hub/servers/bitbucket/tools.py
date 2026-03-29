@@ -12,7 +12,7 @@ import httpx
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from lib.bitbucket.client import BitbucketPipelineClient
+from lib.bitbucket.client import BitbucketPipelineClient, MAX_ACCOUNT_CLIENTS
 from lib.bitbucket.analyzer import PipelineAnalyzer
 from lib.bitbucket.health import HealthMonitor
 from lib.bitbucket.validators import validate_build_number, validate_step_name, sanitize_error
@@ -28,8 +28,7 @@ _analyzers_by_repo: dict[str, PipelineAnalyzer] = {}
 _health = None
 _health_by_repo: dict[str, HealthMonitor] = {}
 
-
-
+# Bounded cache for per-account clients (FIFO eviction at MAX_ACCOUNT_CLIENTS).
 _account_clients: dict[str, BitbucketPipelineClient] = {}
 
 
@@ -52,9 +51,18 @@ def get_client(workspace: str = "", repo_slug: str = "") -> BitbucketPipelineCli
 
 
 def get_client_for_account(account: str = "", workspace: str = "", repo_slug: str = "") -> BitbucketPipelineClient:
-    """Get client for a specific account, falling back to default."""
-    if not account or account == "default":
+    """Get client for a specific account, falling back to default.
+
+    The account parameter is normalized (strip + lowercase) and validated
+    before use as a cache key.  The cache is bounded to
+    ``MAX_ACCOUNT_CLIENTS`` entries; when the limit is reached the oldest
+    entry (FIFO) is evicted.
+    """
+    if not account or account.strip().lower() == "default":
         return get_client(workspace=workspace, repo_slug=repo_slug)
+
+    # Normalize early so " Emilson " and "emilson" share the same cache entry.
+    account = BitbucketPipelineClient.validate_account_id(account)
 
     full_slug = ""
     if workspace and repo_slug:
@@ -64,6 +72,11 @@ def get_client_for_account(account: str = "", workspace: str = "", repo_slug: st
 
     cache_key = f"{account}:{full_slug}"
     if cache_key not in _account_clients:
+        # Evict oldest entry when cache is full (FIFO).
+        if len(_account_clients) >= MAX_ACCOUNT_CLIENTS:
+            oldest_key = next(iter(_account_clients))
+            del _account_clients[oldest_key]
+
         _account_clients[cache_key] = BitbucketPipelineClient.for_account(
             account_id=account,
             repo_slug=full_slug or None,
