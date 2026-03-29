@@ -98,4 +98,25 @@ if [ -s "$TMPFILE" ]; then
     exit 1
 fi
 
+# ---------------------------------------------------------
+# 3. Secret Scanning (gitleaks)
+# ---------------------------------------------------------
+
+if command -v gitleaks >/dev/null 2>&1; then
+    echo "[GAAS: PRE-COMMIT] Running secret scan on staged files..."
+    if ! gitleaks protect --staged --no-banner --exit-code 1 2>&1; then
+        echo ""
+        echo "SECRET(S) DETECTED IN STAGED FILES"
+        echo "Remove the secret, use env vars or a secret manager."
+        echo "False positive? Add fingerprint to .gitleaksignore"
+        echo "  Run: gitleaks protect --staged -v"
+        echo ""
+        exit 1
+    fi
+    echo "[GAAS: PRE-COMMIT] Secret scan passed."
+else
+    echo "[GAAS: PRE-COMMIT] WARNING: gitleaks not installed. Skipping."
+    echo "  Install: brew install gitleaks"
+fi
+
 exit 0
