@@ -1,0 +1,56 @@
+# .gitleaks.toml -- Gitleaks configuration for VEK repositories
+# Canonical source: multi-agent-os/.gitleaks.toml
+# Version: 1.0.0
+
+title = "VEK Secret Scanning Rules"
+
+[extend]
+# Uses gitleaks default ruleset as base
+
+[[rules]]
+id = "vek-db-password"
+description = "Hardcoded database password"
+regex = '''(?i)(password|passwd|pwd)\s*[:=]\s*['"]?[^\s'"]{8,}['"]?'''
+keywords = ["password", "passwd", "pwd"]
+entropy = 3.5
+
+[[rules]]
+id = "vek-quarkus-datasource-password"
+description = "Quarkus datasource password in properties"
+regex = '''quarkus\.datasource\..*password\s*[:=]\s*[^\s$\{]{4,}'''
+keywords = ["quarkus.datasource"]
+
+[[rules]]
+id = "vek-spring-datasource-password"
+description = "Spring datasource password in properties"
+regex = '''spring\.datasource\.password\s*[:=]\s*[^\s$\{]{4,}'''
+keywords = ["spring.datasource.password"]
+
+[[rules]]
+id = "vek-jwt-secret"
+description = "JWT secret or signing key"
+regex = '''(?i)(jwt[._-]?secret|signing[._-]?key)\s*[:=]\s*['"]?[^\s'"$\{]{16,}['"]?'''
+keywords = ["jwt", "signing"]
+entropy = 3.0
+
+[[rules]]
+id = "vek-bitbucket-app-password"
+description = "Bitbucket app password"
+regex = '''(?i)(bitbucket[._-]?(?:app[._-]?)?password|BB_AUTH_STRING)\s*[:=]\s*['"]?[^\s'"$\{]{8,}['"]?'''
+keywords = ["bitbucket", "BB_AUTH"]
+
+[allowlist]
+description = "VEK global allowlist"
+paths = [
+    '''target/''',
+    '''dist/''',
+    '''node_modules/''',
+    '''\.worktrees/''',
+    '''\.git/''',
+    '''\.angular/''',
+    '''build/''',
+    '''\.auto-claude/''',
+    '''\.sessions/''',
+    '''tmux-server-.*\.log''',
+    '''\.qoder/''',
+]

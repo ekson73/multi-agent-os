@@ -1,0 +1,2 @@
+# .gitleaksignore -- Fingerprints of confirmed false positives
+# Add fingerprints from: gitleaks protect --staged -v
