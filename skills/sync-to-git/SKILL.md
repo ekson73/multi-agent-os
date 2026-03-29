@@ -157,7 +157,7 @@ fi
 ```bash
 # Usage: sync-commit "type(scope): description"
 MESSAGE="$1"
-CO_AUTHOR="Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+CO_AUTHOR="Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>"
 
 # Validate conventional commits
 if ! echo "$MESSAGE" | grep -qE "^(feat|fix|docs|chore|refactor|test|style|perf|ci|build)(\(.+\))?:"; then
@@ -199,7 +199,7 @@ gh pr create --title "$TITLE" --body "$(cat <<EOF
 - [ ] Manual testing done
 
 ---
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>
 EOF
 )" --base "$BASE"
 

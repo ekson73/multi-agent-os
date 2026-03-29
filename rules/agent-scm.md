@@ -104,7 +104,7 @@ INPUT (obrigatorio):
   - description: string (o que mudou e POR QUE)
 
 INPUT (opcional):
-  - co_author: string (default: Claude Opus 4.6 <noreply@anthropic.com>)
+  - co_author: string (default: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>)
   - breaking: boolean (BREAKING CHANGE)
 
 CHECKLIST PRE-COMMIT (R01):

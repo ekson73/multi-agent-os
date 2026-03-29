@@ -102,7 +102,7 @@ cd .worktrees/{session-id}-{feature}
 git add {arquivo}
 git commit -m "{tipo}({escopo}): {descrição}
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>"
 ```
 
 **Boas práticas**:

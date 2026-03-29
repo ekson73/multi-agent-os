@@ -195,7 +195,7 @@ SYNC_GIT_AUTO_DELEGATE_REVIEWER=true
 SYNC_GIT_REVIEWER_AGENT=code-reviewer
 
 # Commit Configuration
-SYNC_GIT_CO_AUTHOR="Claude Opus 4.5 <noreply@anthropic.com>"
+SYNC_GIT_CO_AUTHOR="Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>"
 SYNC_GIT_CONVENTIONAL_COMMITS=true
 
 # Worktree Integration (C04)
@@ -217,7 +217,7 @@ SYNC_GIT_MANIFEST_ENABLED=true
 ```bash
 git config --local sync.git.remote origin
 git config --local sync.git.protected-branches "main,master"
-git config --global sync.git.co-author "Claude Opus 4.5 <noreply@anthropic.com>"
+git config --global sync.git.co-author "Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>"
 ```
 
 ## Gates de Segurança
