@@ -33,60 +33,69 @@ echo "✅ [GAAS: PRE-COMMIT] Branch validation passed. ($BRANCH_NAME)"
 #    developers, worktrees). Only relative symlinks are allowed.
 # ─────────────────────────────────────────────────────────
 
-ABSOLUTE_SYMLINKS=""
 ABSOLUTE_COUNT=0
 
+# Derive the real git directory (works in worktrees where .git is a file)
+GIT_REAL_DIR=$(git rev-parse --git-dir)
+TMPFILE="${GIT_REAL_DIR}/pre-commit-symlinks-$$.tmp"
+
+# Truncate to avoid stale data from interrupted runs, and ensure cleanup on exit
+: > "$TMPFILE"
+trap 'rm -f "$TMPFILE"' EXIT HUP INT TERM
+
 # List all staged new/added files that are symlinks (mode 120000)
-STAGED_SYMLINKS=$(git diff --cached --diff-filter=ACM --raw | grep '^:.*120000' || true)
+# Use --raw format: :old_mode new_mode old_hash new_hash status\tpath
+git diff --cached --diff-filter=ACM --raw | while IFS= read -r line; do
+    # Split metadata (space-separated) from path (tab-separated)
+    META=$(printf '%s\n' "$line" | cut -f1)
+    FILE_PATH=$(printf '%s\n' "$line" | cut -f2)
 
-if [ -n "$STAGED_SYMLINKS" ]; then
-    echo "$STAGED_SYMLINKS" | while IFS= read -r line; do
-        # Extract the blob hash and file path from the raw diff line
-        # Format: :old_mode new_mode old_hash new_hash status\tpath
-        BLOB_HASH=$(echo "$line" | awk '{print $4}')
-        FILE_PATH=$(echo "$line" | awk '{print $NF}')
+    # Extract new_mode (2nd field of metadata) to check if it's a symlink
+    # shellcheck disable=SC2086
+    set -- $META
+    NEW_MODE="$2"
+    BLOB_HASH="$4"
 
-        # Read the symlink target from the staged blob
-        TARGET=$(git cat-file -p "$BLOB_HASH")
+    # Only process entries where new_mode is 120000 (symlink)
+    [ "$NEW_MODE" = "120000" ] || continue
 
-        # Check if the target is an absolute path (starts with /)
-        case "$TARGET" in
-            /*)
-                echo "  BLOCKED: $FILE_PATH -> $TARGET" >&2
-                # Write to a temp file so the count survives the subshell
-                printf '%s\t%s\n' "$FILE_PATH" "$TARGET" >> "${GIT_DIR:-.git}/pre-commit-symlinks.tmp"
-                ;;
-        esac
-    done
+    # Read the symlink target from the staged blob
+    TARGET=$(git cat-file -p "$BLOB_HASH")
 
-    # Check if any absolute symlinks were found (temp file exists and is non-empty)
-    TMPFILE="${GIT_DIR:-.git}/pre-commit-symlinks.tmp"
-    if [ -f "$TMPFILE" ] && [ -s "$TMPFILE" ]; then
-        ABSOLUTE_COUNT=$(wc -l < "$TMPFILE" | tr -d ' ')
+    # Check if the target is an absolute path (starts with /)
+    case "$TARGET" in
+        /*)
+            echo "  BLOCKED: $FILE_PATH -> $TARGET" >&2
+            # Write to temp file so the count survives the subshell
+            printf '%s\t%s\n' "$FILE_PATH" "$TARGET" >> "$TMPFILE"
+            ;;
+    esac
+done
 
-        echo ""
-        echo "🛑 [GAAS: ACTION REJECTED] ABSOLUTE SYMLINKS DETECTED 🛑"
-        echo "Found $ABSOLUTE_COUNT symlink(s) with absolute paths."
-        echo "Absolute symlinks break CI, other machines, and worktrees."
-        echo ""
-        echo "Blocked files:"
-        while IFS='	' read -r fpath target; do
-            echo "  - $fpath -> $target"
-        done < "$TMPFILE"
-        echo ""
-        echo "🔧 HOW TO FIX:"
-        echo "1. Remove the symlink:  git rm <file>"
-        echo "2. Replace it with one of:"
-        echo "   a) A relative symlink:  ln -s ../relative/path <file>"
-        echo "   b) The actual file content (copy instead of link)"
-        echo "   c) A raw URL reference (for external resources)"
-        echo "3. Stage and commit again."
-        echo ""
+# Check if any absolute symlinks were found (temp file is non-empty)
+if [ -s "$TMPFILE" ]; then
+    ABSOLUTE_COUNT=$(wc -l < "$TMPFILE" | tr -d ' ')
 
-        rm -f "$TMPFILE"
-        exit 1
-    fi
-    rm -f "$TMPFILE"
+    echo ""
+    echo "🛑 [GAAS: ACTION REJECTED] ABSOLUTE SYMLINKS DETECTED 🛑"
+    echo "Found $ABSOLUTE_COUNT symlink(s) with absolute paths."
+    echo "Absolute symlinks break CI, other machines, and worktrees."
+    echo ""
+    echo "Blocked files:"
+    while IFS='	' read -r fpath target; do
+        echo "  - $fpath -> $target"
+    done < "$TMPFILE"
+    echo ""
+    echo "🔧 HOW TO FIX:"
+    echo "1. Remove the symlink:  git rm <file>"
+    echo "2. Replace it with one of:"
+    echo "   a) A relative symlink:  ln -s ../relative/path <file>"
+    echo "   b) The actual file content (copy instead of link)"
+    echo "   c) A raw URL reference (for external resources)"
+    echo "3. Stage and commit again."
+    echo ""
+
+    exit 1
 fi
 
 exit 0
