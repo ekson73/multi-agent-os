@@ -47,21 +47,26 @@ Usage:
         ./cli.py bitbucket get_recent_builds '{"count": 5}'
         ./cli.py bitbucket get_test_reports '{"build_number": 640, "step_name": "Unit Tests"}'
 
-Claude Desktop configuration:
+Claude Desktop / Claude Code configuration:
+    Credentials are loaded from the .env file in the hub directory.
+    Do NOT inject env vars in the mcp.json — use .env instead.
+
     {
       "mcpServers": {
         "maos-mcp-hub": {
-          "command": "python3",
-          "args": ["/path/to/hub.py"],
-          "env": {
-            "BITBUCKET_EMAIL": "your-email@company.com",
-            "BITBUCKET_USERNAME": "your_username",
-            "BITBUCKET_API_TOKEN": "your_bitbucket_api_token",
-            "GITHUB_TOKEN": "your_github_token_here"
-          }
+          "command": "/path/to/.venv/bin/python3",
+          "args": ["/path/to/hub.py"]
         }
       }
     }
+
+    Override .env path via environment variable:
+        MAOS_DOTENV_PATH=/custom/path/.env python3 hub.py
+
+    Override .env path via CLI argument:
+        python3 hub.py --dotenv-path /custom/path/.env
+
+    See .env.example for all available variables.
 
 Example queries in Claude:
     "Liste os últimos 5 builds do Bitbucket"
@@ -80,12 +85,45 @@ from pathlib import Path
 from typing import Dict, Any, List
 from fastmcp import FastMCP
 
-# Load .env file if present (for local development)
+# Load .env file — resolves path reliably regardless of CWD
+# Priority: --dotenv-path CLI arg > MAOS_DOTENV_PATH env var > default (hub dir)
+def _resolve_dotenv_path() -> Path:
+    """Resolve .env file path with explicit precedence order."""
+    import os
+
+    # 1. CLI arg: --dotenv-path /path/to/.env
+    for i, arg in enumerate(sys.argv[1:], 1):
+        if arg == "--dotenv-path" and i < len(sys.argv):
+            return Path(sys.argv[i + 1]).expanduser().resolve()
+        if arg.startswith("--dotenv-path="):
+            return Path(arg.split("=", 1)[1]).expanduser().resolve()
+
+    # 2. Env var: MAOS_DOTENV_PATH=/path/to/.env
+    env_path = os.getenv("MAOS_DOTENV_PATH")
+    if env_path:
+        return Path(env_path).expanduser().resolve()
+
+    # 3. Default: same directory as hub.py
+    return Path(__file__).parent / ".env"
+
+_dotenv_path = _resolve_dotenv_path()
+
 try:
     from dotenv import load_dotenv
-    load_dotenv(override=True)
+    if _dotenv_path.is_file():
+        load_dotenv(_dotenv_path, override=True)
+    else:
+        sys.stderr.write(
+            f"⚠️  No .env file found at {_dotenv_path}\n"
+            f"   Credentials must be provided via environment variables.\n"
+            f"   See .env.example for required variables.\n\n"
+        )
+        sys.stderr.flush()
 except ImportError:
-    pass  # python-dotenv not installed — env vars must be set externally
+    sys.stderr.write(
+        "⚠️  python-dotenv not installed — env vars must be set externally\n\n"
+    )
+    sys.stderr.flush()
 
 
 # ============================================================================

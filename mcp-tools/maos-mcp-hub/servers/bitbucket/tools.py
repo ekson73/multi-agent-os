@@ -61,7 +61,7 @@ def get_client_for_account(account: str = "", workspace: str = "", repo_slug: st
     if not account or account.strip().lower() == "default":
         return get_client(workspace=workspace, repo_slug=repo_slug)
 
-    # Normalize early so " Emilson " and "emilson" share the same cache entry.
+    # Normalize early so " Jane " and "jane" share the same cache entry.
     account = BitbucketPipelineClient.validate_account_id(account)
 
     full_slug = ""
@@ -1661,7 +1661,7 @@ async def create_pull_request(
         source_branch: Source branch name (e.g., "feature/pipeline-warning")
         destination_branch: Destination branch name (e.g., "develop")
         description: PR description in markdown (optional)
-        account: Named account to use (e.g., "emilson"). Default uses the bot account.
+        account: Named account to use (e.g., "jane-doe"). Default uses the bot account.
                  Use a human account so AI review bots (Rovo Dev, CodeRabbit) recognize the author.
         repo_slug: Optional repo override (format: "workspace/repo-name")
 
@@ -1757,7 +1757,7 @@ async def merge_pull_request(pr_id: int, account: str = "", workspace: str = "",
 
     Args:
         pr_id: Pull request ID
-        account: Named account to use (e.g., "emilson"). Useful when bot lacks write access to destination branch.
+        account: Named account to use (e.g., "jane-doe"). Useful when bot lacks write access to destination branch.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
     """
@@ -1798,7 +1798,7 @@ async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "
 
     Args:
         pr_id: Pull request ID
-        account: Named account to use (e.g., "emilson"). Default uses the bot account.
+        account: Named account to use (e.g., "jane-doe"). Default uses the bot account.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
 
