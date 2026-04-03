@@ -13,7 +13,7 @@ from typing import Optional
 from urllib.parse import quote
 from aiolimiter import AsyncLimiter
 
-from lib.common.http import request_json, request_text
+from lib.common.http import request_json, request_text, request_empty
 
 _VALID_ACCOUNT_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
@@ -1592,6 +1592,190 @@ class BitbucketPipelineClient:
                 )
                 response.raise_for_status()
                 return response.json()
+
+    # ========================================================================
+    # Branch Management API (Sprint 8 — VKS-1647)
+    # ========================================================================
+
+    async def create_branch(self, name: str, target_hash: str) -> dict:
+        """
+        Create a new branch from a commit hash.
+
+        Args:
+            name: Branch name (e.g., "main", "feature/my-feature").
+            target_hash: Commit hash to branch from (full 40-char or short 7+ chars).
+
+        Returns:
+            dict: Created branch object with name, target commit, etc.
+
+        Raises:
+            ApiError: 400/409 if branch already exists, auth/network errors.
+        """
+        payload = {
+            "name": name,
+            "target": {"hash": target_hash},
+        }
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/refs/branches",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent: avoid duplicate branch creation
+        )
+
+    async def delete_branch(self, name: str) -> int:
+        """
+        Delete a branch from the repository.
+
+        Args:
+            name: Branch name (slashes will be URL-encoded).
+
+        Returns:
+            int: HTTP status code (204 on success).
+
+        Raises:
+            ApiError: 400 if default branch, 404 if not found, auth errors.
+        """
+        branch_encoded = quote(name, safe="")
+        return await request_empty(
+            method="DELETE",
+            url=f"{self.base_url}/refs/branches/{branch_encoded}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # destructive: never retry
+        )
+
+    async def set_default_branch(self, name: str) -> dict:
+        """
+        Change the default (main) branch of the repository.
+
+        Uses PUT on the repository root endpoint, not /refs/.
+
+        Args:
+            name: Branch name to set as default (must already exist).
+
+        Returns:
+            dict: Updated repository object with mainbranch info.
+
+        Raises:
+            ApiError: 400 if branch doesn't exist, 403 if not admin.
+        """
+        payload = {
+            "mainbranch": {"name": name},
+        }
+        return await request_json(
+            method="PUT",
+            url=self.base_url,
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # state-changing: no retry
+        )
+
+    async def get_branch_restrictions(self, pagelen: int = 100) -> dict:
+        """
+        List branch restrictions (protection rules) for the repository.
+
+        Args:
+            pagelen: Results per page (default: 100, max: 100).
+
+        Returns:
+            dict: Paginated list of branch restrictions with kind, pattern, users, groups.
+
+        Raises:
+            ApiError: Auth/network errors.
+        """
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/branch-restrictions",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"pagelen": pagelen},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    async def create_branch_restriction(
+        self,
+        kind: str,
+        pattern: str,
+        users: Optional[list] = None,
+        groups: Optional[list] = None,
+    ) -> dict:
+        """
+        Create a branch restriction (protection rule).
+
+        Args:
+            kind: Restriction type. Valid values:
+                  push, force, delete, restrict_merges, deny_all_merges,
+                  require_review_approvals, require_review_status_checks,
+                  require_review_all_tasks_pending, require_default_merge_strategy,
+                  allow_auto_merge_when_builds_pass, allow_auto_merge_when_builds_fail.
+            pattern: Branch name pattern (glob-style: "main", "release/*").
+            users: List of user UUIDs to exempt (omit = applies to all).
+            groups: List of group slugs to exempt (omit = applies to all).
+
+        Returns:
+            dict: Created restriction object with id, kind, pattern.
+
+        Raises:
+            ApiError: 400 if invalid kind/pattern, 403 if not admin.
+        """
+        payload: dict = {
+            "kind": kind,
+            "pattern": pattern,
+        }
+        if users is not None:
+            payload["users"] = [{"uuid": u} for u in users]
+        if groups is not None:
+            payload["groups"] = [{"slug": g} for g in groups]
+
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/branch-restrictions",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent
+        )
+
+    async def delete_branch_restriction(self, restriction_id: int) -> int:
+        """
+        Delete a branch restriction by ID.
+
+        Args:
+            restriction_id: Restriction ID (obtained from get_branch_restrictions).
+
+        Returns:
+            int: HTTP status code (204 on success).
+
+        Raises:
+            ApiError: 404 if not found, 403 if not admin.
+        """
+        return await request_empty(
+            method="DELETE",
+            url=f"{self.base_url}/branch-restrictions/{restriction_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # destructive: never retry
+        )
 
     async def close(self):
         """

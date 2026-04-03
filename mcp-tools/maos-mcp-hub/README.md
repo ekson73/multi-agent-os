@@ -248,6 +248,12 @@ pytest -q tests/test_bitbucket_client.py tests/test_jira_client.py
 | `bitbucket_stop_pipeline` | Stop a running pipeline |
 | `bitbucket_list_branches` | List repository branches |
 | `bitbucket_get_branch` | Get branch details |
+| `bitbucket_create_branch` | Create a branch from a commit hash |
+| `bitbucket_delete_branch` | Delete a branch (with default-branch protection) |
+| `bitbucket_set_default_branch` | Change the repository default branch |
+| `bitbucket_get_branch_restrictions` | List branch protection rules |
+| `bitbucket_set_branch_restriction` | Create a branch protection rule |
+| `bitbucket_delete_branch_restriction` | Remove a branch protection rule by ID |
 
 ---
 

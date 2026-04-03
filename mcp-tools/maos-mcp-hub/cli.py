@@ -39,15 +39,22 @@ Environment Variables:
 """
 
 import sys
+import os
 import json
 import asyncio
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-# Load .env file if present (for local development)
+# Load .env file — resolves path reliably regardless of CWD
+# Priority: MAOS_DOTENV_PATH env var > default (cli.py dir)
+_dotenv_path = Path(
+    os.getenv("MAOS_DOTENV_PATH", str(Path(__file__).parent / ".env"))
+).expanduser().resolve()
+
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    if _dotenv_path.is_file():
+        load_dotenv(_dotenv_path, override=True)
 except ImportError:
     pass  # python-dotenv not installed — env vars must be set externally
 

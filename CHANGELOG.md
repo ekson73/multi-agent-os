@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### maos-mcp-hub — Branch Management Tools (Sprint 8 — VKS-1647)
+- `bitbucket_create_branch` — Create branch from commit hash (POST /refs/branches)
+- `bitbucket_delete_branch` — Delete branch with default-branch protection (DELETE /refs/branches/{name})
+- `bitbucket_set_default_branch` — Change repository default branch (PUT /repositories/{ws}/{repo})
+- `bitbucket_get_branch_restrictions` — List branch protection rules (GET /branch-restrictions)
+- `bitbucket_set_branch_restriction` — Create branch protection rule (POST /branch-restrictions)
+- `bitbucket_delete_branch_restriction` — Remove branch protection rule by ID (DELETE /branch-restrictions/{id})
+- 19 unit tests covering all new tools (success, error, edge cases)
+
 ## [1.4.0] - 2026-03-08
 
 ### Added

@@ -47,10 +47,10 @@ def _setup_account_env(monkeypatch, account_id: str, token: str = "acct-token",
 
 class TestValidateAccountId:
     def test_valid_simple(self):
-        assert BitbucketPipelineClient.validate_account_id("emilson") == "emilson"
+        assert BitbucketPipelineClient.validate_account_id("testuser") == "testuser"
 
     def test_normalizes_whitespace_and_case(self):
-        assert BitbucketPipelineClient.validate_account_id("  Emilson  ") == "emilson"
+        assert BitbucketPipelineClient.validate_account_id("  Testuser  ") == "testuser"
 
     def test_allows_hyphens_and_underscores(self):
         assert BitbucketPipelineClient.validate_account_id("my-account_1") == "my-account_1"
@@ -106,17 +106,17 @@ class TestForAccount:
 
     def test_named_account_reads_prefixed_env(self, monkeypatch):
         _setup_default_env(monkeypatch)
-        _setup_account_env(monkeypatch, "emilson")
-        client = BitbucketPipelineClient.for_account("emilson", repo_slug="ws/repo")
+        _setup_account_env(monkeypatch, "testuser")
+        client = BitbucketPipelineClient.for_account("testuser", repo_slug="ws/repo")
         assert client.api_token == "acct-token"
         assert client.auth_user == "acct-user"
         assert client.use_bearer is False
 
     def test_normalization_applied(self, monkeypatch):
-        """' Emilson ' should normalize to 'emilson' and find EMILSON_ env vars."""
+        """' Testuser ' should normalize to 'testuser' and find TESTUSER_ env vars."""
         _setup_default_env(monkeypatch)
-        _setup_account_env(monkeypatch, "emilson")
-        client = BitbucketPipelineClient.for_account(" Emilson ", repo_slug="ws/repo")
+        _setup_account_env(monkeypatch, "testuser")
+        client = BitbucketPipelineClient.for_account(" Testuser ", repo_slug="ws/repo")
         assert client.api_token == "acct-token"
 
     def test_missing_credentials_raises(self, monkeypatch):
@@ -145,15 +145,15 @@ class TestForAccount:
 class TestGetClientForAccount:
     def test_caches_by_normalized_key(self, monkeypatch):
         _setup_default_env(monkeypatch)
-        _setup_account_env(monkeypatch, "emilson")
+        _setup_account_env(monkeypatch, "testuser")
         monkeypatch.setenv("BITBUCKET_REPO_SLUG", "ws/repo")
 
         # Import after env setup so module-level code does not fail
         from servers.bitbucket.tools import get_client_for_account, _account_clients
         _account_clients.clear()
 
-        c1 = get_client_for_account(account="emilson", repo_slug="ws/repo")
-        c2 = get_client_for_account(account=" Emilson ", repo_slug="ws/repo")
+        c1 = get_client_for_account(account="testuser", repo_slug="ws/repo")
+        c2 = get_client_for_account(account=" Testuser ", repo_slug="ws/repo")
         assert c1 is c2, "Normalized account should hit the same cache entry"
 
     def test_default_account_skips_cache(self, monkeypatch):
