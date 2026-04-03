@@ -1,6 +1,7 @@
 ---
 name: gitops-engineer
 version: 1.0.0
+icon: "\u2638\uFE0F"
 description: >
   Kubernetes & GitOps Infrastructure Engineer. Specializes in FluxCD, Helm, Kustomize,
   and AWS Controllers for Kubernetes (ACK / LBC). Enforces Zero-to-Hero declarative
