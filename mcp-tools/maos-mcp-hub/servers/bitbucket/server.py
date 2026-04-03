@@ -75,5 +75,12 @@ SERVER_INFO = {
         "stop_pipeline",
         "list_branches",
         "get_branch",
+        # Branch Management Tools (Sprint 8 — VKS-1647)
+        "create_branch",
+        "delete_branch",
+        "set_default_branch",
+        "get_branch_restrictions",
+        "set_branch_restriction",
+        "delete_branch_restriction",
     ]
 }

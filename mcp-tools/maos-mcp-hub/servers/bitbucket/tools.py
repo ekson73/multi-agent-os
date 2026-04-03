@@ -2595,6 +2595,397 @@ async def get_branch(branch_name: str, workspace: str = "", repo_slug: str = "")
 
 
 # ============================================================================
+# Branch Management Tools (Sprint 8 — VKS-1647)
+# ============================================================================
+
+async def create_branch(
+    name: str,
+    target: str,
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Create a new branch from a commit hash or existing branch reference.
+
+    Use this to create branches programmatically — for example, creating a "main"
+    branch from the current HEAD of "master" during a branch migration.
+
+    Args:
+        name: New branch name (e.g., "main", "feature/my-feature")
+        target: Source commit hash (full 40-char SHA or short 7+ chars).
+                To branch from an existing branch, first use get_branch to obtain its commit hash.
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Created branch details including name, commit hash, and URL
+
+    Examples:
+        # Create "main" from a commit hash
+        create_branch(name="main", target="a1b2c3d4e5f6")
+
+        # Create feature branch (get hash from existing branch first)
+        branch = get_branch(branch_name="develop")
+        create_branch(name="feature/VKS-1647", target=branch["commit"])
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.create_branch(name=name, target_hash=target)
+
+        return {
+            "success": True,
+            "name": result.get("name"),
+            "commit": result.get("target", {}).get("hash", ""),
+            "commit_short": result.get("target", {}).get("hash", "")[:12],
+            "url": f"https://bitbucket.org/{client.repo_slug}/branch/{name}",
+        }
+
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 400:
+            return {
+                "success": False,
+                "error": "Branch already exists or invalid target",
+                "details": sanitize_exception(e),
+                "hint": "Use get_branch to check if branch exists, or verify the target commit hash.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to create branch",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to create branch: {sanitize_error(e)}"}
+
+
+async def delete_branch(
+    name: str,
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Delete a branch from the repository.
+
+    ⚠️ DESTRUCTIVE OPERATION: This permanently removes the branch reference.
+    The commits remain in the repository but the branch pointer is removed.
+
+    Cannot delete the repository's default branch — use set_default_branch first
+    to change the default, then delete the old branch.
+
+    Args:
+        name: Branch name to delete (e.g., "master", "feature/old-feature")
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Deletion confirmation with branch name
+
+    Examples:
+        # Delete old master after migrating to main
+        set_default_branch(name="main")  # First, change default
+        delete_branch(name="master")     # Then, delete old branch
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        await client.delete_branch(name=name)
+
+        return {
+            "success": True,
+            "name": name,
+            "message": f"Branch '{name}' deleted successfully",
+        }
+
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 400:
+            return {
+                "success": False,
+                "error": f"Cannot delete branch '{name}'",
+                "details": sanitize_exception(e),
+                "hint": "Cannot delete the default branch. Use set_default_branch to change it first.",
+            }
+        if status == 404:
+            return {
+                "success": False,
+                "error": f"Branch '{name}' not found",
+                "hint": "Use list_branches to see available branches.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to delete branch",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to delete branch: {sanitize_error(e)}"}
+
+
+async def set_default_branch(
+    name: str,
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Change the default (main) branch of the repository.
+
+    The target branch must already exist. This is typically used during
+    master → main migration: create "main", set it as default, then optionally
+    delete "master".
+
+    Requires repository admin permissions.
+
+    Args:
+        name: Branch name to set as default (must already exist)
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Updated default branch info with repository name
+
+    Examples:
+        # Migrate from master to main
+        branch = get_branch(branch_name="master")
+        create_branch(name="main", target=branch["commit"])
+        set_default_branch(name="main")
+        delete_branch(name="master")
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.set_default_branch(name=name)
+
+        mainbranch = result.get("mainbranch", {})
+        return {
+            "success": True,
+            "default_branch": mainbranch.get("name", name),
+            "repository": result.get("full_name", result.get("name", "")),
+            "message": f"Default branch changed to '{name}'",
+        }
+
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 400:
+            return {
+                "success": False,
+                "error": f"Cannot set '{name}' as default branch",
+                "details": sanitize_exception(e),
+                "hint": "The branch must exist. Use create_branch or list_branches to verify.",
+            }
+        if status == 403:
+            return {
+                "success": False,
+                "error": "Permission denied",
+                "details": sanitize_exception(e),
+                "hint": "Requires repository admin permissions to change default branch.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to set default branch",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to set default branch: {sanitize_error(e)}"}
+
+
+async def get_branch_restrictions(
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    List all branch restrictions (protection rules) for the repository.
+
+    Returns restrictions such as push protection, force-push prevention,
+    delete prevention, required reviews, etc.
+
+    Args:
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: List of branch restrictions with kind, pattern, and affected users/groups
+
+    Valid restriction kinds:
+        - push: Prevent direct commits (force PR workflow)
+        - force: Prevent force-push (protect history)
+        - delete: Prevent branch deletion
+        - restrict_merges: Restrict who can merge PRs
+        - require_review_approvals: Require PR approvals
+        - require_review_status_checks: Require CI/CD to pass
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.get_branch_restrictions()
+
+        restrictions = result.get("values", [])
+        formatted = []
+        for r in restrictions:
+            formatted.append({
+                "id": r.get("id"),
+                "kind": r.get("kind", ""),
+                "pattern": r.get("pattern", ""),
+                "users": [
+                    u.get("display_name", u.get("uuid", ""))
+                    for u in r.get("users", [])
+                ],
+                "groups": [
+                    g.get("slug", g.get("name", ""))
+                    for g in r.get("groups", [])
+                ],
+            })
+
+        return {
+            "total": len(formatted),
+            "restrictions": formatted,
+        }
+
+    except ApiError as e:
+        return {
+            "error": "Failed to get branch restrictions",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"error": f"Failed to get branch restrictions: {sanitize_error(e)}"}
+
+
+async def set_branch_restriction(
+    kind: str,
+    pattern: str,
+    users: list | None = None,
+    groups: list | None = None,
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Create a branch restriction (protection rule).
+
+    Requires repository admin permissions. Use get_branch_restrictions to see
+    existing rules before adding new ones.
+
+    Args:
+        kind: Restriction type. Valid values:
+              push, force, delete, restrict_merges, deny_all_merges,
+              require_review_approvals, require_review_status_checks,
+              require_review_all_tasks_pending, require_default_merge_strategy,
+              allow_auto_merge_when_builds_pass, allow_auto_merge_when_builds_fail
+        pattern: Branch name pattern (glob-style: "main", "release/*", "feature/[ab]/*")
+        users: List of user UUIDs to exempt from restriction (omit = applies to all)
+        groups: List of group slugs to exempt from restriction (omit = applies to all)
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Created restriction with id, kind, and pattern
+
+    Examples:
+        # Protect main from direct pushes
+        set_branch_restriction(kind="push", pattern="main")
+
+        # Prevent force-push on release branches
+        set_branch_restriction(kind="force", pattern="release/*")
+
+        # Prevent deletion of main
+        set_branch_restriction(kind="delete", pattern="main")
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        result = await client.create_branch_restriction(
+            kind=kind,
+            pattern=pattern,
+            users=users,
+            groups=groups,
+        )
+
+        return {
+            "success": True,
+            "id": result.get("id"),
+            "kind": result.get("kind", kind),
+            "pattern": result.get("pattern", pattern),
+            "message": f"Branch restriction '{kind}' created for pattern '{pattern}'",
+        }
+
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 400:
+            return {
+                "success": False,
+                "error": "Invalid restriction configuration",
+                "details": sanitize_exception(e),
+                "hint": f"Check that kind='{kind}' is valid and pattern='{pattern}' is a valid glob pattern.",
+            }
+        if status == 403:
+            return {
+                "success": False,
+                "error": "Permission denied",
+                "details": sanitize_exception(e),
+                "hint": "Requires repository admin permissions to manage branch restrictions.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to create branch restriction",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to create branch restriction: {sanitize_error(e)}"}
+
+
+async def delete_branch_restriction(
+    restriction_id: int,
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Delete a branch restriction by ID.
+
+    Use get_branch_restrictions to find the restriction ID first.
+    Requires repository admin permissions.
+
+    Args:
+        restriction_id: Restriction ID (obtained from get_branch_restrictions)
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override (format: "workspace/repo-name")
+
+    Returns:
+        dict: Deletion confirmation
+    """
+    try:
+        client = get_client(workspace=workspace, repo_slug=repo_slug)
+        await client.delete_branch_restriction(restriction_id=restriction_id)
+
+        return {
+            "success": True,
+            "restriction_id": restriction_id,
+            "message": f"Branch restriction #{restriction_id} deleted successfully",
+        }
+
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {
+                "success": False,
+                "error": f"Branch restriction #{restriction_id} not found",
+                "hint": "Use get_branch_restrictions to list existing restrictions.",
+            }
+        if status == 403:
+            return {
+                "success": False,
+                "error": "Permission denied",
+                "details": sanitize_exception(e),
+                "hint": "Requires repository admin permissions to delete branch restrictions.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to delete branch restriction",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to delete branch restriction: {sanitize_error(e)}"}
+
+
+# ============================================================================
 # TOOL REGISTRY
 # ============================================================================
 
@@ -2655,4 +3046,11 @@ TOOLS = {
     "stop_pipeline": stop_pipeline,
     "list_branches": list_branches,
     "get_branch": get_branch,
+    # Branch Management Tools (Sprint 8 — VKS-1647)
+    "create_branch": create_branch,
+    "delete_branch": delete_branch,
+    "set_default_branch": set_default_branch,
+    "get_branch_restrictions": get_branch_restrictions,
+    "set_branch_restriction": set_branch_restriction,
+    "delete_branch_restriction": delete_branch_restriction,
 }
