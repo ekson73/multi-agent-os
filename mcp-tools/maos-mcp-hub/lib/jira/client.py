@@ -334,6 +334,226 @@ class JiraClient:
             max_retries=0,  # PUT is non-idempotent for estimation
         )
 
+    # ========================================================================
+    # Issues CRUD — create, edit, transition, search
+    # ========================================================================
+
+    async def create_issue(
+        self, project_key: str, issue_type: str, summary: str, **fields
+    ) -> dict:
+        """Create a new Jira issue."""
+        body = {
+            "fields": {
+                "project": {"key": project_key},
+                "issuetype": {"name": issue_type},
+                "summary": summary,
+                **fields,
+            }
+        }
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/issue",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=body,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+
+    async def edit_issue(self, issue_key: str, **fields) -> dict:
+        """Update fields on an existing issue."""
+        status = await request_empty(
+            method="PUT",
+            url=f"{self.base_url}/issue/{issue_key}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json={"fields": fields},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+        return {"status": "updated", "issue_key": issue_key, "http_status": status}
+
+    async def transition_issue(self, issue_key: str, transition_id: str) -> dict:
+        """Transition issue to a new workflow status."""
+        status = await request_empty(
+            method="POST",
+            url=f"{self.base_url}/issue/{issue_key}/transitions",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json={"transition": {"id": transition_id}},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+        return {"status": "transitioned", "issue_key": issue_key, "http_status": status}
+
+    async def get_transitions(self, issue_key: str) -> list:
+        """List available transitions for an issue."""
+        result = await request_json(
+            method="GET",
+            url=f"{self.base_url}/issue/{issue_key}/transitions",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("transitions", [])
+
+    async def search_jql(
+        self, jql: str, max_results: int = 50, start_at: int = 0
+    ) -> dict:
+        """Search issues using JQL with pagination."""
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/search",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"jql": jql, "maxResults": max_results, "startAt": start_at},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    # ========================================================================
+    # Comments & Worklogs
+    # ========================================================================
+
+    async def add_comment(self, issue_key: str, body: str) -> dict:
+        """Add a comment to an issue (markdown format)."""
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/issue/{issue_key}/comment",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json={"body": {"type": "doc", "version": 1, "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": body}]}
+            ]}},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+
+    async def add_worklog(
+        self, issue_key: str, time_spent: str, comment: str = ""
+    ) -> dict:
+        """Add a worklog entry to an issue."""
+        payload: dict = {"timeSpent": time_spent}
+        if comment:
+            payload["comment"] = {"type": "doc", "version": 1, "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": comment}]}
+            ]}
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/issue/{issue_key}/worklog",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+
+    # ========================================================================
+    # Issue Links
+    # ========================================================================
+
+    async def create_issue_link(
+        self, link_type: str, inward_issue: str, outward_issue: str
+    ) -> dict:
+        """Create a link between two issues."""
+        status = await request_empty(
+            method="POST",
+            url=f"{self.base_url}/issueLink",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json={
+                "type": {"name": link_type},
+                "inwardIssue": {"key": inward_issue},
+                "outwardIssue": {"key": outward_issue},
+            },
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,
+        )
+        return {"status": "linked", "http_status": status}
+
+    async def get_issue_link_types(self) -> list:
+        """List available issue link types."""
+        result = await request_json(
+            method="GET",
+            url=f"{self.base_url}/issueLinkType",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("issueLinkTypes", [])
+
+    async def get_remote_issue_links(self, issue_key: str) -> list:
+        """Get remote links for an issue."""
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/issue/{issue_key}/remotelink",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    # ========================================================================
+    # Projects & Metadata
+    # ========================================================================
+
+    async def get_visible_projects(self) -> list:
+        """List all visible projects."""
+        result = await request_json(
+            method="GET",
+            url=f"{self.base_url}/project/search",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("values", [])
+
+    async def get_issue_type_metadata(self, project_key: str) -> list:
+        """Get issue types and their fields for a project."""
+        result = await request_json(
+            method="GET",
+            url=f"{self.base_url}/issue/createmeta/{project_key}/issuetypes",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("issueTypes", result.get("values", []))
+
+    async def lookup_account_id(self, query: str) -> list:
+        """Search for users by display name or email."""
+        return await request_json(
+            method="GET",
+            url=f"{self.base_url}/user/search",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"query": query},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
     async def delete_attachment(self, attachment_id: str) -> dict:
         """
         Delete an attachment by ID
