@@ -100,7 +100,7 @@ class MetaToolRouter:
         # Execution (level 3)
         resource = request.resource
         operation = request.operation
-        params = request.params or {}
+        params = request.params if request.params is not None else {}
 
         # Validate params is a dict
         if not isinstance(params, dict):

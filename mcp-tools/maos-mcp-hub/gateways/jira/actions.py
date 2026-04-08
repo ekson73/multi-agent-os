@@ -61,10 +61,12 @@ async def create_issue(project_key: str, issue_type: str, summary: str, descript
     return await client.create_issue(project_key, issue_type, summary, **fields)
 
 
-async def edit_issue(issue_key: str, fields: dict = None) -> dict:
+async def edit_issue(issue_key: str, fields: dict) -> dict:
     """Update fields on an existing issue. Pass a dict of field names to values."""
+    if not fields:
+        return {"error": "fields must contain at least one update"}
     client = get_client()
-    return await client.edit_issue(issue_key, **(fields or {}))
+    return await client.edit_issue(issue_key, **fields)
 
 
 async def transition_issue(issue_key: str, transition_id: str) -> dict:
