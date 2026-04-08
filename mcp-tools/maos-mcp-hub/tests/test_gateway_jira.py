@@ -1,4 +1,4 @@
-"""Tests for Jira gateway — 23 actions via meta-tool pattern."""
+"""Tests for Jira gateway — 22 actions via meta-tool pattern."""
 
 import asyncio
 
