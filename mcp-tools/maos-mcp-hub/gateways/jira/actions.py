@@ -61,10 +61,10 @@ async def create_issue(project_key: str, issue_type: str, summary: str, descript
     return await client.create_issue(project_key, issue_type, summary, **fields)
 
 
-async def edit_issue(issue_key: str, **fields) -> dict:
-    """Update fields on an existing issue."""
+async def edit_issue(issue_key: str, fields: dict = None) -> dict:
+    """Update fields on an existing issue. Pass a dict of field names to values."""
     client = get_client()
-    return await client.edit_issue(issue_key, **fields)
+    return await client.edit_issue(issue_key, **(fields or {}))
 
 
 async def transition_issue(issue_key: str, transition_id: str) -> dict:
@@ -261,17 +261,26 @@ def _extract_text(adf: Any) -> str:
         return ""
     parts: list[str] = []
     _walk_adf(adf, parts)
-    return "\n".join(parts)
+    return "".join(parts).strip()
 
 
 def _walk_adf(node: Any, parts: list[str]) -> None:
     """Recursively walk ADF nodes extracting text."""
     if not isinstance(node, dict):
         return
-    if node.get("type") == "text":
+    node_type = node.get("type")
+    if node_type == "text":
         parts.append(node.get("text", ""))
+    elif node_type == "hardBreak":
+        parts.append("\n")
+    elif node_type == "mention":
+        attrs = node.get("attrs", {})
+        parts.append(attrs.get("text") or attrs.get("displayName") or "")
     for child in node.get("content", []):
         _walk_adf(child, parts)
+    if node_type in ("paragraph", "heading", "blockquote", "codeBlock", "listItem", "tableRow"):
+        if not parts or parts[-1] != "\n":
+            parts.append("\n")
 
 
 # ---------------------------------------------------------------------------

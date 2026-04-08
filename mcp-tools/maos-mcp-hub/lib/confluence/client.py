@@ -17,7 +17,7 @@ from lib.common.http import request_json
 class ConfluenceClient:
     """Async HTTP client for Confluence Cloud REST API v2."""
 
-    def __init__(self, cloud_id: Optional[str] = None):
+    def __init__(self, cloud_id: Optional[str] = None) -> None:
         self.email = os.getenv("JIRA_EMAIL")
         self.api_token = (
             os.getenv("CONFLUENCE_API_TOKEN")
@@ -81,7 +81,7 @@ class ConfluenceClient:
         )
 
     async def update_page(self, page_id: str, title: str, body: str, version_number: int, status: str = "current") -> dict:
-        """Update a page (requires current version number)."""
+        """Update a page (requires next version number, i.e., current + 1)."""
         return await request_json(
             method="PUT",
             url=f"{self.base_url}/pages/{page_id}",
@@ -184,7 +184,7 @@ class ConfluenceClient:
             max_retries=0,
         )
 
-    async def create_inline_comment(self, page_id: str, body: str, inline_comment_properties: dict = None) -> dict:
+    async def create_inline_comment(self, page_id: str, body: str, inline_comment_properties: Optional[dict] = None) -> dict:
         """Create an inline comment on a page."""
         payload: dict = {"pageId": page_id, "body": {"representation": "storage", "value": body}}
         if inline_comment_properties:
@@ -218,7 +218,7 @@ class ConfluenceClient:
     # ------------------------------------------------------------------
 
     async def search_cql(self, cql: str, limit: int = 25) -> dict:
-        """Search Confluence using CQL."""
+        """Search Confluence using CQL. Uses v1 REST API (v2 has no CQL search endpoint)."""
         return await request_json(
             method="GET",
             url=f"https://api.atlassian.com/ex/confluence/{self.cloud_id}/wiki/rest/api/search",

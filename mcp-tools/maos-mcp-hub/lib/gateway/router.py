@@ -102,6 +102,18 @@ class MetaToolRouter:
         operation = request.operation
         params = request.params or {}
 
+        # Validate params is a dict
+        if not isinstance(params, dict):
+            return {
+                "error": "params must be a dict",
+                "resource": resource,
+                "operation": operation,
+                "_agent_feedback": {
+                    "tool": self.tool_name,
+                    "hints": ["Pass params as a JSON object, e.g. {\"key\": \"value\"}"],
+                },
+            }
+
         # Validate resource
         if resource not in self._handlers:
             available = self.registry.resources()
