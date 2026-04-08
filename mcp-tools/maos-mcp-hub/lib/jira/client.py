@@ -66,6 +66,7 @@ class JiraClient:
             )
 
         self.base_url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/api/3"
+        self.agile_url = f"https://api.atlassian.com/ex/jira/{self.cloud_id}/rest/agile/1.0"
         self._provider_name = "Jira"
         self._auth_hint = (
             "Verifique JIRA_EMAIL e JIRA_API_TOKEN (ou ATLASSIAN_API_TOKEN fallback)."
@@ -254,6 +255,84 @@ class JiraClient:
 
         # API usually returns array; keep backward-compatible shape.
         return result[0] if isinstance(result, list) and result else result
+
+    # ========================================================================
+    # Agile API — Boards & Estimation
+    # ========================================================================
+
+    async def get_boards(self, project_key_or_id: str = "") -> list:
+        """
+        List Scrum/Kanban boards, optionally filtered by project
+
+        Args:
+            project_key_or_id: Project key (e.g., "VKS") or ID to filter boards.
+                               If empty, returns all visible boards.
+
+        Returns:
+            list: Board objects [{id, name, type, ...}]
+        """
+        params = {}
+        if project_key_or_id:
+            params["projectKeyOrId"] = project_key_or_id
+
+        result = await request_json(
+            method="GET",
+            url=f"{self.agile_url}/board",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params=params,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("values", [])
+
+    async def get_estimation(self, issue_key: str, board_id: int) -> dict:
+        """
+        Get story points estimation for an issue
+
+        Args:
+            issue_key: Issue key (e.g., "VKS-1673")
+            board_id: Board ID (from get_boards)
+
+        Returns:
+            dict: {"value": <number>} or {"value": null}
+        """
+        return await request_json(
+            method="GET",
+            url=f"{self.agile_url}/issue/{issue_key}/estimation",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"boardId": board_id},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
+    async def set_estimation(self, issue_key: str, board_id: int, value: float) -> dict:
+        """
+        Set story points estimation for an issue
+
+        Args:
+            issue_key: Issue key (e.g., "VKS-1673")
+            board_id: Board ID (from get_boards)
+            value: Story points value (e.g., 8)
+
+        Returns:
+            dict: {"value": <number>} (the set value, echoed back)
+        """
+        return await request_json(
+            method="PUT",
+            url=f"{self.agile_url}/issue/{issue_key}/estimation",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params={"boardId": board_id},
+            json={"value": value},
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # PUT is non-idempotent for estimation
+        )
 
     async def delete_attachment(self, attachment_id: str) -> dict:
         """

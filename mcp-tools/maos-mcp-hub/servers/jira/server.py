@@ -7,10 +7,11 @@ Provides SERVER_INFO for hub auto-discovery.
 SERVER_INFO = {
     "name": "jira",
     "display_name": "Jira Cloud Issue Tracker",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": (
-        "Manage Jira Cloud issues and attachments via REST API v3. "
-        "Supports reading issues, listing/downloading/uploading/deleting attachments."
+        "Manage Jira Cloud issues, attachments, and agile estimation via REST API v3 + Agile API. "
+        "Supports reading issues, attachments (list/download/upload/delete), "
+        "boards, and story points estimation (get/set)."
     ),
     "mcp_server": "hub.py",
     "env_vars": {
@@ -25,5 +26,8 @@ SERVER_INFO = {
         "download_attachment",
         "upload_attachment",
         "delete_attachment",
+        "get_boards",
+        "get_estimation",
+        "set_estimation",
     ],
 }

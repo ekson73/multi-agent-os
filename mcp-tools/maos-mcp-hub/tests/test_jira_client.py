@@ -163,3 +163,133 @@ def test_delete_attachment_maps_403_to_auth_error(monkeypatch):
             assert "/attachment/40301" in exc.endpoint
 
     asyncio.run(run())
+
+
+# ========================================================================
+# Agile API — Boards & Estimation
+# ========================================================================
+
+AGILE_BASE = "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/agile/1.0"
+
+
+def test_get_boards_with_project_filter(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(f"{AGILE_BASE}/board").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "values": [
+                            {"id": 42, "name": "VKS Board", "type": "scrum"},
+                            {"id": 43, "name": "VKS Kanban", "type": "kanban"},
+                        ]
+                    },
+                )
+            )
+
+            boards = await client.get_boards("VKS")
+            assert len(boards) == 2
+            assert boards[0]["id"] == 42
+            assert boards[0]["name"] == "VKS Board"
+            assert boards[1]["type"] == "kanban"
+
+    asyncio.run(run())
+
+
+def test_get_boards_no_filter(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(f"{AGILE_BASE}/board").mock(
+                return_value=httpx.Response(200, json={"values": []})
+            )
+
+            boards = await client.get_boards()
+            assert boards == []
+
+    asyncio.run(run())
+
+
+def test_get_estimation_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(f"{AGILE_BASE}/issue/VKS-1673/estimation").mock(
+                return_value=httpx.Response(200, json={"value": 5})
+            )
+
+            result = await client.get_estimation("VKS-1673", board_id=42)
+            assert result["value"] == 5
+
+    asyncio.run(run())
+
+
+def test_set_estimation_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.put(f"{AGILE_BASE}/issue/VKS-1673/estimation").mock(
+                return_value=httpx.Response(200, json={"value": 8})
+            )
+
+            result = await client.set_estimation("VKS-1673", board_id=42, value=8)
+            assert result["value"] == 8
+
+    asyncio.run(run())
+
+
+def test_set_estimation_maps_403_to_auth_error(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.put(f"{AGILE_BASE}/issue/VKS-1673/estimation").mock(
+                return_value=httpx.Response(403, text='{"error":"forbidden"}')
+            )
+
+            with pytest.raises(AuthError) as exc_info:
+                await client.set_estimation("VKS-1673", board_id=42, value=8)
+            exc = exc_info.value
+            assert exc.status_code == 403
+
+    asyncio.run(run())
+
+
+def test_get_estimation_maps_404_to_not_found(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(f"{AGILE_BASE}/issue/VKS-9999/estimation").mock(
+                return_value=httpx.Response(404, text='{"error":"not found"}')
+            )
+
+            with pytest.raises(NotFoundError) as exc_info:
+                await client.get_estimation("VKS-9999", board_id=42)
+            exc = exc_info.value
+            assert exc.status_code == 404
+
+    asyncio.run(run())
