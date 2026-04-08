@@ -29,9 +29,10 @@ jobs:
           
       - name: Validar Assinatura da IA Autônoma (Co-Authored-By)
         shell: bash
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          BODY="${{ github.event.pull_request.body }}"
-          if [[ ! "$BODY" =~ "Co-Authored-By:" ]]; then
+          if [[ ! "$PR_BODY" =~ "Co-Authored-By:" ]]; then
             echo "🛑 [GaaS Failure] O Pull Request carece de atestado de co-autoria da IA."
             echo "Adicione 'Co-Authored-By: <Nome-da-IA> <email-fake@ia.com>' na descrição do PR para compliance SOTA."
             # Uncomment the next line to strictly enforce and fail the action
