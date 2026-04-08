@@ -284,9 +284,9 @@ The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**, each accep
 | **Compass** | `atlassian_compass` | 6 | Service registry, components, relationships, custom fields |
 | **Common** | `atlassian_common` | 4 | User info, accessible resources, server info |
 
-### 3-Level Schema Discovery
+### 4-Level Progressive Discovery
 
-Every gateway supports progressive discovery. An AI agent can navigate from zero knowledge to full execution in 4 calls:
+Every gateway supports progressive discovery. An AI agent can navigate from zero knowledge to full execution in 4 calls (levels 0–2 are discovery; level 3 is execution):
 
 ```
 # Level 0 — List resources (call with no params)

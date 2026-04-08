@@ -245,7 +245,7 @@ The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway with tw
 | `atlassian_compass` | 6 | Service registry |
 | `atlassian_common` | 4 | User info, server info |
 
-Each gateway accepts `{resource?, operation?, params?}` with 3-level progressive discovery. Every response includes `_agent_feedback` with governance hints.
+Each gateway accepts `{resource?, operation?, params?}` with 4-level progressive discovery (levels 0–2 = discovery, level 3 = execution). Every response includes `_agent_feedback` with governance hints.
 
 Key framework components in `lib/gateway/`:
 - `MetaToolRouter` -- dispatch + discovery routing
