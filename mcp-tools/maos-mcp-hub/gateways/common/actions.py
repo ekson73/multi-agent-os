@@ -1,9 +1,10 @@
 """Common gateway actions — 4 cross-cutting actions."""
 
 from __future__ import annotations
-import base64, os
-from typing import Optional
-from aiolimiter import AsyncLimiter
+
+import base64
+import os
+
 from lib.common.http import request_json
 from lib.gateway.router import MetaToolRouter
 from .gateway import GATEWAY_INFO
@@ -16,6 +17,8 @@ async def get_user_info() -> dict:
     cloud_id = os.getenv("JIRA_CLOUD_ID", "")
     if not token or not email:
         return {"error": "Missing credentials"}
+    if not cloud_id:
+        return {"error": "Missing JIRA_CLOUD_ID"}
     creds = base64.b64encode(f"{email}:{token}".encode()).decode()
     return await request_json(
         method="GET",
@@ -27,7 +30,11 @@ async def get_user_info() -> dict:
 
 
 async def get_accessible_resources() -> dict:
-    """List accessible Atlassian cloud resources."""
+    """List accessible Atlassian cloud resources.
+
+    Note: This endpoint officially requires OAuth 2.0. With Basic Auth (API token)
+    it may return 401. Use get_user_info or get_server_info as alternatives.
+    """
     email = os.getenv("JIRA_EMAIL", "")
     token = os.getenv("JIRA_API_TOKEN") or os.getenv("ATLASSIAN_API_TOKEN") or ""
     if not token or not email:
@@ -36,7 +43,8 @@ async def get_accessible_resources() -> dict:
     result = await request_json(
         method="GET",
         url="https://api.atlassian.com/oauth/token/accessible-resources",
-        provider="Atlassian", auth_hint="Check credentials.",
+        provider="Atlassian",
+        auth_hint="This endpoint requires OAuth 2.0. Basic Auth may fail — use get_user_info instead.",
         auth_kwargs={"headers": {"Authorization": f"Basic {creds}"}},
         timeout=30.0,
     )
@@ -50,6 +58,8 @@ async def lookup_user(query: str) -> dict:
     cloud_id = os.getenv("JIRA_CLOUD_ID", "")
     if not token or not email:
         return {"error": "Missing credentials"}
+    if not cloud_id:
+        return {"error": "Missing JIRA_CLOUD_ID"}
     creds = base64.b64encode(f"{email}:{token}".encode()).decode()
     return await request_json(
         method="GET",
@@ -67,6 +77,8 @@ async def get_server_info() -> dict:
     cloud_id = os.getenv("JIRA_CLOUD_ID", "")
     if not token or not email:
         return {"error": "Missing credentials"}
+    if not cloud_id:
+        return {"error": "Missing JIRA_CLOUD_ID"}
     creds = base64.b64encode(f"{email}:{token}".encode()).decode()
     return await request_json(
         method="GET",

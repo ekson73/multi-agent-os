@@ -74,6 +74,9 @@ def _params_from_signature(fn: Callable) -> tuple[List[str], Dict[str, str]]:
     for name, param in sig.parameters.items():
         if name in ("self", "cls"):
             continue
+        # Skip variadic params (*args, **kwargs) — they are not named inputs
+        if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
         if param.default is inspect.Parameter.empty:
             required.append(name)
         else:

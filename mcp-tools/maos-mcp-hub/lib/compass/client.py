@@ -43,7 +43,7 @@ class CompassClient:
 
     async def _graphql(self, query: str, variables: Optional[Dict[str, Any]] = None) -> dict:
         """Execute a GraphQL query against Compass."""
-        return await request_json(
+        result = await request_json(
             method="POST",
             url=self.graphql_url,
             provider=self._provider_name,
@@ -53,6 +53,11 @@ class CompassClient:
             timeout=30.0,
             limiter=self.rate_limiter,
         )
+        if isinstance(result, dict) and result.get("errors"):
+            errors = result["errors"]
+            msg = "; ".join(e.get("message", str(e)) for e in errors)
+            raise ValueError(f"Compass GraphQL error: {msg}")
+        return result
 
     async def get_component(self, component_id: str) -> dict:
         """Get a Compass component by ID."""

@@ -1,12 +1,12 @@
 """
-Jira gateway actions — 23 actions across 8 resources.
+Jira gateway actions — 22 actions across 8 resources.
 
 Wraps existing JiraClient methods + servers/jira/tools.py functions.
 """
 
 from __future__ import annotations
 
-import math
+import base64
 from typing import Any, Dict, Optional
 
 from lib.jira.client import JiraClient
@@ -155,10 +155,16 @@ async def upload_attachment(issue_key: str, filepath: str, filename: str = "") -
 
 
 async def download_attachment(issue_key: str, filename: str) -> dict:
-    """Download an attachment by filename."""
+    """Download an attachment by filename. Returns base64-encoded content for binary safety."""
     client = get_client()
     content = await client.download_attachment_by_name(issue_key, filename)
-    return {"issue_key": issue_key, "filename": filename, "size": len(content), "encoding": "utf-8", "content": content.decode("utf-8", errors="replace")}
+    return {
+        "issue_key": issue_key,
+        "filename": filename,
+        "size": len(content),
+        "encoding": "base64",
+        "content": base64.b64encode(content).decode("ascii"),
+    }
 
 
 async def delete_attachment(attachment_id: str) -> dict:
@@ -250,15 +256,22 @@ async def estimate_story_points(issue_key: str, board_id: int, dry_run: bool = T
 # ---------------------------------------------------------------------------
 
 def _extract_text(adf: Any) -> str:
-    """Best-effort plain text extraction from ADF."""
+    """Best-effort plain text extraction from ADF (recursive)."""
     if not adf or not isinstance(adf, dict):
         return ""
-    parts = []
-    for node in adf.get("content", []):
-        for child in node.get("content", []):
-            if child.get("type") == "text":
-                parts.append(child.get("text", ""))
+    parts: list[str] = []
+    _walk_adf(adf, parts)
     return "\n".join(parts)
+
+
+def _walk_adf(node: Any, parts: list[str]) -> None:
+    """Recursively walk ADF nodes extracting text."""
+    if not isinstance(node, dict):
+        return
+    if node.get("type") == "text":
+        parts.append(node.get("text", ""))
+    for child in node.get("content", []):
+        _walk_adf(child, parts)
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +279,7 @@ def _extract_text(adf: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def build_router() -> MetaToolRouter:
-    """Build the Jira meta-tool router with 23 actions."""
+    """Build the Jira meta-tool router with 22 actions."""
     router = MetaToolRouter(
         tool_name=GATEWAY_INFO["tool_name"],
         governance=["Jira operations follow DARCI-Expanded governance"],

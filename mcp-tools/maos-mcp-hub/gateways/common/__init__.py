@@ -1,1 +1,1 @@
-"""Common gateway — cross-cutting Atlassian actions."""
+"""Common gateway — 4 cross-cutting Atlassian actions."""

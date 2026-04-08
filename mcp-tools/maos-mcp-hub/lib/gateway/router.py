@@ -60,12 +60,15 @@ class MetaToolRouter:
         The handler is wrapped with @with_feedback and its schema
         is registered in the schema registry.
         """
+        # Merge gateway-wide governance with per-action governance
+        merged_governance = list(self.governance) + list(governance or [])
+
         # Wrap handler with feedback
         wrapped = with_feedback(
             tool=self.tool_name,
             resource=resource,
             operation=operation,
-            governance=governance,
+            governance=merged_governance or None,
             next_steps=next_steps,
         )(handler)
 

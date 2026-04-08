@@ -51,14 +51,19 @@ async def discover() -> Dict[str, Any]:
             mod = importlib.import_module(info["module"])
             router = mod.build_router()
             action_count = router.action_count
-        except Exception:
+            load_error = None
+        except Exception as exc:
             action_count = 0
+            load_error = str(exc)
 
-        domains[name] = {
+        entry: Dict[str, Any] = {
             "tool": info["tool"],
             "purpose": info["purpose"],
             "actions": action_count,
         }
+        if load_error:
+            entry["error"] = load_error
+        domains[name] = entry
         total_actions += action_count
 
     feedback = AgentFeedback(

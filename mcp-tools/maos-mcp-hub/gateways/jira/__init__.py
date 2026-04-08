@@ -1,1 +1,1 @@
-"""Jira gateway — 23 actions via meta-tool pattern."""
+"""Jira gateway — 22 actions via meta-tool pattern."""

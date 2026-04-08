@@ -11,7 +11,7 @@ from typing import Optional
 
 from aiolimiter import AsyncLimiter
 
-from lib.common.http import request_empty, request_json
+from lib.common.http import request_json
 
 
 class ConfluenceClient:
