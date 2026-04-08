@@ -226,6 +226,35 @@ This is a **framework** (source of truth). Consumer projects:
 
 See `docs/framework-consumption.md` for full guidance.
 
+## MCP Tools: MAOS MCP Hub
+
+The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway with two tool namespaces:
+
+### Flat Namespace (Legacy)
+42+ `bitbucket_*` tools and `jira_*` tools exposed as individual MCP tools. Still functional and registered at startup.
+
+### Meta-Tools Gateway (Preferred)
+6 Atlassian gateways collapsing 96 actions into typed meta-tools to stay within AI-provider tool limits:
+
+| Tool | Actions | Scope |
+|------|---------|-------|
+| `atlassian_discover` | -- | Domain catalog |
+| `atlassian_jira` | 22 | Issues, boards, estimation, search |
+| `atlassian_confluence` | 12 | Pages, comments, spaces |
+| `atlassian_bitbucket` | 52 | Pipelines, PRs, branches |
+| `atlassian_compass` | 6 | Service registry |
+| `atlassian_common` | 4 | User info, server info |
+
+Each gateway accepts `{resource?, operation?, params?}` with 3-level progressive discovery. Every response includes `_agent_feedback` with governance hints.
+
+Key framework components in `lib/gateway/`:
+- `MetaToolRouter` -- dispatch + discovery routing
+- `SchemaRegistry` -- auto-gen typed schemas from handler signatures
+- `@with_feedback` -- decorator injecting `_agent_feedback` in every response
+- `GatewayRequest` -- 4-level request parser (0=resources, 1=operations, 2=schema, 3=execute)
+
+See `mcp-tools/maos-mcp-hub/README.md` for full documentation.
+
 ## Known Issues & TODOs
 
 ### Critical Issues (P0)

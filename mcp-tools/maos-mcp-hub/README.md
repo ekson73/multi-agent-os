@@ -257,6 +257,143 @@ pytest -q tests/test_bitbucket_client.py tests/test_jira_client.py
 
 ---
 
+## Meta-Tools Gateway (Atlassian)
+
+### Problem
+
+AI providers impose tool-count limits that break flat namespaces at scale:
+
+| Provider | Tool Limit |
+|----------|-----------|
+| Gemini   | 100       |
+| Windsurf | 100       |
+| ChatGPT  | ~30       |
+
+With 42 Bitbucket tools already registered and Jira, Confluence, Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
+
+### Solution: 6 Typed Gateways
+
+The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**, each accepting a uniform `{resource?, operation?, params?}` input:
+
+| Gateway | Tool Name | Actions | Purpose |
+|---------|-----------|---------|---------|
+| **Discover** | `atlassian_discover` | -- | Catalog of all domains and action counts |
+| **Jira** | `atlassian_jira` | 22 | Issues, boards, sprints, estimation, comments, worklogs, links, search |
+| **Confluence** | `atlassian_confluence` | 12 | Pages, comments, spaces, search (CQL) |
+| **Bitbucket** | `atlassian_bitbucket` | 52 | Pipelines, PRs, branches, deployments, tests, caches |
+| **Compass** | `atlassian_compass` | 6 | Service registry, components, relationships, custom fields |
+| **Common** | `atlassian_common` | 4 | User info, accessible resources, server info |
+
+### 3-Level Schema Discovery
+
+Every gateway supports progressive discovery. An AI agent can navigate from zero knowledge to full execution in 4 calls:
+
+```
+# Level 0 — List resources (call with no params)
+atlassian_jira({})
+→ { "resources": ["issue", "search", "comment", "worklog", "link", "attachment", "board", "estimation", "project", "user"] }
+
+# Level 1 — List operations for a resource
+atlassian_jira({"resource": "issue"})
+→ { "resource": "issue", "operations": ["get", "create", "edit", "transition", "get_transitions"] }
+
+# Level 2 — Show param schema for a resource+operation
+atlassian_jira({"resource": "issue", "operation": "create"})
+→ { "resource": "issue", "operation": "create", "required": ["project_key", "summary", "issue_type"], "optional": {...} }
+
+# Level 3 — Execute
+atlassian_jira({"resource": "issue", "operation": "get", "params": {"issue_key": "VKS-1715"}})
+→ { "key": "VKS-1715", "summary": "...", "_agent_feedback": {...} }
+```
+
+### `_agent_feedback` in Every Response
+
+Every response (discovery or execution) includes an `_agent_feedback` block with governance hints, contextual tips, and suggested next steps:
+
+```json
+{
+  "_agent_feedback": {
+    "tool": "atlassian_jira",
+    "resource": "issue",
+    "operation": "create",
+    "governance": ["governance_level obrigatorio", "DARCI roles recomendados"],
+    "next_steps": ["Estimar story points", "Adicionar DARCI roles"],
+    "hints": []
+  }
+}
+```
+
+Error responses also include enriched feedback (e.g., "Check credentials" for 401, "Rate limit -- retry with backoff" for 429).
+
+### `estimate_story_points` Formula
+
+The Jira gateway includes a deterministic story point estimation formula that calculates complexity from observable issue data:
+
+```
+raw = (base(1) + subtask_w + attachment_w + comment_w + link_w + desc_w + label_bonus)
+      × type_multiplier
+→ Fibonacci snap {1, 2, 3, 5, 8, 13}
+```
+
+Type multipliers: Epic=1.5, Story=1.0, Task=1.0, Bug=0.8, Sub-task=0.6.
+Label bonus: +1 for `complex`, `security`, or `migration` labels.
+
+Call with `dry_run=True` (default) to preview, `dry_run=False` to apply.
+
+### Architecture
+
+```
+gateways/                          ← Meta-tool gateway layer
+├── discover/
+│   ├── gateway.py                 ← GATEWAY_INFO metadata
+│   └── actions.py                 ← Domain catalog builder
+├── jira/
+│   ├── gateway.py
+│   └── actions.py                 ← 22 actions across 8 resources
+├── confluence/
+│   ├── gateway.py
+│   └── actions.py                 ← 12 actions across 4 resources
+├── bitbucket/
+│   ├── gateway.py
+│   └── actions.py                 ← 52 actions across 9 resources
+├── compass/
+│   ├── gateway.py
+│   └── actions.py                 ← 6 actions across 3 resources
+└── common/
+    ├── gateway.py
+    └── actions.py                 ← 4 actions across 3 resources
+
+lib/gateway/                       ← Gateway framework (reusable)
+├── router.py                      ← MetaToolRouter: dispatch + discovery
+├── schema_registry.py             ← Auto-gen typed schemas from signatures
+├── feedback.py                    ← @with_feedback decorator
+├── discovery.py                   ← 3-level discovery response builder
+└── types.py                       ← GatewayRequest, ActionSchema, AgentFeedback
+```
+
+**Request flow (gateway path):**
+```
+AI Agent
+    ↓ MCP tool call (e.g., atlassian_jira)
+hub.py
+    ↓ GatewayRequest.parse({resource, operation, params})
+gateways/jira/actions.py
+    ↓ MetaToolRouter.dispatch()
+    ├── level 0-2: discovery response
+    └── level 3: handler(**params) wrapped with @with_feedback
+            ↓
+        lib/jira/client.py → Jira Cloud API
+```
+
+### Adding a New Gateway
+
+1. Create `gateways/<domain>/gateway.py` with `GATEWAY_INFO` dict.
+2. Create `gateways/<domain>/actions.py` with handler functions and a `build_router()` that returns a `MetaToolRouter`.
+3. Register in `gateways/discover/actions.py` `_DOMAIN_REGISTRY`.
+4. Register in `hub.py` gateway loader. The hub auto-discovers gateways at startup.
+
+---
+
 ## Adding a New Server
 
 1. Create a directory under `servers/`:
