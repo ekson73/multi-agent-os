@@ -231,9 +231,11 @@ See `docs/framework-consumption.md` for full guidance.
 The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway with two tool namespaces:
 
 ### Flat Namespace (Legacy)
-42+ `bitbucket_*` tools and `jira_*` tools exposed as individual MCP tools. Still functional and registered at startup.
+
+52 `bitbucket_*` tools and `jira_*` tools exposed as individual MCP tools. Still functional and registered at startup.
 
 ### Meta-Tools Gateway (Preferred)
+
 6 Atlassian gateways collapsing 96 actions into typed meta-tools to stay within AI-provider tool limits:
 
 | Tool | Actions | Scope |

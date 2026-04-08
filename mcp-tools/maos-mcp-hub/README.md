@@ -269,11 +269,11 @@ AI providers impose tool-count limits that break flat namespaces at scale:
 | Windsurf | 100       |
 | ChatGPT  | ~30       |
 
-With 42 Bitbucket tools already registered and Jira, Confluence, Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
+With 52 Bitbucket tools already registered and Jira, Confluence, Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
 
 ### Solution: 6 Typed Gateways
 
-The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**, each accepting a uniform `{resource?, operation?, params?}` input:
+The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**. Five domain gateways accept a uniform `{resource?, operation?, params?}` input; `atlassian_discover` is parameterless:
 
 | Gateway | Tool Name | Actions | Purpose |
 |---------|-----------|---------|---------|
@@ -288,7 +288,7 @@ The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**, each accep
 
 Every gateway supports progressive discovery. An AI agent can navigate from zero knowledge to full execution in 4 calls (levels 0–2 are discovery; level 3 is execution):
 
-```
+```text
 # Level 0 — List resources (call with no params)
 atlassian_jira({})
 → { "resources": ["issue", "search", "comment", "worklog", "link", "attachment", "board", "estimation", "project", "user"] }
@@ -317,8 +317,7 @@ Every response (discovery or execution) includes an `_agent_feedback` block with
     "resource": "issue",
     "operation": "create",
     "governance": ["governance_level obrigatorio", "DARCI roles recomendados"],
-    "next_steps": ["Estimar story points", "Adicionar DARCI roles"],
-    "hints": []
+    "next_steps": ["Estimar story points", "Adicionar DARCI roles"]
   }
 }
 ```
@@ -329,7 +328,7 @@ Error responses also include enriched feedback (e.g., "Check credentials" for 40
 
 The Jira gateway includes a deterministic story point estimation formula that calculates complexity from observable issue data:
 
-```
+```text
 raw = (base(1) + subtask_w + attachment_w + comment_w + link_w + desc_w + label_bonus)
       × type_multiplier
 → Fibonacci snap {1, 2, 3, 5, 8, 13}
@@ -342,14 +341,14 @@ Call with `dry_run=True` (default) to preview, `dry_run=False` to apply.
 
 ### Architecture
 
-```
+```text
 gateways/                          ← Meta-tool gateway layer
 ├── discover/
 │   ├── gateway.py                 ← GATEWAY_INFO metadata
 │   └── actions.py                 ← Domain catalog builder
 ├── jira/
 │   ├── gateway.py
-│   └── actions.py                 ← 22 actions across 8 resources
+│   └── actions.py                 ← 22 actions across 10 resources
 ├── confluence/
 │   ├── gateway.py
 │   └── actions.py                 ← 12 actions across 4 resources
@@ -372,11 +371,12 @@ lib/gateway/                       ← Gateway framework (reusable)
 ```
 
 **Request flow (gateway path):**
-```
+
+```text
 AI Agent
     ↓ MCP tool call (e.g., atlassian_jira)
 hub.py
-    ↓ GatewayRequest.parse({resource, operation, params})
+    ↓ GatewayRequest(resource=resource, operation=operation, params=params)
 gateways/jira/actions.py
     ↓ MetaToolRouter.dispatch()
     ├── level 0-2: discovery response
@@ -390,7 +390,7 @@ gateways/jira/actions.py
 1. Create `gateways/<domain>/gateway.py` with `GATEWAY_INFO` dict.
 2. Create `gateways/<domain>/actions.py` with handler functions and a `build_router()` that returns a `MetaToolRouter`.
 3. Register in `gateways/discover/actions.py` `_DOMAIN_REGISTRY`.
-4. Register in `hub.py` gateway loader. The hub auto-discovers gateways at startup.
+4. Register the gateway in `hub.py` by adding it to the `_GATEWAY_MODULES` and `_GATEWAY_INFOS` dicts. Gateways are not auto-discovered; they require explicit registration.
 
 ---
 
