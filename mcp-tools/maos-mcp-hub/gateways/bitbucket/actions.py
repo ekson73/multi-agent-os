@@ -94,13 +94,34 @@ RESOURCE_MAP = {
 
 _GOVERNANCE = {
     "pull_request": {
-        "create": ["Jira key obrigatorio no titulo", "governance_level obrigatorio no body"],
+        "create": [
+            "Jira key obrigatorio no titulo",
+            "governance_level obrigatorio no body",
+            "Aguardar review de 3+ bots: CodeRabbit, Qodo, Copilot, RovoDev (1-3 min cada)",
+            "Verificar se Copilot SWE Agent pushiou autofix na branch (governance risk)",
+        ],
         "merge": [
             "Pipeline deve estar green",
             "Minimo 1 approver",
             "SECURITY_AUDIT obrigatorio se risk_score >= 3",
+            "Todos os PR review comments devem estar RESOLVED (aceitos, rejeitados com justificativa, ou deferred)",
+            "Bot scorecard preenchido como comentario no PR",
         ],
-        "approve": ["Approver nao pode ser o autor"],
+        "approve": [
+            "Approver nao pode ser o autor",
+            "Verificar que todos os findings aceitos foram implementados",
+            "Verificar que findings rejeitados tem justificativa documentada no PR",
+            "Se 2+ bots concordam num finding nao resolvido — NAO aprovar",
+        ],
+        "get_comments": [
+            "Ativar 7 mentes para analise: critica, tome, suspicious, curiosa, sistemica, resolutiva, retrospectiva",
+            "Consenso 2+ bots = quase certamente bug real — priorizar",
+            "CodeRabbit 'duplicates' sao reminders intencionais, nao novos findings",
+        ],
+        "get": [
+            "Verificar contagem de commits — se houver commit de bot (copilot-swe-agent) investigar diff",
+            "Comparar reviewers presentes vs bots esperados (CodeRabbit, Qodo, Copilot, RovoDev)",
+        ],
     },
     "branch": {
         "create": ["Branch naming regex: feature/|bugfix/|hotfix/|release/"],
@@ -112,8 +133,28 @@ _GOVERNANCE = {
 
 _NEXT_STEPS = {
     "pull_request": {
-        "create": ["Aguardar AI bot review", "Verificar pipeline status"],
-        "merge": ["Atualizar Jira ticket status", "Verificar deployment"],
+        "create": [
+            "Acionar bots: @coderabbitai review, /review, @copilot review",
+            "Verificar pipeline status",
+            "Ativar 7 mentes antes de analisar cada comment",
+        ],
+        "merge": [
+            "Atualizar Jira ticket status (transicao + comentario com evidencia)",
+            "Verificar deployment",
+            "Inventariar e atualizar documentacao relacionada",
+        ],
+        "get_comments": [
+            "Para cada comment: ACEITAR / REJEITAR / DEFER com justificativa",
+            "Se bot pushiou commit automatico — verificar diff antes de prosseguir",
+            "Atualizar bot scorecard (precisao por bot)",
+        ],
+        "approve": [
+            "Postar comentario de aprovacao com resumo dos findings",
+        ],
+        "get": [
+            "Se CI failing — diagnosticar antes de analisar reviews",
+            "Se CHANGES_REQUESTED — ler comments com 7 mentes ativadas",
+        ],
     },
     "branch": {
         "create": ["Criar pull request apos implementacao"],
