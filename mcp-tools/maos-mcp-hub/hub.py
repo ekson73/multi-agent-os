@@ -295,13 +295,103 @@ for server_name, server_data in discovered_servers.items():
 
 
 # ============================================================================
+# GATEWAY META-TOOL REGISTRATION (6 meta-tools, 96 actions)
+# ============================================================================
+
+sys.stderr.write("\n📋 Registering Atlassian gateways...\n\n")
+sys.stderr.flush()
+
+total_gateways_registered = 0
+total_gateway_actions = 0
+
+try:
+    from lib.gateway.types import GatewayRequest
+
+    _GATEWAY_MODULES = {
+        "discover": "gateways.discover.actions",
+        "jira": "gateways.jira.actions",
+        "confluence": "gateways.confluence.actions",
+        "bitbucket": "gateways.bitbucket.actions",
+        "compass": "gateways.compass.actions",
+        "common": "gateways.common.actions",
+    }
+
+    _GATEWAY_INFOS = {
+        "discover": "gateways.discover.gateway",
+        "jira": "gateways.jira.gateway",
+        "confluence": "gateways.confluence.gateway",
+        "bitbucket": "gateways.bitbucket.gateway",
+        "compass": "gateways.compass.gateway",
+        "common": "gateways.common.gateway",
+    }
+
+    for gw_name, actions_module_path in _GATEWAY_MODULES.items():
+        try:
+            gw_info_mod = importlib.import_module(_GATEWAY_INFOS[gw_name])
+            gw_info = getattr(gw_info_mod, "GATEWAY_INFO", {})
+            tool_name = gw_info.get("tool_name", f"atlassian_{gw_name}")
+            description = gw_info.get("description", f"Atlassian {gw_name} gateway")
+
+            if gw_name == "discover":
+                # Discover is a special case — single function, not a router
+                actions_mod = importlib.import_module(actions_module_path)
+                discover_fn = getattr(actions_mod, "discover")
+
+                @mcp.tool(name=tool_name, description=description)
+                async def atlassian_discover_tool() -> dict:
+                    """Discover all Atlassian domains and capabilities."""
+                    return await discover_fn()
+
+                total_gateways_registered += 1
+                sys.stderr.write(f"  🌐 {tool_name} (catalog)\n")
+            else:
+                # Standard gateway — build router and register dispatch handler
+                actions_mod = importlib.import_module(actions_module_path)
+                build_router_fn = getattr(actions_mod, "build_router")
+                router = build_router_fn()
+                action_count = router.action_count
+
+                def _register_gateway(r, tn, desc):
+                    @mcp.tool(name=tn, description=desc)
+                    async def gateway_handler(
+                        resource: str = "",
+                        operation: str = "",
+                        params: dict = None,
+                    ) -> dict:
+                        request = GatewayRequest(
+                            resource=resource or None,
+                            operation=operation or None,
+                            params=params,
+                        )
+                        return await r.dispatch(request)
+
+                _register_gateway(router, tool_name, description)
+                total_gateways_registered += 1
+                total_gateway_actions += action_count
+                sys.stderr.write(f"  🌐 {tool_name} ({action_count} actions)\n")
+
+        except Exception as e:
+            sys.stderr.write(f"  ❌ Failed to load gateway '{gw_name}': {e}\n")
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+
+    sys.stderr.write(f"\n  ✅ {total_gateways_registered} gateways registered ({total_gateway_actions} actions)\n\n")
+    sys.stderr.flush()
+
+except Exception as e:
+    sys.stderr.write(f"\n⚠️  Gateway registration failed (flat tools still available): {e}\n\n")
+    sys.stderr.flush()
+
+
+# ============================================================================
 # HUB SUMMARY
 # ============================================================================
 
 sys.stderr.write("=" * 70 + "\n")
 sys.stderr.write(f"✅ MAOS MCP Hub Ready!\n")
-sys.stderr.write(f"   Servers: {len(discovered_servers)}\n")
-sys.stderr.write(f"   Tools: {total_tools_registered}\n")
+sys.stderr.write(f"   Flat servers: {len(discovered_servers)} ({total_tools_registered} tools)\n")
+sys.stderr.write(f"   Gateways: {total_gateways_registered} ({total_gateway_actions} actions)\n")
+sys.stderr.write(f"   Total MCP tools: {total_tools_registered + total_gateways_registered}\n")
 sys.stderr.write("=" * 70 + "\n\n")
 
 for server_name, server_data in discovered_servers.items():
