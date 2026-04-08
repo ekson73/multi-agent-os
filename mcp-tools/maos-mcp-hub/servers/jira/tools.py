@@ -387,6 +387,125 @@ async def delete_attachment(attachment_id: str) -> dict:
 
 
 # ============================================================================
+# AGILE TOOLS — Boards & Estimation (Story Points)
+# ============================================================================
+
+
+async def get_boards(project_key: str = "") -> dict:
+    """
+    List Scrum/Kanban boards, optionally filtered by project.
+
+    Use this to discover the board ID needed for set_estimation/get_estimation.
+
+    Args:
+        project_key: Project key to filter (e.g., "VKS"). Empty returns all boards.
+
+    Returns:
+        dict: List of boards with id, name, type.
+    """
+    client = get_client()
+
+    try:
+        boards = await client.get_boards(project_key)
+        return {
+            "project_filter": project_key or "(all)",
+            "count": len(boards),
+            "boards": [
+                {
+                    "id": b.get("id"),
+                    "name": b.get("name"),
+                    "type": b.get("type"),
+                }
+                for b in boards
+            ],
+        }
+
+    except ApiError as e:
+        return {"error": f"Jira Agile API error: {sanitize_exception(e)}", "hint": e.hint}
+    except Exception as e:
+        return {"error": f"Unexpected error: {_sanitize_error(e)}"}
+
+
+async def get_estimation(issue_key: str, board_id: int) -> dict:
+    """
+    Get story points estimation for an issue.
+
+    Args:
+        issue_key: Issue key (e.g., "VKS-1673")
+        board_id: Board ID (use get_boards to discover)
+
+    Returns:
+        dict: Current estimation value (story points).
+    """
+    validation = _validate_issue_key(issue_key)
+    if validation:
+        return validation
+
+    client = get_client()
+
+    try:
+        result = await client.get_estimation(issue_key, board_id)
+        return {
+            "issue_key": issue_key,
+            "board_id": board_id,
+            "story_points": result.get("value"),
+        }
+
+    except ApiError as e:
+        if e.status_code == 404:
+            return {"error": f"Issue {issue_key} or board {board_id} not found"}
+        return {"error": f"Jira Agile API error: {sanitize_exception(e)}", "hint": e.hint}
+    except Exception as e:
+        return {"error": f"Unexpected error: {_sanitize_error(e)}"}
+
+
+async def set_estimation(issue_key: str, board_id: int, value: float) -> dict:
+    """
+    Set story points estimation for an issue.
+
+    This uses the Jira Software Agile REST API which is the only way to set
+    the Story Points field (customfield managed by the board plugin).
+
+    Args:
+        issue_key: Issue key (e.g., "VKS-1673")
+        board_id: Board ID (use get_boards to discover)
+        value: Story points value (e.g., 1, 2, 3, 5, 8, 13)
+
+    Returns:
+        dict: Confirmation with set value.
+    """
+    validation = _validate_issue_key(issue_key)
+    if validation:
+        return validation
+
+    if value < 0:
+        return {"error": "Story points value must be non-negative"}
+
+    client = get_client()
+
+    try:
+        result = await client.set_estimation(issue_key, board_id, value)
+        return {
+            "issue_key": issue_key,
+            "board_id": board_id,
+            "story_points": result.get("value", value),
+            "message": f"Story points set to {value} for {issue_key}",
+        }
+
+    except ApiError as e:
+        if e.status_code == 404:
+            return {"error": f"Issue {issue_key} or board {board_id} not found"}
+        if e.status_code == 400:
+            return {
+                "error": f"Cannot set estimation: {sanitize_exception(e)}",
+                "hint": "Check if the board uses story points estimation and the issue is on the board.",
+            }
+        return {"error": f"Jira Agile API error: {sanitize_exception(e)}", "hint": e.hint}
+    except Exception as e:
+        return {"error": f"Unexpected error: {_sanitize_error(e)}"}
+
+
+# ============================================================================
 # TOOL REGISTRY
 # ============================================================================
 
@@ -396,4 +515,7 @@ TOOLS = {
     "download_attachment": download_attachment,
     "upload_attachment": upload_attachment,
     "delete_attachment": delete_attachment,
+    "get_boards": get_boards,
+    "get_estimation": get_estimation,
+    "set_estimation": set_estimation,
 }
