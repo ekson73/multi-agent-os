@@ -297,6 +297,25 @@
       }
     }
   },
+  "execution_policy": {
+    "_comment": "Maps human-readable autonomy profiles to existing Sentinel enforcement modes. No new system — aliases for enforcement_modes. See docs/research-caveman-response-compression.md §7.5 and §8.7.1 for design rationale.",
+    "profiles": {
+      "supervised": {
+        "sentinel_enforcement_mode": "strict",
+        "description": "Human in loop. Sentinel blocks HIGH violations. Default for interactive sessions."
+      },
+      "autonomous": {
+        "sentinel_enforcement_mode": "moderate",
+        "description": "Controlled action. Acknowledgment required for HIGH. For trusted internal ops."
+      },
+      "unattended": {
+        "sentinel_enforcement_mode": "moderate",
+        "requires": ["allowlist_defined", "budget_limit_set", "audit_enabled"],
+        "description": "Isolated execution. Full governance stack mandatory. For batch/scheduled agents. Uses moderate (not strict) because strict blocks HIGH violations waiting for human acknowledgment that cannot happen in unattended mode."
+      }
+    },
+    "default": "supervised"
+  },
   "session": {
     "_comment": "Session management configuration",
     "id_format": "uuid_v4",

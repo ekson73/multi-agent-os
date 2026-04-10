@@ -29,7 +29,11 @@ multi-agent-os/
 │   ├── session-start.sh
 │   ├── pre-delegate.sh
 │   ├── post-delegate.sh
-│   └── session-end.sh
+│   ├── session-end.sh
+│   └── governance/
+│       ├── worktree-gate.sh
+│       ├── auto-name-session.sh
+│       └── token-budget-gate.sh  # GaaS token bloat detection (RULE-009)
 ├── commands/                 # Slash commands (auto-discovered)
 │   ├── sync.md              # /sync - Framework sync
 │   ├── audit.md             # /audit - Session auditing
@@ -49,7 +53,8 @@ multi-agent-os/
 │   ├── worktree-policy/SKILL.md
 │   ├── anti-conflict/SKILL.md
 │   ├── status-map/SKILL.md
-│   └── ttl-policy/SKILL.md
+│   ├── ttl-policy/SKILL.md
+│   └── response-compression/SKILL.md  # Output verbosity control (caveman lineage)
 ├── protocols/                # Protocol documentation
 │   └── hierarchical-merge-protocol.md
 ├── sentinel/                 # Sentinel Protocol files
