@@ -17,6 +17,7 @@ This folder contains reusable skills for the Multi-Agent OS framework. Skills fo
 | `status-map` | `status-map/SKILL.md` | Generate ASCII status visualizations |
 | `ttl-policy` | `ttl-policy/SKILL.md` | Manage content freshness policies |
 | `find-docs` | `find-docs/SKILL.md` | Library documentation lookup via Context7 |
+| `response-compression` | `response-compression/SKILL.md` | Output verbosity control with role-based profiles (none/lite/full/ultra) |
 
 ## Skill Categories
 
@@ -35,6 +36,9 @@ This folder contains reusable skills for the Multi-Agent OS framework. Skills fo
 
 ### Governance Skills
 - `ttl-policy` — Content freshness and expiration
+
+### Token Optimization
+- `response-compression` — Output verbosity control with role-based compression profiles
 
 ### Developer Tools
 - `find-docs` — Up-to-date library documentation and code examples via Context7 CLI
@@ -60,8 +64,10 @@ skills/
 │   └── SKILL.md                 ← Status visualization skill
 ├── ttl-policy/
 │   └── SKILL.md                 ← TTL management skill
-└── find-docs/
-    └── SKILL.md                 ← Library docs lookup skill
+├── find-docs/
+│   └── SKILL.md                 ← Library docs lookup skill
+└── response-compression/
+    └── SKILL.md                 ← Output verbosity control skill
 ```
 
 ## SKILL.md Structure
