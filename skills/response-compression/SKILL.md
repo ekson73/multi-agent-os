@@ -40,7 +40,7 @@ AGENT ROLE           AUDIENCE     COMPRESSION  AUTONOMY     RATIONALE
 orchestrator         human        none         supervised   Nuance matters; human reads output
 documentation agent  external     none         supervised   External audience; clarity > efficiency
 consolidator         human        lite         supervised   Final synthesis; human-facing
-code reviewers       senior dev   full         supervised   Known context; senior audience
+code-reviewer        senior dev   full         supervised   Known context; senior audience
 sub-agents (tech)    orchestrator full         autonomous   Machine parses output
 log/error triage     pipeline     full         autonomous   Structured data; no prose needed
 CI/pipeline agents   machine      ultra        autonomous   No human reads; max compression
@@ -86,7 +86,7 @@ Resume compression after critical section ends.
 > DROP TABLE users;
 > ```
 >
-> Compression resumes. Verify backup exist first.
+> Compression resumes. Verify backup exists first.
 
 ## Activation
 

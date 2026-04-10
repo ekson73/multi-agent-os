@@ -5,10 +5,11 @@
 # Non-blocking (RULE-009 has auto_block: false) — suggests compression
 #
 # MEASUREMENT NOTE:
-#   wc -c measures characters, not tokens. Heuristic: ~4 chars/token for English.
-#   Threshold 4000c ~ ~1000 tokens. For mixed content (code + prose + unicode),
-#   variance is high. Acceptable as MVP advisory. Future evolution: use tiktoken
-#   or chars/4 as explicit estimate.
+#   Uses bash ${#var} to measure characters, not tokens. Heuristic: ~4 chars/token
+#   for English. Threshold 4000c ~ ~1000 tokens. For mixed content (code + prose +
+#   unicode), variance is high. Acceptable as MVP advisory. Future evolution: use
+#   tiktoken or chars/4 as explicit estimate. Threshold configurable via
+#   TOKEN_BUDGET_THRESHOLD env var.
 #
 # PROV: https://github.com/ekson73/multi-agent-os/blob/main/plugin-scripts/governance/token-budget-gate.sh
 # Version: 1.0.0 | Created: 2026-04-10
@@ -27,8 +28,13 @@ fi
 # Read input from stdin
 INPUT=$(cat)
 
-# Extract tool name
-TOOL=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+# Extract tool name (use json_get if available from lib, fallback to jq)
+if command -v jq &>/dev/null; then
+  TOOL=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+else
+  # Fallback: basic pattern match
+  TOOL=$(echo "$INPUT" | grep -o '"tool_name":"[^"]*"' | cut -d'"' -f4 || echo "")
+fi
 
 # Only applies to Task (delegation) tool calls
 if [[ "$TOOL" != "Task" ]]; then
@@ -37,13 +43,19 @@ if [[ "$TOOL" != "Task" ]]; then
 fi
 
 # Measure spawn prompt length (chars as heuristic for tokens)
-SPAWN_PROMPT=$(echo "$INPUT" | jq -r '.tool_input.prompt // ""' 2>/dev/null || echo "")
+if command -v jq &>/dev/null; then
+  SPAWN_PROMPT=$(echo "$INPUT" | jq -r '.tool_input.prompt // ""' 2>/dev/null || echo "")
+else
+  SPAWN_PROMPT=$(echo "$INPUT" | grep -o '"prompt":"[^"]*"' | cut -d'"' -f4 || echo "")
+fi
 SPAWN_PROMPT_LENGTH=${#SPAWN_PROMPT}
-THRESHOLD=4000
+
+# Configurable threshold (env override or default)
+THRESHOLD="${TOKEN_BUDGET_THRESHOLD:-4000}"
 
 if [[ "$SPAWN_PROMPT_LENGTH" -gt "$THRESHOLD" ]]; then
   # Advisory suggestion — non-blocking (aligned with RULE-009 auto_block: false)
-  echo "{\"decision\":\"allow\",\"reason\":\"token-budget-gate: spawn context ${SPAWN_PROMPT_LENGTH}c exceeds ${THRESHOLD}c threshold (~$((SPAWN_PROMPT_LENGTH / 4)) tokens est.). Consider response-compression:full for sub-agent.\",\"hookSpecificOutput\":{\"sentinel_rule\":\"RULE-009\",\"suggestion\":\"response-compression:full\",\"context_chars\":${SPAWN_PROMPT_LENGTH},\"estimated_tokens\":$((SPAWN_PROMPT_LENGTH / 4)),\"threshold_chars\":${THRESHOLD}}}"
+  echo "{\"status\":\"allow\",\"reason\":\"token-budget-gate: spawn context ${SPAWN_PROMPT_LENGTH}c exceeds ${THRESHOLD}c threshold (~$((SPAWN_PROMPT_LENGTH / 4)) tokens est.). Consider response-compression:full for sub-agent.\",\"hookSpecificOutput\":{\"sentinel_rule\":\"RULE-009\",\"suggestion\":\"response-compression:full\",\"context_chars\":${SPAWN_PROMPT_LENGTH},\"estimated_tokens\":$((SPAWN_PROMPT_LENGTH / 4)),\"threshold_chars\":${THRESHOLD}}}"
 else
   echo "{}"
 fi

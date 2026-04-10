@@ -57,10 +57,10 @@ A comprehensive Claude Code plugin for orchestrating AI agents in software devel
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add ekson73/eko-claude-plugins
+claude plugins marketplace add ekson73/eko-claude-plugins
 
 # Install the plugin
-claude plugin install multi-agent-os
+claude plugins install multi-agent-os
 ```
 
 ### From Source

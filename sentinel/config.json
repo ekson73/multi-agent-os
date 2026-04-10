@@ -302,7 +302,7 @@
     "profiles": {
       "supervised": {
         "sentinel_enforcement_mode": "strict",
-        "description": "Human in loop. Sentinel blocks HIGH violations. Default for interactive sessions."
+        "description": "Human in loop. Sentinel blocks all violations and requires explicit approval. Default for interactive sessions."
       },
       "autonomous": {
         "sentinel_enforcement_mode": "moderate",
