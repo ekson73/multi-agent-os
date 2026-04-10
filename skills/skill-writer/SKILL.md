@@ -1,11 +1,11 @@
 ---
 name: skill-writer
-description: Guide users through creating Agent Skills for Claude Code. Use when the user wants to create, write, author, or design a new Skill, or needs help with SKILL.md files, frontmatter, or skill structure.
+description: Guide users through creating Agent Skills following the open standard (compatible with 30+ AI tools). Use when the user wants to create, write, author, or design a new Skill, or needs help with SKILL.md files, frontmatter, or skill structure.
 ---
 
 # Skill Writer
 
-This Skill helps you create well-structured Agent Skills for Claude Code that follow best practices and validation requirements.
+This Skill helps you create well-structured Agent Skills that follow the [Agent Skills open standard](https://agentskills.io) — compatible with Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and 25+ other AI tools.
 
 ## When to use this Skill
 
@@ -24,7 +24,7 @@ First, understand what the Skill should do:
 
 1. **Ask clarifying questions**:
    - What specific capability should this Skill provide?
-   - When should Claude use this Skill?
+   - When should the agent use this Skill?
    - What tools or resources does it need?
    - Is this for personal use or team sharing?
 
@@ -36,15 +36,17 @@ First, understand what the Skill should do:
 
 Determine where to create the Skill:
 
-**Personal Skills** (`~/.claude/skills/`):
+**Personal Skills** (user-scoped, not committed to git):
 - Individual workflows and preferences
 - Experimental Skills
 - Personal productivity tools
+- Claude Code: `~/.claude/skills/` | Other agents: check your agent's docs for user skill path
 
-**Project Skills** (`.claude/skills/`):
+**Project Skills** (committed to git, shared with team):
 - Team workflows and conventions
 - Project-specific expertise
-- Shared utilities (committed to git)
+- Shared utilities
+- Claude Code: `.claude/skills/` | Other agents: project root or `.agent/skills/`
 
 ### Step 3: Create Skill structure
 
@@ -109,7 +111,7 @@ description: Brief description of what this does and when to use it
 
 ### Step 5: Write effective descriptions
 
-The description is critical for Claude to discover your Skill.
+The description is critical for the agent to discover your Skill.
 
 **Formula**: `[What it does] + [When to use it] + [Key triggers]`
 
@@ -152,7 +154,7 @@ Provide a simple example to get started immediately.
 
 ## Instructions
 
-Step-by-step guidance for Claude:
+Step-by-step guidance for the agent:
 1. First step with clear action
 2. Second step with expected outcome
 3. Handle edge cases
@@ -214,7 +216,7 @@ Check these requirements:
 - [ ] `description` is specific and < 1024 chars
 
 ✅ **Content quality**:
-- [ ] Clear instructions for Claude
+- [ ] Clear instructions for the agent
 - [ ] Concrete examples provided
 - [ ] Edge cases handled
 - [ ] Dependencies listed (if any)
@@ -226,20 +228,20 @@ Check these requirements:
 
 ### Step 9: Test the Skill
 
-1. **Restart Claude Code** (if running) to load the Skill
+1. **Restart your agent** (if running) to load the Skill
 
 2. **Ask relevant questions** that match the description:
    ```
    Can you help me extract text from this PDF?
    ```
 
-3. **Verify activation**: Claude should use the Skill automatically
+3. **Verify activation**: the agent should use the Skill automatically
 
-4. **Check behavior**: Confirm Claude follows the instructions correctly
+4. **Check behavior**: confirm the agent follows the instructions correctly
 
 ### Step 10: Debug if needed
 
-If Claude doesn't use the Skill:
+If the agent doesn't use the Skill:
 
 1. **Make description more specific**:
    - Add trigger words
@@ -248,8 +250,11 @@ If Claude doesn't use the Skill:
 
 2. **Check file location**:
    ```bash
+   # Claude Code
    ls ~/.claude/skills/skill-name/SKILL.md
    ls .claude/skills/skill-name/SKILL.md
+
+   # Other agents: check your agent's skill directory
    ```
 
 3. **Validate YAML**:
@@ -257,9 +262,12 @@ If Claude doesn't use the Skill:
    cat SKILL.md | head -n 10
    ```
 
-4. **Run debug mode**:
+4. **Run debug mode** (agent-specific):
    ```bash
+   # Claude Code
    claude --debug
+
+   # Other agents: check your agent's debug/verbose flag
    ```
 
 ## Common patterns
@@ -323,7 +331,7 @@ Detailed reference: See [reference.md](reference.md)
 
 1. **One Skill, one purpose**: Don't create mega-Skills
 2. **Specific descriptions**: Include trigger words users will say
-3. **Clear instructions**: Write for Claude, not humans
+3. **Clear instructions**: Write for the agent, not humans
 4. **Concrete examples**: Show real code, not pseudocode
 5. **List dependencies**: Mention required packages in description
 6. **Test with teammates**: Verify activation and clarity
@@ -343,7 +351,7 @@ Before finalizing a Skill, verify:
 - [ ] Dependencies are documented
 - [ ] File paths use forward slashes
 - [ ] Skill activates on relevant queries
-- [ ] Claude follows instructions correctly
+- [ ] Agent follows instructions correctly
 
 ## Troubleshooting
 

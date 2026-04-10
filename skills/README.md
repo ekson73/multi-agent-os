@@ -1,8 +1,8 @@
-# Claude Code Skills
+# Agent Skills
 
 ## Overview
 
-This folder contains reusable skills for the Multi-Agent OS framework. Skills follow the Claude Code plugin format with subdirectory structure.
+This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
 ## Available Skills
 
@@ -72,7 +72,7 @@ skills/
 
 ## SKILL.md Structure
 
-Each skill follows the Claude Code plugin format:
+Each skill follows the Agent Skills open standard (SKILL.md with YAML frontmatter):
 
 ```markdown
 ---
@@ -104,7 +104,7 @@ Usage examples
 
 ## Skill Invocation
 
-Skills are automatically invoked by Claude Code when:
+Skills are automatically invoked by compatible agents when:
 - Trigger phrases are detected in conversation
 - Related tools are used (e.g., Task tool triggers delegation skills)
 - Session lifecycle events occur
