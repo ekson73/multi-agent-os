@@ -8,7 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-04-10
+
 ### Added
+
+#### Skills (skills/)
+- `response-compression/SKILL.md` — Output verbosity control (60-85% token reduction); profiles: none/lite/full/ultra; auto-mapped to agent role; derived from JuliusBrussee/caveman (MIT)
+
+#### Governance (plugin-scripts/governance/)
+- `token-budget-gate.sh` — PreToolUse[Bash] hook implementing RULE-009 (Token Bloat detection); blocks excessively verbose Task delegations; GaaS enforcement point
+
+#### Documentation (docs/)
+- `research-caveman-response-compression.md` — Research notes on response compression lineage and caveman protocol origins
+
+#### Standards
+- `AGENTS.md` — Agent coding standard following AAIF/Linux Foundation open standard (60k+ projects); covers build commands, code conventions, testing, commit guidelines, architecture decisions
 
 #### maos-mcp-hub — Branch Management Tools (Sprint 8 — VKS-1647)
 - `bitbucket_create_branch` — Create branch from commit hash (POST /refs/branches)
@@ -18,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `bitbucket_set_branch_restriction` — Create branch protection rule (POST /branch-restrictions)
 - `bitbucket_delete_branch_restriction` — Remove branch protection rule by ID (DELETE /branch-restrictions/{id})
 - 19 unit tests covering all new tools (success, error, edge cases)
+
+### Changed
+- `hooks/hooks.json` — Added `PreToolUse[Bash]` hook for `token-budget-gate.sh` (RULE-009)
+- `sentinel/config.json` — Updated detection thresholds and rule weights
+- `skills/context-prep/SKILL.md` — Refined trigger conditions and protocol rules
+- `skills/skill-writer/SKILL.md` — Improved authoring guidelines and frontmatter spec
+- `skills/README.md` — Updated skill catalog with response-compression entry
+- `CLAUDE.md` — Updated plugin structure diagram; added token-budget-gate and response-compression references
+- `README.md` — Updated component counts (Skills 15+, Agents 18+, Hooks 5); updated feature descriptions
 
 ## [1.4.0] - 2026-03-08
 

@@ -53,7 +53,17 @@ A comprehensive Claude Code plugin for orchestrating AI agents in software devel
 
 ## Installation
 
-### As Claude Code Plugin
+### From Marketplace (Recommended)
+
+```bash
+# Add the marketplace
+claude plugin marketplace add ekson73/eko-claude-plugins
+
+# Install the plugin
+claude plugin install multi-agent-os
+```
+
+### From Source
 
 ```bash
 # Clone the plugin
@@ -90,7 +100,11 @@ multi-agent-os/
 │   ├── session-start.sh
 │   ├── pre-delegate.sh
 │   ├── post-delegate.sh
-│   └── session-end.sh
+│   ├── session-end.sh
+│   └── governance/
+│       ├── worktree-gate.sh
+│       ├── auto-name-session.sh
+│       └── token-budget-gate.sh  ← GaaS token bloat detection
 ├── commands/                 ← Slash commands
 │   ├── sync.md
 │   ├── audit.md
@@ -116,8 +130,9 @@ multi-agent-os/
 │   ├── anti-conflict/SKILL.md
 │   ├── status-map/SKILL.md
 │   ├── ttl-policy/SKILL.md
-│   ├── ontological-analysis/SKILL.md  ← NEW: 8-dimension analysis
-│   └── mvv-synthesis/SKILL.md         ← NEW: MVV generation
+│   ├── ontological-analysis/SKILL.md  ← 8-dimension analysis
+│   ├── mvv-synthesis/SKILL.md         ← MVV generation
+│   └── response-compression/SKILL.md  ← Output verbosity control
 ├── protocols/                ← Governance protocols
 │   ├── exit-hygiene.md       ← Session exit hygiene (zero loose ends)
 │   ├── agent-delegation.md   ← Delegation chain & Forge bootstrap
@@ -153,6 +168,7 @@ multi-agent-os/
 | `ttl-policy` | Content freshness |
 | `ontological-analysis` | 8-dimension philosophical analysis |
 | `mvv-synthesis` | Mission/Vision/Values synthesis |
+| `response-compression` | Output verbosity control (none/lite/full/ultra) with role-based profiles |
 
 ## Available Agents
 
@@ -172,12 +188,13 @@ multi-agent-os/
 
 The plugin automatically hooks into Claude Code lifecycle:
 
-| Hook | Trigger |
-|------|---------|
-| `SessionStart` | Session initialization |
-| `PreToolUse[Task]` | Before delegation |
-| `PostToolUse[Task]` | After delegation |
-| `Stop` | Session end |
+| Hook | Trigger | Scripts |
+|------|---------|---------|
+| `SessionStart` | Session initialization | session-start.sh, auto-name-session.sh |
+| `PreToolUse[Task]` | Before delegation | pre-delegate.sh, token-budget-gate.sh |
+| `PreToolUse[Bash]` | Before shell commands | worktree-gate.sh |
+| `PostToolUse[Task]` | After delegation | post-delegate.sh |
+| `Stop` | Session end | session-end.sh |
 
 ## Documentation
 
@@ -200,6 +217,12 @@ This plugin can use itself during development:
 # In multi-agent-os directory
 claude --plugin-dir .
 ```
+
+## Interoperability
+
+Skills in this plugin follow the [Agent Skills open standard](https://agentskills.io) and are compatible with 30+ AI coding tools including Claude Code, Cursor, OpenAI Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, Windsurf, and others. Install with `npx skills add` or native plugin mechanisms.
+
+This repository includes an [AGENTS.md](AGENTS.md) file following the [AAIF standard](https://agents.md) (60k+ projects) to guide any AI coding agent working on this codebase.
 
 ## License
 

@@ -67,6 +67,10 @@ MINIMIZATION RULES
 3. Summarize history instead of full transcripts
 4. Use references ("see CLAUDE.md section X") for stable docs
 5. Remove internal notes not relevant to sub-agent's task
+6. Apply response verbosity by audience:
+   - Output goes to human      → lite compression (articles kept, no fragments)
+   - Output goes to agent/pipe → full compression (fragments OK, no filler)
+   - Output goes to CI/machine → ultra compression (abbreviate, arrows for causality)
 ```
 
 ### Step 4: Generate Context Package
