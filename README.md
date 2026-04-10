@@ -218,6 +218,12 @@ This plugin can use itself during development:
 claude --plugin-dir .
 ```
 
+## Interoperability
+
+Skills in this plugin follow the [Agent Skills open standard](https://agentskills.io) and are compatible with 30+ AI coding tools including Claude Code, Cursor, OpenAI Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, Windsurf, and others. Install with `npx skills add` or native plugin mechanisms.
+
+This repository includes an [AGENTS.md](AGENTS.md) file following the [AAIF standard](https://agents.md) (60k+ projects) to guide any AI coding agent working on this codebase.
+
 ## License
 
 MIT License - See LICENSE file for details.
