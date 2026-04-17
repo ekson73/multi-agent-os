@@ -9,7 +9,7 @@ agnostic: [os, project]
 
 ## Purpose
 
-Route NotebookLM tasks to the correct interface (`@notebooklm-mcp`, `nlm` CLI, or `notebooklm` py CLI) with explicit profile safety (`personal`/`work`) and predictable operational flow. Two clients are installed, exposing three interfaces: the `notebooklm-mcp-cli` package provides both the `nlm` CLI and the `@notebooklm-mcp` MCP server; the `notebooklm-py` package provides the `notebooklm` CLI for pure-Python automation.
+Route NotebookLM tasks to the correct interface (`@notebooklm-mcp`, `nlm` CLI, or `notebooklm` CLI) with explicit profile safety (`personal`/`work`) and predictable operational flow. Two clients are installed, exposing three interfaces: the `notebooklm-mcp-cli` package provides both the `nlm` CLI and the `@notebooklm-mcp` MCP server; the `notebooklm-py` package provides the `notebooklm` CLI for pure-Python automation.
 
 Do **not** enable `@notebooklm-mcp` unless this skill has been invoked first and the decision guide below points to it.
 
@@ -150,12 +150,12 @@ Run `nlm doctor --verbose` first. It checks installation, auth cookies, CSRF tok
 | Upload failed | `-32034` | Check file size (< 200 MB) and retry |
 | API error | `-32035` | Check `nlm doctor --verbose`; retry after 60 s |
 
-Error codes `-32030`–`-32039` are reserved for `sync-to-notebooklm`. Full registry: `docs/error-codes-registry.md`.
+Error codes `-32030`–`-32039` are reserved for `sync-to-notebooklm`. Full registry: [`../../docs/error-codes-registry.md`](../../docs/error-codes-registry.md).
 
 ## Related Specs
 
-- `docs/specs/sync-skill-interface.md` — standard interface all `sync-to-*` skills must implement
-- `docs/error-codes-registry.md` — MCP-JSON-RPC error code registry; `-32030`–`-32039` reserved for NotebookLM
+- [`../../docs/specs/sync-skill-interface.md`](../../docs/specs/sync-skill-interface.md) — standard interface all `sync-to-*` skills must implement
+- [`../../docs/error-codes-registry.md`](../../docs/error-codes-registry.md) — MCP-JSON-RPC error code registry; `-32030`–`-32039` reserved for NotebookLM
 - **Phase 3 (deferred):** `sync-to-notebooklm` skill — automated doc sync using the reserved error range; tracked as Linear VKO-89 / VKO-90 (labels: `research`, `automation`)
 
 ---
