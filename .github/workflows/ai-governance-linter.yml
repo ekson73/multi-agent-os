@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checar Padrão de Nomenclatura do PR (C07)
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -42,7 +42,7 @@ jobs:
           fi
 
       - name: Acionar Linter de Segurança (PII) Local
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - run: |
           echo "Executando Linter SRE Local..."
           # Aqui poderíamos acoplar o script linter_pii.py que está no repo
