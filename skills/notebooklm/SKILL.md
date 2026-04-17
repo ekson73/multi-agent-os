@@ -43,7 +43,7 @@ Two accounts are configured. Always pass `--profile` explicitly; never mix sourc
 | Profile | Account | Use for |
 |---------|---------|---------|
 | `personal` | `<personal-email>` | Personal research, open-source work |
-| `work` | `<work-email>` | Vek/client projects, internal docs |
+| `work` | `<work-email>` | Work/client projects, internal docs |
 
 ```bash
 # List notebooks per profile
