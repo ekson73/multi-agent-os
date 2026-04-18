@@ -29,6 +29,10 @@ source "${LIB_DIR}/common.sh"
 source "${LIB_DIR}/json-rpc.sh"
 source "${LIB_DIR}/worktree-utils.sh"
 
+# Enforce jq as hard requirement — worktree-gate uses json_get with nested
+# paths (.tool_input.command) that the fallback cannot parse reliably.
+require_jq
+
 # =============================================================================
 # MAIN GATE LOGIC
 # =============================================================================
