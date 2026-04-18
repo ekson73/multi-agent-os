@@ -17,7 +17,9 @@ Track agent tasks to prevent conflicts.
 | Claude-QA-eed7-pre | Pre-task validation | COMPLETED | - | 2026-01-08 |
 | Claude-QA-eed7-post | Post-task validation | COMPLETED | - | 2026-01-08 |
 | Claude-Orch-Prime-eed7 | MVV Generator Implementation | COMPLETED | feat/mvv-generator-eed7 | 2026-01-08 |
+| Claude-Orch-Prime-20260417-88a9 | VKS-1694 Phase 1 — MAOS_EXPOSE_FLAT_TOOLS feature flag (v1.6) (PR #34 merged) | COMPLETED | feature/VKS-1694-cleanup-flat-tools-88a9 | 2026-04-17 |
+| Claude-Orch-Prime-20260417-88a9 | VKS-1694 Phase 2 — hard delete flat-tool registration (v1.7) (PR #36 merged) | COMPLETED | feature/VKS-1694-hard-delete-c38e | 2026-04-18 |
 
 ---
 
-*Last updated: 2026-01-08T16:30:00-03:00*
+*Last updated: 2026-04-18T12:10:00-03:00*
