@@ -175,8 +175,9 @@ def discover_mcp_servers() -> Dict[str, Dict[str, Any]]:
         tools_file = server_dir / "tools.py"
 
         if not server_file.exists() or not tools_file.exists():
-            sys.stderr.write(f"⚠️  Warning: Skipping '{server_name}' (missing server.py or tools.py)\n")
-            sys.stderr.flush()
+            # Silently skip: since VKS-1694/v1.7, Atlassian dirs are gateway-only
+            # handler modules (no standalone server.py). Any non-Atlassian dir
+            # intended as a flat server must provide both files explicitly.
             continue
 
         try:
@@ -254,64 +255,23 @@ sys.stderr.flush()
 discovered_servers = discover_mcp_servers()
 
 if not discovered_servers:
-    sys.stderr.write("\n⚠️  No MCP servers found in servers/\n")
-    sys.stderr.write("Expected structure:\n")
-    sys.stderr.write("  servers/\n")
-    sys.stderr.write("  └── {server-name}/\n")
-    sys.stderr.write("      ├── server.py   (SERVER_INFO)\n")
-    sys.stderr.write("      └── tools.py    (TOOLS)\n\n")
-    sys.stderr.flush()
-
-
-# ============================================================================
-# DYNAMIC TOOL REGISTRATION
-# ============================================================================
-
-total_tools_registered = 0
-
-# Legacy flat-tool registration (deprecated — VKS-1694 Meta-Tools Gateway supersedes).
-# Controlled by MAOS_EXPOSE_FLAT_TOOLS env var (default: "false").
-# Set to "true" only for backwards-compat rollback; prefer atlassian_* gateways.
-# See README.md "Migration: Flat → Gateway" section.
-_expose_flat = os.getenv("MAOS_EXPOSE_FLAT_TOOLS", "false").strip().lower() == "true"
-
-if _expose_flat:
-    sys.stderr.write("\n⚠️  MAOS_EXPOSE_FLAT_TOOLS=true — registering deprecated flat tools\n")
-    sys.stderr.write("    (Prefer atlassian_* meta-tool gateways. See README 'Migration' section.)\n\n")
-    sys.stderr.flush()
-
-    for server_name, server_data in discovered_servers.items():
-        server_info = server_data['info']
-        tools = server_data['tools']
-
-        sys.stderr.write(f"  📦 {server_name} ({server_info.get('display_name', server_name)})\n")
-        sys.stderr.flush()
-
-        for tool_name, tool_func in tools.items():
-            # Create namespaced tool name
-            namespaced_name = f"{server_name}_{tool_name}"
-
-            # Register tool with FastMCP
-            # We use the original function and let FastMCP decorator handle it
-            mcp.tool(name=namespaced_name)(tool_func)
-
-            total_tools_registered += 1
-            sys.stderr.write(f"     ✅ {namespaced_name}\n")
-            sys.stderr.flush()
-
-        sys.stderr.write("\n")
-        sys.stderr.flush()
-else:
-    flat_count = sum(len(s['tools']) for s in discovered_servers.values())
     sys.stderr.write(
-        f"\n✅ Flat tools hidden ({flat_count} tools). "
-        f"Use atlassian_* gateways (set MAOS_EXPOSE_FLAT_TOOLS=true to restore).\n\n"
+        "ℹ️  No auto-discovered flat servers in servers/ "
+        "(gateway-only mode — expected since VKS-1694 / v1.7).\n\n"
     )
     sys.stderr.flush()
 
 
 # ============================================================================
 # GATEWAY META-TOOL REGISTRATION (6 meta-tools, 96 actions)
+# ============================================================================
+#
+# Note (VKS-1694, v1.7):
+# Legacy flat-tool namespace (bitbucket_*, jira_*) was removed in this release.
+# The Atlassian handlers in servers/{bitbucket,jira}/tools.py still exist and
+# are imported directly by the gateways (e.g. `from servers.bitbucket.tools
+# import TOOLS as BB_TOOLS`), but they are no longer exposed as individual MCP
+# tools. Consumers must use the `atlassian_*` meta-tools below.
 # ============================================================================
 
 sys.stderr.write("\n📋 Registering Atlassian gateways...\n\n")
@@ -405,9 +365,8 @@ except Exception as e:
 
 sys.stderr.write("=" * 70 + "\n")
 sys.stderr.write(f"✅ MAOS MCP Hub Ready!\n")
-sys.stderr.write(f"   Flat servers: {len(discovered_servers)} ({total_tools_registered} tools)\n")
 sys.stderr.write(f"   Gateways: {total_gateways_registered} ({total_gateway_actions} actions)\n")
-sys.stderr.write(f"   Total MCP tools: {total_tools_registered + total_gateways_registered}\n")
+sys.stderr.write(f"   Total MCP tools: {total_gateways_registered}\n")
 sys.stderr.write("=" * 70 + "\n\n")
 
 for server_name, server_data in discovered_servers.items():

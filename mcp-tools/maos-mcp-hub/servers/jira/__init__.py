@@ -1,10 +1,11 @@
 """
-Jira Cloud MCP Server
-Provides tools for managing Jira issues and attachments
+Jira — Gateway-only handler module (VKS-1694 / v1.7).
+
+Not exposed as a standalone flat-namespace MCP server since v1.7. The
+TOOLS dict is imported directly by gateways/jira/actions.py.
 """
 
-__version__ = "1.0.0"
-__all__ = ['TOOLS', 'SERVER_INFO']
+__version__ = "2.0.0"
+__all__ = ['TOOLS']
 
-from .server import SERVER_INFO
 from .tools import TOOLS
