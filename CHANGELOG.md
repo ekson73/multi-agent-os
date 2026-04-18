@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+#### maos-mcp-hub — VKO-88: Jira search endpoint migration (CHANGE-2046)
+- `lib/jira/client.py:search_jql` — Migrated from deprecated `/rest/api/3/search` (HTTP 410) to new `/rest/api/3/search/jql`. Replaced `startAt` integer pagination with `nextPageToken` opaque string. Added optional `fields` and `expand` params for payload control.
+- `gateways/jira/actions.py:search_jql` — Updated signature to match: `next_page_token: str = ""`, `fields: list[str] | None = None`, `expand: str | None = None`. Schema auto-regenerated via `SchemaRegistry` from the new signature.
+- `tests/test_gateway_jira.py` — Updated existing mock to `/search/jql` + `nextPageToken`. Added 2 regression tests: `test_execution_search_jql_with_pagination_and_fields` (token + fields + expand) and `test_execution_search_jql_no_deprecated_startat_sent` (guard against re-introducing `startAt`).
+
+#### Validated
+- pytest tests/ → 153/153 passing (151 + 2 new)
+- Real Jira API smoke test: page 1 returned 3 VKS issues + valid `nextPageToken`, page 2 paginated successfully.
+
 ### Removed
 
 #### maos-mcp-hub — VKS-1694 Flat-Tools Residue Cleanup (Phase 2 / v1.7)

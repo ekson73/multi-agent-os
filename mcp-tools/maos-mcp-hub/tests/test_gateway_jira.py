@@ -141,21 +141,88 @@ def test_execution_issue_create(monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_execution_search_jql(monkeypatch):
+    """Uses new /search/jql endpoint (VKO-88 migration — CHANGE-2046)."""
     _setup_env(monkeypatch)
     router = build_router()
 
     async def run():
         with respx.mock(assert_all_called=True) as mock:
-            mock.get(f"{BASE}/search").mock(return_value=httpx.Response(200, json={
-                "issues": [{"key": "VKS-1"}], "total": 1, "startAt": 0, "maxResults": 50,
+            mock.get(f"{BASE}/search/jql").mock(return_value=httpx.Response(200, json={
+                "issues": [{"key": "VKS-1"}],
+                "nextPageToken": "abc123",
+                "isLast": False,
             }))
 
             result = await router.dispatch(GatewayRequest(
                 resource="search", operation="jql",
-                params={"jql": "project = VKS", "max_results": 50, "start_at": 0}
+                params={"jql": "project = VKS", "max_results": 50}
             ))
             assert "issues" in result
+            assert result.get("nextPageToken") == "abc123"
             assert "_agent_feedback" in result
+
+    asyncio.run(run())
+
+
+def test_execution_search_jql_with_pagination_and_fields(monkeypatch):
+    """New endpoint honors next_page_token + fields + expand params."""
+    _setup_env(monkeypatch)
+    router = build_router()
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            route = mock.get(f"{BASE}/search/jql").mock(
+                return_value=httpx.Response(200, json={
+                    "issues": [], "isLast": True,
+                }),
+            )
+
+            await router.dispatch(GatewayRequest(
+                resource="search", operation="jql",
+                params={
+                    "jql": "project = VKS",
+                    "max_results": 25,
+                    "next_page_token": "xyz789",
+                    "fields": ["summary", "status"],
+                    "expand": "changelog",
+                },
+            ))
+
+            # Verify query params sent to Jira
+            assert route.called
+            request = route.calls.last.request
+            assert request.url.params["jql"] == "project = VKS"
+            assert request.url.params["maxResults"] == "25"
+            assert request.url.params["nextPageToken"] == "xyz789"
+            assert request.url.params["fields"] == "summary,status"
+            assert request.url.params["expand"] == "changelog"
+
+    asyncio.run(run())
+
+
+def test_execution_search_jql_no_deprecated_startat_sent(monkeypatch):
+    """Regression guard: ensure `startAt` is never sent to /search/jql (deprecated)."""
+    _setup_env(monkeypatch)
+    router = build_router()
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            route = mock.get(f"{BASE}/search/jql").mock(
+                return_value=httpx.Response(200, json={"issues": [], "isLast": True}),
+            )
+
+            await router.dispatch(GatewayRequest(
+                resource="search", operation="jql",
+                params={"jql": "project = VKS"},
+            ))
+
+            request = route.calls.last.request
+            assert "startAt" not in request.url.params, (
+                "startAt must NOT be sent to /search/jql (removed in CHANGE-2046)"
+            )
+            assert "nextPageToken" not in request.url.params, (
+                "nextPageToken should be omitted when empty (first page)"
+            )
 
     asyncio.run(run())
 
