@@ -261,6 +261,17 @@ Key framework components in `lib/gateway/`:
 
 See `mcp-tools/maos-mcp-hub/README.md` for full documentation.
 
+## Delegation Protocol
+
+Sub-agent spawning (Task tool, `/delegate`, `/parallel`) is governed by the GaaS/GaaC framework under `protocols/delegation/`:
+
+- `delegation-init-prompt.md` — emit before spawning (provider detection, Phase-1 Anti-Conflict, output contract)
+- `delegation-dna-prompt.md` — emit mid-flight (token watchdog, TTL check, escalation rule)
+- `delegation-finalize-prompt.md` — emit at close (cleanup, ticket/PR closure, learning codification)
+- `provider-matrix.md` — lookup table (Ticket × VCS × Secrets × Observability × operation)
+
+Entry points: skill `delegate-governance` (discoverable) + CLI `plugin-scripts/gaac/delegate.sh <init|dna|finalize>`. See `skills/delegate-governance/SKILL.md`.
+
 ## Known Issues & TODOs
 
 ### Critical Issues (P0)
