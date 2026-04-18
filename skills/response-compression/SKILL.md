@@ -86,7 +86,7 @@ Resume compression after critical section ends.
 > DROP TABLE users;
 > ```
 >
-> Compression resumes. Verify backup exist first.
+> Compression resumes. Verify backup exists first.
 
 ## Activation
 
