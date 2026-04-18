@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### maos-mcp-hub — VKS-1694 Flat-Tools Residue Cleanup (Phase 1)
+- `hub.py` — Flat-tool registration loop (60 `bitbucket_*` + `jira_*` tools) now gated behind `MAOS_EXPOSE_FLAT_TOOLS` env var (default: `false`)
+- `.env.example` — Documented `MAOS_EXPOSE_FLAT_TOOLS` rollback flag
+- `README.md` — Added "Migration: Flat → Gateway" section with full mapping table (60 tools → 6 `atlassian_*` gateways); marked flat namespace as deprecated
+- `CLAUDE.md` (root) — Updated "MCP Tools" section to reflect deprecated flat namespace
+- `plugin-scripts/governance/lib/json-rpc.sh` — Updated PR workflow descriptive strings to reference `atlassian_bitbucket` meta-tool
+
+#### Impact
+- **Tool count**: 66 → 6 (-91%) with `MAOS_EXPOSE_FLAT_TOOLS=false` (default)
+- **Capability preserved**: 6 `atlassian_*` gateways expose 96 operations (vs. 60 via flat)
+- **Rollback**: single env-var flip (`MAOS_EXPOSE_FLAT_TOOLS=true`)
+- **Handlers preserved**: `servers/{bitbucket,jira}/tools.py` unchanged — gateways import them directly
+
+#### Phase 2 (planned — v1.7)
+- Remove flat-tool registration loop from `hub.py` entirely
+- Remove `servers/{bitbucket,jira}/server.py` (auto-discovery entry points)
+- Keep `servers/{bitbucket,jira}/tools.py` (gateway dependency)
+
 ## [1.5.0] - 2026-04-10
 
 ### Added

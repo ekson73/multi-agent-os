@@ -167,6 +167,23 @@ pytest -q tests/test_bitbucket_client.py tests/test_jira_client.py
 
 ## Available Tools (Bitbucket Server)
 
+> ⚠️ **DEPRECATED — Flat namespace** (VKS-1694 cleanup in progress)
+>
+> The `bitbucket_*` and `jira_*` flat tools below are **hidden by default**
+> since v1.6 via the `MAOS_EXPOSE_FLAT_TOOLS=false` environment variable.
+> Prefer the [Meta-Tools Gateway](#meta-tools-gateway-atlassian) pattern:
+>
+> ```text
+> bitbucket_get_recent_builds          → atlassian_bitbucket({resource:"pipeline", operation:"list"})
+> bitbucket_get_pull_requests          → atlassian_bitbucket({resource:"pull_request", operation:"list"})
+> bitbucket_create_pull_request        → atlassian_bitbucket({resource:"pull_request", operation:"create"})
+> jira_get_issue                       → atlassian_jira({resource:"issue", operation:"get"})
+> jira_list_attachments                → atlassian_jira({resource:"attachment", operation:"list"})
+> ```
+>
+> See section [Migration: Flat → Gateway](#migration-flat--gateway) for the
+> complete mapping and rollback instructions.
+
 ### Core Pipeline Tools
 | Tool | Description |
 |------|-------------|
@@ -391,6 +408,89 @@ gateways/jira/actions.py
 2. Create `gateways/<domain>/actions.py` with handler functions and a `build_router()` that returns a `MetaToolRouter`.
 3. Register in `gateways/discover/actions.py` `_DOMAIN_REGISTRY`.
 4. Register the gateway in `hub.py` by adding it to the `_GATEWAY_MODULES` and `_GATEWAY_INFOS` dicts. Gateways are not auto-discovered; they require explicit registration.
+
+---
+
+## Migration: Flat → Gateway
+
+**Context** (VKS-1694): The legacy flat namespace (`bitbucket_*` + `jira_*` =
+60 tools) was replaced by 6 typed meta-tool gateways. Flat tools are now
+**hidden by default** to keep the hub under the 100-tool provider limits
+(Gemini, Windsurf) and the ~30-tool ChatGPT threshold.
+
+### Default behavior (since v1.6)
+
+```bash
+# Default: flat tools hidden, only 6 atlassian_* gateways exposed
+python hub.py
+# → "✅ Flat tools hidden (60 tools). Use atlassian_* gateways."
+```
+
+### Temporary rollback (not recommended)
+
+```bash
+# Re-expose the 60 legacy flat tools (same behavior as pre-VKS-1694)
+MAOS_EXPOSE_FLAT_TOOLS=true python hub.py
+# → "⚠️  MAOS_EXPOSE_FLAT_TOOLS=true — registering deprecated flat tools"
+```
+
+Use only if an MCP client still hard-codes `bitbucket_*` / `jira_*` tool
+names. The rollback path is single env-var flip and zero code changes.
+
+### Mapping table
+
+| Old flat tool | New gateway call |
+|---|---|
+| `bitbucket_get_recent_builds` | `atlassian_bitbucket({resource:"pipeline", operation:"list"})` |
+| `bitbucket_get_build_details` | `atlassian_bitbucket({resource:"pipeline", operation:"get"})` |
+| `bitbucket_get_build_steps` | `atlassian_bitbucket({resource:"pipeline", operation:"get_steps"})` |
+| `bitbucket_get_step_logs` | `atlassian_bitbucket({resource:"pipeline", operation:"get_logs"})` |
+| `bitbucket_trigger_pipeline` | `atlassian_bitbucket({resource:"pipeline", operation:"trigger"})` |
+| `bitbucket_stop_pipeline` | `atlassian_bitbucket({resource:"pipeline", operation:"stop"})` |
+| `bitbucket_check_pipeline_health` | `atlassian_bitbucket({resource:"pipeline", operation:"get_health"})` |
+| `bitbucket_check_alerts` | `atlassian_bitbucket({resource:"pipeline", operation:"get_alerts"})` |
+| `bitbucket_auto_diagnose` | `atlassian_bitbucket({resource:"pipeline", operation:"auto_diagnose"})` |
+| `bitbucket_get_pull_requests` | `atlassian_bitbucket({resource:"pull_request", operation:"list"})` |
+| `bitbucket_get_pr_details` | `atlassian_bitbucket({resource:"pull_request", operation:"get"})` |
+| `bitbucket_create_pull_request` | `atlassian_bitbucket({resource:"pull_request", operation:"create"})` |
+| `bitbucket_merge_pull_request` | `atlassian_bitbucket({resource:"pull_request", operation:"merge"})` |
+| `bitbucket_approve_pull_request` | `atlassian_bitbucket({resource:"pull_request", operation:"approve"})` |
+| `bitbucket_list_branches` | `atlassian_bitbucket({resource:"branch", operation:"list"})` |
+| `bitbucket_create_branch` | `atlassian_bitbucket({resource:"branch", operation:"create"})` |
+| `bitbucket_delete_branch` | `atlassian_bitbucket({resource:"branch", operation:"delete"})` |
+| `bitbucket_set_default_branch` | `atlassian_bitbucket({resource:"branch", operation:"set_default"})` |
+| `bitbucket_get_recent_deployments` | `atlassian_bitbucket({resource:"deployment", operation:"list"})` |
+| `bitbucket_get_test_reports` | `atlassian_bitbucket({resource:"test", operation:"get_reports"})` |
+| `bitbucket_list_caches` | `atlassian_bitbucket({resource:"cache", operation:"list"})` |
+| `bitbucket_clear_cache` | `atlassian_bitbucket({resource:"cache", operation:"clear"})` |
+| `jira_get_issue` | `atlassian_jira({resource:"issue", operation:"get"})` |
+| `jira_list_attachments` | `atlassian_jira({resource:"attachment", operation:"list"})` |
+| `jira_upload_attachment` | `atlassian_jira({resource:"attachment", operation:"upload"})` |
+| `jira_download_attachment` | `atlassian_jira({resource:"attachment", operation:"download"})` |
+| `jira_delete_attachment` | `atlassian_jira({resource:"attachment", operation:"delete"})` |
+| `jira_get_boards` | `atlassian_jira({resource:"board", operation:"list"})` |
+| `jira_get_estimation` | `atlassian_jira({resource:"estimation", operation:"get"})` |
+| `jira_set_estimation` | `atlassian_jira({resource:"estimation", operation:"set"})` |
+
+(Full 60-tool mapping available via `atlassian_discover` — call with no params
+to list resources, or see `gateways/<domain>/actions.py:RESOURCE_MAP`.)
+
+### Why the change
+
+| Metric | Before | After (default) | Δ |
+|---|---:|---:|---:|
+| Tools registered by hub | 66 | 6 | **-91%** |
+| Schema token footprint | baseline | ~1/10 | **-90%** |
+| Functional capability | 60 operations | 96 operations (via 6 gateways) | **+60%** |
+
+Gateways **add** 36 new operations (Jira transition, search.jql, comments,
+worklogs, links, etc.) that were never exposed via flat tools.
+
+### Roadmap
+
+- ✅ v1.6 — feature flag `MAOS_EXPOSE_FLAT_TOOLS` (hide by default)
+- ⏳ v1.7 — **remove** flat-tool registration loop from `hub.py`
+  (handlers in `servers/{bitbucket,jira}/tools.py` remain — gateways depend on them)
 
 ---
 
