@@ -1,0 +1,81 @@
+# Qodo PR Agent — multi-agent-os (OSS, community-agnostic)
+#
+# Tracking system: Linear VKO (NOT Jira).
+# Purpose: prevent recurring false-positive "missing Jira key" findings on PRs
+# of this open-source repository.
+
+[config]
+# This is primarily a documentation + shell-scripts + markdown skills repo.
+# Keep markdown reviewable (Qodo skips .md by default).
+patch_extension_skip_types = []
+
+# Do NOT attempt to extract Jira keys from branch names.
+# Branch naming enforced by .githooks/pre-push; see regex in that file.
+# No ticket key expected.
+extract_issue_from_branch = false
+
+[pr_description]
+publish_labels = true
+add_original_user_description = true
+generate_ai_title = false
+use_bullet_points = true
+extra_instructions = """
+This is an open-source, community-agnostic repository.
+Do NOT require or expect Jira-style issue keys (ABC-123) in PR titles,
+descriptions, or branch names. Task tracking lives in Linear VKO,
+referenced optionally by VKO-NNN identifiers.
+Match the existing language of the touched file and the PR author's style.
+"""
+
+[pr_reviewer]
+inline_code_comments = true
+num_code_suggestions = 4
+extra_instructions = """
+You are reviewing an OPEN-SOURCE, community-agnostic plugin repository
+(multi-agent-os). Context:
+
+TRACKING — CRITICAL
+- This repo uses Linear VKO for task tracking, NOT Jira.
+- Do NOT flag PRs for missing Jira-style keys (regex [A-Z][A-Z0-9]+-\\d+)
+  in title / description / branch. Such a finding is a false positive here.
+- If a VKO-NNN identifier appears, treat it as informational only.
+
+REPO CONVENTIONS (authoritative sources: AGENTS.md, .githooks/pre-push)
+- Community-agnostic: NO hardcoded company names, personal emails, absolute
+  paths, internal hostnames, workspace/account identifiers, or other PII.
+  Flag any such occurrence as a real finding (branding/PII leak).
+- Branch naming format: `{type}/{scope}-{description}` (AGENTS.md:47).
+  The `.githooks/pre-push` regex enforces the prefix pattern:
+  `^(feature|feat|bugfix|fix|chore|docs|refactor|test|ci|hotfix)/.*$`
+  Do NOT flag branches matching this pattern for naming issues. Do NOT
+  enforce kebab-case strictly (the hook does not).
+- Commit style: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …).
+- Co-author: commits should include a
+  `Co-Authored-By: <Agent Name> <noreply@provider.com>` line for AI
+  attribution (AGENTS.md:49).
+- Language: match the existing language of the touched file; do not push
+  reviewers or authors toward translation of mixed-language content.
+- Governance hooks in `plugin-scripts/governance/` require `jq` (hard
+  dependency as of VKO-91). `require_jq()` must be called before
+  `json_get` with nested paths.
+
+REVIEW PRIORITIES (in order)
+1. SECURITY: hardcoded secrets, PII/branding leaks, unsafe shell patterns.
+2. RELIABILITY: silent-failure modes, missing error handling at boundaries,
+   governance hook correctness.
+3. CONSISTENCY: convention adherence, internal cross-references, SSOT
+   alignment (AGENTS.md, CLAUDE.md, governance/MULTI_AGENT_GOVERNANCE.md).
+4. CLARITY: naming, docstrings, README/CLAUDE.md sync.
+
+DO NOT FLAG
+- Missing Jira keys (see TRACKING section above).
+- Missing tests when the change is documentation-only.
+- Performance micro-optimizations in governance/plugin code — advisory only.
+"""
+
+[pr_code_suggestions]
+num_code_suggestions = 4
+extra_instructions = """
+Prioritize suggestions that close silent-failure modes or harden governance
+hooks. Avoid cosmetic nitpicks unless they reduce confusion.
+"""
