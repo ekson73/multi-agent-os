@@ -406,16 +406,35 @@ class JiraClient:
         return result.get("transitions", [])
 
     async def search_jql(
-        self, jql: str, max_results: int = 50, start_at: int = 0
+        self,
+        jql: str,
+        max_results: int = 50,
+        next_page_token: str = "",
+        fields: list[str] | None = None,
+        expand: str | None = None,
     ) -> dict:
-        """Search issues using JQL with pagination."""
+        """Search issues using JQL (new /search/jql endpoint).
+
+        Migrated from the deprecated /rest/api/3/search (HTTP 410 as of
+        CHANGE-2046). The new endpoint uses opaque `nextPageToken` pagination
+        instead of `startAt` + `total`; response contains `nextPageToken` and
+        `isLast` fields. See:
+        https://developer.atlassian.com/changelog/#CHANGE-2046
+        """
+        params: dict = {"jql": jql, "maxResults": max_results}
+        if next_page_token:
+            params["nextPageToken"] = next_page_token
+        if fields:
+            params["fields"] = ",".join(fields)
+        if expand:
+            params["expand"] = expand
         return await request_json(
             method="GET",
-            url=f"{self.base_url}/search",
+            url=f"{self.base_url}/search/jql",
             provider=self._provider_name,
             auth_hint=self._auth_hint,
             auth_kwargs=self._auth_kwargs,
-            params={"jql": jql, "maxResults": max_results, "startAt": start_at},
+            params=params,
             timeout=30.0,
             limiter=self.rate_limiter,
         )

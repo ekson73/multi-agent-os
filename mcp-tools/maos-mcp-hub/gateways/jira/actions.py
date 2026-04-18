@@ -82,10 +82,24 @@ async def get_transitions(issue_key: str) -> dict:
     return {"issue_key": issue_key, "transitions": transitions}
 
 
-async def search_jql(jql: str, max_results: int = 50, start_at: int = 0) -> dict:
-    """Search issues using JQL with pagination."""
+async def search_jql(
+    jql: str,
+    max_results: int = 50,
+    next_page_token: str = "",
+    fields: list[str] | None = None,
+    expand: str | None = None,
+) -> dict:
+    """Search issues using JQL (new /search/jql endpoint, token pagination).
+
+    Migrated from deprecated /rest/api/3/search (VKO-88, CHANGE-2046).
+    - `next_page_token`: opaque string returned as `nextPageToken` in a
+      previous response; empty string means "first page".
+    - `fields`: optional list of field names to include (reduces payload).
+    - `expand`: optional expand string (e.g. "changelog", "names,schema").
+    Response shape: `{issues, nextPageToken?, isLast?}`.
+    """
     client = get_client()
-    return await client.search_jql(jql, max_results, start_at)
+    return await client.search_jql(jql, max_results, next_page_token, fields, expand)
 
 
 async def add_comment(issue_key: str, body: str) -> dict:
