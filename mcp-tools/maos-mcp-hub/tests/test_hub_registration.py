@@ -19,7 +19,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _run_hub(env: dict | None = None, timeout: int = 10) -> str:
-    """Spawn hub.py in a subprocess and capture stderr (tool registration log)."""
+    """Run `python hub.py --help`, capture stderr (startup log), fail on timeout.
+
+    The `--help` path exits cleanly after emitting the same startup summary,
+    avoiding the need to kill a live STDIO MCP server (and thus avoiding
+    false positives if hub.py hangs before logging).
+    """
     merged_env = {
         "PATH": "/usr/bin:/bin",
         "MAOS_DOTENV_PATH": str(ROOT / ".env.example"),
@@ -27,17 +32,27 @@ def _run_hub(env: dict | None = None, timeout: int = 10) -> str:
     if env:
         merged_env.update(env)
     proc = subprocess.Popen(
-        [sys.executable, str(ROOT / "hub.py")],
+        [sys.executable, str(ROOT / "hub.py"), "--help"],
         cwd=str(ROOT),
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         env=merged_env,
     )
     try:
         _, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         proc.kill()
         _, stderr = proc.communicate()
+        raise AssertionError(
+            f"hub.py --help did not exit within {timeout}s — "
+            f"possible hang during startup. stderr so far:\n"
+            f"{stderr.decode('utf-8', errors='replace')}"
+        ) from exc
+    assert proc.returncode == 0, (
+        f"hub.py --help exited {proc.returncode}; "
+        f"stderr:\n{stderr.decode('utf-8', errors='replace')}"
+    )
     return stderr.decode("utf-8", errors="replace")
 
 

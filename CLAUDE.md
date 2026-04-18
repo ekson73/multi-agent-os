@@ -233,7 +233,10 @@ See `docs/framework-consumption.md` for full guidance.
 
 ## MCP Tools: MAOS MCP Hub
 
-The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway exposing Atlassian services through 6 typed meta-tool gateways (VKS-1694). Legacy flat-namespace tools (`bitbucket_*`, `jira_*`) were removed in v1.7 — handlers in `servers/{bitbucket,jira}/tools.py` are now gateway-only modules consumed via direct Python import.
+The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway exposing Atlassian services through 6 typed meta-tool gateways (VKS-1694). Legacy flat-namespace tools (`bitbucket_*`, `jira_*`) were removed in v1.7. Architecture notes:
+
+- **Bitbucket gateway** (`gateways/bitbucket/actions.py`) imports the handler dict directly: `from servers.bitbucket.tools import TOOLS as BB_TOOLS`.
+- **Jira gateway** (`gateways/jira/actions.py`) uses an independent client class `lib.jira.client.JiraClient`; `servers/jira/tools.py` survives as a helper module (exports `_adf_to_markdown` consumed by `lib/jira/cli.py`) but is **not** the gateway's handler source.
 
 ### Meta-Tools Gateway
 

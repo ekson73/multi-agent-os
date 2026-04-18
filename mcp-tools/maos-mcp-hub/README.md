@@ -155,7 +155,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. You'll see **42 Bitbucket tools** available.
+Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 96 actions total.
 
 ### 6. Run tests (pilot D65)
 
@@ -312,10 +312,19 @@ they are no longer exposed as individual MCP tools.
 
 ### Default behavior (since v1.7)
 
-```bash
-python hub.py
-# → "✅ MAOS MCP Hub Ready!  Gateways: 6 (96 actions)  Total MCP tools: 6"
+Running `python hub.py` emits a multi-line startup summary to stderr. The
+hub is considered ready when these lines appear:
+
+```text
+======================================================================
+✅ MAOS MCP Hub Ready!
+   Gateways: 6 (96 actions)
+   Total MCP tools: 6
+======================================================================
 ```
+
+Any other outcome (fewer gateways, a RuntimeError, or a startup trace)
+indicates a fail-closed registration — v1.7 has no flat-tool fallback.
 
 ### History
 
@@ -418,7 +427,7 @@ worklogs, links, etc.) that were never exposed via flat tools.
    }
    ```
 
-4. Restart the hub — your new tools appear automatically as `myservice_get_status`.
+4. Restart the hub after adding an explicit gateway registration in `gateways/<your-domain>/` and wiring it into `hub.py` (`_GATEWAY_MODULES`/`_GATEWAY_INFOS`). Legacy flat auto-registration (`myservice_get_status` style) was removed in v1.7 — non-Atlassian servers are welcome as gateways but are no longer picked up automatically via `servers/<name>/server.py`.
 
 ---
 
