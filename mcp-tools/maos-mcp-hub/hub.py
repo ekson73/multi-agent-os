@@ -79,6 +79,7 @@ Example queries in Claude:
     → Calls gitlab.get_failed_pipelines
 """
 
+import os
 import sys
 import importlib.util
 from pathlib import Path
@@ -268,29 +269,44 @@ if not discovered_servers:
 
 total_tools_registered = 0
 
-sys.stderr.write("\n📋 Registering tools...\n\n")
-sys.stderr.flush()
+# Legacy flat-tool registration (deprecated — VKS-1694 Meta-Tools Gateway supersedes).
+# Controlled by MAOS_EXPOSE_FLAT_TOOLS env var (default: "false").
+# Set to "true" only for backwards-compat rollback; prefer atlassian_* gateways.
+# See README.md "Migration: Flat → Gateway" section.
+_expose_flat = os.getenv("MAOS_EXPOSE_FLAT_TOOLS", "false").strip().lower() == "true"
 
-for server_name, server_data in discovered_servers.items():
-    server_info = server_data['info']
-    tools = server_data['tools']
-
-    sys.stderr.write(f"  📦 {server_name} ({server_info.get('display_name', server_name)})\n")
+if _expose_flat:
+    sys.stderr.write("\n⚠️  MAOS_EXPOSE_FLAT_TOOLS=true — registering deprecated flat tools\n")
+    sys.stderr.write("    (Prefer atlassian_* meta-tool gateways. See README 'Migration' section.)\n\n")
     sys.stderr.flush()
 
-    for tool_name, tool_func in tools.items():
-        # Create namespaced tool name
-        namespaced_name = f"{server_name}_{tool_name}"
+    for server_name, server_data in discovered_servers.items():
+        server_info = server_data['info']
+        tools = server_data['tools']
 
-        # Register tool with FastMCP
-        # We use the original function and let FastMCP decorator handle it
-        mcp.tool(name=namespaced_name)(tool_func)
-
-        total_tools_registered += 1
-        sys.stderr.write(f"     ✅ {namespaced_name}\n")
+        sys.stderr.write(f"  📦 {server_name} ({server_info.get('display_name', server_name)})\n")
         sys.stderr.flush()
 
-    sys.stderr.write("\n")
+        for tool_name, tool_func in tools.items():
+            # Create namespaced tool name
+            namespaced_name = f"{server_name}_{tool_name}"
+
+            # Register tool with FastMCP
+            # We use the original function and let FastMCP decorator handle it
+            mcp.tool(name=namespaced_name)(tool_func)
+
+            total_tools_registered += 1
+            sys.stderr.write(f"     ✅ {namespaced_name}\n")
+            sys.stderr.flush()
+
+        sys.stderr.write("\n")
+        sys.stderr.flush()
+else:
+    flat_count = sum(len(s['tools']) for s in discovered_servers.values())
+    sys.stderr.write(
+        f"\n✅ Flat tools hidden ({flat_count} tools). "
+        f"Use atlassian_* gateways (set MAOS_EXPOSE_FLAT_TOOLS=true to restore).\n\n"
+    )
     sys.stderr.flush()
 
 
