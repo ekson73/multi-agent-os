@@ -1,0 +1,111 @@
+# Delegation — DNA Prompt (Mid-Flight Guardrails)
+
+> Emit this block **during** a delegated task's execution (either as a periodic reminder the delegated agent self-applies, or as a context-refresh after a long tool chain). Keeps the agent aligned with invariants when the context window starts to drift.
+
+---
+
+## Invariant Header — 4 Cognitive Lenses (always on)
+
+**Autônoma** · **Crítica** · **Agnóstica** · **Tomé**. See `rules/axial-principles.md` + `CLAUDE.md` §Modo de Operação. If any lens was dropped (e.g. Tomé skipped → claim made without evidence), rewind and redo.
+
+---
+
+## Mid-Flight Guardrails
+
+### 1. Token budget watchdog
+
+Advisory, not blocking. Pattern: `plugin-scripts/governance/token-budget-gate.sh` emits a suggestion when a delegation prompt exceeds ~4000 chars (~1000 tokens est). If flagged:
+
+- Apply compression: invoke `skills/response-compression/SKILL.md` with profile `lite` (sub-agent) or `full` (deep sub-agent chains).
+- Trim context-prep outputs (`skills/context-prep/SKILL.md`) — do not forward whole files, forward excerpts + paths.
+
+### 2. TTL check for inherited memory
+
+Any memory fact older than 30 days (file mtime or explicit `TTL:` stamp) must be **re-verified** against code before use — see `skills/ttl-policy/SKILL.md`. States: `FRESH` → `EXPIRING` (≥ 14 d) → `EXPIRED` (≥ 30 d). Expired facts require a re-check before being asserted as current state.
+
+### 3. Code-state verification (from Eisenhower Passo 0)
+
+Before asserting "X exists" or "Y is needed", run:
+
+```bash
+git log --all --grep="{thing}" -i --oneline -20
+grep -rn "{keyword}" <path>/ | head
+```
+
+Memories can be stale; code is the truth. See `governance_priority_eisenhower.md` §Passo 0.
+
+### 4. Worktree discipline
+
+If the task requires an edit, you must already be inside `.worktrees/{agent-hex}-{feature}/`. If you detect you are on `main` with uncommitted changes → **stop**, stash, relocate, redo. `plugin-scripts/governance/worktree-gate.sh` will also block a direct-to-main commit.
+
+### 5. Sentinel awareness
+
+10 rules in `sentinel/detection_rules.md`. The ones most likely to fire mid-flight:
+
+- **RULE-001 Loop**: same agent + same task signature ≥ 3× → STOP + escalate.
+- **RULE-002 Depth**: delegation chain > 3 → STOP + escalate.
+- **RULE-009 Token bloat**: context > 4000c on sub-spawn → compress.
+
+Health score 0–100 (`sentinel/config.json`). High-severity violations auto-block. Do not disable the hook.
+
+---
+
+## Status Reporting Cadence
+
+Emit a status line whenever:
+
+- A tool call chain hits 10 consecutive non-status calls — use `skills/status-map/SKILL.md` template **PULSE** (1–2 s to absorb).
+- You complete a named phase (Phase 1 / 2 / 3 …) — template **COMPACT** (3–5 s).
+- You pause for user input — template **PRE** (8–10 s).
+- Before finalize — template **END** (20–30 s).
+
+Status lines go to the delegator's chat (the user) if running in foreground, or to `~/.claude/audit/session_${CLAUDE_SESSION_ID}.jsonl` via `echo '{...}' >> $AUDIT` if background.
+
+---
+
+## Escalation Rule (when to stop and ask)
+
+Stop **autonomous** execution and return control to the delegator when any is true:
+
+1. Destructive action on shared systems (`rm -rf`, force-push to protected, drop/truncate prod, mass delete). See `CLAUDE.md` §Executing actions with care.
+2. Spending beyond scope — user paid API credits (Anthropic / OpenAI), Jira credit-based ops, external LLM calls **not** requested by delegator.
+3. Disagreement: a reviewer bot flags a finding you reject — per `.claude/rules/pr-reviewer-communication.md` use Protocolo 7 Mentes: **never blindly accept** (analyze critically) **and never blindly reject** (document justification). If the bot and you disagree on severity after analysis, escalate.
+4. Unknown provider path — the operation is not in `protocols/delegation/provider-matrix.md`. Add to matrix (via delegator approval) or escalate.
+5. 6 attempts failed — per `~/.claude/CLAUDE.md` §Protocolo de Resolução Autônoma: escalate with full context, do not attempt #7.
+
+Continue autonomously otherwise. See `feedback_autonomous_merge.md` for merge-specific autonomy criteria.
+
+---
+
+## Checkpoint — Mid-Flight Self-Question (ask yourself every phase)
+
+1. Am I still solving the task the delegator asked for? (drift check)
+2. Is the worktree still clean? (anti-conflict check)
+3. Did I verify claims with `git log` / `grep` / real API call? (Tomé check)
+4. Am I inside token budget? (watchdog check)
+5. Would a new agent dropped into this context **right now** know what's happening? (cold-start legibility)
+
+If any answer is "no" → pause, fix, resume.
+
+---
+
+## DNA Heritage Block (if you spawn a sub-sub-agent)
+
+When recursively delegating, **include** this block in the sub-prompt:
+
+```
+## Inherited DNA
+- 4 cognitive lenses: Autônoma, Crítica, Agnóstica, Tomé (always on)
+- Axial principles: rules/axial-principles.md
+- Provider matrix: protocols/delegation/provider-matrix.md
+- Anti-Conflict: skills/anti-conflict/SKILL.md (Phase 1 mandatory)
+- Worktree: skills/worktree-policy/SKILL.md
+- PR review: .claude/rules/pr-reviewer-communication.md (7 Mentes)
+- Autonomous merge: criteria in feedback_autonomous_merge.md (user-scope)
+```
+
+This block is load-bearing — without it, the sub-sub-agent operates blind.
+
+---
+
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.0 | 2026-04-18*

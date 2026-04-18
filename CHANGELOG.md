@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### GaaS/GaaC Agentic Delegation Framework (v1.0)
+- `protocols/delegation/provider-matrix.md` — cross-provider lookup (Jira/Linear × Bitbucket/GitHub/GitLab × Secrets × Observability) citing source-of-truth files per cell
+- `protocols/delegation/delegation-init-prompt.md` (~894 tok) — start-of-delegation prompt (4 cognitive lenses, Anti-Conflict Phase-1, provider detection, output contract)
+- `protocols/delegation/delegation-dna-prompt.md` (~973 tok) — mid-flight guardrails (token watchdog, TTL, Sentinel, escalation, DNA heritage block for recursion)
+- `protocols/delegation/delegation-finalize-prompt.md` (~1232 tok) — cleanup/handoff/learning (worktree lifecycle, ticket/PR closure via matrix, sanitize, learning entry template)
+- `skills/delegate-governance/SKILL.md` — discoverable skill routing delegator/delegated to the right phase
+- `plugin-scripts/gaac/delegate.sh` — CLI emitter auto-detecting ticket (key prefix) + VCS (git remote) providers, prepending dynamic context header
+- `templates/memory-snippets/delegate-governance-memory.md` — paste-able blocks for user-scope memory
+- `tests/validate-plugin.sh` — delegation-framework assertions (files exist, token budget ≤1500, CLI exec + 3 phases exit 0, skill frontmatter)
+
 ### Fixed
 
 #### maos-mcp-hub — VKO-88: Jira search endpoint migration (CHANGE-2046)

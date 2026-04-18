@@ -32,6 +32,7 @@ claude --plugin-dir .
 - **Hook scripts**: bash with `set -euo pipefail`, source `lib/common.sh` and `lib/json-rpc.sh`
 - **Config**: JSON with `_comment` fields for documentation
 - **Naming**: lowercase-hyphenated for skills/commands/agents. No `maos-` prefix on internal artifacts.
+- **Delegation**: spawning sub-agents goes through `skills/delegate-governance/SKILL.md` (or `plugin-scripts/gaac/delegate.sh init|dna|finalize`) — canonical entry point for the GaaS/GaaC framework
 
 ## Testing Instructions
 
@@ -61,6 +62,7 @@ Before committing any changes:
 | `sentinel/` | Anomaly detection config and rules |
 | `plugin-scripts/governance/` | GaaS enforcement hooks |
 | `protocols/` | Governance protocols (merge, delegation, exit hygiene) |
+| `protocols/delegation/` | GaaS/GaaC delegation framework: init/dna/finalize prompts + provider-matrix |
 | `docs/` | Research, specs, guides |
 
 ## Architecture Decisions

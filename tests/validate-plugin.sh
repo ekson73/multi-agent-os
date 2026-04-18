@@ -185,6 +185,79 @@ else
 fi
 echo ""
 
+# Delegation Framework (GaaS/GaaC) — protocols + skill + CLI
+echo "Validating delegation framework..."
+
+DELEGATION_DIR="$PLUGIN_ROOT/protocols/delegation"
+for f in provider-matrix.md delegation-init-prompt.md delegation-dna-prompt.md delegation-finalize-prompt.md; do
+    if [ -f "$DELEGATION_DIR/$f" ]; then
+        pass "protocols/delegation/$f exists"
+    else
+        fail "protocols/delegation/$f missing"
+    fi
+done
+
+# Token budget check: word-count × 1.3 ≤ 1500 per prompt
+for f in delegation-init-prompt.md delegation-dna-prompt.md delegation-finalize-prompt.md; do
+    if [ -f "$DELEGATION_DIR/$f" ]; then
+        WC=$(wc -w < "$DELEGATION_DIR/$f" | tr -d ' ')
+        EST=$(( WC * 13 / 10 ))
+        if [ "$EST" -le 1500 ]; then
+            pass "$f token budget OK (${WC}w ~${EST}tok ≤ 1500)"
+        else
+            fail "$f exceeds token budget (${WC}w ~${EST}tok > 1500)"
+        fi
+    fi
+done
+
+# CLI exists + executable + correct exit codes
+DELEGATE_CLI="$PLUGIN_ROOT/plugin-scripts/gaac/delegate.sh"
+if [ -x "$DELEGATE_CLI" ]; then
+    pass "plugin-scripts/gaac/delegate.sh exists and is executable"
+
+    for phase in init dna finalize; do
+        if OUT=$(bash "$DELEGATE_CLI" "$phase" 2>/dev/null) && [ -n "$OUT" ]; then
+            pass "delegate.sh $phase exits 0 with non-empty stdout"
+        else
+            fail "delegate.sh $phase failed or empty"
+        fi
+    done
+
+    # Unknown phase must exit != 0
+    if bash "$DELEGATE_CLI" bogus >/dev/null 2>&1; then
+        fail "delegate.sh bogus should exit non-zero"
+    else
+        pass "delegate.sh unknown phase exits non-zero"
+    fi
+
+    # Simulated cross-provider contexts
+    H1=$(bash "$DELEGATE_CLI" init --ticket=VKS-1706 --provider=bitbucket 2>/dev/null | head -5)
+    echo "$H1" | grep -q "TICKET_PROVIDER=jira" && echo "$H1" | grep -q "VCS_PROVIDER=bitbucket" \
+        && pass "delegate.sh detects jira+bitbucket context" \
+        || fail "delegate.sh should detect jira+bitbucket"
+
+    H2=$(bash "$DELEGATE_CLI" init --ticket=VKO-88 --provider=github 2>/dev/null | head -5)
+    echo "$H2" | grep -q "TICKET_PROVIDER=linear" && echo "$H2" | grep -q "VCS_PROVIDER=github" \
+        && pass "delegate.sh detects linear+github context" \
+        || fail "delegate.sh should detect linear+github"
+
+    H3=$(bash "$DELEGATE_CLI" init --provider=none 2>/dev/null | head -5)
+    echo "$H3" | grep -q "TICKET_PROVIDER=none" && echo "$H3" | grep -q "VCS_PROVIDER=none" \
+        && pass "delegate.sh handles no-ticket/no-remote fallback" \
+        || fail "delegate.sh should handle no-ticket fallback"
+else
+    fail "plugin-scripts/gaac/delegate.sh missing or not executable"
+fi
+
+# Skill frontmatter
+SKILL_FILE="$PLUGIN_ROOT/skills/delegate-governance/SKILL.md"
+if [ -f "$SKILL_FILE" ] && grep -q "^name: delegate-governance$" "$SKILL_FILE"; then
+    pass "skills/delegate-governance/SKILL.md has correct frontmatter"
+else
+    fail "skills/delegate-governance/SKILL.md missing or frontmatter wrong"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"

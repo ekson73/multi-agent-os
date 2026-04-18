@@ -470,5 +470,32 @@ PROV: {full-url} | v{version} | sync:{YYYY-MM-DD} | TTL:{days}d | exp:{YYYY-MM-D
 
 **Changelog**:
 - v1.0 (2026-01-07): Initial version — Source of Truth principle, Consumer responsibilities, Update flow
+- v1.1 (2026-04-18): Added Delegation Framework consumption section
 
 *Signature: Claude-Dev-docs-001 | 2026-01-07T12:20:00-03:00*
+
+---
+
+## Consuming the Delegation Framework (GaaS/GaaC)
+
+The delegation artifacts under `protocols/delegation/` + the `delegate-governance` skill + `plugin-scripts/gaac/delegate.sh` CLI are consumable by any downstream repo/session that spawns sub-agents.
+
+**Two consumption modes:**
+
+1. **Skill mode** (preferred for Claude Code / Agent Skills-compatible tools): the consumer's agent has `delegate-governance` installed (this repo is the source) and invokes it via its skill discovery mechanism on trigger phrases like "delegate", "spawn subagent".
+
+2. **CLI mode** (any shell): the consumer runs
+   ```bash
+   bash plugin-scripts/gaac/delegate.sh init --ticket=$TICKET
+   ```
+   and pipes the stdout into the sub-agent's prompt prefix. Works with Claude, Codex, Gemini CLI, Cursor, and any agent that accepts a text system prompt.
+
+**What consumers must NOT duplicate**:
+- The four files under `protocols/delegation/` — always reference, never copy.
+- The `delegate.sh` CLI — invoke via `CLAUDE_PLUGIN_ROOT=/path/to/multi-agent-os` if consumed externally.
+
+**What consumers MAY override locally**:
+- User-scope memory snippets — see `templates/memory-snippets/delegate-governance-memory.md`, paste-able blocks tailored to per-user memory files.
+- Provider matrix additions — new providers (e.g. Azure DevOps, Gerrit) merge upstream via PR rather than fork.
+
+**Update propagation**: consumers pull via `/sync` skill (see `skills/sync-to-git/SKILL.md`) after each framework release. Delegation prompts are stable API — breaking changes bump major version in the file's `Version` trailer.
