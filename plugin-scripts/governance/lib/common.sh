@@ -117,13 +117,20 @@ json_get() {
 # Governance hooks MUST have jq available. The fallback in json_get is
 # top-level-only and cannot reliably parse nested paths. Call require_jq
 # at the top of any hook that uses json_get with nested paths.
+#
+# Emits a valid JSON object on stdout (preserving the hook contract that
+# upstream agents consume stdout) plus a human-readable message on stderr,
+# then exits with EXIT_ERROR (C06 contract — not shell's 127).
 # =============================================================================
 require_jq() {
     if ! command -v jq &>/dev/null; then
+        # JSON on stdout — keeps the hook contract intact for upstream agents
+        printf '{"decision":"allow","reason":"governance-hook: jq not available — hook degraded to no-op. Install jq (brew install jq / apt-get install jq). Base image jdxcode/mise:latest ships jq by default."}\n'
+        # Human-readable on stderr
         echo "ERROR: jq is required for governance hooks but was not found." >&2
         echo "Install: brew install jq (macOS) / apt-get install jq (Debian/Ubuntu)" >&2
         echo "Base image jdxcode/mise:latest ships jq by default." >&2
-        exit 127
+        exit "$EXIT_ERROR"
     fi
 }
 
