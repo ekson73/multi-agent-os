@@ -24,11 +24,15 @@ if [[ -f "${LIB_DIR}/common.sh" ]]; then
   source "${LIB_DIR}/common.sh"
 fi
 
+# Enforce jq as hard requirement — token-budget-gate parses nested JSON
+# paths (.tool_input.prompt) which json_get fallback cannot handle.
+require_jq
+
 # Read input from stdin
 INPUT=$(cat)
 
 # Extract tool name
-TOOL=$(echo "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
+TOOL=$(json_get "$INPUT" ".tool_name")
 
 # Only applies to Task (delegation) tool calls
 if [[ "$TOOL" != "Task" ]]; then
@@ -37,7 +41,7 @@ if [[ "$TOOL" != "Task" ]]; then
 fi
 
 # Measure spawn prompt length (chars as heuristic for tokens)
-SPAWN_PROMPT=$(echo "$INPUT" | jq -r '.tool_input.prompt // ""' 2>/dev/null || echo "")
+SPAWN_PROMPT=$(json_get "$INPUT" ".tool_input.prompt")
 SPAWN_PROMPT_LENGTH=${#SPAWN_PROMPT}
 THRESHOLD=4000
 
