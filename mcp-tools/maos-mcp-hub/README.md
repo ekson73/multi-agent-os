@@ -155,122 +155,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. You'll see **42 Bitbucket tools** available.
+Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 96 actions total.
 
 ### 6. Run tests (pilot D65)
 
 ```bash
 pytest -q tests/test_bitbucket_client.py tests/test_jira_client.py
 ```
-
----
-
-## Available Tools (Bitbucket Server)
-
-> ⚠️ **DEPRECATED — Flat namespace** (VKS-1694 cleanup in progress)
->
-> The `bitbucket_*` and `jira_*` flat tools below are **hidden by default**
-> since v1.6 via the `MAOS_EXPOSE_FLAT_TOOLS=false` environment variable.
-> Prefer the [Meta-Tools Gateway](#meta-tools-gateway-atlassian) pattern:
->
-> ```text
-> bitbucket_get_recent_builds          → atlassian_bitbucket({resource:"pipeline", operation:"list"})
-> bitbucket_get_pull_requests          → atlassian_bitbucket({resource:"pull_request", operation:"list"})
-> bitbucket_create_pull_request        → atlassian_bitbucket({resource:"pull_request", operation:"create"})
-> jira_get_issue                       → atlassian_jira({resource:"issue", operation:"get"})
-> jira_list_attachments                → atlassian_jira({resource:"attachment", operation:"list"})
-> ```
->
-> See section [Migration: Flat → Gateway](#migration-flat--gateway) for the
-> complete mapping and rollback instructions.
-
-### Core Pipeline Tools
-| Tool | Description |
-|------|-------------|
-| `bitbucket_get_recent_builds` | List recent pipeline builds |
-| `bitbucket_get_build_details` | Get details for a specific build |
-| `bitbucket_get_build_steps` | List steps in a build |
-| `bitbucket_get_step_logs` | Get logs from a build step |
-
-### Analysis & Diagnostics
-| Tool | Description |
-|------|-------------|
-| `bitbucket_analyze_failures` | Analyze failure patterns across builds |
-| `bitbucket_auto_diagnose` | AI-powered build failure diagnosis |
-| `bitbucket_compare_builds` | Compare two builds side by side |
-| `bitbucket_diagnose_pipeline_failure` | Hybrid pattern + AI diagnosis |
-
-### Health & Monitoring
-| Tool | Description |
-|------|-------------|
-| `bitbucket_check_pipeline_health` | Overall pipeline health status |
-| `bitbucket_check_alerts` | Active alerts and anomalies |
-| `bitbucket_get_executive_summary` | High-level pipeline summary |
-
-### Test Reports
-| Tool | Description |
-|------|-------------|
-| `bitbucket_get_test_reports` | Test report for a build |
-| `bitbucket_get_test_cases` | Individual test case results |
-| `bitbucket_get_test_case_reasons` | Failure reasons for test cases |
-
-### Deployments & Variables
-| Tool | Description |
-|------|-------------|
-| `bitbucket_get_recent_deployments` | List recent deployments |
-| `bitbucket_get_deployment_details` | Deployment details |
-| `bitbucket_get_environments` | List deployment environments |
-| `bitbucket_get_environment_variables` | Environment-scoped variables |
-| `bitbucket_get_repository_variables` | Repository pipeline variables |
-| `bitbucket_get_workspace_variables` | Workspace-level variables |
-
-### Cache Management
-| Tool | Description |
-|------|-------------|
-| `bitbucket_list_caches` | List pipeline caches |
-| `bitbucket_get_cache_details` | Details for a specific cache |
-| `bitbucket_clear_cache` | Clear a pipeline cache |
-| `bitbucket_analyze_cache_efficiency` | Cache hit/miss analysis |
-
-### Commits & Build Status
-| Tool | Description |
-|------|-------------|
-| `bitbucket_get_commit_details` | Commit metadata |
-| `bitbucket_get_commit_build_statuses` | Build statuses for a commit |
-| `bitbucket_get_builds_for_commit` | All builds triggered by a commit |
-| `bitbucket_compare_commit_builds` | Compare builds across commits |
-
-### Pull Requests & Configuration
-| Tool | Description |
-|------|-------------|
-| `bitbucket_get_pull_requests` | List pull requests |
-| `bitbucket_get_pr_details` | PR details and status |
-| `bitbucket_get_pr_build_statuses` | Build statuses linked to a PR |
-| `bitbucket_create_pull_request` | Create a new PR |
-| `bitbucket_list_pipeline_schedules` | List scheduled pipelines |
-| `bitbucket_get_pipeline_config` | Raw bitbucket-pipelines.yml |
-| `bitbucket_get_ssh_key_info` | SSH key pair info |
-
-### Auto-Learning Knowledge Base
-| Tool | Description |
-|------|-------------|
-| `bitbucket_save_successful_fix` | Save a working fix to the KB |
-| `bitbucket_search_learned_fixes` | Search KB for similar failures |
-| `bitbucket_get_knowledge_base_stats` | KB statistics |
-
-### Pipeline Control & Branches
-| Tool | Description |
-|------|-------------|
-| `bitbucket_trigger_pipeline` | Trigger a pipeline on a branch |
-| `bitbucket_stop_pipeline` | Stop a running pipeline |
-| `bitbucket_list_branches` | List repository branches |
-| `bitbucket_get_branch` | Get branch details |
-| `bitbucket_create_branch` | Create a branch from a commit hash |
-| `bitbucket_delete_branch` | Delete a branch (with default-branch protection) |
-| `bitbucket_set_default_branch` | Change the repository default branch |
-| `bitbucket_get_branch_restrictions` | List branch protection rules |
-| `bitbucket_set_branch_restriction` | Create a branch protection rule |
-| `bitbucket_delete_branch_restriction` | Remove a branch protection rule by ID |
 
 ---
 
@@ -414,28 +305,34 @@ gateways/jira/actions.py
 ## Migration: Flat → Gateway
 
 **Context** (VKS-1694): The legacy flat namespace (`bitbucket_*` + `jira_*` =
-60 tools) was replaced by 6 typed meta-tool gateways. Flat tools are now
-**hidden by default** to keep the hub under the 100-tool provider limits
-(Gemini, Windsurf) and the ~30-tool ChatGPT threshold.
+60 tools) was replaced by 6 typed meta-tool gateways. Flat tools are fully
+**removed** since v1.7 — the handlers in `servers/{bitbucket,jira}/tools.py`
+still exist as Python modules and are imported directly by the gateways, but
+they are no longer exposed as individual MCP tools.
 
-### Default behavior (since v1.6)
+### Default behavior (since v1.7)
 
-```bash
-# Default: flat tools hidden, only 6 atlassian_* gateways exposed
-python hub.py
-# → "✅ Flat tools hidden (60 tools). Use atlassian_* gateways."
+Running `python hub.py` emits a multi-line startup summary to stderr. The
+hub is considered ready when these lines appear:
+
+```text
+======================================================================
+✅ MAOS MCP Hub Ready!
+   Gateways: 6 (96 actions)
+   Total MCP tools: 6
+======================================================================
 ```
 
-### Temporary rollback (not recommended)
+Any other outcome (fewer gateways, a RuntimeError, or a startup trace)
+indicates a fail-closed registration — v1.7 has no flat-tool fallback.
 
-```bash
-# Re-expose the 60 legacy flat tools (same behavior as pre-VKS-1694)
-MAOS_EXPOSE_FLAT_TOOLS=true python hub.py
-# → "⚠️  MAOS_EXPOSE_FLAT_TOOLS=true — registering deprecated flat tools"
-```
+### History
 
-Use only if an MCP client still hard-codes `bitbucket_*` / `jira_*` tool
-names. The rollback path is single env-var flip and zero code changes.
+- **v1.6** introduced `MAOS_EXPOSE_FLAT_TOOLS` env flag (default `false`).
+  The var and rollback path were **removed in v1.7**.
+- If you are on v1.6 and need to set the flag temporarily, upgrade to v1.7
+  and migrate any remaining consumer to the `atlassian_*` gateway pattern
+  via the mapping table below.
 
 ### Mapping table
 
@@ -477,7 +374,7 @@ to list resources, or see `gateways/<domain>/actions.py:RESOURCE_MAP`.)
 
 ### Why the change
 
-| Metric | Before | After (default) | Δ |
+| Metric | Before (v1.5) | After (v1.7) | Δ |
 |---|---:|---:|---:|
 | Tools registered by hub | 66 | 6 | **-91%** |
 | Schema token footprint | baseline | ~1/10 | **-90%** |
@@ -486,10 +383,10 @@ to list resources, or see `gateways/<domain>/actions.py:RESOURCE_MAP`.)
 Gateways **add** 36 new operations (Jira transition, search.jql, comments,
 worklogs, links, etc.) that were never exposed via flat tools.
 
-### Roadmap
+### Timeline
 
 - ✅ v1.6 — feature flag `MAOS_EXPOSE_FLAT_TOOLS` (hide by default)
-- ⏳ v1.7 — **remove** flat-tool registration loop from `hub.py`
+- ✅ v1.7 — removed flat-tool registration loop + `servers/{bitbucket,jira}/server.py`
   (handlers in `servers/{bitbucket,jira}/tools.py` remain — gateways depend on them)
 
 ---
@@ -530,7 +427,7 @@ worklogs, links, etc.) that were never exposed via flat tools.
    }
    ```
 
-4. Restart the hub — your new tools appear automatically as `myservice_get_status`.
+4. Restart the hub after adding an explicit gateway registration in `gateways/<your-domain>/` and wiring it into `hub.py` (`_GATEWAY_MODULES`/`_GATEWAY_INFOS`). Legacy flat auto-registration (`myservice_get_status` style) was removed in v1.7 — non-Atlassian servers are welcome as gateways but are no longer picked up automatically via `servers/<name>/server.py`.
 
 ---
 
