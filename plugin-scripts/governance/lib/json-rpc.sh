@@ -113,9 +113,9 @@ error_commit_blocked() {
             post_comment_cmd="gh pr comment${gh_flag} <number> --body \"<message>\""
             ;;
         bitbucket)
-            create_pr_cmd='MCP bitbucket_create_pull_request (or BB REST API)'
-            view_comments_cmd='MCP bitbucket_get_pr_details or bitbucket_get_pull_requests'
-            post_comment_cmd='MCP or BB REST API to post a PR comment'
+            create_pr_cmd='MCP atlassian_bitbucket({resource:"pull_request", operation:"create", params:{...}}) (or BB REST API)'
+            view_comments_cmd='MCP atlassian_bitbucket({resource:"pull_request", operation:"get" | "get_comments"}) (or BB REST API)'
+            post_comment_cmd='MCP atlassian_bitbucket or BB REST API to post a PR comment'
             ;;
         gitlab)
             create_pr_cmd="glab mr create${glab_flag} --title \"<title>\" --description \"<body>\""
