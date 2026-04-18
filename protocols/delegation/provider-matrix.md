@@ -100,11 +100,12 @@ Rule: **never** print a secret to stdout in a message that might be logged outsi
 Agents detect providers deterministically — no guessing:
 
 ```bash
-# Ticket provider from key prefix
+# Ticket provider from key prefix — MUST stay in lock-step with plugin-scripts/gaac/delegate.sh
 case "${TICKET:-}" in
-  VKS-*) TICKET_PROVIDER=jira ;;
+  VKS-*|VKS_*) TICKET_PROVIDER=jira ;;
   VKO-*|EKO-*) TICKET_PROVIDER=linear ;;
-  *) TICKET_PROVIDER=auto ;;  # ask user or treat as ad-hoc
+  "") TICKET_PROVIDER=none ;;  # empty → ad-hoc session
+  *) TICKET_PROVIDER=auto ;;   # unknown prefix → escalate to user
 esac
 
 # VCS provider from git remote

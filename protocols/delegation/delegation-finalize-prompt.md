@@ -53,8 +53,12 @@ Any lock owned by this session → remove (the work is done). Any lock older tha
 Append a closing event to `~/.claude/audit/session_${CLAUDE_SESSION_ID}.jsonl`:
 
 ```bash
-echo "{\"event\":\"delegation_finalize\",\"timestamp\":\"$(date -u +%FT%TZ)\",\"session_id\":\"$CLAUDE_SESSION_ID\",\"agent\":\"$AGENT_ID\",\"outcome\":\"$OUTCOME\"}" \
-  >> "${HOME}/.claude/audit/session_${CLAUDE_SESSION_ID}.jsonl"
+AUDIT_DIR="${HOME}/.claude/audit"
+AUDIT_FILE="${AUDIT_DIR}/session_${CLAUDE_SESSION_ID:-unknown}.jsonl"
+mkdir -p "$AUDIT_DIR"                                        # ensure target exists
+printf '{"event":"delegation_finalize","timestamp":"%s","session_id":"%s","agent":"%s","outcome":"%s"}\n' \
+  "$(date -u +%FT%TZ)" "${CLAUDE_SESSION_ID:-unknown}" "${AGENT_ID:-unknown}" "${OUTCOME:-unknown}" \
+  >> "$AUDIT_FILE"
 ```
 
 See `skills/audit/SKILL.md` for the full event schema.

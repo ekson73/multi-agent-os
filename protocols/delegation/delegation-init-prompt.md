@@ -21,10 +21,11 @@ Identity template: `Claude-{Role}-{prime-hex}-{seq}` (per `CLAUDE.md` §Naming C
 Run the 7-phase checklist in `skills/anti-conflict/SKILL.md`. Shortcut:
 
 ```bash
-cat .worktrees/sessions.json | jq '.sessions | map(select(.status=="active"))'  # who else is live?
-cat .worktrees/tasks.md                                                         # what is claimed?
-ls .worktrees/*.lock 2>/dev/null || echo "no locks"                             # any protected files held?
-git worktree list                                                               # collisions possible?
+# sessions.json schema: { "sessions": [...] } — each session has a `status` field
+jq '.sessions | map(select(.status=="active"))' .worktrees/sessions.json 2>/dev/null || echo "[]"
+cat .worktrees/tasks.md 2>/dev/null                                              # what is claimed?
+ls .worktrees/*.lock 2>/dev/null || echo "no locks"                              # protected files held?
+git worktree list                                                                # collisions possible?
 ```
 
 Then: register your session in `.worktrees/sessions.json` (append, never rewrite); claim your task in `.worktrees/tasks.md` (append-only exception per `skills/worktree-policy/SKILL.md`).
@@ -45,10 +46,11 @@ Branch naming: `feature/`, `bugfix/`, `hotfix/`, `docs/`, `refactor/`, `chore/` 
 Use `protocols/delegation/provider-matrix.md` for every external call. Detection:
 
 ```bash
-# ticket provider
+# ticket provider (matches plugin-scripts/gaac/delegate.sh exactly)
 case "${TICKET:-}" in
-  VKS-*) TICKET_PROVIDER=jira ;;
+  VKS-*|VKS_*) TICKET_PROVIDER=jira ;;
   VKO-*|EKO-*) TICKET_PROVIDER=linear ;;
+  "") TICKET_PROVIDER=none ;;
   *) TICKET_PROVIDER=auto ;;
 esac
 # VCS provider

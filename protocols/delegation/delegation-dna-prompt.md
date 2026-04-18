@@ -36,15 +36,17 @@ Memories can be stale; code is the truth. See `governance_priority_eisenhower.md
 
 ### 4. Worktree discipline
 
-If the task requires an edit, you must already be inside `.worktrees/{agent-hex}-{feature}/`. If you detect you are on `main` with uncommitted changes → **stop**, stash, relocate, redo. `plugin-scripts/governance/worktree-gate.sh` will also block a direct-to-main commit.
+If the task requires an edit, you must already be inside `.worktrees/{agent-short}-{feature-kebab}/` (per `CLAUDE.md` §Worktree Directories). If you detect you are on `main` with uncommitted changes → **stop**, stash, relocate, redo. `plugin-scripts/governance/worktree-gate.sh` will also block a direct-to-main commit.
 
 ### 5. Sentinel awareness
 
 10 rules in `sentinel/detection_rules.md`. The ones most likely to fire mid-flight:
 
-- **RULE-001 Loop**: same agent + same task signature ≥ 3× → STOP + escalate.
-- **RULE-002 Depth**: delegation chain > 3 → STOP + escalate.
-- **RULE-009 Token bloat**: context > 4000c on sub-spawn → compress.
+Thresholds are authoritative in `sentinel/detection_rules.md` + `sentinel/config.json`; reconfirm before action. Typical flags:
+
+- **RULE-001 Loop** (same agent + same task signature) → STOP + escalate.
+- **RULE-002 Depth** (delegation chain exceeds limit) → STOP + escalate.
+- **RULE-009 Token bloat** (sub-spawn context over threshold) → compress.
 
 Health score 0–100 (`sentinel/config.json`). High-severity violations auto-block. Do not disable the hook.
 
@@ -54,12 +56,20 @@ Health score 0–100 (`sentinel/config.json`). High-severity violations auto-blo
 
 Emit a status line whenever:
 
-- A tool call chain hits 10 consecutive non-status calls — use `skills/status-map/SKILL.md` template **PULSE** (1–2 s to absorb).
-- You complete a named phase (Phase 1 / 2 / 3 …) — template **COMPACT** (3–5 s).
-- You pause for user input — template **PRE** (8–10 s).
-- Before finalize — template **END** (20–30 s).
+- A tool call chain hits 10 consecutive non-status calls — emit a short status line (see `skills/status-map/SKILL.md` for the canonical templates — pick the shortest that conveys progress).
+- You complete a named phase (Phase 1 / 2 / 3 …) — emit a compact status line per `skills/status-map/SKILL.md`.
+- You pause for user input — emit a pre-handoff status line.
+- Before finalize — emit an end-of-delegation status line.
 
-Status lines go to the delegator's chat (the user) if running in foreground, or to `~/.claude/audit/session_${CLAUDE_SESSION_ID}.jsonl` via `echo '{...}' >> $AUDIT` if background.
+Status lines go to the delegator's chat (the user) if running in foreground. For background sessions, append to the session audit JSONL:
+
+```bash
+AUDIT="${HOME}/.claude/audit/session_${CLAUDE_SESSION_ID:-unknown}.jsonl"
+mkdir -p "$(dirname "$AUDIT")"
+printf '%s\n' "$EVENT_JSON" >> "$AUDIT"
+```
+
+`$EVENT_JSON` is a single-line JSON object; `$CLAUDE_SESSION_ID` is the hook env var (see `plugin-scripts/pre-delegate.sh` for the reference pattern).
 
 ---
 

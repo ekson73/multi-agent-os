@@ -42,6 +42,7 @@ Insert between "Passo 0" and "Passo 1":
 If the task requires delegation (Task tool, `/delegate`, `/parallel`), run:
 
 \`\`\`bash
+: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must point to the multi-agent-os plugin root}"
 bash "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/gaac/delegate.sh" init --ticket="${TICKET:-}"
 \`\`\`
 

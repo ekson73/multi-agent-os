@@ -230,21 +230,34 @@ if [ -x "$DELEGATE_CLI" ]; then
         pass "delegate.sh unknown phase exits non-zero"
     fi
 
-    # Simulated cross-provider contexts
-    H1=$(bash "$DELEGATE_CLI" init --ticket=VKS-1706 --provider=bitbucket 2>/dev/null | head -5)
-    echo "$H1" | grep -q "TICKET_PROVIDER=jira" && echo "$H1" | grep -q "VCS_PROVIDER=bitbucket" \
-        && pass "delegate.sh detects jira+bitbucket context" \
-        || fail "delegate.sh should detect jira+bitbucket"
+    # Simulated cross-provider contexts (env-isolated so ambient $TICKET can't skew)
+    H1=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKS-1706 --provider=bitbucket 2>/dev/null)
+    if echo "$H1" | grep -q "^TICKET_PROVIDER=jira$" && echo "$H1" | grep -q "^VCS_PROVIDER=bitbucket$"; then
+        pass "delegate.sh detects jira+bitbucket context"
+    else
+        fail "delegate.sh should detect jira+bitbucket"
+    fi
 
-    H2=$(bash "$DELEGATE_CLI" init --ticket=VKO-88 --provider=github 2>/dev/null | head -5)
-    echo "$H2" | grep -q "TICKET_PROVIDER=linear" && echo "$H2" | grep -q "VCS_PROVIDER=github" \
-        && pass "delegate.sh detects linear+github context" \
-        || fail "delegate.sh should detect linear+github"
+    H2=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKO-88 --provider=github 2>/dev/null)
+    if echo "$H2" | grep -q "^TICKET_PROVIDER=linear$" && echo "$H2" | grep -q "^VCS_PROVIDER=github$"; then
+        pass "delegate.sh detects linear+github context"
+    else
+        fail "delegate.sh should detect linear+github"
+    fi
 
-    H3=$(bash "$DELEGATE_CLI" init --provider=none 2>/dev/null | head -5)
-    echo "$H3" | grep -q "TICKET_PROVIDER=none" && echo "$H3" | grep -q "VCS_PROVIDER=none" \
-        && pass "delegate.sh handles no-ticket/no-remote fallback" \
-        || fail "delegate.sh should handle no-ticket fallback"
+    H3=$(env -u TICKET bash "$DELEGATE_CLI" init --provider=none 2>/dev/null)
+    if echo "$H3" | grep -q "^TICKET_PROVIDER=none$" && echo "$H3" | grep -q "^VCS_PROVIDER=none$"; then
+        pass "delegate.sh handles no-ticket/no-remote fallback"
+    else
+        fail "delegate.sh should handle no-ticket fallback"
+    fi
+
+    # Invalid --provider must be rejected (exit 2)
+    if env -u TICKET bash "$DELEGATE_CLI" init --provider=invalidprov >/dev/null 2>&1; then
+        fail "delegate.sh should reject unknown --provider value"
+    else
+        pass "delegate.sh rejects unknown --provider value"
+    fi
 else
     fail "plugin-scripts/gaac/delegate.sh missing or not executable"
 fi

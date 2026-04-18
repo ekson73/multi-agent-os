@@ -1,6 +1,7 @@
 ---
 name: delegate-governance
 description: Emit the correct governance prompt (init / dna / finalize) before, during, and after delegating to a sub-agent. Use when delegating work, spawning sub-agents, running parallel agents, or planning a multi-agent task. Covers cross-provider (Jira / Linear / Bitbucket / GitHub / GitLab) and AI-provider agnostic.
+version: 1.0.0
 ---
 
 # Delegate Governance (GaaS / GaaC)
@@ -25,9 +26,10 @@ Unified entry point for the delegation framework. Routes to one of three invaria
 ```
 invoke skill  or  bash plugin-scripts/gaac/delegate.sh <phase> [flags]
                               ↓
-        ┌─────────────────────┼─────────────────────┐
-     init.md               dna.md              finalize.md
-    (emit at start)    (emit mid-flight)    (emit at close)
+        ┌─────────────────────┼──────────────────────┐
+delegation-init          delegation-dna         delegation-finalize
+  -prompt.md              -prompt.md               -prompt.md
+(emit at start)         (emit mid-flight)         (emit at close)
                               ↓
              all three cite  provider-matrix.md
 ```
