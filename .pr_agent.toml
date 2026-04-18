@@ -1,6 +1,6 @@
 # Qodo PR Agent — multi-agent-os (OSS, community-agnostic)
 #
-# Tracking system: Linear VKO (NOT Jira). See CLAUDE.md "Task Management -- SSOT".
+# Tracking system: Linear VKO (NOT Jira).
 # Purpose: prevent recurring false-positive "missing Jira key" findings on PRs
 # of this open-source repository.
 
@@ -10,8 +10,8 @@
 patch_extension_skip_types = []
 
 # Do NOT attempt to extract Jira keys from branch names.
-# Branch naming in this repo follows: type/description-in-kebab (GaaS pre-push
-# hook enforces this). No ticket key expected.
+# Branch naming enforced by .githooks/pre-push; see regex in that file.
+# No ticket key expected.
 extract_issue_from_branch = false
 
 [pr_description]
@@ -22,9 +22,9 @@ use_bullet_points = true
 extra_instructions = """
 This is an open-source, community-agnostic repository.
 Do NOT require or expect Jira-style issue keys (ABC-123) in PR titles,
-descriptions, or branch names. Task tracking lives in Linear VKO
-(linear.app/ekson73), referenced optionally by VKO-NNN identifiers.
-Output narrative in pt-BR or en-US matching the PR author's style.
+descriptions, or branch names. Task tracking lives in Linear VKO,
+referenced optionally by VKO-NNN identifiers.
+Match the existing language of the touched file and the PR author's style.
 """
 
 [pr_reviewer]
@@ -40,26 +40,31 @@ TRACKING — CRITICAL
   in title / description / branch. Such a finding is a false positive here.
 - If a VKO-NNN identifier appears, treat it as informational only.
 
-REPO CONVENTIONS
-- Community-agnostic: NO hardcoded company names, emails, personal paths,
-  internal hostnames, or account IDs. Flag any such occurrence as a real
-  finding (PII/branding leak).
-- Branch naming enforced by GaaS pre-push hook: type/description-in-kebab
-  where type is one of: feat, fix, chore, ci, ops, task, refactor, perf,
-  revert, docs. This replaces any Jira-key pattern check.
-- Conventional Commits required.
-- Co-Authored-By signature required on commits (AI agent attribution).
-- Docs in pt-br; code/scripts in en-us.
-- Governance hooks in plugin-scripts/governance/ require jq (hard dependency
-  as of VKO-91). require_jq() must be called before json_get with nested
-  paths.
+REPO CONVENTIONS (authoritative sources: AGENTS.md, .githooks/pre-push)
+- Community-agnostic: NO hardcoded company names, personal emails, absolute
+  paths, internal hostnames, workspace/account identifiers, or other PII.
+  Flag any such occurrence as a real finding (branding/PII leak).
+- Branch naming format: `{type}/{scope}-{description}` (AGENTS.md:47).
+  The `.githooks/pre-push` regex enforces the prefix pattern:
+  `^(feature|feat|bugfix|fix|chore|docs|refactor|test|ci|hotfix)/.*$`
+  Do NOT flag branches matching this pattern for naming issues. Do NOT
+  enforce kebab-case strictly (the hook does not).
+- Commit style: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, …).
+- Co-author: commits should include a
+  `Co-Authored-By: <Agent Name> <noreply@provider.com>` line for AI
+  attribution (AGENTS.md:49).
+- Language: match the existing language of the touched file; do not push
+  reviewers or authors toward translation of mixed-language content.
+- Governance hooks in `plugin-scripts/governance/` require `jq` (hard
+  dependency as of VKO-91). `require_jq()` must be called before
+  `json_get` with nested paths.
 
 REVIEW PRIORITIES (in order)
-1. SECURITY: hardcoded secrets, PII leaks, unsafe shell patterns.
+1. SECURITY: hardcoded secrets, PII/branding leaks, unsafe shell patterns.
 2. RELIABILITY: silent-failure modes, missing error handling at boundaries,
    governance hook correctness.
 3. CONSISTENCY: convention adherence, internal cross-references, SSOT
-   alignment (CLAUDE.md, AGENTS.md, governance/MULTI_AGENT_GOVERNANCE.md).
+   alignment (AGENTS.md, CLAUDE.md, governance/MULTI_AGENT_GOVERNANCE.md).
 4. CLARITY: naming, docstrings, README/CLAUDE.md sync.
 
 DO NOT FLAG
