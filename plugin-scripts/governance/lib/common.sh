@@ -93,6 +93,10 @@ json_escape() {
 }
 
 # Extract value from JSON using jq or fallback
+#
+# IMPORTANT: The fallback (when jq is absent) only supports top-level paths
+# like '.field'. Nested paths like '.parent.child' silently return empty.
+# For hooks using nested paths, call require_jq() at script top to fail-fast.
 json_get() {
     local json="$1"
     local path="$2"
@@ -105,6 +109,21 @@ json_get() {
         field="${field%% *}"
         echo "$json" | grep -o "\"$field\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | \
             sed 's/.*"'$field'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1
+    fi
+}
+
+# =============================================================================
+# JQ DEPENDENCY ENFORCEMENT
+# Governance hooks MUST have jq available. The fallback in json_get is
+# top-level-only and cannot reliably parse nested paths. Call require_jq
+# at the top of any hook that uses json_get with nested paths.
+# =============================================================================
+require_jq() {
+    if ! command -v jq &>/dev/null; then
+        echo "ERROR: jq is required for governance hooks but was not found." >&2
+        echo "Install: brew install jq (macOS) / apt-get install jq (Debian/Ubuntu)" >&2
+        echo "Base image jdxcode/mise:latest ships jq by default." >&2
+        exit 127
     fi
 }
 
