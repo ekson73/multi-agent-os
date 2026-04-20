@@ -19,7 +19,8 @@ Track agent tasks to prevent conflicts.
 | Claude-Orch-Prime-eed7 | MVV Generator Implementation | COMPLETED | feat/mvv-generator-eed7 | 2026-01-08 |
 | Claude-Orch-Prime-20260417-88a9 | VKS-1694 Phase 1 — MAOS_EXPOSE_FLAT_TOOLS feature flag (v1.6) (PR #34 merged) | COMPLETED | feature/VKS-1694-cleanup-flat-tools-88a9 | 2026-04-17 |
 | Claude-Orch-Prime-20260417-88a9 | VKS-1694 Phase 2 — hard delete flat-tool registration (v1.7) (PR #36 merged) | COMPLETED | feature/VKS-1694-hard-delete-c38e | 2026-04-18 |
+| Claude-Orch-Prime-20260420-abbb | VKS-1706 (PARTIAL) — tier docs + local permissions cleanup (PR #40 merged); full scope remains Backlog | PARTIAL | chore/vks-1706-deprecate-atlassian-rovo-abbb | 2026-04-20 |
 
 ---
 
-*Last updated: 2026-04-18T12:10:00-03:00*
+*Last updated: 2026-04-20T11:17:00-03:00*
