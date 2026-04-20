@@ -407,7 +407,9 @@ Fluxo pode ser invocado parcialmente:
 
 ### Bitbucket (VKS Repos)
 - CLI: nao disponivel nativamente
-- MCP: `atlassian-rovo` (PRs, issues, comments)
+- MCP Primario: `maos-mcp-hub` → gateway `atlassian_bitbucket` (PRs, pipelines, branches, approves, merges — cobertura 52 acoes)
+- MCP Fallback: `atlassian-rovo` (apenas quando `maos-mcp-hub` estiver stale/unavailable — ver `protocols/delegation/provider-matrix.md`)
+- CLI Fallback: `acli` (escopo: Jira issues; NAO cobre Bitbucket pipelines/PRs)
 - Reviews: manual ou via MCP
 - Branch protection: force push BLOQUEADO em homolog/master
 - Notificacoes: email (acme-corp) → gog gmail
