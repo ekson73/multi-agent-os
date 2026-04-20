@@ -9,7 +9,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## Repository Overview
 
-**Multi-Agent OS** is a Claude Code plugin for orchestrating AI agents in software development workflows. It provides:
+**Multi-Agent OS** is an open-source, AI-agnostic framework for orchestrating multi-agent software development workflows. While it currently operates primarily as a Claude Code plugin, it is **Native by Design** on 8 architectural pillars that ensure cross-provider compatibility:
+
+### Architecture Pillars (Native by Design)
+
+| Pillar | What | How |
+|--------|------|-----|
+| **AGENTS.md** | Universal project instructions (AAIF standard) | All protocols Markdown-native, 24+ AI tools read natively |
+| **MCP-HUB** | Tool/data connectivity (AAIF standard) | `mcp-tools/maos-mcp-hub/` |
+| **A2A Protocol** | Agent-to-agent communication | `protocols/agent-delegation.md`, `protocols/rbad.md` |
+| **ACP** | IDE-agent interaction | `commands/`, `skills/`, `hooks/` |
+| **GaaS** | Governance via CI/CD + git hooks | `.githooks/`, `sentinel/`, `rules/` |
+| **Direct-Raw-URLs** | Zero-install context injection | `docs/RAW_URL_INJECTION.md` |
+| **Multi-Agent** | N concurrent agents in parallel | Worktree protocol + hierarchical merge |
+| **AI-Agnostic** | Provider/LLM/CLI agnostic | All protocols are Markdown/JSON |
+| **Org-Agnostic** | No corporate assumptions | Consumer model (`docs/framework-consumption.md`) |
+
+### Key Capabilities
 
 - **Sentinel Protocol**: Anomaly detection and observability for multi-agent orchestration
 - **Status Map System**: Human-readable ASCII status visualizations
@@ -349,5 +365,5 @@ Entry points: skill `delegate-governance` (discoverable) + CLI `plugin-scripts/g
 
 ---
 
-*Multi-Agent OS v1.5.0 | Plugin for Claude Code*
-*Analysis by: Claude-Analyst-c614-plugin | 2026-01-08T21:30:00-03:00*
+*Multi-Agent OS v1.6.0 | Native by Design: AI-Agnostic, Multi-Agent, Protocol-First*
+*Architecture pillars formalized: 2026-03-19*
