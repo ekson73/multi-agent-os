@@ -63,9 +63,13 @@ def test_hub_exposes_exactly_six_mcp_tools():
 
 
 def test_hub_registers_six_atlassian_gateways():
-    """All 6 atlassian_* gateways must be registered with 96 actions total."""
+    """All 6 atlassian_* gateways must be registered with 99 actions total.
+
+    VKS-1853 (2026-04-23): +3 pull_request ops (add_comment,
+    update_description, reply_to_comment) bring total from 96 to 99.
+    """
     log = _run_hub()
-    assert "6 gateways registered (96 actions)" in log, log
+    assert "6 gateways registered (99 actions)" in log, log
 
 
 def test_hub_does_not_register_flat_bitbucket_tools():

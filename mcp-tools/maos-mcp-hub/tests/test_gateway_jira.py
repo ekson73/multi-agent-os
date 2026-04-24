@@ -298,3 +298,111 @@ def test_jira_router_tool_name(monkeypatch):
     _setup_env(monkeypatch)
     router = build_router()
     assert router.tool_name == "atlassian_jira"
+
+
+# ---------------------------------------------------------------------------
+# VKS-1853 Gap 8: priority field for issue type "Intervenção Técnica - I.A."
+# ---------------------------------------------------------------------------
+
+def test_vks1853_create_issue_serializes_priority(monkeypatch):
+    """VKS-1853: create_issue with priority serializes as {name: value}."""
+    _setup_env(monkeypatch)
+    from gateways.jira.actions import create_issue
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            route = mock.post(f"{BASE}/issue").mock(
+                return_value=httpx.Response(201, json={
+                    "id": "12345",
+                    "key": "VKS-2000",
+                })
+            )
+            result = await create_issue(
+                project_key="VKS",
+                issue_type="Story",
+                summary="test priority",
+                priority="Medium",
+            )
+            assert result["key"] == "VKS-2000"
+            import json as _json
+            payload = _json.loads(route.calls.last.request.content)
+            assert payload["fields"]["priority"] == {"name": "Medium"}
+
+    asyncio.run(run())
+
+
+def test_vks1853_create_issue_without_priority_omits_field(monkeypatch):
+    """VKS-1853: create_issue without priority must NOT include priority key."""
+    _setup_env(monkeypatch)
+    from gateways.jira.actions import create_issue
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            route = mock.post(f"{BASE}/issue").mock(
+                return_value=httpx.Response(201, json={"id": "12346", "key": "VKS-2001"})
+            )
+            await create_issue(
+                project_key="VKS",
+                issue_type="Intervenção Técnica - I.A.",
+                summary="no priority",
+            )
+            import json as _json
+            payload = _json.loads(route.calls.last.request.content)
+            assert "priority" not in payload["fields"]
+
+    asyncio.run(run())
+
+
+def test_vks1853_create_issue_priority_rejected_surfaces_hint(monkeypatch):
+    """VKS-1853: when priority is rejected by screen scheme, return helpful hint."""
+    _setup_env(monkeypatch)
+    from gateways.jira.actions import create_issue
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            mock.post(f"{BASE}/issue").mock(
+                return_value=httpx.Response(400, json={
+                    "errorMessages": [],
+                    "errors": {
+                        "priority": "Field 'priority' cannot be set. It is not on the appropriate screen, or unknown."
+                    }
+                })
+            )
+            result = await create_issue(
+                project_key="VKS",
+                issue_type="Intervenção Técnica - I.A.",
+                summary="meta-test of gap 8",
+                priority="Medium",
+            )
+            assert "error" in result
+            assert result.get("screen_scheme_hint") is True
+            assert result["rejected_priority"] == "Medium"
+            assert result["issue_type"] == "Intervenção Técnica - I.A."
+            hint = result["hint"].lower()
+            assert "screen" in hint
+
+    asyncio.run(run())
+
+
+def test_vks1853_create_issue_non_priority_error_reraises(monkeypatch):
+    """VKS-1853: non-priority errors must propagate (not be swallowed)."""
+    _setup_env(monkeypatch)
+    from gateways.jira.actions import create_issue
+
+    async def run():
+        with respx.mock(assert_all_called=True) as mock:
+            mock.post(f"{BASE}/issue").mock(
+                return_value=httpx.Response(500, text='{"errorMessages":["server error"]}')
+            )
+            raised = False
+            try:
+                await create_issue(
+                    project_key="VKS",
+                    issue_type="Story",
+                    summary="server error case",
+                )
+            except Exception:
+                raised = True
+            assert raised, "Non-priority errors must propagate (not be swallowed)."
+
+    asyncio.run(run())
