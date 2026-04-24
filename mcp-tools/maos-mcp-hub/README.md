@@ -155,7 +155,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 96 actions total.
+Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 99 actions total (v2.2.0, VKS-1853).
 
 ### 6. Run tests (pilot D65)
 
@@ -177,18 +177,18 @@ AI providers impose tool-count limits that break flat namespaces at scale:
 | Windsurf | 100       |
 | ChatGPT  | ~30       |
 
-With 52 Bitbucket tools already registered and Jira, Confluence, Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
+With 55 Bitbucket tools and Jira/Confluence/Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
 
 ### Solution: 6 Typed Gateways
 
-The Meta-Tools Gateway collapses **96 actions** into **6 MCP tools**. Five domain gateways accept a uniform `{resource?, operation?, params?}` input; `atlassian_discover` is parameterless:
+The Meta-Tools Gateway collapses **99 actions** (v2.2.0) into **6 MCP tools**. Five domain gateways accept a uniform `{resource?, operation?, params?}` input; `atlassian_discover` is parameterless:
 
 | Gateway | Tool Name | Actions | Purpose |
 |---------|-----------|---------|---------|
 | **Discover** | `atlassian_discover` | -- | Catalog of all domains and action counts |
 | **Jira** | `atlassian_jira` | 22 | Issues, boards, sprints, estimation, comments, worklogs, links, search |
 | **Confluence** | `atlassian_confluence` | 12 | Pages, comments, spaces, search (CQL) |
-| **Bitbucket** | `atlassian_bitbucket` | 52 | Pipelines, PRs, branches, deployments, tests, caches |
+| **Bitbucket** | `atlassian_bitbucket` | 55 | Pipelines, PRs (incl. add/reply comment, update description — VKS-1853), branches, deployments, tests, caches |
 | **Compass** | `atlassian_compass` | 6 | Service registry, components, relationships, custom fields |
 | **Common** | `atlassian_common` | 4 | User info, accessible resources, server info |
 
@@ -262,7 +262,7 @@ gateways/                          ← Meta-tool gateway layer
 │   └── actions.py                 ← 12 actions across 4 resources
 ├── bitbucket/
 │   ├── gateway.py
-│   └── actions.py                 ← 52 actions across 9 resources
+│   └── actions.py                 ← 55 actions across 9 resources (VKS-1853)
 ├── compass/
 │   ├── gateway.py
 │   └── actions.py                 ← 6 actions across 3 resources
@@ -318,7 +318,7 @@ hub is considered ready when these lines appear:
 ```text
 ======================================================================
 ✅ MAOS MCP Hub Ready!
-   Gateways: 6 (96 actions)
+   Gateways: 6 (99 actions)
    Total MCP tools: 6
 ======================================================================
 ```
@@ -328,6 +328,13 @@ indicates a fail-closed registration — v1.7 has no flat-tool fallback.
 
 ### History
 
+- **v2.2 (VKS-1853, 2026-04-23)** added 3 new `pull_request` ops
+  (`add_comment`, `update_description`, `reply_to_comment`) and
+  standardized params across all `pull_request.*` operations
+  (`pr_id`/`pull_request_id` alias, `account` on every op). Also made
+  `createJiraIssue` surface a helpful `screen_scheme_hint` when
+  `priority` is rejected by a screen scheme (e.g., issue type 10407
+  "Intervenção Técnica - I.A." in project VKS). Total actions: 99.
 - **v1.6** introduced `MAOS_EXPOSE_FLAT_TOOLS` env flag (default `false`).
   The var and rollback path were **removed in v1.7**.
 - If you are on v1.6 and need to set the flag temporarily, upgrade to v1.7

@@ -5,7 +5,8 @@ Protocol: MCP 1.0 (JSON-RPC 2.0)
 Transport: STDIO (stdin/stdout)
 
 Since v1.7 (VKS-1694 Phase 2), this hub exposes exactly 6 typed `atlassian_*`
-meta-tool gateways (96 actions total) — no legacy flat namespace.
+meta-tool gateways. v2.2 (VKS-1853) adds 3 pull_request interaction ops →
+99 actions total.
 
 Architecture:
     hub.py
@@ -14,7 +15,7 @@ Architecture:
     ├── discover/   → atlassian_discover   (catalog)
     ├── jira/       → atlassian_jira       (22 actions)
     ├── confluence/ → atlassian_confluence (12 actions)
-    ├── bitbucket/  → atlassian_bitbucket  (52 actions)
+    ├── bitbucket/  → atlassian_bitbucket  (55 actions, VKS-1853 v2.2)
     ├── compass/    → atlassian_compass    (6 actions)
     └── common/     → atlassian_common     (4 actions)
 
@@ -131,7 +132,7 @@ except ImportError:
 # ============================================================================
 
 HUB_NAME = "maos-mcp-hub"
-HUB_VERSION = "1.0.0"
+HUB_VERSION = "2.2.0"  # VKS-1853: +3 pull_request ops + params standardization
 SERVERS_DIR = Path(__file__).parent / "servers"
 
 
@@ -239,7 +240,7 @@ mcp = FastMCP(
     name=HUB_NAME,
     instructions=(
         f"MAOS MCP Hub v{HUB_VERSION} — Atlassian meta-tools gateway. "
-        "Exposes 6 typed `atlassian_*` gateways (96 actions total) with "
+        "Exposes 6 typed `atlassian_*` gateways (99 actions total) with "
         "4-level progressive discovery and governance feedback. "
         "Legacy flat namespace (bitbucket_*, jira_*) was removed in v1.7."
     ),
@@ -264,7 +265,7 @@ if not discovered_servers:
 
 
 # ============================================================================
-# GATEWAY META-TOOL REGISTRATION (6 meta-tools, 96 actions)
+# GATEWAY META-TOOL REGISTRATION (6 meta-tools, 99 actions)
 # ============================================================================
 #
 # Note (VKS-1694, v1.7):
