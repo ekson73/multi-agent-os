@@ -1,8 +1,13 @@
 """
-Bitbucket gateway actions — maps 52 existing tools into resource+operation taxonomy.
+Bitbucket gateway actions — maps 55 existing tools into resource+operation taxonomy.
 
 All handlers are imported from servers/bitbucket/tools.py (zero rewrite).
 The RESOURCE_MAP defines the hierarchical structure exposed to agents.
+
+History:
+- v1.7 (VKS-1694 / PR #36): 52 actions across 9 resources.
+- v2.2 (VKS-1853 / 2026-04-23): +3 pull_request ops (add_comment,
+  update_description, reply_to_comment) — unblocks Step 8 PDCA loop.
 """
 
 from servers.bitbucket.tools import TOOLS as BB_TOOLS
@@ -12,7 +17,7 @@ from lib.gateway.router import MetaToolRouter
 from .gateway import GATEWAY_INFO
 
 # ---------------------------------------------------------------------------
-# Resource → Operation mapping (52 tools → 11 resources)
+# Resource → Operation mapping (55 tools → 9 resources, VKS-1853)
 # ---------------------------------------------------------------------------
 
 RESOURCE_MAP = {
@@ -43,6 +48,10 @@ RESOURCE_MAP = {
         "unapprove": BB_TOOLS["unapprove_pull_request"],
         "get_comments": BB_TOOLS["get_pr_comments"],
         "get_build_statuses": BB_TOOLS["get_pr_build_statuses"],
+        # VKS-1853 (2026-04-23) — unblock Step 8 7-Mentes PDCA loop
+        "add_comment": BB_TOOLS["add_pr_comment"],
+        "reply_to_comment": BB_TOOLS["reply_to_pr_comment"],
+        "update_description": BB_TOOLS["update_pr_description"],
     },
     "branch": {
         "list": BB_TOOLS["list_branches"],
@@ -122,6 +131,21 @@ _GOVERNANCE = {
             "Verificar contagem de commits — se houver commit de bot (copilot-swe-agent) investigar diff",
             "Comparar reviewers presentes vs bots esperados (CodeRabbit, Qodo, Copilot, RovoDev)",
         ],
+        "add_comment": [
+            "Usar account humano quando possivel — bots de review ignoram comments de outros bots",
+            "Para threaded reply, passar parent_id obtido via pull_request.get_comments",
+            "Markdown suportado — Bot Scorecards ficam melhor renderizados com tabelas",
+        ],
+        "reply_to_comment": [
+            "parent_id obrigatorio — esse e o metodo explicito para responder findings de bots",
+            "Uma reply por finding (accept/reject/defer com justificativa)",
+            "Usar mesmo account que criou o PR para preservar autoria consistente",
+        ],
+        "update_description": [
+            "Operacao idempotente mas NAO preserva mudancas concorrentes — fazer read-modify-write",
+            "Para append (Bot Scorecard no final), fetch via pull_request.get primeiro",
+            "account determina quem aparece como 'edited by' na UI Bitbucket",
+        ],
     },
     "branch": {
         "create": ["Branch naming regex: feature/|bugfix/|hotfix/|release/"],
@@ -155,6 +179,18 @@ _NEXT_STEPS = {
             "Se CI failing — diagnosticar antes de analisar reviews",
             "Se CHANGES_REQUESTED — ler comments com 7 mentes ativadas",
         ],
+        "add_comment": [
+            "Se bot scorecard — preferir update_description para persistir no body do PR",
+            "Se responder a bot — preferir reply_to_comment para manter threading",
+        ],
+        "reply_to_comment": [
+            "Atualizar bot scorecard (precisao por bot) apos resolver finding",
+            "Se aceitou finding — implementar correcao e referenciar novo commit",
+        ],
+        "update_description": [
+            "Apos update, verificar que apenas o body foi alterado (title/reviewers intactos)",
+            "Comunicar ao time via comment que scorecard foi atualizado (trigger human review)",
+        ],
     },
     "branch": {
         "create": ["Criar pull request apos implementacao"],
@@ -167,7 +203,7 @@ _NEXT_STEPS = {
 # ---------------------------------------------------------------------------
 
 def build_router() -> MetaToolRouter:
-    """Build the Bitbucket meta-tool router with all 52 actions."""
+    """Build the Bitbucket meta-tool router with all 55 actions (VKS-1853)."""
     router = MetaToolRouter(
         tool_name=GATEWAY_INFO["tool_name"],
         governance=["Bitbucket operations follow S-SDLC governance"],
