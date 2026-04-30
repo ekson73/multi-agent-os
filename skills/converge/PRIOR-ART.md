@@ -1,0 +1,95 @@
+# Prior Art Survey — Cross-Agent Proposal Convergence
+
+**Survey date:** 2026-04-30
+**Scope:** OSS frameworks, MCP servers, AI provider marketplaces (Anthropic, OpenAI, Google, Cursor, Continue, Cline, GitHub Copilot, MS), academic releases.
+**Total artifacts surveyed:** 20+
+**Methodology:** Two parallel research agents (commercial-providers + open-source/academic), primary-source verification.
+
+## Top-10 closest matches (by similarity to this skill)
+
+| Rank | Artifact | Type | URL | Similarity | Maturity | License |
+|---|---|---|---|---|---|---|
+| 1 | sjarmak/agent-workflows `/converge` | Claude Code SKILL.md | https://github.com/sjarmak/agent-workflows | 9.5/10 | 4★ active 2026-04 | MIT |
+| 2 | nyldn/claude-octopus `/octo:debate` | Claude Code plugin | https://github.com/nyldn/claude-octopus | 8/10 | 3.2k★ v9.30.0 | (repo) |
+| 3 | peteski22/star-chamber | Skill + CLI | https://github.com/peteski22/star-chamber | 8/10 | mozilla.ai endorsed | (repo) |
+| 4 | Solvely-Colin/Quorum | CLI/MCP | https://github.com/Solvely-Colin/Quorum | 8/10 | 7-phase deliberation | (repo) |
+| 5 | onevcat/argue | TypeScript engine | https://github.com/onevcat/argue | 8/10 | 109★ MIT | MIT |
+| 6 | blueman82/ai-counsel | MCP server | https://github.com/blueman82/ai-counsel | 7.5/10 | 208★ v1.10.0 | MIT |
+| 7 | rachittshah/llmcouncil | MCP + Claude skill | https://github.com/rachittshah/llmcouncil | 7.5/10 | active 2026-03 | (repo) |
+| 8 | claudeblattman.com `/council` | Personal slash command | https://claudeblattman.com/workflows/council/ | 7/10 | personal site | n/a |
+| 9 | AltimateAI/claude-consensus | CC plugin | https://github.com/AltimateAI/claude-consensus | 7/10 | 24★ MIT active | MIT |
+| 10 | dubs3c/council | Standalone OSS | https://github.com/dubs3c/council | 6/10 | OSS Python | (repo) |
+
+## Honorable mentions
+
+- slior/dialectic-agentic — Pure-prompt skills (similarity 7)
+- synaptiai/prompt-decorators `Steelman` decorator — Sub-feature primitive (similarity 6)
+- composable-models/llm_multiagent_debate — Research code (Du et al. ICML 2024) (similarity 6)
+- Lightless-Labs/refinery `synthesize` — Rust CLI (similarity 7)
+- github/awesome-copilot/devils-advocate.agent.md — Sub-feature
+- OpenBMB/AgentVerse — Multi-agent framework
+- AltimateAI subset, quantsquirrel/claude-synod-debate, capitansuat/swarm-debate, gumbel-ai/agent-debate, jonathansantilli/freemad, Argus-Framework/argus-ai-debate, Coetus.AI (closed beta), Perplexity Model Council (GA)
+
+## Negative results (verified absent)
+
+- No `/converge` equivalent in OpenAI Cookbook (verified: github.com/openai/openai-cookbook)
+- No featured GPT-Store agent for general-purpose convergence
+- No Vertex AI Agent Garden sample for debate/consensus
+- No Continue Hub assistant for synthesis (hub.continue.dev)
+- No cursor.directory rules for steelman/devil's-advocate orchestration
+- LangChain Hub returned only single-shot prompts, no convergence chain
+- "RAD-AC" string returned no matches (the closest hits — RADAR, MADRA — are unrelated)
+
+## Universal gaps (none of the 20+ artifacts cover)
+
+1. **Reject log as separate artifact** — most "preserve dissent" textually, none emit a structured `rejected[]`
+2. **Steelman as explicit FIRST act** — sjarmak has it as a rule, not as the protocol's first phase
+3. **Devil's advocate as TOGGLE** — only Quorum's `--devils-advocate` flag; others bake it always-on or always-off
+4. **Cognitive activations 1st-class with pluggable catalog URI** — /council closest with `--type` rosters but not pluggable
+5. **General-purpose (proposals, not code review)** — only /council, sjarmak, dubs3c/council
+
+This `converge` skill consolidates the 5 universal gaps into one cohesive protocol while citing all primitives borrowed from prior art (anti-NIH discipline).
+
+## Decision matrix used to design this skill
+
+| Approach | Effort | Risk | Verdict |
+|---|---|---|---|
+| Adopt sjarmak as-is | Low | Medium (Agent Teams flag dependency) | Rejected — dependency unacceptable |
+| Adopt octopus as-is | Low | Medium (CC-only, code-task-oriented) | Rejected — narrow scope |
+| Fork sjarmak + 4 patches | Medium | Low | Considered — but anti-NIH equally served by citing |
+| Build new with prior-art citations | Medium | Low | **Adopted** — full gap coverage + prior art credit |
+| Hybrid lean wrapper + ai-counsel MCP | High | Medium | Optional via `mcp_backend` parameter |
+
+## Maintenance protocol
+
+This `PRIOR-ART.md` should be re-validated **quarterly** against:
+- New releases of cited artifacts (semver bumps)
+- New entrants in the convergence-pattern space
+- Any artifact reaching feature-parity with this skill (in which case, consider deprecating in favor of consolidation upstream)
+
+If a cited artifact reaches >95% feature parity with this skill, consider:
+1. Contributing our `reject-log` and `cognitive-activations` patches upstream
+2. Deprecating this skill and pointing to the upstream artifact
+3. Documenting the deprecation in `CHANGELOG.md` of multi-agent-os
+
+## Sources cited (primary URLs verified reachable as of 2026-04-30)
+
+- https://github.com/sjarmak/agent-workflows/blob/main/skills/converge/SKILL.md
+- https://github.com/nyldn/claude-octopus
+- https://github.com/peteski22/star-chamber
+- https://blog.mozilla.ai/the-star-chamber-multi-llm-consensus-for-code-quality/
+- https://github.com/Solvely-Colin/Quorum
+- https://github.com/onevcat/argue
+- https://github.com/blueman82/ai-counsel
+- https://github.com/rachittshah/llmcouncil
+- https://claudeblattman.com/workflows/council/
+- https://github.com/AltimateAI/claude-consensus
+- https://github.com/dubs3c/council
+- https://github.com/slior/dialectic-agentic
+- https://synaptiai.github.io/prompt-decorators/api/decorators/Steelman/
+- https://github.com/composable-models/llm_multiagent_debate
+- https://arxiv.org/abs/2305.14325 (Du et al. Multiagent Debate, ICML 2024)
+- https://github.com/Lightless-Labs/refinery/pull/26
+- https://github.com/github/awesome-copilot/blob/main/agents/devils-advocate.agent.md
+- https://github.com/openai/swarm
+- https://cookbook.openai.com/examples/agents_sdk/multi-agent-portfolio-collaboration/multi_agent_portfolio_collaboration
