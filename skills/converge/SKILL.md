@@ -1,5 +1,6 @@
 ---
 name: converge
+version: "1.0.0"
 description: |
   Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol
   (steelman → critique → compare → synthesize → reject-log). Vendor-neutral,
@@ -59,22 +60,23 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 ## Optional toggles
 
 - `devil_advocate` ∈ {`auto` (default), `on`, `off`}
-  - `auto` — activates if proposals show >70% structural agreement (consensus risk)
+  - `auto` — activates if structural agreement across proposals ≥ `consensus_threshold` (consensus risk indicator)
   - `on` — force adversarial round
   - `off` — skip (log rationale for skipping)
   - When active, applied as one of the cognitive activations during ACT 2-3
 - `cognitive_activations` — list OR catalog URI
   - Inline: `["critic", "pre-mortem", "devils-advocate"]`
-  - URI: `vek-memory://dna_33_cognitive_minds.md` (any URI scheme; vendor-neutral)
-  - Default: implicit `Critic + Truth-seeker + Meta-cognitive` (semantic, not proprietary)
-  - Inheritance when sub-delegated: `additive_only` — sub-agents may ADD, never REMOVE
+  - URI (allowed schemes — **local/repo-backed only by default**): `vek-memory://`, `file://`, `repo://`. Network schemes (`http`, `https`, `ftp`, `ssh`) are **disallowed by default** to prevent SSRF and supply-chain compromise; consumers may extend the allowlist via explicit opt-in policy.
+  - Resolution contract: validate scheme against allowlist → resolve URI → verify checksum/manifest if available → cache the resolved set for reproducibility. On unreachable URI: fall back to default core set (Critic + Truth-seeker + Meta-cognitive) + emit warning to audit log.
+  - Default (no parameter): implicit `Critic + Truth-seeker + Meta-cognitive` (semantic, not proprietary).
+  - Inheritance when sub-delegated: `additive_only` — sub-agents may ADD, never REMOVE.
 - `max_rounds` (default 1, max 3) — round-based debate if first synthesis lacks consensus
-- `consensus_threshold` (default 0.7) — proportion of dimensions where ≥2 proposals agree to consider it consensus-ready
+- `consensus_threshold` (default 0.7) — proportion of dimensions where ≥2 proposals agree; also the trigger threshold for `devil_advocate: auto` (single source of truth — no duplicate metric)
 - `mcp_backend` (optional) — URI to MCP-compatible decision-graph store (e.g., `ai-counsel`) for cross-session memory; default: in-session only
 
 ## Output structure (markdown)
 
-```
+```text
 §1 TL;DR (2-3 sentences — what changed, what stayed)
 §2 Comparison table (dimension × proposal × verdict × rationale)
 §3 Critiques per proposal (positive / negative / justification with citations)
@@ -102,11 +104,11 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 - **Empty proposals** → reject with clear error
 - **Contradictory at axiom level** → emit explicit `no-convergence-possible` verdict + rationale; do NOT force fake synthesis
 - **Activation URI unreachable** → fall back to default core set + warn
-- **Loop ≥3 with no convergence** → escalate upward; do NOT silently retry
+- **Loop ≥ `max_rounds` with no convergence** → escalate upward; do NOT silently retry (default `max_rounds: 1`, hard cap `3`)
 
 ## Examples
 
-```
+```bash
 # Basic — 2 markdown proposals, defaults
 converge proposalA.md proposalB.md
 

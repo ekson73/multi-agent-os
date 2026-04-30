@@ -72,7 +72,9 @@ If a cited artifact reaches >95% feature parity with this skill, consider:
 2. Deprecating this skill and pointing to the upstream artifact
 3. Documenting the deprecation in `CHANGELOG.md` of multi-agent-os
 
-## Sources cited (primary URLs verified reachable as of 2026-04-30)
+## Sources cited (primary URLs checked as of 2026-04-30)
+
+> Verification method: HTTP GET via WebFetch with expected 2xx status; cross-checked across at least one secondary search engine. Re-verification due quarterly per the maintenance protocol above. Treat any future 404/403 as a signal to update — not as a defect of this document at write time.
 
 - https://github.com/sjarmak/agent-workflows/blob/main/skills/converge/SKILL.md
 - https://github.com/nyldn/claude-octopus
