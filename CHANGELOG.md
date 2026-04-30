@@ -20,6 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `templates/memory-snippets/delegate-governance-memory.md` — paste-able blocks for user-scope memory
 - `tests/validate-plugin.sh` — delegation-framework assertions (files exist, token budget ≤1500, CLI exec + 3 phases exit 0, skill frontmatter)
 
+#### Converge Skill v1.0.0 — Cross-Agent Proposal Convergence
+
+- `skills/converge/SKILL.md` — vendor-neutral 5-act protocol (steelman → critique → compare → synthesize → reject-log) for converging ≥2 AI-agent proposals into one validated synthesis. Single-session capable, general-purpose (not code-only). Optional toggles: `devil_advocate` (auto/on/off), `cognitive_activations` (inline list or catalog URI), `max_rounds`, `consensus_threshold`, `mcp_backend`.
+- `skills/converge/PRIOR-ART.md` — survey of 20+ artifacts (sjarmak/converge, claude-octopus, peteski22/star-chamber, Solvely-Colin/Quorum, blueman82/ai-counsel, claudeblattman.com/council, AltimateAI/claude-consensus, dubs3c/council, onevcat/argue, et al.); cited primitives, universal gaps, quarterly maintenance protocol. Anti-NIH discipline with embedded prior-art table inside SKILL.md.
+- Differentiators (validated as universal gaps in 20+ surveyed artifacts): (1) reject-log as first-class artifact, (2) devil's-advocate as TOGGLE (only Quorum had flag; others always-on/off), (3) cognitive-activations 1st-class with pluggable catalog URI (closest was /council with fixed `--type` rosters), (4) steelman-FIRST act ordering (sjarmak had as rule, not phase), (5) general-purpose scope (most prior art is code-review-scoped).
+
 ### Fixed
 
 #### maos-mcp-hub — VKO-88: Jira search endpoint migration (CHANGE-2046)
