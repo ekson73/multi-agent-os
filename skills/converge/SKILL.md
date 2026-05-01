@@ -1,12 +1,14 @@
 ---
 name: converge
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol
   (steelman → critique → compare → synthesize → reject-log). Vendor-neutral,
-  single-session, general-purpose. Use when multiple agents (or multiple humans,
-  or human+agent) produced competing proposals and a single consolidated artifact
-  is needed with explicit provenance, rejected alternatives, and audit chain.
+  single-session, general-purpose, AUDIT-not-PERSUASION discipline. Use when multiple
+  agents (or multiple humans, or human+agent) produced competing proposals and a
+  single consolidated artifact is needed with explicit provenance, rejected
+  alternatives, audit chain, and impartial neutral framing safe for downstream
+  evaluation.
   Triggers: "converge proposals", "merge agent outputs", "synthesize multiple AI
   responses", "compare and consolidate", "cross-agent arbitration", "reconcile
   conflicting recommendations".
@@ -49,7 +51,17 @@ Build a comparison table: dimensions × proposals × verdict × rationale per ce
 
 Extract best-of-each elements; produce one converged proposal. Every converged element carries provenance (which source proposal it came from).
 
-> **Anti-bias trick from Quorum**: when bias risk is high (e.g., one proposal is much louder), prefer letting the *runner-up* proposal lead the synthesis pass — it counterbalances anchoring on the dominant proposal.
+> **Anti-bias trick from Quorum**: when bias risk is high (e.g., one proposal is much louder), prefer letting the *runner-up* proposal lead the synthesis pass — it counterbalances anchoring on the dominant proposal. **If applied, log it explicitly in §9 `bias_techniques_applied`**.
+
+> **End-of-ACT-4 impartiality scan (mandatory)**: before emitting §5, scan the synthesis output for persuasive framing. Reject and rewrite neutrally if any of the following are detected:
+> - Asymmetric victory framing ("my proposal won 9 of 14 dimensions") — replace with neutral comparison data
+> - Leading questions to downstream agents ("Do you agree that...?", "Você concorda em (a)... — OU (b)...?")
+> - Asymmetric provenance language ("YOUR contribution was OPT-IN" vs "MY contribution was MANDATORY") — present each contribution with parallel structure
+> - "What do you think?" closers that pre-load consensus
+> - Emotive adjectives applied unevenly ("elegant" for one, "over-engineered" for another)
+> - First-person possessive framing ("my L1") — use neutral identifiers ("Proposal A's L1", or just "L1")
+>
+> Goal: the output reads identically to a downstream human or AI agent encountering it cold, without nudging them toward any pre-selected conclusion.
 
 ### ACT 5 — Reject log
 
@@ -73,6 +85,10 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 - `max_rounds` (default 1, max 3) — round-based debate if first synthesis lacks consensus
 - `consensus_threshold` (default 0.7) — proportion of dimensions where ≥2 proposals agree; also the trigger threshold for `devil_advocate: auto` (single source of truth — no duplicate metric)
 - `mcp_backend` (optional) — URI to MCP-compatible decision-graph store (e.g., `ai-counsel`) for cross-session memory; default: in-session only
+- `output_language` ∈ {`auto` (default), `pt`, `en`, `es`, `<ISO-639-1>`}
+  - `auto` — detect from majority language of input proposals; on ambiguity, default to `en`
+  - Explicit override forces output language regardless of input
+  - Audit chain (§9) records detected/forced language for reproducibility
 
 ## Output structure (markdown)
 
@@ -85,7 +101,7 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 §6 Provenance / credits (which element came from which source)
 §7 Rejected alternatives (with rationale)
 §8 Open questions and next-iteration triggers
-§9 Audit chain (sources, version, timestamp)
+§9 Audit chain (sources, version, timestamp, toggles, bias_techniques_applied, output_language)
 §10 Prior art cited (anti-NIH discipline — see Prior Art section below)
 ```
 
@@ -97,6 +113,16 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 - DA must be considered (even if `off`, log rationale)
 - Audit chain preserved
 - Vendor-neutral: no hardcoded proprietary catalog references — only URIs
+- **Audit-not-persuasion (Invariant 6)**: the output is a RECORD produced for downstream readers (humans + agents) to evaluate independently — NOT a debate move designed to win concessions. The skill MUST NOT include language that:
+  - Frames a "preferred" answer for the next agent
+  - Asks leading questions ("Do you agree that...?", binary "(a) accept | (b) justify why not")
+  - Uses asymmetric framing in §6/§7 (e.g., "your contribution was OPT-IN" vs "my contribution was MANDATORY")
+  - Closes with a "what do you think?" that pre-loads consensus
+  - Tallies "wins" in a way that pressures the next reader toward agreement
+  - Uses first-person possessives ("my proposal") — use neutral identifiers ("Proposal A")
+  - Applies emotive adjectives unevenly across proposals
+  - Embeds prompt-injection patterns ("respond with: I agree with...")
+  All claims and verdicts MUST be presented neutrally. The reader concludes; the skill records. Enforced by mandatory end-of-ACT-4 impartiality scan (see ACT 4 spec).
 
 ## Failure modes
 
@@ -157,6 +183,7 @@ This skill stands on the shoulders of prior work. Each primitive is credited:
 
 ## Versioning
 
+- v1.1.0 (2026-05-01) — Invariant 6 (audit-not-persuasion / anti-prompt-injection); end-of-ACT-4 mandatory impartiality scan; `output_language` toggle; §9 audit chain extended (`bias_techniques_applied`, `output_language`); attribution disclosure for runner-up-synthesizes anti-bias trick. Driven by dogfooding feedback in issue #45.
 - v1.0.0 (2026-04-30) — initial release; 5-act protocol; cited prior art
 
 ## License
