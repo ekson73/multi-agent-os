@@ -45,9 +45,9 @@ Per active item (open todo, unmerged branch/PR, in-progress ticket, file with un
 
 One mermaid `graph LR` block. Edges = atomic dependencies between Phase 2 items. Short node IDs.
 
-**Skip if** < 3 nodes → one-line dependency description instead.
+**Skip if** < 2 nodes → one-line dependency description instead. With ≥ 2 nodes, run cycle detection (a 2-node cycle `A ↔ B` is a real deadlock scenario worth flagging).
 
-**Cycle detection**: if a cycle is detected, emit the cycle nodes (e.g., `cycle: A → B → C → A`) and mark them `pending-quadrant-resolution`. Do not error and do not escalate yet — Phase 4 will compute quadrants for the cycle nodes and Phase 5 will apply the break-heuristic with that data.
+**Cycle detection**: if a cycle is detected (length ≥ 2), emit the cycle nodes (e.g., `cycle: A → B → C → A` or `cycle: A ↔ B`) and mark them `pending-quadrant-resolution`. Do not error and do not escalate yet — Phase 4 will compute quadrants for the cycle nodes and Phase 5 will apply the break-heuristic with that data.
 
 ### PHASE 4 — Eisenhower 2x2
 
@@ -97,7 +97,7 @@ Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with
 - Objectives map: max 7 bullets — graceful truncation, never silent drop
 - Output budget enforced — truncate Phases 1-3 first; Phase 5 routing must always complete
 - `dry_run` overrides `persist`
-- Vendor-neutral — no hard dependency on proprietary tools (mentioning runtime examples is OK; binding to one isn't)
+- Vendor-neutral — no proprietary tool names in **generated pulse output content** (the SKILL.md narrative or examples may reference vendor/runtime names for clarity, e.g., Claude Code, Cursor, Codex, Gemini CLI)
 - Chain-link preserved when a prior pulse was consumed
 - Audit chain preserved: timestamp, version, input source list
 
