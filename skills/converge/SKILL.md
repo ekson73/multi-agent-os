@@ -161,4 +161,4 @@ This skill stands on the shoulders of prior work. Each primitive is credited:
 
 ## License
 
-Apache-2.0 (matches multi-agent-os repo).
+MIT (matches multi-agent-os repo `LICENSE`).

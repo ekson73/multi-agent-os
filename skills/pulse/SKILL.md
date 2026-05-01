@@ -5,10 +5,10 @@ description: |
   Session re-orientation skill. Refreshes context, snapshots status, builds
   a dependency graph, classifies pending work via Eisenhower 2x2, and routes
   each item ∈ {now, delegate, defer-trigger, backlog, drop}. Vendor-neutral,
-  single-session, output-budgeted. Chain-links to prior pulse artefacts when
+  single-session, output-budgeted. Chain-links to prior pulse artifacts when
   present. Triggers: "session pulse", "where are we", "catch up", "re-orient",
   "drift check", "status + plan", "what's next", "weekly review".
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Pulse
@@ -31,7 +31,7 @@ Run phases in **strict order**. Each phase has explicit output and a skip-rule.
 
 ### PHASE 1 — Memory refresh
 
-Read recent commits, open todos, top-level memory/changelog index, planning artefacts if any. **Output**: 3-7 bullet objectives map (primary / secondary / auxiliary). Lossy by intent — never a dump.
+Read recent commits, open todos, top-level memory/changelog index, planning artifacts if any. **Output**: 3-7 bullet objectives map (primary / secondary / auxiliary). Lossy by intent — never a dump.
 
 **Skip if** no memory + no commits + no todos + no prior pulse → emit "fresh start" + suggested first action; stop.
 
@@ -65,18 +65,18 @@ Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with
 
 **Cycle break-heuristic (resolution from Phase 3 + 4)**: for nodes marked `pending-quadrant-resolution`, drop the cycle edge whose endpoints fall in the lowest-priority quadrants (rank: not-urgent×not-important > urgent×not-important > not-urgent×important > urgent×important). Document the dropped edge and rationale. Escalate to human only if the lowest quadrant is tied at the urgent×important level.
 
-**Persist**: write Markdown artefact at `persist_path` (default literal `./PULSE-<ISO-date>-<slug>.md`).
+**Persist**: write Markdown artifact at `persist_path` (default literal `./PULSE-<ISO-date>-<slug>.md`) **only when `persist=true` and `dry_run=false`**. Otherwise emit the artifact to stdout (preview-only) and skip all file writes.
 
-**Chain rule**: if a prior pulse artefact was consumed in Phase 1, set `prev:` link in frontmatter and reference it in §7.
+**Chain rule**: if a prior pulse artifact was consumed in Phase 1, set `prev:` link in frontmatter and reference it in §7.
 
-**Skip writes if** `dry_run=true` (overrides `persist`).
+**Skip writes if** `dry_run=true` (overrides `persist`) **or** `persist=false` (default — preview-only).
 
 ## Optional toggles
 
 - `persist` (default `false`) — append a one-line pointer to project memory/changelog if either exists; emit `backlog`/`defer-trigger` items as resumable prompt files at `backlog_path`. No-op if no project memory present.
 - `dry_run` (default `false`) — preview to stdout, never write. Overrides `persist`.
 - `consume_prior` (default `auto`) — `auto` finds the most recent `PULSE-*.md` in the workspace and chain-links it; `none` skips; or pass an explicit path.
-- `persist_path` (default `./PULSE-<ISO-date>-<slug>.md`) — output artefact path. Literal default; runtimes may substitute their own path conventions.
+- `persist_path` (default `./PULSE-<ISO-date>-<slug>.md`) — output artifact path. Literal default; runtimes may substitute their own path conventions.
 - `backlog_path` (default `./backlog/`) — directory for emitted backlog/defer-trigger prompt files.
 
 ## Output structure
@@ -97,7 +97,7 @@ Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with
 - Objectives map: max 7 bullets — graceful truncation, never silent drop
 - Output budget enforced — truncate Phases 1-3 first; Phase 5 routing must always complete
 - `dry_run` overrides `persist`
-- Vendor-neutral — no proprietary tool names in body
+- Vendor-neutral — no hard dependency on proprietary tools (mentioning runtime examples is OK; binding to one isn't)
 - Chain-link preserved when a prior pulse was consumed
 - Audit chain preserved: timestamp, version, input source list
 
@@ -141,12 +141,12 @@ pulse --persist-path ./reports/pulse-q2.md
 
 **What pulse uniquely combines** (verified gaps in surveyed prior art):
 
-1. Memory + Status + DAG + Eisenhower + chain-linked persistence in **one** SKILL.md (no surveyed artefact combines >2)
+1. Memory + Status + DAG + Eisenhower + chain-linked persistence in **one** SKILL.md (no surveyed artifact combines >2)
 2. `defer-trigger` route as first-class taxon (most tools collapse it into "backlog")
 3. `consume_prior` chain-link semantics for compounding pulses across sessions
 4. Cycle break-heuristic before escalation (deterministic > error)
 
-## Related multi-agent-os artefacts
+## Related multi-agent-os artifacts
 
 - `skills/converge/SKILL.md` — sibling for cross-agent proposal convergence (used as the meta-PDCA tool to design pulse itself)
 - `protocols/agent-delegation.md` — delegation chain integration for the `delegate` route
@@ -157,4 +157,4 @@ pulse --persist-path ./reports/pulse-q2.md
 
 ## License
 
-Apache-2.0 (matches multi-agent-os repo).
+MIT (matches multi-agent-os repo `LICENSE`).
