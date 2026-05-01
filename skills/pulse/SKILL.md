@@ -47,7 +47,7 @@ One mermaid `graph LR` block. Edges = atomic dependencies between Phase 2 items.
 
 **Skip if** < 3 nodes → one-line dependency description instead.
 
-**Cycle rule**: if a cycle is detected, present a deterministic break-heuristic (drop the lowest-quadrant edge per Phase 4) before escalating — never just error.
+**Cycle detection**: if a cycle is detected, emit the cycle nodes (e.g., `cycle: A → B → C → A`) and mark them `pending-quadrant-resolution`. Do not error and do not escalate yet — Phase 4 will compute quadrants for the cycle nodes and Phase 5 will apply the break-heuristic with that data.
 
 ### PHASE 4 — Eisenhower 2x2
 
@@ -55,11 +55,15 @@ Four-quadrant table (Urgent×Important / Not-Urgent×Important / Urgent×Not-Imp
 
 **Skip if** no pending items survived Phase 2.
 
+**Cycle handling (continuation from Phase 3)**: when nodes were marked `pending-quadrant-resolution`, classify them into quadrants like any other items. Their quadrants feed Phase 5's break-heuristic.
+
 ### PHASE 5 — Route + persist
 
 Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with rationale. For `defer-trigger`, capture the wake-up condition explicitly.
 
 **Conflict rule**: when two items both demand `now`, force-rank by Phase 4 quadrant; ties escalate to human (no auto-decide).
+
+**Cycle break-heuristic (resolution from Phase 3 + 4)**: for nodes marked `pending-quadrant-resolution`, drop the cycle edge whose endpoints fall in the lowest-priority quadrants (rank: not-urgent×not-important > urgent×not-important > not-urgent×important > urgent×important). Document the dropped edge and rationale. Escalate to human only if the lowest quadrant is tied at the urgent×important level.
 
 **Persist**: write Markdown artefact at `persist_path` (default literal `./PULSE-<ISO-date>-<slug>.md`).
 
@@ -100,7 +104,7 @@ Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with
 ## Failure modes
 
 - **Empty workspace** → "fresh start" + suggested first action
-- **DAG cycle detected** → emit break-heuristic ranking; escalate only if user rejects
+- **DAG cycle detected** → Phase 3 emits cycle nodes as `pending-quadrant-resolution`; Phase 4 classifies them; Phase 5 applies break-heuristic; escalate only if lowest quadrant is tied at urgent×important
 - **Output exceeds budget** → truncate Phases 1-3 first; Phase 5 routing must complete
 - **Non-git workspace** → degrade: skip git inputs, proceed with todos + memory only
 - **Prior pulse parse error** → start fresh, log warning in §7
