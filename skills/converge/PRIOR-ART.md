@@ -72,6 +72,29 @@ If a cited artifact reaches >95% feature parity with this skill, consider:
 2. Deprecating this skill and pointing to the upstream artifact
 3. Documenting the deprecation in `CHANGELOG.md` of multi-agent-os
 
+## Dogfooding insights (v1.1.0 — 2026-05-07)
+
+Real-world usage of v1.0.0 on substantial use case (7 parallel research agent outputs on multi-account AI identity management) revealed:
+
+**What worked exceptionally well:**
+1. **5-act ordering eliminates bias** — Steelman-first prevents premature judgment formation
+2. **Reject log (§7) is the killer differentiator** — preserves considered-and-rejected alternatives with rationale
+3. **Parity check** catches real bias in critique distribution (4+ negatives per "soft" proposal vs 2-3 per "concrete" proposal)
+4. **Anti-NIH discipline §10** changed behavior — forces citation of prior art that would otherwise be implicitly absorbed
+5. **Cross-checking in §3 critique** surfaces hidden patterns not visible in flat collation (e.g., `includeIf hasconfig:remote.*.url:` discovery)
+
+**Critical gap identified:**
+- **Subtle prompt injection risk**: v1.0.0 was format-prescriptive but not tone-prescriptive. Real output contained leading questions ("Do you agree that...?") and asymmetric framing ("9 wins vs 5") — violations of the spirit (not letter) of impartiality. This was caught by the human user, not by the skill itself.
+- **Solution**: Added Invariant 6 (audit-not-persuasion) + mandatory parity check in ACT 4 for persuasive framing detection in v1.1.0.
+
+**Other improvements needed:**
+- Anti-bias trick attribution should be explicit in §9 output (not just documented in spec)
+- DA skip rationale should require qualitative breakdown, not just mechanical thresholds
+- Output language auto-detection needed (multilingual teams)
+- No-convergence-possible output template missing
+
+Session: PR `vek-im/vek-devops-backlog#15` (2-hour session, 2 substantive runs including cross-agent debate)
+
 ## Sources cited (primary URLs checked as of 2026-04-30)
 
 > Verification method: HTTP GET via WebFetch with expected 2xx status; cross-checked across at least one secondary search engine. Re-verification due quarterly per the maintenance protocol above. Treat any future 404/403 as a signal to update — not as a defect of this document at write time.

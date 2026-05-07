@@ -26,6 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/converge/PRIOR-ART.md` — survey of 20+ artifacts (sjarmak/converge, claude-octopus, peteski22/star-chamber, Solvely-Colin/Quorum, blueman82/ai-counsel, claudeblattman.com/council, AltimateAI/claude-consensus, dubs3c/council, onevcat/argue, et al.); cited primitives, universal gaps, quarterly maintenance protocol. Anti-NIH discipline with embedded prior-art table inside SKILL.md.
 - Differentiators (validated as universal gaps in 20+ surveyed artifacts): (1) reject-log as first-class artifact, (2) devil's-advocate as TOGGLE (only Quorum had flag; others always-on/off), (3) cognitive-activations 1st-class with pluggable catalog URI (closest was /council with fixed `--type` rosters), (4) steelman-FIRST act ordering (sjarmak had as rule, not phase), (5) general-purpose scope (most prior art is code-review-scoped).
 
+#### Converge Skill v1.1.0 — Anti-Prompt-Injection & Impartiality Improvements
+
+- **Critical security fix**: Added Invariant 6 (audit-not-persuasion principle) to prevent subtle prompt injection in converge outputs. Real-world dogfooding revealed AI agents could produce leading questions ("Do you agree that...?") and asymmetric framing ("9 wins vs 5") that pre-load consensus in downstream agents/humans.
+- **Mandatory parity check**: ACT 4 now scans synthesis output for persuasive framing patterns (leading questions, asymmetric framing, consensus-loading language, direct appeals) and requires rewrite if detected.
+- **Output language toggle**: Added `output_language` parameter (auto|pt|en|...) for multilingual teams to control synthesis language independently of input proposals.
+- **Enhanced audit chain**: §9 now includes `bias_techniques_applied` field to explicitly disclose which anti-bias tricks (e.g., runner-up-synthesizes) were used in the convergence.
+- **Neutral handoff template**: Added §11 "Downstream-agent handoff" section with prescriptive templates for handing converge output to next agent/human without prompt injection.
+- **Failure mode clarity**: Added concrete no-convergence-possible output template example with structured rationale and escalation recommendation.
+- **Worktree compatibility**: Documented that converge is safe in worktree-heavy workflows (output lands in active worktree, no coordination conflicts).
+- **Bidirectional cross-references**: Updated `skills/delegate-governance/SKILL.md` and `protocols/delegation/delegation-init-prompt.md` references to create bidirectional links with converge skill.
+- **Dogfooding insights**: Added PRIOR-ART.md section documenting real-world usage on 7 parallel research agent outputs (2-hour session, 2 substantive runs including cross-agent debate). Documented what worked (steelman ordering, reject log, parity check, anti-NIH discipline) and critical gaps (prompt injection risk).
+- Source: Based on issue feedback from real-world dogfooding session (PR vek-im/vek-devops-backlog#15).
+
 #### Pulse Skill v0.1.0 — Session Re-orientation + Eisenhower-DAG Planning
 
 - `skills/pulse/SKILL.md` — vendor-neutral 5-phase protocol (memory refresh → status snapshot → dependency graph → Eisenhower 2x2 → route+persist) for session re-orientation. Single-session, output-budgeted, runtime-portable. Optional toggles: `persist`, `dry_run`, `consume_prior` (chain-link to prior pulse artifact), `persist_path`, `backlog_path`. Strict phase ordering with explicit skip-rules per phase; `defer-trigger` route as first-class taxon; cycle break-heuristic before escalation.
