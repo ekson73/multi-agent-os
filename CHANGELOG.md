@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### Skill `converge` v1.0.0 → v1.1.0
+- **NEW Invariant 6: audit-not-persuasion / anti-prompt-injection** — output is a record for downstream evaluation, NOT a debate move. Forbids leading questions, asymmetric framing, victory tallies, "what do you think?" closers, first-person possessives, emotive adjectives applied unevenly, and embedded prompt-injection patterns
+- **NEW end-of-ACT-4 mandatory impartiality scan** — before emitting §5 synthesis, scan output for persuasive framing and rewrite neutrally
+- **NEW toggle `output_language`** ∈ {`auto`, `pt`, `en`, `es`, `<ISO-639-1>`} — explicit control over output language with reproducibility recorded in audit chain
+- **EXTENDED §9 audit chain** — now includes `bias_techniques_applied` (e.g., runner-up-synthesizes attribution disclosure) and `output_language`
+- Driven by real-world dogfooding feedback documented in issue #45 (caught a regression in a v1.0.0 production run where AI runner produced output with subtle persuasive framing toward downstream agent — skill needed to defend against this class of regression)
+
 ### Added
 
 #### GaaS/GaaC Agentic Delegation Framework (v1.0)
