@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+#### Skill `converge` v1.1.0 → v1.1.1 — Operational complement to Invariant 6 (cherry-picked from superseded PR #47)
+
+- **NEW §11 "Downstream-agent handoff" template** — concrete neutral-framing markdown template for handing converge output to next agent/human. Operationalizes Invariant 6 by addressing the most common prompt-injection vector (the handoff message itself).
+- **NEW `no-convergence-possible` output template example** — Failure modes section now includes full markdown example for when proposals contradict at axiom level (escalation path documented inline).
+- **NEW worktree-compatibility bullet** in "When to use" — clarifies converge output lands in active worktree without coordination conflicts.
+- **NEW bidirectional cross-references**:
+  - `protocols/delegation/delegation-init-prompt.md` ↔ converge (handoff feeds delegation context)
+  - `skills/delegate-governance/SKILL.md` ↔ converge (when sub-agents return competing proposals)
+- **NEW PRIOR-ART.md "Dogfooding insights" section** — retrospective on v1.0.0 real-world usage (2-hour session, 7 parallel research agents) documenting what worked + the gap that drove v1.1.0.
+- All changes are non-functional doc additions; no behavioral change to existing 5-act protocol or ACT 4 scan.
+- Source: cherry-picked from PR #47 (closed as superseded) which was opened pre-#46 merge; this PR preserves PR #47's unique valuable additions atop main's current v1.1.0.
+
 #### Skill `converge` v1.0.0 → v1.1.0
 - **NEW Invariant 6: audit-not-persuasion / anti-prompt-injection** — output is a record for downstream evaluation, NOT a debate move. Forbids leading questions, asymmetric framing, victory tallies, "what do you think?" closers, first-person possessives, emotive adjectives applied unevenly, and embedded prompt-injection patterns
 - **NEW end-of-ACT-4 mandatory impartiality scan** — before emitting §5 synthesis, scan output for persuasive framing and rewrite neutrally

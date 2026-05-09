@@ -1,6 +1,6 @@
 ---
 name: converge
-version: "1.1.0"
+version: "1.1.1"
 description: |
   Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol
   (steelman → critique → compare → synthesize → reject-log). Vendor-neutral,
@@ -26,6 +26,7 @@ Vendor-neutral cross-agent proposal convergence skill. Synthesizes N≥2 proposa
 - An RFC / ADR / governance decision needs reconciliation across stakeholders
 - Single agent produced multiple alternative drafts and needs to pick the best synthesis
 - Cross-provider comparison (Claude vs GPT vs Gemini) needs a structured merge
+- Compatible with worktree-heavy workflows — converge output lands in the active worktree; no coordination conflicts
 
 ## Instructions — the 5-act protocol
 
@@ -129,6 +130,31 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 - **1 proposal** → reject OR enter steelman-only mode (parameter-controlled)
 - **Empty proposals** → reject with clear error
 - **Contradictory at axiom level** → emit explicit `no-convergence-possible` verdict + rationale; do NOT force fake synthesis
+
+  Example no-convergence output:
+  ```markdown
+  # Convergence Verdict: NO-CONVERGENCE-POSSIBLE
+
+  ## Axiom-level Contradiction Detected
+
+  Proposals A and B operate from incompatible foundational assumptions:
+
+  - Proposal A axiom: [statement with citation]
+  - Proposal B axiom: [contradictory statement with citation]
+
+  These cannot be reconciled without one side abandoning its core premise.
+
+  ## Recommendation
+
+  Escalate to human decision-maker or request proposals be reframed with explicit axiom alignment first.
+
+  ## Audit Chain
+  - Convergence attempted: [timestamp]
+  - Proposals analyzed: [list]
+  - Verdict: NO-CONVERGENCE-POSSIBLE
+  - Rationale: Axiom-level incompatibility on [dimension]
+  ```
+
 - **Activation URI unreachable** → fall back to default core set + warn
 - **Loop ≥ `max_rounds` with no convergence** → escalate upward; do NOT silently retry (default `max_rounds: 1`, hard cap `3`)
 
@@ -176,13 +202,55 @@ This skill stands on the shoulders of prior work. Each primitive is credited:
 
 ## Related multi-agent-os artifacts
 
-- `protocols/agent-delegation.md` — how converge fits into delegation chains
+- `protocols/delegation/delegation-init-prompt.md` — converge outputs can be fed to delegated sub-agents via this protocol
+- `protocols/agent-delegation.md` — how converge fits into delegation chains (bidirectional reference)
 - `protocols/hierarchical-merge-protocol.md` — sibling skill for merging branches
-- `skills/delegate-governance/SKILL.md` — DNA inheritance pattern this skill respects
+- `skills/delegate-governance/SKILL.md` — DNA inheritance pattern this skill respects; references converge for multi-proposal scenarios
 - `agents/code-reviewer.md` — typical consumer of converge output
+
+## §11 — Downstream-agent handoff (neutral framing template)
+
+When the converge output will be handed to another agent or human for action, use this neutral framing template to avoid prompt injection (Invariant 6):
+
+```markdown
+## Handoff to Next Agent/Human
+
+**Context**: This convergence analyzed [N] proposals on [topic].
+
+**Artifacts produced**:
+- Converged synthesis (§5)
+- Rejected alternatives with rationale (§7)
+- Open questions (§8)
+
+**No action is prescribed.** The synthesis is provided for your independent evaluation. You may:
+- Adopt the converged proposal as-is
+- Request a revision with specific criteria
+- Reject and propose an alternative approach
+- Escalate for additional stakeholder input
+
+**No preference is implied.** All options are equally valid depending on your context and constraints.
+
+**Questions for clarification** (optional, neutral framing):
+- [Factual question about the synthesis, if any]
+- [Clarification about a rejected alternative, if needed]
+
+Do NOT include:
+- "Do you agree?" or similar consensus-seeking questions
+- "I recommend..." or other directive language
+- Scorekeeping ("X won on Y dimensions")
+- Asymmetric framing of options
+```
+
+This template satisfies Invariant 6 (audit-not-persuasion) and prevents subtle prompt injection in multi-agent workflows.
 
 ## Versioning
 
+- v1.1.1 (2026-05-09) — non-functional additions cherry-picked from superseded PR #47 (post-#46 merge):
+  - Added §11 "Downstream-agent handoff" neutral framing template (operational complement to Invariant 6)
+  - Added concrete `no-convergence-possible` output template example to Failure modes
+  - Added bidirectional cross-references (`protocols/delegation/delegation-init-prompt.md` + delegate-governance reciprocity)
+  - Added "When to use" worktree-compatibility bullet
+  - Added PRIOR-ART.md "Dogfooding insights" section (real-world v1.0.0 usage retrospective)
 - v1.1.0 (2026-05-01) — Invariant 6 (audit-not-persuasion / anti-prompt-injection); end-of-ACT-4 mandatory impartiality scan; `output_language` toggle; §9 audit chain extended (`bias_techniques_applied`, `output_language`); attribution disclosure for runner-up-synthesizes anti-bias trick. Driven by dogfooding feedback in issue #45.
 - v1.0.0 (2026-04-30) — initial release; 5-act protocol; cited prior art
 
