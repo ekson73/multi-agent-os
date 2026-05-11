@@ -115,27 +115,67 @@ scan_file() {
     violations=$((violations + cl002_n))
   fi
 
-  # CL003 — asymmetric framing
-  # Heuristic v0.1: count positive descriptors near "proposal A/B" mentions.
-  # For v0.1 we only flag if a proposal is described with >5 positive
-  # adjectives while the other has <2. Implementation deferred to v0.2 —
-  # for now emit advisory CL003-skipped marker.
-  # (Operator can opt-in stricter heuristic in v0.2.)
+  # CL003 — asymmetric framing detection (lightweight v0.1)
+  # Heuristic: scan §6 Provenance + §7 Decisions for proposal-A vs proposal-B
+  # mentions; count positive descriptors per proposal. Flag if disparity > 3x.
+  # Positive descriptor set is intentionally short to minimize false positives.
+  cl003_out=$(awk -v file="$f" '
+    BEGIN {
+      in_target = 0; pos_a = 0; pos_b = 0
+      neg_a = 0; neg_b = 0  # also track negatives to refine signal
+    }
+    /^#{1,6} .*([Pp]rovenance|ACT *6|§6|[Dd]ecisions|ACT *7|§7)/ { in_target = 1; next }
+    /^#{1,6} / && in_target == 1 { in_target = 0 }
+    in_target == 1 {
+      # tally positive/negative-affect lexemes per proposal — only when line
+      # mentions ONE proposal (skip cross-comparative sentences to avoid
+      # signal cross-pollution).
+      mentions_a = ($0 ~ /[Pp]roposal *[Aa]/) || ($0 ~ /[Aa]gent-A/) || ($0 ~ /[Pp]roposta *A/) || ($0 ~ /opç[aã]o *A/)
+      mentions_b = ($0 ~ /[Pp]roposal *[Bb]/) || ($0 ~ /[Aa]gent-B/) || ($0 ~ /[Pp]roposta *B/) || ($0 ~ /opç[aã]o *B/)
+      # Word-level tally: count occurrences of positive/negative tokens, not lines
+      if (mentions_a && !mentions_b) {
+        line_lc = tolower($0)
+        n_pos = gsub(/best|optimal|robust|elegant|cleaner|superior|bold|comprehensive|excellent|ideal/, "", line_lc)
+        n_neg = gsub(/weak|brittle|sloppy|inferior|naive|simplistic|risky|fragile/, "", line_lc)
+        pos_a += n_pos; neg_a += n_neg
+      } else if (mentions_b && !mentions_a) {
+        line_lc = tolower($0)
+        n_pos = gsub(/best|optimal|robust|elegant|cleaner|superior|bold|comprehensive|excellent|ideal/, "", line_lc)
+        n_neg = gsub(/weak|brittle|sloppy|inferior|naive|simplistic|risky|fragile/, "", line_lc)
+        pos_b += n_pos; neg_b += n_neg
+      }
+    }
+    END {
+      # Net favor = positives - negatives per proposal
+      net_a = pos_a - neg_a
+      net_b = pos_b - neg_b
+      gap = (net_a > net_b ? net_a - net_b : net_b - net_a)
+      if ((pos_a + pos_b + neg_a + neg_b) >= 4 && gap >= 4) {
+        printf "%s:1:CL003:asymmetric-framing in §6/§7 (proposal-A net=%d, proposal-B net=%d, gap=%d, pos_a=%d neg_a=%d pos_b=%d neg_b=%d)\n", file, net_a, net_b, gap, pos_a, neg_a, pos_b, neg_b
+      }
+    }
+  ' "$f")
+  if [ -n "$cl003_out" ]; then
+    echo "$cl003_out"
+    cl003_n=$(echo "$cl003_out" | wc -l | tr -d ' ')
+    violations=$((violations + cl003_n))
+  fi
 
   # CL004 — ungrounded claims in §3 Compare/critique
-  # Find blocks under any §3-equivalent heading; flag list items lacking
-  # any inline quote (`>`, `\`...\``, or "L<num>" citation).
+  # Requires a blockquote excerpt (`> "..."`) OR a line citation (`L<num>`).
+  # Inline code (backticks) does NOT count as grounding — per spec §3 definition.
   cl004_out=$(awk -v file="$f" '
-    BEGIN { in_sec3 = 0; line_no = 0 }
+    BEGIN { in_sec3 = 0 }
     /^#{1,6} .*[Cc]ompare|^#{1,6} .*ACT *3|^#{1,6} .*§3|^#{1,6} .*[Cc]ritique/ { in_sec3 = 1; next }
     /^#{1,6} / && in_sec3 == 1 { in_sec3 = 0 }
     in_sec3 == 1 && /^[ \t]*[-*] / {
       has_evidence = 0
-      if ($0 ~ /`[^`]+`/)               has_evidence = 1
-      if ($0 ~ /^[ \t]*>/)              has_evidence = 1
-      if ($0 ~ /L[0-9]+|line *[0-9]+/)  has_evidence = 1
+      # Only blockquote OR line citation counts as evidence
+      if ($0 ~ /> *["'\''"]/)            has_evidence = 1   # inline blockquote with quote
+      if ($0 ~ /^[ \t]*>/)               has_evidence = 1   # blockquote on same line
+      if ($0 ~ /L[0-9]+|line *[0-9]+/)   has_evidence = 1   # line citation
       if (!has_evidence) {
-        printf "%s:%d:CL004:ungrounded-critique (no quote/citation): %s\n", file, NR, substr($0, 1, 80)
+        printf "%s:%d:CL004:ungrounded-critique (no quote-excerpt or L<num> citation): %s\n", file, NR, substr($0, 1, 80)
       }
     }
   ' "$f")
@@ -145,22 +185,33 @@ scan_file() {
     violations=$((violations + cl004_n))
   fi
 
-  # CL005 — §4 must reference impartiality scan
-  if grep -qiE "^#{1,6} .*synthesize|^#{1,6} .*ACT *4|^#{1,6} .*§4" "$f"; then
-    if ! grep -qiE "impartiality scan|end-of-ACT-4|persuasive framing|Invariant 6" "$f"; then
-      echo "$f:1:CL005:missing-parity-check-evidence"
+  # CL005 — §4 must REFERENCE impartiality scan WITHIN the §4 section body
+  # (section-scoped per Qodo PR #51 finding — was previously whole-file grep).
+  sec4_body=$(awk '
+    /^#{1,6} .*synthesize|^#{1,6} .*ACT *4|^#{1,6} .*§4/ { in_sec = 1; next }
+    /^#{1,6} / && in_sec == 1 { in_sec = 0 }
+    in_sec == 1 { print }
+  ' "$f")
+  if [ -n "$sec4_body" ]; then
+    if ! echo "$sec4_body" | grep -qiE "impartiality scan|end-of-ACT-4|persuasive framing|Invariant 6"; then
+      echo "$f:1:CL005:missing-parity-check-evidence-within-§4"
       violations=$((violations + 1))
     fi
   fi
 
-  # CL006 — Invariant-6 audit disclosures in §9
-  if grep -qiE "^#{1,6} .*audit chain|^#{1,6} .*ACT *9|^#{1,6} .*§9" "$f"; then
-    if ! grep -qE "output_language" "$f"; then
-      echo "$f:1:CL006:missing-output_language-in-audit-chain"
+  # CL006 — Invariant-6 audit disclosures WITHIN §9 (section-scoped)
+  sec9_body=$(awk '
+    /^#{1,6} .*audit chain|^#{1,6} .*ACT *9|^#{1,6} .*§9/ { in_sec = 1; next }
+    /^#{1,6} / && in_sec == 1 { in_sec = 0 }
+    in_sec == 1 { print }
+  ' "$f")
+  if [ -n "$sec9_body" ]; then
+    if ! echo "$sec9_body" | grep -qE "output_language"; then
+      echo "$f:1:CL006:missing-output_language-within-§9-audit-chain"
       violations=$((violations + 1))
     fi
-    if ! grep -qE "bias_techniques_applied" "$f"; then
-      echo "$f:1:CL006:missing-bias_techniques_applied-in-audit-chain"
+    if ! echo "$sec9_body" | grep -qE "bias_techniques_applied"; then
+      echo "$f:1:CL006:missing-bias_techniques_applied-within-§9-audit-chain"
       violations=$((violations + 1))
     fi
   fi

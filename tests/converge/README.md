@@ -9,6 +9,8 @@ Closes the **tooling** portion of issue [#50](https://github.com/ekson73/multi-a
 | `case-01-balanced/output.md` | Well-formed converge output (§1-§9 present, Invariant 6 honored) — expected to PASS lint |
 | `case-02-missing-sections/output.md` | Output missing §1 Steelman, §5 Reject log, §8 Open questions — expected to fail with CL001+CL005+CL006 |
 | `case-03-leading-question/output.md` | Output with persuasive framing ("Você concorda em…", "Don't you think A would also work?") — expected to fail with CL002 |
+| `case-04-contradictory/output.md` | Output with `no-convergence-possible` verdict (axiom-level disagreement) — expected to PASS lint (verdict is content, not structural violation) |
+| `case-05-asymmetric-loud/output.md` | Output with heavily-positive framing on Proposal A + heavily-negative on Proposal B in §6/§7 — expected to fail with CL003 (asymmetric framing detection) |
 | `case-NN/expected.txt` | `exit_code=<N>` + optional `expected_rules=<list>` declaring the assertion |
 | `run.sh` | POSIX-sh test runner; invokes `../../scripts/converge-lint.sh` on each case + asserts |
 
