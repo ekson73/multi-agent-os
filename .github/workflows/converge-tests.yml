@@ -1,0 +1,35 @@
+name: converge tooling tests
+
+on:
+  pull_request:
+    paths:
+      - "skills/converge/**"
+      - "scripts/converge-*.sh"
+      - "tests/converge/**"
+      - ".github/workflows/converge-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "skills/converge/**"
+      - "scripts/converge-*.sh"
+      - "tests/converge/**"
+      - ".github/workflows/converge-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  converge-lint-tests:
+    name: Run converge-lint test rig
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run lint script self-check (--help)
+        run: ./scripts/converge-lint.sh --help
+
+      - name: Run test rig (3 known proposal cases)
+        run: ./tests/converge/run.sh
