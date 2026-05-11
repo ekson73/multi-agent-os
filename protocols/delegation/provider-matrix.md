@@ -42,7 +42,7 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 
 ## VCS operations
 
-### GitHub (`github.com/ekson73/*`, `github.com/vek-servicos/*`)
+### GitHub (`github.com/ekson73/*`, `github.com/vek-im/*`)
 
 | Operation | Primary | Fallback 1 | Fallback 2 |
 |---|---|---|---|
