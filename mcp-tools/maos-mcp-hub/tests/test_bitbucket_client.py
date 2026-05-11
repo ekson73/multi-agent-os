@@ -298,6 +298,41 @@ def test_update_pr_description_success(monkeypatch):
     asyncio.run(run())
 
 
+def test_add_pr_comment_non_idempotent_no_retry(monkeypatch):
+    """CodeRabbit PR #42 finding 6: add_pr_comment must not retry on 429.
+
+    POST /pullrequests/{id}/comments is non-idempotent — a retried POST that
+    succeeds after a 429 would create a duplicate comment. Verify max_retries=0
+    is honored and a RateLimitError surfaces immediately.
+    """
+    _setup_env(monkeypatch)
+
+    async def run():
+        client = BitbucketPipelineClient(repo_slug="workspace/repo")
+        with respx.mock(assert_all_called=True) as router:
+            route = router.post(
+                "https://api.bitbucket.org/2.0/repositories/workspace/repo/pullrequests/42/comments"
+            ).mock(
+                side_effect=[
+                    httpx.Response(429, text='{"error":"rate limit"}'),
+                    httpx.Response(201, json={"id": 12345}),
+                ]
+            )
+
+            try:
+                await client.add_pr_comment(pr_id=42, content="Bot Scorecard")
+                raise AssertionError("Expected RateLimitError")
+            except RateLimitError as exc:
+                assert exc.status_code == 429
+
+            # Must not retry — a retried POST creates a duplicate comment.
+            assert route.call_count == 1
+
+        await client.close()
+
+    asyncio.run(run())
+
+
 def test_update_pr_description_non_idempotent_no_retry(monkeypatch):
     """VKS-1853: update_pr_description must not retry on 429 (race safety)."""
     _setup_env(monkeypatch)

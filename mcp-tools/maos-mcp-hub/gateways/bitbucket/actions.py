@@ -142,9 +142,10 @@ _GOVERNANCE = {
             "Usar mesmo account que criou o PR para preservar autoria consistente",
         ],
         "update_description": [
-            "Operacao idempotente mas NAO preserva mudancas concorrentes — fazer read-modify-write",
-            "Para append (Bot Scorecard no final), fetch via pull_request.get primeiro",
-            "account determina quem aparece como 'edited by' na UI Bitbucket",
+            "PUT replaces o body inteiro — chamadas concorrentes podem perder-update (write-write race). Fazer SEMPRE read-modify-write: `pull_request.get` primeiro, merge, depois update.",
+            "Cliente usa max_retries=0 para esta operacao — retry automatico em 429/5xx transientes agravaria races (um PUT retried pode sobrescrever edicao concorrente que aterrissou no meio).",
+            "Para append (ex: Bot Scorecard no final do body), fetch via `pull_request.get` primeiro, concatenar a nova secao, e entao chamar com o resultado merged.",
+            "`account` determina quem aparece como 'edited by' na UI Bitbucket; preferir o account do autor do PR em cenarios de governance para evitar atribuicao drift.",
         ],
     },
     "branch": {

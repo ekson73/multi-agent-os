@@ -1559,7 +1559,14 @@ async def get_pr_details(
         return {
             "id": pr.get("id"),
             "title": pr.get("title", ""),
-            "description": pr.get("description", "")[:500],  # Truncate long descriptions
+            # Return both a UI-friendly preview (truncated) and the raw full body.
+            # Callers doing read-modify-write via update_pr_description must use
+            # raw_full_description to avoid silently dropping the tail. The
+            # truncated description field is preserved for backward compatibility
+            # with consumers that only render a preview (CodeRabbit PR #42 finding 5).
+            "description": pr.get("description", "")[:500],
+            "description_truncated": len(pr.get("description") or "") > 500,
+            "raw_full_description": pr.get("description", ""),
             "state": pr.get("state", ""),
             "author": pr.get("author", {}).get("display_name", "Unknown"),
             "reviewers": reviewers,

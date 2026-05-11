@@ -99,10 +99,15 @@ async def create_issue(
     except Exception as e:
         # VKS-1853 Gap 8: surface screen-scheme errors with a clear hint
         msg = str(e)
+        # Only treat as screen-scheme mismatch when the error message contains
+        # explicit screen-related phrases. The previous overbroad condition
+        # (`"priority" in msg.lower()`) matched any error mentioning priority
+        # and emitted a misleading hint for unrelated validation failures
+        # (CodeRabbit PR #42 finding 4 — VKS-1853 Gap 8 refinement).
         if priority and (
-            "priority" in msg.lower()
-            or "cannot be set" in msg.lower()
+            "cannot be set" in msg.lower()
             or "is not on the appropriate screen" in msg.lower()
+            or "not on the appropriate screen" in msg.lower()
         ):
             return {
                 "error": "Priority not available on this screen scheme for this issue type",

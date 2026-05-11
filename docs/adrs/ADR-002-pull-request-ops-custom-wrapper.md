@@ -66,9 +66,9 @@ This ADR covers the three DoD items of VKS-1853:
 
 **Gap 6 — `pull_request` missing ops**
 Add three new tools in `servers/bitbucket/tools.py`:
-- `add_pr_comment(pr_id, content, parent_id=None, account="", workspace="", repo_slug="")`
-- `update_pr_description(pr_id, description, account="", workspace="", repo_slug="")`
-- `reply_to_pr_comment(pr_id, parent_id, content, account="", workspace="", repo_slug="")` — thin wrapper over `add_pr_comment` with `parent_id` required
+- `add_pr_comment(content, pr_id=None, pull_request_id=None, parent_id=None, account="", workspace="", repo_slug="")` — `content` first positional; `pr_id` keyword-only with `pull_request_id` as forward-compat alias (Gap 7).
+- `update_pr_description(description, pr_id=None, pull_request_id=None, account="", workspace="", repo_slug="")` — `description` first positional; `pr_id` keyword-only aliased.
+- `reply_to_pr_comment(parent_id, content, pr_id=None, pull_request_id=None, account="", workspace="", repo_slug="")` — `parent_id` first positional (required); thin wrapper over `add_pr_comment`.
 
 Registered in `RESOURCE_MAP["pull_request"]` as operations `add_comment`, `update_description`, `reply_to_comment`.
 
