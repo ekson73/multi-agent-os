@@ -1,0 +1,2 @@
+exit_code=1
+expected_rules=CL001 CL005 CL006
