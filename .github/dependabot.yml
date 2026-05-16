@@ -23,8 +23,13 @@ updates:
     reviewers:
       - "ekson73"
     commit-message:
+      # `deps-dev` was tried first but Conventional Commits parser
+      # (amannn/action-semantic-pull-request) rejects hyphenated types
+      # ("No release type found"). Both prod and dev deps use `deps:` type;
+      # the `(deps-dev)` scope token in the title still distinguishes them
+      # (e.g. "deps(deps-dev): bump pytest from 8.0 to 8.1").
       prefix: "deps"
-      prefix-development: "deps-dev"
+      prefix-development: "deps"
       include: "scope"
     groups:
       python-minor-patch:
