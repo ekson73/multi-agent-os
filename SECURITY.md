@@ -39,12 +39,16 @@ This repo enforces the following supply-chain controls (issue #52 checklist):
 
 ## Anti-Patterns Banned in CI
 
-The supply-chain sentinel rejects any PR matching these anti-patterns:
+PRs introducing these patterns are blocked:
 
-- `${...}` direct interpolation inside shell `run:` bodies (CWE-78 RCE). Use `env:` blocks and reference `"$VAR"` instead.
-- Indented heredocs inside `run: |` (silent false-negative — heredoc never closes).
-- `--no-verify` on commits/pushes without explicit operator authorization recorded in the PR body.
-- Any token, password, private key, or credential committed to git history (gitleaks).
+| Anti-pattern | Today | Planned |
+|---|---|---|
+| `${{ ... }}` direct interpolation inside shell `run:` bodies (CWE-78 RCE). Use `env:` blocks and reference `"$VAR"` instead. | Reviewed via CODEOWNERS auto-request on `/.github/workflows/` | Automated lint via `actionlint`/`zizmor` — tracked as P1 gap in `docs/security-tabletop-exercise.md` §B |
+| Indented heredocs inside `run: \|` (silent false-negative — heredoc never closes). | Reviewed via CODEOWNERS | Same as above |
+| `--no-verify` on commits/pushes without explicit operator authorization recorded in the PR body. | Reviewed manually + GaaS pre-push naming-convention check | Same as above |
+| Any token, password, private key, or credential committed to git history. | **Automated**: `gitleaks` job in `supply-chain-sentinel.yml` runs on every PR + push |  |
+
+The supply-chain sentinel workflow automates only the secret-scan and dependency/lockfile/Scorecard surfaces today. Pattern-level workflow linting is a P1 gap acknowledged in the tabletop exercise; until landed, CODEOWNERS-driven manual review is the gate for the first three rows.
 
 ## Cross-Org Coordination
 
