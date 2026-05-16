@@ -5,6 +5,8 @@
 **Auditor**: Claude-Opus-4.7 (plan mode + auto mode)
 **Status**: FASE 0 concluída, aguardando aprovação humana para FASE 1
 
+> **Snapshot note**: Os inventários e contagens em §1 representam o estado **pré-VKS-1853** (commits anteriores a `4161b01`). VKS-1853 adicionou 3 operações novas em `pull_request` (`add_pr_comment`, `reply_to_pr_comment`, `update_pr_description`), elevando Bitbucket de **52 → 55 tools flat** e o total de ações acessíveis via gateway de **96 → 99**. Tabelas e contagens preservam o snapshot original para fins de auditoria histórica; valores pós-VKS-1853 estão anotados inline quando relevante.
+
 ---
 
 ## 1. Inventário de Flat-Tools Registradas
@@ -54,11 +56,11 @@ for gw_name in ["discover", "jira", "confluence", "bitbucket", "compass", "commo
 
 **Cobertura gateway**: 100% (+ 14 ops novas: transition, search.jql, comment.add, worklog.add, link.*, project.*, user.search, estimation.calculate)
 
-### 1.4. Lista exata — Bitbucket (52 tools flat)
+### 1.4. Lista exata — Bitbucket (52 tools flat — pré-VKS-1853; 55 pós-VKS-1853)
 
 Extraído de `servers/bitbucket/tools.py:2992-3050+`:
 
-```
+```text
 Core: get_recent_builds, get_build_details, get_build_steps, get_step_logs
 Analysis: analyze_failures, auto_diagnose, compare_builds, diagnose_pipeline_failure
 Health: check_pipeline_health, check_alerts, get_executive_summary
@@ -77,6 +79,8 @@ Branches: list_branches, get_branch, create_branch, delete_branch, set_default_b
 ```
 
 **Cobertura gateway**: 100% — todas as 52 tools mapeadas via `gateways/bitbucket/actions.py:RESOURCE_MAP` em 11 resources (pipeline=16 ops, pull_request=8, branch=8, deployment=4, commit=4, test=3, cache=4, variable=2, learning=3).
+
+> **Atualização pós-VKS-1853**: `pull_request` passou de **8 → 11 ops** com a adição de `add_pr_comment`, `reply_to_pr_comment` e `update_pr_description`. Bitbucket total: **52 → 55 tools flat**. Demais resources inalterados.
 
 ---
 
@@ -160,7 +164,7 @@ Branches: list_branches, get_branch, create_branch, delete_branch, set_default_b
 |---|---:|---:|---:|
 | Total MCP tools registradas | 66 | 6 | -91% |
 | Token footprint (schemas) | baseline | 1/10 | ~90% menor |
-| Tools reais disponíveis | 66+6=72 | 6 meta × 96 ações = 6 tools → 96 ações acessíveis | mesma capacidade |
+| Tools reais disponíveis | 66+6=72 | 6 meta × 99 ações = 6 tools → 99 ações acessíveis (pós-VKS-1853; era 96 no snapshot original) | mesma capacidade |
 
 ---
 
