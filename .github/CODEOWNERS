@@ -1,0 +1,29 @@
+# CODEOWNERS — Multi-Agent OS
+#
+# Wave 3 supply-chain hardening (issue #52). Reviewers are auto-requested
+# when matching paths change. Order matters: last match wins.
+
+# Global default
+*                                       @ekson73
+
+# Security-sensitive surfaces
+/.github/                               @ekson73
+/.github/workflows/                     @ekson73
+/.github/CODEOWNERS                     @ekson73
+/.github/dependabot.yml                 @ekson73
+/SECURITY.md                            @ekson73
+/LICENSE                                @ekson73
+
+# Plugin manifest & hook executables
+/.claude-plugin/                        @ekson73
+/hooks/                                 @ekson73
+/plugin-scripts/                        @ekson73
+
+# MCP gateway (auth tokens, multi-persona surface)
+/mcp-tools/maos-mcp-hub/                @ekson73
+/mcp-tools/maos-mcp-hub/lib/            @ekson73
+/mcp-tools/maos-mcp-hub/gateways/       @ekson73
+
+# Protocols & governance docs
+/protocols/                             @ekson73
+/docs/adrs/                             @ekson73

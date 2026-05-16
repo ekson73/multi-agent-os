@@ -1,0 +1,161 @@
+# Supply-Chain Sentinel — Wave 3 hardening (issue #52)
+#
+# Defensive controls:
+#   1. Trivy fs           — vulnerabilities + misconfigurations + secrets
+#   2. pip-audit          — Python advisory database lookup
+#   3. gitleaks           — secret scanning (history + diff)
+#   4. OpenSSF Scorecard  — public scorecard for the repo
+#   5. Lockfile integrity — fail if requirements.txt is missing or empty
+#
+# Security notes:
+#   - Never use ${{ }} inside `run:` shell bodies (CWE-78). Pass through `env:`.
+#   - Avoid indented heredocs (silent false-negatives).
+#   - All third-party actions pinned to a tagged release; Dependabot bumps weekly.
+
+name: Supply-Chain Sentinel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily 09:00 UTC = 06:00 America/Sao_Paulo
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trivy-fs:
+    name: Trivy filesystem scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run Trivy fs (HIGH,CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: "true"
+          exit-code: "1"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-fs
+
+  pip-audit:
+    name: pip-audit (Python advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+
+      - name: Audit maos-mcp-hub requirements
+        env:
+          REQ_FILE: mcp-tools/maos-mcp-hub/requirements.txt
+        run: |
+          set -euo pipefail
+          if [ ! -s "$REQ_FILE" ]; then
+            echo "::error::Lockfile $REQ_FILE missing or empty"
+            exit 1
+          fi
+          pip-audit --strict --requirement "$REQ_FILE"
+
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+
+  lockfile-integrity:
+    name: Lockfile committed & non-empty
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify requirements files
+        env:
+          REQ_RUNTIME: mcp-tools/maos-mcp-hub/requirements.txt
+          REQ_DEV: mcp-tools/maos-mcp-hub/requirements-dev.txt
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in "$REQ_RUNTIME" "$REQ_DEV"; do
+            if [ ! -s "$f" ]; then
+              echo "::error file=$f::Lockfile missing or empty"
+              missing=1
+            else
+              echo "ok: $f ($(wc -l < "$f") lines)"
+            fi
+          done
+          exit "$missing"
+
+  scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Scorecard SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scorecard-results.sarif
+          category: ossf-scorecard
