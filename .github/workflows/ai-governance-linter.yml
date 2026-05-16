@@ -25,6 +25,8 @@ jobs:
             ci
             chore
             revert
+            deps
+            deps-dev
           requireScope: false
           
       - name: Validar Assinatura da IA Autônoma (Co-Authored-By)
