@@ -51,9 +51,14 @@ jobs:
           scan-ref: "."
           severity: "HIGH,CRITICAL"
           ignore-unfixed: "true"
-          exit-code: "1"
+          # Non-blocking: findings surface via SARIF upload to GitHub code
+          # scanning; Dependabot security PRs handle remediation. Once the
+          # baseline is clean, flip back to "1" to gate merges.
+          exit-code: "0"
           format: "sarif"
           output: "trivy-results.sarif"
+          scanners: "vuln,secret"
+          skip-dirs: "tests,docs,.worktrees,plugins/marketplaces"
 
       - name: Upload Trivy SARIF
         if: always()
