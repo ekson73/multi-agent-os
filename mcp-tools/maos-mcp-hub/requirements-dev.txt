@@ -1,4 +1,4 @@
 # MAOS MCP Hub - Development/Test Dependencies
 
-pytest==9.0.2
-respx==0.22.0
+pytest==9.0.3
+respx==0.23.1
