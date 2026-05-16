@@ -1,4 +1,4 @@
-"""Tests for Bitbucket gateway — wrapping 52 tools into meta-tool pattern."""
+"""Tests for Bitbucket gateway — wrapping 55 tools into meta-tool pattern (VKS-1853)."""
 
 import asyncio
 import os
@@ -11,7 +11,7 @@ from servers.bitbucket.tools import TOOLS as BB_TOOLS
 
 
 # ---------------------------------------------------------------------------
-# Coverage: all 52 tools are mapped
+# Coverage: all 55 tools are mapped (52 legacy + 3 VKS-1853 PR ops)
 # ---------------------------------------------------------------------------
 
 def test_all_bitbucket_tools_have_gateway_mapping():
@@ -29,10 +29,10 @@ def test_all_bitbucket_tools_have_gateway_mapping():
     assert unmapped == [], f"Unmapped tools: {unmapped}"
 
 
-def test_resource_map_has_52_actions():
-    """Total action count matches expected 52."""
+def test_resource_map_has_55_actions():
+    """Total action count matches expected 55 (52 legacy + 3 VKS-1853)."""
     total = sum(len(ops) for ops in RESOURCE_MAP.values())
-    assert total == 52, f"Expected 52 actions, got {total}"
+    assert total == 55, f"Expected 55 actions, got {total}"
 
 
 # ---------------------------------------------------------------------------
@@ -86,8 +86,79 @@ def test_discovery_level1_pull_request_operations():
         assert "merge" in ops
         assert "approve" in ops
         assert "get_comments" in ops
+        # VKS-1853: new PR interaction operations
+        assert "add_comment" in ops
+        assert "reply_to_comment" in ops
+        assert "update_description" in ops
 
     asyncio.run(run())
+
+
+def test_vks1853_pull_request_has_11_ops():
+    """VKS-1853: pull_request must expose 11 ops (8 legacy + 3 new)."""
+    pr_ops = RESOURCE_MAP["pull_request"]
+    expected = {
+        "list", "get", "create", "merge", "approve", "unapprove",
+        "get_comments", "get_build_statuses",
+        # VKS-1853 additions
+        "add_comment", "reply_to_comment", "update_description",
+    }
+    assert set(pr_ops.keys()) == expected, (
+        f"pull_request ops mismatch: expected {expected}, got {set(pr_ops.keys())}"
+    )
+
+
+def test_vks1853_pr_add_comment_has_governance():
+    """VKS-1853: add_comment must carry governance metadata for agents."""
+    router = build_router()
+    schema = router.registry.get_schema("pull_request", "add_comment")
+    assert schema is not None
+
+
+def test_vks1853_pr_update_description_has_governance():
+    """VKS-1853: update_description must carry governance metadata."""
+    router = build_router()
+    schema = router.registry.get_schema("pull_request", "update_description")
+    assert schema is not None
+
+
+def test_vks1853_pr_reply_to_comment_has_governance():
+    """VKS-1853: reply_to_comment must carry governance metadata."""
+    router = build_router()
+    schema = router.registry.get_schema("pull_request", "reply_to_comment")
+    assert schema is not None
+
+
+def test_vks1853_normalize_pr_id_accepts_canonical():
+    """VKS-1853: _normalize_pr_id returns pr_id when only pr_id is provided."""
+    from servers.bitbucket.tools import _normalize_pr_id
+    assert _normalize_pr_id(pr_id=42, pull_request_id=None) == 42
+
+
+def test_vks1853_normalize_pr_id_accepts_alias():
+    """VKS-1853: _normalize_pr_id returns pull_request_id when only alias provided."""
+    from servers.bitbucket.tools import _normalize_pr_id
+    assert _normalize_pr_id(pr_id=None, pull_request_id=42) == 42
+
+
+def test_vks1853_normalize_pr_id_both_equal_ok():
+    """VKS-1853: _normalize_pr_id accepts both when equal (canonical wins)."""
+    from servers.bitbucket.tools import _normalize_pr_id
+    assert _normalize_pr_id(pr_id=42, pull_request_id=42) == 42
+
+
+def test_vks1853_normalize_pr_id_both_missing_raises():
+    """VKS-1853: _normalize_pr_id raises when both are missing."""
+    from servers.bitbucket.tools import _normalize_pr_id
+    with pytest.raises(ValueError, match="pr_id.*pull_request_id"):
+        _normalize_pr_id(pr_id=None, pull_request_id=None)
+
+
+def test_vks1853_normalize_pr_id_conflict_raises():
+    """VKS-1853: _normalize_pr_id raises when values differ."""
+    from servers.bitbucket.tools import _normalize_pr_id
+    with pytest.raises(ValueError, match="Conflicting"):
+        _normalize_pr_id(pr_id=42, pull_request_id=43)
 
 
 def test_discovery_level1_branch_operations():
@@ -134,7 +205,7 @@ def test_discovery_unknown_resource():
 
 def test_router_action_count():
     router = build_router()
-    assert router.action_count == 52
+    assert router.action_count == 55
 
 
 def test_router_tool_name():

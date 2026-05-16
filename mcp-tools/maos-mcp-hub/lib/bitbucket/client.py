@@ -1365,6 +1365,103 @@ class BitbucketPipelineClient:
             max_retries=0,  # non-idempotent operation: avoid duplicate PR creation
         )
 
+    async def add_pr_comment(
+        self,
+        pr_id: int,
+        content: str,
+        parent_id: Optional[int] = None,
+    ) -> dict:
+        """
+        Add a comment to a pull request.
+
+        When `parent_id` is provided, the new comment becomes a threaded reply
+        to that comment (Bitbucket Cloud supports one-level threading per
+        comment). Use `add_pr_comment` for top-level comments and pass
+        `parent_id` to reply to bot findings (CodeRabbit, Qodo, Copilot,
+        RovoDev) programmatically.
+
+        Bitbucket API: POST /2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments
+
+        Args:
+            pr_id: Pull request ID
+            content: Comment body (markdown). Bitbucket renders markdown in
+                the PR UI; plain text is safe too.
+            parent_id: Optional parent comment ID to make this a reply.
+
+        Returns:
+            dict: Created comment details
+                  Format: {
+                      "id": 12345,
+                      "content": {"raw": "...", "markup": "markdown", ...},
+                      "user": {"display_name": "...", "uuid": "..."},
+                      "created_on": "...",
+                      "parent": {"id": 12340}  # if reply
+                  }
+
+        Raises:
+            ApiError: If API request fails (404 if PR or parent not found,
+                401/403 on auth, 429 on rate limit, etc.)
+        """
+        payload: dict = {
+            "content": {"raw": content},
+        }
+        if parent_id is not None:
+            payload["parent"] = {"id": parent_id}
+
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/pullrequests/{pr_id}/comments",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent: avoid duplicate comments
+        )
+
+    async def update_pr_description(
+        self,
+        pr_id: int,
+        description: str,
+    ) -> dict:
+        """
+        Update the description (body) of an existing pull request.
+
+        Preserves title, reviewers, source/destination branches and all other
+        PR metadata by only sending the `description` field in the payload.
+        This is useful for updating Bot Scorecards, governance evidence, or
+        per-session status blocks within the PR body after review cycles.
+
+        Bitbucket API: PUT /2.0/repositories/{workspace}/{repo}/pullrequests/{id}
+
+        Args:
+            pr_id: Pull request ID
+            description: New PR description (markdown). Replaces existing
+                description entirely — callers must read-modify-write if
+                they want to append.
+
+        Returns:
+            dict: Updated PR details (same shape as get_pull_request)
+
+        Raises:
+            ApiError: If API request fails (404 if PR not found, 403 if no
+                write access, etc.)
+        """
+        payload = {"description": description}
+
+        return await request_json(
+            method="PUT",
+            url=f"{self.base_url}/pullrequests/{pr_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=payload,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # non-idempotent: avoid race with concurrent edits
+        )
+
     async def get_pipeline_schedules(self) -> dict:
         """
         Get configured pipeline schedules (cron-based triggers)

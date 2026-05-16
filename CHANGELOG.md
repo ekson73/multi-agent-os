@@ -31,6 +31,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### maos-mcp-hub v2.2.0 — VKS-1853: PR Interaction Ops + Params Standardization + Priority Support (Gaps 6, 7, 8)
+
+- `servers/bitbucket/tools.py` — 3 new tools: `add_pr_comment` (top-level or threaded), `update_pr_description` (PUT-only body), `reply_to_pr_comment` (explicit threading wrapper). Standardizes params across ALL `pull_request.*` operations: every op now accepts both `pr_id` (canonical) and `pull_request_id` (alias), plus `account` for multi-persona auth. Helper `_normalize_pr_id(pr_id, pull_request_id)` handles disambiguation (raises on conflict, supports equal values).
+- `lib/bitbucket/client.py` — 2 new HTTP methods: `add_pr_comment(pr_id, content, parent_id=None)` → `POST /pullrequests/{id}/comments` and `update_pr_description(pr_id, description)` → `PUT /pullrequests/{id}`. Both `max_retries=0` (non-idempotent; protects against race with concurrent edits for description, against duplicate comments for comments).
+- `gateways/bitbucket/actions.py` — `RESOURCE_MAP["pull_request"]` now has 11 ops (was 8). Added governance hints and next-steps for the 3 new ops (e.g., "preferir reply_to_comment para manter threading", "idempotente mas NAO preserva mudancas concorrentes").
+- `gateways/jira/actions.py:create_issue` — Now accepts optional `priority: str` (serialized as `{"name": value}`, Jira canonical form) and `assignee_account_id`. When a screen-scheme rejection occurs (e.g., issue type `Intervenção Técnica - I.A.` id 10407 in project VKS), surfaces a `screen_scheme_hint: True` result with a descriptive `hint` instead of a cryptic 400 — unblocks automated issue creation for IT-IA workflow.
+- `docs/adrs/ADR-002-pull-request-ops-custom-wrapper.md` — Decision record: custom wrapper chosen over Rovo Dev API (Route B) because PR #40 already demoted atlassian-rovo to Tier-3 fallback. Delegating new functionality *back* to Rovo would reverse the architectural direction.
+- `tests/test_bitbucket_client.py` — 5 new tests for PR methods (top-level, threaded reply, 404, update, non-idempotent-no-retry).
+- `tests/test_gateway_bitbucket.py` — 9 new tests (11-ops assertion, governance for 3 new ops, `_normalize_pr_id` edge cases: canonical, alias, both equal, both missing, conflict).
+- `tests/test_gateway_jira.py` — 4 new tests for priority handling (serialization, omission, screen-scheme rejection, non-priority error propagation).
+
+### Changed
+
+- `hub.py:HUB_VERSION` bumped from `1.0.0` → `2.2.0` (SemVer minor: 3 new ops are additive; existing `pr_id`-only callers still work).
+- Gateway action count: Bitbucket 52 → 55 (cross-gateway total 96 → 99). Updated `tests/test_gateway_discover.py` and `tests/test_hub_registration.py` assertions accordingly.
+- `servers/bitbucket/__init__.py:__version__` bumped `2.0.0` → `2.2.0`.
+- README.md updated to reflect 55-action Bitbucket gateway and 99-action total; new v2.2 History entry.
+
+### Validated
+
+- `pytest` → 171/171 passing (18 new VKS-1853 tests + 153 existing).
+- Non-breaking: all existing positional-or-keyword call sites (`pr_id=42`) continue to work. Agents using `pull_request_id=42` now work too.
+- Safety: `_normalize_pr_id` raises `ValueError` on conflict or missing — bad calls fail fast with clear message.
+
 #### GaaS/GaaC Agentic Delegation Framework (v1.0)
 - `protocols/delegation/provider-matrix.md` — cross-provider lookup (Jira/Linear × Bitbucket/GitHub/GitLab × Secrets × Observability) citing source-of-truth files per cell
 - `protocols/delegation/delegation-init-prompt.md` (~894 tok) — start-of-delegation prompt (4 cognitive lenses, Anti-Conflict Phase-1, provider detection, output contract)

@@ -1,1 +1,1 @@
-"""Bitbucket gateway — wraps 52 existing tools into meta-tool pattern."""
+"""Bitbucket gateway — wraps 55 tools into meta-tool pattern (VKS-1853)."""

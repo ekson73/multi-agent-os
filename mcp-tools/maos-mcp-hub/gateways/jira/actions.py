@@ -48,8 +48,37 @@ async def get_issue(issue_key: str, format: str = "markdown") -> dict:
     }
 
 
-async def create_issue(project_key: str, issue_type: str, summary: str, description: str = "", labels: list = None) -> dict:
-    """Create a new issue."""
+async def create_issue(
+    project_key: str,
+    issue_type: str,
+    summary: str,
+    description: str = "",
+    labels: list | None = None,
+    priority: str | None = None,
+    assignee_account_id: str | None = None,
+) -> dict:
+    """Create a new issue.
+
+    Args:
+        project_key: Jira project key (e.g., "VKS").
+        issue_type: Issue type name (e.g., "Story", "Intervenção Técnica - I.A.").
+        summary: Issue summary (title).
+        description: Plain-text description (converted to ADF automatically).
+        labels: Optional list of string labels.
+        priority: Optional priority name ("Highest", "High", "Medium", "Low",
+            "Lowest"). VKS-1853 note: some issue types (e.g., "Intervenção
+            Técnica - I.A." id 10407) in project VKS do NOT expose the
+            priority field in their screen scheme. In that case Jira returns
+            400 with a hint pointing to the screen-scheme mismatch. The
+            wrapper forwards this hint verbatim so callers can either
+            (a) create without priority and `editJiraIssue` afterward, or
+            (b) request a Jira admin to add priority to the screen scheme.
+        assignee_account_id: Optional assignee accountId (Atlassian 24-byte id).
+
+    Returns:
+        dict: Created issue on success, or
+            {"error": str, "hint": str, "screen_scheme_hint": bool} on 400.
+    """
     client = get_client()
     fields: Dict[str, Any] = {}
     if description:
@@ -58,7 +87,54 @@ async def create_issue(project_key: str, issue_type: str, summary: str, descript
         ]}
     if labels:
         fields["labels"] = labels
-    return await client.create_issue(project_key, issue_type, summary, **fields)
+    if priority:
+        # Jira REST API v3 expects {"name": "Medium"} or {"id": "3"}.
+        # We accept the friendlier string form and serialize canonically.
+        fields["priority"] = {"name": priority}
+    if assignee_account_id:
+        fields["assignee"] = {"accountId": assignee_account_id}
+
+    try:
+        return await client.create_issue(project_key, issue_type, summary, **fields)
+    except Exception as e:
+        # VKS-1853 Gap 8: surface screen-scheme errors with a clear hint.
+        # CodeRabbit PR #42 iteration 2 refinement: gate the hint translation on
+        # an HTTP 400 status to avoid mis-translating unrelated failures (e.g.
+        # network/timeout/5xx) that might happen to contain similar phrases.
+        status_code = getattr(e, "status_code", None)
+        if status_code is None:
+            response = getattr(e, "response", None)
+            status_code = getattr(response, "status_code", None)
+        if status_code != 400:
+            raise
+
+        msg = str(e)
+        # Only treat as screen-scheme mismatch when the error message contains
+        # explicit screen-related phrases. The previous overbroad condition
+        # (`"priority" in msg.lower()`) matched any error mentioning priority
+        # and emitted a misleading hint for unrelated validation failures
+        # (CodeRabbit PR #42 finding 4 — VKS-1853 Gap 8 refinement).
+        if priority and (
+            "cannot be set" in msg.lower()
+            or "is not on the appropriate screen" in msg.lower()
+            or "not on the appropriate screen" in msg.lower()
+        ):
+            return {
+                "error": "Priority not available on this screen scheme for this issue type",
+                "details": msg,
+                "hint": (
+                    f"Issue type '{issue_type}' in project '{project_key}' does not "
+                    "expose the 'priority' field on its Create screen. Options: "
+                    "(a) retry without `priority` and call `issue.edit` with "
+                    "priority afterward; (b) ask a Jira admin to add 'Priority' "
+                    "to the screen scheme of this issue type."
+                ),
+                "screen_scheme_hint": True,
+                "issue_type": issue_type,
+                "project_key": project_key,
+                "rejected_priority": priority,
+            }
+        raise
 
 
 async def edit_issue(issue_key: str, fields: dict) -> dict:

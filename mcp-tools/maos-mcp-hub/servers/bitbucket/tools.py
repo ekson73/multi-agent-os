@@ -1516,20 +1516,37 @@ async def get_pull_requests(state: str = "OPEN", count: int = 10, workspace: str
         return {"error": f"Failed to get pull requests: {sanitize_error(e)}"}
 
 
-async def get_pr_details(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+async def get_pr_details(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
-    Get detailed information about a specific pull request
+    Get detailed information about a specific pull request.
 
     Args:
-        pr_id: Pull request ID
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
+            Pass exactly one of `pr_id` or `pull_request_id`.
+        account: Named account to use (e.g., "jane-doe"). Default uses
+            the bot account. Standardized across pull_request.* ops.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override.
 
     Returns:
         dict: PR details with reviewers, description, merge info
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        pr = await client.get_pull_request(pr_id)
+        pr = await client.get_pull_request(effective_pr_id)
 
         # Format reviewers
         reviewers = []
@@ -1542,7 +1559,14 @@ async def get_pr_details(pr_id: int, workspace: str = "", repo_slug: str = "") -
         return {
             "id": pr.get("id"),
             "title": pr.get("title", ""),
-            "description": pr.get("description", "")[:500],  # Truncate long descriptions
+            # Return both a UI-friendly preview (truncated) and the raw full body.
+            # Callers doing read-modify-write via update_pr_description must use
+            # raw_full_description to avoid silently dropping the tail. The
+            # truncated description field is preserved for backward compatibility
+            # with consumers that only render a preview (CodeRabbit PR #42 finding 5).
+            "description": pr.get("description", "")[:500],
+            "description_truncated": len(pr.get("description") or "") > 500,
+            "raw_full_description": pr.get("description", ""),
             "state": pr.get("state", ""),
             "author": pr.get("author", {}).get("display_name", "Unknown"),
             "reviewers": reviewers,
@@ -1565,7 +1589,7 @@ async def get_pr_details(pr_id: int, workspace: str = "", repo_slug: str = "") -
 
     except ApiError as e:
         if e.status_code == 404:
-            return {"error": f"Pull request #{pr_id} not found"}
+            return {"error": f"Pull request #{effective_pr_id} not found"}
         return {
             "error": "Failed to get PR details",
             "details": sanitize_exception(e),
@@ -1575,20 +1599,35 @@ async def get_pr_details(pr_id: int, workspace: str = "", repo_slug: str = "") -
         return {"error": f"Failed to get PR details: {sanitize_error(e)}"}
 
 
-async def get_pr_build_statuses(pr_id: int, workspace: str = "", repo_slug: str = "") -> dict:
+async def get_pr_build_statuses(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
-    Get all build statuses for a specific pull request
+    Get all build statuses for a specific pull request.
 
     Args:
-        pr_id: Pull request ID
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
+        account: Named account to use. Default uses the bot account.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override.
 
     Returns:
         dict: Build statuses with overall state
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        statuses_response = await client.get_pr_statuses(pr_id)
+        statuses_response = await client.get_pr_statuses(effective_pr_id)
         statuses = statuses_response.get("values", [])
 
         # Count by state
@@ -1626,7 +1665,7 @@ async def get_pr_build_statuses(pr_id: int, workspace: str = "", repo_slug: str 
             overall_state = "UNKNOWN"
 
         return {
-            "pr_id": pr_id,
+            "pr_id": effective_pr_id,
             "total_statuses": len(statuses),
             "overall_state": overall_state,
             "state_counts": state_counts,
@@ -1635,7 +1674,7 @@ async def get_pr_build_statuses(pr_id: int, workspace: str = "", repo_slug: str 
 
     except ApiError as e:
         if e.status_code == 404:
-            return {"error": f"Pull request #{pr_id} not found"}
+            return {"error": f"Pull request #{effective_pr_id} not found"}
         return {
             "error": "Failed to get PR build statuses",
             "details": sanitize_exception(e),
@@ -1707,26 +1746,49 @@ async def create_pull_request(
             "destination_branch": destination_branch
         }
 
-async def get_pr_comments(pr_id: int, pagelen: int = 50, workspace: str = "", repo_slug: str = "") -> dict:
+async def get_pr_comments(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    pagelen: int = 50,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
-    Get all comments for a specific pull request
+    Get all comments for a specific pull request.
 
     Args:
-        pr_id: Pull request ID
-        pagelen: Items per page
-        workspace: Optional workspace override
-        repo_slug: Optional repo slug override
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
+            Pass exactly one of `pr_id` or `pull_request_id`.
+        pagelen: Items per page (default 50).
+        account: Named account to use. Default uses the bot account.
+            Standardized across pull_request.* ops.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override.
+
+    Returns:
+        dict with pr_id, total_comments, and comments array.
+        Each comment exposes: id, parent_id (for threading), content, author,
+        created_on, updated_on.
     """
-    client = get_client(workspace=workspace, repo_slug=repo_slug)
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        response = await client.get_pr_comments(pr_id=pr_id, pagelen=pagelen)
+        response = await client.get_pr_comments(pr_id=effective_pr_id, pagelen=pagelen)
         comments = response.get("values", [])
-        
+
         formatted_comments = []
         for c in comments:
+            parent = c.get("parent") or {}
             formatted_comments.append({
                 "id": c.get("id"),
+                "parent_id": parent.get("id"),
                 "content": c.get("content", {}).get("raw", ""),
                 "author": c.get("user", {}).get("display_name", "Unknown"),
                 "created_on": c.get("created_on", ""),
@@ -1734,14 +1796,14 @@ async def get_pr_comments(pr_id: int, pagelen: int = 50, workspace: str = "", re
             })
 
         return {
-            "pr_id": pr_id,
+            "pr_id": effective_pr_id,
             "total_comments": len(formatted_comments),
             "comments": formatted_comments
         }
     except ApiError as e:
         status = getattr(e, "status_code", getattr(e, "status", None))
         if status == 404:
-            return {"error": f"Pull request #{pr_id} not found or no comments"}
+            return {"error": f"Pull request #{effective_pr_id} not found or no comments"}
         return {
             "error": "Failed to get PR comments",
             "details": sanitize_exception(e),
@@ -1751,20 +1813,32 @@ async def get_pr_comments(pr_id: int, pagelen: int = 50, workspace: str = "", re
         return {"error": f"Failed to get PR comments: {sanitize_error(e)}"}
 
 
-async def merge_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
+async def merge_pull_request(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
     Merge a pull request
 
     Args:
-        pr_id: Pull request ID
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
         account: Named account to use (e.g., "jane-doe"). Useful when bot lacks write access to destination branch.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
     """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
     client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        pr = await client.merge_pull_request(pr_id=pr_id)
+        pr = await client.merge_pull_request(pr_id=effective_pr_id)
         
         return {
             "success": True,
@@ -1777,7 +1851,7 @@ async def merge_pull_request(pr_id: int, account: str = "", workspace: str = "",
     except ApiError as e:
         status = getattr(e, "status_code", getattr(e, "status", None))
         if status == 404:
-            return {"error": f"Pull request #{pr_id} not found"}
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
         return {
             "success": False,
             "error": "Failed to merge PR",
@@ -1785,10 +1859,16 @@ async def merge_pull_request(pr_id: int, account: str = "", workspace: str = "",
             "hint": getattr(e, "hint", ""),
         }
     except Exception as e:
-        return {"error": f"Failed to merge PR: {sanitize_error(e)}"}
+        return {"success": False, "error": f"Failed to merge PR: {sanitize_error(e)}"}
 
 
-async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
+async def approve_pull_request(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
     Approve a pull request.
 
@@ -1797,7 +1877,8 @@ async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "
     When using a named account, the approval is registered under that identity.
 
     Args:
-        pr_id: Pull request ID
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
         account: Named account to use (e.g., "jane-doe"). Default uses the bot account.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
@@ -1805,14 +1886,19 @@ async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "
     Returns:
         dict: Approval result with approver identity and PR state
     """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
     client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        result = await client.approve_pull_request(pr_id=pr_id)
+        result = await client.approve_pull_request(pr_id=effective_pr_id)
 
         return {
             "success": True,
-            "pr_id": pr_id,
+            "pr_id": effective_pr_id,
             "approved": True,
             "approved_by": result.get("user", {}).get("display_name", "MCP Hub Bot"),
             "role": result.get("role", "PARTICIPANT"),
@@ -1822,12 +1908,12 @@ async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "
         if status == 409:
             return {
                 "success": True,
-                "pr_id": pr_id,
+                "pr_id": effective_pr_id,
                 "approved": True,
                 "message": "PR was already approved by this user",
             }
         if status == 404:
-            return {"success": False, "error": f"Pull request #{pr_id} not found"}
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
         return {
             "success": False,
             "error": "Failed to approve PR",
@@ -1838,12 +1924,19 @@ async def approve_pull_request(pr_id: int, account: str = "", workspace: str = "
         return {"success": False, "error": f"Failed to approve PR: {sanitize_error(e)}"}
 
 
-async def unapprove_pull_request(pr_id: int, account: str = "", workspace: str = "", repo_slug: str = "") -> dict:
+async def unapprove_pull_request(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
     """
     Remove approval from a pull request.
 
     Args:
-        pr_id: Pull request ID
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
         account: Named account to use. Default uses the bot account.
         workspace: Optional workspace override
         repo_slug: Optional repo slug override
@@ -1851,20 +1944,25 @@ async def unapprove_pull_request(pr_id: int, account: str = "", workspace: str =
     Returns:
         dict: Unapproval confirmation
     """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
     client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
 
     try:
-        await client.unapprove_pull_request(pr_id=pr_id)
+        await client.unapprove_pull_request(pr_id=effective_pr_id)
         return {
             "success": True,
-            "pr_id": pr_id,
+            "pr_id": effective_pr_id,
             "approved": False,
             "message": "Approval removed successfully",
         }
     except ApiError as e:
         status = getattr(e, "status_code", getattr(e, "status", None))
         if status == 404:
-            return {"success": False, "error": f"Pull request #{pr_id} not found"}
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
         return {
             "success": False,
             "error": "Failed to unapprove PR",
@@ -1873,6 +1971,255 @@ async def unapprove_pull_request(pr_id: int, account: str = "", workspace: str =
         }
     except Exception as e:
         return {"success": False, "error": f"Failed to unapprove PR: {sanitize_error(e)}"}
+
+
+# ---------------------------------------------------------------------------
+# PR Interaction tools — add_comment / update_description / reply_to_comment
+# (VKS-1853: unblock Step 8 of AI-Native Protocol — 7 Mentes PDCA loop)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_pr_id(pr_id: int | None, pull_request_id: int | None) -> int:
+    """Accept either `pr_id` (canonical) or `pull_request_id` (alias).
+
+    Raises ValueError if both are missing or both are provided with different
+    values. When both are provided and equal, `pr_id` wins (canonical).
+    """
+    if pr_id is None and pull_request_id is None:
+        raise ValueError(
+            "Missing required parameter: pass either `pr_id` (canonical) or "
+            "`pull_request_id` (alias)."
+        )
+    if pr_id is not None and pull_request_id is not None and pr_id != pull_request_id:
+        raise ValueError(
+            f"Conflicting params: pr_id={pr_id} vs pull_request_id="
+            f"{pull_request_id}. Pass only one."
+        )
+    return pr_id if pr_id is not None else pull_request_id  # type: ignore[return-value]
+
+
+async def add_pr_comment(
+    content: str,
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    parent_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Add a comment to a pull request (top-level or threaded reply).
+
+    Use this to respond to bot reviews (CodeRabbit, Qodo, Copilot, RovoDev),
+    post Bot Scorecards, or add per-finding accept/reject/defer justifications
+    as part of the autonomous PR loop (Step 8 of AI-Native Protocol).
+
+    Args:
+        content: Comment body (markdown supported).
+        pr_id: Pull request ID (canonical name).
+        pull_request_id: Alias for pr_id (standardization for VKS-1853).
+            Pass exactly one of `pr_id` or `pull_request_id`.
+        parent_id: Optional parent comment ID. When provided, this comment
+            becomes a threaded reply to that comment (Bitbucket supports
+            one-level threading per top-level comment).
+        account: Named account to use (e.g., "jane-doe"). Default uses the
+            bot account. Use a human account so AI review bots recognize
+            the author.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override (format: "workspace/repo-name").
+
+    Returns:
+        dict: Created comment details
+              Format on success:
+              {
+                "success": True,
+                "comment_id": 12345,
+                "pr_id": 42,
+                "content": "...",
+                "author": "Display Name",
+                "parent_id": 12340,  # if reply
+                "created_on": "...",
+                "url": "https://bitbucket.org/.../pull-requests/42/_/diff#comment-12345"
+              }
+
+    Examples:
+        # Top-level Bot Scorecard comment
+        add_pr_comment(pr_id=42, content="## Bot Scorecard\\n...", account="jane")
+
+        # Reply to a specific finding
+        add_pr_comment(
+            pr_id=42, parent_id=12340,
+            content="Rejected: stylistic preference, not a bug. See CLAUDE.md §X.",
+            account="jane"
+        )
+    """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        comment = await client.add_pr_comment(
+            pr_id=effective_pr_id,
+            content=content,
+            parent_id=parent_id,
+        )
+
+        parent = comment.get("parent") or {}
+        return {
+            "success": True,
+            "comment_id": comment.get("id"),
+            "pr_id": effective_pr_id,
+            "content": (comment.get("content") or {}).get("raw", content),
+            "author": (comment.get("user") or {}).get("display_name", ""),
+            "parent_id": parent.get("id"),
+            "created_on": comment.get("created_on", ""),
+            "url": (comment.get("links") or {}).get("html", {}).get("href", ""),
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            if parent_id is not None:
+                return {
+                    "success": False,
+                    "error": f"Pull request #{effective_pr_id} or parent comment #{parent_id} not found",
+                    "hint": "Use get_pr_comments to list available parent comment IDs.",
+                }
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
+        return {
+            "success": False,
+            "error": "Failed to add PR comment",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to add PR comment: {sanitize_error(e)}"}
+
+
+async def reply_to_pr_comment(
+    parent_id: int,
+    content: str,
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Reply to a specific PR comment (convenience wrapper over add_pr_comment).
+
+    Semantically equivalent to `add_pr_comment(parent_id=...)` but makes the
+    intent explicit for agents analysing bot findings. Useful for 7-Mentes
+    per-finding responses where each reply must attach to the originating
+    bot comment for threading.
+
+    Args:
+        parent_id: Parent comment ID (required — the bot finding you are
+            replying to). Obtain from `pull_request.get_comments`.
+        content: Reply body (markdown).
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id.
+        account: Named account to use. Default uses the bot account.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override.
+
+    Returns:
+        dict: Same shape as add_pr_comment (with `parent_id` populated).
+    """
+    return await add_pr_comment(
+        content=content,
+        pr_id=pr_id,
+        pull_request_id=pull_request_id,
+        parent_id=parent_id,
+        account=account,
+        workspace=workspace,
+        repo_slug=repo_slug,
+    )
+
+
+async def update_pr_description(
+    description: str,
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Replace the description (body) of an existing pull request.
+
+    Use this to update Bot Scorecards, governance evidence, DoD checkboxes
+    or per-session status blocks within the PR body after review cycles.
+    The PR title, reviewers, source/destination branches are preserved.
+
+    NOTE: Replaces the description entirely. Callers that want to append
+    or surgically edit should first fetch via `pull_request.get` and then
+    post the merged result.
+
+    Args:
+        description: New PR description (markdown). Replaces existing body.
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id.
+        account: Named account to use (e.g., "jane-doe"). Default uses the
+            bot account. Use the PR author's account to avoid changing
+            "edited by" attribution in governance-sensitive scenarios.
+        workspace: Optional workspace override.
+        repo_slug: Optional repo slug override.
+
+    Returns:
+        dict: Updated PR details
+              Format on success:
+              {
+                "success": True,
+                "pr_id": 42,
+                "title": "...",
+                "state": "OPEN",
+                "url": "https://bitbucket.org/.../pull-requests/42",
+                "updated_on": "..."
+              }
+    """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        pr = await client.update_pr_description(
+            pr_id=effective_pr_id,
+            description=description,
+        )
+
+        return {
+            "success": True,
+            "pr_id": pr.get("id", effective_pr_id),
+            "title": pr.get("title", ""),
+            "state": pr.get("state", ""),
+            "url": (pr.get("links") or {}).get("html", {}).get("href", ""),
+            "updated_on": pr.get("updated_on", ""),
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
+        if status == 403:
+            return {
+                "success": False,
+                "error": "Permission denied",
+                "details": sanitize_exception(e),
+                "hint": "Requires write access on the repository. Use account=<PR author> or a write-scoped token.",
+            }
+        return {
+            "success": False,
+            "error": "Failed to update PR description",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to update PR description: {sanitize_error(e)}"}
 
 
 async def list_pipeline_schedules(workspace: str = "", repo_slug: str = "") -> dict:
@@ -3034,6 +3381,10 @@ TOOLS = {
     "merge_pull_request": merge_pull_request,
     "approve_pull_request": approve_pull_request,
     "unapprove_pull_request": unapprove_pull_request,
+    # PR Interaction tools — VKS-1853 (2026-04-23) — unblock Step 8 7-Mentes loop
+    "add_pr_comment": add_pr_comment,
+    "update_pr_description": update_pr_description,
+    "reply_to_pr_comment": reply_to_pr_comment,
     "list_pipeline_schedules": list_pipeline_schedules,
     "get_pipeline_config": get_pipeline_config,
     "get_ssh_key_info": get_ssh_key_info,
