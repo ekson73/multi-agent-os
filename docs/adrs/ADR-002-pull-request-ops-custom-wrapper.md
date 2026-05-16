@@ -1,6 +1,7 @@
 # ADR-002: Pull Request Operations — Custom Wrapper over Rovo Dev API
 
 ## Status
+
 **Accepted** (2026-04-23)
 
 ## Context

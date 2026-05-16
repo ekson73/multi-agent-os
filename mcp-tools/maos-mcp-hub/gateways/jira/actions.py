@@ -97,7 +97,17 @@ async def create_issue(
     try:
         return await client.create_issue(project_key, issue_type, summary, **fields)
     except Exception as e:
-        # VKS-1853 Gap 8: surface screen-scheme errors with a clear hint
+        # VKS-1853 Gap 8: surface screen-scheme errors with a clear hint.
+        # CodeRabbit PR #42 iteration 2 refinement: gate the hint translation on
+        # an HTTP 400 status to avoid mis-translating unrelated failures (e.g.
+        # network/timeout/5xx) that might happen to contain similar phrases.
+        status_code = getattr(e, "status_code", None)
+        if status_code is None:
+            response = getattr(e, "response", None)
+            status_code = getattr(response, "status_code", None)
+        if status_code != 400:
+            raise
+
         msg = str(e)
         # Only treat as screen-scheme mismatch when the error message contains
         # explicit screen-related phrases. The previous overbroad condition

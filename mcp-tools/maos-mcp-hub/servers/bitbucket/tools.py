@@ -1851,7 +1851,7 @@ async def merge_pull_request(
     except ApiError as e:
         status = getattr(e, "status_code", getattr(e, "status", None))
         if status == 404:
-            return {"error": f"Pull request #{effective_pr_id} not found"}
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
         return {
             "success": False,
             "error": "Failed to merge PR",
@@ -1859,7 +1859,7 @@ async def merge_pull_request(
             "hint": getattr(e, "hint", ""),
         }
     except Exception as e:
-        return {"error": f"Failed to merge PR: {sanitize_error(e)}"}
+        return {"success": False, "error": f"Failed to merge PR: {sanitize_error(e)}"}
 
 
 async def approve_pull_request(
