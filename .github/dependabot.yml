@@ -1,0 +1,59 @@
+# Dependabot — Multi-Agent OS
+#
+# Wave 3 supply-chain hardening (issue #52).
+# - Daily security cadence (HIGH/CRITICAL surface).
+# - Weekly version cadence for routine bumps.
+# - Grouped updates reduce PR noise; security advisories always file individually.
+
+version: 2
+
+updates:
+  # Python dependencies for the MCP gateway
+  - package-ecosystem: "pip"
+    directory: "/mcp-tools/maos-mcp-hub"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "security"
+      - "wave-3-standard"
+    reviewers:
+      - "ekson73"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used in workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+      - "security"
+    reviewers:
+      - "ekson73"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      gha-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
