@@ -118,4 +118,43 @@ This block is load-bearing — without it, the sub-sub-agent operates blind.
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.0 | 2026-04-18*
+## DNA Payload v1.1 (auto-pilot, optional)
+
+Emitted by `skills/auto-pilot/SKILL.md` when driving an operator goal across
+multiple spawns. **Additive and opt-in** — agents that ignore the block
+behave exactly as in v1.0.
+
+Format (single fenced block appended to the spawn prompt):
+
+```
+parent_agent_id: <4-hex of immediate parent>
+depth: <int, hard-cap 2>
+mode: <sequential | parallel | recursive | debate-converge>
+autonomy_band: <L1-cautious | L2-bounded | L3-extended>
+goal_root: <one-line restatement of the operator goal>
+attempts_remaining: <int, starts at 6>
+escalation_triggers: see §Escalation Rule (lines 76-86) — inherited verbatim
+```
+
+Field semantics:
+
+- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2.
+  Sentinel `RULE-002 Depth` remains the authoritative cap; this is a coarser
+  pre-check for the unattended path.
+- `mode` — auto-pilot delegation mode. Children inherit unless explicitly
+  overridden via a fresh `/auto-pilot` call.
+- `autonomy_band` — see `skills/auto-pilot/SKILL.md` §Autonomy bands. Pause
+  conditions are governed by `delegation-init-prompt.md` §Rejection conditions;
+  this block does **not** widen those conditions.
+- `attempts_remaining` — decremented on each retry. At 0, escalate to operator
+  per the project's autonomous-resolution rule.
+- `escalation_triggers` — pointer only; the canonical list is §Escalation
+  Rule above. Do not re-author.
+
+Backward-compat: v1.0 callers do not emit this block; v1.1 readers tolerate
+its absence.
+
+---
+
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.1 | 2026-05-16*
+*v1.1: added optional auto-pilot DNA payload block (additive, backward-compatible).*

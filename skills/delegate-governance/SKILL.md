@@ -79,6 +79,7 @@ For every external call (ticket, VCS, secrets, observability) look up the operat
 - `skills/context-prep/SKILL.md` — minimal context for sub-agents
 - `skills/hierarchical-merge/SKILL.md` — branches → parent, not main
 - `skills/converge/SKILL.md` — multi-proposal convergence; use when sub-agents return competing proposals
+- `skills/auto-pilot/SKILL.md` — autonomous-orchestration entry point that emits init/dna/finalize for an entire goal, not just one Task call
 - `skills/audit/SKILL.md` — audit event schema
 - `protocols/agent-delegation.md` — decision tree (who is the best agent?)
 - `agents/orchestrator.md` — master coordinator

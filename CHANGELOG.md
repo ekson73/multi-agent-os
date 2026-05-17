@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Skill `auto-pilot` v0.1.0 — Autonomous unattended orchestration entry point
+
+- **NEW `skills/auto-pilot/SKILL.md`** — thin orchestration kernel that composes existing primitives (`delegate-governance`, `converge`, `agent-select`, `delegation-{init,dna,finalize}-prompt.md`, `sentinel/`) into a single goal-level entry point. No new agents, no new hooks, no new protocols beyond the DNA payload v1.1 block.
+- **NEW `commands/auto-pilot.md`** — operator-facing command surface: `/auto-pilot "<goal>" [--mode=<mode>] [--band=L1|L2|L3] [--max-depth=2]`.
+- **Delegation modes**: `sequential`, `parallel`, `recursive`, `debate-converge`, plus `dueto` / `swarm` naming sugar over `parallel`.
+- **Autonomy bands** `L1-cautious` / `L2-bounded` (default) / `L3-extended` — keyed off the existing rejection-conditions list in `delegation-init-prompt.md`; no new tunables.
+- **Anti-loop invariants** reused from `agents/orchestrator.md` with depth tightened to ≤ 2 for unattended runs.
+- **Validation**: `tests/dogfood-auto-pilot.sh` (2 scripted cycles, no real Task spawns) + new assertions in `tests/validate-plugin.sh` (frontmatter, 12 KB size ceiling, reciprocity link).
+
+#### Protocol `delegation-dna-prompt.md` v1.0 → v1.1 — additive DNA Payload block
+
+- **NEW "DNA Payload v1.1 (auto-pilot, optional)" section** — emitted by `auto-pilot` when driving multi-spawn goals. Fields: `parent_agent_id`, `depth` (hard-cap 2), `mode`, `autonomy_band`, `goal_root`, `attempts_remaining`, `escalation_triggers` (pointer to existing §Escalation Rule, not re-authored).
+- **Backward-compatible**: v1.0 callers do not emit the block; v1.1 readers tolerate its absence. Token budget still within 1500 (1280 estimated).
+- **Reciprocity**: `skills/delegate-governance/SKILL.md` Related section now links `skills/auto-pilot/SKILL.md`.
+
 ### Changed
 
 #### Skill `converge` v1.1.0 → v1.1.1 — Operational complement to Invariant 6 (cherry-picked from superseded PR #47)

@@ -271,6 +271,47 @@ else
 fi
 echo ""
 
+# auto-pilot skill + command (v0.1.0)
+echo "Validating auto-pilot..."
+
+AP_SKILL="$PLUGIN_ROOT/skills/auto-pilot/SKILL.md"
+if [ -f "$AP_SKILL" ]; then
+    pass "skills/auto-pilot/SKILL.md exists"
+    if grep -q "^name: auto-pilot$" "$AP_SKILL"; then
+        pass "skills/auto-pilot/SKILL.md has correct frontmatter"
+    else
+        fail "skills/auto-pilot/SKILL.md missing 'name: auto-pilot' frontmatter"
+    fi
+    AP_SIZE=$(wc -c <"$AP_SKILL" | tr -d ' ')
+    if [ "$AP_SIZE" -lt 12288 ]; then
+        pass "skills/auto-pilot/SKILL.md size OK (${AP_SIZE}B < 12288B)"
+    else
+        fail "skills/auto-pilot/SKILL.md exceeds 12288B ceiling (${AP_SIZE}B)"
+    fi
+else
+    fail "skills/auto-pilot/SKILL.md missing"
+fi
+
+AP_CMD="$PLUGIN_ROOT/commands/auto-pilot.md"
+if [ -f "$AP_CMD" ]; then
+    pass "commands/auto-pilot.md exists"
+    if grep -q "^name: auto-pilot$" "$AP_CMD"; then
+        pass "commands/auto-pilot.md has correct frontmatter"
+    else
+        fail "commands/auto-pilot.md missing 'name: auto-pilot' frontmatter"
+    fi
+else
+    fail "commands/auto-pilot.md missing"
+fi
+
+# Reciprocity link from delegate-governance back to auto-pilot
+if [ -f "$SKILL_FILE" ] && grep -q "skills/auto-pilot/SKILL.md" "$SKILL_FILE"; then
+    pass "delegate-governance Related section links auto-pilot"
+else
+    fail "delegate-governance missing reciprocal link"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"
