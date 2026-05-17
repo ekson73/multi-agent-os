@@ -61,9 +61,19 @@
 - [ ] If no-convergence — both sub-positions documented for operator decision
 - [ ] HITL merge gate per your project's governance policy (operator approves merge BEFORE master)
 
+## ♻️ Auto-containment checklist (inherited from master per methodology §5.5)
+
+Apply BEFORE posting any ACT 1/2/3/4/5 comment in this sub-PR:
+
+- [ ] Could an agent read ONLY this comment (no external links) and still participate?
+- [ ] Are proposal IDs being addressed re-stated inline?
+- [ ] Is the cognitive lens being applied re-stated inline?
+- [ ] Is sub-PR identifier + master-PR cross-link re-stated inline?
+- [ ] Is the comment idempotent (re-read → same actionable inputs)?
+
 ## 📜 Rules of engagement
 
-Inherits master-PR rules (no leading questions · cite source text · prompt-injection guard · parity · `[C07]` HITL merge gate). Sub-PR adds:
+Inherits master-PR rules (no leading questions · cite source text · prompt-injection guard · parity · HITL merge gate per your governance policy). Sub-PR adds:
 
 - **No new perspectives without justification** — sub-PR should resolve the divergence, not expand the debate surface.
 - **No new sub-sub-PRs** — depth cap at 2 (master → sub). If sub-PR itself diverges, escalate to operator.

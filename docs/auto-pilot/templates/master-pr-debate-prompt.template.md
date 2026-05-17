@@ -91,6 +91,17 @@ Recommendation: continue | refine-direction | add-perspective | stop
 - [ ] `skills/<target>/SKILL.md` updated in separate PR (post-debate)
 - [ ] Memory entry `feedback_*` capturing lessons per `[C17]` §3.5
 
+## ♻️ Auto-containment checklist (mandatory pre-post for ANY debate comment)
+
+Apply BEFORE posting any ACT 1/2/3/4/5 comment per methodology §5.5:
+
+- [ ] Could an agent read ONLY this comment (no external links) and still participate?
+- [ ] Are proposal IDs being addressed re-stated inline?
+- [ ] Is the cognitive lens being applied re-stated inline?
+- [ ] Is the round number + cycle ID re-stated inline?
+- [ ] Are stop conditions / next-action options inline OR continuation of an inline-bearing parent?
+- [ ] Is the comment idempotent (re-read → same actionable inputs)?
+
 ## 📜 Rules of engagement
 
 - All comments cite source text excerpts (per converge §ACT 2 — no claim without citation).

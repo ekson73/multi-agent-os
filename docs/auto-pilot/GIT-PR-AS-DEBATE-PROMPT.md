@@ -158,6 +158,48 @@ Add max 2 new perspectives per cycle (Goldilocks discipline).
 
 ---
 
+## 5.5 Auto-containment principle (binding invariant — operator directive 2026-05-17)
+
+**Rule**: Git-PR-debate-prompts (master-PR bodies · sub-PR bodies · debate comments emitted during ACT 1-5) MUST be — **as much as practically possible** — `auto-inclusive` + `auto-contained` + `auto-sufficient` + `idempotent`.
+
+**Why**: AI agents participating in the debate may lack access to all needed resources for decision-making. Possible isolation modes:
+
+- **Network-isolated** (sandbox containers without internet)
+- **Repo-isolated** (forks / sandboxes with read-only or no access to private repos)
+- **Token-budget-limited** (cannot fetch all linked docs)
+- **Future-amnesic** (no persistent memory across sessions — see [`ai-as-pwd-axiom`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/ai-as-pwd-axiom.md) §1)
+- **Cross-vendor** (different MCP tool availabilities across hosts)
+
+An agent reading ONLY the PR body or a debate comment (with NO external resource access) must still be able to participate meaningfully.
+
+**Application rules**:
+
+1. **Inline core debate content** — proposals (with steelman summaries), stop conditions, perspectives list, success criteria, output artifact checklist: ALL inline in PR body. Never solely via external links.
+2. **External links as REFERENCES, never the SOLE source** for participation-critical info. Links enhance understanding for connected agents but should not gate participation.
+3. **Idempotent reads** — re-reading the same PR body / comment produces the same actionable inputs. Avoid timestamp-dependent or external-state-dependent content in core debate sections.
+4. **Self-describing taxonomy** — when referencing concepts (e.g., "8 cognitive perspectives", "5-act protocol", "Proposal C"), inline a 1-2 sentence summary so an agent without the methodology doc can still vote.
+5. **Auto-contained ACT outputs** — each ACT comment (1 Steelman / 2 Critique / 3 Compare / 4 Synthesize / 5 Reject) must be readable standalone — re-state the proposal IDs being addressed + the lens being applied + the round number.
+6. **Token-efficiency caveat** — the principle is **"as much as practically possible"**, not absolute. Pragmatic compression is OK when content is genuinely auxiliary; the test is whether an isolated agent could still **participate meaningfully**, not whether the comment is perfectly self-sufficient.
+
+**Anti-patterns**:
+
+- ❌ Master-PR body says "see methodology doc for the 8 perspectives" without listing them inline
+- ❌ ACT 1 steelman comment says "for Proposal C, see line X of MASTER-PLAN.md" without re-stating Proposal C
+- ❌ Stop conditions hidden in external doc; isolated agent cannot know when to stop debating
+- ❌ Per-round comments reference "Round 2 of cycle 0" without inline context for what those identifiers mean
+- ❌ Bot-issued auto-summary strips ALL inline structure and replaces with link-only TL;DR
+
+**Validation checklist** (apply BEFORE posting any debate comment):
+
+- [ ] Could an agent read ONLY this comment (no external links) and still participate?
+- [ ] Are the proposal IDs being addressed re-stated inline?
+- [ ] Is the cognitive lens being applied re-stated inline?
+- [ ] Is the round number + cycle ID re-stated inline?
+- [ ] Are stop conditions / next-action options inline OR is the comment a continuation of an inline-bearing parent?
+- [ ] Is the comment idempotent (re-read → same actionable inputs)?
+
+---
+
 ## 6. Layer-purity (binding)
 
 Per [`~/.claude/rules/layer-precedence-policy.md`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/layer-precedence-policy.md) v1.0.0:
