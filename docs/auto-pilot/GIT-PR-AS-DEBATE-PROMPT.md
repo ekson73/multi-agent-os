@@ -4,7 +4,7 @@
 >
 > **Why PR comments**: persistent · public · attributable · markdown-rich · bot-native integration · async-friendly · diff-anchored · cross-vendor portable.
 >
-> **Status**: experimental pattern · cycle 0 (this is the first dogfood) · promotion gates per Vek dogfooding-mandate R1+R3+R7 require ≥ 2 successful cycles before extraction as canonical agentic-tool.
+> **Status**: experimental pattern · cycle 0 (this is the first dogfood) · promotion gate: ≥ 2 successful cycles required before extraction as canonical agentic-tool (operator-private governance MAY add stricter criteria; community gate is minimum-2).
 >
 > **Version**: v0.1.0 · **Date**: 2026-05-17 · **License**: MIT.
 
@@ -39,7 +39,7 @@
 
 ## 3. Master-PR flow (root / umbrella)
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────┐
 │ STEP 0 — Operator declares goal + invokes /pr-debate (future     │
 │          slash command) OR manual run of this methodology         │
@@ -129,7 +129,7 @@ Anti-pattern: **eager sub-PR creation** — over-fragmenting destroys the master
 
 After each round's ACT 3 (comparison table), orchestrator emits ONE PR comment with:
 
-```
+```text
 META-CRITIQUE — Round N
 
 Question: Is the debate serving the goal OR becoming the goal?
@@ -229,4 +229,4 @@ If < 2 cycles → mark as **experimental pattern**; defer extraction. NEVER prem
 
 | Version | Date | Change |
 |---|---|---|
-| v0.1.0 | 2026-05-17 | Initial methodology — composes `skills/converge` + GitHub PR comments + bot reviewers + spawned perspectives + sub-PR rationale + stop-trigger + meta-critique + extraction trigger. PRE-DOGFOOD: this is cycle 0; promotion to canonical agentic-tool gated on ≥ 2 successful cycles per Vek dogfooding-mandate R1+R3+R7. |
+| v0.1.0 | 2026-05-17 | Initial methodology — composes `skills/converge` + GitHub PR comments + bot reviewers + spawned perspectives + sub-PR rationale + stop-trigger + meta-critique + extraction trigger. PRE-DOGFOOD: this is cycle 0; promotion to canonical agentic-tool gated on ≥ 2 successful cycles (community minimum; operator-private governance MAY add stricter criteria). |

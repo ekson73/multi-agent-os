@@ -59,7 +59,7 @@
 - [ ] Summary comment posted in master-PR linking back to this sub-PR
 - [ ] If PASS — sub-PR's ADR fragment ready for master's final synthesis
 - [ ] If no-convergence — both sub-positions documented for operator decision
-- [ ] HITL merge gate per [`[C07]`](https://github.com/ekson73/vek-dot-claude/blob/main/CLAUDE.md) v2.1.0 (operator approves merge BEFORE master)
+- [ ] HITL merge gate per your project's governance policy (operator approves merge BEFORE master)
 
 ## 📜 Rules of engagement
 

@@ -14,7 +14,7 @@
 
 **Values**:
 - **Compose, don't reimplement** — toda seta de fluxo termina em artifact existente neste repo.
-- **Goldilocks** — ≤ 12 KB ceiling por SKILL.md; ≤ 5 KB summary neste master-plan; conteúdo extenso vira sub-doc linkado.
+- **Goldilocks** — ≤ 12 KB ceiling enforced para skill bodies (`SKILL.md`); master-plan prioriza summary-first com sub-docs linkados para extensões; tamanho atual reflete escopo fundacional do v0.2 (não-binding cap, revisitar após convergência).
 - **Backward-compat additive** — DNA payload extensions opt-in, nunca breaking.
 - **Anti-theater** — REALITY 8/8 check por artifact (real / not-faz-de-conta / not-hallucinated / not-invented / viable / applicable / implementable / useful).
 - **HITL conservation** — autonomia agentic ≥ 90% / humans ≤ 10% como **tendência declinante de HITL/round**, não absoluto unprovable.
@@ -24,9 +24,9 @@
 
 ## 2. Architecture relation map
 
-```
+```text
                  ┌──────────────────────────────────────────────────┐
-                 │  USER-SCOPE (vek-dot-claude — operator's master) │
+                 │  USER-SCOPE (operator's private `~/.claude/`)    │
                  │  ┌────────────────────────────────────────────┐  │
                  │  │ skills/auto-orchestrator/  v1.1.0          │  │
                  │  │  7 phases · 5 companion subagents          │  │
@@ -72,7 +72,7 @@
   - [#68 N4 9-factor autonomy matrix](https://github.com/ekson73/multi-agent-os/issues/68)
   - [#69 N5 Multi-vendor MCP channel layer](https://github.com/ekson73/multi-agent-os/issues/69)
   - [#70 7-perspective comparative-research artifact](https://github.com/ekson73/multi-agent-os/issues/70)
-- **Umbrella issue (user-scope dependency)**: [vek-emilsonmoraes/vek-dot-claude#46](https://github.com/vek-emilsonmoraes/vek-dot-claude/issues/46) — note: repo migrated 2026-05-16 → operator's primary master é agora [`ekson73/vek-dot-claude`](https://github.com/ekson73/vek-dot-claude); umbrella issue acompanha o move (verify before reference).
+- **Umbrella tracker (user-scope dependency)**: operator-private (not enumerated in this community doc — tracked in operator's private `~/.claude/` repo).
 - **Plan-mode artifact**: [`ekson73/vek-dot-claude#47`](https://github.com/ekson73/vek-dot-claude/pull/47) — submitted 2026-05-17, contains §0-§16 of the strategic plan that drove this master-plan.
 
 ---
@@ -122,18 +122,20 @@ Selection criteria during debate (per [`skills/converge`](../../skills/converge/
 ## 7. Ecosystem cross-references
 
 ### Community (open-source, MIT)
+
 - This repo: [`ekson73/multi-agent-os`](https://github.com/ekson73/multi-agent-os) — auto-pilot skill + protocols + sentinel + sister skills
 - Marketplace (personal/community): [`ekson73/eko-claude-plugins`](https://github.com/ekson73/eko-claude-plugins)
 
 ### User-scope (operator's private master)
-- [`ekson73/vek-dot-claude`](https://github.com/ekson73/vek-dot-claude) — `~/.claude/` master (rules · skills · plans · commands · agents); contains `auto-orchestrator` skill v1.1.0 + `[C04]`/`[C07]`/`[C17]` governance frameworks
 
-### Vek corporate (NEVER community-bound per layer-purity)
-- [`vek-emilsonmoraes/vek-ai-toolkit`](https://github.com/vek-emilsonmoraes/vek-ai-toolkit) — Vek-specific governance
-- [`vek-emilsonmoraes/vek-claude-plugins`](https://github.com/vek-emilsonmoraes/vek-claude-plugins) — Vek corp marketplace (proprietary)
-- [`vek-emilsonmoraes/vek-docs-trellis`](https://bitbucket.org/vek-servicos/vek-docs-trellis) (Bitbucket) — Vek knowledge base
+- [`ekson73/vek-dot-claude`](https://github.com/ekson73/vek-dot-claude) — operator's private `~/.claude/` master (rules · skills · plans · commands · agents); contains `auto-orchestrator` skill v1.1.0 + governance frameworks (private to operator's setup)
+
+### Corp-layer (community-decoupled per layer-purity — NOT enumerated here)
+
+Per `layer-precedence-policy` Rule 2 (unidirectional purity), this community master-plan does NOT enumerate corp-specific paths/repos/acronyms. Corp adopters maintain their own private layer (out of scope of this document) and consume the community kernel without contributing corp-specific content upstream.
 
 ### Sister artifacts within this repo
+
 - [`skills/auto-pilot/SKILL.md`](../../skills/auto-pilot/SKILL.md) — skill body (v0.1.0)
 - [`skills/converge/SKILL.md`](../../skills/converge/SKILL.md) — 5-act debate-convergence (v1.1.1)
 - [`skills/agent-select/SKILL.md`](../../skills/agent-select/SKILL.md) — perspective routing

@@ -10,7 +10,7 @@
 
 **Scope-discipline 6Q** (pre-create check):
 
-- Q1 WHERE: `<community-scope multi-agent-os | user-scope vek-dot-claude | corp vek-claude-plugins>`
+- Q1 WHERE: `<community-scope (e.g., this repo) | user-scope private repo | corp private repo>`
 - Q2 WHAT-exists: `<list existing artifacts with overlap; if ≥50% coverage → consider extension not creation>`
 - Q3 WHY-now: `<empirical evidence / operator directive / compliance need>`
 - Q4 WHO-for: `<future-amnesic-AI-agents | operator | team | community>`
@@ -26,7 +26,7 @@
 | **C** | `<title>` | `<strongest defense in 2-3 sentences>` |
 | **D** (optional) | `<title>` | `<strongest defense in 2-3 sentences>` |
 
-Each proposal MUST receive a steelman from each cognitive perspective per [`skills/converge`](../../skills/converge/SKILL.md) §ACT 1 — non-skippable.
+Each proposal MUST receive a steelman from each cognitive perspective per [`skills/converge`](../../../skills/converge/SKILL.md) §ACT 1 — non-skippable.
 
 ## 🧠 Cognitive perspectives (default 8 — extensible mid-cycle per `GIT-PR-AS-DEBATE-PROMPT.md` §5)
 
@@ -71,7 +71,7 @@ Bot verdicts (`SUCCESS`/`FAILURE`/`NEUTRAL`) feed the per-round vote per [`GIT-P
 
 After each round's ACT 3, orchestrator emits ONE PR comment:
 
-```
+```text
 META-CRITIQUE — Round N
 
 Question: Is the debate serving the goal OR becoming the goal?
