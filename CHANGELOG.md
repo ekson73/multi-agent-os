@@ -8,7 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Sandwich Namespacing — `command_namespace` + `vendor_reserved_audit` in plugin.json (v1.5.2)
+
+- **NEW `.claude-plugin/plugin.json` `command_namespace` block** — declarative prefix `maos:` for commands (Layer 2 of Sandwich Namespacing 5-layer pattern). Forward-compat: when Claude Code runtime supports `command_namespace` declaration, commands surface as `/maos:<name>` preventing cross-plugin collision. Until runtime supports, Layer 3 (function-specific filename) handles disambiguation.
+- **NEW `.claude-plugin/plugin.json` `vendor_reserved_audit` block** — Layer 4 reference pointing to canonical vendor-reserved-words list at [ekson73/vek-dot-claude:docs/vendor-reserved-words.md](https://github.com/ekson73/vek-dot-claude/blob/main/docs/vendor-reserved-words.md) (36+ Claude Code built-ins + Cursor/Copilot/Aider/Gemini/Goose).
+- **Origin**: empirical observation 2026-05-21 — `commands/status.md` collided with Claude Code built-in `/status`. Layer 3 fix shipped v1.5.1 (rename to `agentic-status`); Layer 2 + Layer 4 reference shipped here v1.5.2.
+
 ### Changed
+
+#### AGENTS.md §34 + §73 refinement — Sandwich Namespacing rationale split (v1.5.2)
+
+- **REFINED §34 Naming rule**: split into 2 statements — skills+agents (no `maos-` prefix in filename — runtime auto-namespaces) vs commands (use function-specific filenames + manifest `command_namespace` block — runtime auto-namespace empirically unreliable). Cites empirical collision evidence + vendor-reserved-words list.
+- **REFINED §73 Architecture decision**: same split + cross-reference to sister-PR `ekson73/vek-dot-claude#54` (vendor-words list, Sandwich Layer 4).
 
 #### Command `status` → `agentic-status` (v1.5.1 — naming collision fix)
 
