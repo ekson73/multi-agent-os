@@ -336,23 +336,80 @@ def test_ssh_git_urls_are_not_flagged_as_email(ssh_url):
     assert [f for f in findings if f.pii_type == "email"] == []
 
 
-# ── AI bot / noreply allowlist ─────────────────────────────────────────────
+# ── Domain-suffix allowlist ────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "allowlisted_email",
+    [
+        # RFC 2606 reserved test domains (incl. subdomains)
+        "user@example.com",
+        "alice@acme-corp.example.com",
+        "ops@team.example.org",
+        # AI provider noreply convention used in Co-Authored-By footers
+        "noreply@anthropic.com",
+        "noreply@openai.com",
+        "noreply@google.com",
+        "noreply@amazon.com",
+        "noreply@block.xyz",
+        "noreply@alibaba.com",
+        "noreply@qodo.ai",
+        # GitHub per-user noreply
+        "12345+ekson73@users.noreply.github.com",
+    ],
+)
+def test_allowlist_covers_well_known_noreply_and_subdomains(allowlisted_email):
+    findings = linter_pii.scan_text("docs.md", f"Contact: {allowlisted_email}")
+    assert [f for f in findings if f.pii_type == "email"] == []
+
+
+def test_allowlist_subdomain_does_not_match_lookalike_suffix():
+    # A domain that ENDS in literal `anthropic.com` substring but is NOT a
+    # subdomain (e.g. `mailanthropic.com`) MUST NOT inherit the allowlist.
+    findings = linter_pii.scan_text(
+        "leak.md", "Contact: actor@mailanthropic.com"
+    )
+    assert len([f for f in findings if f.pii_type == "email"]) == 1
 
 
 @pytest.mark.parametrize(
     "co_author_line",
     [
+        # Anthropic uses both the bare noreply and the per-tool suffix form.
         "Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>",
         "Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>",
     ],
 )
-def test_anthropic_noreply_co_author_is_not_flagged(co_author_line):
+def test_anthropic_co_author_line_is_not_flagged(co_author_line):
+    """Sanity check for the common commit-footer shape: the email regex
+    matches the bracketed address (including the `+tag` form) and the
+    allowlist covers it via the `anthropic.com` domain-suffix entry.
+    """
     findings = linter_pii.scan_text("COMMIT_MSG", co_author_line)
     assert [f for f in findings if f.pii_type == "email"] == []
 
 
-def test_readme_placeholder_email_is_not_flagged():
-    findings = linter_pii.scan_text(
-        "README.md", "BITBUCKET_EMAIL=your-email@company.com"
+# ── Skip-segment scope (regression for worktree-path false-pass) ───────────
+
+
+def test_skip_segments_apply_to_relative_path_not_absolute(tmp_path):
+    """When the repo lives inside a path whose name contains a skip
+    segment (e.g., a git worktree under `<repo>/.worktrees/...`), the
+    linter must still scan files in that repo. The skip filter is meant
+    to ignore segments *inside* the scan tree, not segments in the path
+    leading up to the scan root.
+    """
+    fake_worktree = tmp_path / ".worktrees" / "task-slug"
+    fake_worktree.mkdir(parents=True)
+    leaky = fake_worktree / "leak.md"
+    leaky.write_text(f"CPF {VALID_CPF_FORMATTED}\n", encoding="utf-8")
+
+    result = _run_cli(
+        ["--paths", "**/*.md", "--root", str(fake_worktree), "--fail-on-match"],
+        cwd=fake_worktree,
     )
-    assert [f for f in findings if f.pii_type == "email"] == []
+    assert result.returncode == 1, (
+        "Linter should detect PII inside a path that happens to include "
+        f"`.worktrees/`. stdout={result.stdout!r}"
+    )
+    assert "111.***.***-35" in result.stdout

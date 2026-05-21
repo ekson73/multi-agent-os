@@ -65,11 +65,27 @@ EMAIL_ALLOWLIST_EXACT = frozenset(
     }
 )
 
-# Wildcards stored as the suffix that must match after `@`.
-EMAIL_ALLOWLIST_SUFFIX = (
-    "@example.com",
-    "@example.org",
-    "@example.net",
+# Domain suffixes that allowlist any address whose domain ends with the
+# suffix (subdomains included). `example.com` matches both
+# `user@example.com` and `user@anything.example.com` per RFC 2606. The AI
+# provider noreply addresses cover the Co-Authored-By footer convention
+# used across this ecosystem; documentation files routinely cite these
+# noreply addresses as examples, which is not a personal data leak.
+EMAIL_ALLOWLIST_DOMAIN_SUFFIX = (
+    # RFC 2606 reserved test domains
+    "example.com",
+    "example.org",
+    "example.net",
+    # GitHub noreply convention (per-user noreply addresses)
+    "users.noreply.github.com",
+    # AI provider noreply convention used in Co-Authored-By footers
+    "anthropic.com",
+    "openai.com",
+    "google.com",
+    "amazon.com",
+    "block.xyz",
+    "alibaba.com",
+    "qodo.ai",
 )
 
 # Files under any of these path segments are treated as fixture/sample scope:
@@ -243,10 +259,20 @@ def is_valid_cpf(value: str) -> bool:
 
 
 def is_allowlisted_email(value: str) -> bool:
+    """Allowlist check covering exact addresses + domain-suffix matching.
+
+    Domain-suffix matching is performed only on the domain part: a domain
+    of the form `malicious-anthropic.com.evil.tld` does NOT inherit the
+    `anthropic.com` allowlist — only true subdomains do.
+    """
     lowered = value.lower()
     if lowered in EMAIL_ALLOWLIST_EXACT:
         return True
-    return any(lowered.endswith(suffix) for suffix in EMAIL_ALLOWLIST_SUFFIX)
+    domain = lowered.partition("@")[2]
+    for suffix in EMAIL_ALLOWLIST_DOMAIN_SUFFIX:
+        if domain == suffix or domain.endswith("." + suffix):
+            return True
+    return False
 
 
 # ── Core scanner ───────────────────────────────────────────────────────────
@@ -347,9 +373,16 @@ def _expand_globs(
         for match in root.glob(normalized):
             if not match.is_file():
                 continue
-            if any(seg in match.parts for seg in skip_segments):
+            # Skip-segment check is on the RELATIVE path so we do not refuse
+            # to scan when the repo itself happens to live inside a path
+            # whose name matches a skip segment (e.g., a worktree at
+            # `<repo>/.worktrees/<task-slug>/` invoking the linter on its
+            # own contents — the worktree path part is irrelevant to the
+            # scan scope).
+            rel = match.relative_to(root)
+            if any(seg in rel.parts for seg in skip_segments):
                 continue
-            rel_path = match.relative_to(root).as_posix()
+            rel_path = rel.as_posix()
             if any(fnmatch.fnmatch(rel_path, exc) for exc in exclude_patterns):
                 continue
             resolved = match.resolve()

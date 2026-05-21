@@ -165,22 +165,22 @@ If fix-needed issues found post-merge: new Worktree -> Fix -> PR -> Review -> Me
 
 ```bash
 # Search both accounts
-gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -p
+gog gmail search '{repo} PR #{N}' -a your-personal-email@example.com -p
 gog gmail search '{repo}' -a user@acme-corp.example.com -p
 
 # Get thread IDs for scripting
-gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -j \
+gog gmail search '{repo} PR #{N}' -a your-personal-email@example.com -j \
   | python3 -c "import json,sys; [print(t['id'],t['subject']) for t in json.loads(sys.stdin.read()).get('threads',[])]"
 
 # Archive (remove from INBOX) — AFTER audit
-gog gmail thread modify {threadId} --remove INBOX -a emilson.moraes@gmail.com -y
+gog gmail thread modify {threadId} --remove INBOX -a your-personal-email@example.com -y
 ```
 
 ### Email accounts
 
 | Account | gog Profile | Content |
 |---------|-------------|---------|
-| `emilson.moraes@gmail.com` | default | GitHub notifications |
+| `your-personal-email@example.com` | default | GitHub notifications |
 | `user@acme-corp.example.com` | org | Jira, Confluence, Bitbucket |
 
 ### Email classification
