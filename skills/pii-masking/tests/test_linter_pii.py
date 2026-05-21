@@ -334,3 +334,25 @@ def test_multiple_excludes_compose(tmp_path):
 def test_ssh_git_urls_are_not_flagged_as_email(ssh_url):
     findings = linter_pii.scan_text("README.md", f"Clone: {ssh_url}")
     assert [f for f in findings if f.pii_type == "email"] == []
+
+
+# ── AI bot / noreply allowlist ─────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "co_author_line",
+    [
+        "Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>",
+        "Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>",
+    ],
+)
+def test_anthropic_noreply_co_author_is_not_flagged(co_author_line):
+    findings = linter_pii.scan_text("COMMIT_MSG", co_author_line)
+    assert [f for f in findings if f.pii_type == "email"] == []
+
+
+def test_readme_placeholder_email_is_not_flagged():
+    findings = linter_pii.scan_text(
+        "README.md", "BITBUCKET_EMAIL=your-email@company.com"
+    )
+    assert [f for f in findings if f.pii_type == "email"] == []

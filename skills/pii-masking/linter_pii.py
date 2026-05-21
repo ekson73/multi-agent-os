@@ -50,6 +50,9 @@ EMAIL_ALLOWLIST_EXACT = frozenset(
         "localhost@127.0.0.1",
         "noreply@github.com",
         "test@example.com",
+        # AI-agent Co-Authored-By addresses (noreply bot emails, not personal data).
+        "noreply@anthropic.com",
+        "noreply+claude-code@anthropic.com",
         # SSH git remote URLs (shape: git@<host>:<path>). The regex captures
         # the `git@<host>` prefix and stops at the `:`, so these match as
         # "emails" but are not personal information.
@@ -57,6 +60,8 @@ EMAIL_ALLOWLIST_EXACT = frozenset(
         "git@gitlab.com",
         "git@bitbucket.org",
         "git@codeberg.org",
+        # README/documentation placeholder (template, not personal data).
+        "your-email@company.com",
     }
 )
 
