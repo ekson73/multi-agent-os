@@ -44,7 +44,7 @@ jobs:
           fi
 
       - name: Acionar Linter de Segurança (PII) Local
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - run: |
           echo "Executando Linter SRE Local..."
           # Aqui poderíamos acoplar o script linter_pii.py que está no repo
