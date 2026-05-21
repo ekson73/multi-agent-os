@@ -51,12 +51,7 @@ jobs:
       - name: Install pinned validators
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          # Pinned to released versions; bump via Dependabot when newer releases ship.
-          python -m pip install \
-            "rdflib==7.1.1" \
-            "jsonschema==4.23.0" \
-            "pytest==8.3.3"
+          python -m pip install --require-hashes -r tests/ontology-validation-requirements.txt
 
       - name: Validate ontology + matrix
         run: pytest tests/test_ontology_parse.py -v
