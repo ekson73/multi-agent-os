@@ -34,7 +34,7 @@ Closes the empirical gap documented in `protocols/os3pd-manifesto.md` §P6:
 | Category | Rule | Anti-false-positive defense |
 |---|---|---|
 | **CPF** | 11-digit Brazilian taxpayer ID — `DDD.DDD.DDD-DD` or bare. Validated via **Modulo-11 algorithmic checksum**, not just regex shape. | All-same-digit sentinels (`111.111.111-11` etc.) are rejected per Receita Federal anti-fraud rules. Random 11-digit runs that fail the checksum are not reported. |
-| **Email** | RFC 5322 SAFE subset — local part with bounded dot-separated segments, domain with at least one dot, TLD between 2-24 chars. | Allowlist: `localhost@127.0.0.1`, `noreply@github.com`, `test@example.com`, `*@example.{com,org,net}`. The regex is **catastrophic-backtracking-safe** (no nested unbounded quantifiers) — `email@interface` is **not** matched (no valid TLD). |
+| **Email** | RFC 5322 SAFE subset — local part with bounded dot-separated segments, domain with at least one dot, TLD between 2-24 chars. | Allowlist: `localhost@127.0.0.1`, `noreply@github.com`, `test@example.com`, `*@example.{com,org,net}`, plus the well-known SSH git remote URL hosts (`git@github.com`, `git@gitlab.com`, `git@bitbucket.org`, `git@codeberg.org`) which match the email shape but are not personal data. The regex is **catastrophic-backtracking-safe** (no nested unbounded quantifiers) — `email@interface` is **not** matched (no valid TLD). |
 | **Phone (E.164-BR)** | `+55` country code + 2-digit area code (`11-99`) + 8 or 9 digit number, with optional `.`/`-`/space/parens separators. | Negative lookarounds on both sides reject runs embedded in longer digit sequences (which usually disguise CPFs). |
 
 ## Output Contract
@@ -74,6 +74,7 @@ python -m skills.pii_masking.linter_pii \
 | Flag | Effect |
 |---|---|
 | `--paths GLOB` | Glob pattern relative to `--root`. Repeat for multiple patterns. Required. |
+| `--exclude GLOB` | Glob pattern (relative to `--root`) to skip during scanning. Repeatable. Typical workflow excludes: `**/tests/**`, `**/fixtures/**`, `docs/**`. |
 | `--root DIR` | Repository root (default: cwd). Absolute glob patterns are rejected — scope is the repo. |
 | `--format text\|json` | Default text. JSON for machine consumption. |
 | `--fail-on-match` | Exit code 1 when any PII is detected. Without this flag, the linter is informational. |

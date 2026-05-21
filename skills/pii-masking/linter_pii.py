@@ -50,6 +50,13 @@ EMAIL_ALLOWLIST_EXACT = frozenset(
         "localhost@127.0.0.1",
         "noreply@github.com",
         "test@example.com",
+        # SSH git remote URLs (shape: git@<host>:<path>). The regex captures
+        # the `git@<host>` prefix and stops at the `:`, so these match as
+        # "emails" but are not personal information.
+        "git@github.com",
+        "git@gitlab.com",
+        "git@bitbucket.org",
+        "git@codeberg.org",
     }
 )
 
@@ -314,13 +321,20 @@ def scan_file(path: pathlib.Path) -> list[Finding]:
 # ── Glob expansion ─────────────────────────────────────────────────────────
 
 
-def _expand_globs(globs: Iterable[str], root: pathlib.Path) -> Iterator[pathlib.Path]:
+def _expand_globs(
+    globs: Iterable[str],
+    root: pathlib.Path,
+    excludes: Iterable[str] = (),
+) -> Iterator[pathlib.Path]:
     """Expand each glob relative to root, yielding regular files only.
 
     Supports `**` for recursive matching via pathlib.Path.glob.
-    Skips paths under `.git/`, `.worktrees/`, `node_modules/`, and `__pycache__/`.
+    Skips paths under `.git/`, `.worktrees/`, `node_modules/`, and
+    `__pycache__/`. Any path matching one of the `excludes` glob patterns
+    (relative to `root`) is also skipped.
     """
     skip_segments = (".git", ".worktrees", "node_modules", "__pycache__")
+    exclude_patterns = tuple(excludes)
     seen: set[pathlib.Path] = set()
     for pattern in globs:
         # Reject absolute patterns by design — scope linter to the repo.
@@ -329,6 +343,9 @@ def _expand_globs(globs: Iterable[str], root: pathlib.Path) -> Iterator[pathlib.
             if not match.is_file():
                 continue
             if any(seg in match.parts for seg in skip_segments):
+                continue
+            rel_path = match.relative_to(root).as_posix()
+            if any(fnmatch.fnmatch(rel_path, exc) for exc in exclude_patterns):
                 continue
             resolved = match.resolve()
             if resolved in seen:
@@ -374,6 +391,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Output format (default: text).",
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help=(
+            "Glob pattern (relative to --root) to skip during scanning. "
+            "Repeatable. Example: --exclude 'docs/**' --exclude '**/tests/**'."
+        ),
+    )
+    parser.add_argument(
         "--fail-on-match",
         action="store_true",
         help="Exit 1 when any PII is detected (default: exit 0).",
@@ -387,7 +413,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     all_findings: list[Finding] = []
-    for path in _expand_globs(args.paths, root):
+    for path in _expand_globs(args.paths, root, args.exclude):
         all_findings.extend(scan_file(path))
 
     if all_findings:

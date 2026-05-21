@@ -57,6 +57,13 @@ jobs:
         # Wires the placeholder slot declared in v1.0 of this workflow.
         # Implementation: skills/pii-masking/linter_pii.py (no external deps).
         # Closes OS3PD manifesto v4.13.0 Gap G1 (Principle 6 — Respect Wildlife).
+        #
+        # Excludes:
+        #   - `**/tests/**` — test fixtures intentionally contain example PII;
+        #     scanning them would self-detect and block every PR.
+        #   - `docs/**` + `AGENTS.md` — documentation files demonstrate the
+        #     Co-Authored-By footer convention with placeholder addresses like
+        #     `noreply@anthropic.com`; these are not real personal data.
         run: |
           set -euo pipefail
           python skills/pii-masking/linter_pii.py \
@@ -66,5 +73,9 @@ jobs:
             --paths "**/*.yaml" \
             --paths "**/*.json" \
             --paths "**/*.sh" \
+            --exclude "**/tests/**" \
+            --exclude "**/fixtures/**" \
+            --exclude "docs/**" \
+            --exclude "AGENTS.md" \
             --root . \
             --fail-on-match

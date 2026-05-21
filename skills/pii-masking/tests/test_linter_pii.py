@@ -268,3 +268,69 @@ def test_globs_skip_dot_git_dir(tmp_path):
     result = _run_cli(["--paths", "**/*"], cwd=tmp_path)
     assert result.returncode == 0
     assert "111.***.***-35" not in result.stdout
+
+
+# ── Exclude flag ───────────────────────────────────────────────────────────
+
+
+def test_exclude_skips_matching_paths(tmp_path):
+    (tmp_path / "fixtures").mkdir()
+    (tmp_path / "fixtures" / "users.md").write_text(
+        f"Fixture CPF: {VALID_CPF_FORMATTED}\n", encoding="utf-8"
+    )
+    (tmp_path / "real.md").write_text("clean content\n", encoding="utf-8")
+
+    result = _run_cli(
+        ["--paths", "**/*.md", "--exclude", "fixtures/**", "--fail-on-match"],
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0
+    assert "111.***.***-35" not in result.stdout
+
+
+def test_exclude_glob_pattern_matches_nested_dirs(tmp_path):
+    (tmp_path / "skills" / "pii-masking" / "tests").mkdir(parents=True)
+    (tmp_path / "skills" / "pii-masking" / "tests" / "fixture.md").write_text(
+        f"Test CPF: {VALID_CPF_FORMATTED}\n", encoding="utf-8"
+    )
+    result = _run_cli(
+        ["--paths", "**/*.md", "--exclude", "**/tests/**", "--fail-on-match"],
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0
+
+
+def test_multiple_excludes_compose(tmp_path):
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "guide.md").write_text(f"Doc: {VALID_CPF_FORMATTED}\n", encoding="utf-8")
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "fixture.md").write_text(f"Test: {VALID_CPF_FORMATTED}\n", encoding="utf-8")
+    (tmp_path / "real.md").write_text("clean\n", encoding="utf-8")
+
+    result = _run_cli(
+        [
+            "--paths", "**/*.md",
+            "--exclude", "docs/**",
+            "--exclude", "tests/**",
+            "--fail-on-match",
+        ],
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0
+
+
+# ── SSH git host allowlist ─────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "ssh_url",
+    [
+        "git@github.com:ekson73/multi-agent-os.git",
+        "git@gitlab.com:group/repo.git",
+        "git@bitbucket.org:workspace/repo.git",
+        "git@codeberg.org:user/project.git",
+    ],
+)
+def test_ssh_git_urls_are_not_flagged_as_email(ssh_url):
+    findings = linter_pii.scan_text("README.md", f"Clone: {ssh_url}")
+    assert [f for f in findings if f.pii_type == "email"] == []
