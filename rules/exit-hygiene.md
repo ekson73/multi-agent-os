@@ -22,7 +22,7 @@
 
 | Account | gog Profile | Content |
 |---------|-------------|---------|
-| `emilson.moraes@gmail.com` | default | GitHub notifications |
+| `your-personal-email@example.com` | default | GitHub notifications |
 | `user@acme-corp.example.com` | org | Jira, Confluence, Bitbucket |
 
 - [ ] Emails de PR arquivados em AMBAS as contas (gog CLI)

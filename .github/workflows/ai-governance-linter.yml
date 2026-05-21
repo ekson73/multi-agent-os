@@ -36,16 +36,55 @@ jobs:
         run: |
           if [[ ! "$PR_BODY" =~ "Co-Authored-By:" ]]; then
             echo "🛑 [GaaS Failure] O Pull Request carece de atestado de co-autoria da IA."
-            echo "Adicione 'Co-Authored-By: <Nome-da-IA> <email-fake@ia.com>' na descrição do PR para compliance SOTA."
+            echo "Adicione 'Co-Authored-By: <Nome-da-IA> <noreply@example.com>' na descrição do PR para compliance SOTA."
             # Uncomment the next line to strictly enforce and fail the action
             # exit 1
           else
             echo "✅ Assinatura de Agente validada."
           fi
 
+      - name: Checkout (PII linter scope)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python (PII linter scope)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
       - name: Acionar Linter de Segurança (PII) Local
-        uses: actions/checkout@v6
-      - run: |
-          echo "Executando Linter SRE Local..."
-          # Aqui poderíamos acoplar o script linter_pii.py que está no repo
-          # ./scripts/linter_pii.py --fail-on-error
+        # Wires the placeholder slot declared in v1.0 of this workflow.
+        # Implementation: skills/pii-masking/linter_pii.py (no external deps).
+        # Closes OS3PD manifesto v4.13.0 Gap G1 (Principle 6 — Respect Wildlife).
+        #
+        # Excludes:
+        #   - `**/tests/**` — test fixtures intentionally contain example PII.
+        #   - `**/fixtures/**` — symmetric coverage with `tests/`.
+        #   - `docs/**` + `AGENTS.md` — documentation files demonstrate the
+        #     Co-Authored-By footer convention with provider noreply addresses
+        #     (the allowlist now covers those domains structurally, but
+        #     `docs/` may also contain SSH URL examples and other patterns
+        #     that are not personal data).
+        #   - `**/README.md` — READMEs commonly document env-var shapes
+        #     (e.g., `BITBUCKET_EMAIL=...`).
+        #   - `.claude-plugin/plugin.json` — the plugin manifest's `email`
+        #     field is the operator-managed plugin author contact; replacing
+        #     it is a separate decision outside Phase B scope.
+        run: |
+          set -euo pipefail
+          python skills/pii-masking/linter_pii.py \
+            --paths "**/*.py" \
+            --paths "**/*.md" \
+            --paths "**/*.yml" \
+            --paths "**/*.yaml" \
+            --paths "**/*.json" \
+            --paths "**/*.sh" \
+            --exclude "**/tests/**" \
+            --exclude "**/fixtures/**" \
+            --exclude "docs/**" \
+            --exclude "AGENTS.md" \
+            --exclude "**/README.md" \
+            --exclude ".claude-plugin/plugin.json" \
+            --root . \
+            --fail-on-match

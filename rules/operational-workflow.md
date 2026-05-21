@@ -94,9 +94,9 @@ gh api repos/{owner}/{repo}/pulls/{N}/reviews --jq '.[] | "\(.state): \(.body)"'
 
 ```bash
 # Search both accounts
-gog gmail search '{repo} PR #{N}' -a emilson.moraes@gmail.com -j \
+gog gmail search '{repo} PR #{N}' -a your-personal-email@example.com -j \
   | python3 -c "import json,sys; [print(t['id']) for t in json.loads(sys.stdin.read()).get('threads',[])]" \
-  | xargs -I{} gog gmail thread modify {} --remove INBOX -a emilson.moraes@gmail.com -y
+  | xargs -I{} gog gmail thread modify {} --remove INBOX -a your-personal-email@example.com -y
 
 # Check acme-corp account
 gog gmail search '{repo}' -a user@acme-corp.example.com -p
