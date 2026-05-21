@@ -1,63 +1,40 @@
 ---
 name: status
-description: Display human-readable status of current session using Status Map templates
+description: "[DEPRECATED v1.5.1 → removed v1.6.0] Alias for /agentic-status. Renamed to avoid collision with Claude Code built-in /status."
 ---
 
-# /status Command
+# /status Command — ⚠️ DEPRECATED ALIAS
 
-Displays human-readable ASCII status visualizations for the current session.
+> **⚠️ DEPRECATION NOTICE**
+>
+> This command was renamed to **`/agentic-status`** in v1.5.1 to avoid collision with the Claude Code built-in `/status` (which shows session/model/auth metadata, unrelated to agentic-system status).
+>
+> **Action required**: update muscle-memory + tooling to use `/agentic-status` instead.
+>
+> **Removal**: this alias will be **hard-removed in v1.6.0**. Re-target now to avoid disruption.
 
-## Usage
+## Why the rename?
 
-```
-/status [template]
-```
+Per empirical observation 2026-05-21, the plugin command `/status` collided with Claude Code's built-in `/status`. The runtime resolution was ambiguous (built-in vs plugin), making UX unpredictable.
 
-## Templates
+The fix follows the **Sandwich Namespacing 5-layer pattern** documented in:
+- `~/.claude/docs/vendor-reserved-words.md` v1.0.0 (Layer 2 — vendor-reserved audit)
+- `multi-agent-os/AGENTS.md` §34/§73 refined (Layer 3 — function-specific filename)
 
-| Template | Description | Absorption Time |
-|----------|-------------|-----------------|
-| (default) | COMPACT - Quick 6-line check | 3-5s |
-| `pulse` | 1-line minimal status | 1-2s |
-| `full` | Complete audit report | 60-120s |
-| `debug` | Error diagnosis view | 15-20s |
-| `pre` | Pre-commit validation | 8-10s |
-| `end` | Session handoff summary | 20-30s |
+## Equivalent invocation (use this instead)
 
-## Examples
-
-```
-/status              # COMPACT template (default)
-/status pulse        # 1-line status
-/status full         # Full report
-/status debug        # Debug view for errors
-```
-
-## Output Examples
-
-### PULSE
-```
-[PULSE] ████████░░ 80% | ✓3 ↻1 ⚠0 | 25m | → Continue editing
+```text
+/agentic-status              # COMPACT template (default) — RECOMMENDED
+/agentic-status pulse        # 1-line status
+/agentic-status full         # Full audit report
+/agentic-status debug        # Debug view
+/agentic-status pre          # Pre-commit validation
+/agentic-status end          # Session handoff
 ```
 
-### COMPACT (default)
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  STATUS MAP | 2026-01-06T12:30 | Session: c614                  │
-├────────────┬────────────────────────────────────────────────────┤
-│ 🟢 GIT     │ main | clean | last: a31b933                       │
-│ 🟢 AGENTS  │ 23 completed | 0 active | 0 blocked                │
-│ 🟢 SENTINEL│ v1.0 | 10 rules | health: 100                      │
-│ 🟢 LOCKS   │ 0 active | 0 stale                                 │
-├────────────┴────────────────────────────────────────────────────┤
-│ NEXT: aguardando instrucao do humano                            │
-└─────────────────────────────────────────────────────────────────┘
-```
+See [`/agentic-status` command documentation](./agentic-status.md) for full template reference + ASCII output examples.
 
-## Semaphore Indicators
+## Refs
 
-| Indicator | Meaning |
-|-----------|---------|
-| 🟢 | OK / Healthy |
-| 🟡 | Warning / Attention |
-| 🔴 | Error / Critical |
+- [CHANGELOG.md](../CHANGELOG.md) — `[Unreleased] §Changed v1.5.1` entry documents rename rationale + Sandwich Namespacing pattern
+- [Sister PR ekson73/vek-dot-claude#54](https://github.com/ekson73/vek-dot-claude/pull/54) — vendor-reserved-words audit list (Layer 4 of Sandwich Namespacing 5-layer pattern)
