@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### Command `status` → `agentic-status` (v1.5.1 — naming collision fix)
+
+- **RENAME** `commands/status.md` → `commands/agentic-status.md` to resolve empirical collision with Claude Code built-in `/status` (observed 2026-05-21; built-in surfaces session/model/auth metadata, not agentic-system state)
+- **DEPRECATION ALIAS**: `commands/status.md` retained for 1 release with deprecation warning + redirect to `/agentic-status`; hard-removed in **v1.6.0**
+- **Sandwich Namespacing pattern** Layer 3 (function-specific filename) — paired with companion PRs:
+  - PR-3 manifest extension (`.claude-plugin/plugin.json` `command_namespace` block — Layer 2)
+  - Companion vendor-reserved-words list (`~/.claude/docs/vendor-reserved-words.md` — Layer 4 audit reference)
+  - AGENTS.md §34/§73 refinement (Layer 5 convention/docs)
+- **Unchanged**: `skills/status-map/SKILL.md` already has `-map` qualifier; no collision risk; remains invocation target of `/agentic-status`
+- **Refs**: Plan PR-2 of 5 at `~/.claude/plans/jaunty-riding-knuth.md` · Sister-PR (vendor-words) ekson73/vek-dot-claude#54
+
 ### Added
 
 #### Skill `auto-pilot` v0.1.0 — Autonomous unattended orchestration entry point
