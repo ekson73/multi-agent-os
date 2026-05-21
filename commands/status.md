@@ -23,7 +23,7 @@ The fix follows the **Sandwich Namespacing 5-layer pattern** documented in:
 
 ## Equivalent invocation (use this instead)
 
-```
+```text
 /agentic-status              # COMPACT template (default) — RECOMMENDED
 /agentic-status pulse        # 1-line status
 /agentic-status full         # Full audit report
@@ -32,10 +32,9 @@ The fix follows the **Sandwich Namespacing 5-layer pattern** documented in:
 /agentic-status end          # Session handoff
 ```
 
-See `/agentic-status` command documentation for full template reference + ASCII output examples.
+See [`/agentic-status` command documentation](./agentic-status.md) for full template reference + ASCII output examples.
 
 ## Refs
 
-- Plan PR-2 of 5: `~/.claude/plans/jaunty-riding-knuth.md`
-- CHANGELOG.md v1.5.1 entry
-- `~/.claude/docs/vendor-reserved-words.md` (origin of Sandwich Namespacing pattern)
+- [CHANGELOG.md](../CHANGELOG.md) — `[Unreleased] §Changed v1.5.1` entry documents rename rationale + Sandwich Namespacing pattern
+- [Sister PR ekson73/vek-dot-claude#54](https://github.com/ekson73/vek-dot-claude/pull/54) — vendor-reserved-words audit list (Layer 4 of Sandwich Namespacing 5-layer pattern)

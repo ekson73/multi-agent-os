@@ -11,7 +11,7 @@ Displays human-readable ASCII status visualizations for the current agentic-syst
 
 ## Usage
 
-```
+```text
 /agentic-status [template]
 ```
 
@@ -28,7 +28,7 @@ Displays human-readable ASCII status visualizations for the current agentic-syst
 
 ## Examples
 
-```
+```text
 /agentic-status              # COMPACT template (default)
 /agentic-status pulse        # 1-line status
 /agentic-status full         # Full report
@@ -38,12 +38,14 @@ Displays human-readable ASCII status visualizations for the current agentic-syst
 ## Output Examples
 
 ### PULSE
-```
+
+```text
 [PULSE] ████████░░ 80% | ✓3 ↻1 ⚠0 | 25m | → Continue editing
 ```
 
 ### COMPACT (default)
-```
+
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  STATUS MAP | 2026-01-06T12:30 | Session: c614                  │
 ├────────────┬────────────────────────────────────────────────────┤
