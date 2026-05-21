@@ -1,0 +1,89 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "os3pd": "https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0#",
+    "schema": "https://schema.org/",
+    "version": "schema:version",
+    "global_enforcement_rule": "os3pd:globalEnforcementRule",
+    "documents": {"@id": "schema:isBasedOn", "@type": "@id"},
+    "ontology": {"@id": "schema:isBasedOn", "@type": "@id"},
+    "enforcement_matrix": {"@id": "os3pd:enforcementMatrix", "@container": "@list"},
+    "policy_id": {"@id": "os3pd:policyId", "@type": "@id"},
+    "target_class": {"@id": "os3pd:targetClass", "@type": "@id"},
+    "property_evaluated": {"@id": "os3pd:propertyEvaluated", "@type": "@id"},
+    "expected_value": "os3pd:expectedValue",
+    "action": "os3pd:action",
+    "actual_surface": "os3pd:actualSurface",
+    "implementation_status": "os3pd:implementationStatus"
+  },
+  "@id": "https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0/enforcement-matrix",
+  "version": "4.13.0",
+  "global_enforcement_rule": "The Boy Scout Rule",
+  "documents": "https://github.com/ekson73/multi-agent-os/blob/main/protocols/os3pd-manifesto.md",
+  "ontology": "https://github.com/ekson73/multi-agent-os/blob/main/ontology/os3pd-v4.13.0.ttl",
+  "enforcement_matrix": [
+    {
+      "policy_id": "os3pd:Principle_1_PlanAhead",
+      "target_class": "os3pd:PromptHarness",
+      "property_evaluated": "os3pd:hasSystemBoundary",
+      "expected_value": "os3pd:anti_jailbreak_compiled_rules",
+      "action": "REJECT_INVOCATION",
+      "actual_surface": "hooks/hooks.json:18-31",
+      "implementation_status": "ACTIVE"
+    },
+    {
+      "policy_id": "os3pd:Principle_2_DurableSurfaces",
+      "target_class": "os3pd:ValidationHarness",
+      "property_evaluated": "os3pd:hasEnvironmentIsolation",
+      "expected_value": "os3pd:ephemeral_container_sandbox",
+      "action": "BLOCK_PIPELINE",
+      "actual_surface": "plugin-scripts/governance/worktree-gate.sh:115-137",
+      "implementation_status": "ACTIVE"
+    },
+    {
+      "policy_id": "os3pd:Principle_3_DisposeWaste",
+      "target_class": "os3pd:SourceCode",
+      "property_evaluated": "os3pd:hasSecretExposure",
+      "expected_value": false,
+      "action": "QUARANTINE_AND_STRIP",
+      "actual_surface": ".github/workflows/supply-chain-sentinel.yml:35-166",
+      "implementation_status": "ACTIVE"
+    },
+    {
+      "policy_id": "os3pd:Principle_4_LeaveWhatYouFind",
+      "target_class": "os3pd:ArchivedAsset",
+      "property_evaluated": "os3pd:isOriginalBinaryMutated",
+      "expected_value": false,
+      "action": "REJECT_MUTATION",
+      "actual_surface": "sentinel/detection_rules.md (RULE-001..RULE-010)",
+      "implementation_status": "ACTIVE"
+    },
+    {
+      "policy_id": "os3pd:Principle_5_MinimizeCampfire",
+      "target_class": "os3pd:PromptHarness",
+      "property_evaluated": "os3pd:usesOptimizationRouting",
+      "expected_value": "os3pd:semantic_cache_or_slm",
+      "action": "ROUTE_TO_CACHE_OR_SLM",
+      "actual_surface": "skills/response-compression/SKILL.md + plugin-scripts/governance/token-budget-gate.sh (RULE-009)",
+      "implementation_status": "PARTIAL: verbosity axis active; SLM-routing primitive deferred to Phase C"
+    },
+    {
+      "policy_id": "os3pd:Principle_6_RespectWildlife",
+      "target_class": "os3pd:PromptHarness",
+      "property_evaluated": "os3pd:containsCleartextPII",
+      "expected_value": false,
+      "action": "ENFORCE_TOKEN_MASKING",
+      "actual_surface": ".github/workflows/ai-governance-linter.yml:46-52 (slot declared; implementation pending)",
+      "implementation_status": "GAP_G1: Phase B will wire skills/pii-masking/linter_pii.py"
+    },
+    {
+      "policy_id": "os3pd:Principle_7_ConsiderateVisitors",
+      "target_class": "os3pd:DigitalArtifact",
+      "property_evaluated": "os3pd:compliesWithFAIR",
+      "expected_value": true,
+      "action": "FLAG_WARNING",
+      "actual_surface": "skills/ttl-policy/SKILL.md + protocols/hierarchical-merge-protocol.md:1-22 + this ontology",
+      "implementation_status": "ACTIVE: this ontology IS the FAIR layer"
+    }
+  ]
+}

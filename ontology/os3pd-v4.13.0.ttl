@@ -1,0 +1,194 @@
+# OS3PD Ontology v4.13.0
+# Ontology of Symbiotic Software Systems and Preservation of Digital Artifacts
+#
+# Validates: rdflib.Graph().parse(..., format="turtle")
+# Sister docs:
+#   - protocols/os3pd-manifesto.md (prose + file:line citations)
+#   - ontology/os3pd-enforcement-matrix.jsonld (JSON-LD enforcement matrix)
+#   - tests/test_ontology_parse.py (cross-reference validation)
+#
+# Real W3C prefixes (corrects the prefix-collision defect in the
+# Gemini-agent v4.12.0 submission).
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix :     <https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0#> .
+
+<https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0>
+    rdf:type owl:Ontology ;
+    owl:versionInfo "4.13.0" ;
+    rdfs:label "OS3PD — Ontology of Symbiotic Software Systems and Preservation of Digital Artifacts"@en ;
+    rdfs:comment """Documents the 7 pragmatic principles materialized in
+multi-agent-os hooks, skills, workflows, and protocols. See
+protocols/os3pd-manifesto.md for prose and file:line citations."""@en .
+
+##############################################################################
+# Object Properties
+##############################################################################
+
+:interactsThrough a owl:ObjectProperty ;
+    rdfs:label "interacts through"@en ;
+    rdfs:domain :DigitalActor ;
+    rdfs:range :ExecutionHarness ;
+    rdfs:comment "Binds an actor (human or AI agent) to the harness instances that mediate its interaction."@en .
+
+:governedBy a owl:ObjectProperty ;
+    rdfs:label "governed by"@en ;
+    rdfs:domain :DigitalArtifact ;
+    rdfs:range :GuardrailPolicy .
+
+:validatesArtifact a owl:ObjectProperty ;
+    rdfs:label "validates artifact"@en ;
+    rdfs:domain :ExecutionHarness ;
+    rdfs:range :DigitalArtifact .
+
+:validatesContext a owl:ObjectProperty ;
+    rdfs:label "validates context"@en ;
+    rdfs:domain :PromptHarness ;
+    rdfs:range :DigitalArtifact .
+
+##############################################################################
+# Data Properties
+##############################################################################
+
+:hasSystemBoundary a owl:DatatypeProperty ;
+    rdfs:domain :PromptHarness ;
+    rdfs:range xsd:string .
+
+:hasEnvironmentIsolation a owl:DatatypeProperty ;
+    rdfs:domain :ValidationHarness ;
+    rdfs:range xsd:string .
+
+:hasSecretExposure a owl:DatatypeProperty ;
+    rdfs:domain :SourceCode ;
+    rdfs:range xsd:boolean .
+
+:isOriginalBinaryMutated a owl:DatatypeProperty ;
+    rdfs:domain :ArchivedAsset ;
+    rdfs:range xsd:boolean .
+
+:usesOptimizationRouting a owl:DatatypeProperty ;
+    rdfs:domain :PromptHarness ;
+    rdfs:range xsd:string .
+
+:containsCleartextPII a owl:DatatypeProperty ;
+    rdfs:domain :PromptHarness ;
+    rdfs:range xsd:boolean .
+
+:compliesWithFAIR a owl:DatatypeProperty ;
+    rdfs:domain :DigitalArtifact ;
+    rdfs:range xsd:boolean .
+
+##############################################################################
+# Classes
+##############################################################################
+
+:DigitalActor a owl:Class ;
+    rdfs:label "Digital Actor"@en ;
+    rdfs:comment "Logical actors that operate on and modify the digital ecosystem."@en .
+
+:HumanActor a owl:Class ;
+    rdfs:subClassOf :DigitalActor ;
+    owl:disjointWith :AIAgent ;
+    rdfs:label "Human Actor"@en .
+
+:AIAgent a owl:Class ;
+    rdfs:subClassOf :DigitalActor ;
+    rdfs:label "AI Agent"@en .
+
+:ExecutionHarness a owl:Class ;
+    rdfs:label "Execution Harness"@en ;
+    rdfs:comment "Infrastructure controlling execution, testing, and prompts."@en .
+
+:PromptHarness a owl:Class ;
+    rdfs:subClassOf :ExecutionHarness ;
+    rdfs:label "Prompt Harness"@en .
+
+:ValidationHarness a owl:Class ;
+    rdfs:subClassOf :ExecutionHarness ;
+    rdfs:label "Validation Harness"@en .
+
+:DigitalArtifact a owl:Class ;
+    rdfs:label "Digital Artifact"@en ;
+    rdfs:comment "Data and code entities under manifesto governance."@en .
+
+:SourceCode a owl:Class ;
+    rdfs:subClassOf :DigitalArtifact ;
+    owl:disjointWith :ArchivedAsset ;
+    rdfs:label "Source Code"@en .
+
+:ArchivedAsset a owl:Class ;
+    rdfs:subClassOf :DigitalArtifact ;
+    rdfs:label "Archived Asset"@en .
+
+:GuardrailPolicy a owl:Class ;
+    rdfs:label "Guardrail Policy"@en ;
+    rdfs:comment "The 7 manifesto principles, each reified as a named individual below."@en .
+
+##############################################################################
+# Named Individuals — the 7 principles
+##############################################################################
+
+:Principle_1_PlanAhead a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P1 — Plan Ahead and Prepare"@en .
+
+:Principle_2_DurableSurfaces a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P2 — Travel and Camp on Durable Surfaces"@en .
+
+:Principle_3_DisposeWaste a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P3 — Dispose of Waste Properly"@en .
+
+:Principle_4_LeaveWhatYouFind a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P4 — Leave What You Find"@en .
+
+:Principle_5_MinimizeCampfire a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P5 — Minimize Campfire Impacts"@en .
+
+:Principle_6_RespectWildlife a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P6 — Respect Wildlife"@en .
+
+:Principle_7_ConsiderateVisitors a owl:NamedIndividual, :GuardrailPolicy ;
+    rdfs:label "P7 — Be Considerate of Other Visitors"@en .
+
+##############################################################################
+# Named Individuals — the harness controls referenced in the enforcement matrix
+##############################################################################
+
+:anti_jailbreak_compiled_rules a owl:NamedIndividual, :PromptHarness ;
+    rdfs:label "Anti-jailbreak compiled rules"@en ;
+    rdfs:comment "Materialized by hooks/hooks.json:18-31 + plugin-scripts/pre-delegate.sh."@en .
+
+:ephemeral_container_sandbox a owl:NamedIndividual, :ValidationHarness ;
+    rdfs:label "Ephemeral container sandbox"@en ;
+    rdfs:comment "Materialized by plugin-scripts/governance/worktree-gate.sh + skills/worktree-policy/SKILL.md."@en .
+
+:semantic_cache_or_slm a owl:NamedIndividual, :PromptHarness ;
+    rdfs:label "Semantic cache or local SLM"@en ;
+    rdfs:comment "Materialized by skills/response-compression/SKILL.md + plugin-scripts/governance/token-budget-gate.sh (RULE-009). SLM-routing primitive itself is gap G3 captured by Phase C."@en .
+
+##############################################################################
+# Dogfooding axioms — bind actors to their harness instances
+# (fixes the v4.11 -> v4.12 claimed-but-unshipped dogfooding gap)
+##############################################################################
+
+:HumanActor rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :interactsThrough ;
+    owl:someValuesFrom :PromptHarness
+] .
+
+:AIAgent rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty :interactsThrough ;
+    owl:someValuesFrom :ExecutionHarness
+] .
+
+# Note: the binding of harness individuals to artifact classes is intentionally
+# expressed at the class level (via the rdfs:subClassOf owl:Restriction blocks
+# above), not via direct triples between individuals and classes. Triples like
+# `:ephemeral_container_sandbox :validatesArtifact :SourceCode` would constitute
+# OWL DL punning (Class-as-individual) and are avoided. Concrete artifact
+# individuals will be introduced by downstream consumers when binding the
+# ontology to actual SourceCode / ArchivedAsset instances they govern.
