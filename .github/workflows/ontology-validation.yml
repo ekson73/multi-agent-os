@@ -12,6 +12,11 @@ name: Ontology Validation
 on:
   push:
     branches: [main]
+    paths:
+      - "ontology/**"
+      - "protocols/os3pd-manifesto.md"
+      - "tests/test_ontology_parse.py"
+      - ".github/workflows/ontology-validation.yml"
   pull_request:
     branches: [main]
     paths:

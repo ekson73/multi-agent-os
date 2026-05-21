@@ -48,7 +48,7 @@ Security boundaries, context limits, and cognitive axes operate deterministicall
 **Existing surface**:
 
 - `hooks/hooks.json:18-31` — `PreToolUse(Task)` matcher chains `plugin-scripts/pre-delegate.sh` + `plugin-scripts/governance/token-budget-gate.sh` on every subagent spawn. Hooks fire before tool execution, enforcing pre-invocation discipline.
-- `plugin-scripts/pre-delegate.sh` — captures provider context (ticket / VCS / secrets / observability) before delegation.
+- `plugin-scripts/pre-delegate.sh` — emits a `pre_delegate` JSONL trace event (session ID + trace ID + target agent) to `~/.claude/audit/session_<id>.jsonl` and returns a structured allow-status with the Sentinel pre-checks (`loop_detection`, `depth_validation`, `agent_mismatch`).
 
 ### P2 — Travel and Camp on Durable Surfaces (Isolated, Ephemeral Execution)
 
@@ -56,7 +56,7 @@ Production infrastructure and original-binary archives are immutable zones; AI-g
 
 **Existing surface**:
 
-- `plugin-scripts/governance/worktree-gate.sh:115-137` — `RF03` blocks any commit when the current branch is `main` or `master` (unless `GOVERNANCE_OVERRIDE=1` is set with explicit rationale per the auto-loaded `pr-review-protocol.md` v1.1.0). Combined with `RF01` (branch creation) and `RF02` (checkout enforcement) at earlier lines of the same hook.
+- `plugin-scripts/governance/worktree-gate.sh:115-137` — `RF03` blocks any commit when the current branch is `main` or `master`. The bypass mechanism is a command-line flag inspected by `has_bypass_flag()` in `plugin-scripts/governance/lib/common.sh:142-145` — either `--force-no-worktree` or `--maos-bypass`. Combined with `RF01` (branch creation) and `RF02` (checkout enforcement) at earlier lines of the same hook.
 - `skills/worktree-policy/SKILL.md` — "WORKTREE IS MANDATORY" policy.
 - `protocols/hierarchical-merge-protocol.md` — branches merge to a parent, not directly to `main`.
 
@@ -119,7 +119,7 @@ Systems built or assisted by AI must be auditable + intelligible by both humans 
 | File | Format | Purpose |
 |---|---|---|
 | `ontology/os3pd-v4.13.0.ttl` | OWL / Turtle, W3C-standard prefixes | Validated by `rdflib.Graph().parse()` in `tests/test_ontology_parse.py` |
-| `ontology/os3pd-enforcement-matrix.jsonld` | JSON-LD, `$schema: https://json-schema.org/draft/2020-12/schema` | Validated by `jsonschema` in the same test |
+| `ontology/os3pd-enforcement-matrix.jsonld` | JSON-LD 1.1, `@context` with `os3pd:` + `schema:` prefixes | Validated by `rdflib.Graph().parse(format="json-ld")` in the same test — proves real JSON-LD semantics, not just JSON shape |
 | `.github/workflows/ontology-validation.yml` | GitHub Actions workflow | Runs the test on push/PR/manual dispatch |
 
 ## What this manifesto is NOT
@@ -130,7 +130,7 @@ Systems built or assisted by AI must be auditable + intelligible by both humans 
 
 ## Why version `4.13.0` (not `4.12.0`)
 
-An upstream proposal self-labeled `v4.12.0-LTS`. This repository's first incorporation is `v4.13.0` — a `MINOR` bump per `[C07b]` — because the upstream submission was rejected for **5 structural defects**:
+An upstream proposal self-labeled `v4.12.0-LTS`. This repository's first incorporation is `v4.13.0` — a `MINOR` bump per `[C07b]` — because the upstream submission was rejected for **6 structural defects**:
 
 1. Hardcoded `bugs_fixed / bugs_introduced` numerator in CI (rubber-stamp gate).
 2. Single-line Python source (newline-collapsed → `SyntaxError`).

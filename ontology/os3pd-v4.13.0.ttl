@@ -185,8 +185,10 @@ protocols/os3pd-manifesto.md for prose and file:line citations."""@en .
     owl:someValuesFrom :ExecutionHarness
 ] .
 
-# Ephemeral sandbox validates source code (P2 binding)
-:ephemeral_container_sandbox :validatesArtifact :SourceCode .
-
-# Anti-jailbreak rules validate context (P1 binding)
-:anti_jailbreak_compiled_rules :validatesContext :SourceCode .
+# Note: the binding of harness individuals to artifact classes is intentionally
+# expressed at the class level (via the rdfs:subClassOf owl:Restriction blocks
+# above), not via direct triples between individuals and classes. Triples like
+# `:ephemeral_container_sandbox :validatesArtifact :SourceCode` would constitute
+# OWL DL punning (Class-as-individual) and are avoided. Concrete artifact
+# individuals will be introduced by downstream consumers when binding the
+# ontology to actual SourceCode / ArchivedAsset instances they govern.

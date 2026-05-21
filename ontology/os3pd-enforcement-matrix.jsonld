@@ -1,17 +1,26 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "id": "https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0/enforcement-matrix",
-  "version": "4.13.0",
   "@context": {
+    "@version": 1.1,
     "os3pd": "https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0#",
-    "policy_id": "@id",
-    "target_class": "@type",
-    "property_evaluated": "@id",
-    "expected_value": "@id"
+    "schema": "https://schema.org/",
+    "version": "schema:version",
+    "global_enforcement_rule": "os3pd:globalEnforcementRule",
+    "documents": {"@id": "schema:isBasedOn", "@type": "@id"},
+    "ontology": {"@id": "schema:isBasedOn", "@type": "@id"},
+    "enforcement_matrix": {"@id": "os3pd:enforcementMatrix", "@container": "@list"},
+    "policy_id": {"@id": "os3pd:policyId", "@type": "@id"},
+    "target_class": {"@id": "os3pd:targetClass", "@type": "@id"},
+    "property_evaluated": {"@id": "os3pd:propertyEvaluated", "@type": "@id"},
+    "expected_value": "os3pd:expectedValue",
+    "action": "os3pd:action",
+    "actual_surface": "os3pd:actualSurface",
+    "implementation_status": "os3pd:implementationStatus"
   },
+  "@id": "https://github.com/ekson73/multi-agent-os/ontology/os3pd/4.13.0/enforcement-matrix",
+  "version": "4.13.0",
   "global_enforcement_rule": "The Boy Scout Rule",
-  "documents": "protocols/os3pd-manifesto.md",
-  "ontology": "ontology/os3pd-v4.13.0.ttl",
+  "documents": "https://github.com/ekson73/multi-agent-os/blob/main/protocols/os3pd-manifesto.md",
+  "ontology": "https://github.com/ekson73/multi-agent-os/blob/main/ontology/os3pd-v4.13.0.ttl",
   "enforcement_matrix": [
     {
       "policy_id": "os3pd:Principle_1_PlanAhead",

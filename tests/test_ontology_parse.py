@@ -1,12 +1,12 @@
 """Validate OS3PD v4.13.0 ontology + enforcement matrix.
 
 Tests:
-1. Turtle file parses cleanly via rdflib.
+1. Turtle file parses cleanly via rdflib (Turtle format).
 2. Turtle file contains all expected OWL classes.
 3. Turtle file declares 7 principle named individuals.
 4. JSON-LD file is valid JSON with 7 policy entries.
-5. JSON-LD declares a real json-schema.org draft URL as $schema.
-6. JSON-LD policies cross-reference NamedIndividuals declared in the .ttl.
+5. JSON-LD file parses cleanly via rdflib (json-ld format) — real semantic validation.
+6. JSON-LD parsed-graph policies cross-reference NamedIndividuals declared in the .ttl.
 7. JSON-LD contains no hardcoded TRE-style numerator (governance-theater check).
 
 Run: pytest tests/test_ontology_parse.py -v
@@ -18,7 +18,6 @@ import re
 
 import pytest
 import rdflib
-from jsonschema import Draft202012Validator  # noqa: F401  (import-time sanity)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 TTL_PATH = REPO_ROOT / "ontology" / "os3pd-v4.13.0.ttl"
@@ -31,14 +30,43 @@ RDF = rdflib.Namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#")
 
 @pytest.fixture(scope="module")
 def graph():
+    """Parsed Turtle ontology. Fails loudly with actionable error if file missing or invalid."""
+    if not TTL_PATH.is_file():
+        pytest.fail(f"Turtle ontology not found at {TTL_PATH}")
     g = rdflib.Graph()
-    g.parse(str(TTL_PATH), format="turtle")
+    try:
+        g.parse(str(TTL_PATH), format="turtle")
+    except Exception as exc:
+        pytest.fail(f"Failed to parse Turtle ontology at {TTL_PATH}: {exc}")
     return g
 
 
 @pytest.fixture(scope="module")
 def matrix():
-    return json.loads(JSONLD_PATH.read_text(encoding="utf-8"))
+    """Raw JSON view of the enforcement matrix file. Fails loudly on missing / invalid JSON."""
+    if not JSONLD_PATH.is_file():
+        pytest.fail(f"JSON-LD file not found at {JSONLD_PATH}")
+    try:
+        return json.loads(JSONLD_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        pytest.fail(f"Invalid JSON in {JSONLD_PATH}: {exc}")
+
+
+@pytest.fixture(scope="module")
+def jsonld_graph():
+    """JSON-LD parsed by rdflib — proves the file is real JSON-LD, not just JSON."""
+    if not JSONLD_PATH.is_file():
+        pytest.fail(f"JSON-LD file not found at {JSONLD_PATH}")
+    g = rdflib.Graph()
+    try:
+        g.parse(str(JSONLD_PATH), format="json-ld")
+    except Exception as exc:
+        pytest.fail(
+            f"Failed to parse JSON-LD at {JSONLD_PATH} (rdflib json-ld format). "
+            f"This usually means the @context is malformed or term definitions are invalid. "
+            f"Error: {exc}"
+        )
+    return g
 
 
 def test_turtle_parses_clean(graph):
@@ -80,10 +108,15 @@ def test_jsonld_is_valid_json(matrix):
     )
 
 
-def test_jsonld_declares_real_schema(matrix):
-    schema_uri = matrix.get("$schema", "")
-    assert schema_uri.startswith("https://json-schema.org/draft/"), (
-        f"$schema must be a real json-schema.org draft URL, got: {schema_uri!r}"
+def test_jsonld_parses_as_real_jsonld(jsonld_graph):
+    """rdflib must successfully parse the file as JSON-LD (not just JSON).
+
+    This is the real machine-readability gate — if the @context is invalid or term
+    definitions are malformed, rdflib will either fail to parse OR produce zero triples.
+    """
+    assert len(jsonld_graph) > 30, (
+        f"JSON-LD parsed to only {len(jsonld_graph)} triples — expected >30 from a 7-policy matrix. "
+        f"This suggests the @context is not properly defining terms."
     )
 
 
