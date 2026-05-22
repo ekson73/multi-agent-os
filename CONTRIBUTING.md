@@ -41,7 +41,7 @@ Maintainer-only operations. A release MUST:
 
 If a merged change causes regression in production usage:
 
-1. Revert via `gh pr create` opening a `revert: ` PR against the offending commit (do not `git push --force`).
+1. Revert via `gh pr create` opening a `revert:` PR against the offending commit (do not `git push --force`).
 2. Roll back the marketplace SHA pin if the change shipped to consumers.
 3. Document the incident in `docs/` and open a follow-up to prevent recurrence.
 
