@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `founder-*` family — Anthropic Founder's Playbook converted to agentic-tools
+
+- **NEW skills** (Agent Skills standard, vendor-neutral): `founder-playbook` (lifecycle router + `references/product-matrix.md`), `founder-stage-idea`, `founder-stage-mvp`, `founder-stage-launch`, `founder-stage-scale`. Each stage skill carries its goal, exit-criteria gate, failure modes + mitigations, and ready-to-use exercise prompts / emittable templates.
+- **NEW agent**: `founder-coach` — delegatable "founder as orchestrator-of-agents" coaching persona (stage diagnosis + exit-gate review).
+- **NEW command**: `/founder-playbook` — thin wrapper over the router skill.
+- **Origin**: framework adapted (process & methodology, original prose, attributed — no verbatim copy) from Anthropic, *The Founder's Playbook: Building an AI-Native Startup* (2026, https://claude.com/blog/the-founders-playbook). Capability classes are vendor-neutral (conversational-research / agentic-coding / workflow-automation) with Claude (Chat/Code/Cowork) as the reference implementation. Resolves #85.
+
 #### Sandwich Namespacing — `command_namespace` + `vendor_reserved_audit` in plugin.json (v1.5.2)
 
 - **NEW `.claude-plugin/plugin.json` `command_namespace` block** — declarative prefix `maos:` for commands (Layer 2 of Sandwich Namespacing 5-layer pattern). Forward-compat: when Claude Code runtime supports `command_namespace` declaration, commands surface as `/maos:<name>` preventing cross-plugin collision. Until runtime supports, Layer 3 (function-specific filename) handles disambiguation.

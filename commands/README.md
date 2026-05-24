@@ -13,6 +13,7 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 | `/status` | `status.md` | Display human-readable status maps |
 | `/worktree` | `worktree.md` | Manage git worktrees |
 | `/delegate` | `delegate.md` | Delegate tasks to sub-agents |
+| `/founder-playbook` | `founder-playbook.md` | Diagnose AI-native startup stage + route to stage skills |
 
 ## Command Categories
 
@@ -26,6 +27,9 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 ### Coordination
 - `/worktree` — Git worktree management
 - `/delegate` — Sub-agent task delegation
+
+### Startup Coaching
+- `/founder-playbook` — Diagnose AI-native startup stage; route to `founder-stage-*` skills
 
 ## Command Structure
 

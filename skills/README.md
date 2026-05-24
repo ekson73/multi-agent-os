@@ -18,6 +18,11 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `ttl-policy` | `ttl-policy/SKILL.md` | Manage content freshness policies |
 | `find-docs` | `find-docs/SKILL.md` | Library documentation lookup via Context7 |
 | `response-compression` | `response-compression/SKILL.md` | Output verbosity control with role-based profiles (none/lite/full/ultra) |
+| `founder-playbook` | `founder-playbook/SKILL.md` | AI-native startup lifecycle router — diagnose stage + route to stage skills |
+| `founder-stage-idea` | `founder-stage-idea/SKILL.md` | Idea stage — validate the problem before building |
+| `founder-stage-mvp` | `founder-stage-mvp/SKILL.md` | MVP stage — product-market-fit evidence without compounding tech debt |
+| `founder-stage-launch` | `founder-stage-launch/SKILL.md` | Launch stage — repeatable growth; remove the founder bottleneck |
+| `founder-stage-scale` | `founder-stage-scale/SKILL.md` | Scale stage — systematic growth + defensible moat |
 
 ## Skill Categories
 
@@ -42,6 +47,13 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 ### Developer Tools
 - `find-docs` — Up-to-date library documentation and code examples via Context7 CLI
+
+### Founder / Startup Skills
+- `founder-playbook` — Lifecycle router: diagnose stage, check exit gates, route
+- `founder-stage-idea` — Validate the problem before building
+- `founder-stage-mvp` — Product-market-fit evidence; tech-debt / scope / security discipline
+- `founder-stage-launch` — Repeatable growth engine; remove the founder bottleneck
+- `founder-stage-scale` — Systematic growth + defensible moat + GTM
 
 ## Directory Structure
 
