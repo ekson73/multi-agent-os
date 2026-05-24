@@ -8,8 +8,8 @@ description: |
   gate (defensible CAC·LTV·payback; production-hardened; ops without founder
   bottleneck), the failure modes (technical debt comes due, founder-as-bottleneck,
   security/compliance no longer deferrable, expansion before ready), and exercises
-  (architectural audit + remediation sequencing, attention/bottleneck audit, SOC2/
-  GDPR/HIPAA compliance workstream, lightweight PM operating system). Use when a
+  (architectural audit + remediation sequencing, attention/bottleneck audit, SOC 2 /
+  GDPR / HIPAA compliance workstream, lightweight PM operating system). Use when a
   founder says "we launched", "scale our growth", "I'm the bottleneck", "tech debt",
   "SOC 2 / GDPR / HIPAA / compliance", or "set up sprints / processes".
 allowed-tools: Read, Write, Edit, Glob, Grep, WebFetch, WebSearch
@@ -46,13 +46,14 @@ Advance only when all three hold:
 | Failure mode | What it looks like | Mitigation |
 |---|---|---|
 | **Technical debt comes due** | MVP shortcuts now accrue interest under production traffic + new features | Architectural audit → targeted refactor → expand test coverage (exercise A) |
-| **The founder becomes the bottleneck** | Hour-decisions take a week; support piles up because only you know the answer; tasks happen only when you remember | Audit everything you touch; systematize / delegate / keep only founder-judgment work (exercise B) |
+| **The founder becomes the bottleneck** | Decisions that should take an hour now take a week; support piles up because only you know the answer; tasks happen only when you remember | Audit everything you touch; systematize / delegate / keep only founder-judgment work (exercise B) |
 | **Security & compliance no longer deferrable** | Real users, real data, enterprise contracts; theoretical risk becomes real exposure | Systematic review *before* scale; treat findings as required remediation, not suggestions (exercise C) |
 | **Expansion before you're ready** | New markets/funding look like growth but introduce variables your product wasn't built for | Resist premature expansion; protect the original user base; expand only with evidence |
 
 ## Exercises (reusable prompts)
 
 ### A. Architectural audit + remediation sequencing
+
 > "Audit my MVP codebase and produce a prioritized list of structural weaknesses,
 > test-coverage gaps, and refactoring candidates. Then sequence the remediation across
 > sprints: what must be fixed before the next release, what can run in parallel with
@@ -61,6 +62,7 @@ Advance only when all three hold:
 > `CLAUDE.md` so future sessions share one mental model."
 
 ### B. Founder-attention / bottleneck audit
+
 > "Run a structured audit of my current operational load: every recurring task, every
 > decision that lands on me, every workflow that only happens because I remember it.
 > Categorize each into: (1) automate entirely, (2) needs a human but not me, (3)
@@ -68,6 +70,7 @@ Advance only when all three hold:
 > workflow logic — trigger, decision rules, output, and where it goes when done."
 
 ### C. Security & compliance workstream
+
 > "Surface code-level issues that commonly come up in SOC 2 / GDPR / HIPAA audits for
 > my target market. Produce two things: a prioritized remediation sequence, and a
 > list of the documentation + controls (audit logging, access management) an
@@ -76,6 +79,7 @@ Advance only when all three hold:
 > *(AI scans aid but don't replace a qualified compliance review.)*
 
 ### D. Lightweight PM operating system
+
 > "Design a lightweight product-management operating system that runs without me
 > triggering it: a sprint cadence, a minimum spec template (what a spec must include
 > before code touches a feature), a bug-triage decision tree, and a weekly metrics

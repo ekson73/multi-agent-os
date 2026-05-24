@@ -15,7 +15,7 @@ it surfaces as `/maos:founder-playbook`.
 
 ## Usage
 
-```
+```text
 /founder-playbook ["<where I am / what I'm deciding>"]
 ```
 

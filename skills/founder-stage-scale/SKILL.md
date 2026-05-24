@@ -58,6 +58,7 @@ and an operationally mature, sustainable organization.
 ## Exercises (reusable prompts)
 
 ### A. Bottleneck map + "week-away" stress test
+
 > "Produce a bottleneck map of my operational layer: every workflow, decision, and
 > approval routed through me. Now extrapolate what happens to each when I'm
 > unavailable for a week — the ones that stall are where handoff criteria, escalation
@@ -65,6 +66,7 @@ and an operationally mature, sustainable organization.
 > founder-only priorities and recommend fixes."
 
 ### B. Enterprise-infrastructure gap analysis
+
 > "Pick three ideal enterprise customers. For each, produce a gap analysis: what
 > documentation, SLAs, and support infrastructure would their procurement team expect
 > before signing a multi-year contract — and where do I currently fall short? Sequence
@@ -72,6 +74,7 @@ and an operationally mature, sustainable organization.
 > observability that makes SLAs enforceable; product docs, support playbooks)."
 
 ### C. Build a real GTM function
+
 > "Help me build a go-to-market engine from scratch: market segmentation, messaging
 > architecture, analyst-relations strategy, sales playbooks, and the investor-facing
 > metrics narrative. Translate the product's value props for each audience (users,
@@ -79,6 +82,7 @@ and an operationally mature, sustainable organization.
 > pipelines, outbound sequences, briefing logistics, CRM hygiene, pipeline reporting."
 
 ### D. Turn domain expertise into reusable Skills (compounding moat)
+
 > "Help me externalize my domain expertise — industry jargon, regulatory gotchas,
 > edge cases, why obvious answers fail — into a structured, searchable context. Then
 > identify recurring expert workflows to codify as reusable **Skills** the product
@@ -87,6 +91,7 @@ and an operationally mature, sustainable organization.
 > one. The test suite becomes a map of my moat."
 
 ### E. Data-moat narrative
+
 > "Here's a summary of my product's interaction data (what I collect, how long, how
 > users engage over time). Identify the 3 highest-signal behavioral patterns and
 > design a feedback loop turning each into systematic improvement. Then draft a
@@ -94,6 +99,7 @@ and an operationally mature, sustainable organization.
 > and why a well-resourced competitor starting today couldn't replicate it soon."
 
 ### F. Workflow lock-in audit
+
 > "Map my top-10 customers by integration depth: for each, the automations they've
 > built, the integrations they depend on, the team workflows running through the
 > product, and an estimate of switching cost. Identify which integration types create

@@ -56,35 +56,41 @@ enough to return (retention), pay (revenue), or refer (referral). Useful litmus 
 ## Emittable templates (ask the agent to produce these, then save them)
 
 ### A. Architecture-context (`CLAUDE.md`) — define BEFORE coding
+
 > "I'm building <product> for <users>, expecting <realistic 6-month scale>. Help me
 > define the architectural principles that should govern the MVP, the dependencies to
 > avoid given my constraints, and the tradeoffs I'm consciously accepting now. Output
 > a concise `CLAUDE.md` I can drop at the repo root as persistent project memory."
 
 ### B. Scope definition — define BEFORE building features
+
 > "Draft a scope document for my MVP: what it **does**, what it **deliberately does
 > not do**, and a feature-amendment bar — the specific real-user evidence that would
 > justify adding something. Phrase the bar so the question shifts from 'should we
 > build this?' to 'have a critical mass of users said they can't get value without it?'"
 
 ### C. Pre-launch measurement framework
+
 > "Define the metrics that matter for <product>: retention benchmarks, activation
 > criteria, and Day-7/Day-30 targets. Then define what a **false positive** looks
 > like for this product (e.g., signups without activation, revenue without retention).
 > When data arrives, make the adversarial case against my own traction."
 
 ### D. Security-review brief (before any real user)
+
 > "Review my core application code for: authentication & session handling, data
 > exposure in API responses, input validation & injection risks, and dependencies
 > with known vulnerabilities. For each finding, say whether it needs a fix and flag
 > anything touching auth, secrets, or data for mandatory human review."
 
 ### E. Session template (use every agentic-coding session)
+
 > Start: revisit the scope doc + load the persistent context file (e.g., `CLAUDE.md`). End: append a brief log
 > — what was built, what decisions were made, what assumptions were introduced.
 > *Five minutes of documentation per session is cheap insurance against drift.*
 
 ### F. Pivot diagnostic (after 3+ iteration cycles with no PMF movement)
+
 > "Here is my retention data, user feedback, and original problem hypothesis. Answer:
 > (1) Is a segment responding differently than the rest? (2) Is the value gap a
 > positioning problem or a product problem? (3) What would have to be true for the

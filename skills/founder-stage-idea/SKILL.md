@@ -56,12 +56,14 @@ Advance only when you can answer **yes to all three**:
 ## Exercises (reusable prompts)
 
 ### A. Sharpen the problem hypothesis
+
 > "Here is my rough idea: <idea>. Rewrite it as a single testable problem hypothesis
 > naming the exact user, the frequency, the severity, and what they currently do
 > instead. Then list the 5 riskiest assumptions in it and, for each, the cheapest way
 > to disconfirm it through conversation — not a survey."
 
 ### B. Map the competitive landscape
+
 > "For the problem '<problem>', map how it is solved today: direct competitors,
 > indirect substitutes, and the do-nothing/status-quo option. For each, summarize how
 > well it solves the problem and where it fails. Then state the 3 sharpest, defensible
@@ -69,6 +71,7 @@ Advance only when you can answer **yes to all three**:
 > 'no market'."
 
 ### C. Customer-discovery interview kit
+
 > "Draft a customer-discovery interview guide for '<user segment>' about '<problem>'.
 > Use open, non-leading questions focused on past behavior ('tell me about the last
 > time…') not hypotheticals. Include a screening question to confirm they actually
@@ -76,6 +79,7 @@ Advance only when you can answer **yes to all three**:
 > interview that captures evidence for/against the hypothesis."
 
 ### D. Build the interview target list
+
 > "From these public signals (<communities, job titles, forums, reviews>), produce a
 > prioritized outreach list of people likely to have '<problem>', with a one-line
 > reason each and a short, non-salesy outreach message."
