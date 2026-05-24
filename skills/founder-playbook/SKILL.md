@@ -68,7 +68,8 @@ Ask the founder these, in order — stop at the first "no":
    - No → **Launch stage** → load `founder-stage-launch`.
 4. **Are you building systematic growth + a defensible moat, with the company
    sustainable even when you step back from day-to-day?**
-   - Otherwise → **Scale stage** → load `founder-stage-scale`.
+   - **No** (you cleared 1–3 but aren't there yet) → you're early in **Scale** → load `founder-stage-scale`.
+   - **Yes** → you're maturing through **Scale** toward the threshold exit (profitability / IPO / acquisition); `founder-stage-scale` still applies — re-check its exit gate.
 
 > A founder can be mid-stage. If unsure between two, pick the **earlier** one — the
 > earlier discipline is cheaper to revisit than the failure mode it prevents.
@@ -112,6 +113,6 @@ the framework holds for any AAIF-compatible toolset.
 ## Attribution
 
 Framework adapted (process & methodology, original prose) from Anthropic,
-*The Founder's Playbook: Building an AI-Native Startup* (2026) —
+*The Founder's Playbook: Building an AI-Native Startup* (2026-05-14) —
 https://claude.com/blog/the-founders-playbook. No text is reproduced verbatim;
 this skill encodes the framework for agent use under the repository's MIT license.

@@ -29,6 +29,7 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 - `/delegate` — Sub-agent task delegation
 
 ### Startup Coaching
+
 - `/founder-playbook` — Diagnose AI-native startup stage; route to `founder-stage-*` skills
 
 ## Command Structure

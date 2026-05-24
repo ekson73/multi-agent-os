@@ -53,6 +53,6 @@ next concrete action (usually: load a specific stage skill + run a named exercis
 ## Attribution
 
 Adapted (process & methodology, original prose) from Anthropic, *The Founder's
-Playbook: Building an AI-Native Startup* (2026) —
+Playbook: Building an AI-Native Startup* (2026-05-14) —
 https://claude.com/blog/the-founders-playbook. No text reproduced verbatim;
 encoded for agent use under this repository's MIT license.

@@ -49,6 +49,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - `find-docs` — Up-to-date library documentation and code examples via Context7 CLI
 
 ### Founder / Startup Skills
+
 - `founder-playbook` — Lifecycle router: diagnose stage, check exit gates, route
 - `founder-stage-idea` — Validate the problem before building
 - `founder-stage-mvp` — Product-market-fit evidence; tech-debt / scope / security discipline

@@ -79,8 +79,8 @@ enough to return (retention), pay (revenue), or refer (referral). Useful litmus 
 > with known vulnerabilities. For each finding, say whether it needs a fix and flag
 > anything touching auth, secrets, or data for mandatory human review."
 
-### E. Session template (use every Claude Code session)
-> Start: revisit the scope doc + load the `CLAUDE.md` context. End: append a brief log
+### E. Session template (use every agentic-coding session)
+> Start: revisit the scope doc + load the persistent context file (e.g., `CLAUDE.md`). End: append a brief log
 > — what was built, what decisions were made, what assumptions were introduced.
 > *Five minutes of documentation per session is cheap insurance against drift.*
 
@@ -106,5 +106,5 @@ enough to return (retention), pay (revenue), or refer (referral). Useful litmus 
 ## Attribution
 
 Adapted (process & methodology, original prose) from Anthropic, *The Founder's
-Playbook: Building an AI-Native Startup* (2026) —
+Playbook: Building an AI-Native Startup* (2026-05-14) —
 https://claude.com/blog/the-founders-playbook. No text reproduced verbatim.

@@ -96,5 +96,5 @@ Advance only when all three hold:
 ## Attribution
 
 Adapted (process & methodology, original prose) from Anthropic, *The Founder's
-Playbook: Building an AI-Native Startup* (2026) —
+Playbook: Building an AI-Native Startup* (2026-05-14) —
 https://claude.com/blog/the-founders-playbook. No text reproduced verbatim.

@@ -37,6 +37,7 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 - `memory-curator` — Audit and maintain persistent memory/knowledge quality
 
 ### Startup Coaching
+
 - `founder-coach` — AI-native startup lifecycle coach; pairs with the `founder-*` skills
 
 ## Agent Naming Convention
