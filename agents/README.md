@@ -14,6 +14,7 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | consolidator | `consolidator.md` | Output synthesis |
 | legacy-archaeologist | `legacy-archaeologist.md` | Legacy codebase reverse-engineering |
 | memory-curator | `memory-curator.md` | Knowledge/memory hygiene and curation |
+| founder-coach | `founder-coach.md` | AI-native startup lifecycle coach (stage diagnosis + exit gates) |
 
 ## Agent Categories
 
@@ -34,6 +35,10 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 
 ### Knowledge Management
 - `memory-curator` — Audit and maintain persistent memory/knowledge quality
+
+### Startup Coaching
+
+- `founder-coach` — AI-native startup lifecycle coach; pairs with the `founder-*` skills
 
 ## Agent Naming Convention
 

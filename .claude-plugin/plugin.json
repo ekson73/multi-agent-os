@@ -21,7 +21,11 @@
     "forge",
     "rbad",
     "validation",
-    "agent-design"
+    "agent-design",
+    "founder",
+    "startup",
+    "ai-native",
+    "playbook"
   ],
   "command_namespace": {
     "_comment": "Sandwich Namespacing Layer 2 — manifest-declared namespace prefix for plugin commands. Forward-compat: if host runtime supports `command_namespace` declaration, commands surface as /maos:<name> (preventing cross-plugin collision). If host does not support, fallback to function-specific filename (Layer 3) handles disambiguation. See AGENTS.md §34 and sister-PR ekson73/vek-dot-claude#54 (vendor-reserved-words audit list, Layer 4).",
