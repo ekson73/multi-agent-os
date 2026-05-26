@@ -351,3 +351,7 @@ Entry points: skill `delegate-governance` (discoverable) + CLI `plugin-scripts/g
 
 *Multi-Agent OS v1.5.2 | Plugin for Claude Code*
 *Analysis by: Claude-Analyst-c614-plugin | 2026-01-08T21:30:00-03:00*
+
+## Branching & Release Model
+
+**GitHub Flow (Class B — library/marketplace).** Canonical SSOT: [`AGENTS.md`](./AGENTS.md) §"Branching & Release Model" + `docs/adrs/ADR-004-github-flow-branching.md`. No environment branches here; source-pin = float per ADR-003.

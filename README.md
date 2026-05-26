@@ -4,6 +4,7 @@
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://claude.ai/code)
 [![Version](https://img.shields.io/badge/Version-1.5.2-blue)](https://github.com/ekson73/multi-agent-os)
 [![Sentinel](https://img.shields.io/badge/Sentinel-Protocol-green)](https://github.com/ekson73/multi-agent-os/tree/main/sentinel)
+[![Branching: GitHub Flow](https://img.shields.io/badge/branching-GitHub%20Flow%20(Class%20B)-0a7bbb)](./AGENTS.md)
 
 A comprehensive Claude Code plugin for orchestrating AI agents in software development workflows.
 
