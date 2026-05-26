@@ -31,3 +31,7 @@ See `AGENTS.md` § Code Conventions. Bash hooks use `set -euo pipefail` and sour
 ## Tests
 
 `AGENTS.md` § Build & Test enumerates the canonical commands. The CI workflows in `.github/workflows/` (`ai-governance-linter`, `converge-tests`, `ontology-validation`, `supply-chain-sentinel`, `version-sync`) run on every PR — local Copilot suggestions should not break them.
+
+## Branching & Release
+
+Model = **GitHub Flow (Class B — library/marketplace)**. SSOT = [`AGENTS.md`](../AGENTS.md) §"Branching & Release Model" (+ `docs/adrs/ADR-004`). Never create environment branches here; never commit to `main` directly; PR → squash → delete-branch. Consumer source-pin = float per ADR-003.

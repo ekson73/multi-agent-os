@@ -81,3 +81,12 @@ Before committing any changes:
 - Never use `--no-verify` to bypass hooks
 - Never push --force to protected branches
 - Treat hook scripts as security-critical (they have elevated permissions)
+
+## Branching & Release Model — GitHub Flow (Class B: library/marketplace)
+
+> This repo is **CONSUMED** by other repos/users — it does **not** deploy to environments. Model = **GitHub Flow + SemVer**. See [`docs/adrs/ADR-004-github-flow-branching.md`](./docs/adrs/ADR-004-github-flow-branching.md).
+
+- **Trunk**: `main` is always releasable. **No environment branches** (no `homolog`/`ppe`/`prd` here — those exist only in Class A *deployed apps* like `vek-sales`/`vek-list`).
+- **Work**: branch `feature/<id>-slug` · `fix/<id>-slug` · `hotfix/<id>-slug` · `docs/` · `chore/` off `main` → PR → **squash-merge** → **delete branch**.
+- **Agents MUST**: never commit to `main` directly · always open a PR · never create env-branches here · treat tagging/release as a human/operator gate.
+- **Versioning & consumer source-pin**: governed by the companion **ADR-003** (`version-ssot-float`) + Jira — source `ref = main` during MVP (TTL'd). Do **not** re-decide it here.

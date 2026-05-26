@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **docs(branching)**: documented GitHub Flow (Class B) model in `AGENTS.md` (SSOT) + `ADR-004`; added GEMINI.md / Copilot pointers; README badge. Companion to ADR-003 (source float).
+
 ### Added
 
 #### `founder-*` family — Anthropic Founder's Playbook converted to agentic-tools
