@@ -1,0 +1,39 @@
+# Common typos / mis-transcriptions — pt-BR
+#
+# Schema: each entry is {wrong, correct, confidence?, context?, source?, notes?}
+# - wrong: incorrect surface form as seen in transcript
+# - correct: canonical form
+# - confidence: 0.0-1.0 (default 1.0 for exact-match typos; lower for ambiguous)
+# - context: optional filter (apply only in certain meeting types/orgs)
+# - source: empirical origin of this entry
+# - notes: rationale
+#
+# PDCA-grown. Initial seed: pt-BR Vek daily meeting corrections.
+#
+# Version: 1.0.0 (2026-05-28)
+# Cross-vendor AAIF
+
+schema_version: 1.0.0
+language: pt-br
+updated: "2026-05-28"
+
+# Reserved class — ASR phonetic substitutions of PROPER NAMES are handled by the
+# Pass-1 participants-whitelist check (combined Levenshtein + phonetic), NOT by
+# this pass-2 dictionary. Pass-2 is for non-name typos.
+
+typos:
+  # ---- Common Vek daily meeting typos (empirical, will grow via PDCA) ----
+
+  # Placeholder — no empirical pt-BR non-name typos confirmed yet for v1.0.0.
+  # Cycle 1 (5 meetings) will populate this section.
+
+  # Example shape (commented out to keep catalog empty until empirically confirmed):
+  # - wrong: "Pinhoforte"
+  #   correct: "Pinoforte"
+  #   confidence: 1.0
+  #   context: vek-daily
+  #   source: "Cycle 1 PDCA"
+  #   notes: "ASR adds extra h after Pin (common pt-BR transliteration error)"
+
+# Pre-populated by community-curated ASR-error lists (TBD via Cycle 2-3 enrichment
+# from LanguageTool dataset + OpenSubtitles ASR-error mining)

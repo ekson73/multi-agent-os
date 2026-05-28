@@ -1,0 +1,19 @@
+# Common typos / mis-transcriptions — en-US
+#
+# Schema: identical to common-typos-pt-br.yaml
+#
+# v1.0.0 seed: empty. en-US is the secondary language for v1.0.0; the operator's
+# meetings are predominantly pt-BR. PDCA cycles will populate as en-US transcripts
+# enter the sample.
+#
+# Version: 1.0.0 (2026-05-28)
+# Cross-vendor AAIF
+
+schema_version: 1.0.0
+language: en-us
+updated: "2026-05-28"
+
+typos: []
+
+# Future seed: import from LanguageTool English profiles + Whisper-known
+# error patterns once those community sources are vetted.

@@ -1,0 +1,78 @@
+# Canonical participants whitelist
+#
+# Schema: each entry has {canonical_name, aliases, contexts, source}
+# - canonical_name: the correct, full spelling
+# - aliases: known shortenings / nicknames (case-preserved)
+# - contexts: tags identifying meetings/orgs where this person appears
+# - source: where this entry was confirmed (operator directive | Invitees block | etc)
+#
+# PDCA-grown: new entries added when an invitee/speaker is empirically confirmed.
+# Wrong-direction edits (renaming a canonical name) require operator authorization.
+#
+# Version: 1.0.0 (2026-05-28)
+# Cross-vendor AAIF: language-neutral, format-stable YAML
+
+schema_version: 1.0.0
+updated: "2026-05-28"
+
+participants:
+  # ---- Vek - Desenvolvimento de Software ----
+
+  - canonical_name: "Emilson Moraes"
+    full_name: "Emilson de Queiroz Moraes"
+    aliases:
+      - "Emilson"
+      - "Emilson de Queiroz Moraes"
+    contexts:
+      - vek-daily
+      - eko-personal
+    source: "operator + Vek roster"
+
+  - canonical_name: "Nelcael Alves Ferreira"
+    aliases:
+      - "Nelcael"
+    contexts:
+      - vek-daily
+    source: "Confluence page 303988750 Invitees block + operator correction 2026-05-28"
+    notes: |
+      ASR-prone name. Mainstream transcribers frequently substitute "Nilson" or "Nielson"
+      (common Brazilian first names) for "Nelcael" (uncommon). Pair with
+      phonetic-substitutions catalog entry.
+
+  - canonical_name: "Lauma Oliv"
+    aliases:
+      - "Lauma"
+    contexts:
+      - vek-daily
+    source: "Confluence page 303988750 Invitees block"
+    notes: |
+      Truncated in TWG/MCP excerpt — verify full surname in next Daily Meeting page
+      and update via PDCA cycle.
+
+  - canonical_name: "Frederico Figueiredo"
+    aliases:
+      - "Fred"
+      - "Frederico"
+    contexts:
+      - vek-daily
+    source: "Daily Meeting summary 2026-05-27 action items attribution"
+
+  - canonical_name: "Pablo"
+    aliases: []
+    contexts:
+      - vek-daily
+    source: "Mentioned in 2026-05-27 Daily Meeting (wireframe review with Fred)"
+    notes: "Full name TBD via PDCA"
+
+  - canonical_name: "Samuel"
+    aliases: []
+    contexts:
+      - vek-daily
+    source: "Mentioned in 2026-05-27 Daily Meeting (NFE/NFIO/NFRIO alignment)"
+    notes: "Full name TBD via PDCA"
+
+# Operator override mechanism (per [C07] v2.1.0):
+# To add/edit entries, the operator may:
+# 1. Edit this file directly + commit via PR (standard workflow)
+# 2. Use `bash scripts/add-participant.sh --name "..." --context "..."` (planned v1.1.0)
+# 3. Approve a PDCA-cycle-generated suggestion (via PR review)
