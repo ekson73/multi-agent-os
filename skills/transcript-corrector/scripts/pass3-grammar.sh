@@ -83,9 +83,37 @@ Path(audit_path).write_text(json.dumps(audit, ensure_ascii=False, indent=2))
 print(f"[pass3-grammar] {corrections_count} corrections applied", file=sys.stderr)
 PYEOF
 
-# Optional LanguageTool layer (only runs if env var set)
+# Optional LanguageTool layer (only runs if env var set + scheme validated)
+#
+# CWE-918 SSRF defense-in-depth: validate LANGUAGETOOL_API scheme before POST.
+# Threat model: attacker who controls LANGUAGETOOL_API (compromised CI / shell
+# rc / accidental misconfiguration) can exfiltrate transcript data via the
+# curl POST below. Mitigation = require https:// by default; opt-in escape
+# for self-hosted plaintext via LANGUAGETOOL_API_ALLOW_HTTP=1. Private /
+# loopback IPs intentionally NOT blocked — legitimate self-hosted LT
+# instances (e.g., http://localhost:8010 dev, http://lt.internal corp)
+# remain reachable when the operator opts in.
+LT_ENABLED=no
 if [ -n "${LANGUAGETOOL_API:-}" ] && command -v curl >/dev/null 2>&1; then
-  echo "[pass3-grammar] LANGUAGETOOL_API set — applying additional rules" >&2
+  case "$LANGUAGETOOL_API" in
+    https://*)
+      LT_ENABLED=yes
+      ;;
+    http://*)
+      if [ "${LANGUAGETOOL_API_ALLOW_HTTP:-0}" = "1" ]; then
+        LT_ENABLED=yes
+        echo "[pass3-grammar] WARNING: insecure http:// LANGUAGETOOL_API (opt-in via LANGUAGETOOL_API_ALLOW_HTTP=1)" >&2
+      else
+        echo "[pass3-grammar] LANGUAGETOOL_API uses http:// — refused (export LANGUAGETOOL_API_ALLOW_HTTP=1 to opt in for self-hosted plaintext endpoint)" >&2
+      fi
+      ;;
+    *)
+      echo "[pass3-grammar] LANGUAGETOOL_API must start with https:// (or http:// with LANGUAGETOOL_API_ALLOW_HTTP=1); skipping LT layer" >&2
+      ;;
+  esac
+fi
+if [ "$LT_ENABLED" = "yes" ]; then
+  echo "[pass3-grammar] LANGUAGETOOL_API='$LANGUAGETOOL_API' — applying additional rules" >&2
   TMP_LT="$(mktemp)"
   cp -- "$OUTPUT" "$TMP_LT"
   # Map language code to LanguageTool format

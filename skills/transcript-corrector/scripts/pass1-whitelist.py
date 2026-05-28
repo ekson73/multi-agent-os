@@ -20,7 +20,9 @@ marker like "@" or "Assigned to:"), do:
    - score = difflib.SequenceMatcher ratio (0.0-1.0, equivalent to 1 - normalized
      Levenshtein for our purposes — purely stdlib, no extra deps)
    - If best score ≥ 0.85 → HIGH confidence → auto-apply
-   - If 0.65 ≤ score < 0.85 → MEDIUM → apply + flag
+   - If 0.65 ≤ score < 0.85 → MEDIUM → flag only (not auto-applied;
+     audit entry recorded with `applied: False`; no `corrections` push).
+     Conservative behaviour locked per operator Q2 (PR #96, 2026-05-28).
    - If < 0.65 → LOW → leave + emit warning in audit
 
 YAML parsing
