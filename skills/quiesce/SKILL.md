@@ -9,7 +9,7 @@ description: |
   PDCA-converges the session's open PRs and auto-files tracking tickets for
   out-of-radar gaps. Reimplements nothing — sibling to auto-pilot (which
   decomposes ONE goal). Accepts override flags: --scope, --condition, --driver,
-  --auto-merge, --auto-fix, --self-fix, --autonomy-threshold, --max-pdca.
+  --auto-merge[-reason], --auto-fix, --self-fix, --autonomy-threshold, --max-pdca.
   Use when the operator wants the session left clean/green/converged with nothing
   pending: "quiesce", "drive this session to green", "converge all open PRs",
   "zero-open loop", "leave nothing pending", "sessao limpa/convergente".
@@ -24,6 +24,14 @@ Thin **session-quiescence** preset. `quiesce` does not re-implement
 orchestration, delegation, convergence, or anomaly detection — it composes the
 native `/goal` condition-loop with a pluggable inner driver. Every behavior
 below lands on a primitive that already exists in this repo (or a host built-in).
+
+## Purpose
+
+Drive the current work session to a QUIESCENT steady state — no open
+ticket/gap/fix/failure/PR, every PR green and answered, agentic convergence
+reached — by wrapping the native `/goal` condition-loop around a pluggable inner
+work driver, and codifying the operator's recurring "converge the whole session"
+invocation as one reusable, override-friendly, token-economic command.
 
 ## When to use
 
@@ -40,9 +48,18 @@ below lands on a primitive that already exists in this repo (or a host built-in)
 - Destructive ops (force-push protected, drop prod) — always HITL.
 - Goal not yet stable / operator still exploring — wait for stability.
 
+## Trigger Phrases
+
+Canonical invocations that should activate this skill:
+
+- "quiesce" / "/quiesce"
+- "session quiescence" / "drive this session to green" / "sessao limpa/convergente"
+- "converge all open PRs" / "converge open PRs"
+- "zero-open loop" / "leave nothing pending" / "clean session loop"
+
 ## Quiescence predicate (default `--condition`)
 
-```
+```text
 QUIESCENCE := NOT(open TICKET or GAP or pending FIX or FAILURE or open PR)
               AND every PR green (all required checks pass)
               AND every PR comment answered
@@ -55,7 +72,7 @@ gitleaks) GREEN or resolved — see `CONTRIBUTING.md` (Bot review convergence) a
 
 ## How it works
 
-```
+```text
 operator invokes /quiesce
         |
         v
@@ -76,9 +93,15 @@ operator invokes /quiesce
 
 ## Composition (the wiring it emits)
 
-```
+All resolved flags are passed through to `<driver>` (NOT dropped) — the driver
+honors `--auto-merge`, `--auto-merge-reason`, `--auto-fix`, `--self-fix`,
+`--autonomy-threshold`, and `--max-pdca`:
+
+```text
 /goal --goal-aware --scope=<scope> --condition='<condition>' --action:{
-  <driver>
+  <driver> --auto-merge=<auto-merge> --auto-merge-reason="<reason>"
+           --auto-fix=<auto-fix> --self-fix=<self-fix>
+           --autonomy-threshold=<thr> --max-pdca=<n>
     "<instructions>; PDCA-loop each OPEN PR of <scope> as a converge-prompt;
      for any out-of-radar item (gap/pending/failure/warning/error) file a
      tracking ticket (per CONTRIBUTING.md) + cross-link; keep created tickets updated."
@@ -87,11 +110,11 @@ operator invokes /quiesce
 
 `<driver>` resolves from `--driver`:
 
-| `--driver` | Resolves to | Portability |
+| `--driver` | Resolves to | How resolved flags are applied |
 |---|---|---|
-| `auto-pilot` (default) | `skills/auto-pilot/SKILL.md`, `--band` derived from `--autonomy-threshold` | in-repo — works for every consumer |
-| `auto-orchestrator` | user-scope `/auto-orchestrator --goal-aware --scope=... --auto-merge=... --auto-fix=... --self-fix=...` | only if the operator has it installed |
-| `<custom>` | any host orchestrator the operator names | operator-supplied |
+| `auto-pilot` (default) | `skills/auto-pilot/SKILL.md` | `--autonomy-threshold` -> `--band` (>=0.85 L3, >=0.65 L2, else L1); `--auto-merge`/`--max-pdca` honored in its PDCA + merge gate; in-repo (portable) |
+| `auto-orchestrator` | user-scope `/auto-orchestrator --goal-aware` | flags passed as native `--auto-merge`/`--auto-fix`/`--self-fix` args; only if installed |
+| `<custom>` | any host orchestrator the operator names | operator maps the flags |
 
 > The operator's original `/goal ... /auto-orchestrator ...` pattern is reproduced
 > exactly via `--driver=auto-orchestrator`. The default stays in-repo for portability.
@@ -116,7 +139,7 @@ operator invokes /quiesce
 Emit exactly ONE terminal marker as the last line of each turn. The HTML-comment
 prefix is low-collision; the `/goal` Stop-hook evaluator reads it:
 
-```
+```text
 <!--ORCH-STATUS: STOP-DONE -->     quiescence reached — nothing pending
 <!--ORCH-STATUS: STOP-HITL -->     HITL escalation required (also prepend above any action block)
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (subagent / network / rate-limit)
@@ -144,11 +167,13 @@ disabled on the repo, or operator cancel). Otherwise use `hold` (operator merges
 or `off`. Always `--squash --delete-branch`. Fire-and-forget — no local merge
 queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
-## Anti-loop invariants / bounds
+## Protocol Rules (anti-loop invariants + bounds)
 
 - `--max-pdca` (default 6) caps per-PR PDCA iterations; diminishing returns -> escalate.
+- Worktree discipline always on (`skills/worktree-policy/SKILL.md`); never commit to main.
 - Delegation depth <= 2; Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
 - 6-attempt escalation rule (different approach each attempt).
+- Exactly ONE STOP marker per turn (the `/goal` evaluator contract).
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets/PII, force-push protected,
   prod/irreversible, cross-org) ALWAYS halt the loop -> HITL.
 
@@ -164,7 +189,7 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
 ## Examples
 
-```
+```text
 /quiesce
 /quiesce "prioritize the auth PRs first"
 /quiesce --scope=pr:42 --auto-merge=hold

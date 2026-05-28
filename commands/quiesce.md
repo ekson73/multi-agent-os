@@ -11,7 +11,7 @@ ticket filing, STOP-marker grammar, bounds). This file is the command surface on
 
 ## Usage
 
-```
+```text
 /quiesce ["<instructions>"] [--scope=…] [--condition=…] [--driver=…] \
          [--auto-merge=…] [--auto-merge-reason="…"] [--auto-fix=…] [--self-fix=…] \
          [--autonomy-threshold=…] [--max-pdca=…]
@@ -34,12 +34,12 @@ All flags are optional — invoking bare `/quiesce` uses the defaults below.
 | `--autonomy-threshold` | `0.85` | `0.0`–`1.0` (maps to auto-pilot band L1/L2/L3) |
 | `--max-pdca` | `6` | integer — per-PR PDCA iteration cap |
 
-See `skills/quiesce/SKILL.md` § Override parameters and § Quiescence predicate for
-the meaning of each value.
+See `skills/quiesce/SKILL.md` (Override parameters + Quiescence predicate) for
+the meaning of each value, and the Composition section for how resolved flags flow to the driver.
 
 ## Examples
 
-```
+```text
 /quiesce
 /quiesce "prioritize the auth PRs first"
 /quiesce --scope=pr:42 --auto-merge=hold
@@ -49,18 +49,18 @@ the meaning of each value.
 
 ## Workflow (delegates to the skill)
 
-1. Resolve flags → defaults unless overridden.
+1. Resolve flags -> defaults unless overridden.
 2. Emit `/goal --goal-aware --scope=<scope> --condition='<predicate>'` (outer loop).
-3. Each iteration runs the inner `<driver>` (default `auto-pilot`) which PDCA-converges
-   open PRs and files tracking tickets for out-of-radar items.
-4. Emit exactly ONE `<!--ORCH-STATUS: … -->` STOP marker per turn for the `/goal` evaluator.
+3. Each iteration runs the inner `<driver>` (default `auto-pilot`), passing the resolved
+   control flags, which PDCA-converges open PRs and files tracking tickets for out-of-radar items.
+4. Emit exactly ONE `<!--ORCH-STATUS: ... -->` STOP marker per turn for the `/goal` evaluator.
 5. Terminate when the quiescence predicate holds.
 
 ## Anti-loop / autonomy bounds
 
-Inherited from the skill — `--max-pdca` cap (6), depth ≤ 2, Sentinel HIGH auto-blocks,
-6-attempt escalation, HUMAN_DOMAIN + non-negotiable guardrails always halt → HITL.
-See `skills/quiesce/SKILL.md` § Anti-loop invariants and § Auto-merge.
+Inherited from the skill — `--max-pdca` cap (6), depth <= 2, Sentinel HIGH auto-blocks,
+6-attempt escalation, HUMAN_DOMAIN + non-negotiable guardrails always halt -> HITL.
+See `skills/quiesce/SKILL.md` (Protocol Rules + Auto-merge).
 
 ## Related
 
