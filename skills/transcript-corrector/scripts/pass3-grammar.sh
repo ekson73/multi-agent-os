@@ -101,7 +101,11 @@ if [ -n "${LANGUAGETOOL_API:-}" ] && command -v curl >/dev/null 2>&1; then
     --data "enabledCategories=PUNCTUATION,TYPOGRAPHY,CASING" \
     --data "enabledOnly=true" \
     > "${TMP_LT}.json" 2>/dev/null || echo "[pass3-grammar] LanguageTool call failed (non-fatal)" >&2
-  # Apply suggestions (planned v1.1.0; v1.0.0 logs without applying to keep
-  # behavior reproducible without external service)
+  # NOTE for v1.0.0: this branch CALLS LanguageTool but does NOT yet APPLY the
+  # returned suggestions to OUTPUT (we discard ${TMP_LT}.json). Applying
+  # suggestions safely (with proper offset arithmetic + JSON-to-replacement
+  # mapping) is planned for v1.1.0. Until then, the regex heuristics above
+  # are the only corrections actually applied; the LT call is currently a
+  # no-op except for logging.
   rm -f "$TMP_LT" "${TMP_LT}.json"
 fi

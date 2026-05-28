@@ -12,7 +12,7 @@
 
 ## Daily Meeting 2026-05-27
 
-**Date**: 2026-05-27 14:00–14:30 BRT
+**Date**: 2026-05-27T14:00:00-03:00/2026-05-27T14:30:00-03:00
 **Author**: Emilson Moraes
 
 ### Invitees

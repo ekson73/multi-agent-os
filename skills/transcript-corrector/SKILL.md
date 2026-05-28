@@ -74,9 +74,9 @@ For every detected speaker name OR `@mention` in the transcript:
    (Metaphone for en-US, Portuguese-Metaphone heuristic for pt-BR; falls back to
    `difflib.SequenceMatcher` ratio if `phonetics` lib unavailable)
 3. Score = combined `(1 - levenshtein_normalized) * 0.5 + phonetic_match * 0.5`
-4. If score ≥ 0.85 → HIGH confidence → auto-apply correction
-5. If 0.65 ≤ score < 0.85 → MEDIUM → apply + flag in audit
-6. If score < 0.65 → LOW → leave original, emit `:warning:` in audit + suggest alternatives
+4. If score ≥ 0.85 → **HIGH** confidence → auto-apply correction
+5. If 0.65 ≤ score < 0.85 → **MEDIUM** → **flag-only in audit (no auto-apply)**; operator reviews + manually promotes (conservative-by-default per operator's Q2 draft-first preference in plan)
+6. If score < 0.65 → **LOW** → leave original, emit `:warning:` in audit + suggest alternatives
 7. Also consult `catalogs/phonetic-substitutions.yaml` for known class-based
    substitutions (e.g., `[Nilson|Nielson|Nelson] → Nelcael` under context
    "Vek daily + Invitee mismatch")

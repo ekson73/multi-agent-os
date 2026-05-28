@@ -26,8 +26,8 @@ done
   || { echo "Missing --original/--corrected/--audit" >&2; exit 1; }
 
 # 1. Audit summary on stderr (5-line, always)
-APPLIED_COUNT=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1])); print(sum(1 for x in a if x.get('applied')))" "$AUDIT")
-FLAGGED_COUNT=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1])); print(sum(1 for x in a if not x.get('applied') and 'note' in x))" "$AUDIT")
+APPLIED_COUNT=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1], encoding='utf-8')); print(sum(1 for x in a if x.get('applied')))" "$AUDIT")
+FLAGGED_COUNT=$(python3 -c "import json,sys; a=json.load(open(sys.argv[1], encoding='utf-8')); print(sum(1 for x in a if not x.get('applied') and 'note' in x))" "$AUDIT")
 {
   echo "==[transcript-corrector audit]======================"
   echo "  Applied corrections: $APPLIED_COUNT"

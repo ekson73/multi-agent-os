@@ -21,7 +21,11 @@ LANGUAGE="auto"             # pt-br | en-us | auto
 OUTPUT="stdout"             # stdout | <path>
 SOURCE=""                   # path | stdin | confluence:<id> | notion:<id> | gdrive:<id>
 PARTICIPANTS_OVERRIDE=""    # optional path to custom participants whitelist
-WRITE_AUTH=""               # required when MODE = inline | apply-*
+# Per-destination write-auth tokens (mode-specific to prevent confluence-auth
+# from unlocking a notion-write, breaking the HUMAN_DOMAIN per-destination contract)
+CONFLUENCE_WRITE_AUTH=""
+NOTION_WRITE_AUTH=""
+GDRIVE_WRITE_AUTH=""
 AUDIT_DIR="$SKILL_DIR/pdca"
 
 # -------- helpers --------
@@ -67,8 +71,9 @@ while [ $# -gt 0 ]; do
     --mode) MODE="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     --participants) PARTICIPANTS_OVERRIDE="$2"; shift 2 ;;
-    --confluence-write-auth|--notion-write-auth|--gdrive-write-auth)
-      WRITE_AUTH="$2"; shift 2 ;;
+    --confluence-write-auth) CONFLUENCE_WRITE_AUTH="$2"; shift 2 ;;
+    --notion-write-auth) NOTION_WRITE_AUTH="$2"; shift 2 ;;
+    --gdrive-write-auth) GDRIVE_WRITE_AUTH="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown arg: $1 (run --help)" ;;
   esac
@@ -89,15 +94,32 @@ case "$SOURCE" in
 esac
 
 # -------- HUMAN_DOMAIN gate (per [C17] §2) --------
+# Each --mode requires the MATCHING write-auth flag (per-destination contract).
+# Generic any-auth was rejected to prevent confluence-auth unlocking notion-write.
+WRITE_AUTH=""
 case "$MODE" in
   review-only) ;;
-  inline|apply-*)
+  inline)
+    # Generic inline mode accepts ANY write-auth (destination is the source itself).
+    WRITE_AUTH="${CONFLUENCE_WRITE_AUTH:-${NOTION_WRITE_AUTH:-$GDRIVE_WRITE_AUTH}}"
     [ -n "$WRITE_AUTH" ] || fail \
-      "Mode '$MODE' requires --{confluence|notion|gdrive}-write-auth <rationale> (HITL auth per [C07] v2.1.0)"
-    log "HITL auth recorded: $WRITE_AUTH"
+      "Mode '$MODE' requires one of --{confluence|notion|gdrive}-write-auth (HITL auth per [C07] v2.1.0)"
+    ;;
+  apply-confluence)
+    [ -n "$CONFLUENCE_WRITE_AUTH" ] || fail "Mode 'apply-confluence' requires --confluence-write-auth (per [C07] v2.1.0)"
+    WRITE_AUTH="$CONFLUENCE_WRITE_AUTH"
+    ;;
+  apply-notion)
+    [ -n "$NOTION_WRITE_AUTH" ] || fail "Mode 'apply-notion' requires --notion-write-auth (per [C07] v2.1.0)"
+    WRITE_AUTH="$NOTION_WRITE_AUTH"
+    ;;
+  apply-gdrive)
+    [ -n "$GDRIVE_WRITE_AUTH" ] || fail "Mode 'apply-gdrive' requires --gdrive-write-auth (per [C07] v2.1.0)"
+    WRITE_AUTH="$GDRIVE_WRITE_AUTH"
     ;;
   *) fail "Unknown mode: $MODE" ;;
 esac
+[ -n "$WRITE_AUTH" ] && log "HITL auth recorded: $WRITE_AUTH"
 
 # -------- fetch source transcript --------
 TMP_DIR="$(mktemp -d)"
@@ -190,8 +212,10 @@ cp -- "$PASS3_OUT" "$FINAL_OUT"
 # -------- Pass 4: emit --------
 log "Pass 4 — emit (diff + audit)"
 mkdir -p "$AUDIT_DIR"
-TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-FINAL_AUDIT="$AUDIT_DIR/run-$TIMESTAMP.json"
+# Strict ISO 8601 (with colons) is the canonical timestamp; we sanitize for
+# filesystem use (POSIX-portable: many filesystems forbid `:` in filenames).
+TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+FINAL_AUDIT="$AUDIT_DIR/run-${TIMESTAMP//:/-}.json"
 cp -- "$AUDIT_JSON" "$FINAL_AUDIT"
 
 bash "$SCRIPT_DIR/pass4-emit.sh" \

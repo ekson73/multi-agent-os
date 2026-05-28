@@ -80,10 +80,12 @@ def _fallback_parse_participants(path: Path) -> list[dict]:
             m = pat_alias_item.match(raw)
             if m:
                 current.setdefault("aliases", []).append(m.group(1).strip())
-            else:
-                # exit alias block when indentation changes
-                if raw.strip() and not raw.startswith(" "):
-                    in_aliases = False
+            elif raw.strip():
+                # Exit alias block on ANY non-alias-item content line — including
+                # sibling keys at the same indentation (e.g., 'contexts:', 'source:',
+                # 'notes:'). Previously we only exited on top-level lines, so
+                # subsequent context-list items were incorrectly appended as aliases.
+                in_aliases = False
     if current:
         entries.append(current)
     return entries
