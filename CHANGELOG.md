@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `quiesce` — session-quiescence agentic-tool (compose /goal + pluggable driver)
+
+- **NEW skill** `skills/quiesce/SKILL.md` + **NEW command** `/quiesce` — thin preset that drives the current session to QUIESCENCE (no open ticket/gap/fix/failure/PR, every PR green + answered, agentic convergence) by composing the native `/goal` condition-loop with a pluggable inner driver (default `auto-pilot`, in-repo; `--driver=auto-orchestrator` for the operator's user-scope stack). PDCA-converges open PRs and auto-files tracking tickets for out-of-radar gaps.
+- **Override flags**: `--scope`, `--condition`, `--driver`, `--auto-merge`, `--auto-merge-reason`, `--auto-fix`, `--self-fix`, `--autonomy-threshold`, `--max-pdca`.
+- **DRY/SSOT**: reimplements nothing — sibling to `auto-pilot` (single-goal delegation kernel); reuses STOP-marker grammar + Sentinel bounds + worktree-policy. Resolves VKS-2030.
+
 #### `founder-*` family — Anthropic Founder's Playbook converted to agentic-tools
 
 - **NEW skills** (Agent Skills standard, vendor-neutral): `founder-playbook` (lifecycle router + `references/product-matrix.md`), `founder-stage-idea`, `founder-stage-mvp`, `founder-stage-launch`, `founder-stage-scale`. Each stage skill carries its goal, exit-criteria gate, failure modes + mitigations, and ready-to-use exercise prompts / emittable templates.
