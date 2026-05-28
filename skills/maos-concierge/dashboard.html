@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAOS Concierge — Onboarding Dashboard</title>
+<!--
+  Static, self-contained onboarding/playbook companion for the maos-concierge skill (--mode=dashboard).
+  Vendor-neutral (MIT). No external deps, no build step, no network calls. Open directly in a browser.
+  The ASCII dashboard in the skill is the default; this HTML is the optional richer view.
+  Counts reflect MAOS v1.5.2 (2026-05-28) — re-derive via `--mode=audit` for the live state.
+-->
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--border:#30363d;--fg:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--ok:#3fb950;--warn:#d29922;--pink:#f778ba}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+  header{padding:24px 28px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#161b22,#0d1117)}
+  header h1{margin:0 0 4px;font-size:20px}
+  header p{margin:0;color:var(--muted)}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:10px;color:var(--muted);margin-left:6px}
+  main{max-width:1100px;margin:0 auto;padding:24px 28px;display:grid;gap:20px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .card h2{margin:0 0 10px;font-size:14px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+  .card h3{margin:14px 0 6px;font-size:13px;color:var(--pink)}
+  ul{margin:6px 0;padding-left:18px}
+  li{margin:3px 0}
+  code{background:#21262d;border:1px solid var(--border);border-radius:4px;padding:1px 5px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:#79c0ff}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  .step{counter-increment:step;position:relative;padding-left:30px;margin:8px 0}
+  .step::before{content:counter(step);position:absolute;left:0;top:-1px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#0d1117;font-size:12px;font-weight:700;display:grid;place-items:center}
+  ol.steps{counter-reset:step;list-style:none;padding:0}
+  .pill{font-size:11px;padding:1px 7px;border-radius:8px;border:1px solid}
+  .pill.ok{color:var(--ok);border-color:var(--ok)} .pill.warn{color:var(--warn);border-color:var(--warn)} .pill.law{color:var(--pink);border-color:var(--pink)}
+  footer{color:var(--muted);font-size:12px;padding:16px 28px;border-top:1px solid var(--border);text-align:center}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ MAOS Concierge — Onboarding Dashboard <span class="badge">v1.0.0</span><span class="badge">MAOS v1.5.2</span><span class="badge">MIT · vendor-neutral</span></h1>
+  <p>Your map to the Multi-Agent OS. This is the optional HTML companion to <code>maos-concierge --mode=dashboard</code>. It orients — it never runs the tools.</p>
+</header>
+<main>
+
+  <section class="card">
+    <h2>Your first orchestration — the 5-step walkthrough</h2>
+    <ol class="steps">
+      <li class="step"><b>Isolate</b> — create a git worktree (<code>.worktrees/{agent}-{feature}/</code>). Never edit on shared <code>main</code>. <span class="pill law">Anti-Conflict v3.2</span></li>
+      <li class="step"><b>Delegate</b> — decompose the goal &amp; spawn sub-agents via the <code>orchestrator</code> / <code>/delegate</code> with a 10-item brief. <span class="pill ok">agentic-delegation</span></li>
+      <li class="step"><b>Observe</b> — the <code>sentinel-monitor</code> watches traces; HIGH anomalies (loops/depth) auto-block. <span class="pill law">Sentinel</span></li>
+      <li class="step"><b>Converge</b> — merge each subtask branch to its <b>parent</b>, never straight to <code>main</code>. <span class="pill law">Hierarchical-Merge</span></li>
+      <li class="step"><b>Show</b> — render a human-readable <code>status-map</code> / <code>/status</code>. <span class="pill ok">Human observability</span></li>
+    </ol>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Tier ladder</h2>
+      <ul>
+        <li><b>T0 Orchestration</b> — orchestrator · /delegate · auto-pilot</li>
+        <li><b>T1 Creation</b> — The Forge (33Q · RBAD · Goldilocks)</li>
+        <li><b>T2 Safety</b> — Anti-Conflict · Hierarchical-Merge · Worktree · TTL</li>
+        <li><b>T3 Observability</b> — Sentinel · Status Maps</li>
+        <li><b>T4 Delegation gov</b> — GaaS/GaaC (init/dna/finalize)</li>
+        <li><b>T5 Advisory</b> — founder-playbook · MVV</li>
+        <li><b>T6 External</b> — maos-mcp-hub (6 Atlassian gateways)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Day-1 protocols you MUST respect</h2>
+      <ul>
+        <li><span class="pill law">law</span> Worktree-first — no direct edits on <code>main</code></li>
+        <li><span class="pill law">law</span> Merge to <b>parent</b>, not <code>main</code> (except <code>bugfix/ hotfix/ emergency/</code>)</li>
+        <li><span class="pill law">law</span> Don't suppress a HIGH Sentinel auto-block</li>
+        <li><span class="pill warn">warn</span> Reference protocols — don't copy them</li>
+        <li><span class="pill warn">warn</span> Frontmatter + ISO-8601 + validation gate before commit</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>The 6 concierge modes</h2>
+      <ul>
+        <li><code>explain</code> — teach the framework (default)</li>
+        <li><code>onboard</code> — guided newcomer ramp</li>
+        <li><code>guide</code> — intent → tool + runbook</li>
+        <li><code>audit</code> — read-only compliance check</li>
+        <li><code>anchor</code> — surface canonical decisions, flag drift</li>
+        <li><code>dashboard</code> — this map (ASCII default + HTML)</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Landscape — which tool for which intent</h2>
+    <table>
+      <tr><th>Intent</th><th>Reach for</th><th>Governing protocol</th></tr>
+      <tr><td>Coordinate multi-agent work</td><td><code>orchestrator</code> · <code>auto-pilot</code></td><td>GaaS/GaaC + Anti-Conflict</td></tr>
+      <tr><td>Prevent file collisions</td><td><code>anti-conflict</code> + worktrees</td><td>Anti-Conflict v3.2</td></tr>
+      <tr><td>Create a new agent</td><td><code>forge</code></td><td>33Q · RBAD · Goldilocks</td></tr>
+      <tr><td>Merge branches safely</td><td><code>hierarchical-merge</code></td><td>merge-to-parent</td></tr>
+      <tr><td>Detect anomalies</td><td><code>audit</code> · <code>sentinel-monitor</code></td><td>Sentinel (10 rules)</td></tr>
+      <tr><td>Status for humans</td><td><code>status-map</code> · <code>/status</code></td><td>Status Maps (9 templates)</td></tr>
+      <tr><td>Pick best sub-agent</td><td><code>agent-select</code></td><td>RBAD taxonomy</td></tr>
+      <tr><td>Converge proposals</td><td><code>converge</code></td><td>5-act audit-not-persuasion</td></tr>
+      <tr><td>Reach Atlassian</td><td><code>maos-mcp-hub</code></td><td>6 typed gateways</td></tr>
+    </table>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Catalog (v1.5.2)</h2>
+      <ul>
+        <li>~18 agents — orchestrator · forge · sentinel-monitor · qa-validator · consolidator · …</li>
+        <li>~31 skills — see <code>AWARENESS-REGISTRY.md</code></li>
+        <li>~14 commands — /sync /audit /status /worktree /delegate · …</li>
+        <li>Protocols — Sentinel · Anti-Conflict · Hierarchical-Merge · TTL · Worktree · GaaS/GaaC</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>What to SKIP (anti-bloat)</h2>
+      <ul>
+        <li>No <code>auto-pilot</code> for a single trivial edit</li>
+        <li>No new agent when one already covers the scope (Forge Q4)</li>
+        <li>No Sentinel wiring for a one-shot solo task</li>
+        <li>No protocol copy-paste into consumer repos</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Vocabulary</h2>
+      <ul>
+        <li><b>GaaS/GaaC</b> — Governance as a Service / as Code</li>
+        <li><b>RBAD</b> — 6-category resource taxonomy</li>
+        <li><b>Goldilocks</b> — atomic ∧ generic</li>
+        <li><b>Reference, don't duplicate</b> — framework is SSOT</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+<footer>
+  maos-concierge · onboarding dashboard · re-derive live state with <code>--mode=audit</code> · canonical rules in <code>CANON.md</code> · landscape in <code>AWARENESS-REGISTRY.md</code>
+</footer>
+</body>
+</html>
