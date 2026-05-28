@@ -81,7 +81,7 @@ done
 
 [ -n "$SOURCE" ] || { usage >&2; fail "--source is required"; }
 
-# -------- defensive validation of --source format --------
+# -------- layer 1: defensive validation of --source format --------
 # Accept only known patterns to defeat any injection-via-source attempt
 # (defense-in-depth even though all uses of $SOURCE downstream are quoted).
 case "$SOURCE" in
@@ -91,6 +91,32 @@ case "$SOURCE" in
   gdrive:[A-Za-z0-9_-]*) ;;
   /*|./*|../*|*.md|*.txt|*.json|*.yaml|*.yml) ;;
   *) fail "Invalid --source format: '$SOURCE' (must be one of: stdin | confluence:<digits> | notion:<id> | gdrive:<id> | <local-file-path>)" ;;
+esac
+
+# -------- layer 2: CWE-22 path-traversal defense (canonicalize + cwd-confine) --------
+# When SOURCE is a local file path, canonicalize via realpath and confine the
+# resolved path to ALLOWED_ROOT (default $PWD). This defeats traversal attacks
+# where an attacker-controlled SOURCE like "../../etc/passwd.md" passes layer 1
+# but resolves outside the operator's working tree. Per amazon-q 2026-05-28
+# CWE-22 finding (root-cause-fix; surface-fix of stripping /*|./*|../* from
+# layer 1 was rejected because it would break legitimate `--source /tmp/x.md`).
+case "$SOURCE" in
+  stdin|confluence:*|notion:*|gdrive:*)
+    : # remote / stream sources — no local path to canonicalize
+    ;;
+  *)
+    ALLOWED_ROOT="${TRANSCRIPT_CORRECTOR_ALLOWED_ROOT:-$PWD}"
+    # python3 os.path.realpath chosen over BSD/GNU `realpath` for cross-platform
+    # determinism (macOS BSD differs from GNU in edge cases like non-existing tails).
+    SOURCE_REAL="$(python3 -c 'import os.path,sys; print(os.path.realpath(sys.argv[1]))' "$SOURCE" 2>/dev/null)" \
+      || fail "Cannot canonicalize --source path: $SOURCE"
+    ROOT_REAL="$(python3 -c 'import os.path,sys; print(os.path.realpath(sys.argv[1]))' "$ALLOWED_ROOT" 2>/dev/null)" \
+      || fail "Cannot canonicalize ALLOWED_ROOT: $ALLOWED_ROOT"
+    case "$SOURCE_REAL" in
+      "$ROOT_REAL"|"$ROOT_REAL"/*) SOURCE="$SOURCE_REAL" ;;
+      *) fail "Path traversal rejected: '--source' resolves to '$SOURCE_REAL' which is outside ALLOWED_ROOT='$ROOT_REAL'. To widen, set TRANSCRIPT_CORRECTOR_ALLOWED_ROOT=<dir>." ;;
+    esac
+    ;;
 esac
 
 # -------- HUMAN_DOMAIN gate (per [C17] §2) --------
@@ -119,7 +145,18 @@ case "$MODE" in
     ;;
   *) fail "Unknown mode: $MODE" ;;
 esac
-[ -n "$WRITE_AUTH" ] && log "HITL auth recorded: $WRITE_AUTH"
+# Redact auth value from log to defeat replay attacks via captured stderr
+# (CWE-532; raised by amazon-q 2026-05-28). Currently the field carries a
+# rationale string, not a bearer token, but defense-in-depth: aligns with
+# user-scope ⛔ ABSOLUTE guardrail ("NUNCA expor secrets em logs"). The
+# `WRITE_AUTH` value is still propagated downstream for audit recording.
+if [ -n "$WRITE_AUTH" ]; then
+  # Short fingerprint preserves audit traceability (operator can correlate
+  # this run with the matching authorization record) without leaking the value.
+  AUTH_FP="$(printf '%s' "$WRITE_AUTH" | shasum -a 256 2>/dev/null | cut -c1-12)"
+  [ -n "$AUTH_FP" ] && log "HITL auth recorded (sha256:${AUTH_FP}…, value redacted)" \
+                   || log "HITL auth recorded (value redacted)"
+fi
 
 # -------- fetch source transcript --------
 TMP_DIR="$(mktemp -d)"

@@ -187,13 +187,20 @@ def correct_pass1(text: str, participants: list[dict], phonetic: list[dict],
     # Detect which canonicals from the phonetic catalog are present elsewhere in the
     # document (in the Invitees block OR anywhere). If present, that authorizes the
     # high-confidence substitution.
+    # Word-boundary matching (\b) prevents false positives where a canonical's letters
+    # appear as a substring inside an unrelated word (e.g., "Alves" matching "valves",
+    # "salves"). Empirical case raised by amazon-q-developer 2026-05-28.
     text_lower = text.lower()
     active_phonetic: list[dict] = []
     for entry in phonetic:
         canonical = entry.get("canonical_short") or entry.get("canonical", "")
         canonical_full = entry.get("canonical", "")
-        if canonical and (canonical.lower() in text_lower or
-                          canonical_full.lower() in text_lower):
+        if not canonical:
+            continue
+        canonical_pat = r"\b" + re.escape(canonical.lower()) + r"\b"
+        canonical_full_pat = r"\b" + re.escape(canonical_full.lower()) + r"\b" if canonical_full else canonical_pat
+        if (re.search(canonical_pat, text_lower) or
+                re.search(canonical_full_pat, text_lower)):
             active_phonetic.append(entry)
 
     candidates = find_candidate_names(text)
