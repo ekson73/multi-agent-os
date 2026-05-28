@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **docs(branching)**: documented GitHub Flow (Class B) model in `AGENTS.md` (SSOT) + `ADR-004`; added GEMINI.md / Copilot pointers; README badge. Companion to ADR-003 (source float).
 
+### Added — `maos-concierge` skill (v1.6.0)
+
+- **NEW skill** `skills/maos-concierge/` (SKILL.md + `AWARENESS-REGISTRY.md` + `CANON.md` + `references/socratic-33q.md` + `dashboard.html`) — a single onboarding/guide/anchor entry-point over the entire MAOS framework (agents · skills · commands · protocols · governances). **6 modes**: `explain` (teach), `onboard` (guided newcomer ramp), `guide` (intent → right tool + runbook), `audit` (read-only MAOS-compliance), `anchor` (surface canonical decisions + flag drift), `dashboard` (ASCII onboarding-map + optional self-contained HTML companion).
+- **Anti-over-engineering / DRY**: ROUTES + TEACHES + ANCHORS over existing tools — reimplements NOTHING, wraps no skill/MCP, forges no agent (routes TO The Forge), mutates nothing in audit/anchor. Self-executed the Forge 33 Socratic Questions → `references/socratic-33q.md` (the spec).
+- **Vendor-neutral (MIT, layer-pure)**: no corporate/vendor-specific content — portable across Claude Code / Cursor / Codex / Gemini CLI / Copilot. Sibling (cross-vendor concierge-family pattern) of `specdd-concierge` / `vek-concierge` (Vek layer) / `atlassian-concierge`.
+- **Plugin bump** 1.5.2 → 1.6.0 (MINOR — additive skill). Origin: operator `/enhance` 2026-05-28.
+
 ### Added
 
 #### `quiesce` — session-quiescence agentic-tool (compose /goal + pluggable driver)
