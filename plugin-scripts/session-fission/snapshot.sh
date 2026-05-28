@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# /**
+#  * session-fission · snapshot.sh
+#  * @context MAOS plugin script — the rollback anchor for the session-fission skill.
+#  * @reason Copy the source transcript to a backup dir + write a manifest + run gitleaks,
+#  *         BEFORE any archive/reseed op. The source is read-only; this only copies OUT.
+#  * @impact Writes a snapshot + manifest under the backup dir. Never touches the source.
+#  * @version 0.1.0
+#  */
+
+set -euo pipefail
+
+TRANSCRIPT="${1:?usage: snapshot.sh <transcript.jsonl> [backup_dir]}"
+if [ ! -f "$TRANSCRIPT" ]; then
+  printf '{"status":"error","error":"transcript not found: %s"}\n' "$TRANSCRIPT"
+  exit 1
+fi
+
+BACKUP_DIR="${2:-${SESSION_FISSION_SNAPSHOT_DIR:-$HOME/.claude/session-fission/snapshots}}"
+mkdir -p "$BACKUP_DIR"
+
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+SANITIZED_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+BASE="$(basename "$TRANSCRIPT" .jsonl)"
+
+# Portable SHA-256 (macOS shasum / Linux sha256sum)
+if command -v shasum >/dev/null 2>&1; then
+  SHA="$(shasum -a 256 "$TRANSCRIPT" | cut -d' ' -f1)"
+elif command -v sha256sum >/dev/null 2>&1; then
+  SHA="$(sha256sum "$TRANSCRIPT" | cut -d' ' -f1)"
+else
+  SHA="unavailable"
+fi
+
+# Idempotent: if a manifest already records this SHA, reuse it (skip duplicate copy).
+EXISTING=""
+if [ "$SHA" != "unavailable" ]; then
+  EXISTING="$(grep -l "source_sha256: \"$SHA\"" "$BACKUP_DIR"/*.manifest.yaml 2>/dev/null | head -1 || true)"
+fi
+if [ -n "$EXISTING" ]; then
+  SNAP="${EXISTING%.manifest.yaml}"
+  printf '{"status":"ok","idempotent":true,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","note":"identical SHA already snapshotted — reused"}\n' \
+    "$SNAP" "$EXISTING" "$SHA"
+  exit 0
+fi
+
+SNAP="$BACKUP_DIR/${BASE}-${TS}.jsonl"
+MANIFEST="$SNAP.manifest.yaml"
+
+# Read-only copy of the source OUT to the backup dir (-p preserves mtime/perms).
+cp -p "$TRANSCRIPT" "$SNAP"
+
+# gitleaks scrub (best-effort; reported, not enforced here).
+GL="skipped"
+if command -v gitleaks >/dev/null 2>&1; then
+  if gitleaks detect --no-git --source "$SNAP" >/dev/null 2>&1; then
+    GL="clean"
+  else
+    GL="findings"
+  fi
+fi
+
+cat > "$MANIFEST" <<YAML
+# session-fission snapshot manifest
+schema: "session-fission/manifest/0.1.0"
+source_path: "$TRANSCRIPT"
+source_sha256: "$SHA"
+snapshot_path: "$SNAP"
+snapshot_utc: "$SANITIZED_UTC"
+sanitized_utc: "$SANITIZED_UTC"
+gitleaks: "$GL"
+lifecycle_state: "snapshotted"
+rollback: "source never mutated; resume original via /resume; this copy is the backup anchor"
+YAML
+
+printf '{"status":"ok","idempotent":false,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","gitleaks":"%s","sanitized_utc":"%s"}\n' \
+  "$SNAP" "$MANIFEST" "$SHA" "$GL" "$SANITIZED_UTC"
