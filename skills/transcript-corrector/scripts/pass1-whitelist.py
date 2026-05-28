@@ -251,10 +251,12 @@ def correct_pass1(text: str, participants: list[dict], phonetic: list[dict],
                 "note": ":warning: Token not in whitelist; no high-confidence correction"
             })
 
-    # Apply HIGH-confidence corrections (regex with word boundaries; case-preserving)
+    # Apply HIGH-confidence corrections (regex with word boundaries).
+    # Case-insensitive detection so "nilson" / "NILSON" / "Nilson" all match;
+    # replacement uses the canonical (correctly-cased) form.
     out = text
     for original, correct in corrections:
-        out = re.sub(rf"\b{re.escape(original)}\b", correct, out)
+        out = re.sub(rf"\b{re.escape(original)}\b", correct, out, flags=re.IGNORECASE)
     return out
 
 
@@ -275,7 +277,12 @@ def main() -> int:
     phonetic = load_phonetic(Path(args.phonetic))
 
     audit_path = Path(args.audit_append)
-    audit = json.loads(audit_path.read_text() or "[]") if audit_path.exists() else []
+    # Defensive: handle missing file AND empty-file (json.loads('') would raise).
+    if audit_path.exists():
+        content = audit_path.read_text(encoding="utf-8")
+        audit = json.loads(content) if content.strip() else []
+    else:
+        audit = []
     out = correct_pass1(text, participants, phonetic, audit)
     audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2))
     Path(args.output).write_text(out, encoding="utf-8")

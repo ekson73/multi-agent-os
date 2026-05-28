@@ -76,6 +76,18 @@ done
 
 [ -n "$SOURCE" ] || { usage >&2; fail "--source is required"; }
 
+# -------- defensive validation of --source format --------
+# Accept only known patterns to defeat any injection-via-source attempt
+# (defense-in-depth even though all uses of $SOURCE downstream are quoted).
+case "$SOURCE" in
+  stdin) ;;
+  confluence:[0-9]*) ;;
+  notion:[A-Za-z0-9_-]*) ;;
+  gdrive:[A-Za-z0-9_-]*) ;;
+  /*|./*|../*|*.md|*.txt|*.json|*.yaml|*.yml) ;;
+  *) fail "Invalid --source format: '$SOURCE' (must be one of: stdin | confluence:<digits> | notion:<id> | gdrive:<id> | <local-file-path>)" ;;
+esac
+
 # -------- HUMAN_DOMAIN gate (per [C17] §2) --------
 case "$MODE" in
   review-only) ;;
@@ -152,12 +164,17 @@ python3 "$SCRIPT_DIR/pass1-whitelist.py" \
 # -------- Pass 2: common-typos dictionary --------
 log "Pass 2 — common-typos dictionary ($LANGUAGE)"
 TYPO_FILE="$SKILL_DIR/catalogs/common-typos-${LANGUAGE}.yaml"
-[ -f "$TYPO_FILE" ] || { log "Typo dictionary not found for $LANGUAGE; skipping Pass 2"; cp "$PASS1_OUT" "$PASS2_OUT"; }
-[ -f "$TYPO_FILE" ] && bash "$SCRIPT_DIR/pass2-typo-dict.sh" \
-  --input "$PASS1_OUT" \
-  --output "$PASS2_OUT" \
-  --catalog "$TYPO_FILE" \
-  --audit-append "$AUDIT_JSON" || fail "Pass 2 failed"
+if [ -f "$TYPO_FILE" ]; then
+  bash "$SCRIPT_DIR/pass2-typo-dict.sh" \
+    --input "$PASS1_OUT" \
+    --output "$PASS2_OUT" \
+    --catalog "$TYPO_FILE" \
+    --audit-append "$AUDIT_JSON" \
+    || fail "Pass 2 failed"
+else
+  log "Typo dictionary not found for $LANGUAGE; skipping Pass 2"
+  cp "$PASS1_OUT" "$PASS2_OUT"
+fi
 
 # -------- Pass 3: grammar / punctuation --------
 log "Pass 3 — grammar / punctuation"

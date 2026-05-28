@@ -68,7 +68,9 @@ out_text = text
 for e in entries:
     if not e.get("wrong") or not e.get("correct"):
         continue
-    pattern = re.compile(rf"\b{re.escape(e['wrong'])}\b")
+    # Case-insensitive so "Recieve" / "recieve" / "RECIEVE" all match (mirrors
+    # Pass 1 behavior). Replacement is the canonical form from the catalog.
+    pattern = re.compile(rf"\b{re.escape(e['wrong'])}\b", re.IGNORECASE)
     # Count occurrences (for audit) before replacing
     matches = list(pattern.finditer(out_text))
     if not matches:
