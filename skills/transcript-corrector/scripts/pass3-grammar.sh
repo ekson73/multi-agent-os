@@ -34,7 +34,7 @@ from pathlib import Path
 
 inp, out, lang, audit_path = sys.argv[1:5]
 text = Path(inp).read_text(encoding="utf-8")
-audit = json.loads(Path(audit_path).read_text() or "[]") if Path(audit_path).exists() else []
+audit = json.loads(Path(audit_path).read_text(encoding="utf-8") or "[]") if Path(audit_path).exists() else []
 
 original = text
 corrections_count = 0
@@ -50,7 +50,7 @@ if n > 0:
 # 2. Capitalize first letter after sentence-ending punctuation
 def _cap_after_punct(m):
     return m.group(1) + " " + m.group(2).upper()
-new_text, n = re.subn(r"([.!?])\s+([a-zãõçáéíóúâêîôûà])",
+new_text, n = re.subn(r"([.!?])[ \t]+([a-zãõçáéíóúâêîôûà])",
                       _cap_after_punct, text)
 if n > 0:
     audit.append({"pass": 3, "rule": "capitalize-after-punct", "count": n,
@@ -78,7 +78,7 @@ if fixed > 0:
 text = "\n".join(lines_out)
 
 Path(out).write_text(text, encoding="utf-8")
-Path(audit_path).write_text(json.dumps(audit, ensure_ascii=False, indent=2))
+Path(audit_path).write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
 
 print(f"[pass3-grammar] {corrections_count} corrections applied", file=sys.stderr)
 PYEOF
@@ -113,7 +113,11 @@ if [ -n "${LANGUAGETOOL_API:-}" ] && command -v curl >/dev/null 2>&1; then
   esac
 fi
 if [ "$LT_ENABLED" = "yes" ]; then
-  echo "[pass3-grammar] LANGUAGETOOL_API='$LANGUAGETOOL_API' — applying additional rules" >&2
+  # Redact path/query/userinfo from LANGUAGETOOL_API in log to prevent
+  # credential leak (CWE-532). Scheme already validated above (LT_ENABLED).
+  # E.g. https://user:pass@host/check?api_key=xxx → https://host
+  LT_DISPLAY=$(printf '%s' "$LANGUAGETOOL_API" | sed -E 's|^([a-z]+://)([^@/]*@)?([^/?#]+).*|\1\3|')
+  echo "[pass3-grammar] LANGUAGETOOL_API='${LT_DISPLAY}/…' (path/query/userinfo redacted) — applying additional rules" >&2
   TMP_LT="$(mktemp)"
   cp -- "$OUTPUT" "$TMP_LT"
   # Map language code to LanguageTool format
@@ -122,8 +126,11 @@ if [ "$LT_ENABLED" = "yes" ]; then
     en-us) LT_LANG="en-US" ;;
     *) LT_LANG="auto" ;;
   esac
-  # Restrict to safe categories
+  # Restrict to safe categories.
+  # --connect-timeout 5 + --max-time 30 prevent stalled/unresponsive LT
+  # endpoint from hanging pass3 indefinitely (CWE-400 DoS resistance).
   curl -sS -X POST "$LANGUAGETOOL_API/check" \
+    --connect-timeout 5 --max-time 30 \
     --data-urlencode "text@$TMP_LT" \
     --data "language=$LT_LANG" \
     --data "enabledCategories=PUNCTUATION,TYPOGRAPHY,CASING" \

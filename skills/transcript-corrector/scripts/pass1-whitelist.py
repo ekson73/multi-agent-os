@@ -295,7 +295,7 @@ def main() -> int:
     else:
         audit = []
     out = correct_pass1(text, participants, phonetic, audit)
-    audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2))
+    audit_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
     Path(args.output).write_text(out, encoding="utf-8")
     return 0
 

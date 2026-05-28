@@ -112,6 +112,13 @@ case "$SOURCE" in
       || fail "Cannot canonicalize --source path: $SOURCE"
     ROOT_REAL="$(python3 -c 'import os.path,sys; print(os.path.realpath(sys.argv[1]))' "$ALLOWED_ROOT" 2>/dev/null)" \
       || fail "Cannot canonicalize ALLOWED_ROOT: $ALLOWED_ROOT"
+    # Defense-in-depth: explicit non-empty check before containment match.
+    # Per amazon-q 2026-05-28 — guards edge case where python3 returncode=0
+    # but stdout is empty (truncated output / interpreted-shebang oddities).
+    # Without this, `case ""` would still fall through to `*) fail`, but the
+    # explicit check fails faster with a clearer diagnostic.
+    [ -n "$SOURCE_REAL" ] || fail "Empty canonicalization result for --source: $SOURCE"
+    [ -n "$ROOT_REAL" ]   || fail "Empty canonicalization result for ALLOWED_ROOT: $ALLOWED_ROOT"
     case "$SOURCE_REAL" in
       "$ROOT_REAL"|"$ROOT_REAL"/*) SOURCE="$SOURCE_REAL" ;;
       *) fail "Path traversal rejected: '--source' resolves to '$SOURCE_REAL' which is outside ALLOWED_ROOT='$ROOT_REAL'. To widen, set TRANSCRIPT_CORRECTOR_ALLOWED_ROOT=<dir>." ;;
