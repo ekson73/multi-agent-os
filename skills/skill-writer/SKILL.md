@@ -391,3 +391,12 @@ When creating a Skill, I will:
 7. Validate against all requirements
 
 The result will be a complete, working Skill that follows all best practices and validation rules.
+
+## Related skills (lifecycle: create → evaluate → train)
+
+`skill-writer` (this skill) handles **authoring**. After a skill exists:
+
+- **Evaluate** it behaviorally → `agentic-tool-evaluator` ("is this skill good? does it trigger? did it regress?").
+- **Improve** it over time, OR **distill** a new skill from an observed human↔agent task → `agentic-tool-trainer` (trace→reflect→distill).
+
+Shared vocabulary/taxonomy/rubric/Rovo-bridge: `protocols/agentic-tool-lifecycle.md`. For **agents** (not skills), the authoring + 33-Socratic-Question + KPI counterpart is `agents/forge.md`.
