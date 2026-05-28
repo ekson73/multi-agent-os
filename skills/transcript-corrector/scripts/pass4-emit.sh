@@ -42,7 +42,7 @@ case "$OUTPUT" in
     cat "$CORRECTED"
     ;;
   *)
-    cp "$CORRECTED" "$OUTPUT"
+    cp -- "$CORRECTED" "$OUTPUT"
     echo "[pass4-emit] corrected output written to: $OUTPUT" >&2
     ;;
 esac
@@ -52,7 +52,7 @@ if command -v diff >/dev/null 2>&1; then
   {
     echo ""
     echo "==[unified diff: original → corrected]==============="
-    diff -u "$ORIGINAL" "$CORRECTED" || true
+    diff -u -- "$ORIGINAL" "$CORRECTED" || true
   } >&2
 fi
 

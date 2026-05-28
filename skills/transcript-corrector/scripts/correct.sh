@@ -123,7 +123,7 @@ case "$SOURCE" in
     ;;
   *)
     [ -f "$SOURCE" ] || fail "Source file not found: $SOURCE"
-    cp "$SOURCE" "$INPUT"
+    cp -- "$SOURCE" "$INPUT"
     ;;
 esac
 
@@ -173,7 +173,7 @@ if [ -f "$TYPO_FILE" ]; then
     || fail "Pass 2 failed"
 else
   log "Typo dictionary not found for $LANGUAGE; skipping Pass 2"
-  cp "$PASS1_OUT" "$PASS2_OUT"
+  cp -- "$PASS1_OUT" "$PASS2_OUT"
 fi
 
 # -------- Pass 3: grammar / punctuation --------
@@ -185,14 +185,14 @@ bash "$SCRIPT_DIR/pass3-grammar.sh" \
   --audit-append "$AUDIT_JSON" \
   || fail "Pass 3 failed"
 
-cp "$PASS3_OUT" "$FINAL_OUT"
+cp -- "$PASS3_OUT" "$FINAL_OUT"
 
 # -------- Pass 4: emit --------
 log "Pass 4 — emit (diff + audit)"
 mkdir -p "$AUDIT_DIR"
 TIMESTAMP="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 FINAL_AUDIT="$AUDIT_DIR/run-$TIMESTAMP.json"
-cp "$AUDIT_JSON" "$FINAL_AUDIT"
+cp -- "$AUDIT_JSON" "$FINAL_AUDIT"
 
 bash "$SCRIPT_DIR/pass4-emit.sh" \
   --original "$INPUT" \

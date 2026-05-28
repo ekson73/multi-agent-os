@@ -29,7 +29,7 @@ done
 
 # If catalog is empty (typos: [] OR no typos key), no-op pass through.
 if ! grep -q '^\s*-\s*wrong:' "$CATALOG" 2>/dev/null; then
-  cp "$INPUT" "$OUTPUT"
+  cp -- "$INPUT" "$OUTPUT"
   exit 0
 fi
 

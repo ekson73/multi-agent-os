@@ -87,7 +87,7 @@ PYEOF
 if [ -n "${LANGUAGETOOL_API:-}" ] && command -v curl >/dev/null 2>&1; then
   echo "[pass3-grammar] LANGUAGETOOL_API set — applying additional rules" >&2
   TMP_LT="$(mktemp)"
-  cp "$OUTPUT" "$TMP_LT"
+  cp -- "$OUTPUT" "$TMP_LT"
   # Map language code to LanguageTool format
   case "$LANGUAGE" in
     pt-br) LT_LANG="pt-BR" ;;
