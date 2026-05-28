@@ -60,7 +60,7 @@ Canonical invocations that should activate this skill:
 ## Quiescence predicate (default `--condition`)
 
 ```text
-QUIESCENCE := NOT(open TICKET or GAP or pending FIX or FAILURE or open PR)
+QUIESCENCE := NOT(unaddressed in-scope TICKET or GAP or pending FIX or FAILURE or open PR)
               AND every PR green (all required checks pass)
               AND every PR comment answered
               AND agentic convergence reached
@@ -69,6 +69,11 @@ QUIESCENCE := NOT(open TICKET or GAP or pending FIX or FAILURE or open PR)
 Agentic convergence = all bot reviewers + CI (e.g. CodeRabbit, Amazon Q, Qodo,
 gitleaks) GREEN or resolved — see `CONTRIBUTING.md` (Bot review convergence) and
 `.claude/rules/pr-reviewer-communication.md`.
+
+> **Non-blocking tickets**: a tracking ticket filed for an out-of-radar / out-of-scope /
+> deferred item does NOT block quiescence — capturing-and-deferring IS the resolution
+> (Boy-Scout "don't lose it"). Only *unaddressed in-scope* obligations keep the loop
+> open; otherwise filing tickets would make QUIESCENCE unreachable.
 
 ## How it works
 
@@ -93,16 +98,16 @@ operator invokes /quiesce
 
 ## Composition (the wiring it emits)
 
-All resolved flags are passed through to `<driver>` (NOT dropped) — the driver
-honors `--auto-merge`, `--auto-merge-reason`, `--auto-fix`, `--self-fix`,
-`--autonomy-threshold`, and `--max-pdca`:
+The resolved control flags are applied **per-driver** (translated for `auto-pilot`,
+native for `auto-orchestrator`) — never silently dropped. `auto-pilot`'s own surface
+is only `--mode`/`--band`/`--max-depth`, so its controls are translated (see table):
 
 ```text
 /goal --goal-aware --scope=<scope> --condition='<condition>' --action:{
-  <driver> --auto-merge=<auto-merge> --auto-merge-reason="<reason>"
-           --auto-fix=<auto-fix> --self-fix=<self-fix>
-           --autonomy-threshold=<thr> --max-pdca=<n>
-    "<instructions>; PDCA-loop each OPEN PR of <scope> as a converge-prompt;
+  <driver-invocation>      # resolved per the table below (flags translated, not dropped)
+    "<instructions>; honor: auto-merge=<auto-merge> (reason "<reason>"),
+     auto-fix=<auto-fix>, self-fix=<self-fix>, max-pdca=<n>;
+     PDCA-loop each OPEN PR of <scope> as a converge-prompt;
      for any out-of-radar item (gap/pending/failure/warning/error) file a
      tracking ticket (per CONTRIBUTING.md) + cross-link; keep created tickets updated."
 }
@@ -112,8 +117,8 @@ honors `--auto-merge`, `--auto-merge-reason`, `--auto-fix`, `--self-fix`,
 
 | `--driver` | Resolves to | How resolved flags are applied |
 |---|---|---|
-| `auto-pilot` (default) | `skills/auto-pilot/SKILL.md` | `--autonomy-threshold` -> `--band` (>=0.85 L3, >=0.65 L2, else L1); `--auto-merge`/`--max-pdca` honored in its PDCA + merge gate; in-repo (portable) |
-| `auto-orchestrator` | user-scope `/auto-orchestrator --goal-aware` | flags passed as native `--auto-merge`/`--auto-fix`/`--self-fix` args; only if installed |
+| `auto-pilot` (default) | `/auto-pilot "<goal+controls>" --band=<L1\|L2\|L3>` | auto-pilot's surface is `--mode`/`--band`/`--max-depth` only, so `--autonomy-threshold` -> `--band` (>=0.85 L3, >=0.65 L2, else L1) and `--auto-merge`/`--auto-fix`/`--self-fix`/`--max-pdca` are carried in the goal text (honored by its PDCA + merge gate). In-repo (portable). |
+| `auto-orchestrator` | `/auto-orchestrator --goal-aware --scope=... --auto-merge=... --auto-fix=... --self-fix=... --autonomy-threshold=...` | controls passed as native flags; only if installed |
 | `<custom>` | any host orchestrator the operator names | operator maps the flags |
 
 > The operator's original `/goal ... /auto-orchestrator ...` pattern is reproduced
@@ -199,9 +204,11 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
 ## Validation
 
-- Frontmatter `name: quiesce`; `commands/quiesce.md` exists with matching frontmatter.
-- Skill file < 12288 bytes (Goldilocks ceiling — mirrors `auto-pilot`/`auto-shard`).
-- `tests/validate-plugin.sh` enforces frontmatter + size checks.
+- `tests/validate-plugin.sh` enforces (generically, for all skills): `skills/quiesce/`
+  contains `SKILL.md` with valid frontmatter.
+- Skill file kept < 12288 bytes — a Goldilocks *guideline* mirrored from `auto-pilot`
+  (the script hard-codes that ceiling only for `auto-pilot`, not as a quiesce-specific gate).
+- `commands/quiesce.md` carries matching `name: quiesce` frontmatter.
 - Satisfies the 10-item checklist in `skills/skill-writer/SKILL.md`.
 
 ## Related
