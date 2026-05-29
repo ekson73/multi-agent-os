@@ -1,0 +1,5 @@
+# Ephemeral run logs from per-invocation audits.
+# Cycle reports (cycle-N-<date>.md) and fixtures (fixture-*.md) are versioned;
+# individual run-<timestamp>.json files are NOT (they're regenerated each run
+# and would create commit noise).
+run-*.json
