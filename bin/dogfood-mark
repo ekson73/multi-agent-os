@@ -172,7 +172,7 @@ while ! mkdir "$LOCK_DIR" 2>/dev/null; do
       continue
     fi
   fi
-  i=$((i + 1)); [ "$i" -ge 50 ] && { echo "could not acquire ledger lock (held >5s; if a process was SIGKILLed mid-write, remove $LOCK_DIR)" >&2; exit 2; }
+  i=$((i + 1)); [ "$i" -ge 50 ] && { printf 'could not acquire ledger lock (held >5s; if a process was SIGKILLed mid-write, remove %s)\n' "$LOCK_DIR" >&2; exit 2; }
   sleep 0.1
 done
 trap 'rm -f "$LOCK_DIR/ts" 2>/dev/null; rmdir "$LOCK_DIR" 2>/dev/null || true' INT TERM EXIT
