@@ -1,6 +1,6 @@
 ---
 name: enhance-pipeline
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Drive ONE feature/enhancement through the full divergent→convergent→deliver
   lifecycle: EXPAND (analyze · internal+external research · find gaps/fails/errors/
@@ -116,13 +116,29 @@ enhancements** invoked only *if installed* — never a hard dependency.
 |---|---|---|
 | `"<feature>"` (positional) | *required* | the feature/enhancement to drive through the pipeline |
 | `--blocks` | `1,2,3,deliver` | comma list — run a subset (e.g. `1,2` to stop before HARMONIZE) |
-| `--driver` | `auto-pilot` | DELIVER driver: `auto-pilot` \| `auto-orchestrator` \| `quiesce` \| `<custom>` |
-| `--dry-run` | `false` | run EXPAND→FILTER→HARMONIZE + emit the plan; STOP before execution |
-| `--output` | `table` | report format: `table` \| `list` \| `json` (machine, exit 0/1/2) |
+| `--driver` | `auto-pilot` | DELIVER driver: `auto-pilot` (in-repo) \| `quiesce` (in-repo) \| `auto-orchestrator` (user-scope, IF installed — degrades to `auto-pilot`) \| `<custom>` |
+| `--dry-run` | `false` | run EXPAND→FILTER→HARMONIZE + emit the plan; STOP before execution. With `--blocks`: `--blocks` chooses WHICH stages run, then `--dry-run` suppresses execution of any remaining DELIVER block (so `--blocks=1,2 --dry-run` ≡ `--blocks=1,2`) |
+| `--output` | `table` | report format: `table` \| `list` \| `json` (machine contract — see §Output contract) |
 | `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` (DELIVER PR; `authorized` requires reason + gates) |
 | `--auto-merge-reason` | *(none)* | required-non-empty when `--auto-merge=authorized` |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — DELIVER merge-gate band |
 | `--max-pdca` | `6` | per-PR PDCA iteration cap in DELIVER |
+
+## Output contract (`--output=json`)
+
+`--output=table` (default) and `list` are human-facing. `--output=json` emits one
+machine-consumable object (per the repo's parseable-output discipline):
+
+```jsonc
+{ "stage": "EXPAND|FILTER|HARMONIZE|DELIVER|done",
+  "status": "ok|error|hitl",
+  "stop_marker": "STOP-DONE|STOP-HITL|STOP-ERROR|CONTINUE",
+  "plan": [ /* DELIVER steps (present under --dry-run or pre-execute) */ ],
+  "findings": [ /* EXPAND/FILTER findings, if any */ ] }
+```
+
+Exit codes: `0` = delivered OR plan emitted (`--dry-run`) · `1` = error (`STOP-ERROR`) ·
+`2` = HITL escalation (`STOP-HITL`). Mirrors `[C06]` AI-native structured-output.
 
 ## STOP-marker grammar (paired with `--goal-aware`, not re-authored)
 
@@ -170,6 +186,18 @@ Fire-and-forget — no local merge queue across turns (amnesic-safe).
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets/PII, force-push protected,
   prod/irreversible, cross-org) ALWAYS halt the pipeline → HITL.
 
+## Failure modes
+
+Each lands on the existing STOP-marker grammar — no new mechanism:
+
+- **STAGE 3 `no-convergence-possible`** (`converge` cannot reconcile proposals) →
+  `STOP-HITL` carrying `converge`'s reject-log; operator arbitrates.
+- **EXPAND research empty / all-rate-limited** → proceed internal-only + emit a
+  one-line diagnostic (never fabricate prior art); `CONTINUE`.
+- **DELIVER driver failure** (subagent/network/rate-limit) → `STOP-ERROR`.
+- **Empty / invalid `"<feature>"`** → `STOP-ERROR` before STAGE 1 (nothing to drive).
+- **`--max-pdca` exhausted in DELIVER** → `STOP-HITL` (diminishing returns → escalate).
+
 ## DNA Geracional (inherited by every spawned agent)
 
 - **Dogfood**: validate the pipeline on its own artifacts before declaring done.
@@ -193,7 +221,8 @@ Fire-and-forget — no local merge queue across turns (amnesic-safe).
 
 - `tests/validate-plugin.sh` enforces (generically): `skills/enhance-pipeline/` contains
   `SKILL.md` with valid frontmatter.
-- Skill file kept < 12288 bytes — Goldilocks guideline mirrored from `auto-pilot`/`quiesce`.
+- Skill file size in the sibling norm (≈14KB; cf. `converge` 15KB, `maos-concierge` 14.6KB).
+  The hard 12288B ceiling in `validate-plugin.sh` is `auto-pilot`-specific, not a global gate.
 - `commands/enhance-pipeline.md` carries matching `name: enhance-pipeline` frontmatter.
 - Satisfies the 10-item checklist in `skills/skill-writer/SKILL.md`.
 - `--dry-run` proves composition: grep the run confirms only `Task`-delegation to existing
@@ -213,6 +242,13 @@ Fire-and-forget — no local merge queue across turns (amnesic-safe).
 
 ## Versioning
 
+- v0.2.0 — self-enhance via recursive `--dry-run` on itself (3 orthogonal lenses:
+  completeness · DX · composition). Fixes 3 paradox-gated real defects: **F1** layer-purity
+  guard on `--driver=auto-orchestrator` (user-scope, IF installed — was mis-leveled as
+  in-repo); **F2** new `## Failure modes` section (parity with converge/auto-pilot, reusing
+  STOP-marker grammar); **F6** `## Output contract` for `--output=json` (JSON skeleton +
+  exit-code map). Folded F3 (`--blocks`+`--dry-run` precedence) into the `--dry-run` row.
+  Deferred F4/F5 (low doc-consistency) to a batched PATCH; F7/F8/F9 paradox-gated out.
 - v0.1.0 (initial) — four-stage feature lifecycle (EXPAND→FILTER→HARMONIZE→DELIVER)
   composing in-repo primitives with optional-enhancement degradation; override flags
   incl. `--blocks`/`--dry-run`/`--output`/`--driver`; STOP-marker grammar reuse;

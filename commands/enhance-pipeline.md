@@ -25,9 +25,9 @@ The positional `"<feature>"` is required; all flags are optional (defaults below
 |---|---|---|
 | `"<feature>"` (positional) | *required* | the feature/enhancement to drive |
 | `--blocks` | `1,2,3,deliver` | comma subset of `1`,`2`,`3`,`deliver` |
-| `--driver` | `auto-pilot` | `auto-pilot`, `auto-orchestrator`, `quiesce`, `<custom>` |
-| `--dry-run` | `false` | plan-only: run stages 1-3 + emit plan, STOP before execute |
-| `--output` | `table` | `table`, `list`, `json` |
+| `--driver` | `auto-pilot` | `auto-pilot` (in-repo), `quiesce` (in-repo), `auto-orchestrator` (user-scope, IF installed), `<custom>` |
+| `--dry-run` | `false` | plan-only: run stages 1-3 + emit plan, STOP before execute (`--blocks=1,2 --dry-run` ≡ `--blocks=1,2`) |
+| `--output` | `table` | `table`, `list`, `json` (json = machine contract; see skill §Output contract, exit 0/1/2) |
 | `--auto-merge` | `hold` | `authorized`, `hold`, `off` |
 | `--auto-merge-reason` | *(none)* | required-non-empty when `--auto-merge=authorized` |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` |
