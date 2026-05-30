@@ -24,7 +24,11 @@ json_escape() {
 # stay valid YAML (parallel guarantee to json_escape for the stdout envelopes).
 yaml_sq() { local s="$1"; s=${s//\'/\'\'}; printf "'%s'" "$s"; }
 
-TRANSCRIPT="${1:?usage: snapshot.sh <transcript.jsonl> [backup_dir]}"
+TRANSCRIPT="${1:-}"
+if [ -z "$TRANSCRIPT" ]; then
+  printf '{"status":"error","error":"usage: snapshot.sh <transcript.jsonl> [backup_dir]"}\n'
+  exit 1
+fi
 if [ ! -f "$TRANSCRIPT" ]; then
   printf '{"status":"error","error":"transcript not found: %s"}\n' "$(json_escape "$TRANSCRIPT")"
   exit 1
@@ -61,10 +65,15 @@ shopt -u nullglob
 if [ "${#_manifests[@]}" -gt 0 ] && printf '%s' "$SHA" | grep -qE '^[0-9a-f]{64}$'; then
   EXISTING="$(grep -l "source_sha256: \"$SHA\"" "${_manifests[@]}" 2>/dev/null | head -1 || true)"
 fi
-if [ -n "$EXISTING" ]; then
+# Only reuse when the snapshot file ITSELF still exists — a stale manifest whose
+# .jsonl was deleted must NOT report a phantom reuse; fall through to re-create.
+if [ -n "$EXISTING" ] && [ -f "${EXISTING%.manifest.yaml}" ]; then
   SNAP="${EXISTING%.manifest.yaml}"
-  printf '{"status":"ok","idempotent":true,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","note":"identical SHA already snapshotted — reused"}\n' \
-    "$(json_escape "$SNAP")" "$(json_escape "$EXISTING")" "$SHA"
+  # Mirror the cache-miss envelope's key set (gitleaks + sanitized_utc) so callers
+  # parse a stable schema regardless of cache hit/miss; values come from the manifest.
+  EX_UTC="$(sed -n 's/^sanitized_utc: "\(.*\)"$/\1/p' "$EXISTING" | head -1)"
+  printf '{"status":"ok","idempotent":true,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","gitleaks":"cached","sanitized_utc":"%s","note":"identical SHA already snapshotted — reused"}\n' \
+    "$(json_escape "$SNAP")" "$(json_escape "$EXISTING")" "$SHA" "$(json_escape "$EX_UTC")"
   exit 0
 fi
 
@@ -75,13 +84,17 @@ MANIFEST="$SNAP.manifest.yaml"
 cp -p "$TRANSCRIPT" "$SNAP"
 
 # gitleaks scrub (best-effort; reported, not enforced here).
+# Distinguish tool errors from real findings: gitleaks exits 0=clean, 1=leaks,
+# anything else=tool error (do NOT misreport an error as "findings"). `detect
+# --source` kept for broad version compat (newer `dir` subcommand breaks older installs).
 GL="skipped"
 if command -v gitleaks >/dev/null 2>&1; then
-  if gitleaks detect --no-git --source "$SNAP" >/dev/null 2>&1; then
-    GL="clean"
-  else
-    GL="findings"
-  fi
+  gitleaks detect --no-git --source "$SNAP" >/dev/null 2>&1
+  case $? in
+    0) GL="clean" ;;
+    1) GL="findings" ;;
+    *) GL="scan-error" ;;
+  esac
 fi
 
 SOURCE_Y="$(yaml_sq "$TRANSCRIPT")"

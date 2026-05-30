@@ -27,6 +27,12 @@ CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 TRANSCRIPT="${1:-}"
 TARGET_CWD="${SF_CWD:-$PWD}"
 GAP_SECONDS="${SF_GAP_SECONDS:-1800}"   # time-gap (s) that suggests a topic boundary within a branch
+# Validate before it reaches the embedded python int() — a bad SF_GAP_SECONDS would
+# otherwise crash with a non-JSON ValueError traceback, breaking the JSON contract.
+if ! printf '%s' "$GAP_SECONDS" | grep -qE '^[0-9]+$'; then
+  printf '{"status":"error","error":"SF_GAP_SECONDS must be a non-negative integer (got: %s)"}\n' "$(json_escape "$GAP_SECONDS")"
+  exit 1
+fi
 
 if [ -z "$TRANSCRIPT" ]; then
   # Claude Code encodes the cwd into the project dir name by replacing '/' and '.' with '-'.
