@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# MAOS — Dogfood-Cycle Ledger · mark (capture / writer)
+# Function: append ONE dogfood-cycle event to the user-scope canonical ledger
+#   ${DOGFOOD_LEDGER_DIR:-~/.claude/audit}/dogfood-cycles.jsonl — making the
+#   dogfooding-mandate "≥2 real cycles before promotion" gate STRUCTURED and
+#   jq-countable (via `dogfood-tally`) instead of fragmented changelog prose.
+# Anti-theater: a `complete` cycle REQUIRES --ratified AND >=1 --evidence (no
+#   evidence => refuse). `abandoned` never counts toward the gate.
+# Idempotent: an identical event (tool,cycle_id,status,ratified) is a no-op.
+#   Status transitions (in-progress -> complete) append a NEW event; `dogfood-tally`
+#   reduces by (tool,cycle_id) to the latest-by-ts status (append-only history).
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only; no associative arrays,
+#   no ${var^^}; atomic append via mkdir-lock (POSIX). Claude Code / Cursor /
+#   Copilot / Codex / Gemini.
+# No organization-specific content — promotion-eligible per Layer Purity.
+# Exit codes ([C06]): 0 success (incl. idempotent no-op) · 1 usage/validation · 2 setup.
+set -euo pipefail
+
+LEDGER_DIR="${DOGFOOD_LEDGER_DIR:-$HOME/.claude/audit}"
+LEDGER="$LEDGER_DIR/dogfood-cycles.jsonl"
+
+usage() {
+  cat <<EOF
+MAOS dogfood-cycle mark — record ONE dogfood-cycle event for the >=2-cycle gate.
+
+Usage:
+  $(basename "$0") <tool> <cycle_id> [options]
+
+Required positionals:
+  <tool>       agentic-tool slug, e.g. debate-converge   ([A-Za-z0-9._-])
+  <cycle_id>   cycle id within that tool, e.g. 001        ([A-Za-z0-9._-])
+
+Options:
+  --status VAL       complete | in-progress | abandoned   (default: in-progress)
+  --ratified         mark the cycle as ratified (REQUIRED for --status complete)
+  --evidence REF     evidence the cycle is real (repeatable; REQUIRED for complete),
+                     e.g. github:ekson73/multi-agent-os/pull/97 · session:<sid> · path:...
+  --session SID      session id   (default: \$CLAUDE_CODE_SESSION_ID)
+  --project NAME     project slug (default: basename of git toplevel / PWD)
+  --vendor NAME      ai-vendor    (default: auto-detect; else "unknown")
+  --note "<text>"    short note (<=240 chars)
+  --dry-run          print the event JSON, do NOT append
+  --help
+
+Examples:
+  $(basename "$0") debate-converge 001 --status in-progress \\
+    --evidence session:da7015 --note "language-cascade run, round 3 pending"
+  $(basename "$0") debate-converge 001 --status complete --ratified \\
+    --evidence github:ekson73/multi-agent-os/pull/97 --evidence session:da7015
+EOF
+  exit 0
+}
+
+[ $# -eq 0 ] && usage
+
+TOOL=""; CYCLE=""; STATUS="in-progress"; RATIFIED="false"
+SID="${CLAUDE_CODE_SESSION_ID:-}"; PROJECT=""; VENDOR=""; NOTE=""; DRYRUN=0
+EVID_RAW=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --status) STATUS="${2:-}"; shift 2 ;;
+    --ratified) RATIFIED="true"; shift ;;
+    --evidence) EVID_RAW="${EVID_RAW}${2:-}
+"; shift 2 ;;
+    --session) SID="${2:-}"; shift 2 ;;
+    --project) PROJECT="${2:-}"; shift 2 ;;
+    --vendor) VENDOR="${2:-}"; shift 2 ;;
+    --note) NOTE="${2:-}"; shift 2 ;;
+    --dry-run) DRYRUN=1; shift ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *)
+      if [ -z "$TOOL" ]; then TOOL="$1"
+      elif [ -z "$CYCLE" ]; then CYCLE="$1"
+      else echo "Unexpected arg: $1" >&2; exit 1
+      fi
+      shift ;;
+  esac
+done
+
+[ -n "$TOOL" ]  || { echo "<tool> is required" >&2; exit 1; }
+[ -n "$CYCLE" ] || { echo "<cycle_id> is required" >&2; exit 1; }
+case "$TOOL"   in *[!a-zA-Z0-9._-]*) echo "Invalid <tool>: $TOOL" >&2; exit 1 ;; esac
+case "$CYCLE"  in *[!a-zA-Z0-9._-]*) echo "Invalid <cycle_id>: $CYCLE" >&2; exit 1 ;; esac
+case "$STATUS" in complete|in-progress|abandoned) ;; *) echo "--status must be complete|in-progress|abandoned" >&2; exit 1 ;; esac
+if [ -n "$SID" ]; then case "$SID" in *[!a-zA-Z0-9-]*) echo "Invalid --session: $SID" >&2; exit 1 ;; esac; fi
+
+# Build evidence[] (drop blank lines).
+EVID_JSON=$(printf '%s' "$EVID_RAW" | jq -R -s 'split("\n") | map(select(length>0))')
+EVID_N=$(printf '%s' "$EVID_JSON" | jq 'length')
+
+# Anti-theater gate: complete REQUIRES ratified + >=1 evidence.
+if [ "$STATUS" = "complete" ]; then
+  [ "$RATIFIED" = "true" ] || { echo "refuse: --status complete requires --ratified (anti-theater)" >&2; exit 1; }
+  [ "$EVID_N" -ge 1 ]      || { echo "refuse: --status complete requires >=1 --evidence (anti-theater)" >&2; exit 1; }
+fi
+
+# Defaults: project + vendor.
+[ -n "$PROJECT" ] || PROJECT=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")")
+if [ -z "$VENDOR" ]; then
+  if   [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] || [ -n "${CLAUDECODE:-}" ]; then VENDOR="claude-code"
+  elif [ -n "${CURSOR_SESSION_ID:-}" ]     || [ -n "${CURSOR:-}" ];      then VENDOR="cursor"
+  elif [ -n "${GITHUB_COPILOT_SESSION:-}" ];                            then VENDOR="copilot"
+  else VENDOR="unknown"; fi
+fi
+
+TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+EVENT=$(jq -nc \
+  --arg tool "$TOOL" --arg cycle "$CYCLE" --arg status "$STATUS" \
+  --argjson ratified "$RATIFIED" --argjson evidence "$EVID_JSON" \
+  --arg session "$SID" --arg project "$PROJECT" --arg vendor "$VENDOR" \
+  --arg note "$NOTE" --arg ts "$TS" \
+  '{
+     tool:$tool, cycle_id:$cycle, status:$status, ratified:$ratified,
+     evidence:$evidence,
+     session:(if $session=="" then null else $session end),
+     project:$project, vendor:$vendor,
+     note:(if $note=="" then null else ($note[0:240]) end), ts:$ts
+   } | with_entries(select(.value != null))')
+
+if [ "$DRYRUN" = "1" ]; then
+  printf '%s\n' "$EVENT"
+  exit 0
+fi
+
+mkdir -p "$LEDGER_DIR"
+touch "$LEDGER"
+
+# Idempotency: skip if an identical (tool,cycle_id,status,ratified) event already present.
+if jq -se --arg t "$TOOL" --arg c "$CYCLE" --arg s "$STATUS" --argjson r "$RATIFIED" \
+     'any(.[]; .tool==$t and .cycle_id==$c and .status==$s and .ratified==$r)' \
+     "$LEDGER" 2>/dev/null | grep -q '^true$'; then
+  printf 'dogfood-mark: no-op (idempotent) — %s/%s already %s\n' "$TOOL" "$CYCLE" "$STATUS" >&2
+  exit 0
+fi
+
+# Atomic append under mkdir-lock (POSIX-atomic).
+LOCK_DIR="$LEDGER_DIR/.lock-dogfood"
+i=0
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  i=$((i + 1)); [ "$i" -ge 50 ] && { echo "could not acquire ledger lock" >&2; exit 2; }
+  sleep 0.1
+done
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+printf '%s\n' "$EVENT" >> "$LEDGER"
+
+RAT_TAG=""; [ "$RATIFIED" = "true" ] && RAT_TAG=" ratified"
+printf 'dogfood-mark: %s/%s -> %s%s (ledger: %s)\n' "$TOOL" "$CYCLE" "$STATUS" "$RAT_TAG" "${LEDGER/#$HOME/~}" >&2
