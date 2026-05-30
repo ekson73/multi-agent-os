@@ -21,7 +21,7 @@ json_escape() {
 
 TRANSCRIPT="${1:?usage: snapshot.sh <transcript.jsonl> [backup_dir]}"
 if [ ! -f "$TRANSCRIPT" ]; then
-  printf '{"status":"error","error":"transcript not found: %s"}\n' "$TRANSCRIPT"
+  printf '{"status":"error","error":"transcript not found: %s"}\n' "$(json_escape "$TRANSCRIPT")"
   exit 1
 fi
 

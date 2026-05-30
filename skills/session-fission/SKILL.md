@@ -93,7 +93,7 @@ For each cluster, the seed must let a fresh amnesic agent resume with ZERO prior
 
 ## Examples
 
-```
+```text
 /maos:session-fission                 # dry-run: inventory current session, propose N-Tree
 /maos:session-fission --apply         # inventory + snapshot + emit seed scaffolds for confirmed clusters
 /maos:session-fission ~/.claude/projects/<enc>/<uuid>.jsonl   # explicit transcript
