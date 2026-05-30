@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NEW skill** `skills/quiesce/SKILL.md` + **NEW command** `/quiesce` — thin preset that drives the current session to QUIESCENCE (no open ticket/gap/fix/failure/PR, every PR green + answered, agentic convergence) by composing the native `/goal` condition-loop with a pluggable inner driver (default `auto-pilot`, in-repo; `--driver=auto-orchestrator` for the operator's user-scope stack). PDCA-converges open PRs and auto-files tracking tickets for out-of-radar gaps.
 - **Override flags**: `--scope`, `--condition`, `--driver`, `--auto-merge`, `--auto-merge-reason`, `--auto-fix`, `--self-fix`, `--autonomy-threshold`, `--max-pdca`.
 - **DRY/SSOT**: reimplements nothing — sibling to `auto-pilot` (single-goal delegation kernel); reuses STOP-marker grammar + Sentinel bounds + worktree-policy.
+
 #### `session-fission` — on-demand, non-destructive tangled-session splitter (v1.6.0, MVP v0.1.0)
 
 - **NEW skill** `skills/session-fission/SKILL.md` — splits one tangled Claude session (an N-Tree of atomic contexts collapsed into a single linear transcript) into clean, focused, atomic-context sessions via **non-destructive distill-and-reseed**. Relieves context bloat, cognitive overhead, and token exhaustion. The source session is **archived, never mutated or deleted** (recoverable via native `/resume`).

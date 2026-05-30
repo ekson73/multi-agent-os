@@ -9,7 +9,7 @@ description: On-demand, non-destructive splitter for a tangled Claude session â€
 
 ## Usage
 
-```
+```text
 /maos:session-fission [transcript.jsonl] [--apply]
 ```
 

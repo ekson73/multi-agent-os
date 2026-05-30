@@ -34,7 +34,7 @@ So fission's value = **distill-and-reseed per atomic context** (the gap no nativ
 
 ## Protocol (6 steps)
 
-1. **Inventory (read-only).** Run `inventory.sh` to parse the current transcript and propose an N-Tree of atomic-context clusters keyed by `{project, branch, cwd, ticket, task, time-gap}`. Review/adjust the clustering with the user — this is a *proposal*, not a verdict.
+1. **Inventory (read-only).** Run `inventory.sh` to parse the current transcript and propose an N-Tree of atomic-context clusters. The MVP heuristic clusters by `{git-branch, time-gap}` (a topic boundary is inferred from `SF_GAP_SECONDS`, default 1800s, within a branch) and records `cwd` per cluster; richer `{project, ticket, task}` keying is deferred to v2. Review/adjust the clustering with the user — this is a *proposal*, not a verdict.
 2. **Classify into N-Tree.** Tag each cluster + relation: sequential `→`, recursive `↻`, independent `∥`, parallel `‖`.
 3. **Snapshot (safety gate — BEFORE any file op).** Run `snapshot.sh` to copy the source `.jsonl` to a backup dir + write a manifest + `gitleaks` scrub. This is the rollback anchor. The source is read-only throughout.
 4. **Distill per node (the cognitive step — YOU do this, not the script).** For each cluster, read its slice of the transcript and write a clean, self-contained seed: a Ticket-as-Prompt that carries ONLY that atomic context (goal, state, files, decisions, next step). `seed.sh` emits the scaffold; you fill it with the distilled context. This is what relieves bloat — the seed is small.

@@ -35,6 +35,10 @@ fi
 # =============================================================================
 # ANALYZE (python3 — robust JSONL parse; emits JSON; no message bodies, labels only)
 # =============================================================================
+if ! command -v python3 >/dev/null 2>&1; then
+  printf '{"status":"error","error":"python3 not found","hint":"inventory.sh requires python3 for robust JSONL parsing; install python3 and retry"}\n'
+  exit 1
+fi
 python3 - "$TRANSCRIPT" "$GAP_SECONDS" <<'PY'
 import sys, json, datetime
 
@@ -88,14 +92,15 @@ with open(path, "r", encoding="utf-8", errors="replace") as fh:
 events.sort(key=lambda e: (e["ts"] is None, e["ts"] or 0))
 
 clusters = []
-def label_from(seg):
+def label_from(seg, branch, idx):
+    # SAFETY CONTRACT: labels must NOT embed raw message text — that would leak
+    # transcript content (potentially secrets) into stdout/logs, contradicting the
+    # "no message bodies, labels only" guarantee. Use the explicit `slug` (operator-set,
+    # already safe) when present; otherwise a content-free branch+segment label.
     for e in seg:
         if e["slug"]:
             return e["slug"][:80]
-    for e in seg:
-        if e["role"] == "user" and e["text"].strip():
-            return " ".join(e["text"].split())[:80]
-    return "(unlabeled)"
+    return f"{branch} · segment {idx}"
 
 # Cluster by branch, then split on time-gaps inside the same branch.
 by_branch = {}
@@ -114,12 +119,14 @@ for branch, seg in by_branch.items():
         cur.append(e); prev = e["ts"] if e["ts"] else prev
     if cur:
         sub.append(cur)
+    seg_idx = 0
     for s in sub:
         cid += 1
+        seg_idx += 1
         ts_vals = [e["ts"] for e in s if e["ts"]]
         clusters.append({
             "id": f"c{cid:02d}",
-            "label": label_from(s),
+            "label": label_from(s, branch, seg_idx),
             "branch": branch,
             "cwd": (s[0]["cwd"] if s else ""),
             "msg_count": len(s),
@@ -128,10 +135,15 @@ for branch, seg in by_branch.items():
             "last_ts": (datetime.datetime.fromtimestamp(max(ts_vals), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")) if ts_vals else None,
         })
 
-# Relation hints: same branch consecutive => sequential; different branch => independent.
+# Relation hints are time-ordered, NOT branch-grouped order: clusters were appended
+# grouped by branch, so we must re-sort by first_ts before deriving sequential/independent
+# hints — otherwise interleaved-branch work yields misleading relations.
+def _cluster_start(c):
+    return c["first_ts"] or "9999"  # ISO strings sort lexicographically; None last
+ordered = sorted(clusters, key=_cluster_start)
 relations = []
-for i in range(1, len(clusters)):
-    a, b = clusters[i-1], clusters[i]
+for i in range(1, len(ordered)):
+    a, b = ordered[i-1], ordered[i]
     rel = "sequential" if a["branch"] == b["branch"] else "independent"
     relations.append({"from": a["id"], "to": b["id"], "rel": rel})
 

@@ -10,12 +10,29 @@
 
 set -euo pipefail
 
+# JSON-escape a string for safe interpolation into the stdout envelope.
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
 CLUSTER_ID="${1:?usage: seed.sh <cluster_id> [label] [seed_dir]}"
 LABEL="${2:-$CLUSTER_ID}"
 SEED_DIR="${3:-${SESSION_FISSION_SEED_DIR:-./.session-fission/seeds}}"
-mkdir -p "$SEED_DIR"
 
-SEED="$SEED_DIR/${CLUSTER_ID}.md"
+# Path-traversal guard: CLUSTER_ID becomes a filename — strip everything but
+# [A-Za-z0-9._-] and any leading dots, so values like '../x' or 'a/b' cannot
+# escape SEED_DIR or overwrite arbitrary files.
+SAFE_ID="$(printf '%s' "$CLUSTER_ID" | tr -cd 'A-Za-z0-9._-' | sed 's/^\.*//')"
+if [ -z "$SAFE_ID" ]; then
+  printf '{"status":"error","error":"cluster_id has no filesystem-safe characters: %s"}\n' "$(json_escape "$CLUSTER_ID")"
+  exit 1
+fi
+
+mkdir -p "$SEED_DIR"
+SEED="$SEED_DIR/${SAFE_ID}.md"
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 cat > "$SEED" <<MD
@@ -57,4 +74,4 @@ TODO — sequential → / recursive ↻ / independent ∥ / parallel ‖ (relati
 MD
 
 printf '{"status":"ok","cluster_id":"%s","label":"%s","seed_path":"%s","next":"fill the TODOs with distilled context, then reseed (ccpanes/launch_task | claude -n | /branch+/compact)"}\n' \
-  "$CLUSTER_ID" "$LABEL" "$SEED"
+  "$(json_escape "$SAFE_ID")" "$(json_escape "$LABEL")" "$(json_escape "$SEED")"
