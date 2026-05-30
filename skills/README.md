@@ -23,6 +23,8 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `founder-stage-mvp` | `founder-stage-mvp/SKILL.md` | MVP stage — product-market-fit evidence without compounding tech debt |
 | `founder-stage-launch` | `founder-stage-launch/SKILL.md` | Launch stage — repeatable growth; remove the founder bottleneck |
 | `founder-stage-scale` | `founder-stage-scale/SKILL.md` | Scale stage — systematic growth + defensible moat |
+| `agentic-tool-evaluator` | `agentic-tool-evaluator/SKILL.md` | Behaviorally evaluate/score/QA any agentic-tool (skill/agent/command/prompt/MCP-tool) |
+| `agentic-tool-trainer` | `agentic-tool-trainer/SKILL.md` | Improve a tool over time (reflect-loop) OR distill a new tool from an observed task |
 
 ## Skill Categories
 
@@ -55,6 +57,13 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - `founder-stage-mvp` — Product-market-fit evidence; tech-debt / scope / security discipline
 - `founder-stage-launch` — Repeatable growth engine; remove the founder bottleneck
 - `founder-stage-scale` — Systematic growth + defensible moat + GTM
+
+### Agentic-Tool Lifecycle Skills
+
+> Close the loop after authoring (`skill-writer` / `forge`). Shared reference: `protocols/agentic-tool-lifecycle.md`.
+
+- `agentic-tool-evaluator` — Behavioral eval-harness (with/without control + rubric); read-only score + report
+- `agentic-tool-trainer` — Reflect-loop improvement (trace→reflect→distill, Pareto-guarded) + distill-new-tool-from-trace
 
 ## Directory Structure
 
