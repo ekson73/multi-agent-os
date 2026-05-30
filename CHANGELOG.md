@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### `agentic-tool-evaluator` + `agentic-tool-trainer` — close the create→evaluate→train loop
+
+- **NEW skills** (Agent Skills standard, AAIF cross-vendor): `skills/agentic-tool-evaluator` (behaviorally evaluate/score/QA any agentic-tool — skill/agent/command/prompt/MCP-tool — via with/without control + 0–5 rubric; read-only `EVAL-REPORT` + `--json`) and `skills/agentic-tool-trainer` (reflect-loop improvement `trace→reflect→distill` with Pareto guard + bounded iterations, **plus** distill-a-new-tool-from-an-observed-task mode → `WALKTHROUGH` + draft hand-off).
+- **NEW shared reference** `protocols/agentic-tool-lifecycle.md` — taxonomy, AAIF frontmatter contract, behavioral-eval method (golden-set + with/without + rubric, NOT code unit-testing), reflect-loop training method, `--json`/`_agent_feedback` envelope, **Rovo bridge** (SKILL.md→Forge `rovo:agent` codegen — Rovo does not consume SKILL.md natively), DUED sunset.
+- **DRY/SSOT**: NO redundant "creator" skill — authoring already lives in `skills/skill-writer` (skills) + `agents/forge.md` (agents, incl. 33 Socratic Q + Goldilocks + KPI). The creator-need "observe task → distill skill" is folded into trainer `distill` mode. Reuses `forge.md` KPI scale; composes with `rule-quality-tests` + `qa-validator` + `operator-quote-capture`.
+- **Honest scoping**: "test" = behavioral eval (not code unit-test); "train" = reflective prompt-optimization (DSPy/GEPA/SIMBA lineage). Gamification + collaboration/share-results explicitly deferred to v2 (YAGNI). Design spec: `docs/specs/2026-05-28-agentic-tool-evaluator-trainer-design.md` (33 Socratic Q+A per skill).
+
 #### `quiesce` — session-quiescence agentic-tool (compose /goal + pluggable driver)
 
 - **NEW skill** `skills/quiesce/SKILL.md` + **NEW command** `/quiesce` — thin preset that drives the current session to QUIESCENCE (no open ticket/gap/fix/failure/PR, every PR green + answered, agentic convergence) by composing the native `/goal` condition-loop with a pluggable inner driver (default `auto-pilot`, in-repo; `--driver=auto-orchestrator` for the operator's user-scope stack). PDCA-converges open PRs and auto-files tracking tickets for out-of-radar gaps.
