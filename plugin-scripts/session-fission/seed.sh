@@ -12,7 +12,7 @@ set -euo pipefail
 
 # JSON-escape a string for safe interpolation into the stdout envelope.
 json_escape() {
-  local s=$1
+  local s="$1"
   s=${s//\\/\\\\}; s=${s//\"/\\\"}
   s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}
   printf '%s' "$s"

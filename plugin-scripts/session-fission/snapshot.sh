@@ -10,6 +10,15 @@
 
 set -euo pipefail
 
+# JSON-escape a string for safe interpolation into the stdout envelopes
+# (paths can legally contain quotes, backslashes, spaces, or newlines).
+json_escape() {
+  local s="$1"
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
 TRANSCRIPT="${1:?usage: snapshot.sh <transcript.jsonl> [backup_dir]}"
 if [ ! -f "$TRANSCRIPT" ]; then
   printf '{"status":"error","error":"transcript not found: %s"}\n' "$TRANSCRIPT"
@@ -41,13 +50,16 @@ fi
 # Guard: only use SHA in the grep pattern when it is a clean 64-char hex digest
 # (defense against any non-digest value reaching the pattern).
 EXISTING=""
-if printf '%s' "$SHA" | grep -qE '^[0-9a-f]{64}$'; then
-  EXISTING="$(grep -l "source_sha256: \"$SHA\"" "$BACKUP_DIR"/*.manifest.yaml 2>/dev/null | head -1 || true)"
+shopt -s nullglob
+_manifests=( "$BACKUP_DIR"/*.manifest.yaml )
+shopt -u nullglob
+if [ "${#_manifests[@]}" -gt 0 ] && printf '%s' "$SHA" | grep -qE '^[0-9a-f]{64}$'; then
+  EXISTING="$(grep -l "source_sha256: \"$SHA\"" "${_manifests[@]}" 2>/dev/null | head -1 || true)"
 fi
 if [ -n "$EXISTING" ]; then
   SNAP="${EXISTING%.manifest.yaml}"
   printf '{"status":"ok","idempotent":true,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","note":"identical SHA already snapshotted — reused"}\n' \
-    "$SNAP" "$EXISTING" "$SHA"
+    "$(json_escape "$SNAP")" "$(json_escape "$EXISTING")" "$SHA"
   exit 0
 fi
 
@@ -81,4 +93,4 @@ rollback: "source never mutated; resume original via /resume; this copy is the b
 YAML
 
 printf '{"status":"ok","idempotent":false,"snapshot_path":"%s","manifest_path":"%s","source_sha256":"%s","gitleaks":"%s","sanitized_utc":"%s"}\n' \
-  "$SNAP" "$MANIFEST" "$SHA" "$GL" "$SANITIZED_UTC"
+  "$(json_escape "$SNAP")" "$(json_escape "$MANIFEST")" "$SHA" "$GL" "$SANITIZED_UTC"

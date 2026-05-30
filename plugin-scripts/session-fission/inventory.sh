@@ -10,6 +10,16 @@
 
 set -euo pipefail
 
+# JSON-escape a string for safe interpolation into the bash-emitted error envelopes.
+# (The python3 analysis block below emits JSON via json.dumps, which is already safe;
+# this helper only guards the pre-python3 error paths where a path is interpolated.)
+json_escape() {
+  local s="$1"
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
 # =============================================================================
 # RESOLVE TRANSCRIPT (read-only)
 # =============================================================================
@@ -28,7 +38,7 @@ if [ -z "$TRANSCRIPT" ]; then
 fi
 
 if [ -z "$TRANSCRIPT" ] || [ ! -f "$TRANSCRIPT" ]; then
-  printf '{"status":"error","error":"transcript not found","hint":"pass a path arg, or run inside a project dir that has sessions under %s/projects/<encoded-cwd>/"}\n' "$CONFIG_DIR"
+  printf '{"status":"error","error":"transcript not found","hint":"pass a path arg, or run inside a project dir that has sessions under %s/projects/<encoded-cwd>/"}\n' "$(json_escape "$CONFIG_DIR")"
   exit 1
 fi
 
@@ -114,9 +124,9 @@ for branch, seg in by_branch.items():
     prev = None
     sub = []
     for e in seg:
-        if prev is not None and e["ts"] and prev and (e["ts"] - prev) > gap:
+        if prev is not None and e["ts"] is not None and (e["ts"] - prev) > gap:
             sub.append(cur); cur = []
-        cur.append(e); prev = e["ts"] if e["ts"] else prev
+        cur.append(e); prev = e["ts"] if e["ts"] is not None else prev
     if cur:
         sub.append(cur)
     seg_idx = 0
