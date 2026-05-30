@@ -44,7 +44,7 @@ One JSON object per line in the ledger. Fields:
 
 | tool | role | guarantees |
 |---|---|---|
-| **`bin/dogfood-mark <tool> <cycle_id> [--status …] [--ratified] [--evidence …]`** | capture/writer | idempotent (no dup of identical event) · atomic append (mkdir-lock) · **anti-theater**: `complete` REQUIRES `--ratified` + ≥1 `--evidence` else refuse (exit 1) · `--dry-run` · `--backfill` (§6) |
+| **`bin/dogfood-mark <tool> <cycle_id> [--status …] [--ratified] [--evidence …]`** | capture/writer | idempotent (no dup of identical event) · atomic append (mkdir-lock) · **anti-theater**: `complete` REQUIRES `--ratified` + ≥1 `--evidence` else refuse (exit 1) · `--dry-run` · `--backfill` (§6 — **Phase 2, planned; not yet implemented**) |
 | **`bin/dogfood-tally [<tool>] [--json\|--table] [--gate N]`** | report/count — **the counting authority** | read-only (SRP) · reduces latest-per-cycle · renders gate verdict per tool |
 
 Exit codes ([C06]): `0` success · `1` usage/validation · `2` setup.

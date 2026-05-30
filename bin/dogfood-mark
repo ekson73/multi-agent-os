@@ -57,17 +57,21 @@ TOOL=""; CYCLE=""; STATUS="in-progress"; RATIFIED="false"
 SID="${CLAUDE_CODE_SESSION_ID:-}"; PROJECT=""; VENDOR=""; NOTE=""; DRYRUN=0
 EVID_RAW=""
 
+# Guard a value-taking flag: ensure a value follows before `shift 2` (else set -e would
+# abort on a short `shift` without a clear usage error). Call as: need_val --flag "$#".
+need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --help|-h) usage ;;
-    --status) STATUS="${2:-}"; shift 2 ;;
+    --status) need_val --status "$#"; STATUS="$2"; shift 2 ;;
     --ratified) RATIFIED="true"; shift ;;
-    --evidence) EVID_RAW="${EVID_RAW}${2:-}
+    --evidence) need_val --evidence "$#"; EVID_RAW="${EVID_RAW}$2
 "; shift 2 ;;
-    --session) SID="${2:-}"; shift 2 ;;
-    --project) PROJECT="${2:-}"; shift 2 ;;
-    --vendor) VENDOR="${2:-}"; shift 2 ;;
-    --note) NOTE="${2:-}"; shift 2 ;;
+    --session) need_val --session "$#"; SID="$2"; shift 2 ;;
+    --project) need_val --project "$#"; PROJECT="$2"; shift 2 ;;
+    --vendor) need_val --vendor "$#"; VENDOR="$2"; shift 2 ;;
+    --note) need_val --note "$#"; NOTE="$2"; shift 2 ;;
     --dry-run) DRYRUN=1; shift ;;
     -*) echo "Unknown option: $1" >&2; exit 1 ;;
     *)
@@ -154,15 +158,21 @@ LOCK_DIR="$LEDGER_DIR/.lock-dogfood"
 STALE_SECS=30
 i=0
 while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  # Stale-lock reclaim: a writer killed by an uncatchable SIGKILL leaves the lock behind.
+  # Read its epoch marker (numeric-guarded against empty/corrupt); if older than STALE_SECS,
+  # reclaim ATOMICALLY via `mv` — rename is POSIX-atomic, so only ONE concurrent process wins
+  # the rename (the losers get ENOENT), eliminating the check-then-remove TOCTOU. The winner
+  # discards the moved dir; everyone re-races mkdir so exactly one holder remains.
   if [ -f "$LOCK_DIR/ts" ]; then
-    age=$(( $(date +%s 2>/dev/null || echo 0) - $(cat "$LOCK_DIR/ts" 2>/dev/null || echo 0) ))
-    if [ "$age" -gt "$STALE_SECS" ]; then
-      rm -f "$LOCK_DIR/ts" 2>/dev/null || true
-      rmdir "$LOCK_DIR" 2>/dev/null || true
+    lock_ts=$(cat "$LOCK_DIR/ts" 2>/dev/null || echo 0); case "$lock_ts" in ''|*[!0-9]*) lock_ts=0 ;; esac
+    now=$(date +%s 2>/dev/null || echo 0);              case "$now"     in ''|*[!0-9]*) now=0 ;; esac
+    if [ "$((now - lock_ts))" -gt "$STALE_SECS" ]; then
+      dead="$LOCK_DIR.stale.$$"
+      if mv "$LOCK_DIR" "$dead" 2>/dev/null; then rm -rf "$dead" 2>/dev/null || true; fi
       continue
     fi
   fi
-  i=$((i + 1)); [ "$i" -ge 50 ] && { echo "could not acquire ledger lock (held >5s)" >&2; exit 2; }
+  i=$((i + 1)); [ "$i" -ge 50 ] && { echo "could not acquire ledger lock (held >5s; if a process was SIGKILLed mid-write, remove $LOCK_DIR)" >&2; exit 2; }
   sleep 0.1
 done
 trap 'rm -f "$LOCK_DIR/ts" 2>/dev/null; rmdir "$LOCK_DIR" 2>/dev/null || true' INT TERM EXIT
