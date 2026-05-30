@@ -50,11 +50,30 @@ if [ ! -f "$LEDGER" ]; then
   exit 2
 fi
 
+# Resilient parse: skip malformed/partial JSONL lines (truncated trailing line from an
+# interrupted write, disk error, or manual edit) via `fromjson? // empty` instead of crashing
+# under set -e. Emit a stderr diagnostic when any line is skipped (auditability).
+TOTAL_LINES=$(grep -c '' "$LEDGER" 2>/dev/null || echo 0)
+VALID=$(jq -R 'fromjson? // empty' "$LEDGER" 2>/dev/null | jq -sc '.' 2>/dev/null) || {
+  echo "dogfood-tally: failed to parse ledger (jq error) — verify ${LEDGER/#$HOME/~}" >&2
+  exit 2
+}
+VALID_N=$(printf '%s' "$VALID" | jq 'length' 2>/dev/null || echo 0)
+if [ "$TOTAL_LINES" -gt 0 ] && [ "$VALID_N" -lt "$TOTAL_LINES" ]; then
+  echo "dogfood-tally: skipped $((TOTAL_LINES - VALID_N)) malformed line(s) in ${LEDGER/#$HOME/~}" >&2
+fi
+
 # Reduce: latest event per (tool,cycle_id) -> group by tool -> count by status.
-REDUCED=$(jq -s '
-  map(select(.tool and .cycle_id and .ts))
-  | group_by(.tool + " " + .cycle_id)
-  | map(max_by(.ts))
+# jq group_by sorts internally, so append-order interleaving is handled correctly. The __idx
+# tie-breaker makes "latest" deterministic when timestamps tie at second-granularity — the
+# later-appended line (chronologically last) wins. Array group-key [.tool,.cycle_id] avoids
+# any string-concat ambiguity.
+REDUCED=$(printf '%s' "$VALID" | jq '
+  to_entries
+  | map(.value + {__idx: .key})
+  | map(select(.tool and .cycle_id and .ts))
+  | group_by([.tool, .cycle_id])
+  | map(max_by([.ts, .__idx]))
   | group_by(.tool)
   | map({
       tool: .[0].tool,
@@ -64,7 +83,7 @@ REDUCED=$(jq -s '
       cycles: (map({cycle_id, status, ratified, evidence:(.evidence // []), ts}))
     })
   | sort_by(.tool)
-' "$LEDGER")
+')
 
 if [ -n "$TOOL" ]; then
   REDUCED=$(printf '%s' "$REDUCED" | jq --arg t "$TOOL" 'map(select(.tool==$t))')
