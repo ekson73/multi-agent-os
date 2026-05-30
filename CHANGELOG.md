@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NEW spec** `docs/specs/session-fission-spec.md` — feasibility verdict, option analysis (A/B + C/D/E), algorithm, data shapes, safety contract.
 - **Feasibility (validated vs `code.claude.com/docs/en/sessions` + on-disk transcript schema)**: native `/branch`/`--fork-session` *copy* the whole conversation (don't relieve bloat); surgical mid-message trimming is unsafe (append-only `parentUuid` DAG + paired `tool_use`/`tool_result` ⇒ unresumable). Fission fills the gap: distill each atomic context into a light seed and reseed, preserving the original.
 - **Safety**: read-only on source; snapshot before any archive; idempotent; rollback via `/resume` + retained backup. Layer-pure (generic; backup/seed dirs env-configurable; no operator-specific content).
-- **Deferred**: v2 automated spawn + CPT `topology.md` emission + rollback command; v3 sentinel anomaly rule + statusmap template + morning-briefing/auto-orchestrator deep wiring.
+- **Deferred**: v2 automated spawn + CPT `topology.md` emission + rollback command; v3 sentinel anomaly rule + status-map template + morning-briefing/auto-orchestrator deep wiring.
 
 #### `founder-*` family — Anthropic Founder's Playbook converted to agentic-tools
 

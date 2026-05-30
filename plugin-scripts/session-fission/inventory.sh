@@ -62,18 +62,6 @@ def parse_ts(s):
     except Exception:
         return None
 
-def first_text(msg):
-    if not isinstance(msg, dict):
-        return ""
-    c = msg.get("content")
-    if isinstance(c, str):
-        return c
-    if isinstance(c, list):
-        for part in c:
-            if isinstance(part, dict) and part.get("type") == "text":
-                return part.get("text", "") or ""
-    return ""
-
 events = []
 total = 0
 with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -95,7 +83,6 @@ with open(path, "r", encoding="utf-8", errors="replace") as fh:
             "slug": d.get("slug") or "",
             "sidechain": bool(d.get("isSidechain")),
             "role": d.get("type"),
-            "text": first_text(d.get("message") or {}),
         })
 
 # order by timestamp when available (stable otherwise)

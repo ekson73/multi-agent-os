@@ -19,6 +19,11 @@ json_escape() {
   printf '%s' "$s"
 }
 
+# YAML single-quoted scalar escape for the manifest: wrap in single quotes and
+# double any internal single quote, so paths with quotes/colons/backslashes/spaces
+# stay valid YAML (parallel guarantee to json_escape for the stdout envelopes).
+yaml_sq() { local s="$1"; s=${s//\'/\'\'}; printf "'%s'" "$s"; }
+
 TRANSCRIPT="${1:?usage: snapshot.sh <transcript.jsonl> [backup_dir]}"
 if [ ! -f "$TRANSCRIPT" ]; then
   printf '{"status":"error","error":"transcript not found: %s"}\n' "$(json_escape "$TRANSCRIPT")"
@@ -79,12 +84,14 @@ if command -v gitleaks >/dev/null 2>&1; then
   fi
 fi
 
+SOURCE_Y="$(yaml_sq "$TRANSCRIPT")"
+SNAP_Y="$(yaml_sq "$SNAP")"
 cat > "$MANIFEST" <<YAML
 # session-fission snapshot manifest
 schema: "session-fission/manifest/0.1.0"
-source_path: "$TRANSCRIPT"
+source_path: $SOURCE_Y
 source_sha256: "$SHA"
-snapshot_path: "$SNAP"
+snapshot_path: $SNAP_Y
 snapshot_utc: "$SANITIZED_UTC"
 sanitized_utc: "$SANITIZED_UTC"
 gitleaks: "$GL"

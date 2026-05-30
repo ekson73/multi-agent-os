@@ -44,7 +44,7 @@ Chosen = C (algorithm) + E (execution) + D (where cheaper); archive-not-delete f
 
 ## 5. Data shapes
 
-- `inventory.sh` → `{status, schema, source, read_only, total_lines, cluster_count, clusters[{id,label,branch,cwd,msg_count,first_ts,last_ts}], relations[{from,to,rel}]}`
+- `inventory.sh` → `{status, schema, source, read_only, total_lines, cluster_count, gap_seconds, clusters[{id,label,branch,cwd,msg_count,has_sidechain,first_ts,last_ts}], relations[{from,to,rel}], note}`
 - `snapshot.sh` → `{status, snapshot_path, manifest_path, source_sha256, gitleaks, sanitized_utc}` + `*.manifest.yaml`
 - `seed.sh` → `{status, cluster_id, seed_path}` + a `<cluster_id>.md` Ticket-as-Prompt scaffold (17-field skeleton, agent-filled)
 
