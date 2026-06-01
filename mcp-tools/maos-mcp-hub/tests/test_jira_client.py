@@ -390,6 +390,22 @@ def test_update_sprint_partial(monkeypatch):
     asyncio.run(run())
 
 
+def test_update_sprint_empty_raises(monkeypatch):
+    """All-empty update must raise client-side, never POST an empty {} body
+    (which the Agile API rejects with a confusing 400). Addresses amazon-q
+    :stop_sign: Logic Error on PR #103."""
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with pytest.raises(ValueError, match="at least one field"):
+            await client.update_sprint(99)
+
+    asyncio.run(run())
+
+
 def test_create_version_success(monkeypatch):
     _setup_env(monkeypatch)
     monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")

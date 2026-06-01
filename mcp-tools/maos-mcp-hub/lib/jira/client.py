@@ -445,6 +445,13 @@ class JiraClient:
         if goal:
             body["goal"] = goal
 
+        if not body:
+            raise ValueError(
+                "update_sprint requires at least one field to update "
+                "(name, state, start_date, end_date, or goal) — "
+                "an empty update is rejected by the Agile API with a 400."
+            )
+
         return await request_json(
             method="POST",
             url=f"{self.agile_url}/sprint/{sprint_id}",
