@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# MAOS — Dogfood-Cycle Ledger · tally (report / count) — THE COUNTING AUTHORITY.
+# Reads ${DOGFOOD_LEDGER_DIR:-~/.claude/audit}/dogfood-cycles.jsonl, reduces the
+# append-only event log by (tool,cycle_id) to the latest-by-ts status, and counts
+# COMPLETE (ratified) vs IN-PROGRESS vs ABANDONED per agentic-tool. Gate: a tool is
+# promotion-eligible when COMPLETE >= N (default 2 = dogfooding-mandate; override --gate).
+# REPLACES changelog-prose cycle counting (anti-theater: jq-countable, durable, auditable).
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only. Read-only (never writes — SRP).
+# No organization-specific content — promotion-eligible per Layer Purity.
+# Exit codes ([C06]): 0 success (incl. empty) · 1 usage · 2 setup (no ledger).
+set -euo pipefail
+
+LEDGER_DIR="${DOGFOOD_LEDGER_DIR:-$HOME/.claude/audit}"
+LEDGER="$LEDGER_DIR/dogfood-cycles.jsonl"
+
+GATE=2; FORMAT="table"; TOOL=""
+usage() {
+  cat <<EOF
+MAOS dogfood-cycle tally — count real dogfood cycles per agentic-tool (the gate authority).
+
+Usage:
+  $(basename "$0") [<tool>] [--json|--table] [--gate N]
+
+Args:
+  <tool>     restrict to one tool slug (optional)
+  --json     machine-readable output (adds .eligible per tool)
+  --table    human table (default)
+  --gate N   promotion threshold (default 2 = dogfooding-mandate >=2)
+  --help
+EOF
+  exit 0
+}
+
+# Guard a value-taking flag before `shift 2` (else set -e aborts on a short shift without a
+# clear usage error). Call as: need_val --flag "$#".
+need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --json) FORMAT="json"; shift ;;
+    --table) FORMAT="table"; shift ;;
+    --gate) need_val --gate "$#"; GATE="$2"; shift 2 ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) [ -z "$TOOL" ] && TOOL="$1" || { echo "Unexpected arg: $1" >&2; exit 1; }; shift ;;
+  esac
+done
+case "$GATE" in *[!0-9]*|"") echo "--gate must be an integer" >&2; exit 1 ;; esac
+if [ -n "$TOOL" ]; then case "$TOOL" in *[!a-zA-Z0-9._-]*) echo "Invalid <tool>: $TOOL" >&2; exit 1 ;; esac; fi
+
+if [ ! -f "$LEDGER" ]; then
+  echo "No dogfood-cycle ledger yet at ${LEDGER/#$HOME/~} — run dogfood-mark first." >&2
+  [ "$FORMAT" = "json" ] && echo '[]'
+  exit 2
+fi
+
+# Resilient parse: skip malformed/partial JSONL lines (truncated trailing line from an
+# interrupted write, disk error, or manual edit) via `fromjson? // empty` instead of crashing
+# under set -e. Emit a stderr diagnostic when any line is skipped (auditability).
+TOTAL_LINES=$(grep -c '' "$LEDGER" 2>/dev/null || echo 0)
+VALID=$(jq -R 'fromjson? // empty' "$LEDGER" 2>/dev/null | jq -sc '.' 2>/dev/null) || {
+  echo "dogfood-tally: failed to parse ledger (jq error) — verify ${LEDGER/#$HOME/~}" >&2
+  exit 2
+}
+VALID_N=$(printf '%s' "$VALID" | jq 'length' 2>/dev/null || echo 0)
+if [ "$TOTAL_LINES" -gt 0 ] && [ "$VALID_N" -lt "$TOTAL_LINES" ]; then
+  echo "dogfood-tally: skipped $((TOTAL_LINES - VALID_N)) malformed line(s) in ${LEDGER/#$HOME/~}" >&2
+fi
+
+# Reduce: latest event per (tool,cycle_id) -> group by tool -> count by status.
+# jq group_by sorts internally, so append-order interleaving is handled correctly. The __idx
+# tie-breaker makes "latest" deterministic when timestamps tie at second-granularity — the
+# later-appended line (chronologically last) wins. Array group-key [.tool,.cycle_id] avoids
+# any string-concat ambiguity.
+REDUCED=$(printf '%s' "$VALID" | jq '
+  to_entries
+  | map(.value + {__idx: .key})
+  | map(select(.tool and .cycle_id and .ts))
+  | group_by([.tool, .cycle_id])
+  | map(max_by([.ts, .__idx]))
+  | group_by(.tool)
+  | map({
+      tool: .[0].tool,
+      complete:    (map(select(.status=="complete" and .ratified==true)) | length),
+      in_progress: (map(select(.status=="in-progress")) | length),
+      abandoned:   (map(select(.status=="abandoned")) | length),
+      cycles: (map({cycle_id, status, ratified, evidence:(.evidence // []), ts}))
+    })
+  | sort_by(.tool)
+')
+
+if [ -n "$TOOL" ]; then
+  REDUCED=$(printf '%s' "$REDUCED" | jq --arg t "$TOOL" 'map(select(.tool==$t))')
+fi
+
+if [ "$FORMAT" = "json" ]; then
+  printf '%s' "$REDUCED" | jq --argjson gate "$GATE" 'map(. + {gate:$gate, eligible:(.complete >= $gate)})'
+  exit 0
+fi
+
+TABLE=$(printf '%s' "$REDUCED" | jq -r --argjson gate "$GATE" '
+  if length == 0 then "(no cycles recorded)"
+  else
+    (["TOOL","COMPLETE","IN-PROGRESS","ABANDONED","GATE>=\($gate)"] | @tsv),
+    (.[] | [ .tool,
+             (.complete|tostring), (.in_progress|tostring), (.abandoned|tostring),
+             (if .complete >= $gate then "ELIGIBLE" else "NOT(\(.complete)/\($gate))" end)
+           ] | @tsv)
+  end
+')
+printf '%s\n' "$TABLE" | column -t -s "$(printf '\t')" 2>/dev/null || printf '%s\n' "$TABLE"
