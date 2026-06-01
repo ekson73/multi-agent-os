@@ -256,7 +256,7 @@ gateways/                          ← Meta-tool gateway layer
 │   └── actions.py                 ← Domain catalog builder
 ├── jira/
 │   ├── gateway.py
-│   └── actions.py                 ← 27 actions across 10 resources
+│   └── actions.py                 ← 27 actions across 12 resources
 ├── confluence/
 │   ├── gateway.py
 │   └── actions.py                 ← 12 actions across 4 resources

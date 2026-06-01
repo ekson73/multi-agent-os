@@ -1,5 +1,5 @@
 """
-Jira gateway actions — 27 actions across 10 resources.
+Jira gateway actions — 27 actions across 12 resources.
 
 Wraps existing JiraClient methods + servers/jira/tools.py functions.
 """

@@ -310,7 +310,7 @@ def test_get_sprints_with_state_filter(monkeypatch):
     async def run() -> None:
         client = JiraClient()
         with respx.mock(assert_all_called=True) as router:
-            router.get(f"{AGILE_BASE}/board/59/sprint").mock(
+            route = router.get(f"{AGILE_BASE}/board/59/sprint").mock(
                 return_value=httpx.Response(
                     200,
                     json={"values": [{"id": 7, "name": "Sprint 1", "state": "active"}]},
@@ -321,6 +321,8 @@ def test_get_sprints_with_state_filter(monkeypatch):
             assert len(sprints) == 1
             assert sprints[0]["id"] == 7
             assert sprints[0]["state"] == "active"
+            # state filter is actually forwarded as a query param
+            assert "state=active" in str(route.calls.last.request.url)
 
     asyncio.run(run())
 
