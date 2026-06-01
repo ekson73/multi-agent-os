@@ -1,5 +1,5 @@
 """
-Jira gateway actions — 22 actions across 8 resources.
+Jira gateway actions — 27 actions across 12 resources.
 
 Wraps existing JiraClient methods + servers/jira/tools.py functions.
 """
@@ -343,6 +343,61 @@ async def estimate_story_points(issue_key: str, board_id: int, dry_run: bool = T
     return result
 
 
+# --- Sprints & Versions (VKS-2080 Fase 2) ---
+
+async def get_sprints(board_id: int, state: str = "") -> dict:
+    """List sprints on a board, optionally filtered by state."""
+    client = get_client()
+    sprints = await client.get_sprints(board_id, state)
+    return {"sprints": sprints}
+
+
+async def create_sprint(
+    board_id: int,
+    name: str,
+    start_date: str = "",
+    end_date: str = "",
+    goal: str = "",
+) -> dict:
+    """Create a sprint on a Scrum board."""
+    client = get_client()
+    return await client.create_sprint(board_id, name, start_date, end_date, goal)
+
+
+async def update_sprint(
+    sprint_id: int,
+    name: str = "",
+    state: str = "",
+    start_date: str = "",
+    end_date: str = "",
+    goal: str = "",
+) -> dict:
+    """Partially update a sprint (only provided fields change)."""
+    client = get_client()
+    return await client.update_sprint(sprint_id, name, state, start_date, end_date, goal)
+
+
+async def create_version(
+    project_id: int,
+    name: str,
+    description: str = "",
+    start_date: str = "",
+    release_date: str = "",
+    released: bool = False,
+) -> dict:
+    """Create a project version (release)."""
+    client = get_client()
+    return await client.create_version(
+        project_id, name, description, start_date, release_date, released
+    )
+
+
+async def release_version(version_id: str, release_date: str = "") -> dict:
+    """Mark a project version as released."""
+    client = get_client()
+    return await client.release_version(version_id, release_date)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -380,7 +435,7 @@ def _walk_adf(node: Any, parts: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 def build_router() -> MetaToolRouter:
-    """Build the Jira meta-tool router with 22 actions."""
+    """Build the Jira meta-tool router with 27 actions."""
     router = MetaToolRouter(
         tool_name=GATEWAY_INFO["tool_name"],
         governance=["Jira operations follow DARCI-Expanded governance"],
@@ -425,6 +480,17 @@ def build_router() -> MetaToolRouter:
                     description="Calculate story points from observable data (deterministic formula)",
                     governance=["Formula: volume signals × type_multiplier → Fibonacci snap"],
                     next_steps=["Se dry_run=True, chame com dry_run=False para aplicar"])
+
+    # Sprints (VKS-2080 Fase 2)
+    router.register("sprint", "list", get_sprints, description="List sprints on a board (filter by state)")
+    router.register("sprint", "create", create_sprint, description="Create a sprint on a Scrum board",
+                    next_steps=["Mova issues para o sprint", "Ative com sprint.update state=active"])
+    router.register("sprint", "update", update_sprint,
+                    description="Partially update a sprint (name/state/dates/goal — POST partial, never resets unspecified fields)")
+
+    # Versions / Releases (VKS-2080 Fase 2)
+    router.register("version", "create", create_version, description="Create a project version (release)")
+    router.register("version", "release", release_version, description="Mark a project version as released")
 
     # Projects & Metadata
     router.register("project", "list", get_visible_projects, description="List visible projects")

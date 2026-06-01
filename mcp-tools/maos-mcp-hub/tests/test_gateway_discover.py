@@ -49,12 +49,12 @@ def test_discover_action_counts(monkeypatch):
     async def run():
         result = await discover()
         d = result["domains"]
-        assert d["jira"]["actions"] == 22
+        assert d["jira"]["actions"] == 27  # VKS-2080: +5 Sprint+Version CRUD
         assert d["confluence"]["actions"] == 12
         assert d["bitbucket"]["actions"] == 55  # VKS-1853: +3 PR ops
         assert d["compass"]["actions"] == 6
         assert d["common"]["actions"] == 4
-        assert result["total_actions"] == 99  # VKS-1853: 96 + 3
+        assert result["total_actions"] == 104  # VKS-2080: 99 + 5
 
     asyncio.run(run())
 
@@ -128,7 +128,7 @@ def test_common_router_action_count(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Cross-gateway: total action count = 99 (VKS-1853: 96 + 3)
+# Cross-gateway: total action count = 104 (VKS-2080: 99 + 5)
 # ---------------------------------------------------------------------------
 
 def test_total_action_count_across_all_gateways(monkeypatch):
@@ -146,4 +146,4 @@ def test_total_action_count_across_all_gateways(monkeypatch):
         + comp_router().action_count
         + common_router().action_count
     )
-    assert total == 99, f"Expected 99 total actions (VKS-1853: 96 + 3), got {total}"
+    assert total == 104, f"Expected 104 total actions (VKS-2080: 99 + 5), got {total}"
