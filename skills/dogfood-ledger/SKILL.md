@@ -11,11 +11,13 @@ author: MAOS Community
 > The engine is vendor-neutral bash (works in Cursor / Copilot / Codex / Gemini too).
 > **Spec**: `docs/dogfood-cycle-ledger-spec.md` · **ADR**: `docs/adrs/ADR-005-dogfood-cycle-ledger.md`
 
-## Why
+## Purpose
 
-The dogfooding-mandate gates promotion on **≥2 real cycles**, but the count was only changelog prose — unmeasurable = theater. This skill makes it real: one user-scope, append-only, `jq`-countable ledger at `~/.claude/audit/dogfood-cycles.jsonl`, fed by any session/project/vendor.
+The dogfooding-mandate gates promotion on **≥2 real cycles**, but the count was only changelog prose — unmeasurable = theater. This skill makes it real: one user-scope, append-only, `jq`-countable ledger at `~/.claude/audit/dogfood-cycles.jsonl`, fed by any session/project/vendor. `bin/dogfood-mark` is the writer; `bin/dogfood-tally` is the read-only counting authority.
 
-## Use
+## When to Use
+
+Use when you need to record or count dogfood cycles for the ≥2-cycle promotion gate.
 
 **Count cycles for a tool (the gate authority):**
 ```bash
@@ -41,7 +43,14 @@ bin/dogfood-mark --backfill                  # (planned) register them (evidence
 ```
 Until `--backfill` lands, record historical cycles with direct evidence-based `dogfood-mark` calls.
 
-## Rules (binding)
+## Trigger Phrases
+
+- "how many dogfood cycles does X have"
+- "mark this cycle complete" / "mark cycle in-progress"
+- "is X promotion-eligible" / "did X meet the ≥2-cycle gate"
+- "count cycles" / "tally dogfood cycles"
+
+## Protocol Rules
 
 - A cycle is **COMPLETE** only with `ratified==true` + ≥1 evidence ref. "Rounds happened" ≠ complete.
 - The ledger is the **single SSOT** — do NOT keep per-skill island counters (they migrate here).
