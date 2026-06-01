@@ -155,7 +155,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 }
 ```
 
-Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 99 actions total (v2.2.0, VKS-1853).
+Restart Claude Desktop. You'll see the **6 `atlassian_*` gateway tools** (discover, jira, confluence, bitbucket, compass, common) covering 104 actions total (v2.3.0, VKS-2080).
 
 ### 6. Run tests (pilot D65)
 
@@ -181,12 +181,12 @@ With 55 Bitbucket tools and Jira/Confluence/Compass on the roadmap, the flat nam
 
 ### Solution: 6 Typed Gateways
 
-The Meta-Tools Gateway collapses **99 actions** (v2.2.0) into **6 MCP tools**. Five domain gateways accept a uniform `{resource?, operation?, params?}` input; `atlassian_discover` is parameterless:
+The Meta-Tools Gateway collapses **104 actions** (v2.3.0) into **6 MCP tools**. Five domain gateways accept a uniform `{resource?, operation?, params?}` input; `atlassian_discover` is parameterless:
 
 | Gateway | Tool Name | Actions | Purpose |
 |---------|-----------|---------|---------|
 | **Discover** | `atlassian_discover` | -- | Catalog of all domains and action counts |
-| **Jira** | `atlassian_jira` | 22 | Issues, boards, sprints, estimation, comments, worklogs, links, search |
+| **Jira** | `atlassian_jira` | 27 | Issues, boards, sprints (list/create/update), versions (create/release), estimation, comments, worklogs, links, search |
 | **Confluence** | `atlassian_confluence` | 12 | Pages, comments, spaces, search (CQL) |
 | **Bitbucket** | `atlassian_bitbucket` | 55 | Pipelines, PRs (incl. add/reply comment, update description — VKS-1853), branches, deployments, tests, caches |
 | **Compass** | `atlassian_compass` | 6 | Service registry, components, relationships, custom fields |
@@ -256,7 +256,7 @@ gateways/                          ← Meta-tool gateway layer
 │   └── actions.py                 ← Domain catalog builder
 ├── jira/
 │   ├── gateway.py
-│   └── actions.py                 ← 22 actions across 10 resources
+│   └── actions.py                 ← 27 actions across 12 resources
 ├── confluence/
 │   ├── gateway.py
 │   └── actions.py                 ← 12 actions across 4 resources
@@ -318,7 +318,7 @@ hub is considered ready when these lines appear:
 ```text
 ======================================================================
 ✅ MAOS MCP Hub Ready!
-   Gateways: 6 (99 actions)
+   Gateways: 6 (104 actions)
    Total MCP tools: 6
 ======================================================================
 ```

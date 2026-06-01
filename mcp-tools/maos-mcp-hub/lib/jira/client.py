@@ -335,6 +335,211 @@ class JiraClient:
         )
 
     # ========================================================================
+    # Agile API — Sprints (VKS-2080 Fase 2)
+    # ========================================================================
+
+    async def get_sprints(self, board_id: int, state: str = "") -> list:
+        """
+        List sprints on a board, optionally filtered by state.
+
+        Args:
+            board_id: Board ID (Scrum board; from get_boards).
+            state: Optional comma-separated filter — "future", "active", "closed".
+
+        Returns:
+            list: Sprint objects [{id, name, state, startDate, endDate, ...}]
+        """
+        params = {}
+        if state:
+            params["state"] = state
+
+        result = await request_json(
+            method="GET",
+            url=f"{self.agile_url}/board/{board_id}/sprint",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            params=params,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+        return result.get("values", [])
+
+    async def create_sprint(
+        self,
+        board_id: int,
+        name: str,
+        start_date: str = "",
+        end_date: str = "",
+        goal: str = "",
+    ) -> dict:
+        """
+        Create a sprint on a Scrum board.
+
+        Args:
+            board_id: Origin board ID (must be a Scrum board).
+            name: Sprint name.
+            start_date: Optional ISO-8601 start (e.g. "2026-06-02T00:00:00.000Z").
+            end_date: Optional ISO-8601 end.
+            goal: Optional sprint goal.
+
+        Returns:
+            dict: Created sprint object {id, name, state, ...}
+        """
+        body: dict = {"originBoardId": board_id, "name": name}
+        if start_date:
+            body["startDate"] = start_date
+        if end_date:
+            body["endDate"] = end_date
+        if goal:
+            body["goal"] = goal
+
+        return await request_json(
+            method="POST",
+            url=f"{self.agile_url}/sprint",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=body,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # POST create — avoid duplicate sprints on retry
+        )
+
+    async def update_sprint(
+        self,
+        sprint_id: int,
+        name: str = "",
+        state: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        goal: str = "",
+    ) -> dict:
+        """
+        Partially update a sprint (only provided fields change).
+
+        Uses Agile API ``POST /sprint/{id}`` (partial update) rather than PUT
+        (full replace) — safer for agentic use: unspecified fields are preserved,
+        never reset.
+
+        Args:
+            sprint_id: Sprint ID.
+            name: New name (optional).
+            state: New state — "future" | "active" | "closed" (optional).
+            start_date: ISO-8601 start (optional).
+            end_date: ISO-8601 end (optional).
+            goal: Sprint goal (optional).
+
+        Returns:
+            dict: Updated sprint object.
+        """
+        body: dict = {}
+        if name:
+            body["name"] = name
+        if state:
+            body["state"] = state
+        if start_date:
+            body["startDate"] = start_date
+        if end_date:
+            body["endDate"] = end_date
+        if goal:
+            body["goal"] = goal
+
+        if not body:
+            raise ValueError(
+                "update_sprint requires at least one field to update "
+                "(name, state, start_date, end_date, or goal) — "
+                "an empty update is rejected by the Agile API with a 400."
+            )
+
+        return await request_json(
+            method="POST",
+            url=f"{self.agile_url}/sprint/{sprint_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=body,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # mutation — no auto-retry
+        )
+
+    # ========================================================================
+    # Versions API (VKS-2080 Fase 2)
+    # ========================================================================
+
+    async def create_version(
+        self,
+        project_id: int,
+        name: str,
+        description: str = "",
+        start_date: str = "",
+        release_date: str = "",
+        released: bool = False,
+    ) -> dict:
+        """
+        Create a project version (release).
+
+        Args:
+            project_id: Numeric project ID (e.g. 10309 for VKS; from board location).
+            name: Version name (e.g. "1.6.0").
+            description: Optional description.
+            start_date: Optional ISO date "YYYY-MM-DD".
+            release_date: Optional ISO date "YYYY-MM-DD".
+            released: Whether the version is already released (default False).
+
+        Returns:
+            dict: Created version object {id, name, released, ...}
+        """
+        body: dict = {"projectId": project_id, "name": name, "released": released}
+        if description:
+            body["description"] = description
+        if start_date:
+            body["startDate"] = start_date
+        if release_date:
+            body["releaseDate"] = release_date
+
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/version",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=body,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # POST create — avoid duplicate versions on retry
+        )
+
+    async def release_version(self, version_id: str, release_date: str = "") -> dict:
+        """
+        Mark a project version as released.
+
+        Args:
+            version_id: Version ID.
+            release_date: Optional ISO date "YYYY-MM-DD" (Jira defaults server-side
+                          if omitted).
+
+        Returns:
+            dict: Updated version object {id, name, released: true, ...}
+        """
+        body: dict = {"released": True}
+        if release_date:
+            body["releaseDate"] = release_date
+
+        return await request_json(
+            method="PUT",
+            url=f"{self.base_url}/version/{version_id}",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            json=body,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+            max_retries=0,  # mutation — no auto-retry
+        )
+
+    # ========================================================================
     # Issues CRUD — create, edit, transition, search
     # ========================================================================
 

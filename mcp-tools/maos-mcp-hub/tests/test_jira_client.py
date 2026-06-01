@@ -293,3 +293,168 @@ def test_get_estimation_maps_404_to_not_found(monkeypatch):
             assert exc.status_code == 404
 
     asyncio.run(run())
+
+
+# ---------------------------------------------------------------------------
+# Agile — Sprints & Versions (VKS-2080 Fase 2)
+# ---------------------------------------------------------------------------
+
+API3_BASE = "https://api.atlassian.com/ex/jira/023bcd49-f455-4451-a096-c50c42c811d7/rest/api/3"
+
+
+def test_get_sprints_with_state_filter(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            route = router.get(f"{AGILE_BASE}/board/59/sprint").mock(
+                return_value=httpx.Response(
+                    200,
+                    json={"values": [{"id": 7, "name": "Sprint 1", "state": "active"}]},
+                )
+            )
+
+            sprints = await client.get_sprints(59, state="active")
+            assert len(sprints) == 1
+            assert sprints[0]["id"] == 7
+            assert sprints[0]["state"] == "active"
+            # state filter is actually forwarded as a query param
+            assert "state=active" in str(route.calls.last.request.url)
+
+    asyncio.run(run())
+
+
+def test_get_sprints_no_filter(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            router.get(f"{AGILE_BASE}/board/59/sprint").mock(
+                return_value=httpx.Response(200, json={"values": []})
+            )
+
+            sprints = await client.get_sprints(59)
+            assert sprints == []
+
+    asyncio.run(run())
+
+
+def test_create_sprint_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            route = router.post(f"{AGILE_BASE}/sprint").mock(
+                return_value=httpx.Response(
+                    201, json={"id": 99, "name": "Sprint 2026-06", "state": "future"}
+                )
+            )
+
+            result = await client.create_sprint(59, "Sprint 2026-06", goal="ship v2.1")
+            assert result["id"] == 99
+            assert result["state"] == "future"
+            # body carries originBoardId + name + goal (no blank dates)
+            import json as _json
+            sent = _json.loads(route.calls.last.request.content)
+            assert sent == {"originBoardId": 59, "name": "Sprint 2026-06", "goal": "ship v2.1"}
+
+    asyncio.run(run())
+
+
+def test_update_sprint_partial(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            route = router.post(f"{AGILE_BASE}/sprint/99").mock(
+                return_value=httpx.Response(200, json={"id": 99, "state": "active"})
+            )
+
+            result = await client.update_sprint(99, state="active")
+            assert result["state"] == "active"
+            # partial update — only the provided field is sent
+            import json as _json
+            sent = _json.loads(route.calls.last.request.content)
+            assert sent == {"state": "active"}
+
+    asyncio.run(run())
+
+
+def test_update_sprint_empty_raises(monkeypatch):
+    """All-empty update must raise client-side, never POST an empty {} body
+    (which the Agile API rejects with a confusing 400). Addresses amazon-q
+    :stop_sign: Logic Error on PR #103."""
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with pytest.raises(ValueError, match="at least one field"):
+            await client.update_sprint(99)
+
+    asyncio.run(run())
+
+
+def test_create_version_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            route = router.post(f"{API3_BASE}/version").mock(
+                return_value=httpx.Response(
+                    201, json={"id": "10500", "name": "1.6.0", "released": False}
+                )
+            )
+
+            result = await client.create_version(10309, "1.6.0", description="maos v1.6.0")
+            assert result["id"] == "10500"
+            assert result["released"] is False
+            import json as _json
+            sent = _json.loads(route.calls.last.request.content)
+            assert sent == {
+                "projectId": 10309,
+                "name": "1.6.0",
+                "released": False,
+                "description": "maos v1.6.0",
+            }
+
+    asyncio.run(run())
+
+
+def test_release_version_success(monkeypatch):
+    _setup_env(monkeypatch)
+    monkeypatch.setenv("JIRA_API_TOKEN", "jira-token")
+    monkeypatch.delenv("ATLASSIAN_API_TOKEN", raising=False)
+
+    async def run() -> None:
+        client = JiraClient()
+        with respx.mock(assert_all_called=True) as router:
+            route = router.put(f"{API3_BASE}/version/10500").mock(
+                return_value=httpx.Response(
+                    200, json={"id": "10500", "name": "1.6.0", "released": True}
+                )
+            )
+
+            result = await client.release_version("10500", release_date="2026-06-01")
+            assert result["released"] is True
+            import json as _json
+            sent = _json.loads(route.calls.last.request.content)
+            assert sent == {"released": True, "releaseDate": "2026-06-01"}
+
+    asyncio.run(run())
