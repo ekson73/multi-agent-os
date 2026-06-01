@@ -63,13 +63,15 @@ def test_hub_exposes_exactly_six_mcp_tools():
 
 
 def test_hub_registers_six_atlassian_gateways():
-    """All 6 atlassian_* gateways must be registered with 99 actions total.
+    """All 6 atlassian_* gateways must be registered with 104 actions total.
 
     VKS-1853 (2026-04-23): +3 pull_request ops (add_comment,
-    update_description, reply_to_comment) bring total from 96 to 99.
+    update_description, reply_to_comment) brought total from 96 to 99.
+    VKS-2080 (2026-06-01): +5 Jira Agile ops (sprint list/create/update,
+    version create/release) bring total from 99 to 104.
     """
     log = _run_hub()
-    assert "6 gateways registered (99 actions)" in log, log
+    assert "6 gateways registered (104 actions)" in log, log
 
 
 def test_hub_does_not_register_flat_bitbucket_tools():

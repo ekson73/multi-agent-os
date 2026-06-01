@@ -132,7 +132,7 @@ except ImportError:
 # ============================================================================
 
 HUB_NAME = "maos-mcp-hub"
-HUB_VERSION = "2.2.0"  # VKS-1853: +3 pull_request ops + params standardization
+HUB_VERSION = "2.3.0"  # VKS-2080: +5 Jira Agile ops (sprint list/create/update, version create/release)
 SERVERS_DIR = Path(__file__).parent / "servers"
 
 

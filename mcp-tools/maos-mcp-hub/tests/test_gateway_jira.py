@@ -1,4 +1,4 @@
-"""Tests for Jira gateway — 22 actions via meta-tool pattern."""
+"""Tests for Jira gateway — 27 actions via meta-tool pattern."""
 
 import asyncio
 
@@ -291,7 +291,7 @@ def test_estimate_story_points_complex_issue(monkeypatch):
 def test_jira_router_action_count(monkeypatch):
     _setup_env(monkeypatch)
     router = build_router()
-    assert router.action_count == 22
+    assert router.action_count == 27
 
 
 def test_jira_router_tool_name(monkeypatch):
