@@ -127,18 +127,13 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 - ❌ Treating any single benchmark % as ground-truth (contamination inflates 5–15 pts)
 - ❌ Re-implementing converge / cascade / pipeline inside this skill (it is a composition, not an engine)
 
-## Examples
+## Examples (invocation prompts — this is a skill, not a CLI binary)
 
-```bash
-# REFINE: drive a draft to high quality with bounded diverse iterations
-convergence-engine --regime refine --target ./draft.md --max-rounds 3
+This skill ships no executable/slash-command; invoke it conversationally (the triggers in the frontmatter). Representative prompts:
 
-# SELECT: reconcile competing proposals into one validated synthesis
-convergence-engine --regime select proposalA.md proposalB.md   # → converge
-
-# AUTO: classify regime by verifiability, then route
-convergence-engine "drive this PR to convergence before asking me"
-```
+- **REFINE** — *"drive this draft to high quality with a few bounded diverse-review iterations"* → runs `perspective-trio` (breadth) then `cascade-resolver` (sequential uplift, keep-best), stops at `n*`.
+- **SELECT** — *"reconcile these competing proposals into one validated synthesis"* → routes to `converge` (best-of-N / debate→converge).
+- **AUTO** — *"converge this PR to high quality before asking me"* → classifies regime by verifiability, routes, and applies the Return-Gate before any HITL ask.
 
 ## Prior art
 

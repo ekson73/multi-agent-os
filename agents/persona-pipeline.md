@@ -1,5 +1,7 @@
 ---
 name: persona-pipeline
+version: 1.0.0
+agnostic: [os, project]
 description: Run a 6-stage virtual review board (Analyze → Criticize → Suggest → Validate → Audit → Resolve) with role-typed universal personas (Tech-Lead, UX, SecOps, Privacy, QA, Critic). Pipeline depth scales with PR risk profile. Returns autonomy_score-bound recommendation. The vertical-depth verify primitive of the Convergence Engine (skills/convergence-engine) — the independent verifier that satisfies the verifier>generator master condition.
 tools: Task, Read, Bash, Grep
 ---

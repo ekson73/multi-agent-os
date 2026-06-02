@@ -1,5 +1,7 @@
 ---
 name: perspective-trio
+version: 1.0.0
+agnostic: [os, project]
 description: Spawn 3 parallel agents with orthogonal perspectives (auto-pick from 5 canonical triplets based on issue type) to attempt resolution before HITL escalation. Aggregates findings; returns synthesis with per-perspective recommendation OR escalation signal. The SELECT-regime / horizontal-diversity primitive of the Convergence Engine (skills/convergence-engine).
 tools: Task, Read
 ---

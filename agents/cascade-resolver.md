@@ -1,5 +1,7 @@
 ---
 name: cascade-resolver
+version: 1.0.0
+agnostic: [os, project]
 description: Run up to N sequential diverse sub-agent attempts (default 7) to lift autonomy_score across the HIGH threshold before HITL fallback. Diversity matrix from 12-role universal pool. 8 termination conditions (score-reached / max-attempts / diminishing-returns / consensus / operator-interrupt / token-budget / cascade-of-uncertainty / wall-clock). The REFINE-regime / score-uplift + economic-stop primitive of the Convergence Engine (skills/convergence-engine).
 tools: Task, Read
 ---
