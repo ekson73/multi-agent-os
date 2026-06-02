@@ -1,0 +1,13 @@
+# dogfood-cycle backfill manifest (JSONL) — one JSON object per real, evidence-bearing cycle.
+# Run: bin/dogfood-mark --backfill docs/dogfood-backfill-example.jsonl
+# Each row re-invokes dogfood-mark, so the same validation + anti-theater gate applies:
+# a status=complete row REQUIRES ratified:true AND >=1 evidence ref, else it is REFUSED
+# (anti-hallucination — the gate is met by real history, never by inflation).
+# Blank lines and #-comments are skipped. This file is honest, not aspirational: it records
+# only cycles backed by a concrete evidence ref (a merged PR, a session id).
+#
+# Anti-hallucination demo (NOT executed — would be REFUSED on replay, no evidence):
+#   {"tool":"convergence-engine","cycle_id":"999","status":"complete","ratified":true}
+#
+{"tool":"convergence-engine","cycle_id":"001","status":"complete","ratified":true,"evidence":["github:ekson73/multi-agent-os/pull/104","session:0bec515e"],"note":"materialization: skill + 3 agents merged b2c5d414"}
+{"tool":"convergence-engine","cycle_id":"002","status":"in-progress","evidence":["github:ekson73/multi-agent-os/pull/106","session:0bec515e"],"note":"first executable dispatch — routed the E1/C2/C3 work-set (PR open)"}

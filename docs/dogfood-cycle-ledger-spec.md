@@ -53,7 +53,10 @@ Exit codes ([C06]): `0` success · `1` usage/validation · `2` setup.
 
 Cycles **already happened** across past sessions — they were simply never counted. The `--backfill` mode re-derives them from **real evidence** (ASH journals with `cycles_completed`/`dogfood`; tool changelogs; transcripts; prior per-skill ledgers), one event per detected cycle, each carrying its `evidence` ref. **Anti-hallucination**: no evidence ⇒ not counted. This makes the ≥2 gate satisfiable by **history**, not by waiting on the future — and never by inflation.
 
-> **Status: Phase 2 — `--backfill` automation is NOT yet implemented.** Until it lands, historical cycles are recorded via direct evidence-based `dogfood-mark` calls (each with `--evidence`). The contract above is the design the automated scanner will follow.
+> **Status: Phase 2 — manifest path IMPLEMENTED; auto-scanner is Phase 2.1.**
+>
+> - **`bin/dogfood-mark --backfill <manifest.jsonl>` (implemented):** batch-replays an evidence-bearing JSONL manifest (one `{tool,cycle_id,status?,ratified?,evidence[]?,note?}` object per line), re-invoking `dogfood-mark` per row so the **same** validation + anti-theater gate applies — a `status=complete` row lacking `ratified`+`evidence` is **REFUSED** (never inflated). Idempotent; `--dry-run` supported; blank/`#`-comment lines skipped. Example/fixture: [`docs/dogfood-backfill-example.jsonl`](dogfood-backfill-example.jsonl).
+> - **Phase 2.1 (NOT yet implemented):** auto-*deriving* a manifest by scanning ASH journals / changelogs / transcripts. That heuristic scanner is a separate, riskier effort (prose parsing) and is deliberately deferred — until it lands, curate the manifest from real evidence by hand (each row needs a concrete `evidence` ref).
 
 ## 7. Anti-patterns (do NOT)
 
