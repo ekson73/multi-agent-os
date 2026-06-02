@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — README install/config/usage drift (docs-only)
+
+- **Installation commands were incorrect and would fail if followed**: README used `claude plugins marketplace add` / `claude plugins install multi-agent-os` (a `claude plugins` shell subcommand that does not exist) and the wrong artifact name (`multi-agent-os` is the **repo**; the **plugin is `maos`** per `plugin.json`). Corrected to the official in-session `/plugin marketplace add ekson73/eko-claude-plugins` + `/plugin install maos@eko-claude-plugins` (verified against code.claude.com/docs), with the `/maos:<name>` namespace clarified, `claude --plugin-dir`/`claude plugin validate` for local dev, and a corrected **project/team** block using `extraKnownMarketplaces` + `enabledPlugins` in `.claude/settings.json` (the prior `{"plugins":["/path"]}` shape was invalid). Same fix applied to `install/DEPRECATED.md`.
+- **Stale capability tables refreshed**: README listed 6 commands / 11 skills / 9 agents; the plugin now ships ~15 / 40+ / 20+. Tables relabeled as **representative** with a pointer to `/help`, `/agents`, and `/maos:maos-concierge` (drift-resistant — avoids re-enumerating a fast-moving catalog). `/status` → `/maos:agentic-status` (the rename that resolved the Claude Code built-in `/status` collision). Plugin-structure tree counts corrected.
+- Docs-only; no code, manifest, or version change.
+
 ### Added — `dogfood-mark --backfill` manifest replay (v1.8.1)
 
 - **`bin/dogfood-mark --backfill <manifest.jsonl>`** — implements the spec §6 Phase-2 backfill (manifest path): batch-replays an evidence-bearing JSONL manifest (one `{tool,cycle_id,status?,ratified?,evidence[]?,note?}` object per line), **re-invoking `dogfood-mark` per row** so all existing validation, the anti-theater `complete`-requires-`ratified`+`evidence` gate, idempotency, and the atomic lock are reused (DRY — no logic duplicated). **Anti-hallucination**: a `complete` row without evidence is REFUSED and tallied as failed — the ≥2 gate is met by **real history, never inflation**. `--dry-run` supported; blank/`#`-comment lines skipped.

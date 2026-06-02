@@ -54,40 +54,46 @@ A comprehensive Claude Code plugin for orchestrating AI agents in software devel
 
 ## Installation
 
-### From Marketplace (Recommended)
+> **Plugin name vs repo name**: the repository is `multi-agent-os`; the **plugin is named `maos`** (see `.claude-plugin/plugin.json`). Install and reference it as `maos`. Skills/commands surface namespaced as **`/maos:<name>`** (e.g. `/maos:orchestrator`, `/maos:auto-pilot`).
 
-```bash
-# Add the marketplace
-claude plugins marketplace add ekson73/eko-claude-plugins
+### From Marketplace (recommended)
 
-# Install the plugin
-claude plugins install multi-agent-os
+Plugin management runs **inside a Claude Code session** via the `/plugin` command (not a shell `claude plugins` subcommand):
+
+```text
+/plugin marketplace add ekson73/eko-claude-plugins
+/plugin install maos@eko-claude-plugins
+/reload-plugins
 ```
 
-### From Source
+Then run `/plugin` (Installed tab) to confirm, and `/help` to see the `/maos:*` skills. Need to update later? `/plugin marketplace update eko-claude-plugins`.
+
+### From source (local dev / self-use)
 
 ```bash
-# Clone the plugin
 git clone https://github.com/ekson73/multi-agent-os.git
-
-# Install in user scope
-claude plugins install /path/to/multi-agent-os
-
-# Or use directly
-claude --plugin-dir /path/to/multi-agent-os
+claude --plugin-dir ./multi-agent-os     # load for this session
+claude plugin validate ./multi-agent-os  # validate the manifest
 ```
 
-### Project-Level Installation
+`--plugin-dir` may be repeated to load several plugins and takes precedence over an installed copy of the same name (handy for testing local changes). See [Self-Referential Usage](#self-referential-usage).
 
-Add to your project's `.claude/settings.json`:
+### Project / team scope
+
+To make `maos` available to **everyone on a repository**, add to that project's `.claude/settings.json` (collaborators are prompted to install when they trust the folder):
 
 ```json
 {
-  "plugins": [
-    "/path/to/multi-agent-os"
-  ]
+  "extraKnownMarketplaces": {
+    "eko-claude-plugins": {
+      "source": { "source": "github", "repo": "ekson73/eko-claude-plugins" }
+    }
+  },
+  "enabledPlugins": ["maos@eko-claude-plugins"]
 }
 ```
+
+CLI equivalent (writes project scope): `claude plugin install maos@eko-claude-plugins --scope project`. Full schema: [Plugin settings](https://code.claude.com/docs/en/settings#plugin-settings).
 
 ## Plugin Structure
 
@@ -106,13 +112,13 @@ multi-agent-os/
 │       ├── worktree-gate.sh
 │       ├── auto-name-session.sh
 │       └── token-budget-gate.sh  ← GaaS token bloat detection
-├── commands/                 ← Slash commands
+├── commands/                 ← Slash commands (~15; representative subset shown)
 │   ├── sync.md
 │   ├── audit.md
-│   ├── status.md
+│   ├── agentic-status.md
 │   ├── worktree.md
 │   └── delegate.md
-├── agents/                   ← Agent definitions (9 agents)
+├── agents/                   ← Agent definitions (20+; representative subset shown)
 │   ├── orchestrator.md
 │   ├── sentinel-monitor.md
 │   ├── qa-validator.md
@@ -122,7 +128,7 @@ multi-agent-os/
 │   ├── naming-organizer.md   ← Digital organization & taxonomy
 │   ├── data-validator.md     ← Truth & evidence verification (11 validation types)
 │   └── validation-auditor.md ← Second-line active auditing
-├── skills/                   ← Skills (subdirectory format)
+├── skills/                   ← Skills (40+, subdirectory format; representative subset shown)
 │   ├── audit/SKILL.md
 │   ├── agent-select/SKILL.md
 │   ├── context-prep/SKILL.md
@@ -146,16 +152,28 @@ multi-agent-os/
 
 ## Available Commands
 
+> Namespaced as `/maos:<name>`. This table is **representative** — run `/help` for the full live list, or `/maos:maos-concierge` to be guided to the right command/agent/skill for your intent.
+
 | Command | Description |
 |---------|-------------|
-| `/sync` | Sync from framework to consumer |
-| `/audit` | On-demand session auditing |
-| `/status` | Display status map |
-| `/worktree` | Manage git worktrees |
-| `/delegate` | Delegate to sub-agent |
-| `/mvv` | Generate Mission, Vision, Values |
+| `/maos:agentic-status` | Human-readable status of the agentic system (git + agents + sentinel + locks). *(Was `/status` — renamed to avoid colliding with Claude Code's built-in `/status`.)* |
+| `/maos:sync` | Sync content from the framework to a consumer project |
+| `/maos:audit` | On-demand audit of sessions, tasks, and orchestration flows |
+| `/maos:worktree` | Manage git worktrees for multi-agent isolation |
+| `/maos:delegate` | Delegate a task to a specialized sub-agent with context prep |
+| `/maos:mvv` | Generate/update Mission, Vision, Values for a repository |
+| `/maos:auto-pilot` | Drive an operator goal end-to-end across sub-agents (GaaS/GaaC) |
+| `/maos:quiesce` | Drive the session to quiescence — no open ticket/gap/fix/PR, all PRs green |
+| `/maos:enhance-pipeline` | Run one feature through the full divergent→convergent→deliver lifecycle |
+| `/maos:founder-playbook` | Diagnose an AI-native startup's lifecycle stage and route to the right discipline |
+| `/maos:agentic-tool-forge` | Forge a raw intent into the optimal reusable agentic-tool |
+| `/maos:session-fission` | Non-destructively split a tangled session into focused new ones |
+
+Plus namespaced utilities (`/maos:auto-shard`, `/maos:code:*`, `/maos:analyze:*`) — see `/help`.
 
 ## Available Skills
+
+> **40+ skills** ship with MAOS — the table below is a **representative subset**. Model-invoked (Claude auto-selects by task) or explicit via `/maos:<skill>`. For the full live catalog and guidance on which to use, invoke `/maos:maos-concierge`.
 
 | Skill | Description |
 |-------|-------------|
@@ -170,8 +188,18 @@ multi-agent-os/
 | `ontological-analysis` | 8-dimension philosophical analysis |
 | `mvv-synthesis` | Mission/Vision/Values synthesis |
 | `response-compression` | Output verbosity control (none/lite/full/ultra) with role-based profiles |
+| `maos-concierge` | Onboarding/router/anchor for the **entire** MAOS framework (start here) |
+| `auto-pilot` / `quiesce` / `converge` / `convergence-engine` | Autonomous orchestration, session quiescence, and multi-proposal convergence |
+| `enhance-pipeline` | Divergent→convergent→deliver feature lifecycle |
+| `agentic-delegation` / `delegate-governance` | Delegation criteria + GaaS/GaaC governance prompts |
+| `agentic-tool-forge` / `-evaluator` / `-trainer` | Create, evaluate, and improve reusable agentic-tools |
+| `founder-playbook` / `founder-stage-*` | AI-native startup lifecycle disciplines (Idea/MVP/Launch/Scale) |
+| `morning-briefing` / `pulse` / `session-fission` | Context restoration, re-orientation, session splitting |
+| `rule-quality-tests` / `operator-quote-capture` / `pii-masking` / `slm-routing` | Governance, capture, PII detection, model routing |
 
 ## Available Agents
+
+> **20+ agents** ship with MAOS — representative subset below. Invoke via the `Task` tool (`subagent_type: maos:<agent>`) or see `/agents`.
 
 | Agent | Description |
 |-------|-------------|
@@ -179,11 +207,15 @@ multi-agent-os/
 | `sentinel-monitor` | Anomaly detection |
 | `qa-validator` | Quality assurance |
 | `consolidator` | Output synthesis |
-| `forge` | Meta-agent creator — creates specialized agents using Goldilocks Principle + RBAD |
+| `forge` | Meta-agent creator — specialized agents via Goldilocks Principle + RBAD |
 | `governance-auditor` | Standards governance, compliance auditing, pattern enforcement |
 | `naming-organizer` | Digital organization, taxonomy, naming conventions |
 | `data-validator` | Data validation, evidence capture, truth verification (11 types) |
 | `validation-auditor` | Second-line active auditing, drift detection, integrity verification |
+| `cascade-resolver` / `perspective-trio` / `persona-pipeline` | Convergence engine primitives — score-uplift, orthogonal-trio, review-board |
+| `code-reviewer` / `debugger` | Code review and systematic debugging specialists |
+| `data-analyst` / `legacy-archaeologist` / `memory-curator` | Analysis, legacy reverse-engineering, memory hygiene |
+| `gitops-engineer` / `founder-coach` / `consultants` | GitOps/K8s, startup coaching, expert thinking-archetypes |
 
 ## Hooks
 
