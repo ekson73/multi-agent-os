@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `convergence-guard` deterministic master-condition gate (v1.8.0)
+
+- **NEW executable** `bin/convergence-guard` — emits a deterministic `ALLOW` / `REFUSE` verdict (exit `0` / `3`, jq-parseable JSON) for a REFINE/SELECT convergence loop **before it runs**, enforcing the two CHECKABLE proxies of the `convergence-engine` master condition: (1) **verifier > generator** → prefer a deterministic oracle (`f=0`); a clean+passing oracle on a high-confidence output REFUSES the loop (selectivity gate — the self-critique paradox, Huang 2024); (2) **verifier independent** → a same-axis/same-brand verifier is REFUSED (correlated blind-spots). Fail-safe: missing/ambiguous inputs → REFUSE (enum validation + oracle/result dependency). **Independence by correlation-class** — same-brand peers (`claude-opus` vs `claude-sonnet`, `gpt-4` vs `gpt-4o`) REFUSE, not just identical tags; structured axis tags keep their discriminator. Built-in `--self-test` (12/12 assertions = its own deterministic oracle). POSIX Bash 3.2 + jq, Layer-Purity-clean.
+- **Why** — closes the gap where the engine's master condition was *documented* but **model-judged**; the gate is now **deterministic-harness-enforced** (matching the existing "stopping is deterministic-harness-enforced, never model self-judgment" invariant). Honest scoping: it enforces the two structural proxies, it does NOT fabricate an accuracy measurement it cannot observe at runtime (anti-theater).
+- `skills/convergence-engine/SKILL.md` Protocol Rules gain the mandated `convergence-guard` call (size kept < 12288B repo convention). First real executable dispatch of the engine (routing this very work-set) = the empirical R8 closure.
+- **Plugin bump** 1.7.0 → 1.8.0 (MINOR — additive executable + enforcement).
+
 ### Added — `convergence-engine` skill + 3 dependent agents (v1.7.0)
 
 - **NEW skill** `skills/convergence-engine/` (`SKILL.md` + `PRIOR-ART.md`) — an iterative multi-agent quality-convergence engine: a **deterministic harness × probabilistic cognition** kernel that routes one of three regimes by verifiability — **REFINE** (self-improve loop) · **SELECT** (best-of-N / debate→converge) · **DEFER** (HITL) — under a non-negotiable **master condition** (`verifier_accuracy > generator_accuracy` AND verifier independent) and a closed-form **economic stop** (`n* = 1 + ⌈ln((1−ρ)·g₀·V/C)/ln(1/ρ)⌉` → robustly ≤3–4 rounds). Floor = human-parity (~90%, NOT 100%); the 10–15% HITL residue is by design.

@@ -110,11 +110,11 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 
 ## Viability bar (settled)
 
-**Beat the human baseline (~90% single-pass, NOT 100%)** — humans hit higher numbers via the same multi-pass review this engine automates. Viable NOW for verifiable regimes; HITL on the residue.
+**Beat the human baseline (~90% single-pass, NOT 100%)** — humans reach higher via the same multi-pass review this automates. Viable NOW for verifiable regimes; HITL on the residue.
 
 ## Protocol Rules (invariants & bounds — non-negotiable)
 
-- Master condition holds (verifier > generator, independent) or **do not loop**.
+- Master condition (verifier > generator, independent) — **gate deterministically** (not model self-judgment): `bin/convergence-guard --generator <axis> --verifier <axis> [--oracle … --oracle-result pass|fail …]` → `0` ALLOW / `3` REFUSE (fail-safe: missing → REFUSE); on REFUSE → oracle · cross-axis verifier · or DEFER.
 - Stopping is **deterministic-harness-enforced** (`cascade-resolver` conditions / `n*`), never model self-judgment.
 - **Keep-best monotonicity**: never ship a round that regressed against the prior best.
 - Recursion depth ≤ 2; cascade attempts cannot spawn cascade.
@@ -126,7 +126,7 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 - ❌ Self-critique on a clean, high-confidence output (the paradox — degrades it)
 - ❌ Same-model / same-brand verifier (correlated blind-spots; violates the master condition)
 - ❌ **Model-judged stopping** (must be deterministic-harness-enforced)
-- ❌ Loop past `n*` (4–10× token cost for <1% gain)
+- ❌ Loop past `n*` (4–10× cost, <1% gain)
 - ❌ Hive-mind / shared-memory for the critique layer (correlates critics)
 - ❌ Suppressing a genuine HITL-residue ask (the 10–15% deferral is by design)
 - ❌ Treating any single benchmark % as ground-truth (contamination inflates 5–15 pts)
@@ -134,15 +134,15 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 
 ## Examples (invocation prompts — not a CLI)
 
-No binary/slash-command — invoke conversationally (frontmatter triggers):
+Invoke conversationally (frontmatter triggers) — no CLI:
 
-- **REFINE** — *"drive this draft to high quality with a few bounded diverse-review iterations"* → runs `perspective-trio` (breadth) then `cascade-resolver` (sequential uplift, keep-best), stops at `n*`.
-- **SELECT** — *"reconcile these competing proposals into one validated synthesis"* → routes to `converge` (best-of-N / debate→converge).
-- **AUTO** — *"converge this PR to high quality before asking me"* → classifies regime by verifiability, routes, and applies the Return-Gate before any HITL ask.
+- **REFINE** — *"drive this to high quality via a few bounded diverse-review iterations"* → `perspective-trio` (breadth) then `cascade-resolver` (uplift, keep-best), stop at `n*`.
+- **SELECT** — *"reconcile these competing proposals into one validated synthesis"* → `converge`.
+- **AUTO** — *"converge this PR before asking me"* → classify regime, route, apply the Return-Gate before any HITL ask.
 
 ## Prior art
 
-See [`PRIOR-ART.md`](PRIOR-ART.md) for the research grounding (Self-Refine, Reflexion, CRITIC, Huang 2024 self-correction limits, multi-agent-debate Du et al.) and the composed-primitive provenance. The SELECT regime's synthesis primitive (`converge`) carries its own 20+-artifact survey in `skills/converge/PRIOR-ART.md`.
+See [`PRIOR-ART.md`](PRIOR-ART.md) for research grounding (Self-Refine, Reflexion, CRITIC, Huang 2024, multi-agent-debate Du et al.) + composed-primitive provenance. `converge` has its own 20+-survey in `skills/converge/PRIOR-ART.md`.
 
 ## Related multi-agent-os artifacts
 
