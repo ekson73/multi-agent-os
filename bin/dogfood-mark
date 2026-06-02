@@ -111,6 +111,8 @@ if [ -n "$BACKFILL_FILE" ]; then
     bf_n=$((bf_n + 1))
     bf_tool=$(printf '%s' "$bf_line"   | jq -r '.tool // empty')
     bf_cyc=$(printf '%s'  "$bf_line"   | jq -r '.cycle_id // empty')
+    [ -n "$bf_tool" ] || { echo "backfill: row missing required 'tool': $bf_line" >&2; bf_fail=$((bf_fail + 1)); continue; }
+    [ -n "$bf_cyc" ]  || { echo "backfill: row missing required 'cycle_id': $bf_line" >&2; bf_fail=$((bf_fail + 1)); continue; }
     bf_status=$(printf '%s' "$bf_line" | jq -r '.status // "in-progress"')
     bf_rat=$(printf '%s' "$bf_line"    | jq -r 'if .ratified == true then "y" else "n" end')
     bf_note=$(printf '%s' "$bf_line"   | jq -r '.note // empty')
