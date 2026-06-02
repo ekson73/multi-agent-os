@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# MAOS — Convergence Engine · guard (deterministic master-condition gate)
+# Function: emit a deterministic ALLOW / REFUSE verdict for a REFINE/SELECT
+#   convergence loop, BEFORE the loop runs — enforcing the two CHECKABLE proxies
+#   of the master condition (skills/convergence-engine/SKILL.md §"master condition"):
+#     (1) verifier > generator  -> a deterministic oracle (f=0) is preferred where
+#         one exists (tests/compile/schema/lint/gitleaks); a clean+passing oracle on
+#         a high-confidence output REFUSES the loop (selectivity gate — over-review
+#         of clean output is the self-critique paradox, Huang 2024);
+#     (2) verifier independent   -> a same-axis/same-brand verifier is REFUSED
+#         (correlated blind-spots cannot catch the generator's errors).
+# Why this script exists: a "call the guard" Protocol Rule alone is model-judged;
+#   this makes the VERDICT deterministic + jq-parseable, so the orchestrator obtains
+#   an EXTERNAL gate instead of self-deciding whether the master condition holds —
+#   matching the existing invariant "stopping is deterministic-harness-enforced,
+#   never model self-judgment". It enforces the two STRUCTURAL proxies; it does NOT
+#   fabricate an accuracy measurement it cannot observe at runtime (anti-theater).
+# Fail-safe: missing / ambiguous inputs => REFUSE (never loop blind).
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only; no associative arrays,
+#   no ${var^^}. No organization-specific content — promotion-eligible per Layer Purity.
+# Exit codes ([C06]): 0 ALLOW · 3 REFUSE (distinct + scriptable) · 1 usage · 2 self-test-fail.
+set -euo pipefail
+
+GENERATOR=""; VERIFIER=""; ORACLE="none"; ORACLE_RESULT="na"; CONFIDENCE="uncertain"; FORMAT="json"
+
+usage() {
+  cat <<EOF
+MAOS convergence-guard — deterministic ALLOW/REFUSE gate for a convergence loop.
+
+Usage:
+  $(basename "$0") --generator <axis> --verifier <axis> [options]
+  $(basename "$0") --self-test
+
+Required:
+  --generator <axis>   brand/model/axis tag of the generator (e.g. claude-opus, axis:author)
+  --verifier  <axis>   brand/model/axis tag of the PROPOSED verifier (e.g. gpt, axis:reviewer)
+
+Options:
+  --oracle available|none        deterministic oracle present? (tests/compile/schema/lint/gitleaks) (default: none)
+  --oracle-result pass|fail|na   oracle outcome if available (default: na)
+  --confidence clean|uncertain   generator self-confidence on the single-pass output (default: uncertain)
+  --format json|text             output format (default: json)
+  --self-test                    run built-in assertion suite (deterministic oracle for THIS script)
+  --help
+
+Verdict logic (deterministic, ordered):
+  1. missing generator|verifier            -> REFUSE  (insufficient-inputs; fail-safe)
+  2. oracle=available & result=fail         -> ALLOW   (oracle-failed: a concrete defect justifies the loop)
+  3. oracle=available & result=pass & clean -> REFUSE  (clean-oracle-pass: selectivity gate, self-critique paradox)
+  4. verifier axis == generator axis        -> REFUSE  (correlated-verifier: violates independence)
+  5. otherwise                              -> ALLOW   (independent verifier; master-condition proxies met)
+
+Exit: 0 ALLOW · 3 REFUSE · 1 usage · 2 self-test-fail.
+EOF
+}
+
+# Normalize an axis tag for comparison: lowercase, strip surrounding whitespace.
+norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+
+emit() { # $1=verdict $2=reason $3=recommended_action
+  local verdict="$1" reason="$2" action="$3"
+  if [ "$FORMAT" = "text" ]; then
+    printf '%s\t%s\t%s\n' "$verdict" "$reason" "$action"
+  elif command -v jq >/dev/null 2>&1; then
+    jq -nc --arg v "$verdict" --arg r "$reason" --arg a "$action" \
+      '{verdict:$v, reason:$r, recommended_action:$a}'
+  else
+    printf '{"verdict":"%s","reason":"%s","recommended_action":"%s"}\n' "$verdict" "$reason" "$action"
+  fi
+  [ "$verdict" = "ALLOW" ] && exit 0 || exit 3
+}
+
+# Pure verdict function (no I/O) — used by both main path and --self-test.
+# Echoes "VERDICT|reason"; callers split on '|'.
+decide() {
+  local gen ver orc orr conf
+  gen="$(norm "$1")"; ver="$(norm "$2")"; orc="$(norm "$3")"; orr="$(norm "$4")"; conf="$(norm "$5")"
+  if [ -z "$gen" ] || [ -z "$ver" ]; then
+    echo "REFUSE|insufficient-inputs"; return
+  fi
+  if [ "$orc" = "available" ] && [ "$orr" = "fail" ]; then
+    echo "ALLOW|oracle-failed-loop-justified"; return
+  fi
+  if [ "$orc" = "available" ] && [ "$orr" = "pass" ] && [ "$conf" = "clean" ]; then
+    echo "REFUSE|clean-oracle-pass-selectivity-gate"; return
+  fi
+  if [ "$gen" = "$ver" ]; then
+    echo "REFUSE|correlated-verifier-violates-independence"; return
+  fi
+  echo "ALLOW|independent-verifier-master-condition-met"
+}
+
+action_for() { # map reason -> recommended_action
+  case "$1" in
+    insufficient-inputs)                    echo "supply --generator and --verifier (fail-safe REFUSE)";;
+    oracle-failed-loop-justified)           echo "loop: fix the oracle-detected defect, then re-check the oracle";;
+    clean-oracle-pass-selectivity-gate)     echo "ship: do not over-review a clean oracle-passing output";;
+    correlated-verifier-violates-independence) echo "swap to a cross-axis/cross-brand verifier, or DEFER to HITL";;
+    independent-verifier-master-condition-met) echo "loop with the independent verifier";;
+    *)                                      echo "review inputs";;
+  esac
+}
+
+self_test() {
+  local fails=0 got want
+  assert() { # $1=want_verdict $2=want_reason $3..=decide-args
+    local wv="$1" wr="$2"; shift 2
+    got="$(decide "$@")"
+    if [ "$got" != "$wv|$wr" ]; then
+      echo "FAIL: decide($*) => '$got' (wanted '$wv|$wr')" >&2; fails=$((fails+1))
+    fi
+  }
+  # 1 fail-safe: missing verifier
+  assert REFUSE insufficient-inputs "claude" "" "none" "na" "uncertain"
+  # 2 oracle failed -> loop justified
+  assert ALLOW oracle-failed-loop-justified "claude" "gpt" "available" "fail" "uncertain"
+  # 3 clean oracle pass -> selectivity gate REFUSE (self-critique paradox)
+  assert REFUSE clean-oracle-pass-selectivity-gate "claude" "gpt" "available" "pass" "clean"
+  # 4 same-axis verifier -> correlated REFUSE
+  assert REFUSE correlated-verifier-violates-independence "claude" "Claude" "none" "na" "uncertain"
+  # 5 independent verifier, no clean-oracle-pass -> ALLOW
+  assert ALLOW independent-verifier-master-condition-met "claude" "gpt" "none" "na" "uncertain"
+  # 6 oracle pass but UNCERTAIN -> independence still governs (probabilistic verify may add value)
+  assert ALLOW independent-verifier-master-condition-met "claude" "gpt" "available" "pass" "uncertain"
+  if [ "$fails" -eq 0 ]; then echo "convergence-guard self-test: 6/6 PASS"; exit 0
+  else echo "convergence-guard self-test: $fails FAIL" >&2; exit 2; fi
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --generator) GENERATOR="${2:-}"; shift 2;;
+    --verifier) VERIFIER="${2:-}"; shift 2;;
+    --oracle) ORACLE="${2:-}"; shift 2;;
+    --oracle-result) ORACLE_RESULT="${2:-}"; shift 2;;
+    --confidence) CONFIDENCE="${2:-}"; shift 2;;
+    --format) FORMAT="${2:-}"; shift 2;;
+    --self-test) self_test;;
+    --help|-h) usage; exit 0;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 1;;
+  esac
+done
+
+result="$(decide "$GENERATOR" "$VERIFIER" "$ORACLE" "$ORACLE_RESULT" "$CONFIDENCE")"
+verdict="${result%%|*}"; reason="${result#*|}"
+emit "$verdict" "$reason" "$(action_for "$reason")"
