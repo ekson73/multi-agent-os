@@ -70,6 +70,24 @@ emit() { # $1=verdict $2=reason $3=recommended_action
   [ "$verdict" = "ALLOW" ] && exit 0 || exit 3
 }
 
+# Map a tag to a correlation CLASS so the independence gate catches same-brand/same-axis
+# PEERS, not just identical strings: model-family tags collapse to their brand
+# (claude-opus & claude-sonnet => claude => correlated => REFUSE); structured axis/role
+# tags keep their full discriminator (axis:author != axis:reviewer => independent => may ALLOW).
+correlation_key() {
+  local t; t="$(norm "$1")"
+  case "$t" in
+    claude*|anthropic*)                 echo "claude" ;;
+    gpt*|openai*|o1*|o3*|o4*|chatgpt*)  echo "openai" ;;
+    gemini*|google*|bard*)              echo "gemini" ;;
+    llama*|meta*)                       echo "meta" ;;
+    mistral*|mixtral*)                  echo "mistral" ;;
+    grok*|xai*)                         echo "xai" ;;
+    deepseek*)                          echo "deepseek" ;;
+    *)                                  echo "$t" ;;  # axis:/role:/custom — full tag discriminates
+  esac
+}
+
 # Pure verdict function (no I/O) — used by both main path and --self-test.
 # Echoes "VERDICT|reason"; callers split on '|'.
 decide() {
@@ -78,13 +96,25 @@ decide() {
   if [ -z "$gen" ] || [ -z "$ver" ]; then
     echo "REFUSE|insufficient-inputs"; return
   fi
+  # Enum validation (fail-safe: an unrecognized value REFUSES rather than falling through).
+  case "$orc"  in available|none)  ;; *) echo "REFUSE|invalid-oracle-flag";   return ;; esac
+  case "$orr"  in pass|fail|na)    ;; *) echo "REFUSE|invalid-oracle-result"; return ;; esac
+  case "$conf" in clean|uncertain) ;; *) echo "REFUSE|invalid-confidence";    return ;; esac
+  # Oracle/result dependency: available REQUIRES pass|fail; none REQUIRES na (no contradiction).
+  if [ "$orc" = "available" ] && [ "$orr" = "na" ]; then
+    echo "REFUSE|oracle-available-needs-result"; return
+  fi
+  if [ "$orc" = "none" ] && [ "$orr" != "na" ]; then
+    echo "REFUSE|oracle-none-result-contradiction"; return
+  fi
   if [ "$orc" = "available" ] && [ "$orr" = "fail" ]; then
     echo "ALLOW|oracle-failed-loop-justified"; return
   fi
   if [ "$orc" = "available" ] && [ "$orr" = "pass" ] && [ "$conf" = "clean" ]; then
     echo "REFUSE|clean-oracle-pass-selectivity-gate"; return
   fi
-  if [ "$gen" = "$ver" ]; then
+  # Independence by CORRELATION CLASS (not raw string) — same brand/axis => correlated => REFUSE.
+  if [ "$(correlation_key "$gen")" = "$(correlation_key "$ver")" ]; then
     echo "REFUSE|correlated-verifier-violates-independence"; return
   fi
   echo "ALLOW|independent-verifier-master-condition-met"
@@ -97,6 +127,11 @@ action_for() { # map reason -> recommended_action
     clean-oracle-pass-selectivity-gate)     echo "ship: do not over-review a clean oracle-passing output";;
     correlated-verifier-violates-independence) echo "swap to a cross-axis/cross-brand verifier, or DEFER to HITL";;
     independent-verifier-master-condition-met) echo "loop with the independent verifier";;
+    invalid-oracle-flag)                    echo "use --oracle available|none";;
+    invalid-oracle-result)                  echo "use --oracle-result pass|fail|na";;
+    invalid-confidence)                     echo "use --confidence clean|uncertain";;
+    oracle-available-needs-result)          echo "supply --oracle-result pass|fail when --oracle available";;
+    oracle-none-result-contradiction)       echo "drop --oracle-result (or set na) when --oracle none";;
     *)                                      echo "review inputs";;
   esac
 }
@@ -122,7 +157,19 @@ self_test() {
   assert ALLOW independent-verifier-master-condition-met "claude" "gpt" "none" "na" "uncertain"
   # 6 oracle pass but UNCERTAIN -> independence still governs (probabilistic verify may add value)
   assert ALLOW independent-verifier-master-condition-met "claude" "gpt" "available" "pass" "uncertain"
-  if [ "$fails" -eq 0 ]; then echo "convergence-guard self-test: 6/6 PASS"; exit 0
+  # 7 same brand, DIFFERENT model -> correlated REFUSE (the independence-class fix)
+  assert REFUSE correlated-verifier-violates-independence "claude-opus" "claude-sonnet" "none" "na" "uncertain"
+  # 8 same openai family (gpt-4 vs gpt-4o) -> correlated REFUSE
+  assert REFUSE correlated-verifier-violates-independence "gpt-4" "gpt-4o" "none" "na" "uncertain"
+  # 9 different axis discriminator -> independent ALLOW (axis tags keep full discriminator)
+  assert ALLOW independent-verifier-master-condition-met "axis:author" "axis:reviewer" "none" "na" "uncertain"
+  # 10 invalid oracle enum -> fail-safe REFUSE
+  assert REFUSE invalid-oracle-flag "claude" "gpt" "availabel" "na" "uncertain"
+  # 11 oracle available but result na (ambiguous) -> REFUSE
+  assert REFUSE oracle-available-needs-result "claude" "gpt" "available" "na" "uncertain"
+  # 12 oracle none but result pass (contradiction) -> REFUSE
+  assert REFUSE oracle-none-result-contradiction "claude" "gpt" "none" "pass" "uncertain"
+  if [ "$fails" -eq 0 ]; then echo "convergence-guard self-test: 12/12 PASS"; exit 0
   else echo "convergence-guard self-test: $fails FAIL" >&2; exit 2; fi
 }
 
