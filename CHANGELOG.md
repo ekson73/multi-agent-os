@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `dogfood-mark --backfill` manifest replay (v1.8.1)
+
+- **`bin/dogfood-mark --backfill <manifest.jsonl>`** — implements the spec §6 Phase-2 backfill (manifest path): batch-replays an evidence-bearing JSONL manifest (one `{tool,cycle_id,status?,ratified?,evidence[]?,note?}` object per line), **re-invoking `dogfood-mark` per row** so all existing validation, the anti-theater `complete`-requires-`ratified`+`evidence` gate, idempotency, and the atomic lock are reused (DRY — no logic duplicated). **Anti-hallucination**: a `complete` row without evidence is REFUSED and tallied as failed — the ≥2 gate is met by **real history, never inflation**. `--dry-run` supported; blank/`#`-comment lines skipped.
+- **NEW fixture** `docs/dogfood-backfill-example.jsonl` — honest manifest recording the `convergence-engine` tool's real cycles (001 complete = materialization PR #104; 002 in-progress = first executable dispatch PR #106). Tally is truthful (`1/2`, gate NOT-yet-met) — the fix makes counting *real*, it does not game the gate. Closes the operator-flagged "cycle counting was theater (nobody tallied)".
+- **Honest scoping**: Phase 2.1 (auto-*deriving* a manifest by scanning ASH journals / changelogs / transcripts) is **deliberately deferred** — that heuristic prose-scanner is a separate, riskier effort and must not be faked. Spec §6 updated to reflect implemented-vs-deferred.
+- **Plugin bump** → 1.8.1 (PATCH — additive flag on an existing primitive; stacks on the v1.8.0 `convergence-guard`).
+
 ### Added — `convergence-guard` deterministic master-condition gate (v1.8.0)
 
 - **NEW executable** `bin/convergence-guard` — emits a deterministic `ALLOW` / `REFUSE` verdict (exit `0` / `3`, jq-parseable JSON) for a REFINE/SELECT convergence loop **before it runs**, enforcing the two CHECKABLE proxies of the `convergence-engine` master condition: (1) **verifier > generator** → prefer a deterministic oracle (`f=0`); a clean+passing oracle on a high-confidence output REFUSES the loop (selectivity gate — the self-critique paradox, Huang 2024); (2) **verifier independent** → a same-axis/same-brand verifier is REFUSED (correlated blind-spots). Fail-safe: missing/ambiguous inputs → REFUSE (enum validation + oracle/result dependency). **Independence by correlation-class** — same-brand peers (`claude-opus` vs `claude-sonnet`, `gpt-4` vs `gpt-4o`) REFUSE, not just identical tags; structured axis tags keep their discriminator. Built-in `--self-test` (12/12 assertions = its own deterministic oracle). POSIX Bash 3.2 + jq, Layer-Purity-clean.
