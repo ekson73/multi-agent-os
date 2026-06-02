@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# Agentic Session Harness (ASH) — decision-audit report CLI
+# Function: list/search agent decisions across sessions in table (default) / list / json,
+#   with --filter. Unions finalized journal entry.decisions[] + in-flight staging files.
+# Spec: docs/governance/ash-schema.md §17 (v1.6.0 decision-audit extension, Layer-2 Vek).
+# Why: surface WHY an agent decided + which sources it used + whether it diverged from SPECs
+#   (spec_alignment = the drift signal). Answers operator pain: agents drift from BR/FR/NFR/ADR.
+# Portability: AAIF cross-vendor — POSIX-portable Bash 3.2 + jq only; no associative arrays.
+# No organization-specific content — promotion-eligible per Layer Purity Rule 2.
+# Exit codes ([C06] AI-Native): 0 success (incl. empty) · 1 usage/filter error · 2 setup error.
+set -euo pipefail
+
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+case "$PROJECT_DIR" in /*) ;; *) echo "Invalid PROJECT_DIR (must be absolute): $PROJECT_DIR" >&2; exit 2 ;; esac
+[ -d "$PROJECT_DIR" ] || { echo "PROJECT_DIR does not exist: $PROJECT_DIR" >&2; exit 2; }
+AUDIT_DIR="$PROJECT_DIR/.claude/audit"
+
+usage() {
+  cat <<EOF
+ASH-lite decision-audit report — list/search agent decisions across sessions.
+
+Usage:
+  $(basename "$0") [--output table|list|json] [--filter KEY=VAL ...] [--sort KEY]
+
+Options:
+  --output FMT     table (default) · list · json ([C06] machine output)
+  --filter KEY=VAL Repeatable, AND-combined. Keys:
+                     spec_alignment = aligned|divergent|unverified   (the DRIFT signal)
+                     session        = session-id prefix
+                     spec_ref       = a SPEC id the decision touches (membership), e.g. ADR-006
+                     confidence     = high|medium|low
+                     agent          = agent-id (journaled rows only)
+                     tenant         = tenant string (journaled rows only)
+                     since          = ISO-8601 lower bound on ts (>=)
+                     until          = ISO-8601 upper bound on ts (<=)
+  --sort KEY       ts (default, newest-first) · alignment (divergent first) · session · confidence
+  --help
+
+Examples:
+  $(basename "$0")                                  # all decisions, table
+  $(basename "$0") --filter spec_alignment=divergent  # only drift
+  $(basename "$0") --filter spec_ref=ADR-006 --sort alignment
+  $(basename "$0") --output json | jq '.[] | select(.confidence=="low")'
+EOF
+  exit 0
+}
+
+OUTPUT="table"
+SORT="ts"
+FILTERS=""   # newline-delimited KEY=VAL
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --output) OUTPUT="${2:-}"; shift 2 ;;
+    --filter) FILTERS="${FILTERS}${2:-}
+"; shift 2 ;;
+    --sort) SORT="${2:-}"; shift 2 ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) echo "Unexpected arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+case "$OUTPUT" in table|list|json) ;; *) echo "--output must be table|list|json" >&2; exit 1 ;; esac
+case "$SORT" in ts|alignment|session|confidence) ;; *) echo "--sort must be ts|alignment|session|confidence" >&2; exit 1 ;; esac
+
+[ -d "$AUDIT_DIR" ] || { echo "No audit directory at $AUDIT_DIR — no sessions journaled yet." >&2; exit 2; }
+
+# --- gather per-decision rows (journal entry.decisions[] + staging files) ---
+gather_rows() {
+  # Journaled decisions (exclude the staging subtree). CWE-59: reject symlinks.
+  find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l -print 2>/dev/null \
+    | while IFS= read -r f; do cat "$f" 2>/dev/null; done \
+    | jq -c '
+        select((.decisions // []) | length > 0)
+        | .session as $s | .ts as $ets | .agent as $a | .tenant as $tn
+        | (.decisions[])
+        | { session:$s, id:(.id // "?"), ts:(.ts // $ets),
+            decision:(.decision // "?"), rationale:(.rationale // ""),
+            sources:(.sources // []), alternatives:(.alternatives // []),
+            spec_refs:(.spec_refs // []), spec_alignment:(.spec_alignment // "unverified"),
+            confidence:(.confidence // "medium"), nsrc:((.sources // []) | length),
+            agent:$a, tenant:$tn, src:"journaled" }' 2>/dev/null || true
+  # Staged decisions (in-flight, not yet merged by Stop).
+  if [ -d "$AUDIT_DIR/staging" ]; then
+    for f in "$AUDIT_DIR"/staging/*.decisions.jsonl; do
+      [ -f "$f" ] || continue
+      sid=$(basename "$f" .decisions.jsonl)
+      cat "$f" 2>/dev/null | jq -c --arg s "$sid" '
+        { session:$s, id:(.id // "?"), ts:(.ts // ""),
+          decision:(.decision // "?"), rationale:(.rationale // ""),
+          sources:(.sources // []), alternatives:(.alternatives // []),
+          spec_refs:(.spec_refs // []), spec_alignment:(.spec_alignment // "unverified"),
+          confidence:(.confidence // "medium"), nsrc:((.sources // []) | length),
+          agent:null, tenant:null, src:"staged" }' 2>/dev/null || true
+    done
+  fi
+}
+
+ROWS=$(gather_rows | jq -sc '.' 2>/dev/null || echo '[]')
+
+# --- apply filters (each via --arg; AND-combined; unknown key → exit 1) ---
+apply_filter() {
+  local k="$1" v="$2"
+  case "$k" in
+    spec_alignment) ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select(.spec_alignment == $v)]') ;;
+    confidence)     ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select(.confidence == $v)]') ;;
+    session)        ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select(.session | startswith($v))]') ;;
+    spec_ref)       ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select((.spec_refs // []) | index($v))]') ;;
+    agent)          ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select(.agent == $v)]') ;;
+    tenant)         ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select(.tenant == $v)]') ;;
+    since)          ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select((.ts // "") >= $v)]') ;;
+    until)          ROWS=$(printf '%s' "$ROWS" | jq -c --arg v "$v" '[.[] | select((.ts // "") <= $v)]') ;;
+    *) echo "Unknown filter key: $k (valid: spec_alignment|confidence|session|spec_ref|agent|tenant|since|until)" >&2; exit 1 ;;
+  esac
+}
+
+while IFS= read -r flt; do
+  [ -n "$flt" ] || continue
+  case "$flt" in *=*) ;; *) echo "Filter must be KEY=VAL: $flt" >&2; exit 1 ;; esac
+  apply_filter "${flt%%=*}" "${flt#*=}"
+done <<EOF
+$FILTERS
+EOF
+
+# --- sort ---
+case "$SORT" in
+  ts)         ROWS=$(printf '%s' "$ROWS" | jq -c 'sort_by(.ts) | reverse') ;;
+  session)    ROWS=$(printf '%s' "$ROWS" | jq -c 'sort_by(.session)') ;;
+  confidence) ROWS=$(printf '%s' "$ROWS" | jq -c 'sort_by(if .confidence=="low" then 0 elif .confidence=="medium" then 1 else 2 end)') ;;
+  alignment)  ROWS=$(printf '%s' "$ROWS" | jq -c 'sort_by(if .spec_alignment=="divergent" then 0 elif .spec_alignment=="unverified" then 1 else 2 end)') ;;
+esac
+
+COUNT=$(printf '%s' "$ROWS" | jq 'length')
+
+# --- render ---
+if [ "$OUTPUT" = "json" ]; then
+  printf '%s\n' "$ROWS" | jq '.'
+  exit 0
+fi
+
+if [ "$OUTPUT" = "list" ]; then
+  printf '%s\n' "$ROWS" | jq -r '.[] |
+    "● [\(.session[0:8])] \(.id)  alignment=\(.spec_alignment) confidence=\(.confidence) sources=\(.nsrc) [\(.src)]\n" +
+    "  decision : \(.decision)\n" +
+    (if (.rationale // "") != "" then "  rationale: \(.rationale)\n" else "" end) +
+    (if (.spec_refs // [] | length) > 0 then "  specs    : \(.spec_refs | join(", "))\n" else "" end)'
+  echo "── $COUNT decision(s)"
+  exit 0
+fi
+
+# table (default) — bash-3.2-safe alignment via printf; decision truncated to 46 chars.
+if [ "$COUNT" -eq 0 ]; then
+  echo "No decisions match. (capture with: bin/agentic-decide --decision … ; or none journaled yet)"
+  exit 0
+fi
+printf '%-10s %-7s %-11s %-6s %4s %-16s %s\n' "SESSION" "DEC" "ALIGN" "CONF" "#SRC" "SPEC_REFS" "DECISION"
+printf '%-10s %-7s %-11s %-6s %4s %-16s %s\n' "--------" "---" "-----" "----" "----" "---------" "--------"
+printf '%s\n' "$ROWS" | jq -r '.[] |
+  [ (.session[0:8]), .id, .spec_alignment, .confidence, (.nsrc|tostring),
+    ((.spec_refs // []) | join(",") | .[0:15]),
+    (.decision | gsub("\n";" ") | .[0:46]) ] | @tsv' \
+  | while IFS=$(printf '\t') read -r ses dec align conf nsrc specs decision; do
+      printf '%-10s %-7s %-11s %-6s %4s %-16s %s\n' "$ses" "$dec" "$align" "$conf" "$nsrc" "$specs" "$decision"
+    done
+echo "── $COUNT decision(s) · filter sort=$SORT"

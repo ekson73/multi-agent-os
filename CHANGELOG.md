@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Agentic Session Harness (ASH) engine (Layer-1 community promotion)
+
+- **Promoted the generic, vendor-neutral session-observability engine** from a host product (vek-im/vkl-rct-list-web) per the operator's documented Track A rename-map. Layer-Purity clean (verified by `bin/check-layer-purity`). New:
+  - `skills/agentic-session-harness/` — self-contained engine bundle: `SPEC.md` (FROZEN-17 schema), `bin/agentic-{walkthrough,decisions,decide,reindex,fix-dangling-symlinks}` (renamed from `ash-*`), `hooks/{link,resume,stop-fallback,decide-merge,lib}.sh` (dropped `ash-` prefix). CLIs source `../hooks/lib.sh` relatively. Smoke-tested: lib loads + all CLIs run `--help`.
+  - `skills/walkthrough-concierge/` — teach/route/anchor concierge over the engine (sibling of `maos-concierge`); de-coupled from org-specifics.
+  - `skills/decision-capture/` — WHEN to call `agentic-decide`.
+  - `bin/check-layer-purity` — Layer-Purity verification utility.
+- **Opt-in activation**: hooks ship as files (NOT auto-wired) so ASH never forces journaling on consumers.
+- **Sentinel coexistence**: ASH journals (`.claude/audit/<YYYY-MM>/<DD>.jsonl`) and Sentinel traces (`session_*.jsonl`) share the sink without collision — complementary (decision-audit vs anomaly-guard).
+- **Promotion note**: accelerated past the dogfood gate via explicit operator override 2026-06-02 (audit-trailed); the Vek corporate Layer-2 overlay promotes separately to the private toolkit.
+
 ### Fixed — README install/config/usage drift (docs-only)
 
 - **Installation commands were incorrect and would fail if followed**: README used `claude plugins marketplace add` / `claude plugins install multi-agent-os` (a `claude plugins` shell subcommand that does not exist) and the wrong artifact name (`multi-agent-os` is the **repo**; the **plugin is `maos`** per `plugin.json`). Corrected to the official in-session `/plugin marketplace add ekson73/eko-claude-plugins` + `/plugin install maos@eko-claude-plugins` (verified against code.claude.com/docs), with the `/maos:<name>` namespace clarified, `claude --plugin-dir`/`claude plugin validate` for local dev, and a corrected **project/team** block using `extraKnownMarketplaces` + `enabledPlugins` in `.claude/settings.json` (the prior `{"plugins":["/path"]}` shape was invalid). Same fix applied to `install/DEPRECATED.md`.

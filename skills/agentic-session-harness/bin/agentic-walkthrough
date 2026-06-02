@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# Agentic Session Harness (ASH) — walkthrough auditor CLI (human audit interface)
+# Function: read journal entry + transcript pointer, emit markdown timeline OR raw JSON.
+# Spec: docs/governance/ash-schema.md §6 jq queries + §"output spec"
+# Usage: bin/agentic-walkthrough <session_id_prefix> [--raw|--md] [--transcript]
+# Portability: AAIF cross-vendor compatible — uses POSIX-portable Bash + jq; no host-specific primitives.
+# No organization-specific content — promotion-eligible per Layer Purity Rule 2.
+set -euo pipefail
+
+usage() {
+  cat <<EOF
+ASH-lite walkthrough auditor
+
+Usage:
+  $(basename "$0") <session_id_prefix> [options]
+  $(basename "$0") --today                 # list all sessions today
+  $(basename "$0") --violations             # list sessions with compliance violations
+  $(basename "$0") --unindexed              # list sessions w/ transcript but no journal entry
+  $(basename "$0") --help
+
+Options:
+  --raw                  Emit raw journal JSON instead of markdown
+  --md                   Emit markdown timeline (default)
+  --transcript           Also dump linked transcript path/size
+  --origin-prompt        Extract operator_directives.sequence[0].verbatim where kind==origin_prompt (v1.3.0 sparse field)
+  --source-context       Extract source_context object pretty-printed (v1.3.0 sparse field)
+  --operator-directives  Extract operator_directives.sequence as compact directive list (v1.3.0 sparse field)
+  --outcome              Extract outcome object pretty-printed (v1.3.0 sparse field)
+
+Examples:
+  $(basename "$0") 30735a70                                 # markdown walkthrough
+  $(basename "$0") 30735a70 --origin-prompt                 # extract verbatim seed prompt
+  $(basename "$0") 30735a70 --operator-directives           # list all DAG directives
+  $(basename "$0") --today
+  $(basename "$0") --violations
+EOF
+  exit 0
+}
+
+# Entry-point sanity check — PROJECT_DIR comes from operator-controlled context
+# (CLAUDE_PROJECT_DIR env OR git toplevel). Treated as TRUSTED per threat model:
+# this CLI runs locally on operator's own machine, not as a server. Defense-in-depth
+# requires it to be an absolute path that exists.
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+case "$PROJECT_DIR" in /*) ;; *) echo "Invalid PROJECT_DIR (must be absolute): $PROJECT_DIR" >&2; exit 2 ;; esac
+[ -d "$PROJECT_DIR" ] || { echo "PROJECT_DIR does not exist: $PROJECT_DIR" >&2; exit 2; }
+
+AUDIT_DIR="$PROJECT_DIR/.claude/audit"
+
+[ $# -eq 0 ] && usage
+
+MODE="md"
+WITH_TRANSCRIPT=0
+QUERY=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --raw) MODE="raw"; shift ;;
+    --md) MODE="md"; shift ;;
+    --transcript) WITH_TRANSCRIPT=1; shift ;;
+    --today) QUERY="today"; shift ;;
+    --violations) QUERY="violations"; shift ;;
+    --unindexed) QUERY="unindexed"; shift ;;
+    --origin-prompt) MODE="origin-prompt"; shift ;;
+    --source-context) MODE="source-context"; shift ;;
+    --operator-directives) MODE="operator-directives"; shift ;;
+    --outcome) MODE="outcome"; shift ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) QUERY="$1"; shift ;;
+  esac
+done
+
+# --unindexed: read-only diff of canonical transcripts vs journal. Tolerates a missing AUDIT_DIR
+# (treats the journal as empty). The WRITE counterpart lives in bin/agentic-reindex (SRP).
+if [ "$QUERY" = "unindexed" ]; then
+  ENCODED=$(printf '%s' "$PROJECT_DIR" | sed 's|[/.]|-|g')   # same convention as link.sh
+  CANON="${ASH_CANON_DIR:-$HOME/.claude/projects/$ENCODED}"
+  [ -d "$CANON" ] || { echo "No canonical transcript dir at $CANON" >&2; exit 2; }
+  UT_C=$(mktemp); UT_J=$(mktemp); trap 'rm -f "$UT_C" "$UT_J"' EXIT
+  for uf in "$CANON"/*.jsonl; do
+    [ -e "$uf" ] || continue
+    ub=$(basename "$uf" .jsonl)
+    case "$ub" in *[!a-zA-Z0-9-]*) continue ;; esac
+    printf '%s\n' "$ub"
+  done | sort -u > "$UT_C"
+  if [ -d "$AUDIT_DIR" ]; then
+    find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+      | jq -r '.session // empty' 2>/dev/null | sort -u > "$UT_J"
+  else
+    : > "$UT_J"
+  fi
+  UN=$(comm -23 "$UT_C" "$UT_J" | wc -l | tr -d ' ')
+  echo "# Unindexed sessions (transcript present, no journal entry): $UN"
+  comm -23 "$UT_C" "$UT_J"
+  [ "$UN" -gt 0 ] && echo "# → run: bin/agentic-reindex --backfill   to index these"
+  exit 0
+fi
+
+[ -d "$AUDIT_DIR" ] || { echo "No audit directory at $AUDIT_DIR — no sessions journaled yet." >&2; exit 2; }
+
+case "$QUERY" in
+  today)
+    M=$(date -u +%Y-%m); D=$(date -u +%d)
+    # CWE-22 defense: validate date components (defense vs hypothetical TZ tampering)
+    case "$M" in [0-9][0-9][0-9][0-9]-[0-9][0-9]) ;; *) echo "Invalid month format: $M" >&2; exit 1 ;; esac
+    case "$D" in [0-9][0-9]) ;; *) echo "Invalid day format: $D" >&2; exit 1 ;; esac
+    F="$AUDIT_DIR/$M/$D.jsonl"
+    [ -f "$F" ] || { echo "No sessions today ($M/$D)." >&2; exit 0; }
+    # v1.4.0 adds optional hook_duration_ms / hook_kind. Render a `dur` column
+    # showing seconds when present, "-" otherwise so pre-v1.4.0 entries align.
+    jq -r '
+      . as $e
+      | ($e.hook_duration_ms // null) as $d_ms
+      | (if $d_ms == null then "-" else (($d_ms / 1000) | tostring) + "s" end) as $dur
+      | "\($e.ts) | \($e.session[0:8]) | dur=\($dur) | \($e.hook_kind // $e.agent) | \($e.goal // "?")"
+    ' "$F"
+    exit 0
+    ;;
+  violations)
+    # CWE-59 defense: -type f ! -type l rejects symlinks planted in audit dir
+    find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+      | jq -c 'select(.compliance_flags[]?.status == "violated")' \
+      | jq -r '"\(.ts) | \(.session[0:8]) | \(.compliance_flags | map(select(.status == "violated")) | map("\(.spec_id): \(.note)") | join(" | "))"'
+    exit 0
+    ;;
+esac
+
+# CWE-78 defense: validate QUERY is alnum + hyphens (UUID-like prefix) before use in jq
+case "$QUERY" in
+  *[!a-zA-Z0-9-]*|"") echo "Invalid session_id prefix: must be alphanumeric + hyphens only" >&2; exit 1 ;;
+esac
+
+# Find entry by session_id prefix.
+# CWE-59 defense: -type f ! -type l rejects symlinks. jq --arg escapes QUERY safely.
+ENTRY=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+  | jq -c --arg pfx "$QUERY" 'select((.session // "") | startswith($pfx))' \
+  | head -n1)
+
+[ -n "$ENTRY" ] || { echo "No session found with prefix: $QUERY" >&2; exit 3; }
+
+# --- v1.3.0 sparse-field extraction modes (Layer-2 extension over Layer-1 frozen-17) ---
+# Each gracefully falls back to v1.2.1 base fields when v1.3.0 fields absent.
+
+if [ "$MODE" = "origin-prompt" ]; then
+  # CWE-defense: use // [] defensive accessor in case .operator_directives absent (v1.2.1 entry)
+  ORIGIN=$(printf '%s\n' "$ENTRY" | jq -r '
+    (.operator_directives.sequence // [])
+    | map(select(.kind == "origin_prompt"))
+    | if length == 0 then empty else .[0].verbatim end
+  ')
+  if [ -n "$ORIGIN" ]; then
+    printf '%s\n' "$ORIGIN"
+  else
+    # Fallback: v1.2.1 base schema — surface goal field as 1-line proxy (mensagem em pt-BR conforme política de idioma do projeto)
+    printf '%s\n' "$ENTRY" | jq -r '"[fallback v1.2.1 base — directive origin_prompt não capturada; usando campo .goal como proxy de 1 linha]\n\(.goal // "—")"'
+  fi
+  exit 0
+fi
+
+if [ "$MODE" = "source-context" ]; then
+  printf '%s\n' "$ENTRY" | jq '.source_context // "(source_context não capturado — entrada v1.2.1 base; considere re-executar a sessão sob Stop subagent v1.3.0)"'
+  exit 0
+fi
+
+if [ "$MODE" = "operator-directives" ]; then
+  # CWE-defense: use // [] defensive accessor consistently — avoids jq error under set -euo pipefail on v1.2.1 entries
+  SEQ=$(printf '%s\n' "$ENTRY" | jq -c '.operator_directives.sequence // []')
+  if [ "$SEQ" = "[]" ]; then
+    printf '(operator_directives não capturado — entrada v1.2.1 base; considere re-executar a sessão sob Stop subagent v1.3.0)\n'
+  else
+    printf '%s\n' "$ENTRY" | jq -r '
+      (.operator_directives.sequence // [])
+      | map("D\(.id // "?") [\(.ts // "?")] kind=\(.kind // "?") modality=\(.modality // "text") deps=[\(.dependencies // [] | join(","))]\n  verbatim: \((.verbatim // "—") | gsub("\n"; " ⏎ ") | .[0:200])")
+      | join("\n\n")
+    '
+    printf '\n'
+  fi
+  exit 0
+fi
+
+if [ "$MODE" = "outcome" ]; then
+  printf '%s\n' "$ENTRY" | jq '.outcome // "(outcome não capturado — entrada v1.2.1 base; considere re-executar a sessão sob Stop subagent v1.3.0)"'
+  exit 0
+fi
+
+if [ "$MODE" = "raw" ]; then
+  printf '%s\n' "$ENTRY" | jq .
+  exit 0
+fi
+
+# Markdown timeline output (Sonnet R13 §2.2 format)
+printf '%s\n' "$ENTRY" | jq -r '
+"# ASH-lite walkthrough — session \(.session)\n" +
+"\n" +
+"**When**: \(.ts) UTC\n" +
+"**Tenant**: \(.tenant) · **Project**: \(.project) · **Agent**: \(.agent)\n" +
+"\n" +
+"## Goal\n\(.goal // "—")\n" +
+"\n" +
+"## Task\n\(.task // "—")\n" +
+"\n" +
+(if (.specs // [] | length) > 0 then "## Specs cited\n" + (.specs | map("- `\(.)`") | join("\n")) + "\n\n" else "" end) +
+(if (.decisions // [] | length) > 0 then "## Decisions\n" + (.decisions | map("### \(.id): \(.decision)\n**Rationale**: \(.rationale // "—")\n" + (if (.alternatives // [] | length) > 0 then "**Alternatives considered**: " + (.alternatives | join(", ")) + "\n" else "" end)) | join("\n")) + "\n" else "" end) +
+(if (.compliance_flags // [] | length) > 0 then "## Compliance flags\n" + (.compliance_flags | map("- **\(.spec_id)** [\(.status)] — \(.note // "")") | join("\n")) + "\n\n" else "" end) +
+(if (.files // [] | length) > 0 then "## Files touched\n" + (.files | map("- `\(.)`") | join("\n")) + "\n\n" else "" end) +
+(if (.tools // [] | length) > 0 then "## Tools invoked\n" + (.tools | unique | map("`\(.)`") | join(" · ")) + "\n\n" else "" end) +
+(if (.sources // [] | length) > 0 then "## Sources\n" + (.sources | map("- [\(.relevance // "?")] \(.type): \(.ref)") | join("\n")) + "\n\n" else "" end) +
+(if (.next_steps // [] | length) > 0 then "## Next steps\n" + (.next_steps | map("- \(.)") | join("\n")) + "\n\n" else "" end) +
+"\n---\n" +
+"**Transcript**: `\(.transcript_rel)`  \n" +
+"**Hash**: `\(.transcript_hash // "?")`\n"
+'
+
+if [ "$WITH_TRANSCRIPT" = "1" ]; then
+  TR_REL=$(printf '%s\n' "$ENTRY" | jq -r '.transcript_rel // empty')
+  # CWE-22 defense: validate transcript path is exactly within .claude/transcripts/ — rejects
+  # path-traversal payloads (e.g., ../../../../etc/passwd) injected into journal entries.
+  case "$TR_REL" in
+    .claude/transcripts/*.jsonl)
+      TR_ABS="$PROJECT_DIR/$TR_REL"
+      # Additional defense: resolved path must remain under $PROJECT_DIR/.claude/transcripts/
+      RESOLVED=$(readlink -f "$TR_ABS" 2>/dev/null || echo "$TR_ABS")
+      EXPECTED_PREFIX="$PROJECT_DIR/.claude/transcripts/"
+      case "$RESOLVED" in
+        "$EXPECTED_PREFIX"*|"$HOME/.claude/projects/"*)
+          if [ -L "$TR_ABS" ] || [ -f "$TR_ABS" ]; then
+            SIZE=$(wc -l < "$TR_ABS" 2>/dev/null | tr -d ' ')
+            printf '\n**Transcript lines**: %s · **Path resolves to**: %s\n' "$SIZE" "$RESOLVED"
+          else
+            printf '\n⚠ Transcript not available at: %s\n' "$TR_ABS"
+          fi
+          ;;
+        *)
+          printf '\n⚠ Transcript path escapes expected directory (rejected): %s\n' "$RESOLVED" >&2
+          ;;
+      esac
+      ;;
+    *)
+      printf '\n⚠ Invalid transcript_rel (must be .claude/transcripts/<uuid>.jsonl): %s\n' "$TR_REL" >&2
+      ;;
+  esac
+fi

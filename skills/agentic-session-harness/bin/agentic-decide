@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Agentic Session Harness (ASH) — in-session decision capture helper
+# Function: append ONE agent-decision record (decision + rationale + sources + spec-alignment)
+#   to the per-session staging journal. The Stop subagent later MERGES staging → entry.decisions[].
+# Spec: docs/governance/ash-schema.md §17 (v1.6.0 decision-audit extension, Layer-2 Vek; Layer-1 frozen).
+# Why: agent reasoning is EPHEMERAL (Coverge "AI audit trail" 2026) — decisions[] is never populated
+#   unless explicitly captured. This is the Tier-1 self-declared provenance write-path (no infra).
+# Portability: AAIF cross-vendor — POSIX-portable Bash 3.2 + jq only; no associative arrays, no ${var^^}.
+# No organization-specific content — promotion-eligible per Layer Purity Rule 2.
+set -euo pipefail
+
+# --- shared helpers (DRY per ADR-014) ---
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+case "$PROJECT_DIR" in /*) ;; *) echo "Invalid PROJECT_DIR (must be absolute): $PROJECT_DIR" >&2; exit 2 ;; esac
+[ -d "$PROJECT_DIR" ] || { echo "PROJECT_DIR does not exist: $PROJECT_DIR" >&2; exit 2; }
+ASH_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../hooks/lib.sh
+[ -f "$ASH_BIN_DIR/../hooks/lib.sh" ] && . "$ASH_BIN_DIR/../hooks/lib.sh" || true
+
+usage() {
+  cat <<EOF
+ASH-lite decision capture — record ONE agent decision (with sources + rationale) for audit.
+
+Usage:
+  $(basename "$0") --decision "<what>" [options]
+
+Required:
+  --decision "<text>"        What was decided (1 line)
+
+Options:
+  --rationale "<text>"       Why — evidence/reasoning (<=500 chars)
+  --source TYPE:REF:INFL     A source the decision was based on (repeatable).
+                             TYPE  = spec|file|link|field|variable|tool|transcript|mcp
+                             REF   = the spec-id / path / URL / field / var name
+                             INFL  = attended|cited|ignored  (OTel agent.output.source.influence)
+                             (INFL optional; defaults to "attended")
+  --spec-ref ID              A SPEC this decision touches, e.g. ADR-006 (repeatable)
+  --spec-alignment VAL       aligned|divergent|unverified  (default: unverified) — the DRIFT signal
+  --alt "<text>"             An alternative considered (repeatable)
+  --confidence VAL           high|medium|low  (default: medium)
+  --id ID                    Decision id (default: auto DEC-<n> per session)
+  --session SID              Override session id (default: \$CLAUDE_CODE_SESSION_ID → newest transcript)
+  --help
+
+Examples:
+  $(basename "$0") --decision "Use column-based RLS, not schema-per-tenant" \\
+    --rationale "Lower migration cost; tenant_id filter sufficient for pilot scale" \\
+    --source spec:ADR-006:cited --source file:docs/manifesto/VKL-MANIFESTO.md:attended \\
+    --spec-ref ADR-006 --spec-ref NFR-003 --spec-alignment aligned --confidence high
+EOF
+  exit 0
+}
+
+[ $# -eq 0 ] && usage
+
+DECISION=""
+RATIONALE=""
+SPEC_ALIGN="unverified"
+CONFIDENCE="medium"
+DEC_ID=""
+SID="${CLAUDE_CODE_SESSION_ID:-}"
+# Accumulate repeatables as newline-delimited; sliced into JSON via jq -R -s at the end.
+SOURCES_RAW=""
+SPECREFS_RAW=""
+ALTS_RAW=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --decision) DECISION="${2:-}"; shift 2 ;;
+    --rationale) RATIONALE="${2:-}"; shift 2 ;;
+    --source) SOURCES_RAW="${SOURCES_RAW}${2:-}
+"; shift 2 ;;
+    --spec-ref) SPECREFS_RAW="${SPECREFS_RAW}${2:-}
+"; shift 2 ;;
+    --alt) ALTS_RAW="${ALTS_RAW}${2:-}
+"; shift 2 ;;
+    --spec-alignment) SPEC_ALIGN="${2:-}"; shift 2 ;;
+    --confidence) CONFIDENCE="${2:-}"; shift 2 ;;
+    --id) DEC_ID="${2:-}"; shift 2 ;;
+    --session) SID="${2:-}"; shift 2 ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) echo "Unexpected arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+[ -n "$DECISION" ] || { echo "--decision is required" >&2; exit 1; }
+
+# Validate enums (fail-closed; the drift signal must be trustworthy).
+case "$SPEC_ALIGN" in aligned|divergent|unverified) ;; *) echo "--spec-alignment must be aligned|divergent|unverified" >&2; exit 1 ;; esac
+case "$CONFIDENCE" in high|medium|low) ;; *) echo "--confidence must be high|medium|low" >&2; exit 1 ;; esac
+
+# Resolve session id: explicit → env → newest canonical transcript by mtime (active session).
+if [ -z "$SID" ]; then
+  ENC=$(printf '%s' "$PROJECT_DIR" | sed 's#/#-#g')
+  TDIR="$HOME/.claude/projects/$ENC"
+  if [ -d "$TDIR" ]; then
+    SID=$(ls -t "$TDIR"/*.jsonl 2>/dev/null | head -n1 | xargs -I{} basename {} .jsonl 2>/dev/null || true)
+  fi
+fi
+[ -n "$SID" ] || { echo "Cannot resolve session id (set --session or \$CLAUDE_CODE_SESSION_ID)" >&2; exit 2; }
+# CWE-78 defense: session id must be UUID-like (alnum + hyphens only).
+case "$SID" in *[!a-zA-Z0-9-]*|""|.|..) echo "Invalid session id: $SID" >&2; exit 1 ;; esac
+
+# Staging dir lives at PROJECT root (not worktree) — always under $PROJECT_DIR/.claude/audit/staging.
+STAGING_DIR="$PROJECT_DIR/.claude/audit/staging"
+mkdir -p "$STAGING_DIR"
+STAGING_FILE="$STAGING_DIR/$SID.decisions.jsonl"
+
+# Auto-assign DEC id (count existing staged lines + 1) when not given.
+if [ -z "$DEC_ID" ]; then
+  N=0
+  [ -f "$STAGING_FILE" ] && N=$(grep -c '' "$STAGING_FILE" 2>/dev/null || echo 0)
+  DEC_ID="DEC-$((N + 1))"
+fi
+
+TS=$(command -v ash_iso_ms >/dev/null 2>&1 && ash_iso_ms || date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Build sources[] = [{type,ref,influence}] from "TYPE:REF:INFL" lines.
+# Split: type = before FIRST colon; influence = after LAST colon (∈ enum) else default; ref = middle.
+SOURCES_JSON=$(printf '%s' "$SOURCES_RAW" | while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  styp="${line%%:*}"; rest="${line#*:}"
+  last="${rest##*:}"
+  if [ "$last" = "attended" ] || [ "$last" = "cited" ] || [ "$last" = "ignored" ]; then
+    sinf="$last"; sref="${rest%:*}"
+  else
+    sinf="attended"; sref="$rest"
+  fi
+  jq -nc --arg t "$styp" --arg r "$sref" --arg i "$sinf" '{type:$t, ref:$r, influence:$i}'
+done | jq -sc '.')
+
+specrefs_json() { printf '%s' "$1" | jq -R -s 'split("\n") | map(select(length>0))'; }
+SPECREFS_JSON=$(specrefs_json "$SPECREFS_RAW")
+ALTS_JSON=$(specrefs_json "$ALTS_RAW")
+
+# Compose the decision record — all dynamic values via --arg/--argjson (never interpolated).
+jq -nc \
+  --arg id "$DEC_ID" \
+  --arg ts "$TS" \
+  --arg decision "$DECISION" \
+  --arg rationale "$RATIONALE" \
+  --arg align "$SPEC_ALIGN" \
+  --arg conf "$CONFIDENCE" \
+  --argjson sources "$SOURCES_JSON" \
+  --argjson spec_refs "$SPECREFS_JSON" \
+  --argjson alternatives "$ALTS_JSON" \
+  '{
+     id: $id, ts: $ts, decision: $decision,
+     rationale: (if $rationale == "" then null else ($rationale[0:500]) end),
+     sources: $sources, spec_refs: $spec_refs, alternatives: $alternatives,
+     spec_alignment: $align, confidence: $conf
+   } | with_entries(select(.value != null and .value != [] and .value != ""))' \
+  >> "$STAGING_FILE"
+
+printf 'agentic-decide: staged %s for session %s → %s\n' "$DEC_ID" "${SID:0:8}" "${STAGING_FILE#$PROJECT_DIR/}" >&2

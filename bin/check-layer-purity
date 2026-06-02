@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Layer Purity verification — scans candidate-for-community files for organization-specific strings
+# Spec: docs/governance/promotion-readiness-checklist.md §"Layer Purity"
+# Origin: Track A.5 of ASH-lite portability refactor plan
+# Aligns with: ~/.claude/rules/layer-precedence-policy.md Rule 2 (Layer Purity)
+#
+# Usage:
+#   bin/check-layer-purity <file-or-glob> [<file-or-glob>...]
+#   bin/check-layer-purity --hooks      # shorthand: scan .claude/hooks/ash-*.sh
+#   bin/check-layer-purity --candidates # shorthand: scan all promotion candidates
+#   bin/check-layer-purity --json       # machine-readable output
+#
+# Exit codes:
+#   0 = clean (zero violations)
+#   1 = violations found
+#   2 = usage error / file not found
+set -euo pipefail
+
+# Organization-specific strings to flag (case-insensitive)
+# Add new patterns here; one regex per line, anchored as needed.
+PATTERNS=(
+  '\bvek\b'
+  '\bVKL-[0-9]+'
+  '\bVKS-[0-9]+'
+  '\bLGPD\b'
+  '\bVSAF\b'
+  '\bvector(inf)?\b'
+  '\bvek-list\b'
+  '\bvek-sales\b'
+  '\bvek-ai-toolkit\b'
+  '\bvek-claude-plugins\b'
+  '\bvek-list-pilot\b'
+  'vek\.atlassian\.net'
+  'vectorinf\.com\.br'
+)
+
+MODE="text"
+FILES=()
+
+usage() {
+  sed -n '2,15p' "$0"
+  exit 0
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage ;;
+    --json) MODE="json"; shift ;;
+    --hooks)
+      FILES+=(.claude/hooks/ash-link.sh .claude/hooks/ash-resume.sh .claude/hooks/ash-stop-fallback.sh)
+      shift ;;
+    --candidates)
+      FILES+=(.claude/hooks/ash-link.sh .claude/hooks/ash-resume.sh .claude/hooks/ash-stop-fallback.sh)
+      FILES+=(bin/ash-walkthrough)
+      [ -f docs/governance/agentic-session-harness-spec.md ] && FILES+=(docs/governance/agentic-session-harness-spec.md)
+      shift ;;
+    -*) echo "Unknown option: $1" >&2; exit 2 ;;
+    *) FILES+=("$1"); shift ;;
+  esac
+done
+
+[ ${#FILES[@]} -eq 0 ] && { echo "Usage: $(basename "$0") <file>... | --hooks | --candidates [--json]" >&2; exit 2; }
+
+# Build combined regex (alternation) for grep -E
+JOINED_RE="$(IFS='|'; echo "${PATTERNS[*]}")"
+
+VIOLATIONS=0
+RESULTS=()
+
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] || { echo "⚠ File not found: $f" >&2; continue; }
+  # -E extended regex, -i case-insensitive, -n line numbers, -H filename
+  while IFS= read -r line; do
+    VIOLATIONS=$((VIOLATIONS+1))
+    RESULTS+=("$line")
+  done < <(grep -EHniI "$JOINED_RE" "$f" 2>/dev/null || true)
+done
+
+if [ "$MODE" = "json" ]; then
+  printf '{"violations": %d, "patterns": %d, "details": [' "$VIOLATIONS" "${#PATTERNS[@]}"
+  first=1
+  for r in "${RESULTS[@]}"; do
+    [ $first -eq 1 ] && first=0 || printf ','
+    # Escape line for JSON
+    printf '%s' "$r" | jq -Rs .
+  done
+  printf ']}\n'
+else
+  if [ "$VIOLATIONS" -eq 0 ]; then
+    echo "✅ Layer Purity clean: 0 violations across ${#FILES[@]} file(s)"
+  else
+    echo "🚨 Layer Purity: $VIOLATIONS violation(s) found"
+    echo ""
+    printf '%s\n' "${RESULTS[@]}"
+    echo ""
+    echo "Patterns scanned: ${#PATTERNS[@]} organization-specific terms"
+    echo "Action: sanitize (use placeholders) OR keep file project-scoped per layer-precedence-policy Rule 2"
+  fi
+fi
+
+[ "$VIOLATIONS" -eq 0 ] && exit 0 || exit 1

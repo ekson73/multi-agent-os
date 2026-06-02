@@ -1,0 +1,402 @@
+#!/usr/bin/env bash
+# Agentic Session Harness (ASH) — reindex CLI (backfill + schema-upgrade + bounded enrich)
+# Function: re-derive the ASH journal index from the CANONICAL Claude Code transcripts
+#   (~/.claude/projects/<encoded-cwd>/*.jsonl — the source of truth). The journal under
+#   .claude/audit/ is a derived index written only at Stop; sessions that predate the hooks,
+#   missed Stop, or were journaled minimally are invisible/sub-indexed in bin/agentic-walkthrough.
+#   This tool backfills missing sessions, migrates genealogy-deficient entries up to the current
+#   schema, and (bounded) enriches the v1.3.0 genealogy fields.
+#
+# "reindex" semantics: there is NO separate index data-structure — the journal IS the index
+#   (one JSONL entry keyed by `.session`). "reindex" therefore means *re-derive/backfill the
+#   journal from the transcript source*, idempotently and non-destructively.
+#
+# NON-DESTRUCTIVE migrate: existing entries are PRESERVED; migrate only ADDS missing genealogy
+#   and a version/provenance marker. Rich realtime entries (already carrying operator_directives)
+#   are NEVER clobbered with heuristic data — they are skipped (use --force to intentionally
+#   re-derive, which DOES replace).
+#
+# Spec: docs/governance/ash-schema.md §16 (v1.5.0 provenance + reindex_meta) + §8 genealogy.
+# Sibling of: bin/agentic-fix-dangling-symlinks.sh (maintenance-tool, report-style, idempotent).
+# Read-only auditor sibling: bin/agentic-walkthrough (this tool is the WRITE counterpart).
+# Portability: AAIF cross-vendor — Bash 3.2 + jq only; no associative arrays, no ${var^^}.
+# No organization-specific content — promotion-eligible per Layer Purity Rule 2.
+set -euo pipefail
+
+ASH_REINDEX_VERSION="1.0.0"
+
+# --- source shared lib (relative to this script) ---
+ASH_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB="$ASH_BIN_DIR/../hooks/lib.sh"
+[ -r "$LIB" ] || { echo "lib.sh not found at $LIB" >&2; exit 2; }
+# shellcheck source=../hooks/lib.sh
+. "$LIB"
+
+usage() {
+  cat <<EOF
+ASH-lite reindex — backfill + schema-upgrade + bounded enrich
+
+Usage:
+  $(basename "$0") [mode] [options]
+
+Modes (default = --backfill):
+  --reconcile        Read-only report: indexed / not-indexed / orphan sets + version histogram
+  --backfill         Create journal entries for sessions that have a transcript but no entry
+  --migrate          ALSO non-destructively upgrade entries that lack genealogy (operator_directives)
+
+Options:
+  --dry-run          Show planned actions without writing (works with --backfill/--migrate)
+  --no-enrich        Sparse only (deterministic, zero genealogy) — escape for huge transcripts/CI
+  --force            Re-derive (REPLACE) even entries already complete — clobbers with reindex data
+  --session <pfx>    Limit to sessions whose id starts with <pfx>
+  --help
+
+Environment:
+  CLAUDE_PROJECT_DIR   Project root (default: git toplevel or \$PWD)
+  ASH_CANON_DIR        Override canonical transcript dir (default ~/.claude/projects/<encoded-cwd>)
+  ASH_ENRICH_MAX_BYTES Max transcript size to enrich (default 5000000=5MB); larger ⇒ sparse
+  ASH_ENRICH_CMD       Optional LLM-enrich command; receives transcript path \$1, emits JSON object.
+                       Unset ⇒ deterministic heuristic enrich.
+  ASH_TENANT           Tenant override (else .claude/ash-tenant → package.json → git basename)
+
+Examples:
+  $(basename "$0") --reconcile
+  $(basename "$0") --backfill --dry-run
+  $(basename "$0") --backfill --no-enrich
+  $(basename "$0") --migrate --session 30735a70
+EOF
+  exit 0
+}
+
+# --- args ---
+MODE="backfill"; DRY_RUN=0; ENRICH=1; FORCE=0; SESSION_PFX=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage ;;
+    --reconcile) MODE="reconcile"; shift ;;
+    --backfill) MODE="backfill"; shift ;;
+    --migrate|--upgrade) MODE="migrate"; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --no-enrich) ENRICH=0; shift ;;
+    --force) FORCE=1; shift ;;
+    --session) SESSION_PFX="${2:-}"; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+if [ -n "$SESSION_PFX" ]; then
+  case "$SESSION_PFX" in *[!a-zA-Z0-9-]*) echo "Invalid --session prefix (alnum + hyphens only)" >&2; exit 1 ;; esac
+fi
+
+# --- resolve dirs (PROJECT_DIR trusted-local; require absolute+exists) ---
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+case "$PROJECT_DIR" in /*) ;; *) echo "Invalid PROJECT_DIR (must be absolute): $PROJECT_DIR" >&2; exit 2 ;; esac
+[ -d "$PROJECT_DIR" ] || { echo "PROJECT_DIR does not exist: $PROJECT_DIR" >&2; exit 2; }
+
+AUDIT_DIR="$PROJECT_DIR/.claude/audit"
+ENCODED_CWD=$(printf '%s' "$PROJECT_DIR" | sed 's|[/.]|-|g')   # identical to link.sh
+CANON_DIR="${ASH_CANON_DIR:-$HOME/.claude/projects/$ENCODED_CWD}"
+ENRICH_MAX_BYTES="${ASH_ENRICH_MAX_BYTES:-5000000}"
+[ -d "$CANON_DIR" ] || { echo "No canonical transcript dir at $CANON_DIR — nothing to reindex." >&2; exit 2; }
+
+TENANT=$(ash_resolve_tenant "$PROJECT_DIR")
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+
+# --- helpers ---
+list_canon_sids() {
+  local f sid
+  for f in "$CANON_DIR"/*.jsonl; do
+    [ -e "$f" ] || continue
+    sid=$(basename "$f" .jsonl)
+    case "$sid" in *[!a-zA-Z0-9-]*) continue ;; esac
+    if [ -n "$SESSION_PFX" ]; then case "$sid" in "$SESSION_PFX"*) ;; *) continue ;; esac; fi
+    printf '%s\n' "$sid"
+  done
+}
+
+journal_sids() {
+  [ -d "$AUDIT_DIR" ] || return 0
+  find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+    | jq -r '.session // empty' 2>/dev/null | sort -u
+}
+
+# find_entry <sid> — set EXIST_VER / EXIST_HAS_GENEALOGY / EXIST_HAS_REINDEX_META / EXIST_JSON / EXIST_COUNT (empty/0 if absent).
+# Gathers EVERY matching entry across ALL day-files: multi-day sessions accrue one realtime entry
+# per active day (stop-fallback is idempotent per (session,day), NOT per session), so a session
+# may legitimately have N entries scattered across day buckets. Reindex CONSOLIDATES them into one
+# canonical entry (see remove_entry_all + the migrate/force branches). EXIST_JSON is the RICHEST
+# occurrence (has-genealogy, then highest schema_version) so the non-destructive merge preserves it.
+EXIST_VER=""; EXIST_HAS_GENEALOGY=0; EXIST_JSON=""; EXIST_COUNT=0; EXIST_HAS_REINDEX_META=0
+find_entry() {
+  local sid="$1" allmatch best
+  EXIST_VER=""; EXIST_HAS_GENEALOGY=0; EXIST_JSON=""; EXIST_COUNT=0; EXIST_HAS_REINDEX_META=0
+  [ -d "$AUDIT_DIR" ] || return 0
+  allmatch=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+    | jq -c --arg sid "$sid" 'select(.session==$sid)' 2>/dev/null || true)
+  [ -n "$allmatch" ] || return 0
+  EXIST_COUNT=$(printf '%s\n' "$allmatch" | jq -s 'length' 2>/dev/null || echo 0)
+  best=$(printf '%s\n' "$allmatch" | jq -cs '
+      sort_by(
+        (if (.operator_directives|type)=="object" then 1 else 0 end),
+        ((.schema_version // "1.2.1") | split(".") | map(tonumber? // 0))
+      ) | last // empty' 2>/dev/null || true)
+  [ -n "$best" ] || best=$(printf '%s\n' "$allmatch" | head -n1)
+  EXIST_JSON="$best"
+  EXIST_VER=$(printf '%s' "$best" | jq -r '.schema_version // "1.2.1"')
+  EXIST_HAS_GENEALOGY=$(printf '%s' "$best" | jq -r 'if (.operator_directives|type)=="object" then 1 else 0 end')
+  EXIST_HAS_REINDEX_META=$(printf '%s' "$best" | jq -r 'if (.reindex_meta|type)=="object" then 1 else 0 end')
+}
+
+# build_enrich <transcript_abs> — echo JSON genealogy object carrying an `_enrich_status` field
+#   (consumed + stripped by finalize). Status travels INSIDE the JSON because command-substitution
+#   runs this in a subshell, so a shell-global side-effect would be lost in the parent.
+build_enrich() {
+  local f="$1"
+  [ "$ENRICH" = "1" ] || { printf '{"_enrich_status":"sparse"}'; return 0; }
+  local bytes; bytes=$(wc -c < "$f" 2>/dev/null | tr -d ' ' || echo 0)
+  if [ "${bytes:-0}" -gt "$ENRICH_MAX_BYTES" ]; then printf '{"_enrich_status":"skipped-too-large"}'; return 0; fi
+
+  if [ -n "${ASH_ENRICH_CMD:-}" ]; then
+    local llm; llm=$("$ASH_ENRICH_CMD" "$f" 2>/dev/null || true)
+    if [ -n "$llm" ] && printf '%s' "$llm" | jq -e . >/dev/null 2>&1; then
+      printf '%s' "$llm" | jq -c '. + {_enrich_status:"llm"}'; return 0
+    fi
+  fi
+
+  local first_ts git_branch git_sha
+  first_ts=$(ash_transcript_first_ts "$f")
+  git_branch=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+  git_sha=$(git -C "$PROJECT_DIR" rev-parse --short HEAD 2>/dev/null || echo "")
+  jq -rn --arg ts "$first_ts" --arg branch "$git_branch" --arg sha "$git_sha" '
+    ( [ inputs | select(.type=="user" and (.message.content|type)=="string")
+        | {ts:(.timestamp // null), verbatim:(.message.content)} ] ) as $um
+    | ( $um | to_entries | map( . as $e | {
+          id: ("D" + (.key|tostring)),
+          ts: $e.value.ts,
+          kind: (
+            if $e.key==0 then "origin_prompt"
+            elif ($e.value.verbatim|test("^\\s*(n[aã]o|don'"'"'t|never|nunca)";"i")) then "directive_dont"
+            elif ($e.value.verbatim|test("na verdade|corrig|est[aá] errado|wrong|revert";"i")) then "correction"
+            else "directive_do" end),
+          modality: "text",
+          verbatim: ($e.value.verbatim | gsub("[\\n\\r\\t]";" ") | gsub("  +";" ") | .[0:500]),
+          dependencies: (if $e.key==0 then [] else ["D"+(($e.key-1)|tostring)] end),
+          tags: [], effect_refs: []
+        }) ) as $seq
+    | ( [ $um[].verbatim ] | join(" ") ) as $alltext
+    | ( [ $alltext | scan("[A-Z]{2,}-[0-9]+") ] | unique | map({type:"jira", ref:.}) ) as $jira
+    | ( [ $alltext | scan("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+") ] | unique | map({type:"github", ref:.}) ) as $gh
+    | ($jira + $gh) as $artifacts
+    | {
+        operator_directives: {
+          schema_version: "1.0.0", replay_kind: "semantic_idempotent",
+          started_at: ($seq[0].ts // $ts), ended_at: ($seq[-1].ts // $ts),
+          sequence: $seq
+        },
+        source_context: {
+          ts_snapshot: $ts, capture_kind: "heuristic-reindex",
+          note: "git_state reflects CURRENT repo state at reindex time, NOT session-time; governance file shas not reconstructed",
+          layers: { git_state: { branch: $branch, sha: $sha } },
+          external_refs: $artifacts
+        },
+        outcome: { artifacts: $artifacts, outcome_kind: "reconstructed" },
+        replay_verdict: "not_yet_replayed",
+        _enrich_status: "heuristic",
+        outcome_fingerprint_input: ((($artifacts|map(.ref)|unique|sort|join(","))) + "|dirs:" + ($seq|length|tostring))
+      }
+    ' "$f" 2>/dev/null || { printf '{"_enrich_status":"sparse"}'; return 0; }
+}
+
+# fresh base (goal/task/hash/etc) for a sid → echo JSON
+build_base() {
+  local sid="$1" rel abs hash goal ts now
+  rel=$(ash_locate_transcript_rel "$PROJECT_DIR" "$sid")
+  abs="$CANON_DIR/$sid.jsonl"
+  hash=$(ash_sha256 "$abs")
+  goal=$(ash_extract_goal "$abs"); [ -n "$goal" ] || goal="(reindex — empty or unparseable transcript)"
+  ts=$(ash_transcript_first_ts "$abs"); now=$(date -u +"%Y-%m-%dT%H:%M:%SZ"); [ -n "$ts" ] || ts="$now"
+  jq -nc --arg ts "$ts" --arg tenant "$TENANT" --arg project "$PROJECT_NAME" --arg sid "$sid" \
+    --arg goal "$goal" --arg hash "$hash" --arg rel "$rel" '
+    { ts:$ts, tenant:$tenant, project:$project, session:$sid, goal:$goal,
+      task:"(reindexed from transcript; full task reconstruction needs the Stop subagent)",
+      transcript_hash:$hash, transcript_rel:$rel }'
+}
+
+# finalize <enrich_json> <base_or_existing_json> <provenance> <from_ver> <agent> — merge + markers + fp
+finalize() {
+  local enrich="$1" basej="$2" prov="$3" fromver="$4" agent="$5"
+  local now; now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  # outcome_fingerprint MUST be sha256(canonical(outcome_subset)) per ash-schema.md §Field 5
+  # (lines 171/357). The enrich step emits a deterministic canonical subset string in
+  # `outcome_fingerprint_input` (sorted artifact-refs + directive count); hash it here in
+  # bash since jq has no native sha256. Empty input → omit the field (sparse-honest).
+  local fpi fphash=""
+  fpi=$(printf '%s' "$enrich" | jq -r '.outcome_fingerprint_input // ""' 2>/dev/null || printf '')
+  if [ -n "$fpi" ]; then
+    fphash=$(printf '%s' "$fpi" | shasum -a 256 2>/dev/null | awk '{print $1}' || printf '')
+  fi
+  printf '%s' "$enrich" | jq -c \
+    --argjson base "$basej" \
+    --arg ver "$ASH_SCHEMA_CURRENT" --arg prov "$prov" --arg fromver "$fromver" \
+    --arg agent "$agent" --arg now "$now" --arg tool "$ASH_REINDEX_VERSION" \
+    --arg model "${ASH_ENRICH_CMD:-none}" --arg fphash "$fphash" '
+    . as $enrich
+    | ($enrich._enrich_status // "sparse") as $estatus
+    | ($enrich | del(.outcome_fingerprint_input) | del(._enrich_status)) as $en
+    # precedence: enrich genealogy first, then base (base wins on shared keys), then markers (win all)
+    | ( $en + $base )
+    + { schema_version:$ver, provenance:$prov,
+        agent:$agent,
+        reindex_meta: {
+          reindexed_at:$now, tool_version:$tool,
+          from_schema_version: (if $fromver=="" then null else $fromver end),
+          enrich_status:$estatus, enrich_model:$model
+        } }
+    + (if $fphash=="" then {} else {outcome_fingerprint: $fphash} end)
+    '
+}
+
+append_entry() {
+  local jf="$1" entry="$2" dir lock sid
+  dir=$(dirname "$jf"); mkdir -p "$dir"
+  sid=$(printf '%s' "$entry" | jq -r '.session')
+  lock="$dir/.lock-reindex-$sid"
+  if ! mkdir "$lock" 2>/dev/null; then return 0; fi
+  # Explicit lock cleanup on EVERY return path — deliberately NOT a `trap ... RETURN`.
+  # A RETURN trap referencing the local `lock` leaks past this function (functrace off):
+  # it re-fires when the CALLER returns, where `lock` is out of scope → under `set -u`
+  # the script aborts (empirically verified). Explicit rmdir sidesteps the foot-gun.
+  if [ -f "$jf" ] && jq -se --arg sid "$sid" 'any(.[]; .session?==$sid)' "$jf" 2>/dev/null | grep -q '^true$'; then
+    rmdir "$lock" 2>/dev/null || true
+    return 0
+  fi
+  printf '%s\n' "$entry" >> "$jf" || { rmdir "$lock" 2>/dev/null || true; return 1; }
+  rmdir "$lock" 2>/dev/null || true
+}
+
+remove_entry() {
+  local jf="$1" sid="$2" tmp
+  [ -f "$jf" ] || return 0
+  tmp=$(mktemp "${jf}.XXXXXX")
+  if jq -c --arg sid "$sid" 'select(.session != $sid)' "$jf" > "$tmp" 2>/dev/null; then mv "$tmp" "$jf"; else rm -f "$tmp"; return 1; fi
+}
+
+# remove_entry_all <sid> — sweep EVERY day-file and drop ALL occurrences of the session.
+# Required because multi-day sessions carry one realtime entry per active day (per-(session,day)
+# idempotency of stop-fallback). Consolidation writes a single canonical entry afterward, so a
+# migrate/force run is IDEMPOTENT: 2nd run finds exactly one current entry → skips. Without this,
+# stale per-day duplicates survive and migrate peels one per run (non-idempotent decay 16→3→1→…).
+remove_entry_all() {
+  local sid="$1" f rc=0
+  [ -d "$AUDIT_DIR" ] || return 0
+  while IFS= read -r f; do
+    if jq -se --arg sid "$sid" 'any(.[]; .session?==$sid)' "$f" 2>/dev/null | grep -q '^true$'; then
+      remove_entry "$f" "$sid" || rc=1
+    fi
+  done < <(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l 2>/dev/null)
+  return $rc
+}
+
+journal_for_sid() {  # echo ts-derived day-file path (fallback to today)
+  local sid="$1" ts jf
+  ts=$(ash_transcript_first_ts "$CANON_DIR/$sid.jsonl"); [ -n "$ts" ] || ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  jf=$(ash_journal_path_for_ts "$PROJECT_DIR" "$ts" 2>/dev/null || true)
+  [ -n "$jf" ] || jf="$AUDIT_DIR/$(date -u +%Y-%m)/$(date -u +%d).jsonl"
+  printf '%s' "$jf"
+}
+
+# ---------------- RECONCILE (read-only) ----------------
+if [ "$MODE" = "reconcile" ]; then
+  CANON_TMP=$(mktemp); JOURNAL_TMP=$(mktemp); trap 'rm -f "$CANON_TMP" "$JOURNAL_TMP"' EXIT
+  list_canon_sids | sort -u > "$CANON_TMP"; journal_sids > "$JOURNAL_TMP"
+  n_canon=$(wc -l < "$CANON_TMP" | tr -d ' '); n_journal=$(wc -l < "$JOURNAL_TMP" | tr -d ' ')
+  n_indexed=$(comm -12 "$CANON_TMP" "$JOURNAL_TMP" | wc -l | tr -d ' ')
+  n_notindexed=$(comm -23 "$CANON_TMP" "$JOURNAL_TMP" | wc -l | tr -d ' ')
+  n_orphan=$(comm -13 "$CANON_TMP" "$JOURNAL_TMP" | wc -l | tr -d ' ')
+  echo "agentic-reindex --reconcile  (project: $PROJECT_NAME · tenant: $TENANT)"
+  echo "  canonical transcripts:    $n_canon   ($CANON_DIR)"
+  echo "  journal entries (unique): $n_journal ($AUDIT_DIR)"
+  echo "  indexed (∩):              $n_indexed"
+  echo "  NOT-indexed (transcript∖journal → backfill candidates): $n_notindexed"
+  echo "  orphan (journal∖transcript → transcript missing):       $n_orphan"
+  echo
+  echo "  schema_version histogram (per journal entry):"
+  if [ -d "$AUDIT_DIR" ]; then
+    find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+      | jq -r '.schema_version // "1.2.1"' 2>/dev/null | sort | uniq -c | awk '{printf "    %6s  v%s\n", $1, $2}'
+    miss=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+      | jq -r --arg cur "$ASH_SCHEMA_CURRENT" 'select((.schema_version // "1.2.1") != $cur) | .session // empty' 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    echo "  below-current-version (v$ASH_SCHEMA_CURRENT) entries (--migrate candidates): $miss"
+  fi
+  if [ "$n_notindexed" -gt 0 ]; then echo; echo "  not-indexed sessions:"; comm -23 "$CANON_TMP" "$JOURNAL_TMP" | sed 's/^/    /'; fi
+  if [ "$n_orphan" -gt 0 ]; then echo; echo "  orphan entries (left untouched):"; comm -13 "$CANON_TMP" "$JOURNAL_TMP" | sed 's/^/    /'; fi
+  exit 0
+fi
+
+# ---------------- BACKFILL / MIGRATE (write) ----------------
+scanned=0; backfilled=0; migrated=0; rebuilt=0; skipped=0; errors=0
+DR=""; [ "$DRY_RUN" = "1" ] && DR="[dry-run] "
+
+while IFS= read -r sid; do
+  [ -n "$sid" ] || continue
+  scanned=$((scanned+1))
+  find_entry "$sid"
+
+  if [ -z "$EXIST_JSON" ]; then
+    jf=$(journal_for_sid "$sid")
+    if [ "$DRY_RUN" = "1" ]; then echo "${DR}backfill  $sid → ${jf#$PROJECT_DIR/}"; backfilled=$((backfilled+1)); continue; fi
+    enrich=$(build_enrich "$CANON_DIR/$sid.jsonl"); base=$(build_base "$sid")
+    entry=$(finalize "$enrich" "$base" "backfill" "" "reindex-backfill") || { errors=$((errors+1)); continue; }
+    append_entry "$jf" "$entry"
+    echo "backfilled $sid (enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"')) → ${jf#$PROJECT_DIR/}"
+    backfilled=$((backfilled+1)); continue
+  fi
+
+  if [ "$FORCE" = "1" ]; then
+    jf=$(journal_for_sid "$sid")
+    if [ "$DRY_RUN" = "1" ]; then echo "${DR}rebuild   $sid (force, v$EXIST_VER)"; rebuilt=$((rebuilt+1)); continue; fi
+    enrich=$(build_enrich "$CANON_DIR/$sid.jsonl"); base=$(build_base "$sid")
+    entry=$(finalize "$enrich" "$base" "rebuilt" "$EXIST_VER" "reindex-rebuilt") || { errors=$((errors+1)); continue; }
+    remove_entry_all "$sid" || { errors=$((errors+1)); continue; }
+    append_entry "$jf" "$entry"
+    echo "rebuilt    $sid (force, enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"'))"
+    rebuilt=$((rebuilt+1)); continue
+  fi
+
+  # migrate: bring an entry to the current schema + enrich genealogy gaps, non-destructively
+  # (existing wins on base fields; heuristic enrich only fills missing genealogy). Candidacy =
+  #   (a) below-current schema_version (schema upgrade), OR
+  #   (b) EXIST_COUNT>1 (multi-day duplicates → consolidate to ONE canonical entry), OR
+  #   (c) never-enriched sparse entry: no genealogy AND no reindex_meta. A realtime fallback entry
+  #       is born at CURRENT version + provenance:realtime but sparse, so term (a) won't catch it;
+  #       (c) grants it exactly ONE enrich pass so periodic `--migrate` actually enriches realtime.
+  # IDEMPOTENT in all cases: finalize ALWAYS stamps reindex_meta, so term (c) can never re-fire —
+  # even when enrich degrades to sparse (un-enrichable / too-large) the reindex_meta presence stops
+  # a re-migrate loop. Re-attempt a degraded enrich via --force. Rich realtime entries keep their
+  # operator_directives (existing wins over heuristic enrich); only the markers change.
+  if [ "$MODE" = "migrate" ] && { [ "${EXIST_COUNT:-0}" -gt 1 ] \
+       || ash_version_lt "$EXIST_VER" "$ASH_SCHEMA_CURRENT" \
+       || { [ "${EXIST_HAS_GENEALOGY:-0}" = "0" ] && [ "${EXIST_HAS_REINDEX_META:-0}" = "0" ]; }; }; then
+    jf=$(journal_for_sid "$sid")
+    if [ "$DRY_RUN" = "1" ]; then echo "${DR}migrate   $sid v$EXIST_VER (dups=$EXIST_COUNT → consolidate, → v$ASH_SCHEMA_CURRENT)"; migrated=$((migrated+1)); continue; fi
+    enrich=$(build_enrich "$CANON_DIR/$sid.jsonl")
+    # preserve existing fields; enrich fills gaps; keep existing agent
+    ex_agent=$(printf '%s' "$EXIST_JSON" | jq -r '.agent // "unknown"')
+    entry=$(finalize "$enrich" "$EXIST_JSON" "migrated" "$EXIST_VER" "$ex_agent") || { errors=$((errors+1)); continue; }
+    remove_entry_all "$sid" || { errors=$((errors+1)); continue; }
+    append_entry "$jf" "$entry"
+    echo "migrated   $sid v$EXIST_VER → v$ASH_SCHEMA_CURRENT (dups=$EXIST_COUNT, enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"'))"
+    migrated=$((migrated+1)); continue
+  fi
+
+  skipped=$((skipped+1))
+done < <(list_canon_sids)
+
+echo
+echo "agentic-reindex ${DR}report (mode=$MODE · enrich=$([ "$ENRICH" = 1 ] && echo on || echo off) · force=$FORCE)"
+echo "  scanned:    $scanned"
+echo "  backfilled: $backfilled"
+echo "  migrated:   $migrated"
+echo "  rebuilt:    $rebuilt"
+echo "  skipped:    $skipped"
+echo "  errors:     $errors"
+[ "$errors" -eq 0 ]
