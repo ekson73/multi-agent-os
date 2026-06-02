@@ -206,6 +206,7 @@ This skill stands on the shoulders of prior work. Each primitive is credited:
 - `protocols/agent-delegation.md` — how converge fits into delegation chains (bidirectional reference)
 - `protocols/hierarchical-merge-protocol.md` — sibling skill for merging branches
 - `skills/delegate-governance/SKILL.md` — DNA inheritance pattern this skill respects; references converge for multi-proposal scenarios
+- `skills/convergence-engine/SKILL.md` — the iterative quality-convergence engine that routes to `converge` as its **SELECT-regime** synthesis primitive (best-of-N / debate→converge). converge is the single-pass synthesizer; convergence-engine is the regime-router + economic-stop harness around it.
 - `agents/code-reviewer.md` — typical consumer of converge output
 
 ## §11 — Downstream-agent handoff (neutral framing template)
