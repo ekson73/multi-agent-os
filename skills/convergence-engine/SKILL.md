@@ -97,7 +97,7 @@ n* = 1 + ⌈ ln( (1−ρ)·g₀·V / C ) / ln(1/ρ) ⌉
 | Deterministic loops/fan-out | host `Workflow`/orchestration primitive | (runtime) |
 | Merge-gate / state / audit | `CONTRIBUTING.md` gate · hooks · git | repo infra |
 
-The engine is a **router + bounds** over these — itself an instance of *native-primitive-over-custom-machinery*. Related auto-orchestration agents (`best-fit-router`, `agent-forger`) are **NOT** dispatched by this engine and are intentionally **not** bundled (YAGNI); port them separately only if a future regime needs them.
+The engine is a **router + bounds** over these — itself an instance of *native-primitive-over-custom-machinery*. Related agents (`best-fit-router`, `agent-forger`) are **not** dispatched and intentionally **not** bundled (YAGNI).
 
 ## Return-Gate application (self-resolve before asking)
 
@@ -105,7 +105,7 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 
 ## Viability bar (settled)
 
-**Beat the human baseline (~90% single-pass, NOT 100%)** — humans reach their higher numbers via the same multi-pass review this engine automates. Viable NOW for verifiable regimes (most codegen / config / DevOps / governance-doc work); HITL on the unverifiable residue.
+**Beat the human baseline (~90% single-pass, NOT 100%)** — humans hit higher numbers via the same multi-pass review this engine automates. Viable NOW for verifiable regimes; HITL on the residue.
 
 ## Invariants & bounds (non-negotiable)
 
@@ -127,9 +127,9 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 - ❌ Treating any single benchmark % as ground-truth (contamination inflates 5–15 pts)
 - ❌ Re-implementing converge / cascade / pipeline inside this skill (it is a composition, not an engine)
 
-## Examples (invocation prompts — this is a skill, not a CLI binary)
+## Examples (invocation prompts — not a CLI)
 
-This skill ships no executable/slash-command; invoke it conversationally (the triggers in the frontmatter). Representative prompts:
+No binary/slash-command — invoke conversationally (frontmatter triggers):
 
 - **REFINE** — *"drive this draft to high quality with a few bounded diverse-review iterations"* → runs `perspective-trio` (breadth) then `cascade-resolver` (sequential uplift, keep-best), stops at `n*`.
 - **SELECT** — *"reconcile these competing proposals into one validated synthesis"* → routes to `converge` (best-of-N / debate→converge).
