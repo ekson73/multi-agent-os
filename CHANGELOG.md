@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `convergence-engine` skill + 3 dependent agents (v1.7.0)
+
+- **NEW skill** `skills/convergence-engine/` (`SKILL.md` + `PRIOR-ART.md`) — an iterative multi-agent quality-convergence engine: a **deterministic harness × probabilistic cognition** kernel that routes one of three regimes by verifiability — **REFINE** (self-improve loop) · **SELECT** (best-of-N / debate→converge) · **DEFER** (HITL) — under a non-negotiable **master condition** (`verifier_accuracy > generator_accuracy` AND verifier independent) and a closed-form **economic stop** (`n* = 1 + ⌈ln((1−ρ)·g₀·V/C)/ln(1/ρ)⌉` → robustly ≤3–4 rounds). Floor = human-parity (~90%, NOT 100%); the 10–15% HITL residue is by design.
+- **NEW agents** (the engine's probabilistic primitives, ported vendor-neutral): `agents/perspective-trio.md` (3 parallel orthogonal lenses — SELECT/breadth), `agents/cascade-resolver.md` (N sequential diverse score-uplift attempts + 8 termination conditions = economic-stop — REFINE), `agents/persona-pipeline.md` (6-stage risk-scaled review board → `certainty` — vertical-depth verify).
+- **Anti-over-engineering / DRY**: the engine **composes existing primitives, builds NO new engine** — SELECT routes to the existing `skills/converge/`; deterministic layer reuses the `CONTRIBUTING.md` bot-convergence gate + hooks + git. Self-critique-paradox guard: never loop on a clean high-confidence output (Huang et al. 2024). `skills/converge/SKILL.md` gains a bidirectional cross-ref (converge = the SELECT-regime synthesizer under the engine).
+- **Vendor-neutral (MIT, layer-pure)**: zero corporate/vendor-specific naming; portable across Claude Code / Cursor / Codex / Gemini CLI / Copilot. Research-grounded (Self-Refine Madaan 2023 · Huang 2024 self-correction limits · Reflexion · CRITIC · Multiagent-Debate Du et al. 2024) — see `PRIOR-ART.md`. Related auto-orchestration agents (`best-fit-router`, `agent-forger`) intentionally NOT bundled (YAGNI — not dispatched by the engine).
+- **Plugin bump** 1.6.0 → 1.7.0 (MINOR — additive skill + agents).
+
 - **docs(branching)**: documented GitHub Flow (Class B) model in `AGENTS.md` (SSOT) + `ADR-004`; added GEMINI.md / Copilot pointers; README badge. Companion to ADR-003 (source float).
 
 ### Added — `maos-concierge` skill (v1.6.0)
