@@ -24,25 +24,30 @@ A thin **deterministic-harness × probabilistic-cognition** kernel. The Converge
 
 > **Principle (the synthesis)**: best result = **deterministic scaffolding** (scripts · hooks · guard-rails · round-caps — cheap, `f=0`, ~zero-token, amnesia-proof, repeatable) **bounding and verifying** **probabilistic cognition** (judgment — expensive, fallible, where the value is created). *Deterministic skeleton, probabilistic muscle.*
 
+## Purpose
+
+Drive a result to high quality via *bounded iterative review* (not one shot) by composing existing primitives under rules that make self-improvement *raise* quality, not corrode it. Routes one of three regimes (REFINE / SELECT / DEFER) by verifiability, under the master condition + economic stop below.
+
+## Trigger Phrases
+
+`converge to high quality` · `iterate until good enough` · `best-of-N` · `refine until it passes` · `lift the score before asking me` · `convergence engine` · `drive this to convergence` · `engine de convergência`
+
 ## When to use
 
-- A result must reach high quality via **bounded iterative review**, not one shot (codegen, config, governance docs, analysis).
-- Multiple agents (or providers) produced **competing proposals** needing reconciliation → SELECT regime → `converge`.
-- An `autonomy_score` sits below the HIGH gate and you want to **lift it honestly** before spending scarce human attention → REFINE regime → `cascade-resolver`.
-- A decision needs **diverse-lens breadth** before acting → `perspective-trio`.
-- A change needs a **depth verify** (independent review board) → `persona-pipeline`.
+- High quality via **bounded iterative review**, not one shot (codegen, config, governance docs).
+- **Competing proposals** to reconcile → SELECT → `converge`.
+- An `autonomy_score` below the HIGH gate to **lift honestly** before HITL → REFINE → `cascade-resolver`.
+- **Diverse-lens breadth** before acting → `perspective-trio`; **depth verify** → `persona-pipeline`.
 
 ## When NOT to use
 
-- A clean, high-confidence single-pass answer → **do not loop** (the self-critique paradox: over-reviewing clean output *degrades* it).
-- A purely deterministic check suffices (a test, a lint, a schema) → run the oracle directly; no engine needed.
-- The task is unverifiable AND below the floor → go straight to **DEFER (HITL)**.
+Skip the engine on a clean high-confidence single-pass answer (self-critique paradox — over-review *degrades* it), when a deterministic oracle alone suffices, or when the task is unverifiable AND below the floor (→ straight to DEFER/HITL).
 
 ## The master condition (non-negotiable)
 
 > Iterative convergence raises quality **IFF `verifier_accuracy > generator_accuracy` AND the verifier is independent** (cross-axis diverse — see Diversity below).
 
-Violate it → the **self-critique paradox**: same-model critique on already-clean output *degrades* it (empirical: clean ~98% → 57%; Huang et al. 2024). A **deterministic** verifier (tests · compile · schema · lint · gitleaks · type-check · count) has `f=0` by construction and is the strongest possible critic — **always prefer a deterministic oracle where one exists**; fall back to a probabilistic critic only where no checkable oracle is available.
+Violate it → the **self-critique paradox**: same-model critique on clean output *degrades* it (~98%→57%; Huang et al. 2024). A **deterministic** verifier (tests · compile · schema · lint · gitleaks) has `f=0` and is the strongest critic — **prefer a deterministic oracle wherever one exists**; use a probabilistic critic only where none does.
 
 ## Determinism / probabilism allocation
 
@@ -72,18 +77,18 @@ Cutoffs are heuristic → **calibrate per task-class empirically**. Benchmark gr
 
 ## Multi-axis diversity (the `r`-lever)
 
-Vary the critic panel along **{discipline (security · perf · correctness · UX) · view (abstraction level) · vertical (specialist depth-audit) + horizontal (peer breadth) · brand (Claude · Gemini · GPT — strength-profiles genuinely differ)}** *simultaneously*. Correlation along any axis re-introduces shared blind-spots and stalls convergence.
+Vary the critic panel along **{discipline (security · perf · correctness · UX) · view (abstraction) · vertical (depth-audit) + horizontal (peer breadth) · brand (Claude · Gemini · GPT differ)}** *simultaneously*. Correlation on any axis re-introduces shared blind-spots and stalls convergence.
 
-> ⚠ **Avoid hive-mind / shared-memory for the critique layer** — it correlates critics → kills the diversity that lifts `r` → violates the master condition. `perspective-trio`'s diversity guard and `cascade-resolver`'s no-duplicate-role validator enforce this.
+> ⚠ **No hive-mind / shared-memory for the critique layer** — it correlates critics → kills the `r`-diversity → violates the master condition. Enforced by `perspective-trio`'s diversity guard + `cascade-resolver`'s no-duplicate-role validator.
 
 ## Economic stop (deterministic, harness-enforced)
 
-```
+```text
 n* = 1 + ⌈ ln( (1−ρ)·g₀·V / C ) / ln(1/ρ) ⌉
    ρ = retained-gap-fraction · g₀ = initial gap · V = value/correct-unit · C = round-cost
 ```
 
-`n*` grows only **logarithmically** in `V/C` → **robustly ≤ 3–4 rounds** (a 100× more valuable task justifies ~1 extra round). Floor = **human-parity (~90%, NOT 100%)**; cap enforced by the harness (`cascade-resolver` termination conditions), not by a model deciding "one more round". Also stop on `Δ < ε for K rounds` OR consensus. The real curve is **sub-geometric** (rounds re-find easy errors; the hard residual resists) → the plateau arrives even sooner. Looping past `n*` costs 4–10× for <1% gain.
+`n*` grows only **logarithmically** in `V/C` → **robustly ≤ 3–4 rounds** (100× the value buys ~1 more round). Floor = **human-parity (~90%, NOT 100%)**; cap is harness-enforced (`cascade-resolver` termination), not model-judged. Also stop on `Δ < ε for K rounds` OR consensus. The curve is **sub-geometric** (easy errors re-found, hard residual resists) → plateau arrives sooner; looping past `n*` costs 4–10× for <1% gain.
 
 ## Composition map (no new engine)
 
@@ -107,7 +112,7 @@ Before returning [options · decisions · questions] to the operator: (1) **rank
 
 **Beat the human baseline (~90% single-pass, NOT 100%)** — humans hit higher numbers via the same multi-pass review this engine automates. Viable NOW for verifiable regimes; HITL on the residue.
 
-## Invariants & bounds (non-negotiable)
+## Protocol Rules (invariants & bounds — non-negotiable)
 
 - Master condition holds (verifier > generator, independent) or **do not loop**.
 - Stopping is **deterministic-harness-enforced** (`cascade-resolver` conditions / `n*`), never model self-judgment.
