@@ -40,6 +40,9 @@ Options:
   --vendor NAME      ai-vendor    (default: auto-detect; else "unknown")
   --note "<text>"    short note (<=240 chars)
   --dry-run          print the event JSON, do NOT append
+  --backfill FILE    batch-replay a JSONL manifest (one mark per line) — re-invokes this
+                     script per row, reusing all validation/idempotency/lock; a row whose
+                     status=complete lacks ratified+evidence is REFUSED (anti-hallucination)
   --help
 
 Examples:
@@ -47,6 +50,7 @@ Examples:
     --evidence session:da7015 --note "language-cascade run, round 3 pending"
   $(basename "$0") debate-converge 001 --status complete --ratified \\
     --evidence github:ekson73/multi-agent-os/pull/97 --evidence session:da7015
+  $(basename "$0") --backfill docs/dogfood-backfill-example.jsonl    # batch historical cycles
 EOF
   exit 0
 }
@@ -55,7 +59,7 @@ EOF
 
 TOOL=""; CYCLE=""; STATUS="in-progress"; RATIFIED="false"
 SID="${CLAUDE_CODE_SESSION_ID:-}"; PROJECT=""; VENDOR=""; NOTE=""; DRYRUN=0
-EVID_RAW=""
+EVID_RAW=""; BACKFILL_FILE=""
 
 # Guard a value-taking flag: ensure a real value follows before `shift 2` (else set -e
 # would abort on a short `shift` without a clear usage error, OR a following option could
@@ -77,6 +81,7 @@ while [ $# -gt 0 ]; do
     --vendor) need_val --vendor "$#" "${2:-}"; VENDOR="$2"; shift 2 ;;
     --note) need_val --note "$#" "${2:-}"; NOTE="$2"; shift 2 ;;
     --dry-run) DRYRUN=1; shift ;;
+    --backfill) need_val --backfill "$#" "${2:-}"; BACKFILL_FILE="$2"; shift 2 ;;
     -*) echo "Unknown option: $1" >&2; exit 1 ;;
     *)
       if [ -z "$TOOL" ]; then TOOL="$1"
@@ -86,6 +91,44 @@ while [ $# -gt 0 ]; do
       shift ;;
   esac
 done
+
+# --backfill: batch-replay an evidence-bearing JSONL manifest, one mark per row, by
+# re-invoking THIS script per row — reusing ALL validation, the anti-theater
+# complete-requires-ratified+evidence gate, idempotency, and the atomic lock (DRY).
+# Anti-hallucination: a row with status=complete lacking ratified+evidence is REFUSED
+# by the re-invocation (exit 1) and tallied as failed — never silently inflated.
+# A manifest line is one JSON object {tool,cycle_id,status?,ratified?,evidence[]?,note?};
+# blank lines and #-comments are skipped. (Phase 2.1 — auto-deriving a manifest from ASH
+# journals / changelogs / transcripts — is intentionally out of scope: that heuristic
+# scanner is a separate, riskier effort and must not be faked here.)
+if [ -n "$BACKFILL_FILE" ]; then
+  [ -f "$BACKFILL_FILE" ] || { echo "backfill: manifest not found: $BACKFILL_FILE" >&2; exit 1; }
+  bf_n=0; bf_ok=0; bf_fail=0
+  while IFS= read -r bf_line || [ -n "$bf_line" ]; do
+    case "$bf_line" in ''|'#'*) continue ;; esac
+    printf '%s' "$bf_line" | jq -e 'type=="object"' >/dev/null 2>&1 \
+      || { echo "backfill: skip (not a JSON object): $bf_line" >&2; continue; }
+    bf_n=$((bf_n + 1))
+    bf_tool=$(printf '%s' "$bf_line"   | jq -r '.tool // empty')
+    bf_cyc=$(printf '%s'  "$bf_line"   | jq -r '.cycle_id // empty')
+    bf_status=$(printf '%s' "$bf_line" | jq -r '.status // "in-progress"')
+    bf_rat=$(printf '%s' "$bf_line"    | jq -r 'if .ratified == true then "y" else "n" end')
+    bf_note=$(printf '%s' "$bf_line"   | jq -r '.note // empty')
+    set -- "$bf_tool" "$bf_cyc" --status "$bf_status"
+    [ "$bf_rat" = "y" ] && set -- "$@" --ratified
+    [ -n "$bf_note" ] && set -- "$@" --note "$bf_note"
+    bf_evs=$(printf '%s' "$bf_line" | jq -r '.evidence[]? // empty')
+    while IFS= read -r bf_ev; do
+      [ -n "$bf_ev" ] && set -- "$@" --evidence "$bf_ev"
+    done <<BFEOF
+$bf_evs
+BFEOF
+    [ "$DRYRUN" = "1" ] && set -- "$@" --dry-run
+    if "$0" "$@"; then bf_ok=$((bf_ok + 1)); else bf_fail=$((bf_fail + 1)); fi
+  done < "$BACKFILL_FILE"
+  echo "backfill: $bf_n rows -> $bf_ok ok, $bf_fail refused/failed" >&2
+  exit 0
+fi
 
 [ -n "$TOOL" ]  || { echo "<tool> is required" >&2; exit 1; }
 [ -n "$CYCLE" ] || { echo "<cycle_id> is required" >&2; exit 1; }

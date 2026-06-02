@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `dogfood-mark --backfill` manifest replay (v1.8.1)
+
+- **`bin/dogfood-mark --backfill <manifest.jsonl>`** — implements the spec §6 Phase-2 backfill (manifest path): batch-replays an evidence-bearing JSONL manifest (one `{tool,cycle_id,status?,ratified?,evidence[]?,note?}` object per line), **re-invoking `dogfood-mark` per row** so all existing validation, the anti-theater `complete`-requires-`ratified`+`evidence` gate, idempotency, and the atomic lock are reused (DRY — no logic duplicated). **Anti-hallucination**: a `complete` row without evidence is REFUSED and tallied as failed — the ≥2 gate is met by **real history, never inflation**. `--dry-run` supported; blank/`#`-comment lines skipped.
+- **NEW fixture** `docs/dogfood-backfill-example.jsonl` — honest manifest recording the `convergence-engine` tool's real cycles (001 complete = materialization PR #104; 002 in-progress = first executable dispatch PR #106). Tally is truthful (`1/2`, gate NOT-yet-met) — the fix makes counting *real*, it does not game the gate. Closes the operator-flagged "cycle counting was theater (nobody tallied)".
+- **Honest scoping**: Phase 2.1 (auto-*deriving* a manifest by scanning ASH journals / changelogs / transcripts) is **deliberately deferred** — that heuristic prose-scanner is a separate, riskier effort and must not be faked. Spec §6 updated to reflect implemented-vs-deferred.
+- **Plugin bump** → 1.8.1 (PATCH — additive flag on an existing primitive; stacks on the v1.8.0 `convergence-guard`).
+
 ### Added — `convergence-engine` skill + 3 dependent agents (v1.7.0)
 
 - **NEW skill** `skills/convergence-engine/` (`SKILL.md` + `PRIOR-ART.md`) — an iterative multi-agent quality-convergence engine: a **deterministic harness × probabilistic cognition** kernel that routes one of three regimes by verifiability — **REFINE** (self-improve loop) · **SELECT** (best-of-N / debate→converge) · **DEFER** (HITL) — under a non-negotiable **master condition** (`verifier_accuracy > generator_accuracy` AND verifier independent) and a closed-form **economic stop** (`n* = 1 + ⌈ln((1−ρ)·g₀·V/C)/ln(1/ρ)⌉` → robustly ≤3–4 rounds). Floor = human-parity (~90%, NOT 100%); the 10–15% HITL residue is by design.
