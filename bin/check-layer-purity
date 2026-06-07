@@ -47,12 +47,32 @@ while [ $# -gt 0 ]; do
     -h|--help) usage ;;
     --json) MODE="json"; shift ;;
     --hooks)
-      FILES+=(.claude/hooks/ash-link.sh .claude/hooks/ash-resume.sh .claude/hooks/ash-stop-fallback.sh)
+      # Promoted Layer-1 bundle hooks (pre-promotion paths .claude/hooks/ash-*.sh no longer exist).
+      FILES+=(
+        skills/agentic-session-harness/hooks/link.sh
+        skills/agentic-session-harness/hooks/resume.sh
+        skills/agentic-session-harness/hooks/stop-fallback.sh
+        skills/agentic-session-harness/hooks/decide-merge.sh
+        skills/agentic-session-harness/hooks/lib.sh
+      )
       shift ;;
     --candidates)
-      FILES+=(.claude/hooks/ash-link.sh .claude/hooks/ash-resume.sh .claude/hooks/ash-stop-fallback.sh)
-      FILES+=(bin/ash-walkthrough)
-      [ -f docs/governance/agentic-session-harness-spec.md ] && FILES+=(docs/governance/agentic-session-harness-spec.md)
+      # FULL promoted Layer-1 bundle (hooks + CLIs + docs) — scan everything that shipped, so a
+      # clean run cannot be reported while skipping promoted files (the v1 bug this preset had).
+      FILES+=(
+        skills/agentic-session-harness/hooks/link.sh
+        skills/agentic-session-harness/hooks/resume.sh
+        skills/agentic-session-harness/hooks/stop-fallback.sh
+        skills/agentic-session-harness/hooks/decide-merge.sh
+        skills/agentic-session-harness/hooks/lib.sh
+        skills/agentic-session-harness/bin/agentic-walkthrough
+        skills/agentic-session-harness/bin/agentic-decide
+        skills/agentic-session-harness/bin/agentic-decisions
+        skills/agentic-session-harness/bin/agentic-reindex
+        skills/agentic-session-harness/bin/agentic-fix-dangling-symlinks.sh
+        skills/agentic-session-harness/SKILL.md
+        skills/agentic-session-harness/SPEC.md
+      )
       shift ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;
     *) FILES+=("$1"); shift ;;
@@ -61,14 +81,17 @@ done
 
 [ ${#FILES[@]} -eq 0 ] && { echo "Usage: $(basename "$0") <file>... | --hooks | --candidates [--json]" >&2; exit 2; }
 
-# Build combined regex (alternation) for grep -E
-JOINED_RE="$(IFS='|'; echo "${PATTERNS[*]}")"
+# Build combined regex (alternation) for grep -E.
+# printf-join (not an `IFS='|'` subshell): subshell-IFS is safe but trips a global-IFS lint;
+# printf is clearer and lint-clean. Trailing '|' stripped via parameter expansion.
+JOINED_RE=$(printf '%s|' "${PATTERNS[@]}"); JOINED_RE="${JOINED_RE%|}"
 
 VIOLATIONS=0
+MISSING_FILES=0
 RESULTS=()
 
 for f in "${FILES[@]}"; do
-  [ -f "$f" ] || { echo "⚠ File not found: $f" >&2; continue; }
+  [ -f "$f" ] || { echo "File not found: $f" >&2; MISSING_FILES=$((MISSING_FILES+1)); continue; }
   # -E extended regex, -i case-insensitive, -n line numbers, -H filename
   while IFS= read -r line; do
     VIOLATIONS=$((VIOLATIONS+1))
@@ -98,4 +121,7 @@ else
   fi
 fi
 
+# A missing input (typo / stale path) is a USAGE error (exit 2), not a clean run — fail fast so a
+# bad path can't masquerade as "0 violations".
+if [ "$MISSING_FILES" -gt 0 ]; then exit 2; fi
 [ "$VIOLATIONS" -eq 0 ] && exit 0 || exit 1

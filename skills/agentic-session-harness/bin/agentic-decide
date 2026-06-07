@@ -2,7 +2,7 @@
 # Agentic Session Harness (ASH) — in-session decision capture helper
 # Function: append ONE agent-decision record (decision + rationale + sources + spec-alignment)
 #   to the per-session staging journal. The Stop subagent later MERGES staging → entry.decisions[].
-# Spec: docs/governance/ash-schema.md §17 (v1.6.0 decision-audit extension, Layer-2 Vek; Layer-1 frozen).
+# Spec: SPEC.md §17 decision-audit (optional additive extension on decisions[]; Layer-1 row frozen-17).
 # Why: agent reasoning is EPHEMERAL (Coverge "AI audit trail" 2026) — decisions[] is never populated
 #   unless explicitly captured. This is the Tier-1 self-declared provenance write-path (no infra).
 # Portability: AAIF cross-vendor — POSIX-portable Bash 3.2 + jq only; no associative arrays, no ${var^^}.
@@ -107,17 +107,42 @@ STAGING_DIR="$PROJECT_DIR/.claude/audit/staging"
 mkdir -p "$STAGING_DIR"
 STAGING_FILE="$STAGING_DIR/$SID.decisions.jsonl"
 
-# Auto-assign DEC id (count existing staged lines + 1) when not given.
-if [ -z "$DEC_ID" ]; then
-  N=0
-  [ -f "$STAGING_FILE" ] && N=$(grep -c '' "$STAGING_FILE" 2>/dev/null || echo 0)
-  DEC_ID="DEC-$((N + 1))"
-fi
+# NOTE: DEC-id auto-allocation (count existing lines + 1) is deferred to INSIDE the exclusive
+# lock just before the append (below), so the count + append are atomic — otherwise two concurrent
+# agentic-decide calls for the same session could both allocate the same DEC-<n>.
 
 TS=$(command -v ash_iso_ms >/dev/null 2>&1 && ash_iso_ms || date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # Build sources[] = [{type,ref,influence}] from "TYPE:REF:INFL" lines.
 # Split: type = before FIRST colon; influence = after LAST colon (∈ enum) else default; ref = middle.
+# Validate each --source up-front (TYPE:REF[:INFL]) — reject malformed rather than silently folding
+# a typo into ref (provenance must be trustworthy). Done at TOP-LEVEL (not inside the construction
+# pipe-subshell below) so a rejection's `exit` reliably aborts the whole script.
+if [ -n "$SOURCES_RAW" ]; then
+  while IFS= read -r _sl; do
+    [ -n "$_sl" ] || continue
+    case "$_sl" in
+      *:*) ;;
+      *) echo "Invalid --source (expected TYPE:REF[:INFL]): $_sl" >&2; exit 1 ;;
+    esac
+    _st="${_sl%%:*}"; _sr="${_sl#*:}"
+    case "$_st" in
+      spec|file|link|field|variable|tool|transcript|mcp) ;;
+      *) echo "Invalid --source type '$_st' (valid: spec|file|link|field|variable|tool|transcript|mcp)" >&2; exit 1 ;;
+    esac
+    [ -n "$_sr" ] || { echo "Invalid --source (empty REF): $_sl" >&2; exit 1; }
+    _li="${_sr##*:}"
+    case "$_li" in
+      attended|cited|ignored) ;;
+      *) case "$_sr" in
+           *:*) echo "Invalid --source influence '$_li' (valid: attended|cited|ignored): $_sl" >&2; exit 1 ;;
+         esac ;;
+    esac
+  done <<EOF
+$SOURCES_RAW
+EOF
+fi
+
 SOURCES_JSON=$(printf '%s' "$SOURCES_RAW" | while IFS= read -r line; do
   [ -n "$line" ] || continue
   styp="${line%%:*}"; rest="${line#*:}"
@@ -133,6 +158,27 @@ done | jq -sc '.')
 specrefs_json() { printf '%s' "$1" | jq -R -s 'split("\n") | map(select(length>0))'; }
 SPECREFS_JSON=$(specrefs_json "$SPECREFS_RAW")
 ALTS_JSON=$(specrefs_json "$ALTS_RAW")
+
+# Serialize DEC-id allocation + append under ONE exclusive lock so two concurrent agentic-decide
+# calls for the same session can't both allocate the same DEC-<n> (ambiguous for merge/audit).
+# Portable mkdir-lock (matches agentic-reindex append_entry); bounded retry then fail-fast.
+LOCK="$STAGING_FILE.lock"
+_locked=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if mkdir "$LOCK" 2>/dev/null; then _locked=1; break; fi
+  sleep 0.2
+done
+[ "$_locked" = "1" ] || { echo "agentic-decide: staging lock busy ($LOCK) — another decide in progress; retry" >&2; exit 2; }
+# shellcheck disable=SC2064
+trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
+
+# Auto-assign DEC id INSIDE the lock (count existing staged lines + 1) when not given —
+# count and append MUST be atomic together to avoid duplicate DEC-<n> ids under concurrency.
+if [ -z "$DEC_ID" ]; then
+  N=0
+  [ -f "$STAGING_FILE" ] && N=$(grep -c '' "$STAGING_FILE" 2>/dev/null || echo 0)
+  DEC_ID="DEC-$((N + 1))"
+fi
 
 # Compose the decision record — all dynamic values via --arg/--argjson (never interpolated).
 jq -nc \
@@ -152,5 +198,8 @@ jq -nc \
      spec_alignment: $align, confidence: $conf
    } | with_entries(select(.value != null and .value != [] and .value != ""))' \
   >> "$STAGING_FILE"
+
+rmdir "$LOCK" 2>/dev/null || true
+trap - EXIT
 
 printf 'agentic-decide: staged %s for session %s → %s\n' "$DEC_ID" "${SID:0:8}" "${STAGING_FILE#$PROJECT_DIR/}" >&2

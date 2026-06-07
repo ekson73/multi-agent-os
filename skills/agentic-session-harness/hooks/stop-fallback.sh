@@ -15,8 +15,6 @@ set -euo pipefail
 ASH_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 . "$ASH_HOOK_DIR/lib.sh"
-HOOK_STARTED_AT=$(ash_iso_ms)
-HOOK_START_EPOCH_MS=$(ash_epoch_ms)
 
 INPUT=$(cat 2>/dev/null || echo '{}')
 SID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
@@ -39,6 +37,7 @@ case "$TODAY_UTC" in [0-9][0-9][0-9][0-9]-[0-9][0-9]) ;; *) echo '{}'; exit 1 ;;
 case "$DAY_UTC" in [0-9][0-9]) ;; *) echo '{}'; exit 1 ;; esac
 AUDIT_DIR="$PROJECT_DIR/.claude/audit/$TODAY_UTC"
 JOURNAL="$AUDIT_DIR/$DAY_UTC.jsonl"
+JLOCK="$JOURNAL.lock"   # journal-WIDE append lock (cross-session); see append critical-section below
 
 mkdir -p "$AUDIT_DIR"
 
@@ -50,8 +49,8 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   echo '{}'
   exit 0
 fi
-# Cleanup lock on any exit
-trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+# Cleanup BOTH locks on any exit (per-session idempotency lock + journal-wide append lock).
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true; rmdir "$JLOCK" 2>/dev/null || true' EXIT
 
 # Idempotency check — JSON-aware (robust to whitespace variations the Stop subagent may emit).
 # Per Qodo R1 finding: grep substring is fragile when LLM may format JSON differently.
@@ -67,7 +66,6 @@ if [ -f "$JOURNAL" ] && jq -se --arg sid "$SID" 'any(.[]; .session? == $sid)' "$
   echo '{}'
   exit 0
 fi
-HOOK_KIND="fallback"
 
 # Resolve tenant per §3 fallback chain (lib.sh — identical logic)
 TENANT=$(ash_resolve_tenant "$PROJECT_DIR")
@@ -102,12 +100,20 @@ if [ -n "$TRANSCRIPT_HASH" ] && [ -r "$TRANSCRIPT_ABS" ]; then
 fi
 case "$DECISIONS_JSON" in ''|*[![:print:][:space:]]*) DECISIONS_JSON="[]" ;; esac
 
-# v1.4.0 hook timing: capture end timestamps right before JSONL append so
-# duration reflects the actual work done by this fallback path.
-HOOK_ENDED_AT=$(ash_iso_ms)
-HOOK_END_EPOCH_MS=$(ash_epoch_ms)
-HOOK_DURATION_MS=$((HOOK_END_EPOCH_MS - HOOK_START_EPOCH_MS))
+# Journal-WIDE append lock: the per-session LOCK_DIR guards same-session idempotency, but two
+# DIFFERENT sessions ending at once both append to the shared day JOURNAL; a JSONL line can exceed
+# PIPE_BUF so concurrent `>>` is NOT atomic and can interleave/corrupt. Serialize the append
+# (bounded retry — the hold is sub-ms so contention effectively never times out).
+_jlocked=0
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if mkdir "$JLOCK" 2>/dev/null; then _jlocked=1; break; fi
+  sleep 0.2
+done
 
+# Emit a row conforming to the FROZEN Layer-1 17-field contract (SPEC.md §2). The hook timing
+# fields (hook_started_at/ended_at/duration_ms/hook_kind) were a Layer-2 v1.4.0 observability
+# enrichment outside the frozen schema; omitted here for Layer-1 conformance (re-addable as a
+# documented SPEC extension). schema_version is stamped from $ASH_SCHEMA_CURRENT (= "1.0.0").
 jq -nc \
   --arg ts "$NOW_UTC" \
   --arg tenant "$TENANT" \
@@ -116,10 +122,6 @@ jq -nc \
   --arg hash "$TRANSCRIPT_HASH" \
   --arg rel "$TRANSCRIPT_REL" \
   --arg goal "$GOAL_TEXT" \
-  --arg started_at "$HOOK_STARTED_AT" \
-  --arg ended_at "$HOOK_ENDED_AT" \
-  --argjson duration_ms "$HOOK_DURATION_MS" \
-  --arg kind "$HOOK_KIND" \
   --arg schema_ver "$ASH_SCHEMA_CURRENT" \
   --argjson decisions "$DECISIONS_JSON" \
   '{
@@ -128,16 +130,14 @@ jq -nc \
     tenant: $tenant,
     project: $project,
     session: $sid,
-    agent: "fallback-hook-v2-enriched",
+    agent: "fallback-hook",
     goal: $goal,
     task: "(see transcript for executed steps)",
     transcript_hash: $hash,
-    transcript_rel: $rel,
-    hook_started_at: $started_at,
-    hook_ended_at: $ended_at,
-    hook_duration_ms: $duration_ms,
-    hook_kind: $kind
+    transcript_rel: $rel
   }
   + (if ($decisions | length) > 0 then {decisions: $decisions} else {} end)' >> "$JOURNAL"
+
+[ "$_jlocked" = "1" ] && rmdir "$JLOCK" 2>/dev/null || true
 
 echo '{}'

@@ -4,7 +4,7 @@
 
 | # | Canonical decision | Why | Drift to flag |
 |---|---|---|---|
-| C1 | **Journals stamp `schema_version: 1.6.0`** (the data-shape version) | doc revisions (v1.6.x) ≠ the journal stamp; data shape §17.1 is stable | any journal stamping ≠ 1.6.0 for current entries |
+| C1 | **Journals stamp `schema_version: 1.0.0`** (the frozen Layer-1 row contract, SPEC.md §2) | the §17 decision-audit fields are an ADDITIVE extension inside `decisions[]`, not a row-version bump | any journal stamping ≠ 1.0.0 for current entries |
 | C2 | **`decisions[]` is auto-captured STRUCTURALLY at Stop by `stop-fallback.sh`** (v1.6.2) | the Stop `type:agent` hook empirically never wrote (0/17) — the fallback is the reliably-firing extraction path | treating type:agent step-10 as the live extraction path (it's a no-op) |
 | C3 | **`XDEC-<n>` = eXtracted (structural floor); `DEC-<n>` = explicit `agentic-decide` (high-fidelity "why" ceiling)** | distinct id namespaces never collide; `decide-merge.sh` keeps both, deduped by id | reusing `DEC-`/`XDEC-` across the wrong source; id collision |
 | C4 | **Anti-hallucination: no transcript/`agentic-decide` evidence ⇒ decision omitted** (never fabricated) | a fabricated audit is worse than an empty one (anti-theater Layer-5 R3/R4) | inventing decisions with no git/gh/transcript signal |

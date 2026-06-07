@@ -2,7 +2,7 @@
 # Agentic Session Harness (ASH) — decision-audit report CLI
 # Function: list/search agent decisions across sessions in table (default) / list / json,
 #   with --filter. Unions finalized journal entry.decisions[] + in-flight staging files.
-# Spec: docs/governance/ash-schema.md §17 (v1.6.0 decision-audit extension, Layer-2 Vek).
+# Spec: SPEC.md §17 decision-audit (optional additive extension on decisions[]).
 # Why: surface WHY an agent decided + which sources it used + whether it diverged from SPECs
 #   (spec_alignment = the drift signal). Answers operator pain: agents drift from BR/FR/NFR/ADR.
 # Portability: AAIF cross-vendor — POSIX-portable Bash 3.2 + jq only; no associative arrays.
@@ -85,6 +85,7 @@ gather_rows() {
   if [ -d "$AUDIT_DIR/staging" ]; then
     for f in "$AUDIT_DIR"/staging/*.decisions.jsonl; do
       [ -f "$f" ] || continue
+      [ ! -L "$f" ] || continue   # CWE-59: reject symlinks (parity with journaled branch)
       sid=$(basename "$f" .decisions.jsonl)
       cat "$f" 2>/dev/null | jq -c --arg s "$sid" '
         { session:$s, id:(.id // "?"), ts:(.ts // ""),

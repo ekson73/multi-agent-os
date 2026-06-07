@@ -2,7 +2,7 @@
 # Agentic Session Harness (ASH) — shared helper library (sourced, NOT executed)
 # Function: pure helpers reused by stop-fallback.sh (Stop hook) and bin/agentic-reindex
 #   (backfill/migrate CLI). Extracting them keeps the two write-paths DRY (ADR-014).
-# Spec: docs/governance/ash-schema.md (Layer-2 Vek) + agentic-session-harness-spec.md (Layer-1)
+# Spec: SPEC.md (Layer-1 frozen-17, in-repo) — §2 schema + §17 decision-audit (optional extension)
 # Portability: AAIF cross-vendor — POSIX-portable Bash 3.2 + jq only; no host-specific primitives,
 #   no associative arrays, no ${var^^}. Functions echo results; callers own `set -euo pipefail`.
 # No organization-specific content — promotion-eligible per Layer Purity Rule 2.
@@ -13,12 +13,12 @@
 [ -n "${ASH_LIB_SOURCED:-}" ] && return 0
 ASH_LIB_SOURCED=1
 
-# Current ASH schema version. Entries below this are migration candidates (agentic-reindex --migrate).
-# v1.6.0 = data-shape current: adds the §17 decision-audit extension (enriched decisions[] —
-# sources[].influence + spec_alignment + confidence) atop v1.5.0's provenance + reindex_meta
-# (Layer-2 Vek extension; Layer-1 frozen-17). v1.6.1 is doc/behavioral-only (amnesia-proof
-# Stop extraction + report id fix) — NO data-shape change, so the stamped version stays 1.6.0.
-ASH_SCHEMA_CURRENT="1.6.0"
+# Current ASH journal-row schema version — stamps each Layer-1 row (SPEC.md §2 frozen-17).
+# The community Layer-1 contract is "1.0.0". The §17 decision-audit fields
+# (decisions[].spec_alignment / .confidence, sources[].influence) are an ADDITIVE OPTIONAL
+# extension carried INSIDE the `decisions[]` array — they do NOT bump the row schema_version.
+# (Entries stamped below this are migration candidates: agentic-reindex --migrate.)
+ASH_SCHEMA_CURRENT="1.0.0"
 
 # --- timestamp shims (BSD/macOS `date` lacks %N) ---
 ash_iso_ms() {

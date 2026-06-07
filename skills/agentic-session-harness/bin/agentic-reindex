@@ -115,7 +115,7 @@ list_canon_sids() {
 
 journal_sids() {
   [ -d "$AUDIT_DIR" ] || return 0
-  find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+  find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
     | jq -r '.session // empty' 2>/dev/null | sort -u
 }
 
@@ -130,7 +130,7 @@ find_entry() {
   local sid="$1" allmatch best
   EXIST_VER=""; EXIST_HAS_GENEALOGY=0; EXIST_JSON=""; EXIST_COUNT=0; EXIST_HAS_REINDEX_META=0
   [ -d "$AUDIT_DIR" ] || return 0
-  allmatch=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+  allmatch=$(find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
     | jq -c --arg sid "$sid" 'select(.session==$sid)' 2>/dev/null || true)
   [ -n "$allmatch" ] || return 0
   EXIST_COUNT=$(printf '%s\n' "$allmatch" | jq -s 'length' 2>/dev/null || echo 0)
@@ -260,7 +260,13 @@ append_entry() {
   dir=$(dirname "$jf"); mkdir -p "$dir"
   sid=$(printf '%s' "$entry" | jq -r '.session')
   lock="$dir/.lock-reindex-$sid"
-  if ! mkdir "$lock" 2>/dev/null; then return 0; fi
+  # Lock contention is a FAILURE, not a no-op: under --migrate/--force the caller has already
+  # removed prior entries (remove_entry_all), so silently returning 0 here would leave the session
+  # with no journal row while still counted as migrated/rebuilt. Return 1 → callers tally `errors`.
+  if ! mkdir "$lock" 2>/dev/null; then
+    echo "append lock busy for session $sid" >&2
+    return 1
+  fi
   # Explicit lock cleanup on EVERY return path — deliberately NOT a `trap ... RETURN`.
   # A RETURN trap referencing the local `lock` leaks past this function (functrace off):
   # it re-fires when the CALLER returns, where `lock` is out of scope → under `set -u`
@@ -292,7 +298,7 @@ remove_entry_all() {
     if jq -se --arg sid "$sid" 'any(.[]; .session?==$sid)' "$f" 2>/dev/null | grep -q '^true$'; then
       remove_entry "$f" "$sid" || rc=1
     fi
-  done < <(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l 2>/dev/null)
+  done < <(find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l 2>/dev/null)
   return $rc
 }
 
@@ -321,9 +327,9 @@ if [ "$MODE" = "reconcile" ]; then
   echo
   echo "  schema_version histogram (per journal entry):"
   if [ -d "$AUDIT_DIR" ]; then
-    find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+    find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
       | jq -r '.schema_version // "1.2.1"' 2>/dev/null | sort | uniq -c | awk '{printf "    %6s  v%s\n", $1, $2}'
-    miss=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
+    miss=$(find "$AUDIT_DIR" -path "$AUDIT_DIR/staging" -prune -o -name '*.jsonl' -type f ! -type l -exec cat {} \; 2>/dev/null \
       | jq -r --arg cur "$ASH_SCHEMA_CURRENT" 'select((.schema_version // "1.2.1") != $cur) | .session // empty' 2>/dev/null | sort -u | wc -l | tr -d ' ')
     echo "  below-current-version (v$ASH_SCHEMA_CURRENT) entries (--migrate candidates): $miss"
   fi
@@ -346,7 +352,7 @@ while IFS= read -r sid; do
     if [ "$DRY_RUN" = "1" ]; then echo "${DR}backfill  $sid → ${jf#$PROJECT_DIR/}"; backfilled=$((backfilled+1)); continue; fi
     enrich=$(build_enrich "$CANON_DIR/$sid.jsonl"); base=$(build_base "$sid")
     entry=$(finalize "$enrich" "$base" "backfill" "" "reindex-backfill") || { errors=$((errors+1)); continue; }
-    append_entry "$jf" "$entry"
+    append_entry "$jf" "$entry" || { errors=$((errors+1)); continue; }
     echo "backfilled $sid (enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"')) → ${jf#$PROJECT_DIR/}"
     backfilled=$((backfilled+1)); continue
   fi
@@ -357,7 +363,7 @@ while IFS= read -r sid; do
     enrich=$(build_enrich "$CANON_DIR/$sid.jsonl"); base=$(build_base "$sid")
     entry=$(finalize "$enrich" "$base" "rebuilt" "$EXIST_VER" "reindex-rebuilt") || { errors=$((errors+1)); continue; }
     remove_entry_all "$sid" || { errors=$((errors+1)); continue; }
-    append_entry "$jf" "$entry"
+    append_entry "$jf" "$entry" || { errors=$((errors+1)); continue; }
     echo "rebuilt    $sid (force, enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"'))"
     rebuilt=$((rebuilt+1)); continue
   fi
@@ -383,7 +389,7 @@ while IFS= read -r sid; do
     ex_agent=$(printf '%s' "$EXIST_JSON" | jq -r '.agent // "unknown"')
     entry=$(finalize "$enrich" "$EXIST_JSON" "migrated" "$EXIST_VER" "$ex_agent") || { errors=$((errors+1)); continue; }
     remove_entry_all "$sid" || { errors=$((errors+1)); continue; }
-    append_entry "$jf" "$entry"
+    append_entry "$jf" "$entry" || { errors=$((errors+1)); continue; }
     echo "migrated   $sid v$EXIST_VER → v$ASH_SCHEMA_CURRENT (dups=$EXIST_COUNT, enrich=$(printf '%s' "$enrich" | jq -r '._enrich_status // "sparse"'))"
     migrated=$((migrated+1)); continue
   fi

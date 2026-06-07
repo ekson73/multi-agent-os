@@ -20,7 +20,8 @@ AUDIT_DIR="$PROJECT_DIR/.claude/audit"
 # Gather last 5 journal lines across all month dirs (newest-first).
 # CWE-22 defense: -type f ! -type l rejects symlinks so attacker-planted links
 # outside AUDIT_DIR cannot be followed.
-LAST_ENTRIES=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l 2>/dev/null \
+LAST_ENTRIES=$(find "$AUDIT_DIR" -name '*.jsonl' -type f ! -type l -print 2>/dev/null \
+  | sort \
   | xargs -I{} sh -c 'tail -n 5 "{}" 2>/dev/null' \
   | grep -v '^$' \
   | tail -n 5 || true)
