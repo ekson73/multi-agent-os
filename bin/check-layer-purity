@@ -99,6 +99,13 @@ for f in "${FILES[@]}"; do
   done < <(grep -EHniI "$JOINED_RE" "$f" 2>/dev/null || true)
 done
 
+# A missing input (typo / stale path) is a USAGE error (exit 2), not a clean run — fail fast
+# BEFORE printing any status so stdout never claims "0 violations / clean" while exiting 2.
+if [ "$MISSING_FILES" -gt 0 ]; then
+  echo "Missing input file(s): $MISSING_FILES (usage error — stale/typo path)" >&2
+  exit 2
+fi
+
 if [ "$MODE" = "json" ]; then
   printf '{"violations": %d, "patterns": %d, "details": [' "$VIOLATIONS" "${#PATTERNS[@]}"
   first=1
@@ -121,7 +128,4 @@ else
   fi
 fi
 
-# A missing input (typo / stale path) is a USAGE error (exit 2), not a clean run — fail fast so a
-# bad path can't masquerade as "0 violations".
-if [ "$MISSING_FILES" -gt 0 ]; then exit 2; fi
 [ "$VIOLATIONS" -eq 0 ] && exit 0 || exit 1
