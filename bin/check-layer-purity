@@ -6,7 +6,7 @@
 #
 # Usage:
 #   bin/check-layer-purity <file-or-glob> [<file-or-glob>...]
-#   bin/check-layer-purity --hooks      # shorthand: scan .claude/hooks/ash-*.sh
+#   bin/check-layer-purity --hooks      # shorthand: scan promoted Layer-1 hooks (skills/agentic-session-harness/hooks/*.sh)
 #   bin/check-layer-purity --candidates # shorthand: scan all promotion candidates
 #   bin/check-layer-purity --json       # machine-readable output
 #
@@ -72,6 +72,10 @@ while [ $# -gt 0 ]; do
         skills/agentic-session-harness/bin/agentic-fix-dangling-symlinks.sh
         skills/agentic-session-harness/SKILL.md
         skills/agentic-session-harness/SPEC.md
+        skills/walkthrough-concierge/SKILL.md
+        skills/walkthrough-concierge/awareness-registry.md
+        skills/walkthrough-concierge/canon.md
+        skills/decision-capture/SKILL.md
       )
       shift ;;
     -*) echo "Unknown option: $1" >&2; exit 2 ;;

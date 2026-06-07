@@ -116,7 +116,7 @@ Guided ramp for a newcomer. Sequence: (1) Phase 0 capability detection → (2) "
 Route an intent → the right `agentic-*` tool + exact invocation + governing schema section + a short runbook. Map situation → tool via the Landscape Decision Matrix. The caller executes; I orient + hand the invocation.
 
 ### `--mode=audit` (read-only)
-Scan a project's ASH usage: Stop-chain wiring (3 hooks present?), decisions[] population rate (the activation health — `0` ⇒ flag the v1.6.2 activation gap), transcript symlink validity, schema_version stamps (1.6.0 current), journal/MEMORY index sanity. **Every finding carries evidence + objective criterion + proposed alternative** (anti-theater). Greenfield with no ASH adoption → "bootstrap" guidance, not failure. Proposes, never mutates.
+Scan a project's ASH usage: Stop-chain wiring (3 hooks present?), decisions[] population rate (the activation health — `0` ⇒ flag the v1.6.2 activation gap), transcript symlink validity, schema_version stamps (1.0.0 current), journal/MEMORY index sanity. **Every finding carries evidence + objective criterion + proposed alternative** (anti-theater). Greenfield with no ASH adoption → "bootstrap" guidance, not failure. Proposes, never mutates.
 
 ### `--mode=anchor` (anti-drift)
 Surface the canonical ASH decisions (from [`canon.md`](./canon.md)) so a fresh agent/human re-finds the rule instead of re-deriving. Flag contradictions (e.g., stamping a journal `schema_version` other than 1.0.0; treating the type:agent Stop hook as the live extraction path — it isn't, per v1.6.2; fabricating decisions with no transcript evidence). Output = canonical decision + contradiction + corrective pointer.
@@ -128,7 +128,7 @@ Render an **ASCII/markdown coverage-map** (default): capture-health (decisions[]
 - **Reference, don't duplicate**: the schema docs are SSOT; I route to the canonical §, never copy it.
 - **Anti-hallucination is law**: a decision with no transcript/`agentic-decide` evidence ⇒ omitted (never fabricated). I surface this rule, never suppress it.
 - **Layer purity**: the generic ASH engine is Layer-1 (community, here); any org-specific taxonomy/compliance/tenant deltas are Layer-2 (the consuming org's private corporate toolkit). I flag corporate content leaking into Layer-1.
-- **schema_version discipline**: journals stamp the data-shape version (1.6.0); doc revisions (v1.6.x) are NOT the journal stamp.
+- **schema_version discipline**: journals stamp the data-shape version (1.0.0); doc revisions (v1.6.x) are NOT the journal stamp.
 - **Escalation**: irreversible ops, secrets, cross-org → escalate to the human; I orient, I don't authorize.
 
 ## What I do NOT do (anti-over-engineering / anti-theater)
@@ -148,9 +148,9 @@ Render an **ASCII/markdown coverage-map** (default): capture-health (decisions[]
 
 ## Cross-refs
 - Companions: [`awareness-registry.md`](./awareness-registry.md) · [`canon.md`](./canon.md)
-- ASH tools (cross-ref, never reimplement): `agentic-decide` · `agentic-decisions` · `agentic-walkthrough` · `agentic-reindex` · `agentic-fix-dangling-symlinks.sh` · `.claude/hooks/{link,resume,stop-fallback,decide-merge,lib}.sh` · `decision-capture` skill
+- ASH tools (cross-ref, never reimplement): `agentic-decide` · `agentic-decisions` · `agentic-walkthrough` · `agentic-reindex` · `agentic-fix-dangling-symlinks.sh` · `skills/agentic-session-harness/hooks/{link,resume,stop-fallback,decide-merge,lib}.sh` · `decision-capture` skill
 - Schema SSOT: `skills/agentic-session-harness/SPEC.md` (L1 frozen-17, in-repo) · Layer-2 §17 decision-audit overlay = external corporate toolkit (not in this community repo)
-- Sibling concierges (cross-vendor pattern): `maos-concierge` · `specdd-concierge` · `atlassian-concierge` (+ proposed `vek-concierge`)
+- Sibling concierges (cross-vendor pattern): `maos-concierge` · `specdd-concierge` · `atlassian-concierge` (+ org-specific concierges in a consuming org's private toolkit)
 
 ## Changelog
 - 2026-05-30 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/anchor over the ASH-lite harness (journals · walkthrough · decision-audit). 6 modes + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON. ROUTES+TEACHES+ANCHORS, reimplements NOTHING. Built vkl-first (ADR-017 R6 dogfood-gate); Layer-1 promotion candidate post ≥2 cycles. dashboard.html (D1) + references/socratic-33q.md = planned follow-ups. Origin: operator /enhance Round#2 (Deliverable C) — sibling of maos-concierge/specdd-concierge.
