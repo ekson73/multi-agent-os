@@ -259,4 +259,4 @@ Spec contract: any host that emits (a) `session_id` UUID at session-start AND (b
 
 - Harness Engineering 4-layer canonical definition — ASH is **Layer 4 (Memory/Workspace)** of the harness 4-layer
 - `ai-as-pwd-axiom` §1 amnesia — primary motivator
-- Cross-vendor convergence trail: 18 rounds, ~135KB clipboard archive
+- Cross-vendor convergence trail: 17 rounds, ~135KB clipboard archive

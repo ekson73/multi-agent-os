@@ -35,4 +35,4 @@
 - "Why did the agent diverge from the SPEC?" → `agentic-decisions --filter spec_alignment=divergent` (NOT `agentic-walkthrough` — that's the whole timeline).
 - "Capture this decision's rationale" → `agentic-decide` (NOT edit the journal by hand).
 - "Onboard onto SpecDD / MAOS" → route to `specdd-concierge` / `maos-concierge` (NOT this one).
-- "Promote ASH to multi-agent-os" → governance PR gated on ADR-017 R6 ≥2 cycles (NOT a concierge action).
+- "Promote ASH to multi-agent-os" → ALREADY PROMOTED (Layer-1, 2026-06-02, via operator override of the ADR-017 R6 ≥2-cycle gate; recorded in the promotion ledger). Re-promotion/forking = governance PR (NOT a concierge action).

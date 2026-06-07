@@ -7,7 +7,7 @@ version: 1.0.0
 # Agentic Session Harness (ASH) — engine
 
 ## Purpose
-A session-end observability harness: one journal entry per session (`.claude/audit/<YYYY-MM>/<DD>.jsonl`) with the 17-field FROZEN schema (goal · tasks · decisions[] · sources · transcript_hash · spec_alignment · …). The **walkthrough** reads the timeline; the **decision-audit** answers *why the agent decided X instead of following the SPEC*. Vendor-neutral (AAIF) — Bash 3.2 + jq only, no org-specific content (Layer-Purity clean).
+A session-end observability harness: one journal entry per session (`.claude/audit/<YYYY-MM>/<DD>.jsonl`) with the 17-field FROZEN schema (goal · tasks · decisions[] · sources · transcript_hash · compliance_flags · …; `spec_alignment` is an additive field *inside* `decisions[]`, not a top-level field). The **walkthrough** reads the timeline; the **decision-audit** answers *why the agent decided X instead of following the SPEC*. Vendor-neutral (AAIF) — Bash 3.2 + jq only, no org-specific content (Layer-Purity clean).
 
 ## When to Use
 - Audit what happened in a session (timeline) → `agentic-walkthrough <sid>`

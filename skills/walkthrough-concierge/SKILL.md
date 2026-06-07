@@ -119,7 +119,7 @@ Route an intent → the right `ash-*` tool + exact invocation + governing schema
 Scan a project's ASH usage: Stop-chain wiring (3 hooks present?), decisions[] population rate (the activation health — `0` ⇒ flag the v1.6.2 activation gap), transcript symlink validity, schema_version stamps (1.6.0 current), journal/MEMORY index sanity. **Every finding carries evidence + objective criterion + proposed alternative** (anti-theater). Greenfield with no ASH adoption → "bootstrap" guidance, not failure. Proposes, never mutates.
 
 ### `--mode=anchor` (anti-drift)
-Surface the canonical ASH decisions (from [`CANON.md`](./CANON.md)) so a fresh agent/human re-finds the rule instead of re-deriving. Flag contradictions (e.g., stamping a journal `schema_version` other than 1.6.0; treating the type:agent Stop hook as the live extraction path — it isn't, per v1.6.2; fabricating decisions with no transcript evidence). Output = canonical decision + contradiction + corrective pointer.
+Surface the canonical ASH decisions (from [`CANON.md`](./CANON.md)) so a fresh agent/human re-finds the rule instead of re-deriving. Flag contradictions (e.g., stamping a journal `schema_version` other than 1.0.0; treating the type:agent Stop hook as the live extraction path — it isn't, per v1.6.2; fabricating decisions with no transcript evidence). Output = canonical decision + contradiction + corrective pointer.
 
 ### `--mode=dashboard`
 Render an **ASCII/markdown coverage-map** (default): capture-health (decisions[] population rate, sessions today, drift count) + adoption checklist + next-step pointer, in the `agentic-walkthrough` house style. (A self-contained `dashboard.html` companion is a planned follow-up — D1; not shipped in this core.) No web service, no build step.
