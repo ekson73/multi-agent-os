@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Layer Purity verification — scans candidate-for-community files for organization-specific strings
+# Spec: docs/governance/promotion-readiness-checklist.md §"Layer Purity"
+# Origin: Track A.5 of ASH-lite portability refactor plan
+# Aligns with: ~/.claude/rules/layer-precedence-policy.md Rule 2 (Layer Purity)
+#
+# Usage:
+#   bin/check-layer-purity <file-or-glob> [<file-or-glob>...]
+#   bin/check-layer-purity --hooks      # shorthand: scan promoted Layer-1 hooks (skills/agentic-session-harness/hooks/*.sh)
+#   bin/check-layer-purity --candidates # shorthand: scan all promotion candidates
+#   bin/check-layer-purity --json       # machine-readable output
+#
+# Exit codes:
+#   0 = clean (zero violations)
+#   1 = violations found
+#   2 = usage error / file not found
+set -euo pipefail
+
+# Organization-specific strings to flag (case-insensitive)
+# Add new patterns here; one regex per line, anchored as needed.
+PATTERNS=(
+  '\bvek\b'
+  '\bVKL-[0-9]+'
+  '\bVKS-[0-9]+'
+  '\bLGPD\b'
+  '\bVSAF\b'
+  '\bvector(inf)?\b'
+  '\bvek-list\b'
+  '\bvek-sales\b'
+  '\bvek-ai-toolkit\b'
+  '\bvek-claude-plugins\b'
+  '\bvek-list-pilot\b'
+  'vek\.atlassian\.net'
+  'vectorinf\.com\.br'
+)
+
+MODE="text"
+FILES=()
+
+usage() {
+  sed -n '2,15p' "$0"
+  exit 0
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage ;;
+    --json) MODE="json"; shift ;;
+    --hooks)
+      # Promoted Layer-1 bundle hooks (pre-promotion paths .claude/hooks/ash-*.sh no longer exist).
+      FILES+=(
+        skills/agentic-session-harness/hooks/link.sh
+        skills/agentic-session-harness/hooks/resume.sh
+        skills/agentic-session-harness/hooks/stop-fallback.sh
+        skills/agentic-session-harness/hooks/decide-merge.sh
+        skills/agentic-session-harness/hooks/lib.sh
+      )
+      shift ;;
+    --candidates)
+      # FULL promoted Layer-1 bundle (hooks + CLIs + docs) — scan everything that shipped, so a
+      # clean run cannot be reported while skipping promoted files (the v1 bug this preset had).
+      FILES+=(
+        skills/agentic-session-harness/hooks/link.sh
+        skills/agentic-session-harness/hooks/resume.sh
+        skills/agentic-session-harness/hooks/stop-fallback.sh
+        skills/agentic-session-harness/hooks/decide-merge.sh
+        skills/agentic-session-harness/hooks/lib.sh
+        skills/agentic-session-harness/bin/agentic-walkthrough
+        skills/agentic-session-harness/bin/agentic-decide
+        skills/agentic-session-harness/bin/agentic-decisions
+        skills/agentic-session-harness/bin/agentic-reindex
+        skills/agentic-session-harness/bin/agentic-fix-dangling-symlinks.sh
+        skills/agentic-session-harness/SKILL.md
+        skills/agentic-session-harness/SPEC.md
+        skills/walkthrough-concierge/SKILL.md
+        skills/walkthrough-concierge/awareness-registry.md
+        skills/walkthrough-concierge/canon.md
+        skills/decision-capture/SKILL.md
+      )
+      shift ;;
+    -*) echo "Unknown option: $1" >&2; exit 2 ;;
+    *) FILES+=("$1"); shift ;;
+  esac
+done
+
+[ ${#FILES[@]} -eq 0 ] && { echo "Usage: $(basename "$0") <file>... | --hooks | --candidates [--json]" >&2; exit 2; }
+
+# Build combined regex (alternation) for grep -E.
+# printf-join (not an `IFS='|'` subshell): subshell-IFS is safe but trips a global-IFS lint;
+# printf is clearer and lint-clean. Trailing '|' stripped via parameter expansion.
+JOINED_RE=$(printf '%s|' "${PATTERNS[@]}"); JOINED_RE="${JOINED_RE%|}"
+
+VIOLATIONS=0
+MISSING_FILES=0
+RESULTS=()
+
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] || { echo "File not found: $f" >&2; MISSING_FILES=$((MISSING_FILES+1)); continue; }
+  # -E extended regex, -i case-insensitive, -n line numbers, -H filename
+  while IFS= read -r line; do
+    VIOLATIONS=$((VIOLATIONS+1))
+    RESULTS+=("$line")
+  done < <(grep -EHniI "$JOINED_RE" "$f" 2>/dev/null || true)
+done
+
+# A missing input (typo / stale path) is a USAGE error (exit 2), not a clean run — fail fast
+# BEFORE printing any status so stdout never claims "0 violations / clean" while exiting 2.
+if [ "$MISSING_FILES" -gt 0 ]; then
+  echo "Missing input file(s): $MISSING_FILES (usage error — stale/typo path)" >&2
+  exit 2
+fi
+
+if [ "$MODE" = "json" ]; then
+  printf '{"violations": %d, "patterns": %d, "details": [' "$VIOLATIONS" "${#PATTERNS[@]}"
+  first=1
+  for r in "${RESULTS[@]}"; do
+    [ $first -eq 1 ] && first=0 || printf ','
+    # Escape line for JSON
+    printf '%s' "$r" | jq -Rs .
+  done
+  printf ']}\n'
+else
+  if [ "$VIOLATIONS" -eq 0 ]; then
+    echo "✅ Layer Purity clean: 0 violations across ${#FILES[@]} file(s)"
+  else
+    echo "🚨 Layer Purity: $VIOLATIONS violation(s) found"
+    echo ""
+    printf '%s\n' "${RESULTS[@]}"
+    echo ""
+    echo "Patterns scanned: ${#PATTERNS[@]} organization-specific terms"
+    echo "Action: sanitize (use placeholders) OR keep file project-scoped per layer-precedence-policy Rule 2"
+  fi
+fi
+
+[ "$VIOLATIONS" -eq 0 ] && exit 0 || exit 1
