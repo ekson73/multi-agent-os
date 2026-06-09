@@ -63,6 +63,17 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/postflight-precompact.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
