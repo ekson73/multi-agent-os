@@ -26,10 +26,15 @@
   "autonomy": {"green": 5, "blue": 1, "orange": 0, "red": 0},
   "vitals":   [{"icon": "📦", "label": "Escopo", "pct": 100, "note": "..."}],
   "checklist":[{"state": "green|blue|orange|yellow|red", "label": "...", "note": "...", "confidence": 97}],
-  "whats_left":[{"state": "done|orange|red|yellow", "text": "..."}]
+  "whats_left":[{"state": "done|orange|red|yellow", "text": "..."}],
+  "tickets":  [{"id": "PROJ-204", "status": "closed|in-progress|review|open|blocked", "title": "..."}]
 }
 ```
-`state` aliases: `done→green · human→blue · hitl→orange · doing/wip→yellow · todo/blocked→red`.
+`state` aliases: `done/closed/merged→green · human→blue · hitl/review→orange · doing/wip/in-progress/open→yellow · todo/blocked→red`.
+**Tickets** (Jira/Linear/GH issues) are AI-supplied atoms — the agent lists which the session
+touched + their status. Surfaced in M1 (TICKETS section), M2 (tickets line), M5 (kanban lanes),
+M6 (telemetry + JSON-RPC), M7 (🎫 count). Cross-provider auto-detect is out of scope (per-provider
+MCP/CLI) — the agent already knows the linked tickets from the session.
 
 ## The 7 models (run `--model N --demo` to see each rendered)
 

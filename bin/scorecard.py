@@ -40,7 +40,8 @@ STATE = {
 }
 ALIAS = {"done": "green", "agentic": "green", "human": "blue", "hitl": "orange",
          "doing": "yellow", "wip": "yellow", "todo": "red", "blocked": "red",
-         "warn": "orange"}
+         "warn": "orange", "closed": "green", "open": "yellow", "review": "orange",
+         "in-progress": "yellow", "in_progress": "yellow", "merged": "green"}
 VERDICT_ICON = {"done": "✅", "warn": "⚠️", "blocked": "🛑", "wip": "🟡"}
 
 
@@ -164,6 +165,12 @@ DEMO = {
         {"state": "done",   "text": "Nada nesta tarefa — fechada."},
         {"state": "orange", "text": "(opcional) housekeeping ~/.claude: index.lock stale · 5 worktrees órfãos"},
     ],
+    "tickets": [
+        {"id": "PROJ-204", "status": "closed",      "title": "spec round-2 — as-built fidelity"},
+        {"id": "PROJ-211", "status": "in-progress", "title": "POC: dev branch + protections"},
+        {"id": "PROJ-218", "status": "review",      "title": "add module test oracles"},
+        {"id": "PROJ-220", "status": "open",        "title": "capture infra config in VC"},
+    ],
 }
 
 
@@ -192,6 +199,7 @@ def enrich(d, args):
     d.setdefault("vitals", [])
     d.setdefault("checklist", [])
     d.setdefault("whats_left", [])
+    d.setdefault("tickets", [])
     return d
 
 
@@ -220,6 +228,21 @@ def conf(item):
     return f"{cf}%" if isinstance(cf, (int, float)) else "──"
 
 
+def tk_list(d):
+    return d.get("tickets", []) or []
+
+
+def tk_counts(d):
+    tk = tk_list(d)
+    done = sum(1 for t in tk if ALIAS.get(t.get("status"), t.get("status")) in ("green", "blue"))
+    return done, len(tk)
+
+
+def tk_summary(d):
+    tk = tk_list(d)
+    return "  ".join(f"{dot(t.get('status','green'))} {t.get('id','?')}" for t in tk) if tk else None
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # MODEL 1 — "Cockpit" : rich left-framed card (verdict band · vitals · checklist
 #                       · pulse · what's-left). Best for substantive sessions.
@@ -245,6 +268,13 @@ def model_1(d):
     for it in d["checklist"]:
         L.append(c("┃  ", 244) + f"{dot(it['state'])} " + pad(it.get("label", ""), 16)
                  + c(pad(it.get("note", ""), 40), dim=True) + c(conf(it), 46))
+    if tk_list(d):
+        L.append(c("┃", 244))
+        dn, tt = tk_counts(d)
+        L.append(c("┃ ", 244) + c(f"TICKETS  ({dn}/{tt} done)", 244, bold=True))
+        for t in tk_list(d):
+            L.append(c("┃  ", 244) + f"{dot(t.get('status','green'))} " + pad(t.get("id", "?"), 12)
+                     + c(t.get("title", ""), dim=True))
     L.append(c("┃", 244))
     seq, tally, tot, _ = pulse_line(a)
     L.append(c("┃ ", 244) + c("PULSE ", 244, bold=True) + seq + "   " + c(tally, dim=True))
@@ -271,6 +301,10 @@ def model_2(d):
     for it in d["checklist"]:
         line = f"{dot(it['state'])} {pad(it.get('label',''),16)} {c('·',240)} {pad(it.get('note',''),42,)}"
         L.append(line + c(conf(it).rjust(4), 46))
+    ts = tk_summary(d)
+    if ts:
+        dn, tt = tk_counts(d)
+        L.append(f"{c('tickets',244)} {ts}   {c(f'({dn}/{tt} done)',dim=True)}")
     L.append("")
     L.append(f"{c('pulse',244)} {seq}  {bar(gp,10)} {gp:.0f}%  {c(tally,dim=True)}")
     nxt = next((w["text"] for w in d["whats_left"] if w["state"] != "done"), None)
@@ -357,6 +391,9 @@ def model_5(d):
     for w in d["whats_left"]:
         if w["state"] != "done":
             buckets.setdefault(ALIAS.get(w["state"], w["state"]), []).append(w["text"])
+    for tk in tk_list(d):
+        key = ALIAS.get(tk.get("status"), tk.get("status", "green"))
+        buckets.setdefault(key, []).append(f"🎫 {tk.get('id','?')} {tk.get('title','')}")
     L = [c(f"🛬 {t}", bold=True), c(meta, dim=True), ""]
     for key, title in lanes:
         rows = buckets.get(key, [])
@@ -399,6 +436,11 @@ def model_6(d):
         L.append(f"git.branch        = {g.get('branch','-')}  (+{g.get('ahead',0)}/-{g.get('behind',0)})")
         L.append(f"git.dirty         = {g.get('dirty','-')} file(s)")
         L.append(f"git.open_prs      = {g.get('open_prs','-')}")
+    if tk_list(d):
+        dn, tt = tk_counts(d)
+        L.append(f"tickets.done      = {dn}/{tt}")
+        for t in tk_list(d):
+            L.append(f"  ticket {t.get('id','?'):<10}= {t.get('status',''):<12} {t.get('title','')}")
     L.append("")
     L.append(c("  json-rpc sidecar:", dim=True))
     payload = {"jsonrpc": "2.0", "method": "session.scorecard", "params": {
@@ -408,6 +450,8 @@ def model_6(d):
         "checklist": [{"label": it.get("label"), "token": st(it["state"])[2],
                        "confidence": it.get("confidence")} for it in d["checklist"]],
         "open": [w["text"] for w in d["whats_left"] if w["state"] != "done"],
+        "tickets": [{"id": t.get("id"), "status": t.get("status"),
+                     "token": st(t.get("status", "green"))[2]} for t in tk_list(d)],
         "git": {k: g.get(k) for k in ("repo", "branch", "ahead", "behind", "dirty", "open_prs")} if g else None,
     }, "data": {"layer": "community"}}
     L.append("  " + json.dumps(payload, ensure_ascii=False))
@@ -426,9 +470,10 @@ def model_7(d):
     def clip(t, n):
         return t if len(t) <= n else t[:n - 1] + "…"
     nxt = next((w["text"] for w in d["whats_left"] if w["state"] != "done"), "—")
+    tkseg = (f" · 🎫 {tk_counts(d)[0]}/{tk_counts(d)[1]}" if tk_list(d) else "")
     head = (f"{vi} {c(d['verdict'].get('label','').split('·')[0].strip().upper(),46,bold=True)}"
             f" · {bar(gp,8)} {gp:.0f}% green"
-            f" · {done}/{len(d['checklist'])} done"
+            f" · {done}/{len(d['checklist'])} done{tkseg}"
             f" · {openn} blocker{'s' if openn!=1 else ''}"
             f" · next: {('—' if openn==0 else clip(nxt,34))}")
     L = [head]

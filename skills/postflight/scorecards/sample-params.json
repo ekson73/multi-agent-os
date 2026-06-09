@@ -20,5 +20,11 @@
   "whats_left": [
     {"state": "done",   "text": "Nada nesta tarefa — fechada."},
     {"state": "orange", "text": "(opcional) housekeeping ~/.claude: index.lock stale · 5 worktrees órfãos"}
+  ],
+  "tickets": [
+    {"id": "PROJ-204", "status": "closed",      "title": "spec round-2 — as-built fidelity"},
+    {"id": "PROJ-211", "status": "in-progress", "title": "POC: dev branch + protections"},
+    {"id": "PROJ-218", "status": "review",      "title": "add module test oracles"},
+    {"id": "PROJ-220", "status": "open",        "title": "capture infra config in VC"}
   ]
 }
