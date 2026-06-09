@@ -1,19 +1,20 @@
 ---
 name: postflight
-description: Close the session out cleanly + hand it off (exit-hygiene sweep, debrief, ai-agnostic continuation seed)
+description: Close the session out cleanly + hand it off (exit-hygiene sweep, debrief, ai-agnostic continuation seed, optional auto-spawn of the next session)
 ---
 
 # /postflight Command
 
 Run the **postflight** end-of-session debrief: a boy-scout exit-hygiene **sweep** (no loose
-ends), a session **debrief** (objectives + gaps + next-actions), and a **handoff** seed a
-fresh amnesic agent can resume from. The end-of-session counterpart to `/preflight`. Thin
+ends), a session **debrief** (objectives + gaps + next-actions), a **handoff** seed a
+fresh amnesic agent can resume from, and an optional **spawn** of a fresh, pre-seeded
+`claude` continuation session. The end-of-session counterpart to `/preflight`. Thin
 entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 
 ## Usage
 
 ```
-/postflight [action]
+/postflight [action] [--spawn | --no-spawn] [--dry-run]
 ```
 
 > Surfaces at runtime as `/maos:postflight` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
@@ -26,6 +27,9 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 | `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket close-or-register), classified by Eisenhower, safe-or-DEFER. |
 | `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top. No mutations. |
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2 (DoR). |
+| `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
+
+> **P3.5 SPAWN** (tool 5.1) runs by default after `seed` on a `full` run (**spawn ON**); pass `--no-spawn` to opt out, `--dry-run` to preview the launch without spawning. It is high-blast (a real session burns tokens) → guarded by a kill-switch, once-per-source-session idempotency, an anti-recursion depth-cap, capability-detected graceful-noop, and seed sanitization. See the skill for the full guardrail list.
 
 ## Behavior (safe-or-DEFER)
 
@@ -37,10 +41,13 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 ## Examples
 
 ```
-/postflight                  # full: sweep + debrief + seed (+ clipboard) — run before /compact
+/postflight                  # full: sweep + debrief + seed + spawn (default ON) — run before /compact
+/postflight --no-spawn       # full, but emit/clipboard the seed only (no new session)
+/postflight --dry-run        # preview the spawn command without launching
 /postflight sweep            # exit-hygiene close-out only (git + docs + tickets)
 /postflight debrief          # session map (recap) only, no mutations
 /postflight seed             # emit the continuation seed (after a sweep+debrief)
+/postflight spawn            # launch the pre-seeded continuation session (after seed)
 ```
 
 ## Output
@@ -51,6 +58,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 SWEEP    pushed feat/x · PR #42 → green · pruned 1 stale ref · changelog bumped
 DEBRIEF  objectives 2/3 done · 1 gap · 1 undecided · 3 next-actions (Q1×1, Q2×2)
 HANDOFF  🌱 continuation seed → printed + copied to clipboard
+SPAWN    🛫 TICKET-123-add-retry-#a1b2c3d4 (tmux) — attach: tmux attach -t '…' · or --no-spawn next time
 ─────────────────────────────────────────────────
 Next agent: /maos:preflight, then start at the first non-blocked next-action.
 ```
@@ -62,10 +70,13 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 | `POSTFLIGHT_NO_AUTOSNAPSHOT=1` | The PreCompact hook skips its deterministic snapshot (manual `/postflight` still works). |
 | `POSTFLIGHT_SNAPSHOT_PRS=1` | The PreCompact hook also fetches open-PR state via `gh` (network; default off = fast/offline-safe). |
 | `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
+| `POSTFLIGHT_SPAWN=0` | **P3.5 kill-switch** — never spawn a continuation session (deterministic opt-out; overrides `--spawn`). |
+| `POSTFLIGHT_SPAWN_DEPTH=N` | Current auto-chain depth (default 0); `>=` the depth-cap (default 1) → P3.5 graceful no-op (anti-recursion). |
+| `MAOS_SPAWN_LAUNCHER` | Force the spawn launcher: `tmux` \| `cmux` \| `print` (default: auto-detect; `print` = register + emit the resume command). |
 
 ## Integration
 
 - Skill: [`skills/postflight/SKILL.md`](../skills/postflight/SKILL.md) (the orchestrator).
-- Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks).
-- Composes: `protocols/exit-hygiene.md`, `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`.
-- Counterpart: `/preflight` (start-of-session) — together: `preflight → work → postflight`.
+- Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks; never spawns).
+- Composes: `protocols/exit-hygiene.md`, `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive).
+- Counterpart: `/preflight` (start-of-session) — together the loop: `preflight → work → postflight → (spawn) → preflight …`.
