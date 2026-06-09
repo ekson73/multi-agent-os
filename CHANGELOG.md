@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `preflight`: governance-aware session/action bootstrap bundle (v1.9.0)
+
+- **NEW skill `skills/preflight/SKILL.md`** (named by `anima`) — the governance-aware orchestrator for the three pre-work readiness steps, run at the start of a session/action: **(R1)** detect the right branch *without interfering* with other agents/sessions/worktrees, **(R2)** safely *heal* the current branch from origin, **(R3)** *isolate* file mutations in a worktree (lazily — only when about to create/update files). Reads whatever governance is present at invocation (`CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories`) and adapts the branch/worktree conventions rather than hardcoding. Composes (does not reinvent) `worktree-policy`, `/maos:worktree create`, `worktree-utils.sh`. `/maos:preflight` command wrapper added (`commands/preflight.md`).
+- **NEW libs (pure git primitives, Layer-Purity clean, no host-specific signals)**:
+  - `plugin-scripts/governance/lib/git-branch-detect.sh` (R1, **read-only**) — current branch / `@{upstream}` / ahead-behind / branches **locked by other worktrees** (`git worktree list --porcelain`) / tree-state {CLEAN·DIRTY·DETACHED·MID_REBASE·MID_MERGE}.
+  - `plugin-scripts/governance/lib/git-safe-sync.sh` (R2, **safe-or-DEFER**) — `fetch` → classify → act: `merge --ff-only` (clean-behind) · `rebase --autostash` (clean-diverged) · **DEFER** (dirty / detached / mid-op / diverged-conflict→`rebase --abort` / `.git/index.lock` held). Never `--force`, never clobbers uncommitted or concurrent work.
+- **NEW hooks**:
+  - `plugin-scripts/governance/preflight-session.sh` — **SessionStart** (R1+R2). Reports branch situation + safe-heals; injects a concise `additionalContext`; **never blocks** the session. Opt-out `PREFLIGHT_NO_AUTOHEAL=1` (report-only).
+  - `plugin-scripts/governance/preflight-edit-gate.sh` — **PreToolUse:Edit\|Write\|MultiEdit** (R3 safety-net). When about to mutate a file in the MAIN checkout, recommends isolating in a worktree. **WARN by default** (surfaces guidance, never blocks); `PREFLIGHT_EDIT_GATE=block` enforces (exit 2, JSON-RPC `-32003`), `=off` disables. Exempt: `.worktrees/*` edits, append-only `tasks.md`/`sessions.json`, non-git / outside-repo.
+  - `hooks/hooks.json` — registers both (SessionStart append; new `Edit|Write|MultiEdit` PreToolUse matcher).
+- **Verified**: R1 correctly flags `main` as locked-by-another-worktree (non-interference); R2 dry-run across all 6 states (HEALED_FF · UP_TO_DATE · HEALED_REBASE · DEFER-conflict-with-HEAD-restored · DEFER-dirty · DEFER-detached); edit-gate WARN/block/off/exempt paths; Layer-Purity 0 violations; `validate-plugin.sh` PASS; all scripts `bash -n` clean.
+- **Plugin bump** 1.8.1 → 1.9.0 (MINOR — additive feature bundle: 1 skill + 1 command + 2 hooks + 2 libs).
+
 ### Added — Agentic Session Harness (ASH) engine (Layer-1 community promotion)
 
 - **Promoted the generic, vendor-neutral session-observability engine** from a host product (vek-im/vkl-rct-list-web) per the operator's documented Track A rename-map. Layer-Purity clean (verified by `bin/check-layer-purity`). New:
