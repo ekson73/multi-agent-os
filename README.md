@@ -193,6 +193,7 @@ Plus namespaced utilities (`/maos:auto-shard`, `/maos:code:*`, `/maos:analyze:*`
 | `enhance-pipeline` | Divergent→convergent→deliver feature lifecycle |
 | `agentic-delegation` / `delegate-governance` | Delegation criteria + GaaS/GaaC governance prompts |
 | `agentic-tool-forge` / `-evaluator` / `-trainer` | Create, evaluate, and improve reusable agentic-tools |
+| `anima` | Sovereign precision-naming engine — names anything (12 correctness + 4 resonance aspects, register-aware); the forge's Phase-4 naming delegate + standalone |
 | `founder-playbook` / `founder-stage-*` | AI-native startup lifecycle disciplines (Idea/MVP/Launch/Scale) |
 | `morning-briefing` / `pulse` / `session-fission` | Context restoration, re-orientation, session splitting |
 | `rule-quality-tests` / `operator-quote-capture` / `pii-masking` / `slm-routing` | Governance, capture, PII detection, model routing |
