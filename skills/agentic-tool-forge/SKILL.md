@@ -6,7 +6,7 @@ description: |
   "convert these instructions into a tool", "criar um agentic-tool para …", "research then build
   the best tool for …". Researches pre-existing internal + external solutions FIRST (DRY), decides
   the OPTIMAL artifact TYPE among {prompt · skill · command · agent/subagent · mcp · plugin ·
-  marketplace · rule/hook}, names it via 5-axis rigor, makes it AI-agnostic + multi-agentic, then
+  marketplace · rule/hook}, names it (delegating to `anima` when present, else 5-axis inline fallback), makes it AI-agnostic + multi-agentic, then
   forges + saves it (operator-confirmed). The genesis stage of the agentic-tool lifecycle
   (forge → evaluate → train → operate → deprecate). Hands off to agentic-tool-evaluator + -trainer.
   Cross-vendor AAIF (Claude / Cursor / Codex / Copilot / Gemini / Aider).
@@ -37,7 +37,7 @@ metadata:
 
 Turn a raw **intent** into the **right reusable agentic-tool** — researched first, type-decided, named, made portable + multi-agentic, then forged and saved. This is the **genesis** stage of the lifecycle the ecosystem already names: **`forge → evaluate → train → operate → deprecate`** (siblings: `agentic-tool-evaluator`, `agentic-tool-trainer`; shared `protocols/agentic-tool-lifecycle.md`). It does NOT execute the forged tool — it *creates* it, then hands off downstream.
 
-The forge **orchestrates existing assets, it does not reinvent them**: it reuses best-fit routing/scoring, The Forge's Goldilocks + RBAD + 33-Socratic methodology (`agents/forge.md`), pre-creation scope-discipline + anti-theater grounding gates (host-provided, if present), and the `rule-quality-tests` 6 self-validity tests. Its **net-new** value is the *type-agnostic* router (8 artifact types, not just agents) + research-first (internal **and** external) + 5-axis naming + the unified pipeline.
+The forge **orchestrates existing assets, it does not reinvent them**: it reuses best-fit routing/scoring, The Forge's Goldilocks + RBAD + 33-Socratic methodology (`agents/forge.md`), pre-creation scope-discipline + anti-theater grounding gates (host-provided, if present), and the `rule-quality-tests` 6 self-validity tests. Its **net-new** value is the *type-agnostic* router (8 artifact types, not just agents) + research-first (internal **and** external) + naming via `anima` (5-axis inline fallback) + the unified pipeline.
 
 ## When to use
 - "Turn this into a skill / command / agent / tool" · "forge an agentic-tool for X".

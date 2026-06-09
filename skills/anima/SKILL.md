@@ -1,5 +1,6 @@
 ---
 name: anima
+version: 1.0.0
 description: >
   Use to generate ONE precise name/identifier for ANYTHING that needs a name — directory · path · file ·
   variable · function · module · sub-module · server · database · schema · instance · table · column · index ·
@@ -53,7 +54,7 @@ identity · a paid domain) → present the decided name **but flag it for operat
 
 ## §0.5 — Register Gate (deterministic object-class → register · KISS)
 Before scoring, classify the target's **communication register** — this sets *how much warmth the name must carry*
-(per `[[language-policy-en-pt]]` §7 Register-Adaptive Communication, the SSOT — this gate is its naming consumer):
+(aligns with the host's register policy — e.g. `[[language-policy-en-pt]]` §7 Register-Adaptive Communication — when present; else the class→register table below is self-sufficient):
 
 | Register | Triggered by object-class (examples) | Name posture | Warmth weight |
 |---|---|---|---|

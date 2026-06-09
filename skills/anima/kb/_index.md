@@ -17,7 +17,7 @@ descriptive · no operator-personal names (universal #10) · family-aligned if `
 
 ## §33Q — the interrogation lens-set (SKILL §2, expanded)
 11 dimensions × 3 depths (`is · should-be · must-not-be`) = 33 questions the engine answers about the subject
-BEFORE generating candidates (it does not print all 33 unless `--verbose`):
+BEFORE generating candidates (it does not print all 33 unless explicitly asked):
 
 | Dimension | *is?* | *should-be?* | *must-NOT-be?* |
 |---|---|---|---|

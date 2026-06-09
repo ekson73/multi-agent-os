@@ -9,7 +9,7 @@
 - **Family-aligned**: align to an existing namespace when one exists — lifecycle family `agentic-tool-{forge,evaluator,trainer}` · concierge family `*-concierge` · gstack `plan-*`/`design-*` · maos `*` peers. Honor `--family`.
 - **No operator-personal names** (universal #10) — role-types only, never `alice-*`/`bob-*`.
 - **No host-vendor lock** in the name (AAIF cross-vendor): avoid `claude-`/`cursor-` prefixes unless the tool is genuinely host-specific.
-- **Collision check (§5)**: `Grep` `~/.claude/{skills,commands,agents,rules,hooks}/` + the plugin skill-list for an existing same-name artifact before pronouncing.
+- **Collision check (§5)**: `Grep` the host's user-scope skill dirs (e.g. `~/.claude/{skills,commands,agents,rules,hooks}/`, `.cursor/`) + the plugin skill-list for an existing same-name artifact before pronouncing (best-effort, environment-specific).
 
 ## Type-word hints (helps semantics + ontology aspects)
 - workflow/engine → noun or verb-noun (`session-fission`, `convergence-engine`) · router/concierge → `*-concierge`/`*-router` · detector/auditor → `*-detector`/`*-auditor` · corrector/normalizer → `*-corrector`.
