@@ -7,10 +7,11 @@ description: |
   loose ends across git, docs, ADRs, changelogs, memories, rules and tickets; (P2 DEBRIEF)
   calculate the session map (objectives N-Tree, gaps, pendings, undecided, next actions
   by Eisenhower); (P3 HANDOFF) emit an ai-agnostic continuation seed a fresh amnesic agent
-  can resume from. The end-of-session counterpart to the `preflight` skill. Reads whatever
-  governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories)
-  and adapts.
-version: 0.1.0
+  can resume from; (P3.5 SPAWN, optional, default-ON) launch a fresh, pre-seeded `claude`
+  continuation session so the work continues across the compact/clear boundary. The
+  end-of-session counterpart to the `preflight` skill. Reads whatever governance is present
+  at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories) and adapts.
+version: 0.2.0
 triggers:
   - postflight
   - run postflight
@@ -21,8 +22,10 @@ triggers:
   - hand off this work
   - generate a continuation prompt
   - boy-scout sweep before i leave
+  - spawn the continuation session
+  - spawn the next session
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -70,24 +73,34 @@ turns that volatile state into durable, hand-off-able artifacts **before** the l
 ## Core Rule
 
 ```
-SWEEP (P1) → DEBRIEF (P2) → HANDOFF (P3)
+SWEEP (P1) → DEBRIEF (P2) → HANDOFF (P3) → [SPAWN (P3.5, optional, default-ON)]
 Each step is SAFE-or-DEFER. Never clobber. Never block. HANDOFF requires SWEEP+DEBRIEF (DoR).
+SPAWN requires the P3 seed (DoR) + passes the spawn guardrails; opt out with --no-spawn.
 The environment MUST be left better, safer, and more traceable than it was found.
 ```
 
-## The Responsibilities (P1–P3)
+## The Responsibilities (P1–P3.5)
 
 | # | Responsibility | How (safe-or-DEFER) | Composes |
 |---|---|---|---|
 | **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/dogfood-mark` |
 | **P2** | **DEBRIEF** — calculate the session map | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). | `skills/morning-briefing` |
 | **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from; print to screen + best-effort clipboard. DoR = P1+P2 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) |
+| **P3.5** | **SPAWN** *(optional, default-ON)* — launch the next session, pre-seeded | hand the P3 seed to `bin/spawn-continuation.sh`, which launches a fresh **named** (`<ticket>-<slug>-#<short>`) detached `claude` session (tmux/cmux) with the seed injected as durable system context — so the work *continues itself* across the compact/clear boundary instead of waiting on a manual paste. DoR = P3 seed. Opt out: `--no-spawn`. | `bin/spawn-continuation.sh` (consumes the P3 seed; reuses `session-fission`'s reseed idea) |
 
 **SWEEP never clobbers**: a dirty tree, a divergence-with-conflict, a held `.git/index.lock`,
 or an untracked file you did not create → **DEFER** (report/register, do not act). Deleting or
 discarding anything requires reading it first (exit-hygiene "Read Before Discard").
 **HANDOFF is gated**: never emit a seed before the sweep + debrief, or the seed lies about
 the state it claims to capture.
+**SPAWN is guarded** (a real session burns tokens — high-blast):
+1. **Kill-switch** — `POSTFLIGHT_SPAWN=0` → never spawn (deterministic opt-out).
+2. **Idempotency** — one continuation per source session (marker `~/.claude/jobs/<src>/.continuation-spawned`; `--force` overrides).
+3. **Anti-recursion** — `POSTFLIGHT_SPAWN_DEPTH` cap (default 1): a spawned child won't auto-chain another spawn until it does real new work.
+4. **Capability-detect** — no `claude`/launcher → graceful no-op + print the resume command (never errors the session).
+5. **Sanitization** — refuses to inject a seed that smells like a secret (seed is metadata-only).
+6. **Audit-trail** — one line per spawn under `~/.claude/jobs/continuation-spawns.log`.
+7. **`--dry-run`** — preview the exact `claude …` command, launch nothing.
 
 ## Governance Discovery (read at invocation — the adaptive core)
 
@@ -121,7 +134,11 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    unasked-Qs. (The community `morning-briefing` provides state + next-action; postflight adds
    the N-Tree + Eisenhower ranking.) This is the session map.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2 → print + clipboard.
-4. Emit a concise exit summary (swept items, deferred items, seed location).
+3.5 P3.5 SPAWN (default-ON; skip on --no-spawn / kill-switch / depth-cap / already-spawned):
+   write the P3 seed to a file, then `bin/spawn-continuation.sh --ticket <KEY> --slug <kebab>
+   --seed <seedfile>` → launches the named, pre-seeded continuation session (or registers +
+   prints the resume command if no launcher). Surfaces the session name + attach hint.
+4. Emit a concise exit summary (swept items, deferred items, seed location, spawned session).
 ```
 
 ## The Continuation Seed (the P3 deliverable)
@@ -152,15 +169,17 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
 Output: **print to screen + best-effort clipboard** (auto-detect `pbcopy`/`wl-copy`/`xclip`/
 `xsel`/`clip.exe`), sanitized (never copy secrets/file-bodies — metadata only). The seed is
 designed so the next agent runs `/maos:preflight` (orient) then resumes from the first
-non-blocked next-action — closing the lifecycle loop `preflight → work → postflight`.
+non-blocked next-action — and, when **P3.5 SPAWN** fires, that next agent is *launched
+already holding the seed*, closing the loop `preflight → work → postflight → (spawn) → preflight …`.
 
 ## Conditions / Invocation
 
 | Condition | Path |
 |---|---|
-| operator-invoked / on-demand | `/maos:postflight` (full) or a sub-phase `sweep` / `debrief` / `seed` |
-| auto-invoked before context loss / `compact` / `clear` / context>N% | the **PreCompact hook** (deterministic safety-net snapshot; the skill produces the rich seed when an agent is live) |
+| operator-invoked / on-demand | `/maos:postflight` (full) or a sub-phase `sweep` / `debrief` / `seed` / `spawn` |
+| auto-invoked before context loss / `compact` / `clear` / **context>N%** | a **live agent** runs the full skill (incl. P3.5 SPAWN); the deterministic **PreCompact hook** is a snapshot-only safety-net that **never spawns** (a shell hook must not launch a token-burning agentic session — anti-pattern #5/#9) |
 | mid-action checkpoint | `/maos:postflight debrief` (recap without the full sweep) |
+| spawn opt-out / preview | `/maos:postflight --no-spawn` · `--dry-run` · env `POSTFLIGHT_SPAWN=0` |
 
 ## Examples
 
@@ -170,6 +189,14 @@ You: "I'm about to /compact — wrap this up."
 postflight P1: 1 unpushed commit on feat/x → pushed; PR #42 → driven green; 1 stale ref → pruned.
 postflight P2: objectives 2/3 done; 1 gap (tests for edge-case); 1 undecided (naming of Y).
 postflight P3: 🌱 continuation seed → printed + copied to clipboard. Next agent: /maos:preflight then task #1.
+postflight P3.5: 🛫 spawned TICKET-123-add-retry-#a1b2c3d4 (tmux), seed injected. Attach: tmux attach -t '…'.
+```
+
+**Spawn opted out (seed-only handoff):**
+```
+You: "wrap up but don't open a new session — I'll resume tomorrow."
+postflight P1+P2+P3: … seed → clipboard.
+postflight P3.5: SKIPPED (--no-spawn). Resume later: claude --name '…' --session-id '…' --append-system-prompt "$(cat <seed>)".
 ```
 
 **Dirty tree (DEFER — never clobber):**
@@ -187,6 +214,9 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 5. ❌ Fake the agentic synthesis inside the PreCompact shell hook — the hook is a deterministic snapshot only; the rich seed is the skill's job.
 6. ❌ Re-implement git sync / recap internals — compose `sync-to-git` / `quiesce` / `morning-briefing`, don't copy them.
 7. ❌ Leak secrets or file-bodies into the seed/clipboard — metadata only, sanitized.
+8. ❌ SPAWN before P1+P2+P3 — a session seeded from an un-swept, un-debriefed state inherits a seed that lies about reality.
+9. ❌ Auto-fire SPAWN from the deterministic PreCompact shell hook — spawning a token-burning agentic session belongs to the live skill, never a blind snapshot hook (the hook stays a no-spawn safety-net).
+10. ❌ SPAWN without the depth-cap — a default-ON spawn that re-spawns on the child's immediate exit is a runaway token-burn; the `POSTFLIGHT_SPAWN_DEPTH` cap + once-per-source idempotency marker bound it.
 
 ## Related Multi-Agent OS Artifacts
 
@@ -194,10 +224,11 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 - `protocols/exit-hygiene.md` — the Boy-Scout exit-gate checklist P1 operationalizes (policy → this executes it).
 - `skills/morning-briefing/SKILL.md` — its 7-section briefing is the P2 state substrate; postflight adds the N-Tree + Eisenhower synthesis that P3 elevates into an agent seed.
 - `skills/sync-to-git/SKILL.md` · `skills/quiesce/SKILL.md` — git close-out + PR convergence P1 composes.
-- `skills/session-fission/SKILL.md` — orthogonal: it *splits* a tangled session into N seeds; P3 emits *one* resume seed for continuity.
+- `skills/session-fission/SKILL.md` — orthogonal: it *splits* a tangled session into N seeds; P3 emits *one* resume seed for continuity, and P3.5 reuses its reseed-a-fresh-session idea for continuity-spawn.
+- `bin/spawn-continuation.sh` — the **P3.5 SPAWN** primitive: launches the named, pre-seeded `claude` continuation session (tmux/cmux) with the 7 guardrails; consumes the P3 seed.
 - `commands/worktree.md` · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.
-- `commands/postflight.md` → `/maos:postflight` (ergonomic entry point).
-- `plugin-scripts/governance/postflight-precompact.sh` — PreCompact hook (deterministic seed snapshot; never blocks).
+- `commands/postflight.md` → `/maos:postflight` (ergonomic entry point; surfaces `--spawn`/`--no-spawn`/`--dry-run`).
+- `plugin-scripts/governance/postflight-precompact.sh` — PreCompact hook (deterministic seed snapshot; never blocks; **never spawns**).
 
 ## License
 
