@@ -80,7 +80,7 @@ The environment MUST be left better, safer, and more traceable than it was found
 | # | Responsibility | How (safe-or-DEFER) | Composes |
 |---|---|---|---|
 | **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/dogfood-mark` |
-| **P2** | **DEBRIEF** — calculate the session map | objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), work-done, gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). | `skills/morning-briefing --mode=recap` |
+| **P2** | **DEBRIEF** — calculate the session map | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). | `skills/morning-briefing` |
 | **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from; print to screen + best-effort clipboard. DoR = P1+P2 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) |
 
 **SWEEP never clobbers**: a dirty tree, a divergence-with-conflict, a held `.git/index.lock`,
@@ -116,8 +116,10 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    - tickets/backlog: any verifiably-DONE ticket (DoD met + PR merged + deliverables) → close
      with an audit comment; out-of-scope items → register a tracked follow-up (ticket/issue/TODO).
    - Classify every surfaced item by Eisenhower; act on Q1/Q2, register Q3, note/drop Q4.
-2. P2 DEBRIEF: invoke `morning-briefing --mode=recap` → objectives N-Tree + Eisenhower
-   next-actions + gaps/pendings/undecided/unasked-Qs. This is the session map.
+2. P2 DEBRIEF: invoke `morning-briefing` for the 7-section state, then synthesize ON TOP the
+   objectives N-Tree + Eisenhower next-actions (non-blocked first) + gaps/pendings/undecided/
+   unasked-Qs. (The community `morning-briefing` provides state + next-action; postflight adds
+   the N-Tree + Eisenhower ranking.) This is the session map.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2 → print + clipboard.
 4. Emit a concise exit summary (swept items, deferred items, seed location).
 ```
@@ -190,7 +192,7 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 
 - `skills/preflight/SKILL.md` — the **start-of-session** counterpart (orient + heal + isolate); together they bound the session: `preflight → work → postflight`.
 - `protocols/exit-hygiene.md` — the Boy-Scout exit-gate checklist P1 operationalizes (policy → this executes it).
-- `skills/morning-briefing/SKILL.md` — `--mode=recap` is the P2 session-map substrate P3 elevates into an agent seed.
+- `skills/morning-briefing/SKILL.md` — its 7-section briefing is the P2 state substrate; postflight adds the N-Tree + Eisenhower synthesis that P3 elevates into an agent seed.
 - `skills/sync-to-git/SKILL.md` · `skills/quiesce/SKILL.md` — git close-out + PR convergence P1 composes.
 - `skills/session-fission/SKILL.md` — orthogonal: it *splits* a tangled session into N seeds; P3 emits *one* resume seed for continuity.
 - `commands/worktree.md` · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.

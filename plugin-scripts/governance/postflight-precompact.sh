@@ -20,6 +20,10 @@
 #          off = fast + offline-safe). POSTFLIGHT_SEED_DIR=<path> → override snapshot dir.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# NOTE: deliberately `set -uo pipefail` WITHOUT `-e`. This is a PreCompact safety-net hook
+# bound to a "never blocks / exit 0 always" contract — a failing git/probe command must NOT
+# abort before it reaches `exit 0`. `-u` (plus defaulted `${VAR:-…}` expansions) still catches
+# our own typos; every fallible command is individually guarded (`|| …` / `2>/dev/null`).
 set -uo pipefail
 
 # Opt-out → no-op (never block).
@@ -79,7 +83,10 @@ if [ "${POSTFLIGHT_SNAPSHOT_PRS:-0}" = "1" ] && command -v gh >/dev/null 2>&1; t
 fi
 
 # ── Write the deterministic seed snapshot to a durable file (survives compaction)
-SEED_DIR="${POSTFLIGHT_SEED_DIR:-${REPO}/.maos}"
+# Default location is INSIDE the git dir (always git-ignored) so the snapshot never makes the
+# working tree appear DIRTY at compaction time. Override with POSTFLIGHT_SEED_DIR.
+GIT_DIR="$(git -C "$REPO" rev-parse --absolute-git-dir 2>/dev/null || echo "${REPO}/.git")"
+SEED_DIR="${POSTFLIGHT_SEED_DIR:-${GIT_DIR}/maos}"
 mkdir -p "$SEED_DIR" 2>/dev/null || true
 SEED_FILE="${SEED_DIR}/continuation-seed.latest.json"
 SEED_JSON=$(cat <<JSON
@@ -91,15 +98,22 @@ if printf '%s\n' "$SEED_JSON" > "${SEED_FILE}.tmp" 2>/dev/null; then
   mv -f "${SEED_FILE}.tmp" "$SEED_FILE" 2>/dev/null || rm -f "${SEED_FILE}.tmp" 2>/dev/null || true
 fi
 # Durable cross-session copy (best-effort).
-AUDIT_SEED_DIR="${CLAUDE_AUDIT_DIR:-${HOME}/.claude/audit}/continuation-seeds"
+AUDIT_SEED_DIR="${CLAUDE_AUDIT_DIR:-${HOME:-/tmp}/.claude/audit}/continuation-seeds"
 if mkdir -p "$AUDIT_SEED_DIR" 2>/dev/null; then
   printf '%s\n' "$SEED_JSON" > "${AUDIT_SEED_DIR}/${SESSION_ID}.json" 2>/dev/null || true
 fi
 
-# Audit (no-op unless an audit dir exists).
-command -v log_audit >/dev/null 2>&1 && log_audit "postflight_precompact" "{\"branch\":\"$(json_escape "$BRANCH")\",\"tree\":\"$(json_escape "$STATE")\",\"unpushed\":${UNPUSHED:-0},\"trigger\":\"$(json_escape "$TRIGGER")\"}" 2>/dev/null || true
+# Audit (no-op unless an audit dir exists). Isolated in a SUBSHELL so a `set -u` exit from
+# the sourced lib (e.g. an unguarded ${HOME} in common.sh when HOME is unset) dies in the
+# subshell and is caught by `|| true` — it cannot escape to abort this never-blocks hook.
+( command -v log_audit >/dev/null 2>&1 \
+    && log_audit "postflight_precompact" "{\"branch\":\"$(json_escape "$BRANCH")\",\"tree\":\"$(json_escape "$STATE")\",\"unpushed\":${UNPUSHED:-0},\"trigger\":\"$(json_escape "$TRIGGER")\"}" ) >/dev/null 2>&1 || true
 
 # Human nudge → stderr (visible, non-blocking).
 echo "🛬 postflight (pre-compact): snapshot saved → ${SEED_FILE} (branch=${BRANCH}, tree=${STATE}, unpushed=${UNPUSHED:-0}). Run /maos:postflight for the full continuation seed." >&2
+
+# Valid JSON on stdout (repo hook contract) — surfaces the seed pointer as PreCompact context.
+printf '{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":"%s"}}\n' \
+  "$(json_escape "postflight pre-compact snapshot → ${SEED_FILE} (branch=${BRANCH}, tree=${STATE}, unpushed=${UNPUSHED:-0}); run /maos:postflight for the full continuation seed.")"
 
 exit 0

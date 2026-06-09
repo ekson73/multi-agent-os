@@ -16,13 +16,15 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 /postflight [action]
 ```
 
+> Surfaces at runtime as `/maos:postflight` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
+
 ## Actions
 
 | Action | Description |
 |--------|-------------|
 | *(none)* / `full` | P1+P2+P3: sweep → debrief → emit + clipboard the continuation seed. |
 | `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket close-or-register), classified by Eisenhower, safe-or-DEFER. |
-| `debrief` | P2 only — calculate the session map (objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided) via `morning-briefing --mode=recap`. No mutations. |
+| `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top. No mutations. |
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2 (DoR). |
 
 ## Behavior (safe-or-DEFER)
@@ -59,7 +61,7 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 |-----|--------|
 | `POSTFLIGHT_NO_AUTOSNAPSHOT=1` | The PreCompact hook skips its deterministic snapshot (manual `/postflight` still works). |
 | `POSTFLIGHT_SNAPSHOT_PRS=1` | The PreCompact hook also fetches open-PR state via `gh` (network; default off = fast/offline-safe). |
-| `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default `${CLAUDE_PROJECT_DIR}/.maos/`). |
+| `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
 
 ## Integration
 
