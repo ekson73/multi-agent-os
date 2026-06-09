@@ -6,7 +6,7 @@ description: |
   "convert these instructions into a tool", "criar um agentic-tool para …", "research then build
   the best tool for …". Researches pre-existing internal + external solutions FIRST (DRY), decides
   the OPTIMAL artifact TYPE among {prompt · skill · command · agent/subagent · mcp · plugin ·
-  marketplace · rule/hook}, names it via 5-axis rigor, makes it AI-agnostic + multi-agentic, then
+  marketplace · rule/hook}, names it (delegating to `anima` when present, else 5-axis inline fallback), makes it AI-agnostic + multi-agentic, then
   forges + saves it (operator-confirmed). The genesis stage of the agentic-tool lifecycle
   (forge → evaluate → train → operate → deprecate). Hands off to agentic-tool-evaluator + -trainer.
   Cross-vendor AAIF (Claude / Cursor / Codex / Copilot / Gemini / Aider).
@@ -37,7 +37,7 @@ metadata:
 
 Turn a raw **intent** into the **right reusable agentic-tool** — researched first, type-decided, named, made portable + multi-agentic, then forged and saved. This is the **genesis** stage of the lifecycle the ecosystem already names: **`forge → evaluate → train → operate → deprecate`** (siblings: `agentic-tool-evaluator`, `agentic-tool-trainer`; shared `protocols/agentic-tool-lifecycle.md`). It does NOT execute the forged tool — it *creates* it, then hands off downstream.
 
-The forge **orchestrates existing assets, it does not reinvent them**: it reuses best-fit routing/scoring, The Forge's Goldilocks + RBAD + 33-Socratic methodology (`agents/forge.md`), pre-creation scope-discipline + anti-theater grounding gates (host-provided, if present), and the `rule-quality-tests` 6 self-validity tests. Its **net-new** value is the *type-agnostic* router (8 artifact types, not just agents) + research-first (internal **and** external) + 5-axis naming + the unified pipeline.
+The forge **orchestrates existing assets, it does not reinvent them**: it reuses best-fit routing/scoring, The Forge's Goldilocks + RBAD + 33-Socratic methodology (`agents/forge.md`), pre-creation scope-discipline + anti-theater grounding gates (host-provided, if present), and the `rule-quality-tests` 6 self-validity tests. Its **net-new** value is the *type-agnostic* router (8 artifact types, not just agents) + research-first (internal **and** external) + naming via `anima` (5-axis inline fallback) + the unified pipeline.
 
 ## When to use
 - "Turn this into a skill / command / agent / tool" · "forge an agentic-tool for X".
@@ -56,7 +56,7 @@ This skill serves the operator's intent. If any phase/gate obstructs delivering 
 | `--scope` | `auto` | `user` (host user-scope, e.g. `~/.claude/`, `.cursor/`) · `project` (`./.claude` \| `.agents`) · `community` (this framework repo) · `auto` (infer). |
 | `--context` | — | Extra refs/links/files to ground research. |
 | `--type` | `auto` | Force the artifact type; `auto` = router decides. |
-| `--name` | `auto` | Force the name; `auto` = 5-axis engine decides. |
+| `--name` | `auto` | Force the name; `auto` = delegate to `anima` (else 5-axis inline fallback) decides. |
 | `--research` | `both` | `internal` · `external` · `both`. |
 | `--dry-run` | off | Research + decide + propose ONLY (no write). |
 | `--no-confirm` | off | Skip the pre-write confirmation (HITL-gated; only with standing authorization). |
@@ -78,7 +78,7 @@ Hybrid blend: **deterministic** (DRY scan, type/save-path resolution, frontmatte
    (Prefer inline `Glob`/`Grep` over spawning research subagents — large auto-loaded context can overflow subagent prompts; pivot to inline tools if a subagent prompt is rejected as too long.)
 2. **Compare & critique** — steelman→critique→compare (`debate-converge`/`converge` discipline). Apply a `NO_CANDIDATE` test: if an existing tool covers **≥50%** → recommend **EXTEND that tool** (give path + delta) and STOP. Else continue.
 3. **Decide TYPE** — score the candidate types (router table below); pick the highest, or honor `--type`.
-4. **Name** — 5-axis engine (below), family-aware; or honor `--name`.
+4. **Name** — delegate to `anima` (sovereign 12-correctness + 4-resonance, register-aware namer) when available; else the 5-axis inline fallback (below), family-aware; or honor `--name`. (body↔soul: the forge shapes the body, `anima` breathes the name.)
 5. **Design** — condensed Socratic questionnaire (Scope/Capabilities/Limits/Interfaces/Governance/Validation) + **Goldilocks** sizing (atomic AND generic) + **RBAD** persona (if a role is implied) + filter the multi-agentic patterns relevant to *this* tool.
 6. **Gate** — apply the host's pre-creation + anti-theater gates **if present** (e.g. scope-discipline 6Q, anti-theater 8Q REALITY); always apply the embedded `rule-quality-tests` 6 Self-Validity. Any anti-theater fail (<8/8) or a failed self-validity test → DEFER/REJECT with the specific reason.
 7. **Forge** — author the type-appropriate artifact: house-style frontmatter + body, into the resolved path. Inherit DNA (§0 + gates + DUED sunset + Refs) so the child is itself governable. **Ignore-glob check (gotcha):** before writing into a git-tracked scope, verify the path is not excluded by an ignore-glob (e.g. a `skills/*/SKILL.md` rule). If excluded → `git add -f` OR add a `!`-exception line, else the artifact is silently dropped and the PR ships empty.
