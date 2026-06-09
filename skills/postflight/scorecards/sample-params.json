@@ -1,0 +1,24 @@
+{
+  "session":  {"title": "cross-ref end-of-action-* policy ⇄ postflight executable", "id": "49702159", "date": "2026-06-09", "time": "22:07", "duration": "~25min"},
+  "verdict":  {"state": "done", "label": "DONE · green · merged"},
+  "autonomy": {"green": 5, "blue": 1, "orange": 0, "red": 0},
+  "vitals": [
+    {"icon": "📦", "label": "Escopo",   "pct": 100, "note": "já existia (PRs #114-#121)"},
+    {"icon": "🎯", "label": "Entregue", "pct": 100, "note": "1/1 remnant (§B-row-3)"},
+    {"icon": "🔀", "label": "PR #138",  "pct": 100, "note": "MERGED · squash · c568d40"},
+    {"icon": "✅", "label": "Checks",   "pct": 100, "note": "gitleaks ✓ · amazon-q ✓"},
+    {"icon": "⚠️", "label": "Risco",    "pct": 10,  "note": "baixo · docs-only · sem deploy"}
+  ],
+  "checklist": [
+    {"state": "green", "label": "Reuse-verify",   "note": "escopo já merged · nada reinventado",   "confidence": 97},
+    {"state": "blue",  "label": "Decisão escopo", "note": "build-novo vs confirmar → você (HITL)", "confidence": null},
+    {"state": "green", "label": "Remnant §B",     "note": "cross-ref PATCH (1.1.1 + 1.3.1)",       "confidence": 95},
+    {"state": "green", "label": "PR/merge",       "note": "auto-merge sob standing-auth",          "confidence": 93},
+    {"state": "green", "label": "persisted?",     "note": "origin/main + ledger + plan",           "confidence": 99},
+    {"state": "green", "label": "boy-scout?",     "note": "worktree+branch removidos · MAOS 0/0",  "confidence": 99}
+  ],
+  "whats_left": [
+    {"state": "done",   "text": "Nada nesta tarefa — fechada."},
+    {"state": "orange", "text": "(opcional) housekeeping ~/.claude: index.lock stale · 5 worktrees órfãos"}
+  ]
+}
