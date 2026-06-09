@@ -1,0 +1,153 @@
+---
+name: preflight
+description: |
+  Use at the start of a session or before starting an action/task in any git repo to
+  get the workspace into a correct, healthy, isolated state BEFORE touching code:
+  (R1) detect the right branch without interfering with other agents/sessions/worktrees,
+  (R2) safely heal the current branch from origin, and (R3) create a git worktree the
+  moment you are about to create/update files. Reads whatever governance is present at
+  invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories) and adapts.
+version: 1.0.0
+triggers:
+  - preflight
+  - run preflight
+  - bootstrap my workspace
+  - which branch should I be on
+  - sync my branch from origin
+  - heal my branch
+  - start of session checks
+  - prepare a worktree before editing
+metadata:
+  version: "1.0.0"
+  scope: AAIF cross-vendor
+  family: worktree-lifecycle
+  lifecycle-stage: operate
+  cross_link_slug: preflight
+  dogfood_status: in-progress
+allowed-tools: Read, Glob, Grep, Bash
+---
+
+# Preflight Skill
+
+## Purpose
+
+A **preflight check** for agentic work, like an aviation preflight or an HTTP CORS
+preflight: a small set of *readiness* steps run **before** the real action, each with a
+go/no-go (proceed-or-DEFER) decision. It readies the git workspace so an agent never
+works on the wrong branch, on stale state, or unisolated in a shared checkout.
+
+## When to Use
+
+- At the **start of a session** (the bundled SessionStart hook runs R1+R2 automatically).
+- At the **start of an action/task**, before you begin substantive work.
+- **Before creating or updating any file/directory** (R3 — lazily isolate the mutation).
+- When you are unsure which branch you should be on, or whether your branch is stale.
+
+## Trigger Phrases
+
+"preflight" · "bootstrap my workspace" · "which branch should I be on" · "heal/sync my
+branch from origin" · "prepare a worktree before editing"
+
+## Core Rule
+
+```
+ORIENT (R1) → HEAL (R2) → ISOLATE-ON-MUTATION (R3)
+Each step is SAFE-or-DEFER. Never clobber concurrent work. Never block on a no-op.
+```
+
+## The 3 Responsibilities
+
+| # | Responsibility | How (read-only / safe) | Lib |
+|---|---|---|---|
+| **R1** | Detect the right branch **without interfering** with other agents/sessions/worktrees | branch + upstream + ahead/behind + branches **locked by other worktrees** (`git worktree list --porcelain`) + tree-state | `lib/git-branch-detect.sh` |
+| **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy} → act: `ff-only` \| `rebase --autostash` \| **DEFER** | `lib/git-safe-sync.sh` |
+| **R3** | **Isolate** file mutations in a worktree | only when about to create/update files; compose `/maos:worktree create` (or `git worktree add .worktrees/<slug> -b <type>/<scope>`) | `commands/worktree.md` |
+
+**Non-interference (R1) is structural**: a branch checked out in another worktree is
+git-locked — preflight reports it and never switches to it. **Healing (R2) never
+clobbers**: a dirty tree, detached/mid-rebase/mid-merge HEAD, a diverged-with-conflict,
+or a held `.git/index.lock` all → **DEFER** (report, do not act). **Isolation (R3) is
+lazy**: a worktree is created when mutation is imminent, not preemptively.
+
+## Governance Discovery (read at invocation — the adaptive core)
+
+Before deriving any name or convention, **read whatever governance the target repo
+exposes right now** and adapt to it (do NOT hardcode):
+
+1. `Read`/`Glob` for `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README.md`,
+   `protocols/*`, `docs/*worktree*`, `skills/worktree-policy/SKILL.md`,
+   `.worktrees/README.md`, and any `memory`/`MEMORY.md` present.
+2. Extract: branch-naming convention (e.g. `<type>/<scope>-<id>`), worktree dir
+   convention (e.g. `.worktrees/<slug>`), the valid worktree **exceptions**, the
+   protected-branch set, and the PR/merge workflow.
+3. Apply *those* conventions when deriving the branch + worktree in R3. If none are
+   found, fall back to the C04 defaults below.
+
+## Algorithm
+
+```
+0. Governance discovery (above) — derive the repo's conventions.
+1. R1: read-only detect — current branch, upstream, ahead/behind, tree-state,
+   branches locked by other worktrees. Report; never mutate.
+2. R2: if the action benefits from fresh state → safe-heal from origin
+   (fetch → classify → ff-only | rebase-autostash | DEFER). Report the verdict.
+3. R3: IF (and only if) the action will create/update files/directories AND you are
+   in the main checkout (not already a worktree) AND it is not a C04 exception:
+     - derive slug + branch from the action intent + discovered conventions
+     - git worktree add .worktrees/<slug> -b <type>/<scope>[-<id>] <base-ref>
+     - register in .worktrees/sessions.json (append-only)
+     - cd into the worktree; proceed there.
+4. Emit a concise bootstrap summary (branch, heal verdict, worktree path).
+```
+
+## Valid Exceptions (C04 — R3 is a no-op for these)
+
+1. **READ-ONLY**: analysis without file modification.
+2. **APPEND-ONLY**: `tasks.md`, `sessions.json` (add lines only).
+3. **Already isolated**: you are already inside a `.worktrees/` worktree.
+4. **USER EXPLICIT REQUEST**: operator directs a main-checkout edit (documented).
+
+## Components (the bundle this skill anchors)
+
+| Artifact | Role |
+|---|---|
+| `skills/preflight/SKILL.md` | this brain (governance-aware orchestrator) |
+| `commands/preflight.md` → `/maos:preflight` | ergonomic entry point |
+| `plugin-scripts/governance/preflight-session.sh` | SessionStart hook (R1+R2, never blocks; opt-out `PREFLIGHT_NO_AUTOHEAL=1`) |
+| `plugin-scripts/governance/preflight-edit-gate.sh` | PreToolUse:Edit\|Write\|MultiEdit (R3 safety-net; WARN default, `PREFLIGHT_EDIT_GATE=block\|off`) |
+| `plugin-scripts/governance/lib/git-branch-detect.sh` | R1 read-only primitives |
+| `plugin-scripts/governance/lib/git-safe-sync.sh` | R2 safe-heal primitives |
+
+## Examples
+
+**Start of session** (automatic, via the hook):
+```
+🧭 preflight: branch=feature/x upstream=origin/main ahead=0 behind=3 tree=CLEAN; heal=HEALED_FF a1b2c3d
+```
+
+**Before editing on main**:
+```
+You: "update the README"
+preflight (R3): main checkout detected → git worktree add .worktrees/readme -b docs/readme
+              → cd .worktrees/readme → now safe to edit.
+```
+
+**Dirty tree (DEFER — never clobber)**:
+```
+🧭 preflight: branch=main tree=DIRTY; heal=DEFERRED dirty(uncommitted-tracked-changes)
+→ commit or stash your work, then re-run /maos:preflight.
+```
+
+## Related Multi-Agent OS Artifacts
+
+- `skills/worktree-policy/SKILL.md` — the worktree *policy* (this skill *operationalizes* it at session/action start).
+- `commands/worktree.md` — the lower-level `/maos:worktree create` primitive R3 composes.
+- `plugin-scripts/governance/worktree-gate.sh` — PreToolUse:Bash gate (works *with* this; preflight-edit-gate covers Edit/Write).
+- `plugin-scripts/governance/lib/worktree-utils.sh` — worktree detection (reused by R1/R3).
+- `skills/anti-conflict/SKILL.md` — lock-file coordination for parallel agents.
+- `skills/sync-to-git/SKILL.md` — orthogonal: that *pushes* to origin; preflight R2 *pulls/heals from* origin.
+- `docs/git-worktree-protocol.md` — C04 (authoritative spec).
+
+## License
+
+MIT (matches the multi-agent-os repo `LICENSE`).

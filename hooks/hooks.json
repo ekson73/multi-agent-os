@@ -11,6 +11,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/auto-name-session.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/preflight-session.sh"
           }
         ]
       }
@@ -35,6 +39,15 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/worktree-gate.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/preflight-edit-gate.sh"
           }
         ]
       }
