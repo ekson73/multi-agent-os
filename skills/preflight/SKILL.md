@@ -7,7 +7,7 @@ description: |
   (R2) safely heal the current branch from origin, and (R3) create a git worktree the
   moment you are about to create/update files. Reads whatever governance is present at
   invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories) and adapts.
-version: 1.0.0
+version: 1.1.0
 triggers:
   - preflight
   - run preflight
@@ -18,7 +18,7 @@ triggers:
   - start of session checks
   - prepare a worktree before editing
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -60,7 +60,8 @@ Each step is SAFE-or-DEFER. Never clobber concurrent work. Never block on a no-o
 | # | Responsibility | How (read-only / safe) | Lib |
 |---|---|---|---|
 | **R1** | Detect the right branch **without interfering** with other agents/sessions/worktrees | branch + upstream + ahead/behind + branches **locked by other worktrees** (`git worktree list --porcelain`) + tree-state | `lib/git-branch-detect.sh` |
-| **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy} → act: `ff-only` \| `rebase --autostash` \| **DEFER** | `lib/git-safe-sync.sh` |
+| **R1.5** | **Peer-aware** non-interference (optional, capability-detected) | detect OTHER live sessions writing the **SAME checkout** (host session-activity signal, self-excluded, freshness-windowed); peers active → R2 **DEFERs**; off-host → `UNKNOWN` (report-only) | `lib/peer-session-detect.sh` |
+| **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / **peers-active**} → act: `ff-only` \| `rebase --autostash` \| **DEFER** | `lib/git-safe-sync.sh` |
 | **R3** | **Isolate** file mutations in a worktree | only when about to create/update files; compose `/maos:worktree create` (or `git worktree add .worktrees/<slug> -b <type>/<scope>`) | `commands/worktree.md` |
 
 **Non-interference (R1) is structural**: a branch checked out in another worktree is
@@ -68,6 +69,18 @@ git-locked — preflight reports it and never switches to it. **Healing (R2) nev
 clobbers**: a dirty tree, detached/mid-rebase/mid-merge HEAD, a diverged-with-conflict,
 or a held `.git/index.lock` all → **DEFER** (report, do not act). **Isolation (R3) is
 lazy**: a worktree is created when mutation is imminent, not preemptively.
+
+**Cross-session layer (R1.5, v1.1.0)** — R1's worktree-locks cover peers in a *different*
+checkout (git-locked branch); R1.5 closes the complementary gap: **two sessions in the SAME
+checkout on the SAME branch** — which `.git/index.lock` only catches at the instant of a write.
+It is **optional + capability-detected + graceful**: when a peer is actively writing this
+checkout, R2 DEFERs (`heal=DEFERRED peers-active(<n>)`); when no session signal resolves
+(off-host / dir unresolved), it reports `peers=unknown` and never over-defers (git-native
+protections remain). **Never blocks.** Env seams: `MAOS_PEER_SESSION_DIR` (explicit session-dir
+override / portability seam), `MAOS_PEER_FRESH_SECS` (live window, default 90),
+`MAOS_SELF_SESSION_ID` (exclude self). Honest limit: a peer that started in a *subdir* (cwd ≠
+toplevel) may be missed — a miss means fewer defers, never a false block; use the override seam
+for precision.
 
 ## Governance Discovery (read at invocation — the adaptive core)
 
@@ -117,6 +130,7 @@ exposes right now** and adapt to it (do NOT hardcode):
 | `plugin-scripts/governance/preflight-edit-gate.sh` | PreToolUse:Edit\|Write\|MultiEdit (R3 safety-net; WARN default, `PREFLIGHT_EDIT_GATE=block\|off`) |
 | `plugin-scripts/governance/lib/git-branch-detect.sh` | R1 read-only primitives |
 | `plugin-scripts/governance/lib/git-safe-sync.sh` | R2 safe-heal primitives |
+| `plugin-scripts/governance/lib/peer-session-detect.sh` | R1.5 optional cross-session peer detector (capability-detected; `UNKNOWN` off-host) |
 
 ## Examples
 
