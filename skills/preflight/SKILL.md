@@ -7,7 +7,7 @@ description: |
   (R2) safely heal the current branch from origin, and (R3) create a git worktree the
   moment you are about to create/update files. Reads whatever governance is present at
   invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories) and adapts.
-version: 1.1.0
+version: 1.1.1
 triggers:
   - preflight
   - run preflight
@@ -18,7 +18,7 @@ triggers:
   - start of session checks
   - prepare a worktree before editing
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -55,7 +55,7 @@ ORIENT (R1) → HEAL (R2) → ISOLATE-ON-MUTATION (R3)
 Each step is SAFE-or-DEFER. Never clobber concurrent work. Never block on a no-op.
 ```
 
-## The 3 Responsibilities
+## The Responsibilities (R1–R3, + optional R1.5)
 
 | # | Responsibility | How (read-only / safe) | Lib |
 |---|---|---|---|

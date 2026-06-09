@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `preflight` cross-session layer robustness (v1.10.1)
+
+- **`peer-session-detect.sh`** — `${HOME:-}` guard so an unset `HOME` under the hook's `set -u` can never trigger an unbound-variable exit (resolves to UNKNOWN instead, preserving the never-blocks contract). Coerce a non-numeric `MAOS_PEER_FRESH_SECS` (e.g. `"90s"`) to the default `90` so it can't break the `-le` arithmetic under `set -e`. (PR #116 review — Copilot + Qodo.)
+- **`skills/preflight/SKILL.md` → v1.1.1** — section heading "The 3 Responsibilities" → "The Responsibilities (R1–R3, + optional R1.5)" to match the 4-row table (Copilot review).
+- **`tests/governance/test-peer-session-detect.sh`** — added a non-numeric `MAOS_PEER_FRESH_SECS` regression assertion.
+
 ### Added — `preflight` cross-session layer: peer-agent awareness (v1.10.0)
 
 - **NEW lib `plugin-scripts/governance/lib/peer-session-detect.sh`** (named by `anima` — `peer-session-detect`/`psd_`, deliberately NOT `git-*` because it is a host-concurrency signal, not a git primitive; `git-safe-sync.sh` explicitly excludes host-specific signals, so they live here, kept separate). The **R1.5** cross-session layer of `preflight`: detects OTHER live agent sessions (peers) writing the **SAME checkout** so the session-start hook can **DEFER R2 (heal/pull)** while a peer is active — closing the gap R1's worktree-locks don't cover (same-cwd/same-branch peers, which `.git/index.lock` only catches at the instant of a write). **Optional + capability-detected + gracefully-degrading**: one ships an agent-session-transcript-mtime backend keyed by the working-tree path (self-excluded, freshness-windowed); when no backend resolves (off-host / dir unresolved) it returns `UNKNOWN` and callers treat that as report-only (**never over-defer** → stays useful on Cursor/Codex/Copilot/Aider). READ-ONLY; **never blocks**. Env seams: `MAOS_PEER_SESSION_DIR` (explicit override / portability seam), `MAOS_PEER_PROJECTS_DIR`, `MAOS_PEER_FRESH_SECS` (default 90), `MAOS_SELF_SESSION_ID`. Functions: `psd_peer_sessions` · `psd_status` (`BUSY_PEERS <n>` | `QUIET` | `UNKNOWN`) · `psd_repo_busy_by_peers`.

@@ -77,7 +77,9 @@ psd_session_dir() {
     fi
     # Auto backend: transcripts keyed by this working tree's toplevel abs path.
     top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" || return 1
-    projects="${MAOS_PEER_PROJECTS_DIR:-$HOME/.claude/projects}"
+    # ${HOME:-} guard: never trip `set -u` if HOME is unset (cron/minimal env) →
+    # unresolved projects dir → return 1 (UNKNOWN), preserving the never-blocks contract.
+    projects="${MAOS_PEER_PROJECTS_DIR:-${HOME:-}/.claude/projects}"
     [ -d "$projects" ] || return 1
     enc="$(_psd_encode_path "$top")"
     dir="$projects/$enc"
@@ -95,6 +97,9 @@ psd_peer_sessions() {
     local repo="${1:-.}" dir fresh own now n=0 f base sid m
     dir="$(psd_session_dir "$repo")" || { printf 'UNKNOWN\n'; return 0; }
     fresh="${MAOS_PEER_FRESH_SECS:-90}"
+    # Coerce to a non-negative integer; a non-numeric value (e.g. "90s") must not
+    # break the `-le` arithmetic under `set -e`. Fall back to the default.
+    case "$fresh" in ''|*[!0-9]*) fresh=90 ;; esac
     own="${MAOS_SELF_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
     now="$(date +%s 2>/dev/null || echo 0)"
     [ "$now" -gt 0 ] 2>/dev/null || { printf 'UNKNOWN\n'; return 0; }

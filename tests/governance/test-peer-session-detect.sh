@@ -67,6 +67,10 @@ touch -t 200001010000 "$TMP/peer-old.jsonl"   # portable stale mtime (BSD + GNU 
 R="$(psd_peer_sessions .)"
 assert_equals "2" "$R" "psd_peer_sessions: counts 2 fresh peers (self + stale excluded)"
 
+# Robustness: a non-numeric freshness window must NOT crash (coerced to default 90).
+R="$(MAOS_PEER_FRESH_SECS="90s" psd_peer_sessions .)"
+assert_equals "2" "$R" "psd_peer_sessions: non-numeric MAOS_PEER_FRESH_SECS coerced (no crash)"
+
 R="$(psd_status .)"
 assert_equals "BUSY_PEERS 2" "$R" "psd_status: BUSY_PEERS 2"
 
