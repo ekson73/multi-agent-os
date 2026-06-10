@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# MAOS Tool: geo-snippet.sh
+# MAOS Tool: locus.sh
 # Purpose: Render the end-of-session "geo-localization" recap snippet (SSOT grammar
-#          in skills/postflight/references/geo-snippet-spec.md) at one of 4 densities.
+#          in skills/postflight/references/locus-spec.md) at one of 4 densities.
 #          One glance: which session · what status · which anchor · what work · is it
 #          blocked · does it need a human. A memory ramp for amnesic agents + a radar
 #          for the human operator. ("What is not seen is not remembered.")
@@ -20,7 +20,7 @@
 #   omit compass), ALWAYS exits 0 — must never block a session end.
 #
 # Usage:
-#   geo-snippet --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]
+#   locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]
 #               [--seq N] [--enrich STR] [--pulse n/m] [--base REF]
 #   # D3 reads tree item-lines from stdin: "<glyph> <slug> [· <enrich>]" (one per line)
 #
@@ -35,7 +35,7 @@ DENSITY="" ; STATUS="🟡" ; SLUG="" ; SEQ="" ; ENRICH="" ; PULSE="" ; BASE=""
 
 usage() {
   printf '%s\n' \
-    'usage: geo-snippet --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]' \
+    'usage: locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]' \
     '                   [--seq N] [--enrich STR] [--pulse n/m] [--base REF]' \
     '       # density=ntree reads tree item-lines from stdin (one per line)' >&2
 }
