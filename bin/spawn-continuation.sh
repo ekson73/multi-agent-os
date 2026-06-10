@@ -49,7 +49,9 @@ Environment guardrails:
   CLAUDE_CODE_SESSION_ID      source session id (idempotency key); falls back to a derived key.
   MAOS_SPAWN_LAUNCHER         force launcher: tmux | cmux | print (default: auto-detect).
 
-Spawns ONE detached session, attachable later:  tmux attach -t <name>   (or via cmux).
+Spawns ONE detached session. Re-enter later with:  claude --resume <uuid>
+(or, while the tmux pane is alive:  tmux attach -t <name>).  Note: --session-id CREATES a
+session (once); to RE-ENTER an existing one use --resume (avoids "session id already in use").
 EOF
   exit "${1:-0}"
 }
@@ -139,16 +141,19 @@ CMD_PRINT="claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt
 # ── G4 launcher capability-detect ────────────────────────────────────────────
 LAUNCHER="${MAOS_SPAWN_LAUNCHER:-auto}"
 if [ "$LAUNCHER" = "auto" ]; then
-  if   command -v cmux >/dev/null 2>&1; then LAUNCHER="cmux"
-  elif command -v tmux >/dev/null 2>&1; then LAUNCHER="tmux"
-  elif command -v claude >/dev/null 2>&1; then LAUNCHER="print"   # claude exists but no detacher → register+print
+  # tmux FIRST: it is the only VERIFIABLE + attachable detached launcher here. cmux has no
+  # documented "run an arbitrary command in a detached pane" primitive (its CLI opens
+  # paths/URLs, not commands), so auto-detect does NOT route to a fake cmux spawn — without
+  # tmux we fall to register+print (honest resume command), never a false "spawned".
+  if   command -v tmux >/dev/null 2>&1; then LAUNCHER="tmux"
+  elif command -v claude >/dev/null 2>&1; then LAUNCHER="print"   # detacher absent/unverifiable → register+print
   else LAUNCHER="none"; fi
 fi
 
 emit_plan() { # status, launched(bool)
   printf '{"status":"%s","name":"%s","session_id":"%s","launcher":"%s","depth":%s,"src_session":"%s","resume_cmd":"%s","attach":"%s"}\n' \
     "$1" "$(json_escape "$NAME")" "$(json_escape "$UUID")" "$(json_escape "$LAUNCHER")" "$DEPTH" \
-    "$(json_escape "$SRC_KEY")" "$(json_escape "$CMD_PRINT")" "$(json_escape "tmux attach -t ${NAME}")"
+    "$(json_escape "$SRC_KEY")" "$(json_escape "$CMD_PRINT")" "$(json_escape "claude --resume ${UUID}")"
 }
 
 # ── --dry-run: print plan, touch nothing ─────────────────────────────────────
@@ -179,7 +184,8 @@ printf '%s\tname=%s\tuuid=%s\tsrc=%s\tlauncher=%s\tspawn=%s\n' \
 if [ "$NO_SPAWN" = "1" ] || [ "$LAUNCHER" = "none" ] || [ "$LAUNCHER" = "print" ]; then
   reason="$([ "$NO_SPAWN" = 1 ] && echo '--no-spawn' || echo "no detached launcher (tmux/cmux) found")"
   echo "🛫 continuation prepared (${reason}). Seed → ${SEED_FILE}" >&2
-  echo "   Resume with:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+  echo "   Start it:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+  echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
   emit_plan "registered"; exit 0
 fi
 
@@ -191,15 +197,18 @@ case "$LAUNCHER" in
     # interactive claude in a detached tmux session, pre-seeded, attachable.
     POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" tmux new-session -d -s "$NAME" \
       "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name '$NAME' --session-id '$UUID' --append-system-prompt \"\$(cat '$SEED_FILE')\"" 2>/dev/null \
-      && { echo "🛫 spawned (tmux): $NAME  — attach: tmux attach -t '$NAME'" >&2; emit_plan "spawned"; exit 0; }
+      && { echo "🛫 spawned (tmux): $NAME" >&2
+           echo "   re-enter:  tmux attach -t '$NAME'   (or, once the pane exits:  claude --resume '$UUID')" >&2
+           emit_plan "spawned"; exit 0; }
     ;;
   cmux)
-    POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" cmux claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW" >/dev/null 2>&1 & \
-      { echo "🛫 spawned (cmux): $NAME" >&2; emit_plan "spawned"; exit 0; }
-    ;;
+    # cmux exposes no verified "run an arbitrary detached command" primitive (its CLI opens
+    # paths/URLs, not commands). NEVER fake a spawn — fall through to the honest register+print.
+    : ;;
 esac
 # launcher failed → fall back to registered (never leave the operator stranded)
 rm -f "$MARKER" 2>/dev/null || true   # spawn didn't happen → let a retry through
-echo "🛫 launcher '$LAUNCHER' failed; continuation registered. Resume manually:" >&2
-echo "   claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+echo "🛫 launcher '$LAUNCHER' failed; continuation registered. Start manually:" >&2
+echo "   Start it:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
 emit_plan "registered"; exit 0
