@@ -7,11 +7,22 @@
 #  * @reason  postflight already PRINTS + clipboards the seed (manual resume). This adds the
 #  *          autonomous hand-off the operator requested (tool 5.1) — WITHOUT reinventing the seed
 #  *          (it consumes postflight's P3 JSON-RPC seed) and WITHOUT blocking the session.
-#  * @impact  Spawns ONE detached `claude` session (tmux/cmux) named <ticket>-<slug>-#<short>,
-#  *          with the seed injected as durable system context. High-blast (a real session burns
-#  *          tokens) → 7 guardrails: kill-switch · idempotency · anti-recursion depth-cap ·
-#  *          capability-detect graceful-noop · seed sanitization · audit-trail · --dry-run.
-#  * @version 0.1.0
+#  * @impact  Spawns ONE detached `claude` session (tmux/cmux) named with the D1 locus
+#  *          (`<status> · <anchor> · <slug> · #<short>`, rendered by bin/locus.sh — the session
+#  *          name IS the geo-location), with the seed injected as durable system context.
+#  *          High-blast (a real session burns tokens) → 7 guardrails: kill-switch · idempotency ·
+#  *          anti-recursion depth-cap · capability-detect graceful-noop · seed sanitization ·
+#  *          audit-trail · --dry-run.
+#  * @note    EMOJI-FIRST NAME EXPERIMENT (operator decision 2026-06-10): the D1 name keeps the
+#  *          status emoji + middle-dot `·` + spaces VERBATIM ("testarmos só com ícones primeiro;
+#  *          se eu ver algum problema eu relato"). Potential problems: tmux target-matching /
+#  *          truncation of unicode names, terminal-font rendering, any consumer that treats the
+#  *          session name as a filesystem path. Possible solution if a real problem is reported:
+#  *          an ASCII-safe D1 variant (3-letter color token red|org|yel|grn + `-` separator).
+#  *          Escape hatch TODAY: POSTFLIGHT_NAME_STYLE=legacy restores the old ascii
+#  *          `<ticket>-<slug>-#<short>` name (also the auto-fallback when locus.sh is absent).
+#  *          Jobs-registry dirs use SHORT (hex), never NAME — the filesystem is unaffected.
+#  * @version 0.2.0
 #  * Portability: AAIF cross-vendor — POSIX Bash 3.2; jq optional; no associative arrays.
 #  * Exit codes ([C06]): 0 success/graceful-noop · 1 usage/validation · 2 setup.
 #  */
@@ -22,6 +33,11 @@ json_escape() {
   local s="$1"; s=${s//\\/\\\\}; s=${s//\"/\\\"}
   s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}; printf '%s' "$s"
 }
+
+# ── safe single-quote for shell-command-string embedding ('…' with '\'' escapes) ──
+# NAME can carry a branch-derived anchor (git refnames MAY contain ' " ` $ ;) — every
+# interpolation of NAME/UUID/SEED_FILE into a shell string MUST go through shq (anti-injection).
+shq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
 
 usage() {
   cat <<EOF
@@ -34,7 +50,8 @@ Required:
   --slug <kebab>     short kebab description for the session name   ([A-Za-z0-9._-])
 
 Optional:
-  --ticket <KEY>     ticket id, prefixes the name (e.g. TICKET-123); omitted => slug-only
+  --ticket <KEY>     ticket id — locus anchor input + legacy-name prefix (e.g. TICKET-123)
+  --status <GLYPH>   D1 locus status glyph for the session name: 🔴 🟠 🟡 🟢 (default 🟡)
   --seed  <file|->   path to the postflight P3 continuation seed (JSON), or - for stdin.
                      If omitted, a minimal seed is synthesized from git state.
   --no-spawn         do everything EXCEPT launch (register + print the resume command). Default: spawn ON.
@@ -46,6 +63,9 @@ Optional:
 Environment guardrails:
   POSTFLIGHT_SPAWN=0          hard kill-switch — never spawn (deterministic opt-out).
   POSTFLIGHT_SPAWN_DEPTH=N    current auto-chain depth (default 0); >= --depth-cap => graceful no-op.
+  POSTFLIGHT_NAME_STYLE       locus (default: D1 emoji name via bin/locus.sh) | legacy
+                              (ascii <ticket>-<slug>-#<short> — the pre-0.2.0 name; also the
+                              auto-fallback when locus.sh is absent).
   CLAUDE_CODE_SESSION_ID      source session id (idempotency key); falls back to a derived key.
   MAOS_SPAWN_LAUNCHER         force launcher: tmux | cmux | print (default: auto-detect).
 
@@ -57,10 +77,11 @@ EOF
 }
 
 # ── parse args ────────────────────────────────────────────────────────────────
-TICKET="" SLUG="" SEED_SRC="" NO_SPAWN=0 DRY_RUN=0 FORCE=0 DEPTH_CAP=1
+TICKET="" SLUG="" STATUS="🟡" SEED_SRC="" NO_SPAWN=0 DRY_RUN=0 FORCE=0 DEPTH_CAP=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --ticket)    TICKET="${2:-}"; shift 2 ;;
+    --status)    STATUS="${2:-🟡}"; shift 2 ;;
     --slug)      SLUG="${2:-}"; shift 2 ;;
     --seed)      SEED_SRC="${2:-}"; shift 2 ;;
     --no-spawn)  NO_SPAWN=1; shift ;;
@@ -72,6 +93,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$SLUG" ] || { printf 'spawn-continuation: --slug is required\n' >&2; usage 1; }
+
+# --status is a Tier-B glyph: WHITELIST the 4 locus statuses (anti-injection + grammar-honest;
+# anything else — including shell metacharacters — falls back to the 🟡 default).
+case "$STATUS" in 🔴|🟠|🟡|🟢) ;; *) STATUS="🟡" ;; esac
 
 # sanitize name parts (filesystem + session-name safe)
 clean() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._-' | sed 's/^\.*//'; }
@@ -101,7 +126,23 @@ new_uuid() {
 UUID="$(new_uuid)"
 SHORT="$(printf '%s' "$UUID" | tr -cd 'a-f0-9' | cut -c1-8)"
 [ -n "$SHORT" ] || SHORT="$(printf '%s' "$UUID" | tr -cd 'A-Za-z0-9' | cut -c1-8)"
-if [ -n "$TICKET" ]; then NAME="${TICKET}-${SLUG}-#${SHORT}"; else NAME="${SLUG}-#${SHORT}"; fi
+
+# ── session NAME = D1 locus (the name IS the geo-location) ───────────────────
+# Rendered by bin/locus.sh (grammar SSOT: skills/postflight/references/locus-spec.md):
+#   <status> · <anchor> · <slug> · #<short>     e.g.  🟡 · VKS-123 · payment-retry · #a1b2c3d4
+# The anchor is Tier-A COMPUTED by locus (ticket › PR › branch — anti-theater: never asserted).
+# Emoji-first experiment — see @note in the header. Fallback to the legacy ascii name when
+# locus.sh is absent OR POSTFLIGHT_NAME_STYLE=legacy. (MAOS_LOCUS_BIN overrides the renderer
+# path — test seam.)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
+LOCUS_BIN="${MAOS_LOCUS_BIN:-$SCRIPT_DIR/locus.sh}"
+NAME=""
+if [ "${POSTFLIGHT_NAME_STYLE:-locus}" != "legacy" ] && [ -f "$LOCUS_BIN" ]; then
+  NAME="$(bash "$LOCUS_BIN" --density name --status "$STATUS" --slug "$SLUG" --seq "$SHORT" 2>/dev/null </dev/null)" || NAME=""
+fi
+if [ -z "$NAME" ]; then   # legacy ascii name (pre-0.2.0 shape)
+  if [ -n "$TICKET" ]; then NAME="${TICKET}-${SLUG}-#${SHORT}"; else NAME="${SLUG}-#${SHORT}"; fi
+fi
 
 # ── jobs registry dirs (match the ~/.claude/jobs convention) ─────────────────
 JOBS_DIR="${CLAUDE_JOBS_DIR:-${HOME:-/tmp}/.claude/jobs}"
@@ -136,7 +177,7 @@ fi
 # ── build the resume command (array — no eval) ───────────────────────────────
 set -- claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW"
 # human-printable form (seed elided)
-CMD_PRINT="claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'"
+CMD_PRINT="claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'"
 
 # ── G4 launcher capability-detect ────────────────────────────────────────────
 LAUNCHER="${MAOS_SPAWN_LAUNCHER:-auto}"
@@ -184,7 +225,7 @@ printf '%s\tname=%s\tuuid=%s\tsrc=%s\tlauncher=%s\tspawn=%s\n' \
 if [ "$NO_SPAWN" = "1" ] || [ "$LAUNCHER" = "none" ] || [ "$LAUNCHER" = "print" ]; then
   reason="$([ "$NO_SPAWN" = 1 ] && echo '--no-spawn' || echo "no detached launcher (tmux/cmux) found")"
   echo "🛫 continuation prepared (${reason}). Seed → ${SEED_FILE}" >&2
-  echo "   Start it:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+  echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" >&2
   echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
   emit_plan "registered"; exit 0
 fi
@@ -196,9 +237,9 @@ case "$LAUNCHER" in
   tmux)
     # interactive claude in a detached tmux session, pre-seeded, attachable.
     POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" tmux new-session -d -s "$NAME" \
-      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name '$NAME' --session-id '$UUID' --append-system-prompt \"\$(cat '$SEED_FILE')\"" 2>/dev/null \
+      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" 2>/dev/null \
       && { echo "🛫 spawned (tmux): $NAME" >&2
-           echo "   re-enter:  tmux attach -t '$NAME'   (or, once the pane exits:  claude --resume '$UUID')" >&2
+           echo "   re-enter:  tmux attach -t $(shq "$NAME")   (or, once the pane exits:  claude --resume '$UUID')" >&2
            emit_plan "spawned"; exit 0; }
     ;;
   cmux)
