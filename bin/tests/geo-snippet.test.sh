@@ -19,7 +19,7 @@ printf 'geo-snippet.test.sh\n'
 o="$("$GS" --density name --status '🟢' --slug add-oauth)"
 has 'add-oauth' "$o" 'D1 renders slug'
 has '🟢'        "$o" 'D1 renders status'
-hasnt '#'       "$o" 'D1 omits #seq when --seq absent'
+hasnt ' · #'    "$o" 'D1 omits #seq token (· #N) when --seq absent (anchor like PR#N is not a seq)'
 hasnt '↑'       "$o" 'D1 name stays clean (no auto-compass)'
 
 # D1 #seq present when supplied
@@ -35,9 +35,10 @@ o="$("$GS" --density name --status '🟢' --slug z)"
 hasnt ' ·  · ' "$o" 'no double separator (optional fields collapse cleanly)'
 
 # D2 status: project:branch + compass field
-o="$("$GS" --density status --status '🟡' --slug s)"
-has ':'  "$o" 'D2 renders project:branch'
-has '↑'  "$o" 'D2 surfaces compass as its own field'
+# pin --base HEAD → deterministic ↑0↓0 (HEAD...HEAD), no dependency on origin/remote layout
+o="$("$GS" --density status --status '🟡' --slug s --base HEAD)"
+has ':'     "$o" 'D2 renders project:branch'
+has '↑0↓0'  "$o" 'D2 compass deterministic with --base HEAD'
 
 # D2 pulse token
 o="$("$GS" --density status --status '🟡' --slug s --pulse 3/4)"

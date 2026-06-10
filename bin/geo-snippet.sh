@@ -126,7 +126,18 @@ compute_risk() {     # ⚠R1: on default branch AND a deploy-on-push workflow pr
 }
 
 # ── derive ─────────────────────────────────────────────────────────────────────
-[ -n "$BASE" ] || BASE="origin/$(default_branch)"
+# Base ref for the compass — pick one that ACTUALLY EXISTS (no remote-layout assumption):
+# upstream @{u} → origin/<default> → local <default> → empty (compass gracefully omitted).
+if [ -z "$BASE" ]; then
+  if git rev-parse --verify --quiet '@{u}' >/dev/null 2>&1; then
+    BASE='@{u}'
+  else
+    _db="$(default_branch)"
+    if   git rev-parse --verify --quiet "origin/$_db" >/dev/null 2>&1; then BASE="origin/$_db"
+    elif git rev-parse --verify --quiet "$_db"        >/dev/null 2>&1; then BASE="$_db"
+    fi   # else BASE stays empty → compute_compass returns nothing (graceful)
+  fi
+fi
 BRANCH="$(cur_branch)"
 PROJECT="$(top="$(repo_top)"; [ -n "$top" ] && basename "$top")"
 ANCHOR="$(compute_anchor "$BRANCH")"

@@ -20,6 +20,8 @@ Master principle: **clarity > density** — *what is not seen is not remembered;
 
 Separator is the middle dot `·`. Optional fields (`[...]`) collapse their token **and** their separator when absent — never leave a dangling `·`.
 
+> **This is the D1 base shape.** The richer densities (D2/D3) preserve the same field *semantics* but **append additional computed tokens** (`project:branch`, compass, pulse, peers, risk) — see "The 4 densities". The grammar is the contract for what each field *means*, not a fixed token count; D2/D3 extending the sequence is by design, not a violation of the SSOT.
+
 ### Fields
 
 | Field | What | Source tier |
