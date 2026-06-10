@@ -466,8 +466,9 @@ def model_6(d):
     L.append(f"session.title     = {s.get('title','-')}")
     L.append(f"verdict.state     = {d['verdict'].get('state','-')}  {VERDICT_ICON.get(d['verdict'].get('state'),'')}")
     L.append(f"autonomy.green    = {a['green']}")
-    L.append(f"autonomy.human    = {a['blue']}")
-    L.append(f"autonomy.need_hitl= {a['orange']}")
+    L.append(f"autonomy.blue     = {a['blue']}")
+    L.append(f"autonomy.orange   = {a['orange']}")
+    L.append(f"autonomy.red      = {a['red']}")
     L.append(f"autonomy.pct_green= {gp:.1f}%   {bar(gp,12)}")
     L.append(f"autonomy.spark    = {spark}")
     L.append(f"checklist.done    = {sum(1 for it in d['checklist'] if it['state'] in ('green','blue'))}/{len(d['checklist'])}")
@@ -520,8 +521,9 @@ def model_7(d):
             f" · next: {('—' if openn==0 else clip(nxt,34))}")
     L = [head]
     L.append(c(f"  ↳ {d['session'].get('title','')}  ({d['session'].get('duration','')})", dim=True))
-    if openn:
-        L.append(c("  ↳ open: " + " · ".join(clip(w["text"], 42) for w in d["whats_left"] if w["state"] != "done"), 208))
+    opens = [w["text"] for w in d["whats_left"] if w["state"] != "done"]
+    if len(opens) > 1:  # headline already shows the first via `next:`; drill lists the rest
+        L.append(c("  ↳ open: " + " · ".join(clip(t, 42) for t in opens), 208))
     return "\n".join(L)
 
 
@@ -529,12 +531,39 @@ MODELS = {1: model_1, 2: model_2, 3: model_3, 4: model_4, 5: model_5, 6: model_6
 NAMES = {1: "Cockpit", 2: "Traffic-Light Strip", 3: "Dashboard / KPI Tiles",
          4: "Burndown Ledger", 5: "Kanban Lanes", 6: "Telemetry / Machine-First",
          7: "Executive One-Liner"}
+# name/alias -> id, so a model can be FORCED by name or id (--model cockpit | telemetry | M6 | 6)
+ALIASES = {"cockpit": 1,
+           "traffic-light": 2, "traffic": 2, "strip": 2, "trafficlight": 2,
+           "dashboard": 3, "tiles": 3, "kpi": 3, "kpi-tiles": 3,
+           "burndown": 4, "ledger": 4, "burndown-ledger": 4,
+           "kanban": 5, "lanes": 5, "kanban-lanes": 5,
+           "telemetry": 6, "machine": 6, "machine-first": 6, "json": 6, "json-rpc": 6,
+           "executive": 7, "one-liner": 7, "oneliner": 7, "one-line": 7, "exec": 7}
+
+
+def resolve_model(s):
+    """Force/select a model by id (1-7), 'M3', or a name/alias slug
+    (cockpit/strip/tiles/burndown/kanban/telemetry/one-liner). -> int 1-7."""
+    k = str(s).strip().lower()
+    if k.isdigit() and 1 <= int(k) <= 7:
+        return int(k)
+    m = re.fullmatch(r"m([1-7])", k)
+    if m:
+        return int(m.group(1))
+    k = k.replace("_", "-").replace(" ", "-")
+    if k in ALIASES:
+        return ALIASES[k]
+    raise argparse.ArgumentTypeError(
+        f"unknown model '{s}' — use 1-7, M1-M7, or a name "
+        "(cockpit/strip/tiles/burndown/kanban/telemetry/one-liner)")
 
 
 def main():
     global COLOR
     ap = argparse.ArgumentParser(description="postflight scorecard renderer (7 models)")
-    ap.add_argument("--model", type=int, default=1, choices=range(1, 8))
+    ap.add_argument("--model", type=resolve_model, default=1,
+                    help="model id (1-7), 'M3', or a name (cockpit/strip/tiles/"
+                         "burndown/kanban/telemetry/one-liner) to force a specific model")
     ap.add_argument("--params", help="JSON params file, or '-' for stdin")
     ap.add_argument("--demo", action="store_true", help="use built-in demo params")
     ap.add_argument("--auto-git", action="store_true", help="self-calculate git/PR facts")
