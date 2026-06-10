@@ -1,8 +1,8 @@
 # Geo-Snippet — End-of-Session Recap Grammar (SSOT)
 
-> **Version**: 1.0.0
+> **Version**: 1.0.1
 > **Scope**: AAIF cross-vendor. A compact, glance-and-know "geo-localization" status line for agent sessions.
-> **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it) · `bin/spawn-continuation.sh` (D1 → session `--name`, owns `#seq`).
+> **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it as `locus` — wired postflight v0.3.0) · `bin/spawn-continuation.sh` (owns `#seq`; D1 → session `--name` **wiring tracked** — needs an ascii-safe name variant, see follow-up issue).
 > **Renderer**: `bin/geo-snippet.sh`.
 > **Cross-link slug**: `geo-snippet`
 
