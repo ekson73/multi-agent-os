@@ -1,9 +1,9 @@
 # Locus — End-of-Session Recap Grammar (SSOT)
 
-> **Version**: 1.1.0
+> **Version**: 1.2.0
 > **Renamed** 2026-06-10: `geo-snippet` (PR #126 grammar+renderer+tests, #127 postflight wiring) → `locus` — Anima naming verdict (Latin *locus* "place/position"; the snippet computes your position from anchor reference-points, mirroring a nautical position-fix). History preserved via `git mv`.
 > **Scope**: AAIF cross-vendor. A compact, glance-and-know "geo-localization" status line for agent sessions.
-> **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it as `locus` — wired postflight v0.3.0) · `bin/spawn-continuation.sh` (owns `#seq`; D1 → session `--name` **wiring tracked** — needs an ascii-safe name variant, see follow-up issue).
+> **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it as `locus` — wired postflight v0.3.0) · `bin/spawn-continuation.sh` (owns `#seq`; D1 → session `--name` **WIRED** v0.2.0 — the spawned session is *named* with the D1 locus, **emoji-first experiment** per operator decision 2026-06-10: status emoji + middle-dot `·` + spaces kept verbatim in tmux/`claude --name`; potential problems = tmux target-matching/truncation of unicode names, terminal-font rendering, path-treating consumers; possible solution if a real problem is reported = an ASCII-safe D1 variant (3-letter color token `red|org|yel|grn` + `-` separator); escape hatch today = `POSTFLIGHT_NAME_STYLE=legacy`).
 > **Renderer**: `bin/locus.sh`.
 > **Cross-link slug**: `locus`
 
