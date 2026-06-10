@@ -25,7 +25,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 |--------|-------------|
 | *(none)* / `full` | P1+P2+P3: sweep → debrief → emit + clipboard the continuation seed. |
 | `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket close-or-register), classified by Eisenhower, safe-or-DEFER. |
-| `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top. No mutations. |
+| `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top, then render the glance-and-know **locus** + the end-of-action **scorecard** (`bin/scorecard.py`, model picked round-robin by `bin/scorecard-next-model.sh`). No mutations to tracked files. |
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2 (DoR). |
 | `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
 
@@ -57,6 +57,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 ─────────────────────────────────────────────────
 SWEEP    pushed feat/x · PR #42 → green · pruned 1 stale ref · changelog bumped
 DEBRIEF  objectives 2/3 done · 1 gap · 1 undecided · 3 next-actions (Q1×1, Q2×2)
+         📊 scorecard model 4/7 (burndown, round-robin) rendered from debrief state
 HANDOFF  🌱 continuation seed → printed + copied to clipboard
 SPAWN    🛫 TICKET-123-add-retry-#a1b2c3d4 (tmux) — attach: tmux attach -t '…' · or --no-spawn next time
 ─────────────────────────────────────────────────
@@ -71,6 +72,8 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 | `POSTFLIGHT_SNAPSHOT_PRS=1` | The PreCompact hook also fetches open-PR state via `gh` (network; default off = fast/offline-safe). |
 | `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
 | `POSTFLIGHT_SPAWN=0` | **P3.5 kill-switch** — never spawn a continuation session (deterministic opt-out; overrides `--spawn`). |
+| `POSTFLIGHT_SCORECARD_MODEL=<1..7\|name>` | Pin the P2 scorecard layout model + skip the round-robin rotation entirely (e.g. `cockpit`, `telemetry`, `4`). Default: round-robin via `bin/scorecard-next-model.sh`. |
+| `POSTFLIGHT_SCORECARD_STATE=<path>` | Override the round-robin pointer file (default: `~/.claude/jobs/.postflight-scorecard-model`). |
 | `POSTFLIGHT_SPAWN_DEPTH=N` | Current auto-chain depth (default 0); `>=` the depth-cap (default 1) → P3.5 graceful no-op (anti-recursion). |
 | `MAOS_SPAWN_LAUNCHER` | Force the spawn launcher: `tmux` \| `cmux` \| `print` (default: auto-detect; `print` = register + emit the resume command). |
 
@@ -78,5 +81,5 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 
 - Skill: [`skills/postflight/SKILL.md`](../skills/postflight/SKILL.md) (the orchestrator).
 - Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks; never spawns).
-- Composes: `protocols/exit-hygiene.md`, `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive).
+- Composes: `protocols/exit-hygiene.md`, `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-next-model.sh` (P2 scorecard, round-robin).
 - Counterpart: `/preflight` (start-of-session) — together the loop: `preflight → work → postflight → (spawn) → preflight …`.
