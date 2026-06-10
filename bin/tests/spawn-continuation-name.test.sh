@@ -65,5 +65,14 @@ else
   bad "--dry-run touched the jobs registry" "$(ls -A "$TMP_JOBS")"
 fi
 
+# 6. anti-injection: --status outside the 4-glyph whitelist (shell-metachar payload)
+#    → falls back to 🟡 and the rendered name stays well-formed (no quote/semicolon leaks)
+N="$(run --slug payment-retry --status "🟢'; echo pwned;'" | name_of)"
+case "$N" in
+  "🟡 · "*) if printf '%s' "$N" | grep -q "pwned"; then bad "status whitelist leaked payload" "$N"
+            else ok "--status whitelist: injection-shaped status → 🟡 fallback, no payload leak"; fi ;;
+  *) bad "--status whitelist fallback" "$N" ;;
+esac
+
 echo "── $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

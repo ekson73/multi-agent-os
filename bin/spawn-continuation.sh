@@ -34,6 +34,11 @@ json_escape() {
   s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; s=${s//$'\t'/\\t}; printf '%s' "$s"
 }
 
+# ── safe single-quote for shell-command-string embedding ('…' with '\'' escapes) ──
+# NAME can carry a branch-derived anchor (git refnames MAY contain ' " ` $ ;) — every
+# interpolation of NAME/UUID/SEED_FILE into a shell string MUST go through shq (anti-injection).
+shq() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+
 usage() {
   cat <<EOF
 spawn-continuation — launch a fresh, seeded \`claude\` continuation session (postflight P3.5 / tool 5.1).
@@ -88,6 +93,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$SLUG" ] || { printf 'spawn-continuation: --slug is required\n' >&2; usage 1; }
+
+# --status is a Tier-B glyph: WHITELIST the 4 locus statuses (anti-injection + grammar-honest;
+# anything else — including shell metacharacters — falls back to the 🟡 default).
+case "$STATUS" in 🔴|🟠|🟡|🟢) ;; *) STATUS="🟡" ;; esac
 
 # sanitize name parts (filesystem + session-name safe)
 clean() { printf '%s' "$1" | tr -cd 'A-Za-z0-9._-' | sed 's/^\.*//'; }
@@ -168,7 +177,7 @@ fi
 # ── build the resume command (array — no eval) ───────────────────────────────
 set -- claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW"
 # human-printable form (seed elided)
-CMD_PRINT="claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'"
+CMD_PRINT="claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'"
 
 # ── G4 launcher capability-detect ────────────────────────────────────────────
 LAUNCHER="${MAOS_SPAWN_LAUNCHER:-auto}"
@@ -216,7 +225,7 @@ printf '%s\tname=%s\tuuid=%s\tsrc=%s\tlauncher=%s\tspawn=%s\n' \
 if [ "$NO_SPAWN" = "1" ] || [ "$LAUNCHER" = "none" ] || [ "$LAUNCHER" = "print" ]; then
   reason="$([ "$NO_SPAWN" = 1 ] && echo '--no-spawn' || echo "no detached launcher (tmux/cmux) found")"
   echo "🛫 continuation prepared (${reason}). Seed → ${SEED_FILE}" >&2
-  echo "   Start it:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+  echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" >&2
   echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
   emit_plan "registered"; exit 0
 fi
@@ -228,9 +237,9 @@ case "$LAUNCHER" in
   tmux)
     # interactive claude in a detached tmux session, pre-seeded, attachable.
     POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" tmux new-session -d -s "$NAME" \
-      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name '$NAME' --session-id '$UUID' --append-system-prompt \"\$(cat '$SEED_FILE')\"" 2>/dev/null \
+      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" 2>/dev/null \
       && { echo "🛫 spawned (tmux): $NAME" >&2
-           echo "   re-enter:  tmux attach -t '$NAME'   (or, once the pane exits:  claude --resume '$UUID')" >&2
+           echo "   re-enter:  tmux attach -t $(shq "$NAME")   (or, once the pane exits:  claude --resume '$UUID')" >&2
            emit_plan "spawned"; exit 0; }
     ;;
   cmux)
