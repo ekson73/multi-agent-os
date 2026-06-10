@@ -282,16 +282,18 @@ def model_1(d):
     a = d["autonomy"]; _, _, _, gp = pulse_line(a)
     vi = VERDICT_ICON.get(d["verdict"].get("state"), "•")
     L = []
-    L.append(c("┏━━ 🛬 END-OF-ACTION SCORECARD " + "━" * 8, 244))
+    RAIL = 40  # equal-width left-rail: top/mid/bottom rules share ONE visual width
+    _top = "┏━━ 🛬 END-OF-ACTION SCORECARD "
+    L.append(c(_top + "━" * max(2, RAIL - vlen(_top)), 244))
     L.append(c("┃ ", 244) + c(t, bold=True))
     L.append(c("┃ ", 244) + c(meta, dim=True))
-    L.append(c("┣" + "━" * 38, 244))
+    L.append(c("┣" + "━" * (RAIL - 1), 244))
     L.append(c("┃ ", 244) + c("VERDICT ", dim=True) + f"{vi} " + c(d["verdict"].get("label", ""), 46, bold=True)
               + "   " + c("autonomy ", dim=True) + bar(gp, 10) + f" {gp:.0f}%")
     L.append(c("┃", 244))
     L.append(c("┃ ", 244) + c("VITALS", 244, bold=True))
     for v in d["vitals"]:
-        L.append(c("┃  ", 244) + f"{v.get('icon','•')} " + pad(v.get("label", ""), 9)
+        L.append(c("┃  ", 244) + pad(v.get("icon", "•"), 2) + " " + pad(v.get("label", ""), 9)
                  + bar(v.get("pct", 0), 10) + "  " + c(v.get("note", ""), dim=True))
     L.append(c("┃", 244))
     L.append(c("┃ ", 244) + c("CHECKLIST", 244, bold=True))
@@ -312,8 +314,8 @@ def model_1(d):
     L.append(c("┃ ", 244) + c("WHAT'S LEFT", 244, bold=True))
     for w in d["whats_left"]:
         mark = "✔" if w["state"] == "done" else dot(w["state"])
-        L.append(c("┃  ", 244) + f"{mark} " + w.get("text", ""))
-    L.append(c("┗" + "━" * 38, 244))
+        L.append(c("┃  ", 244) + pad(mark, 2) + " " + w.get("text", ""))
+    L.append(c("┗" + "━" * (RAIL - 1), 244))
     L.append(c("  " + legend_line(), dim=True))
     return "\n".join(L)
 
@@ -374,6 +376,11 @@ def model_3(d):
     L.append("")
     for it in d["checklist"]:
         L.append(f"  {dot(it['state'])} {pad(it.get('label',''),14)} {c(it.get('note',''),dim=True)}")
+    ts = tk_summary(d)
+    if ts:
+        dn, tt = tk_counts(d)
+        L.append("")
+        L.append(f"  {c('🎫 tickets',244)} {ts}   {c(f'({dn}/{tt} done)',dim=True)}")
     return "\n".join(L)
 
 
@@ -392,6 +399,11 @@ def model_4(d):
     for i, it in enumerate(items, 1):
         L.append(f"  {c(f'[{i:>2}]',240)} {dot(it['state'])} {pad(it.get('label',''),16)}"
                  f" {c(pad(it.get('note',''),40),dim=True)} {c(conf(it),46)}")
+    ts = tk_summary(d)
+    if ts:
+        dn, tt = tk_counts(d)
+        L.append("")
+        L.append(f"  {c('🎫 tickets',244)} {ts}   {c(f'({dn}/{tt} done)',dim=True)}")
     rem = [w for w in d["whats_left"] if w["state"] != "done"]
     L.append("")
     if rem:
@@ -415,8 +427,8 @@ def model_5(d):
     for it in d["checklist"]:
         key = ALIAS.get(it["state"], it["state"])
         buckets.setdefault(key, []).append(it.get("label", ""))
-    # fold blue(done-human) into DONE lane
-    buckets["green"] = buckets.get("green", []) + buckets.get("blue", [])
+    # fold blue(done-human) into DONE lane, keeping the 🔵 human-provenance marker
+    buckets["green"] = buckets.get("green", []) + [f"{dot('blue')} {lbl}" for lbl in buckets.get("blue", [])]
     for w in d["whats_left"]:
         if w["state"] != "done":
             buckets.setdefault(ALIAS.get(w["state"], w["state"]), []).append(w["text"])

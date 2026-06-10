@@ -33,9 +33,10 @@
 
 `state` aliases: `done/closed/merged→green · human→blue · hitl/review→orange · doing/wip/in-progress/open→yellow · todo/blocked→red`.
 **Tickets** (Jira/Linear/GH issues) are AI-supplied atoms — the agent lists which the session
-touched + their status. Surfaced in M1 (TICKETS section), M2 (tickets line), M5 (kanban lanes),
-M6 (telemetry + JSON-RPC), M7 (🎫 count). Cross-provider auto-detect is out of scope (per-provider
-MCP/CLI) — the agent already knows the linked tickets from the session.
+touched + their status. Surfaced in **all 7 models** — M1 (TICKETS section), M2 (tickets line),
+M3 (🎫 footer), M4 (🎫 footer), M5 (kanban lanes), M6 (telemetry + JSON-RPC), M7 (🎫 count).
+Cross-provider auto-detect is out of scope (per-provider MCP/CLI) — the agent already knows the
+linked tickets from the session.
 
 ## The 7 models (run `--model N --demo` to see each rendered)
 
