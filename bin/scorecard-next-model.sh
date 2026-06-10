@@ -23,7 +23,10 @@
 #
 # Override (pin a model, skip rotation entirely — mirrors the POSTFLIGHT_SPAWN=0 idiom):
 #   export POSTFLIGHT_SCORECARD_MODEL=<1..7|cockpit|telemetry|...>
-#     → prints that value verbatim, NEVER touches the pointer (deterministic pin).
+#     → validated against bin/scorecard.py (the model-registry SSOT); if valid, prints it
+#       verbatim and NEVER touches the pointer (deterministic pin). An INVALID value (typo)
+#       warns to stderr + falls back to round-robin, so it can never break the downstream
+#       `scorecard.py --model` render (which rejects unknown values with exit 2).
 #
 # State file: ${POSTFLIGHT_SCORECARD_STATE:-$HOME/.claude/jobs/.postflight-scorecard-model}
 #   A single integer (the last-used model id, 1..7; 0 = none yet). A missing or
@@ -36,18 +39,41 @@
 
 N_MODELS=7
 STATE="${POSTFLIGHT_SCORECARD_STATE:-$HOME/.claude/jobs/.postflight-scorecard-model}"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null || printf '.')"
+SCORECARD="$DIR/scorecard.py"
 
-# --- override: pin a model, never rotate, never touch the pointer ---
+# Is VALUE a model bin/scorecard.py accepts? Delegate to scorecard.py (the SSOT for the
+# id/alias registry) rather than duplicating its alias list here (DRY — a local copy would
+# drift). A stable numeric id (1..N_MODELS) needs no probe. If python3/scorecard.py are not
+# available we cannot validate → accept (graceful; the selector must never block).
+_is_valid_model() {
+  case "$1" in
+    '') return 1 ;;
+    *[!0-9]*) ;;                                            # non-numeric → probe scorecard.py below
+    *) if [ "$1" -ge 1 ] && [ "$1" -le "$N_MODELS" ]; then return 0; else return 1; fi ;;
+  esac
+  command -v python3 >/dev/null 2>&1 && [ -f "$SCORECARD" ] || return 0   # cannot probe → accept
+  python3 "$SCORECARD" --model "$1" --demo --no-color >/dev/null 2>&1
+}
+
+# --- override: pin a model, skip rotation. Validate first so a typo can't break the
+#     downstream `scorecard.py --model` render; an invalid value warns + falls through to
+#     round-robin (never emits an unrenderable token, honouring the always-valid contract).
 if [ -n "${POSTFLIGHT_SCORECARD_MODEL:-}" ]; then
-  printf '%s\n' "$POSTFLIGHT_SCORECARD_MODEL"
-  exit 0
+  if _is_valid_model "$POSTFLIGHT_SCORECARD_MODEL"; then
+    printf '%s\n' "$POSTFLIGHT_SCORECARD_MODEL"
+    exit 0
+  fi
+  printf 'scorecard-next-model: ignoring invalid POSTFLIGHT_SCORECARD_MODEL=%s (not a scorecard.py model) — falling back to round-robin\n' "$POSTFLIGHT_SCORECARD_MODEL" >&2
 fi
 
 mode="${1:-advance}"
 
-_read() {  # echo the sanitised last-used id (0..N_MODELS); non-numeric/out-of-range → 0
-  local v
-  v="$(cat "$STATE" 2>/dev/null || printf '0')"
+_read() {  # echo the sanitised last-used id (0..N_MODELS); unreadable/non-numeric/out-of-range → 0
+  local v=0
+  # Read ONLY a regular file (excludes FIFO/device/dir → cannot block) and ONLY its first
+  # line (bounds a huge/garbage file → cannot stall) — preserves the "never abort" contract.
+  if [ -f "$STATE" ]; then IFS= read -r v <"$STATE" 2>/dev/null || v=0; fi
   case "$v" in '' | *[!0-9]*) v=0 ;; esac
   if [ "$v" -gt "$N_MODELS" ] 2>/dev/null; then v=0; fi
   printf '%s' "$v"

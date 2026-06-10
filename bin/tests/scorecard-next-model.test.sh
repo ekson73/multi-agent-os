@@ -45,11 +45,23 @@ eq '1'  "$("$SEL" --current)" '--current reflects last-used (1), unchanged by pe
 eq '0' "$("$SEL" --reset)"  '--reset prints 0'
 eq '1' "$("$SEL")"          'after reset → 1'
 
-# env override pins a model and never advances the pointer
+# valid env override pins a model and never advances the pointer
 "$SEL" --reset >/dev/null
 eq '5'         "$(POSTFLIGHT_SCORECARD_MODEL=5         "$SEL")" 'env override (id) pins verbatim'
 eq 'telemetry' "$(POSTFLIGHT_SCORECARD_MODEL=telemetry "$SEL")" 'env override (name) pins verbatim'
 eq '0'         "$("$SEL" --current)" 'override never touched the pointer (still 0)'
+
+# INVALID override (typo) → warns + falls back to round-robin, never emits the junk token
+# (needs python3 + scorecard.py to reject a bad NAME; otherwise the selector accepts gracefully).
+if command -v python3 >/dev/null 2>&1 && [ -f "$DIR/../scorecard.py" ]; then
+  "$SEL" --reset >/dev/null
+  out="$(POSTFLIGHT_SCORECARD_MODEL=telemetery "$SEL" 2>/dev/null)"   # 'telemetery' = typo of 'telemetry'
+  case "$out" in 1|2|3|4|5|6|7) ok 'invalid override falls back to a valid 1..7 id' ;; *) no 'invalid override falls back to a valid 1..7 id' "$out" ;; esac
+  case "$out" in telemetery) no 'invalid override NOT emitted verbatim' "$out" ;; *) ok 'invalid override NOT emitted verbatim' ;; esac
+  POSTFLIGHT_SCORECARD_MODEL=telemetery "$SEL" 2>&1 >/dev/null | grep -q 'ignoring invalid' && ok 'invalid override warns to stderr' || no 'invalid override warns to stderr' '(no warning seen)'
+else
+  printf '  - skipped invalid-override-fallback (python3/scorecard.py unavailable)\n'
+fi
 
 # invalid pointer content self-heals to 0 → next is 1
 printf 'garbage\n' > "$POSTFLIGHT_SCORECARD_STATE"
