@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Tests for bin/geo-snippet.sh — the geo-snippet recap renderer.
-# Bash 3.2-safe, self-contained, read-only. Run: bash bin/tests/geo-snippet.test.sh
+# Tests for bin/locus.sh — the locus recap renderer.
+# Bash 3.2-safe, self-contained, read-only. Run: bash bin/tests/locus.test.sh
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-GS="$DIR/../geo-snippet.sh"
+GS="$DIR/../locus.sh"
 
 pass=0 ; fail=0
 ok() { pass=$((pass + 1)); printf '  \xe2\x9c\x93 %s\n' "$1"; }
@@ -13,7 +13,7 @@ has()  { case "$2" in *"$1"*) ok "$3" ;; *) no "$3" "$2" ;; esac; }   # has NEED
 hasnt(){ case "$2" in *"$1"*) no "$3" "$2" ;; *) ok "$3" ;; esac; }
 eq()   { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
 
-printf 'geo-snippet.test.sh\n'
+printf 'locus.test.sh\n'
 
 # D1 name: status+slug, no #seq, no compass clutter
 o="$("$GS" --density name --status '🟢' --slug add-oauth)"

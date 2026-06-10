@@ -1,10 +1,11 @@
-# Geo-Snippet — End-of-Session Recap Grammar (SSOT)
+# Locus — End-of-Session Recap Grammar (SSOT)
 
-> **Version**: 1.0.1
+> **Version**: 1.1.0
+> **Renamed** 2026-06-10: `geo-snippet` (PR #126 grammar+renderer+tests, #127 postflight wiring) → `locus` — Anima naming verdict (Latin *locus* "place/position"; the snippet computes your position from anchor reference-points, mirroring a nautical position-fix). History preserved via `git mv`.
 > **Scope**: AAIF cross-vendor. A compact, glance-and-know "geo-localization" status line for agent sessions.
 > **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it as `locus` — wired postflight v0.3.0) · `bin/spawn-continuation.sh` (owns `#seq`; D1 → session `--name` **wiring tracked** — needs an ascii-safe name variant, see follow-up issue).
-> **Renderer**: `bin/geo-snippet.sh`.
-> **Cross-link slug**: `geo-snippet`
+> **Renderer**: `bin/locus.sh`.
+> **Cross-link slug**: `locus`
 
 ## Purpose — "geo-localization"
 
@@ -41,7 +42,7 @@ Separator is the middle dot `·`. Optional fields (`[...]`) collapse their token
 | 🟠 | need-HITL (needs a human decision/authorization) |
 | 🟢 | done |
 
-This is the **aggregate projection** of the session's primary goal — deliberately ≤4 colors so it is triable pre-attentively (one glyph, instant read). It is distinct from the **per-item 5-state visual legend** (which adds 🔵 human-done) used inside checklists/N-trees: human-done + any `%`/autonomy telemetry belong in `enrich`/`pulse`, **never** in the aggregate `status` glyph. 🟠 ("needs you") is the #1 signal a geo-snippet must surface.
+This is the **aggregate projection** of the session's primary goal — deliberately ≤4 colors so it is triable pre-attentively (one glyph, instant read). It is distinct from the **per-item 5-state visual legend** (which adds 🔵 human-done) used inside checklists/N-trees: human-done + any `%`/autonomy telemetry belong in `enrich`/`pulse`, **never** in the aggregate `status` glyph. 🟠 ("needs you") is the #1 signal a locus must surface.
 
 ### anchor — salience, pick ONE (DRY)
 
@@ -130,10 +131,10 @@ conv: base-3+🟠 · anchor=ticket›PR›branch›task · #seq=chain/omit · en
 6. **Pendings audit** — D3.
 7. **Convention surfacing** — D4.
 
-## Renderer contract (`bin/geo-snippet.sh`)
+## Renderer contract (`bin/locus.sh`)
 
 ```
-geo-snippet --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]
+locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]
             [--seq N] [--enrich STR] [--pulse n/m] [--base REF]
 ```
 
