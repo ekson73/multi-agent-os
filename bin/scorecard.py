@@ -111,7 +111,10 @@ def _run(args, cwd, timeout=6):
     try:
         return subprocess.run(args, cwd=cwd, capture_output=True, text=True,
                               timeout=timeout).stdout.strip()
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
+        # narrow: subprocess/OS failures degrade gracefully (deterministic
+        # renderer must not abort on a missing git/gh); programming errors
+        # (AttributeError, etc.) are NOT swallowed so real bugs still surface.
         return ""
 
 
@@ -135,7 +138,7 @@ def git_facts(repo):
     prs = _run(["gh", "pr", "list", "--state", "open", "--json", "number"], repo)
     try:
         out["open_prs"] = len(json.loads(prs)) if prs else 0
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         out["open_prs"] = None
     return out
 
@@ -181,25 +184,52 @@ def load_params(args):
     if args.params == "-":
         raw = sys.stdin.read()
     elif args.params:
-        raw = open(args.params, encoding="utf-8").read()
+        with open(args.params, encoding="utf-8") as f:
+            raw = f.read()
     if not raw.strip():
         return DEMO
     return json.loads(raw)
 
 
+def _norm_state(x, fallback="yellow"):
+    """Map any (missing/unknown/aliased) state to a known 5-state key."""
+    k = ALIAS.get(x, x)
+    return k if k in STATE else fallback
+
+
+def _as_int(x):
+    """Coerce to a non-negative int; non-numeric/bool/None -> 0 (deterministic)."""
+    return x if isinstance(x, int) and not isinstance(x, bool) and x >= 0 else 0
+
+
 def enrich(d, args):
-    d.setdefault("session", {})
-    if args.auto_git:
-        g = git_facts(args.repo or ".")
-        d["_git"] = g
-    else:
-        d["_git"] = {}
-    d.setdefault("verdict", {"state": "done", "label": "DONE"})
-    d.setdefault("autonomy", {"green": 0, "blue": 0, "orange": 0, "red": 0})
-    d.setdefault("vitals", [])
-    d.setdefault("checklist", [])
-    d.setdefault("whats_left", [])
-    d.setdefault("tickets", [])
+    """Deep-normalize the params blob so EVERY render path is crash-proof on
+    partial/malformed input (the schema's "all keys optional" promise). After
+    enrich, downstream code can index nested keys (a["green"], it["state"],
+    w["state"]) without KeyError — the structure is guaranteed complete."""
+    if not isinstance(d, dict):
+        d = {}
+    if not isinstance(d.get("session"), dict):
+        d["session"] = {}
+    d["_git"] = git_facts(args.repo or ".") if args.auto_git else {}
+    if not isinstance(d.get("verdict"), dict):
+        d["verdict"] = {}
+    d["verdict"].setdefault("state", "done")
+    d["verdict"].setdefault("label", "DONE")
+    a = d.get("autonomy") if isinstance(d.get("autonomy"), dict) else {}
+    d["autonomy"] = {k: _as_int(a.get(k)) for k in ("green", "blue", "orange", "red")}
+    d["vitals"] = [v for v in (d.get("vitals") or []) if isinstance(v, dict)]
+    d["checklist"] = [it for it in (d.get("checklist") or []) if isinstance(it, dict)]
+    for it in d["checklist"]:
+        it["state"] = _norm_state(it.get("state"))
+        it.setdefault("label", "")
+        it.setdefault("note", "")
+    d["whats_left"] = [w for w in (d.get("whats_left") or []) if isinstance(w, dict)]
+    for w in d["whats_left"]:
+        # "done" is a sentinel ("burned down") — preserve it; else normalize.
+        w["state"] = "done" if w.get("state") == "done" else _norm_state(w.get("state"), "red")
+        w.setdefault("text", "")
+    d["tickets"] = [t for t in (d.get("tickets") or []) if isinstance(t, dict)]
     return d
 
 
@@ -384,7 +414,6 @@ def model_5(d):
     buckets = {k: [] for k, _ in lanes}
     for it in d["checklist"]:
         key = ALIAS.get(it["state"], it["state"])
-        buckets.setdefault("blue" if key == "blue" else key, [])
         buckets.setdefault(key, []).append(it.get("label", ""))
     # fold blue(done-human) into DONE lane
     buckets["green"] = buckets.get("green", []) + buckets.get("blue", [])
@@ -419,7 +448,7 @@ SPARK = "▁▂▃▄▅▆▇█"
 def model_6(d):
     s = d["session"]; a = d["autonomy"]; gp = green_pct(a)
     tot = sum(a.values()) or 1
-    spark = "".join(SPARK[min(7, int(a[k] / tot * 7))] for k in ("red", "orange", "yellow" if "yellow" in a else "blue", "green") if k in a) if a else ""
+    spark = "".join(SPARK[min(7, int(a.get(k, 0) / tot * 7))] for k in ("red", "orange", "blue", "green"))
     L = [c("# scorecard.telemetry", 244, bold=True)]
     L.append(f"session.id        = {s.get('id','-')}")
     L.append(f"session.title     = {s.get('title','-')}")
@@ -428,6 +457,7 @@ def model_6(d):
     L.append(f"autonomy.human    = {a['blue']}")
     L.append(f"autonomy.need_hitl= {a['orange']}")
     L.append(f"autonomy.pct_green= {gp:.1f}%   {bar(gp,12)}")
+    L.append(f"autonomy.spark    = {spark}")
     L.append(f"checklist.done    = {sum(1 for it in d['checklist'] if it['state'] in ('green','blue'))}/{len(d['checklist'])}")
     L.append(f"open.items        = {sum(1 for w in d['whats_left'] if w['state']!='done')}")
     g = d.get("_git") or {}

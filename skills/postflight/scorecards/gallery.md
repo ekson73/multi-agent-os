@@ -30,6 +30,7 @@
   "tickets":  [{"id": "PROJ-204", "status": "closed|in-progress|review|open|blocked", "title": "..."}]
 }
 ```
+
 `state` aliases: `done/closed/merged→green · human→blue · hitl/review→orange · doing/wip/in-progress/open→yellow · todo/blocked→red`.
 **Tickets** (Jira/Linear/GH issues) are AI-supplied atoms — the agent lists which the session
 touched + their status. Surfaced in M1 (TICKETS section), M2 (tickets line), M5 (kanban lanes),
@@ -87,7 +88,8 @@ the operator picks the default; the rest are on-demand.
 bin/scorecard.py --model 2 --demo                 # human strip (recommended default)
 bin/scorecard.py --model 6 --demo --auto-git      # machine sidecar + self-calc git facts
 bin/scorecard.py --all  --demo                     # render every model
-echo "$AGENT_JSON" | bin/scorecard.py --model 2 -  # real session (agent supplies atoms via stdin)
+echo "$AGENT_JSON" | bin/scorecard.py --model 2 --params -  # real session (agent supplies atoms via stdin)
 bin/scorecard.py --model 1 --params session.json   # full Cockpit debrief from a params file
 ```
+
 `NO_COLOR=1` or `--no-color` for logs/CI.
