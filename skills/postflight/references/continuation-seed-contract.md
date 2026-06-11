@@ -1,3 +1,9 @@
+---
+name: continuation-seed-contract
+description: Field-by-field SSOT contract for the session.continuation continuation-seed envelope (worktree-lifecycle family)
+version: 1.0.0
+---
+
 # Continuation-Seed Contract (SSOT)
 
 > **Version**: 1.0.0 (2026-06-11)
