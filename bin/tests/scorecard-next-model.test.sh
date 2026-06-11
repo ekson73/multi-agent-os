@@ -27,12 +27,13 @@ eq '1' "$("$SEL")"          'fresh pointer → first model is 1'
 eq '2' "$("$SEL")"          'advance → 2'
 eq '3' "$("$SEL")"          'advance → 3'
 
-# full wrap 3→7→1
+# full wrap 3→8→1 (8 models since Model 8 "Briefing Card" — issue #132)
 eq '4' "$("$SEL")" 'advance → 4'
 eq '5' "$("$SEL")" 'advance → 5'
 eq '6' "$("$SEL")" 'advance → 6'
 eq '7' "$("$SEL")" 'advance → 7'
-eq '1' "$("$SEL")" 'wraps 7 → 1 (round-robin)'
+eq '8' "$("$SEL")" 'advance → 8'
+eq '1' "$("$SEL")" 'wraps 8 → 1 (round-robin)'
 
 # --peek does NOT advance the pointer (idempotent read). Pointer is at 1 here
 # (the 7→1 wrap above), so --current stays 1 and --peek keeps reporting 2.
@@ -56,7 +57,7 @@ eq '0'         "$("$SEL" --current)" 'override never touched the pointer (still 
 if command -v python3 >/dev/null 2>&1 && [ -f "$DIR/../scorecard.py" ]; then
   "$SEL" --reset >/dev/null
   out="$(POSTFLIGHT_SCORECARD_MODEL=telemetery "$SEL" 2>/dev/null)"   # 'telemetery' = typo of 'telemetry'
-  case "$out" in 1|2|3|4|5|6|7) ok 'invalid override falls back to a valid 1..7 id' ;; *) no 'invalid override falls back to a valid 1..7 id' "$out" ;; esac
+  case "$out" in 1|2|3|4|5|6|7|8) ok 'invalid override falls back to a valid 1..8 id' ;; *) no 'invalid override falls back to a valid 1..8 id' "$out" ;; esac
   case "$out" in telemetery) no 'invalid override NOT emitted verbatim' "$out" ;; *) ok 'invalid override NOT emitted verbatim' ;; esac
   POSTFLIGHT_SCORECARD_MODEL=telemetery "$SEL" 2>&1 >/dev/null | grep -q 'ignoring invalid' && ok 'invalid override warns to stderr' || no 'invalid override warns to stderr' '(no warning seen)'
 else
@@ -69,14 +70,14 @@ eq '1' "$("$SEL")" 'non-numeric pointer self-heals → 1'
 printf '99\n'      > "$POSTFLIGHT_SCORECARD_STATE"
 eq '1' "$("$SEL")" 'out-of-range pointer self-heals → 1'
 
-# every emitted id is a valid scorecard model (1..7) over a full cycle
+# every emitted id is a valid scorecard model (1..8) over two full cycles
 "$SEL" --reset >/dev/null
 bad=0
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14; do
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
   m="$("$SEL")"
-  case "$m" in 1|2|3|4|5|6|7) ;; *) bad=1 ;; esac
+  case "$m" in 1|2|3|4|5|6|7|8) ;; *) bad=1 ;; esac
 done
-eq '0' "$bad" 'all emitted ids over 14 advances are in 1..7'
+eq '0' "$bad" 'all emitted ids over 16 advances are in 1..8'
 
 # always exits 0 (must never abort a session-end debrief)
 "$SEL" >/dev/null 2>&1 ; eq '0' "$?"          'advance exits 0'

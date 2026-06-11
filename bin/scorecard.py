@@ -2,7 +2,7 @@
 """
 postflight scorecard renderer — deterministic end-of-action status cards.
 
-ONE renderer · ONE param schema · 7 layout MODELS. Design contract:
+ONE renderer · ONE param schema · 8 layout MODELS. Design contract:
   - DETERMINISTIC: same params -> same output (no clock unless passed in).
   - SELF-CALCULATING: auto-derives git/PR facts + the autonomy pulse + bars
     from numbers, so an AI agent only supplies what cannot be computed.
@@ -527,10 +527,63 @@ def model_7(d):
     return "\n".join(L)
 
 
-MODELS = {1: model_1, 2: model_2, 3: model_3, 4: model_4, 5: model_5, 6: model_6, 7: model_7}
+# ══════════════════════════════════════════════════════════════════════════════
+# MODEL 8 — "Briefing Card" : the morning-briefing V2 Priority-Triage layout
+#            imported as an official scorecard model (operator decision 2026-06-11,
+#            issue #132 — "importar como modelo oficial o modelo atual do
+#            morning-briefing"). Numbered 8 (append-only/open-closed: renumbering
+#            1-7 would break gallery/rubric/state/env-override refs; 0 is
+#            shell-falsy and breaks the round-robin "1..N" assumptions).
+#            Signature traits imported faithfully: above-the-fold 🎯 NEXT + 📍 PULSE
+#            callouts, decision-value ordering, empty-section silent omission.
+#            Best for state-restoration handoffs (cold-start / post-compact) and
+#            briefing-purpose renders.
+# ══════════════════════════════════════════════════════════════════════════════
+def model_8(d):
+    s = d["session"]; t, meta = sess_head(s)
+    a = d["autonomy"]; _, tally, _, gp = pulse_line(a)
+    vi = VERDICT_ICON.get(d["verdict"].get("state"), "•")
+    done = sum(1 for it in d["checklist"] if it["state"] in ("green", "blue"))
+    opens = [w for w in d["whats_left"] if w["state"] != "done"]
+    L = [c(f"🌅 {t}", bold=True), c(meta, dim=True), ""]
+    # above-the-fold callouts (the V2 signature: Next-Action FIRST, then Pulse)
+    nxt = opens[0]["text"] if opens else "✔ nada pendente — completion-state"
+    L.append(f"{c('🎯 NEXT ', 208, bold=True)}{c(nxt, bold=True)}")
+    g = d.get("_git") or {}
+    gitseg = (f" · 🌿 {g.get('branch','')} (+{g.get('ahead',0)}/-{g.get('behind',0)})"
+              if g.get("branch") else "")
+    L.append(f"{c('📍 PULSE', 39, bold=True)} {vi} "
+             f"{c(d['verdict'].get('label',''), 46, bold=True)}"
+             f" · {bar(gp, 10)} {gp:.0f}% · {done}/{len(d['checklist'])} done{gitseg}")
+    L.append(c(f"         {tally}", dim=True))
+    # sections in decision-value order; empty sections silently omitted (V2 rule)
+    if opens:
+        L.append("")
+        L.append(c(f"🔴 OPEN · {len(opens)}", 208, bold=True))
+        for w in opens:
+            L.append(f"  {dot(w['state'])} {w['text']}")
+    if d["checklist"]:
+        L.append("")
+        L.append(c(f"🚧 CHECKLIST · {done}/{len(d['checklist'])}", 244, bold=True))
+        for it in d["checklist"]:
+            L.append(f"  {dot(it['state'])} {pad(it.get('label', ''), 16)}"
+                     f" {c(pad(it.get('note', ''), 40), dim=True)} {c(conf(it), 46)}")
+    ts = tk_summary(d)
+    if ts:
+        dn, tt = tk_counts(d)
+        L.append("")
+        L.append(f"{c('🎫 TICKETS', 244, bold=True)} {ts}   {c(f'({dn}/{tt} done)', dim=True)}")
+    L.append("")
+    L.append(c("  " + legend_line(), dim=True))
+    return "\n".join(L)
+
+
+N_MODELS = 8
+MODELS = {1: model_1, 2: model_2, 3: model_3, 4: model_4, 5: model_5, 6: model_6, 7: model_7,
+          8: model_8}
 NAMES = {1: "Cockpit", 2: "Traffic-Light Strip", 3: "Dashboard / KPI Tiles",
          4: "Burndown Ledger", 5: "Kanban Lanes", 6: "Telemetry / Machine-First",
-         7: "Executive One-Liner"}
+         7: "Executive One-Liner", 8: "Briefing Card"}
 # name/alias -> id, so a model can be FORCED by name or id (--model cockpit | telemetry | M6 | 6)
 ALIASES = {"cockpit": 1,
            "traffic-light": 2, "traffic": 2, "strip": 2, "trafficlight": 2,
@@ -538,32 +591,33 @@ ALIASES = {"cockpit": 1,
            "burndown": 4, "ledger": 4, "burndown-ledger": 4,
            "kanban": 5, "lanes": 5, "kanban-lanes": 5,
            "telemetry": 6, "machine": 6, "machine-first": 6, "json": 6, "json-rpc": 6,
-           "executive": 7, "one-liner": 7, "oneliner": 7, "one-line": 7, "exec": 7}
+           "executive": 7, "one-liner": 7, "oneliner": 7, "one-line": 7, "exec": 7,
+           "briefing": 8, "briefing-card": 8, "morning-briefing": 8, "card": 8}
 
 
 def resolve_model(s):
-    """Force/select a model by id (1-7), 'M3', or a name/alias slug
-    (cockpit/strip/tiles/burndown/kanban/telemetry/one-liner). -> int 1-7."""
+    """Force/select a model by id (1-8), 'M3', or a name/alias slug
+    (cockpit/strip/tiles/burndown/kanban/telemetry/one-liner/briefing). -> int 1-8."""
     k = str(s).strip().lower()
-    if k.isdigit() and 1 <= int(k) <= 7:
+    if k.isdigit() and 1 <= int(k) <= N_MODELS:
         return int(k)
-    m = re.fullmatch(r"m([1-7])", k)
+    m = re.fullmatch(r"m([1-8])", k)
     if m:
         return int(m.group(1))
     k = k.replace("_", "-").replace(" ", "-")
     if k in ALIASES:
         return ALIASES[k]
     raise argparse.ArgumentTypeError(
-        f"unknown model '{s}' — use 1-7, M1-M7, or a name "
-        "(cockpit/strip/tiles/burndown/kanban/telemetry/one-liner)")
+        f"unknown model '{s}' — use 1-8, M1-M8, or a name "
+        "(cockpit/strip/tiles/burndown/kanban/telemetry/one-liner/briefing)")
 
 
 def main():
     global COLOR
-    ap = argparse.ArgumentParser(description="postflight scorecard renderer (7 models)")
+    ap = argparse.ArgumentParser(description="postflight scorecard renderer (8 models)")
     ap.add_argument("--model", type=resolve_model, default=1,
-                    help="model id (1-7), 'M3', or a name (cockpit/strip/tiles/"
-                         "burndown/kanban/telemetry/one-liner) to force a specific model")
+                    help="model id (1-8), 'M3', or a name (cockpit/strip/tiles/"
+                         "burndown/kanban/telemetry/one-liner/briefing) to force a specific model")
     ap.add_argument("--params", help="JSON params file, or '-' for stdin")
     ap.add_argument("--demo", action="store_true", help="use built-in demo params")
     ap.add_argument("--auto-git", action="store_true", help="self-calculate git/PR facts")
@@ -574,7 +628,7 @@ def main():
     COLOR = not (a.no_color or os.environ.get("NO_COLOR"))
     d = enrich(load_params(a), a)
     if a.all:
-        for m in range(1, 8):
+        for m in range(1, N_MODELS + 1):
             print(c(f"\n══════ MODEL {m} — {NAMES[m]} " + "═" * 30, 39, bold=True))
             print(MODELS[m](d))
         return

@@ -84,7 +84,7 @@ The environment MUST be left better, safer, and more traceable than it was found
 | # | Responsibility | How (safe-or-DEFER) | Composes |
 |---|---|---|---|
 | **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/dogfood-mark` |
-| **P2** | **DEBRIEF** — calculate the session map | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). Then **render the glance-and-know locus** — D2 status line + D3 ntree + D4 conv — via `bin/locus.sh` (the compact projection of this debrief; grammar SSOT `references/locus-spec.md`), **and the end-of-action scorecard** — `bin/scorecard.py --model N` where `N` is chosen by `bin/scorecard-next-model.sh` (deterministic 1→7 round-robin; see "The End-of-Action Scorecard" below). | `skills/morning-briefing`, `bin/locus.sh`, `bin/scorecard.py`, `bin/scorecard-next-model.sh` |
+| **P2** | **DEBRIEF** — calculate the session map | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). Then **render the glance-and-know locus** — D2 status line + D3 ntree + D4 conv — via `bin/locus.sh` (the compact projection of this debrief; grammar SSOT `references/locus-spec.md`), **and the end-of-action scorecard** — `bin/scorecard.py --model N` where `N` is chosen by `bin/scorecard-select-model.sh` (dynamic context-based decision table; round-robin preserved as `--mode round-robin` fallback; see "The End-of-Action Scorecard" below). | `skills/morning-briefing`, `bin/locus.sh`, `bin/scorecard.py`, `bin/scorecard-select-model.sh` |
 | **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from (the seed carries the D1 `locus` field `<status>·<anchor>·<slug>[·#seq]`); print to screen + best-effort clipboard. DoR = P1+P2 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) |
 | **P3.5** | **SPAWN** *(optional, default-ON)* — launch the next session, pre-seeded | hand the P3 seed to `bin/spawn-continuation.sh`, which launches a fresh **named** detached `claude` session (tmux/cmux) — the name IS the D1 locus (`<status> · <anchor> · <slug> · #<short>`, e.g. `🟡 · VKS-123 · payment-retry · #a1b2c3d4`; pass the ticket via `--ticket` so it anchors, keep the `--slug` to the 2-4-word work essence — locus dedupes anchor-repeated tokens; emoji-first experiment, `POSTFLIGHT_NAME_STYLE=legacy` restores the ascii `<ticket>-<slug>-#<short>`) — with the seed injected as durable system context — so the work *continues itself* across the compact/clear boundary instead of waiting on a manual paste — the spawn also submits a positional **kickoff prompt** (pointing at the persisted seed file) so the new session STARTS WORKING instead of idling at the REPL (opt out: `--no-kickoff` / `POSTFLIGHT_KICKOFF=0`). DoR = P3 seed. Opt out: `--no-spawn`. | `bin/spawn-continuation.sh` (consumes the P3 seed; reuses `session-fission`'s reseed idea) |
 
@@ -134,11 +134,14 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    unasked-Qs. (The community `morning-briefing` provides state + next-action; postflight adds
    the N-Tree + Eisenhower ranking.) This is the session map — then render it as the
    glance-and-know locus (D2+D3+D4) via `bin/locus.sh`, AND render the end-of-action
-   scorecard: `N=$(bin/scorecard-next-model.sh)` (round-robin selector; honours
-   `POSTFLIGHT_SCORECARD_MODEL` override) then build the params JSON from the P1/P2
-   state (verdict · autonomy pulse · vitals · checklist · whats_left · tickets) and
+   scorecard: distil the session's factors and select the model dynamically —
+   `N=$(bin/scorecard-select-model.sh --audience <human|agent> --purpose <end-of-action|briefing|handoff> \
+        --items <checklist-size> --open <open-count> --risk <low|med|high> --urgency <low|med|high>)`
+   (honours `POSTFLIGHT_SCORECARD_MODEL` pin; `--mode round-robin` keeps the legacy
+   rotation) — then build the params JSON from the P1/P2 state (verdict · autonomy
+   pulse · vitals · checklist · whats_left · tickets) and
    `printf '%s' "$params" | bin/scorecard.py --model "$N" --auto-git --repo <repo>`.
-   The renderer is PURE (no side-effects); the rotation pointer lives in the selector.
+   The renderer is PURE (no side-effects); selection policy lives in the selector.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2 → print + clipboard.
 3.5 P3.5 SPAWN (default-ON; skip on --no-spawn / kill-switch / depth-cap / already-spawned):
    write the P3 seed to a file, then `bin/spawn-continuation.sh --ticket <KEY> --slug <kebab>
@@ -193,27 +196,34 @@ already holding the seed*, closing the loop `preflight → work → postflight �
 ## The End-of-Action Scorecard (a P2 DEBRIEF output)
 
 `bin/scorecard.py` renders a glanceable end-of-action **scorecard** (verdict · autonomy
-pulse · vitals bars · checklist · what's-left · tickets) in one of **7 layout models**. It is
-a **PURE renderer** by contract — same params → same output, no side-effects — so it consumes
-a params JSON (built by the agent from the P1 SWEEP + P2 DEBRIEF state) and self-derives only
-git/PR facts (`--auto-git`).
+pulse · vitals bars · checklist · what's-left · tickets) in one of **8 layout models**
+(Model 8 "Briefing Card" = the morning-briefing V2 layout imported as an official template,
+issue #132). It is a **PURE renderer** by contract — same params → same output, no
+side-effects — so it consumes a params JSON (built by the agent from the P1 SWEEP + P2
+DEBRIEF state) and self-derives only git/PR facts (`--auto-git`).
 
-**Model selection — round-robin (interim) → dynamic (target):**
+**Model selection — dynamic (default) · round-robin (fallback) · pin (override):**
 
-- **Now (round-robin):** `bin/scorecard-next-model.sh` is the deterministic 1→7 selector. It
-  keeps the renderer pure by holding the rotation pointer **outside** it, in **user-scope**
-  state (`~/.claude/jobs/.postflight-scorecard-model`) — so the operator is exposed to all 7
-  models across sessions *and repos* (the exposure goal is operator-global, not per-repo). Per
-  operator decision 2026-06-10 (*"deixe lançado em round-robin até eu me acostumar e decidir"*):
-  rotate until a favourite emerges.
+- **Dynamic (now the default):** `bin/scorecard-select-model.sh` maps session factors →
+  model via a deterministic first-match decision table (operator green-light 2026-06-11,
+  issue #132: *"mantidos como templates oficiais … usados por decisões seletivas, dinâmicas,
+  automáticas, autônomas e híbridas"*). The **hybrid split**: the invoking agent
+  (probabilistic) distils [contexto · escopo · propósito · objetivo · risco · segurança ·
+  impacto · urgência · importância · criticidade · human/agent] into the flags
+  `--audience · --purpose · --items · --open · --risk · --urgency`; the script
+  (deterministic) maps flags → model (agent→M6 · briefing→M8 · handoff→M6 · high-stakes→M1 ·
+  trivial→M7 · open-heavy→M5 · backlog-heavy→M4 · default→M2). `--explain` names the
+  matched rule on stderr.
+- **Round-robin (preserved fallback):** `--mode round-robin` delegates to
+  `bin/scorecard-next-model.sh` (the 1→8 rotation engine + user-scope pointer
+  `~/.claude/jobs/.postflight-scorecard-model`) — the interim exposure mechanism per
+  operator decision 2026-06-10, kept selectable per boy-scout/continuity.
   - `scorecard-next-model.sh` → advance + print next id · `--peek` (no advance) · `--current` · `--reset`.
-  - **Override:** `export POSTFLIGHT_SCORECARD_MODEL=<1..7|name>` pins a model and skips
-    rotation entirely (mirrors the `POSTFLIGHT_SPAWN=0` kill-switch idiom).
-- **Future (target):** replace round-robin with a **dynamic context-based selector** (factors:
-  contexto · propósito · objetivo · tipo[humano|agente] · status · risco · impacto · urgência ·
-  segurança · roadmap · timeline). Round-robin is the interim exposure mechanism, not the end state.
+- **Pin (highest precedence, the non-deterministic opt-in):** `export
+  POSTFLIGHT_SCORECARD_MODEL=<1..8|name>` pins a model in ANY mode — the agent's contextual
+  judgment may overrule the table (log the reason); mirrors the `POSTFLIGHT_SPAWN=0` idiom.
 
-Gallery of the 7 models: `skills/postflight/scorecards/gallery.md`.
+Gallery of the 8 models: `skills/postflight/scorecards/gallery.md`.
 
 ## Conditions / Invocation
 
@@ -231,7 +241,7 @@ Gallery of the 7 models: `skills/postflight/scorecards/gallery.md`.
 You: "I'm about to /compact — wrap this up."
 postflight P1: 1 unpushed commit on feat/x → pushed; PR #42 → driven green; 1 stale ref → pruned.
 postflight P2: objectives 2/3 done; 1 gap (tests for edge-case); 1 undecided (naming of Y).
-postflight P2: 📊 scorecard model 4/7 (burndown, round-robin) rendered from the debrief state.
+postflight P2: 📊 scorecard model 4/8 (burndown — rule R7 backlog-heavy, dynamic) rendered from the debrief state.
 postflight P3: 🌱 continuation seed → printed + copied to clipboard. Next agent: /maos:preflight then task #1.
 postflight P3.5: 🛫 spawned TICKET-123-add-retry-#a1b2c3d4 (tmux), seed injected. Attach: tmux attach -t '…'.
 ```
@@ -268,7 +278,7 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 - `protocols/exit-hygiene.md` — the Boy-Scout exit-gate checklist P1 operationalizes (policy → this executes it).
 - `skills/morning-briefing/SKILL.md` — its 7-section briefing is the P2 state substrate; postflight adds the N-Tree + Eisenhower synthesis that P3 elevates into an agent seed.
 - `skills/postflight/references/locus-spec.md` + `bin/locus.sh` — the **locus** grammar SSOT + renderer; P2 DEBRIEF emits the glance-and-know recap (D2/D3/D4) and P3 carries D1 (`locus`) in the seed.
-- `bin/scorecard.py` (pure 7-model renderer) + `bin/scorecard-next-model.sh` (round-robin selector) + `skills/postflight/scorecards/gallery.md` — the **end-of-action scorecard** P2 DEBRIEF emits; the selector holds the rotation pointer so the renderer stays pure.
+- `bin/scorecard.py` (pure 8-model renderer; M8 "Briefing Card" = morning-briefing V2 import) + `bin/scorecard-select-model.sh` (dynamic context-based selector — issue #132) + `bin/scorecard-next-model.sh` (round-robin engine, preserved as `--mode round-robin` fallback) + `skills/postflight/scorecards/gallery.md` — the **end-of-action scorecard** P2 DEBRIEF emits; selection policy + rotation state live outside the renderer so it stays pure.
 - `skills/sync-to-git/SKILL.md` · `skills/quiesce/SKILL.md` — git close-out + PR convergence P1 composes.
 - `skills/session-fission/SKILL.md` — orthogonal: it *splits* a tangled session into N seeds; P3 emits *one* resume seed for continuity, and P3.5 reuses its reseed-a-fresh-session idea for continuity-spawn.
 - `bin/spawn-continuation.sh` — the **P3.5 SPAWN** primitive: launches the named, pre-seeded `claude` continuation session (tmux/cmux) with the 7 guardrails; consumes the P3 seed.
