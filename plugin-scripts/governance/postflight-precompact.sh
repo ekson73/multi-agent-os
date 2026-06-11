@@ -11,7 +11,7 @@
 #   (objectives N-Tree, Eisenhower next-actions, resume prose) — that is the skill's
 #   job (PROBABILISTIC MUSCLE). The hook captures only cheap, factual state + a nudge
 #   to run /maos:postflight for the rich seed. NEVER blocks the session (always exit 0).
-# Version: 0.1.0
+# Version: 0.1.1
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PreCompact
 #
@@ -112,8 +112,14 @@ fi
 # Human nudge → stderr (visible, non-blocking).
 echo "🛬 postflight (pre-compact): snapshot saved → ${SEED_FILE} (branch=${BRANCH}, tree=${STATE}, unpushed=${UNPUSHED:-0}). Run /maos:postflight for the full continuation seed." >&2
 
-# Valid JSON on stdout (repo hook contract) — surfaces the seed pointer as PreCompact context.
-printf '{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":"%s"}}\n' \
+# Valid JSON on stdout (repo hook contract) — surfaces the seed pointer to the operator.
+# SCHEMA FIX 2026-06-11: PreCompact hook output accepts only ROOT-LEVEL fields (e.g.
+# `systemMessage`, `continue`, `suppressOutput`). The previous
+# `{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":...}}` shape is
+# INVALID for this event and reproducibly failed Claude Code's hook JSON validation
+# ("Hook JSON output validation failed — (root): Invalid input"). `additionalContext` is a
+# SessionStart/UserPromptSubmit affordance, not a PreCompact one.
+printf '{"systemMessage":"%s"}\n' \
   "$(json_escape "postflight pre-compact snapshot → ${SEED_FILE} (branch=${BRANCH}, tree=${STATE}, unpushed=${UNPUSHED:-0}); run /maos:postflight for the full continuation seed.")"
 
 exit 0

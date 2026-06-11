@@ -161,7 +161,13 @@ read_seed() {
   if [ "$SEED_SRC" = "-" ]; then cat
   elif [ -n "$SEED_SRC" ] && [ -f "$SEED_SRC" ]; then cat "$SEED_SRC"
   else
-    # minimal synthesized seed from git state (postflight P3 normally supplies the rich one)
+    # minimal synthesized seed from git state (postflight P3 normally supplies the rich one).
+    # CONTRACT NOTE (2026-06-11): this fallback emits a deliberate SUBSET of the seed shape;
+    # the full template + field contract (SSOT) live at
+    #   skills/postflight/templates/continuation-seed.template.json
+    #   skills/postflight/references/continuation-seed-contract.md
+    # Keep the envelope (method + data.layer) + resume_instructions aligned with that contract;
+    # do NOT grow this fallback into a rich-seed re-implementation (the skill owns synthesis).
     local repo branch; repo="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
     branch="$(git branch --show-current 2>/dev/null || echo unknown)"
     printf '{"jsonrpc":"2.0","method":"session.continuation","params":{"goal":"%s","git":{"repo":"%s","branch":"%s"},"resume_instructions":"Run /maos:preflight to orient, then resume the first non-blocked next-action. (minimal seed — re-run /maos:postflight for the full debrief.)"},"data":{"layer":"community"}}' \

@@ -11,7 +11,7 @@ description: |
   continuation session so the work continues across the compact/clear boundary. The
   end-of-session counterpart to the `preflight` skill. Reads whatever governance is present
   at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories) and adapts.
-version: 0.5.0
+version: 0.6.0
 triggers:
   - postflight
   - run postflight
@@ -25,7 +25,7 @@ triggers:
   - spawn the continuation session
   - spawn the next session
 metadata:
-  version: "0.5.0"
+  version: "0.6.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -154,22 +154,28 @@ A **minimal-sufficient, ai-agnostic** resume packet for a *fresh, amnesic* agent
 amnesia premise: a gifted agent with no cross-session recall). Two registers, same content:
 
 - **Agent register** (default — economical, machine-parseable; emit as a JSON-RPC-style
-  envelope, `--lang` selectable):
+  envelope, `--lang` selectable).
+
+  **SSOT (v0.6.0)**: the full seed shape lives in
+  [`templates/continuation-seed.template.json`](templates/continuation-seed.template.json)
+  and its field-by-field contract in
+  [`references/continuation-seed-contract.md`](references/continuation-seed-contract.md)
+  (REQUIRED resume-spine: `who_you_are` · `bootstrap_order` · `inherited_state` · `mission`
+  · `guardrails` · `dod` · `dag` · `refs` · `resume_instructions`; plus the optional debrief
+  fields). Populate the template — do NOT re-derive the shape inline. Short excerpt:
 
 ```json
 {"jsonrpc":"2.0","method":"session.continuation","params":{
+  "who_you_are":"<role the resuming agent assumes>",
+  "bootstrap_order":["<ordered read #1>","<ordered read #2>"],
+  "inherited_state":{"verified_facts":["..."],"branches":["<b>@<sha>"],"env":["..."]},
+  "mission":["<one-line mission>","<step 2>"],
+  "guardrails":["..."], "dod":["..."], "dag":["<what comes after>"],
+  "refs":{"git":"<repo+branch+PRs>","ticket":"<key|none>","memory":"<path|none>","session":"<id>"},
   "goal":"<one-line mission>",
-  "context":"<state-of-world the next agent needs>",
-  "git":{"repo":"<name>","branch":"<b>","worktree":"<path|none>","prs":["#<n> <state>"]},
-  "locus":"<D1 locus: <status>·<anchor>·<slug>[·#seq] — bin/locus.sh --density name>",
-  "objectives":{"primary":["..."],"secondary":["..."],"auxiliary":["..."]},
-  "done":["..."], "in_flight":["..."],
-  "gaps":["..."], "pendings":["..."], "undecided":["..."], "unasked_questions":["..."],
   "next_actions":[{"task":"...","eisenhower":"Q1|Q2|Q3|Q4","blocked_by":null}],
-  "governance_refs":["AGENTS.md","CONTRIBUTING.md","protocols/exit-hygiene.md"],
-  "dna":"<inherited agentic principles: free-but-accountable · holistic-predictability · agnostic-self-healing>",
-  "resume_instructions":"Run /maos:preflight first; then start at the first non-blocked next_action."
-},"data":{"layer":"community"}}
+  "resume_instructions":"Run /maos:preflight first; then follow bootstrap_order; then the first non-blocked next_action."
+},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.0.0"}}
 ```
 
 - **Human mirror**: the same, rendered as a short scannable briefing for the operator.
