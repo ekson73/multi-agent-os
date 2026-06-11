@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — spawned continuation session never started working (`spawn-continuation` v0.3.0 → v0.4.0 · `postflight` skill v0.6.1 → v0.6.2)
+
+- **Operator report (2026-06-11, attached tmux session)**: the spawned session "was not loaded with the injected prompt". Root cause: `--append-system-prompt` injects the seed as INVISIBLE system context, and the interactive `claude` REPL starts with NO initial prompt — the session sat idle until a human typed something (the opposite of "the work continues itself").
+- **Fix — KICKOFF prompt**: the spawn now also passes a short positional prompt (`claude [options] [prompt]` submits it immediately) telling the session to read its continuation seed (persisted at `~/.claude/jobs/<short>/continuation-seed.json` — belt+suspenders if the system-prompt injection is ignored), run `/maos:preflight`, and resume the first non-blocked next-action. Opt-out: `--no-kickoff` flag OR `POSTFLIGHT_KICKOFF=0` (restores the idle spawn). `SEED_FILE` is now resolved before the command build (single definition).
+- Tests: `spawn-continuation-name.test.sh` 6 → 9 (kickoff present by default · `--no-kickoff` · `POSTFLIGHT_KICKOFF=0`).
+
 ### Fixed — locus session-name quality: anchor never extracted the ticket + redundant slugs (`locus` v1.0.0 → v1.1.0 · `spawn-continuation` v0.2.0 → v0.3.0 · `postflight` skill v0.6.0 → v0.6.1)
 
 - **Root cause (operator report 2026-06-11, real tmux names)**: `bin/locus.sh` set its default ticket regex via `${GEO_TICKET_RE:-[A-Z]{2,}-[0-9]+}` — inside `${var:-default}` the FIRST unescaped `}` closes the expansion, silently producing the broken regex `[A-Z]{2,-[0-9]+}` (never matches). The anchor therefore ALWAYS fell back to the full branch (`🟡 · feature/VKS-2159-poc-openspec · …`). Fixed with a two-step default assignment + a regression test on the DEFAULT regex.

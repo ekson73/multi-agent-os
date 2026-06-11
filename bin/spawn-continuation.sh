@@ -22,7 +22,14 @@
 #  *          Escape hatch TODAY: POSTFLIGHT_NAME_STYLE=legacy restores the old ascii
 #  *          `<ticket>-<slug>-#<short>` name (also the auto-fallback when locus.sh is absent).
 #  *          Jobs-registry dirs use SHORT (hex), never NAME — the filesystem is unaffected.
-#  * @version 0.3.0
+#  * @note    KICKOFF (v0.4.0, operator report 2026-06-11): `--append-system-prompt` injects the
+#  *          seed as INVISIBLE system context and an interactive `claude` starts at an idle REPL
+#  *          — the spawned session never began working ("a sessão não havia sido carregada com o
+#  *          prompt"). The spawn now ALSO passes a short positional KICKOFF prompt (CLI: `claude
+#  *          [options] [prompt]` submits it immediately), pointing at the persisted seed file —
+#  *          belt+suspenders: the session starts acting even if the system-prompt injection is
+#  *          ignored. Opt out: --no-kickoff flag OR POSTFLIGHT_KICKOFF=0 (restores idle spawn).
+#  * @version 0.4.0
 #  * Portability: AAIF cross-vendor — POSIX Bash 3.2; jq optional; no associative arrays.
 #  * Exit codes ([C06]): 0 success/graceful-noop · 1 usage/validation · 2 setup.
 #  */
@@ -59,6 +66,8 @@ Optional:
   --seed  <file|->   path to the postflight P3 continuation seed (JSON), or - for stdin.
                      If omitted, a minimal seed is synthesized from git state.
   --no-spawn         do everything EXCEPT launch (register + print the resume command). Default: spawn ON.
+  --no-kickoff       spawn WITHOUT the initial kickoff prompt (session starts idle at the REPL;
+                     the seed is still injected via --append-system-prompt). Default: kickoff ON.
   --dry-run          print the exact \`claude …\` command + plan; touch nothing, launch nothing.
   --force            override the once-per-source-session idempotency marker.
   --depth-cap N      anti-recursion cap for auto-chained spawns (default 1).
@@ -67,6 +76,7 @@ Optional:
 Environment guardrails:
   POSTFLIGHT_SPAWN=0          hard kill-switch — never spawn (deterministic opt-out).
   POSTFLIGHT_SPAWN_DEPTH=N    current auto-chain depth (default 0); >= --depth-cap => graceful no-op.
+  POSTFLIGHT_KICKOFF=0        spawn without the initial kickoff prompt (same as --no-kickoff).
   POSTFLIGHT_NAME_STYLE       locus (default: D1 emoji name via bin/locus.sh) | legacy
                               (ascii <ticket>-<slug>-#<short> — the pre-0.2.0 name; also the
                               auto-fallback when locus.sh is absent).
@@ -81,7 +91,7 @@ EOF
 }
 
 # ── parse args ────────────────────────────────────────────────────────────────
-TICKET="" SLUG="" STATUS="🟡" SEED_SRC="" NO_SPAWN=0 DRY_RUN=0 FORCE=0 DEPTH_CAP=1
+TICKET="" SLUG="" STATUS="🟡" SEED_SRC="" NO_SPAWN=0 DRY_RUN=0 FORCE=0 DEPTH_CAP=1 KICKOFF_ON=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --ticket)    TICKET="${2:-}"; shift 2 ;;
@@ -89,6 +99,7 @@ while [ $# -gt 0 ]; do
     --slug)      SLUG="${2:-}"; shift 2 ;;
     --seed)      SEED_SRC="${2:-}"; shift 2 ;;
     --no-spawn)  NO_SPAWN=1; shift ;;
+    --no-kickoff) KICKOFF_ON=0; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --force)     FORCE=1; shift ;;
     --depth-cap) DEPTH_CAP="${2:-1}"; shift 2 ;;
@@ -154,6 +165,7 @@ JOBS_DIR="${CLAUDE_JOBS_DIR:-${HOME:-/tmp}/.claude/jobs}"
 SRC_KEY="$(clean "$SRC_SESSION")"; [ -n "$SRC_KEY" ] || SRC_KEY="unknown"
 SRC_JOB_DIR="${JOBS_DIR}/${SRC_KEY}"
 MARKER="${SRC_JOB_DIR}/.continuation-spawned"
+SEED_FILE="${JOBS_DIR}/${SHORT}/continuation-seed.json"   # known early — the KICKOFF references it
 
 # ── G2 idempotency ──────────────────────────────────────────────────────────
 if [ "$FORCE" != "1" ] && [ -f "$MARKER" ]; then
@@ -185,10 +197,23 @@ if printf '%s' "$SEED_RAW" | grep -Eiq '(-----BEGIN [A-Z ]*PRIVATE KEY|aws_secre
   printf '{"status":"error","reason":"seed appears to contain a secret — refusing to inject (sanitize the seed, metadata-only)"}\n' >&2; exit 1
 fi
 
+# ── KICKOFF: the initial prompt that makes the spawned session START WORKING ─
+# Without it the session sits idle at the REPL (the system-prompt seed is invisible and only
+# takes effect on the first message). Points at the persisted seed file (belt+suspenders).
+KICKOFF=""
+if [ "$KICKOFF_ON" = "1" ] && [ "${POSTFLIGHT_KICKOFF:-1}" != "0" ]; then
+  KICKOFF="Spawned continuation session (postflight P3.5). Your continuation seed (JSON-RPC method=session.continuation) is appended to your system prompt and persisted at ${SEED_FILE}. Read it, run /maos:preflight to orient, then resume the seed's first non-blocked next-action."
+fi
+KICK_TOK=""; [ -n "$KICKOFF" ] && KICK_TOK=" $(shq "$KICKOFF")"   # pre-quoted shell-string token
+
 # ── build the resume command (array — no eval) ───────────────────────────────
-set -- claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW"
-# human-printable form (seed elided)
-CMD_PRINT="claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'"
+if [ -n "$KICKOFF" ]; then
+  set -- claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW" "$KICKOFF"
+else
+  set -- claude --name "$NAME" --session-id "$UUID" --append-system-prompt "$SEED_RAW"
+fi
+# human-printable form (seed elided; kickoff shown verbatim)
+CMD_PRINT="claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt '<postflight-seed:${#SEED_RAW} bytes>'${KICK_TOK}"
 
 # ── G4 launcher capability-detect ────────────────────────────────────────────
 LAUNCHER="${MAOS_SPAWN_LAUNCHER:-auto}"
@@ -217,8 +242,14 @@ fi
 
 # ── persist intent to the jobs registry (always — even on --no-spawn / print) ─
 mkdir -p "$SRC_JOB_DIR" "${JOBS_DIR}/${SHORT}" 2>/dev/null || true
-SEED_FILE="${JOBS_DIR}/${SHORT}/continuation-seed.json"
 printf '%s\n' "$SEED_RAW" > "$SEED_FILE" 2>/dev/null || true
+# The launch command injects the seed via $(cat "$SEED_FILE") and the kickoff points at it —
+# a silent write-failure would spawn a token-burning session with an EMPTY seed. Verify or abort.
+if [ ! -s "$SEED_FILE" ]; then
+  printf '{"status":"error","reason":"failed to persist the continuation seed at %s (unwritable CLAUDE_JOBS_DIR?) — refusing to spawn with an empty seed"}\n' \
+    "$(json_escape "$SEED_FILE")" >&2
+  exit 2
+fi
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 # state.json mirrors the ~/.claude/jobs/<short>/state.json shape (name · sessionId · intent · respawnFlags).
 printf '{"sessionId":"%s","daemonShort":"%s","name":"%s","intent":"postflight P3.5 continuation of %s","respawnFlags":["--name","%s","--session-id","%s","--append-system-prompt","@%s"],"createdAt":"%s","srcSession":"%s","layer":"community"}\n' \
@@ -236,7 +267,7 @@ printf '%s\tname=%s\tuuid=%s\tsrc=%s\tlauncher=%s\tspawn=%s\n' \
 if [ "$NO_SPAWN" = "1" ] || [ "$LAUNCHER" = "none" ] || [ "$LAUNCHER" = "print" ]; then
   reason="$([ "$NO_SPAWN" = 1 ] && echo '--no-spawn' || echo "no detached launcher (tmux/cmux) found")"
   echo "🛫 continuation prepared (${reason}). Seed → ${SEED_FILE}" >&2
-  echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" >&2
+  echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
   echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
   emit_plan "registered"; exit 0
 fi
@@ -246,9 +277,9 @@ touch "$MARKER" 2>/dev/null || true
 CHILD_DEPTH=$((DEPTH + 1))
 case "$LAUNCHER" in
   tmux)
-    # interactive claude in a detached tmux session, pre-seeded, attachable.
+    # interactive claude in a detached tmux session, pre-seeded + kicked-off, attachable.
     POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" tmux new-session -d -s "$NAME" \
-      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"" 2>/dev/null \
+      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" 2>/dev/null \
       && { echo "🛫 spawned (tmux): $NAME" >&2
            echo "   re-enter:  tmux attach -t $(shq "$NAME")   (or, once the pane exits:  claude --resume '$UUID')" >&2
            emit_plan "spawned"; exit 0; }
@@ -261,6 +292,6 @@ esac
 # launcher failed → fall back to registered (never leave the operator stranded)
 rm -f "$MARKER" 2>/dev/null || true   # spawn didn't happen → let a retry through
 echo "🛫 launcher '$LAUNCHER' failed; continuation registered. Start manually:" >&2
-echo "   Start it:  claude --name '${NAME}' --session-id '${UUID}' --append-system-prompt \"\$(cat '${SEED_FILE}')\"" >&2
+echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
 echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
 emit_plan "registered"; exit 0
