@@ -74,5 +74,27 @@ case "$N" in
   *) bad "--status whitelist fallback" "$N" ;;
 esac
 
+# 7. KICKOFF (v0.4.0): default dry-run resume_cmd carries the positional kickoff prompt
+#    (the spawned session must START WORKING — not sit idle at the REPL)
+C="$(run --slug payment-retry | sed -n 's/.*"resume_cmd":"\([^"]*\)".*/\1/p')"
+case "$C" in
+  *"preflight to orient"*) ok "kickoff prompt present by default in the spawn command" ;;
+  *) bad "kickoff prompt present by default" "$C" ;;
+esac
+
+# 8. --no-kickoff flag → no kickoff in the command
+C="$(run --slug payment-retry --no-kickoff | sed -n 's/.*"resume_cmd":"\([^"]*\)".*/\1/p')"
+case "$C" in
+  *"preflight to orient"*) bad "--no-kickoff still injected kickoff" "$C" ;;
+  *) ok "--no-kickoff omits the kickoff prompt" ;;
+esac
+
+# 9. POSTFLIGHT_KICKOFF=0 env → no kickoff (same as the flag)
+C="$(CLAUDE_JOBS_DIR="$TMP_JOBS" POSTFLIGHT_KICKOFF=0 bash "$SPAWN" --dry-run --slug payment-retry 2>/dev/null | sed -n 's/.*"resume_cmd":"\([^"]*\)".*/\1/p')"
+case "$C" in
+  *"preflight to orient"*) bad "POSTFLIGHT_KICKOFF=0 still injected kickoff" "$C" ;;
+  *) ok "POSTFLIGHT_KICKOFF=0 omits the kickoff prompt" ;;
+esac
+
 echo "── $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
