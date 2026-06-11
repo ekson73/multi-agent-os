@@ -69,6 +69,47 @@ eq '0' "$rc" 'bad density → exit 0'
 # missing density → exit 0 (never blocks)
 "$GS" >/dev/null 2>&1 ; eq '0' "$?" 'missing density → exit 0'
 
+# ── anchor extraction + slug normalization (controlled tmp repo — deterministic in CI) ──
+TMP="$(mktemp -d)"
+(
+  cd "$TMP" || exit 1
+  git init -q
+  git -c user.email=t@t -c user.name=t commit --allow-empty -q -m 'init'   # no ticket in subject
+  git checkout -q -b feature/VKS-2159-poc-openspec
+) >/dev/null 2>&1
+
+# regression: the DEFAULT ticket regex must work — `${var:-[A-Z]{2,}-[0-9]+}` silently
+# truncated at the first `}` (broken regex) → anchor never extracted the ticket from the branch
+o="$(cd "$TMP" && "$GS" --density name --status '🟡' --slug a3-judge --seq 9a72558e)"
+has 'VKS-2159'  "$o" 'anchor extracts ticket from branch with the DEFAULT regex (regression)'
+hasnt 'feature/' "$o" 'anchor is the ticket, not the full branch'
+
+# explicit --ticket wins (highest salience), shape-validated
+o="$(cd "$TMP" && "$GS" --density name --slug verify --seq 1 --ticket ABC-77)"
+has 'ABC-77' "$o" 'explicit --ticket becomes the anchor'
+o="$(cd "$TMP" && "$GS" --density name --slug verify --seq 1 --ticket 'not;a(ticket')"
+has 'VKS-2159' "$o" 'malformed --ticket is ignored (shape-validation) → branch ticket anchors'
+
+# slug dedupe: tokens the anchor already carries are dropped (case-insensitive, whole-token)
+o="$(cd "$TMP" && "$GS" --density name --slug vks-2159-verify --seq 42)"
+has '· verify'        "$o" 'slug keeps only what the anchor does not say'
+hasnt 'vks-2159-verify' "$o" 'slug drops anchor-duplicated ticket tokens'
+
+# separator preservation (contract: spawn --slug charset [A-Za-z0-9._-]): kept tokens keep
+# their ORIGINAL separators; only anchor-duplicated tokens (and their separator) are dropped
+o="$(cd "$TMP" && "$GS" --density name --slug v1.2_fix --seq 7)"
+has 'v1.2_fix' "$o" 'slug separators . _ preserved verbatim when no token is dropped'
+o="$(cd "$TMP" && "$GS" --density name --slug 'vks_2159.deep_audit' --seq 7)"
+has 'deep_audit'        "$o" 'dropped tokens swallow their separator; kept ones stay intact'
+hasnt 'vks'             "$o" 'anchor-duplicated tokens dropped across . _ separators too'
+
+# derived slug fully covered by a no-ticket branch anchor → slug omitted (no duplication)
+( cd "$TMP" && git checkout -q -b feature/payment-retry ) >/dev/null 2>&1
+o="$(cd "$TMP" && "$GS" --density name --status '🟡' --seq ab)"
+eq '🟡 · feature/payment-retry · #ab' "$o" 'no-ticket branch: derived slug deduped away (anchor says it all)'
+
+rm -rf "$TMP"
+
 # read-only: running the tool does not mutate git state
 before="$(git -C "$DIR/.." status --short 2>/dev/null)"
 "$GS" --density status >/dev/null 2>&1
