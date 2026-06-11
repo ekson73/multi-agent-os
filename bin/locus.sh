@@ -6,7 +6,7 @@
 #          One glance: which session · what status · which anchor · what work · is it
 #          blocked · does it need a human. A memory ramp for amnesic agents + a radar
 #          for the human operator. ("What is not seen is not remembered.")
-# Version: 1.0.0
+# Version: 1.1.0
 # Protocol: C06 (AI-Native Environment).
 #
 # Anti-theater contract: the tool COMPUTES Tier-A fields (anchor, project, branch,
@@ -29,14 +29,20 @@
 set -uo pipefail   # intentionally NO -e: a degrade-always reporter must finish + exit 0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
-TICKET_RE="${GEO_TICKET_RE:-[A-Z]{2,}-[0-9]+}"
+# Two-step default assignment: inside ${var:-default} the FIRST unescaped `}` closes the
+# expansion, so an inline `[A-Z]{2,}-[0-9]+` default silently becomes the broken regex
+# `[A-Z]{2,-[0-9]+}` (never matches → the anchor never extracted the ticket; empirical
+# 2026-06-11: tmux names showed the full branch as anchor).
+DEFAULT_TICKET_RE='[A-Z]{2,}-[0-9]+'
+TICKET_RE="${GEO_TICKET_RE:-$DEFAULT_TICKET_RE}"
 
-DENSITY="" ; STATUS="🟡" ; SLUG="" ; SEQ="" ; ENRICH="" ; PULSE="" ; BASE=""
+DENSITY="" ; STATUS="🟡" ; SLUG="" ; SEQ="" ; ENRICH="" ; PULSE="" ; BASE="" ; TICKET=""
 
 usage() {
   printf '%s\n' \
     'usage: locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]' \
-    '                   [--seq N] [--enrich STR] [--pulse n/m] [--base REF]' \
+    '                   [--ticket KEY] [--seq N] [--enrich STR] [--pulse n/m] [--base REF]' \
+    '       # --ticket: explicit anchor input (accepted only if it matches GEO_TICKET_RE)' \
     '       # density=ntree reads tree item-lines from stdin (one per line)' >&2
 }
 
@@ -44,6 +50,7 @@ usage() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --density=*) DENSITY="${1#*=}" ;;     --density) DENSITY="${2:-}"; shift ;;
+    --ticket=*)  TICKET="${1#*=}" ;;      --ticket)  TICKET="${2:-}";  shift ;;
     --status=*)  STATUS="${1#*=}" ;;      --status)  STATUS="${2:-}";  shift ;;
     --slug=*)    SLUG="${1#*=}" ;;        --slug)    SLUG="${2:-}";    shift ;;
     --seq=*)     SEQ="${1#*=}" ;;         --seq)     SEQ="${2:-}";     shift ;;
@@ -80,9 +87,12 @@ default_branch() {
   printf 'main'
 }
 
-compute_anchor() {   # salience: ticket › PR › branch
+compute_anchor() {   # salience: ticket (explicit › branch › last-commit) › PR › branch
   local b="$1" t pr
-  t="$(printf '%s' "$b" | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
+  # explicit --ticket wins, but ONLY when it actually looks like a ticket (shape-validated
+  # against TICKET_RE — anti-theater: never anchor on an arbitrary self-reported string)
+  t="$(printf '%s' "$TICKET" | grep -oE "^${TICKET_RE}$" 2>/dev/null | head -1)" || true
+  [ -z "$t" ] && t="$(printf '%s' "$b" | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
   [ -z "$t" ] && t="$(git log -1 --format='%s' 2>/dev/null | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
   [ -n "$t" ] && { printf '%s' "$t"; return; }
   if have gh && [ -n "$b" ]; then
@@ -149,6 +159,25 @@ RISK="$(compute_risk "$BRANCH")"
 if [ -z "$SLUG" ]; then
   SLUG="$(printf '%s' "$BRANCH" | sed -E 's@^[a-z]+/@@; s@^[A-Z]+-[0-9]+-@@')"
 fi
+
+# slug normalization (signal>noise): drop slug tokens the ANCHOR already carries
+# (whole-token, case-insensitive — e.g. anchor VKS-2169 + slug vks-2169-verify → verify;
+# anchor-fallback feature/x-poc + slug a3-poc → a3). The anchor already says it — the slug
+# should only add what's NEW. Dedupe is vs the anchor ONLY (never the branch): a branch-derived
+# slug would otherwise always empty itself. Empty-after-dedupe is fine (emit() skips empties;
+# the information lives in the anchor). POSIX bash 3.2, no assoc arrays.
+normalize_slug() {
+  local s="$1" ctx tok low out=""
+  # anchor token set: lowercase, every non-alnum → space, padded for whole-token matching
+  ctx=" $(printf '%s' "$ANCHOR" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' ' ') "
+  for tok in $(printf '%s' "$s" | tr -c 'A-Za-z0-9' ' '); do
+    low="$(printf '%s' "$tok" | tr '[:upper:]' '[:lower:]')"
+    case "$ctx" in *" $low "*) continue ;; esac
+    out="${out:+$out-}$tok"
+  done
+  printf '%s' "$out"
+}
+SLUG="$(normalize_slug "$SLUG")"
 SLUG="$(printf '%s' "$SLUG" | cut -c1-24)"
 
 # D1 enrich = explicit only (keep the name clean — clarity>density); D2/D3 surface

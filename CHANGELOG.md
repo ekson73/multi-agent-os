@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — locus session-name quality: anchor never extracted the ticket + redundant slugs (`locus` v1.0.0 → v1.1.0 · `spawn-continuation` v0.2.0 → v0.3.0 · `postflight` skill v0.6.0 → v0.6.1)
+
+- **Root cause (operator report 2026-06-11, real tmux names)**: `bin/locus.sh` set its default ticket regex via `${GEO_TICKET_RE:-[A-Z]{2,}-[0-9]+}` — inside `${var:-default}` the FIRST unescaped `}` closes the expansion, silently producing the broken regex `[A-Z]{2,-[0-9]+}` (never matches). The anchor therefore ALWAYS fell back to the full branch (`🟡 · feature/VKS-2159-poc-openspec · …`). Fixed with a two-step default assignment + a regression test on the DEFAULT regex.
+- **Explicit `--ticket` anchor input** (`locus.sh`): new flag, highest anchor salience, accepted only when it matches `GEO_TICKET_RE` (shape-validated — anti-theater). `spawn-continuation.sh` now passes its `--ticket` through (it previously collected the flag and discarded it for the locus path).
+- **Slug normalization (signal > noise)**: renderer drops slug tokens the anchor already carries (whole-token, case-insensitive) — `vks-2169-verify` with anchor `VKS-2169` renders `verify`; a branch-derived slug fully covered by a branch-fallback anchor is omitted. Spec section "slug quality + normalization" added (`references/locus-spec.md` v1.2.0 → v1.3.0); P3.5 + `--slug` usage gain slug-quality guidance (2-4 words, work essence, never embed ticket/repo/status).
+- Tests: `bin/tests/locus.test.sh` 22 → 29 cases (controlled tmp-repo section: default-regex regression · explicit/malformed `--ticket` · dedupe · derived-slug omission); `spawn-continuation-name.test.sh` suite stays green.
+
 ### Fixed — `postflight-precompact.sh`: invalid PreCompact hook JSON output (D1, HIGH) (`postflight-precompact` v0.1.0 → v0.1.1)
 
 - **Schema fix (2026-06-11)**: the hook's stdout emitted `{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":"..."}}`, which is INVALID per the Claude Code PreCompact hook schema — reproduced failure: *"Hook JSON output validation failed — (root): Invalid input"*. PreCompact accepts only root-level output fields (`systemMessage`, `continue`, `suppressOutput`); `additionalContext` is a SessionStart/UserPromptSubmit affordance. Replaced with a root-level `{"systemMessage":"..."}` carrying the same seed-pointer nudge (same `json_escape` discipline; snapshot/stderr behavior unchanged; still never-blocks `exit 0`). Schema rationale documented inline at the emission site.
