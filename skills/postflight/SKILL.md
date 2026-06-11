@@ -175,7 +175,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "goal":"<one-line mission>",
   "next_actions":[{"task":"...","eisenhower":"Q1|Q2|Q3|Q4","blocked_by":null}],
   "resume_instructions":"Run /maos:preflight first; then follow bootstrap_order; then the first non-blocked next_action."
-},"data":{"layer":"community","contract":"references/continuation-seed-contract.md"}}
+},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.0.0"}}
 ```
 
 - **Human mirror**: the same, rendered as a short scannable briefing for the operator.

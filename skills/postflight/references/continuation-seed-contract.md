@@ -34,6 +34,11 @@ JSON-RPC 2.0 **notification** shape (fire-and-forget — the producer does not a
 
 ## Field-by-field contract (`params`)
 
+> **REQUIRED scope**: the REQUIRED column below binds **rich seeds** (the P3 HANDOFF
+> synthesis). Registered **subset producers** (snapshot/fallback — see Consumer registry)
+> emit an honest subset and are exempt from the rich-seed REQUIRED set; their minimum is
+> the envelope + `resume_instructions` (per the subset clause under the registry table).
+
 | Field | Req | Semantics |
 |---|---|---|
 | `who_you_are` | REQUIRED | One sentence telling the resuming agent the role/identity to assume. Removes the "who am I in this work?" cold-start guess. |
@@ -45,7 +50,7 @@ JSON-RPC 2.0 **notification** shape (fire-and-forget — the producer does not a
 | `dag` | REQUIRED | What comes AFTER this mission completes (the downstream node(s) of the work graph). May be `["none — terminal"]`. |
 | `refs` | REQUIRED | Traceability object: `git` (repo + branch + PRs), `ticket` (tracker key/URL or `"none"`), `memory` (journal/memory paths or `"none"`), `session` (source session id). |
 | `resume_instructions` | REQUIRED | The first command(s) to run on wake (conventionally: orient via `/maos:preflight`, then `bootstrap_order`, then first non-blocked `next_action`). |
-| `goal` | REQUIRED (legacy-compat) | One-line mission (kept for consumers that predate `mission[]`; MUST equal `mission[0]` in spirit). |
+| `goal` | OPTIONAL (legacy-compat) | One-line mission kept for consumers that predate `mission[]`. Rich seeds SHOULD include it and it MUST equal `mission[0]` in spirit when present; skeleton/fallback seeds MAY omit it (e.g. `postflight-precompact.sh` emits no `goal`). |
 | `context` | OPTIONAL | Prose state-of-world supplement. |
 | `git` | OPTIONAL | Quick-glance git object (`repo`/`branch`/`worktree`/`prs[]`) — convenience mirror of `refs.git` + `inherited_state.branches`. |
 | `locus` | OPTIONAL | D1 locus line (`bin/locus.sh --density name`) — see `locus-spec.md`. |
@@ -113,4 +118,4 @@ MUST still tolerate unknown fields within the same MAJOR.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-06-11 | Bootstrap — extracts the seed shape (previously inline-only in SKILL.md P3 + a synthesized fallback in `spawn-continuation.sh`) into a reusable template + this contract. Adds the REQUIRED resume-spine fields (`who_you_are`, `bootstrap_order`, `inherited_state`, `mission`, `guardrails`, `dod`, `dag`, `refs`) on top of the existing P3 envelope fields (kept, now mostly OPTIONAL except `goal`/`resume_instructions`). |
+| 1.0.0 | 2026-06-11 | Bootstrap — extracts the seed shape (previously inline-only in SKILL.md P3 + a synthesized fallback in `spawn-continuation.sh`) into a reusable template + this contract. Adds the REQUIRED resume-spine fields (`who_you_are`, `bootstrap_order`, `inherited_state`, `mission`, `guardrails`, `dod`, `dag`, `refs`) on top of the existing P3 envelope fields (kept, now OPTIONAL except `resume_instructions`; `goal` is OPTIONAL legacy-compat — skeleton producers omit it). |
