@@ -136,8 +136,8 @@ next session's R0.
 When R0.a finds no anchor AND R0.b confirms none exists on the tree, present a **structured HITL
 proposal** (via `AskUserQuestion`), do NOT auto-create:
 
-1. **Create as draft** — delegate to `ticket-as-prompt` (provider-routed: Vek→Jira · personal→Linear
-   · community→GH Issue) to open a ticket whose body is a self-contained Ticket-as-Prompt.
+1. **Create as draft** — delegate to `ticket-as-prompt` (provider-routed by class: corporate→Jira ·
+   personal→Linear · community→GH Issue) to open a ticket whose body is a self-contained Ticket-as-Prompt.
 2. **Link to an existing ticket** — operator names the node; the session anchors to it.
 3. **Proceed without a documented ticket** — record the decision; postflight P2.5 may still propose one.
 
