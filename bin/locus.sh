@@ -165,17 +165,31 @@ fi
 # anchor-fallback feature/x-poc + slug a3-poc → a3). The anchor already says it — the slug
 # should only add what's NEW. Dedupe is vs the anchor ONLY (never the branch): a branch-derived
 # slug would otherwise always empty itself. Empty-after-dedupe is fine (emit() skips empties;
-# the information lives in the anchor). POSIX bash 3.2, no assoc arrays.
+# the information lives in the anchor). Separators (- . _) of KEPT tokens are preserved
+# verbatim (contract: spawn-continuation --slug charset [A-Za-z0-9._-]); a dropped token
+# swallows its trailing separator. LC_ALL=C pins tr/glob ranges (locale-independent).
+# POSIX bash 3.2, no assoc arrays.
 normalize_slug() {
-  local s="$1" ctx tok low out=""
+  local LC_ALL=C
+  local s="$1" ctx out="" tok="" low ch i n
   # anchor token set: lowercase, every non-alnum → space, padded for whole-token matching
   ctx=" $(printf '%s' "$ANCHOR" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' ' ') "
-  for tok in $(printf '%s' "$s" | tr -c 'A-Za-z0-9' ' '); do
-    low="$(printf '%s' "$tok" | tr '[:upper:]' '[:lower:]')"
-    case "$ctx" in *" $low "*) continue ;; esac
-    out="${out:+$out-}$tok"
+  n=${#s}
+  for ((i = 0; i <= n; i++)); do
+    ch="${s:$i:1}"   # empty at i==n → final flush
+    case "$ch" in
+      [A-Za-z0-9]) tok="$tok$ch"; continue ;;
+    esac
+    if [ -n "$tok" ]; then
+      low="$(printf '%s' "$tok" | tr '[:upper:]' '[:lower:]')"
+      case "$ctx" in
+        *" $low "*) : ;;              # anchor-duplicated → drop token + swallow its separator
+        *) out="$out$tok$ch" ;;       # keep token + its ORIGINAL trailing separator
+      esac
+    fi
+    tok=""   # leading/consecutive separators collapse
   done
-  printf '%s' "$out"
+  printf '%s' "$out" | sed -E 's/[^A-Za-z0-9]+$//'   # trim trailing separator
 }
 SLUG="$(normalize_slug "$SLUG")"
 SLUG="$(printf '%s' "$SLUG" | cut -c1-24)"

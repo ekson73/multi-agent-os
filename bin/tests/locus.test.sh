@@ -95,6 +95,14 @@ o="$(cd "$TMP" && "$GS" --density name --slug vks-2159-verify --seq 42)"
 has '· verify'        "$o" 'slug keeps only what the anchor does not say'
 hasnt 'vks-2159-verify' "$o" 'slug drops anchor-duplicated ticket tokens'
 
+# separator preservation (contract: spawn --slug charset [A-Za-z0-9._-]): kept tokens keep
+# their ORIGINAL separators; only anchor-duplicated tokens (and their separator) are dropped
+o="$(cd "$TMP" && "$GS" --density name --slug v1.2_fix --seq 7)"
+has 'v1.2_fix' "$o" 'slug separators . _ preserved verbatim when no token is dropped'
+o="$(cd "$TMP" && "$GS" --density name --slug 'vks_2159.deep_audit' --seq 7)"
+has 'deep_audit'        "$o" 'dropped tokens swallow their separator; kept ones stay intact'
+hasnt 'vks'             "$o" 'anchor-duplicated tokens dropped across . _ separators too'
+
 # derived slug fully covered by a no-ticket branch anchor → slug omitted (no duplication)
 ( cd "$TMP" && git checkout -q -b feature/payment-retry ) >/dev/null 2>&1
 o="$(cd "$TMP" && "$GS" --density name --status '🟡' --seq ab)"
