@@ -81,7 +81,7 @@ The operator's directives use a rich pt-BR vocabulary. Map each term to a canoni
 | converge · convergir · harmonizar opiniões · reconciliar | mode | `converge` |
 | feature · funcionalidade · nova capacidade | work | `feat` |
 | expansão · expandir · ampliar escopo | work | `feat` |
-| melhoria · melhorar · impruve · improve · aprimorar | work | `enhance` |
+| melhoria · melhorar · improve · `impruve`¹ · aprimorar | work | `enhance` |
 | correção · corrigir · ajuste · ajustar · fix | work | `fix` |
 | hotfix · urgente · stop-the-bleeding · produção-quebrada | work | `hotfix` |
 | debug · investigar · root-cause · diagnosticar | work | `debug` |
@@ -91,6 +91,10 @@ The operator's directives use a rich pt-BR vocabulary. Map each term to a canoni
 | clean-up · house-cleaning · house-keeping · boy-scout · limpeza | work | `chore` |
 | documentação · docs · documentar | work | `docs` |
 | teste · testes · cobertura | work | `test` |
+
+> ¹ `impruve` is an **intentional** alias for the operator's own verbatim spelling (not a typo to
+> "fix") — the alias map exists precisely to route real, as-typed operator vocabulary to the canonical
+> `enhance`. `improve` (correct spelling) is listed alongside so both forms resolve.
 
 > Operator terms that are **not** axis values (`DNA Agentico Geracional · princípios · motivação ·
 > DoR · DoD · propósitos · esperado · entregáveis · feedbacks · prompt · ticket · git-domain ·

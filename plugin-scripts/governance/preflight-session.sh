@@ -50,9 +50,20 @@ TICKET_ANCHOR=""; TICKET_SRC="none"; SESSION_MODE="unanchored"; TICKET_NUDGE=""
 if [ "${PREFLIGHT_NO_TICKET_ANCHOR:-0}" != "1" ]; then
     DEFAULT_TICKET_RE='[A-Z]{2,}-[0-9]+'
     TICKET_RE="${GEO_TICKET_RE:-$DEFAULT_TICKET_RE}"   # two-step: avoid {n,}-brace expansion truncation
-    SEED="$REPO/.git/maos/continuation-seed.latest.json"
+    # Worktree-safe seed resolution: in a LINKED worktree "$REPO/.git" is a gitlink FILE, not a
+    # dir, so the hardcoded "$REPO/.git/maos/..." never resolves. The producer writes via
+    # `rev-parse --absolute-git-dir` (→ per-worktree git-dir from a worktree, common .git from main),
+    # but the snapshot seed lives in the COMMON dir's maos/. Probe per-worktree git-dir THEN common-dir;
+    # honor POSTFLIGHT_SEED_DIR override (matches the producer). Pick the first that holds the seed.
+    SEED=""
+    SEED_GITDIR="$(git -C "$REPO" rev-parse --absolute-git-dir 2>/dev/null || true)"
+    SEED_COMMON="$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+    for _d in "${POSTFLIGHT_SEED_DIR:-}" "${SEED_GITDIR:+$SEED_GITDIR/maos}" "${SEED_COMMON:+$SEED_COMMON/maos}" "$REPO/.git/maos"; do
+        [ -n "$_d" ] || continue
+        if [ -f "$_d/continuation-seed.latest.json" ]; then SEED="$_d/continuation-seed.latest.json"; break; fi
+    done
     # (1) continuation seed refs.ticket — explicit handoff linkage (jq → grep fallback)
-    if [ -f "$SEED" ]; then
+    if [ -n "$SEED" ] && [ -f "$SEED" ]; then
         if command -v jq >/dev/null 2>&1; then
             TICKET_ANCHOR="$(jq -r '.refs.ticket // .params.refs.ticket // empty' "$SEED" 2>/dev/null | grep -oE "^${TICKET_RE}$" 2>/dev/null | head -1)" || true
         fi

@@ -39,6 +39,19 @@ R="$(mkrepo seed)"; ( cd "$R" && git checkout -q -b feature/BR-1-x ) >/dev/null 
 mkdir -p "$R/.git/maos"; printf '{"refs":{"ticket":"SEED-777"}}\n' > "$R/.git/maos/continuation-seed.latest.json"
 o="$(ctx "$R")"; has 'ticket=SEED-777 (source=seed, mode=continuation-candidate)' "$o" 'R0 seed wins over branch'
 
+# WORKTREE-SAFE seed path (Qodo #141 bug): in a linked worktree "$REPO/.git" is a FILE, not a dir.
+# Seed lives in the COMMON git-dir's maos/; R0 must still find it (not silently miss continuation).
+WTR="$(mkrepo wtmain)"; ( cd "$WTR" && git checkout -q -b feature/MAIN-1-x ) >/dev/null 2>&1
+mkdir -p "$WTR/.git/maos"; printf '{"refs":{"ticket":"WT-555"}}\n' > "$WTR/.git/maos/continuation-seed.latest.json"
+LW="$WTR-linked"; rm -rf "$LW"
+( cd "$WTR" && git worktree add -q "$LW" -b feature/LINKED-9-x ) >/dev/null 2>&1
+if [ -f "$LW/.git" ]; then   # confirm it's a gitlink FILE (the bug precondition)
+  o="$(ctx "$LW")"; has 'ticket=WT-555 (source=seed, mode=continuation-candidate)' "$o" 'R0 finds seed in COMMON git-dir from a linked worktree (gitlink-file safe)'
+else
+  ok 'R0 worktree-safe seed (skipped: linked worktree not a gitlink file on this fs)'
+fi
+( cd "$WTR" && git worktree remove --force "$LW" 2>/dev/null ) || rm -rf "$LW"
+
 # none → nudge + NO ticket token
 R="$(mkrepo none)"; ( cd "$R" && git checkout -q -b just-a-name ) >/dev/null 2>&1
 o="$(ctx "$R")"; has 'No ticket anchor detected' "$o" 'R0 no-anchor → nudge'
