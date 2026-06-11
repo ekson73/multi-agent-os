@@ -14,7 +14,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 ## Usage
 
 ```
-/postflight [action] [--spawn | --no-spawn] [--dry-run]
+/postflight [action] [--spawn | --no-spawn] [--no-kickoff] [--dry-run]
 ```
 
 > Surfaces at runtime as `/maos:postflight` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
@@ -29,7 +29,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2 (DoR). |
 | `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
 
-> **P3.5 SPAWN** (tool 5.1) runs by default after `seed` on a `full` run (**spawn ON**); pass `--no-spawn` to opt out, `--dry-run` to preview the launch without spawning. It is high-blast (a real session burns tokens) → guarded by a kill-switch, once-per-source-session idempotency, an anti-recursion depth-cap, capability-detected graceful-noop, and seed sanitization. See the skill for the full guardrail list.
+> **P3.5 SPAWN** (tool 5.1) runs by default after `seed` on a `full` run (**spawn ON**); pass `--no-spawn` to opt out, `--no-kickoff` to spawn WITHOUT the initial kickoff prompt (the new session starts idle at the REPL instead of immediately resuming the seed — kickoff is ON by default and starts consuming tokens right away), `--dry-run` to preview the launch without spawning. It is high-blast (a real session burns tokens) → guarded by a kill-switch, once-per-source-session idempotency, an anti-recursion depth-cap, capability-detected graceful-noop, and seed sanitization. See the skill for the full guardrail list.
 
 ## Behavior (safe-or-DEFER)
 
@@ -72,6 +72,7 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 | `POSTFLIGHT_SNAPSHOT_PRS=1` | The PreCompact hook also fetches open-PR state via `gh` (network; default off = fast/offline-safe). |
 | `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
 | `POSTFLIGHT_SPAWN=0` | **P3.5 kill-switch** — never spawn a continuation session (deterministic opt-out; overrides `--spawn`). |
+| `POSTFLIGHT_KICKOFF=0` | Spawn WITHOUT the initial kickoff prompt (same as `--no-kickoff`) — the session is seeded but starts idle at the REPL. Default: kickoff ON (the spawned session immediately reads its seed and resumes work). |
 | `POSTFLIGHT_SCORECARD_MODEL=<1..7\|name>` | Pin the P2 scorecard layout model + skip the round-robin rotation entirely (e.g. `cockpit`, `telemetry`, `4`). Default: round-robin via `bin/scorecard-next-model.sh`. |
 | `POSTFLIGHT_SCORECARD_STATE=<path>` | Override the round-robin pointer file (default: `~/.claude/jobs/.postflight-scorecard-model`). |
 | `POSTFLIGHT_SPAWN_DEPTH=N` | Current auto-chain depth (default 0); `>=` the depth-cap (default 1) → P3.5 graceful no-op (anti-recursion). |
