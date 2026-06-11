@@ -29,7 +29,7 @@
 #  *          [options] [prompt]` submits it immediately), pointing at the persisted seed file —
 #  *          belt+suspenders: the session starts acting even if the system-prompt injection is
 #  *          ignored. Opt out: --no-kickoff flag OR POSTFLIGHT_KICKOFF=0 (restores idle spawn).
-#  * @version 0.4.0
+#  * @version 0.5.0
 #  * Portability: AAIF cross-vendor — POSIX Bash 3.2; jq optional; no associative arrays.
 #  * Exit codes ([C06]): 0 success/graceful-noop · 1 usage/validation · 2 setup.
 #  */
@@ -263,11 +263,23 @@ printf '%s\tname=%s\tuuid=%s\tsrc=%s\tlauncher=%s\tspawn=%s\n' \
   "$NOW_UTC" "$NAME" "$UUID" "$SRC_KEY" "$LAUNCHER" "$([ "$NO_SPAWN" = 1 ] && echo no || echo yes)" \
   >> "$AUDIT_LOG" 2>/dev/null || true
 
+# ── env-scrub: spawn must be a FIRST-CLASS top-level session (issue #134) ────
+# The tmux SERVER (and this script itself, when invoked from inside a live claude
+# session) carries the creating session's env: CLAUDECODE=1, CLAUDE_CODE_CHILD_SESSION=1,
+# CLAUDE_CODE_SESSION_ID=<foreign uuid>, CLAUDE_JOB_DIR, etc. A child `claude` seeing
+# CLAUDE_CODE_CHILD_SESSION=1 treats itself as a nested/child session and does NOT
+# persist its conversation to <uuid>.jsonl (only metadata events land there) →
+# `claude --resume <uuid>` fails with "No conversation found" and the Resume picker
+# shows a ~400-byte husk, even though the session worked (empirical 2026-06-11,
+# session eb48a755 / vkl-rct-list-web). Scrub every inherited claude-session marker
+# so the spawned session records its own first-class transcript.
+ENV_SCRUB="env -u CLAUDECODE -u CLAUDE_CODE_CHILD_SESSION -u CLAUDE_CODE_SESSION_ID -u CLAUDE_CODE_ENTRYPOINT -u CLAUDE_CODE_AGENT -u CLAUDE_CODE_EXECPATH -u CLAUDE_JOB_DIR -u CLAUDE_AGENTS_AUTO_RELAUNCHED_AT -u CLAUDE_EFFORT -u AI_AGENT"
+
 # ── --no-spawn OR no launcher: register + print the command (graceful) ───────
 if [ "$NO_SPAWN" = "1" ] || [ "$LAUNCHER" = "none" ] || [ "$LAUNCHER" = "print" ]; then
   reason="$([ "$NO_SPAWN" = 1 ] && echo '--no-spawn' || echo "no detached launcher (tmux/cmux) found")"
   echo "🛫 continuation prepared (${reason}). Seed → ${SEED_FILE}" >&2
-  echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
+  echo "   Start it:  $ENV_SCRUB claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
   echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
   emit_plan "registered"; exit 0
 fi
@@ -279,7 +291,7 @@ case "$LAUNCHER" in
   tmux)
     # interactive claude in a detached tmux session, pre-seeded + kicked-off, attachable.
     POSTFLIGHT_SPAWN_DEPTH="$CHILD_DEPTH" tmux new-session -d -s "$NAME" \
-      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" 2>/dev/null \
+      "POSTFLIGHT_SPAWN_DEPTH=$CHILD_DEPTH $ENV_SCRUB claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" 2>/dev/null \
       && { echo "🛫 spawned (tmux): $NAME" >&2
            echo "   re-enter:  tmux attach -t $(shq "$NAME")   (or, once the pane exits:  claude --resume '$UUID')" >&2
            emit_plan "spawned"; exit 0; }
@@ -292,6 +304,6 @@ esac
 # launcher failed → fall back to registered (never leave the operator stranded)
 rm -f "$MARKER" 2>/dev/null || true   # spawn didn't happen → let a retry through
 echo "🛫 launcher '$LAUNCHER' failed; continuation registered. Start manually:" >&2
-echo "   Start it:  claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
+echo "   Start it:  $ENV_SCRUB claude --name $(shq "$NAME") --session-id $(shq "$UUID") --append-system-prompt \"\$(cat $(shq "$SEED_FILE"))\"${KICK_TOK}" >&2
 echo "   Re-enter:  claude --resume '${UUID}'   (after it has been started once)" >&2
 emit_plan "registered"; exit 0
