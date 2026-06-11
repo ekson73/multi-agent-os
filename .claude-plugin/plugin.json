@@ -1,6 +1,6 @@
 {
   "name": "maos",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "MAOS (Multi-Agent OS) - Coordination Framework for AI Agents with Orchestration, Sentinel Protocol, Worktree Governance, Status Maps, Forge Meta-Agent, Governance Protocols",
   "author": {
     "name": "MAOS Community",
