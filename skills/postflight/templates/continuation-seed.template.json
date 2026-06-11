@@ -1,0 +1,75 @@
+{
+  "jsonrpc": "2.0",
+  "method": "session.continuation",
+  "params": {
+    "who_you_are": "<role + identity the resuming agent should assume, e.g. 'autonomous implementer continuing PR work in repo X' — one sentence, no conversational-memory dependence>",
+    "bootstrap_order": [
+      "<ordered read #1, e.g. 'Read AGENTS.md (governance)'>",
+      "<ordered read #2, e.g. 'Read skills/postflight/references/continuation-seed-contract.md'>",
+      "<ordered read #3, e.g. 'git log --oneline -5 on branch <b>'>"
+    ],
+    "inherited_state": {
+      "verified_facts": [
+        "<fact verified at seed-time, e.g. 'branch feat/x is 2 commits ahead of origin/main at sha abc1234'>"
+      ],
+      "branches": ["<branch>@<sha>"],
+      "env": ["<relevant env/runtime fact, e.g. 'node 22 via mise', 'jq present'>"]
+    },
+    "mission": [
+      "<ordered step 1 — the one-line mission first>",
+      "<ordered step 2>",
+      "<ordered step 3>"
+    ],
+    "guardrails": [
+      "<binding constraint, e.g. 'never commit secrets', 'worktree-only edits', 'do NOT merge'>"
+    ],
+    "dod": [
+      "<binary-checkable Definition-of-Done item 1>",
+      "<binary-checkable Definition-of-Done item 2>"
+    ],
+    "dag": [
+      "<what comes AFTER this mission completes, e.g. 'then: PDCA on PR review comments → merge gate'>"
+    ],
+    "refs": {
+      "git": "<repo URL or owner/name + branch + PR number(s)>",
+      "ticket": "<tracker key/URL or 'none'>",
+      "memory": "<memory/journal path(s) or 'none'>",
+      "session": "<source session id>"
+    },
+    "goal": "<one-line mission>",
+    "context": "<state-of-world the next agent needs>",
+    "git": {
+      "repo": "<name>",
+      "branch": "<b>",
+      "worktree": "<path|none>",
+      "prs": ["#<n> <state>"]
+    },
+    "locus": "<D1 locus: <status>·<anchor>·<slug>[·#seq] — bin/locus.sh --density name>",
+    "objectives": {
+      "primary": ["..."],
+      "secondary": ["..."],
+      "auxiliary": ["..."]
+    },
+    "done": ["..."],
+    "in_flight": ["..."],
+    "gaps": ["..."],
+    "pendings": ["..."],
+    "undecided": ["..."],
+    "unasked_questions": ["..."],
+    "next_actions": [
+      {
+        "task": "...",
+        "eisenhower": "Q1|Q2|Q3|Q4",
+        "blocked_by": null
+      }
+    ],
+    "governance_refs": ["AGENTS.md", "CONTRIBUTING.md", "protocols/exit-hygiene.md"],
+    "dna": "<inherited agentic principles: free-but-accountable · holistic-predictability · agnostic-self-healing>",
+    "resume_instructions": "Run /maos:preflight first; then follow bootstrap_order; then start at the first non-blocked next_action."
+  },
+  "data": {
+    "layer": "community",
+    "contract": "skills/postflight/references/continuation-seed-contract.md",
+    "contract_version": "1.0.0"
+  }
+}
