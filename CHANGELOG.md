@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-06-11
+
 ### Added — scorecard dynamic context-based model selector + Model 8 "Briefing Card" (closes #132) (`scorecard.py` 7 → 8 models · NEW `scorecard-select-model.sh` · `scorecard-next-model.sh` 1→7 → 1→8 · `postflight` skill scorecard section)
 
 - **Operator green-light + scope expansion (2026-06-11, issue #132)**: *"mantidos como templates oficiais … usados por decisões seletivas, dinâmicas, automáticas, autônomas e híbridas [deterministicas, não deterministicas] pelo script/agente que for usar"*. All models preserved as official templates; selection becomes dynamic per invocation.
@@ -46,6 +48,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **EMOJI-FIRST EXPERIMENT** (operator decision 2026-06-10, supersedes the previously-planned ascii-safe variant): status emoji + middle-dot `·` + spaces are kept **verbatim** in `tmux new-session -s` / `claude --name` — *"testarmos só com ícones primeiro; se eu ver algum problema eu relato"*. The potential problems (tmux unicode target-matching/truncation · terminal-font rendering · path-treating consumers) and the possible solution (ascii 3-letter color token `red|org|yel|grn` + `-` separator) are documented inside the tool (`@note`) per the operator's request. **Escape hatch**: `POSTFLIGHT_NAME_STYLE=legacy` restores the pre-0.2.0 ascii `<ticket>-<slug>-#<short>`; the same legacy shape is the **graceful auto-fallback** when `locus.sh` is absent (zero new hard dependency). Jobs-registry dirs keep using `SHORT` (hex) — filesystem untouched by the emoji name.
 - **NEW test suite `bin/tests/spawn-continuation-name.test.sh`** (5/5 green, all via `--dry-run` + isolated `CLAUDE_JOBS_DIR`): D1 default-shape · `--status` propagation · legacy env-style · locus-absent fallback (via the `MAOS_LOCUS_BIN` test seam) · dry-run read-only guarantee. Regression: `locus.test.sh` (22/22) + `scorecard-next-model.test.sh` (full suite) stay green.
 - Docs synced: `skills/postflight/SKILL.md` v0.5.0 (P3.5 row + invocation example + fixed a "locus locus" typo) · `skills/postflight/references/locus-spec.md` v1.2.0 (consumer line: wiring **WIRED**, deferred note replaced by the experiment + risk/fallback record).
+
+## [1.11.0] - 2026-06-10
+
+> Consolidated section — covers v1.6.0 through v1.11.0; changelog sections were not cut per-release during this period, so each entry below is annotated inline with the version it shipped in.
 
 ### Added — `reveng`: code → OpenSpec SPEC reverse-engineering skill (tool 7 — the genuine net-new) (v1.11.0)
 
