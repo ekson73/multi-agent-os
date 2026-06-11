@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scorecard-next-model.sh — deterministic 1→7 round-robin selector for the
+# scorecard-next-model.sh — deterministic 1→8 round-robin selector for the
 # postflight end-of-action scorecard (bin/scorecard.py has 8 layout models).
 #
 # WHY this exists (and why NOT inside scorecard.py):

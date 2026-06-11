@@ -94,21 +94,21 @@ _enum() {  # $1=value $2=flag-name $3=default $4...=allowed; junk → default + 
 # ── arg parse (tolerant: unknown flags warn + skip; never abort) ─────────────
 while [ $# -gt 0 ]; do
   case "$1" in
-    --mode)     MODE="$(_enum "${2:-}" --mode dynamic dynamic round-robin)"; shift 2 ;;
-    --audience) AUDIENCE="$(_enum "${2:-}" --audience human human agent)"; shift 2 ;;
-    --purpose)  PURPOSE="$(_enum "${2:-}" --purpose end-of-action end-of-action briefing handoff)"; shift 2 ;;
+    --mode)     MODE="$(_enum "${2:-}" --mode dynamic dynamic round-robin)"; shift 2 2>/dev/null || shift ;;
+    --audience) AUDIENCE="$(_enum "${2:-}" --audience human human agent)"; shift 2 2>/dev/null || shift ;;
+    --purpose)  PURPOSE="$(_enum "${2:-}" --purpose end-of-action end-of-action briefing handoff)"; shift 2 2>/dev/null || shift ;;
     --items)    # invalid value = NO information → do NOT mark SIZED (can't earn R5)
       case "${2:-}" in
         '' | *[!0-9]*) _warn "ignoring non-numeric value '${2:-}' for --items" ;;
         *) ITEMS="$2"; SIZED=1 ;;
-      esac; shift 2 ;;
+      esac; shift 2 2>/dev/null || shift ;;
     --open)
       case "${2:-}" in
         '' | *[!0-9]*) _warn "ignoring non-numeric value '${2:-}' for --open" ;;
         *) OPEN="$2"; SIZED=1 ;;
-      esac; shift 2 ;;
-    --risk)     RISK="$(_enum "${2:-}" --risk low low med high)"; shift 2 ;;
-    --urgency)  URGENCY="$(_enum "${2:-}" --urgency low low med high)"; shift 2 ;;
+      esac; shift 2 2>/dev/null || shift ;;
+    --risk)     RISK="$(_enum "${2:-}" --risk low low med high)"; shift 2 2>/dev/null || shift ;;
+    --urgency)  URGENCY="$(_enum "${2:-}" --urgency low low med high)"; shift 2 2>/dev/null || shift ;;
     --explain)  EXPLAIN=1; shift ;;
     -h|--help)  sed -n '2,68p' "$0"; exit 0 ;;
     *)          _warn "ignoring unknown flag '$1'"; shift ;;

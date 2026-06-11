@@ -66,6 +66,11 @@ eq '2' "$("$SEL" --bogus-flag 2>/dev/null)"             'unknown flag → warn +
 "$SEL" --items banana >/dev/null 2>&1 ; eq '0' "$?"     'invalid input still exits 0'
 "$SEL" --explain >/dev/null 2>&1 ;      eq '0' "$?"     '--explain exits 0'
 
+# trailing value-flag with NO value must not hang (shift-2 guard — qodo finding PR #139)
+out="$(perl -e 'alarm 5; exec @ARGV' "$SEL" --risk 2>/dev/null)"; rc=$?
+eq '0' "$rc"  'trailing --risk (no value) exits 0 within 5s (no hang)'
+eq '2' "$out" 'trailing --risk (no value) → warn + default → R8'
+
 # ── --explain emits the matched rule to stderr, stdout unchanged ─────────────
 exp_err="$("$SEL" --purpose briefing --explain 2>&1 >/dev/null)"
 case "$exp_err" in *"rule R2"*) ok '--explain names the matched rule (R2)' ;; *) no '--explain names the matched rule (R2)' "$exp_err" ;; esac
