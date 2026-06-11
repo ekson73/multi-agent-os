@@ -1,0 +1,32 @@
+{
+  "memories": [],
+  "manual_memories": [],
+  "realtime_memories": [
+    {
+      "type": "claude_response",
+      "content": "# 🌅 Morning Briefing · multi-agent-os\n2026-06-11 · quarta-feira · escopo: **esta sessão apenas**\n\n> ## 🎯 Próxima Ação\n> **Esta sessão está fria (cold-start) — nenhum trabalho em andamento aqui ainda.*",
+      "added_at": "2026-06-11T11:16:54.889242",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "você recebeu algum prompt inicial para ser seguido assim que vc acordou?",
+      "added_at": "2026-06-11T11:16:54.889253",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "claude_response",
+      "content": "Não — **nenhum prompt de kickoff/continuação chegou**. Honestamente, o que eu recebi ao acordar foi apenas o bootstrap padrão, nesta ordem:\n\n1. **Contexto de sistema** (injetado pelo harness, não é \"p",
+      "added_at": "2026-06-11T11:18:06.805894",
+      "source": "realtime_capture"
+    },
+    {
+      "type": "message",
+      "content": "❓ Issue #132 (scorecard: seletor dinâmico de modelo) — DoR exige que você termine a exposição do round-robin (live desde #130) e dê green-light explícito --> inventarie, se informe e explique minhas d",
+      "added_at": "2026-06-11T11:18:06.805916",
+      "source": "realtime_capture"
+    }
+  ],
+  "created_at": "2026-06-11T11:16:54.886132",
+  "updated_at": "2026-06-11T11:18:06.805918"
+}

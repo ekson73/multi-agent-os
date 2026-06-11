@@ -243,6 +243,13 @@ fi
 # ── persist intent to the jobs registry (always — even on --no-spawn / print) ─
 mkdir -p "$SRC_JOB_DIR" "${JOBS_DIR}/${SHORT}" 2>/dev/null || true
 printf '%s\n' "$SEED_RAW" > "$SEED_FILE" 2>/dev/null || true
+# The launch command injects the seed via $(cat "$SEED_FILE") and the kickoff points at it —
+# a silent write-failure would spawn a token-burning session with an EMPTY seed. Verify or abort.
+if [ ! -s "$SEED_FILE" ]; then
+  printf '{"status":"error","reason":"failed to persist the continuation seed at %s (unwritable CLAUDE_JOBS_DIR?) — refusing to spawn with an empty seed"}\n' \
+    "$(json_escape "$SEED_FILE")" >&2
+  exit 2
+fi
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
 # state.json mirrors the ~/.claude/jobs/<short>/state.json shape (name · sessionId · intent · respawnFlags).
 printf '{"sessionId":"%s","daemonShort":"%s","name":"%s","intent":"postflight P3.5 continuation of %s","respawnFlags":["--name","%s","--session-id","%s","--append-system-prompt","@%s"],"createdAt":"%s","srcSession":"%s","layer":"community"}\n' \
