@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scorecard-next-model.sh — deterministic 1→7 round-robin selector for the
-# postflight end-of-action scorecard (bin/scorecard.py has 7 layout models).
+# postflight end-of-action scorecard (bin/scorecard.py has 8 layout models).
 #
 # WHY this exists (and why NOT inside scorecard.py):
 #   scorecard.py is a PURE renderer by contract (same params → same output, no
@@ -15,21 +15,21 @@
 #   coverage. The pointer is therefore user-scope.
 #
 # Usage:
-#   scorecard-next-model.sh             # advance the pointer + print next model id (1..7)
+#   scorecard-next-model.sh             # advance the pointer + print next model id (1..8)
 #   scorecard-next-model.sh --peek      # print the next model id WITHOUT advancing
 #   scorecard-next-model.sh --current   # print the last-used model id (0 if none yet)
 #   scorecard-next-model.sh --reset     # reset pointer to 0 (next advance → 1)
 #   scorecard-next-model.sh -h|--help   # this header
 #
 # Override (pin a model, skip rotation entirely — mirrors the POSTFLIGHT_SPAWN=0 idiom):
-#   export POSTFLIGHT_SCORECARD_MODEL=<1..7|cockpit|telemetry|...>
+#   export POSTFLIGHT_SCORECARD_MODEL=<1..8|cockpit|telemetry|...>
 #     → validated against bin/scorecard.py (the model-registry SSOT); if valid, prints it
 #       verbatim and NEVER touches the pointer (deterministic pin). An INVALID value (typo)
 #       warns to stderr + falls back to round-robin, so it can never break the downstream
 #       `scorecard.py --model` render (which rejects unknown values with exit 2).
 #
 # State file: ${POSTFLIGHT_SCORECARD_STATE:-$HOME/.claude/jobs/.postflight-scorecard-model}
-#   A single integer (the last-used model id, 1..7; 0 = none yet). A missing or
+#   A single integer (the last-used model id, 1..8; 0 = none yet). A missing or
 #   invalid pointer is treated as 0 (next → 1). The write is atomic (temp-then-mv,
 #   no torn file). Any failure degrades gracefully: a valid model is always printed
 #   and the script always exits 0 — it must NEVER abort a session-end debrief.
@@ -37,7 +37,7 @@
 # Bash 3.2-safe, self-contained. Composed by skills/postflight (P2 DEBRIEF).
 # License: MIT (matches the multi-agent-os repo LICENSE).
 
-N_MODELS=7
+N_MODELS=8
 STATE="${POSTFLIGHT_SCORECARD_STATE:-$HOME/.claude/jobs/.postflight-scorecard-model}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd 2>/dev/null || printf '.')"
 SCORECARD="$DIR/scorecard.py"
