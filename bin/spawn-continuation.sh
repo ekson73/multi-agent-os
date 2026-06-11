@@ -22,7 +22,7 @@
 #  *          Escape hatch TODAY: POSTFLIGHT_NAME_STYLE=legacy restores the old ascii
 #  *          `<ticket>-<slug>-#<short>` name (also the auto-fallback when locus.sh is absent).
 #  *          Jobs-registry dirs use SHORT (hex), never NAME — the filesystem is unaffected.
-#  * @version 0.2.0
+#  * @version 0.3.0
 #  * Portability: AAIF cross-vendor — POSIX Bash 3.2; jq optional; no associative arrays.
 #  * Exit codes ([C06]): 0 success/graceful-noop · 1 usage/validation · 2 setup.
 #  */
@@ -48,9 +48,13 @@ Usage:
 
 Required:
   --slug <kebab>     short kebab description for the session name   ([A-Za-z0-9._-])
+                     QUALITY: 2-4 words, the ESSENCE of the next work (e.g. payment-retry,
+                     judge-round-a3). Do NOT embed the ticket id / repo name / status — the
+                     anchor + glyph carry those (locus dedupes anchor-repeated tokens anyway).
 
 Optional:
-  --ticket <KEY>     ticket id — locus anchor input + legacy-name prefix (e.g. TICKET-123)
+  --ticket <KEY>     ticket id — passed to locus as the explicit anchor (highest salience,
+                     shape-validated there) + legacy-name prefix (e.g. TICKET-123)
   --status <GLYPH>   D1 locus status glyph for the session name: 🔴 🟠 🟡 🟢 (default 🟡)
   --seed  <file|->   path to the postflight P3 continuation seed (JSON), or - for stdin.
                      If omitted, a minimal seed is synthesized from git state.
@@ -130,7 +134,8 @@ SHORT="$(printf '%s' "$UUID" | tr -cd 'a-f0-9' | cut -c1-8)"
 # ── session NAME = D1 locus (the name IS the geo-location) ───────────────────
 # Rendered by bin/locus.sh (grammar SSOT: skills/postflight/references/locus-spec.md):
 #   <status> · <anchor> · <slug> · #<short>     e.g.  🟡 · VKS-123 · payment-retry · #a1b2c3d4
-# The anchor is Tier-A COMPUTED by locus (ticket › PR › branch — anti-theater: never asserted).
+# The anchor is computed by locus (explicit --ticket [shape-validated] › branch/log ticket ›
+# PR › branch); locus also dedupes slug tokens the anchor already carries (signal>noise).
 # Emoji-first experiment — see @note in the header. Fallback to the legacy ascii name when
 # locus.sh is absent OR POSTFLIGHT_NAME_STYLE=legacy. (MAOS_LOCUS_BIN overrides the renderer
 # path — test seam.)
@@ -138,7 +143,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
 LOCUS_BIN="${MAOS_LOCUS_BIN:-$SCRIPT_DIR/locus.sh}"
 NAME=""
 if [ "${POSTFLIGHT_NAME_STYLE:-locus}" != "legacy" ] && [ -f "$LOCUS_BIN" ]; then
-  NAME="$(bash "$LOCUS_BIN" --density name --status "$STATUS" --slug "$SLUG" --seq "$SHORT" 2>/dev/null </dev/null)" || NAME=""
+  NAME="$(bash "$LOCUS_BIN" --density name --status "$STATUS" --slug "$SLUG" --seq "$SHORT" ${TICKET:+--ticket "$TICKET"} 2>/dev/null </dev/null)" || NAME=""
 fi
 if [ -z "$NAME" ]; then   # legacy ascii name (pre-0.2.0 shape)
   if [ -n "$TICKET" ]; then NAME="${TICKET}-${SLUG}-#${SHORT}"; else NAME="${SLUG}-#${SHORT}"; fi

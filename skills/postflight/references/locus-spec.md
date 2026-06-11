@@ -1,6 +1,6 @@
 # Locus — End-of-Session Recap Grammar (SSOT)
 
-> **Version**: 1.2.0
+> **Version**: 1.3.0 — slug/anchor quality (operator report 2026-06-11, real tmux names): fixes the broken default ticket-regex (a `${var:-default}` brace-truncation bug made the anchor ALWAYS fall back to the full branch), adds explicit `--ticket` anchor input (shape-validated), and adds renderer-side **slug normalization** (anchor-duplicated tokens dropped — see "slug quality").
 > **Renamed** 2026-06-10: `geo-snippet` (PR #126 grammar+renderer+tests, #127 postflight wiring) → `locus` — Anima naming verdict (Latin *locus* "place/position"; the snippet computes your position from anchor reference-points, mirroring a nautical position-fix). History preserved via `git mv`.
 > **Scope**: AAIF cross-vendor. A compact, glance-and-know "geo-localization" status line for agent sessions.
 > **Consumer**: `skills/postflight` (P2 DEBRIEF emits it; P3 seed carries it as `locus` — wired postflight v0.3.0) · `bin/spawn-continuation.sh` (owns `#seq`; D1 → session `--name` **WIRED** v0.2.0 — the spawned session is *named* with the D1 locus, **emoji-first experiment** per operator decision 2026-06-10: status emoji + middle-dot `·` + spaces kept verbatim in tmux/`claude --name`; potential problems = tmux target-matching/truncation of unicode names, terminal-font rendering, path-treating consumers; possible solution if a real problem is reported = an ASCII-safe D1 variant (3-letter color token `red|org|yel|grn` + `-` separator); escape hatch today = `POSTFLIGHT_NAME_STYLE=legacy`).
@@ -29,7 +29,7 @@ Separator is the middle dot `·`. Optional fields (`[...]`) collapse their token
 |---|---|---|
 | **status** | aggregate state of the **primary** goal — 4 glyphs (see below) | B (self-report) |
 | **anchor** | the single most salient locator — pick exactly one | A (computed) |
-| **slug** | kebab primary-goal, length-capped (≤24 chars) | B |
+| **slug** | kebab primary-goal, normalized (anchor-deduped) + length-capped (≤24 chars) | B |
 | **#seq** | continuation-chain position; **omit when not a chain** | A (`spawn-continuation` injects) |
 | **enrich** | 0..1 trailing detail, auto-derived from status | A or B (per row) |
 
@@ -47,6 +47,12 @@ This is the **aggregate projection** of the session's primary goal — deliberat
 ### anchor — salience, pick ONE (DRY)
 
 `ticket › PR › branch › task` — the most specific available locator wins. They are **alternatives, not additive**: showing two anchors is pure clutter. (`task` is used for per-item lines in D3, not for the session line.)
+
+Ticket sources, in order: explicit `--ticket` input (accepted ONLY when it matches `GEO_TICKET_RE` — shape-validation keeps the anchor honest) › parsed from the branch name › parsed from the last-commit subject. `spawn-continuation.sh` passes its `--ticket` through.
+
+### slug quality + normalization (signal > noise)
+
+The slug should say **only what the anchor does not**: 2–4 kebab words, the essence of the work (`payment-retry`, `judge-round-a3`). Do **not** embed the ticket id, repo name, or status — anchor + glyph carry those. The renderer enforces this mechanically: slug tokens already present in the anchor are dropped (whole-token, case-insensitive — `vks-2169-verify` with anchor `VKS-2169` renders `verify`; a branch-derived slug fully covered by a branch-fallback anchor is omitted entirely). Empirical origin: real tmux names 2026-06-11 read `🟡 · feature/VKS-2159-poc-openspec · a3-judge-poc-openspec · #9a72558e` — anchor bug + redundant slug; post-fix the same session reads `🟡 · VKS-2159 · a3-judge-poc-openspec · #9a72558e`.
 
 ### #seq — chain position, omit-when-undetected
 
