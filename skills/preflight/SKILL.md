@@ -44,7 +44,9 @@ works on the wrong branch, on stale state, or unisolated in a shared checkout.
 
 ## When to Use
 
-- At the **start of a session** (the bundled SessionStart hook runs R0+R1+R2 automatically).
+- At the **start of a session** (the bundled SessionStart hook runs the deterministic ticket-**anchor**
+  + coarse `mode` hint automatically; the full R0 N-Tree walk / classification / create-proposal stays
+  **on-demand** via `/maos:preflight ticket`. R1 heal + R2 branch-detect also run in the hook).
 - At the **start of an action/task**, before you begin substantive work.
 - **Before creating or updating any file/directory** (R3 — lazily isolate the mutation).
 - When you are unsure which branch you should be on, or whether your branch is stale.
@@ -136,8 +138,9 @@ next session's R0.
 When R0.a finds no anchor AND R0.b confirms none exists on the tree, present a **structured HITL
 proposal** (via `AskUserQuestion`), do NOT auto-create:
 
-1. **Create as draft** — delegate to `ticket-as-prompt` (provider-routed by class: corporate→Jira ·
-   personal→Linear · community→GH Issue) to open a ticket whose body is a self-contained Ticket-as-Prompt.
+1. **Create as draft** — delegate to `ticket-as-prompt`, which capability-detects the tracker and
+   routes by class (examples, non-normative: corporate / personal / community trackers), to open a
+   ticket whose body is a self-contained Ticket-as-Prompt.
 2. **Link to an existing ticket** — operator names the node; the session anchors to it.
 3. **Proceed without a documented ticket** — record the decision; postflight P2.5 may still propose one.
 

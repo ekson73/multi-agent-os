@@ -99,10 +99,14 @@ o="$(cd "$TMP" && "$GS" --density anchor)"
 eq 'none' "$o" 'anchor density: no ticket anywhere → "none"'
 # ZERO-network contract: anchor density must never call gh/curl (PATH-shim trap)
 SHIM_DIR="$TMP/.nogh"; mkdir -p "$SHIM_DIR"
-for c in gh curl; do printf '#!/bin/sh\necho "FORBIDDEN-%s" >&2\nexit 99\n' "$c" > "$SHIM_DIR/$c"; chmod +x "$SHIM_DIR/$c"; done
+# Shims append a PID to a dedicated side-effect log on EVERY invocation, so a call that suppresses
+# its own stderr is still caught (stderr-only assertion below could miss it). Assert the log is empty.
+NETLOG="$SHIM_DIR/.calls.log"; : > "$NETLOG"
+for c in gh curl; do printf '#!/bin/sh\necho "%s:$$" >> "%s"\necho "FORBIDDEN-%s" >&2\nexit 99\n' "$c" "$NETLOG" "$c" > "$SHIM_DIR/$c"; chmod +x "$SHIM_DIR/$c"; done
 ( cd "$TMP" && git checkout -q -b feature/NET-1-guard ) >/dev/null 2>&1
 nerr="$(cd "$TMP" && PATH="$SHIM_DIR:$PATH" "$GS" --density anchor 2>&1 >/dev/null)"
-hasnt 'FORBIDDEN' "$nerr" 'anchor density makes ZERO gh/curl calls (zero-network contract)'
+hasnt 'FORBIDDEN' "$nerr" 'anchor density makes ZERO gh/curl calls (zero-network contract, stderr)'
+eq 0 "$(wc -l < "$NETLOG" | tr -d ' ')" 'anchor density makes ZERO gh/curl calls (zero-network contract, side-effect log)'
 # reset to the ticket branch so downstream tests keep their assumptions
 ( cd "$TMP" && git checkout -q feature/VKS-2159-poc-openspec ) >/dev/null 2>&1
 

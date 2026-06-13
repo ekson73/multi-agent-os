@@ -82,10 +82,13 @@ R="$(mkrepo garbage)"; ( cd "$R" && git checkout -q -b x ) >/dev/null 2>&1
 mkdir -p "$R/.git/maos"; printf 'not json {{{' > "$R/.git/maos/continuation-seed.latest.json"
 CLAUDE_PROJECT_DIR="$R" bash "$HOOK" >/dev/null 2>&1; eq 0 "$?" 'R0 garbage seed → exit 0'
 
-# timing <2s
+# timing <2s — sub-second resolution (whole-second date +%s is flaky across a second boundary).
+# Portable hi-res via perl Time::HiRes (present on macOS + Linux CI); fall back to date +%s.
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null || echo "$(( $(date +%s) * 1000 ))"; }
 R="$(mkrepo timing)"; ( cd "$R" && git checkout -q -b feature/TIM-1-x ) >/dev/null 2>&1
-T0=$(date +%s); CLAUDE_PROJECT_DIR="$R" bash "$HOOK" >/dev/null 2>&1; T1=$(date +%s)
-[ $((T1-T0)) -lt 2 ] && ok 'R0 completes <2s' || no 'R0 completes <2s' "$((T1-T0))s"
+T0=$(now_ms); CLAUDE_PROJECT_DIR="$R" bash "$HOOK" >/dev/null 2>&1; T1=$(now_ms)
+ELAPSED_MS=$((T1-T0))
+[ "$ELAPSED_MS" -lt 2000 ] && ok 'R0 completes <2s' || no 'R0 completes <2s' "${ELAPSED_MS}ms"
 
 rm -rf "$ROOT"
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
