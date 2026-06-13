@@ -72,7 +72,7 @@
         "Independencia Agnostica (Self-Healing) — use the most competent resource in the generic pool; if it does not exist, build it; be the solution; capability-detected, cross-vendor (AAIF)."
       ],
       "canonical_ref": "~/.claude/CLAUDE.md DNA Geracional + protocols/delegation/delegation-dna-prompt.md",
-      "session_learnings": ["<<=5 distilled lessons from this session>"],
+      "session_learnings": ["<up to 5 distilled lessons from this session>"],
       "learnings_ref": "<path to the DNA learnings log, or 'none'>"
     },
     "continuation_ticket": {
@@ -82,7 +82,8 @@
       "link": "<relates-to | child-of | none>"
     },
     "tickets_created": [
-      {"key": "<key or 'deferred'>", "eisenhower": "Q1|Q2|Q3|Q4", "link": "<url|none>", "reason": "<only when deferred>"}
+      {"key": "<filed ticket key>", "eisenhower": "Q1|Q2|Q3|Q4", "link": "<url>"},
+      {"deferred": true, "eisenhower": "Q1|Q2|Q3|Q4", "link": "none", "reason": "<why deferred, e.g. no ticketing capability>"}
     ],
     "resume_instructions": "Run /maos:preflight first; then follow bootstrap_order; then start at the first non-blocked next_action. INTERNALIZE params.dna: adopt the 3 principles, and TRANSCRIBE them verbatim into the briefing of every sub-agent you spawn (DNA Geracional is inherited, not optional)."
   },

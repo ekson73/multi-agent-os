@@ -26,7 +26,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 |--------|-------------|
 | *(none)* / `full` | P1+P2+P2.5+P3: sweep → debrief → ticket-sync → emit + clipboard the continuation seed. |
 | `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket **close** of verifiably-done tickets), classified by Eisenhower, safe-or-DEFER. |
-| `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top, then render the glance-and-know **locus** + the end-of-action **scorecard** (`bin/scorecard.py`, model picked round-robin by `bin/scorecard-next-model.sh`). No mutations to tracked files. |
+| `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top, then render the glance-and-know **locus** + the end-of-action **scorecard** (`bin/scorecard.py`, model picked dynamically by `bin/scorecard-select-model.sh`; round-robin via `--mode round-robin` fallback). No mutations to tracked files. |
 | `tickets` | P2.5 only — reconcile the backlog with the session: bounded gap→ticket triage (≤3 + 1 batch) + an idempotent continuation ticket + enrich the anchored ticket, delegated to a capability-detected ticketing primitive (DEFER if absent). Requires P2 (DoR). SSOT: `skills/postflight/references/ticket-sync-protocol.md`. |
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2+P2.5 (DoR). |
 | `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
@@ -60,7 +60,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 ─────────────────────────────────────────────────
 SWEEP    pushed feat/x · PR #42 → green · pruned 1 stale ref · changelog bumped
 DEBRIEF  objectives 2/3 done · 1 gap · 1 undecided · 3 next-actions (Q1×1, Q2×2)
-         📊 scorecard model 4/7 (burndown, round-robin) rendered from debrief state
+         📊 scorecard model 4/8 (burndown, dynamic) rendered from debrief state
 TICKETS  closed 1 · created 2 + batch(3) · continuation → TICKET-456
 HANDOFF  🌱 continuation seed → printed + copied to clipboard
 SPAWN    🛫 TICKET-456-add-retry-#a1b2c3d4 (tmux) — attach: tmux attach -t '…' · or --no-spawn next time
@@ -77,7 +77,7 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 | `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
 | `POSTFLIGHT_SPAWN=0` | **P3.5 kill-switch** — never spawn a continuation session (deterministic opt-out; overrides `--spawn`). |
 | `POSTFLIGHT_KICKOFF=0` | Spawn WITHOUT the initial kickoff prompt (same as `--no-kickoff`) — the session is seeded but starts idle at the REPL. Default: kickoff ON (the spawned session immediately reads its seed and resumes work). |
-| `POSTFLIGHT_SCORECARD_MODEL=<1..7\|name>` | Pin the P2 scorecard layout model + skip the round-robin rotation entirely (e.g. `cockpit`, `telemetry`, `4`). Default: round-robin via `bin/scorecard-next-model.sh`. |
+| `POSTFLIGHT_SCORECARD_MODEL=<1..8\|name>` | Pin the P2 scorecard layout model (highest precedence in ANY mode; e.g. `cockpit`, `telemetry`, `4`, `briefing`). Default: dynamic context-based selection via `bin/scorecard-select-model.sh` (round-robin preserved as `--mode round-robin` fallback). |
 | `POSTFLIGHT_SCORECARD_STATE=<path>` | Override the round-robin pointer file (default: `~/.claude/jobs/.postflight-scorecard-model`). |
 | `POSTFLIGHT_SPAWN_DEPTH=N` | Current auto-chain depth (default 0); `>=` the depth-cap (default 1) → P3.5 graceful no-op (anti-recursion). |
 | `MAOS_SPAWN_LAUNCHER` | Force the spawn launcher: `tmux` \| `cmux` \| `print` (default: auto-detect; `print` = register + emit the resume command). |
@@ -86,5 +86,5 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 
 - Skill: [`skills/postflight/SKILL.md`](../skills/postflight/SKILL.md) (the orchestrator).
 - Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks; never spawns).
-- Composes: `protocols/exit-hygiene.md`, `skills/postflight/references/ticket-sync-protocol.md` (P2.5 SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`), `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-next-model.sh` (P2 scorecard, round-robin).
+- Composes: `protocols/exit-hygiene.md`, `skills/postflight/references/ticket-sync-protocol.md` (P2.5 SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`), `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-select-model.sh` (P2 scorecard dynamic selector) + `bin/scorecard-next-model.sh` (round-robin fallback).
 - Counterpart: `/preflight` (start-of-session) — together the loop: `preflight → work → postflight → (spawn) → preflight …`.

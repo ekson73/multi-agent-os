@@ -98,8 +98,9 @@ Resolve the ticketing capability at invocation, top-down; the first present wins
 2. **No skill, but the repo is GitHub-hosted** and `gh` is present → file via `gh issue
    create` / `gh issue comment` (the native primitive for the **community** class).
 3. **Neither** → **DEFER(ticket)**: record the would-be tickets in the seed's
-   `tickets_created` as `{deferred: true, reason}` + a one-line audit note, and continue.
-   P3 HANDOFF / P3.5 SPAWN proceed **normally** — a missing tracker never blocks the exit.
+   `tickets_created` as `{deferred: true, eisenhower, link: "none", reason}` + a one-line
+   audit note, and continue. P3 HANDOFF / P3.5 SPAWN proceed **normally** — a missing tracker
+   never blocks the exit.
 
 **Routing is by repo CLASS, never by hardcoded org-name** (layer purity): governance
 discovery (CLAUDE/AGENTS + the ticketing skill's own L4 routing) maps **corporate → Jira ·
@@ -110,9 +111,10 @@ key, or cloud id — those live in the (user-scope) routing the skill composes.
 
 Every P2.5 action is traceable:
 
-- Each created/enriched/deferred ticket is recorded in the seed's `tickets_created[]`
-  (`{key|deferred, eisenhower, link}`) and surfaced in the postflight exit summary
-  (`TICKETS closed N · created N + batch · continuation → KEY`).
+- Each created/enriched/deferred ticket is recorded in the seed's `tickets_created[]` —
+  a filed ticket as `{key, eisenhower, link}` or a deferred one as `{deferred: true,
+  eisenhower, link, reason}` (boolean discriminator; see the contract) — and surfaced in the
+  postflight exit summary (`TICKETS closed N · created N + batch · continuation → KEY`).
 - The continuation ticket key/URL is written to the seed's `continuation_ticket`.
 - Dropped Q4 atoms get a one-line note (what + why dropped) so a "nothing filed" exit is
   never silently a "nothing surfaced" exit.

@@ -210,7 +210,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "session_type":"<mode>/<work>",
   "dna":{"principles":["...","...","..."],"canonical_ref":"...","session_learnings":["..."],"learnings_ref":"<path|none>"},
   "continuation_ticket":{"key":"<key|none>","url":"...","parent":"...","link":"relates-to|child-of"},
-  "tickets_created":[{"key":"<key|deferred>","eisenhower":"Q1|Q2|Q3|Q4","link":"..."}],
+  "tickets_created":[{"key":"<key>","eisenhower":"Q1|Q2|Q3|Q4","link":"..."},{"deferred":true,"eisenhower":"Q1|Q2|Q3|Q4","link":"none","reason":"..."}],
   "next_actions":[{"task":"...","eisenhower":"Q1|Q2|Q3|Q4","blocked_by":null}],
   "resume_instructions":"Run /maos:preflight first; then follow bootstrap_order; then the first non-blocked next_action. INTERNALIZE params.dna + transcribe the 3 principles to every sub-agent you spawn."
 },"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.1.0"}}
