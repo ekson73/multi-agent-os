@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Preflight R0 ticket-anchor + session-type classification (closes #141 · `skills/preflight` + `bin/locus.sh` + `plugin-scripts/governance/preflight-session.sh`)
+
+- **R0 ticket-anchor**: sessions start with deterministic local ticket context (seed `refs.ticket` › branch › last-commit via `locus --density anchor`), **zero-network** and non-blocking, producing a coarse `mode` hint. The full R0 N-Tree walk / classification / create-proposal stays **on-demand** via `/maos:preflight ticket` (the SessionStart hook runs only the deterministic anchor + coarse hint, NOT the full R0 flow).
+- **Worktree-safe seed resolution**: linked-worktree `.git` is a gitlink FILE, not a dir — seed lookup now probes per-worktree git-dir (`rev-parse --absolute-git-dir`) → git common-dir (`--git-common-dir`) → `.git/maos` fallback, with `POSTFLIGHT_SEED_DIR` override parity (matches the producer).
+- **Provider/org neutrality**: preflight docs/skill routing keeps ticket-provider names (corporate/personal/community) as **non-normative examples** + delegates creation to capability-detected `ticket-as-prompt` (layer-purity).
+- Regression coverage: `tests/governance/test-preflight-session-r0.sh` (13 cases incl. real linked-worktree scenario, hi-res sub-second timing) + `bin/tests/locus.test.sh` (39 cases incl. zero-network side-effect-log contract). `skills/preflight/references/session-type-taxonomy.md` added.
+- **Merge note (continuity for amnesic agents)**: merged 2026-06-13 (`cf75f7e`) after 2-round CodeRabbit PDCA (5→1→0 findings). The only non-green check was `security/snyk` in **error — "used your limit of private tests"** (quota exhausted, NOT a CVE); merged under HITL-authorized bypass (precedent #133), with security posture covered by gitleaks + Trivy + pip-audit (all SUCCESS). Recurring Snyk-quota blocker tracked in #142.
+
 ## [1.12.0] - 2026-06-11
 
 ### Added — scorecard dynamic context-based model selector + Model 8 "Briefing Card" (closes #132) (`scorecard.py` 7 → 8 models · NEW `scorecard-select-model.sh` · `scorecard-next-model.sh` 1→7 → 1→8 · `postflight` skill scorecard section)
