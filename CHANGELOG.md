@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-06-13
+
+### Added — Postflight P2.5 TICKET-SYNC + continuation-seed contract v1.1.0 + DNA Geracional propagation (`skills/postflight` v0.6.2 → v0.7.0 · `references/ticket-sync-protocol.md` NEW v1.0.0 · `references/continuation-seed-contract.md` v1.0.0 → v1.1.0)
+
+- **NEW phase P2.5 TICKET-SYNC** (between P2 DEBRIEF and P3 HANDOFF): reconciles the backlog with the session at exit so the "treasure map" (tickets) never diverges from reality. *(a)* bounded gap→ticket triage — anti-theater filter → dedup → Eisenhower Q1-Q4 → file under a **hard cap (≤3 individual tickets + 1 batch housekeeping ticket)**; *(b)* an **idempotent continuation ticket** (search-before-create; body mirrors the seed; provider-relative "relates-to"/child-of linkage); *(c)* enrich the anchored ticket. Bounded-autonomous (HITL only for HUMAN_DOMAIN / unknown-provider).
+- **No reinvented ticketing** (anti-over-engineering): all ops are **delegated** to a capability-detected ticketing primitive (reference: the user-scope `ticket-as-prompt` skill, `--op create|update|link|enrich|close|auto`) — the tracker is the state, no custom schema/state-machine. **Capability ladder**: ticketing skill → `gh issue` (GitHub-hosted) → **DEFER(ticket)** (never blocks the exit).
+- **Layer purity**: routing is by repo **CLASS** (corporate→Jira · personal→Linear · community→GitHub Issues) via governance discovery — **zero** hardcoded org/project/cloud-id in community code.
+- **NEW SSOT** `skills/postflight/references/ticket-sync-protocol.md` v1.0.0 (triage caps · continuation-ticket field-map/linkage · capability ladder · audit trail · anti-patterns).
+- **Continuation-seed contract v1.0.0 → v1.1.0** (MINOR — 4 OPTIONAL fields, no REQUIRED/envelope change): `session_type` (`<mode>/<work>`), `dna` upgraded to **string OR object** (`{principles[3], canonical_ref, session_learnings[≤5], learnings_ref}`) so the **DNA Geracional** travels into spawned sessions (not just sub-agents), `continuation_ticket`, `tickets_created`. Registers `skills/preflight` **R0 ANCHOR** as a consumer of `refs.ticket`+`session_type` — closing the `postflight → spawn → preflight` loop.
+- **DNA propagation**: P3 populates the `dna` block; the template `resume_instructions` now mandate the resuming agent **internalize `params.dna` + transcribe the 3 principles into every sub-agent briefing**. P2 distils ≤5 session learnings into the seed's `dna.session_learnings`.
+- `commands/postflight.md`: new `tickets` action (P2.5) + `TICKETS …` line in the sample output. `protocols/exit-hygiene.md`: new Tickets/Backlog exit-gate row. `skills/postflight/SKILL.md`: 4 new anti-patterns (>3 tickets/cycle · ticket-for-theater · API-in-PreCompact-hook · duplicate-continuation).
+
 ### Added — Preflight R0 ticket-anchor + session-type classification (closes #141 · `skills/preflight` + `bin/locus.sh` + `plugin-scripts/governance/preflight-session.sh`)
 
 - **R0 ticket-anchor**: sessions start with deterministic local ticket context (seed `refs.ticket` › branch › last-commit via `locus --density anchor`), **zero-network** and non-blocking, producing a coarse `mode` hint. The full R0 N-Tree walk / classification / create-proposal stays **on-demand** via `/maos:preflight ticket` (the SessionStart hook runs only the deterministic anchor + coarse hint, NOT the full R0 flow).

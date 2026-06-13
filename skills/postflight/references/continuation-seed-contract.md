@@ -1,12 +1,12 @@
 ---
 name: continuation-seed-contract
 description: Field-by-field SSOT contract for the session.continuation continuation-seed envelope (worktree-lifecycle family)
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Continuation-Seed Contract (SSOT)
 
-> **Version**: 1.0.0 (2026-06-11)
+> **Version**: 1.1.0 (2026-06-13)
 > **Scope**: AAIF cross-vendor. The single source of truth for the shape, semantics, and
 > hygiene rules of the `session.continuation` seed emitted/consumed across the
 > `worktree-lifecycle` family.
@@ -65,7 +65,10 @@ JSON-RPC 2.0 **notification** shape (fire-and-forget — the producer does not a
 | `gaps` / `pendings` / `undecided` / `unasked_questions` | OPTIONAL | The debrief's loose-end taxonomy. |
 | `next_actions` | OPTIONAL | `[{task, eisenhower: Q1..Q4, blocked_by}]` — resume entry-points, non-blocked first. |
 | `governance_refs` | OPTIONAL | Governance docs the resuming agent should honor. |
-| `dna` | OPTIONAL | Inherited agentic principles (free-but-accountable · holistic-predictability · agnostic-self-healing). |
+| `session_type` | OPTIONAL | The session's classification `<mode>/<work>` (e.g. `continuation/feat`), from preflight R0 / the P2 DEBRIEF. Two orthogonal axes — see `skills/preflight/references/session-type-taxonomy.md`. Lets the resuming agent (and the continuation ticket) know the *kind* of work it is continuing. |
+| `dna` | OPTIONAL | Inherited agentic principles (the **DNA Geracional** that must travel into spawned sessions, not only sub-agents). Accepts **either** a **string** (back-compat: the one-line `free-but-accountable · holistic-predictability · agnostic-self-healing`) **or** an **object** `{principles: [3 items], canonical_ref, session_learnings: [≤5], learnings_ref}`. When an object, `principles` carries the 3 transcribed principles, `canonical_ref` points at the canonical DNA doc, and `session_learnings` (≤5) are this session's distilled lessons appended to a learnings log at `learnings_ref`. A consumer MUST tolerate both forms. |
+| `continuation_ticket` | OPTIONAL | The P2.5 continuation ticket anchoring the next session: `{key, url, parent, link}` (`link` = the provider-relative linkage used, e.g. `"relates-to"` / `"child-of"`). Mirrors the seed onto the backlog; `key` is passed to the spawn as `--ticket`. `"none"` / absent when no ticketing capability (DEFER). |
+| `tickets_created` | OPTIONAL | Audit trail of the P2.5 gap→ticket triage: array of `{key | deferred:true, eisenhower: Q1..Q4, link, reason?}` — what was filed (or deferred + why). Includes the batch housekeeping ticket when the ≤3 cap rolled extra atoms into it. |
 
 A producer MAY add extra fields; a consumer MUST ignore fields it does not understand
 (forward-compatible, Postel-style). A consumer MUST NOT require an OPTIONAL field.
@@ -103,6 +106,7 @@ A producer MAY add extra fields; a consumer MUST ignore fields it does not under
 | `skills/postflight/SKILL.md` **P3 HANDOFF** | Producer (rich seed) | Synthesizes the full seed from P1 SWEEP + P2 DEBRIEF; prints + clipboards it. |
 | `bin/spawn-continuation.sh` | Consumer + fallback producer | Injects the P3 seed into the spawned session (`--append-system-prompt`); when no seed file is given, synthesizes a **minimal subset** of this contract from git state (see its `read_seed()`). |
 | `plugin-scripts/governance/postflight-precompact.sh` | Producer (deterministic snapshot) | PreCompact safety-net: emits a **skeleton** seed (`params.kind = "deterministic-snapshot"`, git facts + `resume_instructions` only) to `$GIT_DIR/maos/continuation-seed.latest.json` — honest subset, never fakes the agentic synthesis. |
+| `skills/preflight/SKILL.md` **R0 ANCHOR** | Consumer | At session start, reads the seed's `refs.ticket` + `session_type` to anchor the woken agent on the right backlog node + know the session kind — closing the loop `postflight → spawn → preflight`. Tolerates their absence (subset/legacy seeds). |
 
 Producers that emit a **subset** (snapshot/fallback) MUST keep the envelope (`method`,
 `data.layer`) and `resume_instructions`, and SHOULD declare their reduced nature
@@ -124,4 +128,5 @@ MUST still tolerate unknown fields within the same MAJOR.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-06-13 | MINOR — 4 new OPTIONAL fields + 1 new consumer (no REQUIRED change, no envelope break). Adds `session_type` (the `<mode>/<work>` classification from preflight R0 / P2 DEBRIEF), upgrades `dna` to accept a **string OR object** (`{principles[3], canonical_ref, session_learnings[≤5], learnings_ref}`) so the **DNA Geracional** travels into spawned sessions (back-compat string preserved), and adds `continuation_ticket` + `tickets_created` (the P2.5 TICKET-SYNC outputs). Registers `skills/preflight/SKILL.md` **R0 ANCHOR** as a Consumer of `refs.ticket` + `session_type` — closing the `postflight → spawn → preflight` loop. Producer: `skills/postflight/SKILL.md` P2.5/P3 (v0.7.0). |
 | 1.0.0 | 2026-06-11 | Bootstrap — extracts the seed shape (previously inline-only in SKILL.md P3 + a synthesized fallback in `spawn-continuation.sh`) into a reusable template + this contract. Adds the REQUIRED resume-spine fields (`who_you_are`, `bootstrap_order`, `inherited_state`, `mission`, `guardrails`, `dod`, `dag`, `refs`) on top of the existing P3 envelope fields (kept, now OPTIONAL except `resume_instructions`; `goal` is OPTIONAL legacy-compat — skeleton producers omit it). |

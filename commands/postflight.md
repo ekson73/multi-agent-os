@@ -6,7 +6,8 @@ description: Close the session out cleanly + hand it off (exit-hygiene sweep, de
 # /postflight Command
 
 Run the **postflight** end-of-session debrief: a boy-scout exit-hygiene **sweep** (no loose
-ends), a session **debrief** (objectives + gaps + next-actions), a **handoff** seed a
+ends), a session **debrief** (objectives + gaps + next-actions), a **ticket-sync** (file the
+loose ends as bounded tickets + an idempotent continuation ticket), a **handoff** seed a
 fresh amnesic agent can resume from, and an optional **spawn** of a fresh, pre-seeded
 `claude` continuation session. The end-of-session counterpart to `/preflight`. Thin
 entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
@@ -23,10 +24,11 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 
 | Action | Description |
 |--------|-------------|
-| *(none)* / `full` | P1+P2+P3: sweep → debrief → emit + clipboard the continuation seed. |
-| `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket close-or-register), classified by Eisenhower, safe-or-DEFER. |
+| *(none)* / `full` | P1+P2+P2.5+P3: sweep → debrief → ticket-sync → emit + clipboard the continuation seed. |
+| `sweep` | P1 only — exit-hygiene sweep (git close-out + docs/ADRs/changelogs/memories/rules persist + ticket **close** of verifiably-done tickets), classified by Eisenhower, safe-or-DEFER. |
 | `debrief` | P2 only — calculate the session map: compose `morning-briefing` (7-section state) + synthesize the objectives N-Tree + Eisenhower next-actions + gaps/pendings/undecided on top, then render the glance-and-know **locus** + the end-of-action **scorecard** (`bin/scorecard.py`, model picked round-robin by `bin/scorecard-next-model.sh`). No mutations to tracked files. |
-| `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2 (DoR). |
+| `tickets` | P2.5 only — reconcile the backlog with the session: bounded gap→ticket triage (≤3 + 1 batch) + an idempotent continuation ticket + enrich the anchored ticket, delegated to a capability-detected ticketing primitive (DEFER if absent). Requires P2 (DoR). SSOT: `skills/postflight/references/ticket-sync-protocol.md`. |
+| `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2+P2.5 (DoR). |
 | `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
 
 > **P3.5 SPAWN** (tool 5.1) runs by default after `seed` on a `full` run (**spawn ON**); pass `--no-spawn` to opt out, `--no-kickoff` to spawn WITHOUT the initial kickoff prompt (the new session starts idle at the REPL instead of immediately resuming the seed — kickoff is ON by default and starts consuming tokens right away), `--dry-run` to preview the launch without spawning. It is high-blast (a real session burns tokens) → guarded by a kill-switch, once-per-source-session idempotency, an anti-recursion depth-cap, capability-detected graceful-noop, and seed sanitization. See the skill for the full guardrail list.
@@ -46,6 +48,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 /postflight --dry-run        # preview the spawn command without launching
 /postflight sweep            # exit-hygiene close-out only (git + docs + tickets)
 /postflight debrief          # session map (recap) only, no mutations
+/postflight tickets          # P2.5 backlog sync only (file loose ends + continuation ticket)
 /postflight seed             # emit the continuation seed (after a sweep+debrief)
 /postflight spawn            # launch the pre-seeded continuation session (after seed)
 ```
@@ -58,8 +61,9 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 SWEEP    pushed feat/x · PR #42 → green · pruned 1 stale ref · changelog bumped
 DEBRIEF  objectives 2/3 done · 1 gap · 1 undecided · 3 next-actions (Q1×1, Q2×2)
          📊 scorecard model 4/7 (burndown, round-robin) rendered from debrief state
+TICKETS  closed 1 · created 2 + batch(3) · continuation → TICKET-456
 HANDOFF  🌱 continuation seed → printed + copied to clipboard
-SPAWN    🛫 TICKET-123-add-retry-#a1b2c3d4 (tmux) — attach: tmux attach -t '…' · or --no-spawn next time
+SPAWN    🛫 TICKET-456-add-retry-#a1b2c3d4 (tmux) — attach: tmux attach -t '…' · or --no-spawn next time
 ─────────────────────────────────────────────────
 Next agent: /maos:preflight, then start at the first non-blocked next-action.
 ```
@@ -82,5 +86,5 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 
 - Skill: [`skills/postflight/SKILL.md`](../skills/postflight/SKILL.md) (the orchestrator).
 - Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks; never spawns).
-- Composes: `protocols/exit-hygiene.md`, `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-next-model.sh` (P2 scorecard, round-robin).
+- Composes: `protocols/exit-hygiene.md`, `skills/postflight/references/ticket-sync-protocol.md` (P2.5 SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`), `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-next-model.sh` (P2 scorecard, round-robin).
 - Counterpart: `/preflight` (start-of-session) — together the loop: `preflight → work → postflight → (spawn) → preflight …`.
