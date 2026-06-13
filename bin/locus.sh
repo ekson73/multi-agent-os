@@ -6,7 +6,7 @@
 #          One glance: which session · what status · which anchor · what work · is it
 #          blocked · does it need a human. A memory ramp for amnesic agents + a radar
 #          for the human operator. ("What is not seen is not remembered.")
-# Version: 1.1.0
+# Version: 1.2.0
 # Protocol: C06 (AI-Native Environment).
 #
 # Anti-theater contract: the tool COMPUTES Tier-A fields (anchor, project, branch,
@@ -20,9 +20,12 @@
 #   omit compass), ALWAYS exits 0 — must never block a session end.
 #
 # Usage:
-#   locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]
+#   locus --density name|status|ntree|conv|anchor [--status GLYPH] [--slug SLUG]
 #               [--seq N] [--enrich STR] [--pulse n/m] [--base REF]
 #   # D3 reads tree item-lines from stdin: "<glyph> <slug> [· <enrich>]" (one per line)
+#   # density=anchor: ticket-only extraction (explicit › branch › commit) — prints
+#   # "<TICKET> <source>" (source ∈ explicit|branch|commit) or "none". ZERO network:
+#   # this path never calls gh / peer-detect (safe for deterministic SessionStart hooks).
 #
 # Env: GEO_TICKET_RE  ticket-key regex (default '[A-Z]{2,}-[0-9]+')
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -40,10 +43,11 @@ DENSITY="" ; STATUS="🟡" ; SLUG="" ; SEQ="" ; ENRICH="" ; PULSE="" ; BASE="" ;
 
 usage() {
   printf '%s\n' \
-    'usage: locus --density name|status|ntree|conv [--status GLYPH] [--slug SLUG]' \
+    'usage: locus --density name|status|ntree|conv|anchor [--status GLYPH] [--slug SLUG]' \
     '                   [--ticket KEY] [--seq N] [--enrich STR] [--pulse n/m] [--base REF]' \
     '       # --ticket: explicit anchor input (accepted only if it matches GEO_TICKET_RE)' \
-    '       # density=ntree reads tree item-lines from stdin (one per line)' >&2
+    '       # density=ntree reads tree item-lines from stdin (one per line)' \
+    '       # density=anchor prints "<TICKET> <source>"|"none" (ticket-only, zero network)' >&2
 }
 
 # ── arg parse (supports --key value AND --key=value) ───────────────────────────
@@ -63,7 +67,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 case "$DENSITY" in
-  name|status|ntree|conv) ;;
+  name|status|ntree|conv|anchor) ;;
   *) usage; exit 0 ;;
 esac
 
@@ -87,14 +91,28 @@ default_branch() {
   printf 'main'
 }
 
-compute_anchor() {   # salience: ticket (explicit › branch › last-commit) › PR › branch
-  local b="$1" t pr
+# compute_ticket: ticket-only extraction (ZERO network): explicit › branch › last-commit.
+# Sets globals TICKET_VAL + TICKET_SRC (explicit|branch|commit|"") — globals (not stdout)
+# so callers in the CURRENT shell keep both values without a subshell round-trip.
+TICKET_VAL="" ; TICKET_SRC=""
+compute_ticket() {
+  local b="$1" t
+  TICKET_VAL="" ; TICKET_SRC=""
   # explicit --ticket wins, but ONLY when it actually looks like a ticket (shape-validated
   # against TICKET_RE — anti-theater: never anchor on an arbitrary self-reported string)
   t="$(printf '%s' "$TICKET" | grep -oE "^${TICKET_RE}$" 2>/dev/null | head -1)" || true
-  [ -z "$t" ] && t="$(printf '%s' "$b" | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
-  [ -z "$t" ] && t="$(git log -1 --format='%s' 2>/dev/null | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
-  [ -n "$t" ] && { printf '%s' "$t"; return; }
+  [ -n "$t" ] && { TICKET_VAL="$t"; TICKET_SRC="explicit"; return 0; }
+  t="$(printf '%s' "$b" | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
+  [ -n "$t" ] && { TICKET_VAL="$t"; TICKET_SRC="branch"; return 0; }
+  t="$(git log -1 --format='%s' 2>/dev/null | grep -oE "$TICKET_RE" 2>/dev/null | head -1)" || true
+  [ -n "$t" ] && { TICKET_VAL="$t"; TICKET_SRC="commit"; return 0; }
+  return 0
+}
+
+compute_anchor() {   # salience: ticket (explicit › branch › last-commit) › PR › branch
+  local b="$1" pr
+  compute_ticket "$b"
+  [ -n "$TICKET_VAL" ] && { printf '%s' "$TICKET_VAL"; return; }
   if have gh && [ -n "$b" ]; then
     pr="$(gh pr list --head "$b" --state open --json number -q '.[0].number' 2>/dev/null)" || true
     [ -n "$pr" ] && { printf 'PR#%s' "$pr"; return; }
@@ -134,6 +152,14 @@ compute_risk() {     # ⚠R1: on default branch AND a deploy-on-push workflow pr
   grep -rliE 'deploy' "$top/.github/workflows" >/dev/null 2>&1 && printf '⚠R1'
   return 0
 }
+
+# ── anchor density (ticket-only, ZERO network — short-circuits BEFORE the heavy
+#    derive: no gh, no peer-detect, no compass; safe for deterministic hooks) ─────
+if [ "$DENSITY" = "anchor" ]; then
+  compute_ticket "$(cur_branch)"
+  if [ -n "$TICKET_VAL" ]; then printf '%s %s\n' "$TICKET_VAL" "$TICKET_SRC"; else printf 'none\n'; fi
+  exit 0
+fi
 
 # ── derive ─────────────────────────────────────────────────────────────────────
 # Base ref for the compass — pick one that ACTUALLY EXISTS (no remote-layout assumption):
