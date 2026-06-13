@@ -136,7 +136,7 @@ Render an **ASCII/markdown onboarding-map** (the default): framework landscape +
 - Companions: [`AWARENESS-REGISTRY.md`](./AWARENESS-REGISTRY.md) · [`CANON.md`](./CANON.md) · [`references/socratic-33q.md`](./references/socratic-33q.md) · [`dashboard.html`](./dashboard.html)
 - Framework tools (cross-ref, never reimplement): `orchestrator` · `forge` · `sentinel-monitor` · `audit` · `agentic-delegation` · `delegate-governance` · `anti-conflict` · `hierarchical-merge` · `worktree-policy` · `ttl-policy` · `status-map` · `converge` · `agent-select` · `context-prep` · `auto-pilot` · `morning-briefing` · `pulse` · `quiesce`
 - Protocols: `protocols/` · `sentinel/detection_rules.md` · `protocols/delegation/` · `docs/framework-consumption.md` · The Forge `agents/forge.md` (33Q)
-- Sibling concierges (cross-vendor pattern): `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
+- Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
 
 ## Changelog
 - 2026-05-28 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/governance-anchor over the whole MAOS framework. 6 modes (explain/onboard/guide/audit/anchor/dashboard) + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON + self-executed 33Q + ASCII/HTML dashboard. Vendor-neutral (MIT, layer-pure — no corporate content). Anti-over-engineering: orients over existing tools, reimplements NOTHING. Origin: operator /enhance 2026-05-28 (concierge family — sibling of atlassian-concierge/specdd-concierge).

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<!--
+  claude-code-concierge — dashboard.html (optional control-panel companion)
+  Soul-name: Cicerone. Self-contained static file — no web service, no build step.
+  Open directly in a browser. The skill emits this on request (--mode=dashboard).
+  Vendor-neutral (MIT / AAIF). Last verified: 2026-06-13.
+  This is a STATIC onboarding/control-panel MAP — it does not read live state itself;
+  the skill fills the live panels (sessions/MCPs/plugins/worktrees) via Phase-0 detection
+  and composes morning-briefing/pulse/agentic-status for the heavy lifting.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>claude-code-concierge · Cicerone — Claude-Code platform control-panel</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--ac:#58a6ff;--ok:#3fb950;--warn:#d29922;--card:#161b22;--bd:#30363d}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);color:var(--fg);padding:24px}
+  h1{font-size:20px;margin:0 0 2px} h2{font-size:14px;color:var(--ac);margin:0 0 8px;text-transform:uppercase;letter-spacing:.5px}
+  .sub{color:var(--mut);margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:14px}
+  .card ul{margin:0;padding-left:18px} .card li{margin:3px 0}
+  code{background:#21262d;border:1px solid var(--bd);border-radius:4px;padding:1px 5px;color:var(--ac)}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;border:1px solid var(--bd);color:var(--mut)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .mut{color:var(--mut)}
+  footer{margin-top:22px;color:var(--mut);font-size:12px;border-top:1px solid var(--bd);padding-top:12px}
+  a{color:var(--ac)}
+</style>
+</head>
+<body>
+  <h1>🛎️ claude-code-concierge <span class="tag">soul: Cicerone</span></h1>
+  <p class="sub">Front-desk for the Claude-Code platform — onboard · route · research-docs · dashboard · doctor · guarded-install. <span class="mut">Routes to existing tools; reimplements nothing.</span></p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Scope model (precedence)</h2>
+      <ul>
+        <li><b>enterprise/managed</b> <span class="mut">org policy ▲ highest</span></li>
+        <li><b>project</b> <span class="mut">.claude/ · .mcp.json (team, committed)</span></li>
+        <li><b>user</b> <span class="mut">~/.claude/ (you, all projects)</span></li>
+        <li><b>local</b> <span class="mut">settings.local.json (you, this repo)</span></li>
+        <li><span class="mut">defaults ▼ lowest</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Source trust-tier</h2>
+      <ul>
+        <li class="ok">official <span class="mut">Claude/Anthropic · anthropics/*</span></li>
+        <li>known <span class="mut">verified maintainer</span></li>
+        <li class="warn">third-party <span class="mut">trust-tier + pin SHA + gate</span></li>
+        <li>direct <span class="mut">you author the file</span></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Tool types</h2>
+      <ul>
+        <li>MCP server · skill · command</li>
+        <li>agent/subagent · plugin · marketplace</li>
+        <li>hook · rule</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Modes / flags</h2>
+      <ul>
+        <li><code>--help</code> · <code>--onboard</code></li>
+        <li><code>--research-tools</code> <span class="mut">★ core: docs-first</span></li>
+        <li><code>--guide</code> <span class="mut">scope+source+command</span></li>
+        <li><code>--install-mcp|-plugin|-marketplace</code> <span class="mut">guarded</span></li>
+        <li><code>--dashboard</code> · <code>--health-check</code> · <code>--self-test</code></li>
+        <li><code>--format n-tree|json|scorecard|continuity</code></li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Live panels <span class="mut">(skill-filled)</span></h2>
+      <ul>
+        <li>sessions · context · memory · status</li>
+        <li>MCPs · plugins · marketplaces</li>
+        <li>worktrees · tasks · next-actions</li>
+      </ul>
+      <p class="mut">Composed from morning-briefing / pulse / agentic-status + Phase-0 detection.</p>
+    </div>
+
+    <div class="card">
+      <h2>Routes to (DRY)</h2>
+      <ul>
+        <li>Q&amp;A → <code>claude-code-guide</code></li>
+        <li>docs → <code>find-docs</code>/Context7/ref-tools</li>
+        <li>create → <code>agentic-tool-forge</code> · name → <code>anima</code></li>
+        <li>lifecycle → preflight/postflight/auto-pilot/morning-briefing/pulse</li>
+        <li>siblings → maos / walkthrough / openclaw concierge</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Guardrails (CANON)</h2>
+      <ul>
+        <li class="ok">official-docs-first (no memory)</li>
+        <li class="ok">secrets never inline → env/1Password</li>
+        <li class="ok">trust-tier before enable</li>
+        <li class="ok">capability-detect, never fabricate</li>
+        <li class="ok">install = confirm-gated</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>First-tool walkthrough</h2>
+      <ul>
+        <li>1. research the docs <span class="mut">(--research-tools)</span></li>
+        <li>2. pick scope <span class="mut">(who must see it)</span></li>
+        <li>3. pick source <span class="mut">(trust-tier)</span></li>
+        <li>4. install <span class="mut">(guarded)</span></li>
+        <li>5. verify <span class="mut">(claude mcp/plugin list)</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    claude-code-concierge v1.0.0 · soul-name <i>Cicerone</i> · MIT / AAIF cross-vendor ·
+    companions: AWARENESS-REGISTRY.md · CANON.md · references/socratic-33q.md ·
+    official: <a href="https://code.claude.com/docs">code.claude.com/docs</a>
+  </footer>
+</body>
+</html>
