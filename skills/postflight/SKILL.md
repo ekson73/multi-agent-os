@@ -165,9 +165,12 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    ⇒ DEFER(ticket) (record in `tickets_created`), then continue. Record the continuation key
    for P3.5.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2+P2.5 → print + clipboard.
-   Populate (per contract v1.1.0): `refs.ticket` (anchor) · `session_type` (`<mode>/<work>`) ·
-   `dna` (the 3 principles + ≤5 `session_learnings` + `canonical_ref`/`learnings_ref`) ·
-   `continuation_ticket` (from P2.5) · `tickets_created` (the P2.5 audit trail).
+   Populate (per contract v1.1.0): `refs.ticket` = **the P2.5 continuation ticket key** (so the
+   spawned session's preflight R0 hook — which anchors off `refs.ticket` — wakes anchored on
+   the *right* node; falls back to the current anchor only when no continuation ticket) ·
+   `session_type` (`<mode>/<work>`) · `dna` (the 3 principles + ≤5 `session_learnings` +
+   `canonical_ref`/`learnings_ref`) · `continuation_ticket` (the full P2.5 object
+   `{key,url,parent,link}`) · `tickets_created` (the P2.5 audit trail).
 3.5 P3.5 SPAWN (default-ON; skip on --no-spawn / kill-switch / depth-cap / already-spawned):
    write the P3 seed to a file, then `bin/spawn-continuation.sh --ticket <CONT-KEY> --slug
    <kebab> --status <glyph> --seed <seedfile>` → launches the pre-seeded continuation session

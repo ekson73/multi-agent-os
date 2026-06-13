@@ -37,7 +37,7 @@ file and *how much*, never *how* to talk to a provider.
 For each atom the P2 DEBRIEF surfaced (`gaps` · `pendings` · `undecided` · `unasked_questions`
 · out-of-scope TODOs):
 
-```
+```text
 ATOM
  → anti-theater filter   (real + actionable + useful? — drop theater/vanity/already-done)
  → dedup                 (delegate: ticketing primitive `auto` op = search → create-if-absent → else link+enrich)
