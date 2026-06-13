@@ -37,6 +37,9 @@ Execute BEFORE declaring "work complete":
 - [ ] Cross-references consistent between related documents
 - [ ] No stale version references
 
+### Tickets / Backlog
+- [ ] Verifiably-DONE tickets closed (DoD met + PR merged); loose ends (gaps/pendings/undecided) filed as **bounded** tickets — Eisenhower-triaged, **≤3 + 1 batch housekeeping ticket** — plus a single **continuation ticket** anchoring the next session. Delegated to a capability-detected ticketing primitive (DEFER if none — never block exit). See `skills/postflight/references/ticket-sync-protocol.md`.
+
 ### Read Before Discard (MANDATORY)
 - [ ] Before `rm`, `git checkout --`, `git clean`, or committing files not created in this session:
   - READ the file contents
