@@ -88,7 +88,7 @@ now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null || ec
 R="$(mkrepo timing)"; ( cd "$R" && git checkout -q -b feature/TIM-1-x ) >/dev/null 2>&1
 T0=$(now_ms); CLAUDE_PROJECT_DIR="$R" bash "$HOOK" >/dev/null 2>&1; T1=$(now_ms)
 ELAPSED_MS=$((T1-T0))
-[ "$ELAPSED_MS" -lt 2000 ] && ok 'R0 completes <2s' || no 'R0 completes <2s' "${ELAPSED_MS}ms"
+if [ "$ELAPSED_MS" -lt 2000 ]; then ok 'R0 completes <2s'; else no 'R0 completes <2s' "${ELAPSED_MS}ms"; fi
 
 rm -rf "$ROOT"
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
