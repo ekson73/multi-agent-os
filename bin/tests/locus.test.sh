@@ -78,6 +78,38 @@ TMP="$(mktemp -d)"
   git checkout -q -b feature/VKS-2159-poc-openspec
 ) >/dev/null 2>&1
 
+# ── density=anchor (ticket-only, ZERO network — the R0-hook contract) ──────────
+# branch source: prints "<TICKET> <source>" (space-separated, no other tokens)
+o="$(cd "$TMP" && "$GS" --density anchor)"
+eq 'VKS-2159 branch' "$o" 'anchor density: branch source → "<TICKET> branch"'
+# explicit --ticket wins (shape-validated)
+o="$(cd "$TMP" && "$GS" --density anchor --ticket ABC-99)"
+eq 'ABC-99 explicit' "$o" 'anchor density: explicit --ticket wins'
+# malformed explicit ignored → falls back to branch
+o="$(cd "$TMP" && "$GS" --density anchor --ticket 'not;a(ticket')"
+eq 'VKS-2159 branch' "$o" 'anchor density: malformed --ticket ignored → branch'
+# commit source: no-ticket branch + ticket in last commit subject
+( cd "$TMP" && git checkout -q -b no-ticket-anchor && git -c user.email=t@t -c user.name=t commit --allow-empty -q -m 'feat: DEF-123 thing' ) >/dev/null 2>&1
+o="$(cd "$TMP" && "$GS" --density anchor)"
+eq 'DEF-123 commit' "$o" 'anchor density: commit-subject source'
+# none: no ticket anywhere
+( cd "$TMP" && git checkout -q -b just-a-name ) >/dev/null 2>&1
+( cd "$TMP" && git -c user.email=t@t -c user.name=t commit --allow-empty -q -m 'wip: nothing here' ) >/dev/null 2>&1
+o="$(cd "$TMP" && "$GS" --density anchor)"
+eq 'none' "$o" 'anchor density: no ticket anywhere → "none"'
+# ZERO-network contract: anchor density must never call gh/curl (PATH-shim trap)
+SHIM_DIR="$TMP/.nogh"; mkdir -p "$SHIM_DIR"
+# Shims append a PID to a dedicated side-effect log on EVERY invocation, so a call that suppresses
+# its own stderr is still caught (stderr-only assertion below could miss it). Assert the log is empty.
+NETLOG="$SHIM_DIR/.calls.log"; : > "$NETLOG"
+for c in gh curl; do printf '#!/bin/sh\necho "%s:$$" >> "%s"\necho "FORBIDDEN-%s" >&2\nexit 99\n' "$c" "$NETLOG" "$c" > "$SHIM_DIR/$c"; chmod +x "$SHIM_DIR/$c"; done
+( cd "$TMP" && git checkout -q -b feature/NET-1-guard ) >/dev/null 2>&1
+nerr="$(cd "$TMP" && PATH="$SHIM_DIR:$PATH" "$GS" --density anchor 2>&1 >/dev/null)"
+hasnt 'FORBIDDEN' "$nerr" 'anchor density makes ZERO gh/curl calls (zero-network contract, stderr)'
+eq 0 "$(wc -l < "$NETLOG" | tr -d ' ')" 'anchor density makes ZERO gh/curl calls (zero-network contract, side-effect log)'
+# reset to the ticket branch so downstream tests keep their assumptions
+( cd "$TMP" && git checkout -q feature/VKS-2159-poc-openspec ) >/dev/null 2>&1
+
 # regression: the DEFAULT ticket regex must work — `${var:-[A-Z]{2,}-[0-9]+}` silently
 # truncated at the first `}` (broken regex) → anchor never extracted the ticket from the branch
 o="$(cd "$TMP" && "$GS" --density name --status '🟡' --slug a3-judge --seq 9a72558e)"

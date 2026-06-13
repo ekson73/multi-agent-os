@@ -5,10 +5,10 @@ description: Orient + heal + isolate the git workspace before work (branch detec
 
 # /preflight Command
 
-Run the **preflight** readiness checks for agentic work: orient on the right branch
-(without interfering with other worktrees), safely heal the current branch from origin,
-and lazily isolate file mutations in a worktree. Thin entry point over the
-[`preflight` skill](../skills/preflight/SKILL.md).
+Run the **preflight** readiness checks for agentic work: anchor the session to its ticket
+on the N-Tree + classify its type (R0), orient on the right branch (without interfering with
+other worktrees), safely heal the current branch from origin, and lazily isolate file
+mutations in a worktree. Thin entry point over the [`preflight` skill](../skills/preflight/SKILL.md).
 
 ## Usage
 
@@ -21,6 +21,7 @@ and lazily isolate file mutations in a worktree. Thin entry point over the
 | Action | Description |
 |--------|-------------|
 | *(none)* / `check` | R1+R2: detect branch/upstream/divergence/worktree-locks (read-only) + safe-heal from origin. |
+| `ticket` | R0 on-demand — anchor the ticket (seed › branch › commit), walk the N-Tree (parent-chain + siblings, capability-detected), flag the session node, classify `session_type=<mode>/<work>`, and if no ticket → HITL create-proposal (delegates to `ticket-as-prompt`). DEFER if no tracker MCP. |
 | `detect` | R1 only — read-only branch/upstream/ahead-behind/locked-elsewhere/tree-state report. |
 | `heal` | R2 only — safe heal from origin (`fetch`→classify→ff-only \| rebase-autostash \| DEFER). |
 | `worktree <intent>` | R3 — derive a branch + worktree from `<intent>` (per discovered conventions) and create it. |
@@ -35,7 +36,8 @@ and lazily isolate file mutations in a worktree. Thin entry point over the
 ## Examples
 
 ```
-/preflight                      # full R1+R2 readiness report + safe heal
+/preflight                      # full R0+R1+R2 readiness report + safe heal
+/preflight ticket               # R0 — anchor ticket + walk N-Tree + classify session
 /preflight detect               # read-only branch situation
 /preflight heal                 # safe pull/heal from origin only
 /preflight worktree readme-fix  # create .worktrees/<slug> -b <type>/<scope> for the work
@@ -59,6 +61,7 @@ Ready. (R3 isolates automatically when you create/update files.)
 | Var | Effect |
 |-----|--------|
 | `PREFLIGHT_NO_AUTOHEAL=1` | SessionStart hook reports R1 only; does not auto-pull. |
+| `PREFLIGHT_NO_TICKET_ANCHOR=1` | SessionStart hook skips R0 (no ticket anchor in context). |
 | `PREFLIGHT_EDIT_GATE=block` | The Edit/Write safety-net hard-blocks main-checkout edits (default `warn`). |
 | `PREFLIGHT_EDIT_GATE=off` | Disable the Edit/Write safety-net. |
 
