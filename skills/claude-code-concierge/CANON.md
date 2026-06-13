@@ -13,7 +13,7 @@ The authoritative "how to install/configure/use" is the **CURRENT official docs*
 
 **Drift flag:** an install/config "how" asserted from memory without a current-docs citation = contradiction (staleness risk).
 
-## C2 — Scope precedence (enterprise > project > user > defaults)
+## C2 — Scope precedence (enterprise > project > user > local > defaults)
 
 A tool's SCOPE determines visibility + precedence: enterprise/managed overrides project overrides user overrides defaults. Choose the scope by *who must see it*: personal+all-projects → `user`; team-shared+versioned → `project` (committed `.claude/`/`.mcp.json`); just-you-this-repo → `local`; org-mandatory → enterprise/managed.
 

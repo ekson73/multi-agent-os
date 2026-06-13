@@ -1,7 +1,7 @@
 ---
 name: claude-code-concierge
 description: Front-desk concierge for the Claude-Code platform itself — onboard · route an intent to the best scope+source · research the OFFICIAL+CURRENT docs (Claude-Code's AND the tool's) before acting · render a control-panel dashboard · health-check/self-test · guarded install of MCP/plugin/marketplace. Thin wrapper over the `claude-code-concierge` skill (soul-name Cicerone). Routes to claude-code-guide/find-docs/agentic-tool-forge/lifecycle/sibling-concierges — reimplements nothing.
-argument-hint: "[intent] | [--mode explain|onboard|guide|research|install|dashboard|doctor|anchor] [--help] [--onboard] [--research-tools <tool|intent>] [--dashboard[=sessions|context|memory|status|mcps|plugins|marketplaces|worktrees|tasks]] [--sessions] [--context] [--worktrees] [--tasks] [--next-actions] [--install-mcp <name>] [--install-plugin <name>] [--install-marketplace <src>] [--self-test] [--health-check] [--format n-tree|json|scorecard|continuity|md]"
+argument-hint: "[intent] | [--mode explain|onboard|guide|research|install|dashboard|doctor|anchor] [--help] [--onboard] [--guide] [--research-tools <tool|intent>] [--dashboard[=sessions|context|memory|status|mcps|plugins|marketplaces|worktrees|tasks]] [--sessions] [--context] [--worktrees] [--tasks] [--next-actions] [--install-mcp <name>] [--install-plugin <name>] [--install-marketplace <src>] [--self-test] [--health-check] [--format n-tree|json|scorecard|continuity|md] [--json]"
 allowed-tools: [Read, Glob, Grep, Bash, WebFetch, WebSearch, Skill, Task]
 ---
 
@@ -14,7 +14,7 @@ Invoke the **`claude-code-concierge`** skill (Claude Code: `Skill` tool with `sk
 ## Parsing
 - Empty `$ARGUMENTS` OR `--help` → run `--mode=explain` focused on the flag/feature surface (usage); do NOT guess an intent.
 - A `--mode=<…>` flag → run that mode.
-- A flag-alias maps to its mode: `--onboard`→onboard · `--research-tools`→research · `--install-mcp|--install-plugin|--install-marketplace`→install · `--dashboard|--sessions|--context|--worktrees|--tasks|--next-actions`→dashboard · `--self-test|--health-check`→doctor.
+- A flag-alias maps to its mode: `--onboard`→onboard · `--guide`→guide · `--research-tools`→research · `--install-mcp|--install-plugin|--install-marketplace`→install · `--dashboard|--sessions|--context|--worktrees|--tasks|--next-actions`→dashboard · `--self-test|--health-check`→doctor.
 - A bare intent string → `--mode=guide` over that intent (default).
 - `--format=<n-tree|json|scorecard|continuity|md>` applies across modes (default `md`); `--json` ⇒ machine envelope for agent-to-agent use.
 

@@ -1,23 +1,17 @@
 ---
 name: claude-code-concierge
 version: "1.0.0"
-description: |
-  Concierge / onboarding / router / capability-detector / guarded-operator / research-front-desk for the
-  CLAUDE-CODE PLATFORM ITSELF — everything about interacting with Claude Code: installing · configuring ·
-  using a CLI · manipulating agentic-tools (MCP servers · skills · commands · agents/subagents · plugins ·
-  marketplaces · hooks · rules), choosing the best SCOPE [user · project · local · enterprise/org] and the
-  best SOURCE [direct · plugin · marketplace · official Claude/Anthropic], and — the core motivation —
-  researching the OFFICIAL + CURRENT Claude-Code docs AND each tool's own official docs BEFORE acting.
-  Use when a human or agent wants to LEARN the Claude-Code platform, ONBOARD onto it, find HOW/WHERE to
-  install or configure a given agentic-tool, decide scope+source, look up the authoritative way to use a
-  feature, render a control-panel DASHBOARD (sessions · context · memory · MCPs · plugins · marketplaces ·
-  worktrees · tasks · status), run a HEALTH-CHECK / SELF-TEST, or do a GUARDED install. It ROUTES + TEACHES
-  + RESEARCHES + (guarded) OPERATES — it never reimplements `claude-code-guide` (the Q&A agent), `find-docs`,
-  `agentic-tool-forge`, the lifecycle skills (preflight/postflight/auto-pilot/morning-briefing/pulse), or the
-  sibling concierges; it orients over them and hands the exact reservation. Soul-name (display-only):
-  *Cicerone* (a learned guide). Vendor-neutral (AAIF cross-vendor) — portable across Claude Code, Cursor,
-  Codex, Gemini CLI, Copilot, Aider. NEVER fabricates a command — every install/command is capability-
-  detected or doc-sourced, else it says "not found".
+description: >-
+  Concierge / onboarding / router / docs-researcher / guarded-operator for the CLAUDE-CODE PLATFORM
+  ITSELF — installing, configuring, using the CLI, manipulating agentic-tools (MCP, skill, command,
+  agent/subagent, plugin, marketplace, hook, rule), choosing the best SCOPE [user, project, local,
+  enterprise] and SOURCE [direct, plugin, marketplace, official], and — the core — researching the
+  OFFICIAL+CURRENT Claude-Code docs AND each tool's own docs BEFORE acting. Use to LEARN or ONBOARD the
+  platform, decide where+how to install/configure a tool, render a control-panel DASHBOARD, run a
+  HEALTH-CHECK or SELF-TEST, or do a GUARDED install. It ROUTES + RESEARCHES + (guarded) OPERATES —
+  never reimplements claude-code-guide (Q&A), find-docs, agentic-tool-forge, the lifecycle skills, or
+  the sibling concierges; it orients and hands the exact reservation. Soul-name Cicerone. AAIF
+  cross-vendor. NEVER fabricates a command (capability-detected or doc-sourced, else "not found").
 allowed-tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
 evals:
   should_trigger:
@@ -48,7 +42,7 @@ evals:
 
 ## §0 — BEING > Rules (foundational)
 
-This skill serves the operator's intent. If a mode/gate obstructs helping NOW, skip it, log `Skipped <mode> — BEING > Rules`, proceed. HUMAN_DOMAIN (secrets in a config · a paid subscription/install · an irreversible/destructive config change · a cross-org/enterprise managed-policy edit) → present the recommendation but **flag for operator ratification**, never auto-apply.
+This skill serves the operator's intent. If a **non-safety** mode/gate (a teaching/onboarding nicety, an optional dashboard panel, a verbose explanation) obstructs helping NOW, skip *that nicety*, log `Skipped <mode> — BEING > Rules`, proceed. **Safety gates are NEVER skippable** (this escape clause does NOT authorize bypassing them): the `--mode=install` confirm-gate, capability-detect-don't-fabricate, secrets-never-inline, trust-tier-before-enable, and HUMAN_DOMAIN escalation always hold. HUMAN_DOMAIN (secrets in a config · a paid subscription/install · an irreversible/destructive config change · a cross-org/enterprise managed-policy edit) → present the recommendation but **flag for operator ratification**, never auto-apply.
 
 ## Identity & Purpose
 
@@ -91,7 +85,7 @@ Detect which platform surfaces are present before orienting/installing. Degrade 
 | **Add a skill/command (shared, versioned)** | `project` (`<repo>/.claude/…`) OR plugin | plugin (marketplace) | versioned + provenance-tracked | `--install-plugin` |
 | **Install a published plugin** | `user` or `project` | marketplace (`claude plugin install`) | trust-tier the marketplace FIRST (provenance) | `--install-plugin` |
 | **Add a plugin marketplace** | `user` | `claude plugin marketplace add <src>` | prefer official (Claude/Anthropic) > known > individual | `--install-marketplace` |
-| **Decide WHERE a tool should live** | depends | — | scope precedence: enterprise > project > user > defaults | `--mode=guide` |
+| **Decide WHERE a tool should live** | depends | — | scope precedence: enterprise > project > user > local > defaults | `--mode=guide` |
 | **Research the right way to use/install ANYTHING** | — | — | OFFICIAL + CURRENT docs (Claude-Code's + the tool's) | `--research-tools` (CORE) |
 | **Understand how a Claude-Code FEATURE works** | — | — | authoritative Q&A | `claude-code-guide` agent (route, don't duplicate) |
 | **Create a NEW agentic-tool from an intent** | — | — | research-first DRY genesis | `agentic-tool-forge` (+ `anima` naming) |
@@ -109,7 +103,7 @@ Teach the Claude-Code platform: the config/scope model (user · project · local
 ### `--mode=onboard` (`--onboard`)
 Guided ramp for a newcomer (human OR fresh-amnesic agent): (1) Phase-0 capability detection → (2) "your first agentic-tool" walkthrough (research the docs → pick scope → pick source → install → verify) → (3) the platform safety rules you MUST respect day-1 (scope precedence, secrets-never-inline, trust-tier-before-install, official-docs-first) → (4) where to go next per role. Outputs an ordered checklist, not prose.
 
-### `--mode=guide`
+### `--mode=guide` (`--guide`)
 Route an intent → best SCOPE + best SOURCE + the exact capability-detected command + the governing rule + the official-doc pointer. Map situation → reservation via the Landscape Decision Matrix. The caller executes; I orient + hand the reservation.
 
 ### `--mode=research` (`--research-tools` · **the core motivation feature**)
@@ -118,7 +112,8 @@ For any agentic-tool/intent: (1) fetch the OFFICIAL + CURRENT **Claude-Code** do
 ### `--mode=install` (`--install-mcp` · `--install-plugin` · `--install-marketplace` · **guarded**)
 Guarded install/config flow: Phase-0 detect → `--mode=research` the official way → present the exact capability-detected command + the scope/source rationale + a provenance/trust-tier note → **confirm-gate** → run (only on confirm) → verify (`claude mcp list` / `claude plugin list`) → emit an audit line. NEVER fabricates a command (capability-detected or doc-sourced, else "not found"). Secrets → 1Password/env, never inline (HUMAN_DOMAIN ratify). Marketplaces → trust-tier first (official > known > individual; pin a SHA for untrusted).
 
-### `--mode=dashboard` (`--dashboard[=sessions|n-tree|context|memory|status|mcps|plugins|marketplaces|worktrees|tasks]` · `--sessions` · `--context` · `--worktrees` · `--tasks` · `--next-actions`)
+### `--mode=dashboard` (`--dashboard[=sessions|context|memory|status|mcps|plugins|marketplaces|worktrees|tasks]` · `--sessions` · `--context` · `--worktrees` · `--tasks` · `--next-actions`)
+> Note: `n-tree` is an *output format* (`--format=n-tree`), not a dashboard sub-view — sub-views are the panels below; `--format` chooses how any mode renders.
 Render an **ASCII/markdown control-panel** of the operator's Claude-Code state — sub-views: sessions · context · memory · status · MCPs · plugins · marketplaces · worktrees · tasks · next-actions. Composes (never duplicates) the lifecycle skills for the heavy lifting (`morning-briefing`/`pulse` for session+next-actions; `agentic-status`/`status-map` for status; `git worktree list` for worktrees). `--next-actions` routes to `morning-briefing`/`pulse`. On request, also emits the self-contained [`dashboard.html`](./dashboard.html) (open in a browser; no web service, no build step).
 
 ### `--mode=doctor` (`--health-check` · `--self-test`)

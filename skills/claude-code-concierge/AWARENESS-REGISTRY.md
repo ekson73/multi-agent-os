@@ -11,7 +11,7 @@
 ```
 Tier 0  The interaction surface  → the `claude` CLI · IDE/desktop/web hosts · sessions · context · memory
 Tier 1  Agentic-tool TYPES       → MCP server · skill · command · agent/subagent · plugin · marketplace · hook · rule
-Tier 2  The SCOPE model          → enterprise/managed > project > user > defaults (precedence)
+Tier 2  The SCOPE model          → enterprise/managed > project > user > local > defaults (precedence)
 Tier 3  The SOURCE model         → direct · plugin · marketplace · official (Claude/Anthropic)
 Tier 4  Official knowledge        → code.claude.com/docs · docs.claude.com · anthropics/* · each tool's own docs
 Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing · pulse · auto-orchestrator · recap
