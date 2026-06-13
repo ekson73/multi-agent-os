@@ -150,7 +150,7 @@ Render an **ASCII/markdown coverage-map** (default): capture-health (decisions[]
 - Companions: [`awareness-registry.md`](./awareness-registry.md) · [`canon.md`](./canon.md)
 - ASH tools (cross-ref, never reimplement): `agentic-decide` · `agentic-decisions` · `agentic-walkthrough` · `agentic-reindex` · `agentic-fix-dangling-symlinks.sh` · `skills/agentic-session-harness/hooks/{link,resume,stop-fallback,decide-merge,lib}.sh` · `decision-capture` skill
 - Schema SSOT: `skills/agentic-session-harness/SPEC.md` (L1 frozen-17, in-repo) · Layer-2 §17 decision-audit overlay = external corporate toolkit (not in this community repo)
-- Sibling concierges (cross-vendor pattern): `maos-concierge` · `specdd-concierge` · `atlassian-concierge` (+ org-specific concierges in a consuming org's private toolkit)
+- Sibling concierges (cross-vendor pattern): `maos-concierge` · `claude-code-concierge` (the Claude-Code platform) · `specdd-concierge` · `atlassian-concierge` (+ org-specific concierges in a consuming org's private toolkit)
 
 ## Changelog
 - 2026-05-30 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/anchor over the ASH-lite harness (journals · walkthrough · decision-audit). 6 modes + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON. ROUTES+TEACHES+ANCHORS, reimplements NOTHING. Built vkl-first (ADR-017 R6 dogfood-gate); Layer-1 promotion candidate post ≥2 cycles. dashboard.html (D1) + references/socratic-33q.md = planned follow-ups. Origin: operator /enhance Round#2 (Deliverable C) — sibling of maos-concierge/specdd-concierge.
