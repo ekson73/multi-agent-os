@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `opendesign-concierge` skill — front-desk for the Open Design platform (`skills/opendesign-concierge` v1.0.0)
+
+- **NEW skill `opendesign-concierge`** (5th member of the cross-vendor **concierge family**: `maos-concierge` · `claude-code-concierge` · `walkthrough-concierge` · `opendesign-concierge`). Teaches + routes the Open Design platform (`nexu-io/open-design` — open-source, agent-native, BYOK design tool). 4 modes: **explain** (teach: `od` CLI · 152 design-systems · BYOK/no-local-LLM · 2 integration tiers) · **onboard** (capability-detect → tier → first command) · **guide** (intent → exact tier + `od` invocation = the "helper" surface) · **audit** (read-only: installed? config drift vs CANON?).
+- **Companions (DRY — payload lives here)**: `references/od-knowledge-pack.md` (verified-vs-source `od` CLI / MCP / 152 DS · 109 templates · 11 craft counts / DESIGN.md programmatic application — uncertain MCP snippet flagged honestly) · `references/apply-design-system-runbook.md` (Tier A assets-direct + Tier B `od-code-migration` + Airbnb→vek-list worked example, 34/34 tokens validated) · `AWARENESS-REGISTRY.md` (OD surface + external landscape: Figma Make · v0 · Anima · Banani · Stitch + when-to-use-which) · `CANON.md` (8 canonical decisions: BYOK · don't-reinstall · DESIGN.md-is-contract · Tier-A-default · Docker-not-source · etc).
+- **Thin command wrapper** `commands/opendesign-concierge.md` → `/maos:opendesign-concierge` (Sandwich-Namespacing; function-specific filename).
+- **DRY / Strata**: modeled on the existing concierge family; **no** duplicate `opendesign-helper` (the `guide` mode already delivers the helper function; a 2nd skill would duplicate ~70% of the knowledge-pack — deferred as a DUED future split only if the do-runbooks outgrow the concierge).
+- **Genesis**: operator `/enhance /deep-research`; knowledge verified against the canonical clone + 2 Explore agents + external WebSearch; elevates the one-off vek-list AirBnB POC into a durable, recurring, cross-vendor tool.
+
 ## [1.13.0] - 2026-06-13
 
 ### Added — Postflight P2.5 TICKET-SYNC + continuation-seed contract v1.1.0 + DNA Geracional propagation (`skills/postflight` v0.6.2 → v0.7.0 · `references/ticket-sync-protocol.md` NEW v1.0.0 · `references/continuation-seed-contract.md` v1.0.0 → v1.1.0)
