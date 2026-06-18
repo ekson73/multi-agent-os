@@ -29,10 +29,10 @@ def test_all_bitbucket_tools_have_gateway_mapping():
     assert unmapped == [], f"Unmapped tools: {unmapped}"
 
 
-def test_resource_map_has_55_actions():
-    """Total action count matches expected 55 (52 legacy + 3 VKS-1853)."""
+def test_resource_map_has_56_actions():
+    """Total action count matches expected 56 (52 legacy + 3 VKS-1853 + 1 decline)."""
     total = sum(len(ops) for ops in RESOURCE_MAP.values())
-    assert total == 55, f"Expected 55 actions, got {total}"
+    assert total == 56, f"Expected 56 actions, got {total}"
 
 
 # ---------------------------------------------------------------------------
@@ -94,14 +94,16 @@ def test_discovery_level1_pull_request_operations():
     asyncio.run(run())
 
 
-def test_vks1853_pull_request_has_11_ops():
-    """VKS-1853: pull_request must expose 11 ops (8 legacy + 3 new)."""
+def test_vks1853_pull_request_has_12_ops():
+    """pull_request must expose 12 ops (8 legacy + 3 VKS-1853 + 1 decline)."""
     pr_ops = RESOURCE_MAP["pull_request"]
     expected = {
         "list", "get", "create", "merge", "approve", "unapprove",
         "get_comments", "get_build_statuses",
         # VKS-1853 additions
         "add_comment", "reply_to_comment", "update_description",
+        # decline op (2026-06-18) — close obsolete/superseded PRs without merging
+        "decline",
     }
     assert set(pr_ops.keys()) == expected, (
         f"pull_request ops mismatch: expected {expected}, got {set(pr_ops.keys())}"
@@ -205,7 +207,7 @@ def test_discovery_unknown_resource():
 
 def test_router_action_count():
     router = build_router()
-    assert router.action_count == 55
+    assert router.action_count == 56  # +1: pull_request.decline (2026-06-18)
 
 
 def test_router_tool_name():

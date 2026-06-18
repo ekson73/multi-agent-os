@@ -46,6 +46,7 @@ RESOURCE_MAP = {
         "merge": BB_TOOLS["merge_pull_request"],
         "approve": BB_TOOLS["approve_pull_request"],
         "unapprove": BB_TOOLS["unapprove_pull_request"],
+        "decline": BB_TOOLS["decline_pull_request"],
         "get_comments": BB_TOOLS["get_pr_comments"],
         "get_build_statuses": BB_TOOLS["get_pr_build_statuses"],
         # VKS-1853 (2026-04-23) — unblock Step 8 7-Mentes PDCA loop
@@ -121,6 +122,11 @@ _GOVERNANCE = {
             "Verificar que todos os findings aceitos foram implementados",
             "Verificar que findings rejeitados tem justificativa documentada no PR",
             "Se 2+ bots concordam num finding nao resolvido — NAO aprovar",
+        ],
+        "decline": [
+            "Decline = fechar SEM merge (PR obsoleto/superseded). NAO deleta a branch — reabrir exige novo push/PR.",
+            "Confirme que o PR e realmente obsoleto antes (ex: substituido por outra config/PR vencedor).",
+            "Deixe um comentario citando o PR/commit que o supersede (rastreabilidade).",
         ],
         "get_comments": [
             "Ativar 7 mentes para analise: critica, tome, suspicious, curiosa, sistemica, resolutiva, retrospectiva",
