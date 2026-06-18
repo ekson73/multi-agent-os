@@ -20,10 +20,10 @@ triggers:
   - converta isto em uma ferramenta
   - research then build the best tool
   - which artifact type should this be
-version: 1.0.0
+version: 1.1.0
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task, Skill
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   scope: AAIF cross-vendor
   family: agentic-tool-lifecycle
   lifecycle-stage: forge
@@ -77,11 +77,11 @@ Hybrid blend: **deterministic** (DRY scan, type/save-path resolution, frontmatte
    - *DRY + PR-state probe* — does it already exist? is there in-flight work on it? (scope-discipline-style Q2/Q2.1 check).
    (Prefer inline `Glob`/`Grep` over spawning research subagents — large auto-loaded context can overflow subagent prompts; pivot to inline tools if a subagent prompt is rejected as too long.)
 2. **Compare & critique** — steelman→critique→compare (`debate-converge`/`converge` discipline). Apply a `NO_CANDIDATE` test: if an existing tool covers **≥50%** → recommend **EXTEND that tool** (give path + delta) and STOP. Else continue.
-3. **Decide TYPE** — score the candidate types (router table below); pick the highest, or honor `--type`.
+3. **Decide TYPE + invocation surface** — score the candidate types (router table below); pick the highest, or honor `--type`. **Then run the Invocation-surface gate (§ below):** decide HOW it is fired (model auto-trigger · `plugin:name` · human `/slash`). If a human `/slash` surface is wanted, the type is **not** "skill" alone — it is the **skill + command pair**.
 4. **Name** — delegate to `anima` (sovereign 12-correctness + 4-resonance, register-aware namer) when available; else the 5-axis inline fallback (below), family-aware; or honor `--name`. (body↔soul: the forge shapes the body, `anima` breathes the name.)
 5. **Design** — condensed Socratic questionnaire (Scope/Capabilities/Limits/Interfaces/Governance/Validation) + **Goldilocks** sizing (atomic AND generic) + **RBAD** persona (if a role is implied) + filter the multi-agentic patterns relevant to *this* tool.
 6. **Gate** — apply the host's pre-creation + anti-theater gates **if present** (e.g. scope-discipline 6Q, anti-theater 8Q REALITY); always apply the embedded `rule-quality-tests` 6 Self-Validity. Any anti-theater fail (<8/8) or a failed self-validity test → DEFER/REJECT with the specific reason.
-7. **Forge** — author the type-appropriate artifact: house-style frontmatter + body, into the resolved path. Inherit DNA (§0 + gates + DUED sunset + Refs) so the child is itself governable. **Ignore-glob check (gotcha):** before writing into a git-tracked scope, verify the path is not excluded by an ignore-glob (e.g. a `skills/*/SKILL.md` rule). If excluded → `git add -f` OR add a `!`-exception line, else the artifact is silently dropped and the PR ships empty.
+7. **Forge** — author the type-appropriate artifact: house-style frontmatter + body, into the resolved path. Inherit DNA (§0 + gates + DUED sunset + Refs) so the child is itself governable. **Invocation-surface check (gotcha):** if the chosen surface is human `/slash`, author the `commands/<name>.md` wrapper in the SAME pass — a skill shipped without its wrapper is auto-trigger / `plugin:name`-only, so typing `/name` does nothing (empirical miss: a skill landed slash-less and `/name` simply never appeared). **Ignore-glob check (gotcha):** before writing into a git-tracked scope, verify the path is not excluded by an ignore-glob (e.g. a `skills/*/SKILL.md` rule). If excluded → `git add -f` OR add a `!`-exception line, else the artifact is silently dropped and the PR ships empty.
 8. **Confirm & save** — `--dry-run` ⇒ output the proposal only. `--json` ⇒ emit the machine envelope (§ below). Else present a 1-screen summary (type · name · path · gist) and **confirm before write** (never auto-write without operator confirmation; `--no-confirm` only under standing authorization). For a git-tracked scope, route the write through the host's worktree→branch→PR governance (never a direct main commit). Write idempotently (skip-if-identical; for untracked collisions, diff-before-overwrite + back up the divergent copy).
 9. **Handoff briefing** — emit: created path · next steps `→ /agentic-tool-evaluator <path>` then `→ /agentic-tool-trainer` · governance (worktree→branch→PR→convergence→merge) · promotion note (dogfood ≥2 cycles → graduate to community framework).
 
@@ -102,6 +102,19 @@ Pick the **most atomic type that fully delivers** the intent (Goldilocks). Defau
 > `prompt` + `marketplace` are **rare**: the forge *proposes* them but defers final placement to the operator (no canonical path). `rule/hook` save only under explicit `--type` or a clear auto-load/enforcement intent.
 
 Tie-break: skill > command (a workflow is the skill; the command just invokes it) · skill > agent (the workflow *is* the skill; spawn an agent only if a reusable *persona* is the unit) · prefer **skill + command pair** when both invocation styles are wanted.
+
+## Invocation-surface gate (decide HOW it's fired — orthogonal to WHAT it is)
+Type (§above) answers *what the tool is*; this gate answers *how it gets triggered*. They are independent axes — a `skill` can be fired three different ways, and only one of them needs a wrapper. After the type is chosen, decide the surface **explicitly**:
+
+| Surface | Who fires it | Requires |
+|---|---|---|
+| model auto-trigger | the model, by `description` match | a trigger-rich `description` (no extra file) |
+| `plugin:name` / scoped | model or namespaced call | the skill registered/loaded in the plugin |
+| **`/name` (human slash)** | **the human, typed** | **a command wrapper `commands/<name>.md` — MANDATORY, not optional** |
+
+**Rule (the gate):** a `skill` (or `agent`) meant to be **human-`/slash`-invokable MUST ship `commands/<name>.md` in the SAME deliverable** — the wrapper is what creates the `/name` entry point. Skill-without-wrapper = auto-trigger / `plugin:name` only; **typing `/name` does nothing.** Default a recurring human-facing workflow to the **skill + command pair**; ship skill-only ONLY when the tool is intentionally model-/agent-invoked (state it). A skill is **never** reachable as `/name` by virtue of existing — it needs the wrapper.
+
+> ❌ **Anti-pattern (empirical):** a narrative-recap skill landed skill-only (no `commands/` wrapper) while intended as human-facing → `/<name>` never appeared in the operator's command list; only `plugin:<name>` / auto-trigger worked. The gate above exists to catch exactly this at forge-time.
 
 ## 5-axis naming engine
 Evaluate candidates on: **taxonomic** (fits an existing family/namespace?) · **semantic** (says what it does) · **ontological** (its category of being) · **epistemological** (matches how it's already known/referred to — zero drift) · **etymological** (root meaning + historicity). Prefer kebab-case, ≤6 words, role-typed, **no operator-personal names**, family-aligned. Output the winner + 1-line rationale + the runner-up rejected.
@@ -142,6 +155,7 @@ Deprecate when ANY: the lifecycle family absorbs forge into a unified `agentic-t
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-06-18 | **Invocation-surface gate** (new § after Type-decision router) — elevates the wrapper from a passive *mention* ("optional", "when both invocation styles are wanted") to an explicit **gate + author-step check**, separating the orthogonal axes WHAT-the-tool-is (type) vs HOW-it's-fired (surface). Rule: a `skill`/`agent` meant to be human-`/slash`-invokable MUST ship `commands/<name>.md` in the same deliverable; skill-without-wrapper = auto-trigger/`plugin:name`-only, so `/name` does nothing. Wires the gate into phase 3 (decide) + phase 7 (forge, wrapper-check gotcha). Root-cause fix for an empirical skill-landed-slash-less miss (the `/name`-never-appeared symptom). DRY: lives inside the genesis skill (SSOT), not a new rule/memory. Stale user-scope copy (`~/.claude/skills/agentic-tool-forge` v0.1.1) should re-sync from this SSOT — not edited in parallel. |
 | 1.0.0 | 2026-05-30 | **Promoted user-scope → multi-agent-os (community).** Graduated from the user-scope bootstrap (v0.1.x) into the `agentic-tool-lifecycle` family on the framework repo, reuniting `forge` with its already-landed siblings (`agentic-tool-evaluator` + `agentic-tool-trainer` + `protocols/agentic-tool-lifecycle.md`, PR #98). Refinements at promotion: dropped Apache-2.0 license (inherits repo MIT); genericized user-scope path/gate refs (host-relative + "if present"); repointed §Refs at co-located siblings. Dogfood-cycle counter waived (was theater per the dogfood-cycle-ledger finding); validation-by-use evidence: self-evaluated via evaluate→train (v0.1.1). |
 | 0.1.1 | 2026-05-30 | **Lifecycle dogfood (evaluate→train).** Ran `agentic-tool-evaluator` (PASS-with-FLAGs, 4-4-4-5-4) + `agentic-tool-trainer` (improve mode) on this skill itself. Applied 5 Pareto-safe fixes: (1) `.gitignore` force-add gotcha in phase 7; (2) `--json` machine envelope; (3) MCP-tools-via-ToolSearch note; (4) `prompt`/`marketplace` rare→escalate footnote; (5) write-time worktree→PR governance in phase 8. |
 | 0.1.0 | 2026-05-30 | Bootstrap (user-scope) — genesis stage of the `agentic-tool-lifecycle` family. Type-agnostic router (8 types) + research-first + 5-axis naming + Goldilocks/RBAD/Socratic reuse + 9-phase pipeline. Forged via `/enhance`; dogfooded 6/6 self-validity + 8/8 anti-theater + 6/6 scope-discipline. |
