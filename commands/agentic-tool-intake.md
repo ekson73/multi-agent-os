@@ -11,6 +11,17 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task, 
 
 Invoke the **`agentic-tool-intake`** skill (Claude Code: `Skill` tool with `skill: "agentic-tool-intake"`; other hosts: the equivalent skill-activation mechanism), passing the arguments below.
 
+## Usage
+
+```
+/agentic-tool-intake --candidate <repo|mcp|plugin|skill|url|pkg> [--mode research|decide|adopt] [--scope-target multi-agent-os|user|project|auto] [--decision-bias conservative|balanced] [--dry-run] [--json]
+```
+
+Examples:
+- `/agentic-tool-intake --candidate https://github.com/colbymchenry/codegraph` — decide (dry-run) whether to adopt an external repo/MCP, and how.
+- `/agentic-tool-intake --candidate @some/mcp-package --mode research` — research similars + categorize only.
+- `/agentic-tool-intake --candidate "internal: a session-recap skill" --mode decide` — appraise an internal proposal.
+
 **Arguments**: `$ARGUMENTS`
 
 ## Parsing
