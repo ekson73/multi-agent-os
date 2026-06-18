@@ -21,11 +21,12 @@ triggers:
   - tell the story of what we did
   - recap with flair / with a light touch
   - debrief com pegada narrativa
-version: 0.1.0
+  - narre como um caso (Sherlock·Watson·Moriarty)
+version: 0.2.0
 license: MIT
 allowed-tools: Read, Write, Edit, Glob, Bash, Skill
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: content-lifecycle
   cross_link_slug: opera-debrief
@@ -59,6 +60,7 @@ This skill serves the operator's intent. If any phase/gate obstructs delivering 
 | `--humour` | inherits `--intensity` | `med` · `low` · `off`. Situational/self-directed only. |
 | `--drama` | inherits `--intensity` | `instigante` · `low` · `off`. **Never `terror`** — the dial has no alarming setting by design. |
 | `--acts` | auto | Number of acts; auto-mapped from the session's phases/turning-points (cap 5 — anti-bloat). |
+| `--lens` | `classic` | Tone lens: `classic` (story-arc, v0.1.0 default) · `deductive` (a *case* à la Holmes·Watson·Moriarty — intuitive-logic made visible, less technical/more human — see Lens below). |
 | `--dry-run` | off | Emit the neutral session-map + the planned act structure + chosen dials only; no narration. |
 
 **Argument parsing**: token(s) before the first `--` = `<source>`; `--key value`/`--flag` after = parameters. No positional → take the session map from `postflight`/`morning-briefing`/prior context.
@@ -88,6 +90,22 @@ A named **human-warmth register** (audience-design, Bell 1984) with a fixed reci
 | **Moral-da-ópera** | the one-line takeaway | mandatory | on | the through-line of the whole arc |
 
 > The profile is a **default recipe** — the agent may blend/override dials with rationale (cognitive-adaptation-freedom), as long as both gates hold. `--intensity=off` collapses the register to a plain `postflight` debrief (graceful degradation).
+
+## Lens: Deductive (Holmes · Watson · Moriarty) — `--lens=deductive`
+A sophistication tuning of the Opera register: stage the recap as a **case**, not a report — *less technical, more human, intuitive-logic made visible*. The arc remaps to **the scene → the clues → the deduction → the reveal → the lesson**.
+
+| Voice | Role |
+|---|---|
+| **Watson** (narrator) | Warm, human, the audience's surrogate: asks the obvious question, marvels, and **translates every technical term into a plain image** — at most **one** light technical anchor per act, glossed. He is the "less technical, more human" voice. |
+| **Holmes** (deduction) | Makes the intuitive logic *visible*: observe the clues (real facts) → infer → the inevitable reveal (*"once you eliminate the impossible, whatever remains, however improbable, is the truth"*). Sophistication = clarity made elegant, never jargon. |
+| **Moriarty** (the adversary) | The **problem / false-assumption personified** — never a person, never alarming. Gives the case its tension; defeated by deduction, not feared. |
+
+**Gates (unchanged, re-expressed for this lens):** every *clue* traces to a real fact (faithfulness — no invented clue); Moriarty is always a *problem*, never a human, and never escalates to terror (tone-safety). **De-jargon is mandatory** under this lens: raw tokens (`mergeStateStatus`, JSON-RPC, file paths) become Watson's plain images.
+
+**The lens prompt (drop-in):**
+> Stage the recap as a *case*. WATSON narrates (human, the audience's surrogate; translate every technical term into an image, ≤1 light technical anchor per act, glossed). HOLMES deduces (observe the real clues → infer → reveal the inevitable). MORIARTY is the problem personified (never a person, never alarm). Arc: scene → clues → deduction → reveal → lesson. Sophistication = elegant clarity, not jargon.
+
+Composes freely with the dials (`--humour`/`--drama`/`--intensity`); `--lens=classic` keeps the v0.1.0 story-arc.
 
 ## Composition map (DRY — zero re-summarisation)
 | Need | Delegated to |
@@ -156,3 +174,4 @@ Deprecate when ANY: `content-recast` absorbs "Opera" as a first-class register (
 | Version | Date | Change |
 |---|---|---|
 | 0.1.0 | 2026-06-18 | Bootstrap. Narrative-warm register specialisation of `content-recast`: the **Opera register profile** SSOT (story-arc + dosed humour + situational wit + instigating-no-terror drama + insights + CTA + moral) with explicit intensity dials, a faithfulness gate (no invented drama + info-loss note) and a tone-safety gate (no alarm + wit never personal). Composes `postflight`/`morning-briefing` for facts (zero re-summarisation); dual-register output (human opera / agent JSON-RPC). Vendor-neutral, MIT, family-aware. |
+| 0.2.0 | 2026-06-18 | Add **`--lens=deductive`** (Holmes·Watson·Moriarty) — a sophistication tuning: recap as a *case* (scene→clues→deduction→reveal→lesson), less-technical/more-human, intuitive-logic made visible. Watson narrates + de-jargons (≤1 technical anchor/act, glossed); Holmes deduces; Moriarty = the problem personified (never a person, never terror). Reuses both gates unchanged; `--lens=classic` preserves v0.1.0. Origin: operator refinement (debate→converge with the cast as the debate participants). |
