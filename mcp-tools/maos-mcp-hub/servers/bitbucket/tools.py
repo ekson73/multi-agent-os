@@ -1973,6 +1973,62 @@ async def unapprove_pull_request(
         return {"success": False, "error": f"Failed to unapprove PR: {sanitize_error(e)}"}
 
 
+async def decline_pull_request(
+    pr_id: int | None = None,
+    pull_request_id: int | None = None,
+    account: str = "",
+    workspace: str = "",
+    repo_slug: str = "",
+) -> dict:
+    """
+    Decline (close without merging) a pull request.
+
+    Use to close obsolete / superseded PRs that must NOT be merged (e.g. a stopgap
+    replaced by a better config). Declining is close-not-delete: the branch survives
+    and a new PR can reopen the work. Registered under the token owner's identity
+    (or `account` if a named persona is passed).
+
+    Args:
+        pr_id: Pull request ID (canonical).
+        pull_request_id: Alias for pr_id (VKS-1853 standardization).
+        account: Named account to use. Default uses the bot account.
+        workspace: Optional workspace override
+        repo_slug: Optional repo slug override
+
+    Returns:
+        dict: Decline result with PR state
+    """
+    try:
+        effective_pr_id = _normalize_pr_id(pr_id, pull_request_id)
+    except ValueError as ve:
+        return {"success": False, "error": str(ve)}
+
+    client = get_client_for_account(account=account, workspace=workspace, repo_slug=repo_slug)
+
+    try:
+        result = await client.decline_pull_request(pr_id=effective_pr_id)
+        return {
+            "success": True,
+            "pr_id": effective_pr_id,
+            "state": result.get("state", "DECLINED"),
+            "declined_by": (result.get("closed_by") or {}).get("display_name")
+            or (result.get("author") or {}).get("display_name", "MCP Hub Bot"),
+            "title": result.get("title", ""),
+        }
+    except ApiError as e:
+        status = getattr(e, "status_code", getattr(e, "status", None))
+        if status == 404:
+            return {"success": False, "error": f"Pull request #{effective_pr_id} not found"}
+        return {
+            "success": False,
+            "error": "Failed to decline PR",
+            "details": sanitize_exception(e),
+            "hint": getattr(e, "hint", ""),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to decline PR: {sanitize_error(e)}"}
+
+
 # ---------------------------------------------------------------------------
 # PR Interaction tools — add_comment / update_description / reply_to_comment
 # (VKS-1853: unblock Step 8 of AI-Native Protocol — 7 Mentes PDCA loop)
@@ -3381,6 +3437,7 @@ TOOLS = {
     "merge_pull_request": merge_pull_request,
     "approve_pull_request": approve_pull_request,
     "unapprove_pull_request": unapprove_pull_request,
+    "decline_pull_request": decline_pull_request,
     # PR Interaction tools — VKS-1853 (2026-04-23) — unblock Step 8 7-Mentes loop
     "add_pr_comment": add_pr_comment,
     "update_pr_description": update_pr_description,
