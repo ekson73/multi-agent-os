@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `agentic-tool-intake` skill — the ADOPT stage of the agentic-tool lifecycle (`skills/agentic-tool-intake` v0.1.0)
+
+- **NEW skill `agentic-tool-intake`** — fills the empty **ADOPT** slot in the lifecycle family: `forge` (create) → **`intake` (adopt-or-not)** → `evaluator` (score) → `trainer` (improve). Where forge answers *"I have an intent — what do I create?"*, intake answers the inverse: *"someone handed me a tool that already exists (an external repo/MCP/plugin/skill — e.g. a GitHub trend / YouTube review — or an internal proposal) — should I adopt it, and how?"*. Exploration confirmed the gap (~25-30% reuse < the 50% reuse-and-elevate threshold).
+- **Thin composer (reimplements nothing)** — 7-phase pipeline (UNDERSTAND → RESEARCH → COMPARE/CROSS → VALIDATE → DECIDE → INSTALL(gated) → RECORD), each phase landing on an existing primitive: research → `agentic-tool-forge`; guarded install + scope/source + trust-tier → `claude-code-concierge`; multi-candidate conflict → `converge`; cycle tracking → `dogfood-ledger`; record/close → `postflight` + `ticket-as-prompt`. Adds **only** the adoption decision-matrix.
+- **7-disposition decision-matrix** — `INSTALL · CREATE-INTERNALLY(→forge) · ABSORB · ADAPT · SUB-AGENT · ABANDON · DEFER-HITL`, scored across cost/benefit/features/requirements/install-complexity/blast-radius/conflicts/family-members/collaborations/incompatibilities/redundancy(Strata)/trust-tier([C12]). Governance baked in (concierge CANON C1-C8); install is ALWAYS confirm-gated + dry-run-default; HUMAN_DOMAIN ⇒ DEFER.
+- **SSOT update** `protocols/agentic-tool-lifecycle.md` §3 — adds the **intake** stage to the lifecycle diagram + a one-paragraph definition (DRY pointer; payload lives in the skill).
+- **Thin command wrapper** `commands/agentic-tool-intake.md` → `/maos:agentic-tool-intake`.
+- **Named via `anima`** (`agentic-tool-intake`; rejected runner-up `vet` — under-claims the absorb/adapt/sub-agent/create outcomes).
+- **Genesis**: operator `/enhance /deep-research` 2026-06-18 (VKS-2244). **First dogfood** = CodeGraph (`docs/adoption/codegraph-2026-06-18.md`) — a verdict-only run (no install).
+
 ### Added — `opendesign-concierge` skill — front-desk for the Open Design platform (`skills/opendesign-concierge` v1.0.0)
 
 - **NEW skill `opendesign-concierge`** (5th member of the cross-vendor **concierge family**: `maos-concierge` · `claude-code-concierge` · `walkthrough-concierge` · `opendesign-concierge`). Teaches + routes the Open Design platform (`nexu-io/open-design` — open-source, agent-native, BYOK design tool). 4 modes: **explain** (teach: `od` CLI · 152 design-systems · BYOK/no-local-LLM · 2 integration tiers) · **onboard** (capability-detect → tier → first command) · **guide** (intent → exact tier + `od` invocation = the "helper" surface) · **audit** (read-only: installed? config drift vs CANON?).
