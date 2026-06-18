@@ -1,6 +1,6 @@
 # Agentic-Tool Lifecycle — Shared Reference
 
-> **Shared reference** for `skills/agentic-tool-evaluator` + `skills/agentic-tool-trainer`.
+> **Shared reference** for `skills/agentic-tool-intake` + `skills/agentic-tool-evaluator` + `skills/agentic-tool-trainer`.
 > **Version**: 1.0.0 (2026-05-28)
 > **Scope**: AAIF cross-vendor. Vendor-neutral; no host-specific hardcoding.
 > **Lineage**: extends `agents/forge.md` KPI + Goldilocks/RBAD to ALL agentic-tool types; complements `skills/skill-writer` (authoring) and `skills/rule-quality-tests` (rule self-validity).
@@ -42,17 +42,19 @@ Agents/commands in this repo use a lighter frontmatter (`name`, `description`, o
 
 ---
 
-## 3. The lifecycle (create → evaluate → train)
+## 3. The lifecycle (create / adopt → evaluate → train)
 
 ```
-        skill-writer / forge          agentic-tool-evaluator        agentic-tool-trainer
-AUTHOR ───────────────────────▶ EVALUATE ──────────────────▶ TRAIN ──┐
-  (create SKILL.md / agent)      (behavioral score + report)   (improve OR distill)
-        ▲                                                              │
-        └──────────────── re-author / finalize distilled draft ◀──────┘
+   forge / skill-writer     agentic-tool-intake       agentic-tool-evaluator     agentic-tool-trainer
+ ┌─ AUTHOR ──────────┐                                                                            
+ │  (create new)     ├──▶ INTAKE ──(verdict)──▶ EVALUATE ──────────────▶ TRAIN ──┐
+ └─ (external cand.) ─┘    (adopt-or-not)        (behavioral score)       (improve OR distill)
+        ▲                       │ create-internally                              │
+        └───────────────────────┘ ◀─── re-author / finalize distilled draft ◀────┘
 ```
 
 - **Author** is OUT of scope for evaluator/trainer (use `skill-writer` for skills, `forge` for agents).
+- **Intake** = given a candidate that **already exists** (external repo/MCP/plugin/skill, or an internal proposal), DECIDE whether & how to take it on: `install · create-internally(→forge) · absorb · adapt · sub-agent · abandon · defer-HITL`. A thin composer (`skills/agentic-tool-intake`) — reimplements nothing; on `create-internally` it routes back to **forge**, on `install` it delegates the governed install to `claude-code-concierge`. Distinct from forge (which assumes the artifact does NOT yet exist).
 - **Evaluate** = score current behavior. Read-only. → produces `EVAL-REPORT`.
 - **Train** = consume the report → improve (mutate, supervised) OR distill (emit new draft from a trace). Hands finalization back to `skill-writer`/`forge`.
 
