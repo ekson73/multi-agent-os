@@ -1,6 +1,7 @@
 ---
 name: agentic-tool-intake
 description: Use when you have a CANDIDATE tool that already exists (an external repo/MCP/plugin/skill someone found, e.g. from a GitHub trend or a YouTube review — OR an internal proposal) and need to decide whether and HOW to take it on. Triggers — "should I adopt this tool?", "is X worth installing?", "vet/appraise this repo/MCP for us", "should we install or build our own?", "does this conflict with what we already have?", "intake this candidate", "avalie se vale adotar X", "instalar ou criar?". It runs the adoption-decision pipeline (understand → research similars → compare/cross → validate viability → DECIDE among install/create-internally/absorb/adapt/sub-agent/abandon/defer-HITL) and, only when the verdict is INSTALL and the operator says GO, delegates a governed install. It does NOT create a tool from a bare intent (→ agentic-tool-forge), score an already-owned tool (→ agentic-tool-evaluator), or improve one (→ agentic-tool-trainer). A thin composer — it reimplements none of those; it decides.
+version: "0.1.0"
 metadata:
   version: "0.1.0"
   scope: AAIF cross-vendor
@@ -32,10 +33,13 @@ adoption decision-matrix. It reimplements no research engine, no install machine
 
 ## §0 — BEING > Rules (foundational)
 
-Serves the operator's intent. If a phase obstructs delivering the decision NOW, skip it + log
-`Skipped <phase> — BEING > Rules` + proceed. **HUMAN_DOMAIN** (secrets/credentials · production/irreversible ·
-cross-org · cost · anything the candidate would expose) → the verdict becomes **DEFER-HITL**, never an
-autonomous install. Install is ALWAYS confirm-gated (§6).
+Serves the operator's intent. If a phase obstructs delivering the decision NOW, you may skip a
+**non-safety nicety** (verbosity · pedagogical ordering · an optional research pass) + log
+`Skipped <phase> — BEING > Rules` + proceed. **Safety gates are NEVER skippable** — the install
+confirm-gate (§6), trust-tier-before-enable, capability-detect-don't-fabricate, secrets-never-inline,
+and HUMAN_DOMAIN ⇒ DEFER-HITL all hold regardless. **HUMAN_DOMAIN** (secrets/credentials ·
+production/irreversible · cross-org · cost · anything the candidate would expose) → the verdict becomes
+**DEFER-HITL**, never an autonomous install. Install is ALWAYS confirm-gated + dry-run-default (§6).
 
 ## Parameters
 

@@ -7,6 +7,8 @@ allowed-tools: [Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task, 
 
 # /agentic-tool-intake
 
+> **Invocation**: `/maos:agentic-tool-intake` where the host supports `command_namespace`; otherwise the function-specific filename `/agentic-tool-intake` (Sandwich-Namespacing fallback). Bare `# /<name>` H1 matches the repo convention for all command wrappers.
+
 Invoke the **`agentic-tool-intake`** skill (Claude Code: `Skill` tool with `skill: "agentic-tool-intake"`; other hosts: the equivalent skill-activation mechanism), passing the arguments below.
 
 **Arguments**: `$ARGUMENTS`
