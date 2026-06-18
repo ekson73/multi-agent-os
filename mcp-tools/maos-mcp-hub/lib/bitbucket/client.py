@@ -1297,6 +1297,35 @@ class BitbucketPipelineClient:
             limiter=self.rate_limiter,
         )
 
+    async def decline_pull_request(self, pr_id: int) -> dict:
+        """
+        Decline (close without merging) a pull request as the authenticated user.
+
+        Use to close obsolete/superseded PRs that must NOT be merged. Reversal
+        requires reopening (a new push/PR). Registered under the token owner's
+        identity (or the named `account` resolved by the caller).
+
+        Bitbucket API: POST /2.0/repositories/{workspace}/{repo}/pullrequests/{id}/decline
+
+        Args:
+            pr_id: Pull request ID
+
+        Returns:
+            dict: The declined PR object (state == "DECLINED")
+
+        Raises:
+            ApiError: If API request fails (404 if not found, 555 if already declined/merged)
+        """
+        return await request_json(
+            method="POST",
+            url=f"{self.base_url}/pullrequests/{pr_id}/decline",
+            provider=self._provider_name,
+            auth_hint=self._auth_hint,
+            auth_kwargs=self._auth_kwargs,
+            timeout=30.0,
+            limiter=self.rate_limiter,
+        )
+
     async def create_pull_request(
         self,
         title: str,
