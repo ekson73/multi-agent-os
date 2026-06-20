@@ -18,7 +18,7 @@ set -euo pipefail
 # =============================================================================
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
-PLUGIN_VERSION="1.14.0"
+PLUGIN_VERSION="1.15.0"
 CLAUDE_DIR="${HOME}/.claude"
 AUDIT_DIR="${CLAUDE_DIR}/audit"
 SESSION_ID="${CLAUDE_SESSION_ID:-$(date +%Y%m%d)-$(openssl rand -hex 2)}"
@@ -84,7 +84,7 @@ configure_statusline_settings() {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
   "statusLine": {
     "type": "command",
-    "command": "bash ${dest}"
+    "command": "bash \"${dest}\""
   }
 }
 SETTINGS
@@ -107,7 +107,7 @@ SETTINGS
   cp "$settings" "${settings}.bak"
   local tmp
   tmp=$(mktemp)
-  if jq --arg cmd "bash ${dest}" \
+  if jq --arg cmd "bash \"${dest}\"" \
         'del(.statusline) | .statusLine = {type: "command", command: $cmd}' \
         "$settings" > "$tmp" 2>/dev/null && jq empty "$tmp" 2>/dev/null; then
     mv "$tmp" "$settings"; echo "configured"
