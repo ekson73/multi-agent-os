@@ -50,9 +50,10 @@ If using multi-agent-os plugin, templates are synced automatically via `/multi-a
 cp statusline-command.sh ~/.claude/
 chmod +x ~/.claude/statusline-command.sh
 
-# Add to ~/.claude/settings.json:
+# Add to ~/.claude/settings.json (key is camelCase "statusLine" -- lowercase is silently ignored):
 {
-  "statusline": {
+  "statusLine": {
+    "type": "command",
     "command": "bash ~/.claude/statusline-command.sh"
   }
 }
