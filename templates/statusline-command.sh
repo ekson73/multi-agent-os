@@ -2,7 +2,7 @@
 
 # /**
 #  * Enriched Status Line for Claude Code with Multi-Agent-OS Integration
-#  * @version 1.0.2
+#  * @version 1.1.0
 #  * @author Multi-Agent-OS Framework
 #  * @context Displays model, project, branch, worktree, state, cost, and context metrics
 #  * @reason Provides real-time visibility into session state and resource usage
@@ -59,18 +59,29 @@ COST_USD=$(echo "$INPUT" | jq -r '.cost.total_cost_usd // 0')
 
 # Context window info
 CONTEXT_MAX=$(echo "$INPUT" | jq -r '.context_window.context_window_size // 200000')
+CONTEXT_USED_PCT_RAW=$(echo "$INPUT" | jq -r '.context_window.used_percentage // empty')
 CONTEXT_INPUT=$(echo "$INPUT" | jq -r '.context_window.current_usage.input_tokens // 0')
 CONTEXT_OUTPUT=$(echo "$INPUT" | jq -r '.context_window.current_usage.output_tokens // 0')
+CONTEXT_CACHE_READ=$(echo "$INPUT" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0')
+CONTEXT_CACHE_CREATE=$(echo "$INPUT" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0')
 
 # ============================================================================
 # CALCULATED METRICS
 # ============================================================================
 
-# Context usage percentage
+# Context usage percentage.
+# Prefer Claude Code's authoritative .context_window.used_percentage (computed over
+# ALL token types). Fallback: sum input + output + cache_read + cache_creation over
+# the window size -- NOT input-only, which under-reports when the cache dominates.
 CONTEXT_USED_PCT=0
-if [ "$CONTEXT_MAX" -gt 0 ]; then
-  CONTEXT_USED_PCT=$((CONTEXT_INPUT * 100 / CONTEXT_MAX))
+if [ -n "$CONTEXT_USED_PCT_RAW" ] && [ "$CONTEXT_USED_PCT_RAW" != "null" ]; then
+  CONTEXT_USED_PCT=$(printf '%.0f' "$CONTEXT_USED_PCT_RAW" 2>/dev/null || echo 0)
+elif [ "$CONTEXT_MAX" -gt 0 ]; then
+  CONTEXT_TOTAL=$((CONTEXT_INPUT + CONTEXT_OUTPUT + CONTEXT_CACHE_READ + CONTEXT_CACHE_CREATE))
+  CONTEXT_USED_PCT=$((CONTEXT_TOTAL * 100 / CONTEXT_MAX))
 fi
+[ "$CONTEXT_USED_PCT" -lt 0 ] && CONTEXT_USED_PCT=0
+[ "$CONTEXT_USED_PCT" -gt 100 ] && CONTEXT_USED_PCT=100
 
 # Until auto-compact percentage (threshold ~95%)
 UNTIL_COMPACT=$((95 - CONTEXT_USED_PCT))
