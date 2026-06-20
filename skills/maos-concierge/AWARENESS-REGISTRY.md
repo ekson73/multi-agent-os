@@ -55,7 +55,7 @@ Tier 6  External reach        → maos-mcp-hub (6 typed Atlassian gateways)
 
 ## Commands (`commands/*.md`) — ~14
 
-`/sync` (framework sync) · `/audit` · `/status` (`/agentic-status`) · `/worktree` · `/delegate` · `/auto-pilot` · `/auto-shard` · `/mvv` · `/quiesce` · `/founder-playbook` · `/analyze` · `/code` · …
+`/sync` (framework sync) · `/audit` · `/agentic-status` · `/worktree` · `/delegate` · `/auto-pilot` · `/auto-shard` · `/mvv` · `/quiesce` · `/founder-playbook` · `/analyze` · `/code` · …
 
 ## Protocols & governances
 

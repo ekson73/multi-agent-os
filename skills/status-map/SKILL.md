@@ -66,12 +66,12 @@ Generate ASCII-based visualizations for human observability of AI agent sessions
 
 | Command | Template |
 |---------|----------|
-| `/status` | COMPACT |
-| `/status full` | FULL_REPORT |
-| `/status debug` | ERROR_DEBUG |
-| `/status pre` | PRE_COMMIT |
-| `/status end` | SESSION_END |
-| `/status pulse` | PULSE |
+| `/agentic-status` | COMPACT |
+| `/agentic-status full` | FULL_REPORT |
+| `/agentic-status debug` | ERROR_DEBUG |
+| `/agentic-status pre` | PRE_COMMIT |
+| `/agentic-status end` | SESSION_END |
+| `/agentic-status pulse` | PULSE |
 
 ## Template Inference
 

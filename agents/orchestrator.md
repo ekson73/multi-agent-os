@@ -83,7 +83,7 @@ Before delegating, always check:
 |---------|-------------|
 | `/delegate` | Spawn sub-agent with task |
 | `/parallel` | Spawn multiple agents |
-| `/status` | Show active sub-agents |
+| `/agentic-status` | Show active sub-agents |
 | `/consolidate` | Merge agent outputs |
 | `/escalate` | Return to parent |
 
