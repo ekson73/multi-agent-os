@@ -46,11 +46,11 @@ O AI agent seleciona automaticamente o template baseado em:
 ### Manual (Override)
 
 Comandos disponiveis:
-- `/status` → COMPACT
-- `/status full` → FULL_REPORT
-- `/status debug` → ERROR_DEBUG
-- `/status start` → SESSION_START
-- `/status end` → SESSION_END
+- `/agentic-status` → COMPACT
+- `/agentic-status full` → FULL_REPORT
+- `/agentic-status debug` → ERROR_DEBUG
+- `/agentic-status start` → SESSION_START
+- `/agentic-status end` → SESSION_END
 
 ## Design Principles
 

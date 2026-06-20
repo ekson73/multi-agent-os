@@ -7,7 +7,7 @@ description: Display human-readable status of the agentic system (git + agents +
 
 Displays human-readable ASCII status visualizations for the current agentic-system session (git + agents + sentinel + locks).
 
-> **Renamed from `/status`** in v1.5.1 to avoid collision with Claude Code built-in `/status` (which shows session/model/auth metadata). The deprecation alias `/status` remains functional for 1 release with warning; will be hard-removed in v1.6.0.
+> **Renamed from `/status`** in v1.5.1 to avoid collision with Claude Code built-in `/status` (which shows session/model/auth metadata). The deprecation alias `/status` was hard-removed in v1.16.0.
 
 ## Usage
 

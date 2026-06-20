@@ -74,7 +74,7 @@ Detect which MAOS surfaces are present before orienting. Degrade gracefully + em
 | **Decide whether to CREATE a new agent** | `forge` agent | 33 Socratic Questions + RBAD + Goldilocks | concierge ROUTES to Forge; never forges itself |
 | **Merge parallel branches safely** | `hierarchical-merge` skill | Hierarchical Merge Protocol (merge-to-parent, not main) | exception prefixes `bugfix/ hotfix/ emergency/` |
 | **Observe / detect orchestration anomalies** | `audit` skill · `sentinel-monitor` agent | Sentinel Protocol (10 rules, health score, auto-block HIGH) | `/audit` command |
-| **Visualize status for humans** | `status-map` skill · `/status` (`/agentic-status`) | Status Map (9 templates) | ASCII-first (human observability value) |
+| **Visualize status for humans** | `status-map` skill · `/agentic-status` | Status Map (9 templates) | ASCII-first (human observability value) |
 | **Pick the best sub-agent for a task** | `agent-select` skill | RBAD taxonomy | `context-prep` to package the brief |
 | **Converge ≥2 competing proposals** | `converge` skill | 5-act audit-not-persuasion protocol | vendor-neutral |
 | **Reach Atlassian (Jira/Confluence/Bitbucket/Compass)** | `maos-mcp-hub` 6 typed gateways | `_agent_feedback` governance hints | (downstream of this framework) |

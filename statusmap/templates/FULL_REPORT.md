@@ -2,7 +2,7 @@
 
 **Proposito**: Relatorio completo para analise profunda
 **Tempo de absorcao**: 60-120 segundos
-**Trigger**: Manual (`/status full`)
+**Trigger**: Manual (`/agentic-status full`)
 
 ---
 

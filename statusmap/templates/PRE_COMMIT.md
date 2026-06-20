@@ -2,7 +2,7 @@
 
 **Proposito**: Validacao antes de commit
 **Tempo de absorcao**: 8-10 segundos
-**Trigger**: Automatico (pre-commit) ou `/status pre`
+**Trigger**: Automatico (pre-commit) ou `/agentic-status pre`
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Proposito**: Verificacao rapida entre tarefas
 **Tempo de absorcao**: 3-5 segundos
-**Trigger**: `/status` ou automatico (quick check)
+**Trigger**: `/agentic-status` ou automatico (quick check)
 
 ---
 
