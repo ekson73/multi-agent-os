@@ -2,9 +2,13 @@
 # /**
 #  * Session Start Hook - MAOS (Multi-Agent OS)
 #  * @context Claude Code plugin hook - executes at session initialization
-#  * @reason Initialize audit logging, auto-install templates, validate environment
-#  * @impact Ensures all multi-agent protocols are active from session start
-#  * @version 1.2.0
+#  * @reason Initialize audit logging, install statusline capability, validate environment
+#  * @impact Multi-agent protocols active from session start. Statusline wiring is
+#  *         OPT-IN + never-overwrite (good-neighbor): the default only SUGGESTS the
+#  *         capability, respecting the operator's freedom to choose their own status
+#  *         line. Writes the canonical camelCase "statusLine" key with a "type" field
+#  *         (lowercase "statusline" is silently ignored by Claude Code).
+#  * @version 1.14.0
 #  */
 
 set -euo pipefail
@@ -14,7 +18,7 @@ set -euo pipefail
 # =============================================================================
 
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
-PLUGIN_VERSION="1.2.0"
+PLUGIN_VERSION="1.14.0"
 CLAUDE_DIR="${HOME}/.claude"
 AUDIT_DIR="${CLAUDE_DIR}/audit"
 SESSION_ID="${CLAUDE_SESSION_ID:-$(date +%Y%m%d)-$(openssl rand -hex 2)}"
@@ -28,72 +32,88 @@ install_statusline() {
   local src="${PLUGIN_ROOT}/templates/statusline-command.sh"
   local dest="${CLAUDE_DIR}/statusline-command.sh"
   local settings="${CLAUDE_DIR}/settings.json"
-  local installed=false
-  local updated=false
 
-  # Check if source template exists
+  # --- Operator-freedom gate (good-neighbor: opt-in, never impose) -------------
+  # OFF: explicit opt-out -> touch nothing at all.
+  if [ "${MAOS_STATUSLINE:-}" = "off" ] || [ -f "${CLAUDE_DIR}/.maos-no-statusline" ]; then
+    echo "off"; return 0
+  fi
+
+  # Template must be available.
   if [ ! -f "$src" ]; then
-    return 0  # Template not available, skip silently
+    echo "skip"; return 0
   fi
 
-  # Install or update statusline script
+  # Install/update the renderer SCRIPT only (a file in ~/.claude; NOT a config
+  # mutation -> harmless, keeps the capability ready if the operator opts in).
   if [ ! -f "$dest" ]; then
-    cp "$src" "$dest"
-    chmod +x "$dest"
-    installed=true
+    cp "$src" "$dest"; chmod +x "$dest"
   else
-    # Check if update needed (compare checksums)
-    local src_hash=$(md5 -q "$src" 2>/dev/null || md5sum "$src" | cut -d' ' -f1)
-    local dest_hash=$(md5 -q "$dest" 2>/dev/null || md5sum "$dest" | cut -d' ' -f1)
-    if [ "$src_hash" != "$dest_hash" ]; then
-      cp "$src" "$dest"
-      chmod +x "$dest"
-      updated=true
-    fi
+    local src_hash dest_hash
+    src_hash=$(md5 -q "$src" 2>/dev/null || md5sum "$src" | cut -d' ' -f1)
+    dest_hash=$(md5 -q "$dest" 2>/dev/null || md5sum "$dest" | cut -d' ' -f1)
+    if [ "$src_hash" != "$dest_hash" ]; then cp "$src" "$dest"; chmod +x "$dest"; fi
   fi
 
-  # Configure settings.json if needed
-  if [ -f "$settings" ]; then
-    # Check if statusline already configured
-    if ! grep -q '"statusline"' "$settings" 2>/dev/null; then
-      configure_statusline_settings "$settings"
-    fi
-  else
-    # Create minimal settings.json with statusline
+  # AUTO: only WIRE settings.json when the operator explicitly opted in.
+  if [ "${MAOS_STATUSLINE:-}" = "auto" ] || [ -f "${CLAUDE_DIR}/.maos-statusline-optin" ]; then
+    configure_statusline_settings "$settings" "$dest"
+    return 0
+  fi
+
+  # DEFAULT (suggest): never mutate the operator's settings.json. Signal a hint
+  # so main() can OFFER the capability without imposing it.
+  echo "suggest"
+}
+
+# Opt-in writer. Uses the CANONICAL camelCase "statusLine" key WITH a "type"
+# field (lowercase "statusline" is silently ignored by Claude Code). NEVER
+# overwrites an existing functional statusLine; self-heals legacy lowercase cruft.
+configure_statusline_settings() {
+  local settings="$1"
+  local dest="$2"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "manual"; return 0   # no jq -> let the operator configure manually
+  fi
+
+  # Fresh settings.json -> create with the correct key.
+  if [ ! -f "$settings" ]; then
     cat > "$settings" << SETTINGS
 {
   "\$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "statusline": {
+  "statusLine": {
+    "type": "command",
     "command": "bash ${dest}"
   }
 }
 SETTINGS
-    installed=true
+    echo "installed"; return 0
   fi
 
-  # Return status for logging
-  if [ "$installed" = true ]; then
-    echo "installed"
-  elif [ "$updated" = true ]; then
-    echo "updated"
+  # Respect an existing, functional statusLine (camelCase object) -> never overwrite.
+  local kind
+  kind=$(jq -r '
+    if   (.statusLine | type) == "object" then "camel"
+    elif (.statusline | type) == "object" then "lower"
+    else "none" end' "$settings" 2>/dev/null || echo "err")
+  case "$kind" in
+    camel) echo "exists"; return 0 ;;   # operator already has one -> leave it alone
+    err)   echo "skip";   return 0 ;;   # unreadable -> do not risk a write
+  esac
+
+  # kind = none | lower -> write canonical camelCase, dropping non-functional
+  # lowercase cruft if present.
+  cp "$settings" "${settings}.bak"
+  local tmp
+  tmp=$(mktemp)
+  if jq --arg cmd "bash ${dest}" \
+        'del(.statusline) | .statusLine = {type: "command", command: $cmd}' \
+        "$settings" > "$tmp" 2>/dev/null && jq empty "$tmp" 2>/dev/null; then
+    mv "$tmp" "$settings"; echo "configured"
   else
-    echo "ok"
+    rm -f "$tmp"; echo "skip"
   fi
-}
-
-configure_statusline_settings() {
-  local settings="$1"
-  local dest="${CLAUDE_DIR}/statusline-command.sh"
-
-  # Use jq if available for safe JSON manipulation
-  if command -v jq &> /dev/null; then
-    # Create backup before modifying
-    cp "$settings" "${settings}.bak"
-    local tmp=$(mktemp)
-    trap 'rm -f "$tmp" 2>/dev/null' EXIT
-    jq --arg cmd "bash ${dest}" '. + {statusline: {command: $cmd}}' "$settings" > "$tmp" && mv "$tmp" "$settings"
-  fi
-  # If jq not available, skip - user can configure manually
 }
 
 # =============================================================================
@@ -118,10 +138,13 @@ main() {
   # Initialize audit logging
   initialize_audit
   
-  # Auto-install statusline (silent, non-blocking)
-  local statusline_status
+  # Install statusline capability (opt-in wiring; never imposes -- good-neighbor)
+  local statusline_status statusline_hint=""
   statusline_status=$(install_statusline 2>/dev/null || echo "skip")
-  
+  if [ "$statusline_status" = "suggest" ]; then
+    statusline_hint="MAOS enriched statusline available (context meter, cost, git). To enable: export MAOS_STATUSLINE=auto (or: touch ~/.claude/.maos-statusline-optin), then start a new session. To silence: export MAOS_STATUSLINE=off."
+  fi
+
   # Output to Claude Code
   cat << OUTPUT
 {
@@ -130,7 +153,8 @@ main() {
   "session_id": "${SESSION_ID}",
   "version": "${PLUGIN_VERSION}",
   "auto_install": {
-    "statusline": "${statusline_status}"
+    "statusline": "${statusline_status}",
+    "statusline_hint": "${statusline_hint}"
   },
   "protocols": {
     "sentinel": "v1.0.0",
