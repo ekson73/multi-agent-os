@@ -37,7 +37,7 @@ multi-agent-os/
 ├── commands/                 # Slash commands (auto-discovered)
 │   ├── sync.md              # /sync - Framework sync
 │   ├── audit.md             # /audit - Session auditing
-│   ├── status.md            # /status - Status visualization
+│   ├── agentic-status.md    # /agentic-status - Status visualization
 │   ├── worktree.md          # /worktree - Worktree management
 │   └── delegate.md          # /delegate - Task delegation
 ├── agents/                   # Agent definitions

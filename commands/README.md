@@ -10,7 +10,7 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 |---------|------|-------------|
 | `/sync` | `sync.md` | Sync content from framework to consumer |
 | `/audit` | `audit.md` | On-demand session/agent/task auditing |
-| `/status` | `status.md` | Display human-readable status maps |
+| `/agentic-status` | `agentic-status.md` | Display human-readable status maps |
 | `/worktree` | `worktree.md` | Manage git worktrees |
 | `/delegate` | `delegate.md` | Delegate tasks to sub-agents |
 | `/founder-playbook` | `founder-playbook.md` | Diagnose AI-native startup stage + route to stage skills |
@@ -22,7 +22,7 @@ Slash commands for the multi-agent-os plugin. Commands are auto-discovered by Cl
 
 ### Observability
 - `/audit` — Deep analysis via Sentinel Protocol
-- `/status` — Quick visual status check
+- `/agentic-status` — Quick visual status check
 
 ### Coordination
 - `/worktree` — Git worktree management
@@ -54,7 +54,7 @@ Commands are invoked in Claude Code conversations:
 ```
 /sync all
 /audit session
-/status
+/agentic-status
 /worktree create c614-feature
 /delegate analyst "Review the requirements"
 ```

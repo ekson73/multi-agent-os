@@ -10,7 +10,7 @@ Covers 4 operation axes × 3 provider domains. Agents use this to stop re-decidi
 - **Ticket providers**: Jira (`VKS-*`) · Linear (`VKO-*`, `EKO-*`)
 - **VCS providers**: Bitbucket · GitHub · GitLab
 - **Secrets**: 1Password CLI (`op`)
-- **Observability**: session audit JSONL + `/status` + `/audit` skills
+- **Observability**: session audit JSONL + `/agentic-status` + `/audit` skills
 
 Legend: `→` means fallback. Paths are relative to repo root unless noted.
 
@@ -90,7 +90,7 @@ Rule: **never** print a secret to stdout in a message that might be logged outsi
 | Operation | Primary | Fallback 1 |
 |---|---|---|
 | write a trace event | append line to `~/.claude/audit/session_${CLAUDE_SESSION_ID}.jsonl` (pattern in `plugin-scripts/pre-delegate.sh` and `post-delegate.sh`) | `printf '%s\n' "$EVENT" >> session.log` |
-| session status (human-readable) | `/status` skill → `skills/status-map/SKILL.md` (templates PULSE / COMPACT / FULL / DEBUG / PRE / END) | `git log --oneline -5 && git worktree list` |
+| session status (human-readable) | `/agentic-status` skill → `skills/status-map/SKILL.md` (templates PULSE / COMPACT / FULL / DEBUG / PRE / END) | `git log --oneline -5 && git worktree list` |
 | session audit on-demand | `/audit` skill → `skills/audit/SKILL.md` | grep of `session_*.jsonl` |
 
 ---

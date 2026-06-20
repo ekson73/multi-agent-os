@@ -2,7 +2,7 @@
 
 **Proposito**: Handoff ao finalizar sessao
 **Tempo de absorcao**: 20-30 segundos
-**Trigger**: Automatico (fim de sessao) ou `/status end`
+**Trigger**: Automatico (fim de sessao) ou `/agentic-status end`
 
 ---
 

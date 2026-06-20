@@ -37,27 +37,27 @@ O motor de inferencia seleciona automaticamente o template apropriado baseado em
 
 ### Sintaxe Base
 ```
-/status [modificador]
+/agentic-status [modificador]
 ```
 
 ### Comandos Disponiveis
 
 | Comando | Template | Descricao |
 |---------|----------|-----------|
-| `/status` | `COMPACT` | Status resumido padrao |
-| `/status full` | `FULL_REPORT` | Relatorio completo |
-| `/status debug` | `ERROR_DEBUG` | Diagnostico de erros |
-| `/status start` | `SESSION_START` | Estado inicial |
-| `/status end` | `SESSION_END` | Handoff/resumo final |
-| `/status pre` | `PRE_COMMIT` | Validacao pre-commit |
-| `/status silent` | `NONE` | Suprimir proximo status |
+| `/agentic-status` | `COMPACT` | Status resumido padrao |
+| `/agentic-status full` | `FULL_REPORT` | Relatorio completo |
+| `/agentic-status debug` | `ERROR_DEBUG` | Diagnostico de erros |
+| `/agentic-status start` | `SESSION_START` | Estado inicial |
+| `/agentic-status end` | `SESSION_END` | Handoff/resumo final |
+| `/agentic-status pre` | `PRE_COMMIT` | Validacao pre-commit |
+| `/agentic-status silent` | `NONE` | Suprimir proximo status |
 
 ### Aliases Rapidos
 | Alias | Equivalente |
 |-------|-------------|
-| `/s` | `/status` |
-| `/sf` | `/status full` |
-| `/sd` | `/status debug` |
+| `/s` | `/agentic-status` |
+| `/sf` | `/agentic-status full` |
+| `/sd` | `/agentic-status debug` |
 
 ---
 

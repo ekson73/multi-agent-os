@@ -2,7 +2,7 @@
 
 **Proposito**: Diagnostico quando ocorre erro ou bloqueio
 **Tempo de absorcao**: 15-20 segundos
-**Trigger**: Automatico (erro detectado) ou `/status debug`
+**Trigger**: Automatico (erro detectado) ou `/agentic-status debug`
 
 ---
 
