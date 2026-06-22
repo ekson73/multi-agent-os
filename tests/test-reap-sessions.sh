@@ -36,9 +36,9 @@ mkwt fresh-clean  "$(date +%Y-%m-%dT%H:%M:%S)"           # recent + clean → UN
 # a merged orphan branch (no worktree) → safe -d ; and an UNMERGED branch → must survive
 git -C "$R" branch merged-orphan main
 git -C "$R" branch -q unmerged-keep main
-git -C "$R" worktree add -q "$R/.worktrees/_um" unmerged-keep >/dev/null
-echo z > "$R/.worktrees/_um/z"; git -C "$R/.worktrees/_um" add z; git -C "$R/.worktrees/_um" commit -qm um
-git -C "$R" worktree remove "$R/.worktrees/_um"   # branch unmerged-keep now has unmerged commit, no worktree
+git -C "$R" worktree add -q "$R/.worktrees/a-unmerged" unmerged-keep >/dev/null
+echo z > "$R/.worktrees/a-unmerged/z"; git -C "$R/.worktrees/a-unmerged" add z; git -C "$R/.worktrees/a-unmerged" commit -qm um
+git -C "$R" worktree remove "$R/.worktrees/a-unmerged"   # branch unmerged-keep now has unmerged commit, no worktree
 
 [ -x "$REAPER" ] || { echo "RED: $REAPER not executable yet (expected pre-impl)"; exit 1; }
 
@@ -58,6 +58,8 @@ chk "apply: fresh-clean PRESERVED (age guard)"      "[ -e '$R/.worktrees/fresh-c
 chk "apply: merged-orphan branch deleted"           "! git -C '$R' branch --list merged-orphan | grep -q ."
 chk "apply: unmerged-keep branch SURVIVES"          "git -C '$R' branch --list unmerged-keep | grep -q ."
 chk "apply: main worktree untouched"                "[ -e '$R/f' ]"
+chk "apply: JSON reports dry_run=false"             "echo '$APP' | grep -q '\"dry_run\"[: ]*false'"
+chk "apply: JSON reaped_worktrees lists stale-clean" "echo '$APP' | grep -q '\"reaped_worktrees\"[^]]*stale-clean'"
 
 # ── 3. IDEMPOTENT: re-apply is a no-op (nothing left eligible+clean) ────────────
 RE="$("$REAPER" --repo-dir "$R" --stale-days 7 --apply --json)"

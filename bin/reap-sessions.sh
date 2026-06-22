@@ -13,8 +13,8 @@ set -euo pipefail
 REPO_DIR="$PWD"; STALE_DAYS=7; APPLY=0; JSON=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --repo-dir)   REPO_DIR="$2"; shift 2;;
-    --stale-days) STALE_DAYS="$2"; shift 2;;
+    --repo-dir)   [ $# -ge 2 ] || { echo "reap-sessions: --repo-dir requires a value" >&2; exit 2; }; REPO_DIR="$2"; shift 2;;
+    --stale-days) [ $# -ge 2 ] || { echo "reap-sessions: --stale-days requires a value" >&2; exit 2; }; STALE_DAYS="$2"; shift 2;;
     --apply)      APPLY=1; shift;;
     --json)       JSON=1; shift;;
     -h|--help)    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
@@ -27,7 +27,8 @@ git -C "$REPO_DIR" rev-parse --git-dir >/dev/null 2>&1 \
   || { echo "reap-sessions: not a git repo: $REPO_DIR" >&2; exit 1; }
 
 # ── good-neighbor: defer if a peer holds the index lock (never fight a concurrent writer) ──
-COMMON="$(cd "$REPO_DIR" && git rev-parse --git-common-dir)"
+COMMON="$(cd "$REPO_DIR" 2>/dev/null && git rev-parse --git-common-dir)" \
+  || { echo "reap-sessions: cannot access repo dir: $REPO_DIR" >&2; exit 1; }
 case "$COMMON" in /*) ;; *) COMMON="$REPO_DIR/$COMMON";; esac
 if [ -e "$COMMON/index.lock" ]; then
   if [ "$JSON" -eq 1 ]; then
@@ -41,7 +42,12 @@ fi
 MAIN_TOP="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
 NOW="$(date +%s)"
 DEFAULT_BRANCH="$(git -C "$REPO_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
-[ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)"
+if [ -z "$DEFAULT_BRANCH" ]; then   # no origin/HEAD → prefer a REAL default; NEVER silently the current branch
+  for _cand in main master; do      #   (else `branch --merged` would delete branches merged into a feature branch)
+    if git -C "$REPO_DIR" show-ref --verify --quiet "refs/heads/$_cand"; then DEFAULT_BRANCH="$_cand"; break; fi
+  done
+fi
+[ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)"   # last resort
 
 reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=()
 
@@ -54,6 +60,7 @@ emit_wt() {
   local ts age elig=0 reason=""
   ts="$(git -C "$p" log -1 --format=%ct 2>/dev/null || echo 0)"
   age=$(( (NOW - ts) / 86400 ))
+  [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
   if [ "$det" -eq 1 ] || [ -z "$b" ]; then elig=1; reason="orphan-detached"; fi
   if [ "$age" -gt "$STALE_DAYS" ]; then elig=1; reason="${reason:+$reason,}stale-${age}d"; fi
   [ "$elig" -eq 1 ] || return 0
@@ -90,9 +97,14 @@ while IFS= read -r b; do
 done < <(git -C "$REPO_DIR" branch --merged "$DEFAULT_BRANCH" --format='%(refname:short)')
 
 # ── output ──
-jarr() {  # bash-3.2-safe JSON array from "$@"
+jarr() {  # bash-3.2-safe JSON array from "$@" (escapes \ then " → valid JSON for downstream parsers)
   [ "$#" -eq 0 ] && { printf '[]'; return; }
-  local out="" x; for x in "$@"; do out="$out\"$x\","; done; printf '[%s]' "${out%,}"
+  local out="" x e
+  for x in "$@"; do
+    e="${x//\\/\\\\}"; e="${e//\"/\\\"}"    # backslash FIRST, then double-quote
+    out="$out\"$e\","
+  done
+  printf '[%s]' "${out%,}"
 }
 if [ "$JSON" -eq 1 ]; then
   printf '{"dry_run":%s,"repo":"%s","stale_days":%s,"reaped_worktrees":%s,"skipped_wip":%s,"would_reap_worktrees":%s,"reaped_branches":%s,"would_reap_branches":%s}\n' \
