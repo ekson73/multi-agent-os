@@ -90,7 +90,7 @@ The environment MUST be left better, safer, and more traceable than it was found
 
 | # | Responsibility | How (safe-or-DEFER) | Composes |
 |---|---|---|---|
-| **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/dogfood-mark` |
+| **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/reap-sessions.sh`, `bin/dogfood-mark` |
 | **P2** | **DEBRIEF** — calculate the session map | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (primary/secondary/auxiliary × sequential/parallel/recursive), gaps, pendings, undecided decisions, unasked/unanswered questions, next-actions ranked by Eisenhower (non-blocked first). Then **render the glance-and-know locus** — D2 status line + D3 ntree + D4 conv — via `bin/locus.sh` (the compact projection of this debrief; grammar SSOT `references/locus-spec.md`), **and the end-of-action scorecard** — `bin/scorecard.py --model N` where `N` is chosen by `bin/scorecard-select-model.sh` (dynamic context-based decision table; round-robin preserved as `--mode round-robin` fallback; see "The End-of-Action Scorecard" below). | `skills/morning-briefing`, `bin/locus.sh`, `bin/scorecard.py`, `bin/scorecard-select-model.sh` |
 | **P2.5** | **TICKET-SYNC** — reconcile the backlog with the session | *(a)* triage each P2 atom (gaps · pendings · undecided · unasked-Qs · out-of-scope) → anti-theater filter → dedup → Eisenhower Q1-Q4 → file under the **cap (≤3 tickets + 1 batch housekeeping ticket)**; *(b)* create/reuse the **idempotent continuation ticket** (search-before-create; body mirrors the seed; provider-relative linkage); *(c)* enrich the anchored ticket. **All ops delegated** to a capability-detected ticketing primitive (no custom state — the tracker is the state). Bounded-autonomous; HITL only for HUMAN_DOMAIN / unknown-provider. **No tracker ⇒ DEFER(ticket), never block.** | `skills/postflight/references/ticket-sync-protocol.md` (SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`) |
 | **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from (the seed carries the D1 `locus` field `<status>·<anchor>·<slug>[·#seq]`, the `session_type`, the `dna` block, the `continuation_ticket` from P2.5, and `tickets_created`); print to screen + best-effort clipboard. DoR = P1+P2+P2.5 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) + `references/continuation-seed-contract.md` v1.1.0 |
@@ -129,8 +129,15 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
 0. Governance discovery (above) — derive the repo's exit + handoff conventions.
 1. P1 SWEEP:
    - git: status clean? worktrees only main? stale branches? unpushed commits? uncommitted
-     edits in main checkout? → commit-via-worktree / push / prune / remove (compose sync-to-git,
-     worktree); open PR or DEFER per workflow. Drive open PRs toward green (compose quiesce).
+     edits in main checkout? → commit-via-worktree / push / open PR or DEFER per workflow.
+     Drive open PRs toward green (compose quiesce).
+   - stale/orphan worktrees + merged orphan branches → **reap** via `bin/reap-sessions.sh`
+     (the executor that closes the detect→act loop; `work-compass`/`worktree-policy` only detect).
+     ALWAYS survey dry-run first (`bin/reap-sessions.sh --repo-dir <repo> --stale-days <N> --json`),
+     read the `would_reap_*` list, then `--apply` ONLY when the SWEEP is clean-to-act
+     (not a DEFER state). The reaper is itself safe-or-DEFER (dry-run default · never `--force`/`-D` ·
+     never the main worktree · never uncommitted WIP · self-defers on a held `index.lock`),
+     so it composes the SWEEP's never-clobber contract — never reaps a peer's live work.
    - docs/ADRs/changelogs: versions reflect this session's changes? cross-refs consistent?
      stale version strings? → fix NOW (P1, never "next session").
    - memories/rules: durable lessons worth persisting? → persist per the repo's memory path.
@@ -321,7 +328,7 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 - `skills/sync-to-git/SKILL.md` · `skills/quiesce/SKILL.md` — git close-out + PR convergence P1 composes.
 - `skills/session-fission/SKILL.md` — orthogonal: it *splits* a tangled session into N seeds; P3 emits *one* resume seed for continuity, and P3.5 reuses its reseed-a-fresh-session idea for continuity-spawn.
 - `bin/spawn-continuation.sh` — the **P3.5 SPAWN** primitive: launches the named, pre-seeded `claude` continuation session (tmux/cmux) with the 7 guardrails; consumes the P3 seed.
-- `commands/worktree.md` · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.
+- `commands/worktree.md` (surfaces `reap`) · `bin/reap-sessions.sh` (the safe executor P1 SWEEP delegates stale/orphan worktree+branch pruning to — dry-run default, never-clobber) · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.
 - `commands/postflight.md` → `/maos:postflight` (ergonomic entry point; surfaces `--spawn`/`--no-spawn`/`--dry-run`).
 - `plugin-scripts/governance/postflight-precompact.sh` — PreCompact hook (deterministic seed snapshot; never blocks; **never spawns**).
 
