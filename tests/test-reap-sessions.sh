@@ -71,5 +71,15 @@ LK="$("$REAPER" --repo-dir "$R" --stale-days 7 --apply --json || true)"
 chk "good-neighbor: defers on index.lock"            "echo '$LK' | grep -qiE 'defer|busy|index.lock'"
 rm -f "$R/.git/index.lock"
 
+# ── 5. main-worktree guard anchors to the TRUE main even when --repo-dir points at a
+#       LINKED worktree (qodo#161): MAIN_TOP = `worktree list` head, NOT --repo-dir's own
+#       toplevel. Pre-fix, --repo-dir=<linked-wt> made `repo` the linked wt (and the real
+#       main could surface as a candidate); post-fix `repo` is always the true main. ──────
+MAIN_REAL="$(git -C "$R" worktree list --porcelain | sed -n '1s/^worktree //p')"
+MP="$("$REAPER" --repo-dir "$R/.worktrees/fresh-clean" --stale-days 7 --json)"
+chk "mis-point: reaper anchors to TRUE main (repo == main, not the linked worktree)" \
+    "echo '$MP' | grep -qF '\"repo\":\"$MAIN_REAL\"'"
+chk "mis-point: main worktree file still intact"     "[ -e '$R/f' ]"
+
 echo "── reaper: $PASS passed, $FAIL failed ──"
 [ "$FAIL" -eq 0 ]

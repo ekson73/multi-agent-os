@@ -39,7 +39,12 @@ if [ -e "$COMMON/index.lock" ]; then
   exit 0
 fi
 
-MAIN_TOP="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
+# MAIN_TOP = the TRUE main worktree (always the 1st `worktree list` entry), NOT --repo-dir's
+# own toplevel — so pointing --repo-dir at a LINKED worktree still protects the real main
+# checkout (qodo#161). Same string-form as the iteration source below → exact compare, and
+# dodges macOS /private-var vs /var-folders canonicalization mismatch. Fallback for old git.
+MAIN_TOP="$(git -C "$REPO_DIR" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+[ -n "$MAIN_TOP" ] || MAIN_TOP="$(git -C "$REPO_DIR" rev-parse --show-toplevel)"
 NOW="$(date +%s)"
 DEFAULT_BRANCH="$(git -C "$REPO_DIR" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
 if [ -z "$DEFAULT_BRANCH" ]; then   # no origin/HEAD → prefer a REAL default; NEVER silently the current branch
