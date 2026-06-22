@@ -2,7 +2,7 @@
 name: agentic-tool-evaluator
 description: Use when you need to evaluate, test, score, benchmark, or QA an agentic-tool (a skill/SKILL.md, agent, subagent, slash-command, prompt, or MCP-tool) — e.g. "is this skill any good?", "does this skill actually trigger?", "test this agent", "did my edit regress the skill?", "compare these two skill versions", "score this command". Produces a behavioral eval report; does NOT author or modify the tool.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   scope: AAIF cross-vendor
 ---
 
@@ -26,7 +26,7 @@ Evaluate the **behavior an agentic-tool induces** — not its source code. A ski
 
 ## Method (behavioral, not unit-test)
 
-1. **Identify** the target tool + its type (skill/agent/command/prompt/MCP-tool) and resolve its path.
+1. **Identify** the target tool + its type (skill/agent/command/prompt/MCP-tool), resolve its path, **and its intended invocation surface** (model auto-trigger · `plugin:name` · human `/slash`). For a human-`/slash` tool, confirm a `commands/<name>.md` wrapper exists — see the Triggering check below.
 2. **Golden set**: locate or build 20–50 `input → expected-behavior` cases. None found? Generate a 3–5 case **smoke-set** from the tool's own description/examples and flag low confidence.
 3. **With/without control**: for each case, run a host agent (a sub-agent via Task is ideal for isolation) WITH the tool present and WITHOUT it. The delta isolates the tool's effect.
 4. **Score** each case 0–5 on: Triggering · TaskCompletion · ToolCorrectness · Efficiency · ScopeFit (−2..+2); plus Regression vs baseline when comparing versions. Rubric details: `protocols/agentic-tool-lifecycle.md` §4.
@@ -51,6 +51,7 @@ Evaluate the **behavior an agentic-tool induces** — not its source code. A ski
 
 | Mistake | Fix |
 |---|---|
+| **Invocation-surface miss** — a skill/agent meant to be human-`/slash`-invokable ships WITHOUT a `commands/<name>.md` wrapper, so typing `/name` does nothing (only auto-trigger / `plugin:name` work) | Score it as a **Triggering FAIL** for the `/slash` surface: the wrapper is what creates the `/name` entry point. Detects, at maintenance/QA time, the gap that `agentic-tool-forge`'s Invocation-surface gate prevents at creation time. (Empirical: a narrative-recap skill landed slash-less.) |
 | Asserting on the markdown source | Score induced **behavior** (with/without control) |
 | Claiming "unit/integration tests pass" | This is behavioral eval — say so; don't fake code-coverage |
 | Fabricating golden cases that don't exercise real behavior | Anti-theater R4 — cases must be runnable + meaningful |
