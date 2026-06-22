@@ -38,6 +38,7 @@ application is a dead file. This is the cure for "we keep re-learning what we al
 **Input:** path to a directive-braindump file. Optional arg = an existing ledger path to update.
 
 ## Distinct-from-siblings (DRY — composes, never duplicates)
+
 - **`agentic-tool-intake`** (skill) decides whether to ADOPT an external tool → this classifies
   operator **DIRECTIVES** already in hand. Different input, different verdict space.
 - **`protocols/agentic-tool-lifecycle.md`** (protocol) governs distill→promote of tools → this
@@ -48,6 +49,7 @@ application is a dead file. This is the cure for "we keep re-learning what we al
 - **anti-theater grounding** (host rule, if present) → used in P6 (no hallucinated provenance).
 
 ## Idempotency contract (non-negotiable)
+
 - **Probe before acting** — read the braindump's `PROCESSED` banner (if any) + any existing
   ledger FIRST; never re-run a triage that already converged.
 - **Update in place** — append/refresh the SAME ledger; never spawn a parallel doc (DRY).
@@ -106,12 +108,14 @@ idempotency contract. Directives #1/#2 are never re-executed (already DONE); #4 
 not silently abandoned.
 
 ## Guard-rails
+
 Recon-before-assume · Dunning-Kruger guard · never re-execute already-DONE directives · escalate
 to a human only post-recon when genuinely beyond reach · stamp any created ticket as agent-authored ·
 auto-merge only within the host's standing-authorization guardrails · transcribe the delegation
 heritage (see `protocols/agent-delegation.md`) on any delegation · keep outputs secret-clean.
 
 ## Provenance
+
 Genesis: distilled as the *form-correspondent* of an operator agentic-posture braindump in a
 downstream project's prompt-library, then elevated to a user-scope skill. Promoted here via the
 `protocols/agentic-tool-lifecycle.md` distill→promote path after clearing the **ADR-005
