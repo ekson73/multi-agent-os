@@ -133,8 +133,10 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
      Drive open PRs toward green (compose quiesce).
    - stale/orphan worktrees + merged orphan branches → **reap** via `bin/reap-sessions.sh`
      (the executor that closes the detect→act loop; `work-compass`/`worktree-policy` only detect).
-     ALWAYS survey dry-run first (`bin/reap-sessions.sh --repo-dir <repo> --stale-days <N> --json`),
-     read the `would_reap_*` list, then `--apply` ONLY when the SWEEP is clean-to-act
+     ALWAYS survey dry-run first — `bin/reap-sessions.sh --repo-dir <main-checkout-root> --stale-days <N> --json`
+     (pass the repo's **main checkout root**, not a linked worktree; the executor additionally
+     resolves the true main worktree defensively even if mis-pointed) — read the `would_reap_*`
+     list, then `--apply` ONLY when the SWEEP is clean-to-act
      (not a DEFER state). The reaper is itself safe-or-DEFER (dry-run default · never `--force`/`-D` ·
      never the main worktree · never uncommitted WIP · self-defers on a held `index.lock`),
      so it composes the SWEEP's never-clobber contract — never reaps a peer's live work.
