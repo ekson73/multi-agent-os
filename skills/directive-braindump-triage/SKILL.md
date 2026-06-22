@@ -5,11 +5,12 @@ description: |
   a prompt-aux / *.braindump.md) against the auto-loaded corpus (rules · memories ·
   tickets) so a future amnesic agent executes ONLY the verified residual and never
   re-processes what is already done. Idempotent: recon-first → decompose into atomic
-  directives → classify each DONE/OPEN/DROP/COVERED + the artifact that fulfills it →
+  directives → classify each DONE/OPEN/DROP-EXPLICIT/COVERED + the artifact that fulfills it →
   inter-dependency DAG → Eisenhower residual roadmap, emitted as a provenance ledger.
   Cures the re-learning anti-pattern: never re-execute an already-satisfied directive.
-  NOT for auditing whether standing rules fire (that is corpus-firing-audit) or for
-  adopting an external tool (use agentic-tool-intake). Cross-vendor AAIF.
+  NOT for auditing whether standing rules fire (a separate corpus firing-audit concern,
+  not a skill in this repo) or for adopting an external tool (use agentic-tool-intake).
+  Cross-vendor AAIF.
 triggers:
   - triage this braindump
   - process this prompt-aux
@@ -39,11 +40,11 @@ application is a dead file. This is the cure for "we keep re-learning what we al
 ## Distinct-from-siblings (DRY — composes, never duplicates)
 - **`agentic-tool-intake`** (skill) decides whether to ADOPT an external tool → this classifies
   operator **DIRECTIVES** already in hand. Different input, different verdict space.
-- **`agentic-tool-lifecycle`** (protocol) governs distill→promote of tools → this triages
-  intentions, then *feeds* lifecycle when a residual warrants a new tool.
-- **corpus-firing-audit** (companion, conceptual): audits the **standing corpus** for
-  firing-vs-theater (artifact → application). This triages a **braindump file** (directive →
-  artifact). Opposite traversal; pair them, never merge them.
+- **`protocols/agentic-tool-lifecycle.md`** (protocol) governs distill→promote of tools → this
+  triages intentions, then *feeds* the lifecycle when a residual warrants a new tool.
+- **corpus-firing-audit** (companion concept, **not a skill in this repo**): audits the **standing
+  corpus** for firing-vs-theater (artifact → application). This triages a **braindump file**
+  (directive → artifact). Opposite traversal; pair the two concepts, never merge them.
 - **anti-theater grounding** (host rule, if present) → used in P6 (no hallucinated provenance).
 
 ## Idempotency contract (non-negotiable)
@@ -79,12 +80,30 @@ Q1 ticket+execute · Q2 ticket+schedule · Q3 ticket+delegate · Q4 note-or-drop
 Drop decisions are logged with rationale (drop-explicit > unpaid memory-debt).
 
 **P5 — Anti-re-learning note + persist.** Record the meta-lesson (provenance + sharpen-an-existing-
-fire-point > add a passive rule). Stamp the source braindump with a `PROCESSED <date>` banner
-pointing at the ledger.
+fire-point > add a passive rule). Stamp the source braindump with a `PROCESSED <YYYY-MM-DD>`
+(ISO-8601) banner pointing at the ledger.
 
 **P6 — Verify + brief.** Confirm every "DONE" cites a real, locatable artifact (no hallucinated
 provenance — every claim points at something a reader can open); emit a short briefing
 (N DONE / OPEN / DROP + the residual next-action).
+
+## Example (input → output)
+**Input:** `directive-braindump-triage docs/scratch/posture.braindump.md`
+
+**Output** — a provenance ledger (excerpt):
+```
+# posture — provenance ledger (generated 2026-06-22)
+| # | directive (atomic)             | status        | fulfilling artifact            |
+|---|--------------------------------|---------------|--------------------------------|
+| 1 | recon the env before assuming  | DONE          | rule: <env-recon rule>         |
+| 2 | stamp agent-authored tickets   | DONE          | rule: <ticket-provenance rule> |
+| 3 | add a posture self-test        | OPEN          | — (residual → Q2 ticket+sched) |
+| 4 | rename every internal variable | DROP-EXPLICIT | rationale: out-of-scope, low value |
+Residual: only #3.  DAG: #3 independent.  Eisenhower: Q2.
+```
+Re-running with no corpus change ⇒ the same ledger (only the `generated` date differs) — the
+idempotency contract. Directives #1/#2 are never re-executed (already DONE); #4 is logged-dropped,
+not silently abandoned.
 
 ## Guard-rails
 Recon-before-assume · Dunning-Kruger guard · never re-execute already-DONE directives · escalate
@@ -93,7 +112,8 @@ auto-merge only within the host's standing-authorization guardrails · transcrib
 heritage (see `protocols/agent-delegation.md`) on any delegation · keep outputs secret-clean.
 
 ## Provenance
-Genesis: `vkl-rct-list-web/docs/prompts/generators/directive-braindump-triage.prompt.md` — the
-form-correspondent distilled from that repo's `agentic-posture.braindump.md`. Elevated to a
-user-scope home, then promoted here after ≥2 dogfood cycles (ADR-005 gate): the triage analyses of
-`agentic-posture.braindump` + `repo-inventory.braindump`. Cross-link slug: `[[directive-braindump-triage]]`.
+Genesis: distilled as the *form-correspondent* of an operator agentic-posture braindump in a
+downstream project's prompt-library, then elevated to a user-scope skill. Promoted here via the
+`protocols/agentic-tool-lifecycle.md` distill→promote path after clearing the **ADR-005
+≥2-dogfood-cycle gate** — two ratified cycles (the triage analyses of an agentic-posture braindump
+and a repo-inventory braindump). Cross-link slug: `[[directive-braindump-triage]]`.
