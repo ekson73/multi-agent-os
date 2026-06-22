@@ -30,7 +30,7 @@ Manage git worktrees for isolated multi-agent development.
 |--------|-------------|
 | `--branch <name>` | Specify branch name |
 | `--type <tipo>` | Branch type (feature/bugfix/docs) |
-| `--force` | Force operation |
+| `--force` | Force operation — **NOT supported by `reap`** (it rejects unknown args with a non-zero exit; the reaper's safety is non-overridable by design) |
 | `--apply` | (`reap`) Actually delete — omit for dry-run (preview only) |
 | `--stale-days <N>` | (`reap`) Age threshold for "stale" (default `7`) |
 | `--json` | (`reap`) Machine-readable output (agentic consumption) |
