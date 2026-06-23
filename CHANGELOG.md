@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `corpus-firing-audit` skill — audit a governance corpus FIRING vs THEATER (`skills/corpus-firing-audit` v1.0.0)
+
+- **NEW skill `corpus-firing-audit`** (#163) — audits whether a governance corpus is **alive or theater**: does each rule/memory/instruction actually FIRE at a live decision point, or is it present-but-dormant? Idempotent, read-only P0–P6 pipeline: recon → kind-aware firing classification → recon-readiness sub-check → re-learning detection → Eisenhower-ranked **effectivation** proposals (*sharpen an existing fire-point > add a new passive rule*) → idempotent ledger → verify-and-brief.
+- **Firing/vitality counterpart to `directive-braindump-triage`** — that skill triages a *braindump file* (directive → artifact); this one audits the *standing corpus* (artifact → application). Opposite traversal, paired skills (their cross-refs were reconciled in this PR).
+- **Kind-aware classification (dogfood-earned)** — classify each artifact by *kind* before verdict: **behavioral-rule** · **decision-record** (ADR — fires by canonical-authority) · **reference/inventory** · **session-artifact**. A low/zero-ref count is THEATER **only** for a behavioral-rule with a should-apply mandate; the other three kinds ⇒ **DORMANT-OK, never THEATER**. Plus a **counting guard** (`grep -ril <slug> | wc -l`, never `grep -cl`).
+- **Promoted after the ADR-005 dogfood gate** (≥2 ratified cycles): a user-scope rules corpus (36 rules) + a repo `docs/governance` corpus (80 artifacts). The 2 cycles produced the kind-aware + counting-guard refinements above; the promotion PR is the graduation record (no fabricated 3rd cycle).
+- **Layer-Purity 0 violations** (no soul-names / private-repo names / org branding); gitleaks-clean. **Named via `anima`** (`corpus-firing-audit`).
+
+### Added — `directive-braindump-triage` skill — triage a directive-braindump into a provenance ledger (`skills/directive-braindump-triage` v1.0.0)
+
+- **NEW skill `directive-braindump-triage`** (#162; **changelog entry backfilled here** — #162 shipped skill-only) — triages an operator directive-braindump (a `*.braindump.md` / `prompt-aux-N` scratch of mixed directives) against the standing corpus so a future amnesic agent runs **only the verified residual** and never re-processes what is already done. Idempotent: recon-first → decompose into atomic directives → classify each DONE/OPEN/DROP-EXPLICIT/COVERED + the fulfilling artifact → inter-dependency DAG → Eisenhower residual roadmap, emitted as a **provenance ledger**.
+- **Cures the re-learning anti-pattern** — a braindump without a provenance ledger gets re-learned; this is the directive-side cure (the corpus-side cure is `corpus-firing-audit`, above).
+- **Promoted after the ADR-005 dogfood gate** (2 ratified cycles backfilled from real session analyses). Layer-Purity-clean; `/maos:directive-braindump-triage`.
+
 ### Added — `agentic-tool-intake` skill — the ADOPT stage of the agentic-tool lifecycle (`skills/agentic-tool-intake` v0.1.0)
 
 - **NEW skill `agentic-tool-intake`** — fills the empty **ADOPT** slot in the lifecycle family: `forge` (create) → **`intake` (adopt-or-not)** → `evaluator` (score) → `trainer` (improve). Where forge answers *"I have an intent — what do I create?"*, intake answers the inverse: *"someone handed me a tool that already exists (an external repo/MCP/plugin/skill — e.g. a GitHub trend / YouTube review — or an internal proposal) — should I adopt it, and how?"*. Exploration confirmed the gap (~25-30% reuse < the 50% reuse-and-elevate threshold).
