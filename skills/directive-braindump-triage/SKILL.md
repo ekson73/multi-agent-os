@@ -8,8 +8,8 @@ description: |
   directives → classify each DONE/OPEN/DROP-EXPLICIT/COVERED + the artifact that fulfills it →
   inter-dependency DAG → Eisenhower residual roadmap, emitted as a provenance ledger.
   Cures the re-learning anti-pattern: never re-execute an already-satisfied directive.
-  NOT for auditing whether standing rules fire (a separate corpus firing-audit concern,
-  not a skill in this repo) or for adopting an external tool (use agentic-tool-intake).
+  NOT for auditing whether standing rules fire (use corpus-firing-audit — the
+  firing/vitality axis) or for adopting an external tool (use agentic-tool-intake).
   Cross-vendor AAIF.
 triggers:
   - triage this braindump
@@ -43,9 +43,9 @@ application is a dead file. This is the cure for "we keep re-learning what we al
   operator **DIRECTIVES** already in hand. Different input, different verdict space.
 - **`protocols/agentic-tool-lifecycle.md`** (protocol) governs distill→promote of tools → this
   triages intentions, then *feeds* the lifecycle when a residual warrants a new tool.
-- **corpus-firing-audit** (companion concept, **not a skill in this repo**): audits the **standing
-  corpus** for firing-vs-theater (artifact → application). This triages a **braindump file**
-  (directive → artifact). Opposite traversal; pair the two concepts, never merge them.
+- **`corpus-firing-audit`** (sibling skill): audits the **standing corpus** for firing-vs-theater
+  (artifact → application). This triages a **braindump file** (directive → artifact). Opposite
+  traversal; pair the two skills, never merge them.
 - **anti-theater grounding** (host rule, if present) → used in P6 (no hallucinated provenance).
 
 ## Idempotency contract (non-negotiable)
