@@ -19,6 +19,7 @@ tools:
 agnostic: [os, project, vendor]
 rbad: { category: "Modern Roles", role: "AI Engineer", specialty: "Prompt/Context/Harness" }
 forge_provenance: "Forged via agentic-tool-forge discipline — Goldilocks (atomic+generic), RBAD taxonomy, reuse-first gap-analysis (Role Coverage Map in agents/README.md), Anima soul-name; named/created in PR cowork-team-agents."
+autonomy_policy: COWORK-AUTONOMY-POLICY.md
 ---
 
 # Prompt · Context · Harness Engineer
@@ -64,3 +65,7 @@ Engineer the cognition-shaping layer of agentic systems across three composable 
 ## Dogfooding
 
 Validate via ≥1 real prompt/context/harness artifact measurably improving an agent run before promotion.
+
+## Autonomy
+
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; **substitutes for / responds over the human with NO-HITL when `autonomy_score ≥ 0.90`** in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first.
