@@ -15,6 +15,13 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | legacy-archaeologist | `legacy-archaeologist.md` | Legacy codebase reverse-engineering |
 | memory-curator | `memory-curator.md` | Knowledge/memory hygiene and curation |
 | founder-coach | `founder-coach.md` | AI-native startup lifecycle coach (stage diagnosis + exit gates) |
+| angular-frontend-engineer | `angular-frontend-engineer.md` | Angular SPA frontend (signals, RxJS, Material/Tailwind) |
+| react-frontend-engineer | `react-frontend-engineer.md` | React frontend (hooks, Vite/Next, PWA, TanStack Query) |
+| quarkus-backend-engineer | `quarkus-backend-engineer.md` | Java/Quarkus reactive backend (Panache, Flyway, JWT, native) |
+| supabase-engineer | `supabase-engineer.md` | Supabase backend (RLS, Auth, Storage, Realtime, Edge Fns) |
+| prompt-context-engineer | `prompt-context-engineer.md` | AI-craft layer: prompt + context + harness engineering |
+| agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
+| data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
 
 ## Agent Categories
 
@@ -39,6 +46,42 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 ### Startup Coaching
 
 - `founder-coach` — AI-native startup lifecycle coach; pairs with the `founder-*` skills
+
+### Cowork Team (cross-stack delivery specialists)
+
+Generic, product-agnostic delivery specialists materializing the standard software cowork-team
+roles. Compose with the existing registry (most roles already covered — these fill the genuine
+per-stack/role gaps; see "Role Coverage Map" below).
+
+- `angular-frontend-engineer` — Angular SPA implementation/review
+- `react-frontend-engineer` — React/PWA implementation/review
+- `quarkus-backend-engineer` — Java/Quarkus reactive backend implementation/review
+- `supabase-engineer` — Supabase platform (RLS/Auth/Storage/Realtime/Edge) — generic
+- `prompt-context-engineer` — prompt + context + harness AI-craft layer (composite)
+- `agile-product-lead` — PO/PM/SM/BA product & delivery leadership (composite)
+- `data-privacy-officer` — DPO/privacy/DPIA across GDPR/LGPD/CCPA (generic)
+
+#### Role Coverage Map (reuse-first — most cowork roles already exist)
+
+| Cowork role | Coverage | Provider |
+|---|---|---|
+| DevOps (AWS/IaC/Terraform) | EXISTS | `cloud-infrastructure:cloud-architect` · `terraform-specialist` |
+| DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
+| Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
+| DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
+| DBA (RDS/Aurora/Postgres) | EXISTS | `vek-database-engineer` (corp) |
+| Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
+| Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
+| Backend — Java/Quarkus | **GAP→NEW** | `quarkus-backend-engineer` |
+| Backend — Supabase | **GAP→NEW** (generic) | `supabase-engineer` |
+| AI / Prompt / Context / Harness Eng | **GAP→NEW** | `prompt-context-engineer` |
+| PO / PM / SM / BA | **GAP→NEW** (composite) | `agile-product-lead` |
+| DPO / Privacy | **GAP→NEW** | `data-privacy-officer` |
+| QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
+| Solution Architect | EXISTS | `architecture:architect` · `system-designer` |
+| Auditor | EXISTS | `maos:governance-auditor` · `validation-auditor` |
+| Agent-Orchestrator / Task-Orchestrator | EXISTS | `maos:orchestrator` · `taskmaster:task-orchestrator` |
+| Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` + `deployment-engineer` (verb-set covered) |
 
 ## Agent Naming Convention
 
