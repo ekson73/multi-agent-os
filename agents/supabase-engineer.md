@@ -19,6 +19,7 @@ tools:
 agnostic: [os, project, vendor]
 rbad: { category: "IT Roles", role: "Backend/Platform Engineer", specialty: "Supabase" }
 forge_provenance: "Forged via agentic-tool-forge discipline — Goldilocks (atomic+generic), RBAD taxonomy, reuse-first gap-analysis (Role Coverage Map in agents/README.md), Anima soul-name; named/created in PR cowork-team-agents."
+autonomy_policy: COWORK-AUTONOMY-POLICY.md
 ---
 
 # Supabase Engineer
@@ -68,3 +69,7 @@ LGPD/GDPR-compliant backup/PITR.
 Validate via ≥1 real RLS policy + migration applied to a Supabase project before promotion.
 Note: corporate Vek binding (vek-list / vek-sales specifics) lives in vek-ai-toolkit's
 vek-supabase-architect — this community agent stays product-agnostic.
+
+## Autonomy
+
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; **substitutes for / responds over the human with NO-HITL when `autonomy_score ≥ 0.90`** in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first.
