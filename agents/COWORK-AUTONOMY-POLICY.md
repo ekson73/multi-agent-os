@@ -31,9 +31,11 @@ always escalate to the human, regardless of score:
   unauthorized cost ($$$).
 - **merge → main / production** — the merge to a protected/prod branch is the human
   owner's decision (HITL), never auto-substituted by a cowork agent.
-- **⛔ ABSOLUTE guardrails** — never expose secrets in logs/outputs/commits; never
-  push-force a protected branch sans authorization; never `--no-verify` / skip hooks sans
-  authorization. Operator authorization does NOT waive the ABSOLUTE (LGPD/compliance/safety).
+- **⛔ ABSOLUTE guardrails** — never expose secrets in logs/outputs/commits (this is
+  inviolable: operator authorization does NOT waive it — LGPD/compliance/safety). Force-push to
+  a protected branch and `--no-verify` / hook-skip are likewise forbidden by default and are
+  never auto-substituted by a cowork agent — only an explicit, audited operator-HITL exception
+  may permit them, and even then never for the secrets-exposure ABSOLUTE.
 
 ## Council-before-HITL (escalate only the irreducible residue)
 

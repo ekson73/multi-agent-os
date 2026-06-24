@@ -84,8 +84,8 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | DPO / Privacy | **GAP→NEW** | `data-privacy-officer` |
 | QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
 | Solution Architect | EXISTS | `architecture:architect` · `system-designer` |
-| CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes `maos:consultants:{steve-jobs,sam-altman,bill-gates,sundar-pichai,mark-zuckerberg}` |
-| Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes `maos:consultants:{eric-jing (Ant Group chairman),bill-gates}` |
+| CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes: `maos:consultants:steve-jobs` · `maos:consultants:sam-altman` · `maos:consultants:bill-gates` · `maos:consultants:sundar-pichai` · `maos:consultants:mark-zuckerberg` |
+| Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes: `maos:consultants:eric-jing` (Ant Group chairman) · `maos:consultants:bill-gates` |
 | Auditor | EXISTS | `maos:governance-auditor` · `validation-auditor` |
 | Agent-Orchestrator / Task-Orchestrator | EXISTS | `maos:orchestrator` · `taskmaster:task-orchestrator` |
 | Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` + `deployment-engineer` (verb-set covered) |
