@@ -69,7 +69,7 @@ per-stack/role gaps; see "Role Coverage Map" below).
 | DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
 | DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
-| DBA (RDS/Aurora/Postgres) | EXISTS | `vek-database-engineer` (corp) |
+| DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
 | Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
 | Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
 | Backend — Java/Quarkus | **GAP→NEW** | `quarkus-backend-engineer` |

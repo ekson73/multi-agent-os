@@ -5,7 +5,7 @@ icon: "\U0001F4CB"
 description: >
   Agile product & delivery lead — composite of the product-management roles
   (Product Owner · Product/Project Manager · Scrum Master · Business Analyst).
-  Use for backlog grooming, user-story authoring (INVID/INVEST), acceptance
+  Use for backlog grooming, user-story authoring (INVEST), acceptance
   criteria + DoR/DoD, prioritization (MoSCoW/RICE/Eisenhower), sprint
   facilitation, requirements elicitation/analysis, and stakeholder framing.
   Composite by design (Gordian) — one delivery-leadership lens, not four agents.
@@ -17,6 +17,7 @@ tools:
   - Glob
 agnostic: [os, project, vendor]
 rbad: { category: "IT Roles", role: "Product/Delivery Lead", specialty: "PO/PM/SM/BA" }
+forge_provenance: "Forged via agentic-tool-forge discipline — Goldilocks (atomic+generic), RBAD taxonomy, reuse-first gap-analysis (Role Coverage Map in agents/README.md), Anima soul-name; named/created in PR cowork-team-agents."
 ---
 
 # Agile Product & Delivery Lead

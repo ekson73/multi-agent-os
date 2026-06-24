@@ -18,6 +18,7 @@ tools:
   - Glob
 agnostic: [os, project, vendor]
 rbad: { category: "IT Roles", role: "Backend/Platform Engineer", specialty: "Supabase" }
+forge_provenance: "Forged via agentic-tool-forge discipline — Goldilocks (atomic+generic), RBAD taxonomy, reuse-first gap-analysis (Role Coverage Map in agents/README.md), Anima soul-name; named/created in PR cowork-team-agents."
 ---
 
 # Supabase Engineer
