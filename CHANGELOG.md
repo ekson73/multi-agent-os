@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `proofread` skill — text-quality pass (grammar pt-BR+en · typos · mis-formatting) (`skills/proofread` v1.0.0 + `commands/proofread.md`)
+
+- **NEW skill `proofread`** (soul-name *Aristarchus*) — the THOROUGH on-demand text-quality pass fired when finalizing any text artifact (doc/ADR/README/ticket-body/PR-description/commit-message). An **ECE composition** (`agentic-first §4.7` — deterministic linters × probabilistic rewrite), builds no new engine: **cspell** (catch-anything spell-check, pt-BR dict — flags novel typos like `Aurona` that grep+codespell miss) + **LanguageTool** (grammar/concordância/acentos, run **LOCAL** — never a public API) + **markdownlint-cli2** (structure) + an optional **Grammar-Genie** rewrite.
+- **The cspell≠codespell split (empirically grounded)** — cspell = full-dictionary (catches novel typos, the workhorse); codespell = curated common-misspell pairs (low-noise CI/pre-commit backstop, does NOT catch novel typos). They complement, not compete. Verified: cspell flags `Aurona`, codespell doesn't, LanguageTool flags pt-BR concordância/acentos local.
+- **⛔ Privacy guardrail** — LanguageTool's public API uploads text; sensitive content runs LOCAL only (`languagetool` CLI / `--http` / Docker). Secrets/PII/LGPD.
+- **Self-describing WHEN** (the amnesic-agent trigger lives in the skill `description`) + thin `/proofread` command surface. **Named via `anima`**; forged via `agentic-tool-forge` discipline. Layer-Purity clean (generic, no Vek/org branding). Origin: akasha text-quality roadmap (`ekson73/akasha-claude` PR #182 + `plans/compressed-enchanting-shamir.md`).
+
 ### Added — `corpus-firing-audit` skill — audit a governance corpus FIRING vs THEATER (`skills/corpus-firing-audit` v1.0.0)
 
 - **NEW skill `corpus-firing-audit`** (#163) — audits whether a governance corpus is **alive or theater**: does each rule/memory/instruction actually FIRE at a live decision point, or is it present-but-dormant? Idempotent, read-only P0–P6 pipeline: recon → kind-aware firing classification → recon-readiness sub-check → re-learning detection → Eisenhower-ranked **effectivation** proposals (*sharpen an existing fire-point > add a new passive rule*) → idempotent ledger → verify-and-brief.
