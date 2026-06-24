@@ -53,6 +53,11 @@ Generic, product-agnostic delivery specialists materializing the standard softwa
 roles. Compose with the existing registry (most roles already covered — these fill the genuine
 per-stack/role gaps; see "Role Coverage Map" below).
 
+**Autonomy posture** (all 7): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
+co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
+their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
+(HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first.
+
 - `angular-frontend-engineer` — Angular SPA implementation/review
 - `react-frontend-engineer` — React/PWA implementation/review
 - `quarkus-backend-engineer` — Java/Quarkus reactive backend implementation/review
@@ -79,6 +84,8 @@ per-stack/role gaps; see "Role Coverage Map" below).
 | DPO / Privacy | **GAP→NEW** | `data-privacy-officer` |
 | QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
 | Solution Architect | EXISTS | `architecture:architect` · `system-designer` |
+| CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes `maos:consultants:{steve-jobs,sam-altman,bill-gates,sundar-pichai,mark-zuckerberg}` |
+| Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes `maos:consultants:{eric-jing (Ant Group chairman),bill-gates}` |
 | Auditor | EXISTS | `maos:governance-auditor` · `validation-auditor` |
 | Agent-Orchestrator / Task-Orchestrator | EXISTS | `maos:orchestrator` · `taskmaster:task-orchestrator` |
 | Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` + `deployment-engineer` (verb-set covered) |
