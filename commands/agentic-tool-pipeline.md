@@ -1,7 +1,7 @@
 ---
 name: agentic-tool-pipeline
 description: Conductor of the agentic-tool lifecycle — route ANY --source-object (intent · url · plugin · marketplace · existing tool) to the right family member and run analyze→research→debate→converge→harmonize → forge/adopt/improve one+ agentic-tools of any --type → save to --location. A thin orchestrator that COMPOSES forge/intake/evaluator/trainer/anima/converge — reimplements nothing. Thin wrapper over the `agentic-tool-pipeline` skill.
-argument-hint: "<source-object> | --source-object \"…\" [--type auto|skill|command|agent|mcp|plugin|marketplace] [--location akasha|multi-agent-os|vek-ai-toolkit] [--scope user|project|community|auto] [--research both|internal|external] [--blocks 0,1,2,3,4] [--dry-run] [--json] [--no-confirm]"
+argument-hint: "<source-object> | --source-object \"…\" [--type auto|skill|command|agent|subagent|mcp|plugin|prompt|marketplace] [--location akasha|multi-agent-os|vek-ai-toolkit] [--scope user|project|community|auto] [--research both|internal|external] [--blocks 0,1,2,3,4] [--dry-run] [--json] [--no-confirm]"
 allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill]
 ---
 

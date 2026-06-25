@@ -2,20 +2,18 @@
 name: agentic-tool-pipeline
 description: |
   Conductor of the agentic-tool lifecycle — given ANY --source-object (bare intent ·
-  name · ID · text · url · site · plugin · marketplace · path to an EXISTING tool),
-  ROUTE it to the right existing family member and run the full divergent→convergent
-  pass: analyze → research internal+external similars → compare → cross → catalog →
-  categorize → critique → DEBATE → CONVERGE → validate → correct → improve → HARMONIZE
-  → then forge/adopt/improve one+ agentic-tools of any --type and SAVE to --location
-  (akasha · multi-agent-os · vek-ai-toolkit). A thin preset that COMPOSES existing
-  primitives (agentic-tool-forge/intake/evaluator/trainer · anima · converge ·
-  perspective-trio) — reimplements nothing. Applies + passes 11 principles (DRY · KISS ·
-  SSOT · YAGNI · anti-over-eng · anti-theater · boy-scout · DNA-geracional · continuity ·
-  idempotency · handoff). Use when the operator wants ANY source turned into the right
-  agentic-tool through one governed pass: "forge a tool from this url/plugin/intent",
-  "turn any source into the right agentic-tool", "route this to the lifecycle",
-  "conduct the tool-genesis pipeline". Triggers: "agentic-tool-pipeline", "forge from
-  source", "tool genesis pipeline", "route to the agentic-tool lifecycle".
+  url · site · plugin · marketplace · path to an EXISTING tool), ROUTE it to the right
+  family member and run the divergent→convergent pass: analyze → research similars →
+  compare → critique → DEBATE → CONVERGE → validate → improve → HARMONIZE → then
+  forge/adopt/improve one+ agentic-tools of any --type and SAVE to --location (akasha ·
+  multi-agent-os · vek-ai-toolkit). A thin preset that COMPOSES existing primitives
+  (agentic-tool-forge/intake/evaluator/trainer · anima · converge · perspective-trio) —
+  reimplements nothing; applies + passes 11 principles (DRY · KISS · SSOT · YAGNI ·
+  anti-over-eng · anti-theater · boy-scout · DNA-geracional · continuity · idempotency ·
+  handoff). Use when ANY source should become the right agentic-tool in one governed
+  pass. Triggers: "agentic-tool-pipeline", "forge a tool from this url/plugin/intent",
+  "turn any source into the right agentic-tool", "route to the agentic-tool lifecycle",
+  "conduct the tool-genesis pipeline".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill
 version: 0.1.0
 metadata:
@@ -106,6 +104,21 @@ The operator's terminal verb-set maps onto existing dispositions — `create→f
 `test/criticize/validate/audit→evaluator`. **No new machinery; the router picks the
 member, the converged spec (Stage 3) picks the exact verb.**
 
+### Delegation arg-mapping (conductor flags → each member's real interface)
+The conductor takes ONE `--source-object`; each member has its own input flag. Stage-4
+EMITS the routed invocation by translating per this table (so delegated calls are always
+valid — never a `--source-object` flag the member doesn't accept):
+
+| Route | Emitted invocation (the conductor's `--source-object` + flags → member interface) |
+|---|---|
+| **forge** | `agentic-tool-forge --goal "<source-object>" --type <--type> --scope <--scope> --research <--research> [--dry-run] [--json] [--no-confirm]` — `--location` resolves the member's save-path. |
+| **intake** | `agentic-tool-intake --candidate "<source-object>" --mode decide --scope-target <--location> [--dry-run] [--json]` — `--location` maps to intake's `--scope-target`. |
+| **AMBIGUOUS** | `agentic-tool-intake --candidate "<source-object>" --mode research --dry-run` → read its resolved class → re-enter the §Stage-0 router once; still ambiguous ⇒ DEFER-HITL. |
+| **owned-tool** | normalize `<source-object>` to the tool's path, then `agentic-tool-evaluator <path>` → (on FLAG/FAIL) `agentic-tool-trainer --mode improve <path>`. |
+
+Naming inside the forge route stays forge's existing `anima` delegation; the conductor
+never passes a name flag.
+
 ## The five stages (operator verbs → existing primitive)
 
 ```text
@@ -152,7 +165,7 @@ assembled into ONE manifest that travels by mechanisms that already exist:
 | ANTI-THEATER | `protocols/agentic-tool-lifecycle.md` §8 · host `anti-theater-grounding-protocol` 8Q |
 | BOY-SCOUT | `protocols/exit-hygiene.md` · `skills/postflight` P1 SWEEP |
 | DNA-GERACIONAL | `protocols/delegation/delegation-dna-prompt.md` §DNA Heritage Block |
-| CONTINUITY · HANDOFF | `skills/postflight` P3 seed · `references/continuation-seed-contract.md` |
+| CONTINUITY · HANDOFF | `skills/postflight` P3 seed · `skills/postflight/references/continuation-seed-contract.md` |
 | IDEMPOTENCY | `agentic-tool-forge` Phase-8 (skip-if-identical) |
 
 - **APPLY (self)** — this `## DNA Geracional` section IS the conductor self-governing.
@@ -240,7 +253,7 @@ Dormant-by-design otherwise.
   `agents/persona-pipeline` · `agents/cascade-resolver` · `skills/convergence-engine`.
 - Sibling thin-preset (the precedent): `skills/enhance-pipeline` (feature axis).
 - DNA rails: `protocols/delegation/delegation-dna-prompt.md` · `skills/postflight`
-  (P3 seed + `references/continuation-seed-contract.md`) · `skills/agentic-delegation`.
+  (P3 seed + `skills/postflight/references/continuation-seed-contract.md`) · `skills/agentic-delegation`.
 - Governance: `skills/worktree-policy` · `skills/hierarchical-merge` · `CONTRIBUTING.md`.
 - Cross-link slug: `[[agentic-tool-pipeline]]`.
 
