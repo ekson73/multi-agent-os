@@ -13,7 +13,7 @@ description: |
   should become the right agentic-tool in one governed pass. Triggers:
   "agentic-tool-pipeline", "forge a tool from this url/plugin/intent", "turn any source
   into the right agentic-tool", "route to the agentic-tool lifecycle".
-allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill
+allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill]
 version: 0.1.0
 metadata:
   version: "0.1.0"

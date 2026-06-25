@@ -65,7 +65,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 > The family that creates/adopts → evaluates → trains agentic-tools, **conducted** by `agentic-tool-pipeline`. Shared reference: `protocols/agentic-tool-lifecycle.md`.
 
-- `agentic-tool-pipeline` — **Conductor**: route ANY source-object → run analyze→research→debate→converge→harmonize → land on the right member (forge/intake/evaluator/trainer) → save. Thin preset; reimplements nothing
+- `agentic-tool-pipeline` — **Conductor**: route ANY source-object → run analyze→research→debate→converge→harmonize → land on the right member (forge/intake → author/adopt + **save**; evaluator→trainer → **read-only score** → improve) → save. Thin preset; reimplements nothing
 - `agentic-tool-forge` — Genesis: raw intent → the right reusable tool (research-first → decide type → name via `anima` → forge+save)
 - `agentic-tool-intake` — Adopt-or-not: existing candidate → decide install/adapt/absorb/create-internally/abandon/defer (gated install)
 - `agentic-tool-evaluator` — Behavioral eval-harness (with/without control + rubric); read-only score + report

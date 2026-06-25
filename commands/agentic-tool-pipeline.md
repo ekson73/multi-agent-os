@@ -17,7 +17,7 @@ Invoke the **`agentic-tool-pipeline`** skill (Claude Code: `Skill` tool with `sk
 - Empty `$ARGUMENTS` → print the skill's usage + parameter table; do NOT guess a source-object.
 
 ## What it does (skill pipeline)
-**Stage 0 ROUTE** (classify the source-object → forge | intake | trainer | defer) → **EXPAND** (analyze · research internal‖external similars · compare · cross · catalog · categorize · critique) → **FILTER ⇐ DEBATE** (`converge`/`debate-converge` + optional `perspective-trio`/`persona-pipeline`) → **HARMONIZE ⇐ CONVERGE** (`converge` 5-act → one+ synthesized tool-spec) → **FORGE** (the routed member forges/adopts/improves + saves to `--location`; naming via `anima` inside forge). Use `--dry-run` to get the routed tool-spec proposal without writing.
+**Stage 0 ROUTE** (classify the source-object → forge | intake | evaluator→trainer | defer-HITL; FORGE/intake/trainer write + save to `--location`, the evaluator path is read-only score) → **EXPAND** (analyze · research internal‖external similars · compare · cross · catalog · categorize · critique) → **FILTER ⇐ DEBATE** (`converge`/`debate-converge` + optional `perspective-trio`/`persona-pipeline`) → **HARMONIZE ⇐ CONVERGE** (`converge` 5-act → one+ synthesized tool-spec) → **FORGE** (the routed member forges/adopts/improves + saves to `--location`; naming via `anima` inside forge). Use `--dry-run` to get the routed tool-spec proposal without writing.
 
 It **reimplements nothing** — every stage delegates to an existing primitive. It applies and passes the 11 principles (DRY · KISS · SSOT · YAGNI · anti-over-eng · anti-theater · boy-scout · DNA-geracional · continuity · idempotency · handoff) via the existing DNA rails.
 
