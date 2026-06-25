@@ -57,7 +57,7 @@ This skill serves the operator's intent. If any phase/gate obstructs delivering 
 | `--abstraction` | inferred from audience | `executive` (what/why/impact) · `conceptual` (how, no internals) · `detailed` (full technical depth). |
 | `--intent` | `inform` | `inform` · `convince` · `demonstrate` · `teach` · `share`. |
 | `--lang` | `pt-BR` | `pt-BR` · `en-US` (per the audience-design language policy). |
-| `--format` | `md` | `md` · `slides` · `onepager` · `nlm-source` · `nlm-prompt` (render delegation — see Composition map). |
+| `--format` | `md` | `md` · `slides` · `onepager` · `nlm-source` · `nlm-prompt` · `voice` (render delegation — see Composition map). |
 | `--readability` | off | Optional Flesch-Kincaid grade target (e.g. `8`). Treated as a **check**, not a guarantee (LLM readability control is imperfect — Farajidizaji et al., LREC 2024). |
 | `--dry-run` | off | Produce the neutral-brief + chosen lens + plan only; no recast/render. |
 
@@ -91,6 +91,7 @@ Lens is a **default suggestion** — the agent may blend/override with rationale
 | `onepager` | a PDF producer (e.g. `make-pdf`) — fallback a `pdf`/`docx` skill |
 | `nlm-source` | inline — emit clean markdown sized as a NotebookLM source |
 | `nlm-prompt` | inline — emit a ready prompt instructing NotebookLM to generate audio/video/infographic/slide/report/table from the nlm-source |
+| `voice` | `bin/speak` via `skills/voice` — on-demand TTS (Gemini→ElevenLabs→Kokoro). **Opt-in only**, never a default (the operator may be where sound is unwelcome) |
 
 ## Faithfulness guard (the differentiator — non-negotiable)
 1. Every recast claim MUST trace to the neutral brief (step 1). 2. No invented facts, numbers, or quotes. 3. No magnitude/causality distortion. 4. Load-bearing caveats survive or appear in the Information-Loss Note. 5. The note explicitly lists what was dropped/compressed. Research basis: ACL 2022 factuality, InfoLossQA 2024, FactPICO 2024, generalization-bias PMC 2026.

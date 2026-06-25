@@ -62,6 +62,7 @@ This skill serves the operator's intent. If any phase/gate obstructs delivering 
 | `--acts` | auto | Number of acts; auto-mapped from the session's phases/turning-points (cap 5 — anti-bloat). |
 | `--lens` | `classic` | Tone lens: `classic` (story-arc, v0.1.0 default) · `deductive` (a *case* à la Holmes·Watson·Moriarty — intuitive-logic made visible, less technical/more human — see Lens below). |
 | `--dry-run` | off | Emit the neutral session-map + the planned act structure + chosen dials only; no narration. |
+| `--media` | `text` | Output medium. `text` = printed opera (**DEFAULT — never plays sound**). `audio-voice` = ALSO speak it aloud via `bin/speak` + `skills/voice` Voice-Director (register-adapted, `--style narrador`). **Opt-in only** — audio NEVER auto-plays (the operator may be somewhere sound is unwelcome). |
 
 **Argument parsing**: token(s) before the first `--` = `<source>`; `--key value`/`--flag` after = parameters. No positional → take the session map from `postflight`/`morning-briefing`/prior context.
 
@@ -113,6 +114,7 @@ Composes freely with the dials (`--humour`/`--drama`/`--intensity`); `--lens=cla
 | The session map (facts) | `skills/postflight` P2-DEBRIEF · `skills/morning-briefing --mode=recap` |
 | General audience re-targeting (non-Opera registers) | `skills/content-recast` (Opera is one named register; that skill owns the rest) |
 | Render to slides/PDF/podcast | per `content-recast` Composition map (Gamma · make-pdf · NotebookLM) — never rebuilt here |
+| Speak the recap aloud (`--media audio-voice`, OPT-IN) | `bin/speak` via `skills/voice` Voice-Director (`--style narrador`, register-adapted) — never auto-plays; default output stays text |
 
 ## Faithfulness + Tone-safety gates (the differentiators — non-negotiable)
 1. Every beat traces to the fact-ledger (step 2). 2. No invented facts, stakes, numbers, or quotes. 3. No magnitude/causality inflation for drama. 4. Load-bearing caveats survive or appear in the Information-Loss Note. 5. No alarming framing (no terror). 6. Wit never targets a person. 7. Humour is *dosed* — it must serve the fact, never obscure it (transparency: warmth must NOT drop a risk/caveat). Research basis: factuality in simplification (Devaraj et al., ACL 2022) · InfoLossQA (arXiv 2401.16475) · audience-design (Bell 1984).
