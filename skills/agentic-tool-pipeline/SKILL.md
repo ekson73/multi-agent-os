@@ -93,10 +93,10 @@ The router fires once, classifies the source-object, and sets the **terminal fam
 
 | `--source-object` is… | Discriminator | Routes to (existing entry) | Stage-4 terminal verbs |
 |---|---|---|---|
-| **bare INTENT** (name/ID/text, no artifact behind it) | no resolvable url/repo/owned-path — a wish | `agentic-tool-forge` | create / forge |
+| **bare INTENT** (name/ID/text, no artifact behind it) | a **descriptive capability phrase / verb-led wish** (no resolvable artifact AND specific enough to design from, e.g. "a skill that lints Terraform before commit") | `agentic-tool-forge` | create / forge |
 | **EXISTING CANDIDATE** (url · site · plugin · marketplace · external repo/MCP/pkg) | resolves to an artifact that exists *elsewhere* | `agentic-tool-intake` | install · adapt · absorb · sub-agent · create-internally(→forge) · abandon · defer |
 | **EXISTING-TOOL to improve** (path to an *owned* skill/agent/command/MCP) | resolves under akasha / multi-agent-os / vek-ai-toolkit | `agentic-tool-evaluator` → `agentic-tool-trainer` | fix · improve · train · test · criticize · validate · audit |
-| **AMBIGUOUS** | router cannot classify with confidence | `agentic-tool-intake --mode=research` (cheapest disambiguator) → re-enter router; still ambiguous ⇒ **DEFER-HITL** | (re-routed) |
+| **AMBIGUOUS** | a **bare term too vague to design from** (e.g. a single noun like `payments`), OR the router cannot classify with confidence | `agentic-tool-intake --mode=research` (cheapest disambiguator) → re-enter router; still ambiguous ⇒ **DEFER-HITL** | (re-routed) |
 
 The operator's terminal verb-set maps onto existing dispositions — `create→forge`,
 `adapt/incorporate/install→intake`, `fix/improve/train→trainer`,
