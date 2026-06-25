@@ -23,6 +23,9 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `founder-stage-mvp` | `founder-stage-mvp/SKILL.md` | MVP stage — product-market-fit evidence without compounding tech debt |
 | `founder-stage-launch` | `founder-stage-launch/SKILL.md` | Launch stage — repeatable growth; remove the founder bottleneck |
 | `founder-stage-scale` | `founder-stage-scale/SKILL.md` | Scale stage — systematic growth + defensible moat |
+| `agentic-tool-pipeline` | `agentic-tool-pipeline/SKILL.md` | Conductor — route ANY source-object → analyze→research→debate→converge→harmonize → forge/adopt/improve one+ agentic-tools of any type, to any location |
+| `agentic-tool-forge` | `agentic-tool-forge/SKILL.md` | Genesis — turn a raw intent into the right reusable agentic-tool (research-first → decide type → name → forge+save) |
+| `agentic-tool-intake` | `agentic-tool-intake/SKILL.md` | Adopt-or-not — decide whether & how to take on an existing candidate (install/adapt/absorb/create-internally/abandon/defer) |
 | `agentic-tool-evaluator` | `agentic-tool-evaluator/SKILL.md` | Behaviorally evaluate/score/QA any agentic-tool (skill/agent/command/prompt/MCP-tool) |
 | `agentic-tool-trainer` | `agentic-tool-trainer/SKILL.md` | Improve a tool over time (reflect-loop) OR distill a new tool from an observed task |
 
@@ -60,8 +63,11 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 ### Agentic-Tool Lifecycle Skills
 
-> Close the loop after authoring (`skill-writer` / `forge`). Shared reference: `protocols/agentic-tool-lifecycle.md`.
+> The family that creates/adopts → evaluates → trains agentic-tools, **conducted** by `agentic-tool-pipeline`. Shared reference: `protocols/agentic-tool-lifecycle.md`.
 
+- `agentic-tool-pipeline` — **Conductor**: route ANY source-object → run analyze→research→debate→converge→harmonize → land on the right member (forge/intake/evaluator/trainer) → save. Thin preset; reimplements nothing
+- `agentic-tool-forge` — Genesis: raw intent → the right reusable tool (research-first → decide type → name via `anima` → forge+save)
+- `agentic-tool-intake` — Adopt-or-not: existing candidate → decide install/adapt/absorb/create-internally/abandon/defer (gated install)
 - `agentic-tool-evaluator` — Behavioral eval-harness (with/without control + rubric); read-only score + report
 - `agentic-tool-trainer` — Reflect-loop improvement (trace→reflect→distill, Pareto-guarded) + distill-new-tool-from-trace
 
