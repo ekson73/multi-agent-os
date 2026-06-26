@@ -92,7 +92,7 @@ while [ $# -gt 0 ]; do
     --play) PLAY=1; shift;;
     --no-play) PLAY=0; shift;;
     --text) TEXT="${2:-}"; shift $(( $# >= 2 ? 2 : 1 ));;
-    --file) TEXT="$(cat "${2:?--file needs a path}")"; shift $(( $# >= 2 ? 2 : 1 ));;
+    --file) [ -f "${2:?--file needs a path}" ] || { echo "speak: --file not found: $2" >&2; exit 2; }; TEXT="$(cat "$2")"; shift $(( $# >= 2 ? 2 : 1 ));;
     -h|--help) usage; exit 0;;
     --*) echo "speak: unknown flag: $1" >&2; usage; exit 2;;
     *) TEXT="${TEXT:+$TEXT }$1"; shift;;
@@ -144,7 +144,7 @@ esac
 GPROMPT="Leia em ${GLANG}. Estilo: ${GHINT}.${TAGS:+ Tom: ${TAGS}.} Texto: "
 
 # ---------- key reader (subshell; value never printed) ----------
-read_key(){ ( unset OP_DEVICE OP_SESSION_my OP_SESSION_emilson_moraes 2>/dev/null
+read_key(){ ( unset OP_DEVICE 2>/dev/null; unset "${!OP_SESSION_@}" 2>/dev/null   # clear ALL OP_SESSION_* generically (no operator-specific name; isolates the SA token)
               set -a; source "$SA_ENV" 2>/dev/null; set +a
               op read "$1" 2>/dev/null ); }
 
