@@ -50,7 +50,7 @@ This skill answers: **"What is the state of MY work RIGHT NOW, across all artifa
 | `--multi-repo` | Scan known sibling repo paths beyond cwd (capability-detected) |
 | `--no-llm` | Skip narrative polish (deterministic-only) |
 | `--format=md|json|console` | Output format (default md) |
-| `--media=audio-voice` | **Opt-in** — ALSO speak the briefing aloud via `bin/speak` + `skills/voice` (`--style executivo`). Default = text only; audio NEVER auto-plays (operator may be where sound is unwelcome). |
+| `--media=audio-voice` | **Opt-in** — ALSO speak the briefing aloud via `bin/speak.sh --play` + `skills/voice` (`--style executivo`). Default = text only; audio NEVER auto-plays (operator may be where sound is unwelcome). |
 
 ## Phase 0 — Capability detection (one-time)
 

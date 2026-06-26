@@ -4,7 +4,7 @@ description: |
   Use when the operator EXPLICITLY asks to SPEAK/narrate something aloud — "fala isso", "narra o
   resumo", "speak this", "voz de aplauso", "--media audio-voice", "read this aloud" — to turn text
   into real, human-like, ON-DEMAND audio. Holds the install/config/use knowledge of the 3 TTS
-  engines (Gemini 3.1 Flash TTS → ElevenLabs v3 → Kokoro) behind the `bin/speak` producer, and the
+  engines (Gemini 3.1 Flash TTS → ElevenLabs v3 → Kokoro) behind the `bin/speak.sh` producer, and the
   "Voice Director" rubric that computes voice/gender/intonation/personality/rhythm DYNAMICALLY from
   context (hybrid: deterministic templates × the agent's contextual judgment). ⚠️ AUDIO IS NEVER A
   DEFAULT — text is the default; speak ONLY when the operator opts in (they may be where sound is
@@ -30,7 +30,7 @@ metadata:
 
 ## Overview
 Turn text into **real, human-like, on-demand voice**. Single responsibility = the **voice layer**:
-a deterministic producer (`bin/speak`) that renders text → audio via the official fallback chain,
+a deterministic producer (`bin/speak.sh`) that renders text → audio via the official fallback chain,
 plus a **Voice Director** rubric that lets the agent cast the voice/tone/rhythm to the moment. The
 quality bar was set by an operator-eared bake-off (see Refs): **Gemini 3.1 Flash TTS** wins (pt-BR
 native, 9–10), **ElevenLabs v3** is the expressive fallback (9–10, free-tier voices carry a light
@@ -61,14 +61,14 @@ person. A vivid-but-false delivery is worse than a plain one.
 ## Architecture — HYBRID (deterministic mechanism × the agent as Director)
 | Layer | Who | What |
 |---|---|---|
-| **Deterministic (the actor)** | `bin/speak` (script) + presets (templates) + param ranges + the fallback chain | repeatable, scriptable, amnesia-proof; takes explicit config; first-success-wins chain |
-| **Non-deterministic (the director)** | the AGENT, via the §Voice-Director rubric | reads context · scope · session-mood · the text's emotional tone → COMPUTES voice/gender/intonation/tags/rhythm → calls `bin/speak` |
+| **Deterministic (the actor)** | `bin/speak.sh` (script) + presets (templates) + param ranges + the fallback chain | repeatable, scriptable, amnesia-proof; takes explicit config; first-success-wins chain |
+| **Non-deterministic (the director)** | the AGENT, via the §Voice-Director rubric | reads context · scope · session-mood · the text's emotional tone → COMPUTES voice/gender/intonation/tags/rhythm → calls `bin/speak.sh` |
 
 This mirrors the Convergence-Engine doctrine (deterministic harness × probabilistic cognition): the
 *mechanism* is fixed and safe; the *casting/direction* is the agent's judgment, bounded by the gates.
 
-## `bin/speak` — the producer (deterministic surface)
-`bin/speak.sh "text" [options]` (or pipe text on stdin). Renders + (by default) `afplay`s; `--out
+## `bin/speak.sh` — the producer (deterministic surface)
+`bin/speak.sh "text" [options]` (or pipe text on stdin). Renders **render-only by default (NEVER auto-plays)** — pass `--play` to afplay now (opt-in); `--out
 file.mp3` to save, `--no-play` to suppress audio.
 
 | Option | Meaning |
@@ -95,7 +95,7 @@ their defaults + the explicit knobs).
 | `animado` | Puck · "leve, animado, bem-humorado" | Laura · .3/.55 · `[excited]` | pm_alex · 1.05 |
 
 ## §Voice-Director rubric (the non-deterministic layer — how the agent casts on-demand)
-Given a `(text, context)` and an OPT-IN to speak, compute the `bin/speak` call in two passes:
+Given a `(text, context)` and an OPT-IN to speak, compute the `bin/speak.sh` call in two passes:
 
 **1. Deterministic base (template) — content-type → preset + gender default:**
 | Content-type / context | base preset | default gender |
@@ -115,7 +115,7 @@ Given a `(text, context)` and an OPT-IN to speak, compute the `bin/speak` call i
 - **Variety/persona**: vary voice/gender across calls for personality (don't always pick the same),
   but keep it apt — the cast should fit the piece, not distract.
 - **Rhythm**: slower for weighty/narrator, brisker for animated/notification.
-- Then emit: `bin/speak "<text>" --style <preset or free-notes> [--gender] [--exaggeration] [--tags] [--speed]`.
+- Then emit: `bin/speak.sh "<text>" --style <preset or free-notes> [--gender] [--exaggeration] [--tags] [--speed] [--play]`.
 
 The base map makes it repeatable; the overlay makes it alive. **Both are bounded by**: opt-in only,
 the faithfulness/tone gate, and the deterministic param ranges.
@@ -162,7 +162,7 @@ the faithfulness/tone gate, and the deterministic param ranges.
 - ❌ Auto-play / make voice a default → operator may be where sound is unwelcome (opt-in only).
 - ❌ Echo/log/commit an API key → ⛔ absolute.
 - ❌ Voice an emotion the content doesn't carry / alarm for effect → faithfulness+tone gate.
-- ❌ Rebuild a TTS engine or hardcode a single voice → use `bin/speak` + the Director (presets+overrides).
+- ❌ Rebuild a TTS engine or hardcode a single voice → use `bin/speak.sh` + the Director (presets+overrides).
 - ❌ Use NotebookLM for on-demand voice (it's async batch podcast) / `say` for quality (robotic).
 - ❌ Ignore the fallback chain (always degrade gracefully Gemini→ElevenLabs→Kokoro).
 
@@ -194,4 +194,4 @@ MIT (matches the repo `LICENSE`).
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-06-25 | Bootstrap. `bin/speak` producer (Gemini 3.1 → ElevenLabs v3 → Kokoro fallback chain, 1P keys via SA subshell, full override surface). HYBRID Voice-Director rubric (deterministic content-type→preset templates × non-deterministic mood/tone overlay). **Audio strictly opt-in (never default)** + faithfulness/tone gate. Engine config knowledge (Gemini ~30 voices + Director's-Notes; ElevenLabs voice_settings + v3 audio-tags + paid-pt-BR caveat; Kokoro voices+speed). Forged from the operator-eared bake-off (dogfood cycle 002 of `agentic-tool-pipeline`). 6/6 self-validity. |
+| 0.1.0 | 2026-06-25 | Bootstrap. `bin/speak.sh` producer (Gemini 3.1 → ElevenLabs v3 → Kokoro fallback chain, 1P keys via SA subshell, full override surface). HYBRID Voice-Director rubric (deterministic content-type→preset templates × non-deterministic mood/tone overlay). **Audio strictly opt-in (never default)** + faithfulness/tone gate. Engine config knowledge (Gemini ~30 voices + Director's-Notes; ElevenLabs voice_settings + v3 audio-tags + paid-pt-BR caveat; Kokoro voices+speed). Forged from the operator-eared bake-off (dogfood cycle 002 of `agentic-tool-pipeline`). 6/6 self-validity. |
