@@ -154,9 +154,18 @@ the faithfulness/tone gate, and the deterministic param ranges.
 
 ## Install / setup
 - `brew install espeak-ng` (Kokoro pt-BR g2p) · `uv` (provisions Kokoro+torch on first run) · `ffmpeg` + `afplay`.
-- Keys in 1Password vault `eko` (names only): `GOOGLE_GEMINI_API_KEY`, `ELEVENLABS_API_KEY`; read via the
-  `op` SA-token subshell (`op-service-account-tokens`). Override item refs via `SPEAK_GEMINI_ITEM` /
-  `SPEAK_ELEVEN_ITEM` env. No key in any tracked file (gitleaks-clean).
+- Keys live in 1Password; read at runtime via the `op` SA-token subshell (`op-service-account-tokens`) — the
+  actual secret is **never** echoed/logged/committed/placed in argv (it goes in a chmod-600 `curl --config`).
+- **Per-operator item refs are machine-local, NOT committed** (so the repo carries zero operator vault structure).
+  Put your op:// refs in `~/.config/eko/speak.env` (`chmod 600`), which `bin/speak.sh` allowlist-parses
+  (`SPEAK_*` keys only — never blind-sourced, per `script-safety §2`):
+  ```sh
+  SPEAK_GEMINI_ITEM="op://<vault>/<item>/credential"
+  SPEAK_ELEVEN_ITEM="op://<vault>/<item>/credential"
+  ```
+  Or export the same vars in your shell. **Without any config** the API engines report
+  `key unavailable → next engine` and fall through to **Kokoro** (local, no key) — the tool still works with
+  zero setup. The committed defaults are empty; gitleaks-clean.
 
 ## Anti-patterns (do NOT)
 - ❌ Auto-play / make voice a default → operator may be where sound is unwelcome (opt-in only).

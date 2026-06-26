@@ -32,8 +32,26 @@ PLAY=0                   # OPT-IN audio: default = render-only, NEVER auto-play 
 TEXT=""
 
 SA_ENV="${OP_SA_ENV:-$HOME/.config/op/service-accounts/eko-demerzel.env}"
-GEMINI_ITEM="${SPEAK_GEMINI_ITEM:-op://eko/5kxjep3k3jsuzgltw4dbzvbgxe/credential}"
-EL_ITEM="${SPEAK_ELEVEN_ITEM:-op://eko/qtc3ewhhxgnwcld5n2eji544km/credential}"
+
+# Per-operator 1Password item refs live in a MACHINE-LOCAL config (outside the repo, gitignored
+# by location) so this committed file carries NO operator-specific vault structure. It is
+# allowlist-parsed (only SPEAK_* keys, regex-validated), NEVER blind-`source`d, per script-safety §2.
+# Without it the API engines simply report "key unavailable → next engine" and fall through to
+# Kokoro (local, no key) — the tool still works with zero config. Set the op:// refs there, e.g.:
+#   SPEAK_GEMINI_ITEM="op://<vault>/<item>/credential"
+#   SPEAK_ELEVEN_ITEM="op://<vault>/<item>/credential"
+SPEAK_LOCAL_ENV="${SPEAK_LOCAL_ENV:-$HOME/.config/eko/speak.env}"
+if [ -f "$SPEAK_LOCAL_ENV" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in SPEAK_*=*) ;; *) continue;; esac
+    k="${line%%=*}"; v="${line#*=}"
+    printf '%s' "$k" | grep -qE '^SPEAK_[A-Z0-9_]+$' || continue
+    case "$v" in \"*\") v="${v#\"}"; v="${v%\"}";; \'*\') v="${v#\'}"; v="${v%\'}";; esac
+    case "$k" in SPEAK_GEMINI_ITEM|SPEAK_ELEVEN_ITEM|SPEAK_GEMINI_MODEL|SPEAK_ELEVEN_MODEL) export "$k=$v";; esac
+  done < "$SPEAK_LOCAL_ENV"
+fi
+GEMINI_ITEM="${SPEAK_GEMINI_ITEM:-}"   # empty default → no operator vault data committed
+EL_ITEM="${SPEAK_ELEVEN_ITEM:-}"
 GEMINI_MODEL="${SPEAK_GEMINI_MODEL:-gemini-3.1-flash-tts-preview}"
 EL_MODEL="${SPEAK_ELEVEN_MODEL:-eleven_v3}"
 
