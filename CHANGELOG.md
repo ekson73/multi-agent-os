@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `bitbucket-pipeline-watch` skill — wake-on-completion pipeline watcher + auto failure-diagnosis (`skills/bitbucket-pipeline-watch` v1.0.0 + `bin/bb-pipeline-watch.sh`)
+
+- **NEW skill `bitbucket-pipeline-watch`** (#169) — backgrounds a poll-until-done loop that exits the instant a Bitbucket Cloud build COMPLETES, so the harness re-invokes the agent on the **real** event (event-driven, no public webhook). On FAILURE it returns the **redacted** failure diagnosis (failed steps + error-relevant log tail) already baked in — the agent wakes holding what it needs to act, not just a green/red bit. Pairs with the `maos-mcp-hub` `atlassian_bitbucket` gateway.
+- **Secret-safety** — token sourced inside a subshell, used only in an Authorization header, never echoed; all log output passes through `redact()` (AWS temp keys · long base64 · token/password · `bitbucket_api_token`).
+- **PDCA-hardened during review** (bot convergence): `mktemp` for the log file (was predictable `/tmp/_bbw_log.$$` — CWE-377) · `--max-time` on every curl (was indefinite-hang risk that would defeat the `--max-polls` cap) · URL-encode the pipeline uuid + `curl -g` (was a globbing/encoding bug) · fail-fast env sourcing (dropped a masking `|| true`) · added the `bitbucket_api_token` redaction pattern (CWE-532).
+- **Layer-Purity 0** — genericized example workspace/repo, made `--workspace` required (no hardcoded org default); gitleaks-clean; `version`+`triggers` frontmatter.
 ### Added — `voice` skill — official on-demand TTS narration for the content-lifecycle family (`skills/voice` v0.1.0 + `bin/speak.sh` + `commands/speak.md`)
 
 - **NEW skill `voice`** (#172) — the **opt-in** audio producer for the eko-system family. Ratified by an operator-eared TTS bake-off (dogfood cycle 002 of `agentic-tool-pipeline`, the operator's ear = the independent verifier per the Convergence-Engine doctrine). Official fallback chain **Gemini 3.1 Flash TTS → ElevenLabs v3 → Kokoro** (local, free).
