@@ -17,13 +17,13 @@
 # secrets, and token/password values before printing.
 #
 # USAGE:
-#   bb-pipeline-watch.sh --build 1363 [--repo vks-jss-sales-api] [--workspace vek-servicos]
-#   bb-pipeline-watch.sh --latest --branch feature/x --repo vks-jss-sales-api
+#   bb-pipeline-watch.sh --build 1363 --repo my-repo --workspace my-workspace
+#   bb-pipeline-watch.sh --latest --branch feature/x --repo my-repo --workspace my-workspace
 # Options:
 #   --build N            build_number to watch (or use --latest)
 #   --latest             watch the most recent build (optionally filtered by --branch)
 #   --branch B           branch filter for --latest
-#   --workspace WS       Bitbucket workspace (default: vek-servicos or $BITBUCKET_WORKSPACE)
+#   --workspace WS       Bitbucket workspace (required; or set $BITBUCKET_WORKSPACE)
 #   --repo REPO          repo slug (default: $BITBUCKET_REPO_SLUG)
 #   --interval SECS      poll interval (default: 45)
 #   --max-polls N        safety cap (default: 80  -> ~60min @45s)
@@ -33,7 +33,7 @@
 #       non-zero only on a setup error (no token / bad args).
 set -euo pipefail
 
-WS="${BITBUCKET_WORKSPACE:-vek-servicos}"; REPO="${BITBUCKET_REPO_SLUG:-}"
+WS="${BITBUCKET_WORKSPACE:-}"; REPO="${BITBUCKET_REPO_SLUG:-}"
 BUILD=""; LATEST=0; BRANCH=""; INTERVAL=45; MAXPOLLS=80; ONCE=0
 ENV_FILE="${BB_WATCH_ENV_FILE:-$HOME/Projects/multi-agent-os/mcp-tools/maos-mcp-hub/.env}"
 while [ $# -gt 0 ]; do case "$1" in
@@ -48,6 +48,7 @@ while [ $# -gt 0 ]; do case "$1" in
   --once) ONCE=1; shift;;
   *) echo "unknown arg: $1" >&2; exit 2;;
 esac; done
+[ -n "$WS" ] || { echo "ERROR: --workspace required (or set BITBUCKET_WORKSPACE)" >&2; exit 2; }
 [ -n "$REPO" ] || { echo "ERROR: --repo required (or set BITBUCKET_REPO_SLUG)" >&2; exit 2; }
 [ -n "$BUILD" ] || [ "$LATEST" = 1 ] || { echo "ERROR: --build N or --latest required" >&2; exit 2; }
 [ -f "$ENV_FILE" ] || { echo "ERROR: env-file not found: $ENV_FILE" >&2; exit 2; }
@@ -58,20 +59,23 @@ redact() {
     -e 's/(ASIA|AKIA)[A-Z0-9]{8,}/\1[REDACTED-KEY]/g' \
     -e 's#[A-Za-z0-9/+=]{60,}#[REDACTED-LONG]#g' \
     -e 's/((aws_)?(secret|session)[_-]?(access[_-]?key|token)[^A-Za-z0-9]+)[^[:space:]]+/\1[REDACTED]/Ig' \
-    -e 's/(password[^A-Za-z0-9]+)[^[:space:]]+/\1[REDACTED]/Ig'
+    -e 's/(password[^A-Za-z0-9]+)[^[:space:]]+/\1[REDACTED]/Ig' \
+    -e 's/(bitbucket[_-]?api[_-]?token[^A-Za-z0-9]+)[^[:space:]]+/\1[REDACTED]/Ig'
 }
 
 API="https://api.bitbucket.org/2.0/repositories/${WS}/${REPO}"
 
 # Everything that touches the token runs in this subshell.
 (
-  set -a; . "$ENV_FILE" 2>/dev/null || true; set +a
+  # env-file path is user-provided by design (not statically analyzable)
+  # shellcheck disable=SC1090
+  set -a; . "$ENV_FILE" 2>/dev/null; set +a
   T="${BITBUCKET_API_TOKEN:-}"; [ -z "$T" ] && { echo "ERROR: BITBUCKET_API_TOKEN absent in env-file" >&2; exit 3; }
   AUTH=(-H "Authorization: Bearer ${T}")
 
   # Resolve build_number + pipeline uuid (single list call, filter client-side).
   resolve() {
-    curl -s "${AUTH[@]}" \
+    curl -s -g --max-time 30 "${AUTH[@]}" \
       "${API}/pipelines/?sort=-created_on&pagelen=25&fields=values.uuid,values.build_number,values.state.name,values.state.result.name,values.target.ref_name" \
     | BUILD="$BUILD" LATEST="$LATEST" BRANCH="$BRANCH" python3 -c '
 import json,sys,os
@@ -91,10 +95,11 @@ print("|".join([str(pick.get("build_number","")), pick.get("uuid",""),
 
   emit_failure_diag() {
     local puuid="$1"
+    local pe; pe="$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$puuid")"
     echo "----- FAILURE DIAGNOSIS (redacted) -----"
     # list steps, find failed ones
-    local steps; steps="$(curl -s "${AUTH[@]}" \
-      "${API}/pipelines/${puuid}/steps/?fields=values.uuid,values.name,values.state.result.name")"
+    local steps; steps="$(curl -s -g --max-time 30 "${AUTH[@]}" \
+      "${API}/pipelines/${pe}/steps/?fields=values.uuid,values.name,values.state.result.name")"
     echo "$steps" | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
@@ -104,14 +109,15 @@ for v in d.get("values",[]):
     | while IFS=$'\t' read -r suuid sname sresult; do
         echo "  step: ${sname} -> ${sresult}"
         if [ "$sresult" = "FAILED" ]; then
-          local se; se="$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))' "$suuid")"
-          curl -s "${AUTH[@]}" "${API}/pipelines/${puuid}/steps/${se}/log" -o /tmp/_bbw_log.$$ || true
+          local se; se="$(python3 -c 'import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1],safe=""))' "$suuid")"
+          local logfile; logfile="$(mktemp)" || { echo "    (mktemp failed)" >&2; continue; }
+          curl -s -g --max-time 60 "${AUTH[@]}" "${API}/pipelines/${pe}/steps/${se}/log" -o "$logfile" || true
           echo "  --- '${sname}' error-relevant lines ---"
-          grep -niE 'error|denied|invalid|unrecogniz|credential|assume|unable|exception|fail|forbidden|expired|not authorized|AccessDenied|UnrecognizedClient|InvalidIdentityToken|no such|cannot|timeout' /tmp/_bbw_log.$$ 2>/dev/null \
+          grep -niE 'error|denied|invalid|unrecogniz|credential|assume|unable|exception|fail|forbidden|expired|not authorized|AccessDenied|UnrecognizedClient|InvalidIdentityToken|no such|cannot|timeout' "$logfile" 2>/dev/null \
             | tail -25 | redact || echo "    (no matching lines)"
           echo "  --- last 8 lines ---"
-          tail -8 /tmp/_bbw_log.$$ 2>/dev/null | redact || true
-          rm -f /tmp/_bbw_log.$$
+          tail -8 "$logfile" 2>/dev/null | redact || true
+          rm -f "$logfile"
         fi
       done
     echo "----------------------------------------"

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `bitbucket-pipeline-watch` skill — wake-on-completion pipeline watcher + auto failure-diagnosis (`skills/bitbucket-pipeline-watch` v1.0.0 + `bin/bb-pipeline-watch.sh`)
+
+- **NEW skill `bitbucket-pipeline-watch`** (#169) — backgrounds a poll-until-done loop that exits the instant a Bitbucket Cloud build COMPLETES, so the harness re-invokes the agent on the **real** event (event-driven, no public webhook). On FAILURE it returns the **redacted** failure diagnosis (failed steps + error-relevant log tail) already baked in — the agent wakes holding what it needs to act, not just a green/red bit. Pairs with the `maos-mcp-hub` `atlassian_bitbucket` gateway.
+- **Secret-safety** — token sourced inside a subshell, used only in an Authorization header, never echoed; all log output passes through `redact()` (AWS temp keys · long base64 · token/password · `bitbucket_api_token`).
+- **PDCA-hardened during review** (bot convergence): `mktemp` for the log file (was predictable `/tmp/_bbw_log.$$` — CWE-377) · `--max-time` on every curl (was indefinite-hang risk that would defeat the `--max-polls` cap) · URL-encode the pipeline uuid + `curl -g` (was a globbing/encoding bug) · fail-fast env sourcing (dropped a masking `|| true`) · added the `bitbucket_api_token` redaction pattern (CWE-532).
+- **Layer-Purity 0** — genericized example workspace/repo, made `--workspace` required (no hardcoded org default); gitleaks-clean; `version`+`triggers` frontmatter.
+
 ### Added — `proofread` skill — text-quality pass (grammar pt-BR+en · typos · mis-formatting) (`skills/proofread` v1.0.0 + `commands/proofread.md`)
 
 - **NEW skill `proofread`** (soul-name *Aristarchus*) — the THOROUGH on-demand text-quality pass fired when finalizing any text artifact (doc/ADR/README/ticket-body/PR-description/commit-message). An **ECE composition** (`agentic-first §4.7` — deterministic linters × probabilistic rewrite), builds no new engine: **cspell** (catch-anything spell-check, pt-BR dict — flags novel typos like `Aurona` that grep+codespell miss) + **LanguageTool** (grammar/concordância/acentos, run **LOCAL** — never a public API) + **markdownlint-cli2** (structure) + an optional **Grammar-Genie** rewrite.

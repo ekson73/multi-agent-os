@@ -1,6 +1,13 @@
 ---
 name: bitbucket-pipeline-watch
 description: Use when an agent needs to WAIT for a Bitbucket Cloud pipeline/build to finish and act on the outcome — instead of fixed-interval polling. Backgrounds a poll-until-done loop that exits the instant the build COMPLETES, so the harness re-invokes the agent on the real event; on FAILURE it returns the redacted failure diagnosis (failed steps + error-relevant log tail) already baked in. Pairs with the maos-mcp-hub atlassian_bitbucket gateway.
+triggers:
+  - "watch this bitbucket pipeline"
+  - "wait for the build to finish"
+  - "tell me when the pipeline completes"
+  - "diagnose the pipeline failure"
+  - "wake me when the build is done"
+version: 1.0.0
 ---
 
 # Bitbucket Pipeline Watch — wake-on-completion, diagnosis-in-hand
