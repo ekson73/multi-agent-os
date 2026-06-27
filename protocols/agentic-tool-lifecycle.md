@@ -1,6 +1,6 @@
 # Agentic-Tool Lifecycle — Shared Reference
 
-> **Shared reference** for `skills/agentic-tool-intake` + `skills/agentic-tool-evaluator` + `skills/agentic-tool-trainer`.
+> **Shared reference** for `skills/agentic-tool-pipeline` (conductor) + `skills/agentic-tool-intake` + `skills/agentic-tool-evaluator` + `skills/agentic-tool-trainer`.
 > **Version**: 1.0.0 (2026-05-28)
 > **Scope**: AAIF cross-vendor. Vendor-neutral; no host-specific hardcoding.
 > **Lineage**: extends `agents/forge.md` KPI + Goldilocks/RBAD to ALL agentic-tool types; complements `skills/skill-writer` (authoring) and `skills/rule-quality-tests` (rule self-validity).
@@ -42,9 +42,10 @@ Agents/commands in this repo use a lighter frontmatter (`name`, `description`, o
 
 ---
 
-## 3. The lifecycle (create / adopt → evaluate → train)
+## 3. The lifecycle (conduct → create / adopt → evaluate → train)
 
 ```
+   agentic-tool-pipeline (CONDUCT) ─ route --source-object + run EXPAND→FILTER→HARMONIZE → land on ↓
    forge / skill-writer     agentic-tool-intake       agentic-tool-evaluator     agentic-tool-trainer
  ┌─ AUTHOR ──────────┐                                                                            
  │  (create new)     ├──▶ INTAKE ──(verdict)──▶ EVALUATE ──────────────▶ TRAIN ──┐
@@ -53,6 +54,7 @@ Agents/commands in this repo use a lighter frontmatter (`name`, `description`, o
         └───────────────────────┘ ◀─── re-author / finalize distilled draft ◀────┘
 ```
 
+- **Conduct** = the single entry that accepts ANY `--source-object` (intent · url · plugin · marketplace · existing tool), classifies it, runs the divergent→convergent→harmonize pass on the genesis *design*, then **routes** to the right member below (bare-intent→forge · candidate→intake · owned-tool→evaluate/train · ambiguous→defer-HITL) and saves to a chosen `--location`. A thin orchestrator (`skills/agentic-tool-pipeline`) — reimplements nothing; the conductor of this family, sibling thin-preset of `skills/enhance-pipeline` (feature axis).
 - **Author** is OUT of scope for evaluator/trainer (use `skill-writer` for skills, `forge` for agents).
 - **Intake** = given a candidate that **already exists** (external repo/MCP/plugin/skill, or an internal proposal), DECIDE whether & how to take it on: `install · create-internally(→forge) · absorb · adapt · sub-agent · abandon · defer-HITL`. A thin composer (`skills/agentic-tool-intake`) — reimplements nothing; on `create-internally` it routes back to **forge**, on `install` it delegates the governed install to `claude-code-concierge`. Distinct from forge (which assumes the artifact does NOT yet exist).
 - **Evaluate** = score current behavior. Read-only. → produces `EVAL-REPORT`.
