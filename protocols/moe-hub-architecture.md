@@ -60,7 +60,7 @@ AMPLIFIER             : L3 Orchestration (MAOS orchestrator; reuse ruflo/BMAD pa
 ```
 operator: "refatore o módulo de auth deste repo legado sem quebrar a API pública"
  1. L0 guardrails active (hooks); L8 memory recalls prior decisions; L9 starts a trace span.
- 2. CTS classify: Eisenhower=Q2, risk=HIGH (irreversible-ish), scope=brownfield → hard-filters:
+ 2. CTS classify: Eisenhower=Q2, risk=HIGH (irreversible OR high-blast-radius; concrete predicate TBD per spec), scope=brownfield → hard-filters:
     open-source? auth? env-ready? risk-allowed? → survivors scored.
  3. ISO gate: promote full schema ONLY for top-k experts: graphify(L4) → OpenSpec(L1) → ECC-pattern(L2).
  4. Route (substrate-first): graphify builds code graph → OpenSpec writes proposal/spec/tasks →

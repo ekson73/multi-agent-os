@@ -1,7 +1,7 @@
 # agentic-moe-2026 — MAOS Evolution Chapter
 
-> **What this is:** a native MAOS evolution chapter (ratified via `docs/adrs/ADR-006-ath-moe-hub-adoption.md`).
-> **Decision:** `agentic-moe-2026` is absorbed into MAOS; the ATH hub is realized as the **MAOS Hub**
+> **What this is:** a native MAOS evolution chapter (**proposed** via `docs/adrs/ADR-006-ath-moe-hub-adoption.md`, pending HITL ratification).
+> **Proposed decision:** absorb `agentic-moe-2026` into MAOS and realize the ATH hub as the **MAOS Hub**
 > (native MoE gating-network, evolution of `mcp-tools/maos-mcp-hub`). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.**
 > Prose pt-BR · identifiers en-US · stars = dated order-of-magnitude (2026-06-27), `[sec]` = secondary.
 
@@ -11,7 +11,7 @@
 - `20260627-00-canonicalization.md` — Fase 0: canonicalização + gate de supply-chain (EXCLUÍDOS: GSD `$GSD` rug-pull, MemPalace).
 - `20260627-01a-substrates.md` · `01b-knowledge.md` · `01c-pipeline.md` · `01d-amplifier.md` — Fase 1: landscape L0–L9 (26 experts INCLUDED).
 - `20260627-02-ntree-moe.md` — Fase 2: N-Tree / MoE routing graph + receitas + incompatibilidades.
-- `20260627-03-orchestrator-hub.md` — Fase 3: o hub (ATH) — artefatos (a)–(m). **→ realizado como MAOS Hub.**
+- `20260627-03-orchestrator-hub.md` — Fase 3: o hub (ATH) — artefatos (a)–(m). **→ a realizar como MAOS Hub (proposto, pendente ratificação).**
 - `20260627-final-report.md` — síntese + reconciliação de estrelas/licenças + cheat-sheet de roteamento.
 
 ### 2. Publicação
