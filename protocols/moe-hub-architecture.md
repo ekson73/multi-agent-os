@@ -36,7 +36,7 @@ AMPLIFIER             : L3 Orchestration (MAOS orchestrator; reuse ruflo/BMAD pa
 | (f) observability | `sentinel/` (traces+10 rules+health) + `statusmap/` | PARTIAL | OTel exporter in `trace_writer`; Langfuse sink optional |
 | (g) model-router | `skills/slm-routing` | PARTIAL | LiteLLM gateway + per-category budgets |
 | (h) guardrail/HITL | `hooks/hooks.json` (worktree/edit/token gates) + convergence-engine + COWORK-AUTONOMY-POLICY | BUILT/PARTIAL | autonomy tiers wired to risk |
-| (i) security | `skills/pii-masking` + governance hooks + os3pd | PARTIAL/GAP | AgentShield: secret-scan (sk-/ghp-/AKIA), block `--no-verify`, CLAUDE.md-exfil guard |
+| (i) security | `skills/pii-masking` + governance hooks + os3pd | PARTIAL/GAP | AgentShield (cascade-resolved **HYBRID**): runtime hook (egress-allowlist + secret-scan over tool-I/O & **model_output**) on hooked harness + advisory cross-harness + **BLOCKING CI floor** (gitleaks/trivy) |
 | (j) recipes | `enhance-pipeline` · `quiesce` · `auto-pilot` · preflight/postflight | BUILT | bake substrate-first presets into routing |
 | (k) evaluation | `agentic-tool-evaluator` + `rule-quality-tests` + `tests/` | BUILT/GAP | add hub-ROUTING eval (6 task families × risk) |
 | (l) MCP ref impl | `maos-mcp-hub` (hub.py + gateways) | BUILT | the living reference |
@@ -48,7 +48,7 @@ AMPLIFIER             : L3 Orchestration (MAOS orchestrator; reuse ruflo/BMAD pa
    (ECC · superpowers · gstack · BASE · ruflo · BMAD) are NEVER co-resident; they are routed in
    isolation (`agentic-tool-intake` → `adapt`/`sub-agent`/`abandon`), patterns reused (DRY), runtimes
    not stacked. Rationale: the documented instruction-layer collision (duplicate hooks, CLAUDE.md
-   contention, gstack-bans-the-browser-MCP-ECC-bundles).
+   contention, gstack-bans-the-browser-MCP-ECC-bundles). **Enforcement (cascade-resolved HYBRID, autonomy 0.721):** runtime `SessionStart` conductor-scan (taint/refuse, logged `RULE-011`) on hook-capable harnesses + advisory `agentic-tool-intake` rule cross-harness + a BLOCKING CI floor; residual (instruction-injection conductors on hookless harnesses) is narrowed, not closed.
 2. **Substrate-first.** No expert route executes before L0 (guardrails) + L8 (memory) + L9
    (observability) are active.
 3. **Supply-chain gate.** `intake` MUST reproduce the EXCLUDED verdicts (GSD $GSD rug-pull;

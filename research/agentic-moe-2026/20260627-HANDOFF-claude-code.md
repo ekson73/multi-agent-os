@@ -86,6 +86,11 @@ WAVE 4 — DOCS
   WT11 docs/<id>-ath-reframe  reframe dos headers da série p/ "MAOS Hub"; regenerar CONSOLIDATED.pdf/html +
        exec-deck; aplicar o toque de MVV no CLAUDE.md §Organizational Identity — MUDANÇA HITL-ESCALADA
        (toca SSOT bootstrap): só no PR de ratificação, nunca num WT lateral. Fechar a entrada do CHANGELOG.
+WAVE 5 — REGISTRY + CONSOLE (control-plane do operador) · WAVE 6 — INTEGRAÇÃO DA COMUNIDADE (front-door)
+  Governadas por ADR-007. Escopo + tarefas (T1–T10) em `openspec/changes/maos-hub-console/{proposal,tasks}.md`;
+  contrato em `openspec/specs/maos-hub-registry/spec.md`. Sequência: WAVE 5 (T1 registry-SSOT → T2 profile-as-
+  gating-input PRIMEIRO) ANTES da WAVE 6; o contribution-gatekeeper (T8) exige o piso determinístico VERDE
+  (AgentShield/CI da WAVE-0). Os 7 guardrails de integração + a taxonomia `activation` são MUST.
 
 DoR (por item): fontes lidas + worktree criado + cenários de aceite localizados no openspec spec + `<id>` mintado.
 DoD (por item): código + testes verdes + validate-plugin + gitleaks limpo + CHANGELOG/ADR + PR (C07) +

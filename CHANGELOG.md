@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — North Star **proposed**: MAOS as the curated community-integration platform (ADR-007)
+
+- **NEW `docs/adrs/ADR-007-curated-community-integration-platform.md`** — strategic identity: MAOS is the **curated, security-gated, agentically-maintained front-door** to the *vetted best* of the agentic commons — an *index + gate + adapter + guide*, not a re-host. Three faces of one MAOS Hub: **integrator** (inbound discover→vet→adapt→register), **registry** (SSOT), **console** (operator-facing, profile = first-class gating input). Operating model: agentic curation + **human HITL ratification** ("the integrator is built by the agents it integrates"). Fixes 7 non-negotiable guardrails (reject-by-default · no-agent-alone-on-security · real-SPDX-license · adapt-the-adapter-not-the-tool · honor-the-creator · rollback-as-DoD · TTL + hardened-distributor) + the `activation` taxonomy (always-on | default-on-for-context | opt-in | excluded).
+- **NEW `docs/vision/maos-integration-platform.md`** — readable (pt-BR) narrative unifying console + integrator + gatekeeper; the discovery+education wedge; the honest "curation-trust-freshness product" reality.
+- **NEW `openspec/changes/maos-hub-console/{proposal,tasks}.md`** + **`openspec/specs/maos-hub-registry/spec.md`** — spec-driven contract for the operator control-plane (views: preset · category · use-case · context-aware-v1 · prose-intent · safe-mode; `--help`/`--safe-mode`; 4 console guardrails) and the registry SSOT (`activation`, license/SPDX, provenance/SBOM, ttl, rollback, conflicts_with). Sequenced as WAVE 5–6, after the ADR-006 WAVE-0 safety foundation. Status: Proposed — HITL ratification via PR.
+
 ### Added — `agentic-moe-2026` research chapter + **MAOS Hub** architecture **proposed** (ADR-006)
 
 - **NEW research chapter `research/agentic-moe-2026/`** — a multi-phase deep-research study of the OSS agentic-tooling ecosystem (Claude Code & cross-harness): Phase 0 canonicalization + **mandatory supply-chain gate** (EXCLUDED `gsd-build/get-shit-done` for the `$GSD` rug-pull and `MemPalace` for star-manipulation/benchmark allegations), Phase 1 per-layer landscape (L0–L9, 26 INCLUDED experts, dated/`[sec]` star order-of-magnitude), Phase 2 N-Tree / MoE routing graph, Phase 3 the Agentic Tool Hub (ATH). Plus a consolidated PDF/HTML, an exec deck, NotebookLM/Jira prompts, and an **OODA-RECON** cross-walk of this repo.

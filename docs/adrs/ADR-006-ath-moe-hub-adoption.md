@@ -89,6 +89,7 @@ itself; **validate and decide.**
 ## References
 
 - Companions: `docs/adrs/ADR-003-version-ssot-float.md`, `docs/adrs/ADR-004-github-flow-branching.md`, `docs/adrs/ADR-005-dogfood-cycle-ledger.md`.
+- **Forward: `docs/adrs/ADR-007-curated-community-integration-platform.md`** — the community-integration platform North Star; the operator **console** + the **integrator** are the human/inbound faces of this same MAOS Hub. Vision: `docs/vision/maos-integration-platform.md`; contracts: `openspec/changes/maos-hub-console/` + `openspec/specs/maos-hub-registry/spec.md`.
 - The chapter: `research/agentic-moe-2026/` (00..03 + final-report) + `…/20260627-ATH-OODA-RECON.md` (inventory cross-walk) + `…/20260627-HANDOFF-claude-code.md` (hands-on prompt).
 - Native realization: `protocols/moe-hub-architecture.md` · `openspec/specs/maos-hub/spec.md`.
 
