@@ -1,7 +1,7 @@
 # maos-hub — Capability Spec (lightweight, OpenSpec-style)
 
 > As-designed behavioral contract of the **MAOS Hub** (MoE gating network). Lightweight stub — NOT
-> full SpecDD ceremony. Source of truth = `protocols/moe-hub-architecture.md` + `docs/adrs/ADR-006`
+> full SpecDD ceremony. Source of truth = `protocols/moe-hub-architecture.md` + `docs/adrs/ADR-006-ath-moe-hub-adoption.md`
 > + `research/agentic-moe-2026/`. Realizes the ATH (Phase 3) as a native MAOS subsystem; evolution
 > of `mcp-tools/maos-mcp-hub`.
 
@@ -92,7 +92,7 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 
 #### Scenario: co-resident conductor (C1)
 - WHEN a competing L0/L2 manager is present at session start (a second `hooks.json`/`CLAUDE.md` manager)
-- THEN `SessionStart` emits `RULE-011 c1_conductor_scan{detected_conductors[...], decision}` with decision ∈ {taint, refuse}.
+- THEN `SessionStart` emits `RULE-011` (proposed-new sentinel rule — the Sentinel SSOT today goes to RULE-010; RULE-011/012 are added by this proposal, see Deferred) `c1_conductor_scan{detected_conductors[...], decision}` with decision ∈ {taint, refuse}.
 
 #### Scenario: secret/exfil over a tool call or model output (C6)
 - WHEN a tool input/output OR the model output carries a secret or targets a non-allowlisted egress
@@ -101,7 +101,7 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 
 #### Scenario: secret-at-rest in a PR (harness-agnostic floor)
 - WHEN a commit carries a secret regardless of harness
-- THEN the BLOCKING CI floor (gitleaks/trivy) emits `ci_floor{tool, sarif_path, verdict}` with verdict=fail and blocks the merge.
+- THEN the (as-designed) BLOCKING CI floor (gitleaks/trivy) emits `ci_floor{tool, sarif_path, verdict}` with verdict=fail and blocks the merge. *(As-designed target: today gitleaks runs and Trivy is advisory/non-required — promoting the floor to merge-blocking is part of this proposal.)*
 
 #### Scenario: falsifiable acceptance (DoD gate for WT1/WT2)
 - WHEN the WT1/WT2 acceptance fixture (planted secret + a CLAUDE.md-conductor) is run

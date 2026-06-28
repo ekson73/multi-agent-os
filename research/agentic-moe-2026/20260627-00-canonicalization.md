@@ -32,7 +32,7 @@ status: "BLOCKING gate — review before Phase 1"
 3. **GSD rug-pull CONFIRMADO por múltiplas fontes secundárias.** `gsd-build/get-shit-done`
    (~63K) — token `$GSD` (Solana), saque de liquidez (~US$500K), fundador "TÂCHES" apagou
    contas ~2026-04-01; pacotes npm abandonados seguem como ameaça viva. **EXCLUDED** confirmado.
-   Sucessor seguro auditado: **`open-gsd/get-shit-done-redux`** (`@opengsd/get-shit-done-redux`).
+   Sucessor seguro auditado: **`open-gsd/gsd-core`** (`@opengsd/gsd-core`; fork original `get-shit-done-redux`, agora canonicalizado sob `open-gsd/gsd-core` — ver §0.1 tabela + 01c).
 
 ## §0.2 — Correções de licença (gate "state license")
 
@@ -41,7 +41,7 @@ status: "BLOCKING gate — review before Phase 1"
 | multica-ai/andrej-karpathy-skills | MIT | **none (sem LICENSE)** | flag OSS-posture (all-rights-reserved) |
 | langfuse/langfuse | MIT | **NOASSERTION** (source-available/EE-style) | flag (não é OSS permissivo puro) |
 | Arize-ai/phoenix | OSS | **NOASSERTION** (licença Arize custom) | flag |
-| bmad-code-org/BMAD-METHOD | MIT | **NOASSERTION** (GitHub não resolve p/ SPDX) | verificar |
+| bmad-code-org/BMAD-METHOD | MIT | **MIT** confirmado via raw LICENSE 2026-06-27 (01d §refs); SPDX-API retorna NOASSERTION (artefato) | resolvido: MIT |
 | BerriAI/litellm | MIT | **NOASSERTION** (cláusula custom) | flag (infra) |
 | ChristopherKahler/base, /seed | — | **none** | flag (cluster) |
 | ruvnet/agentic-flow | OSS | **none** | flag (neighbor) |
@@ -119,7 +119,7 @@ status: "BLOCKING gate — review before Phase 1"
 | Item | owner/repo | stars (2026-06-27) | lic | fork? | last push | sec | layer | role | verdict |
 |---|---|---:|---|---|---|---|---|---|---|
 | ruflo | ruvnet/ruflo | 54,569 | MIT | não | 2026-05-24 | clean | L3 | amplifier | INCLUDED (MoE exemplar) |
-| bmad-method | bmad-code-org/BMAD-METHOD | 47,753 | **NOASSERTION** | não | 2026-05-20 | clean (verificar lic) | L3 | amplifier | INCLUDED (MoE exemplar) |
+| bmad-method | bmad-code-org/BMAD-METHOD | 47,753 | **MIT** (raw-confirmado; SPDX-API=NOASSERTION) | não | 2026-05-20 | clean | L3 | amplifier | INCLUDED (MoE exemplar) |
 | agentic-flow | ruvnet/agentic-flow | 762 | none | não | 2026-06-24 | flag licença | L3 | neighbor | NEIGHBOR (<1K) |
 | claude-swarm | parruda/swarm (renomeado) | `[UNVERIFIED]` | MIT `[sec]` | não | ativo `[sec]` | rename | L3 | neighbor | NEIGHBOR |
 | claude-squad | smtg-ai/claude-squad | 7,673 | AGPL-3.0 | não | 2026-05-18 | clean (AGPL) | L3 | neighbor | NEIGHBOR |
@@ -171,7 +171,7 @@ status: "BLOCKING gate — review before Phase 1"
 - `mem0`, `superpowers`, `Understand-Anything`, `CLI-Anything`, `gsd-core`, `lmnr`,
   `parruda/swarm`: estrelas via **secundário** (API retornou corpo vazio) — re-tentar com retry/token.
 - `CLI-Anything`: licença a confirmar (v5 diz Apache-2.0).
-- `bmad-method`/`langfuse`/`phoenix`/`litellm`: licença **NOASSERTION** — confirmar termos reais (EE/custom).
+- `langfuse`/`phoenix`/`litellm`: licença **NOASSERTION** — confirmar termos reais (EE/custom). `bmad-method`: **MIT** confirmado via raw LICENSE (resolvido; SPDX-API NOASSERTION é artefato).
 - `MemPalace`: alegações de segurança são **secundárias/não-provadas** — exigir auditoria antes de qualquer reinclusão.
 
 ---

@@ -35,7 +35,7 @@ AMPLIFIER             : L3 Orchestration (MAOS orchestrator; reuse ruflo/BMAD pa
 | (e) memory substrate | `memory-curator` · `decision-capture` · `agentic-session-harness` · postflight seeds | GAP | adopt mem0 (default) + graphiti (temporal) via `intake` |
 | (f) observability | `sentinel/` (traces+10 rules+health) + `statusmap/` | PARTIAL | OTel exporter in `trace_writer`; Langfuse sink optional |
 | (g) model-router | `skills/slm-routing` | PARTIAL | LiteLLM gateway + per-category budgets |
-| (h) guardrail/HITL | `hooks.json` (worktree/edit/token gates) + convergence-engine + COWORK-AUTONOMY-POLICY | BUILT/PARTIAL | autonomy tiers wired to risk |
+| (h) guardrail/HITL | `hooks/hooks.json` (worktree/edit/token gates) + convergence-engine + COWORK-AUTONOMY-POLICY | BUILT/PARTIAL | autonomy tiers wired to risk |
 | (i) security | `skills/pii-masking` + governance hooks + os3pd | PARTIAL/GAP | AgentShield: secret-scan (sk-/ghp-/AKIA), block `--no-verify`, CLAUDE.md-exfil guard |
 | (j) recipes | `enhance-pipeline` · `quiesce` · `auto-pilot` · preflight/postflight | BUILT | bake substrate-first presets into routing |
 | (k) evaluation | `agentic-tool-evaluator` + `rule-quality-tests` + `tests/` | BUILT/GAP | add hub-ROUTING eval (6 task families × risk) |

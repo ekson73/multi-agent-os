@@ -7,7 +7,7 @@
 
 ## Context
 
-In June 2026 we ran a multi-phase deep-research study (`agentic-moe-2026`) over the open-source
+In 2026-06 we ran a multi-phase deep-research study (`agentic-moe-2026`) over the open-source
 agentic-tooling ecosystem (Claude Code & cross-harness): Phase 0 canonicalization + supply-chain
 gate, Phase 1 per-layer landscape (L0–L9), Phase 2 N-Tree / MoE routing graph, Phase 3 the
 **Agentic Tool Hub (ATH)** — a gating-network design. An OODA-RECON of this very repo then showed a
