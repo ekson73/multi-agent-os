@@ -35,6 +35,8 @@
 - SLM-routing decision matrix (P5 extension G3 — captured by Phase C)
 - Runtime proxy gateway with PII masking + semantic cache + SLM routing (Phase D — deferred until ≥ 3 documented runtime-PII incidents post-Phase-B)
 
+> **Clarification (ADR-006 · MAOS Hub):** this Phase-D deferral covers the *perf/PII proxy gateway* (an optimization whose value grows with use). It does **NOT** cover **security guardrails** — the MAOS Hub's C1 (single-conductor) and C6 (content-security) are invariants that fail *silently* and would never accumulate the ≥ 3 incidents, so the deferral does not transfer to them. Their enforcement is cascade-resolved as HYBRID (runtime-hook + advisory + blocking CI floor). See `protocols/moe-hub-architecture.md` + `docs/adrs/ADR-006-ath-moe-hub-adoption.md`.
+
 ## Supreme Directive — The Boy Scout Rule
 
 > "Regardless of whether the actor is a Human Actor or an AI Agent, every transaction in a repository, prompt, context window, or digital archive shall leave the artifact in a state that is **semantically cleaner, safer, more efficient, and more structured** than the one found."
