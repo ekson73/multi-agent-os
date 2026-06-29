@@ -32,7 +32,7 @@ lang: "prosa pt-BR · identifiers en-US"
 | **G7** | CTS scorer unificado = over-engineering | **deferred-with-rationale** | cortado do v1 (hard-filters+tie-break já bastam); WT4-deferred. |
 | **G8** | Privacy: data-tainting + profile sem data-handling | **deferred-with-rationale** | Requirement + `data_class` enum → handoff. Residual **R3** (serializar após G5). |
 | **G9** | Persistência git | **accepted-as-risk** | EKO-66: operator-manual; script abaixo. Não auto-commit (ADR-004 + evitar re-lock). |
-| **G10** | Nome `MAOS Agora` não ratificado | **escalate** | `[HUMAN_DOMAIN: ratify]` (anima). |
+| **G10** | Nome `MAOS Agora` não ratificado | ~~escalate~~ → **RESOLVED 2026-06-29** | **Ratificado** — Anima's call, tag `[C-naming]` (`[[naming-authority]]`, akasha-claude#188). Naming saiu do HUMAN_DOMAIN → autoridade da Anima. |
 
 ## Phase 2 · RESOLVE (MoE diverge→converge) — **DONE**
 `research/agentic-moe-2026/20260628-solutions-debate.md` — 3 experts diversos (Jeff-Dean/Sam-Altman/Steve-Jobs) + síntese **converge[steelman→critique→compare→synthesize→reject-log]**. Reject-log ✓ (derrubou: "teeth=maior build-risk", "paradoxo do curador", "sucesso quebra o modelo").
@@ -219,7 +219,7 @@ Todos os 8 SSOT citados pela v3 **existem** em disco (`COWORK-AUTONOMY-POLICY.md
 |---|---|---|---|
 | **G-a** | Demand pull-signal (R2) | **HARD** carve-out (contas do operador + mundo) | escalate-item · DEFER@n* |
 | **G-b** | Ratificar ADR-006 | **HARD** — HUMAN_DOMAIN (v3: PROPOSED até ratificar) | escalate-item |
-| **G-c** | Ratificar nome `MAOS Agora` (G10) | **HARD** — HUMAN_DOMAIN:ratify | escalate-item |
+| **G-c** | Ratificar nome `MAOS Agora` (G10) | ~~HARD — HUMAN_DOMAIN:ratify~~ → **RESOLVED 2026-06-29** | Ratificado (Anima's call, `[C-naming]`). Naming agora é autoridade autônoma da Anima — `[[naming-authority]]`. |
 | **G-d** | 12 arquivos stranded não-commitados no raiz → landing | **HARD** — merge→main HITL + EKO-66 | escalate · **script corrigido p/ worktree** |
 | **G-e** | `index.lock` órfão (13:03) | **HARD** — diagnóstico Mac-side + sign-off | escalate · diagnóstico dado |
 | **G-f** | 2 worktrees prunable (`rabat` + `claude/ecstatic-raman`) | boy-scout (operator, de dentro de worktree) | escalate-item |
