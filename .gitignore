@@ -12,3 +12,9 @@ __pycache__/
 !.vscode/extensions.json
 !.vscode/launch.json
 !.vscode/tasks.json
+
+# Raw CI/pipeline step env-dumps — NEVER commit (they capture live credentials).
+# A real leak (step1010_logs.txt) sat in history ~3mo; this prevents recurrence.
+*_logs.txt
+step*_logs.txt
+*_deploy_logs.txt
