@@ -3,22 +3,17 @@ name: gap-loop
 version: "0.1.0"
 description: |
   Harness-agnostic, self-driven, self-scored condition-loop that drives a GAP-REGISTER
-  (G1..Gn) to convergence — looping until [every gap dispositioned (fix | defer-with-rationale
-  | accept-as-risk) AND agentic convergence reached AND autonomy_score >= 0.85]. Five phases:
-  DoR precheck -> RECAP (build the gap-register) -> RESOLVE (MoE diverge->converge per gap) ->
-  VALIDATE (independent audit, experts != RESOLVE) -> PERSIST (decision-audit + reject-log +
-  tickets + boy-scout). Its defining novelty vs siblings: it expresses the condition-loop
-  DECLARATIVELY so the agent self-drives it in ANY harness (cowork / Code / SDK) — NO dependency
-  on the /goal slash-command. Adds an anti-gaming DERIVED score that names its binding
-  constraint, a low-score -> rotate-the-MoE-roster re-loop (NOT HITL), and a HITL-as-problem
-  SOFT/HARD classification. Thin preset — composes pulse + perspective-trio + converge +
-  persona-pipeline + cascade-resolver + convergence-engine + decision-capture; reimplements nothing.
-  Use when the operator wants a goal/gap-register driven to convergence in a harness WITHOUT /goal,
-  or wants the loop's score derived (not declared) and low-score handled by new perspectives
-  before any human ask: "gap-loop", "drive these gaps to convergence", "goal-n-loop",
-  "converge this without /goal", "self-scored convergence loop", "resolve the gap-register".
+  (G1..Gn) to convergence — loops until [every gap dispositioned (fix | defer | accept-risk)
+  AND agentic convergence AND autonomy_score >= 0.85]. Five phases: DoR -> RECAP (build the
+  gap-register) -> RESOLVE (MoE diverge->converge per gap) -> VALIDATE (independent audit,
+  experts != RESOLVE) -> PERSIST (decision-audit + reject-log + tickets + boy-scout). Defining
+  novelty: expresses the loop DECLARATIVELY so the agent self-drives it in ANY harness (cowork
+  / Code / SDK) — NO /goal dependency; an anti-gaming DERIVED score that names its binding
+  constraint; a low-score -> rotate-the-MoE-roster re-loop (NOT HITL). Thin preset: composes
+  pulse, perspective-trio, converge, persona-pipeline, cascade-resolver, convergence-engine,
+  decision-capture — reimplements nothing.
   Triggers: "gap-loop", "goal-n-loop", "drive gaps to convergence", "harness-agnostic loop",
-  "self-scored loop", "resolve gap-register", "loop until converged".
+  "self-scored loop", "loop until converged".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 metadata:
   version: "0.1.0"
@@ -36,6 +31,13 @@ primitives and contributes only the parts the family lacks: a **declarative self
 loop** (no `/goal` dependency), an **anti-gaming derived score**, a **rotate-roster re-loop**,
 and a **SOFT/HARD HITL classification**. The shared methodology lives in
 `protocols/gap-loop-protocol.md` (citable by siblings).
+
+> **Provenance / lineage**: distilled (meta-concept extraction) from the operator's
+> `--goal-n-loop` declarative-orchestration prompt — the operator's own harness-agnostic
+> re-expression of `quiesce`'s `/goal` condition-loop. Named via the `anima` engine
+> (agent-register, 12-aspect): `gap-loop` (rejected `converge-loop` — collides with
+> `converge`/`convergence-engine`; `goal-loop` — `goal` is vendor-reserved). Authored by
+> Claude Opus 4.8 (1M) under operator `/quiesce` directive 2026-06-29; reviewed by @ekson73.
 
 ## Purpose
 
@@ -87,7 +89,7 @@ CONVERGED := ( every gap in the gap-register is DISPOSITIONED
 ## Bounds
 
 ```text
---autonomy=L2-unattended        (band; see --autonomy-threshold)
+autonomy-band: L2-unattended    (descriptive band — NOT a flag; set numerically via --autonomy-threshold)
 --max-iterations=6              (loop cap; then park-state + escalate)
 --principles=[DRY, SSOT, KISS, YAGNI, ANTI-OVER-ENG, ANTI-THEATER, CONTINUITY, HAND-OFF, BOY-SCOUT]
 --principle-exception="only with documented justification (SDP)"
@@ -176,12 +178,13 @@ cowork / SDK / other hosts it self-drives. Either way it emits exactly ONE STOP 
 | Flag | Default | Allowed / Notes |
 |---|---|---|
 | `"<instructions>"` (positional) | empty | extra free-text appended to the goal |
-| `--state-source` | `pulse` | where RECAP reads the goal/plan/gaps from (`pulse` \| ticket \| file \| free-text) |
+| `--state-source` | `pulse` | where RECAP reads the goal/plan/gaps from (`pulse` \| `ticket:<id>` \| `file` \| `free-text`) |
 | `--condition` | *(CONVERGED predicate above)* | override the termination predicate string |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — the score gate (maps to band: >=0.85 L3, >=0.65 L2, else L1) |
 | `--max-iterations` | `6` | int — loop cap before park-state + escalate |
 | `--socratic-depth` | `N` (from SSOT) | int — Phase-3 question-bank depth; **never hardcode "33"** |
 | `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (EKO-66: STAGE-only, more conservative than quiesce) |
+| `--auto-merge-reason` | *(none)* | non-empty string — **required when `--auto-merge=authorized`** (auditability parity with `quiesce` + `auto-merge-standing-authorization` G8); ignored for `hold`/`off` |
 | `--driver` | self | self-driven; on Claude Code MAY delegate inner work to `auto-pilot` |
 
 ## Relationship to siblings
@@ -232,7 +235,7 @@ gap-loop "harden the auth gaps before we ship"
 gap-loop --state-source=ticket:VKS-1234 --max-iterations=4
 gap-loop --autonomy-threshold=0.9 --socratic-depth=12
 gap-loop --condition='every gap dispositioned AND no HARD gate open'
-gap-loop --auto-merge=authorized   # only when the operator authorizes (overrides EKO-66 default)
+gap-loop --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"   # reason required when authorized (overrides EKO-66 default)
 ```
 
 ## Quality Tests (6/6 self-validity — dogfooded)

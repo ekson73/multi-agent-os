@@ -52,7 +52,7 @@ TERMINATION — keep looping until ALL true; do NOT stop early:
              AND ( agentic CONVERGENCE — >=2 dissenting positions reconciled into ONE synthesis + reject-log )
              AND ( autonomy_score >= 0.85, DERIVED + evidence-backed — §3 )
 
-BOUNDS: --autonomy=L2-unattended · --max-iterations=6 ·
+BOUNDS: autonomy-band=L2-unattended (set via --autonomy-threshold) · --max-iterations=6 ·
         --principles=[DRY,SSOT,KISS,YAGNI,ANTI-OVER-ENG,ANTI-THEATER,CONTINUITY,HAND-OFF,BOY-SCOUT] ·
         --principle-exception="documented justification (SDP)" · --meta-rule="BEING > law"
 

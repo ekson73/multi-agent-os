@@ -23,6 +23,7 @@ The reusable methodology behind it lives in `protocols/gap-loop-protocol.md`.
           [--max-iterations=6]
           [--socratic-depth=N]          (from SSOT; never hardcode "33")
           [--auto-merge=hold|authorized|off]   (default hold — EKO-66 STAGE-only)
+          [--auto-merge-reason="<why>"]        (required when --auto-merge=authorized)
           [--driver=self|auto-pilot]
 ```
 
@@ -37,7 +38,7 @@ when you want a self-driven, self-scored, gap-register convergence loop in ANY h
 /gap-loop "harden the auth gaps before we ship"
 /gap-loop --state-source=ticket:VKS-1234 --max-iterations=4
 /gap-loop --autonomy-threshold=0.9 --socratic-depth=12
-/gap-loop --auto-merge=authorized   # only when the operator authorizes the merge
+/gap-loop --auto-merge=authorized --auto-merge-reason="green CI, operator-authorized"   # reason required when authorized
 ```
 
 ## Related
