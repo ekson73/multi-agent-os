@@ -1,6 +1,6 @@
 # ADR-006: Absorb `agentic-moe-2026` (ATH) as MAOS's MoE Hub architecture & evolution chapter
 
-- **Status**: Proposed (awaiting operator HITL ratification — MAOS validates & accepts)
+- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180)
 - **Date**: 2026-06-27
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL directive
 - **Scope**: This repo (`maos`, Class B). Companion to the existing orchestration/observability/anti-conflict protocols. Sibling evidence: `research/agentic-moe-2026/` (the research chapter) + `research/agentic-moe-2026/20260627-ATH-OODA-RECON.md` (the inventory cross-walk).
@@ -85,6 +85,14 @@ itself; **validate and decide.**
 - **MVV touch (proposed)**: add to the Vision — *"MAOS is the open-source MoE gating hub (ATH) for
   agentic software engineering"* — to be applied to `CLAUDE.md` §Organizational Identity in the
   ratifying PR.
+- **Ratified 2026-06-29** (operator ekson73, HITL — recorded in the goal-loop session). **WAVE-0, the
+  gating-seam, already shipped in the same cycle** (PR #180: `lib/gateway/{policy.py,conflicts.yaml}` +
+  `router.py` pre-dispatch check; additive `policy=None` passthrough; 0-regression, 192 pass proven on
+  pristine HEAD — see `research/agentic-moe-2026/20260628-goal-loop-closure.md` Loop 2). The
+  **single-conductor invariant** (Decision §4) and the **always-on collision rule** (do NOT co-reside
+  ECC/superpowers/gstack/BASE — route via `agentic-tool-intake`, never stack runtimes) are now **active
+  guidance**, not proposals. **ADR-007 remains Draft (frozen)** — only ADR-006 is ratified. The
+  CLAUDE.md Vision/MVV touch above stays a deferred follow-up (bootstrap-SSOT edit; not bundled here).
 
 ## References
 
