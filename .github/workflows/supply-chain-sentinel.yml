@@ -51,10 +51,12 @@ jobs:
           scan-ref: "."
           severity: "HIGH,CRITICAL"
           ignore-unfixed: "true"
-          # Non-blocking: findings surface via SARIF upload to GitHub code
-          # scanning; Dependabot security PRs handle remediation. Once the
-          # baseline is clean, flip back to "1" to gate merges.
-          exit-code: "0"
+          # BLOCKING gate (T6, 2026-06-29): baseline verified clean, so any
+          # HIGH/CRITICAL vuln (fixable) or secret now FAILS this job and blocks
+          # the merge. Findings still upload via SARIF (Upload step is if: always()),
+          # so GitHub code-scanning + Dependabot remediation are unaffected — this
+          # gate exists to stop a NEW regression from landing, not to replace them.
+          exit-code: "1"
           format: "sarif"
           output: "trivy-results.sarif"
           scanners: "vuln,secret"
