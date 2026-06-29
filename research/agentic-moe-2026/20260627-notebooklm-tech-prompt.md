@@ -71,3 +71,16 @@ Qual o caminho de fallback se o tool top-1 falhar? Cite o arquivo-fonte em cada 
 - [ ] Fontes técnicas subidas (digest §B + final-report + 00 + 02 + 03; opcional 01a–d).
 - [ ] Audio Overview customizado com o bloco A; ~18–25 min; pt-BR + termos en-US.
 - [ ] (opcional) Study-guide (B) e Q&A (C) gerados no chat.
+
+---
+
+## Atualização 2026-06-28 (deep-dive técnico — incluir)
+- **MAOS Hub** (ADR-006): gating network nativo; enforcement **HYBRID** cascade-resolved (runtime-hook + advisory + CI-floor bloqueante) p/ C1/C6; `protocols/moe-hub-architecture.md` + `openspec/specs/maos-hub/spec.md`.
+- **MAOS Agora / console + registry** (ADR-007, Draft): `openspec/changes/maos-hub-console/` + `openspec/specs/maos-hub-registry/spec.md` (taxonomia `activation`, license/SPDX, provenance, ttl, rollback).
+- **Achados da análise crítica** (`20260628-critical-analysis.md`) p/ o Q&A técnico: (1) os "dentes" do console **não existem** — `lib/gateway/router.py` (`@with_feedback`) só anota, não gateia `profile`/`conflicts_with` → falta um **gating-seam**; (2) o CI-floor é ~60% real (Trivy `exit-code:0`), o `contribution-gatekeeper` não existe, e o **fixture known-bad** é nomeado mas não instanciado ("a porta antes da fechadura"); (3) **CTS scorer unificado = possível over-engineering**. Cubra os 3 fixes + a recomendação de **minimal-viable-slice**.
+
+## Atualização 2026-06-29 (deep-dive técnico — o seam EXISTE + governança)
+- **Fix (1) RESOLVIDO — gating-seam construído** (Loop 2): `lib/gateway/policy.py` (`PolicyResolver` dumb in-memory + `load_conflicts()`) + `conflicts.yaml` (**16 arestas estruturais** do `02-ntree-moe`) + `router.py` (+33/−1: 1 bloco pré-dispatch após validar `operation`; deny → erro no envelope `_agent_feedback` **existente**; discovery L0-L2 intocado). **`policy=None`=passthrough.**
+- **Prova (não-asserção):** `test_gateway_policy.py` **16/16** · router+feedback **24/24** · suíte **192 pass / 3 fails pré-existentes** (count-drift, seam-independentes, idênticos no HEAD pristino) · `validate-plugin.sh` PASSED · call-spy prova **handler-não-invocado** nos 2 deny-paths (disabled + conflict) → **0-regressão**.
+- **Score 6-fatores** (Loop 4, SSOT `agents/COWORK-AUTONOMY-POLICY.md`): `knowledge·.30 + certainty·.30 + (1−risk)·.15 + (1−impact)·.15 + (1−importance)·.05 + (1−priority)·.05` → **agent-doable 0.79** · **full-goal 0.71** (binding=`certainty`, HARD-capado). Regime `convergence-engine` = **DEFER@n*** (resíduo = ato-humano, não cognição).
+- **Governança git** (p/ Q&A): #176 mergeou ADR-006/007 **[Proposed]**; o resto landa via **worktree [C04] + gates [C07]** (gitleaks·openspec·validate-plugin), **merge=HITL**, EKO-66 stage-only. Q&A técnico a cobrir: *por que `policy=None` garante 0-regressão?* · *como o seam reusa o `_agent_feedback` (DRY)?* · *por que os fixes (2) CI-floor e (3) CTS seguem DEFERRED?* (R4-ops é admin; CTS é YAGNI até ≥3 tools competindo).

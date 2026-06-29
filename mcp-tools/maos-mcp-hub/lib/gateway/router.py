@@ -7,12 +7,15 @@ or returns discovery responses when called without full params.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from .discovery import build_discovery_response
 from .feedback import with_feedback
 from .schema_registry import SchemaRegistry
 from .types import GatewayRequest
+
+if TYPE_CHECKING:
+    from .policy import PolicyResolver
 
 
 class MetaToolRouter:
@@ -38,11 +41,15 @@ class MetaToolRouter:
         self,
         tool_name: str,
         governance: Optional[List[str]] = None,
+        policy: Optional["PolicyResolver"] = None,
     ) -> None:
         self.tool_name = tool_name
         self.governance = governance or []
         self.registry = SchemaRegistry()
         self._handlers: Dict[str, Dict[str, Callable]] = {}
+        # Optional gating policy. None => passthrough (no gating, zero behaviour
+        # change). When set, dispatch consults it pre-execution (see dispatch()).
+        self.policy = policy
 
     def register(
         self,
@@ -139,6 +146,31 @@ class MetaToolRouter:
                     "hints": [f"Available operations for '{resource}': {', '.join(available)}"],
                 },
             }
+
+        # Gating seam (optional). When a policy is attached, consult it before
+        # executing. policy=None => skipped entirely (passthrough). Discovery
+        # levels 0-2 never reach here (early return above), so the gate only
+        # ever guards real execution. The deny response reuses the existing
+        # error + _agent_feedback envelope shape used elsewhere in dispatch().
+        if self.policy is not None:
+            decision = self.policy.check(operation)
+            if not decision.allow:
+                feedback: Dict[str, Any] = {
+                    "tool": self.tool_name,
+                    "resource": resource,
+                    "operation": operation,
+                    "hints": [decision.reason or "Blocked by policy"],
+                }
+                result: Dict[str, Any] = {
+                    "error": f"Blocked by policy: {operation}",
+                    "resource": resource,
+                    "operation": operation,
+                    "reason": decision.reason,
+                    "_agent_feedback": feedback,
+                }
+                if decision.conflicting_with:
+                    result["conflicts_with"] = decision.conflicting_with
+                return result
 
         # Dispatch to handler (already wrapped with @with_feedback)
         handler = self._handlers[resource][operation]

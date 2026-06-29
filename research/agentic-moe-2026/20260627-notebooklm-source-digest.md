@@ -89,3 +89,41 @@ impede exfiltração de CLAUDE.md). **HITL** em risco HIGH/irreversível. **Reus
 - Correções: `karpathy/base` = sem licença; `BMAD` = MIT (NOASSERTION era artefato de parsing);
   `langfuse`/`phoenix` = NOASSERTION; `CLI-Anything` = Apache-2.0.
 - Alegações do MemPalace são secundárias; pesos/thresholds da Fase 3 são **propostas a calibrar**.
+
+---
+
+# §C — Atualização 2026-06-28 — MAOS Hub + **MAOS Agora** (Draft) + análise crítica
+
+A pesquisa evoluiu de "landscape" para **arquitetura nativa do MAOS** + uma **visão de plataforma**. Suba TAMBÉM (fontes mais atuais):
+
+| Camada | Subir | Arquivo |
+|---|---|---|
+| **Decisões (núcleo)** | ✅ | `docs/adrs/ADR-006-ath-moe-hub-adoption.md` (MAOS Hub) · `docs/adrs/ADR-007-curated-community-integration-platform.md` (North Star, **Draft**) |
+| **Visão (legível)** | ✅ | `docs/vision/maos-integration-platform.md` |
+| **Análise crítica** | ✅ | `research/agentic-moe-2026/20260628-critical-analysis.md` (33 socráticas + banca + veredito + nome) |
+| **Contratos** | ➖ | `openspec/changes/maos-hub-console/{proposal,tasks}.md` · `openspec/specs/maos-hub-registry/spec.md` · `…/20260627-ATH-OODA-RECON.md` |
+
+**Síntese (pro NotebookLM aterrar):**
+- **Nome (anima):** **`MAOS Agora`** (`maos-agora`) — a *agora* grega (encontro + mercado vetado + discurso) = as 3 faces (integrador + registry + console). ⚠️ pendente ratificação.
+- **MAOS Hub (ADR-006):** o MoE gating network nativo (evolução do `maos-mcp-hub`); MAOS já é ~70% dele.
+- **MAOS Agora (ADR-007, Draft):** front-door curado-confiável do commons — índice+gate+adapter+guia (não re-host); 7 guardrails; taxonomia `activation`.
+- **Veredito (dogfood dos próprios experts):** **GO-WITH-FIXES (autonomy 0.62)** · **ASSET-com-risco-de-COST**. Forte onde **constrói**, fraco onde **se declara**. **Recomenda:** ratificar ADR-006; **rebaixar ADR-007 a Vision exploratória**; reduzir ao **minimal-viable-slice** (registry read-only + conflict-graph) + **Wizard-of-Oz de 1 dia** p/ validar demanda antes de construir; e os "dentes" do hub (gating no router) **ainda não existem** (maior build-risk).
+
+---
+
+# §D — Atualização 2026-06-29 — o build aconteceu + o gate de demanda (Loops 2-4)
+
+A visão saiu do papel em parte: o **núcleo foi construído e test-provado**; a plataforma virou **destino-a-ganhar**, não premissa. Fontes novas a subir (mais atuais que §C):
+
+| Camada | Subir | Arquivo |
+|---|---|---|
+| **Closure do goal-loop** | ✅ | `20260628-goal-loop-closure.md` (Loops 1-4: build · demanda · v3-canônico) |
+| **Debate de soluções** | ✅ | `20260628-solutions-debate.md` (3 lentes → cunha "conflict-safe install") |
+| **Probe de demanda** | ➖ | `20260629-demand-probe-post.md` (a munição R2 + kill-criterion pré-registrado) |
+| **Código (referência, NÃO subir)** | ❌ | `mcp-tools/maos-mcp-hub/lib/gateway/{policy.py,conflicts.yaml,router.py}` — é código; citar como evidência, não como fonte |
+
+**Síntese (pro NotebookLM aterrar):**
+- **O seam foi construído** (Loop 2): `policy.py` + `conflicts.yaml` (16 incompatibilidades) + `router.py` (+33/−1) + 16 testes. **`policy=None`=passthrough → 0-regressão** nos 96 actions. Os "dentes" que a crítica disse faltar **agora existem** (test-provados).
+- **A demanda bifurcou** (Loop 3): a *dor existe* (prior 0.45→0.68 por evidência) mas *adotam-ESTA-solução* é **HARD** (só o mundo resolve). Wedge = "instalar a tool certa sem quebrar o resto".
+- **Loop 4 (v3-canônico):** score 6-fatores → **agent-doable 0.79 · full-goal 0.71** (binding=`certainty`, HARD-capado). Veredito: **DEFER@n*** — o que falta é ato-humano (ratificar ADR-006, rodar o probe), não cognição.
+- **Status real:** PR #176 mergeou ADR-006/007 como **Proposed**; o seam + docs seguem **não-commitados** (EKO-66, landing via worktree C04/C07).

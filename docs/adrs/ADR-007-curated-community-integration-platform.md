@@ -1,10 +1,21 @@
 # ADR-007: MAOS as the curated community-integration platform (the trusted front-door)
 
-- **Status**: Proposed (North Star — awaiting operator HITL ratification)
+- **Status**: **Exploratory / DRAFT (FROZEN)** — demoted from "North Star" on 2026-06-28 by the goal-loop (critical-analysis + solutions-debate + cascade confidence gate **0.75 < 0.85 → escalate**). **DRAFT = frozen: no implementation until re-ratified** (gated on a real demand signal + the first integration proving the gate). The atomic core ships via **ADR-006**; this platform identity is **earned, not declared**.
 - **Date**: 2026-06-28
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL co-design (~5-turn dialogue)
 - **Scope**: Strategic identity of the `maos` framework. Extends **ADR-006** (MAOS Hub). The operator-facing console + the community-integration motion are the two human/inbound faces of the same MAOS Hub gating network.
-- **SSOT**: `docs/vision/maos-integration-platform.md` (narrative) · `openspec/changes/maos-hub-console/` (console contract) · `openspec/specs/maos-hub-registry/spec.md` (registry contract).
+- **SSOT**: `docs/vision/maos-integration-platform.md` (narrative) · `openspec/changes/maos-hub-console/` (console contract) · `openspec/specs/maos-hub-registry/spec.md` (registry contract). · Closure: `research/agentic-moe-2026/20260628-goal-loop-closure.md`.
+
+```bash
+# /**
+#  * Rebaixar ADR-007 de "North Star ratificável" para "Draft exploratória (frozen)".
+#  * @context goal-loop 2026-06-28: 9 experts em 2 turnos (forge+persona-pipeline; Jeff-Dean/Sam-Altman/
+#  *          Steve-Jobs; cascade 4 lentes) convergiram; gate de confiança agregada = 0.75 < 0.85 → escalar.
+#  * @reason Anti-theater + honestidade: "front-door confiável do commons" é promessa a se GANHAR (pull +
+#  *          1a integracao provando o gate), nao a declarar com <1K stars e demanda N=1. Self-fix reversivel-in-scope.
+#  * @impact Identidade-plataforma congela; nucleo atomico (ADR-006) segue ratificavel; foco no MVP/wedge.
+#  */
+```
 
 ## Context
 
