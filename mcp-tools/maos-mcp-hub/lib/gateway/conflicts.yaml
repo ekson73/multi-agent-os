@@ -1,0 +1,50 @@
+# Curated tool-incompatibility edge-list for the MoE hub gating-seam.
+#
+# Source: research/agentic-moe-2026/20260627-02-ntree-moe.md
+#   §2.7 "Arestas COMPETITIVAS / INCOMPATÍVEIS" + §5 "INCOMPATIBILIDADES DE CAMADA".
+# These are STRUCTURAL incompatibilities (two tools that cannot co-activate in
+# the same workspace) — same CLAUDE.md manager, same spec dir, same studio slot,
+# opposed philosophies, or banned-vs-expected tooling.
+#
+# Schema: a flat list of undirected edges. Each edge is either a 2-item
+# sequence [a, b] or a mapping {a, b, reason, layer}. Extra keys are advisory
+# (consumed by humans / future tooling), ignored by the resolver.
+#
+# This file is loaded by lib/gateway/policy.py::PolicyResolver.from_yaml but is
+# ADVISORY by default: the resolver only enforces when an active profile is set
+# (policy=None on the router => passthrough => zero behaviour change).
+
+conflicts:
+  # --- L0: CLAUDE.md / .claude managers (two managers => duplicate hooks) ---
+  - {a: ECC, b: base, layer: L0, reason: "two CLAUDE.md managers -> duplicate hooks (base /audit-claude detects sprawl)"}
+  - {a: ECC, b: gstack, layer: L0, reason: "both rewrite CLAUDE.md; ECC warns 'Duplicate hooks file detected'"}
+
+  # --- L2: always-on instruction layer (mandatory workflows collide) ---
+  - {a: superpowers, b: gstack, layer: L2, reason: "competing always-on instruction layers -> unpredictable precedence (pick one)"}
+  - {a: superpowers, b: ECC, layer: L2, reason: "competing always-on instruction layers -> stacked context erosion (pick one)"}
+  - {a: gstack, b: ECC-browser-mcp, layer: L2, reason: "gstack bans mcp__claude-in-chrome__* that ECC bundles/expects"}
+
+  # --- L2: hook engines (two per-prompt engines => double execution) ---
+  - {a: carl, b: ECC, layer: L2, reason: "CARL hook + ECC Pre/PostToolUse stack two per-prompt hook-engines"}
+
+  # --- L1: spec model (two spec systems => two dirs + two conventions) ---
+  - {a: spec-kit, b: openspec, layer: L1, reason: "mutually exclusive spec models (.specify/specs vs openspec/changes)"}
+  - {a: openspec, b: gsd-core, layer: L1, reason: "3 competing SSOTs of spec (orthogonal-but-concurrent)"}
+
+  # --- L1/L2: orchestration philosophy (opposed theses) ---
+  - {a: paul, b: gsd-core, layer: L1, reason: "PAUL-VS-GSD.md: in-session+UNIFY vs fresh-subagents+optional-closure"}
+
+  # --- L8: memory backend / runtime (lock-in + embedding collisions) ---
+  - {a: mem0, b: letta, layer: L8, reason: "letta = runtime lock-in ('must use Letta') vs pluggable mem0"}
+  - {a: letta, b: cognee, layer: L8, reason: "letta runtime lock-in vs pluggable graph memory"}
+  - {a: mem0, b: cognee, layer: L8, reason: "competing default memory backends (slot contention; namespace pgvector)"}
+
+  # --- L6: generative-design studio (same slot + opposed security posture) ---
+  - {a: open-design, b: open-codesign, layer: L6, reason: "same studio slot; bypassPermissions vs permissioned loop"}
+
+  # --- L3: amplifier overkill in low-risk context ---
+  - {a: ruflo, b: bmad-as-co-runtime, layer: L3, reason: "stacking two heavy meta-orchestrators (swarm runtime + persona runtime) is over-kill"}
+
+  # --- Cross-layer second-order clashes (manager conflict propagates) ---
+  - {a: base, b: carl, layer: L0/L2, reason: "base manages CLAUDE.md while carl injects per-prompt rules -> context-management overlap"}
+  - {a: gstack, b: carl, layer: L2, reason: "gstack rewrites CLAUDE.md routing while carl JIT-injects domain rules -> precedence clash"}
