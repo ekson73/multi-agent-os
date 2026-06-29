@@ -1,7 +1,7 @@
 # agentic-moe-2026 — MAOS Evolution Chapter
 
-> **What this is:** a native MAOS evolution chapter (**proposed** via `docs/adrs/ADR-006-ath-moe-hub-adoption.md`, pending HITL ratification).
-> **Proposed decision:** absorb `agentic-moe-2026` into MAOS and realize the ATH hub as the **MAOS Hub**
+> **What this is:** a native MAOS evolution chapter (**ratified** via `docs/adrs/ADR-006-ath-moe-hub-adoption.md` — **Accepted 2026-06-29**; WAVE-0 gating-seam shipped #180).
+> **Decision (ratified):** absorb `agentic-moe-2026` into MAOS and realize the ATH hub as the **MAOS Hub**
 > (native MoE gating-network, evolution of `mcp-tools/maos-mcp-hub`). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.**
 > Prose pt-BR · identifiers en-US · stars = dated order-of-magnitude (2026-06-27), `[sec]` = secondary.
 
