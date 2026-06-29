@@ -1,6 +1,6 @@
 ---
 name: gap-loop
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Harness-agnostic, self-driven, self-scored condition-loop that drives a GAP-REGISTER
   (G1..Gn) to convergence — loops until [every gap dispositioned (fix | defer | accept-risk)
@@ -16,7 +16,7 @@ description: |
   "self-scored loop", "loop until converged".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: orchestration-convergence
   cross_link_slug: gap-loop
@@ -76,9 +76,13 @@ in cowork / SDK / any host with no slash-command.
 
 ```text
 CONVERGED := ( every gap in the gap-register is DISPOSITIONED
-                 dispositioned := fix-applied | deferred-with-rationale | accepted-as-risk )
+                 dispositioned := fix-applied | deferred-with-rationale | accepted-as-risk
+                 AND no gap pending without a disposition )
              AND ( agentic CONVERGENCE reached
-                 := >=2 dissenting expert positions reconciled into ONE synthesis + reject-log )
+                 := >=2 INDEPENDENT dissenting positions reconciled into ONE synthesis + reject-log;
+                    HARMONIC — de-entropy/harmonize, NOT mere majority )
+             AND ( STABLE plateau — convergence-engine economic stop n* reached: Δ<ε for K rounds OR
+                   consensus; keep-best monotonicity — never ship a regressed round )
              AND ( autonomy_score >= 0.85, DERIVED + evidence-backed — see SCORE rule )
 ```
 
@@ -91,7 +95,9 @@ CONVERGED := ( every gap in the gap-register is DISPOSITIONED
 ```text
 autonomy-band: L2-unattended    (descriptive band — NOT a flag; set numerically via --autonomy-threshold)
 --max-iterations=6              (loop cap; then park-state + escalate)
---principles=[DRY, SSOT, KISS, YAGNI, ANTI-OVER-ENG, ANTI-THEATER, CONTINUITY, HAND-OFF, BOY-SCOUT]
+--principles=[DRY, SSOT, KIS, YAGNI, ANTI-OVER-ENG, ANTI-THEATER, CONTINUITY, HAND-OFF, BOY-SCOUT]
+                                # KIS = Keep It Simple (drop accidental complexity, keep essential — simple,
+                                # not simplistic); "smart" is a quality caveat, never a redefinition.
 --principle-exception="only with documented justification (SDP)"
 --meta-rule="BEING > rule; law serves the goal; any rule admits a justified exception"  (= §0 SER>Regras)
 ```
@@ -161,16 +167,24 @@ predicate at the end of each turn and decides CONTINUE vs stop. **No `/goal` req
 Code the agent MAY pair with `/goal --goal-aware` (and its Stop-hook evaluator) for free; on
 cowork / SDK / other hosts it self-drives. Either way it emits exactly ONE STOP marker per turn.
 
+## Operator `--auto-self-*` flags (de-theatered — full table in protocol §3.5)
+
+The four self-* flags map onto EXISTING primitives (invoke, don't invent); they are NOT new machinery:
+- `--auto-self-fix` → `convergence-engine` REFINE (`cascade-resolver` uplift, keep-best) — **reversible-in-scope only**.
+- `--auto-self-heal` → `maos:preflight` (heal branch from origin) + `sentinel` (anomaly auto-block HIGH).
+- `--auto-self-evolve` → boy-scout + `decision-capture`/`operator-quote-capture` — **NOT framework mutation** (new tool/agent = Forge under HITL; YAGNI).
+- `--auto-self-aware` → `sentinel` health-score + ASH meta-trace (PERSIST) — **NOT sentience** (anti-theater).
+
 ## Composition (the wiring — DRY; every phase lands on an existing primitive)
 
 | Phase | Composes (existing — reimplements nothing) |
 |---|---|
-| DoR | `maos:preflight` / `skills/pulse` + `skills/anti-conflict` + `skills/worktree-policy` |
+| DoR | `maos:preflight` / `skills/pulse` (or `skills/directive-braindump-triage`) + `skills/anti-conflict` + `skills/worktree-policy` |
 | RECAP | `skills/pulse` memory-refresh + gap enumeration -> gap-register |
-| RESOLVE | `maos:perspective-trio` (breadth) · `agents/forge.md` (Forge if competency absent) · `skills/converge` (5-act + reject-log) |
-| VALIDATE | `maos:persona-pipeline` (experts != RESOLVE) · `sentinel/detection_rules.md` audit · Socratic gate (`agents/forge.md` §33Q / `skills/maos-concierge/references/socratic-33q.md`) |
-| SCORE + re-loop | `agents/cascade-resolver.md` (autonomy_score formula + 12-role rotation) · `skills/convergence-engine` (master condition `verifier>generator` + economic stop) |
-| PERSIST | `skills/decision-capture` (`agentic-decide`) · `maos:postflight` P2.5 TICKET-SYNC (capability-detected ticketing primitive, ref `ticket-as-prompt`) + P1-SWEEP (boy-scout) |
+| RESOLVE | **regime-routed** REFINE/SELECT/DEFER per `skills/convergence-engine` (protocol §4) · `maos:perspective-trio` (breadth) · `agents/forge.md` (Forge if competency absent) · `skills/converge` (5-act + reject-log) |
+| VALIDATE | `maos:persona-pipeline` (experts != RESOLVE) · `sentinel/detection_rules.md` audit · Socratic gate (`agents/forge.md` §33Q / `skills/maos-concierge/references/socratic-33q.md`; protocol §4 13-target map) |
+| SCORE + re-loop | `agents/COWORK-AUTONOMY-POLICY.md` (bands + carve-outs SSOT) · `agents/cascade-resolver.md` (autonomy_score formula + 12-role rotation) · `skills/convergence-engine` (master condition `verifier>generator` + economic stop) |
+| PERSIST | `skills/decision-capture` (`agentic-decide`) + `skills/agentic-session-harness` (ASH loop meta-trace — protocol §6) · `maos:postflight` P2.5 TICKET-SYNC (capability-detected ticketing primitive, ref `ticket-as-prompt`) + P1-SWEEP (boy-scout) |
 | OUTER loop | **this skill's own contribution** — declarative, harness-agnostic, self-scored |
 
 ## Override parameters
@@ -180,7 +194,7 @@ cowork / SDK / other hosts it self-drives. Either way it emits exactly ONE STOP 
 | `"<instructions>"` (positional) | empty | extra free-text appended to the goal |
 | `--state-source` | `pulse` | where RECAP reads the goal/plan/gaps from (`pulse` \| `ticket:<id>` \| `file` \| `free-text`) |
 | `--condition` | *(CONVERGED predicate above)* | override the termination predicate string |
-| `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — the score gate (maps to band: >=0.85 L3, >=0.65 L2, else L1) |
+| `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — the score gate. Bands (SSOT `agents/COWORK-AUTONOMY-POLICY.md`): **>=0.90 MAY substitute the human / NO-HITL** (own-domain; carve-outs hold) · >=0.85 act · >=0.65 act+justify · else uplift→re-gate→HITL |
 | `--max-iterations` | `6` | int — loop cap before park-state + escalate |
 | `--socratic-depth` | `N` (from SSOT) | int — Phase-3 question-bank depth; **never hardcode "33"** |
 | `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (EKO-66: STAGE-only, more conservative than quiesce) |
@@ -224,7 +238,7 @@ cowork / SDK / other hosts it self-drives. Either way it emits exactly ONE STOP 
 
 - **Dogfood**: validate the loop on its own artifacts before declaring CONVERGED.
 - **Persist-over-fail**: write-ahead-checkpoint each gap disposition BEFORE executing (mid-loop collapse is recoverable).
-- **DRY / KISS / YAGNI / SSOT** — compose primitives, never duplicate them.
+- **DRY / KIS / YAGNI / SSOT** — compose primitives, never duplicate them.
 - **No self-destructive decisions** — nothing that boomerangs on a future session.
 - **Boy-Scout** — leave every artifact cleaner than found; STAGE-only unless authorized (EKO-66).
 
@@ -270,11 +284,33 @@ loop entry (E6) · operator retraction (E4) · >=3 false-positive runs (E5). Dor
 - `skills/pulse/SKILL.md` — DoR/RECAP state source
 - `agents/perspective-trio.md` · `agents/persona-pipeline.md` · `agents/cascade-resolver.md` · `agents/forge.md` — RESOLVE/VALIDATE/SCORE/forge primitives
 - `skills/decision-capture/SKILL.md` — PERSIST decision-audit (`agentic-decide`)
+- `skills/agentic-session-harness/SKILL.md` — ASH loop meta-trace (PERSIST, `--auto-self-aware`)
+- `agents/COWORK-AUTONOMY-POLICY.md` — autonomy bands + carve-outs SSOT (SCORE)
+- `skills/directive-braindump-triage/SKILL.md` — alternate DoR/RECAP state-loader
 - `sentinel/config.json` + `sentinel/detection_rules.md` — anomaly thresholds (Phase-3 audit)
+- `protocols/moe-hub-architecture.md` + `docs/adrs/ADR-006-ath-moe-hub-adoption.md` — MAOS-specific Project carries (above)
 - `protocols/agentic-tool-lifecycle.md` — family-protocol precedent
+
+## Project carries (MAOS-specific — applied only when running inside this repo; **drop when porting**)
+
+> ⚠️ These are **NOT** part of the generic/AAIF methodology (the portable methodology lives in
+> `protocols/gap-loop-protocol.md`, which stays clean). They are repo-local risks a gap-loop run inside
+> `multi-agent-os` MUST carry. When porting this skill to another host/ecosystem, **delete this section**.
+
+- **ADR-006 is PROPOSED, not ratified** (`docs/adrs/ADR-006-ath-moe-hub-adoption.md`; `protocols/moe-hub-architecture.md`
+  Status: Proposed → HITL-ratify). Treat the ATH / MAOS-Hub absorption as **HUMAN_DOMAIN** (a HARD gate) until
+  the operator ratifies — do NOT let the loop self-decide hub-absorption.
+- **MAOS is the single always-on L0/L2/L3 conductor** (`protocols/moe-hub-architecture.md` Invariant 1). It **collides** if
+  stacked with another always-on manager (ECC · superpowers · gstack · BASE · ruflo · BMAD) → a gap-loop run MUST
+  **ROUTE to them in isolation** (`agentic-tool-intake`), never cohabit. Carry this as a known VALIDATE risk.
 
 ## Versioning
 
+- v0.2.0 — folds the `--goal-n-loop v3 FINAL` deltas: `--auto-self-*` flag de-theatering (→ protocol §3.5);
+  `COWORK-AUTONOMY-POLICY` bands+carve-out SSOT cite + ≥0.90 substitute band; three-regime RESOLVE routing
+  (REFINE/SELECT/DEFER) + 33Q 13-target map; ASH loop meta-trace (PERSIST); HARMONIC/STABLE-plateau/keep-best +
+  DEFER-residue ~10–15% nuance; `directive-braindump-triage` alt state-loader; KIS terminology; MAOS-specific
+  *Project carries* (ADR-006-as-HUMAN_DOMAIN + always-on collision, layer-fenced). Methodology in protocol v1.1.0.
 - v0.1.0 (initial) — harness-agnostic declarative 5-phase convergence loop; gap-register termination;
   anti-gaming derived score (names binding constraint); low-score -> rotate-roster re-loop (not HITL);
   HITL-as-problem SOFT/HARD classification; Socratic-depth=N gate; STOP-marker reuse; EKO-66 stage-only
