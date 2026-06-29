@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Three-regime RESOLVE routing** (REFINE/SELECT/DEFER by verifiability) surfaced via `convergence-engine` (protocol §4) + the **33Q × 13-target × 6-section** Socratic map.
   - **ASH loop meta-trace** (PERSIST §6) — per-round observability record (round · score+6-factor · binding factor · regime · roster-delta · n*/stop-reason); the operational form of `--auto-self-aware`.
   - Predicate/DoD nuance: **HARMONIC convergence + STABLE plateau (economic stop n*) + keep-best monotonicity + DEFER residue ~10–15% by design**; `directive-braindump-triage` as alt state-loader; objective tiers.
-  - **KIS** (was KISS) per the `kis-kiss-canonical-terminology` ADR.
+  - **KIS** (was KISS) — "Keep It Simple" (simple, not simplistic; "smart" is a quality caveat, never a redefinition).
   - **MAOS-specific *Project carries* (scope C)** — a clearly-fenced "drop-when-porting" section in the SKILL: ADR-006 (Proposed) → treat hub-absorption as **HUMAN_DOMAIN** until ratified; MAOS always-on single-conductor → **route** ECC/superpowers/gstack/BASE, never cohabit (cites `protocols/moe-hub-architecture.md` + ADR-006). The generic `gap-loop-protocol.md` stays portable (§7 pointer marks these droppable).
 - **No new skill/command, plugin version unbumped** (DRY/Strata; consistent with the other `[Unreleased]` items at `1.16.0` per ADR-003 — plugin version bumps on the release cut). Additive `.md`-only; revertible.
 

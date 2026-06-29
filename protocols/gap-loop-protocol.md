@@ -71,7 +71,7 @@ BOUNDS: autonomy-band=L2-unattended (set via --autonomy-threshold) · --max-iter
         --principles=[DRY,SSOT,KIS,YAGNI,ANTI-OVER-ENG,ANTI-THEATER,CONTINUITY,HAND-OFF,BOY-SCOUT] ·
         --principle-exception="documented justification (SDP)" · --meta-rule="BEING > law"
         # KIS = Keep It Simple (eliminate accidental complexity, preserve essential — simple, not simplistic);
-        #   "smart" is the quality CAVEAT per the kis-kiss-canonical-terminology ADR, never a redefinition.
+        #   "smart" is the quality CAVEAT (simple, not simplistic), never a redefinition.
 
 PHASES (per round):
   0 DoR     precheck state via [pulse | directive-braindump-triage | preflight]; branch+worktree isolation
@@ -125,7 +125,7 @@ fantasy reading.
 |---|---|---|
 | `--auto-self-fix` | `convergence-engine` REFINE (`cascade-resolver` uplift, keep-best) | **reversible-in-scope ONLY** — not a license for irreversible edits |
 | `--auto-self-heal` | `preflight` (heal branch from origin) + `sentinel` (anomaly auto-block HIGH) | not self-modifying logic — just branch/anomaly recovery |
-| `--auto-self-evolve` | boy-scout (`protocols/exit-hygiene`) + `decision-capture` / `operator-quote-capture` | **NOT autonomous framework mutation** — a new tool/agent = Forge under HITL (YAGNI) |
+| `--auto-self-evolve` | boy-scout (`protocols/exit-hygiene.md`) + `decision-capture` / `operator-quote-capture` | **NOT autonomous framework mutation** — a new tool/agent = Forge under HITL (YAGNI) |
 | `--auto-self-aware` | self-observability: `sentinel` health-score + ASH (`agentic-session-harness`) meta-trace (§6) | **NOT literal sentience** — that would be ANTI-THEATER |
 
 ---

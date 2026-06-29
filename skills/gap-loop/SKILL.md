@@ -93,7 +93,7 @@ autonomy-band: L2-unattended    (descriptive band — NOT a flag; set numericall
 --max-iterations=6              (loop cap; then park-state + escalate)
 --principles=[DRY, SSOT, KIS, YAGNI, ANTI-OVER-ENG, ANTI-THEATER, CONTINUITY, HAND-OFF, BOY-SCOUT]
                                 # KIS = Keep It Simple (drop accidental complexity, keep essential — simple,
-                                # not simplistic); "smart" is a quality caveat per the kis-kiss ADR, never a redefinition.
+                                # not simplistic); "smart" is a quality caveat, never a redefinition.
 --principle-exception="only with documented justification (SDP)"
 --meta-rule="BEING > rule; law serves the goal; any rule admits a justified exception"  (= §0 SER>Regras)
 ```
@@ -296,7 +296,7 @@ loop entry (E6) · operator retraction (E4) · >=3 false-positive runs (E5). Dor
 - **ADR-006 is PROPOSED, not ratified** (`docs/adrs/ADR-006-ath-moe-hub-adoption.md`; `protocols/moe-hub-architecture.md`
   Status: Proposed → HITL-ratify). Treat the ATH / MAOS-Hub absorption as **HUMAN_DOMAIN** (a HARD gate) until
   the operator ratifies — do NOT let the loop self-decide hub-absorption.
-- **MAOS is the single always-on L0/L2/L3 conductor** (`moe-hub-architecture.md` Invariant 1). It **collides** if
+- **MAOS is the single always-on L0/L2/L3 conductor** (`protocols/moe-hub-architecture.md` Invariant 1). It **collides** if
   stacked with another always-on manager (ECC · superpowers · gstack · BASE · ruflo · BMAD) → a gap-loop run MUST
   **ROUTE to them in isolation** (`agentic-tool-intake`), never cohabit. Carry this as a known VALIDATE risk.
 
