@@ -76,9 +76,13 @@ in cowork / SDK / any host with no slash-command.
 
 ```text
 CONVERGED := ( every gap in the gap-register is DISPOSITIONED
-                 dispositioned := fix-applied | deferred-with-rationale | accepted-as-risk )
+                 dispositioned := fix-applied | deferred-with-rationale | accepted-as-risk
+                 AND no gap pending without a disposition )
              AND ( agentic CONVERGENCE reached
-                 := >=2 dissenting expert positions reconciled into ONE synthesis + reject-log )
+                 := >=2 INDEPENDENT dissenting positions reconciled into ONE synthesis + reject-log;
+                    HARMONIC — de-entropy/harmonize, NOT mere majority )
+             AND ( STABLE plateau — convergence-engine economic stop n* reached: Δ<ε for K rounds OR
+                   consensus; keep-best monotonicity — never ship a regressed round )
              AND ( autonomy_score >= 0.85, DERIVED + evidence-backed — see SCORE rule )
 ```
 
