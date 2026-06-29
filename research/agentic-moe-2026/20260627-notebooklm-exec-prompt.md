@@ -50,3 +50,20 @@ Gere um "documento de briefing executivo" de 1 página (pt-BR) com: (a) a tese e
 - [ ] Fontes núcleo subidas (digest §B + final-report).
 - [ ] Audio Overview customizado com o bloco A; duração ~10–12 min; pt-BR.
 - [ ] (opcional) Briefing doc gerado com o bloco B.
+
+---
+
+## Atualização 2026-06-28 (cobrir a evolução — com honestidade)
+No Audio Overview executivo (pt-BR), inclua:
+- O projeto ganhou **nome** (skill anima): **MAOS Agora** — a "praça pública" curada do ecossistema agentic (⚠️ pendente ratificação).
+- A evolução: a pesquisa virou **arquitetura nativa** (MAOS Hub, ADR-006) + uma **visão de plataforma** (ADR-007).
+- **Honestidade (importante):** a análise crítica (os experts do MAOS rodados contra o próprio MAOS) deu **GO-com-correções** e recomendou tratar a plataforma como **Vision exploratória (Draft), não fato** — "construir primeiro, declarar depois": ratificar o núcleo (Hub), reduzir ao mínimo viável e **validar demanda barato (teste de 1 dia)** antes de construir. Transmita como maturidade, não fraqueza.
+- Fontes novas: ADR-006/007 + vision + `20260628-critical-analysis.md`.
+
+## Atualização 2026-06-29 (executivo — o projeto amadureceu)
+No Audio Overview executivo (pt-BR), atualize:
+- **Saiu do papel:** o "maestro" (MAOS Hub) teve seu **núcleo construído e testado** — a peça que decide "instalar esta ferramenta sem quebrar as outras" funciona, e foi provada **sem quebrar nada** do que já existia.
+- **A plataforma é destino, não promessa:** decidimos **não declarar** "a praça curada do commons" antes de prová-la. A identidade grande (MAOS Agora) fica **congelada** até um teste de demanda real no mundo (~2 semanas) dizer se há tração — com um critério de "matar a ideia" definido **antes** de testar (honestidade anti-autoengano).
+- **Honestidade como maturidade:** quatro rodadas de auto-crítica convergiram para uma frase só — *"você diz o que quer, e ele instala a ferramenta certa, só ela, sem quebrar o resto"* — e **pararam** onde só falta **decisão humana** (ratificar + rodar o teste), não mais análise.
+- Fechar com: o núcleo (Hub) fica de pé independente do teste; a aposta grande é **opcional e barata de validar**.
+- Fontes novas: `20260628-goal-loop-closure.md` · `20260628-solutions-debate.md` · `20260629-demand-probe-post.md`.
