@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — hub routing-eval (S8) — *eval-first* measurement of the MoE gating-network
+
+- **`mcp-tools/maos-mcp-hub/evals/routing_eval.py`** — the (k) "hub-ROUTING eval (6 task-families × risk)" from `protocols/moe-hub-architecture.md` + ADR-006's gap roadmap (WAVE-0 WT0). It runs *before* the gap-fill worktrees so the **"~70% coverage" claim is calibrated, not assumed** — the eval-first checkpoint the persona-pipeline mandated.
+- **Exercises the REAL gating-seam** (`lib/gateway/policy.py::PolicyResolver`, PR #180) — never a reimplementation — over a golden corpus (`evals/fixtures/routing_cases.yaml`, 6 families × 3 risk, all real tool-ids) + calibrates the (a)–(m) coverage claim (`evals/fixtures/artifact_coverage.yaml`, from the doc's own status column).
+- **Measured verdict:** `seam_teeth_real=true` (18/18 injected conflicts blocked, 18/18 naming the correct colliding tool; 18/18 would slip through `policy=None`) · `weighted_coverage=0.577` (strict 0.231 · lenient 0.923) → the "~70%" is **OPTIMISTIC** by the doc's own status column → `half_the_plan_falls=false` (the gap-fill waves WT1+ remain justified).
+- **DoD-gate honoured:** every acceptance is a *logged JSON field* or a *golden-fixture invariant asserted in a test* — never prose. **14 new tests** (`tests/test_routing_eval.py`), **0-regression** (same 2 pre-existing `test_gateway_discover` count-drift fails + 9 pre-existing collection errors as pristine `main`; 46→60 hub-suite passes).
+- **DRY:** `risk_gating_enforced=false` is logged honestly (the seam is risk-agnostic; risk gating is WT4/S2). A pointer in `skills/agentic-tool-evaluator` notes this routing-eval is the hub half (that skill evaluates single tools). Additive; no plugin version bump (ADR-003 — bumps on release cut).
+
 ### Changed — `gap-loop` skill v0.1.0 → **v0.2.0** + `gap-loop-protocol` v1.0.0 → **v1.1.0** — fold the `--goal-n-loop v3 FINAL` deltas
 
 - **`gap-loop` introduced** (#178) — harness-agnostic, self-driven, self-scored 5-phase convergence loop (DoR→RECAP→RESOLVE→VALIDATE→PERSIST) distilled from the operator's `--goal-n-loop` prompt; fills the seam left by `quiesce` (which needs the Claude Code `/goal` slash-command). *(This entry also backfills the missing v0.1.0 changelog line — boy-scout.)*
