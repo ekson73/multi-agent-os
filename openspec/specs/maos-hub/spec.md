@@ -92,12 +92,15 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 
 #### Scenario: co-resident conductor (C1)
 - WHEN a competing L0/L2 manager is present at session start (a second `hooks.json`/`CLAUDE.md` manager)
-- THEN `SessionStart` emits `RULE-011` (proposed-new sentinel rule — the Sentinel SSOT today goes to RULE-010; RULE-011/012 are added by this proposal, see Deferred) `c1_conductor_scan{detected_conductors[...], scope, decision}` with decision ∈ {clean, taint, refuse} (`clean` = no competitor; `taint` = user-global only; `refuse` = co-resident in THIS project). The DoD-gate acceptance fixture below plants a conductor, so it asserts the non-`clean` subset {taint, refuse}.
+- THEN `SessionStart` emits `RULE-011` (the Sentinel SSOT historically stopped at RULE-010; RULE-011 (implemented WT1/#188) and RULE-012 (implemented WT2) are the sentinel rules added by this proposal — both now live, see `sentinel/detection_rules.md`) `c1_conductor_scan{detected_conductors[...], scope, decision}` with decision ∈ {clean, taint, refuse} (`clean` = no competitor; `taint` = user-global only; `refuse` = co-resident in THIS project). The DoD-gate acceptance fixture below plants a conductor, so it asserts the non-`clean` subset {taint, refuse}.
 
 #### Scenario: secret/exfil over a tool call or model output (C6)
 - WHEN a tool input/output OR the model output carries a secret or targets a non-allowlisted egress
 - THEN `PreToolUse` emits `RULE-012 c6_egress_check{channel, classification, secret_match, decision}` with
-  decision=block when `secret_match≠null` (channel includes `model_output`).
+  decision=block when `secret_match≠null` (channel includes `model_output`). *(Implemented WT2 — the
+  blocking `PreToolUse` hook `plugin-scripts/governance/agentshield.sh` + pure detector
+  `lib/agentshield-scan.sh`; exit 2 + JSON-RPC `-32004` on block. Leak-safe: `secret_match` reports the
+  signature KIND, never the value.)*
 
 #### Scenario: secret-at-rest in a PR (harness-agnostic floor)
 - WHEN a commit carries a secret regardless of harness
