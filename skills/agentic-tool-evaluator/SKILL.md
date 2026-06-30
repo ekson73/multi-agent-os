@@ -22,7 +22,7 @@ Evaluate the **behavior an agentic-tool induces** — not its source code. A ski
 - "Compare these two tools/versions."
 - Before promoting a tool (dogfood gate) or merging a tool PR.
 
-**When NOT to use**: authoring a new tool (→ `skill-writer` / `forge`); improving/mutating a tool (→ `agentic-tool-trainer`); validating a *rule* for self-consistency (→ `rule-quality-tests`); unit-testing executable code (use the project's test runner).
+**When NOT to use**: authoring a new tool (→ `skill-writer` / `forge`); improving/mutating a tool (→ `agentic-tool-trainer`); validating a *rule* for self-consistency (→ `rule-quality-tests`); unit-testing executable code (use the project's test runner); evaluating the **hub's routing** (the MoE gating-network) rather than a single tool (→ `mcp-tools/maos-mcp-hub/evals/routing_eval.py` — the (k) hub-routing eval; this skill scores one tool's induced behaviour, that harness scores route selection across the gating-seam).
 
 ## Method (behavioral, not unit-test)
 

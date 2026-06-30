@@ -1,0 +1,37 @@
+# ATH artifact (a)-(m) coverage — golden SSOT for the "~70%" claim.
+#
+# Source (verbatim status column): protocols/moe-hub-architecture.md
+#   "## Native realization of ATH artifacts (a)-(m)" table, as of 2026-06-29.
+#   ADR-006 §Context states "MAOS already implements ~70% of the ATH hub."
+#
+# This fixture CALIBRATES that ~70% by recording each artifact's own declared
+# status and letting the eval compute coverage under THREE explicit counting
+# rules (because the claim is sensitive to how PARTIAL is weighted):
+#   - strict   : BUILT=1, else 0                 ("fully done")
+#   - weighted : BUILT=1, PARTIAL=0.5, GAP=0      (hybrids split: see `weight`)
+#   - lenient  : any non-GAP = 1                  ("has some implementation")
+#
+# `status` is the doc's literal cell. `weight` is the only modelling choice
+# (documented here, asserted in tests) used by the `weighted` rule; for hybrid
+# cells (BUILT/PARTIAL, PARTIAL/GAP, BUILT/GAP) it is the midpoint.
+
+artifacts:
+  - { key: a, name: "layered pipeline",        status: "PARTIAL",        weight: 0.5  }
+  - { key: b, name: "ISO / Tool-Attention",    status: "PARTIAL",        weight: 0.5  }
+  - { key: c, name: "CTS scoring",             status: "PARTIAL",        weight: 0.5  }
+  - { key: d, name: "tool-registry",           status: "PARTIAL",        weight: 0.5  }
+  - { key: e, name: "memory substrate",        status: "GAP",            weight: 0.0  }
+  - { key: f, name: "observability",           status: "PARTIAL",        weight: 0.5  }
+  - { key: g, name: "model-router",            status: "PARTIAL",        weight: 0.5  }
+  - { key: h, name: "guardrail/HITL",          status: "BUILT/PARTIAL",  weight: 0.75 }
+  - { key: i, name: "security",                status: "PARTIAL/GAP",    weight: 0.25 }
+  - { key: j, name: "recipes",                 status: "BUILT",          weight: 1.0  }
+  - { key: k, name: "evaluation",              status: "BUILT/GAP",      weight: 0.5  }
+  - { key: l, name: "MCP ref impl",            status: "BUILT",          weight: 1.0  }
+  - { key: m, name: "pragmatism filter",       status: "BUILT",          weight: 1.0  }
+
+# The ~70% claim under audit (recorded for the eval to compare against).
+claim:
+  source: "ADR-006 §Context + 20260627-ATH-OODA-RECON.md TL;DR"
+  asserted: 0.70
+  caveat: "OODA-RECON itself flags '~70% is an estimate, not measurement -- calibrate via the eval (P2-k)'"
