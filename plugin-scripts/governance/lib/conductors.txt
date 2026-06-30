@@ -1,0 +1,38 @@
+# Curated conductor-footprint registry for the C1 single-conductor scan (RULE-011).
+#
+# Source: docs/adrs/ADR-006-ath-moe-hub-adoption.md §Decision 4 (single-conductor
+#   invariant) + protocols/moe-hub-architecture.md Invariant 1 + the conflict
+#   edge-list lib/gateway/conflicts.yaml (the SAME competing always-on managers).
+#
+# Each line: `<manager>|<signature-path>` — the path is checked with `[ -e ]`
+# relative to a scanned scope dir (a project's checkout, or ~/.claude). A match
+# means that manager's runtime footprint is INSTALLED in that scope.
+#
+# Format rules: `#` comments + blank lines ignored; exactly one `|`; the path is
+# a literal relative path (NOT a glob) so detection is deterministic + testable.
+# MAOS's own footprint (maos / multi-agent-os) is INTENTIONALLY absent — MAOS is
+# the conductor, not a competitor. Extend by adding lines (data, not code).
+
+# bmad-method — persona-driven agile manager (its install marker dir)
+bmad-method|.bmad-core
+bmad-method|skills/bmad-method
+
+# superpowers — always-on L2 instruction layer (skill / marketplace install)
+superpowers|skills/superpowers
+superpowers|plugins/marketplaces/superpowers
+
+# gstack — "virtual eng team" L2 manager (rewrites CLAUDE.md)
+gstack|skills/gstack
+gstack|plugins/marketplaces/gstack
+
+# ECC (everything-claude-code) — maximalist L0+L2 operator system
+ECC|skills/everything-claude-code
+ECC|plugins/marketplaces/everything-claude-code
+
+# base — anti-staleness CLAUDE.md manager (two CLAUDE.md managers => dup hooks)
+base|skills/base-claude
+base|plugins/marketplaces/base-claude
+
+# ruflo — meta-harness / swarm runtime (L3 amplifier; needs its own L8+L9)
+ruflo|skills/ruflo
+ruflo|plugins/marketplaces/ruflo

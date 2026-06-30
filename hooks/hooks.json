@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/preflight-session.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/single-conductor-scan.sh"
           }
         ]
       }

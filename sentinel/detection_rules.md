@@ -363,6 +363,44 @@ def check_retry_storm(retry_count, time_window_ms=60000):  # 1 minute
 
 ---
 
+### RULE-011: Single-Conductor (C1)
+
+**Category**: Governance
+**Severity**: HIGH
+**Auto-block**: No (warn → correct → block; never aborts the session)
+
+**Description**: Enforces the C1 single-conductor invariant (ADR-006 §4 · moe-hub-architecture Invariant 1): MAOS is the only always-on L0/L2/L3 conductor. At `SessionStart`, scans the PROJECT scope (this checkout's `.claude`/`skills`/`plugins`) and the USER scope (`~/.claude`) for the footprint of a competing always-on manager (`bmad-method` · `superpowers` · `gstack` · `ECC` · `base` · `ruflo` — curated in `plugin-scripts/governance/lib/conductors.txt`) and emits a `c1_conductor_scan` logged field. Honours the operator's real environment: a competitor found only USER-globally is advisory (`taint`); one co-resident in THIS PROJECT is a real duplicate-hooks conflict (`refuse`).
+
+**Condition**:
+```python
+def check_single_conductor(project_dir, user_dir, registry):
+    proj = managers_with_footprint_in(project_dir, registry)
+    user = managers_with_footprint_in(user_dir, registry)
+    if proj:
+        return ALERT("RULE-011 refuse", detected=sorted(proj | user), scope="project")
+    if user:
+        return ALERT("RULE-011 taint",  detected=sorted(user), scope="user")  # advisory
+    return PASS  # clean
+```
+
+**Logged field** (`c1_conductor_scan`):
+```json
+{"rule":"RULE-011","event":"c1_conductor_scan","detected_conductors":["bmad-method"],"scope":"project","decision":"refuse"}
+```
+`decision ∈ {clean, taint, refuse}`.
+
+**Triggers**:
+- A competing always-on instruction-layer / orchestration manager co-resident in the project (`refuse`)
+- Such a manager present only in the user-global config (`taint`, advisory)
+
+**Action**:
+1. LOG `c1_conductor_scan{detected_conductors[], scope, decision}` (the RULE-011 field)
+2. SURFACE the decision as `SessionStart` additionalContext + a stderr warning
+3. On `refuse`: ROUTE the competitor via `/maos:agentic-tool-intake` (adapt/sub-agent/abandon) in an isolated worktree — never stack runtimes
+4. Runtime half of the cascade-resolved HYBRID enforcement (advisory cross-harness rule in `agentic-tool-intake`; blocking CI floor is harness-agnostic)
+
+---
+
 ## Severity Levels
 
 | Level | Color | Auto-Block | Description |

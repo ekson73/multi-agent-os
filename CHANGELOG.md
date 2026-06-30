@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — C1 single-conductor runtime enforcement (WT1 / RULE-011) — the SessionStart half of the HYBRID
+
+- **`plugin-scripts/governance/single-conductor-scan.sh`** (SessionStart hook) + **`lib/conductor-scan.sh`** (pure, testable detection) + **`lib/conductors.txt`** (curated footprint registry) — the runtime enforcement of the C1 single-conductor invariant (ADR-006 §4 · `moe-hub-architecture` Invariant 1). Scans the PROJECT scope + USER scope (`~/.claude`) for a competing always-on manager (`bmad-method` · `superpowers` · `gstack` · `ECC` · `base` · `ruflo`) and emits a **`RULE-011 c1_conductor_scan{detected_conductors[], scope, decision}`** logged field; `decision ∈ {clean, taint, refuse}`.
+- **Honest scoping (no false-blocks):** a competitor present only **user-globally** (the operator's own env) is `taint` (advisory); one **co-resident in THIS project** (a real second always-on manager) is `refuse`. The hook **never aborts the session** (always exit 0) — the teeth are the logged decision + surfaced warning (warn→correct→block), routing the competitor via `/maos:agentic-tool-intake`.
+- **Distinct from PR #180's gateway-layer seam:** #180 gates tool *dispatch* inside the MCP hub router; this is the *SessionStart* conductor-scan on the Claude-Code harness — the two are the cascade-resolved HYBRID's defense-in-depth (runtime hook + advisory cross-harness + blocking CI floor).
+- **RULE-011** registered in `sentinel/detection_rules.md`. Wired into `hooks/hooks.json` SessionStart (after `preflight-session`). Opt-out `MAOS_NO_CONDUCTOR_SCAN=1`.
+- **DoD-gate honoured:** acceptance is the logged `decision` field over golden fixtures (planted project-conductor → `refuse`; user-only → `taint`; clean → `clean`; `database`/maos-own do not false-trip; hook exits 0). **17 new bash tests** (`tests/governance/test-conductor-scan.sh`, auto-discovered by `run-all.sh`). Additive; no plugin version bump (ADR-003).
+
 ### Changed — `gap-loop` skill v0.1.0 → **v0.2.0** + `gap-loop-protocol` v1.0.0 → **v1.1.0** — fold the `--goal-n-loop v3 FINAL` deltas
 
 - **`gap-loop` introduced** (#178) — harness-agnostic, self-driven, self-scored 5-phase convergence loop (DoR→RECAP→RESOLVE→VALIDATE→PERSIST) distilled from the operator's `--goal-n-loop` prompt; fills the seam left by `quiesce` (which needs the Claude Code `/goal` slash-command). *(This entry also backfills the missing v0.1.0 changelog line — boy-scout.)*
