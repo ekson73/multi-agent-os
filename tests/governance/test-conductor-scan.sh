@@ -97,6 +97,38 @@ G_OUT="$(MAOS_NO_CONDUCTOR_SCAN=1 CLAUDE_PROJECT_DIR="$TMP/proj" bash "$HOOK" 2>
 assert_eq "0" "$G_RC"                            "opt-out MAOS_NO_CONDUCTOR_SCAN=1 exits 0"
 assert_eq "" "$G_OUT"                            "opt-out emits nothing"
 
+# --- Fixture H: a competitor installed PROJECT-LOCALLY under .claude/ ---------
+# (Claude Code project-local layout: .claude/skills/<competitor>) must be caught
+# as a project-scope match (refuse), not missed.
+mkdir -p "$TMP/projlocal/.claude/skills/superpowers"
+H="$(csc_scan "$TMP/projlocal" "$TMP/empty")"
+assert_eq "refuse" "$(_decision "$H")"           "project-local .claude/ install => decision=refuse"
+assert_contains "$H" "superpowers"               "refuse names the .claude-local manager"
+assert_contains "$H" '"scope":"project"'         ".claude-local match scoped project"
+
+# --- Fixture I: hook NEVER aborts even with HOME unset (set -u safe) ----------
+I_OUT="$(env -u HOME -u CLAUDE_CONFIG_DIR CLAUDE_PROJECT_DIR="$TMP/empty" bash "$HOOK" 2>/dev/null)"; I_RC=$?
+assert_eq "0" "$I_RC"                            "hook exits 0 with HOME unset (never aborts)"
+assert_contains "$I_OUT" '"hookEventName":"SessionStart"' "hook still emits SessionStart context, HOME unset"
+
+# --- Fixture J: a data-driven registry id with quote/backslash => VALID JSON --
+if command -v python3 >/dev/null 2>&1; then
+    REG="$TMP/reg.txt"
+    printf 'we"ird\\mgr|marker\n' > "$REG"
+    mkdir -p "$TMP/projj/marker"
+    J="$(csc_scan "$TMP/projj" "$TMP/empty" "$REG")"
+    TESTS_RUN=$((TESTS_RUN + 1))
+    if printf '%s' "$J" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d["detected_conductors"]==["we\"ird\\mgr"] else 1)' 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} data-driven id with quote/backslash => valid escaped JSON"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    else
+        echo -e "  ${RED}✗${NC} data-driven id with quote/backslash => valid escaped JSON (got: $J)"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+    fi
+else
+    echo "  (skip json-escape fixture J: python3 absent)"
+fi
+
 echo ""
 echo "  Run: $TESTS_RUN  Passed: $TESTS_PASSED  Failed: $TESTS_FAILED"
 [ "$TESTS_FAILED" -eq 0 ]

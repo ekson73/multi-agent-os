@@ -39,7 +39,16 @@ fi
 
 # Scopes. PROJECT = the checkout Claude Code started in; USER = ~/.claude.
 PROJECT="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-USER_CLAUDE="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# HOME-safe under `set -u`: prefer CLAUDE_CONFIG_DIR; else ~/.claude when HOME is
+# set; else degrade to no user-scope (an unbound $HOME must NOT abort the hook —
+# the "always exit 0" contract). A missing user scope just yields no user hits.
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+    USER_CLAUDE="$CLAUDE_CONFIG_DIR"
+elif [ -n "${HOME:-}" ]; then
+    USER_CLAUDE="$HOME/.claude"
+else
+    USER_CLAUDE=""
+fi
 
 # Run the pure scan (never fails the hook — default to a clean verdict on error).
 SCAN_JSON="$(csc_scan "$PROJECT" "$USER_CLAUDE" 2>/dev/null || echo '{"rule":"RULE-011","event":"c1_conductor_scan","detected_conductors":[],"scope":"none","decision":"clean"}')"

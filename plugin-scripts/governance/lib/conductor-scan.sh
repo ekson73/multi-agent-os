@@ -38,6 +38,11 @@ _csc_managers_in_scope() {
         manager="${manager#"${manager%%[![:space:]]*}"}"; manager="${manager%"${manager##*[![:space:]]}"}"
         relpath="${relpath#"${relpath%%[![:space:]]*}"}"; relpath="${relpath%"${relpath##*[![:space:]]}"}"
         [ -n "$manager" ] && [ -n "$relpath" ] || continue
+        # Reject path-traversal / absolute signatures from a malicious or typo'd
+        # registry (CWE-22): a signature must resolve INSIDE the scanned scope.
+        # Non-overlapping segment cases: leading ../, embedded /../, trailing
+        # /.., bare .., or any absolute path.
+        case "$relpath" in ../*|*/../*|*/..|..|/*) continue ;; esac
         if [ -e "$scope_dir/$relpath" ]; then
             echo "$manager"
         fi
@@ -49,6 +54,10 @@ _csc_json_array() {
     local item first=1 out="["
     while IFS= read -r item; do
         [ -n "$item" ] || continue
+        # Escape backslashes then quotes so a future registry id containing them
+        # can't emit invalid JSON (the registry is data-driven, bash 3.2-safe).
+        item="${item//\\/\\\\}"
+        item="${item//\"/\\\"}"
         if [ "$first" = 1 ]; then first=0; else out="$out,"; fi
         out="$out\"$item\""
     done
@@ -63,6 +72,14 @@ csc_scan() {
 
     local proj_hits user_hits
     proj_hits="$(_csc_managers_in_scope "$project_dir" "$registry")"
+    # Project-local installs live under the checkout's own .claude/ (e.g.
+    # .claude/skills/<competitor>, .claude/plugins/...). Union those into the
+    # PROJECT hits so a project-scoped competitor is caught (refuse), not missed.
+    if [ -n "$project_dir" ] && [ -d "$project_dir/.claude" ]; then
+        proj_hits="$(printf '%s\n%s\n' "$proj_hits" \
+            "$(_csc_managers_in_scope "$project_dir/.claude" "$registry")" \
+            | sed '/^$/d' | sort -u)"
+    fi
     user_hits="$(_csc_managers_in_scope "$user_dir" "$registry")"
 
     # union for the detected_conductors list
