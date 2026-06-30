@@ -49,7 +49,12 @@ fi
 require_jq
 
 TOOL_INPUT=$(cat)
-TOOL_NAME="$(json_get "$TOOL_INPUT" '.tool_name')"
+# `|| true`: json_get exits non-zero on MALFORMED json (jq parse error); under
+# `set -e` that would abort BEFORE the allow fallback, contradicting the
+# availability-safe contract (an unparseable tool call must degrade to ALLOW, not
+# wedge the agent). The guard makes each extraction yield empty → the `*) allow`
+# fallback (empty TOOL_NAME) or a clean as_check (empty PAYLOAD).
+TOOL_NAME="$(json_get "$TOOL_INPUT" '.tool_name' || true)"
 ALLOWLIST="${MAOS_AGENTSHIELD_ALLOWLIST:-}"
 
 CHANNEL=""
@@ -58,12 +63,12 @@ BYPASS=""
 case "$TOOL_NAME" in
     Bash)
         CHANNEL="tool_input"
-        PAYLOAD="$(json_get "$TOOL_INPUT" '.tool_input.command')"
+        PAYLOAD="$(json_get "$TOOL_INPUT" '.tool_input.command' || true)"
         BYPASS="$(as_bash_bypass "$PAYLOAD")"
         ;;
     Task)
         CHANNEL="model_output"
-        PAYLOAD="$(json_get "$TOOL_INPUT" '.tool_input.prompt')"
+        PAYLOAD="$(json_get "$TOOL_INPUT" '.tool_input.prompt' || true)"
         ;;
     *)
         # Not a channel we gate (defensive — hooks.json only wires Bash|Task) → allow.

