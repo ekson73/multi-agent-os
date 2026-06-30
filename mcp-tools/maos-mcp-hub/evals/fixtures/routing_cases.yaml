@@ -1,0 +1,72 @@
+# Golden routing corpus — 6 task-families × 3 risk levels (+ injection).
+#
+# Source: research/agentic-moe-2026/20260627-final-report.md §4 (cheat-sheet,
+#   Eisenhower Q1-Q4 × risk × scope) + protocols/moe-hub-architecture.md (k).
+#
+# Purpose: a falsifiable corpus the routing-eval feeds to the REAL gating-seam
+#   (lib/gateway/policy.py::PolicyResolver) to MEASURE (not assume) its
+#   behaviour across the hub's intended routing scenarios.
+#
+# INVARIANTS this fixture is built to guarantee (asserted in
+#   tests/test_routing_eval.py):
+#   - every `tool` id in a `stack` and every `inject` id EXISTS as a node in
+#     lib/gateway/conflicts.yaml (no invented ids).
+#   - each `stack` is INTERNALLY conflict-free under conflicts.yaml (so the
+#     ONLY conflict in an injection case is the injected tool — clean signal).
+#   - each injection's `inject` id has a real conflict edge to >=1 stack member,
+#     and `expect_conflict_with` lists exactly those members.
+#
+# risk drives `hitl_required` (recorded, NOT yet enforced by the seam — risk
+#   gating is WT4/S2; the eval reports that gap as a logged field, no theatre).
+
+families:
+  - id: incident-prod
+    quadrant: Q1            # urgente + importante
+    intent: "Incidente em produção, alto blast-radius, escopo repo/org"
+    # substrate-first (L0 base + L8 mem0) -> L1 gsd-core -> L6 impeccable linter
+    stack: [base, mem0, gsd-core, impeccable]
+    inject: openspec        # L1 spec model collides with gsd-core
+    expect_conflict_with: [gsd-core]
+
+  - id: hotfix-pointwise
+    quadrant: Q1
+    intent: "Hotfix pontual, escopo file/module"
+    stack: [karpathy-claude-md, mem0, openspec, superpowers]
+    inject: gsd-core        # 3 competing spec SSOTs -> collides with openspec
+    expect_conflict_with: [openspec]
+
+  - id: greenfield-feature
+    quadrant: Q2            # importante, não-urgente
+    intent: "Feature nova / greenfield, escopo module->repo"
+    stack: [mem0, spec-kit, superpowers, open-codesign]
+    inject: openspec        # mutually-exclusive spec model with spec-kit
+    expect_conflict_with: [spec-kit]
+
+  - id: legacy-refactor
+    quadrant: Q2
+    intent: "Refactor de legado/brownfield, escopo module"
+    stack: [base, cognee, openspec, superpowers]
+    inject: mem0            # competing default memory backend with cognee
+    expect_conflict_with: [cognee]
+
+  - id: design-slides
+    quadrant: Q3            # urgente, não-importante
+    intent: "Design/slides quick-turn, escopo file"
+    stack: [karpathy-claude-md, mem0, open-codesign, frontend-slides]
+    inject: open-design     # same studio slot, opposed security posture
+    expect_conflict_with: [open-codesign]
+
+  - id: onboarding-intel
+    quadrant: Q3
+    intent: "Onboarding de codebase / codebase-intel, read-mostly"
+    stack: [karpathy-claude-md, cognee, understand-anything, openspec]
+    inject: mem0            # competing default memory backend with cognee
+    expect_conflict_with: [cognee]
+
+# Risk levels each family is evaluated at. `hitl_required` is the as-DESIGNED
+# expectation (final-report §4 HITL column) — recorded by the eval, gate
+# enforcement is deferred to WT4 (the eval logs `risk_gating_enforced: false`).
+risk_levels:
+  - { level: low,  hitl_required: false }
+  - { level: med,  hitl_required: false }
+  - { level: high, hitl_required: true }
