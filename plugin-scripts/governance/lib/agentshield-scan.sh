@@ -94,9 +94,9 @@ as_egress_targets() {
             | grep -Eo '[a-zA-Z][a-zA-Z0-9+.-]*://[^/[:space:]"'"'"'`]+' \
             | sed -E 's|^[a-zA-Z][a-zA-Z0-9+.-]*://||; s|^[^@]*@||; s|[/?:#;),].*$||'
         # user@host -> host, but ONLY inside an ssh/scp/sftp/rsync command. A bare
-        # `user@host` in a non-network command (e.g. `git config user.email
-        # a@b.com`) is an email, NOT an egress target — extracting it would
-        # false-block under an allowlist. Require the network-command context.
+        # user@host in a non-network command (e.g. `git config user.email <addr>`)
+        # is an email, NOT an egress target — extracting it would false-block
+        # under an allowlist. Require the network-command context.
         if printf '%s' "$cmd" | grep -Eq '(^|[[:space:]])(ssh|scp|sftp|rsync)[[:space:]]'; then
             printf '%s\n' "$cmd" \
                 | grep -Eo '[A-Za-z0-9._-]+@[A-Za-z0-9.-]+' \
