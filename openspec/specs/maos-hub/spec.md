@@ -92,7 +92,7 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 
 #### Scenario: co-resident conductor (C1)
 - WHEN a competing L0/L2 manager is present at session start (a second `hooks.json`/`CLAUDE.md` manager)
-- THEN `SessionStart` emits `RULE-011` (proposed-new sentinel rule — the Sentinel SSOT today goes to RULE-010; RULE-011/012 are added by this proposal, see Deferred) `c1_conductor_scan{detected_conductors[...], decision}` with decision ∈ {taint, refuse}.
+- THEN `SessionStart` emits `RULE-011` (proposed-new sentinel rule — the Sentinel SSOT today goes to RULE-010; RULE-011/012 are added by this proposal, see Deferred) `c1_conductor_scan{detected_conductors[...], scope, decision}` with decision ∈ {clean, taint, refuse} (`clean` = no competitor; `taint` = user-global only; `refuse` = co-resident in THIS project). The DoD-gate acceptance fixture below plants a conductor, so it asserts the non-`clean` subset {taint, refuse}.
 
 #### Scenario: secret/exfil over a tool call or model output (C6)
 - WHEN a tool input/output OR the model output carries a secret or targets a non-allowlisted egress

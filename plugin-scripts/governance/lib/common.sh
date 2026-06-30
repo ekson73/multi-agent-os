@@ -66,8 +66,15 @@ get_timestamp() {
 log_audit() {
     local event="$1"
     local data="${2:-{}}"
-    local audit_dir="${CLAUDE_AUDIT_DIR:-${HOME}/.claude/audit}"
+    local audit_dir="${CLAUDE_AUDIT_DIR:-}"
     local session_id="${CLAUDE_SESSION_ID:-unknown}"
+
+    # HOME-safe under `set -u`: only fall back to ~/.claude/audit when HOME is
+    # set; otherwise no-op (an unbound $HOME must never abort a `set -u` caller).
+    if [[ -z "$audit_dir" ]]; then
+        [[ -n "${HOME:-}" ]] || return 0
+        audit_dir="${HOME}/.claude/audit"
+    fi
 
     if [[ -d "$audit_dir" ]]; then
         local log_file="${audit_dir}/governance_$(date +%Y%m%d).jsonl"
