@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-06-30
+
 ### Added — hub routing-eval (S8) — *eval-first* measurement of the MoE gating-network
 
 - **`mcp-tools/maos-mcp-hub/evals/routing_eval.py`** — the (k) "hub-ROUTING eval (6 task-families × risk)" from `protocols/moe-hub-architecture.md` + ADR-006's gap roadmap (WAVE-0 WT0). It runs *before* the gap-fill worktrees so the **"~70% coverage" claim is calibrated, not assumed** — the eval-first checkpoint the persona-pipeline mandated.
