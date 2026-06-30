@@ -9,15 +9,30 @@
 #
 # INVARIANTS this fixture is built to guarantee (asserted in
 #   tests/test_routing_eval.py):
-#   - every `tool` id in a `stack` and every `inject` id EXISTS as a node in
-#     lib/gateway/conflicts.yaml (no invented ids).
+#   - every `inject` id EXISTS as a node in lib/gateway/conflicts.yaml (it has
+#     to collide to be testable) and is NOT already present in its own `stack`.
+#   - every `tool` id in a `stack` is a REAL id — either a conflict-graph node
+#     in lib/gateway/conflicts.yaml OR a declared `substrate_tools` entry below.
+#     Substrate tools (linters, memory backends, read-only intel) legitimately
+#     have no conflict edges; the allowlist is the source of truth that lets the
+#     test reject invented/typo'd ids without false-flagging real substrate.
 #   - each `stack` is INTERNALLY conflict-free under conflicts.yaml (so the
 #     ONLY conflict in an injection case is the injected tool — clean signal).
 #   - each injection's `inject` id has a real conflict edge to >=1 stack member,
-#     and `expect_conflict_with` lists exactly those members.
+#     and `expect_conflict_with` lists exactly those members (a subset of stack).
 #
 # risk drives `hitl_required` (recorded, NOT yet enforced by the seam — risk
 #   gating is WT4/S2; the eval reports that gap as a logged field, no theatre).
+
+# Substrate tools allowed in a `stack` despite having NO conflict edges in
+#   conflicts.yaml. This is the canonical allowlist the corpus-integrity test
+#   uses as a source of truth: a stack id must be EITHER a conflict node OR
+#   listed here — anything else is an invented/typo'd id and fails the test.
+substrate_tools:
+  - frontend-slides       # L? slides studio output — no exclusivity edge
+  - impeccable            # L6 linter — additive, conflicts with nothing
+  - karpathy-claude-md    # L1 lightweight CLAUDE.md convention — edge-less
+  - understand-anything   # codebase-intel, read-only — no exclusivity edge
 
 families:
   - id: incident-prod

@@ -220,13 +220,23 @@ def run_eval(
     coverage = _measure_coverage(coverage_doc)
 
     # --- top-level verdict (all derived from logged fields above) ----------
+    # Compare EXACT integer counts, not the rounded rates: "all blocked / all
+    # correct" must mean blocked == total and reason_correct == total, never a
+    # rate that rounded UP to 1.0. (For integer counts round(n/d, 4) == 1.0
+    # already implies n == d, but asserting on the counts makes it rounding-proof.)
+    inj = routing["injection"]
     seam_teeth_real = (
-        routing["injection"]["blocked_rate"] == 1.0
-        and routing["injection"]["reason_correct_rate"] == 1.0
+        inj["blocked"] == inj["total"]
+        and inj["reason_correct"] == inj["total"]
     )
     weighted_score = coverage["rules"]["weighted"]["score"]
     claim = coverage["claim_asserted"]
-    # WT0's gating question: "if it measures high, half the plan falls."
+    # WT0's gating question: "if it measures high, half the plan falls." This is
+    # an EXACT gate (weighted >= claim) on purpose — deliberately stricter than
+    # the ±5pp tolerance band that produces the human-readable `claim_70pct`
+    # verdict (BELOW/CONFIRMS/ABOVE). The two may differ near the boundary by
+    # design: this boolean decides whether the gap-fill waves stay justified;
+    # the band only narrates how close the weighted measurement is to the claim.
     half_the_plan_falls = bool(seam_teeth_real and weighted_score >= claim)
 
     return {

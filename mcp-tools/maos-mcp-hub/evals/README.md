@@ -46,7 +46,7 @@ the claim is sensitive to how `PARTIAL` is weighted:
 
 ## The measured verdict (this snapshot)
 
-```
+```text
 seam_teeth_real     : true     (18/18 injections blocked, 18/18 correct reason)
 weighted_coverage   : 0.5769   (strict 0.2308 · lenient 0.9231)
 claim_70pct         : BELOW_CLAIM (claim OPTIMISTIC)

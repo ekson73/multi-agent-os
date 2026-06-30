@@ -4,16 +4,18 @@ Tests for the hub routing-eval (S8).
 Two layers, both DoD-gate compliant (every acceptance is a GOLDEN-FIXTURE
 invariant or a LOGGED FIELD — never prose):
 
-  A. CORPUS INTEGRITY — the golden fixture is honest: every tool id is real
-     (a node in conflicts.yaml), every stack is internally conflict-free, and
-     every injection has a real conflict edge to exactly its expected members.
+  A. CORPUS INTEGRITY — the golden fixture is honest: every inject id is a real
+     conflict node, every stack id is a real id (a conflict node OR a declared
+     substrate tool — no invented/typo'd ids), every stack is internally
+     conflict-free, and every injection has a real conflict edge to exactly its
+     expected members.
   B. MEASURED OUTCOMES — feeding that corpus to the REAL PolicyResolver
      produces the logged fields the eval reports (teeth real, passthrough slip,
      coverage calibrated), deterministically.
 """
 
 from pathlib import Path
-from typing import Set, Tuple
+from typing import FrozenSet, Set
 
 import yaml
 
@@ -30,7 +32,7 @@ from evals.routing_eval import (
 # fixtures-as-data (loaded once)
 # --------------------------------------------------------------------------- #
 
-def _edges() -> Set[Tuple[str, str]]:
+def _edges() -> Set[FrozenSet[str]]:
     return {frozenset(e) for e in load_conflicts(CONFLICTS_YAML)}
 
 
@@ -60,16 +62,38 @@ def test_corpus_has_six_families_and_three_risk_levels():
     assert len(doc["risk_levels"]) == 3
 
 
-def test_every_stack_and_inject_id_is_a_real_conflict_node():
-    """No invented tool ids — every id must exist in conflicts.yaml."""
+def test_every_id_is_real_no_invented_or_typod_ids():
+    """No invented/typo'd ids. Stack tools may legitimately be substrate ids
+    NOT in the conflict graph (e.g. impeccable/frontend-slides have no edges),
+    so the source of truth is `nodes ∪ substrate_tools`: every stack id must be
+    one of them. Plus the cross-consistency invariants that make each injection
+    meaningful — inject is a real node, inject is not already in its own stack,
+    and expect_conflict_with ⊆ stack."""
+    doc = _cases_doc()
     nodes = _nodes()
-    for fam in _cases_doc()["families"]:
+    substrate = set(doc.get("substrate_tools", []))
+    legit = nodes | substrate
+    all_stack_tools: Set[str] = set()
+    for fam in doc["families"]:
         for tool in fam["stack"]:
-            # stack tools may be substrate ids NOT in the conflict graph
-            # (e.g. impeccable/frontend-slides have no edges) -> only assert
-            # the INJECT id is a real node (it must collide to be testable).
-            assert isinstance(tool, str) and tool
+            assert isinstance(tool, str) and tool, f"{fam['id']}: empty/non-str stack id"
+            assert tool in legit, (
+                f"{fam['id']}: stack id '{tool}' is neither a conflict node nor a "
+                f"declared substrate_tool — invented/typo'd id?"
+            )
+            all_stack_tools.add(tool)
         assert fam["inject"] in nodes, f"{fam['id']}: inject '{fam['inject']}' is not a conflict node"
+        assert fam["inject"] not in fam["stack"], (
+            f"{fam['id']}: inject '{fam['inject']}' must not already be in its own stack"
+        )
+        expect = set(fam.get("expect_conflict_with", []))
+        missing = expect - set(fam["stack"])
+        assert not missing, f"{fam['id']}: expect_conflict_with {missing} not in stack"
+    # the allowlist must not rot into a loophole: every declared substrate tool
+    # is actually used by some stack (a stale entry could mask a future typo).
+    assert substrate <= all_stack_tools, (
+        f"unused substrate_tools (allowlist rot): {sorted(substrate - all_stack_tools)}"
+    )
 
 
 def test_every_stack_is_internally_conflict_free():
@@ -97,18 +121,29 @@ def test_every_injection_collides_with_exactly_its_expected_members():
         )
 
 
-def test_coverage_fixture_has_thirteen_artifacts_summing_to_n():
+def test_coverage_fixture_has_thirteen_artifacts_with_canonical_weights():
     doc = _coverage_doc()
     arts = doc["artifacts"]
     assert len(arts) == 13
-    # hybrid weights are the documented midpoints
-    by_status = {a["status"]: a["weight"] for a in arts}
-    assert by_status.get("BUILT") == 1.0
-    assert by_status.get("GAP") == 0.0
-    assert by_status.get("PARTIAL") == 0.5
-    assert by_status.get("BUILT/PARTIAL") == 0.75
-    assert by_status.get("PARTIAL/GAP") == 0.25
-    assert by_status.get("BUILT/GAP") == 0.5
+    # Canonical status->weight mapping (BUILT=1, GAP=0, PARTIAL=0.5, hybrids =
+    # midpoint). Validate EVERY artifact individually: a dict keyed by status
+    # collapses duplicates and would only check the LAST artifact per status,
+    # so a wrong weight on an earlier same-status artifact would slip through.
+    canonical = {
+        "BUILT": 1.0,
+        "GAP": 0.0,
+        "PARTIAL": 0.5,
+        "BUILT/PARTIAL": 0.75,
+        "PARTIAL/GAP": 0.25,
+        "BUILT/GAP": 0.5,
+    }
+    for a in arts:
+        status = a["status"]
+        assert status in canonical, f"artifact {a.get('id', a)!r}: unknown status {status!r}"
+        assert a["weight"] == canonical[status], (
+            f"artifact {a.get('id', a)!r}: status={status} weight={a['weight']} "
+            f"!= canonical {canonical[status]}"
+        )
 
 
 # ===========================================================================
@@ -164,7 +199,15 @@ def test_coverage_claim_is_calibrated_under_three_rules():
     strict = rules["strict"]["score"]
     weighted = rules["weighted"]["score"]
     lenient = rules["lenient"]["score"]
-    # the whole point: the claim is sensitive to how PARTIAL is counted
+    # PIN the exact published calibration this PR asserts (not just the ordering)
+    # so a drift in the fixture status column or the scoring math can't pass
+    # silently. Source of truth: run_eval() over fixtures/artifact_coverage.yaml
+    # (the snapshot documented in evals/README.md).
+    assert strict == 0.2308
+    assert weighted == 0.5769
+    assert lenient == 0.9231
+    # ...and the relationships that give those numbers meaning:
+    # the claim is sensitive to how PARTIAL is counted
     assert strict < weighted < lenient
     # by the doc's own status column, weighted coverage is BELOW the ~70% claim
     assert weighted < r["architecture_coverage"]["claim_asserted"]
