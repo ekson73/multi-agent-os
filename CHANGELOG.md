@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — bot-finding-arbiter v1.3.0 residual round (best-practices grounding · GitHub watch native · fire-point wiring)
+
+- **`skills/bot-finding-arbiter/SKILL.md` v1.2.1 → v1.3.0** — directive-triage verified the operator's "OODA the bot-caused failure + 9 dispositions + teach-the-bot" directive was ~85-90% already satisfied by v1.2.x; this closes the 3 verified residual gaps (docs-only; `bin/classify.sh` + `tests/` untouched, 7/7 green): (a) teach-the-bot edicts now MANDATE **best-practices grounding** — consult the bot's official current config docs AND the governance anchor, and cite BOTH in the edict PR; (b) **GitHub watch parity resolved with the native primitive** — `gh pr checks <pr> --watch --fail-fast --json name,bucket,…` (+ `gh run view --log-failed`) documented as the sibling of `bin/bb-pipeline-watch.sh`; probe confirmed structured diagnosis → no custom wrapper built (Gordian native-over-custom); (c) fire-point effectivation below.
+- **`skills/quiesce/SKILL.md` v0.1.0 → v0.2.0** — a PR red/blocked on a bot-reviewer finding now routes EACH finding to `bot-finding-arbiter` (*Praetor*) as the DEFAULT per-finding handler inside the PDCA loop (was: generic ad-hoc PDCA; the arbiter existed but nothing invoked it automatically).
+- **`rules/pr-governance-unified.md` v1.2.0 → v1.2.1** — Step-8 now routes reviewer-BOT findings per-finding to the arbiter (elevates the 5-way disposition menu to 7-way + teach-the-bot); policy § Bot-Config Correction Discipline unchanged, now actively triggered from the lifecycle step.
+- Additive; no plugin version bump (ADR-003 — bumps on release cut).
+
 ### Added — C6 content-security AgentShield (WT2 / RULE-012) — the PreToolUse BLOCKING half of the HYBRID
 
 - **`plugin-scripts/governance/agentshield.sh`** (PreToolUse hook, `Bash|Task`) + **`lib/agentshield-scan.sh`** (pure, testable detector) — the runtime BLOCKING leg of the C6 content-security invariant (ADR-006 §4 · maos-hub spec §97–100), sibling of WT1's advisory SessionStart conductor-scan. Scans the channel payload — Bash `.tool_input.command` (channel=`tool_input`) and Task `.tool_input.prompt` (channel=`model_output` — model-generated text fed to a sub-agent) — and emits a **`RULE-012 c6_egress_check{channel, classification, secret_match, decision}`** logged field.
