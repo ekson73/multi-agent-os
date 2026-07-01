@@ -1,6 +1,6 @@
 ---
 name: bot-finding-arbiter
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Soul-name **Praetor**. Adjudicates a code-reviewer bot's finding when a build / CI /
   pipeline / PR fails or is blocked on it — and, like the Roman praetor who both judged
@@ -13,7 +13,7 @@ description: |
   OR — only when the bot is VERIFIABLY wrong — write a teaching edit to the bot's config
   file per the bot-config registry). HARD GUARDRAIL: NEVER suppress a valid security /
   logic finding; a config edit that would silence a real finding → HITL, always. Composes
-  existing primitives (pr-review-watch intake · convergence-engine / cascade-resolver /
+  existing primitives (gh-CLI / bb-pipeline-watch intake · convergence-engine / cascade-resolver /
   perspective-trio for the verify · pr-governance disposition menu · auto-merge gate) —
   builds no new convergence machinery.
   Use when a bot flags a PR/build and you must decide what to do about the finding,
@@ -49,7 +49,7 @@ allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 - **Use**: a build/CI/pipeline/PR is failing or blocked on a bot-code-reviewer finding and you must
   decide what to do; OR a reviewer bot emits a recurring false-positive worth teaching away.
 - **Not use**: driving a whole session to green (→ `quiesce`); merely watching PR state
-  (→ `bin/pr-review-watch`); a finding you will simply fix inline with no arbitration needed
+  (→ `gh pr checks` / `bin/bb-pipeline-watch.sh`); a finding you will simply fix inline with no arbitration needed
   (just fix it, per `pr-governance-unified` Step 4).
 
 ## Inputs
@@ -59,9 +59,12 @@ If omitted → ingest ALL open findings on the PR and arbitrate each.
 ## The OODA loop (per finding)
 
 ### 1 — OBSERVE (intake — reuse, don't rebuild)
-- Pull the finding(s) via the existing intake: `bin/pr-review-watch` (GitHub) / `bin/bb-pipeline-watch.sh`
-  (Bitbucket) emit each bot's verdict + comment as a parseable envelope; OR `gh pr view <pr> --json
-  statusCheckRollup,reviews,comments` + `gh api .../commits/<sha>/statuses`.
+- Pull the finding(s) via the existing intake, per host:
+  **GitHub** → `gh pr view <pr> --json statusCheckRollup,reviews,comments` +
+  `gh api repos/<owner>/<repo>/commits/<sha>/statuses` (reviews + checks + commit-statuses);
+  **Bitbucket** → `bin/bb-pipeline-watch.sh` (emits each bot's verdict + comment as a parseable envelope).
+  *(A symmetric `bin/pr-review-watch` wrapper over the `gh` calls is a deferred nicety — `gh` already
+  does it, so it is intentionally not built here.)*
 - For each finding capture: `bot` · `context` (check name) · `state` (error/failure/pending) ·
   `description` · `target_url` · the code hunk it points at.
 - **Recon-before-assume (Skopos)**: read the actual finding + the code it cites before forming any verdict.
@@ -81,6 +84,13 @@ independent lens** (not the same reasoning that proposed it):
 - **Account/infra error** (the bot's *platform* failed, not the code — e.g. Snyk "test limit reached",
   a scanner timeout): classify **bot-wrong → but NOT repo-fixable** (see registry `repo-fixable?` column)
   → HITL playbook, **no config edit** (a repo file cannot fix an account-side quota).
+- **Deterministic pre-filter (run FIRST — the ECE deterministic skeleton):** `bin/classify.sh` reads the
+  finding envelope `{bot, context, state, description}` and code-enforces the two *safety* cues before the
+  probabilistic verify runs — (a) `state=error` + platform keywords → `account-error · NOT-repo-fixable · HITL`;
+  (b) security substance (secret/injection/auth/CVE/data-loss) → `security-class · HITL-gated · never-suppress`;
+  (c) everything else → `content · defer-to-verify` (hand to the probabilistic ORIENT above). It **only gates,
+  never suppresses** — a `content` verdict always defers to the verifier. The gates are proven by
+  `tests/run.sh` (5/5 fixtures, incl. gitleaks-secret → never-suppress + Snyk-quota → not-repo-fixable).
 
 ### 3 — DECIDE (the 7 dispositions)
 Route the finding to exactly ONE (elevates the 5-path `pr-governance-unified` Step-8 menu to per-finding + 7-way):
@@ -115,7 +125,8 @@ repo-fixable** (dashboard) → HITL, no edit.
 ## Composition (reuse map — build nothing new here)
 | Need | Reused primitive |
 |---|---|
-| intake findings | `bin/pr-review-watch` · `bin/bb-pipeline-watch.sh` · `gh` |
+| intake findings | `gh` (GitHub: `pr view --json` + `api …/commits/<sha>/statuses`) · `bin/bb-pipeline-watch.sh` (Bitbucket) |
+| deterministic ORIENT pre-filter (account-error / security-class gate) | `bin/classify.sh` + `tests/` fixtures (the only net-new code — a thin gate, not new convergence) |
 | independent verify (verifier > generator) | `skills/convergence-engine` · `agents/perspective-trio` · `agents/cascade-resolver` · `agents/persona-pipeline` · `bin/convergence-guard` |
 | disposition menu (elevated 5→7) | `rules/pr-governance-unified.md` Step 8 |
 | post comment / scorecard | `.claude/rules/pr-reviewer-communication.md` · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) |
@@ -140,15 +151,16 @@ repo-fixable** (dashboard) → HITL, no edit.
 7. ❌ **Skip the always-comment (7)** — every disposition leaves an audit-trail rationale.
 
 ## Quality Tests (6/6 · §11) + grounding
-1 Self-Application ✅ (built under worktree→PR→converge→merge, the very loop it arbitrates) · 2 Non-Contradiction ✅ (composes `pr-governance-unified`/`convergence-engine`/`auto-merge-standing`; zero duplication) · 3 Survival ✅ · 4 Bounded ✅ (PDCA cap · skips · one-edit-PR · never-critical-infra) · 5 Explicit-Exception ✅ (skips + HITL gates + §0 SER) · 6 Utility-Sunset ✅ (DUED below). Anti-theater 8/8 (the teach-the-bot lever is real config-as-code, empirically grounded in `.pr_agent.toml` precedent).
+1 Self-Application ✅ (built under worktree→PR→converge→merge, the very loop it arbitrates) · 2 Non-Contradiction ✅ (composes `pr-governance-unified`/`convergence-engine`/`auto-merge-standing`; zero duplication) · 3 Survival ✅ · 4 Bounded ✅ (PDCA cap · skips · one-edit-PR · never-critical-infra) · 5 Explicit-Exception ✅ (skips + HITL gates + §0 SER) · 6 Utility-Sunset ✅ (DUED below). Anti-theater 8/8 (the teach-the-bot lever is real config-as-code, empirically grounded in `.pr_agent.toml` precedent; the ⛔never-suppress-valid-security gate is now **code-proven** by `tests/run.sh` (5/5), not prose-only).
 
 ## DUED Sunset (qualitative)
 Deprecate when ANY: a host ships native "arbitrate + teach reviewer bot" (E1) · absorbed into `convergence-engine`/`pr-governance-unified` as one entry (E6) · operator retraction (E4) · ≥3 false-positive suppressions slip through (E5 → tighten the verify gate, not deprecate).
 
 ## Refs
-`rules/pr-governance-unified.md` (§ Bot-Config Correction Discipline — the governance this skill executes) · `bot-config-registry.md` (the SSOT map) · `skills/convergence-engine` · `agents/{perspective-trio,cascade-resolver,persona-pipeline}` · `bin/{pr-review-watch,convergence-guard,bb-pipeline-watch.sh}` · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) · akasha `pr-review-protocol.md` / `auto-merge-standing-authorization.md` / `loose-end-triage-queue.md`. Named by `anima` (soul-name *Praetor*, per `[[naming-authority]]` `[C-naming]`).
+`rules/pr-governance-unified.md` (§ Bot-Config Correction Discipline — the governance this skill executes) · `bot-config-registry.md` (the SSOT map) · `skills/convergence-engine` · `agents/{perspective-trio,cascade-resolver,persona-pipeline}` · `bin/classify.sh` (deterministic ORIENT pre-filter) + `tests/run.sh` · `bin/{convergence-guard,bb-pipeline-watch.sh}` · `gh` CLI · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) · akasha `pr-review-protocol.md` / `auto-merge-standing-authorization.md` / `loose-end-triage-queue.md`. Named by `anima` (soul-name *Praetor*, per `[[naming-authority]]` `[C-naming]`).
 
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-07-01 | Harden — (a) **corrija**: fixed the dangling `bin/pr-review-watch` GitHub-intake reference (cited 5× but the file never existed) → repointed to the real `gh` CLI (`pr view --json` + `api …/statuses`), Bitbucket stays `bb-pipeline-watch.sh`; a symmetric `bin/pr-review-watch` wrapper is a deferred nicety (gh already does it). (b) **melhore**: added `bin/classify.sh` — a deterministic ORIENT pre-filter (ECE skeleton) that code-enforces the two safety cues (account/platform-error → NOT-repo-fixable · security-class → HITL-gated never-suppress; content → defer-to-verify) + `tests/` (5 fixtures + `run.sh`, converge-style) that **prove** the ⛔never-suppress-valid-security gate (5/5 pass: gitleaks-secret → never-suppress, Snyk-quota → not-repo-fixable, content → defer). The gate was prose-only in v1.0.0. |
 | 1.0.0 | 2026-07-01 | Bootstrap — per-finding 7-way OODA disposition arbiter + teach-the-bot config-as-code edict (the greenfield capability: no prior tool wrote back to a bot's config; elevates the manual `.pr_agent.toml` + `pr-governance-unified` Known-FP precedent into a governed, multi-bot, verified loop). ⛔ never-suppress-valid-security hard gate + verifier>generator verify before any edit. Composes existing convergence/intake/comment/merge primitives (zero duplication). Soul-name *Praetor* via `anima`. |
