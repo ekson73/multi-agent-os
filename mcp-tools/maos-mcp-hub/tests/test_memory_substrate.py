@@ -169,6 +169,44 @@ def test_trace_hook_failure_never_blocks_the_substrate(tmp_path):
     assert sub.add("still works")["stored"] is True
 
 
+def test_search_only_mid_call_outage_degrades_and_switches_backend(tmp_path):
+    """PR #199 review (CodeRabbit): a resolved-healthy backend whose FIRST
+    failure is on search() (add never failed) must still degrade + switch."""
+
+    class HealthyAddDeadSearch:
+        name = "mem0"
+
+        def add(self, record: MemoryRecord):
+            return {"backend": self.name, "stored": True}
+
+        def search(self, query, user_id="default", limit=5):
+            raise RuntimeError("mem0 search failed: connection reset")
+
+    sub = _substrate(tmp_path, mem0_factory=HealthyAddDeadSearch)
+    assert sub.add("fact", user_id="op")["l8_substrate"]["degraded"] is False
+
+    result = sub.search("fact", user_id="op")
+    assert result["l8_substrate"]["backend"] == "file-seed"
+    assert result["l8_substrate"]["degraded"] is True
+    # subsequent calls stay on the switched fallback backend
+    assert sub.status()["l8_substrate"]["backend"] == "file-seed"
+
+
+def test_file_seed_tolerates_valid_json_non_dict_lines(tmp_path):
+    """PR #199 review (CodeRabbit): a torn line that decodes to a bare
+    number/string (valid JSON, not an object) must not raise AttributeError."""
+    path = tmp_path / "seed.jsonl"
+    backend = FileSeedBackend(path)
+    backend.add(MemoryRecord(text="good record", user_id="op", ts=1.0))
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write("123\n")           # bare number fragment
+        fh.write('"orphan str"\n')  # bare string fragment
+        fh.write("[1, 2]\n")        # array fragment
+    assert [h["text"] for h in backend.search("good", user_id="op")] == [
+        "good record"
+    ]
+
+
 def test_non_runtime_error_from_injected_backend_still_degrades(tmp_path):
     """PR #199 review (amazon-q + Copilot): the never-blocks contract must
     hold for ANY exception type, not just Mem0Backend's RuntimeError wrapper."""

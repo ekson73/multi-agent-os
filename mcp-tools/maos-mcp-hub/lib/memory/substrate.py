@@ -40,6 +40,7 @@ name so downstream consumers can see which quality tier answered.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -99,6 +100,8 @@ class FileSeedBackend:
                     item = json.loads(raw)
                 except json.JSONDecodeError:
                     continue  # a torn line never blocks recall
+                if not isinstance(item, dict):
+                    continue  # valid-JSON-but-not-an-object fragment (torn line)
                 if item.get("user_id") != user_id:
                     continue
                 if needle and needle not in str(item.get("text", "")).casefold():
@@ -205,7 +208,11 @@ class MemorySubstrate:
             try:
                 self._on_trace({"event": event, **self.status()})
             except Exception:
-                pass  # observability must never block the substrate
+                # observability must never block the substrate — but a broken
+                # hook should still be visible to whoever reads debug logs
+                logging.getLogger(__name__).debug(
+                    "on_trace hook failed for event %r", event, exc_info=True
+                )
 
     def status(self) -> Dict[str, Any]:
         """The logged field: ``l8_substrate{backend, degraded, reason}``."""
