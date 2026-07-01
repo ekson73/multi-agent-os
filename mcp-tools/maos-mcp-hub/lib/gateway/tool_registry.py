@@ -133,7 +133,9 @@ class ToolRegistry:
         """Walk one router's schema registry and derive its records."""
         derived: List[ToolRecord] = []
         gateway = getattr(router, "tool_name", "") or "unknown-gateway"
-        schema_registry = router.registry
+        schema_registry = getattr(router, "registry", None)
+        if schema_registry is None:
+            return derived  # not a router surface — nothing derivable
         handlers: Dict[str, Dict[str, Any]] = getattr(router, "_handlers", {})
         governance = tuple(getattr(router, "governance", ()) or ())
         for resource in schema_registry.resources():
@@ -278,7 +280,9 @@ def _provenance(
     via ``__wrapped__`` when present so provenance names the REAL handler.
     """
     fn = handler
-    while fn is not None and hasattr(fn, "__wrapped__"):
+    seen: set = set()
+    while fn is not None and hasattr(fn, "__wrapped__") and id(fn) not in seen:
+        seen.add(id(fn))  # guards pathological circular __wrapped__ chains
         fn = fn.__wrapped__
     if fn is None:
         # schema without a live handler — still derived (from the registry),

@@ -101,6 +101,35 @@ def test_multi_router_merge_stays_namespaced():
     assert reg.report()["invariants"]["ids_namespaced_by_gateway"] is True
 
 
+def test_non_router_object_derives_nothing_without_crashing():
+    """PR #200 review (amazon-q): an object without a `registry` surface
+    yields zero records — never AttributeError."""
+
+    class NotARouter:
+        tool_name = "bogus"
+
+    reg = ToolRegistry()
+    assert reg.derive_router(NotARouter()) == []
+    assert len(reg) == 0
+
+
+def test_circular_wrapped_chain_does_not_infinite_loop():
+    """PR #200 review (amazon-q): a pathological circular __wrapped__ chain
+    terminates via the visited-id guard."""
+    from lib.gateway.tool_registry import _provenance
+
+    def a():
+        """A."""
+
+    def b():
+        """B."""
+
+    a.__wrapped__ = b
+    b.__wrapped__ = a  # cycle
+    result = _provenance(a, "gw", "res", "op")
+    assert result  # terminated and produced a name
+
+
 # --------------------------------------------------------------------------- #
 # the keystone seams: registry → IsoGate (WT3) → CtsScorer (WT4)
 # --------------------------------------------------------------------------- #
