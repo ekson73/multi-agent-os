@@ -181,6 +181,21 @@ def test_unknown_candidates_are_reported_not_promoted():
     assert sel.promoted == ["openspec"]
 
 
+def test_empty_pool_selection_does_not_crash():
+    """Regression lock for PR #197 review: ``max(pool_tokens, default=0)``
+    handles the empty pool by definition (PEP-defined ``default``) — an empty
+    gate selects cleanly with all invariants green and summary_tokens_max=0."""
+    gate = IsoGate()
+    sel = gate.select([], k=3)
+    assert sel.pool_size == 0
+    assert sel.summary_tokens_max == 0
+    report = sel.to_report()
+    assert all(report["invariants"].values())
+    # empty ranked list against a populated pool is equally safe
+    gate.register("openspec", "spec tool")
+    assert gate.select([], k=3).summarized == ["openspec"]
+
+
 def test_selection_is_deterministic():
     fixture = _fixture()
     gate, _ = IsoGate.from_inventory(fixture["inventory"])
