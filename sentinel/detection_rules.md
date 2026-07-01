@@ -401,6 +401,48 @@ def check_single_conductor(project_dir, user_dir, registry):
 
 ---
 
+### RULE-012: Content-Security / AgentShield (C6)
+
+**Category**: Security
+**Severity**: HIGH
+**Auto-block**: Yes (BLOCKING PreToolUse gate — secret / exfil / verification-bypass)
+
+**Description**: Enforces the C6 content-security invariant (ADR-006 §4 · maos-hub spec §97–100): the BLOCKING leg of the cascade-resolved HYBRID enforcement (sibling of RULE-011's advisory SessionStart scan). On every `Bash` / `Task` `PreToolUse`, scans the channel payload — Bash `.tool_input.command` (channel=`tool_input`) and Task `.tool_input.prompt` (channel=`model_output` — model-generated text fed to a sub-agent) — for (a) a leaked secret (high-precision, gitleaks-grade signatures in `plugin-scripts/governance/lib/agentshield-scan.sh`), (b) egress to a non-allowlisted host (opt-in via `MAOS_AGENTSHIELD_ALLOWLIST`), or (c) a `git --no-verify` that bypasses the secret-at-rest floor — and emits a `c6_egress_check` logged field. **Leak-safe by construction**: the raw payload is never serialized; `secret_match` reports the KIND of secret (e.g. `anthropic_key`), never the value. **Availability-safe**: a malformed input defaults to allow, but a matched secret ALWAYS blocks.
+
+**Condition**:
+```python
+def check_content_security(channel, payload, allowlist):
+    sig = scan_secret(payload)                       # high-precision signature id | None
+    if sig is not None:
+        return BLOCK("RULE-012 secret", channel, classification="secret", secret_match=sig)
+    if allowlist and (egress_hosts(payload) - allowlist):
+        return BLOCK("RULE-012 egress", channel, classification="egress")
+    if channel == "tool_input" and is_git_no_verify(payload):
+        return BLOCK("RULE-012 hook_bypass", channel, classification="hook_bypass")
+    return PASS  # clean (decision=allow)
+```
+
+**Logged field** (`c6_egress_check`):
+```json
+{"rule":"RULE-012","event":"c6_egress_check","channel":"model_output","classification":"secret","secret_match":"anthropic_key","decision":"block"}
+```
+`channel ∈ {tool_input, model_output}` · `classification ∈ {clean, secret, egress, hook_bypass}` · `secret_match ∈ {null, <signature-id>}` · `decision ∈ {allow, block}`.
+
+**Triggers**:
+- A secret in a Bash command (`tool_input`) or a Task prompt (`model_output`) — `block`
+- Egress to a host outside `MAOS_AGENTSHIELD_ALLOWLIST` when that allowlist is configured — `block`
+- A `git --no-verify` that would bypass the secret-at-rest verification hooks — `block`
+
+**Action**:
+1. LOG `c6_egress_check{channel, classification, secret_match, decision}` (the RULE-012 field)
+2. BLOCK the tool call (exit 2 + JSON-RPC error `-32004`); NEVER echo the secret value
+3. The agent removes the credential (env var / secret manager), narrows the egress, or drops `--no-verify`, then retries
+4. Blocking runtime leg of the cascade-resolved HYBRID enforcement (advisory SessionStart RULE-011 + harness-agnostic blocking CI floor)
+
+**Opt-out / config**: `MAOS_NO_AGENTSHIELD=1` disables the gate; `MAOS_AGENTSHIELD_ALLOWLIST="github.com,pypi.org …"` (whitespace/comma-separated host suffixes) opts into egress enforcement.
+
+---
+
 ## Severity Levels
 
 | Level | Color | Auto-Block | Description |
