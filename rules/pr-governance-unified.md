@@ -1,6 +1,6 @@
 # PR Governance — Unified Workflow [C07+C12]
 
-<!-- Auto-loaded rule | Version: 1.0.0 | 2026-03-06 -->
+<!-- Auto-loaded rule | Version: 1.2.0 | 2026-07-01 -->
 <!-- Replaces: pr-review-protocol.md (C07 v3.0), pr-email-review-loop.md (C12 v3.0) -->
 <!-- References: ~/.claude/docs/git-worktree-protocol.md (C04 — full spec) -->
 
