@@ -128,4 +128,9 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
   `docs/adoption/mem0-2026-07-01.md`; graphiti temporal remains DEFERRED until a measured workload)* ·
   OTel exporter for Sentinel
   (WT6, DEFERRED — C3 severity LOW) · LiteLLM model-router (CUT — `os3pd` defers a runtime gateway until ≥3
-  incidents and `slm-routing` is not a runtime router) · tool-registry YAML SSOT via auto-generation (WT8).
+  incidents and `slm-routing` is not a runtime router) · ~~tool-registry YAML SSOT via auto-generation (WT8)~~ *(implemented —
+  `lib/gateway/tool_registry.py::ToolRegistry`: records derived from live `MetaToolRouter`
+  SchemaRegistry instances with handler provenance (`derived_from`); seams `to_iso_inventory()` →
+  IsoGate (WT3) + `to_cts_candidates()` → CtsScorer (WT4); YAML = generated projection stamped
+  AUTO-GENERATED; acceptance = `report()` invariants + `tests/test_tool_registry.py` golden over
+  real gateways)*.

@@ -8,6 +8,12 @@ and governance feedback injection in every response.
 from .types import GatewayRequest, ActionSchema, AgentFeedback
 from .router import MetaToolRouter
 from .schema_registry import SchemaRegistry
+from .tool_registry import (
+    REGISTRY_SCHEMA_VERSION,
+    ToolRecord,
+    ToolRegistry,
+    risk_signals_for_operation,
+)
 from .feedback import with_feedback
 from .discovery import build_discovery_response
 from .iso import (
@@ -43,12 +49,16 @@ __all__ = [
     "IsoGate",
     "IsoSelection",
     "MetaToolRouter",
+    "REGISTRY_SCHEMA_VERSION",
     "RiskClass",
     "RiskSignals",
     "SchemaRegistry",
+    "ToolRecord",
+    "ToolRegistry",
     "ToolSummary",
     "build_discovery_response",
     "iso_tokens",
     "risk_class",
+    "risk_signals_for_operation",
     "with_feedback",
 ]
