@@ -1,0 +1,1 @@
+{"bot":"trivy","context":"Trivy","state":"failure","description":"CVE-2024-1234 high severity vulnerability in dependency lodash"}
