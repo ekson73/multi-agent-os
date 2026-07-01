@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — ISO universal tool-gating (WT3 / S3) — summary pool + top-k promotion (MCP-tax control)
+
+- **`mcp-tools/maos-mcp-hub/lib/gateway/iso.py`** — `IsoGate`: the WAVE-1 WT3 generalization of the
+  Atlassian-only progressive-discovery into a gateway-agnostic ISO layer (spec requirement
+  "ISO tool-gating (MCP-tax control)", `openspec/specs/maos-hub/spec.md`). Permanent summary pool
+  (≤60 tokens/tool) + top-k full-schema promotion — conflict C4's fix: with dozens of connected MCP
+  tools, full schemas cost 10k–60k tokens/turn; the pool keeps every tool discoverable at ≤60 tokens
+  while only the top-k pay full price.
+- **The two review-board-mandated definitions are now EXPLICIT** (else the threshold is incomputable):
+  the NORMATIVE tokenizer `iso_tokens(text) = ceil(len(text)/4)` (deterministic, dependency-free,
+  model-agnostic — the ≤60 threshold is *defined* in terms of this function) and
+  `ISO_DEFAULT_TOP_K = 5` with a budget-derived cap
+  (`k_effective = min(k_requested, budget_cap, allowed)`, greedy in rank order under an optional
+  `schema_token_budget`).
+- **Hard-filters-first composition:** an optional `PolicyResolver` (PR #180 seam, imported — never
+  reimplemented) eliminates denied candidates BEFORE promotion; a denied tool is never surfaced as a
+  top-k candidate (mirrors the CTS requirement). Denials carry `reason` + `conflicting_with`.
+- **DoD-gate honoured:** every acceptance is a *logged field* (`IsoSelection.to_report()` invariants:
+  `summaries_within_limit` · `promoted_lte_k` · `denied_never_promoted` · `budget_respected`) or a
+  *golden-fixture invariant* (`evals/fixtures/iso_inventory.yaml` — 12 real conflicts.yaml tool-ids,
+  4 turns: clean-topk / budget-bound / policy-gated / injection). Reproducible acceptance command:
+  `python -m evals.iso_gate_eval` (exit 0 ⇔ verdict green). **14 tests** (`tests/test_iso_gate.py`),
+  0-regression (error set identical to pristine main). Additive; no plugin version bump (ADR-003).
+
 ### Changed — bot-finding-arbiter v1.3.0 residual round (best-practices grounding · GitHub watch native · fire-point wiring)
 
 - **`skills/bot-finding-arbiter/SKILL.md` v1.2.1 → v1.3.0** — directive-triage verified the operator's "OODA the bot-caused failure + 9 dispositions + teach-the-bot" directive was ~85-90% already satisfied by v1.2.x; this closes the 3 verified residual gaps (docs-only; `bin/classify.sh` + `tests/` untouched, 7/7 green): (a) teach-the-bot edicts now MANDATE **best-practices grounding** — consult the bot's official current config docs AND the governance anchor, and cite BOTH in the edict PR; (b) **GitHub watch parity resolved with the native primitive** — `gh pr checks <pr> --watch --fail-fast --json name,bucket,…` (+ `gh run view --log-failed`) documented as the sibling of `bin/bb-pipeline-watch.sh`; probe confirmed structured diagnosis → no custom wrapper built (Gordian native-over-custom); (c) fire-point effectivation below.
