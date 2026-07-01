@@ -263,8 +263,10 @@ git push origin --delete {type}/{feature}
    rationale, and is recorded on the Bot Scorecard as a `config-taught` disposition (accuracy tracking).
 
 The bot → config-file map (`.pr_agent.toml` · `.coderabbit.yaml` · `.github/copilot-instructions.md` ·
-`.amazonq/rules/` · `.gitleaks.toml` · `.trivyignore`) is the SSOT in
-`skills/bot-finding-arbiter/bot-config-registry.md`.
+`.amazonq/rules/` · `.gitleaks.toml` · `.trivyignore`) enumerates **candidate teaching surfaces
+(recon-before-assume)** — verify the file actually exists before an edict; some (notably `.amazonq/rules/`)
+are documented-but-frequently-absent → confirm-first / HITL when missing. The SSOT map (with the
+`repo-fixable?` + confirm-first columns) is `skills/bot-finding-arbiter/bot-config-registry.md`.
 
 ---
 
