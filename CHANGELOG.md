@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — unified CTS scorer (WT4 / S2) — hard-filters-first multi-criteria ranking
+
+- **`mcp-tools/maos-mcp-hub/lib/gateway/cts.py`** — `CtsScorer`: the WAVE-1 WT4 unification of the
+  scattered prioritization logic (`protocols/action-priority.md` Eisenhower + `protocols/rbad.md`
+  4-dim rubric + the WT3 ISO layer) into ONE weighted scorer (spec requirement "CTS multi-criteria
+  scoring (hard-filters-first)", `openspec/specs/maos-hub/spec.md`).
+- **The review-board-mandated `risk=HIGH` predicate is now CONCRETE** (not "irreversible-ish"):
+  `RiskSignals` = enumerable boolean facts — HIGH iff ANY of {`irreversible`, `destructive`,
+  `credential_scope`, `prod_facing`, `cross_org`}; MEDIUM iff {`bulk_write`, `remote_write`};
+  LOW otherwise. Each signal is a verifiable property of the action, never a vibe.
+- **Hard filters BEFORE any weighted score** (spec scenario): `policy` (PolicyResolver, PR #180 seam)
+  → `open_source` → `auth` → `environment` → `data_class` → `risk_class` — the first hit eliminates
+  with a traced reason; a perfect-score candidate lacking authorization is NEVER scored. Above-ceiling
+  risk is `hitl_eligible` (HITL-routable), never a silent drop.
+- **Six explicit criteria weights (sum = 1.0, test-asserted)**: scope 0.30 · eisenhower 0.20 ·
+  risk 0.15 · reversibility 0.15 · iso 0.10 · methodology 0.10 — mapped to the RBAD 4-dim rubric
+  (Expert-fit / Authorization / Task-frame / Risk-frame). Deterministic (tool_id tie-break).
+- **The WT3↔WT4 seam composes**: `CtsRanking.ranked_ids()` is exactly `IsoGate.select`'s ranked
+  input — `iso_promoted == cts_rank prefix` asserted end-to-end.
+- **DoD-gate honoured:** acceptance = logged fields (`CtsRanking.to_report()` invariants:
+  `weights_sum_to_1` · `eliminated_never_ranked` · `scores_descending` · `every_elimination_reasoned`)
+  + golden fixture (`evals/fixtures/cts_cases.yaml`, real conflicts.yaml ids, 3 turns). Reproducible
+  acceptance command: `python -m evals.cts_eval` (exit 0 ⇔ verdict green). **12 tests**
+  (`tests/test_cts_scorer.py`), 0-regression. Additive; no plugin version bump (ADR-003).
+
 ### Added — ISO universal tool-gating (WT3 / S3) — summary pool + top-k promotion (MCP-tax control)
 
 - **`mcp-tools/maos-mcp-hub/lib/gateway/iso.py`** — `IsoGate`: the WAVE-1 WT3 generalization of the
