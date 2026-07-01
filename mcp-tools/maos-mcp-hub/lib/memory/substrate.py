@@ -89,18 +89,21 @@ class FileSeedBackend:
             return []
         needle = (query or "").casefold()
         hits: List[Dict[str, Any]] = []
-        for raw in self._path.read_text(encoding="utf-8").splitlines():
-            if not raw.strip():
-                continue
-            try:
-                item = json.loads(raw)
-            except json.JSONDecodeError:
-                continue  # a torn line never blocks recall
-            if item.get("user_id") != user_id:
-                continue
-            if needle and needle not in str(item.get("text", "")).casefold():
-                continue
-            hits.append(item)
+        # stream line-by-line: the append-only file grows unboundedly and must
+        # never be loaded whole into memory (crash-risk on large seeds)
+        with self._path.open("r", encoding="utf-8") as fh:
+            for raw in fh:
+                if not raw.strip():
+                    continue
+                try:
+                    item = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue  # a torn line never blocks recall
+                if item.get("user_id") != user_id:
+                    continue
+                if needle and needle not in str(item.get("text", "")).casefold():
+                    continue
+                hits.append(item)
         hits.sort(key=lambda i: i.get("ts", 0.0), reverse=True)
         return hits[: max(0, limit)]
 
@@ -143,11 +146,18 @@ class Mem0Backend:
             results = self._client.search(query, user_id=user_id, limit=limit)
         except Exception as exc:
             raise RuntimeError(f"mem0 search failed: {exc!r}") from exc
-        # normalize to the substrate's record-dict shape
+        # normalize to the substrate's record-dict shape — the mem0 SDK returns
+        # a dict envelope ({"results": [...]}) on v1.1+, a bare list on older
+        # versions; each hit carries the memory text under "memory"
+        if isinstance(results, dict):
+            results = results.get("results", [])
         out: List[Dict[str, Any]] = []
         for item in results or []:
-            if isinstance(item, dict):
-                out.append(item)
+            if not isinstance(item, dict):
+                continue
+            if "text" not in item and "memory" in item:
+                item = {**item, "text": item["memory"]}
+            out.append(item)
         return out
 
 
@@ -224,8 +234,9 @@ class MemorySubstrate:
         )
         try:
             result = self._backend.add(record)
-        except RuntimeError as exc:
-            # mid-call outage: degrade NOW, retry once on the fallback
+        except Exception as exc:
+            # ANY backend failure (not just Mem0Backend's RuntimeError wrapper —
+            # injected backends may raise anything) degrades instead of blocking
             self._degrade(f"add: {exc}")
             self._trace("l8_substrate_degraded")
             result = self._fallback.add(record)
@@ -236,7 +247,7 @@ class MemorySubstrate:
     ) -> Dict[str, Any]:
         try:
             hits = self._backend.search(query, user_id=user_id, limit=limit)
-        except RuntimeError as exc:
+        except Exception as exc:
             self._degrade(f"search: {exc}")
             self._trace("l8_substrate_degraded")
             hits = self._fallback.search(query, user_id=user_id, limit=limit)

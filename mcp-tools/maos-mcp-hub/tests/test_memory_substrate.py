@@ -169,6 +169,54 @@ def test_trace_hook_failure_never_blocks_the_substrate(tmp_path):
     assert sub.add("still works")["stored"] is True
 
 
+def test_non_runtime_error_from_injected_backend_still_degrades(tmp_path):
+    """PR #199 review (amazon-q + Copilot): the never-blocks contract must
+    hold for ANY exception type, not just Mem0Backend's RuntimeError wrapper."""
+
+    class RaisesConnectionError:
+        name = "mem0"
+
+        def add(self, record: MemoryRecord):
+            raise ConnectionError("socket closed")
+
+        def search(self, query, user_id="default", limit=5):
+            raise TimeoutError("backend hung")
+
+    sub = _substrate(tmp_path, mem0_factory=RaisesConnectionError)
+    result = sub.add("survives non-RuntimeError outage", user_id="op")
+    assert result["stored"] is True
+    assert result["l8_substrate"]["degraded"] is True
+    assert sub.search("survives", user_id="op")["hits"]
+
+
+def test_mem0_backend_normalizes_dict_envelope_and_memory_field():
+    """PR #199 review (Copilot): the mem0 SDK v1.1+ returns
+    {"results": [...]} with the text under "memory" — both shapes normalize."""
+    from lib.memory import Mem0Backend
+
+    class DictEnvelopeClient:
+        def search(self, query, user_id="default", limit=5):
+            return {
+                "results": [
+                    {"id": "m1", "memory": "squash merges preferred"},
+                    "not-a-dict-is-skipped",
+                ]
+            }
+
+    hits = Mem0Backend(client=DictEnvelopeClient()).search("squash")
+    assert hits == [
+        {"id": "m1", "memory": "squash merges preferred",
+         "text": "squash merges preferred"}
+    ]
+
+    class BareListClient:
+        def search(self, query, user_id="default", limit=5):
+            return [{"text": "already normalized"}]
+
+    hits = Mem0Backend(client=BareListClient()).search("already")
+    assert hits == [{"text": "already normalized"}]
+
+
 def test_substrate_is_deterministic_given_fixed_clock(tmp_path):
     sub = _substrate(tmp_path, mem0_factory=_unreachable_factory)
     sub.add("alpha", user_id="op")
