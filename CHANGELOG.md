@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — auto-generated tool-registry SSOT (WT8 / S1) — derived, never hand-maintained
+
+- **`mcp-tools/maos-mcp-hub/lib/gateway/tool_registry.py`** — `ToolRegistry`: every `ToolRecord`
+  is DERIVED from live `MetaToolRouter` instances (`SchemaRegistry` schemas + registered handlers +
+  governance) — the WAVE-2 keystone that lifts the tool contract out of the gateways' divergent
+  wiring (handoff: *"registry AUTO-GERADO … NÃO YAML hand-maintained que dá drift"*; spec anchor:
+  `maos-hub-registry` → "Records are derived, not hand-maintained"). Provenance IS the acceptance:
+  `derived_from` names the real handler (unwrapped past `@with_feedback`), checked by
+  `report().invariants.all_records_derived` — a logged field, not prose.
+- **WAVE-1 seams closed**: `to_iso_inventory()` = the exact `{id, summary, schema}` input of
+  `IsoGate.from_inventory` (WT3); `to_cts_candidates()` = `CtsCandidate` rows with risk from a
+  **deterministic, documented verb→`RiskSignals` map** (destructive→HIGH · write→MEDIUM · read→LOW,
+  WT4). `to_yaml()` emits the generated YAML projection stamped `AUTO-GENERATED — DO NOT EDIT`.
+- **DoD-gate honoured:** 8 tests (`tests/test_tool_registry.py`) incl. end-to-end seam proofs
+  (registry→IsoGate selection · registry→CtsScorer rank with HIGH filtered traced) + a **golden
+  derivation over the hub's REAL gateways** (confluence+compass+common, loss-free vs
+  `router.action_count`; skip-graceful where gateway deps are absent). Additive; no plugin version
+  bump (ADR-003).
+
 ### Added — L8 memory substrate (WT5 / S4) — mem0 default, file/seed degradation
 
 - **`docs/adoption/mem0-2026-07-01.md`** — the `agentic-tool-intake` dossier for mem0 (verdict:
