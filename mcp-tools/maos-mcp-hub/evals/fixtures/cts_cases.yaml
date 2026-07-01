@@ -1,0 +1,109 @@
+# Golden corpus for the CTS scorer eval (WT4 / S2).
+#
+# Invariants (asserted by tests/test_cts_scorer.py — the DoD-gate):
+#   - every tool id is a REAL node of lib/gateway/conflicts.yaml (or a
+#     declared substrate tool) — never invented ids;
+#   - every `risk` block uses ONLY RiskSignals field names (enumerable
+#     booleans — the concrete risk predicate's inputs);
+#   - every turn's expectations are INVARIANT names, never prose.
+#
+# Candidate scoring facts model a "spec-change task" turn: openspec is the
+# domain expert (high expert_fit, Q1); the others are progressively less fit.
+
+schema_version: cts-cases/1.0.0
+
+candidates:
+  - id: openspec
+    expert_fit: 0.95
+    methodology_fit: 0.9
+    eisenhower_q: 1
+    reversibility: 1.0
+    required_scopes: [repo.write]
+    schema: {resource: spec, operations: [propose, apply, archive, validate], required: [change_id]}
+  - id: spec-kit
+    expert_fit: 0.85
+    methodology_fit: 0.8
+    eisenhower_q: 1
+    reversibility: 1.0
+    required_scopes: [repo.write]
+    schema: {resource: spec, operations: [specify, plan, tasks], required: [feature]}
+  - id: mem0
+    expert_fit: 0.35
+    methodology_fit: 0.4
+    eisenhower_q: 2
+    reversibility: 0.9
+    required_scopes: [memory.write]
+    schema: {resource: memory, operations: [add, search], required: [text]}
+  - id: notebooklm
+    expert_fit: 0.3
+    methodology_fit: 0.5
+    eisenhower_q: 2
+    reversibility: 1.0
+    required_scopes: [research.read]
+    schema: {resource: notebook, operations: [create, add_source, generate], required: [notebook_id]}
+  - id: gstack
+    # Perfect-looking scores BUT requires a scope the turn does not grant:
+    # the auth HARD FILTER must eliminate it BEFORE scoring (spec scenario).
+    expert_fit: 1.0
+    methodology_fit: 1.0
+    eisenhower_q: 1
+    reversibility: 1.0
+    required_scopes: [browser.control]
+    schema: {resource: workflow, operations: [plan, qa, ship], required: [task]}
+  - id: ruflo
+    # HIGH-risk by the concrete predicate: prod_facing + bulk_write.
+    expert_fit: 0.7
+    methodology_fit: 0.6
+    eisenhower_q: 1
+    reversibility: 0.2
+    required_scopes: [repo.write]
+    risk: {prod_facing: true, bulk_write: true}
+    schema: {resource: swarm, operations: [spawn, topology, converge], required: [goal]}
+  - id: open-design
+    expert_fit: 0.2
+    methodology_fit: 0.3
+    eisenhower_q: 3
+    reversibility: 1.0
+    required_scopes: []
+    schema: {resource: design, operations: [apply_system, render], required: [target]}
+
+turns:
+  - name: spec-task-clean
+    # Everything the clean candidates need is granted; ruflo exceeds the
+    # MEDIUM risk ceiling; gstack lacks browser.control.
+    profile: null
+    granted_scopes: [repo.write, memory.write, research.read]
+    allowed_data_classes: []
+    max_risk: MEDIUM
+    expect:
+      top1: openspec
+      eliminated_contains:
+        - {tool_id: gstack, filter: auth}
+        - {tool_id: ruflo, filter: risk_class}
+      ruflo_hitl_eligible: true
+      eliminated_never_ranked: true
+
+  - name: high-risk-allowed
+    # Same turn but the ceiling is HIGH: ruflo now passes the risk filter and
+    # is SCORED (low risk criterion value), not eliminated.
+    profile: null
+    granted_scopes: [repo.write, memory.write, research.read]
+    allowed_data_classes: []
+    max_risk: HIGH
+    expect:
+      ranked_contains: [ruflo]
+      top1: openspec
+
+  - name: policy-conflict
+    # Injection: spec-kit planted into a profile that already carries
+    # openspec (conflicts.yaml L1 edge) -> policy hard filter eliminates
+    # BOTH endpoints before any scoring.
+    profile: [openspec, spec-kit, mem0, notebooklm]
+    granted_scopes: [repo.write, memory.write, research.read]
+    allowed_data_classes: []
+    max_risk: HIGH
+    expect:
+      eliminated_contains:
+        - {tool_id: openspec, filter: policy}
+        - {tool_id: spec-kit, filter: policy}
+      eliminated_never_ranked: true

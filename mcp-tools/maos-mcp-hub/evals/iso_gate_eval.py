@@ -57,19 +57,20 @@ def _check_expectations(
         elif key == "summarized_count":
             results[key] = len(report["summarized"]) == want
         elif key == "k_effective_lt_requested":
-            results[key] = (report["k_effective"] < report["k_requested"]) is want
+            results[key] = (report["k_effective"] < report["k_requested"]) == want
         elif key == "budget_respected":
-            results[key] = report["invariants"]["budget_respected"] is want
+            results[key] = report["invariants"]["budget_respected"] == want
         elif key == "denied_contains":
             results[key] = set(want).issubset(denied_ids)
         elif key == "denied_never_promoted":
-            results[key] = report["invariants"]["denied_never_promoted"] is want
+            results[key] = report["invariants"]["denied_never_promoted"] == want
         elif key == "conflict_reason_names_peer":
             # every conflict-denied entry names its actual peer(s)
             conflict_entries = [d for d in report["denied"] if d["conflicting_with"]]
-            results[key] = bool(conflict_entries) and all(
-                d["conflicting_with"] for d in conflict_entries
-            ) is want
+            results[key] = (
+                bool(conflict_entries)
+                and all(d["conflicting_with"] for d in conflict_entries)
+            ) == want
         else:
             results[key] = False  # unknown expectation key fails loudly
     return results

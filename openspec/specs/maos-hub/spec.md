@@ -116,7 +116,12 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 - ~~Universal ISO tool-gating beyond the Atlassian hub (WT3)~~ *(implemented — `lib/gateway/iso.py::IsoGate`:
   ≤60-tok summary pool under the normative tokenizer `ceil(len/4)` + top-k promotion, `k=5` default with
   budget-derived cap, PolicyResolver hard-filter first; acceptance = `python -m evals.iso_gate_eval` logged
-  verdict + golden fixture `evals/fixtures/iso_inventory.yaml`)* · unified CTS scorer (WT4) · L8 memory substrate
+  verdict + golden fixture `evals/fixtures/iso_inventory.yaml`)* · ~~unified CTS scorer (WT4)~~ *(implemented —
+  `lib/gateway/cts.py::CtsScorer`: hard-filters-first [policy → open_source → auth → environment → data_class →
+  risk_class] before the 6-criteria weighted score [scope 0.30 · eisenhower 0.20 · risk 0.15 · reversibility 0.15 ·
+  iso 0.10 · methodology 0.10]; `risk=HIGH` = the concrete `RiskSignals` predicate [any of irreversible ·
+  destructive · credential_scope · prod_facing · cross_org]; acceptance = `python -m evals.cts_eval` logged
+  verdict + golden fixture `evals/fixtures/cts_cases.yaml`)* · L8 memory substrate
   (mem0 default; graphiti temporal DEFERRED until a measured workload) (WT5) · OTel exporter for Sentinel
   (WT6, DEFERRED — C3 severity LOW) · LiteLLM model-router (CUT — `os3pd` defers a runtime gateway until ≥3
   incidents and `slm-routing` is not a runtime router) · tool-registry YAML SSOT via auto-generation (WT8).
