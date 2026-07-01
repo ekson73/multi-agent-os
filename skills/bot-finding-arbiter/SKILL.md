@@ -1,0 +1,154 @@
+---
+name: bot-finding-arbiter
+version: "1.0.0"
+description: |
+  Soul-name **Praetor**. Adjudicates a code-reviewer bot's finding when a build / CI /
+  pipeline / PR fails or is blocked on it — and, like the Roman praetor who both judged
+  cases AND published the edict that refined the law going forward, it can correct the
+  bot's OWN repo-committed config file to teach the bot our governance for future reviews.
+  Runs an OODA loop per finding: OBSERVE (intake the finding) → ORIENT (classify
+  {valid-actionable | bot-wrong | ambiguous} with an INDEPENDENT verify — verifier >
+  generator) → DECIDE one of 7 dispositions [accept-total · accept-partial+adapt · fix ·
+  improve · expand · reject-total · comment/justify] → ACT (fix the code, OR reply-justify,
+  OR — only when the bot is VERIFIABLY wrong — write a teaching edit to the bot's config
+  file per the bot-config registry). HARD GUARDRAIL: NEVER suppress a valid security /
+  logic finding; a config edit that would silence a real finding → HITL, always. Composes
+  existing primitives (pr-review-watch intake · convergence-engine / cascade-resolver /
+  perspective-trio for the verify · pr-governance disposition menu · auto-merge gate) —
+  builds no new convergence machinery.
+  Use when a bot flags a PR/build and you must decide what to do about the finding,
+  when a reviewer bot keeps emitting the same false-positive, or when a bot's config
+  should be taught your standards.
+  Triggers: "the bot flagged X, what do we do", "coderabbit/qodo/copilot/amazon-q/gitleaks
+  is wrong here", "teach the bot", "fix the recurring false positive", "arbitrate this
+  finding", "praetor", "bot-finding-arbiter", "resolve the bot complaint on this PR",
+  "o bot reclamou, o que fazemos", "ensina o bot".
+allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
+---
+
+# bot-finding-arbiter · *Praetor*
+
+> **Praetor** — the Roman magistrate who *adjudicated disputes* AND *issued the edictum praetoris*,
+> an annually-refined statement of the rules he would apply. This skill is the software praetor:
+> it **judges** a reviewer-bot's finding (route to one of 7 dispositions) and, when the bot is
+> verifiably wrong, **issues an edict** — a teaching edit to the bot's own repo config so the bot
+> works to our governance from now on. It **composes** existing convergence primitives; it does not
+> re-implement judging, verifying, commenting, or merging.
+
+## The one non-negotiable (read first)
+
+> ⛔ **A config edit MUST NEVER suppress a valid security or logic finding.** Editing a bot's config
+> to make it stop complaining is *only* legitimate for a **verifiably-wrong** finding
+> (false-positive / governance-misalignment / style-only). If the finding is a real
+> secret · injection · auth flaw · CVE · correctness bug → the answer is **fix or HITL**, never
+> "teach the bot to be quiet." Silencing a real finding = gaming the scanner (Goodhart) = forbidden.
+> The "bot is wrong" verdict is the gate to a config edit, and that verdict is **independently
+> verified** (verifier > generator) before any file is touched.
+
+## When to use / not use
+- **Use**: a build/CI/pipeline/PR is failing or blocked on a bot-code-reviewer finding and you must
+  decide what to do; OR a reviewer bot emits a recurring false-positive worth teaching away.
+- **Not use**: driving a whole session to green (→ `quiesce`); merely watching PR state
+  (→ `bin/pr-review-watch`); a finding you will simply fix inline with no arbitration needed
+  (just fix it, per `pr-governance-unified` Step 4).
+
+## Inputs
+`<pr>` (number/url) · optional `<finding-selector>` (bot name / check context / comment id).
+If omitted → ingest ALL open findings on the PR and arbitrate each.
+
+## The OODA loop (per finding)
+
+### 1 — OBSERVE (intake — reuse, don't rebuild)
+- Pull the finding(s) via the existing intake: `bin/pr-review-watch` (GitHub) / `bin/bb-pipeline-watch.sh`
+  (Bitbucket) emit each bot's verdict + comment as a parseable envelope; OR `gh pr view <pr> --json
+  statusCheckRollup,reviews,comments` + `gh api .../commits/<sha>/statuses`.
+- For each finding capture: `bot` · `context` (check name) · `state` (error/failure/pending) ·
+  `description` · `target_url` · the code hunk it points at.
+- **Recon-before-assume (Skopos)**: read the actual finding + the code it cites before forming any verdict.
+
+### 2 — ORIENT (classify + INDEPENDENTLY verify)
+Classify the finding into exactly one bucket — and the "bot-wrong" verdict is **verified by an
+independent lens** (not the same reasoning that proposed it):
+
+| Bucket | Meaning | Verify gate (verifier > generator) |
+|---|---|---|
+| **valid-actionable** | the bot is right; the code should change | a deterministic oracle where one exists (test / compile / re-run the scanner on the hunk) OR a 2nd-lens read |
+| **bot-wrong** | false-positive · governance-misalignment · style-only · **infra/account error** (e.g. quota, not code) | **MANDATORY** independent verify via `perspective-trio` / `cascade-resolver` / `convergence-engine` (REFINE/SELECT) OR a deterministic proof (the pattern is in our governance / the flagged file is our documented convention) |
+| **ambiguous** | can't ground either way after recon | → DEFER + comment (never guess a config edit) |
+
+- ⛔ **Security class** (secret/injection/auth/CVE/data-loss): a "bot-wrong" verdict here requires a
+  deterministic proof AND is **HITL-gated** before any suppression-style config edit — no autonomous silence.
+- **Account/infra error** (the bot's *platform* failed, not the code — e.g. Snyk "test limit reached",
+  a scanner timeout): classify **bot-wrong → but NOT repo-fixable** (see registry `repo-fixable?` column)
+  → HITL playbook, **no config edit** (a repo file cannot fix an account-side quota).
+
+### 3 — DECIDE (the 7 dispositions)
+Route the finding to exactly ONE (elevates the 5-path `pr-governance-unified` Step-8 menu to per-finding + 7-way):
+
+| # | Disposition | When |
+|---|---|---|
+| 1 | **accept-total** | valid; adopt the bot's suggestion as-is |
+| 2 | **accept-partial+adapt** | valid core, but adapt the suggestion to our context |
+| 3 | **fix** | valid; correct the code (may differ from the bot's exact suggestion) |
+| 4 | **improve** | valid + opportunity to go beyond the minimal fix |
+| 5 | **expand** | valid + the finding reveals a broader gap worth addressing |
+| 6 | **reject-total** | bot-wrong; the finding does not apply |
+| 7 | **comment/justify** | **ALWAYS** — every disposition posts a rationale comment on the PR (reuse `pr-reviewer-communication` / `vek-pr-commentator`) |
+Plus (only on a verified **bot-wrong** that IS repo-fixable): **teach-the-bot** (§4) — an edict.
+
+### 4 — ACT
+- **Code dispositions (1-5)**: apply in the worktree; converge + merge via existing gates
+  (`pr-governance-unified` Steps 4/9 · `auto-merge-standing-authorization`). Do NOT rebuild convergence.
+- **reject-total (6)**: post a rationale comment; if the bot supports thread-resolve, resolve it.
+- **teach-the-bot (edict)**: write the minimal teaching edit to the bot's config file **per the
+  registry** (`bot-config-registry.md`), as a **reviewed PR** (worktree → review → merge), NEVER a
+  silent commit. Prefer a *narrow* rule (path-scoped instruction / documented-convention note) over a
+  broad ignore. Record it on the Bot Scorecard (`vek-pr-commentator`) as a `config-taught` disposition
+  so accuracy is tracked (the compounding win: each edict permanently shrinks future false-positives).
+- **ALWAYS (7)**: the rationale comment names the disposition + the evidence (the audit trail).
+
+## Teach-the-bot registry
+The bot → config-file → what-it-teaches → **repo-fixable?** map is the SSOT in
+[`bot-config-registry.md`](./bot-config-registry.md). Snyk quota / account entitlements = **NOT
+repo-fixable** (dashboard) → HITL, no edit.
+
+## Composition (reuse map — build nothing new here)
+| Need | Reused primitive |
+|---|---|
+| intake findings | `bin/pr-review-watch` · `bin/bb-pipeline-watch.sh` · `gh` |
+| independent verify (verifier > generator) | `skills/convergence-engine` · `agents/perspective-trio` · `agents/cascade-resolver` · `agents/persona-pipeline` · `bin/convergence-guard` |
+| disposition menu (elevated 5→7) | `rules/pr-governance-unified.md` Step 8 |
+| post comment / scorecard | `.claude/rules/pr-reviewer-communication.md` · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) |
+| merge gate | `auto-merge-standing-authorization` · `bin/convergence-guard` |
+| loop discipline / OODA / no-silent-drop | `loose-end-triage-queue` (Taxis) |
+
+## Bounds · Skip · Guardrails
+- **Bounds**: ≤ the existing PDCA cap (6 iterations/PR) · verify time-boxed · one config-edit PR per bot
+  per convergence · never touch `.github/workflows/` (critical-infra) autonomously → HITL.
+- **Skip**: trivial single fix (just fix it inline) · read-only inspection · a finding already resolved ·
+  mid-orchestration under a parent already arbitrating.
+- **Guardrails**: ⛔ never suppress a valid security/logic finding · config-edit = reviewed PR never silent ·
+  account/infra errors are not repo-fixable · shared-repo edits go in a worktree (concurrency).
+
+## Anti-patterns (do NOT)
+1. ❌ **Teach-the-bot to be quiet about a REAL finding** (the central forbidden move — Goodhart/security).
+2. ❌ **Config edit without independent verify** (self-declared "false positive" → self-serving edit).
+3. ❌ **Silent config commit** (must be a reviewed PR).
+4. ❌ **Broad ignore when a narrow path-instruction suffices** (over-suppression).
+5. ❌ **Treat an account/infra error as repo-fixable** (Snyk quota ≠ `.snyk` edit).
+6. ❌ **Rebuild convergence / commenting / merging** (compose the existing primitives).
+7. ❌ **Skip the always-comment (7)** — every disposition leaves an audit-trail rationale.
+
+## Quality Tests (6/6 · §11) + grounding
+1 Self-Application ✅ (built under worktree→PR→converge→merge, the very loop it arbitrates) · 2 Non-Contradiction ✅ (composes `pr-governance-unified`/`convergence-engine`/`auto-merge-standing`; zero duplication) · 3 Survival ✅ · 4 Bounded ✅ (PDCA cap · skips · one-edit-PR · never-critical-infra) · 5 Explicit-Exception ✅ (skips + HITL gates + §0 SER) · 6 Utility-Sunset ✅ (DUED below). Anti-theater 8/8 (the teach-the-bot lever is real config-as-code, empirically grounded in `.pr_agent.toml` precedent).
+
+## DUED Sunset (qualitative)
+Deprecate when ANY: a host ships native "arbitrate + teach reviewer bot" (E1) · absorbed into `convergence-engine`/`pr-governance-unified` as one entry (E6) · operator retraction (E4) · ≥3 false-positive suppressions slip through (E5 → tighten the verify gate, not deprecate).
+
+## Refs
+`rules/pr-governance-unified.md` (§ Bot-Config Correction Discipline — the governance this skill executes) · `bot-config-registry.md` (the SSOT map) · `skills/convergence-engine` · `agents/{perspective-trio,cascade-resolver,persona-pipeline}` · `bin/{pr-review-watch,convergence-guard,bb-pipeline-watch.sh}` · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) · akasha `pr-review-protocol.md` / `auto-merge-standing-authorization.md` / `loose-end-triage-queue.md`. Named by `anima` (soul-name *Praetor*, per `[[naming-authority]]` `[C-naming]`).
+
+## Changelog
+| Version | Date | Change |
+|---|---|---|
+| 1.0.0 | 2026-07-01 | Bootstrap — per-finding 7-way OODA disposition arbiter + teach-the-bot config-as-code edict (the greenfield capability: no prior tool wrote back to a bot's config; elevates the manual `.pr_agent.toml` + `pr-governance-unified` Known-FP precedent into a governed, multi-bot, verified loop). ⛔ never-suppress-valid-security hard gate + verifier>generator verify before any edit. Composes existing convergence/intake/comment/merge primitives (zero duplication). Soul-name *Praetor* via `anima`. |
