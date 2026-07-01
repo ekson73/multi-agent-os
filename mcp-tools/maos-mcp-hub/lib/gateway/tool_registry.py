@@ -28,14 +28,15 @@ Seams (the WAVE-1 contract this registry feeds):
   - ``to_yaml()``           → the generated YAML *projection* (a build
     artifact stamped AUTO-GENERATED; editing it is the anti-pattern).
 
-Deterministic verb → risk mapping (falsifiable, documented):
-  - DESTRUCTIVE_VERBS (delete/remove/purge/drop/decline)
+Deterministic verb → risk mapping (falsifiable, documented, FAIL-CLOSED):
+  - DESTRUCTIVE_VERBS (delete/remove/purge/drop/decline/clear/…)
       → RiskSignals(destructive=True, remote_write=True)  → HIGH
-  - WRITE_VERBS (create/update/edit/add/set/transition/trigger/stop/merge/
-    approve/post/upload/move/publish/assign/link/comment)
+  - READ_VERBS (get/list/search/check/…)  → RiskSignals() → LOW
+  - everything else — known write verbs AND unknown verbs —
       → RiskSignals(remote_write=True)                    → MEDIUM
-  - everything else (get/list/search/check/…) → RiskSignals() → LOW
 The verb is the first ``_``-separated token of the operation name.
+UNKNOWN verbs default to MEDIUM (never LOW): a verb the map has not seen
+must not slip under a risk ceiling (fail-closed per PR #200 review).
 """
 
 from __future__ import annotations
@@ -49,24 +50,34 @@ from .iso import iso_tokens
 
 REGISTRY_SCHEMA_VERSION = "tool-registry/1.0.0"
 
-DESTRUCTIVE_VERBS = frozenset({"delete", "remove", "purge", "drop", "decline"})
-WRITE_VERBS = frozenset(
+DESTRUCTIVE_VERBS = frozenset(
     {
-        "create", "update", "edit", "add", "set", "transition", "trigger",
-        "stop", "merge", "approve", "post", "upload", "move", "publish",
-        "assign", "link", "comment", "request",
+        "delete", "remove", "purge", "drop", "decline", "clear", "destroy",
+        "truncate", "wipe", "revoke", "reset",
+    }
+)
+READ_VERBS = frozenset(
+    {
+        "get", "list", "search", "check", "find", "read", "show", "view",
+        "describe", "count", "fetch", "query", "discover", "resolve",
+        "lookup", "compare", "diff", "validate", "preview",
     }
 )
 
 
 def risk_signals_for_operation(operation: str) -> RiskSignals:
-    """The deterministic verb→RiskSignals map (module docstring contract)."""
+    """The deterministic verb→RiskSignals map (module docstring contract).
+
+    FAIL-CLOSED: only enumerated READ_VERBS map to LOW; an UNKNOWN verb is
+    treated as a remote write (MEDIUM) so it can never slip under a turn's
+    risk ceiling just because the map hasn't met it yet.
+    """
     verb = (operation or "").split("_", 1)[0].lower()
     if verb in DESTRUCTIVE_VERBS:
         return RiskSignals(destructive=True, remote_write=True)
-    if verb in WRITE_VERBS:
-        return RiskSignals(remote_write=True)
-    return RiskSignals()
+    if verb in READ_VERBS:
+        return RiskSignals()
+    return RiskSignals(remote_write=True)
 
 
 @dataclass(frozen=True)
@@ -163,6 +174,13 @@ class ToolRegistry:
                     risk=risk_class(risk_signals_for_operation(operation)),
                     derived_from=_provenance(handler, gateway, resource, operation),
                 )
+                if record.tool_id in self._records:
+                    # silent overwrite would break the loss-free invariant
+                    raise ValueError(
+                        f"tool_id collision: {record.tool_id!r} already "
+                        f"derived from "
+                        f"{self._records[record.tool_id].derived_from!r}"
+                    )
                 self._records[record.tool_id] = record
                 derived.append(record)
         return derived
@@ -200,11 +218,15 @@ class ToolRegistry:
         expert_fit: float = 0.0,
         methodology_fit: float = 0.0,
         eisenhower_q: int = 2,
+        reversibility: float = 1.0,
     ) -> List[CtsCandidate]:
         """CtsCandidate rows with the derived RiskSignals (WT4 seam).
 
-        Fit/eisenhower facts are TURN-scoped (the caller's judgment), not
-        registry facts — passed through, defaulted neutrally.
+        Fit/eisenhower/reversibility facts are TURN-scoped (the caller's
+        judgment), not registry facts — passed through, defaulted neutrally.
+        Reversibility is NOT derived from risk: risk already drives both a
+        hard ceiling and a weighted criterion in CtsScorer; deriving
+        reversibility from it would double-count (PR #200 review).
         """
         return [
             CtsCandidate(
@@ -213,7 +235,7 @@ class ToolRegistry:
                 expert_fit=expert_fit,
                 methodology_fit=methodology_fit,
                 eisenhower_q=eisenhower_q,
-                reversibility=1.0 if r.risk is RiskClass.LOW else 0.4,
+                reversibility=reversibility,
                 schema=r.schema_dict(),
             )
             for r in self.records()

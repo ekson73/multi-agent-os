@@ -92,6 +92,38 @@ def test_verb_risk_mapping_is_deterministic(registry):
     )
 
 
+def test_unknown_verb_is_fail_closed_medium_and_clear_is_destructive():
+    """PR #200 review (qodo): an unknown verb must NEVER default to LOW
+    (fail-closed → MEDIUM); `clear` is destructive → HIGH."""
+    from lib.gateway.cts import risk_class
+
+    assert risk_class(risk_signals_for_operation("frobnicate_cache")) is (
+        RiskClass.MEDIUM
+    )
+    assert risk_class(risk_signals_for_operation("clear_cache")) is RiskClass.HIGH
+    assert risk_class(risk_signals_for_operation("list_items")) is RiskClass.LOW
+
+
+def test_tool_id_collision_raises_instead_of_silent_overwrite():
+    """PR #200 review (Copilot + qodo): deriving the same router twice (or
+    two routers sharing a tool_name) must raise, never silently overwrite."""
+    reg = ToolRegistry()
+    router = _demo_router()
+    reg.derive_router(router)
+    with pytest.raises(ValueError, match="tool_id collision"):
+        reg.derive_router(router)
+
+
+def test_reversibility_is_turn_scoped_not_derived():
+    """PR #200 review (Copilot): reversibility is a caller fact — never
+    derived from risk (which would double-count in CtsScorer)."""
+    reg = ToolRegistry.from_routers([_demo_router()])
+    cands = reg.to_cts_candidates()
+    assert all(c.reversibility == 1.0 for c in cands)
+    cands = reg.to_cts_candidates(reversibility=0.3)
+    assert all(c.reversibility == 0.3 for c in cands)
+
+
 def test_multi_router_merge_stays_namespaced():
     other = MetaToolRouter("demo_other")
     other.register("thing", "list", get_widget)
@@ -178,11 +210,15 @@ def test_yaml_projection_is_generated_and_deterministic(registry):
 def _real_routers():
     routers = []
     for gw in ("confluence", "compass", "common"):
+        # env-specific IMPORT failures (missing gateway deps; py<3.10 raises
+        # TypeError evaluating `X | None` signature defaults at def-time) are
+        # a legitimate skip; a runtime failure in build_router() is NOT — it
+        # runs OUTSIDE the try so real regressions fail the test (PR #200).
         try:
             mod = __import__(f"gateways.{gw}.actions", fromlist=["build_router"])
-            routers.append(mod.build_router())
-        except Exception:  # missing deps / py-version syntax — env-specific
-            pass
+        except (ImportError, SyntaxError, TypeError):
+            continue
+        routers.append(mod.build_router())
     return routers
 
 
