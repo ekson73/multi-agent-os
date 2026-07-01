@@ -290,7 +290,7 @@ class CtsScorer:
             "eisenhower": EISENHOWER_VALUE.get(candidate.eisenhower_q, 0.0),
             "risk": RISK_VALUE[risk_class(candidate.risk)],
             "reversibility": max(0.0, min(1.0, candidate.reversibility)),
-            "iso": max(0.0, 1.0 - min(1.0, cost / ISO_COST_CEILING)),
+            "iso": max(0.0, 1.0 - min(1.0, cost / max(ISO_COST_CEILING, 1))),
             "methodology": max(0.0, min(1.0, candidate.methodology_fit)),
         }
 

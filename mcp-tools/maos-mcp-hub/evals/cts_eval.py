@@ -70,10 +70,10 @@ def _check_expectations(
             )
         elif key == "ruflo_hitl_eligible":
             results[key] = (
-                eliminated.get("ruflo", {}).get("hitl_eligible", False) is want
+                eliminated.get("ruflo", {}).get("hitl_eligible", False) == want
             )
         elif key == "eliminated_never_ranked":
-            results[key] = report["invariants"]["eliminated_never_ranked"] is want
+            results[key] = report["invariants"]["eliminated_never_ranked"] == want
         else:
             results[key] = False  # unknown expectation key fails loudly
     return results
@@ -114,7 +114,11 @@ def run_eval(
 
     # -- the WT3<->WT4 seam: the ranking IS IsoGate's ranked input -----------
     scorer = CtsScorer()
-    clean_turn = next(t for t in fixture["turns"] if t["name"] == "spec-task-clean")
+    clean_turn = next(
+        (t for t in fixture["turns"] if t["name"] == "spec-task-clean"), None
+    )
+    if clean_turn is None:
+        raise ValueError("required 'spec-task-clean' turn missing from fixture")
     ranking = scorer.rank(
         candidates,
         CtsTurn(

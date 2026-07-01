@@ -72,7 +72,10 @@ def test_risk_blocks_use_only_enumerable_signals():
 
 
 def test_policy_conflict_turn_plants_a_real_edge():
-    turn = next(t for t in _fixture()["turns"] if t["name"] == "policy-conflict")
+    turn = next(
+        (t for t in _fixture()["turns"] if t["name"] == "policy-conflict"), None
+    )
+    assert turn is not None, "required 'policy-conflict' turn missing from fixture"
     planted = {e["tool_id"] for e in turn["expect"]["eliminated_contains"]}
     assert frozenset(planted) in _edges()
 
@@ -168,7 +171,10 @@ def test_cts_rank_feeds_iso_gate_as_prefix():
     """The WT3<->WT4 seam: IsoGate promotes exactly the CTS rank prefix."""
     fixture = _fixture()
     candidates = candidates_from_fixture(fixture["candidates"])
-    turn_spec = next(t for t in fixture["turns"] if t["name"] == "spec-task-clean")
+    turn_spec = next(
+        (t for t in fixture["turns"] if t["name"] == "spec-task-clean"), None
+    )
+    assert turn_spec is not None, "required 'spec-task-clean' turn missing from fixture"
     scorer = CtsScorer()
     ranking = scorer.rank(
         candidates,
