@@ -1,0 +1,148 @@
+# Golden inventory for the ISO universal gating eval (WT3 / S3).
+#
+# Invariants (asserted by tests/test_iso_gate.py — the DoD-gate):
+#   - every tool id is a REAL node of lib/gateway/conflicts.yaml (same
+#     discipline as routing_cases.yaml: never invented ids);
+#   - every summary is <=60 tokens under the NORMATIVE tokenizer
+#     (iso_tokens = ceil(len/4), see lib/gateway/iso.py);
+#   - every `profile` below is internally conflict-free UNLESS the turn is
+#     an `injection` turn (then the planted pair is the only signal).
+#
+# The inventory is larger than any turn budget — the exact spec scenario
+# "more tools are connected than fit a turn's budget".
+
+schema_version: iso-inventory/1.0.0
+
+inventory:
+  - id: openspec
+    summary: "Spec-driven change management: proposals, delta specs, strict validation (L1 spec model)."
+    schema:
+      resource: spec
+      operations: [propose, apply, archive, validate]
+      required: [change_id]
+      optional: {strict: "true", specs_dir: "openspec/"}
+  - id: spec-kit
+    summary: "Alternative L1 spec system (.specify/specs conventions); mutually exclusive with openspec."
+    schema:
+      resource: spec
+      operations: [specify, plan, tasks]
+      required: [feature]
+      optional: {dir: ".specify/"}
+  - id: mem0
+    summary: "Pluggable memory backend (vector store + entity memory) for cross-session agent recall (L8)."
+    schema:
+      resource: memory
+      operations: [add, search, get_all, delete]
+      required: [text]
+      optional: {user_id: "default", metadata: "null"}
+  - id: cognee
+    summary: "Graph memory backend; competes with mem0 for the default L8 slot (namespace pgvector)."
+    schema:
+      resource: memory
+      operations: [cognify, search, prune]
+      required: [dataset]
+      optional: {graph_model: "default"}
+  - id: letta
+    summary: "Agent runtime with built-in memory; runtime lock-in ('must use Letta') vs pluggable backends."
+    schema:
+      resource: agent
+      operations: [create, message, memory_get]
+      required: [agent_id]
+      optional: {model: "null"}
+  - id: gstack
+    summary: "Always-on L2 instruction layer: planning/QA/ship workflows plus browser skills."
+    schema:
+      resource: workflow
+      operations: [plan, qa, ship, browse]
+      required: [task]
+      optional: {mode: "interactive"}
+  - id: superpowers
+    summary: "Always-on L2 skill library: brainstorming, TDD, debugging, worktrees, plan execution."
+    schema:
+      resource: skill
+      operations: [invoke, list]
+      required: [skill_name]
+      optional: {args: "null"}
+  - id: ECC
+    summary: "CLAUDE.md manager + Pre/PostToolUse hook engine (L0); detects duplicate hooks."
+    schema:
+      resource: manager
+      operations: [audit, install_hooks]
+      required: [project_dir]
+      optional: {dry_run: "true"}
+  - id: open-design
+    summary: "Agent-native local-first design studio; applies design systems via od CLI + MCP (L6)."
+    schema:
+      resource: design
+      operations: [apply_system, list_systems, render]
+      required: [target]
+      optional: {system: "null", tier: "cli"}
+  - id: gsd-core
+    summary: "Fresh-subagent spec/execute lifecycle (GSD); competing SSOT of spec with openspec (L1)."
+    schema:
+      resource: lifecycle
+      operations: [new_project, plan_phase, execute_phase]
+      required: [phase]
+      optional: {autonomous: "false"}
+  - id: ruflo
+    summary: "Heavy meta-orchestrator (swarm runtime); overkill stacked on another L3 conductor."
+    schema:
+      resource: swarm
+      operations: [spawn, topology, converge]
+      required: [goal]
+      optional: {agents: "3"}
+  - id: notebooklm
+    summary: "Research/PKM expert: notebooks, sources, podcasts, reports via NotebookLM automation (L5)."
+    schema:
+      resource: notebook
+      operations: [create, add_source, generate]
+      required: [notebook_id]
+      optional: {artifact: "report"}
+
+# Each turn feeds IsoGate.select with a ranked candidate list. `profile: null`
+# means policy=None (passthrough). Expectations are INVARIANT names the eval
+# asserts — never prose.
+turns:
+  - name: clean-topk
+    profile: null
+    ranked: [openspec, mem0, notebooklm, open-design, gstack, superpowers, ECC, ruflo, gsd-core, cognee, letta, spec-kit]
+    k: 5
+    schema_token_budget: null
+    expect:
+      k_effective: 5
+      denied_count: 0
+      summarized_count: 7
+
+  - name: budget-bound
+    profile: null
+    ranked: [openspec, mem0, notebooklm, open-design, gstack]
+    k: 5
+    schema_token_budget: 100
+    expect:
+      k_effective_lt_requested: true
+      budget_respected: true
+
+  - name: policy-gated
+    # Internally conflict-free active profile (5 tools; ECC excluded — it
+    # carries a conflicts.yaml edge against superpowers). Ranked list includes
+    # out-of-profile tools -> denied (disabled-by-policy), never promoted.
+    profile: [openspec, mem0, notebooklm, open-design, superpowers]
+    ranked: [openspec, spec-kit, mem0, gsd-core, notebooklm, ruflo, open-design]
+    k: 4
+    schema_token_budget: null
+    expect:
+      denied_contains: [spec-kit, gsd-core, ruflo]
+      denied_never_promoted: true
+
+  - name: injection
+    # Planted mis-configuration: letta injected into a profile that already
+    # carries mem0 (conflicts.yaml L8 edge) -> BOTH endpoints deny with
+    # conflicting_with populated; neither is ever promoted.
+    profile: [mem0, letta, openspec, notebooklm]
+    ranked: [mem0, letta, openspec, notebooklm]
+    k: 4
+    schema_token_budget: null
+    expect:
+      denied_contains: [mem0, letta]
+      conflict_reason_names_peer: true
+      denied_never_promoted: true

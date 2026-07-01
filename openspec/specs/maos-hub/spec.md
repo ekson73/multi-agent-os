@@ -113,7 +113,10 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
 
 ## Deferred (as-designed gaps — not yet built)
 
-- Universal ISO tool-gating beyond the Atlassian hub (WT3) · unified CTS scorer (WT4) · L8 memory substrate
+- ~~Universal ISO tool-gating beyond the Atlassian hub (WT3)~~ *(implemented — `lib/gateway/iso.py::IsoGate`:
+  ≤60-tok summary pool under the normative tokenizer `ceil(len/4)` + top-k promotion, `k=5` default with
+  budget-derived cap, PolicyResolver hard-filter first; acceptance = `python -m evals.iso_gate_eval` logged
+  verdict + golden fixture `evals/fixtures/iso_inventory.yaml`)* · unified CTS scorer (WT4) · L8 memory substrate
   (mem0 default; graphiti temporal DEFERRED until a measured workload) (WT5) · OTel exporter for Sentinel
   (WT6, DEFERRED — C3 severity LOW) · LiteLLM model-router (CUT — `os3pd` defers a runtime gateway until ≥3
   incidents and `slm-routing` is not a runtime router) · tool-registry YAML SSOT via auto-generation (WT8).
