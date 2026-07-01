@@ -1,6 +1,6 @@
 ---
 name: quiesce
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Drive the current work session to QUIESCENCE — a steady state with no pending
   work: no open ticket/gap/fix/failure/PR, every PR green, every PR comment
@@ -89,6 +89,9 @@ operator invokes /quiesce
         v
 <inner driver: default skills/auto-pilot>                      (INNER work driver)
         |-- PDCA-loop each OPEN PR of <scope> (steelman -> critique -> fix -> re-review)
+        |-- PR red/blocked on a bot-reviewer finding -> route EACH finding to
+        |     skills/bot-finding-arbiter (*Praetor*) — the DEFAULT per-finding handler
+        |     (OODA -> 7-way disposition + teach-the-bot edict), instead of ad-hoc PDCA
         |-- out-of-radar item -> file a tracking ticket (per CONTRIBUTING tracker) + cross-link
         \-- emit exactly ONE STOP marker as the last line of the turn
         |
@@ -214,6 +217,7 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 ## Related
 
 - `commands/quiesce.md` — operator-facing command surface
+- `skills/bot-finding-arbiter/SKILL.md` — *Praetor*: default per-finding handler when a PR is red/blocked on a bot-reviewer finding (7-way disposition + teach-the-bot)
 - `skills/auto-pilot/SKILL.md` — single-goal delegation kernel (default driver, sibling)
 - `skills/converge/SKILL.md` — 5-act proposal merge (used inside PDCA)
 - `skills/worktree-policy/SKILL.md` — write discipline every iteration honors
@@ -224,6 +228,11 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
 ## Versioning
 
+- v0.2.0 (2026-07-01) — **fire-point effectivation for `bot-finding-arbiter`**: a PR red/blocked
+  on a bot-reviewer finding now routes each finding to `skills/bot-finding-arbiter` (*Praetor*)
+  as the default per-finding handler inside the PDCA loop (7-way disposition + teach-the-bot),
+  instead of generic ad-hoc PDCA. Closes the "toda vez que" trigger gap (arbiter existed but
+  nothing invoked it automatically — Skopos PHASE-2: sharpen a fire-point > passive skill).
 - v0.1.0 (initial) — quiescence predicate; `/goal` + pluggable-driver composition
   (default `auto-pilot`); override flags incl. `--driver`; PDCA-converge open PRs +
   auto-file tracking tickets; STOP-marker grammar reuse; depth/PDCA bounds; DNA Geracional.
