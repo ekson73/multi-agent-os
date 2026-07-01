@@ -42,12 +42,15 @@ context="$(printf '%s' "$raw" | jq -r '.context // ""'     | tr '[:upper:]' '[:l
 state="$(printf '%s'   "$raw" | jq -r '.state // ""'       | tr '[:upper:]' '[:lower:]')"
 desc="$(printf '%s'    "$raw" | jq -r '.description // ""'  | tr '[:upper:]' '[:lower:]')"
 
-# Cue sets (POSIX ERE). platform_re matches quota-SPECIFIC phrases only — NOT a bare "limit"
-# (tightened per amazon-q review on #192 for defense-in-depth) — AND is consulted ONLY when
-# state=error (double guard: a non-quota "limit" like "limit concurrent connections" is never
-# dismissed as account-side, even if the state guard were ever removed). Still catches BOTH real
-# Snyk variants ("used your limit of private tests" · "Code test limit reached").
-platform_re='quota|rate.?limit|(test|usage|monthly|daily|plan|account|your) ?limit|limit (reached|exceeded|of)|entitlement|not authorized|unauthorized|auth failed|import|timed? ?out|service unavailable|429|50[23]'
+# Cue sets (POSIX ERE). platform_re matches quota/entitlement-SPECIFIC phrases only — high
+# precision is MANDATORY here because account-error is the one bucket that says "not repo-fixable,
+# stop." NOT a bare "limit" (tightened per amazon-q #192) and NOT a bare "import" (removed per
+# qodo #192 — "failed to import" is ambiguous: a code import error is repo-fixable, a Snyk
+# "unable to import project" is account-side → defer the ambiguous case to the probabilistic
+# verify instead of deterministically dismissing it). Double-guarded: also consulted ONLY when
+# state=error. Still catches BOTH real Snyk variants ("used your limit of private tests" ·
+# "Code test limit reached"). HTTP codes are word-boundaried to avoid substring hits (e.g. "1502").
+platform_re='quota|rate.?limit|(test|usage|monthly|daily|plan|account|your) ?limit|limit (reached|exceeded|of)|entitlement|not authorized|unauthorized|auth failed|timed? ?out|service unavailable|\b(429|50[23])\b'
 security_re='secret|credential|password|api.?key|access.?token|injection|sqli|xss|auth(entication|orization)? ?(flaw|bypass)|cve-|vulnerab|data.?loss|\brce\b|\bssrf\b|hardcoded'
 
 if [ "$state" = "error" ] && printf '%s' "$desc" | grep -Eiq "$platform_re"; then

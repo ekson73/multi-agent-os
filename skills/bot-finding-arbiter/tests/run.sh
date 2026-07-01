@@ -37,7 +37,10 @@ for case_dir in "$HERE"/case-*/; do
 
   total=$((total + 1))
 
-  actual="$(set +e; "$CLASSIFY" "$finding" 2>/dev/null)"
+  # Capture stderr so a classifier failure (e.g. "jq is required" / "invalid JSON input")
+  # is surfaced on FAIL instead of hidden — per qodo #192 observability finding.
+  err_file="$(mktemp 2>/dev/null || echo "/tmp/bfa-run-$$-$total.err")"
+  actual="$(set +e; "$CLASSIFY" "$finding" 2>"$err_file")"
   want="$(cat "$expected")"
 
   if [ "$actual" = "$want" ]; then
@@ -47,8 +50,10 @@ for case_dir in "$HERE"/case-*/; do
     echo "[FAIL] $case_name"
     echo "       expected: $want"
     echo "       actual:   $actual"
+    [ -s "$err_file" ] && echo "       stderr:   $(cat "$err_file")"
     failed=$((failed + 1))
   fi
+  rm -f "$err_file"
 done
 
 echo ""

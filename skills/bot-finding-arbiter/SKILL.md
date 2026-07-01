@@ -84,13 +84,13 @@ independent lens** (not the same reasoning that proposed it):
 - **Account/infra error** (the bot's *platform* failed, not the code — e.g. Snyk "test limit reached",
   a scanner timeout): classify **bot-wrong → but NOT repo-fixable** (see registry `repo-fixable?` column)
   → HITL playbook, **no config edit** (a repo file cannot fix an account-side quota).
-- **Deterministic pre-filter (run FIRST — the ECE deterministic skeleton):** `bin/classify.sh` reads the
-  finding envelope `{bot, context, state, description}` and code-enforces the two *safety* cues before the
+- **Deterministic pre-filter (run FIRST — the ECE deterministic skeleton):** `bin/classify.sh` (requires `jq`)
+  reads the finding envelope `{bot, context, state, description}` and code-enforces the two *safety* cues before the
   probabilistic verify runs — (a) `state=error` + platform keywords → `account-error · NOT-repo-fixable · HITL`;
   (b) security substance (secret/injection/auth/CVE/data-loss) → `security-class · HITL-gated · never-suppress`;
   (c) everything else → `content · defer-to-verify` (hand to the probabilistic ORIENT above). It **only gates,
   never suppresses** — a `content` verdict always defers to the verifier. The gates are proven by
-  `tests/run.sh` (6/6 fixtures, incl. gitleaks-secret → never-suppress + Snyk-quota → not-repo-fixable).
+  `tests/run.sh` (7/7 fixtures, incl. gitleaks-secret → never-suppress + Snyk-quota → not-repo-fixable).
 
 ### 3 — DECIDE (the 7 dispositions)
 Route the finding to exactly ONE (elevates the 5-path `pr-governance-unified` Step-8 menu to per-finding + 7-way):
@@ -150,8 +150,8 @@ repo-fixable** (dashboard) → HITL, no edit.
 6. ❌ **Rebuild convergence / commenting / merging** (compose the existing primitives).
 7. ❌ **Skip the always-comment (7)** — every disposition leaves an audit-trail rationale.
 
-## Quality Tests (6/6 · §11) + grounding
-1 Self-Application ✅ (built under worktree→PR→converge→merge, the very loop it arbitrates) · 2 Non-Contradiction ✅ (composes `pr-governance-unified`/`convergence-engine`/`auto-merge-standing`; zero duplication) · 3 Survival ✅ · 4 Bounded ✅ (PDCA cap · skips · one-edit-PR · never-critical-infra) · 5 Explicit-Exception ✅ (skips + HITL gates + §0 SER) · 6 Utility-Sunset ✅ (DUED below). Anti-theater 8/8 (the teach-the-bot lever is real config-as-code, empirically grounded in `.pr_agent.toml` precedent; the ⛔never-suppress-valid-security gate is now **code-proven** by `tests/run.sh` (6/6), not prose-only).
+## Quality Tests (6/6 §11 self-validity + 7/7 fixtures) + grounding
+1 Self-Application ✅ (built under worktree→PR→converge→merge, the very loop it arbitrates) · 2 Non-Contradiction ✅ (composes `pr-governance-unified`/`convergence-engine`/`auto-merge-standing`; zero duplication) · 3 Survival ✅ · 4 Bounded ✅ (PDCA cap · skips · one-edit-PR · never-critical-infra) · 5 Explicit-Exception ✅ (skips + HITL gates + §0 SER) · 6 Utility-Sunset ✅ (DUED below). Anti-theater 8/8 (the teach-the-bot lever is real config-as-code, empirically grounded in `.pr_agent.toml` precedent; the ⛔never-suppress-valid-security gate is now **code-proven** by `tests/run.sh` (7/7), not prose-only).
 
 ## DUED Sunset (qualitative)
 Deprecate when ANY: a host ships native "arbitrate + teach reviewer bot" (E1) · absorbed into `convergence-engine`/`pr-governance-unified` as one entry (E6) · operator retraction (E4) · ≥3 false-positive suppressions slip through (E5 → tighten the verify gate, not deprecate).
@@ -162,5 +162,5 @@ Deprecate when ANY: a host ships native "arbitrate + teach reviewer bot" (E1) ·
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
-| 1.1.0 | 2026-07-01 | Harden — (a) **corrija**: fixed the dangling `bin/pr-review-watch` GitHub-intake reference (cited 5× but the file never existed) → repointed to the real `gh` CLI (`pr view --json` + `api …/statuses`), Bitbucket stays `bb-pipeline-watch.sh`; a symmetric `bin/pr-review-watch` wrapper is a deferred nicety (gh already does it). (b) **melhore**: added `bin/classify.sh` — a deterministic ORIENT pre-filter (ECE skeleton) that code-enforces the two safety cues (account/platform-error → NOT-repo-fixable · security-class → HITL-gated never-suppress; content → defer-to-verify) + `tests/` (6 fixtures + `run.sh`, converge-style) that **prove** the ⛔never-suppress-valid-security gate (6/6 pass: gitleaks-secret + Trivy-CVE → never-suppress, Snyk-quota → not-repo-fixable, content → defer, non-quota-limit-in-error → content). The gate was prose-only in v1.0.0. PDCA: tightened `platform_re` (bare `limit` → quota-specific phrases) per an amazon-q `:stop_sign:` review on #192 — accept-partial+adapt (their suggested `test.?limit` regex would have broken the real "used your limit of private tests" variant; case-06 proves the correct fix). |
+| 1.1.0 | 2026-07-01 | Harden — (a) **corrija**: fixed the dangling `bin/pr-review-watch` GitHub-intake reference (cited 5× but the file never existed) → repointed to the real `gh` CLI (`pr view --json` + `api …/statuses`), Bitbucket stays `bb-pipeline-watch.sh`; a symmetric `bin/pr-review-watch` wrapper is a deferred nicety (gh already does it). (b) **melhore**: added `bin/classify.sh` — a deterministic ORIENT pre-filter (ECE skeleton) that code-enforces the two safety cues (account/platform-error → NOT-repo-fixable · security-class → HITL-gated never-suppress; content → defer-to-verify) + `tests/` (7 fixtures + `run.sh`, converge-style) that **prove** the ⛔never-suppress-valid-security gate (7/7 pass). The gate was prose-only in v1.0.0. **PDCA (self-dogfood — Praetor arbitrated its own PR #192)**: (i) amazon-q `:stop_sign:` → tightened bare `limit` to quota-specific phrases (accept-partial+adapt; their `test.?limit` suggestion would have broken the real "used your limit of private tests" variant → case-06); (ii) qodo → removed the ambiguous `import` cue (a code import-error is repo-fixable → defer, not dismiss → case-07), word-boundaried HTTP codes, surfaced classifier stderr on test failure, documented the `jq` dependency. `jq` required by `classify.sh`. |
 | 1.0.0 | 2026-07-01 | Bootstrap — per-finding 7-way OODA disposition arbiter + teach-the-bot config-as-code edict (the greenfield capability: no prior tool wrote back to a bot's config; elevates the manual `.pr_agent.toml` + `pr-governance-unified` Known-FP precedent into a governed, multi-bot, verified loop). ⛔ never-suppress-valid-security hard gate + verifier>generator verify before any edit. Composes existing convergence/intake/comment/merge primitives (zero duplication). Soul-name *Praetor* via `anima`. |

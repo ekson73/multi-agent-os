@@ -20,6 +20,9 @@ the SKILL's ⛔never-suppress-valid-security claim (which was prose-only until t
 | `case-04-trivy-cve` | Trivy CVE finding | `security-class · never_suppress=true` — CVEs are security-class; default is fix/upgrade, never auto-suppress. |
 | `case-05-coderabbit-style-nit` | CodeRabbit style suggestion (content) | `content · defer-to-verify` — style/content findings defer to the verify, never auto-suppress. |
 | `case-06-nonquota-limit-not-account` | `state=error` build error "failed to limit concurrent connections" | `content · defer-to-verify` — proves the tightened `platform_re` (per amazon-q review on #192): a NON-quota "limit" in error-state is NOT dismissed as account-side (defense-in-depth even if the state guard were removed). |
+| `case-07-code-import-error-not-account` | `state=error` "failed to import module foobar" | `content · defer-to-verify` — proves the removal of the ambiguous `import` cue (per qodo review on #192): a repo-fixable code import-error is NOT dismissed as account-side; ambiguous cases defer to the verify. |
+
+> **Requires**: `jq` (used by `../bin/classify.sh` to parse the finding envelope).
 
 ## Contract
 
