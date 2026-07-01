@@ -232,6 +232,42 @@ git push origin --delete {type}/{feature}
 
 ---
 
+## Bot-Config Correction Discipline
+
+> Generalizes the two dismissals above + the `.pr_agent.toml` precedent (whose header exists to *"prevent
+> recurring false-positive"* findings) into a governed loop: instead of dismissing the same false-positive
+> forever, **teach the bot via its own repo config** so it stops emitting it. Executed by the
+> `bot-finding-arbiter` skill (*Praetor*); this section is the policy.
+
+**When a reviewer/scanner bot flags a finding**, classify it into exactly one bucket:
+
+| Bucket | Action |
+|---|---|
+| **valid-actionable** | fix/adapt the code (dispositions accept/fix/improve/expand per Step 8) |
+| **bot-wrong** (false-positive · governance-misalignment · style-only) | reject + **teach the bot via its config file** (below) — but ONLY after independent verify |
+| **ambiguous** | DEFER + comment; **never** guess a config edit |
+
+**Rules for a teach-the-bot config edit (the "edict"):**
+1. ⛔ **NEVER suppress a valid security or logic finding.** A config edit that would silence a real
+   secret / injection / auth flaw / CVE / correctness bug is forbidden (gaming the scanner = Goodhart).
+   Security-class "bot-wrong" verdicts are **HITL-gated**; the default is *fix/upgrade*, not suppress.
+2. **Verifier > generator.** The "bot is wrong" verdict must be **independently verified** (a deterministic
+   oracle where one exists — the flagged pattern is our documented convention / re-run the scanner — OR a
+   second-lens review via `convergence-engine`/`perspective-trio`) BEFORE any file is touched.
+3. **Repo-fixable only.** Some bot errors are account/dashboard-side (quota, rate-limit, import,
+   entitlement — e.g. a Snyk "test limit reached") and NO committed file fixes them → HITL playbook,
+   **no config edit**. See `skills/bot-finding-arbiter/bot-config-registry.md` (`repo-fixable?` column).
+4. **Narrowest teaching form.** Prefer a path-scoped instruction / documented-convention note over a broad
+   ignore (over-suppression hides future real findings).
+5. **Reviewed PR, never silent.** A config edit lands via worktree → review → merge like any change, with a
+   rationale, and is recorded on the Bot Scorecard as a `config-taught` disposition (accuracy tracking).
+
+The bot → config-file map (`.pr_agent.toml` · `.coderabbit.yaml` · `.github/copilot-instructions.md` ·
+`.amazonq/rules/` · `.gitleaks.toml` · `.trivyignore`) is the SSOT in
+`skills/bot-finding-arbiter/bot-config-registry.md`.
+
+---
+
 ## Anti-Patterns
 
 ```
@@ -259,5 +295,6 @@ ALWAYS document exception in the PR.
 
 ---
 
+*v1.2.0 | 2026-07-01 | Add Bot-Config Correction Discipline: classify {valid \| bot-wrong \| ambiguous} + teach-the-bot-via-its-config edicts, gated by ⛔never-suppress-valid-security + verifier>generator + repo-fixable-only + narrowest-form + reviewed-PR. Executed by `skills/bot-finding-arbiter` (Praetor); SSOT map in `bot-config-registry.md`.*
 *v1.1.0 | 2026-03-11 | Tighten worktree exception clause: "explicit user request" → literal bypass language only + decision checkpoint + rationalization anti-pattern*
 *v1.0.0 | 2026-03-06 | Unified from C07 v3.0 + C12 v3.0 + C04 essentials + CLI review tools*
