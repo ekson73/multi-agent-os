@@ -42,9 +42,12 @@ context="$(printf '%s' "$raw" | jq -r '.context // ""'     | tr '[:upper:]' '[:l
 state="$(printf '%s'   "$raw" | jq -r '.state // ""'       | tr '[:upper:]' '[:lower:]')"
 desc="$(printf '%s'    "$raw" | jq -r '.description // ""'  | tr '[:upper:]' '[:lower:]')"
 
-# Cue sets (POSIX ERE). platform_re is only consulted when state=error (conservative:
-# a bare "limit" mention on a non-error finding must NOT be dismissed as account-side).
-platform_re='quota|rate.?limit|limit|entitlement|not authorized|unauthorized|auth failed|import|timed? ?out|service unavailable|429|50[23]'
+# Cue sets (POSIX ERE). platform_re matches quota-SPECIFIC phrases only — NOT a bare "limit"
+# (tightened per amazon-q review on #192 for defense-in-depth) — AND is consulted ONLY when
+# state=error (double guard: a non-quota "limit" like "limit concurrent connections" is never
+# dismissed as account-side, even if the state guard were ever removed). Still catches BOTH real
+# Snyk variants ("used your limit of private tests" · "Code test limit reached").
+platform_re='quota|rate.?limit|(test|usage|monthly|daily|plan|account|your) ?limit|limit (reached|exceeded|of)|entitlement|not authorized|unauthorized|auth failed|import|timed? ?out|service unavailable|429|50[23]'
 security_re='secret|credential|password|api.?key|access.?token|injection|sqli|xss|auth(entication|orization)? ?(flaw|bypass)|cve-|vulnerab|data.?loss|\brce\b|\bssrf\b|hardcoded'
 
 if [ "$state" = "error" ] && printf '%s' "$desc" | grep -Eiq "$platform_re"; then
