@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — L8 memory substrate (WT5 / S4) — mem0 default, file/seed degradation
+
+- **`docs/adoption/mem0-2026-07-01.md`** — the `agentic-tool-intake` dossier for mem0 (verdict:
+  **ADAPT — adapter-first, optional dependency**; research DRY-cited from
+  `research/agentic-moe-2026/20260627-01a-substrates.md` §L8). Alternatives recorded: letta
+  REJECTED (runtime lock-in), cognee = graph-first alternative, **graphiti DEFERRED** until a
+  measured temporal workload (handoff WAVE-1: no gold-plating).
+- **`mcp-tools/maos-mcp-hub/lib/memory/substrate.py`** — `MemorySubstrate`: resolves **mem0-first**
+  (lazy import; any init/reach failure degrades) → `FileSeedBackend` (append-only JSONL — the
+  file/seed mechanism postflight seeds already rely on). The spec scenario ("Substrate-first
+  activation" → *memory backend unavailable*) implemented verbatim: degrade, **continue (never
+  blocks, never fabricates — every response names the answering backend)**, and record
+  **`l8_substrate{backend, degraded, reason}`** through the `on_trace` L9 hook. Mid-call outages
+  degrade + retry on the fallback; a failing trace hook never blocks the substrate.
+- **DoD-gate honoured:** acceptance = the logged field + golden behaviors asserted by **10 tests**
+  (`tests/test_memory_substrate.py`), incl. torn-JSONL tolerance and no-false-degradation with a
+  healthy client. 0-regression. Additive; no plugin version bump (ADR-003).
+
 ### Added — unified CTS scorer (WT4 / S2) — hard-filters-first multi-criteria ranking
 
 - **`mcp-tools/maos-mcp-hub/lib/gateway/cts.py`** — `CtsScorer`: the WAVE-1 WT4 unification of the

@@ -121,7 +121,11 @@ complement, never the sole control. Every enforcement decision SHALL be logged (
   risk_class] before the 6-criteria weighted score [scope 0.30 · eisenhower 0.20 · risk 0.15 · reversibility 0.15 ·
   iso 0.10 · methodology 0.10]; `risk=HIGH` = the concrete `RiskSignals` predicate [any of irreversible ·
   destructive · credential_scope · prod_facing · cross_org]; acceptance = `python -m evals.cts_eval` logged
-  verdict + golden fixture `evals/fixtures/cts_cases.yaml`)* · L8 memory substrate
-  (mem0 default; graphiti temporal DEFERRED until a measured workload) (WT5) · OTel exporter for Sentinel
+  verdict + golden fixture `evals/fixtures/cts_cases.yaml`)* · ~~L8 memory substrate
+  (mem0 default) (WT5)~~ *(implemented — `lib/memory/substrate.py::MemorySubstrate`: mem0-first lazy
+  resolution with file/seed degradation per the "memory backend unavailable" scenario; logged field
+  `l8_substrate{backend, degraded, reason}` via the on_trace L9 hook; intake dossier
+  `docs/adoption/mem0-2026-07-01.md`; graphiti temporal remains DEFERRED until a measured workload)* ·
+  OTel exporter for Sentinel
   (WT6, DEFERRED — C3 severity LOW) · LiteLLM model-router (CUT — `os3pd` defers a runtime gateway until ≥3
   incidents and `slm-routing` is not a runtime router) · tool-registry YAML SSOT via auto-generation (WT8).
