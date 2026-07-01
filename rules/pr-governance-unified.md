@@ -134,6 +134,12 @@ Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (
 | Disagree (justified) | Merge + document justification via `gh pr comment` |
 | Inconclusive | Escalate to human (do NOT merge) |
 
+> **Per-finding arbitration (bot findings)**: when the review feedback is a reviewer-BOT finding
+> (Copilot / Qodo / CodeRabbit / Amazon Q / gitleaks / Snyk / Semgrep / Trivy), route EACH finding to
+> `skills/bot-finding-arbiter` (*Praetor*) — the default handler that elevates this 5-way menu to a
+> per-finding 7-way disposition (+ the teach-the-bot edict when the bot is verifiably wrong).
+> See § Bot-Config Correction Discipline below for the binding policy.
+
 ## Step 9: Merge
 
 ```bash
@@ -297,6 +303,7 @@ ALWAYS document exception in the PR.
 
 ---
 
+*v1.2.1 | 2026-07-01 | Step-8 fire-point: route reviewer-BOT findings per-finding to `skills/bot-finding-arbiter` (*Praetor*) as the default handler (elevates the 5-way menu to 7-way + teach-the-bot). Effectivation of the existing § Bot-Config Correction Discipline — policy unchanged, now actively triggered from the lifecycle step.*
 *v1.2.0 | 2026-07-01 | Add Bot-Config Correction Discipline: classify {valid \| bot-wrong \| ambiguous} + teach-the-bot-via-its-config edicts, gated by ⛔never-suppress-valid-security + verifier>generator + repo-fixable-only + narrowest-form + reviewed-PR. Executed by `skills/bot-finding-arbiter` (Praetor); SSOT map in `bot-config-registry.md`.*
 *v1.1.0 | 2026-03-11 | Tighten worktree exception clause: "explicit user request" → literal bypass language only + decision checkpoint + rationalization anti-pattern*
 *v1.0.0 | 2026-03-06 | Unified from C07 v3.0 + C12 v3.0 + C04 essentials + CLI review tools*
