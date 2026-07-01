@@ -34,6 +34,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/token-budget-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/agentshield.sh"
           }
         ]
       },
@@ -43,6 +47,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/worktree-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/agentshield.sh"
           }
         ]
       },

@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — C6 content-security AgentShield (WT2 / RULE-012) — the PreToolUse BLOCKING half of the HYBRID
+
+- **`plugin-scripts/governance/agentshield.sh`** (PreToolUse hook, `Bash|Task`) + **`lib/agentshield-scan.sh`** (pure, testable detector) — the runtime BLOCKING leg of the C6 content-security invariant (ADR-006 §4 · maos-hub spec §97–100), sibling of WT1's advisory SessionStart conductor-scan. Scans the channel payload — Bash `.tool_input.command` (channel=`tool_input`) and Task `.tool_input.prompt` (channel=`model_output` — model-generated text fed to a sub-agent) — and emits a **`RULE-012 c6_egress_check{channel, classification, secret_match, decision}`** logged field.
+- **Blocks (exit 2 + JSON-RPC `-32004`)** on: a leaked secret (high-precision, gitleaks-grade signatures — `anthropic_key` · `github_token` · `aws_access_key` · `slack_token` · `private_key` · `jwt`); egress to a host outside `MAOS_AGENTSHIELD_ALLOWLIST` (opt-in); or `git --no-verify` bypassing the secret-at-rest floor (`hook_bypass`). Precedence: secret > egress > hook_bypass.
+- **Leak-safe by construction:** the raw payload is NEVER serialized into the logged field — every JSON value is from a fixed vocabulary (`channel`/`classification`/`secret_match`-id/`decision`), so `secret_match` reports the KIND of secret (e.g. `anthropic_key`), never the value ⇒ no field can carry attacker-controlled bytes (leak-safe *and* JSON-injection-safe with zero escaping). **Availability-safe:** a malformed input defaults to allow (an unparseable call must not wedge the agent), HOME-safe under `set -u`, but a matched secret ALWAYS blocks. Opt-out `MAOS_NO_AGENTSHIELD=1`.
+- **RULE-012** registered in `sentinel/detection_rules.md` + marked implemented in `openspec/specs/maos-hub/spec.md`. Wired into `hooks/hooks.json` PreToolUse under both `Bash` (after `worktree-gate`) and `Task` (after `token-budget-gate`) matchers.
+- **DoD-gate honoured (the keystone, spec §106–109):** the acceptance is a *logged field / golden fixture*, never prose — a secret planted in a Task prompt yields `channel=model_output` & `decision=block` & `secret_match≠null`, asserted both on the pure detector AND end-to-end through the hook's audit jsonl. Secrets in fixtures are **assembled at runtime** so no literal credential lives in the test file (the scoped gitleaks scan stays clean). **43 bash tests** (`tests/governance/test-agentshield.sh`, auto-discovered by `run-all.sh`). Additive; no plugin version bump (ADR-003).
+
 ## [1.17.0] - 2026-06-30
 
 ### Added — hub routing-eval (S8) — *eval-first* measurement of the MoE gating-network
