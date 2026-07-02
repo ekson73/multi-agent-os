@@ -1,6 +1,6 @@
 ---
 name: maos-concierge
-version: "1.0.0"
+version: "1.1.0"
 description: |
   Concierge / onboarding / guide / router / capability-detector / governance-anchor for the
   ENTIRE Multi-Agent OS (MAOS) framework — its agents, skills, commands, protocols, and governances
@@ -9,10 +9,13 @@ description: |
   Use when a human or agent wants to LEARN MAOS, ONBOARD onto it, find WHICH tool/agent/command/protocol
   to use for an intent, get a PLAYBOOK/RUNBOOK/WALKTHROUGH, AUDIT a project's MAOS usage, or re-find a
   CANONICAL decision that drifted across sessions. It ROUTES + TEACHES + ANCHORS — it never reimplements
-  an agent/skill/protocol and never wraps an existing tool. 6 modes: explain (default — teach the
+  an agent/skill/protocol and never wraps an existing tool. 8 modes: explain (default — teach the
   framework + landscape), onboard (guided ramp for a newcomer), guide (intent → right tool + playbook),
   audit (read-only compliance vs MAOS protocols), anchor (surface canonical decisions, flag drift),
-  dashboard (ASCII onboarding-map; optional HTML companion). Vendor-neutral (AAIF cross-vendor) —
+  dashboard (ASCII onboarding-map; optional HTML companion), setup (MAOS Hub console — render the
+  derived registry views preset/category/use-case/context-aware/prose-intent/safe-mode and write the
+  enablement profile, conflict-checked + HITL-confirmed), config (inspect/adjust the persisted
+  hub profile SSOT). Vendor-neutral (AAIF cross-vendor) —
   portable across Claude Code, Cursor, Codex, Gemini CLI, Copilot.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
@@ -23,6 +26,8 @@ evals:
     - "Audit whether this project follows the Anti-Conflict + worktree protocol"
     - "What does the Sentinel Protocol do and when does it auto-block?"
     - "Show me an onboarding dashboard of the MAOS framework"
+    - "Set up the MAOS Hub — show me the expert presets and enable a stack for this project"
+    - "Which hub tools are safe to enable? Show safe-mode and write my profile"
     - "Someone bypassed hierarchical-merge and merged a subtask branch to main — is that allowed?"
     - "How does The Forge decide whether to create a new agent?"
   should_not_trigger:
@@ -82,9 +87,9 @@ Detect which MAOS surfaces are present before orienting. Degrade gracefully + em
 | **Session lifecycle (recap / re-orient / quiesce)** | `morning-briefing` · `pulse` · `quiesce` skills | — | session hygiene |
 | **Startup / founder lifecycle guidance** | `founder-playbook` + `founder-stage-*` skills | — | domain advisory, not MAOS-core |
 
-## The 6 Modes
+## The 8 Modes
 
-Invoke with `--mode=<explain|onboard|guide|audit|anchor|dashboard>` (default `explain`).
+Invoke with `--mode=<explain|onboard|guide|audit|anchor|dashboard|setup|config>` (default `explain`).
 
 ### `--mode=explain` (default)
 Teach MAOS: what it is (an orchestration "OS" for AI agents), the agent/skill/command catalogs, the protocol set, and **when to reach for what / what to SKIP**. Source of truth = [`AWARENESS-REGISTRY.md`](./AWARENESS-REGISTRY.md). Reduce surface — tell the user which tool NOT to use for their intent.
@@ -103,6 +108,22 @@ Surface the canonical MAOS decisions (from [`CANON.md`](./CANON.md)) on demand s
 
 ### `--mode=dashboard`
 Render an **ASCII/markdown onboarding-map** (the default): framework landscape + adoption-progress checklist + next-step pointer, in the `status-map` house style. On request, also emit the self-contained **[`dashboard.html`](./dashboard.html)** companion (open in a browser) for a richer onboarding/playbook view. No web service, no build step — a single static file.
+
+### `--mode=setup` (hub console — T3, ADR-006/007)
+Render the **MAOS Hub console** views over the DERIVED registry (T1 SSOT — never hand-maintained data) and, on selection, write the enablement-profile SSOT (T2) — **conflict-checked + HITL-confirmed, never auto-applied**. Engine = `mcp-tools/maos-mcp-hub/lib/registry/console.py` (ASCII first-class; `--html` optional artifact):
+
+```bash
+python3 mcp-tools/maos-mcp-hub/lib/registry/console.py view <preset|category|use-case|context-aware|prose-intent|safe-mode>
+python3 mcp-tools/maos-mcp-hub/lib/registry/console.py --safe-mode           # conservative floor
+python3 mcp-tools/maos-mcp-hub/lib/registry/console.py select --ids a,b,c \
+        --write mcp-tools/maos-mcp-hub/profile.yaml            # DRAFT only (refuses to write)
+# … review the emitted draft + logged fields, then the HUMAN adds:  --confirm
+```
+
+Gates (logged fields, not prose): conflicting pair in the selection → `verdict: refused` + `conflicts: [[a,b]]`; `activation=excluded` id → refused fail-closed; no `--confirm` → `written: false, reason: confirmation_required`. The `context-aware` and `prose-intent` views are registry-rendered scaffolds whose engines land in T4 (work-compass signals) and T5 (prose→profile interview).
+
+### `--mode=config` (profile SSOT inspect/adjust)
+Inspect the persisted hub profile (`mcp-tools/maos-mcp-hub/profile.yaml` / `$MAOS_HUB_PROFILE`): show `mode` (enforce|advisory), the `enabled` list, and validate it against the registry (`lib.gateway.profile.validate_profile` — excluded ids are refused). Adjustments go through the same `select … --confirm` path as setup (never hand-edit advice that bypasses the conflict/HITL gates).
 
 ## Governance layer (what I enforce when orienting)
 
@@ -139,4 +160,5 @@ Render an **ASCII/markdown onboarding-map** (the default): framework landscape +
 - Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
 
 ## Changelog
+- 2026-07-02 — v1.1.0 — T3 (WAVE 5, ADR-006/007): +2 modes `setup` (hub console — 6 registry views + conflict-checked, HITL-confirmed profile write via `lib/registry/console.py`) and `config` (profile SSOT inspect/validate). Composes T1 HubRegistry + T2 HubProfile; reimplements nothing.
 - 2026-05-28 — v1.0.0 — Bootstrap. Concierge/onboarding/guide/router/governance-anchor over the whole MAOS framework. 6 modes (explain/onboard/guide/audit/anchor/dashboard) + Landscape Decision Matrix + governance layer + AWARENESS-REGISTRY + CANON + self-executed 33Q + ASCII/HTML dashboard. Vendor-neutral (MIT, layer-pure — no corporate content). Anti-over-engineering: orients over existing tools, reimplements NOTHING. Origin: operator /enhance 2026-05-28 (concierge family — sibling of atlassian-concierge/specdd-concierge).
