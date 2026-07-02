@@ -1,6 +1,6 @@
 # ADR-006: Absorb `agentic-moe-2026` (ATH) as MAOS's MoE Hub architecture & evolution chapter
 
-- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180)
+- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180; per-wave implementation status: see §Implementation status → chapter-README SSOT)
 - **Date**: 2026-06-27
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL directive
 - **Scope**: This repo (`maos`, Class B). Companion to the existing orchestration/observability/anti-conflict protocols. Sibling evidence: `research/agentic-moe-2026/` (the research chapter) + `research/agentic-moe-2026/20260627-ATH-OODA-RECON.md` (the inventory cross-walk).
@@ -142,6 +142,12 @@ clarifying the ≥3-incident deferral excludes security guardrails C1/C6; annota
 
 > The recursion landed: `os3pd-manifesto`, `slm-routing` and `pii-masking` literally cited their **own**
 > constraints to re-shape the plan that enables them — the experts co-authored their own habilitation.
+
+## Implementation status (pointer — no status is duplicated here)
+
+Per-wave implementation status (shipped / in-flight / pending, with PR links) lives in ONE place:
+the living roadmap table at `research/agentic-moe-2026/README.md` §"Status do hands-on" (SSOT —
+update it there on each wave close, never here). Remaining-backlog tracking: GitHub issue #204.
 
 ---
 *ADR-006 · drafted by Claude (Cowork) under operator HITL · reviewed by maos:governance-auditor + maos:persona-pipeline · 2026-06-27 · ratify via PR (squash-merge, human gate).*
