@@ -211,3 +211,96 @@ def test_cli_contract() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
     payload = json.loads(proc.stdout)
     assert payload["verdict"] == "pass"
+
+
+# --- PR #209 bot-finding regressions (fix/T1-registry-bot-findings) ----------
+
+def _mk_record(rid: str, category: str, **kw) -> HubRecord:
+    base = dict(
+        id=rid, owner_repo="x/y", layer="L2", role="r", category=category,
+        harness_coverage=(), requires=(), conflicts_with=(), guardrails="",
+        impact="", recipes=(), activation="opt-in", license_spdx="MIT",
+        provenance="p", ttl=None, last_validated="2026-07-02",
+        rollback="rb", security_status="vetted", derived_from="d",
+    )
+    base.update(kw)
+    return HubRecord(**base)
+
+
+def test_conductors_txt_manager_pipe_path_format(tmp_path: Path) -> None:
+    """F2 (Copilot/Qodo High): conductors.txt lines are `<manager>|<sig-path>` —
+    only the manager id may enter the gate set."""
+    from lib.registry.hub_registry import _load_conductors
+    f = tmp_path / "conductors.txt"
+    f.write_text("# comment\nbmad-method|.bmad-core\nECC | .ecc\n\ngstack|.gstack\n",
+                 encoding="utf-8")
+    assert _load_conductors(f) == {"bmad-method", "ECC", "gstack"}
+
+
+def test_conductor_gate_actually_fires(registry: HubRegistry) -> None:
+    """F2: at least one conductor is capped BY THE CONDUCTOR GATE itself
+    (not merely masked by a license/conflict gate)."""
+    reasons = [
+        registry.get(rid).activation_reason
+        for rid in ("base", "superpowers", "gstack", "ECC", "ruflo", "bmad-method")
+        if registry.get(rid) is not None
+    ]
+    assert any("conductor" in r for r in reasons), reasons
+
+
+def test_request_activation_never_upgrades_excluded(registry: HubRegistry) -> None:
+    """F3 (Qodo Blocker): excluded is immutable via the request API."""
+    for requested in ("opt-in", "default-on-for-context", "always-on"):
+        decision = registry.request_activation("mempalace", requested)
+        assert decision["granted"] == "excluded", decision
+        assert "refused" in decision["reason"]
+
+
+def test_request_activation_refuses_upgrade_beyond_derived(registry: HubRegistry) -> None:
+    """F3: a derived opt-in third-party cannot be bumped to default-on."""
+    rec = next(r for r in registry.records()
+               if r.category == "third-party" and r.activation == "opt-in")
+    decision = registry.request_activation(rec.id, "default-on-for-context")
+    assert decision["granted"] == rec.activation
+    assert "refused: upgrade" in decision["reason"]
+    # downgrade remains allowed
+    down = registry.request_activation(rec.id, "opt-in")
+    assert down["granted"] == "opt-in"
+
+
+def test_id_collision_first_party_wins_and_verdict_fails_cross_category() -> None:
+    """F4 (Qodo High): duplicate id never silently overwrites; cross-category
+    collision fails the report verdict."""
+    reg = HubRegistry()
+    reg._add(_mk_record("dup", "skill"))
+    reg._add(_mk_record("dup", "third-party", activation="excluded"))
+    assert reg.get("dup").category == "skill"           # first-derived wins
+    report = reg.report()
+    assert report["invariants"]["id_collisions"] == [
+        {"id": "dup", "kept": "skill", "dropped": "third-party"}
+    ]
+    assert report["verdict"] == "fail"
+
+
+def test_required_fields_invariant_checks_content_not_keys() -> None:
+    """F5 (Qodo Medium): empty critical fields must fail the invariant."""
+    reg = HubRegistry()
+    reg._add(_mk_record("hollow", "skill", provenance=""))
+    assert reg.report()["invariants"]["all_required_fields_present"] is False
+
+
+def test_recipes_loader_skips_falsy_ids(tmp_path: Path) -> None:
+    """F6 (Qodo Medium): null/empty recipe or tool ids never enter the map."""
+    from lib.registry.hub_registry import _load_recipes
+    f = tmp_path / "recipes.yaml"
+    f.write_text(
+        "recipes:\n"
+        "  - id:\n"
+        "    stack: [ghost]\n"
+        "  - id: ok\n"
+        "    stack: [null, '', mem0]\n",
+        encoding="utf-8",
+    )
+    mapping = _load_recipes(f)
+    assert "ghost" not in mapping
+    assert mapping == {"mem0": ["ok"]}
