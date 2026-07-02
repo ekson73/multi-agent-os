@@ -49,7 +49,9 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 4 | WT11-MVV Vision touch no `CLAUDE.md` (**HITL** — operator ratifica; nunca auto-merge) | — | 🟠 aguardando ratificação | [#206](https://github.com/ekson73/multi-agent-os/pull/206) |
 | — | WT6 OTel-Sentinel | — | ⏸ DEFERRED (C3 severidade baixa; sem consumidor de telemetria) | — |
 | — | WT7 LiteLLM router | — | ✂️ CUT (os3pd adia gateway de runtime até ≥3 incidentes) | — |
-| 5 | Console do operador T1–T7 (T1 registry-SSOT → T2 profile-as-gating-input primeiro) | ADR-007 | 🔴 not started | — |
+| 5 | T1 hub-registry SSOT (plugin-level, derived; + fix-PDCA [#211](https://github.com/ekson73/multi-agent-os/pull/211)) | ADR-007 | 🟢 merged (2026-07-02) | [#209](https://github.com/ekson73/multi-agent-os/pull/209) |
+| 5 | T2 profile-as-gating-input (enablement SSOT + wiring; + fix-PDCA [#212](https://github.com/ekson73/multi-agent-os/pull/212)) | ADR-007 | 🟢 merged (2026-07-02) | [#210](https://github.com/ekson73/multi-agent-os/pull/210) |
+| 5 | T3–T6 console (modes · context-aware · prose-intent · activation) | ADR-007 | 🔴 not started | — |
 | 6 | Front-door da comunidade T8–T10 (gatekeeper exige piso CI verde da WAVE-0) | ADR-007 | 🔴 not started | — |
 
 Tracking do restante: [issue #204](https://github.com/ekson73/multi-agent-os/issues/204) (Waves 4–6); contratos em
