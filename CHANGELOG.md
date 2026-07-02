@@ -25,8 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`hub-profile/1.x`).
 - **`maos-concierge` v1.1.0**: +2 modes — `setup` (hub console) and `config` (profile SSOT
   inspect/validate) — composing T1+T2; reimplements nothing.
-- Tests: `tests/test_hub_console.py` — 21 tests (golden safe-mode fixture, byte-stability,
+- Tests: `tests/test_hub_console.py` — 28 tests (golden safe-mode fixture, byte-stability,
   conflict/excluded/confirm gates, T2 round-trip, live-repo CLI smoke).
+- **Pre-merge bot-finding remediation (PDCA on #214)**: atomic profile write (tmp+replace —
+  a truncated YAML would brick the fail-closed hub startup); empty selection refused
+  (`reason: empty_selection` — an empty enforce-profile is a silent passthrough); `mode`
+  vocabulary enforced at API level (not only CLI); `recipes.yaml` type-guards (malformed
+  root/items never crash a view); unknown CLI flags error instead of silently no-oping;
+  `validate_profile` (T2 SSOT) actually invoked before every write; token-plane surfacing —
+  enforce-profiles built from registry TOOL ids emit `warning: enforce_profile_gates_operations`
+  (the runtime gate checks gateway OPERATION tokens; plane unification tracked as T4–T6 design).
 
 ### Fixed — profile bot-finding remediation (post-merge PDCA of #210)
 

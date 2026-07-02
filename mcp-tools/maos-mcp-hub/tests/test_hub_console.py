@@ -250,3 +250,92 @@ def test_cli_help_flag(tmp_path: Path) -> None:
     out = subprocess.run([sys.executable, str(script), "--help"],
                          capture_output=True, text=True, check=True)
     assert "views: preset | category | use-case" in out.stdout
+
+
+# ------------------- PR #214 bot-finding regressions (pre-merge fix-forward)
+
+
+def test_empty_selection_is_refused(console: HubConsole, tmp_path: Path) -> None:
+    """Qodo #5: an empty enforce-profile is a silent passthrough — refused."""
+    target = tmp_path / "p.yaml"
+    result = console.select([], write_path=target, confirm=True)
+    assert result["verdict"] == "refused"
+    assert result["reason"] == "empty_selection"
+    assert not target.exists()
+    result2 = console.select(["", "  "], write_path=target, confirm=True)
+    assert result2["reason"] == "empty_selection"
+
+
+def test_invalid_mode_raises_at_api_level(console: HubConsole) -> None:
+    """Qodo #3: mode vocabulary is enforced in the API, not only the CLI."""
+    with pytest.raises(ValueError):
+        console.select(["guard"], mode="yolo", confirm=True)
+    with pytest.raises(ValueError):
+        console.profile_draft(["guard"], mode="YOLO")
+
+
+def test_profile_write_is_atomic_no_tmp_left_behind(
+    console: HubConsole, tmp_path: Path
+) -> None:
+    """Qodo #2: write goes through tmp+replace; no .tmp residue on success."""
+    target = tmp_path / "nested" / "profile.yaml"
+    result = console.select(["guard"], write_path=target, confirm=True)
+    assert result["written"] is True
+    assert target.exists()
+    assert not target.with_suffix(target.suffix + ".tmp").exists()
+
+
+def test_malformed_recipes_yaml_never_crashes(tmp_path: Path) -> None:
+    """Qodo #4: list/str YAML root or non-dict items -> empty catalog, no crash."""
+    f = tmp_path / "recipes.yaml"
+    f.write_text("- just\n- a\n- list\n", encoding="utf-8")
+    assert load_recipe_catalog(f) == []
+    f.write_text("recipes: notalist\n", encoding="utf-8")
+    assert load_recipe_catalog(f) == []
+    f.write_text("recipes:\n  - notadict\n  - id: ok\n    stack: [x]\n", encoding="utf-8")
+    assert [r.id for r in load_recipe_catalog(f)] == ["ok"]
+
+
+def test_enforce_with_registry_ids_emits_token_plane_warning(
+    console: HubConsole, tmp_path: Path
+) -> None:
+    """Qodo #1 (mitigation): enforce-mode selection of registry TOOL ids warns
+    that the runtime gate checks OPERATION tokens (logged field, not prose)."""
+    result = console.select(["guard"], write_path=tmp_path / "p.yaml", confirm=True)
+    assert result["warning"] == "enforce_profile_gates_operations"
+    ops_only = console.select(["get", "create"], write_path=tmp_path / "q.yaml", confirm=True)
+    assert "warning" not in ops_only
+    advisory = console.select(["guard"], mode="advisory",
+                              write_path=tmp_path / "r.yaml", confirm=True)
+    assert "warning" not in advisory
+
+
+def test_select_write_reuses_t2_validate_profile_guard(
+    console: HubConsole, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copilot #1: the T2 validate_profile SSOT actually runs before a write —
+    if it grows new checks, the console inherits them."""
+    import lib.registry.console as console_mod
+    target = tmp_path / "p.yaml"
+
+    def _always_refuse(profile, registry):  # a future validate_profile check
+        return ["synthetic violation"]
+
+    monkeypatch.setattr(console_mod, "validate_profile", _always_refuse)
+    result = console.select(["guard"], write_path=target, confirm=True)
+    assert result["verdict"] == "refused"
+    assert result["reason"] == "validate_profile_refused"
+    assert result["violations"] == ["synthetic violation"]
+    assert not target.exists()
+
+
+def test_cli_unknown_argument_is_an_error(tmp_path: Path) -> None:
+    """Copilot #3: a typo'd flag never silently no-ops."""
+    script = _HUB_DIR / "lib" / "registry" / "console.py"
+    out = subprocess.run(
+        [sys.executable, str(script), "view", "safe-mode", "--reop-root", str(_REPO_ROOT)],
+        capture_output=True, text=True,
+    )
+    assert out.returncode == 2
+    payload = json.loads(out.stdout.splitlines()[-1])
+    assert payload["error"] == "unknown argument: --reop-root"

@@ -14,12 +14,28 @@ Design position in the WAVE-5 chain (compose, don't reimplement):
     — every view is a projection of registry records + the curated
     ``recipes.yaml`` catalog. The console NEVER hand-maintains tool data.
   - **Writes** the enablement-profile SSOT (T2, ``lib/gateway/profile.py``)
-    — and ONLY after (a) conflict-check vs ``registry.conflict_edges()``,
-    (b) fail-closed ``validate_profile`` (excluded ids refused), and
-    (c) an explicit ``--confirm`` (the HITL gate). Without ``--confirm`` the
-    console emits the DRAFT it *would* write plus the logged field
-    ``{"written": false, "reason": "confirmation_required"}`` — it never
-    auto-applies (same posture T5 mandates for prose-intent).
+    — and ONLY after (a) conflict-check vs the UNION of both edge sources
+    (curated conflicts.yaml + per-record ``conflicts_with``), (b) fail-closed
+    refusal of ``activation=excluded`` ids (cross-checked with the T2
+    ``validate_profile`` guard before any write), (c) refusal of an EMPTY
+    selection (an empty ``enabled`` list silently disables enforcement —
+    ``resolver_from_profile`` treats it as passthrough), and (d) an explicit
+    ``--confirm`` (the HITL gate). Without ``--confirm`` the console emits the
+    DRAFT it *would* write plus the logged field ``{"written": false,
+    "reason": "confirmation_required"}`` — it never auto-applies (same
+    posture T5 mandates for prose-intent). Writes are ATOMIC (tmp + replace):
+    the hub loads the profile fail-closed at startup, so a truncated file
+    must be impossible.
+
+Token planes (honest boundary — surfaced, not hidden): the T2 profile's
+``enabled`` list is checked by the runtime gate per gateway OPERATION token
+(``get``, ``create`` … — see ``profile.yaml.example``), while the console's
+views/selection speak registry TOOL ids. Selecting registry ids under
+``mode: enforce`` therefore gates gateway operations OFF unless operation
+tokens are also enabled — ``select()`` emits the logged field
+``warning: enforce_profile_gates_operations`` whenever that applies. The
+plane unification (tool-tier gating riding the registry vs operation gating
+riding the profile) is a T4-T6/WAVE-6 design decision, tracked on the PR.
 
 Determinism contract (DoD-GATE): every view is byte-stable for the same
 registry input — records sorted by (tier-rank, id) or (category, id); no
@@ -47,11 +63,23 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import yaml
 
-# Package-relative first (hub runtime), path-injected fallback (pytest / CLI).
+# Package-relative first (hub runtime), path-injected fallback (direct CLI run:
+# `python3 lib/registry/console.py …` has no parent package — inject the hub
+# dir so `lib.*` absolute imports resolve).
 try:  # pragma: no cover - import plumbing
     from .hub_registry import ACTIVATION_TIERS, HubRecord, HubRegistry, _flatten_stack
+    from ..gateway.profile import PROFILE_MODES, HubProfile, validate_profile
 except ImportError:  # pragma: no cover
-    from hub_registry import ACTIVATION_TIERS, HubRecord, HubRegistry, _flatten_stack  # type: ignore
+    _HUB_ROOT = str(Path(__file__).resolve().parents[2])  # lib/registry -> lib -> hub dir
+    if _HUB_ROOT not in sys.path:
+        sys.path.insert(0, _HUB_ROOT)
+    from lib.registry.hub_registry import (  # type: ignore
+        ACTIVATION_TIERS,
+        HubRecord,
+        HubRegistry,
+        _flatten_stack,
+    )
+    from lib.gateway.profile import PROFILE_MODES, HubProfile, validate_profile  # type: ignore
 
 VIEWS = ("preset", "category", "use-case", "context-aware", "prose-intent", "safe-mode")
 
@@ -80,8 +108,15 @@ def load_recipe_catalog(path: Path) -> List[Recipe]:
     if not path.is_file():
         return []
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(data, dict):  # malformed root (list/str) never crashes a view
+        return []
+    raw_recipes = data.get("recipes", [])
+    if not isinstance(raw_recipes, list):
+        return []
     out: List[Recipe] = []
-    for raw in data.get("recipes", []):
+    for raw in raw_recipes:
+        if not isinstance(raw, dict):
+            continue
         rid = str(raw.get("id") or "").strip()
         if not rid:
             continue
@@ -283,6 +318,8 @@ class HubConsole:
 
     def profile_draft(self, ids: Sequence[str], mode: str = "enforce") -> str:
         """The exact YAML the console WOULD write (shown pre-confirmation)."""
+        if mode not in PROFILE_MODES:  # API-level guard, not only the CLI (Qodo #3)
+            raise ValueError(f"profile mode must be one of {PROFILE_MODES}, got: {mode!r}")
         check = self.check_selection(ids)
         doc = {
             "schema_version": "hub-profile/1.0.0",
@@ -300,9 +337,25 @@ class HubConsole:
     ) -> Dict[str, Any]:
         """The T3 acceptance path: conflict-checked + HITL-confirmed BEFORE
         any profile write. Returns logged fields only."""
+        if mode not in PROFILE_MODES:  # API-level guard, not only the CLI (Qodo #3)
+            raise ValueError(f"profile mode must be one of {PROFILE_MODES}, got: {mode!r}")
         result = self.check_selection(ids)
         result["mode"] = mode
+        if not result["ids"]:
+            # An empty enforce-profile is a silent passthrough (Qodo #5) —
+            # never a valid thing to persist from a selection flow.
+            result["verdict"] = "refused"
+            result["written"] = False
+            result["reason"] = "empty_selection"
+            result["draft"] = ""
+            return result
         result["draft"] = self.profile_draft(ids, mode=mode)
+        known_registry_ids = [i for i in result["ids"] if self.registry.get(i) is not None]
+        if mode == "enforce" and known_registry_ids:
+            # Token-plane surfacing (Qodo #1): the runtime gate checks gateway
+            # OPERATION tokens; registry TOOL ids in an enforce profile do not
+            # enable operations by themselves.
+            result["warning"] = "enforce_profile_gates_operations"
         if result["verdict"] == "refused":
             result["written"] = False
             result["reason"] = "selection_refused"
@@ -317,9 +370,30 @@ class HubConsole:
             result["written"] = False
             result["reason"] = "no_write_path"
             return result
+        # Belt-and-braces (Copilot #1): re-run the T2 fail-closed guard on the
+        # exact profile about to be persisted — the SSOT of the excluded-id
+        # rule lives in lib.gateway.profile.validate_profile.
+        draft_profile = HubProfile(
+            enabled=tuple(result["ids"]), mode=mode, source="<console-draft>"
+        )
+        violations = validate_profile(draft_profile, self.registry)
+        if violations:
+            result["verdict"] = "refused"
+            result["written"] = False
+            result["reason"] = "validate_profile_refused"
+            result["violations"] = violations
+            return result
         write_path = Path(write_path)
         write_path.parent.mkdir(parents=True, exist_ok=True)
-        write_path.write_text(result["draft"], encoding="utf-8")
+        # Atomic write (Qodo #2): the hub loads this file fail-closed at
+        # startup — a truncated YAML must be impossible.
+        tmp = write_path.with_suffix(write_path.suffix + ".tmp")
+        try:
+            tmp.write_text(result["draft"], encoding="utf-8")
+            tmp.replace(write_path)
+        except BaseException:
+            tmp.unlink(missing_ok=True)
+            raise
         result["written"] = True
         result["path"] = str(write_path)
         return result
@@ -352,8 +426,12 @@ usage:
 
 views: preset | category | use-case | context-aware | prose-intent | safe-mode
 
-Selection is conflict-checked (registry conflict edges) + fail-closed
-(activation=excluded refused) and NEVER writes without --confirm (HITL gate).
+Selection is conflict-checked against BOTH edge sources (curated
+conflicts.yaml UNION per-record conflicts_with), fail-closed
+(activation=excluded refused; empty selection refused) and NEVER writes
+without --confirm (HITL gate). NOTE: the runtime gate checks gateway
+OPERATION tokens (see profile.yaml.example) — enforce-profiles built from
+registry TOOL ids emit `warning: enforce_profile_gates_operations`.
 """
 
 
@@ -403,6 +481,11 @@ def _main(argv: List[str]) -> int:
             confirm = True
         elif a == "--safe-mode":
             cmd, view_name = "view", "safe-mode"
+        else:
+            # Unknown flags never silently no-op (Copilot #3) — a typo must
+            # not run the console with unintended defaults.
+            print(json.dumps({"verdict": "fail", "error": f"unknown argument: {a}"}))
+            return 2
 
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson, T1)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
