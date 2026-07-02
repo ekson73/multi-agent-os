@@ -51,6 +51,6 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 5 | Console do operador T1–T7 (T1 registry-SSOT → T2 profile-as-gating-input primeiro) | ADR-007 | 🔴 not started | — |
 | 6 | Front-door da comunidade T8–T10 (gatekeeper exige piso CI verde da WAVE-0) | ADR-007 | 🔴 not started | — |
 
-Tracking do restante: issue de backlog (Waves 4–6) no GitHub; contratos em
+Tracking do restante: [issue #204](https://github.com/ekson73/multi-agent-os/issues/204) (Waves 4–6); contratos em
 `openspec/specs/maos-hub/spec.md` + `openspec/changes/maos-hub-console/{proposal,tasks}.md` +
 `openspec/specs/maos-hub-registry/spec.md`.
