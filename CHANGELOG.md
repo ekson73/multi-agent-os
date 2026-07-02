@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — hub-registry bot-finding remediation (post-merge PDCA of #209)
+
+- **F2 (High — Copilot + Qodo): conductor gate was inert** — `_load_conductors()` stored the raw
+  `manager|signature-path` lines of `conductors.txt`, so `tid in conductors` never matched and the
+  RULE-011 conductor cap only *appeared* to work (masked by license/conflict gates). Now parses the
+  manager id (left of `|`); regression test asserts at least one conductor is capped BY the
+  conductor gate itself.
+- **F3 (Blocker — Qodo): tier upgrade via `request_activation()`** — non-always-on requests were
+  granted unconditionally, letting a caller promote an `excluded` (supply-chain-veto) record to
+  `opt-in`. Now: `excluded` is immutable via the API (re-derivation only) and any upgrade beyond
+  the DERIVED tier is refused (downgrades allowed) — fail-closed restored.
+- **F4 (High — Qodo): silent id collision** — `_add()` overwrote records; a third-party id could
+  shadow a first-party tool in the SSOT. Now: first-derived wins (skills → agents → third-party
+  precedence), every collision is recorded in `report().invariants.id_collisions`, and a
+  cross-category collision FAILS the verdict.
+- **F5 (Medium — Qodo): vacuous invariant** — `all_required_fields_present` checked dict KEYS of a
+  dataclass (always true); now checks NON-EMPTY content of the critical fields (id · provenance ·
+  derived_from · activation · license_spdx · rollback · security_status · category).
+- **F6 (Medium — Qodo): falsy recipe ids** — `_load_recipes()` now skips empty/null recipe and
+  tool ids.
+- 7 regression tests appended to `tests/test_hub_registry.py` (38 total green).
+
+
 ### Added — profile-as-gating-input (T2 / WAVE 5) — the persisted enablement profile the hub honors
 
 - **`mcp-tools/maos-mcp-hub/lib/gateway/profile.py`** — `HubProfile` + `load_profile()` (resolution:

@@ -166,6 +166,7 @@ class HubRegistry:
         self._conflict_edges: Set[FrozenSet[str]] = set()
         self._gate_decisions: List[Dict[str, str]] = []
         self._conductors: Set[str] = set()
+        self._collisions: List[Dict[str, str]] = []
 
     # ------------------------------------------------------------ derive ---
     @classmethod
@@ -356,6 +357,17 @@ class HubRegistry:
         return tier, reason
 
     def _add(self, record: HubRecord) -> None:
+        existing = self._records.get(record.id)
+        if existing is not None:
+            # NEVER silently overwrite the SSOT (PR #209 finding): derivation
+            # order (skills -> agents -> third-party) fixes precedence =
+            # first-derived wins; the collision is a recorded, verdict-failing
+            # invariant when it crosses categories (a third-party id shadowing
+            # a first-party tool would swap provenance/activation silently).
+            self._collisions.append(
+                {"id": record.id, "kept": existing.category, "dropped": record.category}
+            )
+            return
         self._records[record.id] = record
 
     # ------------------------------------------------------------ queries ---
@@ -395,7 +407,13 @@ class HubRegistry:
         if requested not in ACTIVATION_TIERS:
             raise ValueError(f"unknown activation tier: {requested}")
         decision = {"id": rid, "requested": requested, "granted": rec.activation, "reason": ""}
-        if requested == "always-on" and rec.category == "third-party":
+        rank = {tier: i for i, tier in enumerate(ACTIVATION_TIERS[::-1])}  # excluded=0 .. always-on=3
+        if rec.activation == "excluded":
+            # Immutable via API (PR #209 finding — Blocker): a supply-chain
+            # veto / ABANDON verdict can only change by RE-DERIVATION (a new
+            # intake verdict), never by an activation request.
+            decision["reason"] = "refused: activation=excluded is immutable via request (re-derive)"
+        elif requested == "always-on" and rec.category == "third-party":
             if rec.license_spdx == "NONE":
                 decision["reason"] = "refused: license_spdx=NONE (license-clean gate)"
             elif rec.conflicts_with:
@@ -410,9 +428,15 @@ class HubRegistry:
         elif requested == "always-on":
             decision["granted"] = "always-on"
             decision["reason"] = "granted: first-party"
+        elif rank[requested] > rank[rec.activation]:
+            # Fail-closed (PR #209 finding): upgrades beyond the DERIVED tier
+            # are refused — the derivation (verdict + gates) is the authority.
+            decision["reason"] = (
+                f"refused: upgrade {rec.activation} -> {requested} beyond derived tier (re-derive)"
+            )
         else:
             decision["granted"] = requested
-            decision["reason"] = "granted: non-privileged tier"
+            decision["reason"] = "granted: downgrade/equal to derived tier"
         self._gate_decisions.append(
             {"id": rid, "activation": decision["granted"], "reason": decision["reason"]}
         )
@@ -442,19 +466,21 @@ class HubRegistry:
     def report(self, today: Optional[str] = None) -> Dict[str, Any]:
         """The logged-field acceptance surface (DoD-gate — never prose)."""
         recs = self.records()
+        # Non-EMPTY critical fields (PR #209 finding: key-presence on a
+        # dataclass dict is vacuous — content is the real invariant).
         required_ok = all(
-            all(k in r.to_dict() for k in (
-                "id", "owner_repo", "layer", "role", "category", "harness_coverage",
-                "requires", "conflicts_with", "guardrails", "impact", "recipes",
-                "activation", "license_spdx", "provenance", "ttl", "last_validated",
-                "rollback", "security_status",
-            ))
+            bool(r.id) and bool(r.provenance) and bool(r.derived_from)
+            and bool(r.activation) and bool(r.license_spdx) and bool(r.rollback)
+            and bool(r.security_status) and bool(r.category)
             for r in recs
         )
         vocab_ok = all(r.activation in ACTIVATION_TIERS for r in recs)
         roundtrip = self.conflict_edges() == self.edges_from_records()
         third_party_always_on = [
             r.id for r in recs if r.category == "third-party" and r.activation == "always-on"
+        ]
+        cross_category_collisions = [
+            c for c in self._collisions if c["kept"] != c["dropped"]
         ]
         invariants = {
             "schema_version": HUB_REGISTRY_SCHEMA_VERSION,
@@ -463,10 +489,14 @@ class HubRegistry:
             "activation_vocab_valid": vocab_ok,
             "conflicts_roundtrip": roundtrip,
             "third_party_always_on": third_party_always_on,
+            "id_collisions": list(self._collisions),
         }
         if today:
             invariants["eject_candidates"] = self.eject_candidates(today)
-        ok = required_ok and vocab_ok and roundtrip and not third_party_always_on
+        ok = (
+            required_ok and vocab_ok and roundtrip
+            and not third_party_always_on and not cross_category_collisions
+        )
         return {
             "verdict": "pass" if ok else "fail",
             "invariants": invariants,
@@ -475,13 +505,22 @@ class HubRegistry:
 
 
 def _load_conductors(path: Path) -> Set[str]:
+    """Parse ``conductors.txt`` (RULE-011 registry).
+
+    File format is ``<manager>|<signature-path>`` (e.g. ``bmad-method|.bmad-core``)
+    — only the MANAGER id (left of the first ``|``) enters the set, so the
+    ``tid in conductors`` gate actually matches intake ids (PR #209 finding).
+    """
     if not path.is_file():
         return set()
     out: Set[str] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if line and not line.startswith("#"):
-            out.add(line)
+        if not line or line.startswith("#"):
+            continue
+        manager = line.split("|", 1)[0].strip()
+        if manager:
+            out.add(manager)
     return out
 
 
@@ -491,9 +530,13 @@ def _load_recipes(path: Path) -> Dict[str, List[str]]:
         return by_id
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     for recipe in data.get("recipes", []):
-        rid = str(recipe.get("id"))
+        rid = str(recipe.get("id") or "").strip()
+        if not rid:
+            continue
         for tool in _flatten_stack(recipe.get("stack", [])):
-            by_id.setdefault(tool, []).append(rid)
+            tool = tool.strip()
+            if tool and tool.lower() != "none":
+                by_id.setdefault(tool, []).append(rid)
     return by_id
 
 
