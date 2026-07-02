@@ -12,9 +12,9 @@ Profile file schema (YAML)::
 
     schema_version: hub-profile/1.0.0
     mode: enforce            # enforce | advisory
-    enabled:                 # the ids the operator turned ON
-      - get_issue
-      - list_pages
+    enabled:                 # gateway OPERATION tokens (the ids the router
+      - get                  # dispatches, e.g. issue/get, page/list -> the
+      - list                 # short operation name is what the policy checks)
 
 Resolution order (first hit wins)::
 
@@ -40,7 +40,7 @@ Safety posture (all fail-safe toward today's behaviour):
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Tuple
 
@@ -89,7 +89,14 @@ def load_profile(path: Optional[Path] = None) -> Optional[HubProfile]:
     if path is not None:
         resolved = Path(path)
     elif os.environ.get(PROFILE_ENV_VAR):
-        resolved = Path(os.environ[PROFILE_ENV_VAR])
+        # Hardening (PR #210 amazon-q, CWE-22): the env var is operator-set,
+        # but never feed it raw into filesystem reads — normalize and require
+        # a YAML suffix so the hub can only be pointed at profile-shaped files.
+        resolved = Path(os.environ[PROFILE_ENV_VAR]).expanduser().resolve()
+        if resolved.suffix.lower() not in (".yaml", ".yml"):
+            raise ProfileError(
+                f"${PROFILE_ENV_VAR} must point to a .yaml/.yml profile, got: {resolved}"
+            )
     else:
         resolved = DEFAULT_PROFILE_PATH
     if not resolved.is_file():
@@ -110,6 +117,12 @@ def load_profile(path: Optional[Path] = None) -> Optional[HubProfile]:
         raise ProfileError(f"profile 'enabled' must be a list: {resolved}")
     enabled = tuple(str(x) for x in enabled_raw)
     schema = str(raw.get("schema_version", PROFILE_SCHEMA_VERSION))
+    # Fail-closed (PR #210 Copilot): an unknown/incompatible schema line must
+    # not half-load — only the hub-profile/1.x contract is accepted.
+    if not schema.startswith("hub-profile/1."):
+        raise ProfileError(
+            f"unsupported profile schema_version {schema!r} (expected hub-profile/1.x): {resolved}"
+        )
     return HubProfile(enabled=enabled, mode=mode, source=str(resolved), schema_version=schema)
 
 

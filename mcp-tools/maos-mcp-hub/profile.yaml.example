@@ -22,7 +22,10 @@
 schema_version: hub-profile/1.0.0
 mode: enforce
 enabled:
-  # gateway operation ids to allow, e.g.:
-  # - get_issue
-  # - search_issues
-  # - list_pages
+  # gateway OPERATION tokens to allow — the short operation names the routers
+  # register (resource/operation), e.g. for atlassian_jira `issue`:
+  # - get
+  # - create
+  # - transition
+  # (discover the real tokens via the gateway's level-1 discovery:
+  #  atlassian_jira {resource: "issue"} lists its operations)

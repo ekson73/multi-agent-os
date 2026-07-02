@@ -169,3 +169,23 @@ def test_no_policy_router_unchanged() -> None:
                                        params={"project_key": "X", "summary": "s"}))
     )
     assert result.get("key") == "X-1"
+
+
+# --- PR #210 bot-finding regressions ------------------------------------------
+
+def test_env_var_requires_yaml_suffix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """amazon-q CWE-22 hardening: $MAOS_HUB_PROFILE only accepts .yaml/.yml."""
+    evil = tmp_path / "passwd"
+    evil.write_text("mode: enforce\nenabled: [x]\n", encoding="utf-8")
+    monkeypatch.setenv(PROFILE_ENV_VAR, str(evil))
+    with pytest.raises(ProfileError):
+        load_profile()
+
+
+def test_unknown_schema_version_fails_closed(tmp_path: Path) -> None:
+    """Copilot: an unsupported schema_version must raise, never half-load."""
+    p = _write_profile(
+        tmp_path, "schema_version: hub-profile/9.0.0\nmode: enforce\nenabled: [get]\n"
+    )
+    with pytest.raises(ProfileError):
+        load_profile(p)
