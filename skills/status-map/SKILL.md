@@ -10,6 +10,12 @@ version: 1.0.0
 
 Generate ASCII-based visualizations for human observability of AI agent sessions. Complements Sentinel Protocol (JSON-based) by providing quick, scannable status information.
 
+> **SSOT declaration** (2026-07-02, KRDR #160 Phase-B item #7): this file is the **condensed, invocable skill**
+> Claude Code actually loads/executes. `../../statusmap/` (README + `inference.md` + `templates/statusmap_templates.md`,
+> ~1850 lines) is the **detailed reference source** this skill's abbreviated template catalog + inference rules
+> are distilled from — a source-doc pack, not dead duplication. Update both together when either changes;
+> `statusmap/` for full rule/template detail, this file for the compact runtime summary.
+
 ## When to Use
 
 - Every response (PULSE template)
