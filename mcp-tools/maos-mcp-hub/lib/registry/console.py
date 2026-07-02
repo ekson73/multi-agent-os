@@ -68,6 +68,8 @@ import yaml
 # dir so `lib.*` absolute imports resolve).
 try:  # pragma: no cover - import plumbing
     from .hub_registry import ACTIVATION_TIERS, HubRecord, HubRegistry, _flatten_stack
+    from .context_rank import load_signals_file, render_ranking
+    from .context_rank import rank as rank_by_signals
     from ..gateway.profile import PROFILE_MODES, HubProfile, validate_profile
 except ImportError:  # pragma: no cover
     _HUB_ROOT = str(Path(__file__).resolve().parents[2])  # lib/registry -> lib -> hub dir
@@ -79,6 +81,8 @@ except ImportError:  # pragma: no cover
         HubRegistry,
         _flatten_stack,
     )
+    from lib.registry.context_rank import load_signals_file, render_ranking  # type: ignore
+    from lib.registry.context_rank import rank as rank_by_signals  # type: ignore
     from lib.gateway.profile import PROFILE_MODES, HubProfile, validate_profile  # type: ignore
 
 VIEWS = ("preset", "category", "use-case", "context-aware", "prose-intent", "safe-mode")
@@ -159,9 +163,15 @@ class HubConsole:
     """Deterministic ASCII renderer + HITL-gated profile writer over the
     T1 registry and the T2 profile SSOT."""
 
-    def __init__(self, registry: HubRegistry, recipes: Sequence[Recipe]) -> None:
+    def __init__(
+        self,
+        registry: HubRegistry,
+        recipes: Sequence[Recipe],
+        signals: Sequence[str] = (),
+    ) -> None:
         self.registry = registry
         self.recipes = sorted(recipes, key=lambda r: r.id)
+        self.signals: Tuple[str, ...] = tuple(sorted(set(signals)))
 
     # ------------------------------------------------------------------ views
 
@@ -230,10 +240,16 @@ class HubConsole:
         return lines
 
     def _view_context_aware(self) -> List[str]:
+        if self.signals:
+            # T4 engine: deterministic ranking by work-compass signals,
+            # reasons ("why") emitted per record (lib/registry/context_rank.py).
+            ranking = rank_by_signals(self.registry, self.signals)
+            return render_ranking(ranking, self.signals)
         lines = [
             " context-aware ranking v1 — DEFAULT deterministic ordering",
-            " (tier-rank, id). The work-compass project-signal engine lands in T4;",
-            " until then this view shows the registry's trust-ordered baseline.",
+            " (tier-rank, id): no work-compass snapshot provided. Pass a",
+            " `bin/work-compass-aggregate.py --json` snapshot via --signals to",
+            " rank by project signals with per-record reasoning (T4 engine).",
             _rule(),
         ]
         lines.extend(_record_header())
@@ -420,6 +436,7 @@ MAOS Hub console (T3) — render registry views / write the enablement profile.
 
 usage:
   console.py view <name> [--repo-root P] [--as-of DATE] [--html OUT.html]
+                  [--signals COMPASS.json]   # work-compass --json snapshot (T4 ranking)
   console.py select --ids a,b,c [--mode enforce|advisory] [--write PROFILE.yaml] [--confirm]
   console.py --safe-mode            # shortcut for: view safe-mode
   console.py --help
@@ -435,12 +452,14 @@ registry TOOL ids emit `warning: enforce_profile_gates_operations`.
 """
 
 
-def _build_console(repo_root: Path, as_of: str) -> HubConsole:
+def _build_console(
+    repo_root: Path, as_of: str, signals: Sequence[str] = ()
+) -> HubConsole:
     registry = HubRegistry.derive(repo_root, as_of=as_of)
     recipes = load_recipe_catalog(
         repo_root / "mcp-tools" / "maos-mcp-hub" / "lib" / "gateway" / "recipes.yaml"
     )
-    return HubConsole(registry, recipes)
+    return HubConsole(registry, recipes, signals=signals)
 
 
 def _main(argv: List[str]) -> int:
@@ -461,6 +480,7 @@ def _main(argv: List[str]) -> int:
     mode = "enforce"
     write_path: Optional[Path] = None
     confirm = False
+    signals: Tuple[str, ...] = ()
     if cmd == "view" and args and not args[0].startswith("--"):
         view_name = args.pop(0)
     while args:
@@ -471,6 +491,13 @@ def _main(argv: List[str]) -> int:
             as_of = args.pop(0)
         elif a == "--html" and args:
             html_out = Path(args.pop(0))
+        elif a == "--signals" and args:
+            # A work-compass --json snapshot file (T4). Malformed/missing
+            # degrades to the tier-ordered baseline (fail-safe, logged below).
+            sig_path = Path(args.pop(0))
+            signals = load_signals_file(sig_path)
+            if not signals:
+                print(f"[signals] no usable tokens from {sig_path} — baseline order", file=sys.stderr)
         elif a == "--ids" and args:
             ids = [s for s in args.pop(0).split(",") if s.strip()]
         elif a == "--mode" and args:
@@ -490,7 +517,7 @@ def _main(argv: List[str]) -> int:
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson, T1)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
         return 1
-    console = _build_console(repo_root, as_of)
+    console = _build_console(repo_root, as_of, signals=signals)
 
     if cmd == "view":
         if view_name not in VIEWS:

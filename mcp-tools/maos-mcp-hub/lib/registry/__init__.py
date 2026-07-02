@@ -17,3 +17,9 @@ from .console import (  # noqa: F401
     Recipe,
     load_recipe_catalog,
 )
+from .context_rank import (  # noqa: F401
+    extract_signals,
+    load_signals_file,
+    rank,
+    render_ranking,
+)

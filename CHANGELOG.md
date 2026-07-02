@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — context-aware ranking v1 (WAVE 5 / T4, ADR-006 + ADR-007)
+
+- **`lib/registry/context_rank.py`** (`mcp-tools/maos-mcp-hub`): deterministic ranking of registry
+  records by **work-compass project signals** (`bin/work-compass-aggregate.py --json` snapshot as
+  INPUT — the collector is composed, never re-collected). Signal extraction ignores volatile
+  fields (`generated_utc`, `last_ts`, `status`) so two snapshots of the same project state yield
+  identical tokens; scoring is pure integers; total order `(-score, tier-rank, id)` —
+  **same input → same ranking, byte-stable** (asserted at engine, view, and CLI surfaces).
+- **The "why" is emitted** (T4 acceptance): every ranked entry carries `why: […]` — one reason per
+  scoring contribution (`signal 'legacy' matches recipe 'legacy-refactor' (+1)` …); zero-score
+  entries say so explicitly. `activation=excluded` records are never ranked.
+- **Console integration**: the T3 `context-aware` scaffold now runs the engine when the CLI gets
+  `--signals COMPASS.json` (malformed/missing snapshot degrades to the tier-ordered baseline,
+  fail-safe + stderr diagnostic). `refactor`/`legacy` deliberately NOT stopwords (intent signals).
+- Tests: `tests/test_context_rank.py` — 15 tests (golden ranking fixture, volatile-field
+  invariance, byte-stability at CLI via double-run diff, excluded-never-ranked, fail-safe
+  degradation).
+
+
 ### Added — hub console setup/config modes (WAVE 5 / T3, ADR-006 + ADR-007)
 
 - **`lib/registry/console.py`** (`mcp-tools/maos-mcp-hub`): `HubConsole` — deterministic ASCII
