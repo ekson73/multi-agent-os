@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — profile-as-gating-input (T2 / WAVE 5) — the persisted enablement profile the hub honors
+
+- **`mcp-tools/maos-mcp-hub/lib/gateway/profile.py`** — `HubProfile` + `load_profile()` (resolution:
+  arg > `$MAOS_HUB_PROFILE` > `<hub>/profile.yaml` > None) + `resolver_from_profile()` — the
+  persisted enablement-profile SSOT the WAVE-0 gating seam was waiting for (*"the active profile
+  comes from OUTSIDE"*). Absent profile / `mode: advisory` / empty ⇒ `None` ⇒ passthrough
+  (pre-WAVE-5 behaviour, 0-regression); a PRESENT-but-invalid profile raises `ProfileError`
+  (fail-closed — never silently disables gating). `validate_profile(profile, registry)` refuses a
+  profile enabling an `activation=excluded` id (supply-chain vetoes can't be re-enabled via YAML).
+- **`hub.py` wiring** — ONE shared profile-derived `PolicyResolver` attached to every gateway
+  router at mount (`router.policy = _hub_policy`); stderr banner when a profile is ENFORCED or
+  loaded advisory-only.
+- **`lib/gateway/policy.py`** — every DENY is now a **logged field**: recorded in
+  `PolicyResolver.decisions` (bounded ring, `DECISION_LOG_MAXLEN=200`) + mirrored to
+  `logging` (`maos_hub.policy` warning). Additive — decision semantics unchanged.
+- **`profile.yaml.example`** — documented template (copy to `profile.yaml` to activate).
+- **tasks.md T2 acceptance as logged fields (DoD-gate):** disabled tool → dispatch returns the
+  structured `Blocked by policy` envelope AND `resolver.decisions[-1]` carries
+  `{tool_id, allow: false, reason}`; conflicting tool → denied with `conflicting_with` populated
+  (11 tests in `tests/test_gateway_profile.py`; ring-bound proof; registry fail-closed proof).
+  Local suite delta vs pristine main = identical pre-existing env failures — zero regression.
+
+
 ### Added — hub-registry SSOT (T1 / WAVE 5) — plugin-level registry, derived not hand-maintained
 
 - **`mcp-tools/maos-mcp-hub/lib/registry/hub_registry.py`** — `HubRegistry`: the plugin-level

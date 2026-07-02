@@ -1,0 +1,28 @@
+# MAOS Hub enablement profile — the persisted gating-input SSOT (T2 / WAVE 5).
+#
+# COPY to `profile.yaml` (same directory) — or point $MAOS_HUB_PROFILE at a
+# path — to activate. NO profile file => passthrough (nothing is gated).
+#
+# mode:
+#   enforce   — the hub attaches a PolicyResolver to every gateway router:
+#               an operation NOT in `enabled` (or conflicting per
+#               lib/gateway/conflicts.yaml) is refused pre-dispatch with a
+#               structured error envelope; every deny is a logged field
+#               (PolicyResolver.decisions + logging warning).
+#   advisory  — the profile is loaded (console can display it) but routing
+#               is untouched.
+#
+# Fail-closed notes:
+#   - a present-but-invalid profile aborts hub startup (never silently
+#     falls back to passthrough);
+#   - the console (T3) validates a profile against the hub-registry before
+#     persisting it: ids with activation=excluded are refused
+#     (lib/gateway/profile.py::validate_profile).
+
+schema_version: hub-profile/1.0.0
+mode: enforce
+enabled:
+  # gateway operation ids to allow, e.g.:
+  # - get_issue
+  # - search_issues
+  # - list_pages
