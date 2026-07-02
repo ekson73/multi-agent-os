@@ -28,11 +28,18 @@ but callers/tests may inject their own edge-list or profile.
 
 from __future__ import annotations
 
+import logging
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
+from typing import Deque, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 import yaml
+
+logger = logging.getLogger("maos_hub.policy")
+
+#: Bounded ring of recorded deny decisions (memory-safe on a hot path).
+DECISION_LOG_MAXLEN = 200
 
 
 @dataclass
@@ -68,6 +75,9 @@ class PolicyResolver:
         self._conflicts: Dict[str, Set[str]] = {}
         for a, b in conflicts or []:
             self._add_edge(a, b)
+        # T2 (WAVE-5): every DENY is recorded here (the "decision is logged"
+        # acceptance — a checkable field, not prose) + mirrored to `logging`.
+        self._decisions: Deque[Dict[str, object]] = deque(maxlen=DECISION_LOG_MAXLEN)
 
     # -- construction helpers ------------------------------------------------
 
@@ -105,8 +115,8 @@ class PolicyResolver:
 
         # Disabled: the tool is not part of the active profile.
         if tool_id not in self._profile:
-            return PolicyDecision(
-                allow=False,
+            return self._deny(
+                tool_id,
                 reason=(
                     f"Tool '{tool_id}' is not enabled in the active profile "
                     f"(disabled by policy)."
@@ -116,8 +126,8 @@ class PolicyResolver:
         # Conflict: the tool clashes with something already active.
         clashes = sorted(self._conflicts.get(tool_id, set()) & self._profile)
         if clashes:
-            return PolicyDecision(
-                allow=False,
+            return self._deny(
+                tool_id,
                 reason=(
                     f"Tool '{tool_id}' conflicts with active tool(s): "
                     f"{', '.join(clashes)}."
@@ -126,6 +136,30 @@ class PolicyResolver:
             )
 
         return PolicyDecision(allow=True)
+
+    def _deny(
+        self,
+        tool_id: str,
+        reason: str,
+        conflicting_with: Optional[List[str]] = None,
+    ) -> PolicyDecision:
+        """Record + log a deny (T2: the routing decision is a logged field)."""
+        record: Dict[str, object] = {
+            "tool_id": tool_id,
+            "allow": False,
+            "reason": reason,
+            "conflicting_with": list(conflicting_with or []),
+        }
+        self._decisions.append(record)
+        logger.warning("policy deny: %s — %s", tool_id, reason)
+        return PolicyDecision(
+            allow=False, reason=reason, conflicting_with=list(conflicting_with or [])
+        )
+
+    @property
+    def decisions(self) -> List[Dict[str, object]]:
+        """The recorded deny decisions (bounded ring, oldest first)."""
+        return list(self._decisions)
 
     # -- loading -------------------------------------------------------------
 

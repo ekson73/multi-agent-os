@@ -303,6 +303,26 @@ try:
         "common": "gateways.common.gateway",
     }
 
+    # T2 (WAVE-5): profile-as-gating-input — ONE shared resolver derived from
+    # the persisted enablement profile (lib/gateway/profile.py), attached to
+    # every gateway router below. No profile file / mode=advisory / empty
+    # profile => None => passthrough (the pre-WAVE-5 behaviour, 0-regression).
+    # A PRESENT-but-invalid profile fails LOUDLY (fail-closed): silently
+    # falling back to passthrough would disable gating without notice.
+    from lib.gateway.profile import load_profile, resolver_from_profile
+
+    _hub_profile = load_profile()          # ProfileError propagates (fail-closed)
+    _hub_policy = resolver_from_profile(_hub_profile)
+    if _hub_policy is not None:
+        sys.stderr.write(
+            f"  \U0001F512 gating profile ENFORCED: "
+            f"{len(_hub_profile.enabled)} enabled ids ({_hub_profile.source})\n"
+        )
+    elif _hub_profile is not None:
+        sys.stderr.write(
+            f"  \U0001F513 gating profile loaded ADVISORY-only ({_hub_profile.source})\n"
+        )
+
     gateway_errors: List[str] = []
 
     for gw_name, actions_module_path in _GATEWAY_MODULES.items():
@@ -329,6 +349,8 @@ try:
                 actions_mod = importlib.import_module(actions_module_path)
                 build_router_fn = getattr(actions_mod, "build_router")
                 router = build_router_fn()
+                # T2 (WAVE-5): the profile-derived policy gates every dispatch.
+                router.policy = _hub_policy
                 action_count = router.action_count
 
                 def _register_gateway(r, tn, desc):
