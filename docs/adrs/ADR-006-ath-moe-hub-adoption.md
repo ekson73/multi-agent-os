@@ -1,6 +1,6 @@
 # ADR-006: Absorb `agentic-moe-2026` (ATH) as MAOS's MoE Hub architecture & evolution chapter
 
-- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180; WAVES 0–2 implemented as of 2026-07-02, see §Implementation status)
+- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180; WAVES 0–3 implemented as of 2026-07-02, see §Implementation status)
 - **Date**: 2026-06-27
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL directive
 - **Scope**: This repo (`maos`, Class B). Companion to the existing orchestration/observability/anti-conflict protocols. Sibling evidence: `research/agentic-moe-2026/` (the research chapter) + `research/agentic-moe-2026/20260627-ATH-OODA-RECON.md` (the inventory cross-walk).
@@ -149,7 +149,7 @@ clarifying the ≥3-incident deferral excludes security guardrails C1/C6; annota
   WT2 RULE-012 AgentShield #189 — **shipped**.
 - **WAVE 1** (substrates & gating): WT3 ISO universal #197 · WT4 CTS scorer #198 · WT5 mem0 memory #199 — **shipped**.
 - **WAVE 2** (registry keystone): WT8 auto-generated tool-registry #200 — **shipped**.
-- **WAVE 3**: WT10 intake-batch verdicts #201 — **in-flight** (bot convergence). WT6 OTel **deferred**,
+- **WAVE 3**: WT10 intake-batch verdicts #201 — **shipped** (2026-07-02). WT6 OTel **deferred**,
   WT7 LiteLLM **cut** (per the co-creation review above).
 - **WAVES 4–6**: WT11 docs reframe (incl. the HITL-escalated MVV touch) + console/community per ADR-007 — **pending**.
 - Per-wave status detail: `research/agentic-moe-2026/README.md` §"Status do hands-on" (the living roadmap

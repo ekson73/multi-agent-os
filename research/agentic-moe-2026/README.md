@@ -44,7 +44,7 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 1 | WT4 CTS scorer unificado (hard-filters-first) | S2 | 🟢 merged | [#198](https://github.com/ekson73/multi-agent-os/pull/198) |
 | 1 | WT5 memória L8 (mem0 default; graphiti DEFERRED) | S4 | 🟢 merged | [#199](https://github.com/ekson73/multi-agent-os/pull/199) |
 | 2 | WT8 tool-registry auto-gerado (keystone) | S1 | 🟢 merged | [#200](https://github.com/ekson73/multi-agent-os/pull/200) |
-| 3 | WT10 intake-batch — 26 experts como dados | S10/S9 | 🟡 in-flight (convergência de bots) | [#201](https://github.com/ekson73/multi-agent-os/pull/201) |
+| 3 | WT10 intake-batch — 26 experts como dados | S10/S9 | 🟢 merged (2026-07-02) | [#201](https://github.com/ekson73/multi-agent-os/pull/201) |
 | 4 | WT11 docs reframe + CONSOLIDATED regen + MVV (**HITL**) | — | 🔴 not started | — |
 | — | WT6 OTel-Sentinel | — | ⏸ DEFERRED (C3 severidade baixa; sem consumidor de telemetria) | — |
 | — | WT7 LiteLLM router | — | ✂️ CUT (os3pd adia gateway de runtime até ≥3 incidentes) | — |

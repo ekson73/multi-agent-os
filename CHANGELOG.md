@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs — ATH→MAOS Hub backlog living roadmap (status persisted)
 
 - **`research/agentic-moe-2026/README.md`** — new §"Status do hands-on" living roadmap table (SSOT):
-  WAVES 0–2 shipped (WT0 #187 · WT1 #188 · WT2 #189 · WT3 #197 · WT4 #198 · WT5 #199 · WT8 #200),
-  WAVE 3 in-flight (WT10 #201), WT6 deferred / WT7 cut, WAVES 4–6 pending (WT11 docs+MVV-HITL,
-  console/community per ADR-007).
+  WAVES 0–3 shipped (WT0 #187 · WT1 #188 · WT2 #189 · WT3 #197 · WT4 #198 · WT5 #199 · WT8 #200 ·
+  WT10 #201), WT6 deferred / WT7 cut, WAVES 4–6 pending (WT11 docs+MVV-HITL, console/community per
+  ADR-007 — tracking issue #204).
 - **`docs/adrs/ADR-006-ath-moe-hub-adoption.md`** — §"Implementation status" appended (per-wave
   shipped/in-flight/pending pointer to the README SSOT table); Status line notes WAVES 0–2 implemented.
 
