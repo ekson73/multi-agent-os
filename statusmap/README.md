@@ -2,6 +2,11 @@
 
 Sistema padronizado de visualizacoes ASCII para observabilidade humana em sessoes multi-agent.
 
+> **SSOT declaration** (2026-07-02, KRDR #160 Phase-B item #7): this directory is the **detailed reference
+> source** (full 8-template library + inference rules). The **actual invocable skill** Claude Code loads is
+> `skills/status-map/SKILL.md` — a condensed distillation of this source. Not a dead/orphaned duplicate; update
+> both together when either changes.
+
 ## Proposito
 
 Status Maps sao **visualizacoes estruturadas** projetadas para:
