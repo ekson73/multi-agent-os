@@ -120,7 +120,7 @@ python3 mcp-tools/maos-mcp-hub/lib/registry/console.py select --ids a,b,c \
 # … review the emitted draft + logged fields, then the HUMAN adds:  --confirm
 ```
 
-Gates (logged fields, not prose): conflicting pair in the selection → `verdict: refused` + `conflicts: [[a,b]]`; `activation=excluded` id → refused fail-closed; no `--confirm` → `written: false, reason: confirmation_required`. The `context-aware` and `prose-intent` views are registry-rendered scaffolds whose engines land in T4 (work-compass signals) and T5 (prose→profile interview).
+Gates (logged fields, not prose): conflicting pair in the selection → `verdict: refused` + `conflicts: [[a,b]]`; `activation=excluded` id → refused fail-closed; no `--confirm` → `written: false, reason: confirmation_required`. The `context-aware` view ranks by work-compass signals via `--signals COMPASS.json` (T4 — deterministic, reasons emitted); `prose-intent` maps a prose need via `lib/registry/prose_intent.py --prose '<need>'` (T5 — DRAFT + shown mapping, never auto-applies).
 
 ### `--mode=config` (profile SSOT inspect/adjust)
 Inspect the persisted hub profile (`mcp-tools/maos-mcp-hub/profile.yaml` / `$MAOS_HUB_PROFILE`): show `mode` (enforce|advisory), the `enabled` list, and validate it against the registry (`lib.gateway.profile.validate_profile` — excluded ids are refused). Adjustments go through the same `select … --confirm` path as setup (never hand-edit advice that bypasses the conflict/HITL gates).

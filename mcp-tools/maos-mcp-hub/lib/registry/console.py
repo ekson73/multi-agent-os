@@ -49,7 +49,7 @@ in later worktrees (honest placeholders, still rendered FROM the registry):
     the work-compass signal engine lands in T4 (the view says so).
   - ``prose-intent``  — the bounded ≤3-question interview scaffold whose
     answer domains come from the live registry; the prose→profile mapping
-    engine lands in T5 (the view says so).
+    engine is ``lib/registry/prose_intent.py`` (T5).
 """
 
 from __future__ import annotations
@@ -261,8 +261,9 @@ class HubConsole:
         cats = sorted({rec.category for rec in self.registry.records()})
         lines = [
             " prose-intent — bounded interview (<=3 questions) -> profile DRAFT.",
-            " The prose->profile mapping engine lands in T5; the answer domains",
-            " below are derived LIVE from the registry. A draft NEVER auto-applies.",
+            " Engine: lib/registry/prose_intent.py --prose '<need>' (T5) — emits the",
+            " shown prose->profile mapping; the answer domains below are derived",
+            " LIVE from the registry. A draft NEVER auto-applies.",
             _rule(),
             " Q1. What are you building? (maps to a use-case recipe)",
         ]
