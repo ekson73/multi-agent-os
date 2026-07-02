@@ -45,7 +45,8 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 1 | WT5 memória L8 (mem0 default; graphiti DEFERRED) | S4 | 🟢 merged | [#199](https://github.com/ekson73/multi-agent-os/pull/199) |
 | 2 | WT8 tool-registry auto-gerado (keystone) | S1 | 🟢 merged | [#200](https://github.com/ekson73/multi-agent-os/pull/200) |
 | 3 | WT10 intake-batch — 26 experts como dados | S10/S9 | 🟢 merged (2026-07-02) | [#201](https://github.com/ekson73/multi-agent-os/pull/201) |
-| 4 | WT11 docs reframe + CONSOLIDATED regen + MVV (**HITL**) | — | 🔴 not started | — |
+| 4 | WT11 docs reframe + CONSOLIDATED/deck regen | — | 🟢 merged (2026-07-02) | [#205](https://github.com/ekson73/multi-agent-os/pull/205) |
+| 4 | WT11-MVV Vision touch no `CLAUDE.md` (**HITL** — operator ratifica; nunca auto-merge) | — | 🟠 aguardando ratificação | [#206](https://github.com/ekson73/multi-agent-os/pull/206) |
 | — | WT6 OTel-Sentinel | — | ⏸ DEFERRED (C3 severidade baixa; sem consumidor de telemetria) | — |
 | — | WT7 LiteLLM router | — | ✂️ CUT (os3pd adia gateway de runtime até ≥3 incidentes) | — |
 | 5 | Console do operador T1–T7 (T1 registry-SSOT → T2 profile-as-gating-input primeiro) | ADR-007 | 🔴 not started | — |
