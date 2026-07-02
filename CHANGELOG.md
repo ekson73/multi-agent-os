@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — hub console setup/config modes (WAVE 5 / T3, ADR-006 + ADR-007)
+
+- **`lib/registry/console.py`** (`mcp-tools/maos-mcp-hub`): `HubConsole` — deterministic ASCII
+  renderer + HITL-gated profile writer over the T1 `HubRegistry` and the T2 profile SSOT.
+  6 views (`preset · category · use-case · context-aware · prose-intent · safe-mode`), all
+  byte-stable projections of the DERIVED registry + the curated `recipes.yaml` catalog;
+  `--help` / `--safe-mode` CLI flags; optional `--html` artifact (ASCII first-class).
+  `context-aware`/`prose-intent` are registry-rendered scaffolds — engines land in T4/T5
+  (each view says so).
+- **Selection gates (logged fields, per the DoD-gate)**: `select --ids …` is conflict-checked
+  against BOTH edge sources (curated conflicts.yaml ∪ per-record `conflicts_with`) →
+  `verdict: refused` + `conflicts: [[a,b]]`; `activation=excluded` ids refused fail-closed;
+  **no `--confirm` → `written: false, reason: confirmation_required`** — the profile is NEVER
+  auto-applied. Confirmed writes round-trip through `lib.gateway.profile.load_profile`
+  (`hub-profile/1.x`).
+- **`maos-concierge` v1.1.0**: +2 modes — `setup` (hub console) and `config` (profile SSOT
+  inspect/validate) — composing T1+T2; reimplements nothing.
+- Tests: `tests/test_hub_console.py` — 21 tests (golden safe-mode fixture, byte-stability,
+  conflict/excluded/confirm gates, T2 round-trip, live-repo CLI smoke).
+
 ### Fixed — profile bot-finding remediation (post-merge PDCA of #210)
 
 - **amazon-q 🛑 (CWE-22)**: `$MAOS_HUB_PROFILE` is now normalized (`expanduser().resolve()`) and

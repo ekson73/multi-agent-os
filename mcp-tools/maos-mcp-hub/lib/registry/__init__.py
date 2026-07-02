@@ -11,3 +11,9 @@ from .hub_registry import (  # noqa: F401
     HubRecord,
     HubRegistry,
 )
+from .console import (  # noqa: F401
+    VIEWS,
+    HubConsole,
+    Recipe,
+    load_recipe_catalog,
+)
