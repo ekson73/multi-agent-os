@@ -51,7 +51,11 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | — | WT7 LiteLLM router | — | ✂️ CUT (os3pd adia gateway de runtime até ≥3 incidentes) | — |
 | 5 | T1 hub-registry SSOT (plugin-level, derived; + fix-PDCA [#211](https://github.com/ekson73/multi-agent-os/pull/211)) | ADR-007 | 🟢 merged (2026-07-02) | [#209](https://github.com/ekson73/multi-agent-os/pull/209) |
 | 5 | T2 profile-as-gating-input (enablement SSOT + wiring; + fix-PDCA [#212](https://github.com/ekson73/multi-agent-os/pull/212)) | ADR-007 | 🟢 merged (2026-07-02) | [#210](https://github.com/ekson73/multi-agent-os/pull/210) |
-| 5 | T3–T6 console (modes · context-aware · prose-intent · activation) | ADR-007 | 🔴 not started | — |
+| 5 | T3 console setup/config modes (6 registry views + HITL-gated profile write; 8 bot findings fixed pre-merge) | ADR-007 | 🟢 merged (2026-07-02) | [#214](https://github.com/ekson73/multi-agent-os/pull/214) |
+| 5 | T4 context-aware ranking v1 (work-compass signals · byte-stable · why emitido) | ADR-007 | 🟢 merged (2026-07-02) | [#215](https://github.com/ekson73/multi-agent-os/pull/215) |
+| 5 | T5 prose-intent engine (entrevista ≤3 Qs · mapping mostrado · DRAFT nunca auto-aplica) | ADR-007 | 🟢 merged (2026-07-02) | [#216](https://github.com/ekson73/multi-agent-os/pull/216) |
+| 5 | T6 activation-karpathy (`skills/deliberate-coding` first-party · upstream capped opt-in HF2) | ADR-006 | 🟢 merged (2026-07-02) | [#217](https://github.com/ekson73/multi-agent-os/pull/217) |
+| 6 | T7–T10 community front-door (slot-adapter · gatekeeper · ttl · distributor) | ADR-007 | 🔴 not started (gate: operador + piso CI WAVE-0) | — |
 | 6 | Front-door da comunidade T8–T10 (gatekeeper exige piso CI verde da WAVE-0) | ADR-007 | 🔴 not started | — |
 
 Tracking do restante: [issue #204](https://github.com/ekson73/multi-agent-os/issues/204) (Waves 4–6); contratos em
