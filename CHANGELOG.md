@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — activation taxonomy applied + karpathy principles internalized (WAVE 5 / T6, ADR-006)
+
+- **`skills/deliberate-coding/SKILL.md`** — MAOS-native articulation of the deliberation-before-
+  coding principle family (Think-Before-Coding · Simplicity-First · Surgical-Changes ·
+  Goal-Driven). **Patterns-only, zero upstream text** (the `karpathy-claude-md` intake is ADAPT
+  with conditions `patterns-only + no-redistribution` — HF2: upstream README claims MIT but ships
+  NO LICENSE file). **Credit retained** (Andrej Karpathy — inspiration; multica-ai/
+  andrej-karpathy-skills — the popularizing repo). Being a first-party skill, it auto-derives
+  into the T1 hub registry as `default-on-for-context`, MIT, license-clean — the native L0 floor.
+- **Activation taxonomy applied to the upstream records** (asserted, not prosed): the live
+  registry derives `karpathy-claude-md` → `opt-in` (license gate HF2, reason logged);
+  `request_activation` refuses upgrades past the derived tier; the mis-attributed
+  `forrestchang-andrej-karpathy-skills` (404) stays `excluded` and immutable.
+- Tests: `tests/test_activation_karpathy.py` — 7 tests (tier + logged reason, upgrade refusal,
+  excluded immutability, first-party derivation, grep-able credit, patterns-only markers,
+  content-not-runtime check).
+
+
 ### Added — prose-intent engine (WAVE 5 / T5, ADR-006 + ADR-007)
 
 - **`lib/registry/prose_intent.py`** (`mcp-tools/maos-mcp-hub`): prose need → **bounded interview
