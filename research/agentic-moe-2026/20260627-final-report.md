@@ -1,5 +1,11 @@
 # Agentic MoE 2026 — RELATÓRIO FINAL (Síntese das Fases 0–3)
 
+> **🔁 Reframe — MAOS Hub (ADR-006, Accepted 2026-06-29):** o hub **"ATH"** projetado nesta série foi
+> ratificado e realizado como o **MAOS Hub** — a gating-network MoE **nativa** do MAOS (evolução do
+> `maos-mcp-hub`, não um produto novo). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.** Este arquivo é preservado
+> como registro histórico datado (2026-06-27); status vivo do hands-on: `README.md` §"Status do hands-on".
+
+
 > **Fase:** 4 — Final Report (SÍNTESE; sem nova pesquisa web — funde + reconcilia os arquivos existentes).
 > **Observado:** 2026-06-27 (toda observação de estrela é datada deste dia; valores = ordem-de-magnitude, não precisão).
 > **Nota de idioma:** prosa em **pt-BR**; identificadores, comandos, nomes de repositório, fórmulas e tags de mecanismo em **en-US**.
