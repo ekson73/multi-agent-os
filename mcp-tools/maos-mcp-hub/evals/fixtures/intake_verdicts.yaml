@@ -1,0 +1,581 @@
+# Intake-batch verdicts — WT10 / backlog P3 (stories S10/S9) — WAVE 3.
+#
+# Machine-readable SSOT of the batch `agentic-tool-intake` dispositions for the
+# 26 INCLUDED experts + the graphiti BRIDGE + the 5 EXCLUDED supply-chain
+# reproductions of the agentic-moe-2026 landscape (ADR-006 "market study +
+# intake backlog").
+#
+# DRY: every verdict cites the EXISTING research corpus as evidence
+# (research/agentic-moe-2026/*, docs/adoption/*) — no re-research was run.
+# Star counts and license observations are dated 2026-06-27 (order-of-magnitude,
+# not precision — final-report §3/§5 caveats inherited).
+#
+# Consumed by evals/intake_batch_eval.py (logged-field acceptance — the DoD
+# gate: no prose-judged acceptance) and mirrored for humans in
+# docs/adoption/intake-batch-2026-07-01.md.
+#
+# Verdict vocabulary (skills/agentic-tool-intake/SKILL.md decision matrix):
+#   INSTALL   — adopt the external as-is, governed
+#   ADAPT     — fork / wrap / configure before adopting (adapter-first)
+#   ABSORB    — absorb specific patterns/components; runtime NOT adopted
+#   SUB-AGENT — route in isolation as a delegated run; never a resident layer
+#   ABANDON   — reject (redundant · unsafe · lock-in · cost inverts benefit)
+#   DEFER     — real candidate, no driving workload yet (anti-gold-plating)
+#   EXCLUDED  — supply-chain veto (HF1) — blocked from routing entirely
+
+schema_version: intake-batch/1.0.0
+observed: "2026-06-27"   # research-run observation date (stars/licenses)
+decided: "2026-07-01"    # batch verdict date (WT10)
+revisit: "2026-09-27"    # TTL — re-validate [UNVERIFIED]/[sec] flags (final-report §5)
+
+# Mirrors plugin-scripts/governance/lib/conductors.txt (RULE-011 / C1):
+# these MUST NOT receive a plain INSTALL (single-conductor invariant).
+conductor_class: [bmad-method, superpowers, gstack, ECC, base, ruflo]
+
+entries:
+  # ------------------------------------------------------------------ L0 ---
+  - id: karpathy-claude-md
+    repo: multica-ai/andrej-karpathy-skills
+    layer: L0
+    role: guardrail principles (Think-Before-Coding · Simplicity · Surgical-Changes · Goal-Driven)
+    set: INCLUDED
+    license: none            # README claims MIT; NO LICENSE file => all-rights-reserved (HF2)
+    flags: [license-none, stars-unverified]
+    verdict: ADAPT
+    rationale: >-
+      Internalize the deliberation-before-coding principles as house rules
+      (content, not runtime); HF2 blocks redistribution of the upstream text.
+    conditions: [patterns-only, no-redistribution-until-license-clarified]
+    evidence:
+      - research/agentic-moe-2026/20260627-01a-substrates.md
+      - research/agentic-moe-2026/20260627-00-canonicalization.md
+
+  - id: base
+    repo: ChristopherKahler/base
+    layer: L0
+    role: workspace anti-staleness manager (drift score, PSMM) via hooks
+    set: INCLUDED
+    license: none            # MIT claimed in prose; license=null on the API (HF2)
+    flags: [license-none, conductor-class]
+    verdict: ADAPT
+    rationale: >-
+      Absorb the drift-score/PSMM pattern into MAOS's own hygiene tooling; a
+      second CLAUDE.md manager can never co-reside (C1/RULE-011; ECC<->base
+      duplicate-hooks edge).
+    conditions: [no-co-residence-C1, patterns-only, no-redistribution-until-license-clarified]
+    evidence:
+      - research/agentic-moe-2026/20260627-01a-substrates.md
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  # ------------------------------------------------------------------ L8 ---
+  - id: mem0
+    repo: mem0ai/mem0
+    layer: L8
+    role: pluggable memory substrate (DEFAULT L8 backend)
+    set: INCLUDED
+    license: Apache-2.0
+    flags: [stars-secondary]
+    verdict: ADAPT
+    rationale: >-
+      Decided in WAVE-1 WT5 (#199): adapter-first, optional dependency, default
+      L8 backend behind MemorySubstrate with file/seed degradation — never a
+      hard dependency.
+    conditions: [adapter-first, stdlib-fallback-mandatory]
+    evidence:
+      - docs/adoption/mem0-2026-07-01.md
+      - mcp-tools/maos-mcp-hub/lib/memory/substrate.py
+
+  - id: letta
+    repo: letta-ai/letta
+    layer: L8
+    role: stateful agent runtime with OS-tiered self-editing memory
+    set: INCLUDED
+    license: Apache-2.0
+    flags: [runtime-lock-in]
+    verdict: ABANDON
+    rationale: >-
+      Categorially a rival RUNTIME, not a pluggable layer ("must use Letta");
+      the L8 default slot is resolved to mem0 (conflicts.yaml mem0<->letta).
+    conditions: []
+    evidence:
+      - docs/adoption/mem0-2026-07-01.md
+      - research/agentic-moe-2026/20260627-01a-substrates.md
+
+  - id: cognee
+    repo: topoteretes/cognee
+    layer: L8
+    role: graph-native memory + ontology ("Company Brain")
+    set: INCLUDED
+    license: Apache-2.0
+    flags: [slot-contention-with-mem0]
+    verdict: DEFER
+    rationale: >-
+      Kept as the graph-native ALTERNATIVE (mem0 verdict §3); adopt only when a
+      relation-reasoning workload materializes — same anti-gold-plating rule
+      that deferred graphiti.
+    conditions: [adopt-only-on-measured-relation-reasoning-workload]
+    evidence:
+      - docs/adoption/mem0-2026-07-01.md
+      - research/agentic-moe-2026/20260627-01a-substrates.md
+
+  - id: langfuse
+    repo: langfuse/langfuse
+    layer: L9
+    role: OTel-native tracing + evals + prompt-mgmt (observability default)
+    set: INCLUDED
+    license: NOASSERTION     # MIT-core EXCEPT ee/ (Enterprise Edition proprietary)
+    flags: [license-noassertion-ee]
+    verdict: DEFER
+    rationale: >-
+      WT6 (OTel-Sentinel) is explicitly deferred — C3 is low severity and there
+      is no real telemetry consumer yet; when adopted, core-only (MIT dirs) or
+      swap for openllmetry+opik if pure-OSS is required.
+    conditions: [core-only-mit-dirs, requires-real-telemetry-consumer]
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - research/agentic-moe-2026/20260627-ATH-OODA-RECON.md
+
+  # ------------------------------------------------------------- L4 / L5 ---
+  - id: graphify
+    repo: safishamsi/graphify
+    layer: L4
+    role: one-shot repo indexing -> queryable knowledge graph (token-efficiency ~71x)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: INSTALL
+    rationale: >-
+      Backlog P2-L4: codebase-intel complementing reveng/ontology; read-mostly
+      and low risk. Already dogfooded user-scope by the operator.
+    conditions: [never-commit-graphs-with-extracted-secrets]
+    evidence:
+      - research/agentic-moe-2026/20260627-01b-knowledge.md
+      - research/agentic-moe-2026/20260627-ATH-OODA-RECON.md
+
+  - id: understand-anything
+    repo: Egonex-AI/Understand-Anything
+    layer: L4
+    role: interactive/educational codebase graph ("graphs that teach")
+    set: INCLUDED
+    license: MIT
+    flags: [stars-secondary]
+    verdict: INSTALL
+    rationale: >-
+      Read-mostly onboarding/exploration expert; low risk; complements graphify
+      (teaching vs indexing) with no slot conflict.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01b-knowledge.md
+
+  - id: obsidian-skills
+    repo: kepano/obsidian-skills
+    layer: L5
+    role: official Obsidian skills (vault operation — wikilinks, Bases, Canvas)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: INSTALL
+    rationale: >-
+      Official (kepano) L5 PKM bridge; low risk; the L4->L5 pipe target of
+      graphify's Obsidian-vault export.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01b-knowledge.md
+
+  # ------------------------------------------------------------------ L1 ---
+  - id: spec-kit
+    repo: github/spec-kit
+    layer: L1
+    role: canonical template-rich SDD (constitution->specify->plan->tasks->implement)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: INSTALL
+    rationale: >-
+      Routable L1 expert for compliance-grade/greenfield spec work; HF4:
+      mutually exclusive with openspec per-repo (conflicts.yaml edge) — top-1
+      resolved by CTS/HITL per repo.
+    conditions: [slot-exclusive-vs-openspec-per-repo]
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  - id: openspec
+    repo: Fission-AI/OpenSpec
+    layer: L1
+    role: lightweight brownfield-first iterative SDD (change-folders)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: INSTALL
+    rationale: >-
+      Already the incumbent — MAOS dogfoods openspec/ today (openspec/specs +
+      openspec/changes are this repo's own spec SSOT). Adoption is empirical
+      fact, recorded here.
+    conditions: []
+    evidence:
+      - openspec/specs/maos-hub/spec.md
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  - id: gsd-core
+    repo: open-gsd/gsd-core
+    layer: L1
+    role: anti-context-rot SDD via fresh-context subagents (SAFE fork)
+    set: INCLUDED
+    license: MIT
+    flags: [fork-of-excluded-original]
+    verdict: ADAPT
+    rationale: >-
+      Only the audited safe fork (no backdoors found) — the original
+      gsd-build/get-shit-done is EXCLUDED (HF1, $GSD rug-pull; its npm packages
+      remain under the scammer's keys). Pin SHA per [C14]; never install the
+      original npm artifacts.
+    conditions: [fork-only-never-original, sha-pinned-install, no-original-npm-packages]
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  # ------------------------------------------------------------------ L2 ---
+  - id: superpowers
+    repo: obra/superpowers
+    layer: L2
+    role: SDLC methodology via skills (mandatory TDD; smallest footprint of the trio)
+    set: INCLUDED
+    license: MIT
+    flags: [conductor-class, stars-secondary]
+    verdict: SUB-AGENT
+    rationale: >-
+      Its methodology is valuable but it is an always-on instruction layer
+      (RULE-011 conductor class): route in isolated delegated runs; never a
+      second resident manager next to MAOS.
+    conditions: [no-co-residence-C1, isolated-runs-only]
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+      - plugin-scripts/governance/lib/conductors.txt
+
+  - id: gstack
+    repo: garrytan/gstack
+    layer: L2
+    role: virtual-eng-team of 23 personas (rewrites CLAUDE.md)
+    set: INCLUDED
+    license: MIT
+    flags: [conductor-class, rewrites-claude-md, bans-browser-mcp]
+    verdict: SUB-AGENT
+    rationale: >-
+      RULE-011 empirically fires on it TODAY (decision=taint scope=user in live
+      sessions); rewrites CLAUDE.md and bans the browser-MCP that ECC bundles —
+      route isolated, never co-resident.
+    conditions: [no-co-residence-C1, isolated-runs-only]
+    evidence:
+      - plugin-scripts/governance/lib/conductors.txt
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  - id: ECC
+    repo: affaan-m/ECC
+    layer: L2
+    role: maximalist operator system (232 skills + instincts + hooks + AgentShield)
+    set: INCLUDED
+    license: MIT
+    flags: [conductor-class, stars-unverified-magnitude]
+    verdict: ABSORB
+    rationale: >-
+      Component absorption already happened — AgentShield's egress/secret model
+      was absorbed into WT2 (#189, RULE-012); the maximalist runtime itself can
+      never co-reside (C1; conflicts with base/superpowers/gstack/carl).
+    conditions: [no-co-residence-C1, components-only-after-review]
+    evidence:
+      - plugin-scripts/governance/agentshield.sh
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  - id: cli-anything
+    repo: HKUDS/CLI-Anything
+    layer: L2
+    role: generates agent-native CLIs from source ("making ALL software agent-native")
+    set: INCLUDED
+    license: Apache-2.0      # CONFIRMED by full LICENSE read (was load-bearing)
+    flags: [stars-secondary]
+    verdict: DEFER
+    rationale: >-
+      License confirmed and concept sound, but no driving workload exists yet
+      (YAGNI); revisit at TTL or when a CLI-generation need materializes.
+    conditions: [adopt-only-on-real-cli-generation-workload]
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  - id: paul
+    repo: ChristopherKahler/paul
+    layer: L2
+    role: in-session Plan-Apply-Unify workflow (Kahler cluster)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: ABANDON
+    rationale: >-
+      Redundant with MAOS's own in-session orchestration (auto-pilot /
+      enhance-pipeline / gap-loop); opposed-philosophy edge vs gsd-core
+      (in-session+UNIFY vs fresh-subagents).
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  - id: carl
+    repo: ChristopherKahler/carl
+    layer: L2
+    role: JIT per-prompt rule-injection hook engine (Kahler cluster)
+    set: INCLUDED
+    license: MIT
+    flags: [second-hook-engine]
+    verdict: ABANDON
+    rationale: >-
+      A second per-prompt hook engine stacks on MAOS's own hooks (same class of
+      collision as carl<->ECC); rule-injection is already covered by MAOS
+      hooks + auto-loaded rules.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  - id: seed
+    repo: ChristopherKahler/seed
+    layer: L2
+    role: typed ideation incubator (Kahler cluster)
+    set: INCLUDED
+    license: none            # license=null on the API; MIT claim only in prose (HF2)
+    flags: [license-none, highest-legal-risk-of-cluster]
+    verdict: ABANDON
+    rationale: >-
+      HF2: the cluster's highest legal risk (no LICENSE at all); ideation is
+      already covered by existing tooling — benefit does not offset the
+      license exposure.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  # ------------------------------------------------------------------ L6 ---
+  - id: open-design
+    repo: nexu-io/open-design
+    layer: L6
+    role: local-first multi-surface design studio (broad; bypassPermissions)
+    set: INCLUDED
+    license: Apache-2.0
+    flags: [bypass-permissions-risk-high]
+    verdict: SUB-AGENT
+    rationale: >-
+      Already routed via the existing opendesign-concierge skill
+      (route-don't-install, canonical clone pinned); bypassPermissions posture
+      is risk=HIGH so it only ever runs as a sandboxed delegated surface.
+    conditions: [sandboxed-only, via-opendesign-concierge, slot-exclusive-vs-open-codesign]
+    evidence:
+      - skills/opendesign-concierge/SKILL.md
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  - id: open-codesign
+    repo: OpenCoworkAI/open-codesign
+    layer: L6
+    role: lean desktop design studio (permissioned loop — safer posture)
+    set: INCLUDED
+    license: MIT
+    flags: []
+    verdict: INSTALL
+    rationale: >-
+      The safer-permissioned L6 studio for quality-sensitive flows; same-slot
+      exclusivity vs open-design resolved per context by CTS/HITL
+      (conflicts.yaml edge).
+    conditions: [slot-exclusive-vs-open-design]
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+      - mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml
+
+  - id: impeccable
+    repo: pbakaus/impeccable
+    layer: L6
+    role: key-free design-quality LAYER (41 deterministic detector rules; not a studio)
+    set: INCLUDED
+    license: Apache-2.0
+    flags: [stars-unverified]
+    verdict: INSTALL
+    rationale: >-
+      Quality layer, not a studio — no slot conflict; 41 deterministic key-free
+      rules make it the lowest-risk L6 item and a CI-lintable complement.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  # ------------------------------------------------------------------ L7 ---
+  - id: slidev
+    repo: slidevjs/slidev
+    layer: L7
+    role: mature slides-as-code framework (2021; human-first)
+    set: INCLUDED
+    license: MIT
+    flags: [human-first-not-agent-native]
+    verdict: INSTALL
+    rationale: >-
+      Mature, conflict-free slides expert; agent-native flows route
+      frontend-slides first, slidev when the human-first framework fits.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  - id: frontend-slides
+    repo: zarazhangrui/frontend-slides
+    layer: L7
+    role: agent-native HTML-presentation skill (anti-slop)
+    set: INCLUDED
+    license: MIT
+    flags: [stars-unverified]
+    verdict: INSTALL
+    rationale: >-
+      The agent-native L7 default; MIT; low risk (deploy.sh shell noted as a
+      minor caveat in the research).
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-01c-pipeline.md
+
+  # ------------------------------------------------------------------ L3 ---
+  - id: ruflo
+    repo: ruvnet/ruflo
+    layer: L3
+    role: meta-harness / swarm runtime (Queen->topology + MoE+HNSW dispatch)
+    set: INCLUDED
+    license: MIT
+    flags: [conductor-class, self-reported-benchmarks-unverified, requires-own-l8-l9]
+    verdict: ABSORB
+    rationale: >-
+      Its trust_score formula was imported VERBATIM into the CTS scorer (WT4
+      #198) — pattern absorbed; the 27-hook+daemon runtime is overkill for a
+      solo operator and is conductor-class (never co-resident).
+    conditions: [no-co-residence-C1, formulas-and-patterns-only]
+    evidence:
+      - mcp-tools/maos-mcp-hub/lib/gateway/cts.py
+      - research/agentic-moe-2026/20260627-01d-amplifier.md
+
+  - id: bmad-method
+    repo: bmad-code-org/BMAD-METHOD
+    layer: L3
+    role: persona-driven agile methodology (symbolic phase->persona gating)
+    set: INCLUDED
+    license: MIT             # CONFIRMED by direct LICENSE read (RUN0 NOASSERTION was an SPDX-parsing artifact)
+    flags: [conductor-class, trademark-rider-bmad]
+    verdict: ABSORB
+    rationale: >-
+      The hub architecture reuses BMAD's phase-gating as the cheap intent
+      classifier (moe-hub-architecture (a)); the persona runtime itself is
+      conductor-class and never co-resides.
+    conditions: [no-co-residence-C1, gating-pattern-only, respect-bmad-trademark]
+    evidence:
+      - protocols/moe-hub-architecture.md
+      - research/agentic-moe-2026/20260627-final-report.md
+
+  # -------------------------------------------------------------- BRIDGE ---
+  - id: graphiti
+    repo: getzep/graphiti
+    layer: L4/L8
+    role: bi-temporal context graph (facts with validity windows; invalidates, never deletes)
+    set: BRIDGE
+    license: Apache-2.0
+    flags: []
+    verdict: DEFER
+    rationale: >-
+      Explicitly deferred by WT5 (#199) until a MEASURED temporal workload
+      exists — no gold-plating (mem0 verdict §3).
+    conditions: [adopt-only-on-measured-temporal-workload]
+    evidence:
+      - docs/adoption/mem0-2026-07-01.md
+      - research/agentic-moe-2026/20260627-01a-substrates.md
+
+  # ---------------------------------------- EXCLUDED (HF1 reproductions) ---
+  - id: gsd-build-get-shit-done
+    repo: gsd-build/get-shit-done
+    layer: L1
+    role: original GSD (SDD anti-context-rot) — supply-chain compromised
+    set: EXCLUDED
+    license: unverified
+    flags: [rug-pull-confirmed, live-threat-npm-keys]
+    verdict: EXCLUDED
+    blocked: true
+    safe_successor: open-gsd/gsd-core
+    rationale: >-
+      $GSD Solana rug-pull CONFIRMED (~US$500K liquidity pull; founder deleted
+      accounts ~2026-04); the ORIGINAL npm packages remain published under the
+      scammer's keys and GSD requests deep shell/bash permissions — a malicious
+      update would compromise local machines.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - research/agentic-moe-2026/20260627-00-canonicalization.md
+
+  - id: mempalace
+    repo: milla-jovovich/mempalace
+    layer: L8
+    role: memory backend candidate — star-manipulation / unproven-claims class
+    set: EXCLUDED
+    license: unverified
+    flags: [star-manipulation-alleged, benchmark-not-reproducible, unaudited-claims]
+    verdict: EXCLUDED
+    blocked: true
+    safe_successor: mem0ai/mem0
+    rationale: >-
+      Unproven-but-unaudited allegations (~42K stars on a ~2-month repo;
+      "ChromaDB wrapper" under a celebrity name; non-reproducible "96.6%
+      LongMemEval") — fraud is NOT asserted as fact; by the gate it exits
+      INCLUDED until an independent audit. mem0's reproducible benchmark won
+      the default slot.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+      - docs/adoption/mem0-2026-07-01.md
+
+  - id: forrestchang-andrej-karpathy-skills
+    repo: forrestchang/andrej-karpathy-skills
+    layer: L0
+    role: mis-attributed variant of the karpathy principles repo
+    set: EXCLUDED
+    license: unknown
+    flags: [404-not-resolving, mis-attribution]
+    verdict: EXCLUDED
+    blocked: true
+    safe_successor: multica-ai/andrej-karpathy-skills
+    rationale: >-
+      Path 404s / does not resolve; the canonical owner is multica-ai —
+      mis-attribution class (canonicalization run).
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-00-canonicalization.md
+
+  - id: klaviyo-graphiti-mcp
+    repo: klaviyo/graphiti_mcp
+    layer: L4/L8
+    role: fork of the graphiti MCP surface
+    set: EXCLUDED
+    license: unverified
+    flags: [fork-of-canonical]
+    verdict: EXCLUDED
+    blocked: true
+    safe_successor: getzep/graphiti
+    rationale: >-
+      Fork — the canonical upstream is getzep/graphiti; forks of canonicals do
+      not enter the span.
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md
+
+  - id: awesome-design-tools
+    repo: goabstract/Awesome-Design-Tools
+    layer: L6
+    role: curated design-tool list — stale / non-agentic
+    set: EXCLUDED
+    license: unverified
+    flags: [stale, non-agentic]
+    verdict: EXCLUDED
+    blocked: true
+    safe_successor: null
+    rationale: >-
+      Stale non-agentic link list — not an expert; no successor needed (the L6
+      slot is covered by open-design / open-codesign / impeccable).
+    conditions: []
+    evidence:
+      - research/agentic-moe-2026/20260627-final-report.md

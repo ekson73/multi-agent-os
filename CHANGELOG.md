@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — intake-batch verdicts (WT10 / P3, stories S10/S9) — the 26 experts dispositioned as data
+
+- **`mcp-tools/maos-mcp-hub/evals/fixtures/intake_verdicts.yaml`** — machine-readable SSOT of the
+  batch `agentic-tool-intake` dispositions for the agentic-moe-2026 landscape: 26 INCLUDED experts
+  + graphiti BRIDGE + 5 EXCLUDED supply-chain reproductions (32 entries; verdict vocabulary
+  INSTALL·ADAPT·ABSORB·SUB-AGENT·ABANDON·DEFER·EXCLUDED). Every verdict cites the existing
+  research corpus as evidence (DRY — no re-research); star/license observations dated 2026-06-27;
+  TTL `revisit: 2026-09-27`.
+- **Supply-chain gate reproduced as data** (spec `maos-hub` → "Supply-chain gate"):
+  `gsd-build/get-shit-done` ($GSD rug-pull → safe successor `open-gsd/gsd-core`) and `mempalace`
+  (star-manip/unproven-claims class → `mem0ai/mem0`) are `blocked: true` records with evidence.
+- **`mcp-tools/maos-mcp-hub/evals/intake_batch_eval.py`** — logged-field acceptance (DoD gate):
+  checks A1..A7 incl. **A3 cross-SSOT** (the fixture's `conductor_class` must mirror the RULE-011
+  enforcement registry `plugin-scripts/governance/lib/conductors.txt`, and no conductor may
+  receive a plain INSTALL — the C1 single-conductor invariant asserted over the batch) and **A6**
+  (every evidence ref resolves to a real repo file). `cd mcp-tools/maos-mcp-hub && python -m
+  evals.intake_batch_eval` → `verdict: pass`; exit 1 on any violation.
+- **`mcp-tools/maos-mcp-hub/tests/test_intake_batch.py`** — 16 tests: eval verdict + per-check
+  parametrized asserts + the two named spec reproductions + cross-SSOT mirror + CLI contract.
+- **`docs/adoption/intake-batch-2026-07-01.md`** — human mirror (fixture wins on disagreement):
+  verdict summary (9 INSTALL · 4 ADAPT · 3 ABSORB · 3 SUB-AGENT · 4 ABANDON · 4 DEFER ·
+  5 EXCLUDED) + notable dispositions (ECC/ruflo/bmad ABSORB are *empirically already done* —
+  AgentShield→RULE-012, trust_score→CTS, phase-gating→intent classifier).
+- WAVE 3 closes: this was the last WAVE-3 item (WT10); WAVE 4 (WT11 docs reframe) is next.
+
 ### Added — auto-generated tool-registry SSOT (WT8 / S1) — derived, never hand-maintained
 
 - **`mcp-tools/maos-mcp-hub/lib/gateway/tool_registry.py`** — `ToolRegistry`: every `ToolRecord`
