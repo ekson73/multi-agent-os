@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — profile bot-finding remediation (post-merge PDCA of #210)
+
+- **amazon-q 🛑 (CWE-22)**: `$MAOS_HUB_PROFILE` is now normalized (`expanduser().resolve()`) and
+  restricted to `.yaml`/`.yml` targets — the hub can only be pointed at profile-shaped files
+  (raise `ProfileError` otherwise). Operator-set env remains the trust model; this removes the
+  raw-path read.
+- **Copilot: schema fail-closed** — an unsupported `schema_version` (≠ `hub-profile/1.x`) now
+  raises `ProfileError` instead of half-loading.
+- **Copilot ×2: example ids corrected** — docstring + `profile.yaml.example` now use the REAL
+  gateway operation tokens (`get`/`create`/`transition` …), with a pointer to level-1 discovery;
+  the previous `get_issue`-style examples would have produced a deny-everything profile.
+- Unused `dataclasses.field` import removed. +2 regression tests (13 green in the profile suite).
+
+
 ### Fixed — hub-registry bot-finding remediation (post-merge PDCA of #209)
 
 - **F2 (High — Copilot + Qodo): conductor gate was inert** — `_load_conductors()` stored the raw
