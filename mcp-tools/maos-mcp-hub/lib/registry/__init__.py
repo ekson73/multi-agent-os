@@ -23,3 +23,8 @@ from .context_rank import (  # noqa: F401
     rank,
     render_ranking,
 )
+from .prose_intent import (  # noqa: F401
+    interview_questions,
+    map_prose,
+    render_mapping,
+)
