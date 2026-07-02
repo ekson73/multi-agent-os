@@ -115,8 +115,9 @@ def test_use_case_view_lists_recipes(console: HubConsole) -> None:
 
 
 def test_context_aware_view_is_tier_ordered_and_names_t4(console: HubConsole) -> None:
+    """Baseline (no signals): tier-ordered + points to the T4 --signals engine."""
     out = console.render("context-aware")
-    assert "lands in T4" in out
+    assert "T4 engine" in out and "--signals" in out
     # deterministic ordering: always-on first, excluded last
     assert out.index("guard") < out.index("alpha") < out.index("mallory")
 
