@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — Layer-Purity: corp-overlay rules removed (KRDR #160 Phase-B item #1)
+
+- **`rules/agent-delegation.md` [C14], `rules/exit-hygiene.md` [C13], `rules/forge-agent-design.md`
+  [C14.1/RBAD] removed** — each was a corporate ("Organization") overlay of a generic community protocol that
+  already lives in this repo (`protocols/agent-delegation.md`, `protocols/exit-hygiene.md`,
+  `protocols/rbad.md` respectively), differing only by an `Organization` ↔ `Vek` label
+  substitution across titles/headers/section-names — a genuine violation of Layer Purity
+  (`layer-precedence-policy.md` Rule 2: community repos must never carry corp-specific content).
+  Originally added as a batch in commit `eecf329` ("migrate 8 community protocols from user-scope");
+  no prior CHANGELOG entry documented their creation, so there is nothing to mirror beyond this
+  removal note.
+- **Verified safe via recon before removal**: zero other files in the repo reference the 3 removed
+  paths (only self-references, which vanish with the files); the 3 generic counterparts are
+  confirmed vendor/org-neutral (0 Vek/Organization hits); no registry/manifest enumerates
+  `rules/*.md` as a set; `rules/agent-scm.md` was investigated and **correctly excluded** — it is
+  NOT a duplicate (no `vek-ai-toolkit` counterpart exists) and its content (generic SCM/git-provider
+  engineer role) is genuinely community-appropriate.
+
 ### Docs — WT11 MAOS Hub reframe (WAVE 4) — series headers + published artifacts regenerated
 
 - **`research/agentic-moe-2026/` series reframed** — a standardized, grep-able banner
