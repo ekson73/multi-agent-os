@@ -1,0 +1,96 @@
+# Curated composition-recipe list for the MoE hub registry (T1 / WAVE 5).
+#
+# Source (one-time promotion, like conflicts.yaml):
+#   research/agentic-moe-2026/20260627-02-ntree-moe.md
+#   §4 "RECEITAS DE COMPOSIÇÃO (substrate-first)" — the 6 use-case stacks.
+#
+# Schema: a list of recipes. Each recipe:
+#   id        — kebab-case recipe identifier
+#   use_case  — the human use-case name (pt-BR, as in the source)
+#   stack     — ORDERED tool ids (substrates L0+L8+L9 first, then pipeline).
+#               Ids are canonical intake ids (evals/fixtures/intake_verdicts.yaml);
+#               alternatives within a slot are nested as a list [a, b] = "a OR b".
+#   why       — one-line rationale (from the source table)
+#   hitl      — where the human gate is recommended
+#
+# Consumed by lib/registry/hub_registry.py (HubRegistry derives each record's
+# `recipes[]` membership from these stacks). Editing the DERIVED registry
+# projection is the anti-pattern; editing THIS curated promotion is fine.
+
+recipes:
+  - id: new-idea-to-mvp
+    use_case: "Nova ideia → MVP"
+    stack:
+      - karpathy-claude-md
+      - mem0
+      - langfuse
+      - seed
+      - [spec-kit, openspec]
+      - superpowers
+      - open-codesign
+      - frontend-slides
+    why: "Substrato leve; seed estrutura a ideia; spec-kit p/ rigor (ou openspec p/ leve); superpowers garante TDD; studio enxuto+seguro p/ UI; deck p/ pitch."
+    hitl: "escolha spec-kit vs openspec (mutuamente exclusivos) + aprovação do plano (clarify)"
+
+  - id: legacy-refactor
+    use_case: "Refactor de legado"
+    stack:
+      - karpathy-claude-md
+      - base
+      - cognee
+      - langfuse
+      - understand-anything
+      - graphify
+      - openspec
+      - superpowers
+    why: "Legado exige compreensão antes de mudar (understand→graphify); cognee mapeia relações; openspec é brownfield-first; review gates obrigatórios."
+    hitl: "code-review com severidade (Critical blocks); não commitar grafo com segredos"
+
+  - id: enterprise-feature
+    use_case: "Feature enterprise"
+    stack:
+      - karpathy-claude-md
+      - graphiti
+      - langfuse
+      - graphify
+      - spec-kit
+      - [gstack, superpowers]
+      - open-design
+      - slidev
+    why: "spec-kit é o canônico p/ governança/constitution; graphiti dá auditoria temporal; langfuse região HIPAA; gstack traz /cso (OWASP+STRIDE) + coverage gate."
+    hitl: "gates de compliance (/speckit.analyze, /cso); não empilhar gstack+ECC"
+
+  - id: production-deploy
+    use_case: "Deploy de produção"
+    stack:
+      - base
+      - mem0
+      - langfuse
+      - [gsd-core, gstack]
+      - impeccable
+    why: "gsd-core e gstack têm verify-before-ship + PR auto; impeccable é linter determinístico plugável em CI; langfuse evals como gate."
+    hitl: "aprovação do PR + canary; se gsd-core: usar SÓ o fork open-gsd (npm original é perigoso)"
+
+  - id: codebase-onboarding
+    use_case: "Onboarding de codebase"
+    stack:
+      - karpathy-claude-md
+      - cognee
+      - langfuse
+      - understand-anything
+      - graphify
+      - obsidian-skills
+    why: "understand-anything é 'graphs that teach' (onboarding); graphify exporta vault; obsidian-skills deixa o agente enriquecer o vault → loop L4↔L5."
+    hitl: "opcional na revisão do tour/domínio extraído (read-mostly, risco baixo)"
+
+  - id: long-session-memory
+    use_case: "Sessão longa com memória"
+    stack:
+      - karpathy-claude-md
+      - [letta, mem0]
+      - graphiti
+      - langfuse
+      - [ECC, gsd-core]
+      - ruflo
+    why: "Sessão longa precisa de memória que sobrevive a sessões: letta (self-edit) ou mem0+graphiti; ECC/gsd-core persistem STATE/SQLite; ruflo adiciona learning-loop."
+    hitl: "decisão letta-vs-mem0 (letta = lock-in de runtime); ruflo é over-kill se solo/budget-limitado"
