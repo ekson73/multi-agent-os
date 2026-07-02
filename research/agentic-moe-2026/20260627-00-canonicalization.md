@@ -12,6 +12,12 @@ status: "BLOCKING gate — review before Phase 1"
 
 # RUN 0 — Canonicalização + Gate de Segurança/Supply-chain (BLOCKING)
 
+> **🔁 Reframe — MAOS Hub (ADR-006, Accepted 2026-06-29):** o hub **"ATH"** projetado nesta série foi
+> ratificado e realizado como o **MAOS Hub** — a gating-network MoE **nativa** do MAOS (evolução do
+> `maos-mcp-hub`, não um produto novo). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.** Este arquivo é preservado
+> como registro histórico datado (2026-06-27); status vivo do hands-on: `README.md` §"Status do hands-on".
+
+
 > **pt-BR (nota epistêmica):** Esta passada **re-derivou** identidade, estrelas, licença e
 > status de cada item via API **ao vivo** (não confiei nos números do v5). Resultado: várias
 > divergências materiais e **3 achados de segurança/identidade que mudam o set INCLUDED**.

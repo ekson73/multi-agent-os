@@ -1,5 +1,11 @@
 # Phase 3 — Orchestrator/Hub: the MoE Gating Network (middleware Agentic-Tool Orchestrator)
 
+> **🔁 Reframe — MAOS Hub (ADR-006, Accepted 2026-06-29):** o hub **"ATH"** projetado nesta série foi
+> ratificado e realizado como o **MAOS Hub** — a gating-network MoE **nativa** do MAOS (evolução do
+> `maos-mcp-hub`, não um produto novo). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.** Este arquivo é preservado
+> como registro histórico datado (2026-06-27); status vivo do hands-on: `README.md` §"Status do hands-on".
+
+
 > **Título:** Agentic MoE 2026 — desenho concreto do **HUB middleware** = a **gating network** Mixture-of-Experts que roteia um humano ⇄ expert(s) dinamicamente selecionados, montada **sobre** os substratos always-on (L0 guardrails + L8 memory + L9 observability).
 > **Fase:** 3 — Orchestrator/Hub (DESENHO; sem nova pesquisa web — fundamentado em 00 + 02, reusando padrões de 01a/01c/01d).
 > **Observado:** 2026-06-27 (estrelas/licenças = ordem-de-magnitude datada do RUN 0; identidades canonicalizadas no arquivo 00).

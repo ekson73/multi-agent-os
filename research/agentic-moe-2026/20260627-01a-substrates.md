@@ -1,5 +1,11 @@
 # GRUPO 1a — Substratos Always-On (L0 Guardrails · L8 Memory · L9 Observability)
 
+> **🔁 Reframe — MAOS Hub (ADR-006, Accepted 2026-06-29):** o hub **"ATH"** projetado nesta série foi
+> ratificado e realizado como o **MAOS Hub** — a gating-network MoE **nativa** do MAOS (evolução do
+> `maos-mcp-hub`, não um produto novo). **ATH ⊂ agentic-moe-2026 ⊂ MAOS.** Este arquivo é preservado
+> como registro histórico datado (2026-06-27); status vivo do hands-on: `README.md` §"Status do hands-on".
+
+
 > **Pesquisa:** Ecossistema AI-native / agentic software-engineering (Claude Code & cross-harness)
 > **Grupo:** 1a — substrates (always-on)
 > **Observado:** 2026-06-27 (estrelas = ordem de grandeza datada; valores RUN 0 + refinamentos primários quando disponíveis)

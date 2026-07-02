@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs — WT11 MAOS Hub reframe (WAVE 4) — series headers + published artifacts regenerated
+
+- **`research/agentic-moe-2026/` series reframed** — a standardized, grep-able banner
+  (`Reframe — MAOS Hub (ADR-006, Accepted 2026-06-29)`) inserted after the title of the 8 series
+  files (`00-canonicalization` · `01a/b/c/d` · `02-ntree-moe` · `03-orchestrator-hub` ·
+  `final-report`): the "ATH" hub of the series was ratified and realized as the **MAOS Hub**
+  (ATH ⊂ agentic-moe-2026 ⊂ MAOS). History preserved — banners are additive, no rewriting of the
+  dated 2026-06-27 record. *Acceptance (logged field, DoD-gate):*
+  `grep -rl 'Reframe — MAOS Hub (ADR-006' research/agentic-moe-2026/*.md | wc -l` → `8`.
+- **Published artifacts regenerated with the MAOS Hub framing** —
+  `20260627-CONSOLIDATED.html` (retitled + cover reframe banner; `<title>` now
+  "MAOS Hub (Agentic MoE 2026) — …"), `20260627-CONSOLIDATED.pdf` re-printed from the updated HTML
+  (headless Chrome; PDF `/Title` metadata carries the new name — checkable field), and
+  `20260627-exec-deck.pptx` title slide re-titled (3 runs patched via python-pptx).
+- **MVV touch is NOT in this PR** — per ADR-006 §Consequences + ADR-007 §Status discipline the
+  `CLAUDE.md` §Organizational Identity Vision edit is **HITL-escalated**: proposed in a dedicated
+  ratification PR (operator merges; never a side-change in a lateral worktree).
+- **WAVE 4 closes** (this was the WT11 docs slice): remaining backlog = WAVES 5–6 (console T1–T7,
+  community T8–T10) per issue #204 + `openspec/changes/maos-hub-console/tasks.md`.
+
 ### Docs — ATH→MAOS Hub backlog living roadmap (status persisted)
 
 - **`research/agentic-moe-2026/README.md`** — new §"Status do hands-on" living roadmap table (SSOT):
