@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — prose-intent engine (WAVE 5 / T5, ADR-006 + ADR-007)
+
+- **`lib/registry/prose_intent.py`** (`mcp-tools/maos-mcp-hub`): prose need → **bounded interview
+  (≤3 Qs)** → custom profile **DRAFT** (HITL). Deterministic pure-integer token-overlap vs the
+  curated recipe catalog (tokenizer reused from T4 `context_rank` — one tokenizer, one behavior).
+- **The mapping is SHOWN** (T5 acceptance): logged fields — `mapping[]` with per-token reasons
+  (`prose 'legado' matches use-case …`), `draft_ids`, the exact draft YAML, `open_questions`.
+- **Never auto-applies** (T5 acceptance): `applied: false` always; the module has NO write
+  capability — applying routes through the ONE gated path (`console.py select … --confirm`, T3).
+- Fail-closed at DRAFT time: `activation=excluded` ids are dropped + surfaced
+  (`excluded_dropped`); intra-stack OR-alternatives (e.g. `spec-kit` vs `openspec`) become
+  `open_questions` echoing the recipe's own HITL note — never a silent pick. Unmatched prose ⇒
+  the ≤3-Q interview (answer domains from live data) — no fabricated mapping (anti-theater).
+- Tests: `tests/test_prose_intent.py` — 13 tests (shown-mapping, never-applies incl. no-write-API
+  assertion, determinism double-run at engine+CLI, excluded-dropped, conflict-as-open-question,
+  bounded-interview).
+
+
 ### Added — context-aware ranking v1 (WAVE 5 / T4, ADR-006 + ADR-007)
 
 - **`lib/registry/context_rank.py`** (`mcp-tools/maos-mcp-hub`): deterministic ranking of registry
