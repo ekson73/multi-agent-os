@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — hub-registry SSOT (T1 / WAVE 5) — plugin-level registry, derived not hand-maintained
+
+- **`mcp-tools/maos-mcp-hub/lib/registry/hub_registry.py`** — `HubRegistry`: the plugin-level
+  registry SSOT of `openspec/specs/maos-hub-registry/spec.md` (the SSOT the WAVE-5 console and the
+  WAVE-6 integrator read). Records DERIVED from the repo's own sources — `skills/*/SKILL.md` +
+  `agents/*.md` frontmatter (own tools), `evals/fixtures/intake_verdicts.yaml` (third-party:
+  license/provenance/verdict→activation), `lib/gateway/conflicts.yaml` (WAVE-0 Phase-2
+  incompatibilities, round-tripped), `plugin-scripts/governance/lib/conductors.txt` (RULE-011).
+  Full spec field set per record (`activation` · `license_spdx` · `provenance` · `ttl` +
+  `last_validated` · `rollback` · `conflicts_with` · `recipes` · `security_status` …) +
+  `derived_from` (provenance of the derivation itself — the checkable "not hand-maintained" field).
+- **`mcp-tools/maos-mcp-hub/lib/gateway/recipes.yaml`** — the Phase-2 §4 composition recipes
+  promoted into structured data (one-time curated promotion, sibling of `conflicts.yaml`; source
+  cited): 6 use-case stacks the registry projects into each record's `recipes[]`.
+- **Spec scenarios as logged fields (DoD-gate honoured):** "a new skill ships" (synthetic-repo
+  regeneration test) · "third-party proposed as always-on" (`request_activation` refuses on
+  `license_spdx=NONE` / `conflicts_with` edge / non-vetted, reason recorded in `gate_decisions`) ·
+  "two conductors selected" (`conflicts_roundtrip` invariant: registry graph == conflicts.yaml,
+  every endpoint resolves to a record) · "upstream goes stale" (`eject_candidates(today)` flags
+  past-TTL records — the GSD/MemPalace lesson). Deterministic verdict→activation map documented
+  in the module docstring (EXCLUDED/ABANDON→excluded · SUB-AGENT/DEFER→opt-in ·
+  INSTALL/ADAPT/ABSORB→default-on-for-context capped by license/conductor/conflict gates;
+  `always-on` never granted to third-party at derivation).
+- **`mcp-tools/maos-mcp-hub/tests/test_hub_registry.py`** — 20 tests incl. golden derivation over
+  the REAL repo (62 skills · 32 intake entries) + CLI contract
+  (`python -m lib.registry.hub_registry` → `verdict: pass`, exit 1 on any invariant violation).
+  Additive; no plugin version bump (ADR-003). Local pre-existing env failures (py<3.10 unions,
+  absent gateway deps) unchanged vs pristine main — zero regression.
+
+
 ### Removed — Layer-Purity: corp-overlay rules removed (KRDR #160 Phase-B item #1)
 
 - **`rules/agent-delegation.md` [C14], `rules/exit-hygiene.md` [C13], `rules/forge-agent-design.md`
