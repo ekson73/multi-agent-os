@@ -4,8 +4,9 @@
 > S10/S9) · 2026-07-01.
 > **Machine-readable SSOT**: `mcp-tools/maos-mcp-hub/evals/fixtures/intake_verdicts.yaml` — THIS
 > document is the human mirror; when they disagree, the fixture wins (the eval only checks the fixture).
-> **Acceptance (DoD gate — no prose-judged THEN)**: `python -m evals.intake_batch_eval` → logged
-> `verdict: pass` over checks A1..A7 + `tests/test_intake_batch.py` (16 tests).
+> **Acceptance (DoD gate — no prose-judged THEN)**: `cd mcp-tools/maos-mcp-hub && python -m
+> evals.intake_batch_eval` → logged `verdict: pass` over checks A1..A7, plus
+> `cd mcp-tools/maos-mcp-hub && python -m pytest tests/test_intake_batch.py` (16 tests).
 > **Research base (DRY — cited, not re-run)**: `research/agentic-moe-2026/` phases 0–4 (observed
 > 2026-06-27; star counts are order-of-magnitude, not precision) + the WAVE-1/2 adoption precedents
 > (`docs/adoption/mem0-2026-07-01.md`, `docs/adoption/codegraph-2026-06-18.md`).

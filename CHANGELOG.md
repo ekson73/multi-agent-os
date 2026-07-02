@@ -23,8 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checks A1..A7 incl. **A3 cross-SSOT** (the fixture's `conductor_class` must mirror the RULE-011
   enforcement registry `plugin-scripts/governance/lib/conductors.txt`, and no conductor may
   receive a plain INSTALL — the C1 single-conductor invariant asserted over the batch) and **A6**
-  (every evidence ref resolves to a real repo file). `python -m evals.intake_batch_eval` →
-  `verdict: pass`; exit 1 on any violation.
+  (every evidence ref resolves to a real repo file). `cd mcp-tools/maos-mcp-hub && python -m
+  evals.intake_batch_eval` → `verdict: pass`; exit 1 on any violation.
 - **`mcp-tools/maos-mcp-hub/tests/test_intake_batch.py`** — 16 tests: eval verdict + per-check
   parametrized asserts + the two named spec reproductions + cross-SSOT mirror + CLI contract.
 - **`docs/adoption/intake-batch-2026-07-01.md`** — human mirror (fixture wins on disagreement):

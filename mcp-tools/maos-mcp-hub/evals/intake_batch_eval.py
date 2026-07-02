@@ -68,14 +68,22 @@ MEMPALACE_ID = "mempalace"
 MEMPALACE_SUCCESSOR = "mem0ai/mem0"
 
 
+def _read_text(path: Path) -> str:
+    """Robust read: never crash the eval on encoding noise; fail CLEARLY on I/O."""
+    try:
+        return Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        raise SystemExit(f"intake-batch-eval: cannot read {path}: {exc}") from exc
+
+
 def load_fixture(path: Path = VERDICTS_YAML) -> Dict[str, Any]:
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    return yaml.safe_load(_read_text(path)) or {}
 
 
 def load_enforcement_conductors(path: Path = CONDUCTORS_TXT) -> Set[str]:
     """Parse the RULE-011 enforcement SSOT (manager names before the '|')."""
     managers: Set[str] = set()
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
+    for line in _read_text(path).splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "|" not in line:
             continue
@@ -181,7 +189,7 @@ def run_eval(
     a6 = True
     for e in entries:
         for ref in e.get("evidence") or []:
-            if not (_REPO_ROOT / str(ref)).exists():
+            if not (_REPO_ROOT / str(ref)).is_file():
                 a6 = False
                 violations.append(f"A6: {e.get('id')} evidence not found: {ref}")
 

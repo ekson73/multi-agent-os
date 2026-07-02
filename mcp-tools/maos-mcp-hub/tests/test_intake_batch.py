@@ -62,8 +62,10 @@ def test_each_check_true(report, check):
 
 def test_gsd_rug_pull_reproduced(fixture):
     gsd = next(
-        e for e in fixture["entries"] if e["repo"] == "gsd-build/get-shit-done"
+        (e for e in fixture["entries"] if e["repo"] == "gsd-build/get-shit-done"),
+        None,
     )
+    assert gsd is not None, "fixture missing the gsd-build/get-shit-done EXCLUDED entry"
     assert gsd["set"] == "EXCLUDED"
     assert gsd["verdict"] == "EXCLUDED"
     assert gsd["blocked"] is True
@@ -72,7 +74,8 @@ def test_gsd_rug_pull_reproduced(fixture):
 
 
 def test_mempalace_reproduced(fixture):
-    mp = next(e for e in fixture["entries"] if e["id"] == "mempalace")
+    mp = next((e for e in fixture["entries"] if e["id"] == "mempalace"), None)
+    assert mp is not None, "fixture missing the mempalace EXCLUDED entry"
     assert mp["set"] == "EXCLUDED"
     assert mp["blocked"] is True
     assert mp["safe_successor"] == "mem0ai/mem0"

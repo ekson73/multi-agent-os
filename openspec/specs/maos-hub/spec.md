@@ -60,13 +60,14 @@ star-manipulation / abandonment classes, reproducing the EXCLUDED verdicts for `
 - WHEN a tool matches an EXCLUDED supply-chain signature
 - THEN it is blocked from routing and the operator is shown the evidence + a safe successor (e.g.
   `open-gsd/gsd-core`). *(Reproduced WT10 — the batch-intake golden fixture
-  `evals/fixtures/intake_verdicts.yaml` dispositions the 26 INCLUDED experts + the graphiti BRIDGE
-  and reproduces the EXCLUDED verdicts for `gsd-build/get-shit-done` (safe successor
-  `open-gsd/gsd-core`) and `mempalace` (safe successor `mem0ai/mem0`) as `blocked: true` records
-  with evidence refs; acceptance = `python -m evals.intake_batch_eval` logged verdict, checks
-  A1..A7 — incl. A3 cross-SSOT: the fixture's `conductor_class` mirrors
-  `plugin-scripts/governance/lib/conductors.txt` and no conductor receives a plain INSTALL — plus
-  `tests/test_intake_batch.py`; human mirror `docs/adoption/intake-batch-2026-07-01.md`.)*
+  `mcp-tools/maos-mcp-hub/evals/fixtures/intake_verdicts.yaml` dispositions the 26 INCLUDED experts
+  + the graphiti BRIDGE and reproduces the EXCLUDED verdicts for `gsd-build/get-shit-done` (safe
+  successor `open-gsd/gsd-core`) and `mempalace` (safe successor `mem0ai/mem0`) as `blocked: true`
+  records with evidence refs; acceptance = `cd mcp-tools/maos-mcp-hub && python -m
+  evals.intake_batch_eval` logged verdict, checks A1..A7 — incl. A3 cross-SSOT: the fixture's
+  `conductor_class` mirrors `plugin-scripts/governance/lib/conductors.txt` and no conductor
+  receives a plain INSTALL — plus `cd mcp-tools/maos-mcp-hub && python -m pytest
+  tests/test_intake_batch.py`; human mirror `docs/adoption/intake-batch-2026-07-01.md`.)*
 
 ### Requirement: HITL on irreversible / high-risk
 The Hub SHALL require a human checkpoint before any action classified risk=HIGH or irreversible, and
