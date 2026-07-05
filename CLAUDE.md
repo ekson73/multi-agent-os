@@ -332,6 +332,8 @@ Entry points: skill `delegate-governance` (discoverable) + CLI `plugin-scripts/g
 ### Vision (A Teleologia)
 
 > **Tornar-se o padrão de facto para orquestração de agentes AI em desenvolvimento de software, onde qualquer equipe que use múltiplos AI agents possa adotar este framework como "sistema operacional" para coordenação, assim como Kubernetes é o padrão para orquestração de containers.**
+>
+> **MAOS is the open-source MoE gating hub for agentic software engineering** — o **MAOS Hub** (ADR-006, Accepted 2026-06-29) é a gating-network Mixture-of-Experts nativa que roteia humano ⇄ experts curados sobre substratos always-on (guardrails · memória · observabilidade), evolução do `maos-mcp-hub`; a face comunitária (curated front-door: integrator · registry · console) é regida pelo ADR-007.
 
 ### Values (A Ética)
 
