@@ -35,6 +35,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now 100% closed**; WAVE 6 (T7–T10 community front-door) remains at the operator gate
   (tracking: issue #204).
 
+### Added — MAOS Agora conflict-checker (issue #182 — the ADR-007 re-ratification wedge)
+
+- **`bin/conflict-checker.py`** — single input (a tool stack) → collision report over the 16
+  curated incompatibility edges (`conflicts.yaml`), powered by the #180 gating-seam engine.
+  Inputs: `--stack` · `--stack-file` · `--rule011` (composes the #188 single-conductor scan —
+  detect → cross → report, zero re-implementation). Output: human report + `--json` logged
+  fields (`schema maos-conflict-checker/1`, collisions[{a,b,layer,reason,engine_confirmed}],
+  unknown_ids, verdict). Exit 0 clean · 2 conflicted. Every collision is cross-confirmed by a
+  live `PolicyResolver.check()` (two independent derivations must agree).
+- **`lib/gateway/policy.py`**: new `load_conflict_records()` (rich `{a,b,reason,layer}` edges);
+  `load_conflicts()` now derives from it — one parser, two views, existing contract intact
+  (16/16 policy tests green).
+- **`plugin-scripts/governance/lib/conductors.txt`**: +1 superpowers signature
+  (`plugins/cache/superpowers-marketplace`, the post-2026-06 Claude Code plugin layout) —
+  a REAL detection gap found by the dogfood cycle (install present, both old paths missed).
+- Tests: `bin/tests/test_conflict_checker.py` — 17 checks (golden 6-known-collisions ·
+  engine-confirmation · determinism byte-stable · RULE-011 composition · CLI exit codes) +
+  conductor-scan regression 23/23.
+- **Dogfood cycle 001 recorded (complete, ratified)**: run on the operator's REAL environment —
+  RULE-011 detected `gstack`+`superpowers` (user scope) → checker reported the genuine
+  **superpowers × gstack L2 collision** ("competing always-on instruction layers"). The tool
+  proved internal utility on first self-use — the #183 R2 demand-probe unblock criteria are met.
+
 ### Added — activation taxonomy applied + karpathy principles internalized (WAVE 5 / T6, ADR-006)
 
 - **`skills/deliberate-coding/SKILL.md`** — MAOS-native articulation of the deliberation-before-

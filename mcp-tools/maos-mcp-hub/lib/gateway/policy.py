@@ -186,6 +186,41 @@ class PolicyResolver:
         return cls(profile=profile, conflicts=edges)
 
 
+def load_conflict_records(path: Path) -> List[Dict[str, str]]:
+    """Parse a conflicts YAML file into RICH edge records (issue #182).
+
+    Returns one ``{a, b, reason, layer}`` dict per edge — ``reason`` and
+    ``layer`` default to ``""`` for bare ``[a, b]`` pairs. Same validation
+    contract as :func:`load_conflicts` (ValueError on malformed edges so a
+    broken file fails loudly). Consumers that only need the pair topology
+    should keep using :func:`load_conflicts` (which now derives from this).
+    """
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    items = raw.get("conflicts", []) if isinstance(raw, dict) else raw
+    records: List[Dict[str, str]] = []
+    for entry in items or []:
+        if isinstance(entry, (list, tuple)):
+            if len(entry) < 2:
+                raise ValueError(f"Conflict edge needs 2 ids, got: {entry!r}")
+            records.append(
+                {"a": str(entry[0]), "b": str(entry[1]), "reason": "", "layer": ""}
+            )
+        elif isinstance(entry, dict):
+            if "a" not in entry or "b" not in entry:
+                raise ValueError(f"Conflict mapping needs 'a' and 'b': {entry!r}")
+            records.append(
+                {
+                    "a": str(entry["a"]),
+                    "b": str(entry["b"]),
+                    "reason": str(entry.get("reason", "") or ""),
+                    "layer": str(entry.get("layer", "") or ""),
+                }
+            )
+        else:
+            raise ValueError(f"Unsupported conflict entry: {entry!r}")
+    return records
+
+
 def load_conflicts(path: Path) -> List[Tuple[str, str]]:
     """Parse a conflicts YAML file into a list of (a, b) edge tuples.
 
@@ -193,19 +228,4 @@ def load_conflicts(path: Path) -> List[Tuple[str, str]]:
     with ``a``/``b`` keys (extra keys like ``reason`` are ignored). Raises
     ValueError on malformed edges so a broken file fails loudly.
     """
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
-    items = raw.get("conflicts", []) if isinstance(raw, dict) else raw
-    edges: List[Tuple[str, str]] = []
-    for entry in items or []:
-        if isinstance(entry, (list, tuple)):
-            if len(entry) < 2:
-                raise ValueError(f"Conflict edge needs 2 ids, got: {entry!r}")
-            a, b = str(entry[0]), str(entry[1])
-        elif isinstance(entry, dict):
-            if "a" not in entry or "b" not in entry:
-                raise ValueError(f"Conflict mapping needs 'a' and 'b': {entry!r}")
-            a, b = str(entry["a"]), str(entry["b"])
-        else:
-            raise ValueError(f"Unsupported conflict entry: {entry!r}")
-        edges.append((a, b))
-    return edges
+    return [(r["a"], r["b"]) for r in load_conflict_records(path)]

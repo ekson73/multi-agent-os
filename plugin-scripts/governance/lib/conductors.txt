@@ -20,6 +20,9 @@ bmad-method|skills/bmad-method
 # superpowers — always-on L2 instruction layer (skill / marketplace install)
 superpowers|skills/superpowers
 superpowers|plugins/marketplaces/superpowers
+# post-2026-06 Claude Code plugin layout (marketplace cache dir). Gap found by
+# the #182 conflict-checker dogfood: install PRESENT, both old paths missed it.
+superpowers|plugins/cache/superpowers-marketplace
 
 # gstack — "virtual eng team" L2 manager (rewrites CLAUDE.md)
 gstack|skills/gstack
