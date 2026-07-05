@@ -14,7 +14,7 @@ aiolimiter>=1.2.1
 pydantic>=2.13.4
 
 # YAML parsing (gateway policy + eval fixtures)
-PyYAML>=6.0.2
+PyYAML>=6.0.3
 
 # Environment variable loading (for local development)
 python-dotenv>=1.2.2
