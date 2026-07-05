@@ -18,7 +18,9 @@ Input modes (exactly ONE):
 Output: human-readable report (default) · ``--json`` = logged fields
 (the DoD-GATE surface — acceptance is a checkable field, never prose).
 
-Exit codes: 0 = clean · 2 = collisions found · 1 = usage/load error.
+Exit codes: 0 = clean · 2 = collisions found · 1 = usage/load/engine-
+inconsistency error (argparse usage errors are remapped from 2 → 1 so a CI
+consumer can never mistake a malformed invocation for "conflicts found").
 
 Every reported collision is cross-confirmed by the live PolicyResolver
 (``engine_confirmed``): the same edge must also DENY under
@@ -54,6 +56,11 @@ def _import_policy():
     mod_path = _HUB_ROOT / "lib" / "gateway" / "policy.py"
     try:
         spec = importlib.util.spec_from_file_location("maos_hub_policy", mod_path)
+        if spec is None or spec.loader is None:
+            raise SystemExit(
+                f"conflict-checker: cannot load the gating engine "
+                f"(no importable module spec at {mod_path})."
+            )
         policy = importlib.util.module_from_spec(spec)
         # dataclasses resolve their owning module through sys.modules —
         # register BEFORE exec or @dataclass blows up under Python 3.12+.
@@ -99,6 +106,11 @@ def _parse_rule011(source: str) -> List[str]:
             continue
         if obj.get("rule") == "RULE-011":
             conductors = obj.get("detected_conductors", [])
+            if not isinstance(conductors, list):
+                raise SystemExit(
+                    "conflict-checker: RULE-011 'detected_conductors' must be "
+                    f"a list, got {type(conductors).__name__}."
+                )
             return [str(c) for c in conductors if c]
     raise SystemExit(
         "conflict-checker: no RULE-011 JSON line found in the given input."
@@ -141,6 +153,10 @@ def analyze(
     known = {r["a"] for r in records} | {r["b"] for r in records}
     return {
         "schema": SCHEMA,
+        # True iff EVERY listed collision was independently re-derived by the
+        # live PolicyResolver. False = internal inconsistency between the
+        # edge-list and the engine => the run exits 1 (error), never 0/2.
+        "engine_agreement": all(c["engine_confirmed"] for c in collisions),
         "conflicts_file": str(conflicts_path),
         "edges_loaded": len(records),
         "stack": ids,
@@ -193,8 +209,17 @@ def render_human(report: Dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+class _Parser(argparse.ArgumentParser):
+    """argparse exits 2 on usage error — the same code this CLI reserves for
+    'collisions found'. Remap usage errors to exit 1 (the error band)."""
+
+    def error(self, message: str) -> "NoReturn":  # type: ignore[name-defined]
+        self.print_usage(sys.stderr)
+        raise SystemExit(f"conflict-checker: {message}")  # str => exit code 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
+    ap = _Parser(
         prog="conflict-checker",
         description="Cross a tool stack against the curated MAOS "
         "incompatibility edge-list (issue #182).",
@@ -232,6 +257,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
     else:
         print(render_human(report))
+    if not report["engine_agreement"]:
+        print(
+            "conflict-checker: ERROR — edge-list and PolicyResolver disagree "
+            "on ≥1 collision (engine_confirmed=false). Results are not "
+            "trustworthy; inspect lib/gateway/policy.py vs conflicts.yaml.",
+            file=sys.stderr,
+        )
+        return 1
     return 2 if report["verdict"] == "conflicted" else 0
 
 

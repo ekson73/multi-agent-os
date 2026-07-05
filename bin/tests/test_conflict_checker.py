@@ -84,6 +84,10 @@ check(
     all(c["layer"] and c["reason"] for c in report["collisions"]),
 )
 check("golden: schema tag present", report["schema"] == cc.SCHEMA)
+check(
+    "golden: engine_agreement true (edge-list × resolver consistent)",
+    report["engine_agreement"] is True,
+)
 
 # ---------------------------------------------------------------------------
 # clean stack
@@ -151,7 +155,24 @@ parsed = json.loads(p.stdout)
 check("cli: --json is parseable + clean verdict", parsed["verdict"] == "clean")
 
 p = subprocess.run([py, str(_MOD)], capture_output=True, text=True)
-check("cli: no input mode → usage error (exit 2 from argparse)", p.returncode != 0)
+check(
+    "cli: usage error exits 1, NOT 2 (never confusable with 'conflicted')",
+    p.returncode == 1,
+    f"rc={p.returncode}",
+)
+
+# rule011 robustness: detected_conductors MUST be a list (string => error)
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    f.write('{"rule":"RULE-011","detected_conductors":"gstack"}\n')
+    bad_rule011 = f.name
+p = subprocess.run(
+    [py, str(_MOD), "--rule011", bad_rule011], capture_output=True, text=True
+)
+check(
+    "rule011: non-list detected_conductors → exit 1 with clear error",
+    p.returncode == 1 and "must be a list" in p.stderr,
+    f"rc={p.returncode} err={p.stderr[:120]}",
+)
 
 # ---------------------------------------------------------------------------
 print(f"\n{PASS} passed, {FAIL} failed")
