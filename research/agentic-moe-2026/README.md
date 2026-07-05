@@ -11,7 +11,7 @@
 - `20260627-00-canonicalization.md` — Fase 0: canonicalização + gate de supply-chain (EXCLUÍDOS: GSD `$GSD` rug-pull, MemPalace).
 - `20260627-01a-substrates.md` · `01b-knowledge.md` · `01c-pipeline.md` · `01d-amplifier.md` — Fase 1: landscape L0–L9 (26 experts INCLUDED).
 - `20260627-02-ntree-moe.md` — Fase 2: N-Tree / MoE routing graph + receitas + incompatibilidades.
-- `20260627-03-orchestrator-hub.md` — Fase 3: o hub (ATH) — artefatos (a)–(m). **→ a realizar como MAOS Hub (proposto, pendente ratificação).**
+- `20260627-03-orchestrator-hub.md` — Fase 3: o hub (ATH) — artefatos (a)–(m). **→ realizado como MAOS Hub (ADR-006 Accepted 2026-06-29; WAVES 0–5 entregues).**
 - `20260627-final-report.md` — síntese + reconciliação de estrelas/licenças + cheat-sheet de roteamento.
 
 ### 2. Publicação
@@ -30,7 +30,7 @@ Abra o `20260627-HANDOFF-claude-code.md`, copie o bloco de prompt e cole numa se
 no repo `multi-agent-os`. Ele executa o backlog P0→P2 (single-conductor, AgentShield, ISO universal,
 CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em seu próprio worktree → PR → squash-merge.
 
-## Status do hands-on — roadmap vivo (SSOT desta tabela; atualizada 2026-07-02)
+## Status do hands-on — roadmap vivo (SSOT desta tabela; atualizada 2026-07-05)
 
 > Execução via `/maos:quiesce GO 20260627-HANDOFF-claude-code.md` (sessões Claude Code,
 > auto-merge sob standing authorization; gate humano reportado ao fim de cada WAVE).
@@ -46,7 +46,7 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 2 | WT8 tool-registry auto-gerado (keystone) | S1 | 🟢 merged | [#200](https://github.com/ekson73/multi-agent-os/pull/200) |
 | 3 | WT10 intake-batch — 26 experts como dados | S10/S9 | 🟢 merged (2026-07-02) | [#201](https://github.com/ekson73/multi-agent-os/pull/201) |
 | 4 | WT11 docs reframe + CONSOLIDATED/deck regen | — | 🟢 merged (2026-07-02) | [#205](https://github.com/ekson73/multi-agent-os/pull/205) |
-| 4 | WT11-MVV Vision touch no `CLAUDE.md` (**HITL** — operator ratifica; nunca auto-merge) | — | 🟠 aguardando ratificação | [#206](https://github.com/ekson73/multi-agent-os/pull/206) |
+| 4 | WT11-MVV Vision touch no `CLAUDE.md` (**HITL** — operator ratificou; nunca auto-merge) | — | 🟢 merged (2026-07-05, ratificado pelo operador) | [#206](https://github.com/ekson73/multi-agent-os/pull/206) |
 | — | WT6 OTel-Sentinel | — | ⏸ DEFERRED (C3 severidade baixa; sem consumidor de telemetria) | — |
 | — | WT7 LiteLLM router | — | ✂️ CUT (os3pd adia gateway de runtime até ≥3 incidentes) | — |
 | 5 | T1 hub-registry SSOT (plugin-level, derived; + fix-PDCA [#211](https://github.com/ekson73/multi-agent-os/pull/211)) | ADR-007 | 🟢 merged (2026-07-02) | [#209](https://github.com/ekson73/multi-agent-os/pull/209) |

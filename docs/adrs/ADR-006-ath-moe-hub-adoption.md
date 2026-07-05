@@ -82,9 +82,10 @@ itself; **validate and decide.**
   *companions* that reference `research/agentic-moe-2026/` rather than duplicating it.
 - **Follow-ups (separate PRs, GitHub Flow per ADR-004)**: P0 `single-conductor` rule in
   `agentic-tool-intake`; P0 expand `pii-masking`→AgentShield; then the P1/P2 gap items.
-- **MVV touch (proposed)**: add to the Vision — *"MAOS is the open-source MoE gating hub (ATH) for
-  agentic software engineering"* — to be applied to `CLAUDE.md` §Organizational Identity in the
-  ratifying PR.
+- **MVV touch (delivered)**: added to the Vision — *"MAOS is the open-source MoE gating hub (ATH) for
+  agentic software engineering"* — applied to `CLAUDE.md` §Organizational Identity via the dedicated
+  HITL ratification PR #206 (operator-ratified + merged 2026-07-05; never auto-merged, per the
+  bootstrap-SSOT escalation discipline).
 - **Ratified 2026-06-29** (operator ekson73, HITL — recorded in the goal-loop session). **WAVE-0, the
   gating-seam, already shipped in the same cycle** (PR #180: `lib/gateway/{policy.py,conflicts.yaml}` +
   `router.py` pre-dispatch check; additive `policy=None` passthrough; 0-regression, 192 pass proven on
@@ -92,7 +93,8 @@ itself; **validate and decide.**
   **single-conductor invariant** (Decision §4) and the **always-on collision rule** (do NOT co-reside
   ECC/superpowers/gstack/BASE — route via `agentic-tool-intake`, never stack runtimes) are now **active
   guidance**, not proposals. **ADR-007 remains Draft (frozen)** — only ADR-006 is ratified. The
-  CLAUDE.md Vision/MVV touch above stays a deferred follow-up (bootstrap-SSOT edit; not bundled here).
+  CLAUDE.md Vision/MVV touch above was subsequently delivered via dedicated HITL PR #206
+  (operator-ratified + merged 2026-07-05 — bootstrap-SSOT edit, never bundled in a lateral WT).
 
 ## References
 
