@@ -5,6 +5,7 @@ import os
 
 import pytest
 
+from conftest import EXPECTED_GATEWAY_ACTIONS, EXPECTED_TOTAL_ACTIONS
 from lib.gateway.types import GatewayRequest
 
 
@@ -49,12 +50,12 @@ def test_discover_action_counts(monkeypatch):
     async def run():
         result = await discover()
         d = result["domains"]
-        assert d["jira"]["actions"] == 27  # VKS-2080: +5 Sprint+Version CRUD
-        assert d["confluence"]["actions"] == 12
-        assert d["bitbucket"]["actions"] == 55  # VKS-1853: +3 PR ops
-        assert d["compass"]["actions"] == 6
-        assert d["common"]["actions"] == 4
-        assert result["total_actions"] == 104  # VKS-2080: 99 + 5
+        # Per-gateway counts + total come from ONE SSOT (conftest, issue #202).
+        for gateway, expected in EXPECTED_GATEWAY_ACTIONS.items():
+            assert d[gateway]["actions"] == expected, (
+                f"{gateway}: expected {expected}, got {d[gateway]['actions']}"
+            )
+        assert result["total_actions"] == EXPECTED_TOTAL_ACTIONS
 
     asyncio.run(run())
 
@@ -128,7 +129,7 @@ def test_common_router_action_count(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Cross-gateway: total action count = 104 (VKS-2080: 99 + 5)
+# Cross-gateway: total action count (SSOT: conftest.EXPECTED_TOTAL_ACTIONS)
 # ---------------------------------------------------------------------------
 
 def test_total_action_count_across_all_gateways(monkeypatch):
@@ -146,4 +147,7 @@ def test_total_action_count_across_all_gateways(monkeypatch):
         + comp_router().action_count
         + common_router().action_count
     )
-    assert total == 104, f"Expected 104 total actions (VKS-2080: 99 + 5), got {total}"
+    assert total == EXPECTED_TOTAL_ACTIONS, (
+        f"Expected {EXPECTED_TOTAL_ACTIONS} total actions "
+        f"(SSOT: tests/conftest.py EXPECTED_GATEWAY_ACTIONS), got {total}"
+    )

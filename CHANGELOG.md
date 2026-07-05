@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — gateway action-count drift 105 vs 104 (issue #202)
+
+- **Test-suite action-count SSOT** (`mcp-tools/maos-mcp-hub/tests/conftest.py`):
+  `EXPECTED_GATEWAY_ACTIONS` + `EXPECTED_TOTAL_ACTIONS` (= 105) — the ONE bump point when a
+  gateway gains/loses an action. `test_gateway_discover.py` (per-gateway + cross-gateway
+  totals) and `test_hub_registration.py` (startup-log line) now consume it — closes the
+  drift class where PR #151 added `pull_request.decline` (105th action) without updating
+  three hardcoded `104` assertions (pre-existing RED on clean main, surfaced in #201).
+- Doc sync to the real count: `hub.py` self-description/docstring/section header,
+  `mcp-tools/maos-mcp-hub/README.md` (×3) and root `CLAUDE.md` gateway table
+  (jira 27 · bitbucket 56 · total 105 — was 3 bumps stale at 22/52/96).
+- Boy-scout: removed stray empty file `mcp-tools/maos-mcp-hub/=6.0.2` (unquoted
+  `pip install pyyaml>=6.0.2` shell-redirect artifact, accidentally committed in #201).
+  Full hub suite: **382 passed** (was 379 + 3 failed).
+
+
 ### Changed — MVV Vision touch ratified + WAVE 4 closed (ADR-006 §Consequences follow-up)
 
 - **`CLAUDE.md` §Organizational Identity (Vision)** — the MAOS-Hub MoE sentence proposed by
