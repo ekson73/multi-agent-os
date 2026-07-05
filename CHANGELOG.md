@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — MVV Vision touch ratified + WAVE 4 closed (ADR-006 §Consequences follow-up)
+
+- **`CLAUDE.md` §Organizational Identity (Vision)** — the MAOS-Hub MoE sentence proposed by
+  ADR-006 §Consequences was **ratified by the operator (HITL) and merged via the dedicated
+  PR #206 (2026-07-05)** — never auto-merged, per the bootstrap-SSOT escalation discipline
+  (a `CLAUDE.md` bootstrap edit only lands in its own ratification PR, never in a lateral WT).
+- Docs sync: ADR-006 §Consequences flipped `MVV touch (proposed)` → `(delivered)`; chapter
+  roadmap SSOT (`research/agentic-moe-2026/README.md`) WT11-MVV row → 🟢 merged. **WAVE 4 is
+  now 100% closed**; WAVE 6 (T7–T10 community front-door) remains at the operator gate
+  (tracking: issue #204).
+
 ### Added — activation taxonomy applied + karpathy principles internalized (WAVE 5 / T6, ADR-006)
 
 - **`skills/deliberate-coding/SKILL.md`** — MAOS-native articulation of the deliberation-before-
