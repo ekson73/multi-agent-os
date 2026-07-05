@@ -1,6 +1,8 @@
 from pathlib import Path
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -22,4 +24,17 @@ EXPECTED_GATEWAY_ACTIONS = {
     "common": 4,
 }
 EXPECTED_TOTAL_ACTIONS = sum(EXPECTED_GATEWAY_ACTIONS.values())  # 105
+
+
+# Fixtures — the supported consumption surface. Tests take these as args
+# instead of `from conftest import ...` (fragile in a repo with multiple
+# conftest.py files / pytest sys.path caching — PR #222 review consensus).
+@pytest.fixture
+def expected_gateway_actions():
+    return dict(EXPECTED_GATEWAY_ACTIONS)
+
+
+@pytest.fixture
+def expected_total_actions():
+    return EXPECTED_TOTAL_ACTIONS
 

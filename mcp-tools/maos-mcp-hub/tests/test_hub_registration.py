@@ -14,8 +14,6 @@ import pathlib
 import subprocess
 import sys
 
-from conftest import EXPECTED_TOTAL_ACTIONS
-
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -64,15 +62,15 @@ def test_hub_exposes_exactly_six_mcp_tools():
     assert "Total MCP tools: 6" in log, log
 
 
-def test_hub_registers_six_atlassian_gateways():
+def test_hub_registers_six_atlassian_gateways(expected_total_actions):
     """All 6 atlassian_* gateways must be registered with the SSOT action total.
 
     The expected count lives in ONE place — tests/conftest.py
-    ``EXPECTED_TOTAL_ACTIONS`` (issue #202) — with the bump history
-    (VKS-1853: 96→99 · VKS-2080: 99→104 · #151: 104→105).
+    ``EXPECTED_TOTAL_ACTIONS`` (issue #202), consumed via fixture — with the
+    bump history (VKS-1853: 96→99 · VKS-2080: 99→104 · #151: 104→105).
     """
     log = _run_hub()
-    expected = f"6 gateways registered ({EXPECTED_TOTAL_ACTIONS} actions)"
+    expected = f"6 gateways registered ({expected_total_actions} actions)"
     assert expected in log, log
 
 

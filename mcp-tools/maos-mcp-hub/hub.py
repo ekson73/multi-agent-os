@@ -16,7 +16,7 @@ Architecture:
     ├── discover/   → atlassian_discover   (catalog)
     ├── jira/       → atlassian_jira       (27 actions)
     ├── confluence/ → atlassian_confluence (12 actions)
-    ├── bitbucket/  → atlassian_bitbucket  (55 actions, VKS-1853 v2.2)
+    ├── bitbucket/  → atlassian_bitbucket  (56 actions, VKS-1853 + #151)
     ├── compass/    → atlassian_compass    (6 actions)
     └── common/     → atlassian_common     (4 actions)
 

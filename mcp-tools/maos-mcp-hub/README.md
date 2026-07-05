@@ -177,7 +177,7 @@ AI providers impose tool-count limits that break flat namespaces at scale:
 | Windsurf | 100       |
 | ChatGPT  | ~30       |
 
-With 55 Bitbucket tools and Jira/Confluence/Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
+With 56 Bitbucket tools and Jira/Confluence/Compass on the roadmap, the flat namespace (`bitbucket_get_recent_builds`, `jira_get_issue`, ...) would hit limits immediately.
 
 ### Solution: 6 Typed Gateways
 
@@ -188,7 +188,7 @@ The Meta-Tools Gateway collapses **105 actions** (v2.3.0 + #151) into **6 MCP to
 | **Discover** | `atlassian_discover` | -- | Catalog of all domains and action counts |
 | **Jira** | `atlassian_jira` | 27 | Issues, boards, sprints (list/create/update), versions (create/release), estimation, comments, worklogs, links, search |
 | **Confluence** | `atlassian_confluence` | 12 | Pages, comments, spaces, search (CQL) |
-| **Bitbucket** | `atlassian_bitbucket` | 55 | Pipelines, PRs (incl. add/reply comment, update description — VKS-1853), branches, deployments, tests, caches |
+| **Bitbucket** | `atlassian_bitbucket` | 56 | Pipelines, PRs (incl. add/reply comment, update description — VKS-1853; decline — #151), branches, deployments, tests, caches |
 | **Compass** | `atlassian_compass` | 6 | Service registry, components, relationships, custom fields |
 | **Common** | `atlassian_common` | 4 | User info, accessible resources, server info |
 
@@ -262,7 +262,7 @@ gateways/                          ← Meta-tool gateway layer
 │   └── actions.py                 ← 12 actions across 4 resources
 ├── bitbucket/
 │   ├── gateway.py
-│   └── actions.py                 ← 55 actions across 9 resources (VKS-1853)
+│   └── actions.py                 ← 56 actions across 9 resources (VKS-1853 + #151)
 ├── compass/
 │   ├── gateway.py
 │   └── actions.py                 ← 6 actions across 3 resources
