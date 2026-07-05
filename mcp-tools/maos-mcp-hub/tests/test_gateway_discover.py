@@ -42,19 +42,21 @@ def test_discover_returns_all_domains(monkeypatch):
     asyncio.run(run())
 
 
-def test_discover_action_counts(monkeypatch):
+def test_discover_action_counts(
+    monkeypatch, expected_gateway_actions, expected_total_actions
+):
     _setup_env(monkeypatch)
     from gateways.discover.actions import discover
 
     async def run():
         result = await discover()
         d = result["domains"]
-        assert d["jira"]["actions"] == 27  # VKS-2080: +5 Sprint+Version CRUD
-        assert d["confluence"]["actions"] == 12
-        assert d["bitbucket"]["actions"] == 55  # VKS-1853: +3 PR ops
-        assert d["compass"]["actions"] == 6
-        assert d["common"]["actions"] == 4
-        assert result["total_actions"] == 104  # VKS-2080: 99 + 5
+        # Per-gateway counts + total come from ONE SSOT (conftest, issue #202).
+        for gateway, expected in expected_gateway_actions.items():
+            assert d[gateway]["actions"] == expected, (
+                f"{gateway}: expected {expected}, got {d[gateway]['actions']}"
+            )
+        assert result["total_actions"] == expected_total_actions
 
     asyncio.run(run())
 
@@ -128,10 +130,10 @@ def test_common_router_action_count(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Cross-gateway: total action count = 104 (VKS-2080: 99 + 5)
+# Cross-gateway: total action count (SSOT: conftest.EXPECTED_TOTAL_ACTIONS)
 # ---------------------------------------------------------------------------
 
-def test_total_action_count_across_all_gateways(monkeypatch):
+def test_total_action_count_across_all_gateways(monkeypatch, expected_total_actions):
     _setup_env(monkeypatch)
     from gateways.jira.actions import build_router as jira_router
     from gateways.confluence.actions import build_router as conf_router
@@ -146,4 +148,7 @@ def test_total_action_count_across_all_gateways(monkeypatch):
         + comp_router().action_count
         + common_router().action_count
     )
-    assert total == 104, f"Expected 104 total actions (VKS-2080: 99 + 5), got {total}"
+    assert total == expected_total_actions, (
+        f"Expected {expected_total_actions} total actions "
+        f"(SSOT: tests/conftest.py EXPECTED_GATEWAY_ACTIONS), got {total}"
+    )
