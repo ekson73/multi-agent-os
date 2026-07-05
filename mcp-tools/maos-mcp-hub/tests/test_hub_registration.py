@@ -62,16 +62,16 @@ def test_hub_exposes_exactly_six_mcp_tools():
     assert "Total MCP tools: 6" in log, log
 
 
-def test_hub_registers_six_atlassian_gateways():
-    """All 6 atlassian_* gateways must be registered with 104 actions total.
+def test_hub_registers_six_atlassian_gateways(expected_total_actions):
+    """All 6 atlassian_* gateways must be registered with the SSOT action total.
 
-    VKS-1853 (2026-04-23): +3 pull_request ops (add_comment,
-    update_description, reply_to_comment) brought total from 96 to 99.
-    VKS-2080 (2026-06-01): +5 Jira Agile ops (sprint list/create/update,
-    version create/release) bring total from 99 to 104.
+    The expected count lives in ONE place — tests/conftest.py
+    ``EXPECTED_TOTAL_ACTIONS`` (issue #202), consumed via fixture — with the
+    bump history (VKS-1853: 96→99 · VKS-2080: 99→104 · #151: 104→105).
     """
     log = _run_hub()
-    assert "6 gateways registered (104 actions)" in log, log
+    expected = f"6 gateways registered ({expected_total_actions} actions)"
+    assert expected in log, log
 
 
 def test_hub_does_not_register_flat_bitbucket_tools():

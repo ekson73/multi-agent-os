@@ -240,14 +240,14 @@ The `mcp-tools/maos-mcp-hub/` directory contains a universal MCP gateway exposin
 
 ### Meta-Tools Gateway
 
-6 Atlassian gateways collapsing 96 actions into typed meta-tools to stay within AI-provider tool limits:
+6 Atlassian gateways collapsing 105 actions into typed meta-tools to stay within AI-provider tool limits:
 
 | Tool | Actions | Scope |
 |------|---------|-------|
 | `atlassian_discover` | -- | Domain catalog |
-| `atlassian_jira` | 22 | Issues, boards, estimation, search |
+| `atlassian_jira` | 27 | Issues, boards, estimation, search |
 | `atlassian_confluence` | 12 | Pages, comments, spaces |
-| `atlassian_bitbucket` | 52 | Pipelines, PRs, branches |
+| `atlassian_bitbucket` | 56 | Pipelines, PRs, branches |
 | `atlassian_compass` | 6 | Service registry |
 | `atlassian_common` | 4 | User info, server info |
 
