@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://multi-agent-os/skills/decompose-abstract-to-measurable/measurement-spec.schema.json",
+  "title": "measurement-spec",
+  "description": "Input contract for aggregate_spec.py (decompose-abstract-to-measurable / Prisma). A value-tree DAG binding an abstract construct to measurable leaves. The LLM authors this; the deterministic script consumes it and never mutates it.",
+  "type": "object",
+  "required": ["meta", "nodes"],
+  "additionalProperties": true,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["construct", "context_lock"],
+      "description": "context_lock is the Step-0 hard gate — a context-free construct is refused (SpecError).",
+      "properties": {
+        "construct": {"type": "string", "description": "the abstract thing being measured, e.g. 'is this PR healthy?'"},
+        "version": {"type": "string"},
+        "context_lock": {
+          "type": "object",
+          "description": "anti-theater Layer 2 binding — a construct is only measurable relative to this (Harnad grounding).",
+          "required": ["context", "purpose", "stakeholder", "targets"],
+          "properties": {
+            "context": {"type": "string"},
+            "purpose": {"type": "string"},
+            "priority_focus": {"type": "string"},
+            "stakeholder": {"type": "string"},
+            "targets": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Optional overrides of DEFAULT_THRESHOLDS. Any omitted key keeps its default.",
+      "additionalProperties": false,
+      "properties": {
+        "band_high": {"type": "number", "default": 0.85, "description": "score >= this -> HIGH band (autonomy_score §1.2)"},
+        "band_med": {"type": "number", "default": 0.65, "description": "score >= this -> MEDIUM band"},
+        "conf_inconclusive": {"type": "number", "default": 0.60, "description": "aggregate confidence below this -> inconclusive(low_confidence)"},
+        "conflict_delta": {"type": "number", "default": 0.25, "description": "weighted child-value stdev >= this in a material branch -> inconclusive(conflict:<branch>)"},
+        "residual_cap": {"type": "number", "default": 0.50, "description": "Σ J-leaf flow >= this -> judgment_dominated + inconclusive"},
+        "materiality": {"type": "number", "default": 0.05, "description": "advisory prune threshold (applied in the skill, not the script)"},
+        "material_branch_flow": {"type": "number", "default": 0.20, "description": "a branch counts for conflict-detection when its global flow >= this"},
+        "depth_cap": {"type": "integer", "default": 3, "description": "max root->leaf path depth; deeper -> SpecError (over-decomposition)"}
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The DAG. Exactly one node has no parents (the root). Shared sub-concepts have multiple parents. No cycles.",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": true,
+        "properties": {
+          "id": {"type": "string", "description": "unique node id"},
+          "label": {"type": "string"},
+          "kind": {"enum": ["branch", "leaf"], "description": "a node with no children is treated as a leaf even if kind is omitted"},
+          "parents": {
+            "type": "array",
+            "description": "incoming edges; empty ONLY for the single root",
+            "items": {
+              "type": "object",
+              "required": ["id", "weight"],
+              "properties": {
+                "id": {"type": "string", "description": "parent node id"},
+                "weight": {"type": "number", "exclusiveMinimum": 0, "description": "relative weight under that parent; siblings are normalized to sum 1"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "leaf_type": {"enum": ["D", "T", "J"], "description": "LEAF only. D=deterministic-measurable, T=typeable/observable, J=bounded-calibrated-judgment (last resort; requires a stated 'why not D/T')"},
+          "value": {"type": "number", "minimum": 0, "maximum": 1, "description": "LEAF only. graded [0,1] membership (Zadeh), never a raw boolean"},
+          "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "LEAF only. how sure the measurement/judge is (propagated to aggregate_confidence)"},
+          "raw": {"type": "string", "description": "LEAF: the raw observation, e.g. '82%', '190/200 pass', '1 critical CVE'"},
+          "method": {"type": "string", "description": "LEAF: how the value was obtained (tool, count, rubric)"},
+          "anchors": {
+            "type": "object",
+            "description": "LEAF: REQUIRED. positive+negative reference points that ground the [0,1] scale. An anchorless leaf is refused (disguised guessing).",
+            "required": ["positive", "negative"],
+            "properties": {
+              "positive": {"type": "string"},
+              "negative": {"type": "string"},
+              "boundary": {"type": "string", "description": "optional held-out boundary exemplar for validation (Step 7)"}
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "$comment": "OUTPUT (aggregate_spec.py): {construct, score, band(HIGH|MEDIUM|LOW), aggregate_confidence, leaf_flows{id:flow Σ=1}, contributions[{id,leaf_type,flow,value,contrib}], sensitivity[{pivot,delta_to_flip,flips_to}], residual{j_weight,judgment_dominated}, inconclusive{flag,reasons[]}}. reasons ∈ low_confidence|judgment_dominated|conflict:<branch>. Exit: 0 ok, 2 unreadable, 3 SpecError(refused)."
+}
