@@ -1,0 +1,28 @@
+{
+  "meta": {
+    "construct": "is this release quality-ready?",
+    "version": "1.0.0",
+    "context_lock": {
+      "context": "release candidate, staging",
+      "purpose": "go / no-go decision",
+      "priority_focus": "correctness",
+      "stakeholder": "release owner",
+      "targets": "the build + its checks"
+    }
+  },
+  "nodes": [
+    {"id": "root", "label": "quality-ready", "parents": [], "kind": "branch"},
+
+    {"id": "correctness", "label": "correctness", "parents": [{"id": "root", "weight": 0.5}], "kind": "branch"},
+    {"id": "l_functional", "label": "functional-tests", "parents": [{"id": "correctness", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.95, "raw": "190/200 pass", "method": "test report", "confidence": 0.9,
+     "anchors": {"positive": ">=95% pass → ~0.95", "negative": "<70% → ~0.1"}},
+    {"id": "l_security", "label": "security-scan", "parents": [{"id": "correctness", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.15, "raw": "1 critical CVE unresolved", "method": "SAST/dep-scan", "confidence": 0.9,
+     "anchors": {"positive": "0 high/critical → 1.0", "negative": "any unresolved critical → ~0.1"}},
+
+    {"id": "style", "label": "style", "parents": [{"id": "root", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.8, "raw": "lint clean", "method": "linter", "confidence": 0.9,
+     "anchors": {"positive": "no lint errors → ~0.9", "negative": "many errors → ~0.2"}}
+  ]
+}
