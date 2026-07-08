@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "construct": "is this document professional?",
+    "version": "1.0.0",
+    "context_lock": {
+      "context": "customer-facing one-pager, en-US, pre-send",
+      "purpose": "gate whether it can go to a client without a human review",
+      "priority_focus": "credibility > completeness",
+      "stakeholder": "external client (reader) + operator (sender)",
+      "targets": "the doc body + its structure"
+    }
+  },
+  "nodes": [
+    {"id": "root", "label": "professional", "parents": [], "kind": "branch"},
+
+    {"id": "style", "label": "style", "parents": [{"id": "root", "weight": 0.6}], "kind": "branch"},
+    {"id": "l_tone", "label": "tone", "parents": [{"id": "style", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.7, "method": "rubric LLM-judge: confident-not-arrogant, no filler (order-swapped)", "confidence": 0.6,
+     "anchors": {"positive": "measured, specific, respectful → ~0.9", "negative": "salesy/hedgy/flippant → ~0.2"}},
+    {"id": "l_clarity", "label": "clarity", "parents": [{"id": "style", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.75, "method": "rubric LLM-judge: Feynman-plainness, no undefined jargon", "confidence": 0.65,
+     "anchors": {"positive": "a non-expert follows it → ~0.9", "negative": "jargon-dense, ambiguous → ~0.2"}},
+
+    {"id": "structure", "label": "structure", "parents": [{"id": "root", "weight": 0.4}], "kind": "branch"},
+    {"id": "l_headings", "label": "has-headings", "parents": [{"id": "structure", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "raw": "3 sections", "method": "count headings", "confidence": 0.9,
+     "anchors": {"positive": "clear section headings → 1.0", "negative": "wall of text → 0.0"}},
+    {"id": "l_length", "label": "length-ok", "parents": [{"id": "structure", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.8, "raw": "1 page", "method": "word count vs target band", "confidence": 0.95,
+     "anchors": {"positive": "fits one page → ~0.9", "negative": "5+ pages for a one-pager → ~0.1"}}
+  ]
+}

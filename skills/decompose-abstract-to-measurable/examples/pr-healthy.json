@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "construct": "is this PR healthy?",
+    "version": "1.0.0",
+    "context_lock": {
+      "context": "vek-sales MVP, dev/hml branch, single-maintainer, auto-merge eligible",
+      "purpose": "decide whether to auto-merge without human review",
+      "priority_focus": "correctness > audit > speed",
+      "stakeholder": "operator (author) + downstream integrators",
+      "targets": "the PR diff + its CI + its bot reviews"
+    }
+  },
+  "thresholds": {"band_high": 0.85, "band_med": 0.65},
+  "nodes": [
+    {"id": "root", "label": "healthy", "parents": [], "kind": "branch"},
+
+    {"id": "tests", "label": "tests", "parents": [{"id": "root", "weight": 0.35}], "kind": "branch"},
+    {"id": "l_cov", "label": "coverage", "parents": [{"id": "tests", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.82, "raw": "82%", "method": "coverage report", "confidence": 0.95,
+     "anchors": {"positive": ">=80% → 1.0", "negative": "<50% → 0.0"}},
+    {"id": "l_pass", "label": "suite-passes", "parents": [{"id": "tests", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 1.0, "raw": "all green", "method": "CI statusCheckRollup", "confidence": 0.99,
+     "anchors": {"positive": "all checks SUCCESS → 1.0", "negative": "any FAILURE → 0.0"}},
+
+    {"id": "review", "label": "review", "parents": [{"id": "root", "weight": 0.30}], "kind": "branch"},
+    {"id": "l_bot", "label": "bot-convergence", "parents": [{"id": "review", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.9, "raw": "amazon-q+coderabbit converged", "method": "PR review state", "confidence": 0.9,
+     "anchors": {"positive": "all bots APPROVED/resolved → 1.0", "negative": "unresolved :stop_sign: → 0.0"}},
+    {"id": "l_clarity", "label": "code-clarity", "parents": [{"id": "review", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.7, "method": "decomposed-rubric LLM-judge (naming+cohesion+comments), order-swapped", "confidence": 0.7,
+     "anchors": {"positive": "self-documenting, matches surrounding idiom → ~0.9", "negative": "cryptic, inconsistent → ~0.2"}},
+
+    {"id": "risk", "label": "risk", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
+    {"id": "l_size", "label": "diff-size", "parents": [{"id": "risk", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "D", "value": 0.85, "raw": "62 lines", "method": "git diff --stat", "confidence": 0.9,
+     "anchors": {"positive": "<100 lines → ~0.9", "negative": ">1000 lines → ~0.1"}},
+    {"id": "l_revert", "label": "reversibility", "parents": [{"id": "risk", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.8, "raw": "no migration, no prod deploy", "method": "classify blast-radius", "confidence": 0.85,
+     "anchors": {"positive": "docs/config only, trivially revertible → 1.0", "negative": "destructive/irreversible prod → 0.0"}},
+
+    {"id": "l_changelog", "label": "changelog-present", "parents": [{"id": "root", "weight": 0.15}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "raw": "CHANGELOG updated", "method": "grep changelog", "confidence": 0.95,
+     "anchors": {"positive": "changelog row added → 1.0", "negative": "absent → 0.0"}}
+  ]
+}
