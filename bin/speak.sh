@@ -2,7 +2,7 @@
 # speak.sh — on-demand TTS for the eko-system family.
 # DETERMINISTIC mechanism (the "actor"): renders text → audio via the official fallback chain
 #   Gemini 3.1 Flash TTS (pt-BR native) → ElevenLabs v3 → Kokoro (local, free).
-# The "Voice Director" (the agent — see skills/voice/SKILL.md) computes voice/gender/intonation/
+# The "Voice Director" (the agent — see skills/voice-director/SKILL.md) computes voice/gender/intonation/
 # rhythm dynamically from context and passes them here as explicit overrides. Presets are TEMPLATES
 # (sensible defaults), never the only path — every knob is overridable.
 #
