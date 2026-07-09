@@ -28,7 +28,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `agentic-tool-intake` | `agentic-tool-intake/SKILL.md` | Adopt-or-not — decide whether & how to take on an existing candidate (install/adapt/absorb/create-internally/abandon/defer) |
 | `agentic-tool-evaluator` | `agentic-tool-evaluator/SKILL.md` | Behaviorally evaluate/score/QA any agentic-tool (skill/agent/command/prompt/MCP-tool) |
 | `agentic-tool-trainer` | `agentic-tool-trainer/SKILL.md` | Improve a tool over time (reflect-loop) OR distill a new tool from an observed task |
-| `voice` | `voice/SKILL.md` | On-demand TTS narration (Gemini 3.1 → ElevenLabs v3 → Kokoro fallback chain); the **opt-in** audio producer for the content-lifecycle family (opera-debrief · morning-briefing · content-recast). Text is always the default — audio never auto-plays |
+| `voice-director` | `voice-director/SKILL.md` | On-demand TTS narration (Gemini 3.1 → ElevenLabs v3 → Kokoro fallback chain); the **opt-in** audio producer for the content-lifecycle family (opera-debrief · morning-briefing · content-recast). Operator command is `/speak`. Named `voice-director` (not `voice`) to avoid the host's native `/voice`. Text is always the default — audio never auto-plays |
 
 ## Skill Categories
 
