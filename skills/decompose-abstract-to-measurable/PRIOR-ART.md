@@ -24,6 +24,30 @@ engineering core is therefore real, standard, and validated in decision science,
 software quality models (e.g. ISO/IEC 25010 quality trees), and modern LLM
 evaluation. That is why the skill works.
 
+## 1b · The RQE front-end + structural class matrix (v1.1.0 delta — also prior art)
+
+The v1.1.0 additions are equally **composed, not invented**:
+
+| Prior art | Author(s) / origin | What v1.1.0 borrows |
+|---|---|---|
+| **GQM** — Goal-Question-Metric | Basili & Weiss, 1984 | RQE's recursive question→metric elicitation spine |
+| **5 Whys** | Toyoda / Toyota TPS, 1930s– | recursive "why/what" descent until a measurable bottom |
+| **Nomological network** | Cronbach & Meehl, 1955 | RQE's evidence/instrument question (Q6): a construct is defined by its lawful relations |
+| **AHP hierarchical decomposition** | Saaty, 1980 | the criteria→sub-criteria question layering |
+| **Repertory Grid / Personal Construct Theory** | George Kelly, 1955 | the **idiographic** stance — a construct grid belongs to *an individual/instance*, not a population |
+| **Means-end laddering** | Gutman, 1982 | per-object recursive "why does this matter?" — object-specific, not average |
+| **Nomothetic vs idiographic** | Windelband, 1894 (+ Allport) | the **individuation gate**: a generic question yields a population *average*; instance-binding yields *the case* |
+| **Via negativa** | long tradition (Taleb 2012, modern) | the WHEN-NOT branch (Q3) — some constructs are grounded best by their negation → `anchors.negative` |
+| **Conjoint measurement / additivity** | Luce & Tukey, 1964 | when a weighted-sum is a *valid* model at all — the additive-form precondition |
+| **Gestalt "the whole differs from the sum"** | Wertheimer, 1923 | why gestalt/relational constructs are structurally un-representable by an additive tree → BLOCKED |
+
+**Why the class matrix matters (honest):** the additive engine can score a *relational*
+construct (e.g. fairness) and return a confident HIGH — while being **structurally wrong**
+(it cannot see the relation). `structural_route.py` (SAGE v10.7 class matrix) makes the tool
+**refuse** that false measure instead of emitting it, and ships its own adversarial
+`break_suite.py` that **confirms** the one failure it cannot close (A1 consistent-lie, closable
+only by external E2). Honesty over polish.
+
 ## 2 · The strong thesis is false — four independent limiters
 
 The claim that the abstract reduces *fully and without loss* to native math fails
@@ -72,3 +96,9 @@ Forged 2026-07-08 from a `/deep-research` + MoA-council session on the operator'
 "everything-is-calculable" thesis. Full honest-verdict + seam doctrine persisted
 in akasha memory: `dna_abstract_to_measurable_decomposition_2026_07_08.md` and
 `reference_abstract_to_measurable_prior_art_2026_07_08.md`.
+
+**v1.1.0 (2026-07-08)** — materialized the debate-converged delta the initial ship left out:
+the **RQE recursive-question elicitation** front-end (Step 1) + **§13 individuation**
+(idiographic Q1) + the **`structural_route.py` class-matrix** (SAGE v10.7) + `break_suite.py`.
+Ratified honesty gate carried forward: capability ≠ validation — maturity is gated on external
+**E2/E3** (not done); Tier-Professional BLOCKED; no definitive public name.

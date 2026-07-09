@@ -26,7 +26,22 @@
             "targets": {"type": "string"}
           },
           "additionalProperties": true
-        }
+        },
+        "structural_form": {"enum": ["additive", "atomic", "relational", "gestalt", "normative", "dispositional", "temporal"], "description": "OPTIONAL — read by structural_route.py. An additive value-tree VALIDLY represents only additive/atomic; relational/gestalt -> BLOCKED; normative/dispositional/temporal -> ASSISTIVE-capped (SAGE v10.7 class matrix)."},
+        "h35_diagnostics": {
+          "type": "object",
+          "description": "OPTIONAL — 5 concrete yes/no diagnostics structural_route.py uses to DERIVE the form and cross-check it vs the declared structural_form (declared/derived conflict -> REVIEW). Absent while declared additive -> fail-closed (route.status=additive_unverified, capped-assistive).",
+          "properties": {
+            "q_value_lives_in_relations": {"type": "boolean"},
+            "q_requires_time_comparison": {"type": "boolean"},
+            "q_predicts_future_behavior": {"type": "boolean"},
+            "q_whole_differs_from_sum": {"type": "boolean"},
+            "q_depends_on_whose_values": {"type": "boolean"}
+          },
+          "additionalProperties": true
+        },
+        "semantic_loss_estimate": {"type": "number", "minimum": 0, "maximum": 1, "description": "OPTIONAL — author self-reported semantic loss (feeds loss_vector; self-report caveat)."},
+        "R_human": {"type": "number", "minimum": 0, "maximum": 1, "description": "OPTIONAL — human-agreement rate for the criterion (feeds loss_vector.criterion_loss = 1-R_human)."}
       },
       "additionalProperties": true
     },

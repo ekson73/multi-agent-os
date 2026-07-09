@@ -1,0 +1,22 @@
+{
+  "meta": {
+    "construct": "is Tese B (THIS specific tool) VIABLE? — individuated (§13): decompose the SPECIFIC object into its real parts, do NOT average a generic 'viability'",
+    "context_lock": {
+      "context": "Prisma skill v1.1.0 as shipped, evaluated 2026-07-08 against its own stated purpose",
+      "purpose": "decide whether Tese B is viable enough to promote beyond Tier-Assistive",
+      "priority_focus": "the specific instance's weakest real part, NOT the population average",
+      "stakeholder": "the operator + amnesic agents that will invoke it",
+      "targets": "the shipped tool + its empirical claim"
+    }
+  },
+  "thresholds": {"conflict_delta": 0.25, "material_branch_flow": 0.20},
+  "nodes": [
+    {"id": "root", "kind": "branch", "parents": []},
+    {"id": "what", "kind": "branch", "parents": [{"id": "root", "weight": 0.70}], "label": "what IS Tese B (decompose-object-then-predicate)"},
+    {"id": "p_engine", "kind": "leaf", "parents": [{"id": "what", "weight": 1.0}], "leaf_type": "D", "value": 0.9, "confidence": 0.9, "method": "test suite 10/10 + break-suite boundary empirically mapped", "anchors": {"positive": "deterministic engine, tests green, reproducible spec", "negative": "arithmetic-in-head, no tests"}},
+    {"id": "p_proto", "kind": "leaf", "parents": [{"id": "what", "weight": 1.0}], "leaf_type": "T", "value": 0.85, "confidence": 0.85, "method": "RQE front-end + steps 0-8 + class-route present & documented", "anchors": {"positive": "elicitation protocol fully specified", "negative": "no method, holistic guess"}},
+    {"id": "p_claim", "kind": "leaf", "parents": [{"id": "what", "weight": 1.0}], "leaf_type": "D", "value": 0.15, "confidence": 0.8, "method": "E2/E3 status = NOT executed (external non-author benchmark + naive-agent kappa both pending)", "anchors": {"positive": "E2+E3 done, kappa>=0.60, external margin to disagree", "negative": "author-only, zero external validation"}},
+    {"id": "wn", "kind": "leaf", "parents": [{"id": "root", "weight": 0.30}], "leaf_type": "D", "value": 0.85, "confidence": 0.85, "method": "via-negativa (WHEN-NOT): how well it AVOIDS the failure mode — inconclusive-gate + honest-verdict-box present", "anchors": {"positive": "refuses false precision, surfaces residual, declares its limits", "negative": "manufactures a confident number over a real residual"}}
+  ],
+  "_demo": "The §13 individuation dogfood. A GENERIC 'is it viable?' would average to a comfortable number and HIDE the weak part. Individuating the SPECIFIC object into its real parts (engine 0.90 / protocol 0.85 / empirical-claim 0.15) makes the branch children diverge (stdev >= conflict_delta) → the engine fires inconclusive:[conflict:what] and lands MEDIUM ~0.70. Individuation SURFACES the divergence the average would bury (anti-theater R2/R3 by construction). It also honestly encodes that p_claim=0.15 because E2/E3 are NOT done — capability shipped, validation still gated."
+}
