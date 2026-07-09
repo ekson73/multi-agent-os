@@ -15,7 +15,7 @@ triggers:
   - "turn this DoD / KPI / acceptance criterion into a score"
   - "is this inconclusive / can I decide this autonomously?"
   - "score / rate / evaluate <thing> against an abstract standard"
-version: 1.1.0
+version: 1.2.0
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 agnostic: [os, project, vendor]
 soul-name: Prisma
@@ -62,8 +62,13 @@ mechanism. The mechanism is 50-year-old prior art: **MCDA / AHP / MAUT value-tre
 **Capability ≠ validation (SAGE v10.7 — ratified; do NOT overclaim).** Shipping/using this
 skill advances the *tool's capability*; it does **not** validate the originating thesis.
 Maturity rises **only** through external evidence — **E2** (a non-author-authored benchmark
-with real margin to disagree) + **E3** (naive-agent inter-rater **κ ≥ 0.60**) — and those are
-**not done**. So: the defensible claim is **bounded, per structural class** (additive-decomposable
+with real margin to disagree) + **E3** (naive-agent inter-rater **κ ≥ 0.60**). Status (2026-07-09):
+**E2 = not done**; **E3 = partially advanced, NOT closed** — `scripts/e3_kappa.py` (a reusable,
+tested Fleiss'/Cohen's-κ harness) now exists and a *lean pilot* scored **κ = 0.96 (almost-perfect)**
+on the D/T/J typing (`E3-PILOT.md`), BUT the 3 raters were independent **samples of the same model**
+(correlated by construction) → it measures **self-consistency, not diverse-rater reliability**;
+genuine E3 still needs **cross-model / human** raters + larger n + non-author constructs. So: the
+defensible claim is **bounded, per structural class** (additive-decomposable
 constructs only — Step 5b); **Tier-Professional is BLOCKED** until E2/E3; there is **no definitive
 public name** yet. A better *method* is not a validation.
 

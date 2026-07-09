@@ -1,0 +1,35 @@
+{
+  "_note": "E3 inter-rater fixture — NEUTRAL, representative construct×leaf set (NOT rigged to pass). Deliberately mixes obvious-D, obvious-T, obvious-J leaves with ~5 genuinely-ambiguous ones (reading-grade score, follows-REST, survey-score, tone, blast-radius) where honest rater disagreement is expected. Raters classify each leaf D/T/J from the rubric ALONE (no skill-priming, no author gold). 6 constructs × 4 leaves = 24 items.",
+  "categories": ["D", "T", "J"],
+  "rubric": {
+    "D": "deterministic-measurable — a number a tool/script computes directly (e.g. coverage %, latency ms, CVE count), mappable to [0,1].",
+    "T": "typeable/observable — a categorical fact you can classify or inventory by looking (e.g. present/absent, yes/no, which-category), no judgment call.",
+    "J": "bounded-calibrated judgment — used ONLY when you can state why there is NO deterministic (D) or observable (T) method; the value requires a human/LLM judgment against a rubric."
+  },
+  "items": [
+    {"id": "c1.l1", "construct": "code review quality",        "leaf": "unit-test line-coverage % of the changed lines"},
+    {"id": "c1.l2", "construct": "code review quality",        "leaf": "cyclomatic complexity of the changed functions"},
+    {"id": "c1.l3", "construct": "code review quality",        "leaf": "a PR description is present (yes/no)"},
+    {"id": "c1.l4", "construct": "code review quality",        "leaf": "how clearly the change communicates its intent to a future reader"},
+    {"id": "c2.l1", "construct": "production system health",   "leaf": "5xx error rate over the last 24h"},
+    {"id": "c2.l2", "construct": "production system health",   "leaf": "p99 request latency in milliseconds"},
+    {"id": "c2.l3", "construct": "production system health",   "leaf": "an on-call engineer's felt confidence that the system is stable"},
+    {"id": "c2.l4", "construct": "production system health",   "leaf": "a monitoring dashboard exists for the service (yes/no)"},
+    {"id": "c3.l1", "construct": "documentation professionalism", "leaf": "count of spelling/grammar errors"},
+    {"id": "c3.l2", "construct": "documentation professionalism", "leaf": "a table of contents is present (yes/no)"},
+    {"id": "c3.l3", "construct": "documentation professionalism", "leaf": "whether the tone is appropriate for the intended audience"},
+    {"id": "c3.l4", "construct": "documentation professionalism", "leaf": "Flesch-Kincaid reading-grade-level score"},
+    {"id": "c4.l1", "construct": "deployment risk",            "leaf": "a documented rollback plan exists (yes/no)"},
+    {"id": "c4.l2", "construct": "deployment risk",            "leaf": "percentage of config keys changed in this deploy"},
+    {"id": "c4.l3", "construct": "deployment risk",            "leaf": "the reviewer's judgment of the blast-radius if it fails"},
+    {"id": "c4.l4", "construct": "deployment risk",            "leaf": "the change is behind a feature flag (yes/no)"},
+    {"id": "c5.l1", "construct": "team morale",                "leaf": "voluntary attrition rate over the quarter"},
+    {"id": "c5.l2", "construct": "team morale",                "leaf": "average score on the anonymous engagement survey"},
+    {"id": "c5.l3", "construct": "team morale",                "leaf": "a manager's read of the room during standups"},
+    {"id": "c5.l4", "construct": "team morale",                "leaf": "number of team social events held this quarter"},
+    {"id": "c6.l1", "construct": "API design goodness",        "leaf": "number of endpoints"},
+    {"id": "c6.l2", "construct": "API design goodness",        "leaf": "endpoints follow REST resource-naming conventions (yes/no)"},
+    {"id": "c6.l3", "construct": "API design goodness",        "leaf": "how elegant/intuitive the naming feels to a new consumer"},
+    {"id": "c6.l4", "construct": "API design goodness",        "leaf": "the API is versioned (yes/no)"}
+  ]
+}

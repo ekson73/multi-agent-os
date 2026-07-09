@@ -1,0 +1,31 @@
+{
+  "_note": "E3 pilot RAW DATA (2026-07-09) — 3 independent naive raters × 24 leaves, D/T/J typing from the rubric alone (no skill-priming, no answer-key, parallel spawn = no cross-talk). ⚠️ HONESTY: all 3 raters were independent SAMPLES OF THE SAME ≥1M session model given an IDENTICAL prompt → this measures the model's SELF-CONSISTENCY, NOT cross-diverse-rater reliability (correlated raters inflate κ — convergence-engine §4.7.5). A rigorous E3 needs DIVERSE raters (cross-model Claude/GPT/Gemini, or humans) + larger n + ideally non-author constructs. Reproducible: re-run scripts/e3_kappa.py --labels tests/e3_pilot_labels.json.",
+  "categories": ["D", "T", "J"],
+  "raters": ["rA", "rB", "rC"],
+  "items": [
+    {"id": "c1.l1", "construct": "code review quality", "leaf": "unit-test line-coverage %", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c1.l2", "construct": "code review quality", "leaf": "cyclomatic complexity", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c1.l3", "construct": "code review quality", "leaf": "PR description present (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}},
+    {"id": "c1.l4", "construct": "code review quality", "leaf": "clarity of intent to a future reader", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c2.l1", "construct": "production system health", "leaf": "5xx error rate 24h", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c2.l2", "construct": "production system health", "leaf": "p99 latency ms", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c2.l3", "construct": "production system health", "leaf": "on-call felt confidence", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c2.l4", "construct": "production system health", "leaf": "dashboard exists (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}},
+    {"id": "c3.l1", "construct": "documentation professionalism", "leaf": "spelling/grammar error count", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c3.l2", "construct": "documentation professionalism", "leaf": "table of contents present (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}},
+    {"id": "c3.l3", "construct": "documentation professionalism", "leaf": "tone appropriate for audience", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c3.l4", "construct": "documentation professionalism", "leaf": "Flesch-Kincaid reading-grade score", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c4.l1", "construct": "deployment risk", "leaf": "rollback plan exists (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}},
+    {"id": "c4.l2", "construct": "deployment risk", "leaf": "% config keys changed", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c4.l3", "construct": "deployment risk", "leaf": "blast-radius judgment", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c4.l4", "construct": "deployment risk", "leaf": "behind a feature flag (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}},
+    {"id": "c5.l1", "construct": "team morale", "leaf": "voluntary attrition rate", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c5.l2", "construct": "team morale", "leaf": "engagement survey score", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c5.l3", "construct": "team morale", "leaf": "manager's read of the room", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c5.l4", "construct": "team morale", "leaf": "number of social events", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c6.l1", "construct": "API design goodness", "leaf": "number of endpoints", "labels": {"rA": "D", "rB": "D", "rC": "D"}},
+    {"id": "c6.l2", "construct": "API design goodness", "leaf": "follows REST conventions (yes/no)", "labels": {"rA": "J", "rB": "T", "rC": "T"}},
+    {"id": "c6.l3", "construct": "API design goodness", "leaf": "naming elegance to a new consumer", "labels": {"rA": "J", "rB": "J", "rC": "J"}},
+    {"id": "c6.l4", "construct": "API design goodness", "leaf": "API is versioned (yes/no)", "labels": {"rA": "T", "rB": "T", "rC": "T"}}
+  ]
+}
