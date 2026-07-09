@@ -13,6 +13,7 @@ def test(fn): TESTS.append(fn); return fn
 
 def _items(rows, cats=("D", "T", "J")):
     # rows: list of label-lists (one per item), raters r1..rN
+    assert rows and rows[0], "test helper needs non-empty rows"
     n = len(rows[0])
     raters = [f"r{i+1}" for i in range(n)]
     items = [{"id": f"i{k}", "leaf": f"l{k}", "construct": "c",
@@ -68,15 +69,50 @@ def test_pairwise_cohen_present():
 
 
 @test
-def test_unbalanced_design_rejected():
-    # item0 has 3 raters, item1 has 2 → Fleiss requires constant N → ValueError
-    spec = {"categories": ["D", "T", "J"], "raters": ["r1", "r2", "r3"],
-            "items": [{"id": "i0", "leaf": "l", "construct": "c", "labels": {"r1": "D", "r2": "D", "r3": "T"}},
-                      {"id": "i1", "leaf": "l", "construct": "c", "labels": {"r1": "T", "r2": "T"}}]}
+def test_unbalanced_design_rejected_internal_guard():
+    # fleiss_kappa's OWN guard (called directly, bypassing score() pre-validation):
+    # varying raters-per-item → ValueError. Defense-in-depth even if score()'s check is skipped.
+    items = [{"id": "i0", "labels": {"r1": "D", "r2": "D", "r3": "T"}},
+             {"id": "i1", "labels": {"r1": "T", "r2": "T"}}]
     try:
-        K.score(spec); assert False, "should have raised ValueError"
+        K.fleiss_kappa(items, ["D", "T", "J"]); assert False, "should reject unbalanced"
     except ValueError as e:
         assert "unbalanced" in str(e).lower(), str(e)
+
+
+@test
+def test_missing_rater_rejected():
+    # score() pre-check: declared 3 raters but an item labelled by only 2 → labels-must-match-declared
+    # (qodo #5: raters declared=3, labels/item=2 must fail).
+    spec = {"categories": ["D", "T", "J"], "raters": ["r1", "r2", "r3"],
+            "items": [{"id": "i0", "leaf": "l", "construct": "c", "labels": {"r1": "D", "r2": "D", "r3": "D"}},
+                      {"id": "i1", "leaf": "l", "construct": "c", "labels": {"r1": "T", "r2": "T"}}]}
+    try:
+        K.score(spec); assert False, "should reject missing rater"
+    except ValueError as e:
+        assert "match" in str(e).lower(), str(e)
+
+
+@test
+def test_duplicate_raters_rejected():
+    spec = {"categories": ["D", "T", "J"], "raters": ["r1", "r1", "r2"],
+            "items": [{"id": "i0", "leaf": "l", "construct": "c", "labels": {"r1": "D", "r2": "T"}}]}
+    try:
+        K.score(spec); assert False, "should reject duplicate raters"
+    except ValueError as e:
+        assert "unique" in str(e).lower(), str(e)
+
+
+@test
+def test_duplicate_ids_rejected():
+    # duplicate item ids would collapse the pairwise-Cohen label maps → must reject
+    spec = {"categories": ["D", "T", "J"], "raters": ["r1", "r2"],
+            "items": [{"id": "dup", "leaf": "l", "construct": "c", "labels": {"r1": "D", "r2": "D"}},
+                      {"id": "dup", "leaf": "l", "construct": "c", "labels": {"r1": "T", "r2": "T"}}]}
+    try:
+        K.score(spec); assert False, "should reject duplicate ids"
+    except ValueError as e:
+        m = str(e).lower(); assert "id" in m and "unique" in m, str(e)
 
 
 @test

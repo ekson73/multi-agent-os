@@ -6,7 +6,8 @@
 #   - Fleiss' κ (multi-rater, the headline E3 metric)
 #   - pairwise Cohen's κ (per rater-pair, for granularity)
 #   - per-item agreement + the disagreement set (WHICH leaves split the raters — the honest signal)
-#   - Landis-Koch interpretation band + the E3 pass gate (κ ≥ 0.60 = "substantial")
+#   - Landis-Koch band + the E3 gate (κ ≥ 0.60 — the moderate→substantial boundary; per
+#     canonical Landis-Koch "substantial" = 0.61–0.80, "moderate" = 0.41–0.60, so κ==0.60 is "moderate")
 #
 # WHY (honest scope): this measures the RELIABILITY of the D/T/J typing — do independent
 # agents, following the same rubric, classify the same leaf the same way? High κ ⇒ the rubric
@@ -25,7 +26,8 @@
 #                            "labels":{"r1":"D","r2":"T","r3":"D"}}, ...]}
 import json, sys, argparse, itertools
 
-E3_GATE = 0.60  # Landis-Koch "substantial" — the memorialized E3 bar (dna_abstract_to_measurable)
+E3_GATE = 0.60  # memorialized E3 bar = the moderate→substantial boundary
+                # (Landis-Koch: "substantial" = 0.61–0.80, "moderate" = 0.41–0.60; κ==0.60 lands in "moderate")
 
 
 def landis_koch(k):
@@ -91,7 +93,23 @@ def score(spec):
     cats = spec["categories"]
     raters = spec["raters"]
     items = spec["items"]
+    # Validate the declared design BEFORE scoring — else a malformed payload (missing/extra/
+    # duplicate raters, duplicate item ids) silently produces numbers over the WRONG set and
+    # could pass the E3 gate. Fail-closed (an E3 instrument must not be fool-able).
+    if not raters:
+        raise ValueError("raters must be non-empty")
+    if len(set(raters)) != len(raters):
+        raise ValueError(f"raters must be unique: {raters}")
+    ids = [it.get("id") for it in items]
+    if len(set(ids)) != len(ids):
+        raise ValueError("item ids must be unique (duplicate ids collapse the pairwise-Cohen label maps)")
+    expected = set(raters)
+    for it in items:
+        if set(it.get("labels", {})) != expected:
+            raise ValueError(f"item {it.get('id')}: labels {sorted(it.get('labels', {}))} "
+                             f"must match the declared raters {sorted(expected)} exactly")
     kappa, N, M, pj, P = fleiss_kappa(items, cats)
+    kappa_r = round(kappa, 4)  # report + gate-decide + band from the SAME rounded value (no boundary mismatch)
     # per-item agreement + disagreement set
     per_item = []
     disagreement = []
@@ -114,10 +132,10 @@ def score(spec):
                          "n": cn, "band": (None if ck is None else landis_koch(ck))})
     return {
         "metric": "fleiss_kappa",
-        "fleiss_kappa": round(kappa, 4),
-        "band": landis_koch(kappa),
+        "fleiss_kappa": kappa_r,
+        "band": landis_koch(kappa_r),
         "e3_gate": E3_GATE,
-        "e3_pilot_meets_gate": kappa >= E3_GATE,
+        "e3_pilot_meets_gate": kappa_r >= E3_GATE,
         "raters": N, "items": M, "categories": cats,
         "category_marginals": {c: round(v, 4) for c, v in pj.items()},
         "unanimous_items": sum(1 for r in per_item if r["unanimous"]),

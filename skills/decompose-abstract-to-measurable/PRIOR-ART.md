@@ -40,7 +40,7 @@ The v1.1.0 additions are equally **composed, not invented**:
 | **Via negativa** | long tradition (Taleb 2012, modern) | the WHEN-NOT branch (Q3) — some constructs are grounded best by their negation → `anchors.negative` |
 | **Conjoint measurement / additivity** | Luce & Tukey, 1964 | when a weighted-sum is a *valid* model at all — the additive-form precondition |
 | **Gestalt "the whole differs from the sum"** | Wertheimer, 1923 | why gestalt/relational constructs are structurally un-representable by an additive tree → BLOCKED |
-| **Cohen's κ · Fleiss' κ · Landis-Koch bands** | Cohen 1960 · Fleiss 1971 · Landis & Koch 1977 | the **E3 reliability harness** (`scripts/e3_kappa.py`) — inter-rater agreement on the D/T/J typing (reliability per Cronbach-Meehl); κ≥0.60 = "substantial" = the E3 gate |
+| **Cohen's κ · Fleiss' κ · Landis-Koch bands** | Cohen 1960 · Fleiss 1971 · Landis & Koch 1977 | the **E3 reliability harness** (`scripts/e3_kappa.py`) — inter-rater agreement on the D/T/J typing (reliability per Cronbach-Meehl); the E3 gate = κ≥0.60 (the moderate→substantial boundary; Landis-Koch "substantial" = 0.61–0.80) |
 
 **Why the class matrix matters (honest):** the additive engine can score a *relational*
 construct (e.g. fairness) and return a confident HIGH — while being **structurally wrong**
