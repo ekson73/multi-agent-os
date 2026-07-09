@@ -195,9 +195,9 @@ PY
 # "play" mp3 as noise). A silent no-op when --play was explicitly requested is a UX trap, so
 # surface a diagnostic (same `speak: …` idiom as the engine fallbacks) instead of failing quietly.
 play_out(){
-  if command -v afplay >/dev/null 2>&1; then afplay "$OUT"; return 0; fi
-  if command -v ffplay >/dev/null 2>&1; then ffplay -nodisp -autoexit -loglevel error "$OUT" </dev/null; return 0; fi
-  if command -v mpv    >/dev/null 2>&1; then mpv --really-quiet --no-video "$OUT" </dev/null; return 0; fi
+  if command -v afplay >/dev/null 2>&1; then afplay "$OUT"; return $?; fi
+  if command -v ffplay >/dev/null 2>&1; then ffplay -nodisp -autoexit -loglevel error "$OUT" </dev/null; return $?; fi
+  if command -v mpv    >/dev/null 2>&1; then mpv --really-quiet --no-video "$OUT" </dev/null; return $?; fi
   echo "speak: --play requested but no mp3-capable player found (tried afplay/ffplay/mpv) — rendered file: $OUT" >&2
   return 1
 }
