@@ -70,7 +70,7 @@ Options:
   --speed N                                (rhythm; e.g. 0.9 slower / 1.1 faster)
   --lang pt-BR|en|es|...                   (Gemini read-label + Kokoro lang_code)
   --out file.mp3                           (where to write; default: temp file)
-  --play                                   (OPT-IN: afplay the result now — default is render-only)
+  --play                                   (OPT-IN: play the result now — afplay/ffplay/mpv; default is render-only)
   --no-play                                (explicit no-op; render-only is already the default)
   --text "..."  --file path                (alternatives to positional text / stdin)
 U
@@ -189,6 +189,19 @@ PY
   ffmpeg -nostdin -loglevel error -y -i "$WORK/k.wav" "$OUT" 2>/dev/null || return 1
 }
 
+# ---------- playback (OPT-IN, portable) ----------
+# $OUT is mp3, so only mp3-capable players qualify: afplay (macOS), ffplay (ships with the
+# already-required ffmpeg), mpv. paplay/aplay are deliberately excluded (WAV/PCM only → would
+# "play" mp3 as noise). A silent no-op when --play was explicitly requested is a UX trap, so
+# surface a diagnostic (same `speak: …` idiom as the engine fallbacks) instead of failing quietly.
+play_out(){
+  if command -v afplay >/dev/null 2>&1; then afplay "$OUT"; return 0; fi
+  if command -v ffplay >/dev/null 2>&1; then ffplay -nodisp -autoexit -loglevel error "$OUT" </dev/null; return 0; fi
+  if command -v mpv    >/dev/null 2>&1; then mpv --really-quiet --no-video "$OUT" </dev/null; return 0; fi
+  echo "speak: --play requested but no mp3-capable player found (tried afplay/ffplay/mpv) — rendered file: $OUT" >&2
+  return 1
+}
+
 # ---------- chain ----------
 USED=""
 run_one(){ case "$1" in
@@ -205,6 +218,6 @@ fi
 
 TAG=""; [ "$OUT_IS_TEMP" = 1 ] && TAG="(temp) "
 echo "speak: engine=$USED style=$STYLE lang=$LANG_ voice=$GVOICE/$EVOICE/$KVOICE -> ${TAG}${OUT}" >&2
-[ "$PLAY" = 1 ] && command -v afplay >/dev/null 2>&1 && afplay "$OUT"
+[ "$PLAY" = 1 ] && play_out
 [ "$OUT_IS_TEMP" = 0 ] && echo "$OUT"
 exit 0
