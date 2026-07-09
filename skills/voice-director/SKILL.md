@@ -28,7 +28,9 @@ metadata:
   dogfood_status: pending-first-cycle
 ---
 
-# Voice — on-demand TTS for the eko-system family
+# Voice Director — on-demand TTS for the eko-system family
+<!-- skill slug: `voice-director` · operator command: `/speak` · producer: `bin/speak.sh` -->
+
 
 ## Overview
 Turn text into **real, human-like, on-demand voice**. Single responsibility = the **voice layer**:
