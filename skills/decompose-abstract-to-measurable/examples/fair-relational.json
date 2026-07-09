@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "construct": "is this budget allocation FAIR? (relational — fairness lives in the RELATION between shares, not in any share alone)",
+    "context_lock": {
+      "context": "budget 90 split among 3 recipients with needs [30,30,30]; allocation [30,30,30]",
+      "purpose": "decide if the allocation is fair enough to auto-approve",
+      "priority_focus": "fairness of the whole distribution",
+      "stakeholder": "the 3 recipients + the operator",
+      "targets": "the allocation vector"
+    },
+    "structural_form": "relational",
+    "h35_diagnostics": {"q_value_lives_in_relations": true, "q_whole_differs_from_sum": true}
+  },
+  "nodes": [
+    {"id": "root", "kind": "branch", "parents": []},
+    {"id": "r1", "kind": "leaf", "parents": [{"id": "root", "weight": 0.34}], "leaf_type": "D", "value": 1.0, "confidence": 0.95, "method": "min(alloc/need,1) = min(30/30,1)", "anchors": {"positive": "need fully met", "negative": "nothing allocated"}},
+    {"id": "r2", "kind": "leaf", "parents": [{"id": "root", "weight": 0.33}], "leaf_type": "D", "value": 1.0, "confidence": 0.95, "method": "min(30/30,1)", "anchors": {"positive": "need fully met", "negative": "nothing allocated"}},
+    {"id": "r3", "kind": "leaf", "parents": [{"id": "root", "weight": 0.33}], "leaf_type": "D", "value": 1.0, "confidence": 0.95, "method": "min(30/30,1)", "anchors": {"positive": "need fully met", "negative": "nothing allocated"}}
+  ],
+  "_demo": "aggregate_spec.py alone scores this 1.0 / HIGH (every share meets its need). But an additive per-recipient tree CANNOT SEE inequality: the SAME tree would also score [90,0,0] as one-need-fully-met. Fairness is RELATIONAL. structural_route.py therefore returns BLOCKED (structural_mismatch) — the additive number is not a valid fairness measure. This is why the class matrix exists."
+}

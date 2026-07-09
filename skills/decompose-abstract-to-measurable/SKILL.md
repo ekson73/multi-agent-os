@@ -15,7 +15,7 @@ triggers:
   - "turn this DoD / KPI / acceptance criterion into a score"
   - "is this inconclusive / can I decide this autonomously?"
   - "score / rate / evaluate <thing> against an abstract standard"
-version: 1.0.0
+version: 1.1.0
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 agnostic: [os, project, vendor]
 soul-name: Prisma
@@ -59,6 +59,14 @@ vibration / frequency" is **evocative inspiration** (hence *Prisma*), not the
 mechanism. The mechanism is 50-year-old prior art: **MCDA / AHP / MAUT value-trees**
 + decomposed-rubric LLM-as-judge + fuzzy [0,1] membership. See `PRIOR-ART.md`.
 
+**Capability ≠ validation (SAGE v10.7 — ratified; do NOT overclaim).** Shipping/using this
+skill advances the *tool's capability*; it does **not** validate the originating thesis.
+Maturity rises **only** through external evidence — **E2** (a non-author-authored benchmark
+with real margin to disagree) + **E3** (naive-agent inter-rater **κ ≥ 0.60**) — and those are
+**not done**. So: the defensible claim is **bounded, per structural class** (additive-decomposable
+constructs only — Step 5b); **Tier-Professional is BLOCKED** until E2/E3; there is **no definitive
+public name** yet. A better *method* is not a validation.
+
 ## The seam — deterministic skeleton × probabilistic muscle
 
 The one thing that must never happen: the model doing the arithmetic in its head
@@ -90,10 +98,39 @@ priority-focus · 2.4 motivation · 2.5 targets/stakeholder). "Professional for 
 customer one-pager" ≠ "professional for an internal scratch note" — the tree and
 weights differ. **Refuse to proceed on a context-free construct** — the script
 enforces this: no `meta.context_lock` ⇒ `SpecError`. A context-free score is the
-guess this skill exists to kill.
+guess this skill exists to kill. The construct is also **instance-bound** — see the
+individuation discipline in Step 1 (Q1): measure *this case*, not a generic average.
 
-### 1 · DECOMPOSE → value-tree (a DAG)
-construct → criteria → sub-criteria → leaves. Guards (non-negotiable):
+### 1 · DECOMPOSE → value-tree (a DAG) — by RQE (recursive-question elicitation)
+Don't free-associate the tree — **elicit** it. Ask, of the construct and then recursively of
+each node, a fixed question-taxonomy until every branch bottoms out at a measurable leaf (D/T)
+or a stated-why-not-D/T judgment leaf (J). Each **answer becomes the next node's question**:
+
+| # | Question (ask of the construct, then recurse into each answer) |
+|---|---|
+| Q1 | **WHAT is it?** → *individuate the specific object, then predicate* (see below) |
+| Q2 | **by what CRITERIA is it good here?** → positive criteria branches |
+| Q3 | **WHEN-NOT — what would make it FAIL?** → the via-negativa branch (→ each leaf's `anchors.negative`; some constructs are grounded best by their negation) |
+| Q4 | **NECESSARY vs SUFFICIENT?** → a necessary-but-absent condition is a **veto-gate** (Step 6), NOT a tree leaf |
+| Q5 | **CONTEXT / SCOPE / OBJECTIVE?** → locked in Step 0; re-check each sub-node inherits it |
+| Q6 | **EVIDENCE / INSTRUMENT / METHOD?** → forces the node toward D/T, exposes a genuine J |
+| Q7 | **GRADIENT?** → graded [0,1], not boolean (Step 3) |
+
+RQE is a documented **protocol, not a new engine** — it *produces* the tree the other steps
+score. It composes GQM · 5-Whys · construct-validity/nomological-network · AHP · Kelly
+Repertory-Grid · means-end laddering (cite-only — `PRIOR-ART.md`). Termination is the leaf
+gate below (D/T, or J-with-"why-not-D/T") + depth-cap + materiality-prune.
+
+**Individuation — idiographic, not nomothetic (Q1 is instance-specific ON PURPOSE).**
+A **generic** "what makes *something* viable?" yields only a population **average** (nomothetic,
+Windelband 1894); you almost never want the average — you want *this case* (idiographic). So
+bind Q1 to the instance: "what makes **Tese B** viable?" → decompose the *specific* object into
+its **real parts** → then ask "what makes each part good?" per part (**decompose-object-then-
+predicate**). Individuation **surfaces the part-level divergence a generic average would bury**
+(see `examples/thesis-b-individuated.json`: the specific parts diverge → engine fires
+`conflict:what`, refusing the comfortable mean). Modes: recursive · sequential · parallel.
+
+Guards (non-negotiable):
 - **depth-cap 3** (root→leaf) — over-decomposition is analysis-paralysis.
 - **materiality-prune** — drop a branch whose global flow `< 0.05`; it can't move the answer.
 - **shared sub-concept = one node with two parents** (a DAG, not a duplicated subtree).
@@ -129,6 +166,30 @@ You get: `score` · `band` (HIGH ≥.85 / MEDIUM ≥.65 / LOW) · `aggregate_con
 · `leaf_flows` (global weights, Σ=1) · `contributions` · `sensitivity`
 (analytic Δ-to-flip per leaf) · `residual` · `inconclusive`.
 
+### 5b · CLASS-ROUTE → is an additive tree even VALID here? (structural-fit gate)
+The weighted-sum engine is a valid model **only for an additive construct**. Declare the
+construct's `meta.structural_form` (+ optional `meta.h35_diagnostics`) and run the routing layer:
+```bash
+python3 scripts/structural_route.py my-spec.json
+```
+It cross-checks your **declared** form against the form its diagnostics **derive**, and routes
+per the **SAGE v10.7 engine-anchored class matrix**:
+
+| structural_form | routed verdict |
+|---|---|
+| additive / atomic (+ diagnostics) | **per_gates** — score stands; gate normally |
+| relational · gestalt | **BLOCKED** — an additive tree structurally CANNOT represent it (`score → null`) |
+| normative · dispositional · temporal | **ASSISTIVE (band-capped)** — advisory + human review |
+| additive/atomic WITHOUT diagnostics | **ASSISTIVE (unverified)** — fail-closed |
+| declared ≠ derived | **REVIEW** — the two channels disagree |
+
+The demo: `examples/fair-relational.json` scores **1.0 / HIGH** via `aggregate_spec` but
+**BLOCKED** via `structural_route` — because the additive tree can't see the *relation* a high
+number hides. ⚠️ **Honest limit (shipped, not hidden):** a *consistent* liar who declares
+"additive" and lies on every diagnostic still passes — `scripts/break_suite.py` **confirms** this
+false-negative (A1). That boundary is **irreducible without external verification (E2)**; the
+router closes evasion-by-omission (A2) and declared/derived conflict, not A1.
+
 ### 6 · GUARDS (built into the script + your reading)
 - **Goodhart** — the score is **evidence, not a target** (Metron §5). Never tune the tree so a favored item "passes".
 - **construct-validity** — is the tree measuring the construct, or something adjacent? Report coverage-by-anchors.
@@ -163,6 +224,8 @@ the reproducible artifact; the score is just its latest evaluation.
 | independent re-typing (verifier≠generator) | `maos:validation-auditor` |
 | CONTEXT-LOCK (Layer 2) + reality gate (Layer 5) | `~/.claude/rules/anti-theater-grounding-protocol.md` |
 | leaf grounding limit (why J can't fully vanish) | Harnad symbol-grounding (see `PRIOR-ART.md`) |
+| structural-form class matrix (additive/relational/gestalt/normative/…) | SAGE v10.7 → `scripts/structural_route.py` + `PRIOR-ART.md` |
+| RQE elicitation (GQM · 5-Whys · Repertory-Grid · laddering) + nomothetic↔idiographic | Step 1 + `PRIOR-ART.md` |
 
 ## I/O contract (see `templates/measurement-spec.schema.json`)
 
@@ -179,9 +242,12 @@ reasons ∈ `low_confidence | judgment_dominated | conflict:<branch>`. Exit code
 `0` ok · `2` unreadable spec · `3` spec **refused** (`SpecError` — context-free,
 anchorless, cyclic, or too deep).
 
-See `examples/` for three worked specs: `pr-healthy` (conclusive HIGH),
-`doc-professional` (judgment-dominated → inconclusive), `quality-conflict`
-(conflicting material branch → inconclusive).
+See `examples/`: `pr-healthy` (conclusive HIGH) · `doc-professional` (judgment-dominated →
+inconclusive) · `quality-conflict` (conflicting branch → inconclusive) · **`fair-relational`**
+(additive engine says HIGH but `structural_route` **BLOCKS** — the class-matrix demo) ·
+**`thesis-b-individuated`** (§13 individuation → `conflict:what`, MEDIUM — refuses the average).
+`structural_route.py` additionally emits `route{status,allowed_use}` · `context_signature` ·
+`loss_vector`, and may override `band` to **BLOCKED / REVIEW / ASSISTIVE**.
 
 ## Anti-patterns (do NOT)
 
@@ -192,3 +258,5 @@ See `examples/` for three worked specs: `pr-healthy` (conclusive HIGH),
 5. ❌ **Tune the tree so a favored item passes** — Goodhart; the calibration set is held-out, and a tree that only fits its tuning examples is inconclusive.
 6. ❌ **Over-decompose** — depth-cap 3, materiality-prune, deepen only near band boundaries. A 30-leaf tree for a reversible call is over-engineering.
 7. ❌ **Believe the strong thesis** — say "tractable + calibrated + bounded residual", never "abstract fully reduced to native math".
+8. ❌ **Score a non-additive construct with the additive tree** — run `structural_route.py` first; relational/gestalt are **BLOCKED**, not "score anyway". A high additive number on a relational construct (see `fair-relational`) is a *false* measure, not a good one.
+9. ❌ **Overclaim validation** — "capability shipped" ≠ "thesis validated". Maturity is gated on E2/E3 (SAGE v10.7); never imply Tier-Professional or a definitive public name.
