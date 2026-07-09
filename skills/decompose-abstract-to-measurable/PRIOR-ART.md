@@ -40,6 +40,7 @@ The v1.1.0 additions are equally **composed, not invented**:
 | **Via negativa** | long tradition (Taleb 2012, modern) | the WHEN-NOT branch (Q3) — some constructs are grounded best by their negation → `anchors.negative` |
 | **Conjoint measurement / additivity** | Luce & Tukey, 1964 | when a weighted-sum is a *valid* model at all — the additive-form precondition |
 | **Gestalt "the whole differs from the sum"** | Wertheimer, 1923 | why gestalt/relational constructs are structurally un-representable by an additive tree → BLOCKED |
+| **Cohen's κ · Fleiss' κ · Landis-Koch bands** | Cohen 1960 · Fleiss 1971 · Landis & Koch 1977 | the **E3 reliability harness** (`scripts/e3_kappa.py`) — inter-rater agreement on the D/T/J typing (reliability per Cronbach-Meehl); κ≥0.60 = "substantial" = the E3 gate |
 
 **Why the class matrix matters (honest):** the additive engine can score a *relational*
 construct (e.g. fairness) and return a confident HIGH — while being **structurally wrong**
@@ -102,3 +103,10 @@ the **RQE recursive-question elicitation** front-end (Step 1) + **§13 individua
 (idiographic Q1) + the **`structural_route.py` class-matrix** (SAGE v10.7) + `break_suite.py`.
 Ratified honesty gate carried forward: capability ≠ validation — maturity is gated on external
 **E2/E3** (not done); Tier-Professional BLOCKED; no definitive public name.
+
+**v1.2.0 (2026-07-09)** — began the **E3** maturity track: added the reusable, tested
+**inter-rater reliability harness** `scripts/e3_kappa.py` (Fleiss'/Cohen's κ + Landis-Koch; 9
+self-tests) + a lean 3-rater pilot on the D/T/J typing → **κ = 0.96 (almost-perfect)** (`E3-PILOT.md`).
+**Honest ceiling (do NOT overclaim):** the raters were 3 samples of the *same* model ⇒ this is
+**self-consistency, NOT diverse-rater reliability** ⇒ **E3 remains OPEN** (needs cross-model/human
+raters + larger n + non-author constructs). E2 still not done. capability ≠ validation carried forward.
