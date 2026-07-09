@@ -1,5 +1,5 @@
 ---
-name: voice
+name: voice-director
 description: |
   Use when the operator EXPLICITLY asks to SPEAK/narrate something aloud — "fala isso", "narra o
   resumo", "speak this", "voz de aplauso", "--media audio-voice", "read this aloud" — to turn text
@@ -8,8 +8,10 @@ description: |
   "Voice Director" rubric that computes voice/gender/intonation/personality/rhythm DYNAMICALLY from
   context (hybrid: deterministic templates × the agent's contextual judgment). ⚠️ AUDIO IS NEVER A
   DEFAULT — text is the default; speak ONLY when the operator opts in (they may be where sound is
-  unwelcome). Not for: real-time voice INPUT/dictation (that is the host's `/voice`); generating a
-  downloadable podcast (that is NotebookLM, async batch). Cross-vendor AAIF.
+  unwelcome). Named `voice-director` (NOT `voice`) so it never collides with the host's native
+  `/voice` push-to-talk INPUT mode; the operator-facing command is `/speak`. Not for: real-time voice
+  INPUT/dictation (that is the host's `/voice`); generating a downloadable podcast (that is NotebookLM,
+  async batch). Cross-vendor AAIF.
 triggers:
   - fala isso / narra isso / lê isso em voz alta
   - speak this / read this aloud / narrate the recap
@@ -22,11 +24,13 @@ metadata:
   version: "0.1.0"
   scope: AAIF cross-vendor
   family: content-lifecycle
-  cross_link_slug: voice
+  cross_link_slug: voice-director
   dogfood_status: pending-first-cycle
 ---
 
-# Voice — on-demand TTS for the eko-system family
+# Voice Director — on-demand TTS for the eko-system family
+<!-- skill slug: `voice-director` · operator command: `/speak` · producer: `bin/speak.sh` -->
+
 
 ## Overview
 Turn text into **real, human-like, on-demand voice**. Single responsibility = the **voice layer**:
@@ -195,7 +199,7 @@ Deprecate when ANY: the host ships a native on-demand TTS primitive (E1) · a co
 - Genesis: operator-eared TTS bake-off 2026-06-25 (Gemini 10 > ElevenLabs 9 > Kokoro 7–8; `say` 3/3/5; NotebookLM excluded). Scorecard + samples: session scratchpad `tts-bakeoff/`.
 - Engines: Google Gemini TTS (ai.google.dev/gemini-api) · ElevenLabs v3 (elevenlabs.io/docs) · Kokoro (`hexgrad/Kokoro-82M`).
 - Gates: anti-theater grounding (faithfulness) · `opera-debrief` dosed-intensity + no-terror · `op-service-account-tokens` (keys) · `script-safety`.
-- Cross-link slug: `[[voice]]`.
+- Cross-link slug: `[[voice-director]]`.
 
 ## License
 MIT (matches the repo `LICENSE`).

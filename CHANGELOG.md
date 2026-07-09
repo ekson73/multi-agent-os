@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `voice` skill renamed to `voice-director` (host `/voice` slash-command collision)
+
+- **`skills/voice/` → `skills/voice-director/`** (`name: voice` → `name: voice-director`). Skills
+  auto-register as `/<name>`, so the skill named `voice` still exposed a `/voice` command that
+  collided with the host's native `/voice` push-to-talk INPUT mode — even though the operator-facing
+  command had already been renamed `/voice` → `/speak`. The distinct, specific name closes the last
+  collision surface; `/speak` (`commands/speak.md`) stays the operator entry point and `bin/speak.sh`
+  the producer.
+- Reference sync: `commands/speak.md` (`Skill` call `skill: "voice-director"` + `skills/voice-director/SKILL.md`
+  path), `bin/speak.sh` header comment, `skills/README.md` catalog row, and the three consumers
+  (`opera-debrief`, `morning-briefing`, `content-recast`) that route `--media audio-voice` / `--format voice`
+  to the skill. Internal `cross_link_slug` + `[[voice]]` slug bumped to `voice-director`.
+
 ### Fixed — gateway action-count drift 105 vs 104 (issue #202)
 
 - **Test-suite action-count SSOT** (`mcp-tools/maos-mcp-hub/tests/conftest.py`):
