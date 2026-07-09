@@ -218,6 +218,13 @@ fi
 
 TAG=""; [ "$OUT_IS_TEMP" = 1 ] && TAG="(temp) "
 echo "speak: engine=$USED style=$STYLE lang=$LANG_ voice=$GVOICE/$EVOICE/$KVOICE -> ${TAG}${OUT}" >&2
-[ "$PLAY" = 1 ] && play_out
+# Playback is opt-in/best-effort, so a failure does NOT void the render contract when a
+# persisted deliverable exists: with --out the file survives (its path is printed below), so
+# stay exit 0 (only the stderr diagnostic from play_out fires). But with a temp file (no --out,
+# trap-cleaned on EXIT) playback was the sole purpose of the call — a failure there is a real
+# failure, so surface it as non-zero instead of masking it under the unconditional exit 0.
+if [ "$PLAY" = 1 ] && ! play_out && [ "$OUT_IS_TEMP" = 1 ]; then
+  exit 1
+fi
 [ "$OUT_IS_TEMP" = 0 ] && echo "$OUT"
 exit 0
