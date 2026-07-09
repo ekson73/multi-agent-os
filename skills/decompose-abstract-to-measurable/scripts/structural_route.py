@@ -13,7 +13,7 @@
 #
 # It also cross-checks the author-DECLARED structural_form against the form DERIVED from
 # concrete H35 diagnostic answers (two channels must agree) — a declared/derived conflict
-# → REVIEW. Emits a context_signature + a 3-dim loss_vector.
+# → REVIEW. Emits a context_signature + a loss_vector (3 computable dims + 2 offline-null).
 #
 # ⚠️ HONEST LIMIT (do NOT hide): this catches evasion-by-omission (A2, fail-closed) and
 # declared/derived conflict — but a CONSISTENT liar who declares "additive" AND lies on
@@ -35,9 +35,18 @@ QORDER = [("relational", "q_value_lives_in_relations"), ("temporal", "q_requires
 
 
 def route(spec_path):
-    spec = json.load(open(spec_path)); meta = spec.get("meta", {})
+    with open(spec_path, encoding="utf-8") as fh:
+        spec = json.load(fh)
+    meta = spec.get("meta", {})
     declared = meta.get("structural_form"); diags = meta.get("h35_diagnostics", {})
-    base = json.loads(subprocess.check_output([sys.executable, AGG, "--spec", spec_path]))
+    try:
+        base = json.loads(subprocess.check_output([sys.executable, AGG, "--spec", spec_path]))
+    except subprocess.CalledProcessError as e:
+        # aggregate_spec.py refused the spec (exit 2 unreadable / 3 SpecError). Surface it cleanly —
+        # do NOT crash with a raw traceback; an un-scored spec simply cannot be routed.
+        sys.stderr.write(f"structural_route: aggregate_spec.py rejected the spec (exit {e.returncode}) — "
+                         f"cannot route an un-scored spec.\n")
+        raise SystemExit(e.returncode or 3)
     out = {k: base.get(k) for k in ["score", "band", "aggregate_confidence", "residual", "inconclusive"]}
     # context_signature — binds the routing to the exact locked context
     cl = json.dumps(meta.get("context_lock", {}), sort_keys=True, ensure_ascii=False)

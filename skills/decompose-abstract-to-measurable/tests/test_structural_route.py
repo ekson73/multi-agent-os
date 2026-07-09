@@ -22,7 +22,7 @@ def _run(form=None, diags=None):
         spec["meta"]["structural_form"] = form
     if diags is not None:
         spec["meta"]["h35_diagnostics"] = diags
-    fd, path = tempfile.mkstemp(suffix=".json", dir=HERE); os.close(fd)
+    fd, path = tempfile.mkstemp(suffix=".json"); os.close(fd)  # system tempdir (read-only-install safe)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(spec, fh)
     try:
@@ -89,6 +89,27 @@ def test_normative_assistive_capped():
 def test_context_signature_present():
     d = _run(form="additive", diags={"q_value_lives_in_relations": False})
     assert d["context_signature"].startswith("sha256:"), d.get("context_signature")
+
+
+@test
+def test_under_specified_passthrough():
+    # No structural_form declared -> advisory under_specified (OPT-IN gate). Engine band passes
+    # through UNCHANGED — deliberate: fail-closing this would cap every v1.0.0 spec (none declare a
+    # form) = silent breaking change. The engine's own inconclusive gates still provide the floor.
+    d = _run(form=None, diags=None)
+    assert d["route"]["status"] == "under_specified", d["route"]
+    assert d["route"]["reason"] == "structural_form_not_declared", d["route"]
+    assert d["band"] is not None, d["band"]  # NOT gated/nulled
+
+
+@test
+def test_loss_vector_shape():
+    # loss_vector carries 3 computable dims + 2 offline-null (honest null, not 0)
+    d = _run(form="additive", diags={"q_value_lives_in_relations": False})
+    lv = d["loss_vector"]
+    for k in ("structural_loss", "semantic_loss", "criterion_loss", "normative_loss", "validation_loss"):
+        assert k in lv, (k, lv)
+    assert lv["normative_loss"] is None and lv["validation_loss"] is None, lv  # offline-only = honest null
 
 
 def main():

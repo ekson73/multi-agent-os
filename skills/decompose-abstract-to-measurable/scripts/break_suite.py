@@ -73,11 +73,18 @@ def run():
     print("=== ADVERSARIAL BREAK-SUITE (Prisma) — predicted vs actual ===\n")
     broke = 0
     for name, sp, prediction in CASES:
-        fd, path = tempfile.mkstemp(suffix=".json", dir=HERE); os.close(fd)
+        fd, path = tempfile.mkstemp(suffix=".json"); os.close(fd)  # system tempdir (read-only-install safe)
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(sp, fh)
         try:
-            raw = subprocess.check_output([sys.executable, ROUTER, path], text=True)
+            try:
+                raw = subprocess.check_output([sys.executable, ROUTER, path], text=True, stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError as e:
+                # router/aggregate refused this spec (exit≠0) — report as an outcome, don't crash the suite.
+                print(f"● {name}\n    PRED : {prediction}\n    REAL : ROUTER REFUSED "
+                      f"(exit {e.returncode}): {(e.stderr or '').strip()[:160]}\n"
+                      f"    → engine held (refused to route an un-scored spec)\n")
+                continue
             d = json.loads(raw)
             band = d.get("band"); status = d.get("route", {}).get("status")
             use = d.get("route", {}).get("allowed_use", "—")
