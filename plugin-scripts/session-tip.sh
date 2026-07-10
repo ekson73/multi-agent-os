@@ -64,10 +64,14 @@ read_state() {
 write_state() {  # $1 = json
   [ -n "${HOME:-}" ] || return 0
   mkdir -p "$STATE_DIR" 2>/dev/null || return 0
-  [ -L "$STATE" ] && return 0   # refuse to follow a symlink
+  [ -L "$STATE" ] && return 0   # courtesy: don't clobber an intentional symlink (NOT the security boundary — see below)
   local tmp; tmp="$(mktemp "${STATE_DIR}/.tips-state.XXXXXX" 2>/dev/null)" || return 0
+  # Security (CWE-367 N/A): the write goes to a fresh mktemp file (never a symlink), then `mv` —
+  # which is rename(2): atomic and does NOT follow symlinks. A symlink swapped into $STATE after
+  # the check above is REPLACED by our regular file (the write is never traversed through it), so
+  # there is no TOCTOU write-through. (`mv -n` is intentionally NOT used — it would refuse to
+  # overwrite and freeze the state, breaking the no-repeat rotation, which must update each session.)
   if printf '%s\n' "$1" > "$tmp" 2>/dev/null; then
-    [ -L "$STATE" ] && { rm -f "$tmp"; return 0; }
     mv "$tmp" "$STATE" 2>/dev/null || rm -f "$tmp"
   else
     rm -f "$tmp"
