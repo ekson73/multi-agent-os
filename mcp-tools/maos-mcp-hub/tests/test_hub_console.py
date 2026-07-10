@@ -292,6 +292,21 @@ def test_cli_freshness_view_accepts_today(tmp_path: Path) -> None:
     assert "upstream-compromised" in out.stdout    # the live GSD row fires
 
 
+def test_cli_rejects_malformed_today_with_json_fail(tmp_path: Path) -> None:
+    """T9 fix-PDCA (Qodo #1/#2): malformed --today on the console CLI yields
+    the JSON fail contract (never a raw traceback / silent mis-order)."""
+    script = _HUB_DIR / "lib" / "registry" / "console.py"
+    out = subprocess.run(
+        [sys.executable, str(script), "view", "freshness",
+         "--repo-root", str(_REPO_ROOT), "--today", "2026-7-1"],
+        capture_output=True, text=True,
+    )
+    assert out.returncode == 1
+    payload = json.loads(out.stdout.splitlines()[-1])
+    assert payload["verdict"] == "fail"
+    assert "ISO date" in payload["error"]
+
+
 def test_cli_help_flag(tmp_path: Path) -> None:
     script = _HUB_DIR / "lib" / "registry" / "console.py"
     out = subprocess.run([sys.executable, str(script), "--help"],

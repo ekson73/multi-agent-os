@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — WAVE 6 T9: TTL & freshness enforcement (registry + console)
 
-- **`lib/registry/hub_registry.py`**: the spec's "Freshness + rollback" requirement is now fully
+- **`mcp-tools/maos-mcp-hub/lib/registry/hub_registry.py`**: the spec's "Freshness + rollback" requirement is now fully
   enforced — (1) **every record carries `ttl` + `last_validated`** (first-party records get the
   `OWN_TTL_DAYS = 90` re-validation deadline, the ttl-policy skill's Protocol/Standard cadence;
   presence enforced by the `all_required_fields_present` invariant); (2) new **`upstream_status`**
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GSD/awesome-design-tools rows (the GSD/MemPalace lesson); (3) **`eject_candidates()`** now
   returns `{id, reason}` records covering BOTH branches and is always surfaced in
   `report().invariants` (candidates are HITL-surfaced, never auto-ejected).
-- **`lib/registry/console.py`**: new 7th view **`freshness`** (+ CLI `--today YYYY-MM-DD`) — the
+- **`mcp-tools/maos-mcp-hub/lib/registry/console.py`**: new 7th view **`freshness`** (+ CLI `--today YYYY-MM-DD`) — the
   HITL surface listing eject-candidates with reasons plus every record's ttl/last_validated/
   upstream_status (deterministic: `today` is an explicit parameter, never the wall clock).
 - Tests: +6 (both scenario branches on the live fixture · every-record-carries-ttl · synthetic

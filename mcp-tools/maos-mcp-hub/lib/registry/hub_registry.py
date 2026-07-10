@@ -190,6 +190,19 @@ def _ttl_deadline(last_validated: str, days: int) -> str:
     return (date.fromisoformat(last_validated) + timedelta(days=days)).isoformat()
 
 
+def _valid_iso_date(value: str, field: str) -> str:
+    """Parse-validate a date CLI input; returns the CANONICAL zero-padded
+    ISO form (so downstream date handling is unambiguous). Raises
+    ``ValueError`` with the offending field name on malformed input —
+    CLI layers convert that into their JSON fail contract (Qodo #1/#2)."""
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be an ISO date (YYYY-MM-DD), got: {value!r}"
+        ) from exc
+
+
 class HubRegistry:
     """Plugin-level registry derived from the repo's own sources of truth."""
 
@@ -494,10 +507,24 @@ class HubRegistry:
         derivation / intake verdict) or eject via the record's ``rollback``.
         """
         out: List[Dict[str, str]] = []
+        # Dates compared as date OBJECTS, never raw strings (Copilot/Qodo #2:
+        # non-zero-padded inputs would silently mis-order). ``today`` raises
+        # ValueError on malformed input — the CLI layers validate first.
+        today_d = date.fromisoformat(today) if today else None
         for rec in self.records():
             if rec.upstream_status in ("abandoned", "compromised"):
                 out.append({"id": rec.id, "reason": f"upstream-{rec.upstream_status}"})
-            elif today and rec.ttl and today > rec.ttl:
+                continue
+            if today_d is None or not rec.ttl:
+                continue
+            try:
+                ttl_d = date.fromisoformat(rec.ttl)
+            except ValueError:
+                # Fail-closed: an unparseable deadline cannot prove freshness
+                # — surface it for HITL instead of silently skipping.
+                out.append({"id": rec.id, "reason": f"ttl-unparseable (ttl={rec.ttl})"})
+                continue
+            if today_d > ttl_d:
                 out.append({
                     "id": rec.id,
                     "reason": (
@@ -618,6 +645,13 @@ def _main(argv: List[str]) -> int:
             today = args.pop(0)
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
+        return 1
+    try:  # validate date inputs at the boundary (Qodo #1: no raw tracebacks)
+        as_of = _valid_iso_date(as_of, "--as-of")
+        if today is not None:
+            today = _valid_iso_date(today, "--today")
+    except ValueError as exc:
+        print(json.dumps({"verdict": "fail", "error": str(exc)}))
         return 1
     reg = HubRegistry.derive(repo_root, as_of=as_of)
     report = reg.report(today=today)

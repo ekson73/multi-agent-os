@@ -67,7 +67,13 @@ import yaml
 # `python3 lib/registry/console.py …` has no parent package — inject the hub
 # dir so `lib.*` absolute imports resolve).
 try:  # pragma: no cover - import plumbing
-    from .hub_registry import ACTIVATION_TIERS, HubRecord, HubRegistry, _flatten_stack
+    from .hub_registry import (
+        ACTIVATION_TIERS,
+        HubRecord,
+        HubRegistry,
+        _flatten_stack,
+        _valid_iso_date,
+    )
     from .context_rank import load_signals_file, render_ranking
     from .context_rank import rank as rank_by_signals
     from ..gateway.profile import PROFILE_MODES, HubProfile, validate_profile
@@ -80,6 +86,7 @@ except ImportError:  # pragma: no cover
         HubRecord,
         HubRegistry,
         _flatten_stack,
+        _valid_iso_date,
     )
     from lib.registry.context_rank import load_signals_file, render_ranking  # type: ignore
     from lib.registry.context_rank import rank as rank_by_signals  # type: ignore
@@ -567,6 +574,13 @@ def _main(argv: List[str]) -> int:
 
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson, T1)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
+        return 1
+    try:  # validate date inputs at the boundary (Qodo #1/#2, T9 fix-PDCA)
+        as_of = _valid_iso_date(as_of, "--as-of")
+        if today is not None:
+            today = _valid_iso_date(today, "--today")
+    except ValueError as exc:
+        print(json.dumps({"verdict": "fail", "error": str(exc)}))
         return 1
     console = _build_console(repo_root, as_of, signals=signals, today=today)
 

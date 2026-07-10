@@ -286,6 +286,33 @@ def test_cli_contract() -> None:
     assert payload["verdict"] == "pass"
 
 
+def test_cli_rejects_malformed_dates_with_json_fail() -> None:
+    """T9 fix-PDCA (Qodo #1): a malformed --as-of/--today yields the JSON
+    fail contract (never a raw traceback)."""
+    for extra in (["--as-of", "2026-7-1"],
+                  ["--as-of", AS_OF, "--today", "garbage"]):
+        proc = subprocess.run(
+            [sys.executable, "-m", "lib.registry.hub_registry",
+             "--repo-root", str(_REPO_ROOT), *extra],
+            cwd=_HUB_DIR, capture_output=True, text=True, timeout=120,
+        )
+        assert proc.returncode == 1, extra
+        payload = json.loads(proc.stdout)
+        assert payload["verdict"] == "fail"
+        assert "ISO date" in payload["error"]
+
+
+def test_unparseable_record_ttl_is_flagged_fail_closed() -> None:
+    """T9 fix-PDCA (Qodo/Copilot #2): a record whose ttl cannot parse is
+    SURFACED as an eject-candidate (fail-closed), never silently skipped —
+    and dates are compared as date objects, not raw strings."""
+    reg = HubRegistry()
+    reg._add(_mk_record("weird", "skill", ttl="soon"))
+    assert reg.eject_candidates("2026-01-01") == [
+        {"id": "weird", "reason": "ttl-unparseable (ttl=soon)"}
+    ]
+
+
 # --- PR #209 bot-finding regressions (fix/T1-registry-bot-findings) ----------
 
 def _mk_record(rid: str, category: str, **kw) -> HubRecord:
