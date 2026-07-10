@@ -28,7 +28,9 @@ Spec scenarios implemented as CHECKABLE fields (the DoD-gate — no prose):
   - "two conductors selected"      → the ``conflicts_with`` graph round-trips
     ``conflicts.yaml`` exactly (``report().invariants.conflicts_roundtrip``).
   - "upstream goes stale/abandoned" → ``eject_candidates(today)`` flags records
-    whose ``ttl`` deadline has passed (the GSD/MemPalace lesson).
+    whose ``ttl`` re-validation deadline has passed OR whose upstream is
+    flagged abandoned/compromised (the GSD/MemPalace lesson) — surfaced for
+    HITL, never auto-ejected (T9 / WAVE 6).
 
 Deterministic activation derivation (documented, fail-closed):
 
@@ -51,6 +53,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
@@ -77,6 +80,24 @@ CONFLICT_ALIASES = {
     "bmad-as-co-runtime": "bmad-method",
 }
 
+#: First-party re-validation cadence (days). Own tools are re-derived from
+#: the live checkout every build (derivation IS validation), so the ttl
+#: guards the SNAPSHOT: a registry not re-derived within the cadence goes
+#: eject-candidate. 90 days = the ttl-policy skill's "Protocol/Standard"
+#: tier (skills/ttl-policy/SKILL.md).
+OWN_TTL_DAYS = 90
+
+#: Upstream-health flags (intake-fixture vocabulary) → ``upstream_status``.
+#: Exact-match, checkable — the spec's "flagged abandoned/compromised"
+#: branch (T9). Live examples: gsd-build-get-shit-done carries
+#: rug-pull-confirmed; awesome-design-tools carries stale.
+_COMPROMISED_FLAGS = frozenset(
+    {"compromised", "malware", "rug-pull-confirmed", "live-threat-npm-keys"}
+)
+_ABANDONED_FLAGS = frozenset(
+    {"abandoned", "stale", "archived", "deprecated", "404-not-resolving"}
+)
+
 _OWN_REPO = "ekson73/multi-agent-os"
 _OWN_LICENSE = "MIT"
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.S)
@@ -100,12 +121,16 @@ class HubRecord:
     activation: str
     license_spdx: str
     provenance: str
-    ttl: Optional[str]            # deadline date (ISO) after which re-validation is due
+    # ``ttl`` stores the precomputed re-validation DEADLINE (ISO date =
+    # last_validated + cadence) — the deadline realization of the spec's
+    # ``now - last_validated > ttl`` (ttl-as-period) scenario.
+    ttl: Optional[str]
     last_validated: Optional[str]
     rollback: str
     security_status: str
     derived_from: str             # provenance of the DERIVATION itself (checkable)
     activation_reason: str = ""   # why the tier was capped/granted (logged field)
+    upstream_status: str = "active"  # active | abandoned | compromised (T9 freshness branch 2)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -129,6 +154,7 @@ class HubRecord:
             "security_status": self.security_status,
             "derived_from": self.derived_from,
             "activation_reason": self.activation_reason,
+            "upstream_status": self.upstream_status,
         }
 
 
@@ -156,6 +182,25 @@ def _flatten_stack(stack: Iterable[Any]) -> List[str]:
         else:
             out.append(str(item))
     return out
+
+
+def _ttl_deadline(last_validated: str, days: int) -> str:
+    """Deadline realization of the spec's ``now - last_validated > ttl``:
+    the stored ``ttl`` IS the precomputed re-validation deadline."""
+    return (date.fromisoformat(last_validated) + timedelta(days=days)).isoformat()
+
+
+def _valid_iso_date(value: str, field: str) -> str:
+    """Parse-validate a date CLI input; returns the CANONICAL zero-padded
+    ISO form (so downstream date handling is unambiguous). Raises
+    ``ValueError`` with the offending field name on malformed input —
+    CLI layers convert that into their JSON fail contract (Qodo #1/#2)."""
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as exc:
+        raise ValueError(
+            f"{field} must be an ISO date (YYYY-MM-DD), got: {value!r}"
+        ) from exc
 
 
 class HubRegistry:
@@ -242,7 +287,7 @@ class HubRegistry:
                     activation="default-on-for-context",
                     license_spdx=_OWN_LICENSE,
                     provenance=f"repo:{_OWN_REPO}@{rel}",
-                    ttl=None,
+                    ttl=_ttl_deadline(as_of, OWN_TTL_DAYS),
                     last_validated=as_of,
                     rollback="git revert the introducing commit; plugin re-install",
                     security_status="first-party",
@@ -281,7 +326,7 @@ class HubRegistry:
                     activation="opt-in",
                     license_spdx=_OWN_LICENSE,
                     provenance=f"repo:{_OWN_REPO}@{rel}",
-                    ttl=None,
+                    ttl=_ttl_deadline(as_of, OWN_TTL_DAYS),
                     last_validated=as_of,
                     rollback="git revert the introducing commit; plugin re-install",
                     security_status="first-party",
@@ -309,6 +354,13 @@ class HubRegistry:
             edges = tuple(sorted(conflicts.get(tid, ())))
             activation, reason = self._third_party_activation(tid, verdict, license_spdx, edges)
             flags = [str(f) for f in entry.get("flags", [])]
+            flag_set = set(flags)
+            if flag_set & _COMPROMISED_FLAGS:
+                upstream = "compromised"
+            elif flag_set & _ABANDONED_FLAGS:
+                upstream = "abandoned"
+            else:
+                upstream = "active"
             if entry.get("blocked") or verdict == "EXCLUDED":
                 security = "supply-chain-veto"
             elif "license-none" in flags:
@@ -338,6 +390,7 @@ class HubRegistry:
                     security_status=security,
                     derived_from=rel,
                     activation_reason=reason,
+                    upstream_status=upstream,
                 )
             )
 
@@ -442,12 +495,43 @@ class HubRegistry:
         )
         return decision
 
-    def eject_candidates(self, today: str) -> List[str]:
-        """Freshness invariant: ttl deadline passed → eject-candidate (HITL)."""
-        out = []
+    def eject_candidates(self, today: Optional[str] = None) -> List[Dict[str, str]]:
+        """Freshness invariant (spec Requirement: Freshness + rollback, T9).
+
+        A record is an eject-candidate WHEN its ``ttl`` re-validation
+        deadline has passed (``today > ttl`` — the deadline realization of
+        ``now - last_validated > ttl``) OR its upstream is flagged
+        abandoned/compromised (date-independent — evaluated even without
+        ``today``). Candidates are SURFACED for HITL, never auto-ejected:
+        ejection is destructive, so the human decides — re-validate (a new
+        derivation / intake verdict) or eject via the record's ``rollback``.
+        """
+        out: List[Dict[str, str]] = []
+        # Dates compared as date OBJECTS, never raw strings (Copilot/Qodo #2:
+        # non-zero-padded inputs would silently mis-order). ``today`` raises
+        # ValueError on malformed input — the CLI layers validate first.
+        today_d = date.fromisoformat(today) if today else None
         for rec in self.records():
-            if rec.ttl and today > rec.ttl:
-                out.append(rec.id)
+            if rec.upstream_status in ("abandoned", "compromised"):
+                out.append({"id": rec.id, "reason": f"upstream-{rec.upstream_status}"})
+                continue
+            if today_d is None or not rec.ttl:
+                continue
+            try:
+                ttl_d = date.fromisoformat(rec.ttl)
+            except ValueError:
+                # Fail-closed: an unparseable deadline cannot prove freshness
+                # — surface it for HITL instead of silently skipping.
+                out.append({"id": rec.id, "reason": f"ttl-unparseable (ttl={rec.ttl})"})
+                continue
+            if today_d > ttl_d:
+                out.append({
+                    "id": rec.id,
+                    "reason": (
+                        f"ttl-expired (ttl={rec.ttl}, "
+                        f"last_validated={rec.last_validated})"
+                    ),
+                })
         return out
 
     # ------------------------------------------------------------ outputs ---
@@ -472,6 +556,9 @@ class HubRegistry:
             bool(r.id) and bool(r.provenance) and bool(r.derived_from)
             and bool(r.activation) and bool(r.license_spdx) and bool(r.rollback)
             and bool(r.security_status) and bool(r.category)
+            # T9: "Every record SHALL carry a ttl + last_validated" (spec
+            # Requirement: Freshness + rollback) — presence enforced here.
+            and bool(r.ttl) and bool(r.last_validated)
             for r in recs
         )
         vocab_ok = all(r.activation in ACTIVATION_TIERS for r in recs)
@@ -491,8 +578,9 @@ class HubRegistry:
             "third_party_always_on": third_party_always_on,
             "id_collisions": list(self._collisions),
         }
-        if today:
-            invariants["eject_candidates"] = self.eject_candidates(today)
+        # Always present (T9): the upstream-abandoned/compromised branch is
+        # date-independent; the ttl branch additionally needs ``today``.
+        invariants["eject_candidates"] = self.eject_candidates(today)
         ok = (
             required_ok and vocab_ok and roundtrip
             and not third_party_always_on and not cross_category_collisions
@@ -557,6 +645,13 @@ def _main(argv: List[str]) -> int:
             today = args.pop(0)
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
+        return 1
+    try:  # validate date inputs at the boundary (Qodo #1: no raw tracebacks)
+        as_of = _valid_iso_date(as_of, "--as-of")
+        if today is not None:
+            today = _valid_iso_date(today, "--today")
+    except ValueError as exc:
+        print(json.dumps({"verdict": "fail", "error": str(exc)}))
         return 1
     reg = HubRegistry.derive(repo_root, as_of=as_of)
     report = reg.report(today=today)

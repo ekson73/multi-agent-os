@@ -55,7 +55,8 @@ CTS scorer, memória mem0, OTel, model-router, registry, eval) — cada item em 
 | 5 | T4 context-aware ranking v1 (work-compass signals · byte-stable · why emitido) | ADR-007 | 🟢 merged (2026-07-02) | [#215](https://github.com/ekson73/multi-agent-os/pull/215) |
 | 5 | T5 prose-intent engine (entrevista ≤3 Qs · mapping mostrado · DRAFT nunca auto-aplica) | ADR-007 | 🟢 merged (2026-07-02) | [#216](https://github.com/ekson73/multi-agent-os/pull/216) |
 | 5 | T6 activation-karpathy (`skills/deliberate-coding` first-party · upstream capped opt-in HF2) | ADR-006 | 🟢 merged (2026-07-02) | [#217](https://github.com/ekson73/multi-agent-os/pull/217) |
-| 6 | T9 ttl-freshness → T8 gatekeeper-core → T7 slot-adapter (on-first-vendored-use) — ordem por utilidade interna | ADR-007 (Amendment 2026-07-10) | 🟡 destravada per-tile (gate: consumidor interno nomeado + 7 guardrails + HITL por tile; piso CI WAVE-0 ✅ verde 2026-07-10; demand-gate #183 retirado — post vira divulgação opcional) | — |
+| 6 | T9 ttl-freshness (ttl em TODO record `as_of+90d` first-party · `upstream_status` abandoned/compromised auto-flag das flags do intake · `eject_candidates` `{id, reason}` · console view `freshness` + `--today` — HITL, nunca auto-eject) | ADR-007 (Amendment 2026-07-10) | 🟢 merged (2026-07-10) | [#238](https://github.com/ekson73/multi-agent-os/pull/238) |
+| 6 | T8 gatekeeper-core → T7 slot-adapter (on-first-vendored-use) — ordem por utilidade interna | ADR-007 (Amendment 2026-07-10) | 🟡 destravada per-tile (gate: consumidor interno nomeado + 7 guardrails + HITL por tile; piso CI WAVE-0 ✅ verde 2026-07-10; demand-gate #183 retirado — post vira divulgação opcional) | — |
 | 6 | T10 hardened-distributor | ADR-007 | ⏸ DEFERRED (LOW-MED utilidade interna; slice mínimo = SBOM no release CI quando existir canal de release) | — |
 
 Tracking do restante: [issue #204](https://github.com/ekson73/multi-agent-os/issues/204) (Waves 4–6); contratos em

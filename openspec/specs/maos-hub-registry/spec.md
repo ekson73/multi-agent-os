@@ -16,7 +16,9 @@ it, and the integrator can grow it.
 Each record SHALL carry: `id` · `owner/repo` · `layer (L0–L9)` · `role (substrate|knowledge|pipeline|
 amplifier)` · `category` · `harness_coverage[]` · `requires[]` · `conflicts_with[]` · `guardrails` ·
 `impact` · `recipes[]` (use-cases) · **`activation`** ∈ {always-on, default-on-for-context, opt-in,
-excluded} · `license_spdx` · `provenance` (source + pin + SBOM ref) · `ttl` (+ last_validated) ·
+excluded} · `license_spdx` · `provenance` (source + pin + SBOM ref) · `ttl` (+ last_validated; `ttl`
+is stored as the precomputed re-validation DEADLINE, ISO date = last_validated + cadence — the
+deadline realization of the "now - last_validated > ttl" scenario) ·
 `rollback` (revert/uninstall recipe) · `security_status`.
 
 ## Requirements

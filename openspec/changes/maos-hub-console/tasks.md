@@ -42,9 +42,14 @@
   changelog (adopt/adapt/reject + justification) + credit/license (`co-author-standard` +
   `THIRD_PARTY_NOTICES`) + the fallback commit. *Acceptance: a planted-malicious fixture is
   blocked by the floor; the agent never auto-accepts; all artifacts generated.*
-- [ ] **T9 `feature/<id>-ttl-freshness`** — every integration carries a TTL + re-validation cadence;
+- [x] **T9 `feature/<id>-ttl-freshness`** — every integration carries a TTL + re-validation cadence;
   stale/abandoned/compromised upstream auto-flag + eject. *Acceptance: a stale fixture is flagged + the
-  registry marks it for ejection.*
+  registry marks it for ejection.* **Delivered 2026-07-10** — every record carries `ttl`
+  (first-party = `as_of + 90d`, the ttl-policy Protocol/Standard cadence) + `last_validated`
+  (presence enforced by `all_required_fields_present`); `upstream_status` derived from intake
+  flags (`rug-pull-confirmed`/`stale`/`404-not-resolving` …) fires the date-independent
+  abandoned/compromised branch; `eject_candidates()` returns `{id, reason}` surfaced in
+  `report()` + the new console `freshness` view (HITL — never auto-ejected).
 - [ ] **T10 `feature/<id>-hardened-distributor`** — MAOS-as-distributor hardening: signed releases +
   SBOM + provenance. *Acceptance: release carries signature + SBOM.*
 
