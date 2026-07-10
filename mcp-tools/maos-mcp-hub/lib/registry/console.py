@@ -85,7 +85,10 @@ except ImportError:  # pragma: no cover
     from lib.registry.context_rank import rank as rank_by_signals  # type: ignore
     from lib.gateway.profile import PROFILE_MODES, HubProfile, validate_profile  # type: ignore
 
-VIEWS = ("preset", "category", "use-case", "context-aware", "prose-intent", "safe-mode")
+VIEWS = (
+    "preset", "category", "use-case", "context-aware", "prose-intent",
+    "safe-mode", "freshness",
+)
 
 _OWN_REPO = "ekson73/multi-agent-os"
 _WIDTH = 78
@@ -168,10 +171,14 @@ class HubConsole:
         registry: HubRegistry,
         recipes: Sequence[Recipe],
         signals: Sequence[str] = (),
+        today: Optional[str] = None,
     ) -> None:
         self.registry = registry
         self.recipes = sorted(recipes, key=lambda r: r.id)
         self.signals: Tuple[str, ...] = tuple(sorted(set(signals)))
+        # T9 freshness view: an EXPLICIT date, never the wall clock — the
+        # determinism contract (byte-stable for the same inputs) holds.
+        self.today = today
 
     # ------------------------------------------------------------------ views
 
@@ -185,6 +192,7 @@ class HubConsole:
             "context-aware": self._view_context_aware,
             "prose-intent": self._view_prose_intent,
             "safe-mode": self._view_safe_mode,
+            "freshness": self._view_freshness,
         }[view]()
         head = [
             _rule("="),
@@ -291,6 +299,41 @@ class HubConsole:
         ]
         lines.extend(_record_header())
         lines.extend(_record_line(rec) for rec in safe)
+        return lines
+
+    def _view_freshness(self) -> List[str]:
+        """T9: the HITL surface of the registry freshness invariant — the
+        eject-candidates (ttl-expired / upstream-abandoned / -compromised)
+        plus every record's freshness fields. Ejection is a HITL decision:
+        re-validate (re-derive / new intake verdict) or eject via the
+        record's rollback recipe — the console never auto-ejects."""
+        candidates = self.registry.eject_candidates(self.today)
+        scope = (
+            f"today: {self.today}"
+            if self.today
+            else "no --today: ttl-expiry not evaluated; upstream flags only"
+        )
+        lines = [
+            f" freshness — eject-candidates: {len(candidates)}  ({scope})",
+            _rule(),
+        ]
+        for cand in candidates:
+            lines.append(f"   ! {cand['id']:<28} {cand['reason']}")
+        if candidates:
+            lines.append(
+                "   -> HITL: re-validate (re-derive / new intake verdict) or eject"
+            )
+            lines.append("      via the record's rollback recipe. Never auto-ejected.")
+        lines.append(_rule())
+        lines.append(
+            f"  {'id':<28} {'ttl':<12} {'last_validated':<15} upstream_status"
+        )
+        lines.append("  " + _rule()[:76])
+        for rec in self.registry.records():
+            lines.append(
+                f"  {rec.id:<28} {rec.ttl or '-':<12} "
+                f"{rec.last_validated or '-':<15} {rec.upstream_status}"
+            )
         return lines
 
     # -------------------------------------------------------------- selection
@@ -436,13 +479,14 @@ _USAGE = """\
 MAOS Hub console (T3) — render registry views / write the enablement profile.
 
 usage:
-  console.py view <name> [--repo-root P] [--as-of DATE] [--html OUT.html]
+  console.py view <name> [--repo-root P] [--as-of DATE] [--today DATE] [--html OUT.html]
                   [--signals COMPASS.json]   # work-compass --json snapshot (T4 ranking)
   console.py select --ids a,b,c [--mode enforce|advisory] [--write PROFILE.yaml] [--confirm]
   console.py --safe-mode            # shortcut for: view safe-mode
   console.py --help
 
-views: preset | category | use-case | context-aware | prose-intent | safe-mode
+views: preset | category | use-case | context-aware | prose-intent | safe-mode | freshness
+       (freshness: --today YYYY-MM-DD evaluates ttl-expiry; upstream flags always shown)
 
 Selection is conflict-checked against BOTH edge sources (curated
 conflicts.yaml UNION per-record conflicts_with), fail-closed
@@ -454,19 +498,23 @@ registry TOOL ids emit `warning: enforce_profile_gates_operations`.
 
 
 def _build_console(
-    repo_root: Path, as_of: str, signals: Sequence[str] = ()
+    repo_root: Path,
+    as_of: str,
+    signals: Sequence[str] = (),
+    today: Optional[str] = None,
 ) -> HubConsole:
     registry = HubRegistry.derive(repo_root, as_of=as_of)
     recipes = load_recipe_catalog(
         repo_root / "mcp-tools" / "maos-mcp-hub" / "lib" / "gateway" / "recipes.yaml"
     )
-    return HubConsole(registry, recipes, signals=signals)
+    return HubConsole(registry, recipes, signals=signals, today=today)
 
 
 def _main(argv: List[str]) -> int:
     here = Path(__file__).resolve()
     repo_root = here.parents[4]  # lib/registry/x.py -> lib -> maos-mcp-hub -> mcp-tools -> ROOT
     as_of = "1970-01-01"
+    today: Optional[str] = None
     args = list(argv)
     if not args or "--help" in args or "-h" in args:
         print(_USAGE)
@@ -490,6 +538,8 @@ def _main(argv: List[str]) -> int:
             repo_root = Path(args.pop(0)).resolve()
         elif a == "--as-of" and args:
             as_of = args.pop(0)
+        elif a == "--today" and args:
+            today = args.pop(0)
         elif a == "--html" and args:
             html_out = Path(args.pop(0))
         elif a == "--signals" and args:
@@ -518,7 +568,7 @@ def _main(argv: List[str]) -> int:
     if not (repo_root / "skills").is_dir():  # empirical root check (Qodo lesson, T1)
         print(json.dumps({"verdict": "fail", "error": f"not a repo root: {repo_root}"}))
         return 1
-    console = _build_console(repo_root, as_of, signals=signals)
+    console = _build_console(repo_root, as_of, signals=signals, today=today)
 
     if cmd == "view":
         if view_name not in VIEWS:

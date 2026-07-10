@@ -156,15 +156,88 @@ def test_license_classified_never_assumed(registry: HubRegistry) -> None:
 
 # --- Requirement: Freshness + rollback ---------------------------------------
 
+# Live-fixture upstream-health rows (T9, scenario branch 2): the intake flags
+# rug-pull-confirmed / stale / 404-not-resolving map to upstream_status.
+_UPSTREAM_FLAGGED = {
+    "gsd-build-get-shit-done": "upstream-compromised",
+    "awesome-design-tools": "upstream-abandoned",
+    "forrestchang-andrej-karpathy-skills": "upstream-abandoned",
+}
+
+
 def test_scenario_upstream_goes_stale(registry: HubRegistry) -> None:
-    """Scenario: now - last_validated > ttl -> eject-candidate."""
-    fresh = registry.eject_candidates("2026-08-01")   # before revisit 2026-09-27
-    stale = registry.eject_candidates("2026-12-01")   # after revisit
-    third = [r.id for r in registry.records() if r.category == "third-party"]
-    assert fresh == []
-    assert set(stale) == set(third)                   # every fixture record shares the TTL
+    """Scenario branch 1: now - last_validated > ttl -> eject-candidate
+    (``ttl`` stored as the precomputed re-validation deadline)."""
+    fresh = registry.eject_candidates("2026-08-01")   # before every deadline
+    stale = registry.eject_candidates("2026-12-01")   # after 2026-09-27 (3p) + as_of+90d (own)
+    # Before any deadline: only the date-independent upstream-flagged rows.
+    assert {c["id"]: c["reason"] for c in fresh} == _UPSTREAM_FLAGGED
+    # After every deadline: EVERY record is stale — own records included (the
+    # snapshot itself went past its OWN_TTL_DAYS re-validation cadence).
+    all_ids = {r.id for r in registry.records()}
+    assert {c["id"] for c in stale} == all_ids
+    ttl_reasons = [c["reason"] for c in stale if c["id"] not in _UPSTREAM_FLAGGED]
+    assert ttl_reasons and all(r.startswith("ttl-expired") for r in ttl_reasons)
     report = registry.report(today="2026-12-01")
-    assert set(report["invariants"]["eject_candidates"]) == set(third)
+    assert {c["id"] for c in report["invariants"]["eject_candidates"]} == all_ids
+
+
+def test_scenario_upstream_flagged_abandoned_or_compromised(registry: HubRegistry) -> None:
+    """Scenario branch 2 (T9): upstream flagged abandoned/compromised ->
+    eject-candidate, date-INDEPENDENT (no ``today`` needed) — the
+    GSD/MemPalace lesson firing on the live fixture."""
+    candidates = {c["id"]: c["reason"] for c in registry.eject_candidates()}
+    assert candidates == _UPSTREAM_FLAGGED
+    for rid, reason in _UPSTREAM_FLAGGED.items():
+        assert registry.get(rid).upstream_status == reason.split("-", 1)[1]
+    # report() surfaces them even WITHOUT today (always-present invariant)
+    report = registry.report()
+    surfaced = {c["id"] for c in report["invariants"]["eject_candidates"]}
+    assert surfaced == set(_UPSTREAM_FLAGGED)
+
+
+def test_every_record_carries_ttl_and_last_validated(registry: HubRegistry) -> None:
+    """Spec (T9): 'Every record SHALL carry a ttl + last_validated' —
+    first-party records get the OWN_TTL_DAYS deadline (as_of + 90d), and
+    presence is enforced by the all_required_fields_present invariant."""
+    for rec in registry.records():
+        assert rec.ttl, rec.id
+        assert rec.last_validated, rec.id
+    own = next(r for r in registry.records() if r.category == "skill")
+    assert own.ttl == "2026-09-30"          # AS_OF 2026-07-02 + 90 days
+    assert registry.report()["invariants"]["all_required_fields_present"] is True
+
+
+def test_stale_golden_fixture_synthetic_repo(tmp_path: Path) -> None:
+    """tasks.md T9 acceptance: 'a stale fixture is flagged + the registry
+    marks it for ejection' — golden synthetic intake fixture."""
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "agents").mkdir()
+    fx = tmp_path / "mcp-tools" / "maos-mcp-hub" / "evals" / "fixtures"
+    fx.mkdir(parents=True)
+    (fx / "intake_verdicts.yaml").write_text(
+        "decided: '2026-01-01'\n"
+        "revisit: '2026-03-01'\n"
+        "entries:\n"
+        "  - {id: healthy, repo: a/h, layer: L2, role: r, license: MIT,\n"
+        "     verdict: INSTALL, flags: [], conditions: [], rationale: ok}\n"
+        "  - {id: ghosted, repo: a/g, layer: L2, role: r, license: MIT,\n"
+        "     verdict: INSTALL, flags: [abandoned], conditions: [], rationale: gone}\n"
+        "  - {id: pwned, repo: a/p, layer: L2, role: r, license: MIT,\n"
+        "     verdict: EXCLUDED, blocked: true, flags: [compromised],\n"
+        "     conditions: [], rationale: rug-pull}\n",
+        encoding="utf-8",
+    )
+    reg = HubRegistry.derive(tmp_path, as_of="2026-01-01")
+    # date-independent: the flagged upstreams are marked immediately
+    assert {c["id"]: c["reason"] for c in reg.eject_candidates()} == {
+        "ghosted": "upstream-abandoned",
+        "pwned": "upstream-compromised",
+    }
+    # past the revisit deadline: the healthy record goes ttl-stale too
+    stale = {c["id"]: c["reason"] for c in reg.eject_candidates("2026-06-01")}
+    assert stale["healthy"].startswith("ttl-expired")
+    assert set(stale) == {"healthy", "ghosted", "pwned"}
 
 
 def test_every_record_has_rollback(registry: HubRegistry) -> None:
@@ -220,7 +293,7 @@ def _mk_record(rid: str, category: str, **kw) -> HubRecord:
         id=rid, owner_repo="x/y", layer="L2", role="r", category=category,
         harness_coverage=(), requires=(), conflicts_with=(), guardrails="",
         impact="", recipes=(), activation="opt-in", license_spdx="MIT",
-        provenance="p", ttl=None, last_validated="2026-07-02",
+        provenance="p", ttl="2026-12-31", last_validated="2026-07-02",
         rollback="rb", security_status="vetted", derived_from="d",
     )
     base.update(kw)

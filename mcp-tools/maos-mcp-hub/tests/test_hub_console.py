@@ -30,7 +30,7 @@ def _mk_record(rid: str, **kw) -> HubRecord:
         id=rid, owner_repo="acme/tools", layer="L2", role="r", category="skill",
         harness_coverage=(), requires=(), conflicts_with=(), guardrails="g",
         impact="i", recipes=(), activation="opt-in", license_spdx="MIT",
-        provenance="p", ttl=None, last_validated="2026-07-02",
+        provenance="p", ttl="2026-12-31", last_validated="2026-07-02",
         rollback="rb", security_status="vetted", derived_from="d",
     )
     base.update(kw)
@@ -148,6 +148,37 @@ def test_golden_safe_mode_fixture(console: HubConsole) -> None:
     ]
 
 
+def test_freshness_view_surfaces_eject_candidates(recipes: list) -> None:
+    """T9 acceptance: the freshness view is the HITL surface — candidates
+    rendered with reasons; ejection is never automatic."""
+    reg = HubRegistry()
+    reg._add(_mk_record("fresh-one", ttl="2027-01-01"))
+    reg._add(_mk_record("stale-one", ttl="2026-01-01"))
+    reg._add(_mk_record("pwned-one", upstream_status="compromised",
+                        category="third-party"))
+    console = HubConsole(reg, recipes, today="2026-07-10")
+    out = console.render("freshness")
+    assert "eject-candidates: 2" in out
+    assert "! stale-one" in out and "ttl-expired" in out
+    assert "! pwned-one" in out and "upstream-compromised" in out
+    assert "fresh-one" in out                      # the full table still lists it
+    assert "Never auto-ejected" in out             # the HITL posture, stated
+    assert console.render("freshness") == console.render("freshness")  # byte-stable
+
+
+def test_freshness_view_without_today_is_upstream_only(recipes: list) -> None:
+    """Without --today the ttl branch is NOT evaluated (and says so);
+    the date-independent upstream branch still fires."""
+    reg = HubRegistry()
+    reg._add(_mk_record("stale-one", ttl="2026-01-01"))
+    reg._add(_mk_record("ghost-one", upstream_status="abandoned"))
+    console = HubConsole(reg, recipes)             # no today
+    out = console.render("freshness")
+    assert "eject-candidates: 1" in out
+    assert "! ghost-one" in out and "upstream-abandoned" in out
+    assert "ttl-expiry not evaluated" in out
+
+
 def test_html_artifact_wraps_ascii(console: HubConsole) -> None:
     html = console.render_html("category")
     assert html.startswith("<!DOCTYPE html>")
@@ -244,6 +275,21 @@ def test_cli_view_renders_and_select_gates(tmp_path: Path) -> None:
     assert payload["written"] is False
     assert payload["reason"] == "confirmation_required"
     assert not (tmp_path / "p.yaml").exists()
+
+
+def test_cli_freshness_view_accepts_today(tmp_path: Path) -> None:
+    """CLI smoke over the LIVE repo (T9): --today flows to the freshness
+    view; the live intake fixture's compromised upstream (GSD) surfaces."""
+    script = _HUB_DIR / "lib" / "registry" / "console.py"
+    out = subprocess.run(
+        [sys.executable, str(script), "view", "freshness",
+         "--repo-root", str(_REPO_ROOT), "--as-of", "2026-07-02",
+         "--today", "2026-07-10"],
+        capture_output=True, text=True, check=True,
+    )
+    assert "view: freshness" in out.stdout
+    assert "today: 2026-07-10" in out.stdout
+    assert "upstream-compromised" in out.stdout    # the live GSD row fires
 
 
 def test_cli_help_flag(tmp_path: Path) -> None:
