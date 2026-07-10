@@ -58,6 +58,29 @@ def test_malformed_candidate_blocked_fail_closed() -> None:
         assert any("malformed-candidate" in r for r in report["reasons"])
 
 
+def test_whitespace_padding_does_not_evade_the_excluded_veto() -> None:
+    """T8 fix-PDCA (Copilot): unstripped values must NOT dodge the F1 floor.
+    Before the boundary-normalization fix, ' gsd-build/get-shit-done ' missed
+    the EXCLUDED record and reached HITL labeled floor-clean."""
+    report = _gk().triage(
+        Candidate(id=" gsd-build-get-shit-done ", repo=" gsd-build/get-shit-done ")
+    )
+    assert report["verdict"] == "blocked"
+    assert report["safe_successor"] == "open-gsd/gsd-core"
+    # And the conductor overlay also survives padding:
+    padded = _gk().triage(Candidate(id=" superpowers ", repo="obra/superpowers"))
+    assert padded["isolation_required"] is True
+
+
+def test_malformed_repo_shape_blocked_fail_closed() -> None:
+    """T8 fix-PDCA (Copilot): repo is owner/name — anything else is vetoed,
+    never waved through as floor-clean hitl-required."""
+    for bad in ("norepo", "a/b/c", "/name", "owner/"):
+        report = _gk().triage(Candidate(id="x-tool", repo=bad))
+        assert report["verdict"] == "blocked", bad
+        assert any("malformed-repo" in r for r in report["reasons"]), bad
+
+
 # -- acceptance: the gatekeeper never auto-accepts ----------------------------
 
 

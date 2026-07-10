@@ -98,10 +98,16 @@ class IntakeGatekeeper:
 
     def triage(self, candidate: Candidate) -> Dict[str, Any]:
         """Return the triage report. Deterministic; never raises on content."""
+        # Normalize at the boundary (Copilot, fix-PDCA): the floor gates match
+        # EXACT strings — an unstripped " gsd-build/get-shit-done " would dodge
+        # the F1 EXCLUDED veto and reach HITL labeled "floor-clean" (an evasion
+        # vector). All downstream lookups use the normalized values.
+        cand_id = candidate.id.strip()
+        repo = candidate.repo.strip()
         report: Dict[str, Any] = {
             "schema": GATEKEEPER_SCHEMA_VERSION,
-            "candidate_id": candidate.id,
-            "candidate_repo": candidate.repo,
+            "candidate_id": cand_id,
+            "candidate_repo": repo,
             "verdict": "",
             "hitl_required": False,
             "reasons": [],
@@ -113,16 +119,27 @@ class IntakeGatekeeper:
 
         # Reject-by-default: a descriptor we cannot even identify is vetoed
         # (fail-closed), never waved through to HITL as an anonymous blob.
-        if not candidate.id.strip() or not candidate.repo.strip():
+        if not cand_id or not repo:
             report["verdict"] = "blocked"
             report["reasons"].append(
                 "malformed-candidate (id and repo are both required)"
             )
             return report
 
-        flag_set = set(candidate.flags)
-        record = self._by_repo.get(candidate.repo) or self._by_id.get(candidate.id)
-        conductor = candidate.id in self._conductors
+        # Shape check (fail-closed): repo is documented as owner/name — a
+        # value that cannot even name an upstream never reaches HITL as
+        # "floor-clean" (Copilot, fix-PDCA).
+        owner, sep, name = repo.partition("/")
+        if not sep or not owner or not name or "/" in name:
+            report["verdict"] = "blocked"
+            report["reasons"].append(
+                f"malformed-repo (expected owner/name, got: {repo!r})"
+            )
+            return report
+
+        flag_set = {f.strip() for f in candidate.flags if f.strip()}
+        record = self._by_repo.get(repo) or self._by_id.get(cand_id)
+        conductor = cand_id in self._conductors
         report["isolation_required"] = conductor
 
         # F1a — known EXCLUDED record: the floor veto, terminal.
