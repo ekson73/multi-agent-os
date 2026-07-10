@@ -54,10 +54,11 @@ None of these throw an error at install. You find out when something gets weird 
 I'll reply with what collides in *your* set — the L0 config clashes, the token-tax hogs, and any
 copyleft (AGPL/NONE) license traps. No signup, no tool to install. Just the report.
 
-The checker is already a small open-source CLI (`bin/conflict-checker.py` in the
+The collision check is already a small open-source CLI (`bin/conflict-checker.py` in the
 [multi-agent-os](https://github.com/ekson73/multi-agent-os) repo) — paste a stack file into it
-locally if you'd rather not share your stack publicly. And if the collisions turn out rarer than
-they looked in our set, I'll happily learn that too.
+locally if you'd rather not share your stack publicly. (The checker automates the 16-edge collision
+map; the token-tax and license notes I add by hand from the research matrix.) And if the collisions
+turn out rarer than they looked in our set, I'll happily learn that too.
 
 ---
 
@@ -68,8 +69,8 @@ they looked in our set, I'll happily learn that too.
 > same slot). Built a 16-edge conflict map.
 >
 > **Paste your plugin/MCP/skill stack and I'll tell you what breaks** (config clashes · token-tax ·
-> AGPL/NONE license traps). No signup — or run the open-source checker yourself
-> (`bin/conflict-checker.py` in the multi-agent-os repo). 👇
+> AGPL/NONE license traps). No signup — the collision map is automated open-source
+> (`bin/conflict-checker.py` in the multi-agent-os repo); token-tax/license notes I add by hand. 👇
 
 ---
 
@@ -110,7 +111,7 @@ noise.
 - [ ] Pick the channel (r/ClaudeAI long-form **or** Discord short — or both, staggered a day apart).
 - [ ] (optional) Publish `conflicts.yaml` as a public gist titled "Agentic-Tool Conflict Matrix" and link it (passive stars = extra pull-signal).
 - [ ] Post from your account — whenever (or if) you want; this is dissemination, not an experiment with a clock.
-- [ ] When stacks come in: reply with the per-stack report (the checker `bin/conflict-checker.py` does it now). Each real paste → append an edge to `conflicts.yaml`.
+- [ ] When stacks come in: reply with the per-stack report (collisions automated via `bin/conflict-checker.py`; license/token-tax notes by hand from the research matrix). Each real paste → append an edge to `conflicts.yaml`.
 - [ ] (optional) Score against (D) as calibration telemetry — learning only; no ADR/roadmap consequence.
 
 ---

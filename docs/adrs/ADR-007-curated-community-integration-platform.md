@@ -1,10 +1,14 @@
 # ADR-007: MAOS as the curated community-integration platform (the trusted front-door)
 
 - **Status**: **DRAFT (thawed per-tile)** — amended 2026-07-10 under the **publish-by-default doctrine** (see §Amendment below). WAVE-6 tiles enter individually on **internal usefulness (a named consumer today) + the 7 guardrails + operator HITL ratification** — not on an external demand signal. Originally demoted from "North Star" on 2026-06-28 by the goal-loop (critical-analysis + solutions-debate + cascade confidence gate 0.75 < 0.85); the platform IDENTITY ("trusted front-door of the commons") remains **unclaimed — earned via real external integrations + users, never declared**. Promotion to Accepted still requires the first integration proving the gate. The atomic core ships via **ADR-006**.
-- **Date**: 2026-06-28
+- **Date**: 2026-06-28 · **Amended**: 2026-07-10 (publish-by-default doctrine — see §Amendment)
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL co-design (~5-turn dialogue)
 - **Scope**: Strategic identity of the `maos` framework. Extends **ADR-006** (MAOS Hub). The operator-facing console + the community-integration motion are the two human/inbound faces of the same MAOS Hub gating network.
 - **SSOT**: `docs/vision/maos-integration-platform.md` (narrative) · `openspec/changes/maos-hub-console/` (console contract) · `openspec/specs/maos-hub-registry/spec.md` (registry contract). · Closure: `research/agentic-moe-2026/20260628-goal-loop-closure.md`.
+
+> *(The SDP block below records the original 2026-06-28 freeze decision — **historical**, superseded
+> in its market-validation strand by the §Amendment 2026-07-10 further down; kept verbatim per
+> decision-trail discipline.)*
 
 ```bash
 # /**
@@ -67,7 +71,8 @@ an optional dissemination post; its pre-registered kill-criterion no longer deci
 (annotated historical in `research/agentic-moe-2026/20260629-demand-probe-post.md` §D).
 
 **WAVE-6 per-tile triage (internal utility, YAGNI-honest):** **T9 ttl-freshness** (HIGH — enforcement
-of the already-spec'd `ttl`/`last_validated`/stale-eject fields in `openspec/specs/maos-hub-registry/spec.md`;
+of the already-spec'd `ttl`/`last_validated` fields + the mark-`eject-candidate` (stale-ejection) rule
+in `openspec/specs/maos-hub-registry/spec.md`;
 consumers: T1 registry + T3 console + `ttl-policy` skill) → **T8 gatekeeper-core** (MED-HIGH — intake
 floor+triage for tools WE absorb; the per-PR ceremony for inbound community PRs is deferred until
 inbound PRs exist; CI-floor pre-req green) → **T7 slot-adapter** (MED — build on the first real
