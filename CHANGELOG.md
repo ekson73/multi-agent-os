@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — MAOS-Tips: session-start discoverability nudges (ADR-008)
+
+- **`plugin-scripts/session-tip.sh`** (5th SessionStart hook): surfaces ONE curated tip about a maos
+  agentic-tool per new session so the ~116 tools (63 skills + 25 cmds + 28 agents) become discoverable
+  — *what it does · when to use it · how to invoke it*. Fires only on `.source ∈ {startup, clear}`
+  (skips `resume`/`compact`), one per session (`session_id` idempotency) + a no-repeat seen-ledger at
+  `~/.claude/maos/tips-state.json` (atomic-mv + symlink-guard; never committed). Advisory, always exits 0,
+  degrades to a silent no-op if `tips/` or `jq` is absent. **Recon**: the native "Message from <org>:"
+  banner is `companyAnnouncements` (org-server-side, not plugin-writable) — the hook channel is the
+  community-portable substitute.
+- **Silenceable + tunable**: `MAOS_TIPS=off` · `MAOS_NO_TIPS=1` · `~/.claude/.maos-no-tips` silence it;
+  `MAOS_TIPS_EVERY=Nd` throttles to ≤1/N-days; `MAOS_TIPS_LANG=pt-br` reserved (v1 catalog is en-US).
+- **`tips/catalog.json`** — 16 seed tips + `families{}` routing (all → `maos-concierge`). **Hybrid source**:
+  hand-curated copy + CI-validated integrity.
+- **`tips/validate-tips.sh`** — anti-orphan / anti-rot CI gate: fails the build if any `tool_path` is
+  orphaned, a `family`/`route` doesn't resolve, or a tip's family drifts from the tool's declared
+  `metadata.family` (family-sync). Wired into `tests/validate-plugin.sh`.
+- **`commands/tip.md`** (`/maos:tip`) — on-demand tip (`--family <f>`), plus `--emit-announcements [N]`:
+  prints paste-ready startup-announcement strings so an operator can replicate the native banner in their
+  own `settings.json` / org console. **The plugin never writes settings** (HUMAN_DOMAIN).
+- **`tips/inference.md`** (selection logic) · **`tests/governance/test-session-tip.sh`** (behavior fixtures:
+  opt-out · skip resume/compact · no-repeat · idempotency · announce · degrade) · **`docs/adrs/ADR-008-*.md`**.
+- DRY: a tip is a 1-line PUSH nudge + route to the concierge; depth stays in the concierge (not restated).
+
 ### Fixed — `voice` skill renamed to `voice-director` (host `/voice` slash-command collision)
 
 - **`skills/voice/` → `skills/voice-director/`** (`name: voice` → `name: voice-director`). Skills

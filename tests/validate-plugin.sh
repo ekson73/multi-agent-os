@@ -312,6 +312,27 @@ else
 fi
 echo ""
 
+# MAOS-Tips corpus (ADR-008) — integrity + anti-orphan gate
+echo "Validating MAOS-Tips..."
+
+TIPS_VALIDATOR="$PLUGIN_ROOT/tips/validate-tips.sh"
+TIPS_HOOK="$PLUGIN_ROOT/plugin-scripts/session-tip.sh"
+if [ -f "$TIPS_VALIDATOR" ]; then
+    if [ -x "$TIPS_HOOK" ]; then
+        pass "plugin-scripts/session-tip.sh is executable"
+    else
+        fail "plugin-scripts/session-tip.sh is not executable"
+    fi
+    if bash "$TIPS_VALIDATOR" "$PLUGIN_ROOT" >/dev/null 2>&1; then
+        pass "tips/validate-tips.sh passes (zero orphan tips)"
+    else
+        fail "tips/validate-tips.sh FAILED (run 'bash tips/validate-tips.sh' for details)"
+    fi
+else
+    warn "tips/validate-tips.sh missing (MAOS-Tips not installed)"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"
