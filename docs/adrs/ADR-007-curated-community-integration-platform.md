@@ -1,10 +1,14 @@
 # ADR-007: MAOS as the curated community-integration platform (the trusted front-door)
 
-- **Status**: **Exploratory / DRAFT (FROZEN)** — demoted from "North Star" on 2026-06-28 by the goal-loop (critical-analysis + solutions-debate + cascade confidence gate **0.75 < 0.85 → escalate**). **DRAFT = frozen: no implementation until re-ratified** (gated on a real demand signal + the first integration proving the gate). The atomic core ships via **ADR-006**; this platform identity is **earned, not declared**.
-- **Date**: 2026-06-28
+- **Status**: **DRAFT (thawed per-tile)** — amended 2026-07-10 under the **publish-by-default doctrine** (see §Amendment below). WAVE-6 tiles enter individually on **internal usefulness (a named consumer today) + the 7 guardrails + operator HITL ratification** — not on an external demand signal. Originally demoted from "North Star" on 2026-06-28 by the goal-loop (critical-analysis + solutions-debate + cascade confidence gate 0.75 < 0.85); the platform IDENTITY ("trusted front-door of the commons") remains **unclaimed — earned via real external integrations + users, never declared**. Promotion to Accepted still requires the first integration proving the gate. The atomic core ships via **ADR-006**.
+- **Date**: 2026-06-28 · **Amended**: 2026-07-10 (publish-by-default doctrine — see §Amendment)
 - **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL co-design (~5-turn dialogue)
 - **Scope**: Strategic identity of the `maos` framework. Extends **ADR-006** (MAOS Hub). The operator-facing console + the community-integration motion are the two human/inbound faces of the same MAOS Hub gating network.
 - **SSOT**: `docs/vision/maos-integration-platform.md` (narrative) · `openspec/changes/maos-hub-console/` (console contract) · `openspec/specs/maos-hub-registry/spec.md` (registry contract). · Closure: `research/agentic-moe-2026/20260628-goal-loop-closure.md`.
+
+> *(The SDP block below records the original 2026-06-28 freeze decision — **historical**, superseded
+> in its market-validation strand by the §Amendment 2026-07-10 further down; kept verbatim per
+> decision-trail discipline.)*
 
 ```bash
 # /**
@@ -39,6 +43,41 @@ building our own tools **and** we curate/integrate the community's best.
 #  * @impact MAOS = índice+gate+adapter+guia do melhor do commons; curadoria AGÊNTICA, ratificação HUMANA.
 #  */
 ```
+
+### Amendment 2026-07-10 — doctrine correction (publish-by-default)
+
+```bash
+# /**
+#  * Descongelar ADR-007 por-tile sob a doutrina publish-by-default (correção do operador 2026-07-10).
+#  * @context "Postar para a comunidade validar" = lógica de produto pago/medição de mercado; MAOS é
+#  *          self-use-first + contribuição (disponibilizar É a contribuição; adoção = soberania alheia).
+#  * @reason Só a vertente market-validation do freeze morre; anti-theater (identidade se ganha, não se
+#  *          declara) + custo-honesto (construir tiles ≠ operar serviço público perpétuo) permanecem.
+#  * @impact WAVE-6 entra por-tile (consumidor interno nomeado + 7 guardrails + HITL); #183 vira post de
+#  *         divulgação opcional (kill-criterion = telemetria histórica, sem autoridade sobre este ADR).
+#  */
+```
+
+MAOS is built first for our own use and published for the community **by default**; making it
+available IS the contribution — adoption is each community member's sovereign choice, **not our
+validation gate**. The 2026-06-28 freeze braided three strands; only the **market-validation**
+strand ("gated on a real demand signal") is retired as out-of-logical-context for a non-commercial,
+self-use-first project. The **anti-theater** strand stands: the front-door identity is never
+declared, only earned. The **honest-cost** strand stands: we do NOT commit to operate a perpetual
+public curation service; we build only tiles with a **present internal consumer** (named, with
+dogfood-ledger evidence — the internal analog of a pull-signal), and any public-service commitment
+carries its own TTL and exit path. The demand-probe (#183) is **decoupled** from this ADR: it becomes
+an optional dissemination post; its pre-registered kill-criterion no longer decides this ADR's fate
+(annotated historical in `research/agentic-moe-2026/20260629-demand-probe-post.md` §D).
+
+**WAVE-6 per-tile triage (internal utility, YAGNI-honest):** **T9 ttl-freshness** (HIGH — enforcement
+of the already-spec'd `ttl`/`last_validated` fields + the mark-`eject-candidate` (stale-ejection) rule
+in `openspec/specs/maos-hub-registry/spec.md`;
+consumers: T1 registry + T3 console + `ttl-policy` skill) → **T8 gatekeeper-core** (MED-HIGH — intake
+floor+triage for tools WE absorb; the per-PR ceremony for inbound community PRs is deferred until
+inbound PRs exist; CI-floor pre-req green) → **T7 slot-adapter** (MED — build on the first real
+vendored integration; none exists in-tree today) → **T10 hardened-distributor** (LOW-MED — stays
+DEFERRED; minimal slice = SBOM in release CI if/when a release channel exists).
 
 ## Decision
 

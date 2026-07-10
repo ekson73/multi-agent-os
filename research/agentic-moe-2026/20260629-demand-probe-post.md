@@ -9,6 +9,13 @@ lang: "EN (target = Claude Code Discord / r/ClaudeAI — an EN community)"
 
 # The R2 demand-probe — the cheapest experiment that can kill or confirm the wedge
 
+> **⚠️ REFRAMED 2026-07-10 (ADR-007 Amendment — publish-by-default doctrine).** This post is now an
+> **optional dissemination/contribution artifact** (operator-sovereign, no deadline, no ADR/roadmap
+> consequence). Making the work available IS the contribution; adoption is each community member's
+> sovereign choice — not our validation gate. The §D kill-criterion below is retained verbatim as
+> **historical pre-registration / calibration telemetry only** — its decision authority over ADR-007
+> was revoked. The "Why this exists" block below reflects the original (superseded) framing.
+
 > **Why this exists.** Round 3 (Gates / Zuckerberg / Musk) converged: the *pain* is real
 > (evidence-backed prior ~0.68), but *willingness-to-adopt* is **HARD** — only the world's
 > pull-signal resolves it, and no further deliberation moves it. Per the loop's own rule, the
@@ -47,8 +54,11 @@ None of these throw an error at install. You find out when something gets weird 
 I'll reply with what collides in *your* set — the L0 config clashes, the token-tax hogs, and any
 copyleft (AGPL/NONE) license traps. No signup, no tool to install. Just the report.
 
-If this is useful I'll turn the checker into a one-paste CLI. If it's not, I'll happily learn the
-collisions are rarer than they looked.
+The collision check is already a small open-source CLI (`bin/conflict-checker.py` in the
+[multi-agent-os](https://github.com/ekson73/multi-agent-os) repo) — paste a stack file into it
+locally if you'd rather not share your stack publicly. (The checker automates the 16-edge collision
+map; the token-tax and license notes I add by hand from the research matrix.) And if the collisions
+turn out rarer than they looked in our set, I'll happily learn that too.
 
 ---
 
@@ -59,7 +69,8 @@ collisions are rarer than they looked.
 > same slot). Built a 16-edge conflict map.
 >
 > **Paste your plugin/MCP/skill stack and I'll tell you what breaks** (config clashes · token-tax ·
-> AGPL/NONE license traps). No signup. If it lands I'll ship it as a one-paste checker. 👇
+> AGPL/NONE license traps). No signup — the collision map is automated open-source
+> (`bin/conflict-checker.py` in the multi-agent-os repo); token-tax/license notes I add by hand. 👇
 
 ---
 
@@ -80,7 +91,11 @@ noise.
 
 ## D) Kill-criterion — the falsifier (Musk red-team, pre-registered)
 
-Pre-commit the threshold **before** posting, so the result can't be rationalized after the fact:
+> **⚠️ HISTORICAL PRE-REGISTRATION — decision authority REVOKED (ADR-007 Amendment 2026-07-10).**
+> Under the publish-by-default doctrine this section no longer decides ADR-007's fate. Kept verbatim
+> as calibration telemetry: if the post is ever published, score against it for LEARNING (how well
+> did we predict pull?), never for roadmap authority. WAVE-6 entry is governed by per-tile internal
+> usefulness + the 7 guardrails + operator HITL (see the ADR amendment).
 
 - **KILL ADR-007** if, within **2 weeks**: fewer than **~10 unsolicited "this would save me"**
   signals AND fewer than **~5 real stack-pastes**. That = the wedge has no organic pull; freeze the
@@ -95,9 +110,9 @@ Pre-commit the threshold **before** posting, so the result can't be rationalized
 
 - [ ] Pick the channel (r/ClaudeAI long-form **or** Discord short — or both, staggered a day apart).
 - [ ] (optional) Publish `conflicts.yaml` as a public gist titled "Agentic-Tool Conflict Matrix" and link it (passive stars = extra pull-signal).
-- [ ] Post from your account. Pre-register the kill-criterion (D) somewhere you'll honor it.
-- [ ] When stacks come in: reply with the per-stack report by hand (Wizard-of-Oz — no tool needed yet). Each real paste → append an edge to `conflicts.yaml`.
-- [ ] At 2 weeks: score against (D). Bring the number back; we ratify or freeze accordingly.
+- [ ] Post from your account — whenever (or if) you want; this is dissemination, not an experiment with a clock.
+- [ ] When stacks come in: reply with the per-stack report (collisions automated via `bin/conflict-checker.py`; license/token-tax notes by hand from the research matrix). Each real paste → append an edge to `conflicts.yaml`.
+- [ ] (optional) Score against (D) as calibration telemetry — learning only; no ADR/roadmap consequence.
 
 ---
 *Agent-drafted munition · the post itself is the product's first advertisement (the output IS the ad). EKO-66: nothing here is auto-posted — the operator fires it.*
