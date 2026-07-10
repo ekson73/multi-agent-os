@@ -1,0 +1,34 @@
+{
+  "_comment": "MAOS-Tips corpus v1 — one helpful, discoverability-oriented tip per session about the maos agentic-tools. CURATED copy (the when-to-use clause is UX craft) + CI-VALIDATED integrity (every tool_path must resolve to a real skill/command/agent; family must match the tool's metadata.family when it declares one) via tips/validate-tips.sh. en-US (Layer-Purity: community artifact stays en-US; MAOS_TIPS_LANG=pt-br is an operator-side opt-in, not baked here). Tips are a 1-line PUSH nudge + route; depth is the concierge's job (DRY — never restate concierge content).",
+  "version": "1.0.0",
+  "families": {
+    "worktree-lifecycle":       { "route": "maos-concierge", "blurb": "session/worktree lifecycle" },
+    "agentic-tool-lifecycle":   { "route": "maos-concierge", "blurb": "forge/adopt/name tools" },
+    "orchestration-convergence":{ "route": "maos-concierge", "blurb": "orchestration & convergence" },
+    "content-lifecycle":        { "route": "maos-concierge", "blurb": "recast/narrate/proofread" },
+    "spec-lifecycle":           { "route": "maos-concierge", "blurb": "code ↔ spec" },
+    "concierge":                { "route": "maos-concierge", "blurb": "onboarding & routing" },
+    "navigation":               { "route": "maos-concierge", "blurb": "work aggregation & nav" },
+    "session":                  { "route": "maos-concierge", "blurb": "session state & recap" },
+    "governance":               { "route": "maos-concierge", "blurb": "governance & review" },
+    "_default":                 { "route": "maos-concierge", "blurb": "MAOS tools" }
+  },
+  "tips": [
+    { "id": "tip-preflight",           "tool": "preflight",           "invocation": "/maos:preflight",           "tool_type": "skill", "tool_path": "skills/preflight/SKILL.md",           "family": "worktree-lifecycle",        "text": "Before you touch code, heal your branch & spin an isolated worktree." },
+    { "id": "tip-postflight",          "tool": "postflight",          "invocation": "/maos:postflight",          "tool_type": "skill", "tool_path": "skills/postflight/SKILL.md",          "family": "worktree-lifecycle",        "text": "Before you /compact, close the session clean & seed the next one's handoff." },
+    { "id": "tip-work-compass",        "tool": "work-compass",        "invocation": "/maos:work-compass",        "tool_type": "skill", "tool_path": "skills/work-compass/SKILL.md",        "family": "navigation",                "text": "Lost across repos? See every scattered Jira/PR/session/branch in one N-Tree." },
+    { "id": "tip-quiesce",             "tool": "quiesce",             "invocation": "/maos:quiesce",             "tool_type": "skill", "tool_path": "skills/quiesce/SKILL.md",             "family": "orchestration-convergence", "text": "Leave the session with nothing pending — every PR green & answered." },
+    { "id": "tip-gap-loop",            "tool": "gap-loop",            "invocation": "/maos:gap-loop",            "tool_type": "skill", "tool_path": "skills/gap-loop/SKILL.md",            "family": "orchestration-convergence", "text": "Drive a register of gaps to convergence, self-scored, until all dispositioned." },
+    { "id": "tip-convergence-engine",  "tool": "convergence-engine",  "invocation": "/maos:convergence-engine",  "tool_type": "skill", "tool_path": "skills/convergence-engine/SKILL.md",  "family": "orchestration-convergence", "text": "Drive a result to high quality (verifier > generator, ~3 rounds) before asking a human." },
+    { "id": "tip-agentic-tool-forge",  "tool": "agentic-tool-forge",  "invocation": "/maos:agentic-tool-forge",  "tool_type": "skill", "tool_path": "skills/agentic-tool-forge/SKILL.md",  "family": "agentic-tool-lifecycle",    "text": "Turn a repeated instruction into a reusable skill/command/agent." },
+    { "id": "tip-agentic-tool-intake", "tool": "agentic-tool-intake", "invocation": "/maos:agentic-tool-intake", "tool_type": "skill", "tool_path": "skills/agentic-tool-intake/SKILL.md", "family": "agentic-tool-lifecycle",    "text": "Found an external tool/MCP? Decide install vs build vs adapt before adopting." },
+    { "id": "tip-anima",               "tool": "anima",               "invocation": "/maos:anima",               "tool_type": "skill", "tool_path": "skills/anima/SKILL.md",               "family": "agentic-tool-lifecycle",    "text": "Need a name for anything? Get one research-grounded, sovereign name." },
+    { "id": "tip-content-recast",      "tool": "content-recast",      "invocation": "/maos:content-recast",      "tool_type": "skill", "tool_path": "skills/content-recast/SKILL.md",      "family": "content-lifecycle",         "text": "Re-target your technical work for a CEO/PO/junior — faithfully, in any format." },
+    { "id": "tip-opera-debrief",       "tool": "opera-debrief",       "invocation": "/maos:opera-debrief",       "tool_type": "skill", "tool_path": "skills/opera-debrief/SKILL.md",       "family": "content-lifecycle",         "text": "Get your session recap as a narrative 'opera' — story arc + insights." },
+    { "id": "tip-proofread",           "tool": "proofread",           "invocation": "/maos:proofread",           "tool_type": "skill", "tool_path": "skills/proofread/SKILL.md",           "family": "content-lifecycle",         "text": "Before shipping a doc/PR/commit, catch typos & grammar (pt-BR + en-US)." },
+    { "id": "tip-reveng",              "tool": "reveng",              "invocation": "/maos:reveng",              "tool_type": "skill", "tool_path": "skills/reveng/SKILL.md",              "family": "spec-lifecycle",            "text": "Reverse-engineer source code into an OpenSpec behavioral contract." },
+    { "id": "tip-morning-briefing",    "tool": "morning-briefing",    "invocation": "/maos:morning-briefing",    "tool_type": "skill", "tool_path": "skills/morning-briefing/SKILL.md",    "family": "session",                   "text": "Cold-start a state recap across repos/PRs/tasks — no prior save needed." },
+    { "id": "tip-bot-finding-arbiter", "tool": "bot-finding-arbiter", "invocation": "/maos:bot-finding-arbiter", "tool_type": "skill", "tool_path": "skills/bot-finding-arbiter/SKILL.md", "family": "governance",                "text": "CI blocked on a CodeRabbit/Qodo finding? Adjudicate it — fix, accept, or justify-reject." },
+    { "id": "tip-maos-concierge",      "tool": "maos-concierge",      "invocation": "/maos:maos-concierge",      "tool_type": "skill", "tool_path": "skills/maos-concierge/SKILL.md",      "family": "concierge",                 "text": "New to MAOS? Onboard, or ask which tool fits your intent." }
+  ]
+}
