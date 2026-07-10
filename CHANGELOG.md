@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — ADR-007 amended: publish-by-default doctrine (per-tile thaw)
+
+- **`docs/adrs/ADR-007-curated-community-integration-platform.md`**: status `Exploratory/DRAFT (FROZEN)`
+  → **`DRAFT (thawed per-tile)`** under the operator's publish-by-default doctrine correction
+  (2026-07-10): built first for our own use; publishing = the contribution (adoption is each community
+  member's sovereignty, **not** our validation gate). Only the market-validation strand of the
+  2026-06-28 freeze is retired; the anti-theater strand (identity earned, never declared) and the
+  honest-cost strand (building tiles ≠ operating a perpetual public service) stand, plus a
+  named-consumer-today guard against silent scope re-import.
+- **WAVE-6 re-sequenced by internal utility**: T9 ttl-freshness → T8 gatekeeper-core (per-PR ceremony
+  deferred) → T7 slot-adapter (on first real vendored integration) → T10 hardened-distributor (DEFERRED).
+  Companions synced: chapter README wave-table (demand-gate removed; CI floor verified green
+  2026-07-10), `openspec/changes/maos-hub-console/tasks.md` (re-sequencing note),
+  `research/agentic-moe-2026/20260629-demand-probe-post.md` (reframe banner; §D kill-criterion
+  annotated historical/calibration-only; post now links the shipped `bin/conflict-checker.py`).
+  Issue #183 retitled to an optional dissemination post (operator-sovereign, no deadline).
+
 ### Added — MAOS-Tips: session-start discoverability nudges (ADR-008)
 
 - **`plugin-scripts/session-tip.sh`** (5th SessionStart hook): surfaces ONE curated tip about a maos

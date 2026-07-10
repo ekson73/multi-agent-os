@@ -26,6 +26,13 @@
 
 ## WAVE 6 — Community integration (the front-door, ADR-007)
 
+> **Re-sequenced 2026-07-10 (ADR-007 Amendment — publish-by-default doctrine):** per-tile entry =
+> **named internal consumer today + the 7 guardrails + operator HITL** (the external demand-signal
+> gate is retired; #183 became an optional dissemination post). Order by internal utility:
+> **T9 → T8-core → T7 (on the first real vendored integration) → T10 (stays DEFERRED)**.
+> T8 narrowed: build the deterministic-floor + triage core (intake of tools WE absorb); the per-PR
+> ceremony (auto-ADR/changelog emission for inbound community PRs) is deferred until inbound PRs exist.
+
 - [ ] **T7 `feature/<id>-slot-adapter`** — first-class slot-adapter: vendored upstream (pinned +
   provenance/SBOM) + owned shim + isolation (single-conductor) + rollback. *Acceptance: an integrated
   tool lives in its slot; upstream is update-trackable; rollback recipe present.*
