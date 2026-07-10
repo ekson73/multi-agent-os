@@ -42,6 +42,16 @@
   changelog (adopt/adapt/reject + justification) + credit/license (`co-author-standard` +
   `THIRD_PARTY_NOTICES`) + the fallback commit. *Acceptance: a planted-malicious fixture is
   blocked by the floor; the agent never auto-accepts; all artifacts generated.*
+  **T8-core delivered 2026-07-10** — `lib/registry/gatekeeper.py::IntakeGatekeeper`: deterministic
+  triage of inbound candidate DESCRIPTORS composing the existing floor SSOTs (F1 known-verdict
+  `intake_verdicts.yaml` incl. EXCLUDED veto + safe successor · F2 flag-veto via the T9
+  compromised/abandoned sets · F3 conductor-isolation via `conductors.txt` RULE-011);
+  **never-auto-accept is structural** (`ALLOWED_VERDICTS` has no "accepted" member — the strongest
+  outcome is `hitl-required`) + reject-by-default fail-closed on malformed candidates. Acceptance
+  halves proven by `tests/test_hub_gatekeeper.py` (planted-malicious blocked ×2 — synthetic flag +
+  live GSD record; never-auto-accepts asserted over a candidate spread). Checkbox stays OPEN:
+  the per-PR ceremony (ADR/changelog emission, sandbox, payload scanning, credit/license
+  artifacts) remains DEFERRED until inbound community PRs exist (per the ordering note above).
 - [x] **T9 `feature/<id>-ttl-freshness`** — every integration carries a TTL + re-validation cadence;
   stale/abandoned/compromised upstream auto-flag + eject. *Acceptance: a stale fixture is flagged + the
   registry marks it for ejection.* **Delivered 2026-07-10** — every record carries `ttl`

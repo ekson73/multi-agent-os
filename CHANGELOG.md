@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — WAVE 6 T8-core: intake gatekeeper (deterministic-floor triage)
+
+- **`mcp-tools/maos-mcp-hub/lib/registry/gatekeeper.py`**: `IntakeGatekeeper` — deterministic triage
+  of inbound candidate tool DESCRIPTORS on the existing floor SSOTs (composition, zero
+  re-derivation): **F1 known-verdict** (`evals/fixtures/intake_verdicts.yaml`, WT10 — an EXCLUDED
+  record blocks with its evidence + `safe_successor`; any dispositioned record routes to itself,
+  re-intake = HITL) · **F2 flag-veto** (the T9 `_COMPROMISED_FLAGS` set blocks outright;
+  abandoned-class flags become floor warnings) · **F3 conductor-isolation**
+  (`plugin-scripts/governance/lib/conductors.txt`, RULE-011 — a conductor-class candidate is never
+  plain-install eligible; isolated routes only). **Never-auto-accept is structural**: the closed
+  `ALLOWED_VERDICTS` vocabulary (`blocked | isolation-required | already-dispositioned |
+  hitl-required`) has no "accepted" member — acceptance is exclusively a human act.
+  Reject-by-default: malformed candidates are blocked fail-closed. CLI
+  `python -m lib.registry.gatekeeper` with the JSON fail contract. Scope = the T8 NARROWED core
+  (tasks.md WAVE-6 note); the per-PR ceremony (ADR/changelog emission, sandbox, payload scanning)
+  stays deferred until inbound PRs exist.
+- **`mcp-tools/maos-mcp-hub/tests/test_hub_gatekeeper.py`**: 10 tests proving both acceptance
+  halves — planted-malicious blocked (synthetic `live-threat-npm-keys` flag + the LIVE GSD
+  rug-pull fixture row with safe-successor surfacing) and never-auto-accepts (structural
+  vocabulary assert + HITL invariant over a candidate spread) + conductor isolation (live overlay
+  + synthetic tmp-repo) + determinism + CLI contract.
+
 ### Added — WAVE 6 T9: TTL & freshness enforcement (registry + console)
 
 - **`mcp-tools/maos-mcp-hub/lib/registry/hub_registry.py`**: the spec's "Freshness + rollback" requirement is now fully
