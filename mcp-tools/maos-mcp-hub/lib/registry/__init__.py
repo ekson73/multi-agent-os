@@ -17,6 +17,12 @@ from .console import (  # noqa: F401
     Recipe,
     load_recipe_catalog,
 )
+from .gatekeeper import (  # noqa: F401
+    ALLOWED_VERDICTS,
+    GATEKEEPER_SCHEMA_VERSION,
+    Candidate,
+    IntakeGatekeeper,
+)
 from .context_rank import (  # noqa: F401
     extract_signals,
     load_signals_file,
