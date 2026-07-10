@@ -34,6 +34,9 @@ B="$("$BIN" "$BIN" --now "$NOW" --mtime $((NOW-14*86400)))"
 echo "== error handling =="
 "$BIN" 2>/dev/null && { echo "  FAIL missing-arg should exit non-zero"; fail=1; } || echo "  ok   missing arg → non-zero"
 "$BIN" /no/such/path --now "$NOW" 2>/dev/null && { echo "  FAIL bad-path should exit non-zero"; fail=1; } || echo "  ok   bad path → non-zero"
+"$BIN" "$BIN" --now 2>/dev/null && { echo "  FAIL --now w/o value should exit non-zero"; fail=1; } || echo "  ok   --now w/o value → non-zero"
+"$BIN" "$BIN" --now abc 2>/dev/null && { echo "  FAIL --now non-int should exit non-zero"; fail=1; } || echo "  ok   --now non-int → non-zero"
+"$BIN" "$BIN" extra --now "$NOW" 2>/dev/null && { echo "  FAIL multiple positionals should exit non-zero"; fail=1; } || echo "  ok   multiple positionals → non-zero"
 
 echo "== SKILL.md frontmatter + Goldilocks size =="
 head -1 "$SKILL" | grep -q '^---$'            && echo "  ok   frontmatter opens" || { echo "  FAIL no frontmatter"; fail=1; }

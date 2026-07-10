@@ -25,6 +25,11 @@ and re-onboards** at start-of-re-entry. Anamnesis (Plato ἀνάμνησις —
 un-forgetting*) is the dual of the amnesia every fresh agent wakes into
 (`ai-as-pwd-axiom` §1). Design spec: **ADR-009** (`docs/adrs/`).
 
+> **Naming**: the soul-name **Anamnesis** is operator-overridable per `[C-naming]`
+> (naming-authority — Anima decides, operator may rename post-hoc). The canonical
+> **system-slug `session-reentry`** is what code/routing/`/maos:` key off and does not
+> change on a soul-name override.
+
 > **M1 walking-skeleton** — text-only, composes existing primitives, defines the
 > one net-new bit (dormancy score). M2 any-mind register · M3 audio · M4 graphic +
 > rule cross-refs are **deferred to issue #234**. This file is that M1 increment.
@@ -74,9 +79,11 @@ thin dormancy score).
 | `--media text\|audio-voice\|graphic` | `text` | delivery modality (audio/graphic opt-in; **M3/M4**) |
 | `--scope current\|down\|sideways\|up\|forward` | `current` | CPT Compass verb (§9) |
 
-> **M1 honesty**: `--mind` register-shaping is thin in M1 (M2); `--media` audio/graphic
-> are **M3/M4** — in M1 they emit a stderr `[--media] audio/graphic deferred to M3/M4 (#234)`
-> and fall back to text. No fabricated modality (anti-theater R3).
+> **M1 honesty**: `--session` accepts an id OR path at the **skill** level (the agent
+> resolves an id → artifacts at runtime); the `dormancy-score` **bin** takes a **path**
+> (id→path resolution is M2). `--mind` register-shaping is thin in M1 (M2); `--media`
+> audio/graphic are **M3/M4** — in M1 they emit a stderr `[--media] audio/graphic
+> deferred to M3/M4 (#234)` and fall back to text. No fabricated modality (anti-theater R3).
 
 ## Architecture — 3 phases, each COMPOSING primitives
 
@@ -91,7 +98,9 @@ staler/more-foreign ⇒ deeper reconstruction (grounds Monk-Trafton resumption-l
 
 ### Dormancy score (the net-new bit — M1 defines it)
 
-`bin/dormancy-score.sh <session-path-or-id>` → a `0.00–1.00` scalar + JSON envelope.
+`bin/dormancy-score.sh <session-path>` → a `0.00–1.00` scalar + JSON envelope. (The bin
+takes a filesystem **path**; resolving a session **id → artifacts** is the agent/skill
+runtime concern, deferred to M2 — the bin fails clearly on a bad path.)
 Inputs: newest-artifact **mtime staleness** (age since last touch) + a **foreignness**
 signal (is the re-entering mind the author?). Output contract:
 

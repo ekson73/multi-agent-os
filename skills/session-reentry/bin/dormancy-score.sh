@@ -24,17 +24,18 @@
 set -eu
 
 PATH_ARG=""; FOREIGN=0; NOW=""; MTIME=""
+is_uint() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+# Self-shifting cases (shift 2 for value-flags) — no trailing loop-shift, so a
+# value-flag as the LAST arg cannot trigger a set -e double-shift crash.
 while [ $# -gt 0 ]; do
   case "$1" in
-    --foreign) FOREIGN=1 ;;
-    --now)     NOW="${2:-}"; shift ;;
-    --mtime)   MTIME="${2:-}"; shift ;;
-    -h|--help)
-      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    --*) echo "[dormancy-score] unknown flag: $1" >&2; exit 2 ;;
-    *)   PATH_ARG="$1" ;;
+    --foreign) FOREIGN=1; shift ;;
+    --now)     [ $# -ge 2 ] || { echo "[dormancy-score] --now needs an epoch value" >&2; exit 2; }; NOW="$2"; shift 2 ;;
+    --mtime)   [ $# -ge 2 ] || { echo "[dormancy-score] --mtime needs an epoch value" >&2; exit 2; }; MTIME="$2"; shift 2 ;;
+    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --*)       echo "[dormancy-score] unknown flag: $1" >&2; exit 2 ;;
+    *)         [ -z "$PATH_ARG" ] || { echo "[dormancy-score] too many positional args: '$1'" >&2; exit 2; }; PATH_ARG="$1"; shift ;;
   esac
-  shift
 done
 
 [ -n "$PATH_ARG" ] || { echo "[dormancy-score] missing <session-path>" >&2; exit 2; }
@@ -55,8 +56,10 @@ if [ -z "$MTIME" ]; then
   fi
 fi
 [ -n "${MTIME:-}" ] || { echo "[dormancy-score] could not determine mtime for: $PATH_ARG" >&2; exit 2; }
+is_uint "$MTIME" || { echo "[dormancy-score] --mtime must be epoch seconds (got '$MTIME')" >&2; exit 2; }
 
 [ -n "$NOW" ] || NOW="$(date +%s)"
+is_uint "$NOW" || { echo "[dormancy-score] --now must be epoch seconds (got '$NOW')" >&2; exit 2; }
 
 # Float math + banding via awk (POSIX-portable, deterministic).
 awk -v now="$NOW" -v mtime="$MTIME" -v foreign="$FOREIGN" 'BEGIN {

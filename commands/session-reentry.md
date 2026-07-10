@@ -19,6 +19,10 @@ un-forgetting* — the dual of the amnesia every fresh agent wakes into).
 > **M1 walking-skeleton** — text-only, composes existing primitives. M2 any-mind
 > register · M3 audio · M4 graphic + rule cross-refs are deferred to issue #234.
 
+> **Runtime namespace**: surfaces as `/maos:session-reentry` (Sandwich Namespacing per
+> `.claude-plugin/plugin.json` `command_namespace.prefix_required`); the bare
+> `/session-reentry` in the examples is the host-fallback form.
+
 ## Usage
 
 ```text
