@@ -49,6 +49,15 @@ HOME = Path.home()
 DEFAULT_STALE_DAYS = 7
 INVENTORY_SCRIPT = HOME / ".claude" / "scripts" / "inventory-sessions.py"
 
+# ⛔ openclaw is a detect-only sovereign domain — NEVER enumerate/read under it
+# (openclaw-detect-only-sovereign-mandatory). Every store-glob excludes this subtree.
+OPENCLAW_ROOT = os.path.realpath(str(HOME / "openclaw"))
+
+# Default local stores for the extended scanners (overridable for tests).
+PLANS_DIR = HOME / ".claude" / "plans"
+JOBS_DIR = HOME / ".claude" / "jobs"
+CODEX_INDEX = HOME / ".codex" / "session_index.jsonl"
+
 # The 7 CPT domains (cowork-process-topology-protocol §1). One bucket per domain.
 DOMAINS = ["ticket", "worktree", "branch", "session", "thread", "process", "graph-node"]
 
@@ -99,6 +108,38 @@ def days_since(ts: str | None, ref: datetime | None = None) -> float | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return ((ref or now_utc()) - dt).total_seconds() / 86400.0
+
+
+def _is_openclaw(path) -> bool:
+    """True if `path` is the openclaw sovereign tree or inside it (detect-only guard)."""
+    try:
+        rp = os.path.realpath(str(path))
+    except OSError:
+        rp = str(path)
+    return rp == OPENCLAW_ROOT or rp.startswith(OPENCLAW_ROOT + os.sep)
+
+
+def _mtime_iso(p: Path) -> str:
+    """File/dir mtime as ISO-8601 UTC, or '' on error. Metadata only (no content)."""
+    try:
+        return datetime.fromtimestamp(p.stat().st_mtime, timezone.utc).isoformat()
+    except OSError:
+        return ""
+
+
+def _tree_state(path: str) -> str:
+    """Replicate gbd_tree_state (read-only): DIRTY | CLEAN | DETACHED.
+
+    DIRTY = uncommitted TRACKED changes (porcelain line not starting with '??');
+    untracked-only stays CLEAN — the exact WIP-loss class. Never raises.
+    """
+    rc, _, _ = run(["git", "-C", path, "symbolic-ref", "--quiet", "HEAD"])
+    if rc != 0:
+        return "DETACHED"
+    rc, out, _ = run(["git", "-C", path, "status", "--porcelain"])
+    if rc == 0 and any(ln and not ln.startswith("??") for ln in out.splitlines()):
+        return "DIRTY"
+    return "CLEAN"
 
 
 # ── work-item model ──────────────────────────────────────────────────────────────
@@ -198,6 +239,10 @@ def collect_worktrees_and_branches(repo_dir: str) -> tuple[list[dict], str | Non
                 source="git branch -vv",
                 refs={"name": name},
             ))
+    # enrich each worktree with its working-tree state (blind-spot: WIP-dirty inside)
+    for it in items:
+        if it["domain"] == "worktree" and it["refs"].get("path"):
+            it["refs"]["wip_state"] = _tree_state(it["refs"]["path"])
     return items, None
 
 
@@ -293,7 +338,141 @@ def collect_jira() -> tuple[list[dict], str | None]:
     return items, None
 
 
-# ── detector (≤6 transparent heuristics; surfaces CANDIDATES, never auto-actions) ──
+# ── extended local scanners (blind-spots — compose native git + fs; metadata-only) ──
+def collect_stashes(repo_dir: str) -> tuple[list[dict], str | None]:
+    """git stash list (native git). Forgotten WIP hidden in the stash stack.
+
+    Domain graph-node. Metadata only (reflog selector · date · subject). Never raises.
+    """
+    if not have("git"):
+        return [], "stashes: git not available"
+    # %gd=selector(stash@{0}) · %cI=strict-ISO committer date · %gs=reflog subject
+    rc, out, _ = run(["git", "-C", repo_dir, "stash", "list", "--format=%gd|%cI|%gs"])
+    if rc != 0:
+        return [], None  # not a repo / no stashes → silent (absence is not an error)
+    items: list[dict] = []
+    for ln in out.splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        parts = ln.split("|", 2)
+        ref = parts[0]
+        ts = parts[1] if len(parts) > 1 else ""
+        subj = parts[2] if len(parts) > 2 else ""
+        items.append(item(
+            f"stash:{ref}", "graph-node", subj or ref,
+            last_ts=ts, source="git stash list",
+            refs={"stash_ref": ref},
+        ))
+    return items, None
+
+
+def _plan_meta(p: Path) -> tuple[str, int]:
+    """First heading (≤60c) + count of unchecked '- [ ]' next-steps. Metadata only."""
+    title, open_steps = "", 0
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "", 0
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not title and s.startswith("# "):
+            title = s[2:].strip()[:60]
+        if s.startswith("- [ ]") or s.startswith("* [ ]"):
+            open_steps += 1
+    return title, open_steps
+
+
+def collect_plans(plans_dir: str | Path | None = None) -> tuple[list[dict], str | None]:
+    """Walk ~/.claude/plans/*.md (mtime + open next-steps). Abandoned plans rot here.
+
+    Domain graph-node. Emits path/title/mtime/open-step-count only — never file body.
+    """
+    base = Path(plans_dir) if plans_dir else PLANS_DIR
+    if not base.is_dir():
+        return [], "plans: ~/.claude/plans not present"
+    items: list[dict] = []
+    for p in sorted(base.glob("*.md")):
+        if _is_openclaw(p):  # ⛔ never enumerate the sovereign tree
+            continue
+        title, open_steps = _plan_meta(p)
+        items.append(item(
+            f"plan:{p.name}", "graph-node", title or p.stem,
+            last_ts=_mtime_iso(p), source="~/.claude/plans",
+            refs={"path": str(p), "open_next_steps": open_steps},
+        ))
+    return items, None
+
+
+def collect_bg_jobs(jobs_dir: str | Path | None = None) -> tuple[list[dict], str | None]:
+    """Scan ~/.claude/jobs/<id>/ (state.json status + timeline.jsonl mtime).
+
+    Domain process. Orphaned/stale background jobs hide here. Metadata only.
+    """
+    base = Path(jobs_dir) if jobs_dir else JOBS_DIR
+    if not base.is_dir():
+        return [], "jobs: ~/.claude/jobs not present"
+    items: list[dict] = []
+    for d in sorted(base.iterdir()):
+        if not d.is_dir() or _is_openclaw(d):
+            continue
+        status = "unknown"
+        state_f = d / "state.json"
+        if state_f.is_file():
+            try:
+                status = str(json.loads(state_f.read_text(encoding="utf-8",
+                                                           errors="replace")).get("status", "unknown"))
+            except (OSError, json.JSONDecodeError):
+                pass
+        tl = d / "timeline.jsonl"
+        last_ts = _mtime_iso(tl if tl.is_file() else d)
+        wc_status = "ok" if status in ("completed", "done", "succeeded") else "warn"
+        items.append(item(
+            f"job:{d.name}", "process", f"bg-job {d.name} ({status})",
+            status=wc_status, last_ts=last_ts, source="~/.claude/jobs",
+            refs={"path": str(d), "job_status": status},
+        ))
+    return items, None
+
+
+def collect_codex_sessions(index_path: str | Path | None = None) -> tuple[list[dict], str | None]:
+    """Cross-vendor: read Codex's structured ~/.codex/session_index.jsonl.
+
+    Domain session. Codex sessions are invisible to the Claude-only session producer.
+    Cursor/Copilot/Gemini/Aider adapters are documented stubs (YAGNI) — not built.
+    """
+    idx = Path(index_path) if index_path else CODEX_INDEX
+    if not idx.is_file():
+        return [], "codex: ~/.codex/session_index.jsonl not present"
+    if _is_openclaw(idx):
+        return [], None
+    try:
+        text = idx.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return [], f"codex: {type(e).__name__}"
+    items: list[dict] = []
+    for ln in text.splitlines():
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            row = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        sid = str(row.get("id") or row.get("session_id") or "")
+        if not sid:
+            continue
+        title = row.get("thread_name") or row.get("name") or "(codex session)"
+        items.append(item(
+            f"codex-session:{sid}", "session", str(title)[:60],
+            last_ts=row.get("updated_at") or row.get("updatedAt") or "",
+            source="~/.codex/session_index.jsonl",
+            refs={"vendor": "codex"},
+        ))
+    return items, None
+
+
+# ── detector (≤10 transparent heuristics; surfaces CANDIDATES, never auto-actions) ──
 def detect(items: list[dict], stale_days: int) -> None:
     by_id = {it["id"]: it for it in items}
     branches = {it["refs"].get("name", "") for it in items if it["domain"] == "branch"}
@@ -345,6 +524,26 @@ def detect(items: list[dict], stale_days: int) -> None:
             b = refs.get("branch", "")
             if b and b not in branches and b not in worktree_branches:
                 it["flags"].append("session-orphan")
+        # H7 worktree-dirty-wip (uncommitted TRACKED changes hiding inside a worktree)
+        if d == "worktree" and refs.get("wip_state") == "DIRTY":
+            it["flags"].append("worktree-dirty-wip")
+        # H8 stash-forgotten (a stash older than the staleness threshold)
+        if it["id"].startswith("stash:"):
+            ds = days_since(it.get("last_ts"))
+            if ds is not None and ds > stale_days:
+                it["flags"].append("stash-forgotten")
+        # H9 plan-orphan (stale + open next-steps) / plan-stale (stale, no open steps)
+        if it["id"].startswith("plan:"):
+            ds = days_since(it.get("last_ts"))
+            if ds is not None and ds > stale_days:
+                it["flags"].append("plan-orphan" if refs.get("open_next_steps", 0) > 0
+                                   else "plan-stale")
+        # H10 job-orphan (claims running but untouched >Nd) / job-stale (old idle job)
+        if it["id"].startswith("job:"):
+            ds = days_since(it.get("last_ts"))
+            if ds is not None and ds > stale_days:
+                running = refs.get("job_status", "") in ("running", "active", "in_progress")
+                it["flags"].append("job-orphan" if running else "job-stale")
         if it["flags"] and it["status"] in ("ok", "unknown"):
             it["status"] = "orphan" if any("orphan" in f or "-no-" in f for f in it["flags"]) else it["status"]
     return None
@@ -368,6 +567,12 @@ ROUTES = {
     "_stale":         ("morning-briefing", "/morning-briefing --mode=recap  # review stale {id}", "stale — recap before deciding"),
     "_session":       ("auto-orchestrator", "/auto-orchestrator  # resume {id}", "resume session work"),
     "_pr":            ("quiesce", "/maos:quiesce  # converge open PR {id}", "drive PR to green"),
+    "worktree-dirty-wip": ("postflight", "/maos:postflight  # commit or stash WIP in {id}", "uncommitted WIP inside worktree — commit/stash before it is lost"),
+    "stash-forgotten":    ("git", "git stash show -p {id}  # review then pop/drop", "forgotten stash — review + pop or drop"),
+    "plan-orphan":        ("auto-pilot", "/maos:auto-pilot \"resume plan {id}\"", "abandoned plan with open next-steps — resume or archive"),
+    "plan-stale":         ("postflight", "/maos:postflight  # archive stale plan {id}", "stale plan, no open steps — archive"),
+    "job-orphan":         ("postflight", "/maos:postflight  # inspect orphaned bg-job {id}", "bg-job claims running but stale — inspect/kill"),
+    "job-stale":          ("postflight", "/maos:postflight  # clean stale bg-job {id}", "stale bg-job — clean up"),
 }
 
 
@@ -521,27 +726,29 @@ def build_graph(items: list[dict], scope: str, node_id: str | None,
 
 
 # ── main ─────────────────────────────────────────────────────────────────────────
+# collector registry — add a surface = ONE entry here (drives --no-<name> flags too).
+COLLECTORS = ["sessions", "git", "github", "jira", "stashes", "plans", "jobs", "codex"]
+
+
 def aggregate(args) -> tuple[list[dict], list[str]]:
+    """Fan-out every enabled collector in fixed (deterministic) order."""
+    registry = {
+        "sessions": lambda: collect_sessions(args.inventory),
+        "git":      lambda: collect_worktrees_and_branches(args.repo_dir),
+        "github":   lambda: collect_github(args.repo),
+        "jira":     lambda: collect_jira(),
+        "stashes":  lambda: collect_stashes(args.repo_dir),
+        "plans":    lambda: collect_plans(),
+        "jobs":     lambda: collect_bg_jobs(),
+        "codex":    lambda: collect_codex_sessions(),
+    }
     items: list[dict] = []
     unavailable: list[str] = []
-    if not args.no_sessions:
-        s, diag = collect_sessions(args.inventory)
-        items += s
-        if diag:
-            unavailable.append(diag)
-    if not args.no_git:
-        g, diag = collect_worktrees_and_branches(args.repo_dir)
-        items += g
-        if diag:
-            unavailable.append(diag)
-    if not args.no_github:
-        gh, diag = collect_github(args.repo)
-        items += gh
-        if diag:
-            unavailable.append(diag)
-    if not args.no_jira:
-        j, diag = collect_jira()
-        items += j
+    for name in COLLECTORS:
+        if getattr(args, f"no_{name}", False):
+            continue
+        got, diag = registry[name]()
+        items += got
         if diag:
             unavailable.append(diag)
     return items, unavailable
@@ -559,10 +766,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo", default=None, help="GitHub owner/name (else inferred)")
     ap.add_argument("--repo-dir", default=os.getcwd(), help="git repo dir for worktrees/branches")
     ap.add_argument("--inventory", default=None, help="reserved: pre-generated inventory path")
-    ap.add_argument("--no-jira", action="store_true")
-    ap.add_argument("--no-github", action="store_true")
-    ap.add_argument("--no-sessions", action="store_true")
-    ap.add_argument("--no-git", action="store_true")
+    for _name in COLLECTORS:  # registry-driven skip flags (--no-<collector>)
+        ap.add_argument(f"--no-{_name}", action="store_true", help=f"skip the {_name} collector")
     ap.add_argument("--detect-only", action="store_true",
                     help="print only the flagged candidates")
     ap.add_argument("--route", default=None, help="node id to route (prints suggested command)")

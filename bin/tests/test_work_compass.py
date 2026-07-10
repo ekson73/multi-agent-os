@@ -10,9 +10,13 @@ Run: python3 bin/tests/test_work_compass.py
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 # import the sibling module under test
 _HERE = Path(__file__).resolve().parent
@@ -175,14 +179,179 @@ def test_scope_validation(capsys=None):
           all(i["domain"] == "branch" for i in sideways))
 
 
+# ── 6. extended blind-spot scanners (v1.1.0) ──────────────────────────────────
+def test_collect_plans():
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td)
+        (base / "old-plan.md").write_text("# Old Plan\n\n- [ ] step one\n- [x] done\n",
+                                          encoding="utf-8")
+        (base / "new-plan.md").write_text("# Fresh Plan\n\n- [ ] a\n", encoding="utf-8")
+        old = time.time() - 30 * 86400
+        os.utime(base / "old-plan.md", (old, old))
+        items, diag = wc.collect_plans(plans_dir=td)
+        by = {i["id"]: i for i in items}
+        check("plans: both collected", len(items) == 2)
+        check("plans: domain graph-node", all(i["domain"] == "graph-node" for i in items))
+        check("plans: title parsed", by["plan:old-plan.md"]["title"] == "Old Plan")
+        check("plans: open next-steps counted",
+              by["plan:old-plan.md"]["refs"]["open_next_steps"] == 1)
+        wc.detect(items, stale_days=7)
+        by = {i["id"]: i for i in items}
+        check("plans: stale + open steps → plan-orphan",
+              "plan-orphan" in by["plan:old-plan.md"]["flags"])
+        check("plans: fresh → no flag", not by["plan:new-plan.md"]["flags"])
+    # absent dir degrades, never raises
+    _, d = wc.collect_plans(plans_dir="/nonexistent-plans-xyz")
+    check("plans: absent dir → diag not raise", isinstance(d, str))
+
+
+def test_collect_bg_jobs():
+    with tempfile.TemporaryDirectory() as td:
+        base = Path(td)
+        j1 = base / "job-running"; j1.mkdir()
+        (j1 / "state.json").write_text('{"status": "running"}', encoding="utf-8")
+        (j1 / "timeline.jsonl").write_text('{"t": 1}\n', encoding="utf-8")
+        old = time.time() - 30 * 86400
+        os.utime(j1 / "timeline.jsonl", (old, old))
+        j2 = base / "job-done"; j2.mkdir()
+        (j2 / "state.json").write_text('{"status": "completed"}', encoding="utf-8")
+        items, diag = wc.collect_bg_jobs(jobs_dir=td)
+        by = {i["id"]: i for i in items}
+        check("jobs: both collected", len(items) == 2)
+        check("jobs: domain process", all(i["domain"] == "process" for i in items))
+        check("jobs: status parsed", by["job:job-running"]["refs"]["job_status"] == "running")
+        wc.detect(items, stale_days=7)
+        by = {i["id"]: i for i in items}
+        check("jobs: running + stale → job-orphan",
+              "job-orphan" in by["job:job-running"]["flags"])
+        check("jobs: fresh completed → no stale flag",
+              not any(f.startswith("job-") for f in by["job:job-done"]["flags"]))
+
+
+def test_collect_stashes():
+    orig_run, orig_have = wc.run, wc.have
+    wc.have = lambda c: True
+    wc.run = lambda argv, timeout=30: (
+        0,
+        "stash@{0}|%s|WIP on feat/x\nstash@{1}|%s|WIP on main\n" % (_old(30), _new()),
+        "",
+    )
+    try:
+        items, diag = wc.collect_stashes("/x")
+        check("stashes: two collected", len(items) == 2)
+        check("stashes: domain graph-node", all(i["domain"] == "graph-node" for i in items))
+        wc.detect(items, stale_days=7)
+        by = {i["id"]: i for i in items}
+        check("stashes: old → stash-forgotten", "stash-forgotten" in by["stash:stash@{0}"]["flags"])
+        check("stashes: fresh → not forgotten",
+              "stash-forgotten" not in by["stash:stash@{1}"]["flags"])
+    finally:
+        wc.run, wc.have = orig_run, orig_have
+
+
+def test_tree_state_and_wip():
+    orig_run = wc.run
+
+    def fake_dirty(argv, timeout=30):
+        if "symbolic-ref" in argv:
+            return (0, "", "")                                  # attached HEAD
+        if "status" in argv:
+            return (0, " M tracked.py\n?? untracked.txt\n", "")  # tracked change → DIRTY
+        return (1, "", "")
+
+    def fake_clean(argv, timeout=30):
+        if "symbolic-ref" in argv:
+            return (0, "", "")
+        if "status" in argv:
+            return (0, "?? only-untracked.txt\n", "")            # untracked-only → CLEAN
+        return (1, "", "")
+
+    try:
+        wc.run = fake_dirty
+        check("tree_state: tracked change → DIRTY", wc._tree_state("/x") == "DIRTY")
+        wc.run = fake_clean
+        check("tree_state: untracked-only → CLEAN", wc._tree_state("/x") == "CLEAN")
+    finally:
+        wc.run = orig_run
+    # H7 in detect()
+    wt = wc.item("worktree:/w", "worktree", "w",
+                 refs={"branch": "feat/x", "path": "/w", "wip_state": "DIRTY"})
+    wt_clean = wc.item("worktree:/c", "worktree", "c",
+                       refs={"branch": "feat/y", "path": "/c", "wip_state": "CLEAN"})
+    wc.detect([wt, wt_clean], stale_days=7)
+    check("H7 worktree-dirty-wip flagged", "worktree-dirty-wip" in wt["flags"])
+    check("H7 no false positive on CLEAN", "worktree-dirty-wip" not in wt_clean["flags"])
+
+
+def test_collect_codex():
+    with tempfile.TemporaryDirectory() as td:
+        idx = Path(td) / "session_index.jsonl"
+        idx.write_text(
+            '{"id": "abc", "thread_name": "refactor auth", "updated_at": "%s"}\n'
+            '{"id": "def", "thread_name": "old thing", "updated_at": "%s"}\n'
+            '\n'
+            'not-json-line\n' % (_new(), _old(30)),
+            encoding="utf-8")
+        items, diag = wc.collect_codex_sessions(index_path=str(idx))
+        by = {i["id"]: i for i in items}
+        check("codex: valid rows only (2)", len(items) == 2)
+        check("codex: domain session", all(i["domain"] == "session" for i in items))
+        check("codex: id namespaced", "codex-session:abc" in by)
+        check("codex: vendor tagged", by["codex-session:abc"]["refs"]["vendor"] == "codex")
+        wc.detect(items, stale_days=7)
+        by = {i["id"]: i for i in items}
+        check("codex: old session → H4 stale", any(">7d" in f for f in by["codex-session:def"]["flags"]))
+        check("codex: fresh → no false orphan",
+              "session-orphan" not in by["codex-session:abc"]["flags"])
+    _, d = wc.collect_codex_sessions(index_path="/nonexistent-codex-xyz.jsonl")
+    check("codex: absent index → diag not raise", isinstance(d, str))
+
+
+# ── 7. guardrails: openclaw exclusion + registry + new-domain determinism ──────
+def test_openclaw_exclusion():
+    inside = str(wc.HOME / "openclaw" / "agents" / "eko" / "SOUL.md")
+    plans = str(wc.HOME / ".claude" / "plans" / "x.md")
+    check("openclaw: path inside sovereign tree excluded", wc._is_openclaw(inside) is True)
+    check("openclaw: root itself excluded", wc._is_openclaw(str(wc.HOME / "openclaw")) is True)
+    check("openclaw: normal plans path not excluded", wc._is_openclaw(plans) is False)
+
+
+def test_registry_flags():
+    for n in ("stashes", "plans", "jobs", "codex"):
+        check(f"registry: {n} in COLLECTORS", n in wc.COLLECTORS)
+    ns = SimpleNamespace(inventory=None, repo_dir="/nonexistent-xyz", repo=None,
+                         **{f"no_{n}": True for n in wc.COLLECTORS})
+    items, unavailable = wc.aggregate(ns)
+    check("registry: all-disabled → zero items", items == [])
+    check("registry: all-disabled → zero diags", unavailable == [])
+
+
+def test_new_domains_populated():
+    items = [
+        wc.item("plan:a.md", "graph-node", "a", last_ts=_new(), refs={"open_next_steps": 0}),
+        wc.item("stash:stash@{0}", "graph-node", "wip", last_ts=_new(), refs={}),
+        wc.item("job:x", "process", "job x", last_ts=_new(), refs={"job_status": "running"}),
+        wc.item("codex-session:z", "session", "z", last_ts=_new(), refs={"vendor": "codex"}),
+    ]
+    g1 = wc.build_graph([dict(i) for i in items], "current", None, [])
+    g2 = wc.build_graph([dict(i) for i in items], "current", None, [])
+    check("new domains: deterministic",
+          [i["id"] for i in g1["items"]] == [i["id"] for i in g2["items"]])
+    check("new domains: graph-node populated", len(g1["by_domain"]["graph-node"]) == 2)
+    check("new domains: process populated", len(g1["by_domain"]["process"]) == 1)
+
+
 def main() -> int:
-    print("test_work_compass — work-compass Phase-1")
+    print("test_work_compass — work-compass v1.1.0")
     print("=" * 60)
     for fn in [
         test_item_normalization, test_build_graph_deterministic,
         test_detector, test_detector_no_false_positive_on_fresh_linked,
         test_renderer_determinism, test_router, test_read_only_safety,
         test_scope_validation,
+        test_collect_plans, test_collect_bg_jobs, test_collect_stashes,
+        test_tree_state_and_wip, test_collect_codex,
+        test_openclaw_exclusion, test_registry_flags, test_new_domains_populated,
     ]:
         print(f"\n[{fn.__name__}]")
         fn()
