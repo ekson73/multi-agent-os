@@ -1,8 +1,9 @@
 ---
 name: work-compass
 description: |
-  Aggregate the operator's scattered work — Jira/GitHub issues, Claude sessions, git
-  worktrees/branches, and open PRs — into ONE navigable N-Tree across the 7 CPT domains,
+  Aggregate the operator's scattered work — Jira/GitHub issues, Claude + cross-vendor
+  (Codex) sessions, git worktrees/branches/stashes/uncommitted-WIP, open PRs, and
+  ~/.claude plans + background jobs — into ONE navigable N-Tree across the 7 CPT domains,
   detect stale/orphan/pending items via transparent heuristics, and route node actions to
   existing tools (preflight/postflight/auto-pilot/recap/quiesce/auto-orchestrator) with
   operator review-before-submit. The visual elevation of the Cowork Process Topology
@@ -11,7 +12,7 @@ description: |
   de trabalho", "o que está parado/órfão". Read-only by default; every write/pause/stop/
   delete is operator-gated (prints a command, never executes). Capability-detected
   (git/gh/acli optional), stdlib-only, cross-vendor (AAIF).
-prompt_version: "1.0.0"
+prompt_version: "1.1.0"
 type: skill
 spec: AAIF / agentskills.io
 applicable_hosts: [Claude Code, Cursor, GitHub Copilot, Aider, any AAIF-compliant agent]
@@ -116,9 +117,13 @@ bin/work-compass-aggregate.py --format=mermaid
 ## The 7 CPT domains (grouping)
 
 `ticket · worktree · branch · session · thread · process · graph-node` — items namespaced
-`jira:KEY · gh:owner/repo#n · session:<id> · worktree:<path> · branch:<name> · pr:<repo>#n`.
+`jira:KEY · gh:owner/repo#n · session:<id> · worktree:<path> · branch:<name> · pr:<repo>#n`
+and (v1.1) `codex-session:<id> · job:<id> · plan:<file> · stash:<ref>`. As of v1.1 **6/7
+domains are populated** (`graph-node` filled by plans+stashes, `process` enriched by jobs;
+`thread` remains deferred). The full landscape of ~37 work-surfaces + coverage is catalogued
+in `references/work-surface-taxonomy.md` (the SSOT roadmap).
 
-## Detector heuristics (≤6, transparent — CANDIDATES, never auto-actioned)
+## Detector heuristics (≤10, transparent — CANDIDATES, never auto-actioned)
 
 1. **branch-no-PR** — feature branch with no open PR.
 2. **PR-no-ticket** — PR whose title/refs cite no tracker ticket.
@@ -126,6 +131,10 @@ bin/work-compass-aggregate.py --format=mermaid
 4. **>Nd-no-update** — any item not updated in N days (default 7 → status `stale`).
 5. **worktree-no-branch** — worktree on a detached/unknown branch.
 6. **session-orphan** — session whose branch no longer exists.
+7. **worktree-dirty-wip** *(v1.1)* — uncommitted TRACKED changes hiding inside a worktree (loss-risk).
+8. **stash-forgotten** *(v1.1)* — a git stash older than the staleness threshold.
+9. **plan-orphan / plan-stale** *(v1.1)* — a `~/.claude/plans` file past staleness (orphan = still has open next-steps).
+10. **job-orphan / job-stale** *(v1.1)* — a background job past staleness (orphan = claims running but untouched).
 
 Thresholds are configurable; false-positives are surfaced, not enforced.
 
@@ -152,17 +161,22 @@ CPT §9.5 consumer-contract: verb-membership validation (invalid → diagnostic 
 `current`), determinism (same input+verb → same output), graceful degrade, cross-vendor
 (stdlib). Registered as a consumer alongside morning-briefing / auto-orchestrator.
 
-## Deferred (Phase-2/3 — gated on ≥2 dogfood cycles)
+## Deferred (build-on-demand — the 26 blind-spots in `references/work-surface-taxonomy.md`)
 
-Static HTML view (reuse maos-concierge `dashboard.html` zero-dep pattern) · drag-drop +
-admin panel · Linear/GitLab/ClickUp/Trello/Asana/Monday adapters (stub interface only,
-capability-detected, build-on-demand) · ML-suggested rules/automations.
+Cross-vendor sessions beyond Codex (Cursor/Copilot/Gemini/Aider — schema-spelunking, stub) ·
+`--depth/--breadth/--height` traversal modifiers (a separate CPT §9.5 gap) · Linear/GitLab/
+ClickUp/Trello/Asana/Monday tracker adapters · Confluence/Drive · commits/tags/notes ·
+subagents/OS-processes/tmux/scheduled/loops/threads · memory/session-reports/rules/TODOs/seeds ·
+Slack/email/Discord · CI pipelines + deployments · static HTML view · ML-suggested rules.
+Each is a tracked row in the taxonomy — build only on real need (YAGNI / Gordian).
 
-## Adapter-stub interface (documented, NOT built)
+## Adapter-stub interface (v1.1 — registry-driven)
 
-A new provider plugs in by adding a `collect_<provider>() -> (list[item], diag|None)`
-function that capability-detects its CLI/MCP and normalizes into `item(id, domain, title,
-...)` with a namespaced id. No other change required. Build only on real need (YAGNI).
+A new surface plugs in by (1) adding a `collect_<provider>() -> (list[item], diag|None)`
+function that capability-detects its store/CLI/MCP and normalizes into `item(id, domain,
+title, ...)` with a namespaced id, and (2) adding one entry to the `COLLECTORS` registry
+in `bin/work-compass-aggregate.py` — which auto-generates its `--no-<name>` skip flag. No
+other change required. Build only on real need (YAGNI).
 
 ## Sunset (DUED — qualitative, not counter-based)
 
@@ -172,8 +186,11 @@ composes expose a joint API making aggregation redundant (E6) · operator retrac
 
 ## Refs
 
+- `references/work-surface-taxonomy.md` (v1.1 — SSOT catalog of the ~37 work-surfaces + coverage roadmap)
 - `~/.claude/scripts/inventory-sessions.py` (sessions/branches producer — composed)
+- `plugin-scripts/governance/lib/git-branch-detect.sh` `gbd_tree_state()` (WIP porcelain logic replicated in `_tree_state`)
 - `~/.claude/rules/cowork-process-topology-protocol.md` §9/§9.5 (Compass API + consumer-contract)
+- `~/.claude/rules/openclaw-detect-only-sovereign-mandatory.md` (⛔ store-globs exclude `~/openclaw/` — `_is_openclaw` guard)
 - `statusmap/README.md` (ASCII house-style reused)
 - `skills/{preflight,postflight,morning-briefing}/SKILL.md` (siblings)
 - `~/.claude/rules/{reuse-and-elevate-protocol,over-engineering-circuit-breaker,eko-system-default-mode-laws}.md`
@@ -182,4 +199,5 @@ composes expose a joint API making aggregation redundant (E6) · operator retrac
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-07-10 | Blind-spot extension (Strata — extend, don't reinvent). **Collector registry** refactor (`COLLECTORS` — add-surface = 1 entry, auto-generates `--no-<name>`). **5 new surfaces**: WIP-dirty-inside-worktree (H7, reuses `gbd_tree_state` porcelain), git stashes (`collect_stashes`, H8), plans (`collect_plans`, H9), background jobs (`collect_bg_jobs`, H10), cross-vendor **Codex** sessions (`collect_codex_sessions`). Coverage **~6→~11 surfaces, 5/7→6/7 CPT domains** (`graph-node` filled by plans+stashes, `process` enriched by jobs). New `references/work-surface-taxonomy.md` SSOT (37 surfaces / 6 categories / coverage roadmap). ⛔ `~/openclaw/` detect-only guard (`_is_openclaw`); metadata-only (no file-body leak); read-only preserved. **73 stdlib tests** (was 34); dogfooded live (5288 items full-run, 176 local-only, 6/7 domains, deterministic). Cursor/Copilot/Gemini/Aider + `--depth/breadth/height` + 26 other surfaces deferred (tracked in the taxonomy). |
 | 1.0.0 | 2026-06-13 | Phase-1 bootstrap — aggregator + ASCII/mermaid N-Tree renderer + 6-heuristic detector + read-only delegation-router. Composes inventory-sessions.py + gh + acli + git; reimplements none. 34 stdlib tests; dogfooded on real data (4364 items, 5/7 domains). CPT §9.5 consumer registered. HTML/adapters/ML deferred. |
