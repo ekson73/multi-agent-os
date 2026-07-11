@@ -1,12 +1,12 @@
 ---
 name: continuation-seed-contract
 description: Field-by-field SSOT contract for the session.continuation continuation-seed envelope (worktree-lifecycle family)
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Continuation-Seed Contract (SSOT)
 
-> **Version**: 1.1.0 (2026-06-13)
+> **Version**: 1.2.0 (2026-07-10)
 > **Scope**: AAIF cross-vendor. The single source of truth for the shape, semantics, and
 > hygiene rules of the `session.continuation` seed emitted/consumed across the
 > `worktree-lifecycle` family.
@@ -63,6 +63,7 @@ JSON-RPC 2.0 **notification** shape (fire-and-forget — the producer does not a
 | `objectives` | OPTIONAL | `{primary[], secondary[], auxiliary[]}` N-Tree from P2 DEBRIEF. |
 | `done` / `in_flight` | OPTIONAL | What is finished vs. mid-flight at seed-time. |
 | `gaps` / `pendings` / `undecided` / `unasked_questions` | OPTIONAL | The debrief's loose-end taxonomy. |
+| `risks` | OPTIONAL | The P2 DEBRIEF **risk survey** (the hunt's forward-looking half — `close-out-hunt-checklist.md` categories 4 **risks** + 5 **mitigations**): an array of `{risk, mitigation, severity?}`. Each element is a hazard for the next agent/downstream **paired with its mitigation** (a risk without a mitigation is half-surveyed). Carried so the resuming agent inherits the hazard AND the remedy — not just the fear. `severity` ∈ `low\|med\|high` (optional). |
 | `next_actions` | OPTIONAL | `[{task, eisenhower: Q1..Q4, blocked_by}]` — resume entry-points, non-blocked first. |
 | `governance_refs` | OPTIONAL | Governance docs the resuming agent should honor. |
 | `session_type` | OPTIONAL | The session's classification `<mode>/<work>` (e.g. `continuation/feat`), from preflight R0 / the P2 DEBRIEF. Two orthogonal axes — see `skills/preflight/references/session-type-taxonomy.md`. Lets the resuming agent (and the continuation ticket) know the *kind* of work it is continuing. |
@@ -128,5 +129,6 @@ MUST still tolerate unknown fields within the same MAJOR.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.2.0 | 2026-07-10 | MINOR — 1 new OPTIONAL field `risks` (array of `{risk, mitigation, severity?}`), the seed home for the P2 DEBRIEF risk survey (the hunt's forward-looking half — `close-out-hunt-checklist.md` categories 4 "risks" + 5 "mitigations"). No REQUIRED change, no envelope break; consumers ignore it Postel-style. Producer: `skills/postflight/SKILL.md` P2/P3 (v0.8.0). |
 | 1.1.0 | 2026-06-13 | MINOR — 4 new OPTIONAL fields + 1 new consumer (no REQUIRED change, no envelope break). Adds `session_type` (the `<mode>/<work>` classification from preflight R0 / P2 DEBRIEF), upgrades `dna` to accept a **string OR object** (`{principles[3], canonical_ref, session_learnings[≤5], learnings_ref}`) so the **DNA Geracional** travels into spawned sessions (back-compat string preserved), and adds `continuation_ticket` + `tickets_created` (the P2.5 TICKET-SYNC outputs). Registers `skills/preflight/SKILL.md` **R0 ANCHOR** as a Consumer of `refs.ticket` + `session_type` — closing the `postflight → spawn → preflight` loop. Producer: `skills/postflight/SKILL.md` P2.5/P3 (v0.7.0). |
 | 1.0.0 | 2026-06-11 | Bootstrap — extracts the seed shape (previously inline-only in SKILL.md P3 + a synthesized fallback in `spawn-continuation.sh`) into a reusable template + this contract. Adds the REQUIRED resume-spine fields (`who_you_are`, `bootstrap_order`, `inherited_state`, `mission`, `guardrails`, `dod`, `dag`, `refs`) on top of the existing P3 envelope fields (kept, now OPTIONAL except `resume_instructions`; `goal` is OPTIONAL legacy-compat — skeleton producers omit it). |
