@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rug-pull fixture row with safe-successor surfacing) and never-auto-accepts (structural
   vocabulary assert + HITL invariant over a candidate spread) + conductor isolation (live overlay
   + synthetic tmp-repo) + determinism + CLI contract.
+
 ### Added — `signoff` verb + postflight P3.6 BROADCAST: discoverable continuation marker (ADR-010)
 
 - **`commands/signoff.md` + `skills/signoff/SKILL.md`** (`/maos:signoff`, v0.1.0) — the operator's

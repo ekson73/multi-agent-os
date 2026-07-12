@@ -1,6 +1,6 @@
 ---
 name: signoff
-description: Sign off / encerrar a session — close it out cleanly AND leave the pending work discoverable for the next mind (OODA-framed close-out that composes quiesce + postflight with the continuation BROADCAST default-ON)
+description: Sign off / encerrar a sessão — close it out cleanly AND leave the pending work discoverable for the next mind (OODA-framed close-out that composes quiesce + postflight with the continuation BROADCAST default-ON)
 ---
 
 # /signoff Command
@@ -27,7 +27,7 @@ the pending work findable. Thin entry point over the [`signoff` skill](../skills
 | **Observe** | environment recon + the **complete 10-item close-out hunt** (fails · errors · warnings · risks+mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs) | Skopos recon · `postflight` P2 DEBRIEF + `close-out-hunt-checklist.md` |
 | **Orient** | root-cause (not symptom) + anti-theater filter + Eisenhower rank | `root-cause-first` · `anti-theater` · `postflight` P2 |
 | **Decide** | Taxis disposition per atom — fix-now / ticket / seed / drop (no silent drop); is a pendency left? | `postflight` P2.5 · Taxis |
-| **Act** | drive-to-green → sweep → ticket-sync → seed → **broadcast the marker** → spawn → full git | `quiesce` + `postflight full --broadcast --spawn` |
+| **Act** | drive-to-green → sweep → ticket-sync → seed → spawn → **broadcast the marker** → full git | `quiesce` + `postflight full --broadcast --spawn` |
 
 ## Flags
 

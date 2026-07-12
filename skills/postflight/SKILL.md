@@ -189,7 +189,7 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    ⇒ DEFER(ticket) (record in `tickets_created`), then continue. Record the continuation key
    for P3.5.
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2+P2.5 → print + clipboard.
-   Populate (per contract v1.1.0): `refs.ticket` = **the P2.5 continuation ticket key** (so the
+   Populate (per contract v1.2.0): `refs.ticket` = **the P2.5 continuation ticket key** (so the
    spawned session's preflight R0 hook — which anchors off `refs.ticket` — wakes anchored on
    the *right* node; falls back to the current anchor only when no continuation ticket) ·
    `session_type` (`<mode>/<work>`) · `dna` (the 3 principles + ≤5 `session_learnings` +
