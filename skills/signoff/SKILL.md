@@ -53,7 +53,7 @@ whatever mind arrives next (a fresh amnesic agent, another agent, or the operato
 It **composes, it does not reimplement** (Strata / Gordian — no new machinery). Everything is delegated:
 
 ```
-signoff [--converge] [--broadcast=<conservative|all> | --no-broadcast] [--no-spawn] [--dry-run]
+signoff [--converge] [--broadcast=<conservative|all> | --no-broadcast] [--spawn | --no-spawn] [--dry-run]
   ├─ (optional, --converge) → `quiesce`   # drive the open PR toward green first
   └─ `postflight` full --broadcast[=<scope>] [--spawn|--no-spawn] [--dry-run]
         P1 SWEEP → P2 DEBRIEF (+ the complete 10-item hunt) → P2.5 TICKET-SYNC
