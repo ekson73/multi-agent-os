@@ -30,6 +30,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vocabulary assert + HITL invariant over a candidate spread) + conductor isolation (live overlay
   + synthetic tmp-repo) + determinism + CLI contract.
 
+### Added — `signoff` verb + postflight P3.6 BROADCAST: discoverable continuation marker (ADR-010)
+
+- **`commands/signoff.md` + `skills/signoff/SKILL.md`** (`/maos:signoff`, v0.1.0) — the operator's
+  end-of-session **sign-off / encerramento** verb. A thin **OODA-framed** composition
+  (Observe=recon + the complete 10-item hunt · Orient=root-cause + anti-theater + Eisenhower ·
+  Decide=Taxis disposition · Act=drive-to-green + sweep + ticket-sync + seed + **broadcast** +
+  spawn + full git) that reimplements NOTHING — it composes `quiesce` (`--converge`) +
+  `postflight full --broadcast --spawn`, with **BROADCAST default-ON** (the point of a sign-off is
+  to close cleanly *and* leave a discoverable trail). Anima-named (`signoff`; rejected runner-up
+  `disembark`).
+- **`skills/postflight/SKILL.md` v0.7.0 → v0.8.0** — adds **P3.6 BROADCAST** (opt-in `--broadcast`;
+  OFF by default on `postflight`, default-ON in `signoff`) and completes **P2 DEBRIEF's 10-item
+  close-out HUNT** (fails · errors · warnings · risks+mitigations · gaps · pendings ·
+  decisions-not-taken · unasked-Qs · unanswered-Qs; each atom dispositioned fix-now / ticket / seed
+  / drop — no silent drop).
+- **`bin/continuation-broadcast.sh` (v0.2.0) + `bin/tests/continuation-broadcast.test.sh`** — the
+  deterministic P3.6 executor: injects a **bounded, structured, byte-idempotent back-pointer MARKER**
+  (to the P2.5 continuation ticket + P3 seed) into work artifacts — the exit **commit trailer**
+  (`Continue-Here: <key> · seed:<path>`) + the open **PR body** (idempotent upsert via `gh`) under
+  `--scope conservative` (default), plus caller-named **docs/changelogs** under `--scope all`
+  (**ADRs refused**). Guardrails: `--dry-run` default · `MAOS_BROADCAST=0` kill-switch · idempotent
+  upsert (never accumulate) · metadata-only (sanitized) · NOOP when nothing pending · audit-trail.
+  - **v0.2.0 MoE-council security hardening** (adversarial verify pass, verifier>generator): the
+    upsert is **fail-closed** on any malformed/duplicated/out-of-order sentinel state (whole-line
+    matched) so a hand-edited/merge-mangled PR body or doc can **never** be mass-deleted-to-EOF or
+    duplicated; the **seed referent is verified to exist** before emitting (no "promise with no
+    backing" — an unfound `--seed` is dropped, noop if nothing else backs it); the block is
+    **byte-idempotent** (no timestamp → re-apply is a true no-op) and **self-declares stale**;
+    ADR/decision-record refusal is **case-insensitive** + covers MADR `decisions/` + **refuses
+    symlink targets**; payloads carrying a sentinel/comment/newline are refused; `shift 2` arg-guards
+    (no bash-3.2 infinite-loop on a trailing value-flag); `mktemp` fail-closed (no predictable
+    `/tmp`). **20-assertion safety suite** (idempotency · byte-idempotence · dry-run-default ·
+    fail-closed-on-malformed · ADR/MADR/symlink-refusal · payload-injection · unbacked-seed-drop ·
+    kill-switch · sanitize).
+- **`docs/adrs/ADR-010-continuation-broadcast.md`** — reconciles the marker with `exit-hygiene.md`'s
+  anti-breadcrumb rule: a **structured back-pointer ≠ a free-form "fix next session" TODO** — it is
+  exit-hygiene's own *"registered with traceability"* (Axiom 4 + Delegation gate) surfaced at the
+  point of future contact (structured · idempotent · bounded · pointer-only · noop-when-clean).
+- **SSOTs**: `skills/postflight/references/continuation-broadcast-protocol.md` (marker shape/sinks/
+  guardrails) + `skills/postflight/references/close-out-hunt-checklist.md` (the 10-item hunt +
+  disposition rubric). **`continuation-seed-contract.md` v1.1.0 → v1.2.0** — 1 new OPTIONAL field
+  `risks` (`{risk, mitigation, severity?}`), the seed home for the hunt's forward-looking half.
+- **`tests/validate-plugin.sh`** — new validation block (broadcast script exists+executable+
+  dry-run-default+kill-switch · test-suite green · signoff skill/command frontmatter · SSOT docs).
+- DRY: BROADCAST **points at** the P3 seed + P2.5 ticket — it reinvents neither; `signoff` composes
+  `postflight`/`quiesce` — it reimplements neither.
+
 ### Added — WAVE 6 T9: TTL & freshness enforcement (registry + console)
 
 - **`mcp-tools/maos-mcp-hub/lib/registry/hub_registry.py`**: the spec's "Freshness + rollback" requirement is now fully

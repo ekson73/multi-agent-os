@@ -312,6 +312,67 @@ else
 fi
 echo ""
 
+# signoff + continuation-broadcast (postflight P3.6 — ADR-010)
+echo "Validating signoff + continuation-broadcast..."
+
+BC_SCRIPT="$PLUGIN_ROOT/bin/continuation-broadcast.sh"
+if [ -x "$BC_SCRIPT" ]; then
+    pass "bin/continuation-broadcast.sh exists and is executable"
+    if bash "$BC_SCRIPT" --help >/dev/null 2>&1; then
+        pass "continuation-broadcast.sh --help exits 0"
+    else
+        fail "continuation-broadcast.sh --help should exit 0"
+    fi
+    # dry-run is the DEFAULT: a --scope all --file target is NOT mutated without --apply
+    BC_TMP="$(mktemp)"; BC_JOBS="$(mktemp -d)"; printf 'x\n' > "$BC_TMP"
+    CLAUDE_JOBS_DIR="$BC_JOBS" bash "$BC_SCRIPT" --ticket VKS-1 --seed s.json --scope all --file "$BC_TMP" >/dev/null 2>&1
+    if [ "$(cat "$BC_TMP")" = "x" ]; then
+        pass "continuation-broadcast dry-run default (no --apply ⇒ no mutation)"
+    else
+        fail "continuation-broadcast dry-run mutated a file without --apply"
+    fi
+    rm -f "$BC_TMP"; rm -rf "$BC_JOBS"
+    # kill-switch ⇒ noop
+    if MAOS_BROADCAST=0 bash "$BC_SCRIPT" --ticket VKS-1 2>/dev/null | grep -q '"status":"noop"'; then
+        pass "continuation-broadcast MAOS_BROADCAST=0 kill-switch ⇒ noop"
+    else
+        fail "continuation-broadcast kill-switch should noop"
+    fi
+else
+    fail "bin/continuation-broadcast.sh missing or not executable"
+fi
+
+BC_TESTS="$PLUGIN_ROOT/bin/tests/continuation-broadcast.test.sh"
+if [ -f "$BC_TESTS" ]; then
+    if bash "$BC_TESTS" >/dev/null 2>&1; then
+        pass "bin/tests/continuation-broadcast.test.sh passes"
+    else
+        fail "bin/tests/continuation-broadcast.test.sh FAILED (run 'bash bin/tests/continuation-broadcast.test.sh')"
+    fi
+else
+    fail "bin/tests/continuation-broadcast.test.sh missing"
+fi
+
+# signoff skill + command frontmatter
+if [ -f "$PLUGIN_ROOT/skills/signoff/SKILL.md" ] && grep -q "^name: signoff$" "$PLUGIN_ROOT/skills/signoff/SKILL.md"; then
+    pass "skills/signoff/SKILL.md has correct frontmatter"
+else
+    fail "skills/signoff/SKILL.md missing or frontmatter wrong"
+fi
+if [ -f "$PLUGIN_ROOT/commands/signoff.md" ] && grep -q "^name: signoff$" "$PLUGIN_ROOT/commands/signoff.md"; then
+    pass "commands/signoff.md has correct frontmatter"
+else
+    fail "commands/signoff.md missing or frontmatter wrong"
+fi
+
+# supporting SSOT docs
+for d in skills/postflight/references/continuation-broadcast-protocol.md \
+         skills/postflight/references/close-out-hunt-checklist.md \
+         docs/adrs/ADR-010-continuation-broadcast.md; do
+    if [ -f "$PLUGIN_ROOT/$d" ]; then pass "$d exists"; else fail "$d missing"; fi
+done
+echo ""
+
 # MAOS-Tips corpus (ADR-008) — integrity + anti-orphan gate
 echo "Validating MAOS-Tips..."
 
