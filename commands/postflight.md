@@ -15,7 +15,7 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 ## Usage
 
 ```
-/postflight [action] [--spawn | --no-spawn] [--no-kickoff] [--dry-run]
+/postflight [action] [--spawn | --no-spawn] [--no-kickoff] [--broadcast[=conservative|all]] [--dry-run]
 ```
 
 > Surfaces at runtime as `/maos:postflight` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
@@ -30,8 +30,11 @@ entry point over the [`postflight` skill](../skills/postflight/SKILL.md).
 | `tickets` | P2.5 only — reconcile the backlog with the session: bounded gap→ticket triage (≤3 + 1 batch) + an idempotent continuation ticket + enrich the anchored ticket, delegated to a capability-detected ticketing primitive (DEFER if absent). Requires P2 (DoR). SSOT: `skills/postflight/references/ticket-sync-protocol.md`. |
 | `seed` | P3 only — emit the ai-agnostic continuation seed (agent-register envelope + human mirror) + clipboard. Requires P1+P2+P2.5 (DoR). |
 | `spawn` | P3.5 only — launch a fresh, named `claude` continuation session pre-seeded with the P3 seed (`bin/spawn-continuation.sh`). Requires a seed (DoR). |
+| `broadcast` | P3.6 only — inject the **structured continuation back-pointer marker** (commit trailer + PR body under `conservative`; ALSO caller-named docs under `--broadcast=all`, ADRs refused) pointing at the P2.5 continuation ticket + P3 seed, so a fresh amnesic agent discovers the pending work at the point of contact. Requires a seed and/or continuation ticket (DoR). Idempotent · `--dry-run` default · metadata-only. SSOT: `skills/postflight/references/continuation-broadcast-protocol.md`; reconciliation: `docs/adrs/ADR-010-continuation-broadcast.md`. |
 
 > **P3.5 SPAWN** (tool 5.1) runs by default after `seed` on a `full` run (**spawn ON**); pass `--no-spawn` to opt out, `--no-kickoff` to spawn WITHOUT the initial kickoff prompt (the new session starts idle at the REPL instead of immediately resuming the seed — kickoff is ON by default and starts consuming tokens right away), `--dry-run` to preview the launch without spawning. It is high-blast (a real session burns tokens) → guarded by a kill-switch, once-per-source-session idempotency, an anti-recursion depth-cap, capability-detected graceful-noop, and seed sanitization. See the skill for the full guardrail list.
+
+> **P3.6 BROADCAST** is **OFF by default** on `/postflight` — opt in with `--broadcast` (`=conservative` [default] = commit-trailer + PR-body; `=all` ALSO stamps caller-named docs/changelogs, ADRs refused). It injects a **structured back-pointer marker** to the tracked continuation (seed + P2.5 ticket) so a fresh agent discovers the pending work — it is a structured back-pointer, **never a free-form TODO** (reconciled with exit-hygiene by ADR-010): idempotent (upsert, never accumulate), metadata-only (sanitized), `--dry-run` by default, and a **NOOP when nothing is pending**. Kill-switch: `MAOS_BROADCAST=0`. It is **default-ON only in `/maos:signoff`** (the sign-off / encerramento verb).
 
 ## Behavior (safe-or-DEFER)
 
@@ -76,6 +79,7 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 | `POSTFLIGHT_SNAPSHOT_PRS=1` | The PreCompact hook also fetches open-PR state via `gh` (network; default off = fast/offline-safe). |
 | `POSTFLIGHT_SEED_DIR=<path>` | Override where the PreCompact hook writes the seed snapshot (default: inside the repo's git dir — git-ignored, so it never dirties the working tree). |
 | `POSTFLIGHT_SPAWN=0` | **P3.5 kill-switch** — never spawn a continuation session (deterministic opt-out; overrides `--spawn`). |
+| `MAOS_BROADCAST=0` | **P3.6 kill-switch** — never broadcast the continuation back-pointer marker (deterministic opt-out; overrides `--broadcast`). |
 | `POSTFLIGHT_KICKOFF=0` | Spawn WITHOUT the initial kickoff prompt (same as `--no-kickoff`) — the session is seeded but starts idle at the REPL. Default: kickoff ON (the spawned session immediately reads its seed and resumes work). |
 | `POSTFLIGHT_SCORECARD_MODEL=<1..8\|name>` | Pin the P2 scorecard layout model (highest precedence in ANY mode; e.g. `cockpit`, `telemetry`, `4`, `briefing`). Default: dynamic context-based selection via `bin/scorecard-select-model.sh` (round-robin preserved as `--mode round-robin` fallback). |
 | `POSTFLIGHT_SCORECARD_STATE=<path>` | Override the round-robin pointer file (default: `~/.claude/jobs/.postflight-scorecard-model`). |
@@ -87,4 +91,6 @@ Next agent: /maos:preflight, then start at the first non-blocked next-action.
 - Skill: [`skills/postflight/SKILL.md`](../skills/postflight/SKILL.md) (the orchestrator).
 - Hook: `plugin-scripts/governance/postflight-precompact.sh` (PreCompact — deterministic seed snapshot; never blocks; never spawns).
 - Composes: `protocols/exit-hygiene.md`, `skills/postflight/references/ticket-sync-protocol.md` (P2.5 SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`), `skills/{sync-to-git,quiesce,morning-briefing,session-fission}`, `commands/worktree.md`, `bin/dogfood-mark`, `bin/spawn-continuation.sh` (P3.5 spawn primitive), `bin/locus.sh` (P2 locus) + `bin/scorecard.py` + `bin/scorecard-select-model.sh` (P2 scorecard dynamic selector) + `bin/scorecard-next-model.sh` (round-robin fallback).
+- Broadcast (P3.6): `bin/continuation-broadcast.sh` + `skills/postflight/references/{continuation-broadcast-protocol.md,close-out-hunt-checklist.md}` + `docs/adrs/ADR-010-continuation-broadcast.md`.
+- Wrapped by: `/maos:signoff` (`commands/signoff.md` + `skills/signoff/SKILL.md`) — the sign-off / encerramento verb that runs this with `--broadcast --spawn` default-ON under an OODA framing.
 - Counterpart: `/preflight` (start-of-session) — together the loop: `preflight → work → postflight → (spawn) → preflight …`.
