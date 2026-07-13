@@ -45,17 +45,19 @@ more automation demands *more* vigilance, not less · Sheridan & Verplank 1978
 (levels-of-automation) · aviation CRM (cross-check discipline rises with automation) ·
 Gawande, *The Checklist Manifesto* (2009).
 
-**Mandatory red-team gate.** When the `skills/red-team` (Elenchus) trigger predicate fires — ANY
-instance-level hard-trigger (secrets · production regulated personal data · irreversible high-blast ·
-unattended side-effect · a *behavioral* auth/crypto/access-control/guardrail change · self-edit of a
-binding governance rule · cross-org/customer-facing/disclosure · untrusted-input-steered side-effect ·
-an aggregate autonomous campaign · a fail-open flip) OR self-scored criticality HIGH — the cowork agent
-SHALL run `skills/red-team` **before the merge / irreversible effect**: an INDEPENDENT verifier
-(≠ author, verifier > generator, gated deterministically by `bin/convergence-guard`) rewarded for
-BREAKING the artifact. This is the concrete adversarial-verify step of the "ratchet verification UP"
-rule above; if no independent verifier is available at HIGH → **HOLD, do not force** (the fail-safe
-above), persisting the continuation handoff. Only the irreducible residue then follows the
-Council-before-HITL ladder below.
+**Mandatory red-team gate.** When the `skills/red-team` (Elenchus) trigger predicate fires — ANY of the
+complete **H1–H12** instance-level hard-triggers defined in `skills/red-team` (secrets · production
+regulated personal data · irreversible high-blast · unattended side-effect · a *behavioral*
+auth/crypto/access-control/guardrail change · self-edit of a binding governance rule ·
+cross-org/customer-facing/disclosure · no prior successful precedent · dangerous-capability domain ·
+untrusted-input-steered side-effect · aggregate autonomous campaign · fail-open flip) OR self-scored
+criticality HIGH — the cowork agent SHALL run `skills/red-team` **before the merge / irreversible
+effect**: an INDEPENDENT verifier (≠ author, verifier > generator, gated deterministically by
+`bin/convergence-guard`) rewarded for BREAKING the artifact. This is the concrete adversarial-verify
+step of the "ratchet verification UP" rule above; whenever a high-depth review is required — **at HIGH
+criticality OR when ANY hard-trigger fired** — and no independent verifier can be secured → **HOLD, do
+not force** (the fail-safe above), persisting the continuation handoff. Only the irreducible residue
+then follows the Council-before-HITL ladder below.
 
 ## ⛔ Carve-outs that HOLD even at ≥0.90 (non-negotiable)
 

@@ -118,7 +118,7 @@ Instance-level, not verb-class (e.g. an *idempotent, sandboxed* delete is not H3
 
 1. **Gate the master condition first** — deterministically, before any lens runs:
    `bin/convergence-guard --generator <author-axis> --verifier <independent-axis> [--oracle available|none --oracle-result pass|fail|na]`
-   → exit `0` ALLOW · `3` REFUSE (fail-safe: missing/ambiguous ⇒ REFUSE). On REFUSE (same brand/axis as author, or a clean deterministic oracle already passed a high-confidence output) → **swap to a cross-axis/cross-brand verifier, or DEFER to HITL**. This is what makes the verifier *independent + stronger* rather than a rubber stamp.
+   → exit `0` ALLOW · `3` REFUSE. **Every REFUSE is fail-CLOSED — never proceed on it**, whatever the cause: (a) same brand/axis as author, or a clean deterministic oracle already passed a high-confidence output → **swap to a cross-axis/cross-brand verifier, or DEFER to HITL**; (b) missing / invalid / ambiguous inputs → **fix the inputs and re-gate** (never bypass the gate to "unblock"). A REFUSE is the safe default — treat an un-parsed/ambiguous result exactly as REFUSE. This is what makes the verifier *independent + stronger* rather than a rubber stamp.
 2. **Run the adversary at the routed depth** — the verifier is framed to **break** the artifact (find the bypass, the injection, the fail-open, the missed case), not to approve it.
 
 | Depth / function | Primitive (compose) | Path |
@@ -143,7 +143,7 @@ On a confirmed break → **HOLD**, fix at root, re-gate. At HIGH with **no indep
 - Step-0 floor satisfied (trivial · docs-only · reversible · no side-effect · no secret/personal-data · no untrusted-input path) — logged.
 - Idempotency credit: this exact artifact-state already got an equivalently-independent adversarial review.
 - No hard-trigger AND criticality < MEDIUM (routine low-stakes reversible work).
-- Operator explicitly de-scopes — **but a hard-trigger overrides a self-assessed skip**: an operator may HITL-authorize proceeding (logged), and the ⛔ ABSOLUTE (never expose secrets) is *never* waived.
+- Operator de-scoping — the **AGENT can NEVER self-exempt** from a hard-trigger (that is the self-exemption guard; a hard-trigger always overrides an *agent's* self-assessed skip). Only a **human operator** may authorize proceeding without the red-team, and only via an **explicit, logged, scope-limited HITL exception** (this one action — never a standing waiver), and **never** for the ⛔ ABSOLUTE (secrets exposure). "Mandatory" means the agent has no discretion to skip; a human's audited exception is a separate, bounded decision — not an agent bypass.
 
 ## Anti-patterns (do NOT)
 
@@ -178,7 +178,7 @@ Deprecate when ANY: the host provides a native mandatory-adversarial-verificatio
 ## Prior art & anchors
 
 - **Composed primitives**: `bin/convergence-guard` (master condition) · `agents/perspective-trio.md` (triplet D adversarial) · `agents/cascade-resolver.md` (role 5 / role 6) · `skills/converge/SKILL.md` (devil_advocate + reject-log) · `skills/convergence-engine/SKILL.md` (verifier>generator + selectivity gate).
-- **External anchors**: NIST AI 600-1 (Generative AI Profile) + NIST 800-1 red-teaming guidance · MITRE ATLAS (adversarial-ML threat matrix) · OWASP Top 10 for LLM Applications (LLM01 Prompt Injection, LLM06) + OWASP GenAI Red Teaming Guide · DO-178C Design Assurance Levels (DAL A–E — catastrophic trip-wires bypass computed budget) · IEC 61508 Safety Integrity Levels (SIL) · GDPR Art. 35(3) (mandatory-DPIA hard-triggers) · Socratic *elenchus* (refutation by cross-examination). *Not cited as a trigger standard: CVSS (a severity scale, not a red-team-trigger standard); an earlier US AI executive order (historical, not current law).*
+- **External anchors**: NIST AI 600-1 (Generative AI Profile — includes GAI red-teaming guidance) · the NIST AI Risk Management Framework (AI RMF, AI 100-1) · MITRE ATLAS (adversarial-ML threat matrix) · OWASP Top 10 for LLM Applications (LLM01 Prompt Injection, LLM06) + OWASP GenAI Red Teaming Guide · DO-178C Design Assurance Levels (DAL A–E — catastrophic trip-wires bypass computed budget) · IEC 61508 Safety Integrity Levels (SIL) · GDPR Art. 35(3) (mandatory-DPIA hard-triggers) · Socratic *elenchus* (refutation by cross-examination). *Not cited as a trigger standard: CVSS (a severity scale, not a red-team-trigger standard); an earlier US AI executive order (historical, not current law).*
 
 ## Related multi-agent-os artifacts
 
