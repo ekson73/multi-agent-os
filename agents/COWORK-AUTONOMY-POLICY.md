@@ -31,7 +31,9 @@ verification UP, never relax it**: cross-check → adversarial-verify with an in
 verifier *stronger than the generator* (`skills/convergence-engine`) → the council below
 before any escalation. Under high-autonomy/no-HITL, **fail-safe = HOLD-when-not-provably-safe,
 NEVER force**: the verification must be self-sufficient; if it cannot be made trustworthy, do
-not land — hold and persist a resumable handoff. Fail-closed (Saltzer & Schroeder, 1975).
+not land — hold and persist a resumable handoff via the **established continuation contract**
+(`skills/postflight` P3 HANDOFF → the validated `skills/goal-recovery` `handoff-as-prompt`
+envelope), never ad-hoc handoff state. Fail-closed (Saltzer & Schroeder, 1975).
 
 This is the **depth** complement to the ≥0.90 *entry* bar above — and a **WARNING as much as
 a virtue**: the guard against *reckless* autonomy (imprudence · carelessness · inadvertence).
