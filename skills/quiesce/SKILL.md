@@ -219,7 +219,7 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 - `commands/quiesce.md` — operator-facing command surface
 - `skills/bot-finding-arbiter/SKILL.md` — *Praetor*: default per-finding handler when a PR is red/blocked on a bot-reviewer finding (7-way disposition + teach-the-bot)
 - `skills/auto-pilot/SKILL.md` — single-goal delegation kernel (default driver, sibling)
-- `skills/ooda-loop/SKILL.md` — the recover->measure->converge CONDUCTOR that may drive quiesce as its Act step (typed {goal, dod} pair; `--condition=<dod termination_predicate>`)
+- `skills/ooda-loop/SKILL.md` — the recover->measure->converge CONDUCTOR that may drive quiesce as its Act step (typed `handoff-as-prompt` + `dod-as-prompt` envelope pair; `--condition=<dod termination_predicate>`)
 - `skills/converge/SKILL.md` — 5-act proposal merge (used inside PDCA)
 - `skills/worktree-policy/SKILL.md` — write discipline every iteration honors
 - `skills/status-map/SKILL.md` — status reporting templates

@@ -47,7 +47,10 @@ def load(path):
 
 
 def detect_type(obj):
-    t = (obj.get("data") or {}).get("type")
+    if not isinstance(obj, dict):
+        return None
+    data = obj.get("data")
+    t = data.get("type") if isinstance(data, dict) else None
     if t in ("handoff-as-prompt", "dod-as-prompt"):
         return "handoff" if t == "handoff-as-prompt" else "dod"
     m = obj.get("method")

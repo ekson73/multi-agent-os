@@ -3,7 +3,9 @@
 # Proves: (1) both example envelopes VALIDATE, (2) an invalid envelope is REFUSED (gate fires),
 # (3) the idempotency digest is INVARIANT under a confidence jitter (same state -> same envelope,
 # modulo the probabilistic confidence float). Stdlib only; exit 0 iff all pass.
-set -u
+# NOTE: expected-FAILURE checks (validator exit 3) use if/then/else, not `A && B || C`, so they
+# neither abort under `set -e` nor mask a failure via SC2015.
+set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS="$(cd "$HERE/../.." && pwd)"                       # .../skills
@@ -22,23 +24,29 @@ bad()  { echo "  FAIL — $1"; fail=$((fail+1)); }
 echo "== goal-loop envelope tests =="
 
 # 1. valid handoff -> exit 0
-"$PY" "$VALIDATE" "$HANDOFF" >/dev/null 2>&1 \
-  && ok "valid handoff-as-prompt validates (exit 0)" \
-  || bad "valid handoff-as-prompt should validate"
+if "$PY" "$VALIDATE" "$HANDOFF" >/dev/null 2>&1; then
+  ok "valid handoff-as-prompt validates (exit 0)"
+else
+  bad "valid handoff-as-prompt should validate"
+fi
 
 # 2. valid dod -> exit 0
-"$PY" "$VALIDATE" "$DOD" >/dev/null 2>&1 \
-  && ok "valid dod-as-prompt validates (exit 0)" \
-  || bad "valid dod-as-prompt should validate"
+if "$PY" "$VALIDATE" "$DOD" >/dev/null 2>&1; then
+  ok "valid dod-as-prompt validates (exit 0)"
+else
+  bad "valid dod-as-prompt should validate"
+fi
 
-# 3. invalid handoff -> SpecError (exit 3)
-"$PY" "$VALIDATE" "$INVALID" >/dev/null 2>&1
-[ "$?" -eq 3 ] \
-  && ok "invalid handoff is REFUSED (SpecError exit 3 — low-confidence gate fires)" \
-  || bad "invalid handoff should be refused with exit 3"
+# 3. invalid handoff -> SpecError (exit 3)  [expected-failure: capture rc, don't abort under set -e]
+if "$PY" "$VALIDATE" "$INVALID" >/dev/null 2>&1; then rc=0; else rc=$?; fi
+if [ "$rc" -eq 3 ]; then
+  ok "invalid handoff is REFUSED (SpecError exit 3 — low-confidence gate fires)"
+else
+  bad "invalid handoff should be refused with exit 3"
+fi
 
 # 4. idempotency: digest invariant under a confidence jitter
-D1="$("$PY" "$VALIDATE" "$HANDOFF" --digest 2>/dev/null)"
+D1="$("$PY" "$VALIDATE" "$HANDOFF" --digest 2>/dev/null || true)"   # empty on failure -> caught by [ -n ] below
 JITTER="$(mktemp)"; trap 'rm -f "$JITTER"' EXIT
 "$PY" - "$HANDOFF" "$JITTER" <<'PYEOF'
 import json, sys
@@ -50,7 +58,7 @@ for h in o["params"]["hypotheses"]:
     h["confidence"] = round(h["confidence"] * 0.8, 3)
 json.dump(o, open(dst, "w"))
 PYEOF
-D2="$("$PY" "$VALIDATE" "$JITTER" --digest 2>/dev/null)"
+D2="$("$PY" "$VALIDATE" "$JITTER" --digest 2>/dev/null || true)"
 if [ -n "$D1" ] && [ "$D1" = "$D2" ]; then
   ok "idempotency digest invariant under confidence jitter ($D1)"
 else
@@ -65,7 +73,7 @@ o = json.load(open(sys.argv[1]))
 o["params"]["goal"] = "A DIFFERENT recovered goal."
 json.dump(o, open(sys.argv[2], "w"))
 PYEOF
-D3="$("$PY" "$VALIDATE" "$JITTER2" --digest 2>/dev/null)"
+D3="$("$PY" "$VALIDATE" "$JITTER2" --digest 2>/dev/null || true)"
 if [ "$D1" != "$D3" ]; then
   ok "digest DOES change when the deterministic content (goal) changes (not trivially constant)"
 else
@@ -82,8 +90,8 @@ o = json.load(open(sys.argv[1]))
 exec(sys.argv[3])
 json.dump(o, open(sys.argv[2], "w"))
 PYEOF
-  "$PY" "$VALIDATE" "$tmp" >/dev/null 2>&1
-  [ "$?" -eq 3 ] && ok "gate fires: $label (exit 3)" || bad "gate should refuse: $label"
+  if "$PY" "$VALIDATE" "$tmp" >/dev/null 2>&1; then rc=0; else rc=$?; fi
+  if [ "$rc" -eq 3 ]; then ok "gate fires: $label (exit 3)"; else bad "gate should refuse: $label"; fi
   rm -f "$tmp"
 }
 gate_test "empty goal without inconclusive flag"        'o["params"]["goal"]=""'
