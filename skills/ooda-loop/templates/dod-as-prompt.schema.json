@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://multi-agent-os/skills/ooda-loop/dod-as-prompt.schema.json",
+  "title": "dod-as-prompt",
+  "description": "The typed envelope carrying a MEASURABLE Definition-of-Done for a recovered goal. A thin wrapper over the Prisma engine (decompose-abstract-to-measurable): it holds the Prisma `measurement_spec` (the DoD as a value-tree of D/T/J leaves), the eko L5 acceptance/KPI projection of those leaves, and — once evaluated — the Prisma score/band. Its `termination_predicate` string is what gap-loop/quiesce consume via `--condition`. NO new measurement engine: authoring the value-tree and scoring it are BOTH Prisma's job (LLM proposes leaves; scripts/structural_route.py form-gates the tree and scripts/aggregate_spec.py rolls it up deterministically). This envelope is the wiring.",
+  "type": "object",
+  "required": ["jsonrpc", "method", "params", "data"],
+  "additionalProperties": true,
+  "properties": {
+    "jsonrpc": {"const": "2.0"},
+    "method": {"const": "session.dod_derivation"},
+    "params": {
+      "type": "object",
+      "required": ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate"],
+      "additionalProperties": true,
+      "properties": {
+        "for_goal": {"type": "string", "minLength": 1, "description": "the {{goal}} this DoD measures — MUST equal the driving handoff-as-prompt.params.goal (L8 traceability). A DoD divorced from its goal is a SpecError."},
+        "context_lock": {
+          "type": "object",
+          "description": "= Prisma measurement-spec meta.context_lock (Step-0 hard gate — a context-free DoD is refused). Sourced from the handoff-as-prompt: context<-context, purpose<-objectives.originating, stakeholder/targets<-scope+motivations. A construct is only measurable relative to this (Harnad grounding).",
+          "required": ["context", "purpose", "stakeholder", "targets"],
+          "additionalProperties": true,
+          "properties": {
+            "context": {"type": "string"},
+            "purpose": {"type": "string"},
+            "priority_focus": {"type": "string"},
+            "stakeholder": {"type": "string"},
+            "targets": {"type": "string"}
+          }
+        },
+        "measurement_spec": {
+          "type": "object",
+          "description": "THE DoD as a Prisma value-tree. MUST validate against skills/decompose-abstract-to-measurable/templates/measurement-spec.schema.json — full validation is DELEGATED to Prisma's TWO-script pipeline scripts/structural_route.py (fail-closed FORM gate: an additive value-tree validly represents only additive/atomic; relational/gestalt -> blocked; normative/dispositional/temporal -> assistive-capped) THEN scripts/aggregate_spec.py (deterministic roll-up) (DRY: this envelope only asserts the load-bearing keys are present; it does NOT re-encode Prisma's whole schema). meta.construct is the DoD framed as a measurable question (e.g. 'is {{goal}} DONE and healthy?'); nodes[] are the D/T/J leaves (D=deterministic-measurable preferred; J=judgment last-resort with a stated why-not-D/T).",
+          "required": ["meta", "nodes"],
+          "additionalProperties": true,
+          "properties": {
+            "meta": {"type": "object", "required": ["construct", "context_lock"]},
+            "nodes": {"type": "array", "minItems": 1}
+          }
+        },
+        "acceptance": {"type": "array", "items": {"type": "string"}, "description": "eko L5 projection — the binary-checkable DoD items, human-readable, one per material D/T leaf. The 'is it done?' checklist."},
+        "kpis": {"type": "array", "items": {"type": "string"}, "description": "eko L5 projection — measurable success signals derived from the leaves (e.g. 'tests 100% pass', 'gitleaks clean', 'aggregate score >= 0.85')."},
+        "termination_predicate": {"type": "string", "minLength": 1, "description": "THE string gap-loop/quiesce consume as --condition. Derived from the DoD: the loop is DONE when the D/T leaves are satisfied AND Prisma inconclusive.flag=false AND (score >= thresholds.band_high). Deterministic given the measurement_spec."},
+        "evaluation": {
+          "type": "object",
+          "description": "OPTIONAL — the Prisma aggregate_spec.py OUTPUT, present once the loop has scored current progress against the DoD. Absent at derivation time (the DoD DEFINITION is stable; the leaf VALUES change as work progresses). inconclusive.flag=true here => the DoD itself cannot be scored (judgment-dominated / low-confidence / branch-conflict) => HITL, same gate as Prisma.",
+          "required": ["score", "band", "inconclusive"],
+          "additionalProperties": true,
+          "properties": {
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "band": {"enum": ["HIGH", "MEDIUM", "LOW"]},
+            "aggregate_confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "inconclusive": {
+              "type": "object",
+              "required": ["flag", "reasons"],
+              "additionalProperties": false,
+              "properties": {
+                "flag": {"type": "boolean"},
+                "reasons": {"type": "array", "items": {"type": "string"}}
+              }
+            }
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["layer", "type", "contract_version"],
+      "additionalProperties": true,
+      "properties": {
+        "layer": {"const": "community"},
+        "type": {"const": "dod-as-prompt"},
+        "engine": {"const": "decompose-abstract-to-measurable"},
+        "contract": {"type": "string"},
+        "contract_version": {"type": "string"}
+      }
+    }
+  },
+  "$comment": "Idempotency (validate_envelope.py --digest): the DoD DEFINITION (context_lock + measurement_spec structure + termination_predicate) is canonicalized (leaf VALUES/confidence + evaluation stripped) so the same {goal,context} yields the same DoD-shape digest across runs. Exit: 0 valid, 2 unreadable, 3 SpecError. SpecError cases: absent required key; empty for_goal; measurement_spec missing meta.context_lock (Prisma Step-0). Deep leaf/anchor validation + the authoritative D/T/J + inconclusive verdict are delegated to Prisma's two scripts, run in order: skills/decompose-abstract-to-measurable/scripts/structural_route.py (fail-closed form-gate — additive_unverified/relational/gestalt caps the score to assistive-only + human_review) THEN skills/decompose-abstract-to-measurable/scripts/aggregate_spec.py (roll-up). ooda-loop's ACT gate consults BOTH: a capped structural status is treated as inconclusive -> HITL."
+}

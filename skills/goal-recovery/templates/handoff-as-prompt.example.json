@@ -1,0 +1,65 @@
+{
+  "jsonrpc": "2.0",
+  "method": "session.goal_recovery",
+  "params": {
+    "goal": "Realize the operator's recurring goal-loop contract (recover the session goal -> derive a measurable DoD via Prisma -> drive to quiescence) as reusable agentic-tool(s).",
+    "motivations": [
+      "The operator hand-invokes the same 3-step contract every session — making it reusable removes that repetition (the operator's BEING served: less manual re-typing, more autonomy).",
+      "The loop/goal family EMITS and CONSUMES goals but never RECOVERED an unstated one — closing that residual is genuinely useful, not theater."
+    ],
+    "DoR": [
+      "Plan approved (Option B: goal-recovery reusable + thin conductor).",
+      "Session model = Opus 4.8 (1M) — satisfies agentic-delegation-context-floor.",
+      "multi-agent-os reachable; reuse targets (postflight seed, Prisma spec, gap-loop, quiesce, enhance-pipeline, anima) all present."
+    ],
+    "context": "/enhance Ultrathink session in ~/.claude/double-shot-latte. The prior /speak content-recast chain was itself a manual instance of this contract. Work isolated in multi-agent-os worktree feat/ooda-loop-goal-recovery.",
+    "scope": {
+      "in": [
+        "2 new skills (goal-recovery + ooda-loop) + 2 JSON schema conventions (handoff-as-prompt + dod-as-prompt)",
+        "minimal backward-compatible gap-loop/quiesce extension for the typed pair",
+        "real tests (validator + idempotency + dry-run dogfood) + audit + draft PR"
+      ],
+      "out": [
+        "NO auto-merge (HITL initial per chicken-and-egg)",
+        "NO new measurement engine (Prisma is reused)",
+        "NO monolith rebuilding MoE/convergence/audit (they are composed)"
+      ]
+    },
+    "objectives": {
+      "originating": ["The operator's recurring, hand-invoked goal-loop contract that this session must turn into tooling."],
+      "primary": ["Deliver the goal-recovery skill (the novel recover-from-context step) and the ooda-loop conductor."],
+      "secondary": ["Ship the handoff-as-prompt + dod-as-prompt schemas and the gap-loop/quiesce typed-pair extension."],
+      "auxiliary": ["Audit (anti-theater 8/8, rule-quality 6/6), dogfood-ledger mark, and a draft PR."]
+    },
+    "confidence": 0.9,
+    "hypotheses": [
+      {"goal": "Realize the operator's recurring goal-loop contract (recover the session goal -> derive a measurable DoD via Prisma -> drive to quiescence) as reusable agentic-tool(s).", "confidence": 0.9, "evidence": ["operator_prompt: explicit /enhance directive with the literal 3-step contract", "plan approved Option B"]},
+      {"goal": "Build only a single conductor and inline the goal-recovery step.", "confidence": 0.4, "evidence": ["a leaner reading of 'um ou mais agentic-tools'"]}
+    ],
+    "inconclusive": {"flag": false, "reasons": []},
+    "recovered_from": [
+      {"source": "operator_prompt", "read": true, "ref": "/enhance Ultrathink directive 2026-07-12"},
+      {"source": "git_branch", "read": true, "ref": "feat/ooda-loop-goal-recovery"},
+      {"source": "postflight_seed", "read": false, "ref": "absent"},
+      {"source": "ticket", "read": false, "ref": "absent"},
+      {"source": "ash_journal", "read": false, "ref": "absent"}
+    ],
+    "guardrails": [
+      "Never commit to main; worktree-only edits.",
+      "No auto-merge — HITL initial (chicken-and-egg: the tool's own PR).",
+      "Never expose secrets/credentials/PII."
+    ],
+    "refs": {
+      "git": "ekson73/multi-agent-os @ feat/ooda-loop-goal-recovery",
+      "ticket": "none",
+      "memory": "~/.claude/plans/ultrathink-analise-pesquise-semelhantes-enumerated-avalanche.md",
+      "session": "542f62d4"
+    }
+  },
+  "data": {
+    "layer": "community",
+    "type": "handoff-as-prompt",
+    "contract": "skills/goal-recovery/templates/handoff-as-prompt.schema.json",
+    "contract_version": "1.0.0"
+  }
+}
