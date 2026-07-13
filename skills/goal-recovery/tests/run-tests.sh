@@ -14,7 +14,7 @@ HANDOFF="$SKILLS/goal-recovery/templates/handoff-as-prompt.example.json"
 DOD="$SKILLS/ooda-loop/templates/dod-as-prompt.example.json"
 INVALID="$SKILLS/goal-recovery/tests/handoff-as-prompt.invalid.example.json"
 
-PY="$(command -v python3 || command -v python)"
+PY="$(command -v python3 || command -v python || true)"   # || true: let the check below emit the clean error under set -e
 [ -n "$PY" ] || { echo "FAIL: no python found"; exit 1; }
 
 pass=0 fail=0
