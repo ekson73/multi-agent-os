@@ -133,7 +133,7 @@ is only `--mode`/`--band`/`--max-depth`, so its controls are translated (see tab
 |---|---|---|
 | `"<instructions>"` (positional) | empty | extra free-text appended to the driver action |
 | `--scope` | `this.session` | `this.session` \| `repo` \| `branch` \| `ticket:<id>` \| `pr:<n>` |
-| `--condition` | *(quiescence predicate above)* | override the termination predicate string |
+| `--condition` | *(quiescence predicate above)* | override the termination predicate string; MAY be a `dod-as-prompt.termination_predicate` (a measurable Prisma-derived DoD) when driven by `ooda-loop` — the recovered goal's D/T/J leaves become the stop test |
 | `--driver` | `auto-pilot` | `auto-pilot` \| `auto-orchestrator` \| `<custom>` |
 | `--auto-merge` | `authorized` | `authorized` \| `hold` \| `off` |
 | `--auto-merge-reason` | *(operator invocation)* | required-non-empty when `authorized`; invoking `/quiesce --auto-merge=authorized` IS the authorization |
@@ -219,6 +219,7 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 - `commands/quiesce.md` — operator-facing command surface
 - `skills/bot-finding-arbiter/SKILL.md` — *Praetor*: default per-finding handler when a PR is red/blocked on a bot-reviewer finding (7-way disposition + teach-the-bot)
 - `skills/auto-pilot/SKILL.md` — single-goal delegation kernel (default driver, sibling)
+- `skills/ooda-loop/SKILL.md` — the recover->measure->converge CONDUCTOR that may drive quiesce as its Act step (typed {goal, dod} pair; `--condition=<dod termination_predicate>`)
 - `skills/converge/SKILL.md` — 5-act proposal merge (used inside PDCA)
 - `skills/worktree-policy/SKILL.md` — write discipline every iteration honors
 - `skills/status-map/SKILL.md` — status reporting templates

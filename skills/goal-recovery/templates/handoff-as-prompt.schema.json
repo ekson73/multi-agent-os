@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://multi-agent-os/skills/goal-recovery/handoff-as-prompt.schema.json",
+  "title": "handoff-as-prompt",
+  "description": "The deterministic OUTPUT envelope of the goal-recovery skill: a session's recovered INTENT, typed. It is the direction-inverted twin of postflight's continuation-seed (session.continuation@1.1.0) — that EMITS an intent at session END; this RECOVERS an (often unstated) intent from live session/context state at any point. The LLM authors the content (probabilistic, over the inference ladder); this schema + validate_envelope.py gate the shape (deterministic). Reuses the seed's goal/objectives/context/guardrails/refs verbatim; ADDS motivations, DoR, scope, objectives.originating, and the uncertainty-aware confidence/hypotheses/inconclusive->HITL. Downstream (ooda-loop, gap-loop, quiesce) consumes params.goal as {{goal}}.",
+  "type": "object",
+  "required": ["jsonrpc", "method", "params", "data"],
+  "additionalProperties": true,
+  "properties": {
+    "jsonrpc": {"const": "2.0"},
+    "method": {"const": "session.goal_recovery", "description": "distinct from session.continuation — the direction is INVERTED (recover-from-context, not emit-at-end)."},
+    "params": {
+      "type": "object",
+      "description": "The recovered intent bundle. Every key is REQUIRED but arrays MAY be empty — an empty array means 'considered, none found' (anti-omission discipline, mirrors the seed forcing all keys); an ABSENT key is a SpecError (the recovery skipped a dimension).",
+      "required": ["goal", "motivations", "DoR", "context", "scope", "objectives", "confidence", "hypotheses", "inconclusive", "recovered_from", "guardrails", "refs"],
+      "additionalProperties": true,
+      "properties": {
+        "goal": {"type": "string", "minLength": 1, "description": "REUSED from seed. The one-line mission consumed downstream as {{goal}}. Empty string is NOT allowed (a recovery with no goal must set inconclusive.flag=true and still name a best-guess placeholder, or DEFER)."},
+        "motivations": {"type": "array", "items": {"type": "string"}, "description": "NET-NEW. WHY the session exists — the business/technical value / operator BEING served (the operator's 'motivacoes'). Root-of-intent, not tasks."},
+        "DoR": {"type": "array", "items": {"type": "string"}, "description": "NET-NEW. Definition-of-Ready — the preconditions/inputs/dependencies that were (or must be) met before the work is workable."},
+        "context": {"type": "string", "description": "REUSED from seed. State-of-world the goal lives in — the frame a fresh amnesic agent needs. Maps to Prisma measurement-spec meta.context_lock.context."},
+        "scope": {
+          "type": "object",
+          "description": "NET-NEW explicit in/out scope (the operator's 'escopo'). Bounds the goal; prevents scope-creep in the downstream loop.",
+          "required": ["in", "out"],
+          "additionalProperties": false,
+          "properties": {
+            "in": {"type": "array", "items": {"type": "string"}},
+            "out": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "objectives": {
+          "type": "object",
+          "description": "The purpose tree ('objetivos/propositos'). primary/secondary/auxiliary REUSED from seed; originating NET-NEW.",
+          "required": ["originating", "primary", "secondary", "auxiliary"],
+          "additionalProperties": true,
+          "properties": {
+            "originating": {"type": "array", "items": {"type": "string"}, "description": "NET-NEW. The ROOT/originating purpose that spawned the session (the 'why we started at all') — distinct from primary (the top deliverable). Often implicit; the recovery surfaces it."},
+            "primary": {"type": "array", "items": {"type": "string"}},
+            "secondary": {"type": "array", "items": {"type": "string"}},
+            "auxiliary": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "NET-NEW. Aggregate confidence [0,1] that params.goal + objectives correctly capture the real intent. Below the skill's conf_inconclusive threshold (default 0.60) MUST set inconclusive.flag=true. This is the defensive core: goal-recovery from execution state is under-published (SOTA gap) — never a confident oracle."},
+        "hypotheses": {
+          "type": "array",
+          "description": "NET-NEW. Ranked ALTERNATIVE goal-interpretations (uncertainty-aware, GOOD arXiv:2508.15119 / RECAP 2509.04472). The chosen params.goal is hypotheses[0].goal when non-empty. The loop MAY revise the goal to a lower-ranked hypothesis mid-run rather than freeze it (lost-in-multi-turn defense).",
+          "items": {
+            "type": "object",
+            "required": ["goal", "confidence"],
+            "additionalProperties": true,
+            "properties": {
+              "goal": {"type": "string"},
+              "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+              "evidence": {"type": "array", "items": {"type": "string"}, "description": "the inference-ladder observations that support this hypothesis"}
+            }
+          }
+        },
+        "inconclusive": {
+          "type": "object",
+          "description": "NET-NEW HITL gate — mirrors Prisma's inconclusive{flag,reasons}. flag=true => the recovery is NOT trustworthy enough to drive a loop autonomously => escalate to HITL with hypotheses attached (do NOT freeze a low-confidence goal).",
+          "required": ["flag", "reasons"],
+          "additionalProperties": false,
+          "properties": {
+            "flag": {"type": "boolean"},
+            "reasons": {"type": "array", "items": {"type": "string", "enum": ["low_confidence", "conflicting_hypotheses", "no_context_anchor", "ambiguous_scope", "stale_state"]}, "description": "constrained vocabulary; free-text goes in a sibling note if needed"}
+          }
+        },
+        "recovered_from": {
+          "type": "array",
+          "description": "NET-NEW audit trail — which inference-ladder sources were ACTUALLY read to recover this intent (Skopos recon-first + anti-theater grounding). Ordered strongest-first. An empty array with confidence>0 is a SpecError (a confident recovery must cite where it came from).",
+          "items": {
+            "type": "object",
+            "required": ["source", "read"],
+            "additionalProperties": true,
+            "properties": {
+              "source": {"type": "string", "enum": ["postflight_seed", "ticket", "objectives_ntree", "ash_journal", "git_branch", "git_last_commit", "transcript", "work_compass_cpt", "operator_prompt", "free_text"]},
+              "read": {"type": "boolean", "description": "true = this source existed and was read; false = probed-but-absent (still auditable)"},
+              "ref": {"type": "string", "description": "path/id/sha of the source, or 'absent'"}
+            }
+          }
+        },
+        "guardrails": {"type": "array", "items": {"type": "string"}, "description": "REUSED from seed. Binding constraints recovered from context (e.g. 'never commit secrets', 'worktree-only', 'do NOT merge')."},
+        "refs": {
+          "type": "object",
+          "description": "REUSED from seed. The L8 cross-link block (traceability). Any field 'none' when absent.",
+          "additionalProperties": true,
+          "properties": {
+            "git": {"type": "string"},
+            "ticket": {"type": "string"},
+            "memory": {"type": "string"},
+            "session": {"type": "string"}
+          }
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": ["layer", "type", "contract_version"],
+      "additionalProperties": true,
+      "properties": {
+        "layer": {"const": "community", "description": "per layer-precedence-policy §3 — mandatory attribution field"},
+        "type": {"const": "handoff-as-prompt", "description": "the eko L5 purpose-tag / --type"},
+        "contract": {"type": "string"},
+        "contract_version": {"type": "string"}
+      }
+    }
+  },
+  "$comment": "Idempotency (validate_envelope.py --digest): a canonical digest is computed after (a) dropping volatile floats (confidence -> banded, timestamps stripped) and (b) key-sorting, so the SAME session-state yields the SAME digest across LLM runs (deterministic envelope over probabilistic content). Exit: 0 valid, 2 unreadable, 3 SpecError(refused). SpecError cases: absent required key; empty goal with inconclusive.flag=false; recovered_from empty while confidence>0; confidence<conf_inconclusive while inconclusive.flag=false."
+}

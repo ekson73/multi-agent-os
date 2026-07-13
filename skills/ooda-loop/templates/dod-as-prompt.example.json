@@ -1,0 +1,101 @@
+{
+  "jsonrpc": "2.0",
+  "method": "session.dod_derivation",
+  "params": {
+    "for_goal": "Realize the operator's recurring goal-loop contract (recover the session goal -> derive a measurable DoD via Prisma -> drive to quiescence) as reusable agentic-tool(s).",
+    "context_lock": {
+      "context": "/enhance Ultrathink build in multi-agent-os worktree feat/ooda-loop-goal-recovery; the operator's 3-step goal-loop contract turned into tooling.",
+      "purpose": "close the family's missing recover-from-context step + wire the recover->measure->converge contract as a reusable preset.",
+      "priority_focus": "correctness + anti-theater (real, composed, validator-gated) over surface area.",
+      "stakeholder": "operator (@ekson73) + future amnesic agents that consume the typed {goal, dod} pair.",
+      "targets": "goal-recovery skill + ooda-loop skill + handoff-as-prompt + dod-as-prompt schemas + gap-loop/quiesce extension."
+    },
+    "measurement_spec": {
+      "meta": {
+        "construct": "Is the goal-loop conductor (goal-recovery + ooda-loop + schemas + extension) DONE and healthy?",
+        "version": "1.0.0",
+        "context_lock": {
+          "context": "/enhance Ultrathink build in multi-agent-os; recover->measure->converge tooling.",
+          "purpose": "deliver the reusable goal-loop contract tooling.",
+          "stakeholder": "operator + amnesic agents",
+          "targets": "2 skills + 2 schemas + extension + tests"
+        },
+        "structural_form": "additive",
+        "h35_diagnostics": {
+          "q_value_lives_in_relations": false,
+          "q_requires_time_comparison": false,
+          "q_predicts_future_behavior": false,
+          "q_whole_differs_from_sum": false,
+          "q_depends_on_whose_values": false
+        }
+      },
+      "thresholds": {"band_high": 0.85, "band_med": 0.65, "conf_inconclusive": 0.60, "depth_cap": 3},
+      "nodes": [
+        {"id": "n0", "label": "conductor-done", "kind": "branch"},
+        {"id": "n1", "label": "artifacts-present", "kind": "branch", "parents": [{"id": "n0", "weight": 0.35}]},
+        {"id": "n2", "label": "quality-gates-pass", "kind": "branch", "parents": [{"id": "n0", "weight": 0.40}]},
+        {"id": "n3", "label": "integration-clean", "kind": "branch", "parents": [{"id": "n0", "weight": 0.25}]},
+
+        {"id": "l1", "label": "both skills authored (goal-recovery + ooda-loop SKILL.md)", "leaf_type": "D",
+         "value": 1.0, "confidence": 1.0, "raw": "2/2 SKILL.md present", "method": "ls skills/{goal-recovery,ooda-loop}/SKILL.md",
+         "parents": [{"id": "n1", "weight": 0.5}],
+         "anchors": {"positive": "both SKILL.md exist with valid frontmatter", "negative": "either skill missing"}},
+        {"id": "l2", "label": "both schemas authored (handoff-as-prompt + dod-as-prompt)", "leaf_type": "D",
+         "value": 1.0, "confidence": 1.0, "raw": "2/2 schema.json present", "method": "ls templates/*.schema.json",
+         "parents": [{"id": "n1", "weight": 0.5}],
+         "anchors": {"positive": "both .schema.json exist + parse as JSON", "negative": "either schema missing/unparseable"}},
+
+        {"id": "l3", "label": "both example envelopes validate (validate_envelope.py exit 0)", "leaf_type": "D",
+         "value": 0.0, "confidence": 1.0, "raw": "pending run", "method": "python3 validate_envelope.py <examples>",
+         "parents": [{"id": "n2", "weight": 0.4}],
+         "anchors": {"positive": "exit 0 on both handoff + dod examples", "negative": "any SpecError (exit 3)"}},
+        {"id": "l4", "label": "idempotency digest stable under confidence jitter", "leaf_type": "D",
+         "value": 0.0, "confidence": 1.0, "raw": "pending run", "method": "digest(A) == digest(A with confidence changed)",
+         "parents": [{"id": "n2", "weight": 0.3}],
+         "anchors": {"positive": "identical sha256 across a confidence-jittered copy", "negative": "digest differs"}},
+        {"id": "l5", "label": "anti-theater REALITY 8/8 on the new skills", "leaf_type": "T",
+         "value": 0.0, "confidence": 0.9, "raw": "pending audit", "method": "anti-theater 8Q self-check + independent verifier",
+         "parents": [{"id": "n2", "weight": 0.3}],
+         "anchors": {"positive": "8/8 (real, grounded, not-invented, useful)", "negative": "<8/8 -> refine"}},
+
+        {"id": "l6", "label": "gap-loop/quiesce edits backward-compatible", "leaf_type": "T",
+         "value": 1.0, "confidence": 0.9, "raw": "additive row/notes only; defaults unchanged", "method": "diff review: existing values preserved",
+         "parents": [{"id": "n3", "weight": 0.5}],
+         "anchors": {"positive": "all prior flag values/behaviour intact; only additions", "negative": "a default changed / a value removed"}},
+        {"id": "l7", "label": "DRY: composes primitives, no monolith", "leaf_type": "J",
+         "value": 0.9, "confidence": 0.85, "raw": "composes goal-recovery+Prisma+gap-loop/quiesce; reimplements nothing",
+         "method": "architectural judgment (why-not-D: composition-quality is not a single measurable count)",
+         "parents": [{"id": "n3", "weight": 0.5}],
+         "anchors": {"positive": "every step lands on an existing primitive; verifier!=generator inherited not re-loosened", "negative": "re-implements MoE/convergence/audit"}}
+      ]
+    },
+    "acceptance": [
+      "goal-recovery + ooda-loop SKILL.md both present with valid frontmatter (D)",
+      "handoff-as-prompt + dod-as-prompt schemas both present + parse (D)",
+      "validate_envelope.py exits 0 on both example envelopes (D)",
+      "idempotency digest identical across a confidence-jittered copy (D)",
+      "gap-loop/quiesce edits are additive/backward-compatible (T)",
+      "anti-theater 8/8 on the new skills (T)"
+    ],
+    "kpis": [
+      "tests green: validator PASS x2 + idempotency PASS + invalid-fixture SpecError",
+      "Prisma aggregate score >= 0.85 (band HIGH) with inconclusive.flag=false",
+      "draft PR opened; NOT auto-merged (HITL initial)"
+    ],
+    "termination_predicate": "DONE when: both skills + both schemas present (D) AND validate_envelope.py exits 0 on both example envelopes (D) AND the idempotency digest is stable across a confidence-jittered copy (D) AND gap-loop/quiesce edits are backward-compatible (T) AND anti-theater 8/8 (T) AND a draft PR is open — AND the Prisma aggregate score >= 0.85 (band HIGH) with inconclusive.flag=false. Leaves re-scored each round against current worktree state.",
+    "evaluation": {
+      "_note": "REAL output of aggregate_spec.py --spec on this measurement_spec at derivation-time (D leaves l3/l4 still pending 0.0, mid-loop). Loop CONTINUEs — DoD not yet met. Re-scored each round as leaf values update.",
+      "score": 0.5875,
+      "band": "LOW",
+      "aggregate_confidence": 0.9567,
+      "inconclusive": {"flag": true, "reasons": ["conflict:n0"]}
+    }
+  },
+  "data": {
+    "layer": "community",
+    "type": "dod-as-prompt",
+    "engine": "decompose-abstract-to-measurable",
+    "contract": "skills/ooda-loop/templates/dod-as-prompt.schema.json",
+    "contract_version": "1.0.0"
+  }
+}
