@@ -21,6 +21,30 @@ escalate in the low band) — it does NOT substitute the human silently.
 `autonomy_score` is the standard 6-factor score:
 `(knowledge×0.30) + (certainty×0.30) + ((1-risk)×0.15) + ((1-impact)×0.15) + ((1-importance)×0.05) + ((1-priority)×0.05)`.
 
+## Rigor scales UP with autonomy (the multiplier)
+
+**Autonomy is a MULTIPLIER, not a shortcut** — it amplifies whatever discipline is already
+present (× rigor → better outcomes; × haste → *worse* ones). So the higher the autonomy an
+agent operates under (the ≥0.90 no-HITL substitution above · a standing autonomous grant ·
+unattended operation with no human to catch a mistake), the **more** it must **ratchet
+verification UP, never relax it**: cross-check → adversarial-verify with an independent
+verifier *stronger than the generator* (`skills/convergence-engine`) → the council below
+before any escalation. Under high-autonomy/no-HITL, **fail-safe = HOLD-when-not-provably-safe,
+NEVER force**: the verification must be self-sufficient; if it cannot be made trustworthy, do
+not land — hold and persist a resumable handoff via the **established continuation contract**
+(`skills/postflight` P3 HANDOFF → the validated `skills/goal-recovery` `handoff-as-prompt`
+envelope), never ad-hoc handoff state. Fail-closed (Saltzer & Schroeder, 1975).
+
+This is the **depth** complement to the ≥0.90 *entry* bar above — and a **WARNING as much as
+a virtue**: the guard against *reckless* autonomy (imprudence · carelessness · inadvertence).
+Autonomy without the ratchet is exactly how a fresh, context-poor agent ships an unchecked
+mistake *fast*; substitution therefore *raises* the accountability bar (see Accountability),
+it never lowers it. Delegation never waives it (`skills/agentic-delegation` — "delegating
+does not waive responsibility"). Anchors: **Bainbridge, *Ironies of Automation* (1983)** —
+more automation demands *more* vigilance, not less · Sheridan & Verplank 1978
+(levels-of-automation) · aviation CRM (cross-check discipline rises with automation) ·
+Gawande, *The Checklist Manifesto* (2009).
+
 ## ⛔ Carve-outs that HOLD even at ≥0.90 (non-negotiable)
 
 The ≥0.90-no-HITL applies to the agent's **OWN-domain** decisions ONLY. The following
