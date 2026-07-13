@@ -1,0 +1,23 @@
+{
+  "_note": "INVALID by design — a fixture the validator MUST refuse. It violates the low-confidence gate: confidence 0.40 < conf_inconclusive 0.60 while inconclusive.flag=false (a low-confidence recovery must DEFER to HITL, never drive a loop). Used by run-tests.sh to prove the gate fires (exit 3), not just the happy path.",
+  "jsonrpc": "2.0",
+  "method": "session.goal_recovery",
+  "params": {
+    "goal": "Do something, probably.",
+    "motivations": [],
+    "DoR": [],
+    "context": "ambiguous session with weak signal",
+    "scope": {"in": [], "out": []},
+    "objectives": {"originating": [], "primary": [], "secondary": [], "auxiliary": []},
+    "confidence": 0.40,
+    "hypotheses": [
+      {"goal": "Do something, probably.", "confidence": 0.40, "evidence": ["git_branch: feat/misc"]},
+      {"goal": "Something else entirely.", "confidence": 0.38, "evidence": ["one stale commit"]}
+    ],
+    "inconclusive": {"flag": false, "reasons": []},
+    "recovered_from": [{"source": "git_branch", "read": true, "ref": "feat/misc"}],
+    "guardrails": [],
+    "refs": {"git": "none", "ticket": "none", "memory": "none", "session": "test"}
+  },
+  "data": {"layer": "community", "type": "handoff-as-prompt", "contract_version": "1.0.0"}
+}

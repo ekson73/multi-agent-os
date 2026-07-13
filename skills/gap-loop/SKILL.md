@@ -192,8 +192,8 @@ The four self-* flags map onto EXISTING primitives (invoke, don't invent); they 
 | Flag | Default | Allowed / Notes |
 |---|---|---|
 | `"<instructions>"` (positional) | empty | extra free-text appended to the goal |
-| `--state-source` | `pulse` | where RECAP reads the goal/plan/gaps from (`pulse` \| `ticket:<id>` \| `file` \| `free-text`) |
-| `--condition` | *(CONVERGED predicate above)* | override the termination predicate string |
+| `--state-source` | `pulse` | where RECAP reads the goal/plan/gaps from (`pulse` \| `ticket:<id>` \| `file` \| `free-text` \| `handoff:<file>`). `handoff:<file>` reads a validated `handoff-as-prompt` envelope (from `goal-recovery` / `ooda-loop`): its `goal`+`objectives`+`scope` seed the gap-register directly (typed — no re-inference). Backward-compatible: omit for the default `pulse`. |
+| `--condition` | *(CONVERGED predicate above)* | override the termination predicate string; MAY be a `dod-as-prompt.termination_predicate` (a measurable Prisma-derived DoD) when driven by `ooda-loop` — the DoD's D/T/J leaves become the stop test, re-scored each round |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — the score gate. Bands (SSOT `agents/COWORK-AUTONOMY-POLICY.md`): **>=0.90 MAY substitute the human / NO-HITL** (own-domain; carve-outs hold) · >=0.85 act · >=0.65 act+justify · else uplift→re-gate→HITL |
 | `--max-iterations` | `6` | int — loop cap before park-state + escalate |
 | `--socratic-depth` | `N` (from SSOT) | int — Phase-3 question-bank depth; **never hardcode "33"** |
@@ -279,6 +279,7 @@ loop entry (E6) · operator retraction (E4) · >=3 false-positive runs (E5). Dor
 - `commands/gap-loop.md` — operator-facing command surface
 - `protocols/gap-loop-protocol.md` — the extracted reusable methodology (citable by siblings)
 - `skills/quiesce/SKILL.md` — session-quiescence via `/goal` (sibling; the `/goal`-dependent cousin)
+- `skills/ooda-loop/SKILL.md` — the recover->measure->converge CONDUCTOR that drives gap-loop with a typed {handoff-as-prompt, dod-as-prompt} pair (`--state-source=handoff:<file>` + `--condition=<dod termination_predicate>`)
 - `skills/convergence-engine/SKILL.md` (+ `PRIOR-ART.md`) — quality regime-router + master condition + external grounding (inherited, DRY)
 - `skills/converge/SKILL.md` — 5-act proposal merge (used inside RESOLVE)
 - `skills/pulse/SKILL.md` — DoR/RECAP state source
