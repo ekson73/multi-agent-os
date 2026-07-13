@@ -79,9 +79,38 @@ def in_unit(obj, key, where, errs):
             errs.append(f"{where}.{key}: must be a number in [0,1], got {v!r}")
 
 
+def const_eq(obj, key, expected, where, errs):
+    """key, if present, must equal `expected` exactly (a schema `const`). Absence is caught by require()."""
+    if isinstance(obj, dict) and key in obj and obj.get(key) != expected:
+        errs.append(f"{where}.{key}: must be {expected!r}, got {obj.get(key)!r}")
+
+
+def is_list(obj, key, where, errs):
+    """key, if present, must be a list (fail-closed on a scalar/dict where a list is required)."""
+    if isinstance(obj, dict) and key in obj and not isinstance(obj.get(key), list):
+        errs.append(f"{where}.{key}: must be a list, got {type(obj.get(key)).__name__}")
+
+
+# canonical const values per envelope kind (the typed-contract identity)
+_KIND_CONSTS = {
+    "handoff": {"method": "session.goal_recovery", "data.type": "handoff-as-prompt"},
+    "dod":     {"method": "session.dod_derivation", "data.type": "dod-as-prompt"},
+}
+
+
+def check_identity_consts(obj, kind, where, errs):
+    """Enforce the const contract identity: jsonrpc==2.0, method + data.type match the kind.
+    Without this, an envelope with a wrong method/jsonrpc but a right data.type slips through."""
+    const_eq(obj, "jsonrpc", "2.0", where, errs)
+    const_eq(obj, "method", _KIND_CONSTS[kind]["method"], where, errs)
+    data = obj.get("data") if isinstance(obj, dict) else None
+    const_eq(data, "type", _KIND_CONSTS[kind]["data.type"], f"{where}.data", errs)
+
+
 def validate_handoff(obj, conf_thresh):
     errs = []
     require(obj, ["jsonrpc", "method", "params", "data"], "handoff", errs)
+    check_identity_consts(obj, "handoff", "handoff", errs)   # jsonrpc/method/data.type const contract
     p = obj.get("params")
     if not isinstance(p, dict):
         errs.append("handoff.params: expected object")
@@ -90,13 +119,23 @@ def validate_handoff(obj, conf_thresh):
                "confidence", "hypotheses", "inconclusive", "recovered_from", "guardrails", "refs"],
             "handoff.params", errs)
     in_unit(p, "confidence", "handoff.params", errs)
+    is_list(p, "recovered_from", "handoff.params", errs)
 
     inconc = p.get("inconclusive") or {}
     require(inconc, ["flag", "reasons"], "handoff.params.inconclusive", errs)
-    flag = bool(inconc.get("flag", False))
+    # flag MUST be a real boolean: bool("false") is True (any non-empty string is truthy), so a
+    # string flag would fail-OPEN the gate. Reject non-bool, and never coerce a non-bool to a value.
+    flag_raw = inconc.get("flag", False)
+    if "flag" in inconc and not isinstance(flag_raw, bool):
+        errs.append(f'handoff.params.inconclusive.flag: must be a boolean, got {flag_raw!r} '
+                    f'(a truthy string like "false" would fail-OPEN the low-confidence gate)')
+    flag = flag_raw if isinstance(flag_raw, bool) else False
+    is_list(inconc, "reasons", "handoff.params.inconclusive", errs)
 
     scope = p.get("scope") or {}
     require(scope, ["in", "out"], "handoff.params.scope", errs)
+    is_list(scope, "in", "handoff.params.scope", errs)
+    is_list(scope, "out", "handoff.params.scope", errs)
 
     objectives = p.get("objectives") or {}
     require(objectives, ["originating", "primary", "secondary", "auxiliary"], "handoff.params.objectives", errs)
@@ -133,6 +172,7 @@ def validate_handoff(obj, conf_thresh):
 def validate_dod(obj):
     errs = []
     require(obj, ["jsonrpc", "method", "params", "data"], "dod", errs)
+    check_identity_consts(obj, "dod", "dod", errs)   # jsonrpc/method/data.type const contract
     p = obj.get("params")
     if not isinstance(p, dict):
         errs.append("dod.params: expected object")

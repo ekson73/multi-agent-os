@@ -97,6 +97,13 @@ PYEOF
 gate_test "empty goal without inconclusive flag"        'o["params"]["goal"]=""'
 gate_test "recovered_from empty while confidence>0"     'o["params"]["recovered_from"]=[]'
 gate_test "goal != hypotheses[0].goal (no flag)"        'o["params"]["hypotheses"][0]["goal"]="a different top hypothesis"'
+# const-contract + type gates (fail-CLOSED — a wrong const or a type-coerced flag must be refused)
+gate_test "inconclusive.flag as string (fail-OPEN guard)" 'o["params"]["inconclusive"]["flag"]="false"'
+gate_test "wrong method const"                            'o["method"]="session.WRONG"'
+gate_test "wrong jsonrpc const"                           'o["jsonrpc"]="1.0"'
+gate_test "wrong data.type const"                         'o["data"]["type"]="bogus-type"'
+gate_test "inconclusive.reasons not a list"              'o["params"]["inconclusive"]["reasons"]="oops"'
+gate_test "recovered_from not a list"                    'o["params"]["recovered_from"]="oops"'
 
 echo "-- $pass passed, $fail failed --"
 [ "$fail" -eq 0 ]
