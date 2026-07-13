@@ -1,0 +1,206 @@
+{
+  "categories": [
+    "D",
+    "T",
+    "J"
+  ],
+  "raters": [
+    "opus-4-8",
+    "sonnet-5",
+    "fable-5"
+  ],
+  "items": [
+    {
+      "id": "c1.l1",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c1.l2",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c1.l3",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c1.l4",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c2.l1",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c2.l2",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c2.l3",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c2.l4",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c3.l1",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c3.l2",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c3.l3",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c3.l4",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c4.l1",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c4.l2",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c4.l3",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c4.l4",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c5.l1",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c5.l2",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c5.l3",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c5.l4",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c6.l1",
+      "labels": {
+        "opus-4-8": "D",
+        "sonnet-5": "D",
+        "fable-5": "D"
+      }
+    },
+    {
+      "id": "c6.l2",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    },
+    {
+      "id": "c6.l3",
+      "labels": {
+        "opus-4-8": "J",
+        "sonnet-5": "J",
+        "fable-5": "J"
+      }
+    },
+    {
+      "id": "c6.l4",
+      "labels": {
+        "opus-4-8": "T",
+        "sonnet-5": "T",
+        "fable-5": "T"
+      }
+    }
+  ]
+}

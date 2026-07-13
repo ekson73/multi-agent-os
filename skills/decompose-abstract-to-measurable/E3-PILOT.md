@@ -1,9 +1,11 @@
 # E3 Pilot — inter-rater reliability of the D/T/J typing (2026-07-09)
 
-> **Honest one-line verdict:** the pilot shows the D/T/J typing rubric is **internally
-> reproducible** (κ = 0.96, almost-perfect) — a *necessary* signal — but it does **NOT** close
-> E3, because the raters were correlated (same model, same prompt). **capability ≠ validation
-> (SAGE v10.7); Tier-Professional stays BLOCKED.** E3 remains **OPEN**.
+> **Honest one-line verdict:** two lean pilots show the D/T/J typing is **internally reproducible**
+> (same-model κ = 0.96; within-Anthropic **cross-model** κ = 1.0) — a *necessary* signal — but
+> **neither closes E3**: both used **correlated raters** (same model, or same-vendor models that agree
+> even on items *designed* to split them — so the cross-model κ = 1.0 is *evidence of* that correlation,
+> not a pass). Genuine E3 needs **cross-VENDOR / human** raters. **capability ≠ validation (SAGE v10.7);
+> Tier-Professional stays BLOCKED.** E3 remains **OPEN**.
 
 ## What E3 is (and what this pilot did)
 
@@ -63,9 +65,34 @@ Also: reliability ≠ validity. Even perfect agreement would not prove the typin
 3. **Non-author constructs** — ideally constructs the skill author did not pick (removes fixture-bias),
    which also overlaps with **E2**.
 
+## Cross-model pilot addendum (2026-07-09) — within-vendor is NOT enough (empirical)
+
+Operationalized next-step 1's *cross-model* slice with the raters actually reachable in-session: **3
+genuinely-different Claude models** as independent naive raters — **Opus 4.8 · Sonnet 5 · Fable 5** (all
+≥1M per `agentic-delegation-context-floor`), same fixture, same neutral prompt, independent parallel runs
+(distinct token-usage 468k/475k/469k + latency 9s/22s/28s → not a cached echo). Raw:
+`tests/e3_crossmodel_labels.json`.
+
+| Metric | Value |
+|---|---|
+| **Fleiss' κ** (3 models × 24 items) | **1.0** → *almost-perfect* |
+| Pairwise Cohen κ | opus×sonnet = opus×fable = sonnet×fable = **1.0** |
+| Disagreement items | **0 / 24** (incl. every planted-ambiguous leaf) |
+
+**This is NOT a pass — it is evidence of the ceiling.** The fixture deliberately plants leaves *designed
+to split independent raters*; the 3 models agreed byte-identically on **every one** (reading-grade→D,
+survey→D, tone/blast-radius/elegance→J, and even `c6.l2` follows-REST→**T** — the exact leaf the same-model
+pilot had *split* on, rA=J/rB=T/rC=T). Perfect agreement *on items built to disagree* is the empirical
+fingerprint of **shared-vendor correlation** (`convergence-engine §4.7.5`): same-lineage models resolve
+ambiguity identically because they share trained priors. **Conclusion:** *cross-model* is insufficient
+when the models share a vendor — the diversity E3 requires is specifically **cross-VENDOR (GPT / Gemini)
+or human**, now *demonstrated*, not merely argued. E3 remains **OPEN**; reliability ≠ validity;
+capability ≠ validation.
+
 ## Assets shipped by this pilot (permanent, regardless of the ceiling)
 
 - `scripts/e3_kappa.py` — reusable, tested κ harness (any future E3 run uses it).
 - `tests/test_e3_kappa.py` — 9 deterministic self-tests (hand-verified κ values).
 - `tests/e3_fixture.json` — the neutral construct×leaf fixture.
-- `tests/e3_pilot_labels.json` — this pilot's raw data (reproducible).
+- `tests/e3_pilot_labels.json` — the same-model pilot's raw data (reproducible).
+- `tests/e3_crossmodel_labels.json` — the within-Anthropic cross-model pilot's raw data (Opus 4.8 · Sonnet 5 · Fable 5).
