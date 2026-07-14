@@ -25,7 +25,9 @@ build_log() { local f="$1"; shift; : > "$f"
 # run FILE → the burn_down JSON from the collector (warn threshold pinned to 15, big window)
 run() { DISK_GUARDIAN_LOG="$1" BURNDOWN_WINDOW=48 DISK_FREE_WARN_GB=15 "$COLLECTOR" --burndown 2>/dev/null; }
 
-jget() { python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get(sys.argv[1]))' "$1"; }
+# `.get(key, sentinel)` so a MISSING key prints "__MISSING__" (≠ "None"), distinguishing an absent key
+# from an intentional JSON null — else a `check … None` would pass even if the collector dropped the key.
+jget() { python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get(sys.argv[1], "__MISSING__"))' "$1"; }
 
 check() { # NAME  JSON  KEY  EXPECTED-substring
   local name="$1" js="$2" key="$3" want="$4" got
