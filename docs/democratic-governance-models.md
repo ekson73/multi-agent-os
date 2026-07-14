@@ -1,55 +1,67 @@
 # Democratic-Governance Models — Reference for Composing Councils (Prisma-filtered)
 
-> **Type**: on-demand reference doc (cited, **not** auto-loaded — per `scope-discipline` Q1.2 KRDR: on-demand reference knowledge → a doc, not a rule/skill).
+> **Type**: on-demand reference doc (cited, **not** auto-loaded — on-demand reference knowledge belongs in a doc, not a rule/skill).
 > **Version**: 1.0.0 (2026-07-14)
-> **Naming**: machine-register descriptive slug (Anima Register-Gate — a file identifier is machine-register ⇒ precise descriptive slug, no soul-name; `[C-naming]`).
-> **Consumed by**: the pre-HITL council-authorization gate (`council-gate` / *Boule*) §4 seat-selection + the loop family (goal/gap/ooda-loop · quiesce · auto-orchestrator · auto-pilot) when composing a **democratic advisory council**.
-> **Provenance**: distils + Prisma-filters `modelos_sociedades_democraticas.md` (an operator-curated scholarly consolidation of democratic organizational models — academic typologies · real institutional forms · administrative machinery · fictional archetypes). This doc is **self-contained** (the source is machine-local; content is inlined here).
+> **Naming**: machine-register descriptive slug (a file identifier is machine-register ⇒ precise descriptive slug, no soul-name).
+> **Consumed by**: the pre-HITL council-authorization gate — `council-gate` / *Boule*, proposed in **companion PR #255** (⚠️ **not present in this repo state**; every mention below is a forward-reference to that PR, never an in-repo path) — at its council-composition step, plus the loop family (goal/gap/ooda-loop · quiesce · auto-orchestrator · auto-pilot).
+> **Provenance**: distils + Prisma-filters an **operator-curated scholarly consolidation of democratic organizational models** (academic typologies · real institutional forms · administrative machinery · fictional archetypes). That consolidation is a machine-local research **input**, deliberately not a repo artifact.
+> **Auditability** (how to check this doc without the input): every verdict in §2 is re-derivable from (a) the five leaves in §1 and (b) the archetype's **public** definition — see the verifiable anchors in §7 (Lijphart · Athenian sortition · Roman consulship · Ombudsman 1809 · GDPR Art.22/LGPD Art.20). The private consolidation supplied the *candidate list*, not the *audit basis*.
 
 ## §0 — What this is / is NOT (DRY boundary)
 
-This is the **knowledge base of democratic-governance MODELS** — a catalogue of *how democratic bodies organize authority*, filtered to the genuinely-useful, with a deterministic filter methodology and a model→agent mapping. It is **not** the authorization gate: the *decision* mechanism (should an action be auto-authorized in place of the human, or go to HITL?) is `council-gate` / *Boule* (`skills/council-gate/`), which this doc **cites, never duplicates** (`layer-precedence-policy` Rule 2). Relationship: *Boule is the gate; this is the models KB its council-composition draws on* (Strata — reuse-and-elevate).
+This is the **knowledge base of democratic-governance MODELS** — a catalogue of *how democratic bodies organize authority*, filtered to the genuinely-useful, with a deterministic filter methodology and a model→agent mapping. It is **not** the authorization gate: the *decision* mechanism (should an action be auto-authorized in place of the human, or go to HITL?) is `council-gate` / *Boule* (**companion PR #255**), which this doc **cites, never duplicates**. Relationship: *Boule is the gate; this is the models KB its council-composition draws on.*
 
 Its durable value: the next time the council roster is expanded, filter the candidates **here, deterministically** (§1) instead of re-researching — closing the re-research/re-duplication loop that has recurred across sessions.
 
 ## §1 — The Prisma filter (decompose "useful · beneficial · non-toxic" → measurable)
 
-An archetype is **adopted** for the pre-HITL council iff it passes **all five** measurable leaves (per `maos:decompose-abstract-to-measurable` / *Prisma* — decompose an abstract criterion into checkable leaves rather than eyeball a verdict; see `anti-theater-grounding-protocol` §6). Any leaf failing ⇒ **reject** (logged with reason — §6).
+Each candidate archetype is scored against **five measurable leaves** (per the in-repo skill `decompose-abstract-to-measurable` / *Prisma* — decompose an abstract criterion into checkable leaves rather than eyeball a verdict).
 
 | # | Leaf | Checkable test |
 |---|---|---|
-| L1 | **distinct-capability** | Adds an authorization capability the gate lacks (not a re-wrap of an existing tier/seat). |
-| L2 | **democratic-eligible** | Deliberative / dispersed-power / accountable. Rejects dictatorial · monarchy · absolute-power · hereditary-authority (the operator's exclusion + `persona-mindset-catalog` "personas are behavior-lenses, not appeals-to-authority"). |
+| L1 | **distinct-contribution** | Contributes something the gate lacks. Two passing forms, which the verdict rule (below) distinguishes: **(a) mechanism** — a new authorization mechanism; **(b) framing** — names/organizes an existing-but-unnamed cluster, adding **no** new machinery. A re-wrap of a tier/seat the gate already has in both mechanism *and* name fails L1. |
+| L2 | **democratic-eligible** | Deliberative / dispersed-power / accountable. Rejects dictatorial · monarchy · absolute-power · hereditary-authority (the operator's exclusion; and personas are behavior-lenses, never appeals-to-authority). |
 | L3 | **non-toxic** | Does NOT concentrate power, enable capture/collusion, or weaken a guardrail (⛔ deny-set / Layer-1). |
-| L4 | **implementable-on-existing** | Composes existing maos agents/skills, or a genuinely-thin new mechanism (Gordian — native-over-custom). |
-| L5 | **autonomy-positive** | Raises the safe auto-authorization band **OR** strengthens the fail-safe, without eroding the boundary (measurable via Metron: safe-auto-authorize-rate ↑ while authorize-then-regret held at 0). |
+| L4 | **implementable-on-existing** | Composes existing maos agents/skills, or a genuinely-thin new mechanism (native-over-custom). |
+| L5 | **autonomy-positive** | Raises the safe auto-authorization band **OR** strengthens the fail-safe, without eroding the boundary (measurable via the observability protocol: safe-auto-authorize-rate ↑ while authorize-then-regret held at 0). |
+
+### Verdict rule (deterministic — every verdict below is derivable from the marks, no judgment call)
+
+Evaluate L1→L5 **in order**; the **first ✗ short-circuits** (remaining leaves are then not evaluated).
+
+| Verdict | Rule |
+|---|---|
+| **ADOPT (mechanism)** | L1 ✓ *via form (a)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ |
+| **ADOPT (framing)** | L1 ✓ *via form (b)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ — adopted as taxonomy only; ships no machinery |
+| **ALREADY-EMBODIED** | L1 ✗ *because the gate already implements it under its own name* ⇒ no new work (a confirmation, not an adoption) |
+| **REJECT** | any of L2..L5 ✗ ⇒ rejected, naming the first failing leaf |
+
+**Mark legend** (the only marks used — no undefined states): `✓` leaf passes · `✗` leaf fails · `n/e` **not evaluated** (an earlier leaf already failed and short-circuited).
 
 ## §2 — Prisma-filtered archetype catalogue
 
-Applying §1 to the model space (families from the source's academic-typology, real-institutional, and fictional-archetype axes):
+Applying §1 to the model space (families drawn from the academic-typology, real-institutional, and fictional-archetype axes):
 
-| Archetype (family) | L1 | L2 | L3 | L4 | L5 | Verdict |
+| Archetype (family) | L1 | L2 | L3 | L4 | L5 | Verdict (per the §1 rule) |
 |---|:--:|:--:|:--:|:--:|:--:|---|
-| Consensual democracy (dispersed power · veto-players · coalitions; Lijphart) | — | ✓ | ✓ | ✓ | ✓ | **already the gate's convergence** (Boule §4.2) — confirm, no new work |
-| Ministries / portfolios (Finance · Foreign · Defense · Justice · Interior · Economy …) | — | ✓ | ✓ | ✓ | ✓ | **already the gate's seat roster** (Boule §4.4) — confirm; expand seats selectively (§4) |
-| **Cross-veto / dual-executive** (Roman *consul* — paired, mutual-veto, term-limited) | ✓ | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT** — a 2nd independent verifier with veto on the highest-stakes cleared actions (§5.1) |
-| **Sortition / rotation** (Athenian assembly — *sorteio* + rotativity) | ✓ | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT** — rotate seats to defeat a pre-jailbroken/colluding council (§5.2) |
-| **Independent oversight authorities** (Ombudsman [SE 1809] · audit · rights-protection · intelligence-*under-democratic-oversight*) | ✓* | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT as taxonomy** — names the gate's existing verifier + red-team + observability + DPO as one cluster (§5.3) |
-| **Diplomatic / multilateral** (embassies · foreign-relations · UN-style assembly with executive council) | ✓ | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT as family-integration framing** — inter-body relations = the gate's family-wiring (§5.4) |
-| Weighted / reputation voting ("algorithmic citizenship" — votes weighted by reputation/contribution/expertise) | ✓ | ⚠ | ✗ | ✓ | ⚠ | ❌ **REJECT (L3)** — weighting concentrates power + is Goodhart-gameable; flat convergence + stakes-scaled selection is safer |
-| Hive / ecosystem / network democracy (emergent-signal, habitat/node seats) | ✓ | ✓ | ✓ | ✗ | ⚠ | ❌ **REJECT (L4/YAGNI)** — the gate's convergence already IS distributed-consensus, more precisely |
-| Delegative · illiberal · strong-executive-majoritarian | — | ✗ | ✗ | — | — | ❌ **REJECT (L2)** — concentrate power / erode horizontal controls |
-| Regent (regency / hereditary) · Dictator (absolute, even if time-boxed) | — | ✗ | ✗ | — | — | ❌ **REJECT (L2)** — monarchy/hereditary · absolute-power (the operator's explicit filter) |
+| Consensual democracy (dispersed power · veto-players · coalitions; Lijphart) | ✗ | n/e | n/e | n/e | n/e | **ALREADY-EMBODIED** — this *is* the gate's convergence; no new work |
+| Ministries / portfolios (Finance · Foreign · Defense · Justice · Interior · Economy …) | ✗ | n/e | n/e | n/e | n/e | **ALREADY-EMBODIED** — this *is* the gate's seat roster; expand seats selectively (§4) |
+| **Cross-veto / dual-executive** (Roman *consul* — paired, mutual-veto, term-limited) | ✓ (a) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (mechanism)** — a 2nd independent verifier with veto on the highest-stakes cleared actions (§5.1) |
+| **Sortition / rotation** (Athenian assembly — sortition + rotativity) | ✓ (a) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (mechanism)** — rotate seats to defeat a pre-jailbroken/colluding council (§5.2) |
+| **Independent oversight authorities** (Ombudsman [SE 1809] · audit · rights-protection · intelligence-*under-democratic-oversight*) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — names the gate's existing verifier + red-team + observability + DPO as one cluster; no new machinery (§5.3) |
+| **Diplomatic / multilateral** (embassies · foreign-relations · UN-style assembly with executive council) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — inter-body relations = the gate's family-wiring (§5.4) |
+| Weighted / reputation voting ("algorithmic citizenship" — votes weighted by reputation/contribution/expertise) | ✓ (a) | ✓ | ✗ | n/e | n/e | ❌ **REJECT (L3)** — weighting concentrates power + is Goodhart-gameable; flat convergence + stakes-scaled selection is safer |
+| Hive / ecosystem / network democracy (emergent-signal, habitat/node seats) | ✓ (a) | ✓ | ✓ | ✗ | n/e | ❌ **REJECT (L4)** — the gate's convergence already IS distributed-consensus, more precisely (YAGNI) |
+| Delegative · illiberal · strong-executive-majoritarian | ✓ (a) | ✗ | n/e | n/e | n/e | ❌ **REJECT (L2)** — concentrates power / erodes horizontal controls |
+| Regent (regency / hereditary) · Dictator (absolute, even if time-boxed) | ✓ (a) | ✗ | n/e | n/e | n/e | ❌ **REJECT (L2)** — monarchy/hereditary · absolute-power (the operator's explicit filter) |
 
-\* partial — the gate already has the *function* (independent verify + red-team); the archetype adds the **naming/organization** of it as an oversight cluster.
-
-**Result: 4 genuinely-additive enrichments** (§5) + confirmation that the gate's convergence + seat-roster already embody the consensual/ministerial cores. Not 30 bodies — the anti-theater outcome.
+**Result: 4 genuinely-additive enrichments** (§5 — 2 mechanism + 2 framing) + 2 confirmations that the gate's convergence and seat-roster already embody the consensual/ministerial cores. Not 30 bodies — the anti-theater outcome.
 
 ## §3 — The 7 modeling dimensions (describe any democratic body)
 
-For composing/classifying a seat or body (from the source's practical modeling taxonomy):
+For composing/classifying a seat or body (from the consolidation's practical modeling taxonomy):
 
-1. **Legitimacy source** — plebiscitary · parliamentary · mixed · corporate · segmentar.
+1. **Legitimacy source** — plebiscitary · parliamentary · mixed · corporate · segmentary.
 2. **Representation unit** — individual · territory · party · identity-group · guild · **domain-expertise** (the agentic analog) · network-node · ecosystem.
 3. **Executive structure** — monocephalic · **dual (cross-veto)** · collegiate · distributed.
 4. **Centralization** — unitary · federal · confederal · multilevel · polycentric.
@@ -59,44 +71,50 @@ For composing/classifying a seat or body (from the source's practical modeling t
 
 Bolded values are the ones relevant to an agentic pre-HITL council.
 
-## §4 — Archetype → existing-agent seat mapping (DRY — cites Boule §4.4)
+## §4 — Portfolio → seat mapping
 
-The gate composes seats from **existing** maos agents (Gordian — forge only a genuinely-distinct gap; the authoritative role→agent SSOT is `agents/README.md` "Role Coverage Map" + `council-gate` §4.4). This doc adds the broader **portfolio → seat** view:
+The gate composes seats from **existing** maos agents (forge only a genuinely-distinct gap). The authoritative role→agent SSOT is [`agents/README.md`](../agents/README.md) "Role Coverage Map"; this doc adds the broader **portfolio → seat** view.
 
-| Portfolio / body (source) | Seat function | Existing agent |
-|---|---|---|
-| Finance · Economy · Accounting | cost / budget / resource lens | (domain lens — no dedicated agent; nearest: `agile-product-lead` value/priority) |
-| Foreign relations · Diplomacy | inter-body / cross-org / family relations | *framing* (§5.4) — the family-wiring, not a seat |
-| Defense · Interior / Security | security / threat lens | `governance-auditor` · `architecture:security-reviewer` |
-| Justice | compliance / rights adjudication | `data-privacy-officer` (LGPD/GDPR) · `governance-auditor` |
-| Intelligence / oversight (Ombudsman · audit) | independent verify + red-team + observability | `governance-auditor` + red-team + Metron (`agentic-observability-protocol`) + DPO — **the oversight cluster (§5.3)** |
-| Science / Tech · Industry | build / architecture lens | `architecture:architect` · `maos:quarkus-backend-engineer` · `react-frontend-engineer` · `supabase-engineer` |
+The **Existing agent seat(s)** column contains **only literal agents** (SSOT names). Anything that is *not* an agent — framing, a protocol, a process, or a gap — is kept in the separate **Non-agent element** column, so the role→agent mapping stays mechanically usable.
 
-Genuine gaps (documented, **not forged** — YAGNI; forge only if the nearest seat proves insufficient in dogfooding): a dedicated Finance/Economy lens; a generic-Postgres / Neon / Aurora DBA seat (only Supabase-bound today). Consistent with `council-gate` §4.4 "genuine gaps".
+| Portfolio / body | Seat function | Existing agent seat(s) | Non-agent element |
+|---|---|---|---|
+| Finance · Economy · Accounting | cost / budget / resource lens | — | **gap** (documented, not forged; nearest agent `agile-product-lead` covers value/priority, *not* cost) |
+| Foreign relations · Diplomacy | inter-body / cross-org / family relations | — | **framing** (§5.4) — the family-wiring, not a seat |
+| Defense · Interior / Security | security / threat lens | `governance-auditor` · `architecture:security-reviewer` | — |
+| Justice | compliance / rights adjudication | `data-privacy-officer` (LGPD/GDPR) · `governance-auditor` | — |
+| Intelligence / oversight (Ombudsman · audit) | independent verify + red-team + observability | `governance-auditor` · `data-privacy-officer` | **process**: red-team · **protocol**: the observability protocol (*Metron*, external — §7) — agents + these together = the oversight cluster (§5.3) |
+| Science / Tech · Industry | build / architecture lens | `architecture:architect` · `quarkus-backend-engineer` · `react-frontend-engineer` · `supabase-engineer` | — |
+
+Genuine gaps (documented, **not forged** — forge only if the nearest seat proves insufficient in dogfooding): a dedicated Finance/Economy lens; a generic-Postgres / Neon / Aurora DBA seat (only Supabase-bound today).
 
 ## §5 — The 4 genuinely-additive enrichments (for the pre-HITL gate)
 
-Offered to `council-gate` / *Boule* for incorporation (see the companion PR proposal). Each maps to an existing Boule section — framing/safeguard, not a competing mechanism.
+Offered to `council-gate` / *Boule* (**companion PR #255**) for incorporation — each maps to a section of that PR's proposal. Framing/safeguards, not competing mechanisms.
 
-1. **Cross-veto / dual-executive safeguard** — on the *highest-stakes cleared* actions, require a **second, independent** verifier that can **veto** (Roman dual-consul mutual-veto; source "veto cruzado"). *Strengthens the fail-safe* (a 2nd independent gate on the residual risk within the already-cleared band). → Boule §2.3 triple-check / §4.
-2. **Sortition / rotation anti-capture** — select/rotate council seats **deterministically** (by index/hash, not model-judged) so no *fixed* set can be pre-jailbroken or collude (Athenian sortition). *Directly defends Boule's §2 confused-deputy thesis* (a converging council is jailbreakable as a unit — a rotating one is a moving target). → Boule §4.5 seat-selection.
-3. **Oversight-authority taxonomy** — name the existing independent-verifier + red-team + Metron + DPO as one **"democratic oversight authority"** cluster (Ombudsman + intelligence-*under-democratic-oversight*; source "autoridades independentes" + "inteligência sob supervisão"). **Framing, no new machinery.** → Boule §2.2 / §5.2.5 / §8.
-4. **Diplomatic / family-integration framing** — model the gate's family-wiring (its deferred D1/D2 loop integration) as **"diplomatic relations between authorization bodies"** (multilateral/UN assembly + executive council). → Boule §5.5 + the loop family.
+1. **Cross-veto / dual-executive safeguard** *(mechanism)* — on the *highest-stakes cleared* actions, require a **second, independent** verifier that can **veto** (Roman dual-consul mutual-veto). *Strengthens the fail-safe* (a 2nd independent gate on the residual risk within the already-cleared band). → the gate's triple-check / council sections.
+2. **Sortition / rotation anti-capture** *(mechanism)* — select/rotate council seats **deterministically** (by index/hash, not model-judged) so no *fixed* set can be pre-jailbroken or collude (Athenian sortition). *Directly defends the gate's confused-deputy thesis* (a converging council is jailbreakable as a unit — a rotating one is a moving target). → the gate's seat-selection section.
+3. **Oversight-authority taxonomy** *(framing)* — name the existing independent-verifier + red-team + observability + DPO as one **"democratic oversight authority"** cluster (Ombudsman + intelligence-*under-democratic-oversight*). **Framing, no new machinery.** → the gate's independent-verifier / red-team / observability sections.
+4. **Diplomatic / family-integration framing** *(framing)* — model the gate's family-wiring (its deferred loop integration) as **"diplomatic relations between authorization bodies"** (multilateral/UN assembly + executive council). → the gate's integration section + the loop family.
 
-**Autonomy (measurable)**: #1 + #2 *strengthen the fail-safe*, which is precisely what lets the gate safely widen its auto-authorization band while holding **authorize-then-regret at 0** (Metron SLI) — an honest autonomy gain, not theatre.
+**Autonomy (measurable)**: #1 + #2 *strengthen the fail-safe*, which is precisely what lets the gate safely widen its auto-authorization band while holding **authorize-then-regret at 0** — an honest autonomy gain, not theatre.
 
 ## §6 — Rejected patterns (logged, per §1)
 
 - **Weighted / reputation voting** — fails L3 (non-toxic): vote-weighting concentrates power and is Goodhart-gameable; the gate's flat convergence + stakes-scaled seat-selection is the safer equivalent.
-- **Hive / ecosystem / network democracy** — fails L4 (Gordian/YAGNI): distributed-consensus is already the gate's convergence, more precisely + auditably.
+- **Hive / ecosystem / network democracy** — fails L4 (implementable-on-existing / YAGNI): distributed-consensus is already the gate's convergence, more precisely + auditably.
 - **Delegative / illiberal / strong-executive-majoritarian** — fails L2: erodes horizontal controls (the opposite of what a pre-HITL fail-safe needs).
-- **Regent · Dictator** — fails L2: hereditary/monarchy · absolute-power (the operator's explicit exclusion; already the rejected offices in the retired office-ladder).
+- **Regent · Dictator** — fails L2: hereditary/monarchy · absolute-power (the operator's explicit exclusion).
 
 ## §7 — Refs
 
-- **Source** (provenance, machine-local): `modelos_sociedades_democraticas.md` — operator-curated democratic-models consolidation.
-- **The gate it serves**: `skills/council-gate/` (`council-gate` / *Boule*) — the pre-HITL authorization gate (this doc informs its §4 council-composition; it is NOT a second gate).
-- **Filter**: `maos:decompose-abstract-to-measurable` (*Prisma*) · `anti-theater-grounding-protocol` §6 (abstract-criterion → measurable).
-- **Naming**: `[C-naming]` / `naming-authority` (Anima's Register Gate — machine-register file slug).
-- **Discipline**: `scope-discipline` Q1.2 KRDR (doc-vs-skill) · `layer-precedence-policy` Rule 2 (cite, don't duplicate) · `over-engineering-circuit-breaker` (Gordian) · `reuse-and-elevate-protocol` (Strata).
-- **Anchors (verifiable)**: Lijphart *Patterns of Democracy* (majoritarian/consensual) · Athenian sortition + rotation · Roman consulship (paired mutual-veto) · Swedish *Justitieombudsman* (1809) · GDPR Art.22 / LGPD Art.20 (solely-automated-decision oversight; SCHUFA CJEU C-634/21) · OECD "machinery of government".
+**In-repo** (verifiable here):
+- **Filter**: the `decompose-abstract-to-measurable` skill (*Prisma*) — abstract criterion → measurable leaves.
+- **Agent SSOT**: [`agents/README.md`](../agents/README.md) "Role Coverage Map" (the §4 seat names).
+
+**Companion PR** (not in this repo state):
+- **The gate this doc serves**: `council-gate` / *Boule* — **PR #255**. This doc informs its council-composition; it is NOT a second gate.
+
+**External — operator user-scope governance rules** (cited by slug as provenance/discipline; they live in the operator's user-scope rule corpus, **outside this repository**, so they are named rather than linked): `anti-theater-grounding-protocol` (abstract-criterion → measurable; the reality bar) · `scope-discipline` (doc-vs-skill placement) · `layer-precedence-policy` (cite, don't duplicate) · `over-engineering-circuit-breaker` (thin-over-elaborate) · `reuse-and-elevate-protocol` (extend, don't reinvent) · `naming-authority` (the naming register-gate) · `agentic-observability-protocol` (*Metron* — the §5 autonomy SLIs).
+
+**Anchors (public + verifiable — the §2 audit basis)**: Lijphart *Patterns of Democracy* (majoritarian/consensual) · Athenian sortition + rotation · Roman consulship (paired mutual-veto) · Swedish *Justitieombudsman* (1809) · GDPR Art.22 / LGPD Art.20 (solely-automated-decision oversight; SCHUFA CJEU C-634/21) · OECD "machinery of government".
