@@ -39,6 +39,11 @@ ck "auto-OFF 47d → warn (the real risk surfaces)"                      "$(xp 4
 ck "auto-OFF 65d → crit (real-risk escalation)"                        "$(xp 65 off 30 60 60)" "crit"
 ck "auto-OFF 10d → ok"                                                 "$(xp 10 off 30 60 60)" "ok"
 
+echo "── xprotect_status UNKNOWN (probe failed → fail-safe, warn-capable NEVER crit) [v1.4.1, CodeRabbit] ──"
+ck "unknown 10d → ok (below warn)"                                     "$(xp 10 unknown 30 60 60)"   "ok"
+ck "unknown 47d → warn (past warn horizon)"                            "$(xp 47 unknown 30 60 60)"   "warn"
+ck "unknown 9999d → warn (NEVER crit — probe error ≠ false-crit)"      "$(xp 9999 unknown 30 60 60)" "warn"
+
 echo
 echo "threshold-test: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

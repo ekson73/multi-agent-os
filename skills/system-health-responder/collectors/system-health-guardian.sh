@@ -83,9 +83,15 @@ cpu_load_status() { # $1=load1 $2=load5 $3=ncpu $4=warn_ratio $5=crit_ratio
   worst "$s1" "$s5"
 }
 # xprotect_status: age-alone conflates "stale" with "Apple hasn't shipped". Gate on the auto-update
-# channel — ON ⇒ self-healing (caps at WARN past a generous window, never crit); OFF ⇒ the real risk (full escalation).
-xprotect_status() { # $1=age_days $2=autoupdate(on|off) $3=warn_days $4=crit_days $5=selfheal_warn_days
-  if [ "$2" = "on" ]; then st_hi "$1" "$5" "999999"; else st_hi "$1" "$3" "$4"; fi
+# channel — ON ⇒ self-healing (caps at WARN past a generous window, never crit); OFF ⇒ the real risk (full
+# escalation); UNKNOWN (probe failed/unreadable) ⇒ fail-safe: WARN-capable but NEVER crit — a transient
+# probe error must not manufacture a false-crit (the very false-positive class this round exists to kill).
+xprotect_status() { # $1=age_days $2=autoupdate(on|off|unknown) $3=warn_days $4=crit_days $5=selfheal_warn_days
+  case "$2" in
+    on)  st_hi "$1" "$5" "999999" ;;   # confirmed self-healing → warn only past selfheal window, never crit
+    off) st_hi "$1" "$3" "$4"     ;;   # confirmed off (the real risk) → full warn/crit age escalation
+    *)   st_hi "$1" "$3" "999999" ;;   # unknown → warn at warn_days, crit unreachable (fail-safe on probe error)
+  esac
 }
 
 # ── BURN-DOWN forecast (EKO-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
@@ -200,9 +206,16 @@ XP_VER="$(defaults read "$XP_BUNDLE/Contents/Info.plist" CFBundleShortVersionStr
 XP_MTIME="$(stat -f %m "$XP_BUNDLE" 2>/dev/null || echo 0)"
 NOW_EPOCH="$(date +%s)"
 XP_AGE_DAYS="$(awk -v m="$XP_MTIME" -v n="$NOW_EPOCH" 'BEGIN{printf "%.0f", (m>0)?(n-m)/86400:9999}')"
-# auto-update channel (cheap ~20ms, no-sudo, local --schedule read). ON ⇒ freshness self-heals →
-# 47d-but-latest is honestly ok (Apple cadence), not warn. OFF ⇒ the real risk → full age escalation.
-XP_AUTOUPDATE="$("$SWUPDATE" --schedule 2>/dev/null | grep -qi 'turned on' && echo on || echo off)"
+# auto-update channel — a PROXY (cheap ~20ms, no-sudo, local `softwareupdate --schedule` read), NOT a
+# direct XProtect signal (modern macOS updates XProtect via XProtectUpdateService; --schedule is the
+# general auto-update toggle). ON ⇒ freshness self-heals → 47d-but-latest is honestly ok (Apple cadence).
+# OFF ⇒ the real risk → full age escalation. Capture-then-classify so a probe FAILURE degrades to
+# "unknown" (fail-safe, no false-crit) instead of collapsing to "off" (which would age-escalate).
+XP_SCHED="$("$SWUPDATE" --schedule 2>/dev/null)"; XP_SCHED_RC=$?
+if [ "$XP_SCHED_RC" -ne 0 ] || [ -z "$XP_SCHED" ]; then XP_AUTOUPDATE="unknown"      # probe errored/empty
+elif printf '%s' "$XP_SCHED" | grep -qi 'turned on';  then XP_AUTOUPDATE="on"
+elif printf '%s' "$XP_SCHED" | grep -qi 'turned off'; then XP_AUTOUPDATE="off"
+else XP_AUTOUPDATE="unknown"; fi                                                      # unrecognized output
 MAL_ST="$(xprotect_status "$XP_AGE_DAYS" "$XP_AUTOUPDATE" "$XPROTECT_STALE_WARN_DAYS" "$XPROTECT_STALE_CRIT_DAYS" "$XPROTECT_SELFHEAL_WARN_DAYS")"
 
 # ── PROCESS / THREADS ─────────────────────────────────────────────────────────
@@ -320,7 +333,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.4.0", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.4.1", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
