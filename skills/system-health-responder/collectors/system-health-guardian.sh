@@ -14,8 +14,11 @@
 #  *          Emits a world-readable, SECRET-FREE health-contract for all ai-agents. */
 #
 # SECRET-SAFETY MODEL (⛔ absolute — the contract is world-readable):
-#   • process sampling reads `comm` (executable NAME) ONLY — NEVER `command`/argv,
-#     which routinely carries secrets (--api-key=…). No env dumps, no file contents.
+#   • health signals read `comm` (executable NAME) ONLY — NEVER `command`/argv, which
+#     routinely carries secrets (--api-key=…). No env dumps, no file contents.
+#   • ONE narrow exception: the uv-cache PRODUCER attribution reads argv, but a strict
+#     grammar (`^[alnum][alnum._-]*@latest$`) accepts ONLY public `<pkg>@latest` tokens and
+#     rejects any flag (`-…`) or value (`=…`) — so a secret can never be emitted (round-6 F6).
 #   • only metadata is emitted: counts · percentages · names · versions · booleans.
 #   • security/malware surface = STATUS flags (enabled/stale), never a scanned value.
 #
@@ -53,6 +56,10 @@ DISK_FREE_WARN_GB="${DISK_FREE_WARN_GB:-15}"
 DISK_FREE_CRIT_GB="${DISK_FREE_CRIT_GB:-8}"
 PROC_CPU_WARN="${PROC_CPU_WARN:-70}"                 # single-proc %cpu WARN (PER-CORE; feeds responder renice target — actionable, NOT system-crit)
 PROC_CPU_CRIT_RATIO="${PROC_CPU_CRIT_RATIO:-0.50}"   # single-proc CRIT only when it eats ≥ this fraction of TOTAL cores (ncpu-aware; round-5 — a 1-core-bound proc on a many-core box is WARN, not a system crit)
+ZOMBIE_WARN="${ZOMBIE_WARN:-5}"                      # zombie procs WARN (round-6 F4: now env-overridable — was hardcoded)
+ZOMBIE_CRIT="${ZOMBIE_CRIT:-20}"                     # zombie procs CRIT (round-6 F4)
+THREAD_WARN="${THREAD_WARN:-0}"                      # optional thread high-water WARN — 0 = DISABLED (no arbitrary universal default; per-machine baseline differs)
+THREAD_CRIT="${THREAD_CRIT:-0}"                      # optional thread high-water CRIT — 0 = DISABLED (round-6 F4)
 XPROTECT_STALE_WARN_DAYS="${XPROTECT_STALE_WARN_DAYS:-30}"      # auto-update OFF → WARN at Nd (the real risk)
 XPROTECT_STALE_CRIT_DAYS="${XPROTECT_STALE_CRIT_DAYS:-60}"      # auto-update OFF → CRIT at Nd
 XPROTECT_SELFHEAL_WARN_DAYS="${XPROTECT_SELFHEAL_WARN_DAYS:-60}" # auto-update ON → only >Nd WARNs, never crit (self-healing; Apple cadence)
@@ -70,6 +77,22 @@ worst() { local w=ok; for s in "$@"; do case "$s" in crit) echo crit; return;; w
 st_hi() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v>=c)print"crit"; else if(v>=w)print"warn"; else print"ok"}'; }
 # status_from_num LOWER-is-worse: st_lo VALUE WARN CRIT  (lower = worse; e.g. free space)
 st_lo() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v<=c)print"crit"; else if(v<=w)print"warn"; else print"ok"}'; }
+
+# ── round-6 pure decision cores (unit-testable via the --*-status hooks below) ──
+# counts_status (F4): process-counts status = zombies (env-thresholded) worst-blended with an OPTIONAL thread
+# high-water. A thread threshold of 0/unset = DISABLED (→ st_hi never warns): there is no honest universal
+# thread default, so we don't invent one (that would be theater). Args: zombie_ct thread_ct z_warn z_crit t_warn t_crit
+counts_status() {
+  local zc="$1" tc="$2" zw="$3" zcr="$4" tw="$5" tcr="$6" zst tst
+  zst="$(st_hi "$zc" "$zw" "$zcr")"
+  { [ "$tw"  -gt 0 ] 2>/dev/null; } || tw=999999999    # 0/unset/non-numeric → disabled (never "warn at 0")
+  { [ "$tcr" -gt 0 ] 2>/dev/null; } || tcr=999999999
+  tst="$(st_hi "$tc" "$tw" "$tcr")"
+  worst "$zst" "$tst"
+}
+# mem_pressure_status (F5): kern.memorystatus_vm_pressure_level dispatch level → status. 1=normal 2=warn
+# 4=critical; ANY unreadable/unexpected value → ok (NEVER fabricate a crit from a probe miss — Mente Tomé).
+mem_pressure_status() { case "$1" in 1) echo ok;; 2) echo warn;; 4) echo crit;; *) echo ok;; esac; }
 
 # ── round-4 pure decision cores (unit-testable; mirror compute_burndown pattern) ──
 # cpu_load_status: WARN keyed on load1 (spiky 1-min, early); CRIT keyed on load5 (sustained 5-min).
@@ -165,6 +188,8 @@ if [ "${1:-}" = "--burndown" ]; then compute_burndown; echo; exit 0; fi
 if [ "${1:-}" = "--cpu-load-status" ]; then cpu_load_status "${2:-0}" "${3:-0}" "${4:-1}" "${5:-0.90}" "${6:-1.50}"; exit 0; fi
 if [ "${1:-}" = "--xprotect-status" ]; then xprotect_status "${2:-0}" "${3:-on}" "${4:-30}" "${5:-60}" "${6:-60}"; exit 0; fi
 if [ "${1:-}" = "--top-consumer-status" ]; then top_consumer_status "${2:-0}" "${3:-1}" "${4:-70}" "${5:-0.50}"; exit 0; fi
+if [ "${1:-}" = "--counts-status" ]; then counts_status "${2:-0}" "${3:-0}" "${4:-5}" "${5:-20}" "${6:-0}" "${7:-0}"; exit 0; fi
+if [ "${1:-}" = "--mem-pressure-status" ]; then mem_pressure_status "${2:-}"; exit 0; fi
 
 # ── CPU ───────────────────────────────────────────────────────────────────────
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
@@ -192,7 +217,15 @@ pg() { echo "$VMS" | awk -F: -v k="$1" '$0 ~ k {gsub(/[^0-9]/,"",$2); print $2; 
 P_FREE="$(pg 'Pages free')"; P_INACT="$(pg 'Pages inactive')"; P_SPEC="$(pg 'Pages speculative')"; P_PURG="$(pg 'Pages purgeable')"
 AVAIL_BYTES="$(awk -v f="${P_FREE:-0}" -v i="${P_INACT:-0}" -v s="${P_SPEC:-0}" -v p="${P_PURG:-0}" -v ps="$PAGE_SZ" 'BEGIN{print (f+i+s+p)*ps}')"
 MEM_AVAIL_PCT="$(awk -v a="$AVAIL_BYTES" -v t="$MEM_TOTAL" 'BEGIN{printf "%.1f", (t>0)?a*100/t:0}')"
-MEM_ST="$(st_lo "$MEM_AVAIL_PCT" "$MEM_AVAIL_WARN_PCT" "$MEM_AVAIL_CRIT_PCT")"
+MEM_AVAIL_ST="$(st_lo "$MEM_AVAIL_PCT" "$MEM_AVAIL_WARN_PCT" "$MEM_AVAIL_CRIT_PCT")"
+# kern.memorystatus_vm_pressure_level (dispatch: 1=normal 2=warn 4=critical) — the AUTHORITATIVE
+# kernel pressure signal. available% adds back inactive/speculative/purgeable → can read "ok" while
+# the kernel is signalling pressure (false-ok, round-6 F5). Blend both via worst(); an unreadable/
+# unexpected value → neutral (available% governs) — never fabricate a crit (Mente Tomé).
+MEM_PRESSURE="$(sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || echo '')"
+MEM_PRESS_ST="$(mem_pressure_status "$MEM_PRESSURE")"   # SSOT status (unit-tested via --mem-pressure-status)
+case "$MEM_PRESSURE" in 1) MEM_PRESS_LABEL=normal;; 2) MEM_PRESS_LABEL=warn;; 4) MEM_PRESS_LABEL=critical;; *) MEM_PRESS_LABEL=unknown;; esac
+MEM_ST="$(worst "$MEM_AVAIL_ST" "$MEM_PRESS_ST")"
 PS_BY_MEM="$(ps -A -m -o pid=,%mem=,comm= 2>/dev/null || true)"
 TOP_MEM_LINE="$(awk 'NR==1{pid=$1;m=$2;$1="";$2="";c=$0;sub(/^ +/,"",c);n=split(c,a,"/");print pid"|"m"|"a[n]; exit}' <<<"$PS_BY_MEM")"
 TOP_MEM_COMM="$(echo "$TOP_MEM_LINE" | cut -d'|' -f3)"; TOP_MEM_PCT="$(echo "$TOP_MEM_LINE" | cut -d'|' -f2)"; TOP_MEM_PCT="${TOP_MEM_PCT:-0}"
@@ -245,17 +278,22 @@ else XP_AUTOUPDATE="unknown"; fi                                                
 MAL_ST="$(xprotect_status "$XP_AGE_DAYS" "$XP_AUTOUPDATE" "$XPROTECT_STALE_WARN_DAYS" "$XPROTECT_STALE_CRIT_DAYS" "$XPROTECT_SELFHEAL_WARN_DAYS")"
 
 # ── PROCESS / THREADS ─────────────────────────────────────────────────────────
-PROC_COUNT="$(ps -A -o pid= 2>/dev/null | wc -l | tr -d ' ')"
-THREAD_COUNT="$(ps -A -M 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
+PROC_COUNT="$(ps -A -o pid= 2>/dev/null | wc -l | tr -d ' ')"; PROC_COUNT="${PROC_COUNT:-0}"
+# `ps -A -M` = 1 process line + N thread lines per process → total data lines = procs + threads.
+# THREAD_COUNT is threads-ONLY (subtract the process lines); the raw line-count over-counts by ~procs (round-6 F4).
+_M_LINES="$(ps -A -M 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"; _M_LINES="${_M_LINES:-0}"
+THREAD_COUNT="$(( _M_LINES > PROC_COUNT ? _M_LINES - PROC_COUNT : _M_LINES ))"
 ZOMBIE_COUNT="$(ps -A -o stat= 2>/dev/null | grep -c '^Z' || true)"; ZOMBIE_COUNT="${ZOMBIE_COUNT:-0}"
-ZOMBIE_ST="$(st_hi "$ZOMBIE_COUNT" 5 20)"   # computed once (DRY) — drives both the roll-up AND the counts-leaf status (round-5 #6)
+# counts-leaf status: env-thresholded zombies worst-blended with the OPTIONAL thread high-water (round-6 F4).
+# Logic lives in counts_status() (SSOT, unit-tested via --counts-status) — no duplication here.
+COUNTS_ST="$(counts_status "$ZOMBIE_COUNT" "$THREAD_COUNT" "$ZOMBIE_WARN" "$ZOMBIE_CRIT" "$THREAD_WARN" "$THREAD_CRIT")"
 # runaway = the top-cpu proc over threshold (reuse CPU sample) — this is the responder's renice candidate
-PROC_ST="$(worst "$CPU_PROC_ST" "$ZOMBIE_ST")"
+PROC_ST="$(worst "$CPU_PROC_ST" "$COUNTS_ST")"
 
 # ── NETWORK (listener count — notify-only per safety-matrix) ──────────────────
 LISTENERS="$(netstat -an -p tcp 2>/dev/null | grep -c LISTEN || true)"; LISTENERS="${LISTENERS:-0}"
 ESTAB="$(netstat -an -p tcp 2>/dev/null | grep -c ESTABLISHED || true)"; ESTAB="${ESTAB:-0}"
-NET_ST=ok   # MVP: informational; responder is notify-only for network
+NET_ST=informational   # listeners collected but NOT thresholded → honest label, NOT a measured "ok" (round-6 F3); responder treats informational as no-residue
 
 # ── AGENTIC-TOOLS health (EKO-90 ext v1.1.0 — operator /quiesce 2026-07-14) ────
 # Adds `claude doctor` as a read-only "unattended show-only" probe (the BARE form is
@@ -268,10 +306,15 @@ for _c in /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/ti
 done
 run_bounded() { if [ -n "$TIMEOUT_BIN" ]; then "$TIMEOUT_BIN" "$1" "${@:2}" 2>/dev/null; else shift; "$@" 2>/dev/null; fi; }
 
-# claude doctor — read-only agentic-runtime health (timeout-bounded; MUST NOT hang a 10-min cycle)
+# claude doctor — read-only agentic-runtime health (timeout-bounded; MUST NOT hang a 10-min cycle).
+# Resolve `claude` to an ABSOLUTE path like jq/softwareupdate/timeout — launchd's minimal PATH excludes
+# ~/.local/bin, so a bare `command -v claude` MISSES under the production cadence → the probe was DEAD
+# (perpetually health:absent) in launchd. Interactive `command -v` still wins; explicit fallbacks cover launchd. (round-6 F2)
+CLAUDE_BIN="$(command -v claude 2>/dev/null || true)"
+if [ -z "$CLAUDE_BIN" ]; then for _c in "$HOME/.local/bin/claude" /opt/homebrew/bin/claude /usr/local/bin/claude; do [ -x "$_c" ] && { CLAUDE_BIN="$_c"; break; }; done; fi
 CLAUDE_ST=ok; CLAUDE_VER="unknown"; CLAUDE_HEALTH="absent"
-if command -v claude >/dev/null 2>&1; then
-  DOC_OUT="$(run_bounded 20 claude doctor || true)"
+if [ -n "$CLAUDE_BIN" ]; then
+  DOC_OUT="$(run_bounded 20 "$CLAUDE_BIN" doctor || true)"
   CLAUDE_VER="$(printf '%s\n' "$DOC_OUT" | awk -F'[()]' '/^Running:/{print $2; exit}')"; CLAUDE_VER="${CLAUDE_VER:-unknown}"
   if printf '%s' "$DOC_OUT" | grep -qi 'No installation issues found'; then CLAUDE_HEALTH="healthy"; CLAUDE_ST=ok
   elif [ -n "$DOC_OUT" ]; then CLAUDE_HEALTH="issues-found"; CLAUDE_ST=warn
@@ -323,16 +366,16 @@ BURN_DOWN="$(compute_burndown)"
 # each branch root_fail = its own worst leaf id; system root_fail = worst branch id
 branch_rootfail() { # $1=branch-status ; $2..=leaf "id:status" pairs
   local bs="$1"; shift; local rf="null" id s
-  [ "$bs" = ok ] && { echo null; return; }
+  case "$bs" in ok|informational) echo null; return;; esac   # informational = collected-not-thresholded → no root_fail (round-6 F3)
   for pair in "$@"; do id="${pair%%:*}"; s="${pair##*:}"; [ "$s" = "$bs" ] && { rf="\"$id\""; break; }; done
   echo "$rf"
 }
 CPU_RF="$(branch_rootfail "$CPU_ST" "load1:$CPU_LOAD_ST" "top_consumer:$CPU_PROC_ST")"
-MEM_RF="$(branch_rootfail "$MEM_ST" "available_pct:$MEM_ST")"
+MEM_RF="$(branch_rootfail "$MEM_ST" "available_pct:$MEM_AVAIL_ST" "pressure:$MEM_PRESS_ST")"
 DISK_RF="$(branch_rootfail "$DISK_ST" "free_gb:$DISK_ST")"
 SEC_RF="$(branch_rootfail "$SEC_ST" "sip:$([ "$SIP" = disabled ] && echo crit || echo ok)" "gatekeeper:$([ "$GK" = disabled ] && echo warn || echo ok)" "firewall:$([ "$FW" = disabled ] && echo warn || echo ok)")"
 MAL_RF="$(branch_rootfail "$MAL_ST" "xprotect_freshness:$MAL_ST")"
-PROC_RF="$(branch_rootfail "$PROC_ST" "runaway:$CPU_PROC_ST" "zombies:$ZOMBIE_ST")"
+PROC_RF="$(branch_rootfail "$PROC_ST" "runaway:$CPU_PROC_ST" "counts:$COUNTS_ST")"
 NET_RF="$(branch_rootfail "$NET_ST" "listeners:$NET_ST")"
 
 AT_RF="$(branch_rootfail "$AT_ST" "claude_runtime:$CLAUDE_ST" "cache_producer:$PRODUCER_ST")"
@@ -350,18 +393,18 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg gen "$GEN" --arg host "$HOST" --argjson interval "$INTERVAL_SEC" \
   --arg sys_st "$SYS_ST" --argjson sys_rf "$SYS_RF" \
   --arg cpu_st "$CPU_ST" --argjson cpu_rf "$CPU_RF" --arg ncpu "$NCPU" --arg load1 "$LOAD1" --arg load_ratio "$LOAD_RATIO" --arg load5 "$LOAD5" --arg load5_ratio "$LOAD5_RATIO" --arg cpu_load_st "$CPU_LOAD_ST" --arg top_cpu_comm "${TOP_CPU_COMM:-none}" --arg top_cpu_pct "$TOP_CPU_PCT" --arg top_cpu_pid "${TOP_CPU_PID:-0}" --arg cpu_proc_st "$CPU_PROC_ST" \
-  --arg mem_st "$MEM_ST" --argjson mem_rf "$MEM_RF" --arg mem_avail_pct "$MEM_AVAIL_PCT" --arg top_mem_comm "${TOP_MEM_COMM:-none}" --arg top_mem_pct "$TOP_MEM_PCT" \
+  --arg mem_st "$MEM_ST" --argjson mem_rf "$MEM_RF" --arg mem_avail_pct "$MEM_AVAIL_PCT" --arg mem_avail_st "$MEM_AVAIL_ST" --arg mem_press_st "$MEM_PRESS_ST" --arg mem_press "$MEM_PRESS_LABEL" --arg top_mem_comm "${TOP_MEM_COMM:-none}" --arg top_mem_pct "$TOP_MEM_PCT" \
   --arg disk_st "$DISK_ST" --argjson disk_rf "$DISK_RF" --arg disk_free_gb "$DISK_FREE_GB" --arg dg_live "$DG_LIVE" \
   --arg sec_st "$SEC_ST" --argjson sec_rf "$SEC_RF" --arg sip "$SIP" --arg gk "$GK" --arg fw "$FW" \
   --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" --arg xp_au "$XP_AUTOUPDATE" --arg xp_src "$XP_SRC" \
-  --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" --arg zombie_st "$ZOMBIE_ST" \
+  --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" --arg counts_st "$COUNTS_ST" \
   --arg net_st "$NET_ST" --argjson net_rf "$NET_RF" --arg listeners "$LISTENERS" --arg estab "$ESTAB" \
   --argjson burn "$BURN_DOWN" \
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.5.0", secret_free: true,
-          note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.6.0", secret_free: true,
+          note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; comm-name for health signals — argv read ONLY for the uv-producer <pkg>@latest attribution via a strict grammar that rejects flags/values, never a secret)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
     branches: {
@@ -369,7 +412,8 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                   load1:        { status: $cpu_load_st, tag: "resource.cpu.load1", value: n($load1), load5: n($load5), ncpu: n($ncpu), load_ratio: n($load_ratio), load5_ratio: n($load5_ratio) },
                   top_consumer: { status: $cpu_proc_st, tag: "resource.cpu.top_consumer", comm: $top_cpu_comm, pct: n($top_cpu_pct), pid: n($top_cpu_pid) } } },
       memory:  { status: $mem_st, tag: "resource.memory", root_fail: $mem_rf, leaves: {
-                  available_pct: { status: $mem_st, tag: "resource.memory.available_pct", value: n($mem_avail_pct), top_consumer: $top_mem_comm, top_pct: n($top_mem_pct) } } },
+                  available_pct: { status: $mem_avail_st, tag: "resource.memory.available_pct", value: n($mem_avail_pct), top_consumer: $top_mem_comm, top_pct: n($top_mem_pct) },
+                  pressure:      { status: $mem_press_st, tag: "resource.memory.pressure", level: $mem_press } } },
       disk:    { status: $disk_st, tag: "resource.disk", root_fail: $disk_rf, delegated_to: $dg_live, leaves: {
                   free_gb: { status: $disk_st, tag: "resource.disk.free_gb", value: n($disk_free_gb) } } },
       security:{ status: $sec_st, tag: "resource.security", root_fail: $sec_rf, leaves: {
@@ -380,7 +424,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                   xprotect_freshness: { status: $mal_st, tag: "resource.malware.xprotect_freshness", version: $xp_ver, age_days: n($xp_age), auto_update: $xp_au, source: $xp_src } } },
       process: { status: $proc_st, tag: "resource.process", root_fail: $proc_rf, leaves: {
                   runaway:  { status: $cpu_proc_st, tag: "resource.process.runaway", comm: $top_cpu_comm, cpu_pct: n($top_cpu_pct), pid: n($top_cpu_pid) },
-                  counts:   { status: $zombie_st, tag: "resource.process.counts", processes: n($proc_count), threads: n($thread_count), zombies: n($zombie) } } },
+                  counts:   { status: $counts_st, tag: "resource.process.counts", processes: n($proc_count), threads: n($thread_count), zombies: n($zombie) } } },
       network: { status: $net_st, tag: "resource.network", root_fail: $net_rf, leaves: {
                   listeners: { status: $net_st, tag: "resource.network.listeners", tcp_listen: n($listeners), tcp_established: n($estab) } } },
       agentic_tools: { status: $at_st, tag: "resource.agentic_tools", root_fail: $at_rf, leaves: {
