@@ -1,7 +1,8 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian). EKO-90 part-2 — the responder half of the health suite.
-version: 1.0.0
+version: 1.0.1
+allowed-tools: Read, Bash
 ---
 
 # System-Health Responder
@@ -63,13 +64,22 @@ The deterministic engine is `bin/health-respond.sh` (see it for the exact logic)
 
 ```bash
 BIN="$CLAUDE_PLUGIN_ROOT/skills/system-health-responder/bin/health-respond.sh"
-"$BIN"            # DEFAULT: dry-run — reads, ranks, PROPOSES, seeds HITL residue. Acts on NOTHING.
-"$BIN" --engage   # Moderate autonomous path: performs the renice (only under READY + Moderate scope).
+"$BIN"                       # DEFAULT: dry-run — reads, ranks, PROPOSES, seeds HITL residue. Acts on NOTHING.
+SHR_READY=1 "$BIN" --engage  # Moderate autonomous path: performs the renice. Requires SHR_READY=1 (see gate below).
+"$BIN" --engage              # --engage WITHOUT SHR_READY → fail-safe DEGRADES to dry-run (never auto-acts).
 "$BIN" --help
 ```
 
+**The `--engage` gate (fail-safe DENY-until-proven).** `--engage` alone only *requests* the autonomous
+path; the renice fires **only when `SHR_READY=1` is also set**. The calling agentic reflex sets `SHR_READY=1`
+**after** it has proven the standing-autonomy `READY = R1∧R2∧R3∧R4` predicate + Moderate scope. A stray
+`--engage` (launchd misconfig, a curious operator running the script by hand) therefore degrades to dry-run
+and a stderr diagnostic instead of auto-acting — the script never trusts the flag alone. launchd must **never**
+pass `SHR_READY=1`; only an active reflex under proven authorization does.
+
 Env overrides: `SHR_CONTRACT`, `SHR_STATE_DIR`, `SHR_RENICE_TO`, `SHR_LOCK_STALE_SEC`,
-`SHR_ESCALATE_THROTTLE_SEC`, `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless).
+`SHR_ESCALATE_THROTTLE_SEC`, `SHR_READY=1` (arm the autonomous `--engage` path — set only by an authorized
+reflex), `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless).
 
 ## Guardrails (⛔ non-negotiable)
 

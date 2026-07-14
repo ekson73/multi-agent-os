@@ -44,13 +44,27 @@ usage() {
 health-respond.sh — system-health responder (EKO-90 part-2)
   (default)     DRY-RUN: read contract, rank, PROPOSE actions, seed HITL residue. Acts on nothing.
   --engage      Perform the Moderate autonomous renice of a clear cpu runaway (reversible-by-record).
+                REQUIRES SHR_READY=1 (the calling reflex sets it AFTER proving standing-autonomy
+                READY); without it --engage fail-safe DEGRADES to dry-run (DENY-until-proven).
   --help        This help.
 Env: SHR_CONTRACT SHR_STATE_DIR SHR_LOG SHR_RENICE_TO SHR_LOCK_STALE_SEC SHR_ESCALATE_THROTTLE_SEC
+     SHR_READY=1 (gate the autonomous --engage path) · SHR_NO_NOTIFY=1 (suppress macOS notification)
 EOF
 }
 
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG" 2>/dev/null || true; }
-notify() { [ "$NOTIFY" -eq 1 ] || return 0; osascript -e "display notification \"$1\" with title \"System-Health Responder\" subtitle \"$2\"" 2>/dev/null || true; }
+# INJECTION-SAFE: title/subtitle are passed as AppleScript string VALUES via argv (`on run argv`),
+# NEVER spliced into the script source. A process named with an embedded `"` (attacker-influenceable
+# `comm`) is thus an inert string literal — it can never break out into `do shell script`. (CWE-78.)
+notify() {
+  [ "$NOTIFY" -eq 1 ] || return 0
+  command -v osascript >/dev/null 2>&1 || return 0
+  osascript - "$1" "$2" >/dev/null 2>&1 <<'APPLESCRIPT' || true
+on run argv
+  display notification (item 1 of argv) with title "System-Health Responder" subtitle (item 2 of argv)
+end run
+APPLESCRIPT
+}
 
 # portable mtime (BSD `stat -f` → GNU `stat -c` → 0) — os-agnostic per EKO-90 spec
 mtime_of() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
@@ -58,23 +72,32 @@ mtime_of() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 
 acquire_lock() {
   mkdir -p "$STATE_DIR" 2>/dev/null || true
   if mkdir "$LOCK" 2>/dev/null; then printf '%s' "$$" >"$LOCK/pid" 2>/dev/null || true; return 0; fi
-  # lock exists — steal ONLY if VERIFIABLY stale: age>threshold AND the recorded holder pid
-  # is dead. This prevents stealing a FRESH holder's lock (mkdir atomicity then settles any
-  # remaining double-steal: the loser's mkdir fails → it stands down). CWE-362 hardening.
+  # lock exists — steal ONLY if VERIFIABLY stale: age>threshold AND the recorded holder pid is dead.
   local age holder; age=$(( $(date +%s) - $(mtime_of "$LOCK") ))
   holder="$(cat "$LOCK/pid" 2>/dev/null || echo '')"
   if [ "$age" -gt "$LOCK_STALE_SEC" ] && { [ -z "$holder" ] || ! kill -0 "$holder" 2>/dev/null; }; then
-    rm -rf "$LOCK" 2>/dev/null || true
-    if mkdir "$LOCK" 2>/dev/null; then printf '%s' "$$" >"$LOCK/pid" 2>/dev/null || true
-      log "engage-lock: stole verified-stale lock (age ${age}s, holder=${holder:-none} dead)"; return 0; fi
+    # ATOMIC steal via rename-aside: `mv` of a dir is atomic on one fs, so among N concurrent
+    # stealers EXACTLY ONE succeeds the mv; the losers' `mv` fails (source already moved) and they
+    # stand down — no double-`mkdir`, no duplicate hold from the concurrent-steal path (CWE-362).
+    # Defense-in-depth: even a residual race is HARMLESS here because the only autonomous action
+    # (renice) is idempotent + guarded (already-deprioritized→HITL) and seeds are 6h-throttled.
+    local aside="${LOCK}.stale.$$"
+    if mv "$LOCK" "$aside" 2>/dev/null; then
+      rm -rf "$aside" 2>/dev/null || true
+      if mkdir "$LOCK" 2>/dev/null; then printf '%s' "$$" >"$LOCK/pid" 2>/dev/null || true
+        log "engage-lock: stole verified-stale lock (age ${age}s, holder=${holder:-none} dead)"; return 0; fi
+    fi
   fi
   return 1
 }
 release_lock() { rm -rf "$LOCK" 2>/dev/null || true; }
 
-denied() {  # $1=comm → 0 if protected
+denied() {  # $1=comm → 0 if protected. Substring match, which ERRS CONSERVATIVE (over-protect: worst
+            # case we skip a renice we could have done — never the reverse). EXCEPTION: the ultra-short
+            # `op` token (1Password CLI) matches WHOLE-comm only, so it doesn't over-match Dropbox/top/etc.
   local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   local d; for d in "${PROC_DENYLIST[@]}"; do
+    if [ "$d" = "op" ]; then [ "$c" = "op" ] && return 0; continue; fi
     case "$c" in *"$d"*) return 0;; esac
   done
   return 1
@@ -87,7 +110,10 @@ try_renice() {
     echo "  🟠 cpu-runaway ${comm} (pid ${pid}, ${pct}%) — PROTECTED proc → seed+notify (never renice)"
     return 2
   fi
-  local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ')"
+  # `|| true`: under `set -o pipefail` a dead pid makes `ps` fail → the pipe fails → the $()
+  # assignment would abort the script under `set -e` BEFORE the numeric guard runs. Force the
+  # substitution to always succeed (empty on failure) so the guard below handles proc-gone gracefully.
+  local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
   # validate numeric (empty ⇒ proc gone; non-numeric ⇒ unexpected ps output) BEFORE any -ge compare
   if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
     echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
@@ -116,8 +142,11 @@ try_renice() {
 
 seed_and_notify() {  # $1 = multiline HITL residue
   local residue="$1" now last stamp="$STATE_DIR/last-responder-escalate"
-  now="$(date +%s)"; last="$(cat "$stamp" 2>/dev/null | tr -d '[:space:]')"
-  [[ "$last" =~ ^[0-9]+$ ]] || last=0   # guard against corrupt/edited stamp crashing $(( )) under set -e
+  # `|| true`: a MISSING stamp (first-ever escalation) makes `cat` fail → under `set -o pipefail`
+  # the pipe fails → the $() assignment aborts the script under `set -e`, silently skipping the seed
+  # (a no-silent-drop bug in the no-silent-drop path). Force success, then the numeric guard runs.
+  now="$(date +%s)"; last="$(cat "$stamp" 2>/dev/null | tr -d '[:space:]' || true)"
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0   # guard against absent/corrupt/edited stamp crashing $(( )) under set -e
   if [ $((now - last)) -lt "$ESCALATE_THROTTLE_SEC" ]; then
     echo "  ⏳ HITL residue present but escalate throttled (<6h since last seed)"; log "escalate throttled"; return 0
   fi
@@ -160,6 +189,9 @@ main() {
     if [ -n "$pid" ]; then
       if try_renice "$pid" "$comm" "$pct"; then acted=1
       else residue="${residue}- 🟠 cpu-runaway ${comm} (pid ${pid}, ${pct}%): protected/failed → operator judgment (kill/quit = HITL).\n"; fi
+    else
+      # runaway flagged but no pid in contract → still MUST surface (no-silent-drop / Taxis)
+      residue="${residue}- 🟠 cpu=${cs}: runaway flagged but no pid in contract (comm=${comm}, ${pct}%) → operator review (no-silent-drop).\n"
     fi
   fi
   # disk → DELEGATED to disk-health-guardian (no dup)
@@ -190,7 +222,15 @@ main() {
 
 case "${1:-}" in
   --help|-h) usage; exit 0;;
-  --engage)  DRY_RUN=0;;
+  --engage)
+    # Fail-safe DENY-until-proven: the autonomous renice fires ONLY when the calling reflex has
+    # proven the standing-autonomy READY predicate and signalled it via SHR_READY=1. A stray
+    # --engage (launchd misconfig, curious operator) thus degrades to dry-run instead of auto-acting.
+    if [ "${SHR_READY:-0}" = "1" ]; then DRY_RUN=0
+    else DRY_RUN=1
+      echo "[responder] --engage requires SHR_READY=1 (standing-autonomy READY proven by caller) → DRY-RUN (fail-safe)" >&2
+    fi
+    ;;
   --dry-run|"") DRY_RUN=1;;
   *) echo "[responder] unknown arg '${1}'"; usage; exit 2;;
 esac

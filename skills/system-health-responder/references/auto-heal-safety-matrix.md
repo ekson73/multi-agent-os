@@ -1,9 +1,17 @@
 # Auto-Heal Safety Matrix — `system-health-responder`
 
 > The binding disposition table for what the responder MAY do autonomously vs. what it
-> MUST escalate to the operator (HITL). Consumed by `bin/health-respond.sh`. Authority level
-> is **Moderate** (operator-chosen, EKO-90): *autonomous reversible `renice`/throttle for a
-> clear runaway proc; everything destructive or security-touching → HITL.*
+> MUST escalate to the operator (HITL). This is **normative documentation** — the source of
+> truth for the policy that `bin/health-respond.sh` *implements in code*; the script does NOT
+> parse this markdown at runtime (the dispositions are hard-coded in the engine, this doc and
+> the engine are kept in sync by review). Authority level is **Moderate** (operator-chosen,
+> EKO-90): *autonomous reversible `renice`/throttle for a clear runaway proc; everything
+> destructive or security-touching → HITL.*
+>
+> **Autonomous-path gate (fail-safe).** The `renice` fires only when the engine is invoked with
+> `--engage` **AND** `SHR_READY=1` (set by the calling reflex *after* it proves the standing-autonomy
+> `READY` predicate + Moderate scope). `--engage` without `SHR_READY` degrades to dry-run — the engine
+> never trusts the flag alone (DENY-until-proven). launchd must never set `SHR_READY`.
 
 ## Disposition per contract class
 
@@ -32,13 +40,19 @@ security/malware (important, HITL) → memory/process/network (HITL). crit outra
 - **Bounded**: `RENICE_TO` defaults to **+10** (moderate deprioritize, not extreme +20). Never `renice` below
   the current value (would need root and would *raise* priority — out of scope).
 
-## PROC_DENYLIST — never `renice` these (substring, case-insensitive on `comm`)
+## PROC_DENYLIST — never `renice` these (case-insensitive on `comm`)
 
 `kernel_task launchd WindowServer loginwindow coreaudiod configd hidd powerd bluetoothd cfprefsd mds`
 `mds_stores mdworker syslogd distnoted securityd trustd` — macOS-critical; deprioritizing them harms the UI/OS.
 
 `1password op openclaw omniroute claude` — **sensitive-app guard** (mirrors the operator's absolute denylist:
 never manipulate 1Password / OpenClaw / OmniRoute / the agent runtime itself).
+
+**Matching rule (exact behavior, so the doc matches the code):** tokens match as a **case-insensitive
+substring** of `comm`, which errs **conservative** — the worst case is over-protection (we skip a `renice`
+we *could* have done), never under-protection. **Exception:** the ultra-short token **`op`** (1Password CLI)
+matches the **whole `comm` only** (`comm == "op"`), so it doesn't accidentally over-match unrelated names
+like `Dropbox`, `top`, or `Finder` that happen to contain the letters "op".
 
 ## Threshold ownership (DRY)
 
