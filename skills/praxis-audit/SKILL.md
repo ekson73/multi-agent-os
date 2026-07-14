@@ -99,7 +99,7 @@ audits the session's **enacted praxis** (the *how* — the tool-use itself).
 | `red-team` (Elenchus) | an adversarial attack on ONE design/claim | uses red-team *inside* COUNCIL; is a full audit->fix pipeline |
 | `gap-loop` | drives a gap-register to convergence | uses gap-loop *inside* FIX; contributes the audit subject upstream |
 
-## The 5 phases (each lands on a primitive)
+## The phases — Phase 0 RECON (recon-step) + the 5 core phases (RECAP → FIX)
 
 ```text
 PHASE 0 · RECON   read-only. OBSERVE before assuming (Skopos / CASC Gate-0). Read any
