@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `praxis-audit`: self-referential session-method audit (OODA "Macro-2")
+
+- **`commands/praxis-audit.md` + `skills/praxis-audit/SKILL.md`** (`/maos:praxis-audit`, v0.1.0) — turns
+  the firing/theater lens onto THIS session's OWN enacted methods/tools/protocols (the *how*), a sibling
+  of `goal-recovery`'s *what* and `corpus-firing-audit`'s standing *corpus*. Five phases that reimplement
+  NOTHING: **RECAP** (enumerate the session's enacted tool-use -> praxis-register, kind-tagged) →
+  **AUDIT** (retargets the `corpus-firing-audit` lens onto session praxis: FIRED-WELL / THEATER /
+  INCONSISTENT / MISFIRE / GAP, evidence-cited, cure ranked `sharpen-fire-point > add-passive-rule`) →
+  **RESEARCH** (`enhance-pipeline` EXPAND) → **COUNCIL** (`convergence-engine` dispatches
+  `perspective-trio` + `persona-pipeline` + `red-team` → `converge`; a finding survives only if an
+  INDEPENDENT seat confirms it — verifier>generator, red-team-the-verdict, kills false-positive
+  self-flagellation) → **FIX** (`gap-loop` drives confirmed method-fixes, worktree-disciplined,
+  `--auto-merge=hold` default per EKO-66). Read-only through COUNCIL; FIX is the only mutating phase and
+  is gated + `--dry-run`-skippable. Fills the audit-family seam: `corpus-firing-audit` = standing corpus ·
+  `end-of-action-self-audit` = produced result · **`praxis-audit` = enacted method**. Notation-free
+  collapse of the operator's hand-invoked "Macro-2" (`/deep-research ... procure por gaps/theater nos
+  metodos desta sessão | /quiesce ...`) into a single self-evident invocation. Anima-named (`praxis-audit`;
+  rejected runner-up `session-method-audit`). Composes 6 primitives; delta = the self-referential subject
+  + the audit→fix wiring. `dogfood_status: pending-first-cycle`. 6/6 self-validity · `scope-discipline` 6Q ·
+  `anti-theater` 8Q. No separate protocol file (methodology inherited — matches `corpus-firing-audit`'s
+  self-contained precedent; DRY/YAGNI).
+
 ### Added — WAVE 6 T8-core: intake gatekeeper (deterministic-floor triage)
 
 - **`mcp-tools/maos-mcp-hub/lib/registry/gatekeeper.py`**: `IntakeGatekeeper` — deterministic triage
