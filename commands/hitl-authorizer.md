@@ -19,17 +19,27 @@ boundary policy in `~/.claude/rules/hitl-authorizer.md`.
 /hitl-authorizer '<escalation envelope JSON>'
                  [--json]                 (emit the machine verdict envelope)
                  [--reason "<why brokering this>"]
+                 [--prime-minister | --consul]   (OPERATOR-GATED super-power office — NON-default)
 ```
 
 The escalation envelope (all fields optional strings):
-`{ "decision", "action", "context", "motivation", "dod", "scope", "targets", "state" }`.
+`{ "decision", "action", "context", "motivation", "dod", "scope", "targets", "state" }`
+plus the democratic office-tier fields `{ "office_request": "prime-minister"|"consul", "operator_invoke": true }`.
+
+**Democratic offices (separation of powers).** The broker convenes a graduated ladder —
+Tribune (default) → Parliament → Ombudsman → [Consul] → Prime-Minister → Referendum=HITL. The
+**super-power offices are OFF by default**: `--prime-minister` / `--consul` are the ONLY way to unlock
+them (they set `operator_invoke=true`), and even then **no office overrides a carve-out** (a carve-out ⇒
+`office=none`). Full per-office scope: `skills/hitl-authorizer/references/democratic-offices.md`.
 
 ## Behavior (summary)
 
 1. **OBSERVE** — intake the envelope + Skopos recon (CASC Gate-0).
 2. **ORIENT** — `bin/classify.sh` HARD-boundary gate (carve-out → DEFER now, no council) →
    33 Socratic → anti-theater 8Q + CASC.
-3. **COUNCIL** — MoE→Council (verifier > generator; red-team/Elenchus on hard-triggers).
+3. **COUNCIL** — the democratic office ladder: Parliament seat (MoE debate→vote) → Ombudsman seat
+   (INDEPENDENT verify, verifier > generator; red-team/Elenchus on hard-triggers). Super-power seats
+   (Consul / Prime-Minister) convene ONLY when the operator invoked them (non-default).
 4. **DECIDE** — `AUTHORIZE iff score≥0.90 ∧ convergence ∧ independent-verify ∧ ¬carve-out ∧ 8/8 ∧ CASC-green`, else `DEFER`.
 5. **ACT** — emit the verdict + ASH `decision-capture`; the CALLER acts (retaining accountability).
 
@@ -43,6 +53,7 @@ The escalation envelope (all fields optional strings):
 ## Related
 
 - `skills/hitl-authorizer/SKILL.md` — full skill logic (soul *Tribune*)
+- `skills/hitl-authorizer/references/democratic-offices.md` — the democratic office catalogue (per-office scope + rejected offices + constitutional invariants)
 - `skills/bot-finding-arbiter/SKILL.md` — the domain-specific sibling (soul *Praetor*) it generalizes
 - `agents/COWORK-AUTONOMY-POLICY.md` — the decision-rule SSOT it enacts
 - `~/.claude/rules/hitl-authorizer.md` — the user-scope boundary policy

@@ -1,0 +1,8 @@
+{
+  "decision": "choose the default page size for an internal read-only list view",
+  "office_request": "prime-minister",
+  "operator_invoke": true,
+  "context": "the operator explicitly invoked the prime-minister super-power for this harder residue decision",
+  "scope": "one default value",
+  "state": "low-confidence"
+}

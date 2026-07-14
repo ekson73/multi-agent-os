@@ -94,6 +94,16 @@ MoE→Council ladder, and returns `{AUTHORIZE | DEFER}`. An AUTHORIZE substitute
 the **calling agent acts and retains accountability** (below). Invoke the Tribune *before* escalating;
 the human sees only its `DEFER` residue.
 
+**Democratic separation of powers (v0.2.0).** The Tribune does not wield a single authority — it convenes
+a **democratic office ladder**: Tribune (default front-door) → Parliament (deliberate + vote) → Ombudsman
+(INDEPENDENT verify) → [Consul] → Prime-Minister → Referendum (= HITL). Each bounded office is a **seat over
+an existing primitive** (no new engine); the **super-power offices (Prime-Minister · Consul) are OFF by
+default** and unlock ONLY on an explicit operator invoke (anti-dictatorship). The ⛔ carve-outs defined here
+are **inalienable constitutional rights** — **no office, not even Prime-Minister, may override them** (a
+carve-out ⇒ no office convenes). Offices that fail the democratic filter — **Regent** (monarchy / hereditary)
+and **Dictator** (absolute power) — are **not built**; their elevated-authority role is served by the
+accountable Prime-Minister. Full per-office scope: `skills/hitl-authorizer/references/democratic-offices.md`.
+
 ## Accountability
 
 Substitution does NOT waive accountability — the agent (and its parent) remain accountable

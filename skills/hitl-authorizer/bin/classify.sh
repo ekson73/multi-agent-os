@@ -82,12 +82,49 @@ else
   action="uncertainty-residue (SOFT) — run the MoE→Council ladder; MAY authorize at score≥0.90 ∧ convergence ∧ independent-verify, else DEFER with ranked recommendation"
 fi
 
+# ── Democratic-office tier (super-power gate; fail-safe default = bounded) ────────────────
+# ORTHOGONAL to the carve-out gate above. The carve-out gate decides WHETHER a council may
+# spawn (the safety-critical ⛔ boundary); THIS decides WHICH office tier convenes for the
+# already-safe residue (proportionality + anti-dictatorship). Super-power offices
+# (Prime-Minister · Consul) are OFF BY DEFAULT — unlocked ONLY by an explicit operator invoke
+# (.operator_invoke == true, set solely by the --prime-minister/--consul operator command path,
+# never by an agent routing an escalation). CONSTITUTIONAL INVARIANT #1: elevation NEVER
+# overrides a carve-out — a carve-out still yields office=none here, so no office (not even
+# Prime-Minister) can reach the human-owned classes.
+office_request="$(printf '%s' "$raw" | jq -r '(.office_request // "") | ascii_downcase')"
+if printf '%s' "$raw" | jq -e '.operator_invoke == true' >/dev/null 2>&1; then
+  operator_invoke="true"
+else
+  operator_invoke="false"
+fi
+superpower_gated="false"
+if [ "$never_authorize" = "true" ]; then
+  # a carve-out: NO office convenes at all (invariant #1 — elevation can't override it)
+  office="none"
+else
+  case "$office_request" in
+    prime-minister|prime_minister|primeminister|pm|consul)
+      if [ "$operator_invoke" = "true" ]; then
+        case "$office_request" in
+          consul) office="consul" ;;
+          *)      office="prime-minister" ;;
+        esac
+      else
+        # super-power REQUESTED without operator invoke → fail-safe to the bounded tier
+        office="bounded"; superpower_gated="true"
+      fi ;;
+    *)
+      office="bounded" ;;   # no elevation requested → bounded default
+  esac
+fi
+
 if [ "$emit_json" -eq 1 ]; then
   jq -n --arg bucket "$bucket" --arg disposition "$disposition" \
         --arg council "$council" --argjson never_authorize "$never_authorize" \
+        --arg office "$office" --argjson superpower_gated "$superpower_gated" \
         --arg action "$action" \
-        '{verdict:{bucket:$bucket,disposition:$disposition,council:$council,never_authorize:$never_authorize,action:$action}}'
+        '{verdict:{bucket:$bucket,disposition:$disposition,council:$council,never_authorize:$never_authorize,office:$office,superpower_gated:$superpower_gated,action:$action}}'
 else
-  printf 'bucket=%s disposition=%s council=%s never_authorize=%s\n' \
-    "$bucket" "$disposition" "$council" "$never_authorize"
+  printf 'bucket=%s disposition=%s council=%s never_authorize=%s office=%s superpower_gated=%s\n' \
+    "$bucket" "$disposition" "$council" "$never_authorize" "$office" "$superpower_gated"
 fi

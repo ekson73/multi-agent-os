@@ -1,1 +1,1 @@
-bucket=residue disposition=council council=moe+council never_authorize=false
+bucket=residue disposition=council council=moe+council never_authorize=false office=bounded superpower_gated=false
