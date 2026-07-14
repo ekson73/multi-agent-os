@@ -1,13 +1,19 @@
 ---
 name: praxis-audit
-description: Self-referential session-method audit — did THIS session's own tools/methods FIRE or was it theater? RECAP -> AUDIT -> RESEARCH -> COUNCIL -> FIX. Composes corpus-firing-audit + enhance-pipeline + convergence-engine + gap-loop.
+description: Self-referential session-method audit — did THIS session's own tools/methods FIRE or was it theater? RECON → RECAP → AUDIT → RESEARCH → COUNCIL → FIX. Composes corpus-firing-audit + enhance-pipeline + convergence-engine (+ council seats) + gap-loop — reimplements nothing.
 ---
 
 # /praxis-audit Command
 
 Thin wrapper that invokes `skills/praxis-audit/SKILL.md`. The skill holds all logic
-(the 5 phases, the retargeted firing/theater lens, verifier>generator COUNCIL,
-idempotency contract, STOP-marker grammar, bounds). This file is the command surface only.
+(the phases — a RECON pre-step + RECAP→FIX, the retargeted firing/theater lens,
+verifier>generator COUNCIL, idempotency contract, STOP-marker grammar, bounds). This
+file is the command surface only.
+
+> **Invocation / namespace**: this plugin sets `command_namespace.prefix_required=true`,
+> so the canonical form is **`/maos:praxis-audit`** — the bare `/praxis-audit` used below is
+> the short form and may require the `maos:` prefix on hosts that enforce it (the CHANGELOG
+> announces `/maos:praxis-audit`).
 
 ## Usage
 
@@ -34,7 +40,7 @@ All flags are optional — invoking bare `/praxis-audit` audits the current sess
 | `--max-iterations` | `6` | integer — FIX loop cap (passed to gap-loop) |
 | `--output` | `text` | `text`, `json` (emit the run envelope) |
 
-See `skills/praxis-audit/SKILL.md` (The 5 phases + Override parameters + Composition)
+See `skills/praxis-audit/SKILL.md` (The phases + Override parameters + Composition)
 for the meaning of each value and how the phases land on existing primitives.
 
 ## Examples
