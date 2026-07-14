@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
-description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.4.0
+description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
+version: 1.5.1
 allowed-tools: Read, Bash
 ---
 
@@ -152,6 +152,41 @@ Running the recon surfaced material the design pass could not:
 
 Design-reasoning (33 non-duplicate Socratic Q&A): `references/offender-containment-round2-33-socratic.md`.
 
+### Burn-down forecast (v1.5.0, round-3, 2026-07-14) — the proactive half, completed
+
+The original EKO-90 DoD listed *"previsão de burn-down"* but rounds 1-2 left it a `BURN_DOWN="null"` stub.
+Round-3 implements it — the **leading indicator** whose absence let the 2026-07-14 drain reach 2.5 GB
+before anyone noticed. The collector (v1.2.0 → **v1.3.0**) now emits a structured top-level `burn_down`:
+
+```json
+"burn_down": {"status":"warn","trend":"draining","drain_gb_per_hr":2.10,"days_to_threshold":3.4,"threshold_gb":15,"samples":18,"free_gb":186}
+```
+
+- **Reclaim-aware** (`compute_burndown()`, collector **v1.3.2**): reads the disk-guardian's own timestamped
+  `free=<N>G` samples (no new state file) and slopes **only the tail after the last reclaim up-jump** —
+  because free space *jumps up* on the guardian's cache deletions, a naïve slope would misread a
+  reclaim-masked drain as "recovering". When that post-reclaim tail is too short to slope honestly
+  (<3 samples), it returns `unknown reason:post-reclaim-tail-short` rather than re-including the jump.
+  Flat/rising tail → `{status:ok, trend:"stable-or-recovering", days_to_threshold:null}`; genuine drain →
+  `days_to_threshold` + `status` (crit <1d · warn <7d · ok else). Timestamp parse accepts `+0000`, RFC3339
+  `+00:00`, and Zulu `…Z` (no silent sample loss on a producer format drift).
+- **Observe-only, but WIRED** — a forecast never auto-deletes anything; a `warn`/`crit` burn-down →
+  **the responder reads `.burn_down` and seeds + notifies** (`main()`, gated independently of
+  `.system.status` since `burn_down` is a top-level leading indicator, not a `.system.branches` leaf) so a
+  session/operator acts *before* crisis. No new autonomous action — the disk *branch* still owns reclaim.
+- **Secret-safe** (only free-space integers + timestamps; never argv) · **cold-start honest** (thin/absent
+  log → `status:"unknown"`, never a fabricated number — Tomé).
+- **Tested**: `bin/burndown-test.sh` — 7 synthetic series / 16 assertions (declining → correct
+  days-to-threshold; **reclaim-jump → NOT misread as recovering** [the critical assertion]; flat/rising →
+  not-draining; insufficient → unknown; `+00:00` & Zulu `Z` → parse; **short post-reclaim tail → honest
+  `unknown`, not a jump-contaminated slope**). Plus `bin/responder-burndown-test.sh` — 4 cases / 5
+  assertions proving the responder ACTS on `.burn_down` (warn/crit → seed; ok/unknown → quiet; the
+  wired-not-inert proof).
+
+```bash
+DISK_GUARDIAN_LOG=<log> "$COLLECTOR" --burndown   # forecast-only (no probing, no contract write) — testable
+```
+
 ## Composition (reuse, not reinvent — Strata)
 
 - **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
@@ -167,7 +202,9 @@ Design-reasoning (33 non-duplicate Socratic Q&A): `references/offender-containme
 - `references/no-source-fix-registry.md` — the ADR evidence gate (vetted no-source-fix offenders + dossiers).
 - `references/offender-containment-33-socratic.md` — round-1 design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
 - `references/offender-containment-round2-33-socratic.md` — round-2 operational-reasoning (33 non-duplicate Q&A; sibling-falsification · transient-vs-persistent producers · attribution · warn/HITL boundary · unknown-offender handling).
-- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector.
+- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector (v1.3.0 = burn-down).
+- `bin/burndown-test.sh` — round-3 collector unit tests (drives `--burndown`; 16 assertions: reclaim-jump-not-misread · short-tail-honest-unknown · `+0000`/`+00:00`/`Z` tz variants).
+- `bin/responder-burndown-test.sh` — round-3 responder wiring tests (5 assertions: `warn`/`crit`→seed · `ok`/`unknown`→quiet — proves `.burn_down` is read, not just documented).
 - EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
   (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).
