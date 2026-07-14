@@ -1,0 +1,101 @@
+---
+name: system-health-responder
+description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian). EKO-90 part-2 — the responder half of the health suite.
+version: 1.0.0
+---
+
+# System-Health Responder
+
+**EKO-90 part-2** — the *responder* half of the system-health suite. Part-1 (the machine-local
+`system-health-guardian.sh` launchd collector) *measures* every 10 min and writes a secret-free,
+jq/yq-searchable **health-contract** with root-fail drill-down. This skill is the *end-of-action
+reflex* that **reads that contract and responds**: it heals what is safely autonomous (Moderate)
+and escalate-seeds the rest to the operator — never destructively.
+
+> Not to be confused with `agents/sentinel-monitor` — that watches **agent-orchestration**
+> anomalies (loops, depth, token-bloat). This watches **system-resource** health (cpu·mem·security·
+> malware·process·network). Orthogonal domains; this composes existing primitives, it does not extend Sentinel.
+
+## Purpose
+
+Close the *measure → respond* loop (Metron-style) for host health: convert the passive part-1
+contract into bounded, reversible, auditable action + a durable HITL queue — so a runaway process
+gets deprioritized on its own, while security/malware/kill decisions reach the operator as a
+NEEDS-AGENT seed instead of rotting silently (Taxis / no-silent-drop).
+
+## When to Use
+
+Fire this reflex at an **end-of-action boundary** (reusing the existing `end-of-action-self-audit` /
+`postflight` trigger — SELECTIVE, not every turn) when **all** hold:
+
+1. The health-contract exists and `.system.status != ok` (there is a real warning to respond to).
+2. No other responder is already engaged (the engage-lock is free).
+3. (For the autonomous `--engage` path) the standing-autonomy predicate `READY = R1∧R2∧R3∧R4` holds
+   and the action is within Moderate scope (see Guardrails).
+
+Also usable on-demand: an active session (preflight / morning-briefing) that finds a
+`NEEDS-AGENT-*.md` seed picks it up and delegates a specialist or surfaces to the operator.
+
+## Trigger Phrases
+
+`system health responder`, `respond to health contract`, `auto-heal system`, `health self-heal`,
+`drain NEEDS-AGENT seed`, `renice runaway`.
+
+## Protocol Rules
+
+The deterministic engine is `bin/health-respond.sh` (see it for the exact logic). The reflex:
+
+1. **Engage-lock** — atomic mkdir-mutex `responder.lock` (stale-steal > 30 min) so two concurrent
+   end-of-action reflexes never double-act. Stand down (exit 1) if held.
+2. **Read + Eisenhower-rank** — parse the contract's branch statuses; rank crit > warn, with the
+   disposition fixed by `references/auto-heal-safety-matrix.md`.
+3. **Moderate auto-heal** — the ONLY autonomous action is `renice`-ing a **clear cpu runaway**
+   (`top_consumer.status != ok`, `comm ∉ PROC_DENYLIST`, `nice < RENICE_TO`). Every renice records the
+   exact restore command + original nice to `reverts.log` (auditable reversibility).
+4. **Delegate disk** — disk warnings go untouched: the `disk-health-guardian` owns disk (no duplication).
+5. **Escalate-seed the HITL residue** — security · malware · memory · process · network · protected/
+   maxed cpu → a `NEEDS-AGENT-<ts>.md` seed (`kind: system-health-agent-delegation-seed`) + macOS
+   notification + 6 h throttle (the disk-guardian's escalate shape). **The seed IS the Taxis queue
+   entry** an active session drains (no-silent-drop).
+6. **Log** a heartbeat to `responder.log`.
+
+### Invocation
+
+```bash
+BIN="$CLAUDE_PLUGIN_ROOT/skills/system-health-responder/bin/health-respond.sh"
+"$BIN"            # DEFAULT: dry-run — reads, ranks, PROPOSES, seeds HITL residue. Acts on NOTHING.
+"$BIN" --engage   # Moderate autonomous path: performs the renice (only under READY + Moderate scope).
+"$BIN" --help
+```
+
+Env overrides: `SHR_CONTRACT`, `SHR_STATE_DIR`, `SHR_RENICE_TO`, `SHR_LOCK_STALE_SEC`,
+`SHR_ESCALATE_THROTTLE_SEC`, `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless).
+
+## Guardrails (⛔ non-negotiable)
+
+- **Safe-by-default**: the bin is `--dry-run` unless `--engage` is passed. `--engage` is used only by an
+  active agentic reflex under standing-autonomy `READY` + Moderate scope — never blindly by launchd.
+- **Non-destructive only**: NEVER kill/quit a process, quarantine/delete/move a file, re-enable or disable
+  a security control, update the OS, or touch disk. `renice` is the sole lever (reversible-by-record).
+- **Secret-safe (absolute)**: reads `comm`/`pid`/`pct`/`nice` metadata only — never a process's argv/
+  `command` (tokens live there). Writes no secret value; the contract + seeds are the operator's own state.
+- **PROC_DENYLIST**: never `renice` a macOS-critical proc (WindowServer, kernel_task, launchd, …) nor a
+  sensitive app (`1password`, `openclaw`, `omniroute`, `claude`). See the safety-matrix reference.
+- **HITL residue** (security · malware · kill · quarantine · OS-update) is *always* the operator's
+  decision — the responder only queues it (seed + notify), never acts.
+
+## Composition (reuse, not reinvent — Strata)
+
+- **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
+- **disk-health-guardian** — owns disk; its `escalate()` → `write_agent_seed()` shape is the pattern this
+  skill generalizes cross-resource (and it delegates disk *back* to the guardian).
+- **engage-lock** — the `shared-git-lock` engaged-check idea (mkdir-mutex + stale-steal), local-state form.
+- **Taxis** (`loose-end-triage-queue`) — the NEEDS-AGENT seed is the durable queue entry (no-silent-drop).
+- **CASC / standing-autonomy** — the `--engage` gate (Moderate scope, `READY` predicate, HITL residue).
+
+## Refs
+
+- `references/auto-heal-safety-matrix.md` — the binding disposition table + PROC_DENYLIST + threshold ownership.
+- EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder.
+- `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
+  (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).
