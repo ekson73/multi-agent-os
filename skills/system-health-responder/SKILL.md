@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
-description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian). EKO-90 part-2 — the responder half of the health suite.
-version: 1.0.1
+description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
+version: 1.3.0
 allowed-tools: Read, Bash
 ---
 
@@ -94,6 +94,42 @@ reflex), `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless)
 - **HITL residue** (security · malware · kill · quarantine · OS-update) is *always* the operator's
   decision — the responder only queues it (seed + notify), never acts.
 
+## Agentic-tools response + offender-containment (EKO-90-ext v1.2.0)
+
+The 2026-07-14 disk-drain exposed a gap: the disk-guardian cleaned caches but could not beat a **live
+producer** — N Claude sessions re-spawning `uvx …@latest` MCP servers re-inflated `~/.cache/uv/archive-v0`
+(`uv` has no auto-GC) faster than Tier-1 pruned the symptom. Two additions close it:
+
+1. **Collector Phase-1** (`collectors/system-health-guardian.sh`, machine-local at `~/.local/bin/`) gains an
+   `agentic_tools` branch: `claude_runtime` (a read-only `claude doctor` — the "unattended show-only" probe;
+   the *fixing* `/doctor` stays in-session) + `cache_producer` (`uv_archive_objects` argv-free footprint +
+   `uvx_latest_procs` producer signature). Secret-safe: counts/names/booleans only, never argv.
+
+2. **Responder** consumes that branch: **Tier-A** autonomous `uv cache prune` (LOW · non-destructive · same
+   `--engage`+`SHR_READY` Moderate gate as renice); **Tier-B** — **DISABLE tier ARMED 2026-07-14 (operator
+   ratification)** — in ENGAGE mode (only when an active reflex proved `SHR_READY`; launchd never sets it) the
+   responder now invokes the containment executor to **DISABLE** (reversible) registry-vetted, present
+   offenders. Uninstall stays a further explicit gate (NOT auto-armed — reversible-first). Un-vetted/
+   un-present producers still fall through to the HITL seed (the launchd path, with no `SHR_READY`, always
+   dry-run-seeds — it never auto-contains).
+
+An **active, armed agent** (or the armed responder above) performs the containment via
+`bin/offender-containment.sh`, mechanizing the operator ADR (2026-07-14): *"até que o plugin nao tem fix na
+fonte, pode desativar e/ou remover"* — with
+escalating gates (prune → disable `+OFC_ARM+OFC_READY+evidence` → remove `+OFC_ALLOW_UNINSTALL`), an
+**evidence gate** (`references/no-source-fix-registry.md` — a vetted upstream wontfix, not a hunch), a
+protected-denylist (`1password/openclaw/omniroute/claude`), reversibility (`containment.log` restore
+commands), and **disarmed-by-default dry-run**. Design rationale + edge cases:
+`references/offender-containment-33-socratic.md`.
+
+```bash
+OFC="$CLAUDE_PLUGIN_ROOT/skills/system-health-responder/bin/offender-containment.sh"
+"$OFC"                                          # DEFAULT dry-run: detect + PROPOSE. Acts on nothing.
+"$OFC" --prune                                  # LOW: uv cache prune (non-destructive maintenance)
+OFC_ARM=1 OFC_READY=1 "$OFC" --engage           # MEDIUM: disable registry-vetted, present offenders
+OFC_ARM=1 OFC_READY=1 OFC_ALLOW_UNINSTALL=1 "$OFC" --engage --allow-uninstall  # HIGH: uninstall (reinstall-able)
+```
+
 ## Composition (reuse, not reinvent — Strata)
 
 - **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
@@ -105,7 +141,10 @@ reflex), `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless)
 
 ## Refs
 
-- `references/auto-heal-safety-matrix.md` — the binding disposition table + PROC_DENYLIST + threshold ownership.
-- EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder.
+- `references/auto-heal-safety-matrix.md` — the binding disposition table + PROC_DENYLIST + threshold ownership + the offender-containment tiers.
+- `references/no-source-fix-registry.md` — the ADR evidence gate (vetted no-source-fix offenders + dossiers).
+- `references/offender-containment-33-socratic.md` — design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
+- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector.
+- EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
   (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).

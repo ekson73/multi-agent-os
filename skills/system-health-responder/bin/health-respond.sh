@@ -211,6 +211,53 @@ main() {
   local net; net="$(jq -r '.system.branches.network.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$net" != "ok" ] && residue="${residue}- 🟠 network=${net}: unexpected listener → operator review (never auto-close).\n"
 
+  # ── agentic-tools (EKO-90-ext v1.2.0): cache-producer + claude-runtime ─────────
+  # The 2026-07-14 lesson: the disk-guardian cleaned caches but could not beat a LIVE producer
+  # (`uvx …@latest` MCP churn). This branch adds the producer-aware response: Tier-A autonomous
+  # `uv cache prune` (LOW · non-destructive · Moderate-gated), Tier-B SEED a containment delegation
+  # to an active agent (the responder NEVER auto-disables/removes — the secret-safe contract can't
+  # name the plugin, and disable/remove is above Moderate → it stays HITL/armed-agent, per the ADR).
+  local ats; ats="$(jq -r '.system.branches.agentic_tools.status // "ok"' "$CONTRACT" 2>/dev/null)"
+  if [ "$ats" != "ok" ]; then
+    local prod_st uvobj uvx claude_h
+    prod_st="$(jq -r '.system.branches.agentic_tools.leaves.cache_producer.status // "ok"' "$CONTRACT" 2>/dev/null)"
+    uvobj="$(jq -r '.system.branches.agentic_tools.leaves.cache_producer.uv_archive_objects // 0' "$CONTRACT" 2>/dev/null)"
+    uvx="$(jq -r '.system.branches.agentic_tools.leaves.cache_producer.uvx_latest_procs // 0' "$CONTRACT" 2>/dev/null)"
+    claude_h="$(jq -r '.system.branches.agentic_tools.leaves.claude_runtime.health // "?"' "$CONTRACT" 2>/dev/null)"
+    if [ "$prod_st" != "ok" ]; then
+      # Tier-A — LOW-stakes durable maintenance: `uv cache prune` (non-destructive; keeps tool installs).
+      # Moderate scope → rides the SAME --engage+SHR_READY gate as renice (autonomous only when READY proven).
+      local ofc; ofc="$(dirname "$0")/offender-containment.sh"
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "  ✅ PROPOSE agentic-tools: cache-producer=${prod_st} (uv_objs=${uvobj}, uvx@latest=${uvx}) → uv cache prune (non-destructive) [dry-run]"
+      elif [ -x "$ofc" ]; then
+        echo "  🧹 agentic-tools: producer pressure → uv cache prune (Moderate autonomous, non-destructive)"
+        "$ofc" --prune 2>>"$LOG" | sed 's/^/    /' || true
+        log "AGENTIC-PRUNE producer=${prod_st} uvobj=${uvobj} uvx=${uvx}"
+        acted=1
+      fi
+      # Tier-B — ROOT-fix (operator ADR; DISABLE tier ARMED 2026-07-14 via operator ratification). A LIVE
+      # `uvx …@latest` producer is the ROOT (prune treats the symptom). In ENGAGE mode — which only holds
+      # when an ACTIVE reflex proved SHR_READY (launchd NEVER sets it) — the responder now invokes the
+      # containment executor, which DISABLES (reversible) registry-VETTED, currently-present offenders.
+      # Uninstall stays a further explicit gate (OFC_ALLOW_UNINSTALL) — NOT auto-armed here (reversible-first).
+      # Un-vetted / un-present producers still fall through to the HITL seed below (no-silent-drop / Taxis).
+      if [ "$uvx" -gt 0 ] 2>/dev/null; then
+        if [ "$DRY_RUN" -eq 0 ] && [ -x "$ofc" ]; then
+          echo "  🔌 agentic-tools: live producer → offender-containment --engage (disable registry-vetted offenders; uninstall NOT auto-armed)"
+          OFC_ARM=1 OFC_READY=1 "$ofc" --engage 2>>"$LOG" | sed 's/^/    /' || true
+          log "OFFENDER-CONTAINMENT-ENGAGE uvx=${uvx} (disable-tier armed; uninstall not armed)"
+          acted=1
+        fi
+        residue="${residue}- 🔴 agentic-tools: ${uvx} live \`uvx …@latest\` producer(s) re-inflating uv cache (ROOT; uv has no auto-GC). $([ "$DRY_RUN" -eq 0 ] && echo 'Containment ENGAGED on registry-vetted offenders (disable, reversible).' || echo 'Durable fix per operator ADR = disable/remove the offending no-source-fix plugin.') Un-vetted producers → \`bin/offender-containment.sh\` (registry + arm). Prune is a stopgap.\n"
+      fi
+    fi
+    # claude runtime unhealthy → HITL (fixing = the operator's in-session /doctor; the collector's probe is read-only)
+    if [ "$claude_h" != "healthy" ] && [ "$claude_h" != "?" ]; then
+      residue="${residue}- 🟠 agentic-tools: claude runtime health=${claude_h} (from \`claude doctor\`) → run \`/doctor\` in-session to fix (operator).\n"
+    fi
+  fi
+
   if [ -n "$residue" ]; then
     echo "  HITL residue (auto-heal Moderate does not touch these):"
     printf '%b' "$residue" | sed 's/^/    /'
