@@ -47,8 +47,8 @@ if [ -e "$ARG" ]; then printf '%s\n' "$ARG"; exit 0; fi
 case "$ARG" in
   *[*?[]*) echo "[resolve-session] invalid id (glob metachars *?[ ): '$ARG'" >&2; exit 2 ;;
 esac
-exact="$(find "$ROOT" -type f -name "${ARG}.jsonl" 2>/dev/null | LC_ALL=C sort | head -1)"
+exact="$(find "$ROOT" -type f -name "${ARG}.jsonl" 2>/dev/null | LC_ALL=C sort | head -n 1)"
 if [ -n "$exact" ]; then printf '%s\n' "$exact"; exit 0; fi
-match="$(find "$ROOT" -type f -name "${ARG}*.jsonl" 2>/dev/null | LC_ALL=C sort | head -1)"
+match="$(find "$ROOT" -type f -name "${ARG}*.jsonl" 2>/dev/null | LC_ALL=C sort | head -n 1)"
 [ -n "$match" ] || { echo "[resolve-session] no artifact for id '$ARG' under $ROOT" >&2; exit 2; }
 printf '%s\n' "$match"
