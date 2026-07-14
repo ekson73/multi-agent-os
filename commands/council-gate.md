@@ -26,7 +26,7 @@ Otherwise → **HITL fallback with ranked, contestable recommendations + confide
 
 ## Default posture: UNARMED
 
-Ships **consultative**. `--armed` is honored ONLY under an operator-ratified standing grant OR an explicit per-invocation operator authorization — there is **no self-arm**. Unarmed, it emits the `AUTHORIZE` verdict + a 1-touch confirm rather than executing.
+Ships **consultative**. `--armed` is honored ONLY under an operator-ratified standing grant OR an explicit per-invocation operator authorization — there is **no self-arm**. Unarmed, it emits the `AUTHORIZE_CONSULTATIVE` verdict + a 1-touch confirm rather than executing.
 
 ## Governance SSOT
 
