@@ -52,14 +52,21 @@ EOF
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG" 2>/dev/null || true; }
 notify() { [ "$NOTIFY" -eq 1 ] || return 0; osascript -e "display notification \"$1\" with title \"System-Health Responder\" subtitle \"$2\"" 2>/dev/null || true; }
 
+# portable mtime (BSD `stat -f` → GNU `stat -c` → 0) — os-agnostic per EKO-90 spec
+mtime_of() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+
 acquire_lock() {
   mkdir -p "$STATE_DIR" 2>/dev/null || true
   if mkdir "$LOCK" 2>/dev/null; then printf '%s' "$$" >"$LOCK/pid" 2>/dev/null || true; return 0; fi
-  local age; age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || echo 0) ))
-  if [ "$age" -gt "$LOCK_STALE_SEC" ]; then
+  # lock exists — steal ONLY if VERIFIABLY stale: age>threshold AND the recorded holder pid
+  # is dead. This prevents stealing a FRESH holder's lock (mkdir atomicity then settles any
+  # remaining double-steal: the loser's mkdir fails → it stands down). CWE-362 hardening.
+  local age holder; age=$(( $(date +%s) - $(mtime_of "$LOCK") ))
+  holder="$(cat "$LOCK/pid" 2>/dev/null || echo '')"
+  if [ "$age" -gt "$LOCK_STALE_SEC" ] && { [ -z "$holder" ] || ! kill -0 "$holder" 2>/dev/null; }; then
     rm -rf "$LOCK" 2>/dev/null || true
     if mkdir "$LOCK" 2>/dev/null; then printf '%s' "$$" >"$LOCK/pid" 2>/dev/null || true
-      log "engage-lock: stole stale lock (age ${age}s)"; return 0; fi
+      log "engage-lock: stole verified-stale lock (age ${age}s, holder=${holder:-none} dead)"; return 0; fi
   fi
   return 1
 }
@@ -81,10 +88,13 @@ try_renice() {
     return 2
   fi
   local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ')"
-  [ -n "$cur" ] || { echo "  ⏭  cpu-runaway pid ${pid} gone before action"; return 1; }
+  # validate numeric (empty ⇒ proc gone; non-numeric ⇒ unexpected ps output) BEFORE any -ge compare
+  if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
+    echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
+  fi
   # already at/below target priority → renicing DOWN needs root (BSD: non-root can only raise niceness);
   # renice to the same value is a no-op. Either way skip → the runaway becomes HITL residue (kill/quit=operator).
-  if [ "$cur" -ge "$RENICE_TO" ] 2>/dev/null; then
+  if [ "$cur" -ge "$RENICE_TO" ]; then
     echo "  ⏭  cpu-runaway ${comm} (pid ${pid}) already deprioritized (nice=${cur} ≥ ${RENICE_TO}) — renice maxed → HITL"
     return 1
   fi
@@ -106,7 +116,8 @@ try_renice() {
 
 seed_and_notify() {  # $1 = multiline HITL residue
   local residue="$1" now last stamp="$STATE_DIR/last-responder-escalate"
-  now="$(date +%s)"; last="$(cat "$stamp" 2>/dev/null || echo 0)"
+  now="$(date +%s)"; last="$(cat "$stamp" 2>/dev/null | tr -d '[:space:]')"
+  [[ "$last" =~ ^[0-9]+$ ]] || last=0   # guard against corrupt/edited stamp crashing $(( )) under set -e
   if [ $((now - last)) -lt "$ESCALATE_THROTTLE_SEC" ]; then
     echo "  ⏳ HITL residue present but escalate throttled (<6h since last seed)"; log "escalate throttled"; return 0
   fi
