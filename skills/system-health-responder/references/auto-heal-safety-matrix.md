@@ -77,6 +77,15 @@ disable/remove appends its exact restore command to
   This is *auditable* reversibility, not self-reversibility — stated honestly, not hand-waved.
 - **Bounded**: `RENICE_TO` defaults to **+10** (moderate deprioritize, not extreme +20). Never `renice` below
   the current value (would need root and would *raise* priority — out of scope).
+- **Pid-recycle guarded (round-5 #2, hardened v1.7.1 per CodeRabbit #131/#138)**: the contract can be up to
+  `StartInterval` (600s) stale, so before acting `try_renice()` re-reads the **live** `comm` and requires an
+  **exact normalized match** (`comm_match()` — basename + lowercase + strip-space, both non-empty, equal; **not**
+  substring, so a recycled `foo-helper` can't match a contract `foo` and an empty comm matches nothing), then
+  re-runs the denylist on the *live* comm, then **binds a start-identity** (`ps -o lstart=`) and re-verifies it
+  immediately before the renice. A pid recycled to a different (or protected) process since the sample is skipped
+  (fail-closed) — the autonomous action never trusts the ≤600s-old pid→comm binding alone, and the check→act
+  TOCTOU is narrowed. Sound because `renice` is fully reversible (reverts.log), denylist-guarded, and re-sampled
+  next 600s cycle.
 
 ## PROC_DENYLIST — never `renice` these (case-insensitive on `comm`)
 
@@ -86,11 +95,13 @@ disable/remove appends its exact restore command to
 `1password op openclaw omniroute claude` — **sensitive-app guard** (mirrors the operator's absolute denylist:
 never manipulate 1Password / OpenClaw / OmniRoute / the agent runtime itself).
 
-**Matching rule (exact behavior, so the doc matches the code):** tokens match as a **case-insensitive
-substring** of `comm`, which errs **conservative** — the worst case is over-protection (we skip a `renice`
-we *could* have done), never under-protection. **Exception:** the ultra-short token **`op`** (1Password CLI)
-matches the **whole `comm` only** (`comm == "op"`), so it doesn't accidentally over-match unrelated names
-like `Dropbox`, `top`, or `Finder` that happen to contain the letters "op".
+**Matching rule (exact behavior, so the doc matches the code):** the `comm` is first **basename-normalized**
+(lowercased basename — so a PATH comm like `/usr/local/bin/op` is compared as `op`; v1.7.1 per CodeRabbit @145,
+consistent with `comm_match()`). Tokens then match as a **case-insensitive substring** of that basename, which
+errs **conservative** — the worst case is over-protection (we skip a `renice` we *could* have done), never
+under-protection. **Exception:** the ultra-short token **`op`** (1Password CLI) matches the **whole basename
+only** (`basename(comm) == "op"`), so it protects `/usr/local/bin/op` AND bare `op` without over-matching
+unrelated names like `Dropbox`, `top`, or `Finder` that merely contain the letters "op".
 
 ## Threshold ownership (DRY)
 
@@ -109,6 +120,16 @@ zero drift.
 > *probe failure* degrades **fail-safe** (warn-capable, **never crit**) instead of collapsing to `off` and
 > manufacturing a false-crit — the leaf `xprotect_freshness.auto_update` carries `on|off|unknown` for
 > drill-down transparency regardless of the roll-up.
+>
+> **Round-5 (collector v1.5.0)** finished the ncpu-aware thesis + two honesty fixes (still transparent to the
+> responder — leaf `status` only): (#1) **`top_consumer`/`runaway` is now ncpu-aware** — `PROC_CPU_WARN=70`
+> stays a **per-core** WARN (the renice-actionable signal), but CRIT now requires `pct ≥ PROC_CPU_CRIT_RATIO
+> (0.50) × ncpu × 100` (a real fraction of TOTAL capacity), so one core-bound proc on a many-core box is WARN,
+> not a system crit — the load branch already owns true saturation. (#5) **XProtect freshness prefers the
+> authoritative `xprotect version`** (real install date, no-sudo) over the bundle-mtime proxy that measures
+> the wrong artifact; `xprotect_freshness.source` carries `xprotect-cli|bundle-mtime`. (#6) the
+> `process.counts` leaf now reflects the real `zombies` status (was hardcoded `ok`) so root-fail drill-down
+> lands on a non-`ok` leaf.
 
 ## What the responder will NEVER do (⛔ absolute)
 
