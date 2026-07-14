@@ -52,9 +52,36 @@ the `offenders` block with its own dossier:
 
 General watch: any `uvx …@latest` MCP server (the whole class shares the uv-no-auto-GC churn risk). The
 collector's `cache_producer` leaf (`uvx_latest_procs > 0` while disk pressured) is the standing tripwire.
+The leaf now also carries `uvx_latest_producers` (the argv-free `<pkg>@latest` token(s) of any *live*
+producer — secret-safe by grammar, see the collector's ATTRIBUTION block), so a re-emergent offender is
+**named**, not just counted → a future agent can look up / add its dossier without re-hunting the pid.
+
+## Round-2 falsifications (2026-07-14) — record so no future agent wrongly contains these ⛔
+
+Round-1 contained `deploy-on-aws`. Round-2 tested the natural follow-up hypothesis — *"do its ~20 sibling
+AWS/deployment plugins from the same marketplaces (`claude-plugins-official`, `aws-claude-code-plugins`,
+`claude-code-plugins-plus`, `claude-code-workflows`) carry the same `awslabs …@latest` MCP servers?"* — and
+**FALSIFIED it** (robust manifest sweep, Mente Tomé). Recorded here so a future amnesic agent does **not**
+re-investigate *and* does **not** mistakenly mass-contain the operator's AWS plugins (that would be a
+false-positive containment + governance theater — exactly the trap Skopos Gate-0 caught):
+
+- **`aws-*` sibling family is NOT the offender class.** `deploy-on-aws` was the *unique* carrier of the
+  `awslabs uvx@latest` MCP servers. The `uvx`/`awslabs` strings that exist in the sibling marketplaces are
+  all **non-offenders**: docs/SKILLs teaching how to build MCP servers, `uvx black`/`uvx ruff` *formatter*
+  hooks (pinned, not `@latest` MCP churn), lockfiles, and `serena`'s own `.mcp.json`. **Do NOT contain the
+  `aws-*` family** — they are not `uvx …@latest` producers.
+- **`deploy-on-aws` cache-orphan is EXPECTED, not a re-drain.** After uninstall, an inert cache dir lingers
+  at `~/.claude/plugins/cache/claude-plugins-official/deploy-on-aws/1.3.0/` (+ a `plugin-catalog-cache.json`
+  ref). This is the known Claude-Code plugin-cache-orphan pattern (`[[reference_claude_code_plugin_cache_temp_orphans_2026_07_08]]`);
+  macOS-native `.orphaned_at` 7-day GC sweeps it. It holds no live MCP config and does **not** re-inflate
+  the uv cache → **no action** (do not hand-`rm` plugin cache; let native GC run).
+- **The live producer seen at 18:48 (pid 28935) was TRANSIENT** — gone seconds later (the `uvx @latest`
+  spawn-do-exit model; each spawn still churns the cache, but it is not a sitting runaway). This is *why*
+  round-2 added the `uvx_latest_producers` attribution — to name such a spawn before it vanishes.
 
 ## Changelog
 
 | Date | Change |
 |---|---|
-| 2026-07-14 | Bootstrap — inaugural vetted offender `awslabs-uvx-latest` (deploy-on-aws / awslabs uvx-@latest / `awslabs/mcp#1400` not-planned). Watch-list: computer-control-mcp, iam-policy-autopilot (fixture-only). EKO-90-ext per operator `/quiesce` ADR 2026-07-14. |
+| 2026-07-14 (r1) | Bootstrap — inaugural vetted offender `awslabs-uvx-latest` (deploy-on-aws / awslabs uvx-@latest / `awslabs/mcp#1400` not-planned). Watch-list: computer-control-mcp, iam-policy-autopilot (fixture-only). EKO-90-ext per operator `/quiesce` ADR 2026-07-14. |
+| 2026-07-14 (r2) | Round-2: recorded the **sibling-falsification** (aws-* family NOT offenders — do not contain) + the `deploy-on-aws` cache-orphan expected-not-re-drain note + the transient-producer note. Collector gains `uvx_latest_producers` attribution (name an emergent producer). No new vetted offender (recon found none). |

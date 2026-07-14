@@ -168,6 +168,20 @@ case "$UV_ARCHIVE_OBJS" in ''|*[!0-9]*) UV_ARCHIVE_OBJS=0 ;; esac
 # original script guards every grep-c with). wc still prints "0" on empty stdin, so the value is right.
 UVX_LATEST_PROCS="$(pgrep -f 'uvx .*@latest' 2>/dev/null | wc -l | tr -d ' ' || true)"
 case "$UVX_LATEST_PROCS" in ''|*[!0-9]*) UVX_LATEST_PROCS=0 ;; esac
+# ── ATTRIBUTION (EKO-90-round2 2026-07-14) — NAME an emergent producer, not just count it ──
+# A transient `uvx …@latest` spawn can vanish before an operator can attribute it (lived it: pid 28935
+# gone before it could be named). Record the PUBLIC PyPI package token(s) so the responder/registry can
+# identify a re-emergent offender by name. SECRET-SAFE BY GRAMMAR: only tokens matching a strict package
+# identifier `^[alnum][alnum._-]*@latest$` are accepted — a flag (`--key=…`) starts with `-`, a value with
+# `=`/`/` — all rejected by the grammar. NEVER the full argv, NEVER a `--api-key=` value. (CWE-532/CWE-78.)
+UVX_PRODUCERS=""
+if [ "$UVX_LATEST_PROCS" -gt 0 ]; then
+  _uvpids="$(pgrep -f 'uvx .*@latest' 2>/dev/null | tr '\n' ' ' || true)"
+  if [ -n "${_uvpids// }" ]; then
+    UVX_PRODUCERS="$(run_bounded 5 ps -o args= -p ${_uvpids} 2>/dev/null \
+      | tr ' ' '\n' | grep -E '^[a-zA-Z0-9][a-zA-Z0-9._-]*@latest$' | sort -u | head -5 | paste -sd, - || true)"
+  fi
+fi
 UV_OBJS_WARN="${UV_OBJS_WARN:-1500}"; UV_OBJS_CRIT="${UV_OBJS_CRIT:-4000}"
 PRODUCER_ST="$(st_hi "$UV_ARCHIVE_OBJS" "$UV_OBJS_WARN" "$UV_OBJS_CRIT")"
 # a LIVE @latest producer churning WHILE disk is already pressured = escalate (root-cause > symptom)
@@ -217,10 +231,10 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" \
   --arg net_st "$NET_ST" --argjson net_rf "$NET_RF" --arg listeners "$LISTENERS" --arg estab "$ESTAB" \
   --argjson burn "$BURN_DOWN" \
-  --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" \
+  --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.1.0", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.2.0", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
@@ -245,7 +259,8 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                   listeners: { status: $net_st, tag: "resource.network.listeners", tcp_listen: n($listeners), tcp_established: n($estab) } } },
       agentic_tools: { status: $at_st, tag: "resource.agentic_tools", root_fail: $at_rf, leaves: {
                   claude_runtime: { status: $claude_st, tag: "resource.agentic_tools.claude_runtime", health: $claude_health, version: $claude_ver },
-                  cache_producer: { status: $producer_st, tag: "resource.agentic_tools.cache_producer", uv_archive_objects: n($uv_objs), uvx_latest_procs: n($uvx_latest) } } }
+                  cache_producer: { status: $producer_st, tag: "resource.agentic_tools.cache_producer", uv_archive_objects: n($uv_objs), uvx_latest_procs: n($uvx_latest),
+                                    uvx_latest_producers: ($uvx_producers | if . == "" then null else split(",") end) } } }
     }
   },
   burn_down: $burn
