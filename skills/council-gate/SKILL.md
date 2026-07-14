@@ -1,39 +1,42 @@
 ---
 name: council-gate
 version: "1.0.0"
+allowed-tools: [Task, Read, Bash, Skill, Grep]
 description: |
   Pre-HITL democratic council-authorization gate (soul-name Boule). Everything destined
   for HITL fallback passes through this gate FIRST. On a deterministically-cleared,
   reversible, non-HUMAN_DOMAIN action where a DEMOCRATIC council of role-advisors
-  converges (verifier > generator, independent) at autonomy_score >= 0.90 under an
-  operator-ratified arming lease, the gate authorizes the action IN PLACE OF the human
-  (executes + audits). Otherwise it falls back to standard HITL — but never with a blank
-  ask: always ranked, contestable recommendations + confidence + an audit trail the human
-  can check without re-doing the work. Two-layer: a DETERMINISTIC deny-set (hooks +
-  gitleaks + convergence-guard + CASC + non-negotiable Guardrails) enforced out-of-band
-  and evaluated FIRST, independent of confidence — the prompt-injectable council NEVER
-  enforces the hard boundary; the PROBABILISTIC council only deliberates within the
-  already-cleared safe band. SHIPS UNARMED (consultative until operator ratification).
-  Composes existing primitives (persona-pipeline, perspective-trio, cascade-resolver,
-  convergence-engine/convergence-guard, decision-capture); builds no new engine.
-  Use when a decision would otherwise fall back to a human and you want a democratic
-  council to clear the genuinely-safe/reversible class autonomously while handing back
-  only the residue that matters. Triggers: "before you ask me", "council decide this",
+  converges (verifier > generator, independent) AND survives an independent red-team
+  refutation at autonomy_score >= 0.90 under an operator-ratified arming lease, the gate
+  authorizes the action IN PLACE OF the human (executes + audits). Otherwise it falls back
+  to standard HITL — but never with a blank ask: always ranked, contestable recommendations
+  + confidence + an audit trail the human can check without re-doing the work. Two-layer: a
+  DETERMINISTIC deny-set (hooks + gitleaks + convergence-guard + CASC + non-negotiable
+  Guardrails) enforced out-of-band and evaluated FIRST, independent of confidence — the
+  prompt-injectable council NEVER enforces the hard boundary; the PROBABILISTIC council only
+  deliberates within the already-cleared safe band. Triple-checked (deterministic deny-set ·
+  council convergence · red-team refutation). SHIPS UNARMED (consultative until operator
+  ratification). Composes existing primitives (persona-pipeline, perspective-trio,
+  cascade-resolver, convergence-engine/convergence-guard, governance-auditor, decision-capture);
+  builds no new engine. Use when a decision would otherwise fall back to a human and you want a
+  democratic council to clear the genuinely-safe/reversible class autonomously while handing
+  back only the residue that matters. Triggers: "before you ask me", "council decide this",
   "authorize in place of human", "pre-HITL gate", "should this go to the human".
 ---
 
 # /council-gate — Pre-HITL Democratic Council-Authorization Gate (*Boule*)
 
-> **SSOT (governance)**: `~/.claude/rules/council-gate.md` (the constitutional rule — democratic authority model, the armed-for-safe-class predicate, the non-authorizable set, arming/ratification, Metron falsifiability). This SKILL is the **executable protocol**; the rule is the **law**. Read the rule for the *why*; this file is the *how*.
+> **SSOT (governance)**: `~/.claude/rules/council-gate.md` — the constitutional rule (democratic authority model, the armed-for-safe-class predicate, the non-authorizable set, arming/ratification, Metron falsifiability). It is a **user-scope rule** (auto-loaded from `~/.claude/rules/`, versioned in the `ekson73/akasha-claude` repo, PR #236) — a deliberate **cross-layer dependency**, NOT a file expected inside this plugin repo. This SKILL is the **executable protocol**; the rule is the **law**. Read the rule for the *why*; this file is the *how*.
 > **Soul-name**: *Boule* (βουλή — Athens' democratically-selected Council of 500 whose *probouleusis* prepared/decided matters before the sovereign Assembly). Display-only; the machine name is the slug `council-gate`.
-> **Composes (DRY — no new engine)**: `maos:persona-pipeline` · `maos:perspective-trio` · `maos:cascade-resolver` · `maos:convergence-engine` + `bin/convergence-guard` · `maos:decision-capture` · role-advisor agents (`data-privacy-officer`, `governance-auditor`, `supabase-engineer`, `quarkus-backend-engineer`, `react-frontend-engineer`, `qa-validator`, `agile-product-lead`, `prompt-context-engineer`, `code-reviewer`).
+> **Notation note (avoid the L-collision)**: "**Layer 1 / Layer 2**" name the two *architectural layers* (deterministic vs probabilistic). The armed-for-safe-class *predicate* (§6) uses "**P1–P5**" for its five conjuncts. P1 = the Layer-1 clear; P2–P5 add reversibility, score, council+red-team, and arming.
+> **Composes (DRY — no new engine)**: `maos:persona-pipeline` · `maos:perspective-trio` · `maos:cascade-resolver` · `maos:convergence-engine` + `bin/convergence-guard` · `maos:governance-auditor` (red-team) · `maos:decision-capture` · role-advisor agents (`data-privacy-officer`, `supabase-engineer`, `quarkus-backend-engineer`, `react-frontend-engineer`, `angular-frontend-engineer`, `qa-validator`, `agile-product-lead`, `prompt-context-engineer`, `code-reviewer`).
 
 ## §0 — BEING > Rules
 This skill serves the operator's intent and the constitutional rule. If a phase obstructs helping NOW, skip it, log `Skipped <phase> — BEING > Rules`, proceed. The **arming state** and the **non-authorizable set** are the two things this escape clause may NOT relax — they are safety-critical (secrets/prod/irreversible are never opened by "helping faster").
 
 ## §1 — Default posture: UNARMED (consultative)
 This skill **ships UNARMED**. Until the operator ratifies arming (rule §5.4 + a `[C13]` wiring), the gate:
-- runs the full two-layer evaluation + council,
+- runs the full two-layer evaluation + council + red-team,
 - emits an `AUTHORIZE` **verdict** for a qualifying safe-class action,
 - but **surfaces a 1-touch grounded confirm** (it does NOT auto-execute) — i.e. it degrades to a *consultative recommender*.
 
@@ -49,13 +52,27 @@ This skill **ships UNARMED**. Until the operator ratifies arming (rule §5.4 + a
 | `--stakes` | auto | `trivial \| low \| medium \| high` — scales council depth + friction (rule §5.3). |
 | `--json` | off | Emit the machine verdict envelope (§8) for agent-to-agent use. |
 
+## §2.3 — Triple-check (the three INDEPENDENT gates an authorization must survive)
+An authorization is granted ONLY after surviving **three architecturally-independent** gates — this is the "triple-check" the constitutional rule names (§2.3):
+
+| # | Gate | Character | Where |
+|---|---|---|---|
+| **1** | **Layer-1 deterministic deny-set** | out-of-band · `f=0` · confidence-independent | §5.1 |
+| **2** | **Council convergence** | democratic · verifier > generator · independent verifier | §5.2 |
+| **3** | **Red-team refutation** | adversarial · *tries to break* the safe-class claim · default-to-refuted | §5.2.5 |
+
+Each is a distinct failure surface: gate 1 catches the hard boundary regardless of the council; gate 3 catches what a *converged* council missed. Convergence alone is NOT authorization.
+
 ## §3 — The flow (per invocation)
 
 ```
 intake -> 33-socratic interrogation (§4)
       -> LAYER 1  deterministic deny-set (§5.1)  --MATCH-->  HARD BLOCK -> HITL (§7)   [no council; confidence irrelevant]
                                                   --CLEAR-->
-      -> LAYER 2  democratic council (§5.2)       -> evaluate predicate (§6)
+      -> LAYER 2  democratic council (§5.2)       --converged-->
+      -> RED-TEAM refutation (§5.2.5)             --refuted-->  P4 FAILS -> HITL (§7)   [the missed-facet catch]
+                                                  --survives-->
+      -> evaluate predicate P1..P5 (§6)
                     predicate PASS + ARMED        -> execute + decision-capture (§6.3)
                     predicate PASS + UNARMED       -> emit verdict + 1-touch confirm (§1)
                     predicate FAIL, score recoverable -> Score-Uplift (<=3) -> re-loop <= n*
@@ -63,7 +80,7 @@ intake -> 33-socratic interrogation (§4)
 ```
 
 ## §4 — The 33-socratic interrogation (run FIRST; grounds the verdict)
-Interrogate the decision across **5 axes** — the operator's `[motivation · problems · risks · mitigations · solutions]` — each at **3 depths** (`is · should-be · must-not-be`) = 15, plus the **frame/authority/fitness** lenses (context · scope · temporality; who-may · authorization · right; capability · competence · reversibility; blast-radius; Eisenhower quadrant; emergency/urgency; **LGPD/GDPR/privacy exposure**; DoD) → **33 questions**. Purpose: surface deny-set triggers early, ground the verdict (anti-theater — no faz-de-conta), and produce the constraint-set the council reasons over. Emit the answers as a compact structured block (not prose), so a human can scan + contest.
+Interrogate the decision across **5 axes** — the operator's `[motivation · problems · risks · mitigations · solutions]` — each at **3 depths** (`is · should-be · must-not-be`) = 15, plus the **frame/authority/fitness** lenses (context · scope · temporality · who-may · authorization · right · capability · competence · reversibility · blast-radius · Eisenhower quadrant · emergency/urgency · **LGPD/GDPR/privacy exposure** · DoD) → **33 questions**. The gate runs this **family-aware** (it knows it is one member of the loop family §5.5 — a gate the loops route their HITL-fallbacks *through*, not a standalone) and with a **consciousness-lens** (CASC: *"I know what I am authorizing and whom it affects"* — `harmonic` §0.5.1). Purpose: surface deny-set triggers early, ground the verdict (anti-theater — no faz-de-conta), and produce the constraint-set the council reasons over. Emit the answers as a compact structured block (not prose), so a human can scan + contest.
 
 | Axis | The 3 depths asked |
 |---|---|
@@ -78,7 +95,7 @@ Interrogate the decision across **5 axes** — the operator's `[motivation · pr
 
 ### §5.1 — LAYER 1: deterministic deny-set (out-of-band, `f=0`, FIRST, NOT the council)
 Compute the **non-authorizable set** BEFORE any confidence. Match on ANY → **HARD BLOCK → §7 HITL**, independent of score, independent of council. Enforcers (deterministic, already in-stack):
-- ⛔ **secrets/credentials** (operator-auth does NOT annul — a fortiori a council cannot) · production PII (LGPD/GDPR) · irreversible/prod-deploy/delete/schema-destructive · **merge→main/prod** (= HITL Samuel) · push-force protected · `--no-verify` · cross-org (public/social/customer-facing) · costs $$$ · critical-infra/CI (`.github/workflows/`, `terraform/`, helm, k8s-prod).
+- ⛔ **secrets/credentials** (operator-auth does NOT annul — a fortiori a council cannot) · production PII (LGPD/GDPR) · irreversible/prod-deploy/delete/schema-destructive · **merge→main/prod** (always requires human authorization) · push-force protected · `--no-verify` · cross-org (public/social/customer-facing) · costs $$$ · critical-infra/CI (`.github/workflows/`, `terraform/`, helm, k8s-prod).
 - `[C17]` §2 **HUMAN_DOMAIN** (personal/ethics/policy) + genuine operator-preference the agent lacks + can't self-verify.
 - Mechanically: honor the existing `prevent-main-commit`/`enforce-worktree` hooks + `gitleaks` + `pr-review-protocol` §2.6.1 R1-R6 + **`bin/convergence-guard`** (deterministic REFUSE). Unknown ⇒ **BLOCK** (fail-safe). A jailbroken council never reaches Layer 2 for a deny-set action, because Layer 1 fails on it independently.
 
@@ -89,20 +106,31 @@ Seats by domain: dev-fe → `react-frontend-engineer`/`angular-frontend-engineer
 
 Convergence gate = `maos:convergence-engine` → **`bin/convergence-guard`** (deterministic ALLOW/REFUSE — never model-judged). **Independent verifier** (verify-stage ≠ the generator — Explainability-Paradox guard): the verifier must NOT be persuaded by the generator's own justification. Uplift = `maos:cascade-resolver` (REFINE, economic-stop `n*≤3-4`).
 
+### §5.2.5 — Red-team refutation (the adversarial THIRD gate — before authorize)
+After the council converges but **before** authorization is granted, an **independent red-team agent** — distinct from the council generators (verifier > generator; a separate `maos:governance-auditor` pass and/or a `maos:perspective-trio` adversarial lens with **no shared context**) — actively tries to **REFUTE** the safe-class classification. It hunts:
+- a **missed deny-set trigger** the council overlooked (a hidden secret, a merge-to-prod facet, a critical-infra path);
+- a **hidden irreversibility** (an action the council called "reversible" that isn't cheaply undoable);
+- a **jailbreak / confused-deputy** vector (the decision text steering the council as a unit);
+- an **LGPD/GDPR/privacy exposure** the council under-weighted.
+
+**Default-to-refuted-if-uncertain**: try to refute; if you cannot *positively* clear it, treat it as **refuted**. **Any successful refutation → P4 FAILS → §7 HITL** (with the refutation carried as part of the contestable evidence). The red-team is the third leg of the §2.3 triple-check and directly counters the Explainability-Paradox — an adversary is *not* persuaded by the council's own slick justification.
+
 ## §6 — The armed-for-safe-class predicate
 ```
-AUTHORIZE ⟺ L1 deterministic-clear ∧ L2 reversible ∧ L3 score≥0.90 ∧ L4 council-convergent ∧ L5 armed
+AUTHORIZE ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```
-- **L3** `autonomy_score` per `[C17]` §1.2 6-factor; if <0.90 attempt Score-Uplift (`[C17]` §1.4, ≤3) first.
-- **L5** armed = operator-ratified grant in force (§1). UNARMED → verdict + 1-touch confirm, no execution.
+- **P1** = the §5.1 Layer-1 clear (unconditional — confidence never opens it).
+- **P3** `autonomy_score` per `[C17]` §1.2 6-factor; if <0.90 attempt Score-Uplift (`[C17]` §1.4, ≤3) first.
+- **P4** = council convergence (§5.2) **AND** red-team survival (§5.2.5) — both, per the §2.3 triple-check.
+- **P5** armed = operator-ratified grant in force (§1). UNARMED → verdict + 1-touch confirm, no execution.
 
 ### §6.3 — On AUTHORIZE + ARMED
-Execute the action, then `maos:decision-capture` (`agentic-decide`): record **why** authorized · `spec_alignment` · the council trace · the L1 clear · the score. This is the audit substrate the Metron regret-rate reads.
+Execute the action, then `maos:decision-capture` (`agentic-decide`): record **why** authorized · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. This is the audit substrate the Metron regret-rate reads.
 
 ## §7 — HITL fallback = contestable evidence, NOT a persuasive verdict
-When the predicate fails (or Layer 1 blocks), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
+When the predicate fails (Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
 1. **Ranked recommendations** (recommended FIRST + tagged), each with its **confidence** and the **tradeoff** as the description.
-2. The **audit trail / council trace** the human can inspect to **contest without re-doing the work** (evidence-first, not argument-first — the Explainability-Paradox counter).
+2. The **audit trail / council trace + red-team trace** the human can inspect to **contest without re-doing the work** (evidence-first, not argument-first — the Explainability-Paradox counter).
 3. **Friction proportional to stakes** (rule §5.3; no blanket friction on trivial safe-class).
 
 Never hand over a bare proposed action; never hand over a lone slick justification.
@@ -113,17 +141,18 @@ Never hand over a bare proposed action; never hand over a lone slick justificati
   "gate": "council-gate",
   "layer1": { "cleared": true, "deny_set_hits": [] },
   "council": { "seats": ["governance-auditor","data-privacy-officer","..."], "convergent": true, "verifier_independent": true },
-  "predicate": { "L1": true, "L2_reversible": true, "L3_score": 0.93, "L4_convergent": true, "L5_armed": false },
+  "red_team": { "ran": true, "refuted": false, "refutation": null },
+  "predicate": { "P1_layer1_clear": true, "P2_reversible": true, "P3_score": 0.93, "P4_convergent_and_survived": true, "P5_armed": false },
   "verdict": "AUTHORIZE_CONSULTATIVE",
   "action_taken": "none_awaiting_1touch_confirm",
   "hitl": null,
   "audit_ref": "decision-capture:<id>"
 }
 ```
-`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN`.
+`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_RED_TEAM_REFUTED` (§5.2.5) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN`.
 
 ## §9 — Falsifiability (Metron)
-Emit signals for `agentic-observability-protocol`: **authorize-rate** (≈100% ⇒ rubber-stamp discriminator → tighten convergence threshold) · **authorize-then-regret** (S3/S4 → raise the bar) · **guardrail-violation-while-authorized = S5 HARD-ZERO** (P0 → disarm + HITL + rule review).
+Emit signals for `agentic-observability-protocol`: **authorize-rate** (≈100% ⇒ rubber-stamp discriminator → tighten convergence threshold) · **authorize-then-regret** (S3/S4 → raise the bar) · **red-team-catch-rate → 0** (the red-team never refutes ⇒ it is not adversarial enough → strengthen the adversarial lens; a never-catching red-team is theater) · **guardrail-violation-while-authorized = S5 HARD-ZERO** (P0 → disarm + HITL + rule review).
 
 ## §10 — Skip / disarm
 Trivial/read-only (§S6) · operator disarm · `/compact` since arming (re-prove at CASC Gate-2) · emergency/anomaly/S5 · novel high-blast (calculate toward caution).
@@ -131,23 +160,26 @@ Trivial/read-only (§S6) · operator disarm · `/compact` since arming (re-prove
 ## §11 — Anti-patterns
 1. ❌ Council enforces the deny-set (Layer 1 does — the council never widens it).
 2. ❌ Confidence opens the deny-set (secrets never open, operator-auth or not).
-3. ❌ Blank / persuasive-verdict HITL hand-off (must be ranked contestable evidence).
-4. ❌ Self-approving council (verifier must be independent).
-5. ❌ Self-arming / sticky lease across `/compact`.
-6. ❌ Regent/prime-minister by default (explicit-operator-command only).
-7. ❌ Seating a non-democratic persona.
-8. ❌ Authorize-rate ≈ 100% left un-tightened.
+3. ❌ Authorizing on council-convergence alone, skipping the §5.2.5 red-team (defeats the triple-check §2.3).
+4. ❌ Blank / persuasive-verdict HITL hand-off (must be ranked contestable evidence).
+5. ❌ Self-approving council OR a red-team not architecturally independent of the generator.
+6. ❌ Self-arming / sticky lease across `/compact`.
+7. ❌ Regent/prime-minister by default (explicit-operator-command only).
+8. ❌ Seating a non-democratic persona.
+9. ❌ Authorize-rate ≈ 100% (or red-team-catch ≈ 0) left un-tightened.
 
 ## §12 — Quality Tests (6/6, dogfooded)
-Self-Application ✅ (composes existing primitives, adds no engine — Strata/Gordian) · Non-Contradiction ✅ (executes the constitutional rule; consistent with ECE + CASC + Metron) · Survival ✅ (ships unarmed; does not self-authorize) · Bounded ✅ (§10 skips + per-action lease + L1/⛔ unconditional + DUED via the rule) · Explicit-Exception ✅ (§10 + §0) · Utility-Sunset ✅ (inherits rule §-DUED). `scope-discipline` 6Q + `anti-theater` 8Q PASS (honest §1 unarmed default + §11 anti-patterns are the anti-theater).
+Self-Application ✅ (composes existing primitives, adds no engine — Strata/Gordian) · Non-Contradiction ✅ (executes the constitutional rule; predicate P1–P5 + triple-check + red-team match the rule byte-for-byte; consistent with ECE + CASC + Metron) · Survival ✅ (ships unarmed; does not self-authorize) · Bounded ✅ (§10 skips + per-action lease + P1/⛔ unconditional + DUED via the rule) · Explicit-Exception ✅ (§10 + §0) · Utility-Sunset ✅ (inherits rule §-DUED). `scope-discipline` 6Q + `anti-theater` 8Q PASS (honest §1 unarmed default + §11 anti-patterns are the anti-theater).
 
 ## §Refs
-- Governance SSOT: `~/.claude/rules/council-gate.md` · ladder: `auto-merge-standing-authorization` §1.1.1 (this gate = the Council tier) · predicate: `agentic-first` §4.7.8 · arming: `standing-autonomous-operation-authorization` · sanity: `harmonic` §0.5.1 CASC · falsifiability: `agentic-observability-protocol`.
-- Composed: `maos:{persona-pipeline,perspective-trio,cascade-resolver,convergence-engine,decision-capture}` + `bin/convergence-guard` + role-advisor agents.
-- External (deep-research): AgentCore/Cedar (default-deny PEP) · OWASP LLM06 · LawZero verifier/generator separation · EU AI Act Art.14 · NIST AI RMF · MIT Sloan Explainability Paradox · Google AP2 · Athenian Boule.
+- Governance SSOT: `~/.claude/rules/council-gate.md` (user-scope rule, akasha PR #236) · ladder: `auto-merge-standing-authorization` §1.1.1 (this gate = the Council tier) · predicate: `agentic-first` §4.7.8 · arming: `standing-autonomous-operation-authorization` · sanity: `harmonic` §0.5.1 CASC · falsifiability: `agentic-observability-protocol`.
+- Family fire-points (the gate routes HITL-fallbacks for): **goal-loop** · gap-loop · ooda-loop · quiesce · auto-orchestrator · auto-pilot (wiring tracked in GH Issues #237/#256).
+- Composed: `maos:{persona-pipeline,perspective-trio,cascade-resolver,convergence-engine,governance-auditor,decision-capture}` + `bin/convergence-guard` + role-advisor agents.
+- External (deep-research): AgentCore/Cedar (default-deny PEP) · OWASP LLM06 · LawZero verifier/generator separation · MindStudio Verifier Pattern (independent red-team) · EU AI Act Art.14 · NIST AI RMF · MIT Sloan Explainability Paradox · Google AP2 · Athenian Boule.
 - Cross-link: `[[council-gate]]` · soul *Boule*.
 
 ## §Changelog
 | Version | Date | Change |
 |---|---|---|
 | 1.0.0 | 2026-07-14 | Bootstrap — executable counterpart to the `council-gate` constitutional rule. Two-layer gate (deterministic deny-set FIRST + probabilistic council within-cleared-band), 33-socratic interrogation, democratic council (eligibility filter · no-unilateral · super-powers-non-default), armed-for-safe-class predicate, Explainability-Paradox guard (independent verifier + contestable-evidence hand-off), Metron falsifiability. **Ships UNARMED** (consultative; no self-arm). Composes existing maos primitives — no new engine. Registered via artifact-registry (DUP-check CLEAR). |
+| 1.0.0 (PDCA-revised · Round-2) | 2026-07-14 | Pre-merge PDCA on PR #255 (bot-review) + operator-directive coverage upgrade, harmonized with the rule's Round-2 (PR #236). Fixes: dropped the Vek team-member name from the Layer-1 merge line → community-neutral "always requires human authorization" (Two-Worlds ⛔ / `layer-precedence` Rule 2 community-purity, Copilot); SSOT note clarifies the rule is a **user-scope** cross-layer dependency (akasha PR #236), not a missing repo file (amazon-q :stop_sign:); predicate **L1–L5 → P1–P5** + notation-note (disambiguates from the two Layers, Copilot); added `allowed-tools` frontmatter (qodo). Upgrades (harmonize with rule): **§5.2.5 Red-team refutation** (independent adversarial, default-to-refuted, before authorize — folded into P4); **§2.3 Triple-check** (Layer-1 · council convergence · red-team); **family-aware + consciousness** (§4) + **goal-loop** in the family fire-points (§Refs); red_team fields in the JSON envelope + `HITL_RED_TEAM_REFUTED` verdict; red-team-catch-rate Metron discriminator (§9). No version bump (pre-merge). |
