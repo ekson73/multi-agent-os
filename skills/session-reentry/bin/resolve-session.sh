@@ -22,7 +22,7 @@
 # License: MIT (matches multi-agent-os repo LICENSE).
 set -eu
 
-ARG=""; ROOT="${CLAUDE_SESSION_ROOT:-$HOME/.claude/projects}"
+ARG=""; ROOT="${CLAUDE_SESSION_ROOT:-${HOME:-}/.claude/projects}"  # ${HOME:-} : never trip set -u if HOME unset
 while [ $# -gt 0 ]; do
   case "$1" in
     --root)    [ $# -ge 2 ] || { echo "[resolve-session] --root needs a dir value" >&2; exit 2; }; ROOT="$2"; shift 2 ;;
@@ -39,6 +39,14 @@ if [ -e "$ARG" ]; then printf '%s\n' "$ARG"; exit 0; fi
 # 2) resolve <id> → artifact under ROOT. Prefer an exact <id>.jsonl; else the
 #    lexically-first <id>*.jsonl (deterministic — not mtime, which drifts).
 [ -d "$ROOT" ] || { echo "[resolve-session] root not found: $ROOT (pass --root)" >&2; exit 2; }
+# Reject glob metacharacters in the id: `find -name` applies its OWN glob even when
+# the value is shell-quoted, so an id with * ? or [ could match the WRONG artifact and
+# resolve to it silently (worse than an honest fail). A real session id has none →
+# treat it as invalid (faithful resolution, anti-theater R4). (Not reached for an
+# already-existing path — that passed through above.)
+case "$ARG" in
+  *[*?[]*) echo "[resolve-session] invalid id (glob metachars *?[ ): '$ARG'" >&2; exit 2 ;;
+esac
 exact="$(find "$ROOT" -type f -name "${ARG}.jsonl" 2>/dev/null | LC_ALL=C sort | head -1)"
 if [ -n "$exact" ]; then printf '%s\n' "$exact"; exit 0; fi
 match="$(find "$ROOT" -type f -name "${ARG}*.jsonl" 2>/dev/null | LC_ALL=C sort | head -1)"

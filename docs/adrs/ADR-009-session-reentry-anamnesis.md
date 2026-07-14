@@ -49,7 +49,7 @@ Rejected alternatives: **(a)** `morning-briefing --mode=reentry` extension — m
 
 ### Flags (spec)
 
-`--session <id|path>` (target; default = current) · `--mind self|human|agent` (audience register) · `--depth L1|L2|L3|full` (progressive layer; default L2, expand-on-demand) · `--media text|audio-voice|graphic` (default text; audio/graphic opt-in) · `--scope current|down|sideways|up|forward` (CPT Compass). Any-mind.
+`--session <id|path>` (target; default = current) · `--mind self|human|agent` (audience register) · `--depth auto|L1|L2|L3|full` (progressive layer; default `auto` = dormancy band, expand-on-demand) · `--media text|audio-voice|graphic` (default text; audio/graphic opt-in) · `--scope current|down|sideways|up|forward` (CPT Compass). Any-mind.
 
 ### Home & family
 
@@ -81,7 +81,9 @@ are all **composed**.
   (`<root>/<encoded-cwd>/<id>.jsonl`; `--root` overridable via flag or `$CLAUDE_SESSION_ROOT`).
   An existing path passes through; no match → non-zero + honest message (anti-theater R4
   — never a fabricated path). Deterministic (exact-match preferred, then `LC_ALL=C`
-  lexical). INGEST now feeds `dormancy-score.sh` the resolved path.
+  lexical). Hardened: `set -u`-safe when `HOME` is unset (`${HOME:-}`), and rejects
+  glob-metachar ids (`*?[`) — `find -name` glob would otherwise silently resolve the
+  WRONG artifact. INGEST now feeds `dormancy-score.sh` the resolved path.
 - **any-mind register**: `--mind` → `opera-debrief --audience` — `self`/`human` →
   `--audience human` (warm; `self` at lower `--intensity`), `agent` → `--audience agent`
   (machine-economy JSON-RPC digest). RE-ATTUNE delegates the register switch to
@@ -93,7 +95,8 @@ are all **composed**.
   secondary Compass menu). Composes content-recast/opera-debrief `--intensity` + act-count.
 - **Acceptance**: `--session <id>` resolves a real dormant session · `--mind agent`
   yields the JSON-RPC digest via opera-debrief · `--depth`/band varies layer count ·
-  smoke green (resolver: passthrough · exact-over-prefix · not-found/usage → non-zero).
+  smoke green (resolver: passthrough · exact-over-prefix · not-found/usage/bad-root ·
+  HOME-unset-safe · glob-metachar-id rejected → non-zero).
 
 ### M3 — audio modality  *(SPEC — ready for build)*
 - **Composition (a passthrough, not new audio machinery):** `session-reentry --media

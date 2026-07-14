@@ -72,7 +72,7 @@ thin deterministic helpers — the dormancy score + the id→path resolver).
 |---|---|---|
 | `--session <id\|path>` | current | target thread; an **id** resolves via `bin/resolve-session.sh` (M2) |
 | `--mind self\|human\|agent` | `self` | audience register → `opera-debrief --audience` (M2) |
-| `--depth L1\|L2\|L3\|full` | `L2` | progressive layer; default = the dormancy band; expand-on-demand |
+| `--depth auto\|L1\|L2\|L3\|full` | `auto` | progressive layer; `auto` = the dormancy band; expand-on-demand |
 | `--media text\|audio-voice\|graphic` | `text` | delivery modality (audio/graphic opt-in; **M3/M4**) |
 | `--scope current\|down\|sideways\|up\|forward` | `current` | CPT Compass verb (§9) |
 

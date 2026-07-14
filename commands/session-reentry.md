@@ -31,7 +31,8 @@ un-forgetting* — the dual of the amnesia every fresh agent wakes into).
                  [--scope current|down|sideways|up|forward]
 ```
 
-All flags optional — bare `/session-reentry` re-enters the current session at L2.
+All flags optional — bare `/session-reentry` re-enters the current session at the
+dormancy-band depth (`--depth auto`).
 
 ## Flags
 
@@ -39,7 +40,7 @@ All flags optional — bare `/session-reentry` re-enters the current session at 
 |---|---|---|
 | `--session <id\|path>` | current | target thread; an id resolves via `bin/resolve-session.sh` |
 | `--mind self\|human\|agent` | `self` | audience register → `opera-debrief --audience` |
-| `--depth L1\|L2\|L3\|full` | `L2` | progressive layer (expand-on-demand) |
+| `--depth auto\|L1\|L2\|L3\|full` | `auto` | progressive layer; `auto` = the dormancy band; expand-on-demand |
 | `--media text\|audio-voice\|graphic` | `text` | delivery modality (audio/graphic = M3/M4) |
 | `--scope current\|down\|sideways\|up\|forward` | `current` | CPT Compass verb (§9) |
 

@@ -53,6 +53,10 @@ check "id → exact .jsonl (prefix loses)" "enc-cwd/abc123.jsonl" "$("$RES" abc1
 "$RES" 2>/dev/null && { echo "  FAIL resolver missing-arg should exit non-zero"; fail=1; } || echo "  ok   resolver missing arg → non-zero"
 "$RES" abc123 --root 2>/dev/null && { echo "  FAIL resolver --root w/o value should exit non-zero"; fail=1; } || echo "  ok   resolver --root w/o value → non-zero"
 "$RES" nosuchid --root /no/such/root 2>/dev/null && { echo "  FAIL bad root should exit non-zero"; fail=1; } || echo "  ok   bad root → non-zero"
+# Q2 (Qodo): HOME unset must NOT abort on set -u before --root is honored.
+check "HOME unset + --root still resolves" "enc-cwd/abc123.jsonl" "$(env -u HOME "$RES" abc123 --root "$FIX")"
+# Q3 (Qodo): a glob-metachar id must be rejected (find -name glob → wrong-artifact risk).
+"$RES" 'abc*' --root "$FIX" 2>/dev/null && { echo "  FAIL glob-metachar id should be rejected"; fail=1; } || echo "  ok   glob id 'abc*' → non-zero"
 
 echo "== SKILL.md frontmatter + Goldilocks size =="
 head -1 "$SKILL" | grep -q '^---$'            && echo "  ok   frontmatter opens" || { echo "  FAIL no frontmatter"; fail=1; }
