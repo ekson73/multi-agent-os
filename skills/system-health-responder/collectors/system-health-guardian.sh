@@ -45,16 +45,18 @@ STDOUT=0
 INTERVAL_SEC="${HEALTH_INTERVAL_SEC:-600}"   # informational; launchd owns the cadence
 
 # ── Thresholds (env-overridable) ──────────────────────────────────────────────
-CPU_LOAD_WARN_RATIO="${CPU_LOAD_WARN_RATIO:-0.90}"   # load1 / ncpu
-CPU_LOAD_CRIT_RATIO="${CPU_LOAD_CRIT_RATIO:-1.50}"
+CPU_LOAD_WARN_RATIO="${CPU_LOAD_WARN_RATIO:-0.90}"   # load1/ncpu → early WARN (spiky-OK, 1-min)
+CPU_LOAD_CRIT_RATIO="${CPU_LOAD_CRIT_RATIO:-1.50}"   # load5/ncpu → CRIT (SUSTAINED, 5-min) — round-4 false-crit fix
 MEM_AVAIL_WARN_PCT="${MEM_AVAIL_WARN_PCT:-15}"
 MEM_AVAIL_CRIT_PCT="${MEM_AVAIL_CRIT_PCT:-8}"
 DISK_FREE_WARN_GB="${DISK_FREE_WARN_GB:-15}"
 DISK_FREE_CRIT_GB="${DISK_FREE_CRIT_GB:-8}"
 PROC_CPU_WARN="${PROC_CPU_WARN:-70}"                 # single-proc %cpu (feeds responder renice target)
 PROC_CPU_CRIT="${PROC_CPU_CRIT:-90}"
-XPROTECT_STALE_WARN_DAYS="${XPROTECT_STALE_WARN_DAYS:-30}"
-XPROTECT_STALE_CRIT_DAYS="${XPROTECT_STALE_CRIT_DAYS:-60}"
+XPROTECT_STALE_WARN_DAYS="${XPROTECT_STALE_WARN_DAYS:-30}"      # auto-update OFF → WARN at Nd (the real risk)
+XPROTECT_STALE_CRIT_DAYS="${XPROTECT_STALE_CRIT_DAYS:-60}"      # auto-update OFF → CRIT at Nd
+XPROTECT_SELFHEAL_WARN_DAYS="${XPROTECT_SELFHEAL_WARN_DAYS:-60}" # auto-update ON → only >Nd WARNs, never crit (self-healing; Apple cadence)
+SWUPDATE="${SWUPDATE:-/usr/sbin/softwareupdate}"                 # abs path (launchd minimal PATH); read-only --schedule
 
 # jq / yq (mise installs — resolve absolute for launchd's minimal PATH)
 JQ="$(command -v jq || echo /Users/$USER/.local/share/mise/installs/jq/1.7/jq)"
@@ -68,6 +70,23 @@ worst() { local w=ok; for s in "$@"; do case "$s" in crit) echo crit; return;; w
 st_hi() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v>=c)print"crit"; else if(v>=w)print"warn"; else print"ok"}'; }
 # status_from_num LOWER-is-worse: st_lo VALUE WARN CRIT  (lower = worse; e.g. free space)
 st_lo() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v<=c)print"crit"; else if(v<=w)print"warn"; else print"ok"}'; }
+
+# ── round-4 pure decision cores (unit-testable; mirror compute_burndown pattern) ──
+# cpu_load_status: WARN keyed on load1 (spiky 1-min, early); CRIT keyed on load5 (sustained 5-min).
+# A transient 1-min burst (IDE compile / indexer) WARNs but NEVER crits — the round-4 false-crit fix.
+cpu_load_status() { # $1=load1 $2=load5 $3=ncpu $4=warn_ratio $5=crit_ratio
+  local warn crit s1 s5
+  warn="$(awk -v r="$4" -v n="$3" 'BEGIN{printf "%.4f", r*n}')"
+  crit="$(awk -v r="$5" -v n="$3" 'BEGIN{printf "%.4f", r*n}')"
+  s1="$(st_hi "$1" "$warn" "999999")"   # load1 → WARN band only (crit unreachable)
+  s5="$(st_hi "$2" "$crit" "$crit")"    # load5 → CRIT band only (warn==crit threshold)
+  worst "$s1" "$s5"
+}
+# xprotect_status: age-alone conflates "stale" with "Apple hasn't shipped". Gate on the auto-update
+# channel — ON ⇒ self-healing (caps at WARN past a generous window, never crit); OFF ⇒ the real risk (full escalation).
+xprotect_status() { # $1=age_days $2=autoupdate(on|off) $3=warn_days $4=crit_days $5=selfheal_warn_days
+  if [ "$2" = "on" ]; then st_hi "$1" "$5" "999999"; else st_hi "$1" "$3" "$4"; fi
+}
 
 # ── BURN-DOWN forecast (EKO-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
 # The PROACTIVE half of the guardian: predicts days-until-DISK_FREE_WARN_GB from the recent NATURAL drain
@@ -125,14 +144,20 @@ EOF
 # testable entrypoint: `--burndown` runs ONLY the forecast (no probing, no contract write) — the unit test
 # (bin/burndown-test.sh) drives this with a synthetic DISK_GUARDIAN_LOG (no awk duplication).
 if [ "${1:-}" = "--burndown" ]; then compute_burndown; echo; exit 0; fi
+# testable entrypoints for the round-4 pure decision cores (bin/threshold-test.sh drives these — no logic dup):
+if [ "${1:-}" = "--cpu-load-status" ]; then cpu_load_status "${2:-0}" "${3:-0}" "${4:-1}" "${5:-0.90}" "${6:-1.50}"; exit 0; fi
+if [ "${1:-}" = "--xprotect-status" ]; then xprotect_status "${2:-0}" "${3:-on}" "${4:-30}" "${5:-60}" "${6:-60}"; exit 0; fi
 
 # ── CPU ───────────────────────────────────────────────────────────────────────
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
-LOAD1="$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}')"; LOAD1="${LOAD1:-0}"
+# vm.loadavg → "{ 1.23 4.56 7.89 }" (1/5/15-min averages): $2=load1 (spiky), $3=load5 (sustained).
+LOADAVG="$(sysctl -n vm.loadavg 2>/dev/null)"
+LOAD1="$(awk '{print $2}' <<<"$LOADAVG")"; LOAD1="${LOAD1:-0}"
+LOAD5="$(awk '{print $3}' <<<"$LOADAVG")"; LOAD5="${LOAD5:-$LOAD1}"
 LOAD_RATIO="$(awk -v l="$LOAD1" -v n="$NCPU" 'BEGIN{printf "%.2f", (n>0)?l/n:l}')"
-CPU_WARN_LOAD="$(awk -v r="$CPU_LOAD_WARN_RATIO" -v n="$NCPU" 'BEGIN{printf "%.2f", r*n}')"
-CPU_CRIT_LOAD="$(awk -v r="$CPU_LOAD_CRIT_RATIO" -v n="$NCPU" 'BEGIN{printf "%.2f", r*n}')"
-CPU_LOAD_ST="$(st_hi "$LOAD1" "$CPU_WARN_LOAD" "$CPU_CRIT_LOAD")"
+LOAD5_RATIO="$(awk -v l="$LOAD5" -v n="$NCPU" 'BEGIN{printf "%.2f", (n>0)?l/n:l}')"
+# WARN on load1 (early), CRIT only on SUSTAINED load5 — a 1-min burst warns, never crits (round-4).
+CPU_LOAD_ST="$(cpu_load_status "$LOAD1" "$LOAD5" "$NCPU" "$CPU_LOAD_WARN_RATIO" "$CPU_LOAD_CRIT_RATIO")"
 # top cpu consumer (comm ONLY — never argv). Capture ps fully first (no head-on-pipe → no SIGPIPE under pipefail).
 PS_BY_CPU="$(ps -A -r -o pid=,%cpu=,comm= 2>/dev/null || true)"
 TOP_CPU_LINE="$(awk 'NR==1{pid=$1;cpu=$2;$1="";$2="";c=$0;sub(/^ +/,"",c);n=split(c,a,"/");print pid"|"cpu"|"a[n]; exit}' <<<"$PS_BY_CPU")"
@@ -175,7 +200,10 @@ XP_VER="$(defaults read "$XP_BUNDLE/Contents/Info.plist" CFBundleShortVersionStr
 XP_MTIME="$(stat -f %m "$XP_BUNDLE" 2>/dev/null || echo 0)"
 NOW_EPOCH="$(date +%s)"
 XP_AGE_DAYS="$(awk -v m="$XP_MTIME" -v n="$NOW_EPOCH" 'BEGIN{printf "%.0f", (m>0)?(n-m)/86400:9999}')"
-MAL_ST="$(st_hi "$XP_AGE_DAYS" "$XPROTECT_STALE_WARN_DAYS" "$XPROTECT_STALE_CRIT_DAYS")"
+# auto-update channel (cheap ~20ms, no-sudo, local --schedule read). ON ⇒ freshness self-heals →
+# 47d-but-latest is honestly ok (Apple cadence), not warn. OFF ⇒ the real risk → full age escalation.
+XP_AUTOUPDATE="$("$SWUPDATE" --schedule 2>/dev/null | grep -qi 'turned on' && echo on || echo off)"
+MAL_ST="$(xprotect_status "$XP_AGE_DAYS" "$XP_AUTOUPDATE" "$XPROTECT_STALE_WARN_DAYS" "$XPROTECT_STALE_CRIT_DAYS" "$XPROTECT_SELFHEAL_WARN_DAYS")"
 
 # ── PROCESS / THREADS ─────────────────────────────────────────────────────────
 PROC_COUNT="$(ps -A -o pid= 2>/dev/null | wc -l | tr -d ' ')"
@@ -281,24 +309,24 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
 "$JQ" -n \
   --arg gen "$GEN" --arg host "$HOST" --argjson interval "$INTERVAL_SEC" \
   --arg sys_st "$SYS_ST" --argjson sys_rf "$SYS_RF" \
-  --arg cpu_st "$CPU_ST" --argjson cpu_rf "$CPU_RF" --arg ncpu "$NCPU" --arg load1 "$LOAD1" --arg load_ratio "$LOAD_RATIO" --arg cpu_load_st "$CPU_LOAD_ST" --arg top_cpu_comm "${TOP_CPU_COMM:-none}" --arg top_cpu_pct "$TOP_CPU_PCT" --arg top_cpu_pid "${TOP_CPU_PID:-0}" --arg cpu_proc_st "$CPU_PROC_ST" \
+  --arg cpu_st "$CPU_ST" --argjson cpu_rf "$CPU_RF" --arg ncpu "$NCPU" --arg load1 "$LOAD1" --arg load_ratio "$LOAD_RATIO" --arg load5 "$LOAD5" --arg load5_ratio "$LOAD5_RATIO" --arg cpu_load_st "$CPU_LOAD_ST" --arg top_cpu_comm "${TOP_CPU_COMM:-none}" --arg top_cpu_pct "$TOP_CPU_PCT" --arg top_cpu_pid "${TOP_CPU_PID:-0}" --arg cpu_proc_st "$CPU_PROC_ST" \
   --arg mem_st "$MEM_ST" --argjson mem_rf "$MEM_RF" --arg mem_avail_pct "$MEM_AVAIL_PCT" --arg top_mem_comm "${TOP_MEM_COMM:-none}" --arg top_mem_pct "$TOP_MEM_PCT" \
   --arg disk_st "$DISK_ST" --argjson disk_rf "$DISK_RF" --arg disk_free_gb "$DISK_FREE_GB" --arg dg_live "$DG_LIVE" \
   --arg sec_st "$SEC_ST" --argjson sec_rf "$SEC_RF" --arg sip "$SIP" --arg gk "$GK" --arg fw "$FW" \
-  --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" \
+  --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" --arg xp_au "$XP_AUTOUPDATE" \
   --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" \
   --arg net_st "$NET_ST" --argjson net_rf "$NET_RF" --arg listeners "$LISTENERS" --arg estab "$ESTAB" \
   --argjson burn "$BURN_DOWN" \
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.2", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.4.0", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
     branches: {
       cpu:     { status: $cpu_st, tag: "resource.cpu", root_fail: $cpu_rf, leaves: {
-                  load1:        { status: $cpu_load_st, tag: "resource.cpu.load1", value: n($load1), ncpu: n($ncpu), load_ratio: n($load_ratio) },
+                  load1:        { status: $cpu_load_st, tag: "resource.cpu.load1", value: n($load1), load5: n($load5), ncpu: n($ncpu), load_ratio: n($load_ratio), load5_ratio: n($load5_ratio) },
                   top_consumer: { status: $cpu_proc_st, tag: "resource.cpu.top_consumer", comm: $top_cpu_comm, pct: n($top_cpu_pct), pid: n($top_cpu_pid) } } },
       memory:  { status: $mem_st, tag: "resource.memory", root_fail: $mem_rf, leaves: {
                   available_pct: { status: $mem_st, tag: "resource.memory.available_pct", value: n($mem_avail_pct), top_consumer: $top_mem_comm, top_pct: n($top_mem_pct) } } },
@@ -309,7 +337,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                   gatekeeper: { status: (if $gk=="disabled" then "warn" else "ok" end), tag: "resource.security.gatekeeper", value: $gk },
                   firewall: { status: (if $fw=="disabled" then "warn" else "ok" end), tag: "resource.security.firewall", value: $fw } } },
       malware: { status: $mal_st, tag: "resource.malware", root_fail: $mal_rf, leaves: {
-                  xprotect_freshness: { status: $mal_st, tag: "resource.malware.xprotect_freshness", version: $xp_ver, age_days: n($xp_age) } } },
+                  xprotect_freshness: { status: $mal_st, tag: "resource.malware.xprotect_freshness", version: $xp_ver, age_days: n($xp_age), auto_update: $xp_au } } },
       process: { status: $proc_st, tag: "resource.process", root_fail: $proc_rf, leaves: {
                   runaway:  { status: $cpu_proc_st, tag: "resource.process.runaway", comm: $top_cpu_comm, cpu_pct: n($top_cpu_pct), pid: n($top_cpu_pid) },
                   counts:   { status: "ok", tag: "resource.process.counts", processes: n($proc_count), threads: n($thread_count), zombies: n($zombie) } } },

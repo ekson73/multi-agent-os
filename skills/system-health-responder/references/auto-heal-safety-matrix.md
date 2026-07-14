@@ -99,6 +99,12 @@ The responder does **not** re-derive any threshold. Part-1's collector already c
 `XPROTECT_STALE_WARN_DAYS`, …). The responder gates purely on the **computed leaf status** — single owner,
 zero drift.
 
+> **Round-4 (collector v1.4.0)** refined two of those thresholds to kill false-positives (transparent to the
+> responder — it still just reads `status`): CPU **crit** now keys on `load5` (sustained) not `load1` (spiky)
+> — a transient burst warns, never crits; XProtect freshness is gated on the auto-update channel
+> (`XPROTECT_SELFHEAL_WARN_DAYS=60` when auto-update is ON ⇒ never crit / self-healing; full
+> `XPROTECT_STALE_WARN_DAYS`/`_CRIT_DAYS` escalation only when auto-update is OFF — the real risk).
+
 ## What the responder will NEVER do (⛔ absolute)
 
 - Kill / `pkill` / force-quit any process.

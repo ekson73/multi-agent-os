@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.5.1
+version: 1.6.0
 allowed-tools: Read, Bash
 ---
 
@@ -187,6 +187,33 @@ before anyone noticed. The collector (v1.2.0 → **v1.3.0**) now emits a structu
 DISK_GUARDIAN_LOG=<log> "$COLLECTOR" --burndown   # forecast-only (no probing, no contract write) — testable
 ```
 
+### Threshold false-positive fixes (v1.6.0, round-4, 2026-07-14) — honest classification, not more theater
+
+An OODA review after the round-3 merge surfaced **two false-positive classes** the collector's thresholds
+mis-classified — both empirically observed this session. A false `crit`/`warn` isn't cosmetic: it makes the
+responder engage spuriously, which erodes the trust the operator needs to let the auto-heal run unattended.
+So this is squarely an **enhance-autonomy** fix (collector **v1.3.2 → v1.4.0**):
+
+- **CPU transient false-crit** — `cpu_load_status()`. `vm.loadavg` carries three averages `{1min 5min 15min}`;
+  the collector keyed **both** warn and crit off `load1` (the *spikiest* metric), so a transient burst
+  (IDE compile / Spotlight indexer) tripped `crit`. Fix: **WARN keyed on `load1`** (early signal),
+  **CRIT keyed on `load5`** (sustained) — a 1-min burst warns but never crits; crit now requires ~5 min of
+  real overload. Empirical: `load1=27.33/12cores` (2.28×) crit that settled to `warn` in ~4 min. The `load1`
+  leaf now also exposes `load5` + `load5_ratio` for honest drill-down.
+- **XProtect chronic false-warn** — `xprotect_status()`. Age-alone conflates "genuinely stale" with "Apple
+  hasn't shipped a newer signature" (XProtect ships on Apple's cadence, routinely >30d). Fix: gate on the
+  **auto-update channel** (cheap ~20ms `softwareupdate --schedule` read, no-sudo): auto-update **ON** ⇒
+  self-healing ⇒ caps at `warn` past a generous 60d window, **never crit** (the next signature lands
+  automatically); auto-update **OFF** ⇒ the real risk ⇒ full 30/60 age escalation. Empirical: 5347 (47d) **is**
+  Apple's latest for macOS 26.5.2 with auto-update on → honestly `ok`, not `warn`. The leaf now exposes
+  `auto_update`.
+- Both extracted as **pure functions** (mirroring `compute_burndown`) with **test entrypoints**
+  (`--cpu-load-status` / `--xprotect-status`) so they're exercised, not eyeballed. **Anti-theater**: this did
+  not mark anything healthy — it fixed *what "healthy" means*; the contract went `crit → ok` by correct
+  classification, and `auto-OFF 65d → crit` still fires (real risk preserved).
+- **Tested**: `bin/threshold-test.sh` — 13 assertions (burst→warn-not-crit · sustained-load5→crit ·
+  auto-ON-47d→ok · auto-OFF-65d→crit · never-crit-while-self-healing). Round-3 suites regress clean (16+5).
+
 ## Composition (reuse, not reinvent — Strata)
 
 - **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
@@ -202,9 +229,10 @@ DISK_GUARDIAN_LOG=<log> "$COLLECTOR" --burndown   # forecast-only (no probing, n
 - `references/no-source-fix-registry.md` — the ADR evidence gate (vetted no-source-fix offenders + dossiers).
 - `references/offender-containment-33-socratic.md` — round-1 design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
 - `references/offender-containment-round2-33-socratic.md` — round-2 operational-reasoning (33 non-duplicate Q&A; sibling-falsification · transient-vs-persistent producers · attribution · warn/HITL boundary · unknown-offender handling).
-- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector (v1.3.0 = burn-down).
+- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector (v1.3.x = burn-down · **v1.4.0 = round-4 threshold fixes**).
 - `bin/burndown-test.sh` — round-3 collector unit tests (drives `--burndown`; 16 assertions: reclaim-jump-not-misread · short-tail-honest-unknown · `+0000`/`+00:00`/`Z` tz variants).
 - `bin/responder-burndown-test.sh` — round-3 responder wiring tests (5 assertions: `warn`/`crit`→seed · `ok`/`unknown`→quiet — proves `.burn_down` is read, not just documented).
+- `bin/threshold-test.sh` — round-4 threshold unit tests (drives `--cpu-load-status`/`--xprotect-status`; 13 assertions: CPU burst→warn-not-crit · sustained-load5→crit · XProtect auto-ON-47d→ok · auto-OFF-65d→crit · never-crit-while-self-healing).
 - EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
   (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).
