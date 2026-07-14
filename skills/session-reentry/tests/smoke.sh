@@ -1,15 +1,23 @@
 #!/usr/bin/env sh
-# smoke.sh — deterministic tests for the session-reentry M1 walking-skeleton.
-# Tests the one net-new artifact (bin/dormancy-score.sh) across all bands +
-# determinism, and asserts SKILL.md has valid frontmatter + Goldilocks size.
-# License: MIT.
+# smoke.sh — deterministic tests for the session-reentry M1 + M2 increments.
+# Tests the two net-new bins (bin/dormancy-score.sh · bin/resolve-session.sh) across
+# bands / determinism / id-resolution, and asserts SKILL.md frontmatter + Goldilocks
+# size + M2 register wiring. License: MIT.
 set -eu
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$DIR/bin/dormancy-score.sh"
+RES="$DIR/bin/resolve-session.sh"
 SKILL="$DIR/SKILL.md"
 NOW=1000000000
 fail=0
+
+# Deterministic fixture root for the id→path resolver (cleaned on exit).
+FIX="$(mktemp -d 2>/dev/null || mktemp -d -t sreentry)"
+trap 'rm -rf "$FIX"' EXIT INT TERM
+mkdir -p "$FIX/enc-cwd"
+: > "$FIX/enc-cwd/abc123.jsonl"
+: > "$FIX/enc-cwd/abc123-extra.jsonl"   # prefix collision — exact match must still win
 
 check() {  # check <label> <expected-substring> <actual>
   case "$3" in
@@ -38,6 +46,14 @@ echo "== error handling =="
 "$BIN" "$BIN" --now abc 2>/dev/null && { echo "  FAIL --now non-int should exit non-zero"; fail=1; } || echo "  ok   --now non-int → non-zero"
 "$BIN" "$BIN" extra --now "$NOW" 2>/dev/null && { echo "  FAIL multiple positionals should exit non-zero"; fail=1; } || echo "  ok   multiple positionals → non-zero"
 
+echo "== resolve-session id→path (M2, deterministic) =="
+check "existing path passthrough" "$BIN"                 "$("$RES" "$BIN")"
+check "id → exact .jsonl (prefix loses)" "enc-cwd/abc123.jsonl" "$("$RES" abc123 --root "$FIX")"
+"$RES" nosuchid --root "$FIX" 2>/dev/null && { echo "  FAIL unknown id should exit non-zero"; fail=1; } || echo "  ok   unknown id → non-zero"
+"$RES" 2>/dev/null && { echo "  FAIL resolver missing-arg should exit non-zero"; fail=1; } || echo "  ok   resolver missing arg → non-zero"
+"$RES" abc123 --root 2>/dev/null && { echo "  FAIL resolver --root w/o value should exit non-zero"; fail=1; } || echo "  ok   resolver --root w/o value → non-zero"
+"$RES" nosuchid --root /no/such/root 2>/dev/null && { echo "  FAIL bad root should exit non-zero"; fail=1; } || echo "  ok   bad root → non-zero"
+
 echo "== SKILL.md frontmatter + Goldilocks size =="
 head -1 "$SKILL" | grep -q '^---$'            && echo "  ok   frontmatter opens" || { echo "  FAIL no frontmatter"; fail=1; }
 grep -q '^name: session-reentry$' "$SKILL"    && echo "  ok   name: session-reentry" || { echo "  FAIL name"; fail=1; }
@@ -48,6 +64,10 @@ SZ=$(wc -c < "$SKILL")
 
 echo "== SKILL.md example matches bin output (no drift) =="
 grep -q '"score": 0.67, "band": "deep", "age_days": 14' "$SKILL" && echo "  ok   JSON example == bin(14d,self)" || { echo "  FAIL example drift"; fail=1; }
+
+echo "== SKILL.md M2 register wiring (no drift) =="
+grep -q 'opera-debrief --audience' "$SKILL" && echo "  ok   --mind → opera-debrief --audience wired" || { echo "  FAIL M2 register wiring missing"; fail=1; }
+grep -q 'resolve-session.sh' "$SKILL"       && echo "  ok   resolve-session.sh referenced" || { echo "  FAIL resolver ref missing"; fail=1; }
 
 if [ "$fail" -eq 0 ]; then echo "ALL PASS ✓"; else echo "FAILURES ✗"; fi
 exit "$fail"
