@@ -1,1 +1,1 @@
-bucket=carve-out-human-domain disposition=defer-hitl council=none never_authorize=true
+bucket=carve-out-human-domain disposition=defer-hitl council=none never_authorize=true office=none superpower_gated=false

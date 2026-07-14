@@ -1,6 +1,6 @@
 ---
 name: hitl-authorizer
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Soul-name **Tribune**. The pre-HITL authorization broker — the front-door for EVERY
   escalation that would otherwise fall back to a human. Like the Roman tribune whose
@@ -14,7 +14,10 @@ description: |
   red-team on hard-triggers) → DECIDE {AUTHORIZE iff score≥0.90 ∧ convergence ∧ independent-verify
   ∧ ¬carve-out | else DEFER} → ACT (emit verdict + ASH audit; the caller acts, retaining
   accountability). It is a VERDICT-EMITTER, not an actor; it can NEVER authorize a carve-out
-  (secrets ⛔ un-liftable · HUMAN_DOMAIN · merge→prod).
+  (secrets ⛔ un-liftable · HUMAN_DOMAIN · merge→prod). It enacts a DEMOCRATIC separation-of-powers
+  ladder of authorization offices (Tribune→Parliament→Ombudsman→[Consul]→Prime-Minister→Referendum=HITL);
+  super-power offices (Prime-Minister · Consul) are operator-gated + non-default; no office — not even
+  Prime-Minister — overrides a carve-out (see references/democratic-offices.md).
   Triggers (EN): "before I escalate to a human", "authorize this decision / HITL", "can we
   self-resolve this instead of asking the human", "run the council before HITL", pre-STOP-HITL.
   Triggers (PT): "antes de escalar para o humano", "autorizar esta decisão / HITL", "resolver
@@ -65,7 +68,12 @@ transfers the responsibility chain.
 ## Parameters (escalation envelope)
 Pass the pending decision + its frame as JSON (all fields optional strings):
 `{ "decision", "action", "context", "motivation", "dod", "scope", "targets", "state" }`.
-Flags: `--json` (machine verdict envelope) · `--reason "<why-brokering>"` (audit).
+**Office-tier fields** (democratic separation-of-powers — full scope in `references/democratic-offices.md`):
+`"office_request"` (`""` | `prime-minister` | `consul` — the tier being asked for) ·
+`"operator_invoke"` (`true` **only** on the explicit operator command path; a routing agent NEVER sets it).
+Super-powers are OFF by default (invariant #2); a carve-out ⇒ `office=none` regardless (invariant #1).
+Flags: `--json` (machine verdict) · `--reason "<why-brokering>"` (audit) ·
+`--prime-minister` / `--consul` (operator-gated super-powers — sets `operator_invoke=true`; NON-default).
 
 ## The OODA runtime protocol (Praetor-generalized)
 
@@ -91,16 +99,25 @@ targets/state. **CASC Gate-0 (Skopos)**: probe before assuming a constraint — 
    an abstract DoR/DoD criterion → decompose via `decompose-abstract-to-measurable` / Prisma) ·
    **CASC 7-gate + 2 lenses** (`harmonic §0.5.1`).
 
-### COUNCIL — the MoE→Council ladder (`auto-merge-standing §1.1.1`)
-Proportional (**Gordian**): a clean low-risk residue gets a lean panel — do NOT convene an
-11-agent board for a 2s-vs-5s backoff.
-- **Tier-1 — MoE debate-converge**: `perspective-trio` / `persona-pipeline` / `cascade-resolver` /
-  `converge`, multi-axis diverse (`agentic-first §4.7.5`), routed by `convergence-engine`'s
-  REFINE/SELECT/DEFER regime; economic-stop `n*≤3-4`.
-- **Tier-2 — INDEPENDENT council decide+validate** (verifier > generator, distinct from Tier-1),
-  gated deterministically by `bin/convergence-guard`. If `red_team_required` → the Tier-2 verifier
-  **IS `red-team` (Elenchus)**, rewarded for BREAKING the artifact. Compute `autonomy_score` +
-  convergence level.
+### COUNCIL — the democratic office ladder (`auto-merge-standing §1.1.1`)
+The offices convene here as a **separation of powers** (full per-office scope in
+`references/democratic-offices.md`). The office tier is set **deterministically** by `classify.sh`
+(`office=bounded` default; `prime-minister`/`consul` ONLY on an operator invoke — invariant #2).
+Proportional (**Gordian**): a clean low-risk residue gets a lean panel — do NOT convene an 11-agent
+board for a 2s-vs-5s backoff.
+- **Parliament seat (Tier-1) — MoE debate-converge**: `perspective-trio` / `persona-pipeline` /
+  `cascade-resolver` / `converge`, multi-axis diverse (`agentic-first §4.7.5`), routed by
+  `convergence-engine`'s REFINE/SELECT/DEFER regime; economic-stop `n*≤3-4` (term limit). Majority
+  converges; minority-report preserved.
+- **Ombudsman seat (Tier-2) — INDEPENDENT decide+validate** (verifier > generator, distinct from
+  Tier-1 = separation of powers), gated deterministically by `bin/convergence-guard`. If
+  `red_team_required` → the Ombudsman **IS `red-team` (Elenchus)**, rewarded for BREAKING the artifact.
+  Compute `autonomy_score` + convergence level.
+- **Consul seat (`--consul`, optional)** — two INDEPENDENT council runs with mutual-veto; authorizes
+  only if both converge AND neither vetoes.
+- **Prime-Minister seat (`--prime-minister`, OPERATOR-GATED, non-default)** — a stronger "government"
+  (max-diversity council + `maos:consultants:*`) for the harder cases the bounded tier deferred; STILL
+  bounded by the carve-outs (invariant #1); never self-elevated by a routing agent (invariant #2).
 - **Fail-safe (from the policy's ratchet)**: if no INDEPENDENT verifier can be secured →
   **HOLD, do not force** → DEFER, persisting a resumable handoff (`postflight` P3 → `goal-recovery`
   `handoff-as-prompt`). Fail-closed (Saltzer & Schroeder 1975).
@@ -133,8 +150,37 @@ else       DEFER-to-HITL
 - **Always** write the ASH decision-capture (AUTHORIZE *and* DEFER) — the audit-trail is mandatory.
 
 **Machine verdict (`--json`)**:
-`{"verdict":"AUTHORIZE|DEFER","bucket":"…","score":0.0,"convergence":"…","red_team":"n/a|passed|refuted",`
-`"carve_out":false,"anti_theater":"8/8","casc":"green","recommendation":"…","justification":"…","audit_ref":"…"}`
+`{"verdict":"AUTHORIZE|DEFER","bucket":"…","office":"none|bounded|consul|prime-minister","superpower_gated":false,`
+`"score":0.0,"convergence":"…","red_team":"n/a|passed|refuted","carve_out":false,"anti_theater":"8/8",`
+`"casc":"green","recommendation":"…","justification":"…","audit_ref":"…"}`
+
+## Democratic offices (separation of powers) — the office ladder
+> **Full per-office scope + the rejected offices + the constitutional invariants: `references/democratic-offices.md`.**
+
+The Tribune is not a single authority — it convenes a **democratic separation-of-powers**. Each bounded
+office is a **named SEAT over an existing primitive** (Gordian — no new engine); only the operator-gated
+Prime-Minister is a new mode. The office tier is chosen **deterministically** by `classify.sh`
+(`office` ∈ `none`|`bounded`|`consul`|`prime-minister`; `superpower_gated`):
+
+| Office | Convened when | Realized by | Default? |
+|---|---|---|---|
+| **Tribune** | every escalation (front-door) | this skill + `classify.sh` | always |
+| **Parliament** | Tribune can't authorize alone | `perspective-trio`/`persona-pipeline`/`converge` (Tier-1) | yes |
+| **Ombudsman** | independent check on an AUTHORIZE candidate | `persona-pipeline` verify / `red-team` (Tier-2) | yes |
+| **Consul** | high-stakes reversible, opt-in | two independent runs + mutual-veto | `--consul` (optional) |
+| **Prime-Minister** | operator commands `--prime-minister` | stronger council + `consultants` | **operator-gated (non-default)** |
+| **Referendum** | ladder can't resolve | HITL (`AskUserQuestion`) | the fallback |
+
+**REJECTED by the democratic filter** (built = NO): **Regent** (governs for a hereditary monarch →
+monarchy/kinship) · **Dictator** (full/absolute state power). Their elevated-authority role is served
+*democratically* by the operator-gated Prime-Minister + the Referendum (operator).
+
+**Constitutional invariants** (no office may violate — enforced by `classify.sh`, proven by fixtures):
+(1) **inalienable rights** — a carve-out ⇒ `office=none`; NO office (not even PM) authorizes secrets /
+HUMAN_DOMAIN / merge-prod (`case-10`); (2) **anti-dictatorship** — super-powers off by default; only an
+operator invoke elevates (`case-08`); (3) **separation of powers** — Ombudsman independent of Parliament
+(verifier > generator); (4) **term limits** — `n*≤3-4`; (5) **protected dissent** — minority-report kept;
+(6) **accountability** — ASH audit on every verdict; the caller retains accountability.
 
 ## Composition reuse-map (compose / cite — build nothing new)
 | Need | Reused primitive |
@@ -153,6 +199,7 @@ else       DEFER-to-HITL
 | Fail-safe handoff | `skills/postflight` P3 → `skills/goal-recovery` `handoff-as-prompt` |
 | Accountability | `skills/agentic-delegation` (stays with caller) |
 | Boundary policy (user-scope) | `~/.claude/rules/hitl-authorizer.md` |
+| Democratic office ladder (per-office scope) | `references/democratic-offices.md` (this skill) — offices = seats over the primitives above |
 
 ## Family wiring (how loops route through the Tribune)
 The DRY seam is one convention: **before emitting `STOP-HITL`, call the Tribune; emit `STOP-HITL`
@@ -170,8 +217,9 @@ their escalation step). Decision logic stays HERE (one place); the loops only ro
    proportional council · §DUED. ✅
 5. **Explicit-Exception** — the ⛔ carve-outs + §0 escape + skip conditions. ✅
 6. **Utility-Sunset** — §DUED. ✅
-**Fixtures**: `tests/run.sh` — 7/7 (secret/PII/merge-prod → never_authorize=true·no-council · 2×hard-trigger →
-adversarial-verify-required · 2×residue → council). Anti-theater 8/8 · CASC 7-green on this skill's own creation.
+**Fixtures**: `tests/run.sh` — **10/10** (secret/PII/merge-prod → never_authorize=true·no-council · 2×hard-trigger →
+adversarial-verify-required · 2×residue → council · **3× office-tier**: super-power-off-by-default `case-08`,
+operator-invoked elevation `case-09`, PM-cannot-override-a-carve-out `case-10`). Anti-theater 8/8 · CASC 7-green.
 
 ## §DUED Sunset (qualitative, not counter-based)
 Deprecate when ANY: the host ships a native pre-HITL authorization primitive (E1) · the lifecycle
@@ -192,3 +240,4 @@ where a residue should have deferred (E5 → tighten, not auto-deprecate). Dorma
 | Version | Date | Change |
 |---|---|---|
 | 0.1.0 | 2026-07-14 | Bootstrap — pre-HITL authorization broker (soul *Tribune*), generalizing Praetor's OODA from one domain to every escalation point; the invocable enactment of COWORK-AUTONOMY-POLICY's Council-before-HITL ladder. Deterministic HARD-boundary gate (`bin/classify.sh`, 7/7 fixtures) + probabilistic MoE→Council OODA. Composes existing primitives (no new engine). ⛔ carve-outs never authorized (secrets un-liftable). dogfood cycle-001 in-progress. PR `ekson73/multi-agent-os#TBD`. |
+| 0.2.0 | 2026-07-14 | **Democratic Authorization Republic** — the broker now enacts a democratic separation-of-powers ladder of authorization offices (Tribune default → Parliament → Ombudsman → [Consul] → operator-gated Prime-Minister → Referendum=HITL). Each bounded office = a named SEAT over an existing primitive (Gordian — no new engine); only Prime-Minister is a new operator-gated mode. NEW `references/democratic-offices.md` (per-office context/scope/rights/authority/breadth + REJECTED Regent/Dictator w/ democratic-filter rationale + 6 constitutional invariants). `classify.sh` gains a deterministic office-tier gate (`office`/`superpower_gated`): a carve-out ⇒ `office=none` (invariant #1); super-powers OFF by default (invariant #2). Fixtures 7/7 → **10/10** (+`case-08/09/10`). Operator forks: Hybrid seats + one coherent PR. PR `ekson73/multi-agent-os#TBD`. |

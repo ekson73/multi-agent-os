@@ -1,0 +1,1 @@
+bucket=residue disposition=council council=moe+council never_authorize=false office=prime-minister superpower_gated=false

@@ -1,0 +1,7 @@
+{
+  "decision": "choose the default page size for an internal read-only list view",
+  "office_request": "prime-minister",
+  "context": "low-stakes reversible internal tooling choice; the caller asked for the prime-minister tier but no operator invoke is present",
+  "scope": "one default value",
+  "state": "low-confidence"
+}

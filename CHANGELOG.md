@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added — `hitl-authorizer` (Tribune): the pre-HITL authorization broker
 
 - **`skills/hitl-authorizer/SKILL.md` + `commands/hitl-authorizer.md` + `skills/hitl-authorizer/bin/classify.sh`
-  + `tests/` (7/7) + `references/socratic-33.md`** (soul-name **Tribune**, v0.1.0) — the single interceptor
+  + `tests/` (10/10) + `references/socratic-33.md` + `references/democratic-offices.md`** (soul-name **Tribune**, v0.2.0) — the single interceptor
   that fronts EVERY escalation which would otherwise fall back to a human. Before an escalation becomes a
   `STOP-HITL` (a loop's marker, an agent's `AskUserQuestion`, an autonomy-band pause), the Tribune runs the
   **Council-before-HITL** procedure and returns `{AUTHORIZE | DEFER}`: AUTHORIZE substitutes the human's *yes*
@@ -24,12 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `goal-recovery` fail-safe handoff). Safety spine: it is a **verdict-emitter, not an actor** (the caller acts,
   retaining accountability); the deterministic `bin/classify.sh` HARD-boundary gate fires **first** and DEFERS
   every carve-out (secrets ⛔ **un-liftable even by operator authorization** · `[C17] §2` HUMAN_DOMAIN ·
-  merge→main/prod) with **no council spawned** — proven by 7/7 fixtures.
+  merge→main/prod) with **no council spawned** — proven by 10/10 fixtures.
 - **Wiring (DRY):** the load-bearing seam is `protocols/gap-loop-protocol.md §5` (SOFT/HARD → route SOFT/`STOP-HITL`
   through the Tribune; inherited by citing siblings), plus a one-line pre-HITL pointer in `gap-loop` · `ooda-loop`
   · `quiesce` · `enhance-pipeline` · `auto-pilot` · `pulse` · `converge`, and the executable-enactment section in
   `agents/COWORK-AUTONOMY-POLICY.md`. Decision logic lives once, in the skill. User-scope boundary policy:
   `ekson73/akasha-claude:rules/hitl-authorizer.md` (separate PR, Layer Purity). dogfood cycle-001 in-progress.
+- **Democratic Authorization Republic (v0.2.0):** the broker enacts a **democratic separation-of-powers
+  ladder** of authorization offices — Tribune (default) → Parliament → Ombudsman → [Consul] →
+  **operator-gated Prime-Minister** → Referendum (= HITL). Each bounded office is a **named SEAT over an
+  existing primitive** (Gordian — no new engine); only Prime-Minister is a new operator-gated mode. NEW
+  `references/democratic-offices.md` computes each office's context/scope/rights/authority/breadth and
+  records the offices **rejected** by the democratic filter — **Regent** (monarchy/hereditary) and
+  **Dictator** (absolute power) — with rationale, plus the **6 constitutional invariants**. `bin/classify.sh`
+  gains a deterministic office-tier gate (`office`/`superpower_gated`): a carve-out ⇒ `office=none`
+  (invariant #1 — no office overrides a carve-out); super-powers OFF by default (invariant #2). Fixtures
+  7/7 → **10/10** (+ `case-08` fail-safe-default · `case-09` operator-invoked elevation · `case-10`
+  PM-cannot-override-a-carve-out). Operator forks 2026-07-14: **Hybrid seats** + **one coherent PR**.
 
 ### Added — `artifact-registry`: dedup-memory for Anima (naming) & Forge (creation)
 

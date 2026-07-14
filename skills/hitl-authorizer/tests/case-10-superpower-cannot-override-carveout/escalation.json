@@ -1,0 +1,8 @@
+{
+  "decision": "rotate the production API key stored in the app secret",
+  "office_request": "prime-minister",
+  "operator_invoke": true,
+  "context": "even with the operator-invoked prime-minister super-power, this touches a secret — invariant #1 must hold",
+  "scope": "credential rotation",
+  "state": "elevated-request"
+}
