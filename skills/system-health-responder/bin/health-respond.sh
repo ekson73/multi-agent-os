@@ -33,10 +33,18 @@ RENICE_TO="${SHR_RENICE_TO:-10}"                  # moderate deprioritize (not e
 DRY_RUN=1
 NOTIFY=1; [ "${SHR_NO_NOTIFY:-0}" = "1" ] && NOTIFY=0
 
+# SENSITIVE-APP SAFELIST — SSOT CORE (round-6 H1): the 4 tokens `1password openclaw omniroute claude` MUST
+# stay identical in BOTH this PROC_DENYLIST and offender-containment.sh PROTECTED — the runtime + the
+# secrets/sovereignty managers that NEITHER effector may ever touch (renice OR contain). Kept INLINE in each
+# script (NOT a sourced lib) ON PURPOSE: a safety-critical safelist must be fail-safe/self-contained — a
+# missing/empty sourced lib would be the UNSAFE direction (an empty safelist). Drift is caught deterministically
+# by threshold-test.sh (`SSOT sensitive-app core` assertion), not by faith.
 PROC_DENYLIST=(
+  # OS daemons — renice-protected (responder-scope; not relevant to containment)
   kernel_task launchd windowserver loginwindow coreaudiod configd hidd powerd
   bluetoothd cfprefsd mds mds_stores mdworker syslogd distnoted securityd trustd
-  1password op openclaw omniroute claude
+  1password openclaw omniroute claude   # ← SSOT sensitive-app core (sync ↔ offender-containment.sh PROTECTED)
+  op                                    # responder-scope extra: 1Password CLI (whole-word match in denied())
 )
 
 usage() {
@@ -251,6 +259,20 @@ main() {
       residue="${residue}- 🟠 cpu=${cs}: runaway flagged but no pid in contract (comm=${comm}, ${pct}%) → operator review (no-silent-drop).\n"
     fi
   fi
+  # cpu BRANCH-level load saturation (round-6 F1): the block above acts on the single top_consumer, but a crit
+  # driven by SUSTAINED SYSTEM LOAD (root_fail=load1/load5 — no single runaway to renice) was previously read
+  # by NOTHING → silently dropped (guardian.log showed `system=crit cpu=crit` surfacing zero residue). Surface
+  # it as HITL residue: load saturation is NOT auto-healable (no single proc to renice; reducing load = operator
+  # closing apps). Skip when root_fail IS the top_consumer (already handled above → no double-report).
+  local cpu_br cpu_rf; cpu_br="$(jq -r '.system.branches.cpu.status // "ok"' "$CONTRACT" 2>/dev/null)"
+  cpu_rf="$(jq -r '.system.branches.cpu.root_fail // ""' "$CONTRACT" 2>/dev/null)"
+  if [ "$cpu_br" != "ok" ] && [ "$cpu_rf" != "top_consumer" ]; then
+    local l1 l5 nc
+    l1="$(jq -r '.system.branches.cpu.leaves.load1.value // "?"' "$CONTRACT" 2>/dev/null)"
+    l5="$(jq -r '.system.branches.cpu.leaves.load1.load5 // "?"' "$CONTRACT" 2>/dev/null)"
+    nc="$(jq -r '.system.branches.cpu.leaves.load1.ncpu // "?"' "$CONTRACT" 2>/dev/null)"
+    residue="${residue}- 🟠 cpu=${cpu_br} load-driven (root_fail=${cpu_rf}, load1=${l1} / load5=${l5} over ${nc} cores): sustained saturation, no single runaway to renice → operator review (reduce load / close apps = HITL).\n"
+  fi
   # disk → DELEGATED to disk-health-guardian (no dup)
   local ds; ds="$(jq -r '.system.branches.disk.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$ds" != "ok" ] && echo "  ↪  disk=${ds} → delegated to disk-health-guardian (it owns disk; no action here)"
@@ -272,7 +294,9 @@ main() {
   local ps_; ps_="$(jq -r '.system.branches.process.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$ps_" != "ok" ] && residue="${residue}- 🟠 process=${ps_}: zombie/runaway-count anomaly → operator review (kill = HITL).\n"
   local net; net="$(jq -r '.system.branches.network.status // "ok"' "$CONTRACT" 2>/dev/null)"
-  [ "$net" != "ok" ] && residue="${residue}- 🟠 network=${net}: unexpected listener → operator review (never auto-close).\n"
+  # round-6 F3: the collector emits "informational" (listeners collected, NOT thresholded) — treat it as
+  # no-residue explicitly (it is NOT a measured "ok", but it is also NOT a fault to surface).
+  [ "$net" != "ok" ] && [ "$net" != "informational" ] && residue="${residue}- 🟠 network=${net}: unexpected listener → operator review (never auto-close).\n"
 
   # ── agentic-tools (EKO-90-ext v1.2.0): cache-producer + claude-runtime ─────────
   # The 2026-07-14 lesson: the disk-guardian cleaned caches but could not beat a LIVE producer
