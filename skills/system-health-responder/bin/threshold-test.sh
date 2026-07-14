@@ -26,6 +26,16 @@ xp()  { "$COLLECTOR" --xprotect-status "$@" 2>/dev/null; }   # age autoupdate wa
 tc()  { "$COLLECTOR" --top-consumer-status "$@" 2>/dev/null; } # pct(per-core) ncpu warn_pct crit_ratio(of total)
 cm()  { "$RESPONDER" --comm-match "$1" "$2" 2>/dev/null; }     # live_raw want_raw → match|nomatch (#131 recycle guard)
 dn()  { "$RESPONDER" --denied "$1" 2>/dev/null; }             # comm → denied|allowed (basename-normalized denylist, @145)
+cst() { "$COLLECTOR" --counts-status "$@" 2>/dev/null; }      # zombie_ct thread_ct z_warn z_crit t_warn t_crit → status (round-6 F4)
+mps() { "$COLLECTOR" --mem-pressure-status "$1" 2>/dev/null; } # dispatch-level → status (round-6 F5)
+OFC="$DIR/offender-containment.sh"
+hashf() { md5 -q "$1" 2>/dev/null || md5sum "$1" 2>/dev/null | awk '{print $1}'; }  # portable md5 (macOS md5 / Linux md5sum)
+# responder integration: run against a SYNTHETIC contract, hermetically (temp contract + temp state, no notify),
+# in the default dry-run — residue is still COMPUTED + printed even when seed-throttled, so grepping stdout is sound.
+respond_out() { local tc ts; tc="$(mktemp)"; ts="$(mktemp -d)"; printf '%s' "$1" >"$tc"
+  SHR_CONTRACT="$tc" SHR_STATE_DIR="$ts" SHR_NO_NOTIFY=1 bash "$RESPONDER" 2>/dev/null; rm -f "$tc"; rm -rf "$ts"; }
+ck_has()    { case "$2" in *"$3"*) PASS=$((PASS+1));; *) FAIL=$((FAIL+1)); echo "  FAIL: $1 → missing '$3'";; esac; }
+ck_hasnot() { case "$2" in *"$3"*) FAIL=$((FAIL+1)); echo "  FAIL: $1 → unexpectedly present '$3'";; *) PASS=$((PASS+1));; esac; }
 
 echo "── cpu_load_status (warn=load1 spiky · crit=load5 sustained) ──"
 ck "burst load1=27 load5=6 12c → warn (NOT crit) [the false-crit fix]" "$(cpu 27.33 6.0 12 0.90 1.50)" "warn"
@@ -75,6 +85,49 @@ ck "'top' → allowed (op whole-word NOT over-matched — the exception still ho
 ck "'/Applications/1Password.app/Contents/MacOS/1Password' → denied (substring on basename)" "$(dn /Applications/1Password.app/Contents/MacOS/1Password)" "denied"
 ck "'/opt/homebrew/bin/claude' → denied (path comm still protected)"                        "$(dn /opt/homebrew/bin/claude)" "denied"
 ck "'Google Chrome Helper' → allowed (not on denylist)"                                     "$(dn 'Google Chrome Helper')" "allowed"
+
+echo "── counts_status (F4: env-thresholded zombies ⊕ optional thread high-water) [round-6] ──"
+ck "z=3 t=8000 zw=5 → ok (below zombie warn; threads disabled)"          "$(cst 3 8000 5 20 0 0)"       "ok"
+ck "z=7 → warn (zombie env threshold, was hardcoded pre-round-6)"        "$(cst 7 8000 5 20 0 0)"       "warn"
+ck "z=25 → crit (zombie crit)"                                           "$(cst 25 1 5 20 0 0)"         "crit"
+ck "thread threshold 0 = DISABLED → ok even at 9000 threads (no false default)" "$(cst 0 9000 5 20 0 0)" "ok"
+ck "thread high-water ENABLED (tw=8000) → warn at 9000"                  "$(cst 0 9000 5 20 8000 12000)" "warn"
+ck "thread high-water crit (tc=8000) → crit at 9000"                     "$(cst 0 9000 5 20 4000 8000)" "crit"
+ck "zombie env-override zw=1 → warn at 2 zombies"                        "$(cst 2 10 1 3 0 0)"          "warn"
+
+echo "── mem_pressure_status (F5: kern dispatch level → status, never-fabricate-crit) [round-6] ──"
+ck "level 1 → ok (normal)"                                    "$(mps 1)"   "ok"
+ck "level 2 → warn (the false-ok fix: available% can read ok here)" "$(mps 2)" "warn"
+ck "level 4 → crit (kernel critical)"                         "$(mps 4)"   "crit"
+ck "level 99 → ok (unexpected → NEVER fabricate crit)"        "$(mps 99)"  "ok"
+ck "empty → ok (sysctl unreadable → neutral, available% governs)" "$(mps '')" "ok"
+ck "non-numeric 'xyz' → ok (fail-safe)"                       "$(mps xyz)" "ok"
+
+echo "── F1 responder: cpu BRANCH load-driven crit must SURFACE (was silently dropped) [round-6] ──"
+F1_LOAD='{"system":{"status":"crit","branches":{"cpu":{"status":"crit","root_fail":"load1","leaves":{"load1":{"value":20,"load5":19,"ncpu":12},"top_consumer":{"status":"ok"}}}}}}'
+ck_has "load-driven crit (root_fail=load1, top_consumer ok) → HITL residue surfaces" "$(respond_out "$F1_LOAD")" "cpu=crit load-driven"
+F1_TOP='{"system":{"status":"warn","branches":{"cpu":{"status":"warn","root_fail":"top_consumer","leaves":{"load1":{"value":5,"load5":5,"ncpu":12},"top_consumer":{"status":"warn","comm":"x","pct":80}}}}}}'
+ck_hasnot "root_fail=top_consumer → NO load-driven line (already handled above, no double-report)" "$(respond_out "$F1_TOP")" "load-driven"
+
+echo "── F3 responder: network 'informational' = no residue; a real fault still surfaces [round-6] ──"
+F3_INFO='{"system":{"status":"ok","branches":{"network":{"status":"informational"}}}}'
+ck_hasnot "network=informational → NO residue (honest not-thresholded label)" "$(respond_out "$F3_INFO")" "network="
+F3_WARN='{"system":{"status":"warn","branches":{"network":{"status":"warn"}}}}'
+ck_has "network=warn → residue still surfaces (real fault not suppressed)" "$(respond_out "$F3_WARN")" "network=warn"
+
+echo "── H1 SSOT sensitive-app core (1password openclaw omniroute claude) in BOTH safelists [round-6] ──"
+ck "SSOT core line intact in responder PROC_DENYLIST" "$(grep -cE '1password openclaw omniroute claude.*SSOT sensitive-app core' "$RESPONDER")" "1"
+ck "SSOT core line intact in offender PROTECTED"      "$(grep -cE '1password openclaw omniroute claude.*SSOT sensitive-app core' "$OFC")"      "1"
+ck "denied() openclaw (SSOT core, behavioral)"        "$(dn openclaw)"   "denied"
+ck "denied() omniroute (SSOT core, behavioral)"       "$(dn omniroute)"  "denied"
+
+echo "── machine-local ↔ skill-mirror collector byte-identity (the recon-relied-on invariant) [round-6] ──"
+LOCAL="$HOME/.local/bin/system-health-guardian.sh"
+if [ -f "$LOCAL" ]; then
+  ck "collector machine-local == skill mirror (md5)" "$(hashf "$LOCAL")" "$(hashf "$COLLECTOR")"
+else
+  echo "  SKIP: machine-local collector absent (CI / non-deploy host) — byte-identity invariant N/A here"
+fi
 
 echo
 echo "threshold-test: $PASS passed, $FAIL failed"

@@ -39,8 +39,14 @@ LOG="${OFC_LOG:-$STATE_DIR/containment.log}"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
 MODE="dry-run"; DO_PRUNE=0; ALLOW_UNINSTALL="${OFC_ALLOW_UNINSTALL:-0}"
-# operator-protected — NEVER contain these (case-insensitive substring; the runtime + secrets managers)
-PROTECTED=(1password openclaw omniroute claude op-service keychain)
+# operator-protected — NEVER contain these (case-insensitive substring; the runtime + secrets managers).
+# SSOT sensitive-app core (round-6 H1): `1password openclaw omniroute claude` MUST stay identical to
+# health-respond.sh PROC_DENYLIST — see the SSOT note there (inline-not-sourced = fail-safe); drift caught
+# by threshold-test.sh.
+PROTECTED=(
+  1password openclaw omniroute claude   # ← SSOT sensitive-app core (sync ↔ health-respond.sh PROC_DENYLIST)
+  op-service keychain                   # containment-scope extras: secrets-manager tokens
+)
 
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG" 2>/dev/null || true; }
 

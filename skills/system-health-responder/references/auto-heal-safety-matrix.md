@@ -20,20 +20,22 @@
 | **cpu — runaway** | `branches.cpu.leaves.top_consumer.status != ok` AND `comm ∉ PROC_DENYLIST` AND `nice < RENICE_TO` | `renice RENICE_TO -p <pid>` (deprioritize) + record revert | ✅ **AUTONOMOUS (Moderate)** |
 | cpu — protected runaway | runaway but `comm ∈ PROC_DENYLIST` | seed + notify (never touch) | 🟠 HITL |
 | cpu — already-deprioritized | runaway but `nice ≥ RENICE_TO` (renice-down needs root) | seed + notify (kill/quit = operator) | 🟠 HITL |
+| **cpu — load saturation** (round-6 F1) | `branches.cpu.status ∈ {warn, crit}` AND `root_fail ≠ top_consumer` (SUSTAINED system load `load1`/`load5`, no single runaway) | seed + notify — **not auto-healable** (there is no single proc to renice; reducing load = operator closes apps). Was silently dropped pre-round-6 (the responder read only the `top_consumer` leaf, never the branch). | 🟠 HITL |
 | **disk** | `branches.disk.status != ok` | **DELEGATE to `disk-health-guardian`** — it owns disk (Tier-1/2 reclaim + its own escalate-seed). Zero duplication. | delegated |
 | **burn_down — forecast** (top-level `burn_down`, round-3) | `burn_down.status ∈ {warn, crit}` AND `burn_down.trend == "draining"` (reclaim-aware: sloped over the post-reclaim-jump tail, so a guardian cache-deletion up-jump can't mask a genuine drain) | **seed + notify** — `health-respond.sh main()` reads the top-level `.burn_down` **independently of `.system.status`** (it is NOT a `.system.branches` leaf, so it does not feed the roll-up — the early-return is gated on it too) and surfaces `days_to_threshold` + `drain_gb_per_hr` so a session/operator acts *before* the crisis the 2026-07-14 drain reached. **Observe-only leading indicator — a forecast NEVER auto-deletes; the disk *branch* (above) owns actual reclaim.** `unknown` (thin/absent log) → no action, no seed (never a fabricated number). | 🟠 seed + notify (no new autonomous action) |
 | **security** | firewall / SIP / gatekeeper off | seed + notify — re-enabling security = operator (System Settings) | 🟠 HITL |
 | **malware** | XProtect stale / detection | seed + notify — OS security update / quarantine = operator | 🟠 HITL |
-| **memory** | available < threshold | seed + notify — freeing memory means killing a proc (destructive) | 🟠 HITL |
-| **process** | zombie / runaway-count anomaly | seed + notify — kill = operator judgment | 🟠 HITL |
-| **network** | unexpected listener | seed + notify — never auto-close a socket | 🟠 HITL |
+| **memory** | available% low **OR** kernel `pressure` warn/crit (round-6 F5: available% adds back inactive/purgeable → can read ok while the kernel signals pressure; blended via `worst()`) | seed + notify — freeing memory means killing a proc (destructive) | 🟠 HITL |
+| **process** | zombie (env-thresholded) **or** optional thread high-water anomaly (round-6 F4: `counts.status` = zombies ⊕ threads, no longer zombies-only) | seed + notify — kill = operator judgment | 🟠 HITL |
+| **network** | `informational` (round-6 F3: listeners collected but NOT thresholded → honest non-`ok` label, **no residue** — never a false `ok`, never a false HITL seed) | **none** (observe-only; never auto-close a socket) | ⚪ informational |
 | **agentic-tools — cache-producer** | `branches.agentic_tools.leaves.cache_producer.status != ok` | `uv cache prune` (non-destructive; removes ONLY unreachable objects, keeps tool installs) | ✅ **AUTONOMOUS (Moderate)** |
 | **agentic-tools — live `@latest` producer** | `cache_producer.uvx_latest_procs > 0` (+ `uvx_latest_producers` = the argv-free `<pkg>@latest` name(s), when the spawn was alive long enough to `ps` — secret-safe by grammar) | **ENGAGE (SHR_READY proven)** → responder invokes `offender-containment.sh --engage` = DISABLE registry-vetted, present offenders (reversible; uninstall NOT auto-armed). **DRY-RUN / launchd (no SHR_READY)** → seed only (naming the producer in the seed). Un-vetted → always seed. Producers are **transient** (spawn-do-exit) → the lever is the source (disable) / the cache (prune), never the proc. | ✅ **AUTONOMOUS DISABLE (armed 2026-07-14)** / 🟠 seed |
 | **agentic-tools — claude runtime** | `claude_runtime.health != healthy` (from `claude doctor`) | seed + notify — fixing = operator `/doctor` in-session (the collector's probe is read-only) | 🟠 HITL |
 
 **Eisenhower ordering (deterministic):** cpu-runaway (urgent+important → autonomous) → disk (delegated) →
 agentic-tools cache-producer prune (Moderate autonomous) → security/malware (important, HITL) →
-memory/process/network + agentic-tools containment/runtime (HITL). crit outranks warn within a class.
+cpu-load-saturation / memory / process + agentic-tools containment/runtime (HITL). crit outranks warn within a
+class. `network` is observe-only `informational` (round-6 F3) — not in the action ordering.
 
 ## Offender-containment tiers (`bin/offender-containment.sh`) — above Moderate, separately armed (EKO-90-ext)
 
@@ -130,6 +132,18 @@ zero drift.
 > the wrong artifact; `xprotect_freshness.source` carries `xprotect-cli|bundle-mtime`. (#6) the
 > `process.counts` leaf now reflects the real `zombies` status (was hardcoded `ok`) so root-fail drill-down
 > lands on a non-`ok` leaf.
+>
+> **Round-6 (collector v1.5.0→v1.6.0)** — an anti-theater OODA that fixed what "ok" *means* rather than the
+> labels. One responder-side change (**F1**, the only new disposition above): the responder now reads the
+> `cpu` **branch** status, so a sustained-load crit (`root_fail=load1/load5`, no single runaway) is seeded to
+> HITL instead of silently dropped. Four collector honesty fixes (still leaf-`status`-transparent to the
+> responder): **F5** memory blends `kern.memorystatus_vm_pressure_level` (a false-`ok` caught live — available%
+> can read ok while the kernel signals pressure); **F4** `counts.status` = zombies (now env-overridable) ⊕ an
+> optional thread high-water (0 = disabled), and `thread_count` is threads-only (was procs+threads); **F3**
+> `network` is honestly `informational` (collected-not-thresholded), never a false `ok` nor a false HITL seed;
+> **F2** the `claude_runtime` probe resolves `claude` to an absolute path (launchd's minimal PATH had left it
+> perpetually `absent`). **H1** the sensitive-app safelist core (`1password openclaw omniroute claude`) is now a
+> single labelled SSOT in both `PROC_DENYLIST` (renice) and `PROTECTED` (containment), drift-guarded by a test.
 
 ## What the responder will NEVER do (⛔ absolute)
 

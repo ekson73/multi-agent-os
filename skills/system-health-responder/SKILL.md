@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.7.1
+version: 1.8.0
 allowed-tools: Read, Bash
 ---
 
@@ -264,6 +264,44 @@ the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 
   case/basename-normalize · …) **+6 `denied` basename-normalize** (/path/op→denied · top→allowed ·
   1Password-path→denied · …) assertions = **37**; round-3 suites regress clean (16+5) = **58/58**.
 
+### Honesty + harmonization pass (v1.8.0, round-6, 2026-07-14) — fix what "healthy/ok" *means*, not the labels
+
+An anti-theater OODA over the converged suite (two skeptical Explore agents, told to name what's *already*
+honest and reject cosmetic gaps) surfaced six genuine substance-fixes — headlined by a **HIGH** no-silent-drop
+bug that `guardian.log` proved firing live (collector **v1.5.0 → v1.6.0**):
+
+- **F1 (HIGH — the silent drop)**: the responder read only `cpu.leaves.top_consumer.status`, never the `cpu`
+  **branch**. A crit driven by *sustained system load* (`root_fail=load1/load5`, no single runaway to renice)
+  surfaced **zero** residue and returned 0 — a real crit dropped. Now it reads the branch and seeds a HITL
+  residue for load saturation (not auto-healable: no single proc to renice → operator reduces load).
+- **F2**: `claude_runtime` used a bare `command -v claude` — launchd's minimal PATH excludes `~/.local/bin`, so
+  the probe was **dead** (perpetual `absent`) under the production cadence. Now resolved to an absolute path
+  like jq/softwareupdate/timeout (interactive `command -v` still wins).
+- **F3**: `network` was hardcoded `ok` (listeners collected, never thresholded) — an `ok` with no measurement.
+  Now honestly labelled `informational` (root_fail→null; the responder treats it as no-residue).
+- **F4**: `process.counts.status` derived from **zombies only** (a thread/proc leak read `ok`); zombie
+  thresholds were the only non-env-overridable ones; `THREAD_COUNT` over-counted (procs+threads). Now:
+  env-overridable `ZOMBIE_WARN/CRIT`, threads-only count, optional `THREAD_WARN/CRIT` high-water (0 = disabled,
+  no invented default), honest `counts_status()` blend.
+- **F5 (highest-value false-ok)**: `memory.available%` adds back inactive/speculative/purgeable → can read `ok`
+  while the kernel signals pressure. Now blends `kern.memorystatus_vm_pressure_level` (1/2/4 → ok/warn/crit;
+  unreadable → neutral, never fabricated) via `worst()`, + a new `pressure` leaf. *(Caught in the act:
+  available=ok 21.5% while pressure=warn → memory honestly warn.)*
+- **F6**: the header/`meta.note` "reads comm ONLY — never argv" claim was overstated — the `<pkg>@latest`
+  producer-attribution reads argv (safely, via `^[alnum][alnum._-]*@latest$` rejecting any flag/value). The
+  claim now states the true, safe behavior.
+- **H1 (harmonize)**: the sensitive-app safelist core (`1password openclaw omniroute claude`) was duplicated
+  across `denied()` (responder) + `protected()` (offender-containment). Now a single labelled **SSOT core** in
+  both, kept *inline* (fail-safe: a missing sourced lib = an empty safelist = the unsafe direction), with drift
+  caught deterministically by a test — each script keeps its legit scope-specific entries.
+- **Cores extracted** for unit-testing (Strata): `counts_status()` (F4) + `mem_pressure_status()` (F5), each
+  with a `--*-status` hook — same "exercise the EXACT production logic" pattern as the round-4/5 cores.
+- **Tested**: `bin/threshold-test.sh` — **+7 `counts_status`** (thread-0=disabled · zombie-env-override ·
+  thread-high-water) **+6 `mem_pressure_status`** (level-2→warn · 99/empty→ok never-crit) **+2 F1** (load-driven
+  crit surfaces · root_fail=top_consumer→no double-report) **+2 F3** (informational→no-residue · warn→still-surfaces)
+  **+4 H1 SSOT** (core-line-intact both files · denied() openclaw/omniroute) **+1 machine-local↔mirror md5** =
+  **59**; round-3 suites regress clean (16+5) = **80/80**.
+
 ## Composition (reuse, not reinvent — Strata)
 
 - **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
@@ -279,10 +317,10 @@ the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 
 - `references/no-source-fix-registry.md` — the ADR evidence gate (vetted no-source-fix offenders + dossiers).
 - `references/offender-containment-33-socratic.md` — round-1 design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
 - `references/offender-containment-round2-33-socratic.md` — round-2 operational-reasoning (33 non-duplicate Q&A; sibling-falsification · transient-vs-persistent producers · attribution · warn/HITL boundary · unknown-offender handling).
-- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector (v1.3.x = burn-down · **v1.4.1 = round-4 threshold fixes + probe fail-safe**).
+- `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector (v1.3.x = burn-down · v1.4.1 = round-4 threshold fixes · v1.5.0 = round-5 ncpu/measurement-honesty · **v1.6.0 = round-6 honesty: mem-pressure blend · network-informational · thread-count-honest · claude-abs-path**).
 - `bin/burndown-test.sh` — round-3 collector unit tests (drives `--burndown`; 16 assertions: reclaim-jump-not-misread · short-tail-honest-unknown · `+0000`/`+00:00`/`Z` tz variants).
 - `bin/responder-burndown-test.sh` — round-3 responder wiring tests (5 assertions: `warn`/`crit`→seed · `ok`/`unknown`→quiet — proves `.burn_down` is read, not just documented).
-- `bin/threshold-test.sh` — round-4 threshold unit tests (drives `--cpu-load-status`/`--xprotect-status`; 13 assertions: CPU burst→warn-not-crit · sustained-load5→crit · XProtect auto-ON-47d→ok · auto-OFF-65d→crit · never-crit-while-self-healing).
+- `bin/threshold-test.sh` — round-4→6 unit + integration tests (**59 assertions**): drives the collector cores `--cpu-load-status`/`--xprotect-status`/`--top-consumer-status`/`--counts-status`/`--mem-pressure-status` + the responder guards `--comm-match`/`--denied` + F1/F3 synthetic-contract responder integration + H1 SSOT-core drift-guard + machine-local↔mirror md5 byte-identity. (3 suites total = 59 + burndown 16 + responder-burndown 5 = **80/80**.)
 - EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
   (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).
