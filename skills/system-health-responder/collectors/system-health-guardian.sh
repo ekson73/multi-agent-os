@@ -92,6 +92,9 @@ compute_burndown() {
     if [ -z "$ep" ]; then   # RFC3339 colon-offset (+00:00) → normalize to +0000 (strip ONLY the trailing offset colon) & retry — no silent sample loss on format drift
       ep="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "$(printf '%s' "$ts" | sed -E 's/([+-][0-9][0-9]):([0-9][0-9])$/\1\2/')" +%s 2>/dev/null || true)"
     fi
+    if [ -z "$ep" ]; then   # RFC3339 Zulu (…Z = UTC) — the convention the repo's OTHER logs use; parse as UTC (never a silent blind-spot)
+      case "$ts" in *Z) ep="$(TZ=UTC date -j -f '%Y-%m-%dT%H:%M:%SZ' "$ts" +%s 2>/dev/null || true)";; esac
+    fi
     [ -n "$ep" ] && series="${series}${ep} ${f}"$'\n'
   done <<EOF
 $pairs
@@ -103,7 +106,9 @@ EOF
       n=NR;
       if (n<3){ printf "{\"status\":\"unknown\",\"reason\":\"insufficient-samples\",\"samples\":%d}", n; exit }
       start=1; for(i=2;i<=n;i++) if (g[i]-g[i-1] > jump) start=i;   # tail after the LAST reclaim up-jump
-      if (n-start+1 < 3) start=1;                                    # tail too short → full window (trend-only)
+      # short post-reclaim tail: DO NOT slope the full window (it re-includes the jump → the exact confounding
+      # this is meant to avoid). Honest "unknown" until enough post-reclaim samples accrue (Tomé > a wrong trend).
+      if (start>1 && n-start+1 < 3){ printf "{\"status\":\"unknown\",\"reason\":\"post-reclaim-tail-short\",\"samples\":%d}", n-start+1; exit }
       sx=0;sy=0;sxx=0;sxy=0;k=0; x0=e[start];
       for(i=start;i<=n;i++){ x=e[i]-x0; y=g[i]; sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;k++ }
       den=k*sxx - sx*sx;
@@ -287,7 +292,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.1", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.2", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,

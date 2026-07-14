@@ -172,9 +172,16 @@ main() {
   trap release_lock EXIT
 
   local overall; overall="$(jq -r '.system.status // "unknown"' "$CONTRACT" 2>/dev/null)"
-  echo "System-health responder  [$([ "$DRY_RUN" -eq 1 ] && echo DRY-RUN || echo ENGAGE)]  contract.status=${overall}"
-  if [ "$overall" = "ok" ]; then
-    echo "  ✅ all classes ok — nothing to do"; log "no-op overall=ok"; return 0
+  # burn_down is a TOP-LEVEL leading indicator (NOT a .system.branches leaf → it does NOT feed .system.status),
+  # so it must be read + gated independently, else a burn_down warn/crit while branches are ok is silently ignored.
+  local bd bd_trend bd_days bd_drain
+  bd="$(jq -r '.burn_down.status // "unknown"' "$CONTRACT" 2>/dev/null)"
+  bd_trend="$(jq -r '.burn_down.trend // "?"' "$CONTRACT" 2>/dev/null)"
+  bd_days="$(jq -r '.burn_down.days_to_threshold // "?"' "$CONTRACT" 2>/dev/null)"
+  bd_drain="$(jq -r '.burn_down.drain_gb_per_hr // "?"' "$CONTRACT" 2>/dev/null)"
+  echo "System-health responder  [$([ "$DRY_RUN" -eq 1 ] && echo DRY-RUN || echo ENGAGE)]  contract.status=${overall}  burn_down=${bd}"
+  if [ "$overall" = "ok" ] && [ "$bd" != "warn" ] && [ "$bd" != "crit" ]; then
+    echo "  ✅ all classes ok — nothing to do"; log "no-op overall=ok burn_down=${bd}"; return 0
   fi
 
   # ── Eisenhower-ranked disposition (deterministic) ─────────────────────────
@@ -197,6 +204,12 @@ main() {
   # disk → DELEGATED to disk-health-guardian (no dup)
   local ds; ds="$(jq -r '.system.branches.disk.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$ds" != "ok" ] && echo "  ↪  disk=${ds} → delegated to disk-health-guardian (it owns disk; no action here)"
+  # burn_down (round-3) → observe-only LEADING indicator: forecast NEVER auto-deletes; seed so a session/operator
+  # frees space EARLY, before the drain hits the floor (the 2026-07-14 lesson). The disk BRANCH (above) still owns
+  # actual reclaim — this is the predictor, not the effector (sensor ≠ effector).
+  if [ "$bd" = "warn" ] || [ "$bd" = "crit" ]; then
+    residue="${residue}- 🟠 disk burn-down=${bd} (trend=${bd_trend}, ~${bd_drain} GB/hr, ~${bd_days}d to threshold): leading indicator — prune caches / reclaim EARLY (session/operator) before the floor.\n"
+  fi
   # security → HITL (Q2 important, not autonomous)
   local secs; secs="$(jq -r '.system.branches.security.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$secs" != "ok" ] && residue="${residue}- 🟠 security=${secs} ($(jq -r '.system.branches.security.root_fail // "?"' "$CONTRACT")): re-enable firewall/SIP/gatekeeper = operator (System Settings).\n"

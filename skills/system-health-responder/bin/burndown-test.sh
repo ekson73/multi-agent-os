@@ -81,5 +81,26 @@ J="$(run "$Lr")"; echo "[5 rfc3339 +00:00] $J"
 check "rfc3339" "$J" trend  draining
 check "rfc3339" "$J" free_gb 75
 
+# ── Test 6: Zulu UTC timestamps (…Z) — the repo's OTHER logs use this; must parse (v1.3.2 fallback) ──
+ts_zulu() { TZ=UTC date -v-"$1"H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null; }   # e.g. 2026-07-14T18:00:00Z
+Lz="$tmpd/zulu.log"; : > "$Lz"
+for spec in 5:100 4:95 3:90 2:85 1:80 0:75; do
+  printf '%s  HEARTBEAT healthy free=%sG cap=50%% — no action\n' "$(ts_zulu "${spec%%:*}")" "${spec##*:}" >> "$Lz"
+done
+J="$(run "$Lz")"; echo "[6 zulu Z] $J"
+check "zulu" "$J" trend  draining     # parsed (else insufficient-samples/unknown)
+check "zulu" "$J" free_gb 75
+
+# ── Test 7: SHORT post-reclaim tail (<3 post-jump) → unknown, NOT a jump-contaminated slope ──
+# [50,45,40,35, →100,95]: reclaim jump at the 5th sample, only 2 post-jump points. Sloping the full window
+# would let the +60 jump dominate → false "recovering". The forecast MUST report unknown (post-reclaim-tail-short).
+Ls="$tmpd/shorttail.log"; build_log "$Ls" 5:50 4:45 3:40 2:35 1:100 0:95
+J="$(run "$Ls")"; echo "[7 short-tail] $J"
+check "short-tail" "$J" status unknown
+check "short-tail" "$J" reason post-reclaim-tail-short
+if printf '%s' "$J" | grep -qi 'stable-or-recovering'; then
+  echo "  ✗ short-tail: MISREAD as recovering (jump-contaminated fallback!) [full: $J]"; FAIL=$((FAIL+1))
+else echo "  ✓ short-tail: NOT a jump-contaminated slope (honest unknown)"; PASS=$((PASS+1)); fi
+
 echo "=== RESULT: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
