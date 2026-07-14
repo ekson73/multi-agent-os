@@ -236,11 +236,20 @@ main() {
         log "AGENTIC-PRUNE producer=${prod_st} uvobj=${uvobj} uvx=${uvx}"
         acted=1
       fi
-      # Tier-B — HIGH-stakes ROOT-fix (operator ADR): a LIVE `uvx …@latest` producer is the ROOT (prune
-      # treats the symptom). The responder does NOT auto-disable/remove — it SEEDS a containment delegation;
-      # an ACTIVE agent (with the ADR arm + tools) drains it via offender-containment.sh. Taxis no-silent-drop.
+      # Tier-B — ROOT-fix (operator ADR; DISABLE tier ARMED 2026-07-14 via operator ratification). A LIVE
+      # `uvx …@latest` producer is the ROOT (prune treats the symptom). In ENGAGE mode — which only holds
+      # when an ACTIVE reflex proved SHR_READY (launchd NEVER sets it) — the responder now invokes the
+      # containment executor, which DISABLES (reversible) registry-VETTED, currently-present offenders.
+      # Uninstall stays a further explicit gate (OFC_ALLOW_UNINSTALL) — NOT auto-armed here (reversible-first).
+      # Un-vetted / un-present producers still fall through to the HITL seed below (no-silent-drop / Taxis).
       if [ "$uvx" -gt 0 ] 2>/dev/null; then
-        residue="${residue}- 🔴 agentic-tools: ${uvx} live \`uvx …@latest\` producer(s) re-inflating uv cache (ROOT, not symptom; uv has no auto-GC). Durable fix per operator ADR = disable/remove the offending no-source-fix plugin → an active agent drains via \`bin/offender-containment.sh\` (registry-vetted + armed). Prune is a stopgap.\n"
+        if [ "$DRY_RUN" -eq 0 ] && [ -x "$ofc" ]; then
+          echo "  🔌 agentic-tools: live producer → offender-containment --engage (disable registry-vetted offenders; uninstall NOT auto-armed)"
+          OFC_ARM=1 OFC_READY=1 "$ofc" --engage 2>>"$LOG" | sed 's/^/    /' || true
+          log "OFFENDER-CONTAINMENT-ENGAGE uvx=${uvx} (disable-tier armed; uninstall not armed)"
+          acted=1
+        fi
+        residue="${residue}- 🔴 agentic-tools: ${uvx} live \`uvx …@latest\` producer(s) re-inflating uv cache (ROOT; uv has no auto-GC). $([ "$DRY_RUN" -eq 0 ] && echo 'Containment ENGAGED on registry-vetted offenders (disable, reversible).' || echo 'Durable fix per operator ADR = disable/remove the offending no-source-fix plugin.') Un-vetted producers → \`bin/offender-containment.sh\` (registry + arm). Prune is a stopgap.\n"
       fi
     fi
     # claude runtime unhealthy → HITL (fixing = the operator's in-session /doctor; the collector's probe is read-only)

@@ -68,11 +68,13 @@ protected() { local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"; loc
   done; return 1; }
 
 # uv cache prune — LOW-stakes durable maintenance (removes ONLY unreachable objects; keeps tool installs).
+# ACTS whenever called: prune_uv is only reached via `--prune` or an armed `--engage` — both mean "do it".
+# (The pure-default no-flags run never calls this — it stays detect+propose only.) prune needs no arm gate:
+# it is strictly non-destructive (reversible-by-regeneration), so it is safe under any invocation intent.
 prune_uv() {
   command -v uv >/dev/null 2>&1 || { echo "  ⏭  uv absent — prune skipped"; return 0; }
-  if [ "$MODE" = dry-run ]; then echo "  ✅ PROPOSE: uv cache prune (non-destructive; unreachable objects only) [dry-run]"; return 0; fi
-  echo "  🧹 uv cache prune …"
-  if uv cache prune >/dev/null 2>>"$LOG"; then echo "  ✅ pruned uv cache (unreachable objects removed; installs kept)"; log "PRUNE uv cache prune ok"
+  echo "  🧹 uv cache prune (non-destructive; unreachable objects only; installs kept) …"
+  if uv cache prune >/dev/null 2>>"$LOG"; then echo "  ✅ pruned uv cache"; log "PRUNE uv cache prune ok"
   else echo "  ⏭  uv cache prune non-zero (balloon mid-delete / partial) — safe, resumes"; log "PRUNE uv cache prune partial"; fi
 }
 

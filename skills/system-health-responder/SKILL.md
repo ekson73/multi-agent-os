@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.2.0
+version: 1.3.0
 allowed-tools: Read, Bash
 ---
 
@@ -106,11 +106,16 @@ producer** — N Claude sessions re-spawning `uvx …@latest` MCP servers re-inf
    `uvx_latest_procs` producer signature). Secret-safe: counts/names/booleans only, never argv.
 
 2. **Responder** consumes that branch: **Tier-A** autonomous `uv cache prune` (LOW · non-destructive · same
-   `--engage`+`SHR_READY` Moderate gate as renice); **Tier-B** SEEDS a containment delegation — it NEVER
-   auto-disables/removes (the secret-safe contract can't name the plugin; disable/remove is above Moderate).
+   `--engage`+`SHR_READY` Moderate gate as renice); **Tier-B** — **DISABLE tier ARMED 2026-07-14 (operator
+   ratification)** — in ENGAGE mode (only when an active reflex proved `SHR_READY`; launchd never sets it) the
+   responder now invokes the containment executor to **DISABLE** (reversible) registry-vetted, present
+   offenders. Uninstall stays a further explicit gate (NOT auto-armed — reversible-first). Un-vetted/
+   un-present producers still fall through to the HITL seed (the launchd path, with no `SHR_READY`, always
+   dry-run-seeds — it never auto-contains).
 
-An **active, armed agent** performs the actual containment via `bin/offender-containment.sh`, mechanizing the
-operator ADR (2026-07-14): *"até que o plugin nao tem fix na fonte, pode desativar e/ou remover"* — with
+An **active, armed agent** (or the armed responder above) performs the containment via
+`bin/offender-containment.sh`, mechanizing the operator ADR (2026-07-14): *"até que o plugin nao tem fix na
+fonte, pode desativar e/ou remover"* — with
 escalating gates (prune → disable `+OFC_ARM+OFC_READY+evidence` → remove `+OFC_ALLOW_UNINSTALL`), an
 **evidence gate** (`references/no-source-fix-registry.md` — a vetted upstream wontfix, not a hunch), a
 protected-denylist (`1password/openclaw/omniroute/claude`), reversibility (`containment.log` restore

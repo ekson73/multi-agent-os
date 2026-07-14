@@ -27,7 +27,7 @@
 | **process** | zombie / runaway-count anomaly | seed + notify — kill = operator judgment | 🟠 HITL |
 | **network** | unexpected listener | seed + notify — never auto-close a socket | 🟠 HITL |
 | **agentic-tools — cache-producer** | `branches.agentic_tools.leaves.cache_producer.status != ok` | `uv cache prune` (non-destructive; removes ONLY unreachable objects, keeps tool installs) | ✅ **AUTONOMOUS (Moderate)** |
-| **agentic-tools — live `@latest` producer** | `cache_producer.uvx_latest_procs > 0` | **SEED containment delegation** → an active agent runs `bin/offender-containment.sh` (registry-vetted + armed). The responder NEVER auto-disables/removes. | 🟠 HITL / armed-agent |
+| **agentic-tools — live `@latest` producer** | `cache_producer.uvx_latest_procs > 0` | **ENGAGE (SHR_READY proven)** → responder invokes `offender-containment.sh --engage` = DISABLE registry-vetted, present offenders (reversible; uninstall NOT auto-armed). **DRY-RUN / launchd (no SHR_READY)** → seed only. Un-vetted → always seed. | ✅ **AUTONOMOUS DISABLE (armed 2026-07-14)** / 🟠 seed |
 | **agentic-tools — claude runtime** | `claude_runtime.health != healthy` (from `claude doctor`) | seed + notify — fixing = operator `/doctor` in-session (the collector's probe is read-only) | 🟠 HITL |
 
 **Eisenhower ordering (deterministic):** cpu-runaway (urgent+important → autonomous) → disk (delegated) →
@@ -47,6 +47,11 @@ but disabling/removing a plugin is **above Moderate** — so it gets its own esc
 | **disable** | `claude plugin disable <p>` | MEDIUM · reversible | `claude plugin enable <p>` | `--engage` + `OFC_ARM=1` + `OFC_READY=1` + **registry evidence** |
 | **remove** | `claude plugin uninstall <p>` | HIGH · reinstall-able | `claude plugin install <p>` | above **+ `OFC_ALLOW_UNINSTALL=1`** |
 | **default (no flags)** | detect + PROPOSE only | none | — | none — pure dry-run + seed |
+
+> **ARMED status (operator ratification 2026-07-14):** the **disable** tier is now invoked autonomously by
+> the responder's ENGAGE path (fires only when an active reflex proved `SHR_READY` — launchd never sets it,
+> so the unattended cycle stays dry-run+seed). The **uninstall** tier remains a further explicit gate
+> (`OFC_ALLOW_UNINSTALL`) — never auto-armed (reversible-first). Both stay evidence-gated + protected-denylisted.
 
 **Evidence gate (the ADR's "no source fix" made real, not hand-waved):** a plugin is disabled/removed
 ONLY if it appears in `references/no-source-fix-registry.md` with a confirmed upstream wontfix/closed/
