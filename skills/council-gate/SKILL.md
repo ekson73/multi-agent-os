@@ -32,7 +32,7 @@ description: |
 > **Composes (DRY — no new engine)**: `maos:persona-pipeline` · `maos:perspective-trio` · `maos:cascade-resolver` · `maos:convergence-engine` + `bin/convergence-guard` · `maos:governance-auditor` (red-team) · `maos:decision-capture` · role-advisor agents (`data-privacy-officer`, `supabase-engineer`, `quarkus-backend-engineer`, `react-frontend-engineer`, `angular-frontend-engineer`, `qa-validator`, `agile-product-lead`, `prompt-context-engineer`, `code-reviewer`).
 
 ## §0 — BEING > Rules
-This skill serves the operator's intent and the constitutional rule. If a phase obstructs helping NOW, skip it, log `Skipped <phase> — BEING > Rules`, proceed. The **arming state** and the **non-authorizable set** are the two things this escape clause may NOT relax — they are safety-critical (secrets/prod/irreversible are never opened by "helping faster").
+This skill serves the operator's intent and the constitutional rule. If a **non-safety presentation step** (formatting a briefing, a nicety) obstructs helping NOW, skip it, log `Skipped <phase> — BEING > Rules`, proceed. **The escape clause is limited to presentation.** It may NOT relax any **safety gate** — the Layer-1 deny-set (§5.1), the 33-interrogation (§4), council convergence (§5.2), the red-team (§5.2.5), or the arming state (§1). A safety gate that is **skipped OR left un-evidenced sets its corresponding predicate conjunct to `false`** (fail-safe), which forces **§7 HITL** — it is never bypassed. Secrets/prod/irreversible are never opened by "helping faster".
 
 ## §1 — Default posture: UNARMED (consultative)
 This skill **ships UNARMED**. Until the operator ratifies arming (rule §5.4 + a `[C13]` wiring), the gate:
@@ -65,7 +65,7 @@ Each is a distinct failure surface: gate 1 catches the hard boundary regardless 
 
 ## §3 — The flow (per invocation)
 
-```
+```text
 intake -> 33-socratic interrogation (§4)
       -> LAYER 1  deterministic deny-set (§5.1)  --MATCH-->  HARD BLOCK -> HITL (§7)   [no council; confidence irrelevant]
                                                   --CLEAR-->
@@ -80,7 +80,7 @@ intake -> 33-socratic interrogation (§4)
 ```
 
 ## §4 — The 33-socratic interrogation (run FIRST; grounds the verdict)
-Interrogate the decision across **5 axes** — the operator's `[motivation · problems · risks · mitigations · solutions]` — each at **3 depths** (`is · should-be · must-not-be`) = 15, plus the **frame/authority/fitness** lenses (context · scope · temporality · who-may · authorization · right · capability · competence · reversibility · blast-radius · Eisenhower quadrant · emergency/urgency · **LGPD/GDPR/privacy exposure** · DoD) → **33 questions**. The gate runs this **family-aware** (it knows it is one member of the loop family §5.5 — a gate the loops route their HITL-fallbacks *through*, not a standalone) and with a **consciousness-lens** (CASC: *"I know what I am authorizing and whom it affects"* — `harmonic` §0.5.1). Purpose: surface deny-set triggers early, ground the verdict (anti-theater — no faz-de-conta), and produce the constraint-set the council reasons over. Emit the answers as a compact structured block (not prose), so a human can scan + contest.
+Interrogate the decision across **5 axes** — the operator's `[motivation · problems · risks · mitigations · solutions]` — each at **3 depths** (`is · should-be · must-not-be`) = **15 core questions**, plus **18 frame/authority/fitness lenses** = **33 total** (the operator's + `maos:forge` canonical 33-Socratic count). The **18 lenses (6 · 6 · 6)** — **Frame**: context · scope · temporality · focus · holistic-impact · emergency/urgency; **Authority**: who-may-authorize · authorization-basis · the-right-to-act · stakeholders-affected · cross-org-reach · **privacy/LGPD/GDPR-exposure**; **Fitness**: capability · competence · reversibility · blast-radius · Eisenhower-quadrant · DoD. The gate runs this **family-aware** (it knows it is one member of the loop family §5.5 — a gate the loops route their HITL-fallbacks *through*, not a standalone) and with a **consciousness-lens** (CASC: *"I know what I am authorizing and whom it affects"* — `harmonic` §0.5.1). Purpose: surface deny-set triggers early, ground the verdict (anti-theater — no faz-de-conta), and produce the constraint-set the council reasons over. Emit the answers as a compact structured block (not prose), so a human can scan + contest.
 
 | Axis | The 3 depths asked |
 |---|---|
@@ -89,7 +89,7 @@ Interrogate the decision across **5 axes** — the operator's `[motivation · pr
 | **Risks** | what CAN go wrong · what's the worst-case · what's irreversible/HUMAN_DOMAIN (→ deny-set) |
 | **Mitigations** | what reduces the risk · what's the recovery path · what mitigation must exist before proceeding |
 | **Solutions** | what IS the action · is it the least-action VALID path · what non-contradictory alternative exists |
-| **Frame/Authority/Fitness** | context · scope · temporality · who-may-authorize · reversibility · blast-radius · Eisenhower · urgency · **privacy/LGPD/GDPR** · DoD |
+| **Frame · Authority · Fitness** (the 18 lenses, 6·6·6) | Frame: context · scope · temporality · focus · holistic-impact · emergency/urgency · Authority: who-may-authorize · authorization-basis · the-right-to-act · stakeholders-affected · cross-org-reach · **privacy/LGPD/GDPR** · Fitness: capability · competence · reversibility · blast-radius · Eisenhower · DoD → **15 core + 18 = 33** |
 
 ## §5 — The two layers
 
@@ -98,6 +98,8 @@ Compute the **non-authorizable set** BEFORE any confidence. Match on ANY → **H
 - ⛔ **secrets/credentials** (operator-auth does NOT annul — a fortiori a council cannot) · production PII (LGPD/GDPR) · irreversible/prod-deploy/delete/schema-destructive · **merge→main/prod** (always requires human authorization) · push-force protected · `--no-verify` · cross-org (public/social/customer-facing) · costs $$$ · critical-infra/CI (`.github/workflows/`, `terraform/`, helm, k8s-prod).
 - `[C17]` §2 **HUMAN_DOMAIN** (personal/ethics/policy) + genuine operator-preference the agent lacks + can't self-verify.
 - Mechanically: honor the existing `prevent-main-commit`/`enforce-worktree` hooks + `gitleaks` + `pr-review-protocol` §2.6.1 R1-R6 + **`bin/convergence-guard`** (deterministic REFUSE). Unknown ⇒ **BLOCK** (fail-safe). A jailbroken council never reaches Layer 2 for a deny-set action, because Layer 1 fails on it independently.
+
+**Execution-surface constraint (the gate decides; it does NOT widen the shell).** The gate's own `Bash` grant is scoped to running the **read-only deterministic verifiers** (`bin/convergence-guard`, `gitleaks`) — NOT to executing arbitrary authorized actions. On AUTHORIZE+ARMED the *authorized action is executed by the **caller*** under the caller's existing guardrails (§6.3), so a high-level council/red-team approval can **never authorize a broader shell command than the caller could already run**. The Layer-1 deny-set above independently blocks `--no-verify` / force-push / secrets / merge→prod regardless of any approval — confidence opens nothing here.
 
 ### §5.2 — LAYER 2: democratic council (ONLY within the Layer-1-cleared band)
 Convene the council via `maos:persona-pipeline` (6-stage board) + `maos:perspective-trio` (horizontal diversity). **Democratic-eligibility**: seat only deliberative/democratic-character personas; **never** dictatorial/monarchy/absolute-power/hereditary characters. **No persona authorizes alone** — authorization requires convergence. **Regent/prime-minister super-powers are NON-DEFAULT** — convened ONLY on explicit operator command.
@@ -116,7 +118,7 @@ After the council converges but **before** authorization is granted, an **indepe
 **Default-to-refuted-if-uncertain**: try to refute; if you cannot *positively* clear it, treat it as **refuted**. **Any successful refutation → P4 FAILS → §7 HITL** (with the refutation carried as part of the contestable evidence). The red-team is the third leg of the §2.3 triple-check and directly counters the Explainability-Paradox — an adversary is *not* persuaded by the council's own slick justification.
 
 ## §6 — The armed-for-safe-class predicate
-```
+```text
 AUTHORIZE ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```
 - **P1** = the §5.1 Layer-1 clear (unconditional — confidence never opens it).
@@ -124,8 +126,8 @@ AUTHORIZE ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.
 - **P4** = council convergence (§5.2) **AND** red-team survival (§5.2.5) — both, per the §2.3 triple-check.
 - **P5** armed = operator-ratified grant in force (§1). UNARMED → verdict + 1-touch confirm, no execution.
 
-### §6.3 — On AUTHORIZE + ARMED
-Execute the action, then `maos:decision-capture` (`agentic-decide`): record **why** authorized · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. This is the audit substrate the Metron regret-rate reads.
+### §6.3 — Decision-capture (every terminal verdict) + execute (only if armed)
+On **any** terminal verdict — AUTHORIZE-executed, AUTHORIZE-consultative (unarmed), OR HITL — run `maos:decision-capture` (`agentic-decide`) **first**: record the **verdict** · **why** · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. Metron needs the record whether or not it executed (authorize-rate + regret-rate), and this guarantees **every emitted `audit_ref` (§8) is backed by a real record** — no dangling ref on the default unarmed path. **Only on AUTHORIZE + ARMED** does the gate then **execute the action** — and it executes it **through the caller under the caller's existing guardrails** (the same hooks + the §5.1 Layer-1 deny-set), never by expanding its own shell surface (see the §5.1 execution-surface constraint). A `HITL_*` verdict emits `audit_ref: null` (nothing was authorized to capture beyond the escalation itself).
 
 ## §7 — HITL fallback = contestable evidence, NOT a persuasive verdict
 When the predicate fails (Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
@@ -149,7 +151,7 @@ Never hand over a bare proposed action; never hand over a lone slick justificati
   "audit_ref": "decision-capture:<id>"
 }
 ```
-`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_RED_TEAM_REFUTED` (§5.2.5) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN`.
+`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_RED_TEAM_REFUTED` (§5.2.5) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN`. Every `AUTHORIZE_*` verdict carries a **real `audit_ref`** (a `decision-capture` record made in §6.3, armed OR consultative); `HITL_*` verdicts carry **`audit_ref: null`**.
 
 ## §9 — Falsifiability (Metron)
 Emit signals for `agentic-observability-protocol`: **authorize-rate** (≈100% ⇒ rubber-stamp discriminator → tighten convergence threshold) · **authorize-then-regret** (S3/S4 → raise the bar) · **red-team-catch-rate → 0** (the red-team never refutes ⇒ it is not adversarial enough → strengthen the adversarial lens; a never-catching red-team is theater) · **guardrail-violation-while-authorized = S5 HARD-ZERO** (P0 → disarm + HITL + rule review).
@@ -183,3 +185,4 @@ Self-Application ✅ (composes existing primitives, adds no engine — Strata/Go
 |---|---|---|
 | 1.0.0 | 2026-07-14 | Bootstrap — executable counterpart to the `council-gate` constitutional rule. Two-layer gate (deterministic deny-set FIRST + probabilistic council within-cleared-band), 33-socratic interrogation, democratic council (eligibility filter · no-unilateral · super-powers-non-default), armed-for-safe-class predicate, Explainability-Paradox guard (independent verifier + contestable-evidence hand-off), Metron falsifiability. **Ships UNARMED** (consultative; no self-arm). Composes existing maos primitives — no new engine. Registered via artifact-registry (DUP-check CLEAR). |
 | 1.0.0 (PDCA-revised · Round-2) | 2026-07-14 | Pre-merge PDCA on PR #255 (bot-review) + operator-directive coverage upgrade, harmonized with the rule's Round-2 (PR #236). Fixes: dropped the Vek team-member name from the Layer-1 merge line → community-neutral "always requires human authorization" (Two-Worlds ⛔ / `layer-precedence` Rule 2 community-purity, Copilot); SSOT note clarifies the rule is a **user-scope** cross-layer dependency (akasha PR #236), not a missing repo file (amazon-q :stop_sign:); predicate **L1–L5 → P1–P5** + notation-note (disambiguates from the two Layers, Copilot); added `allowed-tools` frontmatter (qodo). Upgrades (harmonize with rule): **§5.2.5 Red-team refutation** (independent adversarial, default-to-refuted, before authorize — folded into P4); **§2.3 Triple-check** (Layer-1 · council convergence · red-team); **family-aware + consciousness** (§4) + **goal-loop** in the family fire-points (§Refs); red_team fields in the JSON envelope + `HITL_RED_TEAM_REFUTED` verdict; red-team-catch-rate Metron discriminator (§9). No version bump (pre-merge). |
+| 1.0.0 (PDCA-revised · Round-2b · CodeRabbit) | 2026-07-14 | **Second PDCA cycle** — CodeRabbit re-reviewed the Round-2 fix-commit (`7a25076`) and requested 5 changes (all addressed): **§0 escape clause** tightened — limited to non-safety *presentation* steps; any skipped/un-evidenced **safety gate** (Layer-1 · interrogation · convergence · red-team · arming) sets its predicate conjunct `false` → forces HITL, never bypass (CR Major, fail-safe); **§5.1 execution-surface constraint** added — the gate's `Bash` is scoped to the read-only deterministic verifiers (`convergence-guard`/`gitleaks`); an authorized action is executed **by the caller under its own guardrails**, so a council/red-team approval can never widen the shell surface (CR Major, security); **§6.3 + §8 `audit_ref`** — `decision-capture` now runs on **every** terminal verdict (armed OR unarmed-consultative), so every emitted `audit_ref` is backed; `HITL_*` verdicts carry `audit_ref: null` (CR Major, data-integrity — was dangling on the default unarmed path); **§4 33-count reconciled** — was 15 core + 14 lenses = 29; now **15 core + 18 enumerated lenses (6·6·6) = 33** (CR Major, functional-correctness / anti-theater); **MD040** code-fence languages labeled (`text`) on the §3 flow + §6 predicate + command usage fences (CR Minor). No version bump (pre-merge). |

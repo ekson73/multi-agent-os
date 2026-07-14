@@ -9,7 +9,7 @@ Invokes the `council-gate` skill (soul-name *Boule*) — a **pre-HITL democratic
 
 ## Usage
 
-```
+```text
 /council-gate "<the decision that would otherwise fall back to HITL>" [--armed] [--stakes trivial|low|medium|high] [--seats <a,b,c>] [--json]
 ```
 
