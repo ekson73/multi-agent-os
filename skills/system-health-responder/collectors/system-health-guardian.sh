@@ -89,6 +89,9 @@ compute_burndown() {
   while read -r ts f; do
     [ -n "$ts" ] || continue
     ep="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null || true)"
+    if [ -z "$ep" ]; then   # RFC3339 colon-offset (+00:00) → normalize to +0000 (strip ONLY the trailing offset colon) & retry — no silent sample loss on format drift
+      ep="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "$(printf '%s' "$ts" | sed -E 's/([+-][0-9][0-9]):([0-9][0-9])$/\1\2/')" +%s 2>/dev/null || true)"
+    fi
     [ -n "$ep" ] && series="${series}${ep} ${f}"$'\n'
   done <<EOF
 $pairs
@@ -284,7 +287,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.0", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.1", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,

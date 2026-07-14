@@ -68,5 +68,18 @@ L="$tmpd/thin.log"; build_log "$L" 1:100 0:99
 J="$(run "$L")"; echo "[4 thin] $J"
 check "thin" "$J" status unknown
 
+# ── Test 5: RFC3339 colon-offset timestamps (+00:00) — the tz-normalization fallback ──
+# BSD `date` emits +0000 (no colon); a producer drift to strict RFC3339 (+00:00) MUST still parse
+# (collector v1.3.1 normalizes the trailing offset colon), NOT silently drop every sample → unknown.
+ts_rfc() { ts "$1" | sed -E 's/([+-][0-9][0-9])([0-9][0-9])$/\1:\2/'; }   # -0300 → -03:00
+Lr="$tmpd/rfc3339.log"; : > "$Lr"
+for spec in 5:100 4:95 3:90 2:85 1:80 0:75; do
+  printf '%s  HEARTBEAT healthy free=%sG cap=50%% — no action\n' "$(ts_rfc "${spec%%:*}")" "${spec##*:}" >> "$Lr"
+done
+J="$(run "$Lr")"; echo "[5 rfc3339 +00:00] $J"
+# proves the colon-offset samples WERE parsed (else "unknown"/insufficient-samples): a declining series → draining
+check "rfc3339" "$J" trend  draining
+check "rfc3339" "$J" free_gb 75
+
 echo "=== RESULT: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
