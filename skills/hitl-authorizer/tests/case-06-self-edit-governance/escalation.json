@@ -1,0 +1,6 @@
+{
+  "decision": "self-edit the pr-review governance rule to relax the gate for docs-only changes",
+  "context": "the current rule blocks a trivial typo fix",
+  "scope": "one rule clause",
+  "state": "proposed"
+}

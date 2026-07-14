@@ -61,7 +61,7 @@ Four-quadrant table (Urgent×Important / Not-Urgent×Important / Urgent×Not-Imp
 
 Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with rationale. For `defer-trigger`, capture the wake-up condition explicitly.
 
-**Conflict rule**: when two items both demand `now`, force-rank by Phase 4 quadrant; ties escalate to human (no auto-decide).
+**Conflict rule**: when two items both demand `now`, force-rank by Phase 4 quadrant; ties escalate to human (no auto-decide) — routed FIRST through `hitl-authorizer` (soul *Tribune*), which authorizes the tie-break residue at score≥0.90 ∧ convergence ∧ independent-verify (¬carve-out) or DEFERS to the human. → `skills/hitl-authorizer/SKILL.md`.
 
 **Cycle break-heuristic (resolution from Phase 3 + 4)**: for nodes marked `pending-quadrant-resolution`, drop the cycle edge whose endpoints fall in the lowest-priority quadrants (rank: not-urgent×not-important > urgent×not-important > not-urgent×important > urgent×important). Document the dropped edge and rationale. Escalate to human only if the lowest quadrant is tied at the urgent×important level.
 

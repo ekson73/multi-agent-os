@@ -164,6 +164,15 @@ Every HITL is an UNSOLVED PROBLEM; classify before escalating:
 - **HARD** (authority boundary — looping cannot dissolve it): irreversible/high-cost authorization |
   destructive op | credentials/secrets | safety → escalate IMMEDIATELY; never self-authorize.
 
+**Pre-HITL brokering (Tribune) — the invocable front-door.** Before an escalation becomes a *real*
+HITL — SOFT after `max-iterations`, OR any `STOP-HITL` — route it through **`skills/hitl-authorizer`**
+(soul *Tribune*), the invocable enactment of `COWORK-AUTONOMY-POLICY`'s Council-before-HITL ladder.
+It returns `{AUTHORIZE | DEFER}`: AUTHORIZE resolves the escalation in the human's place (score≥0.90 ∧
+convergence ∧ independent-verify ∧ ¬carve-out); DEFER is the irreducible residue the human sees. A HARD
+carve-out (secrets ⛔ un-liftable · HUMAN_DOMAIN · merge→prod) is deferred *immediately* by its
+deterministic `bin/classify.sh` gate — **no council is spawned**. Escalate to the human only on the
+Tribune's `DEFER`. Cited here once (DRY); siblings inherit it by citing this §5. → `skills/hitl-authorizer/SKILL.md`.
+
 ---
 
 ## §6 — PERSIST + Boy-Scout DoD

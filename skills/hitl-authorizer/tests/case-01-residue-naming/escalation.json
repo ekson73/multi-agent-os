@@ -1,0 +1,6 @@
+{
+  "decision": "pick the default log verbosity level for a dev-only CLI flag",
+  "context": "reversible config choice, no data touched, internal tooling only",
+  "scope": "single flag default value",
+  "state": "low-confidence"
+}

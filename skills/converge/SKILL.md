@@ -156,7 +156,7 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
   ```
 
 - **Activation URI unreachable** → fall back to default core set + warn
-- **Loop ≥ `max_rounds` with no convergence** → escalate upward; do NOT silently retry (default `max_rounds: 1`, hard cap `3`)
+- **Loop ≥ `max_rounds` with no convergence** → escalate upward via `hitl-authorizer` (soul *Tribune*) — it authorizes the residue in the human's place or DEFERS; do NOT silently retry (default `max_rounds: 1`, hard cap `3`)
 
 ## Examples
 

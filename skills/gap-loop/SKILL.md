@@ -224,6 +224,11 @@ The four self-* flags map onto EXISTING primitives (invoke, don't invent); they 
 <!--ORCH-STATUS: CONTINUE -->      round done; gaps remain OR score < threshold; next round opens
 ```
 
+**Pre-HITL brokering (Tribune):** before emitting `STOP-HITL`, route the escalation through
+`hitl-authorizer` (soul *Tribune* — the Council-before-HITL front-door, `gap-loop-protocol §5`); emit
+`STOP-HITL` only on its `DEFER`. Carve-outs (secrets ⛔ / HUMAN_DOMAIN / merge→prod) defer immediately
+via its `bin/classify.sh` gate (no council). → `skills/hitl-authorizer/SKILL.md`.
+
 ## Protocol Rules (anti-loop invariants + bounds)
 
 - `--max-iterations` (default 6) caps loop rounds; same-panel re-run is FORBIDDEN (rotate or escalate).
