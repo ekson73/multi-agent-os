@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `artifact-registry`: dedup-memory for Anima (naming) & Forge (creation)
+
+- **`bin/artifact-registry` (`record` + `lookup`) + `docs/artifact-registry-spec.md` + `tests/test-artifact-registry.sh`** —
+  closes a real gap: Anima does a live *namespace* collision-`Grep` and Forge a live *DRY/PR-state* probe, but **neither
+  persists a log of its own past decisions**, so a *synonym* of something already named/created slips through a slug-grep
+  (`session-method-audit` returns nothing yet `praxis-audit` already exists for that intent). This adds the missing
+  **decision-memory**: every **name** (Anima) + every **create** (Forge) is recorded once, and `lookup` matches on
+  **exact slug AND fuzzy purpose** (token-overlap over purpose+slug+aliases) → verdict `DUP-RISK`/`CLEAR` — catching the
+  synonym a slug-grep misses. Wired into **Anima** (§5 lookup-before-deciding · DoD record-after) and **Forge**
+  (step-1 DRY-probe lookup · step-8 record-after-write); Anima records the `name`, Forge the `create` — two faces of one
+  artifact, not a duplicate. Reuses the `dogfood-ledger` pattern (POSIX bash 3.2 + jq · `~/.claude/audit/*.jsonl` ·
+  mkdir-lock atomic append · [C06] exit codes); machine-local gitignored working-memory (advisory, never a hard block —
+  the decider still owns the call per `naming-authority`). Test 9/9 PASS incl. the synonym→DUP-RISK proof.
+
 ### Added — `praxis-audit`: self-referential session-method audit (OODA "Macro-2")
 
 - **`commands/praxis-audit.md` + `skills/praxis-audit/SKILL.md`** (`/maos:praxis-audit`, v0.1.0) — turns

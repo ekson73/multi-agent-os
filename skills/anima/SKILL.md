@@ -78,7 +78,8 @@ collision/availability check → DECIDE one (§5) → emit (name + rationale + r
 ```
 **DoD (done)**: exactly `--n` name(s) · a scorecard for the winner (12 correctness, + 4 resonance if human-register)
 · ≥1 research citation · a collision check · one rejected runner-up w/ reason · adapter + register conventions
-honored · zero invented-word-presented-as-real.
+honored · zero invented-word-presented-as-real · **the decided name recorded to the dedup-memory**
+(`artifact-registry record --kind name --slug <name> --type <t> --purpose "<intent>"` — so a future name/forge sees it).
 
 **KPIs**: research-grounded-rate (% names backed by a cited source) · zero-invention-rate (target 100%) ·
 collision-avoidance-rate · operator-override-rate (low = good calibration) · re-research-rate · single-name-return-rate.
@@ -161,6 +162,11 @@ Default house-form (overridable per adapter): kebab-case · ≤6 words · role-t
 ## §5 — Decision + collision/availability check
 - Score candidates (§3) → drop any with a hard-aspect failure → check collision (local namespace via `Grep`/family,
   + web/availability per `kb/brand-product.md` when the class is a brand/domain/package).
+- **Dedup-memory check** (before deciding): `artifact-registry lookup --purpose "<intent>" [--type <t>]` — the persisted
+  log of Anima's past NAMES + Forge's past CREATES. The `Grep` above catches an exact-slug clash; this catches a
+  *synonym of the intent* a slug-grep misses (e.g. `session-method-audit` vs the already-named `praxis-audit`).
+  `DUP-RISK` ⇒ prefer the existing artifact (or an explicit deliberate variant) over minting a near-duplicate.
+  See `docs/artifact-registry-spec.md`. (Advisory — never a hard block; the decider still owns the call per `naming-authority`.)
 - **Decide the winner.** Emit: `NAME` (system-name; + soul-name only if a human-register entity asked for one) ·
   1-line rationale · the scorecard verdict (PASS/flags) · the **rejected runner-up** + why · research citations ·
   `[HUMAN_DOMAIN: ratify]` flag if §0 fired.

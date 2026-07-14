@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# MAOS — Artifact Registry · record + lookup (dedup-awareness for Anima & Forge)
+# ----------------------------------------------------------------------------
+# WHY: Anima (the namer) does a live NAMESPACE collision-check (Grep the family)
+#   and Forge (the creator) a live DRY / PR-state probe at forge-time — but
+#   NEITHER keeps a persistent log of its OWN past decisions. So a *synonym*
+#   for something already named/created slips through a one-shot namespace grep
+#   ("session-method-audit" vs the existing "praxis-audit"). This registry is
+#   that missing decision-memory: every NAME (Anima) and every CREATE (Forge)
+#   is recorded; before deciding, they LOOKUP by purpose to avoid duplication.
+#
+# Two verbs:
+#   record  — append ONE decision event (kind=name|create) to the ledger
+#   lookup  — query the ledger for prior artifacts matching a purpose/slug/type;
+#             flags DUP-RISK (exact slug OR >=2 shared meaningful purpose-tokens)
+#             so a fresh amnesic agent won't re-name / re-create what exists.
+#
+# Ledger (machine-local, gitignored — a working dedup-memory, NOT a repo artifact):
+#   ${ARTIFACT_REGISTRY_DIR:-$HOME/.claude/audit}/artifact-registry.jsonl
+#   (same ~/.claude/audit audit-state convention as dogfood-cycles.jsonl).
+#
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only (no associative
+#   arrays, no ${var^^}); atomic append via mkdir-lock (POSIX). No org-specific
+#   content — promotion-eligible per Layer Purity.
+# Idempotent: an identical (kind,slug,purpose) record is a no-op.
+# Exit codes ([C06]): 0 success (incl. idempotent no-op / lookup-with-hits) ·
+#   1 usage/validation · 2 setup (jq missing).
+set -euo pipefail
+
+REG_DIR="${ARTIFACT_REGISTRY_DIR:-$HOME/.claude/audit}"
+REG="$REG_DIR/artifact-registry.jsonl"
+
+command -v jq >/dev/null 2>&1 || { echo "artifact-registry: jq is required" >&2; exit 2; }
+
+usage() {
+  cat <<EOF
+MAOS artifact-registry — dedup-memory for Anima (naming) & Forge (creation).
+
+USAGE
+  $(basename "$0") record --kind name|create --slug <slug> [options]
+  $(basename "$0") lookup [--purpose "<intent>"] [--slug <slug>] [--type <t>] [--json]
+
+record — append ONE naming/creation decision:
+  --kind name|create   REQUIRED. name = a name Anima decided · create = a tool Forge made
+  --slug <slug>        REQUIRED. the decided name / created-tool slug  ([A-Za-z0-9._-])
+  --purpose "<text>"   the INTENT it serves (the dedup key that catches synonyms) — strongly recommended
+  --type <t>           artifact/object type: skill|command|agent|mcp|plugin|rule|db|module|... (default: unknown)
+  --by anima|forge     who decided (default: inferred from --kind: name->anima, create->forge)
+  --alias "<a>"        a rejected runner-up / synonym (repeatable) — improves future dedup
+  --location <loc>     where it lives, e.g. multi-agent-os (default: git-toplevel basename / PWD)
+  --rationale "<text>" one-line why (<=240 chars)
+  --ref <ref>          provenance, e.g. github:ekson73/multi-agent-os/pull/248 · session:<sid>
+  --session <sid>      (default: \$CLAUDE_CODE_SESSION_ID)
+  --project <name>     (default: git-toplevel basename / PWD)
+  --dry-run            print the event JSON, do NOT append
+
+lookup — is there already an artifact for this? (call BEFORE naming/forging):
+  --purpose "<text>"   intent to check (token-overlap match — catches synonyms)
+  --slug <slug>        exact-slug check (strongest dup signal)
+  --type <t>           narrow to one artifact type
+  --json               machine output for agent consumers (Anima/Forge); default is human
+  (verdict: DUP-RISK if exact-slug OR >=2 shared meaningful purpose-tokens; else CLEAR)
+
+EXAMPLES
+  # Forge, before creating: does a tool for this intent already exist?
+  $(basename "$0") lookup --purpose "self-referential session method audit" --json
+  # Anima, after deciding a name:
+  $(basename "$0") record --kind name --slug praxis-audit --type skill \\
+    --purpose "audit the session's own enacted methods for theater/gaps" \\
+    --alias session-method-audit --ref github:ekson73/multi-agent-os/pull/248
+  # Forge, after creating:
+  $(basename "$0") record --kind create --slug praxis-audit --type skill \\
+    --purpose "self-referential session-method audit" --location multi-agent-os
+EOF
+  exit 0
+}
+
+[ $# -eq 0 ] && usage
+VERB="$1"; shift || true
+case "$VERB" in record|lookup) ;; --help|-h|help) usage ;; *) echo "unknown verb '$VERB' (use: record | lookup)" >&2; exit 1 ;; esac
+
+# ---- shared arg parse -------------------------------------------------------
+KIND=""; SLUG=""; PURPOSE=""; TYPE=""; BY=""; LOCATION=""; RATIONALE=""; REF=""
+SID="${CLAUDE_CODE_SESSION_ID:-}"; PROJECT=""; DRYRUN=0; JSONOUT=0; ALIASES_RAW=""
+
+need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; case "$3" in -?*) echo "$1 requires a value (got option '$3')" >&2; exit 1 ;; esac; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --kind)      need_val "$1" "$#" "${2:-}"; KIND="$2"; shift 2 ;;
+    --slug)      need_val "$1" "$#" "${2:-}"; SLUG="$2"; shift 2 ;;
+    --purpose)   need_val "$1" "$#" "${2:-}"; PURPOSE="$2"; shift 2 ;;
+    --type)      need_val "$1" "$#" "${2:-}"; TYPE="$2"; shift 2 ;;
+    --by)        need_val "$1" "$#" "${2:-}"; BY="$2"; shift 2 ;;
+    --alias)     need_val "$1" "$#" "${2:-}"; ALIASES_RAW="${ALIASES_RAW}${2}"$'\n'; shift 2 ;;
+    --location)  need_val "$1" "$#" "${2:-}"; LOCATION="$2"; shift 2 ;;
+    --rationale) need_val "$1" "$#" "${2:-}"; RATIONALE="$2"; shift 2 ;;
+    --ref)       need_val "$1" "$#" "${2:-}"; REF="$2"; shift 2 ;;
+    --session)   need_val "$1" "$#" "${2:-}"; SID="$2"; shift 2 ;;
+    --project)   need_val "$1" "$#" "${2:-}"; PROJECT="$2"; shift 2 ;;
+    --dry-run)   DRYRUN=1; shift ;;
+    --json)      JSONOUT=1; shift ;;
+    --help|-h)   usage ;;
+    *) echo "unknown option '$1' for '$VERB'" >&2; exit 1 ;;
+  esac
+done
+
+# defaults
+if [ -z "$PROJECT" ] || [ -z "$LOCATION" ]; then
+  TOP="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+  BN="$(basename "$TOP")"
+  [ -z "$PROJECT" ] && PROJECT="$BN"
+  [ -z "$LOCATION" ] && LOCATION="$BN"
+fi
+[ -z "$TYPE" ] && TYPE="unknown"
+
+# tokenizer used by lookup (lowercase, split on non-alnum, drop tokens <=2, unique)
+TOK_JQ='ascii_downcase | gsub("[^a-z0-9]+";" ") | split(" ") | map(select(length>2)) | unique'
+
+# ---- lookup -----------------------------------------------------------------
+if [ "$VERB" = "lookup" ]; then
+  [ -f "$REG" ] || { if [ "$JSONOUT" -eq 1 ]; then echo '{"verdict":"CLEAR","matches":[],"note":"registry empty"}'; else echo "artifact-registry lookup: CLEAR (registry empty)" >&2; fi; exit 0; }
+  RESULT="$(jq -R 'fromjson? // empty' "$REG" \
+    | jq -s --arg qslug "$SLUG" --arg qpurpose "$PURPOSE" --arg qtype "$TYPE" --argjson hastype "$([ -n "${TYPE}" ] && [ "$TYPE" != "unknown" ] && echo true || echo false)" '
+      ( ($qpurpose + " " + $qslug) | '"$TOK_JQ"' ) as $qtok
+      | map(
+          . as $r
+          | ( (($r.purpose//"") + " " + ($r.slug//"") + " " + (($r.aliases//[])|join(" "))) | '"$TOK_JQ"' ) as $rtok
+          | ( [ $qtok[] | select( . as $t | $rtok | index($t) ) ] | length ) as $ov
+          | ( ($qslug != "") and ($r.slug == $qslug) ) as $exact
+          | ( $r + {overlap:$ov, exact:$exact} )
+        )
+      | map(select( $hastype | not or (.type == $qtype) ))
+      | map(select(.exact or .overlap >= 2))
+      | sort_by(.exact, .overlap) | reverse
+      | { verdict: (if any(.exact or .overlap >= 2) then "DUP-RISK" else "CLEAR" end),
+          matches: map({kind,slug,type,purpose,by,location,ref,overlap,exact}) }
+    ')"
+  if [ "$JSONOUT" -eq 1 ]; then
+    printf '%s\n' "$RESULT"
+  else
+    V="$(printf '%s' "$RESULT" | jq -r '.verdict')"
+    N="$(printf '%s' "$RESULT" | jq -r '.matches | length')"
+    printf 'artifact-registry lookup: %s (%s prior match(es))\n' "$V" "$N" >&2
+    printf '%s' "$RESULT" | jq -r '.matches[] | "  [\(.kind)] \(.slug) (\(.type)) — \(.purpose) \(if .exact then "[EXACT]" else "[~\(.overlap) tokens]" end)\(if .ref != null and .ref != "" then " · \(.ref)" else "" end)"'
+  fi
+  # exit 0 whether or not hits (a verdict IS the useful output); consumers read .verdict
+  exit 0
+fi
+
+# ---- record -----------------------------------------------------------------
+case "$KIND" in name|create) ;; "") echo "record: --kind name|create is required" >&2; exit 1 ;; *) echo "record: --kind must be name|create (got '$KIND')" >&2; exit 1 ;; esac
+[ -n "$SLUG" ] || { echo "record: --slug is required" >&2; exit 1; }
+printf '%s' "$SLUG" | grep -qE '^[A-Za-z0-9._-]+$' || { echo "record: --slug '$SLUG' must match [A-Za-z0-9._-]" >&2; exit 1; }
+[ -z "$BY" ] && { [ "$KIND" = "name" ] && BY="anima" || BY="forge"; }
+[ ${#RATIONALE} -le 240 ] || { echo "record: --rationale must be <=240 chars" >&2; exit 1; }
+
+ALIASES_JSON="$(printf '%s' "$ALIASES_RAW" | jq -R -s 'split("\n") | map(select(length>0))')"
+TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+EVENT="$(jq -nc \
+  --arg ts "$TS" --arg kind "$KIND" --arg slug "$SLUG" --arg purpose "$PURPOSE" \
+  --arg type "$TYPE" --arg by "$BY" --arg location "$LOCATION" --arg rationale "$RATIONALE" \
+  --arg ref "$REF" --arg session "$SID" --arg project "$PROJECT" --argjson aliases "$ALIASES_JSON" '
+  {ts:$ts, kind:$kind, slug:$slug, type:$type, by:$by, location:$location, project:$project}
+  + (if $purpose   != "" then {purpose:$purpose}     else {} end)
+  + (if ($aliases|length)>0 then {aliases:$aliases}  else {} end)
+  + (if $rationale != "" then {rationale:$rationale} else {} end)
+  + (if $ref       != "" then {ref:$ref}             else {} end)
+  + (if $session   != "" then {session:$session}     else {} end)
+')"
+
+if [ "$DRYRUN" -eq 1 ]; then printf '%s\n' "$EVENT"; exit 0; fi
+
+mkdir -p "$REG_DIR"; touch "$REG"
+# idempotency: identical (kind,slug,purpose) already present -> no-op
+if jq -R 'fromjson? // empty' "$REG" 2>/dev/null \
+   | jq -se --arg k "$KIND" --arg s "$SLUG" --arg p "$PURPOSE" \
+        'any(.kind==$k and .slug==$s and (.purpose//"")==$p)' >/dev/null 2>&1; then
+  printf 'artifact-registry: %s/%s already recorded (no-op)\n' "$KIND" "$SLUG" >&2
+  exit 0
+fi
+
+# atomic append under mkdir-lock (POSIX-atomic)
+LOCK_DIR="$REG_DIR/.lock-artifact-registry"
+i=0
+while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+  i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
+  sleep 0.1
+done
+trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
+printf '%s\n' "$EVENT" >> "$REG"
+rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM
+
+printf 'artifact-registry: recorded %s/%s (%s) -> %s\n' "$KIND" "$SLUG" "$TYPE" "${REG/#$HOME/~}" >&2
