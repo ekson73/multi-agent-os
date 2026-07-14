@@ -248,8 +248,11 @@ the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 
   autonomous action the responder takes. *(v1.7.1 PDCA per CodeRabbit PR#259 #131/#138 — the initial
   either-contains-substring match was too loose: a recycled `foo-helper` would match a contract `foo`, and an
   empty contract comm would match anything, either authorizing a wrong-proc renice; replaced with exact
-  equality + start-identity re-check. `renice` is fully reversible + denylist-guarded + re-sampled every 600s,
-  so fail-closed is sound.)*
+  equality + start-identity re-check. A follow-up review added two more: **@145** — `denied()` now
+  basename-normalizes so the whole-word `op` (1Password CLI) rule protects a PATH comm (`/usr/local/bin/op`),
+  not just a bare `op`; **@157** — the original niceness `cur` is now sampled AFTER the start-identity is bound
+  (a recycle can no longer pair a stale nice value with a live identity). `renice` is fully reversible +
+  denylist-guarded + re-sampled every 600s, so fail-closed is sound.)*
 - **#6 drill-down leaf-status consistency** — the `process.counts` leaf carried a hardcoded `status:"ok"`
   while its own `zombies` value could drive the branch to `crit`, so a `root_fail → leaf` walker landed on an
   `ok`-labeled leaf. Now the leaf reflects the (DRY, computed-once) `zombie` status — honoring the contract's
@@ -258,7 +261,8 @@ the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 
   signal (low payoff — memory is HITL-only + the current available% already adds back reclaimable classes).
 - **Tested**: `bin/threshold-test.sh` — **+7 `top_consumer_status`** (130.7@12c→warn · 700@12c→crit ·
   ncpu=1 fail-safe · …) **+8 `comm_match` recycle-guard** (foo-helper≠foo · empty≠anything ·
-  case/basename-normalize · …) assertions = **31**; round-3 suites regress clean (16+5) = **52/52**.
+  case/basename-normalize · …) **+6 `denied` basename-normalize** (/path/op→denied · top→allowed ·
+  1Password-path→denied · …) assertions = **37**; round-3 suites regress clean (16+5) = **58/58**.
 
 ## Composition (reuse, not reinvent — Strata)
 

@@ -95,11 +95,13 @@ disable/remove appends its exact restore command to
 `1password op openclaw omniroute claude` — **sensitive-app guard** (mirrors the operator's absolute denylist:
 never manipulate 1Password / OpenClaw / OmniRoute / the agent runtime itself).
 
-**Matching rule (exact behavior, so the doc matches the code):** tokens match as a **case-insensitive
-substring** of `comm`, which errs **conservative** — the worst case is over-protection (we skip a `renice`
-we *could* have done), never under-protection. **Exception:** the ultra-short token **`op`** (1Password CLI)
-matches the **whole `comm` only** (`comm == "op"`), so it doesn't accidentally over-match unrelated names
-like `Dropbox`, `top`, or `Finder` that happen to contain the letters "op".
+**Matching rule (exact behavior, so the doc matches the code):** the `comm` is first **basename-normalized**
+(lowercased basename — so a PATH comm like `/usr/local/bin/op` is compared as `op`; v1.7.1 per CodeRabbit @145,
+consistent with `comm_match()`). Tokens then match as a **case-insensitive substring** of that basename, which
+errs **conservative** — the worst case is over-protection (we skip a `renice` we *could* have done), never
+under-protection. **Exception:** the ultra-short token **`op`** (1Password CLI) matches the **whole basename
+only** (`basename(comm) == "op"`), so it protects `/usr/local/bin/op` AND bare `op` without over-matching
+unrelated names like `Dropbox`, `top`, or `Finder` that merely contain the letters "op".
 
 ## Threshold ownership (DRY)
 

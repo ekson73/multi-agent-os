@@ -25,6 +25,7 @@ cpu() { "$COLLECTOR" --cpu-load-status "$@" 2>/dev/null; }   # load1 load5 ncpu 
 xp()  { "$COLLECTOR" --xprotect-status "$@" 2>/dev/null; }   # age autoupdate warn crit selfheal
 tc()  { "$COLLECTOR" --top-consumer-status "$@" 2>/dev/null; } # pct(per-core) ncpu warn_pct crit_ratio(of total)
 cm()  { "$RESPONDER" --comm-match "$1" "$2" 2>/dev/null; }     # live_raw want_raw → match|nomatch (#131 recycle guard)
+dn()  { "$RESPONDER" --denied "$1" 2>/dev/null; }             # comm → denied|allowed (basename-normalized denylist, @145)
 
 echo "── cpu_load_status (warn=load1 spiky · crit=load5 sustained) ──"
 ck "burst load1=27 load5=6 12c → warn (NOT crit) [the false-crit fix]" "$(cpu 27.33 6.0 12 0.90 1.50)" "warn"
@@ -66,6 +67,14 @@ ck "exact 'foo' vs 'foo' → match"                                             
 ck "case 'Superset' vs 'superset' → match (case-insensitive)"                            "$(cm Superset superset)"  "match"
 ck "path '/A/MacOS/Node' vs 'Node' → match (basename normalize)"                         "$(cm /A/MacOS/Node Node)" "match"
 ck "similar 'node' vs 'nodejs' → nomatch (not equal, no substring widening)"             "$(cm node nodejs)"        "nomatch"
+
+echo "── denied() basename-normalized denylist (sensitive-proc protection on PATH comm) [v1.7.1, CodeRabbit @145] ──"
+ck "'/usr/local/bin/op' → denied (op whole-word now matches basename, not just bare 'op')" "$(dn /usr/local/bin/op)"  "denied"
+ck "bare 'op' → denied (whole-word preserved)"                                             "$(dn op)"                 "denied"
+ck "'top' → allowed (op whole-word NOT over-matched — the exception still holds)"          "$(dn top)"                "allowed"
+ck "'/Applications/1Password.app/Contents/MacOS/1Password' → denied (substring on basename)" "$(dn /Applications/1Password.app/Contents/MacOS/1Password)" "denied"
+ck "'/opt/homebrew/bin/claude' → denied (path comm still protected)"                        "$(dn /opt/homebrew/bin/claude)" "denied"
+ck "'Google Chrome Helper' → allowed (not on denylist)"                                     "$(dn 'Google Chrome Helper')" "allowed"
 
 echo
 echo "threshold-test: $PASS passed, $FAIL failed"

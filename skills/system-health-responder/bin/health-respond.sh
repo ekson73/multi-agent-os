@@ -95,7 +95,11 @@ release_lock() { rm -rf "$LOCK" 2>/dev/null || true; }
 denied() {  # $1=comm → 0 if protected. Substring match, which ERRS CONSERVATIVE (over-protect: worst
             # case we skip a renice we could have done — never the reverse). EXCEPTION: the ultra-short
             # `op` token (1Password CLI) matches WHOLE-comm only, so it doesn't over-match Dropbox/top/etc.
-  local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  # basename-normalize (per CodeRabbit PR#259 @145): `ps -o comm=` may return a PATH (`/usr/local/bin/op`).
+  # Without basename the whole-comm `op` rule below (`c == "op"`) would MISS a path → the sensitive 1Password
+  # CLI could be reniced on recycle. Basename also makes this consistent with comm_match() + tightens the
+  # substring rules against false path-component matches. Denylist entries are all comm basenames.
+  local c; c="$(basename "${1:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
   local d; for d in "${PROC_DENYLIST[@]}"; do
     if [ "$d" = "op" ]; then [ "$c" = "op" ] && return 0; continue; fi
     case "$c" in *"$d"*) return 0;; esac
@@ -119,14 +123,6 @@ try_renice() {
   if denied "$comm"; then
     echo "  🟠 cpu-runaway ${comm} (pid ${pid}, ${pct}%) — PROTECTED proc → seed+notify (never renice)"
     return 2
-  fi
-  # `|| true`: under `set -o pipefail` a dead pid makes `ps` fail → the pipe fails → the $()
-  # assignment would abort the script under `set -e` BEFORE the numeric guard runs. Force the
-  # substitution to always succeed (empty on failure) so the guard below handles proc-gone gracefully.
-  local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-  # validate numeric (empty ⇒ proc gone; non-numeric ⇒ unexpected ps output) BEFORE any -ge compare
-  if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
-    echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
   fi
   # pid-recycle guard (round-5 #2, HARDENED per CodeRabbit PR#259 #131/#138): the contract can be up to
   # StartInterval (600s) stale, so this pid may have been recycled to a DIFFERENT process since the sample →
@@ -154,6 +150,15 @@ try_renice() {
   if [ -z "$live_start" ]; then
     echo "  ⏭  cpu-runaway pid ${pid}: cannot bind start-identity (proc gone) → fail-closed skip (no renice)"
     return 1
+  fi
+  # sample the ORIGINAL niceness AFTER the identity is bound (per CodeRabbit PR#259 @157): reading `cur`
+  # before binding live_start could pair a nice value from a since-recycled process with a different identity
+  # → a wrong revert record / wrong -ge decision. The recheck_start below then validates identity stability
+  # across this read up to the renice. `|| true`: under pipefail a dead pid fails the pipe → would abort under
+  # set -e before the numeric guard; force success (empty) so the guard handles proc-gone gracefully.
+  local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+  if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
+    echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
   fi
   # already at/below target priority → renicing DOWN needs root (BSD: non-root can only raise niceness);
   # renice to the same value is a no-op. Either way skip → the runaway becomes HITL residue (kill/quit=operator).
@@ -328,6 +333,7 @@ main() {
 case "${1:-}" in
   --help|-h) usage; exit 0;;
   --comm-match) comm_match "${2:-}" "${3:-}" && { echo match; exit 0; } || { echo nomatch; exit 1; };;
+  --denied) denied "${2:-}" && { echo denied; exit 0; } || { echo allowed; exit 1; };;
   --engage)
     # Fail-safe DENY-until-proven: the autonomous renice fires ONLY when the calling reflex has
     # proven the standing-autonomy READY predicate and signalled it via SHR_READY=1. A stray
