@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-07-14
-- **Deciders**: Operator (DevSecOps / AI-eng), via HITL directive ("Anima precisa ter um registro/memory de nomeação, Forge precisa ter um registro/memory de criação → propósito: duplication aware/avoid")
+- **Deciders**: Operator (DevSecOps / AI-eng) + Claude (Opus 4.8), via HITL directive ("Anima precisa ter um registro/memory de nomeação, Forge precisa ter um registro/memory de criação → propósito: duplication aware/avoid")
 - **Scope**: MAOS (community, MIT, AAIF cross-vendor). Companion to `naming-authority` (Anima's naming sovereignty) + the dogfood-ledger primitive (ADR-005, whose implementation pattern this reuses).
 
 ## Context
@@ -18,7 +18,7 @@ A one-shot slug-grep answers "is this exact string taken?" It cannot answer "hav
 Add a **single shared dedup-memory** primitive — `bin/artifact-registry` — with two verbs:
 
 1. **`record --kind name|create --slug … --purpose … [--type …] [--aliases …] …`** — append ONE decision to an append-only JSONL ledger. Idempotent on `(kind, slug, purpose)`; atomic mkdir-lock append.
-2. **`lookup --purpose … [--slug …] [--type …] [--json]`** — match on **exact slug AND fuzzy purpose** (token-overlap over `purpose + slug + aliases`, tokens ≤2 chars dropped) → verdict **`DUP-RISK`** (exact-slug OR ≥2 shared meaningful tokens) / **`CLEAR`**. This is what catches the synonym a slug-grep misses.
+2. **`lookup --purpose … [--slug …] [--type …] [--json]`** — match on **exact slug OR fuzzy purpose** (token-overlap over `purpose + slug + aliases`, tokens ≤2 chars dropped) → verdict **`DUP-RISK`** when *either* signal fires (exact-slug **OR** ≥2 shared meaningful tokens), else **`CLEAR`**. This is what catches the synonym a slug-grep misses.
 
 **One ledger, two kinds** → Anima sees what Forge created and vice-versa (dedup across *both*). Anima records the `name`; Forge records the `create` — two faces of one artifact, not a duplicate.
 
