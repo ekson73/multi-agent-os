@@ -48,7 +48,7 @@ stat_mtime() {  # stat_mtime <file> -> epoch
 if [ -z "$MTIME" ]; then
   if [ -d "$PATH_ARG" ]; then
     # newest file mtime under the dir (deterministic given the tree)
-    MTIME="$(find "$PATH_ARG" -type f -exec sh -c 'for f; do stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null; done' _ {} + 2>/dev/null | sort -nr | head -1)"
+    MTIME="$(find "$PATH_ARG" -type f -exec sh -c 'for f; do stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null; done' _ {} + 2>/dev/null | sort -nr | head -n 1)"
   elif [ -e "$PATH_ARG" ]; then
     MTIME="$(stat_mtime "$PATH_ARG")"
   else
