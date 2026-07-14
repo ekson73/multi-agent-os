@@ -69,6 +69,55 @@ st_hi() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v>=c)print"crit"; else if
 # status_from_num LOWER-is-worse: st_lo VALUE WARN CRIT  (lower = worse; e.g. free space)
 st_lo() { awk -v v="$1" -v w="$2" -v c="$3" 'BEGIN{ if(v<=c)print"crit"; else if(v<=w)print"warn"; else print"ok"}'; }
 
+# ── BURN-DOWN forecast (EKO-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
+# The PROACTIVE half of the guardian: predicts days-until-DISK_FREE_WARN_GB from the recent NATURAL drain
+# rate. Reads the disk-guardian's own timestamped `free=<N>G` samples (no new state file). CORRECTNESS FIX
+# (the confounding: free space JUMPS UP on the guardian's reclaim()/Tier-2 cache deletions, so a naïve
+# slope reads "recovering" during a reclaim-masked drain) → we slope ONLY the tail AFTER the last reclaim
+# up-jump (the natural-drain segment); flat/rising tail → "not draining". SECRET-SAFE (reads only free-
+# space integers + timestamps; never argv). Cold-start honest (absent/thin log → "unknown", never faked).
+DISK_GUARDIAN_LOG="${DISK_GUARDIAN_LOG:-$HOME/.local/state/disk-health-guardian/guardian.log}"
+BURNDOWN_WINDOW="${BURNDOWN_WINDOW:-24}"                  # last N samples (~4h at 10-min cadence)
+BURNDOWN_RECLAIM_JUMP_GB="${BURNDOWN_RECLAIM_JUMP_GB:-5}" # consecutive +Δfree > this = a reclaim event
+compute_burndown() {
+  local log="$DISK_GUARDIAN_LOG" pairs series="" ts f ep
+  [ -f "$log" ] || { printf '{"status":"unknown","reason":"no-log"}'; return 0; }
+  # extract last WINDOW `free=<N>G` samples as "ISO_TS free_gb" (free= is 5 chars, trailing G is 1)
+  pairs="$(awk 'match($0,/free=[0-9]+G/){print $1, substr($0,RSTART+5,RLENGTH-6)}' "$log" 2>/dev/null | tail -n "$BURNDOWN_WINDOW" || true)"
+  [ -n "$pairs" ] || { printf '{"status":"unknown","reason":"no-samples"}'; return 0; }
+  # ISO-8601+offset → epoch (bounded: ≤WINDOW date calls; macOS awk lacks mktime so pre-convert)
+  while read -r ts f; do
+    [ -n "$ts" ] || continue
+    ep="$(date -j -f '%Y-%m-%dT%H:%M:%S%z' "$ts" +%s 2>/dev/null || true)"
+    [ -n "$ep" ] && series="${series}${ep} ${f}"$'\n'
+  done <<EOF
+$pairs
+EOF
+  [ -n "$series" ] || { printf '{"status":"unknown","reason":"ts-parse-failed"}'; return 0; }
+  printf '%s' "$series" | awk -v warn="$DISK_FREE_WARN_GB" -v jump="$BURNDOWN_RECLAIM_JUMP_GB" '
+    { e[NR]=$1; g[NR]=$2 }
+    END {
+      n=NR;
+      if (n<3){ printf "{\"status\":\"unknown\",\"reason\":\"insufficient-samples\",\"samples\":%d}", n; exit }
+      start=1; for(i=2;i<=n;i++) if (g[i]-g[i-1] > jump) start=i;   # tail after the LAST reclaim up-jump
+      if (n-start+1 < 3) start=1;                                    # tail too short → full window (trend-only)
+      sx=0;sy=0;sxx=0;sxy=0;k=0; x0=e[start];
+      for(i=start;i<=n;i++){ x=e[i]-x0; y=g[i]; sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;k++ }
+      den=k*sxx - sx*sx;
+      if (den==0){ printf "{\"status\":\"unknown\",\"reason\":\"degenerate-time\",\"samples\":%d}", k; exit }
+      sph=((k*sxy - sx*sy)/den)*3600.0;   # GB/hour, signed (negative = draining)
+      last=g[n]; eps=0.05;
+      if (sph >= -eps){ printf "{\"status\":\"ok\",\"trend\":\"stable-or-recovering\",\"drain_gb_per_hr\":0,\"days_to_threshold\":null,\"threshold_gb\":%d,\"samples\":%d,\"free_gb\":%d}", warn,k,last; exit }
+      drain=-sph; headroom=last-warn;
+      if (headroom<=0){ printf "{\"status\":\"crit\",\"trend\":\"draining\",\"drain_gb_per_hr\":%.2f,\"days_to_threshold\":0,\"threshold_gb\":%d,\"samples\":%d,\"free_gb\":%d}", drain,warn,k,last; exit }
+      days=(headroom/drain)/24.0; st=(days<1)?"crit":((days<7)?"warn":"ok");
+      printf "{\"status\":\"%s\",\"trend\":\"draining\",\"drain_gb_per_hr\":%.2f,\"days_to_threshold\":%.2f,\"threshold_gb\":%d,\"samples\":%d,\"free_gb\":%d}", st,drain,days,warn,k,last;
+    }'
+}
+# testable entrypoint: `--burndown` runs ONLY the forecast (no probing, no contract write) — the unit test
+# (bin/burndown-test.sh) drives this with a synthetic DISK_GUARDIAN_LOG (no awk duplication).
+if [ "${1:-}" = "--burndown" ]; then compute_burndown; echo; exit 0; fi
+
 # ── CPU ───────────────────────────────────────────────────────────────────────
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
 LOAD1="$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}')"; LOAD1="${LOAD1:-0}"
@@ -189,9 +238,10 @@ PRODUCER_ST="$(st_hi "$UV_ARCHIVE_OBJS" "$UV_OBJS_WARN" "$UV_OBJS_CRIT")"
 
 AT_ST="$(worst "$CLAUDE_ST" "$PRODUCER_ST")"
 
-# ── burn-down forecast (deterministic-simple: linear slope of last-N disk samples) ──
-# reuses the disk-guardian log if present; else null (informational)
-BURN_DOWN="null"
+# ── burn-down forecast (IMPLEMENTED round-3 — reclaim-aware; see compute_burndown() near the top) ──
+# emits a structured object {status,trend,drain_gb_per_hr,days_to_threshold,threshold_gb,…} OR "unknown"/
+# "ok stable-or-recovering". Never fabricates a number (Tomé). --argjson below already expects JSON.
+BURN_DOWN="$(compute_burndown)"
 
 # ── ROLL-UP ───────────────────────────────────────────────────────────────────
 # each branch root_fail = its own worst leaf id; system root_fail = worst branch id
@@ -234,7 +284,7 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.2.0", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.3.0", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
