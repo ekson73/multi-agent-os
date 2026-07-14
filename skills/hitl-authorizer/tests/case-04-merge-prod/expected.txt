@@ -1,0 +1,1 @@
+bucket=carve-out-merge-prod disposition=defer-hitl council=none never_authorize=true

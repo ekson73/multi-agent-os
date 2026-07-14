@@ -1,0 +1,6 @@
+{
+  "decision": "choose whether the retry backoff is 2s or 5s for a background job",
+  "context": "reversible, internal, no data affected either way",
+  "scope": "one constant",
+  "state": "ambiguous"
+}

@@ -101,6 +101,11 @@ The canonical pause list is `protocols/delegation/delegation-init-prompt.md`
 
 Default band is `L2-bounded`. Operator may override via `/auto-pilot --band=L3`.
 
+**Pre-HITL brokering (Tribune):** a "Pauses for HITL" band routes the pause through `hitl-authorizer`
+(soul *Tribune*) FIRST — it AUTHORIZES the residue in the human's place (score≥0.90 ∧ convergence ∧
+independent-verify ∧ ¬carve-out) or DEFERS to the operator. A carve-out (secrets ⛔ / HUMAN_DOMAIN /
+merge→prod) defers immediately via its `bin/classify.sh` gate (no council). → `skills/hitl-authorizer/SKILL.md`.
+
 ## DNA payload v1.1 (additive)
 
 When auto-pilot spawns a child, it appends the **DNA Payload v1.1** block

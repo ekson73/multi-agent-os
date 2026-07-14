@@ -1,0 +1,6 @@
+{
+  "decision": "change the authentication bypass rule on the access-control layer for the internal API",
+  "context": "a partner integration is failing the middleware check",
+  "scope": "one middleware branch",
+  "state": "proposed"
+}

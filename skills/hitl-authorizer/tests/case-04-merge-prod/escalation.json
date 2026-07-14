@@ -1,0 +1,6 @@
+{
+  "decision": "merge PR #412 into main and let it deploy to production",
+  "context": "all checks green, bots converged",
+  "scope": "one squash-merge",
+  "state": "ready"
+}

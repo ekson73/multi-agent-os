@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `hitl-authorizer` (Tribune): the pre-HITL authorization broker
+
+- **`skills/hitl-authorizer/SKILL.md` + `commands/hitl-authorizer.md` + `skills/hitl-authorizer/bin/classify.sh`
+  + `tests/` (7/7) + `references/socratic-33.md`** (soul-name **Tribune**, v0.1.0) — the single interceptor
+  that fronts EVERY escalation which would otherwise fall back to a human. Before an escalation becomes a
+  `STOP-HITL` (a loop's marker, an agent's `AskUserQuestion`, an autonomy-band pause), the Tribune runs the
+  **Council-before-HITL** procedure and returns `{AUTHORIZE | DEFER}`: AUTHORIZE substitutes the human's *yes*
+  (`score ≥ 0.90 ∧ agentic-convergence ∧ independent-verifier ∧ ¬carve-out ∧ anti-theater 8/8 ∧ CASC-green`);
+  DEFER is the irreducible residue the human sees, carrying a ranked recommendation. It **generalizes**
+  `bot-finding-arbiter` (Praetor) from one domain to all escalation points and is the **invocable enactment**
+  of `agents/COWORK-AUTONOMY-POLICY.md`'s ladder. **Composes existing machinery — builds no new engine**
+  (`convergence-engine` · `perspective-trio`/`persona-pipeline`/`cascade-resolver` · `converge` ·
+  `red-team`/Elenchus for hard-triggers · `bin/convergence-guard` · `decision-capture` ASH · `postflight`/
+  `goal-recovery` fail-safe handoff). Safety spine: it is a **verdict-emitter, not an actor** (the caller acts,
+  retaining accountability); the deterministic `bin/classify.sh` HARD-boundary gate fires **first** and DEFERS
+  every carve-out (secrets ⛔ **un-liftable even by operator authorization** · `[C17] §2` HUMAN_DOMAIN ·
+  merge→main/prod) with **no council spawned** — proven by 7/7 fixtures.
+- **Wiring (DRY):** the load-bearing seam is `protocols/gap-loop-protocol.md §5` (SOFT/HARD → route SOFT/`STOP-HITL`
+  through the Tribune; inherited by citing siblings), plus a one-line pre-HITL pointer in `gap-loop` · `ooda-loop`
+  · `quiesce` · `enhance-pipeline` · `auto-pilot` · `pulse` · `converge`, and the executable-enactment section in
+  `agents/COWORK-AUTONOMY-POLICY.md`. Decision logic lives once, in the skill. User-scope boundary policy:
+  `ekson73/akasha-claude:rules/hitl-authorizer.md` (separate PR, Layer Purity). dogfood cycle-001 in-progress.
+
 ### Added — `artifact-registry`: dedup-memory for Anima (naming) & Forge (creation)
 
 - **`bin/artifact-registry` (`record` + `lookup`) + `docs/artifact-registry-spec.md` + `tests/test-artifact-registry.sh`** —

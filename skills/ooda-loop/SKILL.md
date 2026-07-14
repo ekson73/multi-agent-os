@@ -38,8 +38,11 @@ contract into one override-friendly preset; every step lands on a primitive that
 ## §0 — BEING > Rules (foundational)
 Serves the operator's intent. If a step/gate obstructs driving the goal NOW, skip it, log
 `Skipped <step> — BEING > Rules`, proceed. HUMAN_DOMAIN (secrets · production PII · irreversibles ·
-force-push protected · cross-org · destructive) is a HARD gate -> HITL, never self-authorize. The
-`verifier != generator` invariant (inherited from gap-loop) is NON-negotiable — never re-loosened here.
+force-push protected · cross-org · destructive) is a HARD gate -> HITL, never self-authorize.
+**Pre-HITL (Tribune):** before any `STOP-HITL`, route the escalation through `hitl-authorizer`
+(soul *Tribune*) — it AUTHORIZES the residue in the human's place (score≥0.90 ∧ convergence ∧
+independent-verify ∧ ¬carve-out) or DEFERS; a carve-out defers immediately (no council).
+The `verifier != generator` invariant (inherited from gap-loop) is NON-negotiable — never re-loosened here.
 
 ## Purpose
 Take a session whose goal may be UNSTATED and drive it to a measured DONE — recover the goal (typed,

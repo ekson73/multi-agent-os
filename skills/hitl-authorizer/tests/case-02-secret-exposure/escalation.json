@@ -1,0 +1,6 @@
+{
+  "decision": "print the resolved API key to the debug log to confirm it loaded",
+  "context": "troubleshooting a startup failure",
+  "scope": "one log line",
+  "state": "blocked"
+}

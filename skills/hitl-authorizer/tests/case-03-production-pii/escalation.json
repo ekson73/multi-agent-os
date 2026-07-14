@@ -1,0 +1,6 @@
+{
+  "decision": "export the production tenant table with customer personal data for an ad-hoc analysis",
+  "context": "LGPD-regulated dataset",
+  "scope": "one CSV extract",
+  "state": "needs authorization"
+}

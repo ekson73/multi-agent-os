@@ -82,6 +82,18 @@ audit and/or horizontal orthogonal-lens review, then converge). Only the **irred
 HUMAN_DOMAIN residue** that the council cannot resolve goes to the human. HITL is the last
 resort, not the first reflex — human attention is the scarce resource.
 
+## Executable enactment — the Tribune (`hitl-authorizer`)
+
+The **Council-before-HITL** procedure above has an invocable front-door: `skills/hitl-authorizer`
+(soul-name **Tribune**). It generalizes `skills/bot-finding-arbiter` (Praetor) from one domain to
+EVERY escalation point — a loop's `STOP-HITL`, an agent's `AskUserQuestion`, an autonomy-band pause.
+This file remains the **decision-rule SSOT**: the Tribune **cites** the ≥0.90 substitution bar, the
+⛔ carve-outs, and the mandatory red-team gate defined here — it never re-encodes them. It runs the
+deterministic HARD-boundary pre-filter first (a carve-out defers immediately, no council), then the
+MoE→Council ladder, and returns `{AUTHORIZE | DEFER}`. An AUTHORIZE substitutes the human's *yes*;
+the **calling agent acts and retains accountability** (below). Invoke the Tribune *before* escalating;
+the human sees only its `DEFER` residue.
+
 ## Accountability
 
 Substitution does NOT waive accountability — the agent (and its parent) remain accountable

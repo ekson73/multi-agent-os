@@ -152,6 +152,11 @@ evaluator (shared with `quiesce`/`auto-pilot`) reads it:
 <!--ORCH-STATUS: CONTINUE -->      stage done; pipeline continues; evaluator decides next turn
 ```
 
+**Pre-HITL brokering (Tribune):** before emitting `STOP-HITL`, route the escalation through
+`hitl-authorizer` (soul *Tribune* — the Council-before-HITL front-door); emit `STOP-HITL` only on its
+`DEFER`. Carve-outs (secrets ⛔ / HUMAN_DOMAIN / merge→prod) defer immediately via its `bin/classify.sh`
+gate (no council). → `skills/hitl-authorizer/SKILL.md`.
+
 ## Relationship to siblings
 
 | Tool | Scope | Drives |
