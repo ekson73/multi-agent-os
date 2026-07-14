@@ -1,6 +1,6 @@
 # ADR-009 — `session-reentry` (Anamnesis): cold/foreign-thread re-entry orchestrator
 
-- **Status:** Proposed (build DEFERRED — this ADR is the design spec; tracked by build issue [#234](https://github.com/ekson73/multi-agent-os/issues/234))
+- **Status:** Accepted (build IN PROGRESS — **M1 + M2 shipped**; M3/M4 spec'd in §M2–M4 Build-Spec + tracked by [#234](https://github.com/ekson73/multi-agent-os/issues/234)). This ADR is the design spec; the §M2–M4 Build-Spec turns the roadmap into build-level composition contracts.
 - **Date:** 2026-07-10
 - **Deciders:** operator (Emilson) + Claude (Opus 4.8)
 - **Origin:** operator `/enhance /deep-research Ultrathink` 2026-07-09; SHAPE + SCOPE decided via AskUserQuestion 2026-07-10.
@@ -49,7 +49,7 @@ Rejected alternatives: **(a)** `morning-briefing --mode=reentry` extension — m
 
 ### Flags (spec)
 
-`--session <id|path>` (target; default = current) · `--mind self|human|agent` (audience register) · `--depth L1|L2|L3|full` (progressive layer; default L2, expand-on-demand) · `--media text|audio-voice|graphic` (default text; audio/graphic opt-in) · `--scope current|down|sideways|up|forward` (CPT Compass). Any-mind.
+`--session <id|path>` (target; default = current) · `--mind self|human|agent` (audience register) · `--depth auto|L1|L2|L3|full` (progressive layer; default `auto` = dormancy band, expand-on-demand) · `--media text|audio-voice|graphic` (default text; audio/graphic opt-in) · `--scope current|down|sideways|up|forward` (CPT Compass). Any-mind.
 
 ### Home & family
 
@@ -57,10 +57,80 @@ Rejected alternatives: **(a)** `morning-briefing --mode=reentry` extension — m
 
 ## Roadmap (build milestones — tracked by issue [#234](https://github.com/ekson73/multi-agent-os/issues/234))
 
-- **M1** — text-only walking-skeleton: INGEST→RECONSTRUCT→RE-ATTUNE on 1 real dormant session; **define the dormancy score + its output contract**.
-- **M2** — dormancy-scaled depth + any-mind register (self/human/agent).
-- **M3** — audio modality (voice-director).
-- **M4** — graphic modality (content-recast render / session-report HTML) + LACY code-tour; **rule cross-refs** land here (bidirectional back-refs from `end-of-action-briefing §7.2`, `cowork-process-topology §9`, `loose-end-triage-queue` — deferred until the tool exists to avoid dangling forward-refs).
+- **M1** ✅ (PR #235) — text-only walking-skeleton: INGEST→RECONSTRUCT→RE-ATTUNE on 1 real dormant session; **defined the dormancy score + its output contract**.
+- **M2** ✅ — dormancy-scaled depth + any-mind register (self/human/agent) + id→path resolution. Build-level contract: §M2–M4 Build-Spec.
+- **M3** ⬜ — audio modality (voice-director). Build-level contract: §M2–M4 Build-Spec.
+- **M4** ⬜ — graphic modality (content-recast render / session-report HTML) + LACY code-tour; **rule cross-refs** land here (bidirectional back-refs from `end-of-action-briefing §7.2`, `cowork-process-topology §9`, `loose-end-triage-queue` — deferred until the tool exists to avoid dangling forward-refs). Build-level contract: §M2–M4 Build-Spec.
+
+## M2–M4 Build-Spec (composition contracts)
+
+Turns each roadmap bullet into a **build-level composition contract** grounded in the
+*actual* interfaces of the composed primitives (Strata — verified against their
+`SKILL.md`, not vaporware). Beyond the two thin deterministic bins, **every capability
+delegates to an existing primitive; no new register/audio/graphic machinery is built.**
+
+**Net-new-vs-composed ledger:** the ONLY net-new code across M1–M4 is two thin
+deterministic bins — `bin/dormancy-score.sh` (M1) and `bin/resolve-session.sh` (M2).
+Register (opera-debrief), audio (voice-director/`speak.sh`), graphic (content-recast
+render / session-report HTML), N-Tree (postflight P2), state-recap (morning-briefing)
+are all **composed**.
+
+### M2 — dormancy-scaled depth + any-mind register + id→path  *(BUILT — v0.2.0)*
+- **id→path** (the explicit M1 gap): `bin/resolve-session.sh <id|path>` resolves a
+  session **id** to its artifact path via the Claude-Code session-artifact convention
+  (`<root>/<encoded-cwd>/<id>.jsonl`; `--root` overridable via flag or `$CLAUDE_SESSION_ROOT`).
+  An existing path passes through; no match → non-zero + honest message (anti-theater R4
+  — never a fabricated path). Deterministic (exact-match preferred, then `LC_ALL=C`
+  lexical). Hardened: `set -u`-safe when `HOME` is unset (`${HOME:-}`), and rejects
+  glob-metachar ids (`*?[`) — `find -name` glob would otherwise silently resolve the
+  WRONG artifact. INGEST now feeds `dormancy-score.sh` the resolved path.
+- **any-mind register**: `--mind` → `opera-debrief --audience` — `self`/`human` →
+  `--audience human` (warm; `self` at lower `--intensity`), `agent` → `--audience agent`
+  (machine-economy JSON-RPC digest). RE-ATTUNE delegates the register switch to
+  opera-debrief (which already owns human/agent registers + the faithfulness/tone gates)
+  — zero new register code.
+- **dormancy-scaled depth**: `--depth` defaults to `dormancy-score.sh`'s
+  `recommended_depth` band; it gates how many pedagogy layers render — L1 perception,
+  L2 comprehension (the N-Tree "vibe"), L3 projection (next-actions), `full` (+ the
+  secondary Compass menu). Composes content-recast/opera-debrief `--intensity` + act-count.
+- **Acceptance**: `--session <id>` resolves a real dormant session · `--mind agent`
+  yields the JSON-RPC digest via opera-debrief · `--depth`/band varies layer count ·
+  smoke green (resolver: passthrough · exact-over-prefix · not-found/usage/bad-root ·
+  HOME-unset-safe · glob-metachar-id rejected → non-zero).
+
+### M3 — audio modality  *(SPEC — ready for build)*
+- **Composition (a passthrough, not new audio machinery):** `session-reentry --media
+  audio-voice` → after RE-ATTUNE renders the text, delegate to `opera-debrief --media
+  audio-voice`, which ALREADY wires `bin/speak.sh --play` + `skills/voice-director`
+  (`--style narrador`, register-adapted). Voice/gender/intonation/rhythm casting is
+  voice-director's job (hybrid deterministic × agentic). Net-new for M3 = only the
+  passthrough + removing the M1 stderr-deferral for `audio-voice`.
+- **Guardrails (inherited):** audio is **OPT-IN, NEVER auto-plays** (the mind may be
+  where sound is unwelcome); text stays the default. If `speak.sh`/voice-director is
+  unavailable → honest stderr fallback to text (never a faked audio artifact, R3).
+- **Acceptance**: `--media audio-voice` speaks the re-onboarding via opera-debrief's
+  audio path; text remains default; graceful honest fallback when the producer is absent.
+- **Test note (honest):** audio playback is not CI-testable (opt-in + no audio device);
+  a smoke would assert the passthrough + honest-fallback logic, **not** actual playback
+  (faking an audio test would be the anti-theater this corpus forbids).
+
+### M4 — graphic modality + LACY code-tour + rule cross-refs  *(SPEC — the heaviest)*
+- **Graphic:** `--media graphic` → `content-recast` render path (→ Gamma · NotebookLM ·
+  `make-pdf`) for the objective N-Tree, **+** `session-report/template.html` (HTML view).
+  Compose content-recast's render Composition map — no new renderer.
+- **LACY code-tour:** optional modality for a mind re-entering a *foreign code* thread —
+  an auto-synthesized walkthrough (à la TaCoS, ICSE 2026) over content-recast render.
+- **Rule cross-refs (land HERE, now the tool exists):** bidirectional back-refs from the
+  cross-repo akasha rules — `end-of-action-briefing-protocol §7.2` (SENDING seed → this
+  RECEIVING tool), `cowork-process-topology §9` (Compass walk → its pedagogical
+  elevation), `loose-end-triage-queue` (Taxis — re-entry surfaces the pending queue).
+  ⚠️ These are **cross-repo edits (operator akasha-claude, a shared repo)** → an akasha
+  worktree + PR, **not** this maos repo. Deferred until now to avoid dangling
+  forward-refs to a not-yet-built tool (audit-protocols §1).
+- **Acceptance**: `--media graphic` produces an HTML/Gamma N-Tree · LACY tour for a
+  foreign code thread · the 3 rule cross-refs land bidirectionally (no dangling ref).
+- **Why heaviest / still spec:** real graphic producers + cross-repo (shared akasha)
+  rule edits — larger blast-radius than M2; kept as a build-ready spec tracked in #234.
 
 ## Definition of Done (per milestone)
 
