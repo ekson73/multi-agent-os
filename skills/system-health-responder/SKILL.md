@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.7.0
+version: 1.7.1
 allowed-tools: Read, Bash
 ---
 
@@ -239,18 +239,26 @@ the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 
   Empirical: bundle-mtime said **47d**, the CLI says the real install was Jun-3 = **41d** — a 6-day honesty
   gap. `source` (`xprotect-cli|bundle-mtime`) is exposed in the leaf; bundle-mtime remains the fallback for
   older macOS. This is `medição real`, not a proxy.
-- **#2 responder pid-recycle guard (safer autonomy)** — `try_renice()` now re-reads the **live** `comm` for
-  the pid and requires it to still match the (≤600s-old) contract comm **before** renicing, then re-runs the
-  denylist on the *live* comm. A recycled pid can no longer be reniced by mistake, and a recycled-into-protected
-  proc is refused. Directly hardens the one autonomous action the responder takes.
+- **#2 responder pid-recycle guard (safer autonomy)** — `try_renice()` re-reads the **live** `comm` for the
+  pid and requires an **exact normalized match** (`comm_match()`: basename + lowercase + strip-space, both
+  non-empty, equal) to the (≤600s-old) contract comm **before** renicing, then re-runs the denylist on the
+  *live* comm, then **binds a process start-identity** (`ps -o lstart=`) and re-verifies it immediately before
+  the action. A recycled pid can no longer be reniced by mistake, a recycled-into-protected proc is refused,
+  and the check→act TOCTOU window is narrowed (fail-closed on identity drift). Directly hardens the one
+  autonomous action the responder takes. *(v1.7.1 PDCA per CodeRabbit PR#259 #131/#138 — the initial
+  either-contains-substring match was too loose: a recycled `foo-helper` would match a contract `foo`, and an
+  empty contract comm would match anything, either authorizing a wrong-proc renice; replaced with exact
+  equality + start-identity re-check. `renice` is fully reversible + denylist-guarded + re-sampled every 600s,
+  so fail-closed is sound.)*
 - **#6 drill-down leaf-status consistency** — the `process.counts` leaf carried a hardcoded `status:"ok"`
   while its own `zombies` value could drive the branch to `crit`, so a `root_fail → leaf` walker landed on an
   `ok`-labeled leaf. Now the leaf reflects the (DRY, computed-once) `zombie` status — honoring the contract's
   "cada nível aponta o filho com falha → root-fail" promise.
 - **Deferred (documented, not dropped)**: memory could use the native `kern.memorystatus_vm_pressure_level`
   signal (low payoff — memory is HITL-only + the current available% already adds back reclaimable classes).
-- **Tested**: `bin/threshold-test.sh` — **+7 `top_consumer_status`** assertions (130.7@12c→warn ·
-  700@12c→crit · ncpu=1 fail-safe · …) = **23**; round-3 suites regress clean (16+5) = **44/44**.
+- **Tested**: `bin/threshold-test.sh` — **+7 `top_consumer_status`** (130.7@12c→warn · 700@12c→crit ·
+  ncpu=1 fail-safe · …) **+8 `comm_match` recycle-guard** (foo-helper≠foo · empty≠anything ·
+  case/basename-normalize · …) assertions = **31**; round-3 suites regress clean (16+5) = **52/52**.
 
 ## Composition (reuse, not reinvent — Strata)
 

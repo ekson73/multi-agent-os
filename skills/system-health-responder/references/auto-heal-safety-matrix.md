@@ -77,10 +77,15 @@ disable/remove appends its exact restore command to
   This is *auditable* reversibility, not self-reversibility — stated honestly, not hand-waved.
 - **Bounded**: `RENICE_TO` defaults to **+10** (moderate deprioritize, not extreme +20). Never `renice` below
   the current value (would need root and would *raise* priority — out of scope).
-- **Pid-recycle guarded (round-5 #2)**: the contract can be up to `StartInterval` (600s) stale, so before
-  acting `try_renice()` re-reads the **live** `comm` for the pid and requires it to still match the contract
-  comm, then re-runs the denylist on the *live* comm. A pid recycled to a different (or protected) process
-  since the sample is skipped — the autonomous action never trusts the ≤600s-old pid→comm binding alone.
+- **Pid-recycle guarded (round-5 #2, hardened v1.7.1 per CodeRabbit #131/#138)**: the contract can be up to
+  `StartInterval` (600s) stale, so before acting `try_renice()` re-reads the **live** `comm` and requires an
+  **exact normalized match** (`comm_match()` — basename + lowercase + strip-space, both non-empty, equal; **not**
+  substring, so a recycled `foo-helper` can't match a contract `foo` and an empty comm matches nothing), then
+  re-runs the denylist on the *live* comm, then **binds a start-identity** (`ps -o lstart=`) and re-verifies it
+  immediately before the renice. A pid recycled to a different (or protected) process since the sample is skipped
+  (fail-closed) — the autonomous action never trusts the ≤600s-old pid→comm binding alone, and the check→act
+  TOCTOU is narrowed. Sound because `renice` is fully reversible (reverts.log), denylist-guarded, and re-sampled
+  next 600s cycle.
 
 ## PROC_DENYLIST — never `renice` these (case-insensitive on `comm`)
 
