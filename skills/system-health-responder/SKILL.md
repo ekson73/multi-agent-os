@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.3.0
+version: 1.4.0
 allowed-tools: Read, Bash
 ---
 
@@ -130,6 +130,28 @@ OFC_ARM=1 OFC_READY=1 "$OFC" --engage           # MEDIUM: disable registry-vette
 OFC_ARM=1 OFC_READY=1 OFC_ALLOW_UNINSTALL=1 "$OFC" --engage --allow-uninstall  # HIGH: uninstall (reinstall-able)
 ```
 
+### Round-2 (v1.4.0, 2026-07-14) — producer attribution + sibling-falsification
+
+Running the recon surfaced material the design pass could not:
+
+1. **Producer attribution** (collector v1.2.0): the `cache_producer` leaf now emits `uvx_latest_producers` —
+   the argv-free `<pkg>@latest` token(s) of any *live* producer, so a re-emergent offender is **named**, not
+   just counted. **Secret-safe by grammar** (not vigilance): only `^[alnum][alnum._-]*@latest$` is accepted, so
+   a `--api-key=…` (starts `-`) or a `key=value` (contains `=`) is structurally rejected — unit-proven. Motivated
+   by a live transient producer (pid 28935) that vanished before it could be named (the `uvx …@latest`
+   spawn-do-exit model — the lever is the source/cache, never the transient proc).
+2. **Sibling-falsification recorded** (`references/no-source-fix-registry.md`): the ~20 sibling AWS/deploy
+   plugins from `deploy-on-aws`'s marketplaces were tested and are **NOT** the offender class — `deploy-on-aws`
+   was the unique `awslabs uvx@latest` carrier. Recorded as a durable anti-false-positive so a future amnesic
+   agent neither re-investigates nor wrongly mass-contains the operator's AWS plugins. Its uninstall cache-orphan
+   is expected (native 7-day GC), not a re-drain.
+3. **Warn residue is HITL, by design**: the collector's `system.status=warn` (firewall=disabled · XProtect stale ·
+   a transient `fseventsd` cpu blip) is on branches *orthogonal* to EKO-90's disk scope. The responder seeds them
+   (operator's System Settings / OS update) — it does not auto-flip a security control. Round-2 drained the stale
+   NEEDS-AGENT seed (persisted the still-valid firewall/xprotect items; the cpu/process items were transient).
+
+Design-reasoning (33 non-duplicate Socratic Q&A): `references/offender-containment-round2-33-socratic.md`.
+
 ## Composition (reuse, not reinvent — Strata)
 
 - **Part-1 contract** (`~/.local/state/system-health/health-contract.json`) — the input it responds to.
@@ -143,7 +165,8 @@ OFC_ARM=1 OFC_READY=1 OFC_ALLOW_UNINSTALL=1 "$OFC" --engage --allow-uninstall  #
 
 - `references/auto-heal-safety-matrix.md` — the binding disposition table + PROC_DENYLIST + threshold ownership + the offender-containment tiers.
 - `references/no-source-fix-registry.md` — the ADR evidence gate (vetted no-source-fix offenders + dossiers).
-- `references/offender-containment-33-socratic.md` — design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
+- `references/offender-containment-33-socratic.md` — round-1 design-reasoning (33 Socratic Q&A; the *why* behind the tiers).
+- `references/offender-containment-round2-33-socratic.md` — round-2 operational-reasoning (33 non-duplicate Q&A; sibling-falsification · transient-vs-persistent producers · attribution · warn/HITL boundary · unknown-offender handling).
 - `bin/offender-containment.sh` — the containment executor · `collectors/system-health-guardian.sh` — the extended Phase-1 collector.
 - EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
