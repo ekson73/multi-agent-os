@@ -118,6 +118,24 @@ try_renice() {
   if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
     echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
   fi
+  # pid-recycle guard (round-5 #2): the contract can be up to StartInterval (600s) stale, so this pid may
+  # have been recycled to a DIFFERENT process since the sample → renicing it would hit the wrong proc, and
+  # the denied() check above ran against the STALE contract comm. Re-read the LIVE comm and require it to
+  # still relate to the contract comm (basename, case-insensitive, space-stripped, either-contains-other to
+  # tolerate path-vs-name + truncation). Mismatch ⇒ recycled/gone ⇒ skip. Then re-run denied() on the LIVE
+  # comm (defense-in-depth: a recycled pid could BE a protected proc).
+  local live_raw live_c want_c
+  live_raw="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
+  live_c="$(basename "${live_raw:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+  want_c="$(basename "${comm:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d ' ')"
+  if [ -z "$live_c" ] || { [[ "$live_c" != *"$want_c"* ]] && [[ "$want_c" != *"$live_c"* ]]; }; then
+    echo "  ⏭  cpu-runaway pid ${pid}: live comm '${live_raw:-gone}' ≠ contract '${comm}' (pid recycled/gone since sample) → skip (no renice)"
+    return 1
+  fi
+  if denied "$live_raw"; then
+    echo "  🟠 cpu-runaway pid ${pid}: live comm '${live_raw}' is PROTECTED (recycle re-check) → seed+notify (never renice)"
+    return 2
+  fi
   # already at/below target priority → renicing DOWN needs root (BSD: non-root can only raise niceness);
   # renice to the same value is a no-op. Either way skip → the runaway becomes HITL residue (kill/quit=operator).
   if [ "$cur" -ge "$RENICE_TO" ]; then

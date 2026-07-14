@@ -77,6 +77,10 @@ disable/remove appends its exact restore command to
   This is *auditable* reversibility, not self-reversibility — stated honestly, not hand-waved.
 - **Bounded**: `RENICE_TO` defaults to **+10** (moderate deprioritize, not extreme +20). Never `renice` below
   the current value (would need root and would *raise* priority — out of scope).
+- **Pid-recycle guarded (round-5 #2)**: the contract can be up to `StartInterval` (600s) stale, so before
+  acting `try_renice()` re-reads the **live** `comm` for the pid and requires it to still match the contract
+  comm, then re-runs the denylist on the *live* comm. A pid recycled to a different (or protected) process
+  since the sample is skipped — the autonomous action never trusts the ≤600s-old pid→comm binding alone.
 
 ## PROC_DENYLIST — never `renice` these (case-insensitive on `comm`)
 
@@ -109,6 +113,16 @@ zero drift.
 > *probe failure* degrades **fail-safe** (warn-capable, **never crit**) instead of collapsing to `off` and
 > manufacturing a false-crit — the leaf `xprotect_freshness.auto_update` carries `on|off|unknown` for
 > drill-down transparency regardless of the roll-up.
+>
+> **Round-5 (collector v1.5.0)** finished the ncpu-aware thesis + two honesty fixes (still transparent to the
+> responder — leaf `status` only): (#1) **`top_consumer`/`runaway` is now ncpu-aware** — `PROC_CPU_WARN=70`
+> stays a **per-core** WARN (the renice-actionable signal), but CRIT now requires `pct ≥ PROC_CPU_CRIT_RATIO
+> (0.50) × ncpu × 100` (a real fraction of TOTAL capacity), so one core-bound proc on a many-core box is WARN,
+> not a system crit — the load branch already owns true saturation. (#5) **XProtect freshness prefers the
+> authoritative `xprotect version`** (real install date, no-sudo) over the bundle-mtime proxy that measures
+> the wrong artifact; `xprotect_freshness.source` carries `xprotect-cli|bundle-mtime`. (#6) the
+> `process.counts` leaf now reflects the real `zombies` status (was hardcoded `ok`) so root-fail drill-down
+> lands on a non-`ok` leaf.
 
 ## What the responder will NEVER do (⛔ absolute)
 

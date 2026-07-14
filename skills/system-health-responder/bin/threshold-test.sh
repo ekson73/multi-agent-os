@@ -21,6 +21,7 @@ ck() { # ck "<label>" "<got>" "<want>"
 }
 cpu() { "$COLLECTOR" --cpu-load-status "$@" 2>/dev/null; }   # load1 load5 ncpu warn_ratio crit_ratio
 xp()  { "$COLLECTOR" --xprotect-status "$@" 2>/dev/null; }   # age autoupdate warn crit selfheal
+tc()  { "$COLLECTOR" --top-consumer-status "$@" 2>/dev/null; } # pct(per-core) ncpu warn_pct crit_ratio(of total)
 
 echo "── cpu_load_status (warn=load1 spiky · crit=load5 sustained) ──"
 ck "burst load1=27 load5=6 12c → warn (NOT crit) [the false-crit fix]" "$(cpu 27.33 6.0 12 0.90 1.50)" "warn"
@@ -43,6 +44,15 @@ echo "── xprotect_status UNKNOWN (probe failed → fail-safe, warn-capable N
 ck "unknown 10d → ok (below warn)"                                     "$(xp 10 unknown 30 60 60)"   "ok"
 ck "unknown 47d → warn (past warn horizon)"                            "$(xp 47 unknown 30 60 60)"   "warn"
 ck "unknown 9999d → warn (NEVER crit — probe error ≠ false-crit)"      "$(xp 9999 unknown 30 60 60)" "warn"
+
+echo "── top_consumer_status (ncpu-aware: warn=per-core actionable, crit=fraction of TOTAL) [v1.5.0, round-5 #1] ──"
+ck "130.7% @12c → warn (1.3 cores ≠ system crit) [the live false-crit fix]" "$(tc 130.7 12 70 0.50)" "warn"
+ck "700% @12c → crit (eats ~7 of 12 cores — genuine)"                       "$(tc 700 12 70 0.50)"   "crit"
+ck "600% @12c → crit (0.50*12*100 boundary)"                                "$(tc 600 12 70 0.50)"   "crit"
+ck "85% @12c → warn (>1 core, renice-actionable, not crit)"                 "$(tc 85 12 70 0.50)"    "warn"
+ck "50% @12c → ok (below per-core warn)"                                    "$(tc 50 12 70 0.50)"    "ok"
+ck "90% @1core → crit (ncpu=1 fail-safe: crit_pct=max(50,70)=70)"           "$(tc 90 1 70 0.50)"     "crit"
+ck "60% @1core → ok (below warn on single core)"                            "$(tc 60 1 70 0.50)"     "ok"
 
 echo
 echo "threshold-test: $PASS passed, $FAIL failed"
