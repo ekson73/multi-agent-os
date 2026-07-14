@@ -95,12 +95,26 @@ release_lock() { rm -rf "$LOCK" 2>/dev/null || true; }
 denied() {  # $1=comm → 0 if protected. Substring match, which ERRS CONSERVATIVE (over-protect: worst
             # case we skip a renice we could have done — never the reverse). EXCEPTION: the ultra-short
             # `op` token (1Password CLI) matches WHOLE-comm only, so it doesn't over-match Dropbox/top/etc.
-  local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  # basename-normalize (per CodeRabbit PR#259 @145): `ps -o comm=` may return a PATH (`/usr/local/bin/op`).
+  # Without basename the whole-comm `op` rule below (`c == "op"`) would MISS a path → the sensitive 1Password
+  # CLI could be reniced on recycle. Basename also makes this consistent with comm_match() + tightens the
+  # substring rules against false path-component matches. Denylist entries are all comm basenames.
+  local c; c="$(basename "${1:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
   local d; for d in "${PROC_DENYLIST[@]}"; do
     if [ "$d" = "op" ]; then [ "$c" = "op" ] && return 0; continue; fi
     case "$c" in *"$d"*) return 0;; esac
   done
   return 1
+}
+
+# normalized comm-identity match: basename + lowercase + strip-whitespace, then EXACT equality with BOTH
+# sides non-empty. NOT substring — a recycled `foo-helper` must NOT match a contract `foo`, and an empty
+# side must match nothing (either would authorize renicing the WRONG unprotected proc). CodeRabbit PR#259 #131.
+comm_match() {  # $1=live_raw $2=want_raw → 0 iff same normalized non-empty command
+  local a b
+  a="$(basename "${1:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  b="$(basename "${2:-}" 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  [ -n "$a" ] && [ -n "$b" ] && [ "$a" = "$b" ]
 }
 
 # Moderate autonomous heal of a clear cpu runaway. Returns 0 acted/proposed, 1 skipped, 2 denied.
@@ -110,11 +124,39 @@ try_renice() {
     echo "  🟠 cpu-runaway ${comm} (pid ${pid}, ${pct}%) — PROTECTED proc → seed+notify (never renice)"
     return 2
   fi
-  # `|| true`: under `set -o pipefail` a dead pid makes `ps` fail → the pipe fails → the $()
-  # assignment would abort the script under `set -e` BEFORE the numeric guard runs. Force the
-  # substitution to always succeed (empty on failure) so the guard below handles proc-gone gracefully.
+  # pid-recycle guard (round-5 #2, HARDENED per CodeRabbit PR#259 #131/#138): the contract can be up to
+  # StartInterval (600s) stale, so this pid may have been recycled to a DIFFERENT process since the sample →
+  # renicing it would hit the wrong proc, and the denied() check above ran against the STALE contract comm.
+  # (#131) Require an EXACT normalized command match — NOT substring: a recycled `foo-helper` must NOT match
+  # a contract `foo`, and an empty comm must match nothing. comm_match() enforces both-non-empty + equal;
+  # anything else fails closed (skip). Then re-run denied() on the LIVE comm (a recycled pid could BE protected).
+  local live_raw
+  live_raw="$(ps -o comm= -p "$pid" 2>/dev/null || true)"
+  if ! comm_match "$live_raw" "$comm"; then
+    echo "  ⏭  cpu-runaway pid ${pid}: live comm '${live_raw:-gone}' ≠ contract '${comm}' (recycled/gone/ambiguous since sample) → skip (no renice)"
+    return 1
+  fi
+  if denied "$live_raw"; then
+    echo "  🟠 cpu-runaway pid ${pid}: live comm '${live_raw}' is PROTECTED (recycle re-check) → seed+notify (never renice)"
+    return 2
+  fi
+  # (#138) TOCTOU narrowing: bind a stable start-identity (kernel process start time) NOW; re-verify it
+  # immediately before renice (below). Shell check-then-act can't be atomic, but this catches the pid
+  # exiting/recycling between here and the action. Combined with the exact-comm match, the denylist re-check,
+  # renice being fully REVERSIBLE (reverts.log), and the collector re-sampling every 600s (a real runaway
+  # re-surfaces next cycle), fail-closed here is sound. Cannot bind an identity ⇒ skip (DENY-until-proven).
+  local live_start
+  live_start="$(ps -o lstart= -p "$pid" 2>/dev/null | tr -s ' ' || true)"
+  if [ -z "$live_start" ]; then
+    echo "  ⏭  cpu-runaway pid ${pid}: cannot bind start-identity (proc gone) → fail-closed skip (no renice)"
+    return 1
+  fi
+  # sample the ORIGINAL niceness AFTER the identity is bound (per CodeRabbit PR#259 @157): reading `cur`
+  # before binding live_start could pair a nice value from a since-recycled process with a different identity
+  # → a wrong revert record / wrong -ge decision. The recheck_start below then validates identity stability
+  # across this read up to the renice. `|| true`: under pipefail a dead pid fails the pipe → would abort under
+  # set -e before the numeric guard; force success (empty) so the guard handles proc-gone gracefully.
   local cur; cur="$(ps -o nice= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-  # validate numeric (empty ⇒ proc gone; non-numeric ⇒ unexpected ps output) BEFORE any -ge compare
   if ! [[ "$cur" =~ ^-?[0-9]+$ ]]; then
     echo "  ⏭  cpu-runaway pid ${pid} gone / invalid nice ('${cur}') before action"; return 1
   fi
@@ -127,6 +169,14 @@ try_renice() {
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "  ✅ PROPOSE renice ${RENICE_TO} pid=${pid} comm=${comm} pct=${pct} (cur nice=${cur}) [dry-run]"
     return 0
+  fi
+  # re-verify the bound start-identity immediately before acting (TOCTOU close-out #138) — a pid recycled or
+  # exited since the bind now shows a different / empty start time ⇒ fail-closed skip (never renice the wrong proc).
+  local recheck_start
+  recheck_start="$(ps -o lstart= -p "$pid" 2>/dev/null | tr -s ' ' || true)"
+  if [ -z "$recheck_start" ] || [ "$recheck_start" != "$live_start" ]; then
+    echo "  ⏭  cpu-runaway pid ${pid}: start-identity drift ('${live_start}' → '${recheck_start:-gone}') = pid recycled/exited before renice → fail-closed skip"
+    return 1
   fi
   if renice "$RENICE_TO" -p "$pid" >/dev/null 2>&1; then
     printf '%s reverted-by: renice %s -p %s   # was comm=%s pct=%s\n' \
@@ -282,6 +332,8 @@ main() {
 
 case "${1:-}" in
   --help|-h) usage; exit 0;;
+  --comm-match) comm_match "${2:-}" "${3:-}" && { echo match; exit 0; } || { echo nomatch; exit 1; };;
+  --denied) denied "${2:-}" && { echo denied; exit 0; } || { echo allowed; exit 1; };;
   --engage)
     # Fail-safe DENY-until-proven: the autonomous renice fires ONLY when the calling reflex has
     # proven the standing-autonomy READY predicate and signalled it via SHR_READY=1. A stray

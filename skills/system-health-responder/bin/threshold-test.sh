@@ -14,6 +14,8 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COLLECTOR="${THRESHOLD_COLLECTOR:-$DIR/../collectors/system-health-guardian.sh}"
 [ -f "$COLLECTOR" ] || { echo "FATAL: collector not found: $COLLECTOR" >&2; exit 2; }
+RESPONDER="${THRESHOLD_RESPONDER:-$DIR/health-respond.sh}"
+[ -f "$RESPONDER" ] || { echo "FATAL: responder not found: $RESPONDER" >&2; exit 2; }
 
 PASS=0; FAIL=0
 ck() { # ck "<label>" "<got>" "<want>"
@@ -21,6 +23,9 @@ ck() { # ck "<label>" "<got>" "<want>"
 }
 cpu() { "$COLLECTOR" --cpu-load-status "$@" 2>/dev/null; }   # load1 load5 ncpu warn_ratio crit_ratio
 xp()  { "$COLLECTOR" --xprotect-status "$@" 2>/dev/null; }   # age autoupdate warn crit selfheal
+tc()  { "$COLLECTOR" --top-consumer-status "$@" 2>/dev/null; } # pct(per-core) ncpu warn_pct crit_ratio(of total)
+cm()  { "$RESPONDER" --comm-match "$1" "$2" 2>/dev/null; }     # live_raw want_raw → match|nomatch (#131 recycle guard)
+dn()  { "$RESPONDER" --denied "$1" 2>/dev/null; }             # comm → denied|allowed (basename-normalized denylist, @145)
 
 echo "── cpu_load_status (warn=load1 spiky · crit=load5 sustained) ──"
 ck "burst load1=27 load5=6 12c → warn (NOT crit) [the false-crit fix]" "$(cpu 27.33 6.0 12 0.90 1.50)" "warn"
@@ -43,6 +48,33 @@ echo "── xprotect_status UNKNOWN (probe failed → fail-safe, warn-capable N
 ck "unknown 10d → ok (below warn)"                                     "$(xp 10 unknown 30 60 60)"   "ok"
 ck "unknown 47d → warn (past warn horizon)"                            "$(xp 47 unknown 30 60 60)"   "warn"
 ck "unknown 9999d → warn (NEVER crit — probe error ≠ false-crit)"      "$(xp 9999 unknown 30 60 60)" "warn"
+
+echo "── top_consumer_status (ncpu-aware: warn=per-core actionable, crit=fraction of TOTAL) [v1.5.0, round-5 #1] ──"
+ck "130.7% @12c → warn (1.3 cores ≠ system crit) [the live false-crit fix]" "$(tc 130.7 12 70 0.50)" "warn"
+ck "700% @12c → crit (eats ~7 of 12 cores — genuine)"                       "$(tc 700 12 70 0.50)"   "crit"
+ck "600% @12c → crit (0.50*12*100 boundary)"                                "$(tc 600 12 70 0.50)"   "crit"
+ck "85% @12c → warn (>1 core, renice-actionable, not crit)"                 "$(tc 85 12 70 0.50)"    "warn"
+ck "50% @12c → ok (below per-core warn)"                                    "$(tc 50 12 70 0.50)"    "ok"
+ck "90% @1core → crit (ncpu=1 fail-safe: crit_pct=max(50,70)=70)"           "$(tc 90 1 70 0.50)"     "crit"
+ck "60% @1core → ok (below warn on single core)"                            "$(tc 60 1 70 0.50)"     "ok"
+
+echo "── comm_match (pid-recycle identity guard: EXACT normalized, no substring) [v1.5.1, round-5 #2, CodeRabbit #131] ──"
+ck "recycled 'foo-helper' vs contract 'foo' → nomatch (the substring false-match bug)"  "$(cm foo-helper foo)"     "nomatch"
+ck "reverse 'foo' vs 'foo-helper' → nomatch"                                             "$(cm foo foo-helper)"     "nomatch"
+ck "empty live vs 'foo' → nomatch (proc gone)"                                           "$(cm '' foo)"             "nomatch"
+ck "'foo' vs empty want → nomatch (empty-want_c authorize-anything hole)"                "$(cm foo '')"             "nomatch"
+ck "exact 'foo' vs 'foo' → match"                                                        "$(cm foo foo)"            "match"
+ck "case 'Superset' vs 'superset' → match (case-insensitive)"                            "$(cm Superset superset)"  "match"
+ck "path '/A/MacOS/Node' vs 'Node' → match (basename normalize)"                         "$(cm /A/MacOS/Node Node)" "match"
+ck "similar 'node' vs 'nodejs' → nomatch (not equal, no substring widening)"             "$(cm node nodejs)"        "nomatch"
+
+echo "── denied() basename-normalized denylist (sensitive-proc protection on PATH comm) [v1.7.1, CodeRabbit @145] ──"
+ck "'/usr/local/bin/op' → denied (op whole-word now matches basename, not just bare 'op')" "$(dn /usr/local/bin/op)"  "denied"
+ck "bare 'op' → denied (whole-word preserved)"                                             "$(dn op)"                 "denied"
+ck "'top' → allowed (op whole-word NOT over-matched — the exception still holds)"          "$(dn top)"                "allowed"
+ck "'/Applications/1Password.app/Contents/MacOS/1Password' → denied (substring on basename)" "$(dn /Applications/1Password.app/Contents/MacOS/1Password)" "denied"
+ck "'/opt/homebrew/bin/claude' → denied (path comm still protected)"                        "$(dn /opt/homebrew/bin/claude)" "denied"
+ck "'Google Chrome Helper' → allowed (not on denylist)"                                     "$(dn 'Google Chrome Helper')" "allowed"
 
 echo
 echo "threshold-test: $PASS passed, $FAIL failed"

@@ -1,7 +1,7 @@
 ---
 name: system-health-responder
 description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
-version: 1.6.1
+version: 1.7.1
 allowed-tools: Read, Bash
 ---
 
@@ -218,6 +218,51 @@ So this is squarely an **enhance-autonomy** fix (collector **v1.3.2 → v1.4.1**
 - **Tested**: `bin/threshold-test.sh` — 16 assertions (burst→warn-not-crit · sustained-load5→crit ·
   auto-ON-47d→ok · auto-OFF-65d→crit · never-crit-while-self-healing · **unknown-9999d→warn-never-crit**).
   Round-3 suites regress clean (16+5).
+
+### Multi-core & measurement-honesty fixes (v1.7.0, round-5, 2026-07-14) — finishing the ncpu-aware thesis
+
+Round-4 made the **load-aggregate** ncpu-aware but left the **per-process** leaf raw — an OODA sweep caught
+the unfinished half plus three adjacent honesty/safety gaps (collector **v1.4.1 → v1.5.0**, skill **v1.6.1 → v1.7.0**):
+
+- **#1 `top_consumer`/`runaway` NOT ncpu-aware (the live false-crit)** — `top_consumer_status()`. macOS `ps
+  %cpu` is **per-core** (100% = one full core, can exceed 100%). Warn+crit were applied raw, so one process
+  at 130.7% (1.3 of 12 cores ≈ 11% of capacity) rolled up to `system=crit` **while the sustained-saturation
+  branch said the box was fine** — the two CPU branches actively contradicted each other. Fix (twin of the
+  round-4 load1/load5 split): **WARN keyed per-core** (the responder's renice-actionable signal survives —
+  renice fires on any non-`ok`), **CRIT requires a fraction of TOTAL capacity** (`PROC_CPU_CRIT_RATIO=0.50` ⇒
+  crit only when a proc eats ≥50% of `ncpu`; the load branch already owns true saturation). Fail-safe on
+  `ncpu=1` (crit never below warn). Auto-resolves the old double-count (a reniced proc no longer *also* seeds
+  a "process=crit → operator kill"). Empirical: live `global crit → warn` (a busy core, not a system emergency).
+- **#5 XProtect measured the wrong artifact (upgrade)** — freshness now prefers the **authoritative
+  `/usr/bin/xprotect version`** (no-sudo, real version + install date) over the legacy `XProtect.bundle`
+  mtime, which modern macOS never touches on a signature update (`XProtectUpdateService` writes elsewhere).
+  Empirical: bundle-mtime said **47d**, the CLI says the real install was Jun-3 = **41d** — a 6-day honesty
+  gap. `source` (`xprotect-cli|bundle-mtime`) is exposed in the leaf; bundle-mtime remains the fallback for
+  older macOS. This is `medição real`, not a proxy.
+- **#2 responder pid-recycle guard (safer autonomy)** — `try_renice()` re-reads the **live** `comm` for the
+  pid and requires an **exact normalized match** (`comm_match()`: basename + lowercase + strip-space, both
+  non-empty, equal) to the (≤600s-old) contract comm **before** renicing, then re-runs the denylist on the
+  *live* comm, then **binds a process start-identity** (`ps -o lstart=`) and re-verifies it immediately before
+  the action. A recycled pid can no longer be reniced by mistake, a recycled-into-protected proc is refused,
+  and the check→act TOCTOU window is narrowed (fail-closed on identity drift). Directly hardens the one
+  autonomous action the responder takes. *(v1.7.1 PDCA per CodeRabbit PR#259 #131/#138 — the initial
+  either-contains-substring match was too loose: a recycled `foo-helper` would match a contract `foo`, and an
+  empty contract comm would match anything, either authorizing a wrong-proc renice; replaced with exact
+  equality + start-identity re-check. A follow-up review added two more: **@145** — `denied()` now
+  basename-normalizes so the whole-word `op` (1Password CLI) rule protects a PATH comm (`/usr/local/bin/op`),
+  not just a bare `op`; **@157** — the original niceness `cur` is now sampled AFTER the start-identity is bound
+  (a recycle can no longer pair a stale nice value with a live identity). `renice` is fully reversible +
+  denylist-guarded + re-sampled every 600s, so fail-closed is sound.)*
+- **#6 drill-down leaf-status consistency** — the `process.counts` leaf carried a hardcoded `status:"ok"`
+  while its own `zombies` value could drive the branch to `crit`, so a `root_fail → leaf` walker landed on an
+  `ok`-labeled leaf. Now the leaf reflects the (DRY, computed-once) `zombie` status — honoring the contract's
+  "cada nível aponta o filho com falha → root-fail" promise.
+- **Deferred (documented, not dropped)**: memory could use the native `kern.memorystatus_vm_pressure_level`
+  signal (low payoff — memory is HITL-only + the current available% already adds back reclaimable classes).
+- **Tested**: `bin/threshold-test.sh` — **+7 `top_consumer_status`** (130.7@12c→warn · 700@12c→crit ·
+  ncpu=1 fail-safe · …) **+8 `comm_match` recycle-guard** (foo-helper≠foo · empty≠anything ·
+  case/basename-normalize · …) **+6 `denied` basename-normalize** (/path/op→denied · top→allowed ·
+  1Password-path→denied · …) assertions = **37**; round-3 suites regress clean (16+5) = **58/58**.
 
 ## Composition (reuse, not reinvent — Strata)
 

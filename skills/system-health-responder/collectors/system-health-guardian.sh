@@ -51,8 +51,8 @@ MEM_AVAIL_WARN_PCT="${MEM_AVAIL_WARN_PCT:-15}"
 MEM_AVAIL_CRIT_PCT="${MEM_AVAIL_CRIT_PCT:-8}"
 DISK_FREE_WARN_GB="${DISK_FREE_WARN_GB:-15}"
 DISK_FREE_CRIT_GB="${DISK_FREE_CRIT_GB:-8}"
-PROC_CPU_WARN="${PROC_CPU_WARN:-70}"                 # single-proc %cpu (feeds responder renice target)
-PROC_CPU_CRIT="${PROC_CPU_CRIT:-90}"
+PROC_CPU_WARN="${PROC_CPU_WARN:-70}"                 # single-proc %cpu WARN (PER-CORE; feeds responder renice target — actionable, NOT system-crit)
+PROC_CPU_CRIT_RATIO="${PROC_CPU_CRIT_RATIO:-0.50}"   # single-proc CRIT only when it eats ≥ this fraction of TOTAL cores (ncpu-aware; round-5 — a 1-core-bound proc on a many-core box is WARN, not a system crit)
 XPROTECT_STALE_WARN_DAYS="${XPROTECT_STALE_WARN_DAYS:-30}"      # auto-update OFF → WARN at Nd (the real risk)
 XPROTECT_STALE_CRIT_DAYS="${XPROTECT_STALE_CRIT_DAYS:-60}"      # auto-update OFF → CRIT at Nd
 XPROTECT_SELFHEAL_WARN_DAYS="${XPROTECT_SELFHEAL_WARN_DAYS:-60}" # auto-update ON → only >Nd WARNs, never crit (self-healing; Apple cadence)
@@ -92,6 +92,17 @@ xprotect_status() { # $1=age_days $2=autoupdate(on|off|unknown) $3=warn_days $4=
     off) st_hi "$1" "$3" "$4"     ;;   # confirmed off (the real risk) → full warn/crit age escalation
     *)   st_hi "$1" "$3" "999999" ;;   # unknown → warn at warn_days, crit unreachable (fail-safe on probe error)
   esac
+}
+
+# top_consumer_status: a single hot process. macOS `ps %cpu` is PER-CORE (100% = one full core; can exceed 100%
+# on a multi-core box). WARN keeps the per-core renice-actionable signal (the responder renices any non-ok
+# top_consumer); CRIT requires the proc to eat a real fraction of TOTAL capacity (ncpu-aware) — so one
+# core-bound proc on a many-core box is WARN (actionable), NOT a system crit. Twin of the round-4
+# load1(warn-spiky)/load5(crit-sustained) split; the load branch already owns true system saturation.
+top_consumer_status() { # $1=pct(per-core) $2=ncpu $3=warn_pct $4=crit_ratio(of total)
+  local crit_pct
+  crit_pct="$(awk -v r="$4" -v n="$2" -v w="$3" 'BEGIN{c=r*n*100; printf "%.2f", (c<w)?w:c}')"  # never below warn (ncpu=1 fail-safe)
+  st_hi "$1" "$3" "$crit_pct"
 }
 
 # ── BURN-DOWN forecast (EKO-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
@@ -150,9 +161,10 @@ EOF
 # testable entrypoint: `--burndown` runs ONLY the forecast (no probing, no contract write) — the unit test
 # (bin/burndown-test.sh) drives this with a synthetic DISK_GUARDIAN_LOG (no awk duplication).
 if [ "${1:-}" = "--burndown" ]; then compute_burndown; echo; exit 0; fi
-# testable entrypoints for the round-4 pure decision cores (bin/threshold-test.sh drives these — no logic dup):
+# testable entrypoints for the round-4/round-5 pure decision cores (bin/threshold-test.sh drives these — no logic dup):
 if [ "${1:-}" = "--cpu-load-status" ]; then cpu_load_status "${2:-0}" "${3:-0}" "${4:-1}" "${5:-0.90}" "${6:-1.50}"; exit 0; fi
 if [ "${1:-}" = "--xprotect-status" ]; then xprotect_status "${2:-0}" "${3:-on}" "${4:-30}" "${5:-60}" "${6:-60}"; exit 0; fi
+if [ "${1:-}" = "--top-consumer-status" ]; then top_consumer_status "${2:-0}" "${3:-1}" "${4:-70}" "${5:-0.50}"; exit 0; fi
 
 # ── CPU ───────────────────────────────────────────────────────────────────────
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 1)"
@@ -169,7 +181,7 @@ PS_BY_CPU="$(ps -A -r -o pid=,%cpu=,comm= 2>/dev/null || true)"
 TOP_CPU_LINE="$(awk 'NR==1{pid=$1;cpu=$2;$1="";$2="";c=$0;sub(/^ +/,"",c);n=split(c,a,"/");print pid"|"cpu"|"a[n]; exit}' <<<"$PS_BY_CPU")"
 TOP_CPU_PID="$(echo "$TOP_CPU_LINE" | cut -d'|' -f1)"; TOP_CPU_PCT="$(echo "$TOP_CPU_LINE" | cut -d'|' -f2)"; TOP_CPU_COMM="$(echo "$TOP_CPU_LINE" | cut -d'|' -f3)"
 TOP_CPU_PCT="${TOP_CPU_PCT:-0}"
-CPU_PROC_ST="$(st_hi "$TOP_CPU_PCT" "$PROC_CPU_WARN" "$PROC_CPU_CRIT")"
+CPU_PROC_ST="$(top_consumer_status "$TOP_CPU_PCT" "$NCPU" "$PROC_CPU_WARN" "$PROC_CPU_CRIT_RATIO")"
 CPU_ST="$(worst "$CPU_LOAD_ST" "$CPU_PROC_ST")"
 
 # ── MEMORY (available% from vm_stat; inactive+free+speculative+purgeable ≈ available) ──
@@ -201,11 +213,25 @@ SEC_ST=ok
 [ "$FW" = disabled ] && SEC_ST="$(worst "$SEC_ST" warn)"
 
 # ── MALWARE (XProtect freshness — built-in AV signatures) ─────────────────────
+# Prefer the AUTHORITATIVE direct read (`xprotect version`, no-sudo → real version + install date) over the
+# legacy bundle-mtime proxy — modern macOS ships XProtect signature updates via XProtectUpdateService WITHOUT
+# touching XProtect.bundle, so its mtime UNDER-reports freshness (empirical: bundle=May-29 vs real Jun-03
+# install). round-5 upgrade; XP_SRC records which source fed age_days for drill-down honesty.
 XP_BUNDLE="/Library/Apple/System/Library/CoreServices/XProtect.bundle"
-XP_VER="$(defaults read "$XP_BUNDLE/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo unknown)"
-XP_MTIME="$(stat -f %m "$XP_BUNDLE" 2>/dev/null || echo 0)"
+XP_CLI="${XP_CLI:-/usr/bin/xprotect}"
 NOW_EPOCH="$(date +%s)"
-XP_AGE_DAYS="$(awk -v m="$XP_MTIME" -v n="$NOW_EPOCH" 'BEGIN{printf "%.0f", (m>0)?(n-m)/86400:9999}')"
+XP_SRC="bundle-mtime"; XP_VER="unknown"; XP_INST_EPOCH=0
+if [ -x "$XP_CLI" ] && XP_VLINE="$("$XP_CLI" version 2>/dev/null)" && [ -n "$XP_VLINE" ]; then
+  XP_VER="$(printf '%s' "$XP_VLINE" | sed -n 's/.*[Vv]ersion:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -1)"
+  XP_INST_DATE="$(printf '%s' "$XP_VLINE" | sed -n 's/.*[Ii]nstalled:[[:space:]]*\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]\).*/\1/p' | head -1)"
+  XP_INST_EPOCH="$(date -j -f '%Y-%m-%d' "${XP_INST_DATE:-x}" +%s 2>/dev/null || echo 0)"
+  { [ -n "$XP_VER" ] && [ "${XP_INST_EPOCH:-0}" -gt 0 ]; } && XP_SRC="xprotect-cli"
+fi
+if [ "$XP_SRC" != "xprotect-cli" ]; then   # fallback: legacy bundle read (older macOS without /usr/bin/xprotect)
+  XP_VER="$(defaults read "$XP_BUNDLE/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo unknown)"
+  XP_INST_EPOCH="$(stat -f %m "$XP_BUNDLE" 2>/dev/null || echo 0)"
+fi
+XP_AGE_DAYS="$(awk -v m="$XP_INST_EPOCH" -v n="$NOW_EPOCH" 'BEGIN{printf "%.0f", (m>0)?(n-m)/86400:9999}')"
 # auto-update channel — a PROXY (cheap ~20ms, no-sudo, local `softwareupdate --schedule` read), NOT a
 # direct XProtect signal (modern macOS updates XProtect via XProtectUpdateService; --schedule is the
 # general auto-update toggle). ON ⇒ freshness self-heals → 47d-but-latest is honestly ok (Apple cadence).
@@ -222,8 +248,9 @@ MAL_ST="$(xprotect_status "$XP_AGE_DAYS" "$XP_AUTOUPDATE" "$XPROTECT_STALE_WARN_
 PROC_COUNT="$(ps -A -o pid= 2>/dev/null | wc -l | tr -d ' ')"
 THREAD_COUNT="$(ps -A -M 2>/dev/null | tail -n +2 | wc -l | tr -d ' ')"
 ZOMBIE_COUNT="$(ps -A -o stat= 2>/dev/null | grep -c '^Z' || true)"; ZOMBIE_COUNT="${ZOMBIE_COUNT:-0}"
+ZOMBIE_ST="$(st_hi "$ZOMBIE_COUNT" 5 20)"   # computed once (DRY) — drives both the roll-up AND the counts-leaf status (round-5 #6)
 # runaway = the top-cpu proc over threshold (reuse CPU sample) — this is the responder's renice candidate
-PROC_ST="$(worst "$CPU_PROC_ST" "$(st_hi "$ZOMBIE_COUNT" 5 20)")"
+PROC_ST="$(worst "$CPU_PROC_ST" "$ZOMBIE_ST")"
 
 # ── NETWORK (listener count — notify-only per safety-matrix) ──────────────────
 LISTENERS="$(netstat -an -p tcp 2>/dev/null | grep -c LISTEN || true)"; LISTENERS="${LISTENERS:-0}"
@@ -305,7 +332,7 @@ MEM_RF="$(branch_rootfail "$MEM_ST" "available_pct:$MEM_ST")"
 DISK_RF="$(branch_rootfail "$DISK_ST" "free_gb:$DISK_ST")"
 SEC_RF="$(branch_rootfail "$SEC_ST" "sip:$([ "$SIP" = disabled ] && echo crit || echo ok)" "gatekeeper:$([ "$GK" = disabled ] && echo warn || echo ok)" "firewall:$([ "$FW" = disabled ] && echo warn || echo ok)")"
 MAL_RF="$(branch_rootfail "$MAL_ST" "xprotect_freshness:$MAL_ST")"
-PROC_RF="$(branch_rootfail "$PROC_ST" "runaway:$CPU_PROC_ST" "zombies:$(st_hi "$ZOMBIE_COUNT" 5 20)")"
+PROC_RF="$(branch_rootfail "$PROC_ST" "runaway:$CPU_PROC_ST" "zombies:$ZOMBIE_ST")"
 NET_RF="$(branch_rootfail "$NET_ST" "listeners:$NET_ST")"
 
 AT_RF="$(branch_rootfail "$AT_ST" "claude_runtime:$CLAUDE_ST" "cache_producer:$PRODUCER_ST")"
@@ -326,14 +353,14 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
   --arg mem_st "$MEM_ST" --argjson mem_rf "$MEM_RF" --arg mem_avail_pct "$MEM_AVAIL_PCT" --arg top_mem_comm "${TOP_MEM_COMM:-none}" --arg top_mem_pct "$TOP_MEM_PCT" \
   --arg disk_st "$DISK_ST" --argjson disk_rf "$DISK_RF" --arg disk_free_gb "$DISK_FREE_GB" --arg dg_live "$DG_LIVE" \
   --arg sec_st "$SEC_ST" --argjson sec_rf "$SEC_RF" --arg sip "$SIP" --arg gk "$GK" --arg fw "$FW" \
-  --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" --arg xp_au "$XP_AUTOUPDATE" \
-  --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" \
+  --arg mal_st "$MAL_ST" --argjson mal_rf "$MAL_RF" --arg xp_ver "$XP_VER" --arg xp_age "$XP_AGE_DAYS" --arg xp_au "$XP_AUTOUPDATE" --arg xp_src "$XP_SRC" \
+  --arg proc_st "$PROC_ST" --argjson proc_rf "$PROC_RF" --arg proc_count "$PROC_COUNT" --arg thread_count "$THREAD_COUNT" --arg zombie "$ZOMBIE_COUNT" --arg zombie_st "$ZOMBIE_ST" \
   --arg net_st "$NET_ST" --argjson net_rf "$NET_RF" --arg listeners "$LISTENERS" --arg estab "$ESTAB" \
   --argjson burn "$BURN_DOWN" \
   --arg at_st "$AT_ST" --argjson at_rf "$AT_RF" --arg claude_st "$CLAUDE_ST" --arg claude_ver "$CLAUDE_VER" --arg claude_health "$CLAUDE_HEALTH" --arg producer_st "$PRODUCER_ST" --arg uv_objs "$UV_ARCHIVE_OBJS" --arg uvx_latest "$UVX_LATEST_PROCS" --arg uvx_producers "$UVX_PRODUCERS" \
 'def n(v): (v|tonumber?) // v;
 {
-  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.4.1", secret_free: true,
+  meta: { generated: $gen, host: $host, interval_sec: $interval, collector: "system-health-guardian", version: "1.5.0", secret_free: true,
           note: "world-readable, secret-free (metadata only: counts/%/names/versions/booleans; process=comm-name never argv)" },
   system: {
     status: $sys_st, tag: "resource.system", root_fail: $sys_rf,
@@ -350,10 +377,10 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s 2>/dev/null || ech
                   gatekeeper: { status: (if $gk=="disabled" then "warn" else "ok" end), tag: "resource.security.gatekeeper", value: $gk },
                   firewall: { status: (if $fw=="disabled" then "warn" else "ok" end), tag: "resource.security.firewall", value: $fw } } },
       malware: { status: $mal_st, tag: "resource.malware", root_fail: $mal_rf, leaves: {
-                  xprotect_freshness: { status: $mal_st, tag: "resource.malware.xprotect_freshness", version: $xp_ver, age_days: n($xp_age), auto_update: $xp_au } } },
+                  xprotect_freshness: { status: $mal_st, tag: "resource.malware.xprotect_freshness", version: $xp_ver, age_days: n($xp_age), auto_update: $xp_au, source: $xp_src } } },
       process: { status: $proc_st, tag: "resource.process", root_fail: $proc_rf, leaves: {
                   runaway:  { status: $cpu_proc_st, tag: "resource.process.runaway", comm: $top_cpu_comm, cpu_pct: n($top_cpu_pct), pid: n($top_cpu_pid) },
-                  counts:   { status: "ok", tag: "resource.process.counts", processes: n($proc_count), threads: n($thread_count), zombies: n($zombie) } } },
+                  counts:   { status: $zombie_st, tag: "resource.process.counts", processes: n($proc_count), threads: n($thread_count), zombies: n($zombie) } } },
       network: { status: $net_st, tag: "resource.network", root_fail: $net_rf, leaves: {
                   listeners: { status: $net_st, tag: "resource.network.listeners", tcp_listen: n($listeners), tcp_established: n($estab) } } },
       agentic_tools: { status: $at_st, tag: "resource.agentic_tools", root_fail: $at_rf, leaves: {
