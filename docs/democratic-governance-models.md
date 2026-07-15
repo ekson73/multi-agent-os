@@ -11,7 +11,7 @@
 
 This is the **knowledge base of democratic-governance MODELS** — a catalogue of *how democratic bodies organize authority*, filtered to the genuinely-useful, with a deterministic filter methodology and a model→agent mapping. It is **not** the authorization gate: the *decision* mechanism (should an action be auto-authorized in place of the human, or go to HITL?) is `council-gate` / *Boule* (**companion PR #255**), which this doc **cites, never duplicates**. Relationship: *Boule is the gate; this is the models KB its council-composition draws on.*
 
-Its durable value: the next time the council roster is expanded, filter the candidates **here, deterministically** (§1) instead of re-researching — closing the re-research/re-duplication loop that has recurred across sessions.
+Its durable value: for each future council-roster expansion, filter the candidates **here, deterministically** (§1) instead of re-researching — closing the re-research/re-duplication loop that has recurred across sessions.
 
 ## §1 — The Prisma filter (decompose "useful · beneficial · non-toxic" → measurable)
 
@@ -51,7 +51,7 @@ Applying §1 to the model space (families drawn from the academic-typology, real
 | **Independent oversight authorities** (Ombudsman [SE 1809] · audit · rights-protection · intelligence-*under-democratic-oversight*) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — names the gate's existing verifier + red-team + observability + DPO as one cluster; no new machinery (§5.3) |
 | **Diplomatic / multilateral** (embassies · foreign-relations · UN-style assembly with executive council) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — inter-body relations = the gate's family-wiring (§5.4) |
 | Weighted / reputation voting ("algorithmic citizenship" — votes weighted by reputation/contribution/expertise) | ✓ (a) | ✓ | ✗ | n/e | n/e | ❌ **REJECT (L3)** — weighting concentrates power + is Goodhart-gameable; flat convergence + stakes-scaled selection is safer |
-| Hive / ecosystem / network democracy (emergent-signal, habitat/node seats) | ✓ (a) | ✓ | ✓ | ✗ | n/e | ❌ **REJECT (L4)** — the gate's convergence already IS distributed-consensus, more precisely (YAGNI) |
+| Hive / ecosystem / network democracy (emergent-signal, habitat/node seats) | ✓ (a) | ✓ | ✓ | ✗ | n/e | ❌ **REJECT (L4)** — its L1-passing mechanism is genuinely distinct (**emergent-signal aggregation** over node/habitat seats, with *no* deliberation step — which the gate does not implement), but it would need new machinery, while the gate's *deliberative* convergence already serves the same decision purpose more auditably (YAGNI) |
 | Delegative · illiberal · strong-executive-majoritarian | ✓ (a) | ✗ | n/e | n/e | n/e | ❌ **REJECT (L2)** — concentrates power / erodes horizontal controls |
 | Regent (regency / hereditary) · Dictator (absolute, even if time-boxed) | ✓ (a) | ✗ | n/e | n/e | n/e | ❌ **REJECT (L2)** — monarchy/hereditary · absolute-power (the operator's explicit filter) |
 
@@ -86,7 +86,7 @@ The **Existing agent seat(s)** column contains **only literal agents** (SSOT nam
 | Intelligence / oversight (Ombudsman · audit) | independent verify + red-team + observability | `governance-auditor` · `data-privacy-officer` | **process**: red-team · **protocol**: the observability protocol (*Metron*, external — §7) — agents + these together = the oversight cluster (§5.3) |
 | Science / Tech · Industry | build / architecture lens | `architecture:architect` · `quarkus-backend-engineer` · `react-frontend-engineer` · `supabase-engineer` | — |
 
-Genuine gaps (documented, **not forged** — forge only if the nearest seat proves insufficient in dogfooding): a dedicated Finance/Economy lens; a generic-Postgres / Neon / Aurora DBA seat (only Supabase-bound today).
+Genuine gaps (documented, **not forged** — forge only if the nearest seat proves insufficient in dogfooding): a dedicated Finance/Economy lens; a generic-Postgres / Neon / Aurora DBA seat (the agent roster in this repository state is Supabase-bound).
 
 ## §5 — The 4 genuinely-additive enrichments (for the pre-HITL gate)
 
@@ -102,7 +102,7 @@ Offered to `council-gate` / *Boule* (**companion PR #255**) for incorporation �
 ## §6 — Rejected patterns (logged, per §1)
 
 - **Weighted / reputation voting** — fails L3 (non-toxic): vote-weighting concentrates power and is Goodhart-gameable; the gate's flat convergence + stakes-scaled seat-selection is the safer equivalent.
-- **Hive / ecosystem / network democracy** — fails L4 (implementable-on-existing / YAGNI): distributed-consensus is already the gate's convergence, more precisely + auditably.
+- **Hive / ecosystem / network democracy** — passes L1 on a genuinely distinct mechanism (**emergent-signal aggregation** over node/habitat seats, with no deliberation step — the gate implements no such thing), then fails L4 (implementable-on-existing / YAGNI): that mechanism would need new machinery, while the gate's *deliberative* convergence already serves the same decision purpose more auditably. *(Not `ALREADY-EMBODIED`: the gate's convergence is deliberative, so it does not embody emergent-signal aggregation — the L1 test is about the mechanism, and this one is absent.)*
 - **Delegative / illiberal / strong-executive-majoritarian** — fails L2: erodes horizontal controls (the opposite of what a pre-HITL fail-safe needs).
 - **Regent · Dictator** — fails L2: hereditary/monarchy · absolute-power (the operator's explicit exclusion).
 
