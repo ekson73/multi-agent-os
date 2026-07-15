@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-07-14
+
 ### Added — `artifact-registry`: dedup-memory for Anima (naming) & Forge (creation)
 
 - **`bin/artifact-registry` (`record` + `lookup`) + `docs/artifact-registry-spec.md` + `tests/test-artifact-registry.sh`** —
