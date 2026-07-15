@@ -97,7 +97,10 @@ Offered to `council-gate` / *Boule* (**companion PR #255**) for incorporation �
 3. **Oversight-authority taxonomy** *(framing)* — name the existing independent-verifier + red-team + observability + DPO as one **"democratic oversight authority"** cluster (Ombudsman + intelligence-*under-democratic-oversight*). **Framing, no new machinery.** → the gate's independent-verifier / red-team / observability sections.
 4. **Diplomatic / family-integration framing** *(framing)* — model the gate's family-wiring (its deferred loop integration) as **"diplomatic relations between authorization bodies"** (multilateral/UN assembly + executive council). → the gate's integration section + the loop family.
 
-**Autonomy (measurable)**: #1 + #2 *strengthen the fail-safe*, which is precisely what lets the gate safely widen its auto-authorization band while holding **authorize-then-regret at 0** — an honest autonomy gain, not theatre.
+**The L5 leaf (`autonomy-positive`), per contribution kind** — all four pass L5, but the *strength* of the claim differs by kind, and saying so is the honest part:
+
+- **Mechanism (#1 · #2) — measurable**: they *strengthen the fail-safe*, which is precisely what lets the gate safely widen its auto-authorization band while holding **authorize-then-regret at 0** (an observability SLI, §7) — an honest autonomy gain, not theatre.
+- **Framing (#3 · #4) — enabling, not measurable**: **#3** makes the fail-safe's *completeness* auditable — a scattered, unnamed oversight set cannot be checked for holes *before* the band widens, so naming the cluster is a precondition for widening it responsibly. **#4** lets one authorization decision be *handed across* the loop family instead of each loop escalating to HITL independently — fewer independent HITL escalations for the same work. Neither carries an SLI of its own; both are recorded here as **enabling** claims so that their `L5 ✓` is *derivable from a stated rationale* rather than asserted.
 
 ## §6 — Rejected patterns (logged, per §1)
 

@@ -68,6 +68,12 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
+**Legend** — the `Coverage` axis is **reuse-vs-forge**, *not* present-vs-absent:
+`EXISTS` = a **pre-existing** agent already covered the role (reused as-is) ·
+`GAP→NEW` = no pre-existing agent covered it → **a new agent was forged and exists today**
+(named in `Provider`; also listed under "Available Agents" above) ·
+`EXTEND-candidate` = **not built** — a future extend (the only not-yet-exists label).
+
 | Cowork role | Coverage | Provider |
 |---|---|---|
 | DevOps (AWS/IaC/Terraform) | EXISTS | `cloud-infrastructure:cloud-architect` · `terraform-specialist` |
