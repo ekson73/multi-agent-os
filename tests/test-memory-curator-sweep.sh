@@ -19,7 +19,9 @@ cat > "$FIX/corpus/MEMORY.md" <<'EOF'
 - [Topic A](topic_a.md) — a thing
 - [Ghost](ghost_file.md) — referenced but absent
 - [Dot-slash](./dotslash_ref.md) — referenced with ./ prefix (must NOT be a false orphan)
+- [Evil](../outside_evil.md) — traversal ref pointing OUTSIDE the corpus
 EOF
+echo "# Outside Evil" > "$FIX/outside_evil.md"   # exists OUTSIDE the corpus boundary
 cat > "$FIX/corpus/dotslash_ref.md" <<'EOF'
 # Dot Slash Ref
 Referenced as ./dotslash_ref.md in the index.
@@ -65,6 +67,9 @@ echo "$out" | jq -e '[.findings[]|select(.check=="orphan-file" and (.path|endswi
   && ok "no false orphan for ./-prefixed ref (dotslash_ref.md)" || no "false orphan on ./ ref"
 echo "$out" | jq -e '[.findings[]|select(.check=="dangling-ref" and (.detail|contains("dotslash")))]|length == 0' >/dev/null \
   && ok "no false dangling for ./-prefixed ref" || no "false dangling on ./ ref"
+# Path-traversal guard: ../ ref flagged + NOT probed (file exists outside — must not be silently OK'd)
+echo "$out" | jq -e '[.findings[]|select(.check=="dangling-ref" and (.detail|contains("outside the corpus")))]|length == 1' >/dev/null \
+  && ok "traversal ref (../outside_evil.md) flagged, not probed" || no "path-traversal guard"
 has stale-marker          && ok "stale-marker fires (2020-01-01)"       || no "stale-marker"
 has journal-accumulation  && ok "journal-accumulation fires (12 > 10)"  || no "journal-accumulation"
 has dup-title             && ok "dup-title fires (Same Title Twice)"    || no "dup-title"

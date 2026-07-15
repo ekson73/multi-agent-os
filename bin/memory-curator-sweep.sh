@@ -105,11 +105,24 @@ if [ -n "$INDEX" ] && [ -f "$INDEX" ]; then
   index_dir="$(cd "$(dirname "$INDEX")" && pwd)"
   refs="$(grep -o ']([A-Za-z0-9._/-]*\.md)' "$INDEX" 2>/dev/null | sed 's/^](//; s/)$//' | sort -u || true)"
 
-  # dangling: referenced but absent
+  # dangling: referenced but absent.
+  # Path-traversal guard (amazon-q #268): NEVER probe outside the corpus —
+  # a ref with a `..` component, or an absolute ref outside $CORPUS, is itself
+  # the finding (severity high) and is never stat'ed. Keeps the existence-probe
+  # oracle inside the corpus boundary (same class as script-safety safe_rm).
   if [ -n "$refs" ]; then
     while IFS= read -r ref; do
       [ -n "$ref" ] || continue
-      case "$ref" in /*) tgt="$ref" ;; *) tgt="$index_dir/$ref" ;; esac
+      out_of_corpus=0
+      case "/$ref/" in */../*) out_of_corpus=1 ;; esac
+      case "$ref" in
+        /*) case "$ref" in "$CORPUS"/*) ;; *) out_of_corpus=1 ;; esac; tgt="$ref" ;;
+        *) tgt="$index_dir/$ref" ;;
+      esac
+      if [ "$out_of_corpus" = 1 ]; then
+        emit dangling-ref medium "$INDEX" "index references '$ref' which resolves outside the corpus — not probed (path-traversal guard); the agent must verify the ref is intentional"
+        continue
+      fi
       [ -f "$tgt" ] || emit dangling-ref medium "$INDEX" "index references '$ref' which does not exist"
     done <<EOF
 $refs
