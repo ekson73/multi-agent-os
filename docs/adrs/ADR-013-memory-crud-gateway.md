@@ -24,15 +24,21 @@ Build the gateway as a **deterministic CLI primitive + thin skill wrapper** in t
 
 | Verb | Contract | Notes |
 |---|---|---|
-| `create <topic-slug> [--type user\|feedback\|project\|reference]` | New topic file with valid frontmatter + index line, **dedup-checked first** (title/slug match against corpus → refuse with pointer on collision) | stdin = body; the dedup-on-write is the mem0 absorb |
+| `create <topic-slug> [--type {user,feedback,project,reference}]` | New topic file with valid frontmatter + index line, **dedup-checked first** (title/slug match against corpus → refuse with pointer on collision) | stdin = body; the dedup-on-write is the mem0 absorb |
 | `read <slug>` | Print one topic file (index-resolved) | the R that keeps others from raw-globbing |
 | `update <slug>` | Append/patch a topic file; **never silently overwrites** (concurrent-writer probe first) | stdin = delta |
 | `archive <slug>` | Move to the archive tier + update index — **the only "delete"**; content is never destroyed | tiering-never-deletion made structural |
 | `search <query>` | Structural grep over corpus + (when available) `episodic-memory` semantic recall, merged | fronts the installed MCP; degrades to grep-only |
-| `neighborhood <seed-slug> [--depth N] [--budget N]` | Walk the `[[wikilink]]` graph from a seed, emit the connected slice within a token budget | the retrieve-by-neighborhood primitive; depth cap 3 |
+| `neighborhood <seed-slug> [--depth N] [--budget N]` | Walk the `[[wikilink]]` graph from a seed, emit the connected slice within a token budget | the retrieve-by-neighborhood primitive; `--depth` default 1, range 1–3; values >3 are **clamped to 3 with a stderr diagnostic** (same policy as `morning-briefing --depth`, anti-bloat) |
 | `index` | Regenerate/re-tier the index from the corpus (one line per entry; detail stays in topic files) | the canonical cap response — tiering, mechanized |
 
-All verbs emit JSON envelopes (`[C06]`: exit 0 success · 1 usage error · 2 refused-with-reason). `create`/`update`/`archive`/`index` are the **mutating** verbs; `read`/`search`/`neighborhood` are read-only.
+`create`/`update`/`archive`/`index` are the **mutating** verbs; `read`/`search`/`neighborhood` are read-only.
+
+### I/O contract (JSON envelope + exit codes)
+
+- **stdout** — exactly ONE JSON object per execution, minimum shape `{"status": "ok"|"refused"|"error", "verb": "<verb>", "slug": "<slug|null>", "data": {…}|null, "reason": {"code": "<CODE>", "message": "<text>"}|null}`. `reason` is required when `status != "ok"` (e.g. `DEDUP_COLLISION` with a pointer to the existing topic, `CONCURRENT_WRITER`, `BOUNDARY`).
+- **stderr** — human diagnostics only, never JSON (deterministic parsing for wrappers; same split as `bin/artifact-registry`).
+- **Exit codes** (`[C06]`, aligned with the repo's CLI-mutator family `bin/artifact-registry`, precedent PR #223): `0` success (incl. idempotent no-op) · `1` usage/validation **or refused** — the refusal detail lives in the JSON envelope, not in a third exit semantic · `2` setup/environment (e.g. `jq` missing). Note: `bin/memory-curator-sweep.sh`'s `2 = findings present` is that read-only *detector*'s own contract and is not inherited here.
 
 ### Structural guarantees (what "ask IT" buys)
 
@@ -73,7 +79,7 @@ The sweep finds; the agent decides; the gateway acts. Each layer is independentl
 
 ## Definition of Done (for the build phase — NOT this ADR)
 
-- `bin/memory-gateway` implementing the 7-verb narrow API (POSIX bash 3.2 + jq; JSON envelopes; exit 0/1/2).
+- `bin/memory-gateway` implementing the 7-verb narrow API (POSIX bash 3.2 + jq; the §"I/O contract" envelope + exit-code semantics).
 - Test suite: fixture corpus covering every verb, dedup-refusal, concurrent-writer refusal, boundary refusal, archive-not-delete, index regeneration; read-only guarantee for the read verbs.
 - `skills/memory-gateway/SKILL.md` wrapper (agent-facing contract + examples).
 - ≥2 ratified dogfood cycles (`dogfood-mark`) on a real corpus before any promotion or Phase-B hook.
