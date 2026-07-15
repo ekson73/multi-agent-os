@@ -66,7 +66,7 @@ REV REVISION       derive the falsifier: adherence-high + goal-movement-absent a
 |---|---|---|
 | `handoff-as-prompt` | `goal-recovery` (OBSERVE) | driver `--state-source=handoff:<file>` |
 | `dod-as-prompt` | Prisma (ORIENT-a) | driver `--condition=<termination_predicate>` |
-| **`system-as-prompt`** | **THIS (ORIENT-b)** | driver **positional `"<instructions>"`** — *"extra free-text appended to the goal"* (`gap-loop` SKILL.md:194). ⚠️ **No flag for "the recurring action" exists** and inventing one would be interface fabrication (anti-theater R4). The recurring step rides the existing surface. |
+| **`system-as-prompt`** | **THIS (ORIENT-b)** | **`minimal_system.action`** → driver **positional `"<instructions>"`** — *"extra free-text appended to the goal"* (`gap-loop` SKILL.md:194). Only the `.action` **string** is passed; `minimal_system` itself is an object (trigger/action/why_minimal/cadence) whose other fields govern the derivation, not the driver call. ⚠️ **No flag for "the recurring action" exists** and inventing one would be interface fabrication (anti-theater R4). The recurring step rides the existing surface. |
 
 Validator-gated like its siblings (`skills/goal-recovery/bin/validate_envelope.py`). The triple is **revisable, not frozen** — REV exists precisely to revise it.
 

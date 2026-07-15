@@ -97,8 +97,10 @@ DECIDE    gate: all three envelopes valid + not-inconclusive + NOT HUMAN_DOMAIN 
 ACT       drive with the typed {goal, dod, system} triple:
             handoff-as-prompt  -> the driver's state-source (goal + objectives seed the gap-register)
             dod-as-prompt.termination_predicate -> the driver's --condition (DoD leaves = the stop test)
-            system-as-prompt.minimal_system -> the driver's positional "<instructions>" (the recurring step;
-              no flag for "the recurring action" exists — it rides the existing surface, gap-loop:194)
+            system-as-prompt.minimal_system.ACTION -> the driver's positional "<instructions>" (the string
+              appended; minimal_system itself is an object — trigger/action/why_minimal/cadence — and only
+              .action is passed. No flag for "the recurring action" exists; it rides the existing surface,
+              gap-loop:194 "extra free-text appended to the goal")
             improvement signal := the DoD checks, evaluated by an INDEPENDENT verifier (gap-loop VALIDATE,
             verifier != generator) — NEVER the generator's self-grade (Huang et al. 2310.01798).
             emit exactly ONE STOP marker per turn.

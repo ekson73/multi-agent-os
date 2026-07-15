@@ -127,14 +127,17 @@ def validate_handoff(obj, conf_thresh):
 
     inconc = p.get("inconclusive") or {}
     require(inconc, ["flag", "reasons"], "handoff.params.inconclusive", errs)
-    # flag MUST be a real boolean: bool("false") is True (any non-empty string is truthy), so a
-    # string flag would fail-OPEN the gate. Reject non-bool, and never coerce a non-bool to a value.
-    flag_raw = inconc.get("flag", False)
-    if "flag" in inconc and not isinstance(flag_raw, bool):
-        errs.append(f'handoff.params.inconclusive.flag: must be a boolean, got {flag_raw!r} '
-                    f'(a truthy string like "false" would fail-OPEN the low-confidence gate)')
-    flag = flag_raw if isinstance(flag_raw, bool) else False
-    is_list(inconc, "reasons", "handoff.params.inconclusive", errs)
+    flag = False  # fail-CLOSED: a non-object `inconclusive` is already reported by require(),
+    # and leaving flag False keeps the goal gate STRICT rather than silently waiving it.
+    if isinstance(inconc, dict):  # guard the deref — see the note in validate_system
+        # flag MUST be a real boolean: bool("false") is True (any non-empty string is truthy), so a
+        # string flag would fail-OPEN the gate. Reject non-bool, and never coerce a non-bool to a value.
+        flag_raw = inconc.get("flag", False)
+        if "flag" in inconc and not isinstance(flag_raw, bool):
+            errs.append(f'handoff.params.inconclusive.flag: must be a boolean, got {flag_raw!r} '
+                        f'(a truthy string like "false" would fail-OPEN the low-confidence gate)')
+        flag = flag_raw if isinstance(flag_raw, bool) else False
+        is_list(inconc, "reasons", "handoff.params.inconclusive", errs)
 
     scope = p.get("scope") or {}
     require(scope, ["in", "out"], "handoff.params.scope", errs)
@@ -197,14 +200,15 @@ def validate_dod(obj):
 
     spec = p.get("measurement_spec") or {}
     require(spec, ["meta", "nodes"], "dod.params.measurement_spec", errs)
-    meta = spec.get("meta") or {}
-    if "context_lock" not in meta:
-        errs.append("dod.params.measurement_spec.meta: missing context_lock (Prisma Step-0 hard gate — deeper validation is delegated to aggregate_spec.py)")
-    if "construct" not in meta:
-        errs.append("dod.params.measurement_spec.meta: missing construct")
-    nodes = spec.get("nodes")
-    if isinstance(nodes, list) and len(nodes) == 0:
-        errs.append("dod.params.measurement_spec.nodes: must have >=1 node")
+    if isinstance(spec, dict):  # guard the deref — see the note in validate_system
+        meta = spec.get("meta") or {}
+        if "context_lock" not in meta:
+            errs.append("dod.params.measurement_spec.meta: missing context_lock (Prisma Step-0 hard gate — deeper validation is delegated to aggregate_spec.py)")
+        if "construct" not in meta:
+            errs.append("dod.params.measurement_spec.meta: missing construct")
+        nodes = spec.get("nodes")
+        if isinstance(nodes, list) and len(nodes) == 0:
+            errs.append("dod.params.measurement_spec.nodes: must have >=1 node")
 
     ev = p.get("evaluation")
     if isinstance(ev, dict):
@@ -243,15 +247,19 @@ def validate_system(obj):
 
     ms = p.get("minimal_system") or {}
     require(ms, ["trigger", "action", "why_minimal", "cadence"], "system.params.minimal_system", errs)
-    for key, why in (
-        ("trigger", "the IF half of the implementation intention (Gollwitzer & Sheeran 2006)"),
-        ("action", "the THEN half — the single minimal recurring step (P1)"),
-        ("why_minimal", "the P1 honesty gate — an unfalsifiable 'it is small' is theater (anti-theater R2)"),
-        ("cadence", "P2 — consistency over intensity, relative to the trigger"),
-    ):
-        v = ms.get(key, "")
-        if isinstance(v, str) and v.strip() == "":
-            errs.append(f"system.params.minimal_system.{key}: must be non-empty ({why})")
+    # require() REPORTS a non-object but cannot stop the caller; guard before dereferencing,
+    # else a truthy non-object (list/str) raises AttributeError and the validator dies instead
+    # of reporting why. Same idiom as the `evaluation` block in validate_dod.
+    if isinstance(ms, dict):
+        for key, why in (
+            ("trigger", "the IF half of the implementation intention (Gollwitzer & Sheeran 2006)"),
+            ("action", "the THEN half — the single minimal recurring step (P1)"),
+            ("why_minimal", "the P1 honesty gate — an unfalsifiable 'it is small' is theater (anti-theater R2)"),
+            ("cadence", "P2 — consistency over intensity, relative to the trigger"),
+        ):
+            v = ms.get(key, "")
+            if isinstance(v, str) and v.strip() == "":
+                errs.append(f"system.params.minimal_system.{key}: must be non-empty ({why})")
 
     sig = p.get("adherence_signal", "")
     if isinstance(sig, str) and sig.strip() == "":
