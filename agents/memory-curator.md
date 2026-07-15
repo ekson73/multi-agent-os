@@ -113,19 +113,13 @@ scheduler ──> bin/memory-curator-sweep.sh ──> work-queue JSON
                                      in-session gated apply (later)
 ```
 
-### Safety bounds (non-negotiable, per ADR-012)
+### Safety bounds (non-negotiable — verbatim from ADR-012 "Safety bounds")
 
-- **Read-only out-of-session.** The scheduled sweep + the sleep-time pass NEVER
-  mutate; they stage proposals.
-- **Tiering, never deletion.** An over-cap index is cured by moving detail to
-  topic files — content is never destroyed to satisfy a cap.
-- **Proposals-only for governance.** memory→rule elevation and rule→doc demotion
-  require operator confirmation — never auto-applied.
-- **Concurrency-safe.** Before any in-session mutation on a shared corpus, probe
-  for concurrent writers (fresh peer sessions / VCS index locks); defer or
-  worktree-isolate.
-- **Guardrail files are out of reach.** Safety-critical/absolute-guardrail
-  artifacts are never curated autonomously.
+- **Read-only out-of-session.** The scheduled sweep NEVER mutates; it stages proposals.
+- **Tiering, never deletion.** Detail moves to topic files; content is never destroyed to satisfy a cap.
+- **Proposals-only for governance.** memory→rule elevation and rule→doc demotion require operator confirmation (auto-edit of rule corpora is disabled by design).
+- **Concurrency-safe.** Before any in-session mutation on a shared corpus, probe for concurrent writers (fresh peer sessions / VCS index locks) and defer or worktree-isolate.
+- **Guardrail files are out of reach.** Safety-critical/absolute-guardrail artifacts are never curated autonomously.
 
 ## Audit Checklist
 

@@ -29,7 +29,8 @@
 #   (non-fatal signal: there is curation work in the queue).
 set -euo pipefail
 
-command -v jq >/dev/null 2>&1 || { echo "memory-curator-sweep: jq is required" >&2; exit 1; }
+# Resolve jq ONCE to an absolute path (PATH could mutate mid-run under a hook/scheduler)
+JQ="$(command -v jq)" || { echo "memory-curator-sweep: jq is required" >&2; exit 1; }
 
 usage() {
   cat <<EOF
@@ -83,7 +84,7 @@ QUEUE="$(mktemp -t mem-sweep.XXXXXX)"
 trap 'rm -f "$QUEUE"' EXIT
 
 emit() { # emit <check> <severity> <path> <detail>
-  jq -cn --arg c "$1" --arg s "$2" --arg p "$3" --arg d "$4" \
+  "$JQ" -cn --arg c "$1" --arg s "$2" --arg p "$3" --arg d "$4" \
     '{check:$c, severity:$s, path:$p, detail:$d}' >> "$QUEUE"
 }
 
@@ -116,12 +117,15 @@ EOF
   fi
 
   # orphan: present but unreferenced (top-level .md next to the index;
-  # journal/ + archives are excluded — they are lazily-loaded by design)
+  # journal/ + archives are excluded — they are lazily-loaded by design).
+  # Compare BASENAMES on both sides — an index ref written as `./file.md` or
+  # `sub/file.md` must not turn an existing file into a false orphan (qodo #268).
+  ref_basenames="$(printf '%s\n' "$refs" | sed 's|.*/||' | sort -u)"
   while IFS= read -r -d '' f; do
     base="$(basename "$f")"
     [ "$f" = "$INDEX" ] && continue
     case "$base" in MEMORY*|*archive*|*Archive*) continue ;; esac
-    printf '%s\n' "$refs" | grep -qx "$base" || \
+    printf '%s\n' "$ref_basenames" | grep -qx "$base" || \
       emit orphan-file low "$f" "not referenced by the index — candidate for an index line or explicit archive"
   done < <(find "$index_dir" -maxdepth 1 -name '*.md' -print0 2>/dev/null)
 fi
@@ -178,7 +182,7 @@ done < <(find "$CORPUS" -maxdepth 1 -name '*.md' -print0 2>/dev/null)
 # --- Envelope -------------------------------------------------------------------
 count="$(wc -l < "$QUEUE" | tr -d ' ')"
 verdict="CLEAN"; [ "$count" -gt 0 ] && verdict="FINDINGS"
-jq -s --arg corpus "$CORPUS" --arg index "${INDEX:-}" --arg v "$verdict" \
+"$JQ" -s --arg corpus "$CORPUS" --arg index "${INDEX:-}" --arg v "$verdict" \
    --arg today "$TODAY" \
   '{sweep:"memory-curator-sweep", version:"0.1.0", date:$today, corpus:$corpus,
     index:(if $index=="" then null else $index end), verdict:$v,

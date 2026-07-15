@@ -4,7 +4,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$HERE/bin/memory-curator-sweep.sh"
-FIX="$(mktemp -d)"
+FIX="$(mktemp -d 2>/dev/null || mktemp -d -t 'mcsweep')"
 trap 'rm -rf "$FIX"' EXIT
 fail=0
 ok() { printf '  ok   %s\n' "$1"; }
@@ -18,6 +18,11 @@ cat > "$FIX/corpus/MEMORY.md" <<'EOF'
 # Memory Index
 - [Topic A](topic_a.md) — a thing
 - [Ghost](ghost_file.md) — referenced but absent
+- [Dot-slash](./dotslash_ref.md) — referenced with ./ prefix (must NOT be a false orphan)
+EOF
+cat > "$FIX/corpus/dotslash_ref.md" <<'EOF'
+# Dot Slash Ref
+Referenced as ./dotslash_ref.md in the index.
 EOF
 cat > "$FIX/corpus/topic_a.md" <<'EOF'
 # Topic Alpha
@@ -55,15 +60,25 @@ has() { echo "$out" | jq -e --arg c "$1" '[.findings[]|select(.check==$c)]|lengt
 has index-over-cap        && ok "index-over-cap fires (cap 10B)"        || no "index-over-cap"
 has dangling-ref          && ok "dangling-ref fires (ghost_file.md)"    || no "dangling-ref"
 has orphan-file           && ok "orphan-file fires (orphan_note.md)"    || no "orphan-file"
+# ./-prefixed index ref must NOT produce a false orphan NOR a false dangling (qodo #268 bug)
+echo "$out" | jq -e '[.findings[]|select(.check=="orphan-file" and (.path|endswith("dotslash_ref.md")))]|length == 0' >/dev/null \
+  && ok "no false orphan for ./-prefixed ref (dotslash_ref.md)" || no "false orphan on ./ ref"
+echo "$out" | jq -e '[.findings[]|select(.check=="dangling-ref" and (.detail|contains("dotslash")))]|length == 0' >/dev/null \
+  && ok "no false dangling for ./-prefixed ref" || no "false dangling on ./ ref"
 has stale-marker          && ok "stale-marker fires (2020-01-01)"       || no "stale-marker"
 has journal-accumulation  && ok "journal-accumulation fires (12 > 10)"  || no "journal-accumulation"
 has dup-title             && ok "dup-title fires (Same Title Twice)"    || no "dup-title"
 has pending-artifact      && ok "pending-artifact fires (#TBD)"         || no "pending-artifact"
 
 # ── 3. READ-ONLY guarantee: corpus byte-identical after the sweep ───────────
-sum_before="$(find "$FIX/corpus" -type f -exec cat {} + | cksum)"
+# Deterministic: sorted per-file checksum list (cksum includes path), then cksum
+# the list — immune to find traversal-order differences across platforms.
+corpus_sum() {
+  find "$1" -type f | LC_ALL=C sort | while IFS= read -r f; do cksum "$f"; done | cksum
+}
+sum_before="$(corpus_sum "$FIX/corpus")"
 "$BIN" --corpus "$FIX/corpus" --cap-bytes 10 >/dev/null 2>&1 || true
-sum_after="$(find "$FIX/corpus" -type f -exec cat {} + | cksum)"
+sum_after="$(corpus_sum "$FIX/corpus")"
 [ "$sum_before" = "$sum_after" ] && ok "read-only (corpus unchanged)" || no "read-only violated"
 
 # ── 4. clean corpus: exit 0 + CLEAN ─────────────────────────────────────────
