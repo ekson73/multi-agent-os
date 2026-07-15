@@ -1,12 +1,15 @@
 ---
 name: ooda-loop
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Run the operator's recurring goal-loop contract end-to-end as ONE preset:
-  Observe (recover the session goal -> handoff-as-prompt) -> Orient (derive a MEASURABLE DoD via
-  Prisma -> dod-as-prompt) -> Decide (gate on both envelopes' inconclusive->HITL) -> Act (drive to
-  quiescence with the typed {goal, dod} pair via gap-loop or quiesce). Thin composer — reimplements
-  nothing: it chains goal-recovery + decompose-abstract-to-measurable (Prisma) + gap-loop/quiesce,
+  Observe (recover the session goal -> handoff-as-prompt) -> Orient-a (derive a MEASURABLE DoD via
+  Prisma -> dod-as-prompt) -> Orient-b (derive the MINIMAL RECURRING SYSTEM via Hodos ->
+  system-as-prompt: the vehicle that conducts to the goal, per the law "meta sem sistema e intencao
+  sem acao" [C22]) -> Decide (gate on all three envelopes' inconclusive->HITL) -> Act (drive to
+  quiescence with the typed {goal, dod, system} triple via gap-loop or quiesce). Thin composer —
+  reimplements nothing: it chains goal-recovery + decompose-abstract-to-measurable (Prisma) +
+  derive-system-from-goal (Hodos) + gap-loop/quiesce,
   and inherits (never re-loosens) their invariants — chiefly gap-loop's `verifier != generator`
   independent audit. Hybrid: deterministic typed envelopes + economic stop bounding probabilistic
   MoE cognition; idempotent (re-running an already-quiescent session is a no-op).
@@ -78,13 +81,24 @@ ORIENT    invoke Prisma (decompose-abstract-to-measurable) on the recovered goal
             |   (do NOT auto-drive on a capped score). status=additive-verified -> proceed to the roll-up.
             | Prisma roll-up (scripts/aggregate_spec.py) inconclusive.flag=true (judgment-dominated / conflict:<branch> / low-conf) -> STOP-HITL
             v
-DECIDE    gate: both envelopes valid + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
+ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
+            "what is the SMALLEST recurring system that conducts to this goal?"  (the vehicle, not the map)
+            ->  system-as-prompt envelope  (implementation-intention trigger->action + cadence + signal + REV)
+            | ORIENT is synthesis (Boyd): Prisma gives the destination's COORDINATES, Hodos gives the ROUTE.
+            | law: akasha rules/derive-system-from-goal.md [C22]; fire-point anti-theater Layer-5 R9 (conditional).
+            | R9 fails (a goal with no mechanism conducting to it) -> REFINE (build the system), never REJECT.
+            | GORDIAN FLOOR: a trivial action's system IS the single step -> skip, do not manufacture ceremony.
+            | HUMAN_DOMAIN: the operator's PERSONAL goals are never auto-systematized (on request only).
+            v
+DECIDE    gate: all three envelopes valid + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
             | any red -> HITL (with the computed envelopes attached, never a blank ask)
             | resolve --driver (auto: quiesce if host /goal + session scope, else gap-loop)
             v
-ACT       drive with the typed {goal, dod} pair:
+ACT       drive with the typed {goal, dod, system} triple:
             handoff-as-prompt  -> the driver's state-source (goal + objectives seed the gap-register)
             dod-as-prompt.termination_predicate -> the driver's --condition (DoD leaves = the stop test)
+            system-as-prompt.minimal_system -> the driver's positional "<instructions>" (the recurring step;
+              no flag for "the recurring action" exists — it rides the existing surface, gap-loop:194)
             improvement signal := the DoD checks, evaluated by an INDEPENDENT verifier (gap-loop VALIDATE,
             verifier != generator) — NEVER the generator's self-grade (Huang et al. 2310.01798).
             emit exactly ONE STOP marker per turn.
@@ -94,17 +108,20 @@ ACT       drive with the typed {goal, dod} pair:
 | Envelope | Produced by | Consumed as |
 |---|---|---|
 | `handoff-as-prompt` | goal-recovery (OBSERVE) | driver `--state-source=handoff:<file>` — goal + objectives seed the gap-register / session scope |
-| `dod-as-prompt` | Prisma via ooda-loop (ORIENT) | driver `--condition=<termination_predicate>` — the DoD leaves are the termination test; the loop re-scores progress against the value-tree each round (Prisma re-run on current state) |
+| `dod-as-prompt` | Prisma via ooda-loop (ORIENT-a) | driver `--condition=<termination_predicate>` — the DoD leaves are the termination test; the loop re-scores progress against the value-tree each round (Prisma re-run on current state) |
+| `system-as-prompt` | Hodos via ooda-loop (ORIENT-b) | driver positional `"<instructions>"` — the minimal recurring step, appended to the goal (`gap-loop`:194). Without it the driver **improvises its action each round**: *"isso não é uma meta, é simplesmente uma sequência de ações"*. ⚠️ No flag for the recurring action exists; inventing one would be interface fabrication (`anti-theater` R4). |
 
-Both are validator-gated (`goal-recovery/bin/validate_envelope.py`) before ACT. A mid-run goal revision
-(handoff hypotheses) or DoD re-score (Prisma re-eval) is allowed — the pair is revisable, not frozen.
+All three are validator-gated (`goal-recovery/bin/validate_envelope.py`) before ACT. A mid-run goal revision
+(handoff hypotheses), DoD re-score (Prisma re-eval), or **vehicle re-derivation (Hodos REV: adherence-high +
+goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed — the triple is revisable, not frozen.
 
 ## Composition (DRY — every step is an existing primitive)
 | Step | Composes (reimplements nothing) |
 |---|---|
 | OBSERVE | `skills/goal-recovery` (-> handoff-as-prompt; Skopos recon-first inference ladder) |
-| ORIENT | `skills/decompose-abstract-to-measurable` (Prisma; -> dod-as-prompt; D/T/J value-tree + `scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` deterministic roll-up) |
-| DECIDE | `agents/COWORK-AUTONOMY-POLICY.md` bands + `[C17]` §2 HUMAN_DOMAIN + `anti-theater` 8Q gate |
+| ORIENT-a | `skills/decompose-abstract-to-measurable` (Prisma; -> dod-as-prompt; D/T/J value-tree + `scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` deterministic roll-up) |
+| ORIENT-b | `skills/derive-system-from-goal` (Hodos; -> system-as-prompt; the minimal recurring vehicle. Law: akasha `rules/derive-system-from-goal.md` `[C22]`) |
+| DECIDE | `agents/COWORK-AUTONOMY-POLICY.md` bands + `[C17]` §2 HUMAN_DOMAIN + `anti-theater` **9Q** gate (8 unconditional + **R9 MECHANIZED** conditional: *is there a system conducting to this goal?*) |
 | ACT (default) | `skills/gap-loop` (harness-agnostic 5-phase loop; MoE RESOLVE + independent VALIDATE + derived score) |
 | ACT (session) | `skills/quiesce` (`/goal`-driven session quiescence; PR-green + comments-answered) |
 | verify (both) | `maos:persona-pipeline`/`perspective-trio` inside the driver (verifier != generator master condition) |

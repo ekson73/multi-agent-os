@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """validate_envelope.py — deterministic validator + idempotency digest for the goal-loop
-typed envelopes (handoff-as-prompt / dod-as-prompt).
+typed envelopes (handoff-as-prompt / dod-as-prompt / system-as-prompt).
 
 Single responsibility: gate the SHAPE of the envelope (the deterministic half of the hybrid).
 The CONTENT (what goal was recovered, what leaves the DoD has) is the LLM's probabilistic job and
@@ -12,12 +12,13 @@ Exit codes:
   3  SpecError    (a required key is absent, a range is violated, or a gate is broken -> refused)
 
 Usage:
-  validate_envelope.py <file.json> [--type handoff|dod|auto] [--conf-inconclusive 0.60]
-  validate_envelope.py <file.json> --digest [--type handoff|dod|auto]
+  validate_envelope.py <file.json> [--type handoff|dod|system|auto] [--conf-inconclusive 0.60]
+  validate_envelope.py <file.json> --digest [--type handoff|dod|system|auto]
 
 The --digest mode prints a canonical sha256 over the DETERMINISTIC envelope: every `confidence`
 float (at any depth), the optional `evaluation` block, and the volatile leaf VALUES of a DoD's
-measurement_spec are stripped first. So two runs over the same session-state that differ ONLY in the
+measurement_spec (and a system's why_minimal prose) are stripped first. So two runs over the same
+session-state that differ ONLY in the
 probabilistic `confidence` produce the SAME digest — that is the precise idempotency claim
 ("same state -> same validated envelope, modulo the confidence float"). Deterministic content in;
 deterministic digest out.
@@ -51,13 +52,15 @@ def detect_type(obj):
         return None
     data = obj.get("data")
     t = data.get("type") if isinstance(data, dict) else None
-    if t in ("handoff-as-prompt", "dod-as-prompt"):
-        return "handoff" if t == "handoff-as-prompt" else "dod"
+    if t in ("handoff-as-prompt", "dod-as-prompt", "system-as-prompt"):
+        return {"handoff-as-prompt": "handoff", "dod-as-prompt": "dod", "system-as-prompt": "system"}[t]
     m = obj.get("method")
     if m == "session.goal_recovery":
         return "handoff"
     if m == "session.dod_derivation":
         return "dod"
+    if m == "session.system_derivation":
+        return "system"
     return None
 
 
@@ -95,6 +98,7 @@ def is_list(obj, key, where, errs):
 _KIND_CONSTS = {
     "handoff": {"method": "session.goal_recovery", "data.type": "handoff-as-prompt"},
     "dod":     {"method": "session.dod_derivation", "data.type": "dod-as-prompt"},
+    "system":  {"method": "session.system_derivation", "data.type": "system-as-prompt"},
 }
 
 
@@ -212,6 +216,56 @@ def validate_dod(obj):
     return errs
 
 
+def validate_system(obj):
+    """system-as-prompt — the MINIMAL RECURRING SYSTEM (the vehicle) that conducts to a goal.
+    Law: akasha rules/derive-system-from-goal.md [C22] ("meta sem sistema e intencao sem acao");
+    engine: skills/derive-system-from-goal (Hodos); position: ooda-loop ORIENT-b."""
+    errs = []
+    require(obj, ["jsonrpc", "method", "params", "data"], "system", errs)
+    if errs:
+        return errs
+    check_identity_consts(obj, "system", "system", errs)
+
+    p = obj.get("params")
+    if not isinstance(p, dict):
+        errs.append("system.params: expected object")
+        return errs
+    require(p, ["for_goal", "context_lock", "minimal_system", "adherence_signal", "revision_trigger"],
+            "system.params", errs)
+
+    for_goal = p.get("for_goal", "")
+    if isinstance(for_goal, str) and for_goal.strip() == "":
+        errs.append("system.params.for_goal: must be non-empty (a system divorced from its goal is not a "
+                    "vehicle, it is a sequence of actions — the exact failure the law names)")
+
+    cl = p.get("context_lock") or {}
+    require(cl, ["context", "purpose", "stakeholder", "targets"], "system.params.context_lock", errs)
+
+    ms = p.get("minimal_system") or {}
+    require(ms, ["trigger", "action", "why_minimal", "cadence"], "system.params.minimal_system", errs)
+    for key, why in (
+        ("trigger", "the IF half of the implementation intention (Gollwitzer & Sheeran 2006)"),
+        ("action", "the THEN half — the single minimal recurring step (P1)"),
+        ("why_minimal", "the P1 honesty gate — an unfalsifiable 'it is small' is theater (anti-theater R2)"),
+        ("cadence", "P2 — consistency over intensity, relative to the trigger"),
+    ):
+        v = ms.get(key, "")
+        if isinstance(v, str) and v.strip() == "":
+            errs.append(f"system.params.minimal_system.{key}: must be non-empty ({why})")
+
+    sig = p.get("adherence_signal", "")
+    if isinstance(sig, str) and sig.strip() == "":
+        errs.append("system.params.adherence_signal: must be non-empty (P3 — Metron-admissible: "
+                    "'does the mechanism still FIRE and does firing still MOVE the goal?')")
+
+    rev = p.get("revision_trigger", "")
+    if isinstance(rev, str) and rev.strip() == "":
+        errs.append("system.params.revision_trigger: must be non-empty (REV — without it, 'track the system' "
+                    "degenerates into driving a broken vehicle diligently; the Eliason guard)")
+
+    return errs
+
+
 def _strip_volatile(node, kind):
     """recursively remove the probabilistic degrees of freedom so the digest is over the
     DETERMINISTIC envelope only."""
@@ -224,6 +278,8 @@ def _strip_volatile(node, kind):
                 continue
             if kind == "dod" and k in ("value", "raw", "aggregate_confidence"):  # DoD leaf VALUES change as work progresses
                 continue
+            if kind == "system" and k in ("why_minimal", "consumed_as"):  # prose justification + a wiring note:
+                continue                     # both restate-able without changing the SYSTEM DEFINITION
             out[k] = _strip_volatile(v, kind)
         # order-invariance: hypotheses are RANKED by (now-stripped) confidence — a cross-run confidence
         # shift that re-orders them must NOT change the digest. Canonicalize their order for the digest only.
@@ -242,9 +298,9 @@ def canonical_digest(obj, kind):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="validate a handoff-as-prompt / dod-as-prompt envelope")
+    ap = argparse.ArgumentParser(description="validate a handoff-as-prompt / dod-as-prompt / system-as-prompt envelope")
     ap.add_argument("file")
-    ap.add_argument("--type", choices=["handoff", "dod", "auto"], default="auto")
+    ap.add_argument("--type", choices=["handoff", "dod", "system", "auto"], default="auto")
     ap.add_argument("--conf-inconclusive", type=float, default=DEFAULT_CONF_INCONCLUSIVE)
     ap.add_argument("--digest", action="store_true", help="print the canonical idempotency digest and exit")
     args = ap.parse_args()
@@ -252,14 +308,19 @@ def main():
     obj = load(args.file)
     kind = args.type if args.type != "auto" else detect_type(obj)
     if kind is None:
-        die(3, "[SpecError] cannot detect envelope type (data.type must be handoff-as-prompt|dod-as-prompt, "
-               "or method must be session.goal_recovery|session.dod_derivation)")
+        die(3, "[SpecError] cannot detect envelope type (data.type must be handoff-as-prompt|dod-as-prompt|system-as-prompt, "
+               "or method must be session.goal_recovery|session.dod_derivation|session.system_derivation)")
 
     if args.digest:
         print(canonical_digest(obj, kind))
         sys.exit(0)
 
-    errs = validate_handoff(obj, args.conf_inconclusive) if kind == "handoff" else validate_dod(obj)
+    if kind == "handoff":
+        errs = validate_handoff(obj, args.conf_inconclusive)
+    elif kind == "dod":
+        errs = validate_dod(obj)
+    else:
+        errs = validate_system(obj)
     if errs:
         die(3, "[SpecError] " + f"{kind} envelope refused ({len(errs)}):\n  - " + "\n  - ".join(errs))
     print(f"[ok] {kind} envelope valid: {args.file}")
