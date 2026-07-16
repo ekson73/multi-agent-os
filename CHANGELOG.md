@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact)
+### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact) (#273)
 
 - **`plugin-scripts/governance/lib/seed-io.sh`** — shared multi-writer seed I/O lib: `seed_dir` (honors
   `POSTFLIGHT_SEED_DIR`, else the absolute git-dir/maos — the SAME path all producers/consumers resolve),
