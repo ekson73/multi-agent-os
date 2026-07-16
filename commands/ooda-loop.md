@@ -26,7 +26,13 @@ The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.sch
            [--auto-merge-reason="<why>"]        (required when --auto-merge=authorized)
            [--output=text|json]
            [--dry-run]                     (recover + measure + gate; print the pair; do NOT drive)
+           [--only=observe|orient|decide]  (run OBSERVE..stage and STOP; --only=orient = dod-recovery)
+           [--for-goal="<goal>"]           (skip OBSERVE; derive the DoD for THIS explicit goal)
 ```
+
+**`dod-recovery`** = `/ooda-loop --only=orient` — recover/ingest the goal, derive + emit the measurable
+DoD (Prisma value-tree -> `bin/render_dod_as_prompt.py` -> validator-gated `dod-as-prompt`), then STOP.
+No DECIDE, no ACT. It is a MODE of `ooda-loop`, not a separate skill.
 
 Sibling routing: use `auto-pilot` when the goal is EXPLICIT and you only need decompose+delegate;
 use `gap-loop`/`quiesce` directly when you ALREADY have a typed goal + DoD; use `ooda-loop` when the
@@ -40,10 +46,12 @@ picks `quiesce` on a host with `/goal` + session scope, else the harness-agnosti
 /ooda-loop --dry-run                               # print the recovered {goal, dod} + driver + predicate
 /ooda-loop --driver=quiesce --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"
 /ooda-loop --scope=ticket:VKS-1234 --autonomy-threshold=0.9 --max-iterations=4
+/ooda-loop --only=orient --for-goal="ship the session-handoff spine"   # dod-recovery: derive+emit the DoD; drive nothing
 ```
 
 ## Related
 
 - `skills/ooda-loop/SKILL.md` — full skill logic
+- `skills/ooda-loop/bin/render_dod_as_prompt.py` — the deterministic Orient projection (Prisma spec -> validator-gated dod-as-prompt; the `--only=orient`/dod-recovery renderer)
 - `skills/goal-recovery/SKILL.md` — the Observe step · `skills/decompose-abstract-to-measurable/SKILL.md` (Prisma) — the Orient step
 - `commands/gap-loop.md` / `commands/quiesce.md` — the Act drivers
