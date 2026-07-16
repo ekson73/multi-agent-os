@@ -31,15 +31,26 @@ seed_dir() {
 
 # seed_is_rich <file> → 0 (true) if the seed is a rich synthesis, 1 otherwise.
 #   Rich = params.kind == "rich-synthesis" OR (defensive, for pre-1.3 rich seeds that predate
-#   the `kind` enum) the presence of params.goal / params.mission. Requires jq; without jq it
-#   reports "not rich" (fail-open: the caller then treats the seed as clobberable — same as the
-#   pre-existing no-protection behavior, never a spurious skip).
+#   the `kind` enum) the presence of params.goal / params.mission. This gate IS the upgrade-only
+#   LYNCHPIN: the skeleton PreCompact producer calls `seed_is_rich || seed_write_atomic`, so a
+#   FALSE "not rich" verdict CLOBBERS a rich /maos:postflight seed (irreversible synthesis loss).
+#   With jq → authoritative. Without jq → grep fallback keyed on the literal marker P3 always
+#   writes (`"kind": "rich-synthesis"`) + the pre-1.3 `"goal"`/`"mission"` keys. A rich seed
+#   reliably MATCHES that grep, so it is preserved; a skeleton matches nothing, so the (cheap)
+#   refresh proceeds. (Prior behavior returned "not rich" whenever jq was absent — which silently
+#   clobbered rich seeds in any jq-less env; jq is NOT guaranteed at PreCompact time even though
+#   the reader side needs it, so the destroy could still happen before any reader existed.)
 seed_is_rich() {
   local f="$1"
   [ -f "$f" ] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
-  jq -e '(.params.kind == "rich-synthesis") or ((.params.goal // .params.mission) != null)' \
-    "$f" >/dev/null 2>&1
+  if command -v jq >/dev/null 2>&1; then
+    jq -e '(.params.kind == "rich-synthesis") or ((.params.goal // .params.mission) != null)' \
+      "$f" >/dev/null 2>&1
+    return
+  fi
+  # jq-absent fallback — bias toward PRESERVE (a false positive only skips a cheap skeleton
+  # refresh; a false negative destroys the synthesis). Grep's exit IS the verdict.
+  grep -Eq '"kind"[[:space:]]*:[[:space:]]*"rich-synthesis"|"(goal|mission)"[[:space:]]*:' "$f" 2>/dev/null
 }
 
 # seed_lock <dir> → acquire "$dir/.lock-seed" (mkdir-lock + epoch-marker stale reclaim, bounded

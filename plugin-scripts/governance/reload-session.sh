@@ -104,6 +104,18 @@ fi
 CTX="${BODY}
 ${FOOTER}"
 
+# ── Secret-scan the final CTX before injection (defense-in-depth; fail-closed) ─
+# The rich seed's goal/dod/next_actions/resume_instructions come from /maos:postflight and are
+# NOT guaranteed secret-scanned at their source (only compact_summary is scrubbed SAVE-side by
+# postflight-postcompact.sh). ⛔ ABSOLUTE — NEVER inject a secret into a fresh session's context:
+# on ANY match WITHHOLD the body, inject only a safe on-disk pointer. Idiom verbatim from
+# postflight-postcompact.sh:66 (bin/spawn-continuation.sh lineage).
+if printf '%s' "$CTX" | grep -Eiq '(-----BEGIN [A-Z ]*PRIVATE KEY|aws_secret_access_key|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|password["'\'' :=]+[^ "'\'']{6,})'; then
+  echo "🔒 reload (post-compact): secret pattern detected in seed → body WITHHELD from injection (seed retained on disk: ${SEED})." >&2
+  CTX="A prior-session continuation seed is present on disk but was WITHHELD from injection — a secret pattern was detected in it. Do NOT reconstruct it from memory. Review the seed manually on disk, then continue.
+${FOOTER}"
+fi
+
 # ── json_escape (inline; no lib dependency for a reader) + emit ───────────────
 json_escape() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\n'/\\n}"; s="${s//$'\r'/\\r}"; s="${s//$'\t'/\\t}"; printf '%s' "$s"; }
 
