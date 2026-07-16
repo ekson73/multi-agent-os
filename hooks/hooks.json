@@ -90,6 +90,17 @@
         ]
       }
     ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/postflight-postcompact.sh"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
