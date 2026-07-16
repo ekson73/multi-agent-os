@@ -34,6 +34,9 @@ LIB_DIR="${SCRIPT_DIR}/lib"
 # Helpers are best-effort: if the lib is absent the hook still degrades to a no-op snapshot.
 [ -f "${LIB_DIR}/common.sh" ] && source "${LIB_DIR}/common.sh" 2>/dev/null || true
 [ -f "${LIB_DIR}/git-branch-detect.sh" ] && source "${LIB_DIR}/git-branch-detect.sh" 2>/dev/null || true
+# Shared multi-writer seed I/O (lock + atomic-write + rich-detect). Best-effort: if absent, the
+# write below degrades to the pre-existing lockless overwrite (still atomic via inline fallback).
+[ -f "${LIB_DIR}/seed-io.sh" ] && source "${LIB_DIR}/seed-io.sh" 2>/dev/null || true
 
 # Minimal json-escape fallback if common.sh was unavailable.
 if ! command -v json_escape >/dev/null 2>&1; then
@@ -53,6 +56,8 @@ get_field() { # $1=field → value or "" (jq if present, else grep fallback)
 }
 SESSION_ID="$(get_field session_id)"; [ -z "$SESSION_ID" ] && SESSION_ID="${CLAUDE_SESSION_ID:-unknown}"
 TRIGGER="$(get_field trigger)";       [ -z "$TRIGGER" ] && TRIGGER="unknown"
+TRANSCRIPT="$(get_field transcript_path)"; [ -z "$TRANSCRIPT" ] && TRANSCRIPT="none"
+CWD="$(get_field cwd)";                [ -z "$CWD" ] && CWD="none"
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # ── Repo = the project dir Claude Code runs in (read-only probe) ──────────────
@@ -82,25 +87,61 @@ if [ "${POSTFLIGHT_SNAPSHOT_PRS:-0}" = "1" ] && command -v gh >/dev/null 2>&1; t
   [ -z "$PRS" ] && PRS="[]"
 fi
 
+# ── Deterministic ticket (ZERO network): branch › last-commit subject ─────────
+# Same regex + salience order as bin/locus.sh compute_ticket (minus the explicit --ticket the
+# hook has no arg for). Feeds refs.ticket → preflight R0 anchor reads it back next session.
+TICKET_RE='[A-Z]{2,}-[0-9]+'
+TICKET="$(printf '%s' "$BRANCH" | grep -oE "$TICKET_RE" 2>/dev/null | head -1)"
+[ -z "$TICKET" ] && TICKET="$(git -C "$REPO" log -1 --format='%s' 2>/dev/null | grep -oE "$TICKET_RE" 2>/dev/null | head -1)"
+[ -z "$TICKET" ] && TICKET="none"
+
 # ── Write the deterministic seed snapshot to a durable file (survives compaction)
 # Default location is INSIDE the git dir (always git-ignored) so the snapshot never makes the
 # working tree appear DIRTY at compaction time. Override with POSTFLIGHT_SEED_DIR.
-GIT_DIR="$(git -C "$REPO" rev-parse --absolute-git-dir 2>/dev/null || echo "${REPO}/.git")"
-SEED_DIR="${POSTFLIGHT_SEED_DIR:-${GIT_DIR}/maos}"
+# seed_dir() (when the lib loaded) resolves the SAME path the postcompact merger + preflight
+# reader use; the inline fallback reproduces it byte-for-byte (--absolute-git-dir/maos).
+if command -v seed_dir >/dev/null 2>&1; then
+  SEED_DIR="$(seed_dir "$REPO")"
+else
+  GIT_DIR="$(git -C "$REPO" rev-parse --absolute-git-dir 2>/dev/null || echo "${REPO}/.git")"
+  SEED_DIR="${POSTFLIGHT_SEED_DIR:-${GIT_DIR}/maos}"
+fi
 mkdir -p "$SEED_DIR" 2>/dev/null || true
 SEED_FILE="${SEED_DIR}/continuation-seed.latest.json"
 SEED_JSON=$(cat <<JSON
-{"jsonrpc":"2.0","method":"session.continuation","params":{"kind":"deterministic-snapshot","captured_at":"$(json_escape "$TS")","trigger":"$(json_escape "$TRIGGER")","session_id":"$(json_escape "$SESSION_ID")","git":{"repo":"$(json_escape "$REPO_NAME")","branch":"$(json_escape "$BRANCH")","upstream":"$(json_escape "$UPSTREAM")","tree_state":"$(json_escape "$STATE")","worktrees":${WORKTREES:-0},"unpushed_commits":${UNPUSHED:-0},"open_prs":${PRS}},"resume_instructions":"Run /maos:preflight to orient, then /maos:postflight for the full agentic continuation seed (this file is a deterministic skeleton, not the synthesized seed)."},"data":{"layer":"community"}}
+{"jsonrpc":"2.0","method":"session.continuation","params":{"kind":"deterministic-snapshot","captured_at":"$(json_escape "$TS")","trigger":"$(json_escape "$TRIGGER")","session_id":"$(json_escape "$SESSION_ID")","git":{"repo":"$(json_escape "$REPO_NAME")","branch":"$(json_escape "$BRANCH")","upstream":"$(json_escape "$UPSTREAM")","tree_state":"$(json_escape "$STATE")","worktrees":${WORKTREES:-0},"unpushed_commits":${UNPUSHED:-0},"open_prs":${PRS}},"refs":{"git":"$(json_escape "${REPO_NAME}@${BRANCH}")","ticket":"$(json_escape "$TICKET")","memory":"none","session":"$(json_escape "$SESSION_ID")","transcript":"$(json_escape "$TRANSCRIPT")","cwd":"$(json_escape "$CWD")"},"resume_instructions":"Run /maos:preflight to orient, then /maos:postflight for the full agentic continuation seed (this file is a deterministic skeleton, not the synthesized seed)."},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.3.0"}}
 JSON
 )
-# Atomic write (tmp → mv); never fail the hook.
-if printf '%s\n' "$SEED_JSON" > "${SEED_FILE}.tmp" 2>/dev/null; then
-  mv -f "${SEED_FILE}.tmp" "$SEED_FILE" 2>/dev/null || rm -f "${SEED_FILE}.tmp" 2>/dev/null || true
+# ── UPGRADE-ONLY, lock-serialized write (the LYNCHPIN) ─────────────────────────
+# The skeleton must NEVER clobber a richer seed a prior /maos:postflight left in latest.json —
+# that rich seed is the RELOAD source. Under the cross-session seed lock (shared common-dir file),
+# skip the write when the existing seed is already a rich synthesis; else write atomic. The lock
+# also serializes against a concurrent session's postcompact merge. Lib absent → lockless atomic
+# overwrite (the pre-existing behavior; no rich-protection, but never a torn file).
+if command -v seed_lock >/dev/null 2>&1; then
+  if seed_lock "$SEED_DIR"; then
+    seed_is_rich "$SEED_FILE" || seed_write_atomic "$SEED_FILE" "$SEED_JSON"
+    seed_unlock
+  fi
+  # lock unavailable after ~3s → another writer active; skip latest.json (safe-but-lossy).
+else
+  if printf '%s\n' "$SEED_JSON" > "${SEED_FILE}.tmp" 2>/dev/null; then
+    mv -f "${SEED_FILE}.tmp" "$SEED_FILE" 2>/dev/null || rm -f "${SEED_FILE}.tmp" 2>/dev/null || true
+  fi
 fi
-# Durable cross-session copy (best-effort).
+# Durable per-session audit copy (best-effort; keyed by session_id → never shared cross-session,
+# so no lock needed). Skip-if-rich too: a prior rich seed archived for THIS session must not be
+# downgraded to a skeleton.
 AUDIT_SEED_DIR="${CLAUDE_AUDIT_DIR:-${HOME:-/tmp}/.claude/audit}/continuation-seeds"
 if mkdir -p "$AUDIT_SEED_DIR" 2>/dev/null; then
-  printf '%s\n' "$SEED_JSON" > "${AUDIT_SEED_DIR}/${SESSION_ID}.json" 2>/dev/null || true
+  AUDIT_FILE="${AUDIT_SEED_DIR}/${SESSION_ID}.json"
+  if command -v seed_is_rich >/dev/null 2>&1 && seed_is_rich "$AUDIT_FILE"; then
+    : # preserve the richer per-session archive
+  else
+    printf '%s\n' "$SEED_JSON" > "${AUDIT_FILE}.tmp.$$" 2>/dev/null \
+      && mv -f "${AUDIT_FILE}.tmp.$$" "$AUDIT_FILE" 2>/dev/null \
+      || rm -f "${AUDIT_FILE}.tmp.$$" 2>/dev/null || true
+  fi
 fi
 
 # Audit (no-op unless an audit dir exists). Isolated in a SUBSHELL so a `set -u` exit from
