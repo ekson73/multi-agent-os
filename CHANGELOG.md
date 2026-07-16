@@ -16,8 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (EXTEND, not re-forge): pointer-freshness · promote/demote tiering · deterministic read-only pre-scan, with
   verbatim safety bounds (read-only out-of-session · tiering-never-deletion · proposals-only for governance).
 - **`bin/memory-curator-sweep.sh`** + **`tests/test-memory-curator-sweep.sh`** (18 asserts) + **`agents/memory-curator.md` v2** (#268) —
-  the ADR-012 forge: 7-check deterministic READ-ONLY sweep (dup-title · orphan-file · dangling-ref w/ path-traversal
-  guard · index drift · stale re-validation · `#TBD` refs · cap pressure), bash 3.2 + jq, JSON envelope, exit
+  the ADR-012 forge: 7-check deterministic READ-ONLY sweep (`index-over-cap` · `dangling-ref` w/ path-traversal
+  guard · `orphan-file` · `stale-marker` · `journal-accumulation` · `dup-title` · `pending-artifact`), bash 3.2 + jq, JSON envelope, exit
   `0 clean · 1 error · 2 findings`. Read-only guarantee cksum-locked by the test suite; false-orphan and
   out-of-corpus-ref classes fixture-pinned. Dogfood cycle 1/2 ratified on the real corpus (6 genuine findings).
 - **`docs/adrs/ADR-013-memory-crud-gateway.md`** (#269) — accepts the Phase-3 *executor* design: ONE canonical
