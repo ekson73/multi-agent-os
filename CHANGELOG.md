@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-07-15
+
+### Added — memory-hygiene trio: sleep-time curator (ADR-012) + gateway spec (ADR-013)
+
+- **`docs/adrs/ADR-012-memory-curator-sleep-time.md`** (#267) — accepts the Mnemosyne v2 *sleep-time* extension
+  (EXTEND, not re-forge): pointer-freshness · promote/demote tiering · deterministic read-only pre-scan, with
+  verbatim safety bounds (read-only out-of-session · tiering-never-deletion · proposals-only for governance).
+- **`bin/memory-curator-sweep.sh`** + **`tests/test-memory-curator-sweep.sh`** (18 asserts) + **`agents/memory-curator.md` v2** (#268) —
+  the ADR-012 forge: 7-check deterministic READ-ONLY sweep (dup-title · orphan-file · dangling-ref w/ path-traversal
+  guard · index drift · stale re-validation · `#TBD` refs · cap pressure), bash 3.2 + jq, JSON envelope, exit
+  `0 clean · 1 error · 2 findings`. Read-only guarantee cksum-locked by the test suite; false-orphan and
+  out-of-corpus-ref classes fixture-pinned. Dogfood cycle 1/2 ratified on the real corpus (6 genuine findings).
+- **`docs/adrs/ADR-013-memory-crud-gateway.md`** (#269) — accepts the Phase-3 *executor* design: ONE canonical
+  memory-CRUD owner ("others ask IT") — 7-verb narrow API (create/read/update/archive/search/neighborhood/index),
+  bin + skill (NOT a new MCP server; zero always-on cost), §I/O contract (single-JSON-stdout envelope; exit codes
+  aligned with the `bin/artifact-registry` CLI-mutator family, precedent #223), `archive` as the only removal verb,
+  advisory-first adoption (directed → WARN → BLOCK, operator-ratified). Build = next phase per the ADR's DoD.
+
 ## [1.20.0] - 2026-07-14
 
 ### Added — `artifact-registry`: dedup-memory for Anima (naming) & Forge (creation)
