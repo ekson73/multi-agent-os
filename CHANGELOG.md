@@ -8,6 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact) (#273)
+
+- **`plugin-scripts/governance/lib/seed-io.sh`** — shared multi-writer seed I/O lib: `seed_dir` (honors
+  `POSTFLIGHT_SEED_DIR`, else the absolute git-dir/maos — the SAME path all producers/consumers resolve),
+  `seed_is_rich`, `seed_lock`/`seed_unlock` (mkdir-lock + epoch stale-reclaim, ~3s spin then give-up-never-block),
+  `seed_write_atomic` (tmp→mv). Guarantees the PreCompact writer and the PostCompact merger target the identical file.
+- **`plugin-scripts/governance/postflight-postcompact.sh`** + `PostCompact` hook wiring — fires right after the harness
+  compacts; MERGES the harness `compact_summary` into `params.compact_summary` of the SAME continuation-seed. Secret-scans
+  BEFORE persisting (⛔: a summary may quote code with live secrets → text dropped + `redacted:true`), 16 KiB size-guard,
+  lock-serialized + atomic merge (synthesizes a minimal skeleton if PreCompact was skipped). Fail-open — never `exit 2`
+  (a PostCompact veto during an API-limit-recovery would fail the request), always `exit 0`, no-op without jq/lib.
+- **`plugin-scripts/governance/reload-session.sh`** + `SessionStart` wiring — the ONLY hook that injects context ACROSS a
+  compaction (`additionalContext`, phrased as FACTS). Reads the seed from the FILE (not stdin) → immune to the undocumented
+  PostCompact↔SessionStart ordering (monotonic enrichment on disk). Predicate: `source=compact`→inject; `resume`→opt-in
+  (`MAOS_RELOAD_ON_RESUME=1`); `startup`/`clear`→never. Deterministic jq render (goal→dod→next_actions→gaps→compact_summary
+  →refs→resume_instructions), bounded ≤10k truncation at a line boundary with the `/maos:session-reentry`+`/maos:preflight`
+  footer ALWAYS surviving. Always `exit 0`, always valid JSON, never fabricates (no seed / no jq → nothing).
+- **`postflight-precompact.sh` enriched** — derives `refs` (git·ticket via `[A-Z]{2,}-[0-9]+` over branch›last-commit·session·
+  transcript·cwd), stamps `contract_version:1.3.0`, and — THE LYNCHPIN — writes **upgrade-only** under `seed_lock`: the
+  deterministic skeleton NEVER clobbers a richer `/maos:postflight` seed (`seed_is_rich` skip). **`/maos:postflight` P3 PERSIST**
+  now upgrades the canonical `continuation-seed.latest.json` in place (`kind=rich-synthesis`, preserves any fused `compact_summary`).
+- **Continuation-seed contract v1.3.0** (`skills/postflight/references/continuation-seed-contract.md` + template) — adds
+  `params.kind` (enum `deterministic-snapshot|rich-synthesis`, upgrade-only) + `params.compact_summary` slot; registers the two
+  new producers (postcompact) + consumer (reload). Verified end-to-end: PreCompact→postflight-rich→PreCompact-again(lynchpin
+  held)→PostCompact-fuse→SessionStart-inject; secret-scan redaction confirmed.
+- **`skills/ooda-loop/bin/render_dod_as_prompt.py` + `dod-recovery` mode** (skill v0.1.0→0.2.0) — the deterministic ORIENT
+  projection that turns a Prisma `measurement_spec` into a validator-gated `dod-as-prompt` envelope (acceptance ← material
+  D/T leaves, J excluded; kpis; `termination_predicate` = the driver `--condition`). Correct-by-construction, self-gated
+  against `goal-recovery/bin/validate_envelope.py` (fail-closed: refused render emits nothing, exit 3). Adds
+  `--only=observe|orient|decide` with **`--only=orient` = `dod-recovery`** (recover/ingest goal → derive+emit DoD; no
+  DECIDE/ACT) + `--for-goal`. A MODE, not a new skill (honors the prior "standalone dod-recovery = over-engineering" decision).
+  Closes the R4 gap: the `dod-as-prompt` wire had a schema/example/validator/4-consumers but no deterministic authorer.
+
 ## [1.21.0] - 2026-07-15
 
 ### Added — memory-hygiene trio: sleep-time curator (ADR-012) + gateway spec (ADR-013)

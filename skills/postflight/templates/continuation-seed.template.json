@@ -2,6 +2,7 @@
   "jsonrpc": "2.0",
   "method": "session.continuation",
   "params": {
+    "kind": "rich-synthesis",
     "who_you_are": "<role + identity the resuming agent should assume, e.g. 'autonomous implementer continuing PR work in repo X' — one sentence, no conversational-memory dependence>",
     "bootstrap_order": [
       "<ordered read #1, e.g. 'Read AGENTS.md (governance)'>",
@@ -38,6 +39,15 @@
     },
     "goal": "<one-line mission>",
     "context": "<state-of-world the next agent needs>",
+    "compact_summary": {
+      "present": false,
+      "trigger": "<manual|auto — the compaction trigger>",
+      "captured_at": "<ISO-8601 UTC when the PostCompact merged this>",
+      "bytes": 0,
+      "truncated": false,
+      "redacted": false,
+      "text": "<the harness PostCompact conversation summary — merged by postflight-postcompact.sh; dropped when redacted=true>"
+    },
     "git": {
       "repo": "<name>",
       "branch": "<b>",
@@ -90,6 +100,6 @@
   "data": {
     "layer": "community",
     "contract": "skills/postflight/references/continuation-seed-contract.md",
-    "contract_version": "1.1.0"
+    "contract_version": "1.3.0"
   }
 }
