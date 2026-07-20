@@ -83,7 +83,7 @@ BODY="$(jq -r '
           "Harness compaction summary: " + ($p.compact_summary.text[0:3500]) + (if ($p.compact_summary.text|length) > 3500 then " …(summary clipped)" else "" end)
         elif ($p.compact_summary.redacted // false) then "Harness compaction summary was present but redacted (a secret pattern was detected)."
         else empty end ),
-      "Refs: branch \($r.git // $g.branch // "?"), ticket \($r.ticket // "none"), session \($r.session // "?")" + (if (($g.tree_state) // "") != "" then ", git tree \($g.tree_state), unpushed \($g.unpushed_commits // 0)" else "" end) + ".",
+      "Refs: branch \($g.branch // $r.git // "?"), ticket \($r.ticket // "none"), session \($r.session // "?")" + (if (($g.tree_state) // "") != "" then ", git tree \($g.tree_state), unpushed \($g.unpushed_commits // 0)" else "" end) + ".",
       ( if ($p.resume_instructions // "") != "" then "Resume instructions from the seed: \($p.resume_instructions)" else empty end )
     ]
   | map(select(. != null and . != ""))

@@ -3,9 +3,11 @@
 # MAOS Governance Library: seed-io.sh
 # Purpose: Shared continuation-seed I/O for the worktree-lifecycle SAVE-side hooks
 #   (postflight-precompact.sh writes the skeleton; postflight-postcompact.sh merges
-#   the harness compact_summary). Both target the SAME cross-session seed file in the
-#   COMMON git-dir — several sessions/worktrees of one repo share it — so writes MUST be
-#   lock-serialized + atomic, and BOTH producers MUST resolve the identical path.
+#   the harness compact_summary). Both target the SAME seed file in the PER-WORKTREE
+#   absolute git-dir (intentional — see seed_dir(); the reload reader additionally
+#   probes the common git-dir) — concurrent sessions of one checkout share it, so
+#   writes MUST be lock-serialized + atomic, and BOTH producers MUST resolve the
+#   identical path.
 #   Sourced best-effort; a caller that cannot source it degrades safely (the precompact
 #   falls back to a lockless skeleton write; the postcompact no-ops its merge).
 # Version: 1.0.0
