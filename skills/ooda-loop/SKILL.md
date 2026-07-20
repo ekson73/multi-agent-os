@@ -6,8 +6,9 @@ description: |
   Observe (recover the session goal -> handoff-as-prompt) -> Orient-a (derive a MEASURABLE DoD via
   Prisma -> dod-as-prompt) -> Orient-b (derive the MINIMAL RECURRING SYSTEM via Hodos ->
   system-as-prompt: the vehicle that conducts to the goal, per the law "meta sem sistema e intencao
-  sem acao" [C22]) -> Decide (gate on all three envelopes' inconclusive->HITL) -> Act (drive to
-  quiescence with the typed {goal, dod, system} triple via gap-loop or quiesce). Thin composer —
+  sem acao" [C22]; N/A for a one-shot/bounded goal — a plan IS its system) -> Decide (gate on all
+  applicable envelopes' inconclusive->HITL) -> Act (drive to
+  quiescence with the typed {goal, dod[, system]} set via gap-loop or quiesce). Thin composer —
   reimplements nothing: it chains goal-recovery + decompose-abstract-to-measurable (Prisma) +
   derive-system-from-goal (Hodos) + gap-loop/quiesce,
   and inherits (never re-loosens) their invariants — chiefly gap-loop's `verifier != generator`
@@ -84,17 +85,23 @@ ORIENT    invoke Prisma (decompose-abstract-to-measurable) on the recovered goal
 ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             "what is the SMALLEST recurring system that conducts to this goal?"  (the vehicle, not the map)
             ->  system-as-prompt envelope  (implementation-intention trigger->action + cadence + signal + REV)
+            | GOAL-SHAPE FIRST: one-shot/bounded goal -> system-as-prompt = N/A (a plan IS its system;
+            |   R9 = N/A per the law doc §2) -> proceed to DECIDE with the {goal, dod} pair. Demanding
+            |   a recurring cadence from a bounded goal is the missing-middle -> never do it.
             | ORIENT is synthesis (Boyd): Prisma gives the destination's COORDINATES, Hodos gives the ROUTE.
-            | law: akasha rules/derive-system-from-goal.md [C22]; fire-point anti-theater Layer-5 R9 (conditional).
-            | R9 fails (a goal with no mechanism conducting to it) -> REFINE (build the system), never REJECT.
+            | law: akasha docs/derive-system-from-goal.md [C22]; fire-point anti-theater Layer-5 R9
+            |   (conditional + ADDITIVE — fires ONLY on recurring/open-ended goals).
+            | R9 fails (recurring goal, one-shot-only vehicle) -> REFINE (build the system), never REJECT
+            |   (and never an override of an upstream R2/R4/R6/R8 REJECT).
             | GORDIAN FLOOR: a trivial action's system IS the single step -> skip, do not manufacture ceremony.
             | HUMAN_DOMAIN: the operator's PERSONAL goals are never auto-systematized (on request only).
             v
-DECIDE    gate: all three envelopes valid + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
+DECIDE    gate: all APPLICABLE envelopes valid (system-as-prompt is N/A for a one-shot/bounded goal —
+            the {goal, dod} pair suffices) + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
             | any red -> HITL (with the computed envelopes attached, never a blank ask)
             | resolve --driver (auto: quiesce if host /goal + session scope, else gap-loop)
             v
-ACT       drive with the typed {goal, dod, system} triple:
+ACT       drive with the typed {goal, dod[, system]} set (system only when the goal is recurring):
             handoff-as-prompt  -> the driver's state-source (goal + objectives seed the gap-register)
             dod-as-prompt.termination_predicate -> the driver's --condition (DoD leaves = the stop test)
             system-as-prompt.minimal_system.ACTION -> the driver's positional "<instructions>" (the string

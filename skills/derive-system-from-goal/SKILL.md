@@ -8,21 +8,31 @@ description: |
   improvises its action every round — the failure the law names: "isso nao e uma meta, e simplesmente
   uma sequencia de acoes". Emits a `system-as-prompt` envelope (implementation-intention trigger->action
   + cadence + a Metron-admissible adherence signal + a revision trigger that falsifies the VEHICLE, not
-  the driver). Thin deriver — reimplements NOTHING: no execution loop (that is gap-loop/quiesce), no
+  the driver). One-shot/bounded goal -> N/A by design (a plan IS its system; no envelope emitted).
+  Thin deriver — reimplements NOTHING: no execution loop (that is gap-loop/quiesce), no
   convergence gate, no verifier (verifier != generator stays the driver's invariant). Law:
-  akasha `rules/derive-system-from-goal.md` [C22]; soul-name Hodos (ho-dos, "a method, system; a way" —
+  akasha `docs/derive-system-from-goal.md` [C22]; soul-name Hodos (ho-dos, "a method, system; a way" —
   the root of methodos = meta + hodos, so "method" IS "goal + the way").
 dogfood_status: pending-first-cycle
 ---
 
 # derive-system-from-goal (soul-name: *Hodos*) — the vehicle deriver
 
-> **The law this executes**: akasha `~/.claude/rules/derive-system-from-goal.md` (`[C22]`) — *dada a meta, construa o sistema ANTES de persegui-la; **meta sem sistema é intenção sem ação**.* The law's fire-point is `anti-theater-grounding-protocol` **Layer-5 R9**; this skill is R9's operational *how*.
+> **The law this executes**: akasha `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md; an on-demand reference **doc**, not an auto-loaded rule — KRDR) — *dada a meta **recorrente**, construa o sistema ANTES de persegui-la; **meta sem sistema é intenção sem ação**.* The law's only mechanized fire-point is `anti-theater-grounding-protocol` **Layer-5 R9** (additive · fires ONLY on recurring/open-ended goals); this skill is R9's operational *how*.
 > **Position**: `ooda-loop` **ORIENT-b**. Boyd's ORIENT is synthesis — **Prisma gives the destination's coordinates** (`dod-as-prompt`), **Hodos gives the route** (`system-as-prompt`). Both are ORIENT; neither drives.
 
-## When to use / not use
-- **Use**: a goal is **given** (or self-imposed) and the next move would otherwise be *"start doing things toward it"*. R9 fired.
-- **Not use**: (a) **trivial action** — its system IS the single step; deriving one is ceremony (Gordian floor). (b) **The operator's personal goals** — `[C17]` §2 HUMAN_DOMAIN: available *on request*, **never** auto-prescribed. (c) **Driving** — that is `gap-loop`/`quiesce`. (d) **Measuring done-ness** — that is Prisma.
+## Purpose
+
+Derive the **minimal recurring system** (the vehicle) that conducts to a **recurring/open-ended** goal — BEFORE pursuing it — and emit it as a typed `system-as-prompt` envelope for `ooda-loop` ORIENT-b. A **one-shot/bounded goal is N/A by design** (its plan IS its system — law doc §2): this skill never manufactures a "recurring cadence" for bounded work.
+
+## When to use
+- A **recurring/open-ended** goal is **given** (or self-imposed) and the next move would otherwise be *"start doing things toward it"*. R9 fired (recurring goal + one-shot-only vehicle).
+
+## When **not** to use
+- (a) **One-shot/bounded goal** — **N/A**: a plan IS its system (law doc §2); exit without an envelope. (b) **Trivial action** — its system IS the single step; deriving one is ceremony (Gordian floor). (c) **The operator's personal goals** — `[C17]` §2 HUMAN_DOMAIN: available *on request*, **never** auto-prescribed. (d) **Driving** — that is `gap-loop`/`quiesce`. (e) **Measuring done-ness** — that is Prisma.
+
+## Trigger Phrases
+- *"derive a system for this goal"* · *"qual é o menor sistema que me leva a esta meta?"* · *"build the vehicle before driving"* · *"system-as-prompt"* · an `ooda-loop` **ORIENT-b** invocation · an **R9 REFINE** verdict from `anti-theater-grounding-protocol`.
 
 ## Parameters
 | Flag | Default | Allowed / Notes |
@@ -38,6 +48,11 @@ dogfood_status: pending-first-cycle
 ```text
 P0  CONTEXT-LOCK   inherit from --from-handoff (context/purpose/stakeholder/targets).
                    | absent -> SpecError. "Minimal" is meaningless without whose day it fits in.
+                   v
+P0.5 GOAL-SHAPE    recurring/open-ended goal? -> proceed.
+                   | ONE-SHOT/BOUNDED -> N/A: exit WITHOUT an envelope (a plan IS its system;
+                   |   R9 = N/A per the law doc §2). Demanding a "recurring cadence" from a
+                   |   bounded goal is the missing-middle the red-teams killed -> never do it.
                    v
 P1  MINIMAL        propose the single recurring ACTION so small refusing it is practically impossible.
                    | GATE: state `why_minimal` — the concrete cost + why it cannot reasonably be refused
@@ -103,6 +118,14 @@ Validator-gated like its siblings (`skills/goal-recovery/bin/validate_envelope.p
 8. ❌ **Auto-derive a system for the operator's personal goals** — HUMAN_DOMAIN; on request only.
 9. ❌ **Ceremony on a trivial action** — its system IS the single step (Gordian floor).
 
+## Protocol Rules (integrity invariants)
+1. **One-shot → N/A** (P0.5): never demand a recurring cadence from a bounded goal; exit without an envelope — the plan IS its system.
+2. **Thin deriver**: no execution loop, no convergence gate, no verifier in here — if one appears, it is `gap-loop`/`ooda-loop` re-implemented → cut (Gordian).
+3. **HUMAN_DOMAIN carve-out**: never auto-derive for the operator's personal goals (`[C17]` §2) — on request only.
+4. **Metron-admissible signal only**: adherence = *"fires + still moves the goal"*; bare activity counts are blacklisted.
+5. **Validator-gated emission**: every `system-as-prompt` passes `skills/goal-recovery/bin/validate_envelope.py` before the DECIDE gate consumes it.
+6. **Additive to the 8Q core**: an R9 REFINE never overrides an upstream R2/R4/R6/R8 REJECT — this skill builds vehicles, it does not launder theater.
+
 ## Quality Tests (6/6 self-validity)
 1. **Self-Application** — this skill's own goal ("close the vehicle gap") has a system: R9 fires → derive → envelope → ORIENT-b → driver. ✅
 2. **Non-Contradiction** — composes goal-recovery/Prisma/ooda-loop/gap-loop/Metron without duplicating; the Metron tension is **resolved explicitly** (§Caveats), not glossed. ✅
@@ -112,7 +135,7 @@ Validator-gated like its siblings (`skills/goal-recovery/bin/validate_envelope.p
 6. **Utility-Sunset** — inherits the law's DUED: retire when `ooda-loop` ORIENT absorbs system-construction natively (E6), or agents internalize build-the-vehicle-first (E3, ≥10 zero-regret). ✅
 
 ## Refs
-- **Law (SSOT)**: akasha `~/.claude/rules/derive-system-from-goal.md` (`[C22]`) · fire-point `anti-theater-grounding-protocol` Layer-5 **R9**.
+- **Law (SSOT)**: akasha `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md) · fire-point `anti-theater-grounding-protocol` Layer-5 **R9** (additive · recurring-only).
 - **Siblings**: `skills/ooda-loop` (the conductor — ORIENT-b is here) · `skills/goal-recovery` (+ its `bin/validate_envelope.py`) · `skills/decompose-abstract-to-measurable` (Prisma — ORIENT-a) · `skills/gap-loop` · `skills/quiesce`.
 - **Sources**: transcript `~/Downloads/transcricao_pessoas_inteligentes_sistemas.md` (Lucas Yano 2026-07-05, read in full — `{ts:411,451,511,518,554,604-617}`) · `~/Downloads/framework_12_etapas.csv`.
 - **Evidence**: Gollwitzer & Sheeran (2006) · Fogg *Tiny Habits* · Lally et al. (2010) · Michie BCT taxonomy · Nat Eliason (the counter) · Huang et al. 2310.01798 (why the verifier stays independent, and elsewhere).
