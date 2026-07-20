@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://multi-agent-os/skills/derive-system-from-goal/system-as-prompt.schema.json",
+  "title": "system-as-prompt",
+  "description": "The typed envelope carrying the MINIMAL RECURRING SYSTEM (the vehicle) that conducts to a given goal. The third envelope of the ooda-loop typed set: handoff-as-prompt says WHERE I AM (the goal), dod-as-prompt says WHEN TO STOP (the measurable DoD), and this says WHAT TO DO EACH ROUND (the recurring minimal step). Without it a driver improvises its action every round — the exact failure the law names: 'isso nao e uma meta, e simplesmente uma sequencia de acoes'. NO execution engine, NO convergence gate, NO verifier: driving is gap-loop/quiesce's job and the independent audit is theirs (verifier != generator, Huang et al. 2310.01798). This envelope only DERIVES and WIRES. Law: rules/derive-system-from-goal.md ([C22], soul-name Hodos, ho-dos = 'a method, system; a way' — the root of methodos = meta + hodos).",
+  "type": "object",
+  "required": [
+    "jsonrpc",
+    "method",
+    "params",
+    "data"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "jsonrpc": {
+      "const": "2.0"
+    },
+    "method": {
+      "const": "session.system_derivation"
+    },
+    "params": {
+      "type": "object",
+      "required": [
+        "for_goal",
+        "context_lock",
+        "minimal_system",
+        "adherence_signal",
+        "revision_trigger"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "for_goal": {
+          "type": "string",
+          "minLength": 1,
+          "description": "the {{goal}} this system conducts to — MUST equal the driving handoff-as-prompt.params.goal AND the dod-as-prompt.params.for_goal (L8 traceability). A system divorced from its goal is a SpecError: it is a sequence of actions, not a vehicle."
+        },
+        "context_lock": {
+          "type": "object",
+          "description": "SAME context_lock as the sibling dod-as-prompt (sourced from the handoff-as-prompt: context<-context, purpose<-objectives.originating, stakeholder/targets<-scope+motivations). A system is only minimal RELATIVE to a context — 'so easy it is impossible to say no' has no meaning without knowing whose day it fits in.",
+          "required": [
+            "context",
+            "purpose",
+            "stakeholder",
+            "targets"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "context": {
+              "type": "string"
+            },
+            "purpose": {
+              "type": "string"
+            },
+            "priority_focus": {
+              "type": "string"
+            },
+            "stakeholder": {
+              "type": "string"
+            },
+            "targets": {
+              "type": "string"
+            }
+          }
+        },
+        "minimal_system": {
+          "type": "object",
+          "description": "THE VEHICLE. An implementation-intention (if-then) pair plus the justification that it is genuinely minimal. Anchors: Gollwitzer & Sheeran 2006 (implementation intentions, d=0.65, 94 tests / 2024 update 642 tests) for the trigger->action form; BJ Fogg Tiny Habits + Lally 2010 for the minimality bar.",
+          "required": [
+            "trigger",
+            "action",
+            "why_minimal",
+            "cadence"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "trigger": {
+              "type": "string",
+              "minLength": 1,
+              "description": "P2 — the IF half of the implementation intention: the concrete recurring cue that fires the action (an event, a phase boundary, a session start, a commit). NOT a time-of-day wish ('when I feel like it' is not a trigger). Deterministic where possible."
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1,
+              "description": "P1 — the THEN half: the single minimal recurring step. Must be small enough that refusing it is practically impossible ({ts:511} 'tao facil que seja praticamente impossivel voce dizer nao'). One step, not a plan. If it needs sub-steps it is not yet minimal."
+            },
+            "why_minimal": {
+              "type": "string",
+              "minLength": 1,
+              "description": "P1's honesty gate — WHY is this impossible to say no to? An unfalsifiable 'it is small' is theater (anti-theater R2). State the cost (time/tokens/attention) and why that cost cannot reasonably be refused in this context_lock."
+            },
+            "cadence": {
+              "type": "string",
+              "minLength": 1,
+              "description": "P2 — consistency over intensity ({ts:518} 'melhor 10 minutos de caminhada por dia do que 3 horas'). The recurrence, expressed relative to the trigger (per-round / per-session / per-commit / per-PR). NOT a wall-clock schedule: no cadence substrate exists (see $comment)."
+            }
+          }
+        },
+        "adherence_signal": {
+          "type": "string",
+          "minLength": 1,
+          "description": "P3, Metron-ADMISSIBLE form. NOT a raw activity count — '#runs' / '#steps-executed' are on the agentic-observability-protocol (Metron) §5 VANITY BLACKLIST, and 'count how many times we ran the playbook' lands squarely on it. The admissible signal is the two-part predicate: 'does the mechanism still FIRE — AND does firing still MOVE the goal?' — decision-gated (does-not-fire => rebuild the vehicle) + outcome-anchored (the system's whole purpose IS the goal). Precedent: Metron SLI S6 drift-signal. The system is the MANAGED object; the goal's number is the INFORMING signal (Metron §1: 'Measure-to-Inform, Manage-to-Outcome')."
+        },
+        "revision_trigger": {
+          "type": "string",
+          "minLength": 1,
+          "description": "REV — the guard the source video LACKS, and the answer to the Nat Eliason counter-criticism ('systems without goals is a path to mediocrity'). The condition under which the SYSTEM is falsified rather than the driver blamed: canonically 'adherence high AND goal-movement absent after N rounds => the vehicle is wrong => re-derive'. Without this, P3 ('track the system, not the goal's number') degenerates into driving a broken vehicle diligently."
+        },
+        "consumed_as": {
+          "type": "string",
+          "description": "OPTIONAL — the wiring note. minimal_system.ACTION (the string; minimal_system itself is an object) reaches the driver via its POSITIONAL \"<instructions>\" argument ('extra free-text appended to the goal' — gap-loop SKILL.md:194), NOT via a new flag: no flag for 'the recurring action' exists, and inventing one would be an interface fabrication (anti-theater R4). The sibling envelopes keep their existing typed flags: handoff -> --state-source=handoff:<file>, dod -> --condition=<termination_predicate>."
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "layer",
+        "type",
+        "contract_version"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "layer": {
+          "const": "community"
+        },
+        "type": {
+          "const": "system-as-prompt"
+        },
+        "engine": {
+          "const": "derive-system-from-goal"
+        },
+        "contract": {
+          "type": "string"
+        },
+        "contract_version": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$comment": "Idempotency (validate_envelope.py --digest): the SYSTEM DEFINITION (context_lock + minimal_system.trigger/action/cadence + adherence_signal + revision_trigger) is canonicalized (why_minimal prose + consumed_as stripped) so the same {goal,context} yields the same system-shape digest across runs. Exit: 0 valid, 2 unreadable, 3 SpecError. SpecError cases (what this validator ACTUALLY enforces): absent required key; a non-object where an object is required (params, context_lock, minimal_system); empty for_goal; empty minimal_system.trigger/action/why_minimal/cadence; empty adherence_signal; empty revision_trigger; wrong identity const (jsonrpc, method, data.type, data.layer, data.engine). NOT MACHINE-ENFORCED (design intent — stated plainly so it is never mistaken for a gate): (a) for_goal equality with the sibling handoff/dod envelopes (L8 traceability — a system for a different goal is a detour, not a vehicle) is structurally OUT OF REACH of a single-envelope validator, which never sees its siblings; it is the deriving agent's obligation and a reviewer check where all three envelopes meet (ooda-loop DECIDE) — it is NOT implemented there today either, so do not read it as a gate. (b) minimal_system.action being ONE step rather than an enumerated plan (P1) is carried by the deriving agent's why_minimal honesty gate, not by a string heuristic — a regex for '1. 2. 3.' would false-positive on valid prose, and adding a brittle detector to LOOK strict is the ceremony over-engineering-circuit-breaker forbids. HONEST LIMITATION — NO CADENCE SUBSTRATE EXISTS: 'cadence' is a predicate STRING consumed by the driver per-round, NOT a scheduled job and NOT a longitudinal adherence ledger. The only launchd on this machine is machine-health; bin/dogfood-mark + dogfood-tally are a maturity CYCLE-COUNTER (they collapse time via max_by, cycle_id is opaque-not-a-time-bucket, the subject is a TOOL not a goal, and there is no 'should' denominator) — reusable as a FORMAT (append-only JSONL under ~/.claude/audit/, POSIX Bash 3.2 + jq, mkdir-lock atomic append, writer/reader SRP split) if longitudinal tracking is ever built, but it is NOT one today. Do not read 'cadence' as a promise of scheduling."
+}

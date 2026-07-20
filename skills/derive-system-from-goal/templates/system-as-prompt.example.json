@@ -1,0 +1,29 @@
+{
+  "jsonrpc": "2.0",
+  "method": "session.system_derivation",
+  "params": {
+    "for_goal": "Make the Law of the System (akasha [C22]) actually FIRE for every future amnesic agent — not merely be written down.",
+    "context_lock": {
+      "context": "/enhance Ultrathink 2026-07-15; the operator's Law-of-the-System directive turned into a law (akasha rule + [C22]) + a fire-point (anti-theater Layer-5 R9) + an executable (this skill, ooda-loop ORIENT-b).",
+      "purpose": "close the construct-the-vehicle gap in the ooda-loop typed set so a driver stops improvising its recurring action each round.",
+      "priority_focus": "the law must fire, not merely exist — a law with no firing mechanism IS intention without action (it would violate itself).",
+      "stakeholder": "operator (Eko/C8it) + every future amnesic agent that inherits the corpus.",
+      "targets": "primary: ooda-loop DECIDE consumes a third envelope; secondary: R9 fires at anti-theater Layer-5; auxiliary: >=2 dogfood cycles before promotion."
+    },
+    "minimal_system": {
+      "trigger": "IF anti-theater Layer-5 R9 fires — the action is a step toward a stated/given/self-imposed goal AND no vehicle exists yet",
+      "action": "THEN derive one minimal recurring step (its trigger + cadence) and emit this envelope BEFORE acting",
+      "why_minimal": "the cost is one derivation (~1 tool call, seconds) on an action ALREADY paused at the gate. It cannot reasonably be refused: refusing means acting on a goal you just admitted has no vehicle — the refusal costs strictly more than the compliance.",
+      "cadence": "once per goal-pursuit entry; re-derived ONLY when revision_trigger fires — re-deriving every round would be the ceremony the Gordian floor forbids"
+    },
+    "adherence_signal": "Two-part, Metron-admissible (never a run-count): (a) does R9 still FIRE on goal-pursuit actions — is the mechanism alive? AND (b) does emitting the envelope still CHANGE what the driver does that round — does firing still move the goal? Both yes = healthy. First no = the gate went dormant. Second no = the vehicle is decorative.",
+    "revision_trigger": "R9 fires and the envelope is emitted across N consecutive goal-pursuits, yet the driver's behavior stays indistinguishable from improvising => the VEHICLE is wrong (re-derive it), NOT the driver. This is the Eliason guard the source video lacks.",
+    "consumed_as": "driver positional \"<instructions>\": minimal_system.action is the string appended to the goal (gap-loop SKILL.md:194). No flag for 'the recurring action' exists; inventing one would be interface fabrication (anti-theater R4)."
+  },
+  "data": {
+    "layer": "community",
+    "type": "system-as-prompt",
+    "contract_version": "1.0.0",
+    "engine": "derive-system-from-goal"
+  }
+}
