@@ -18,7 +18,7 @@ description: |
   contract", "recover -> DoD -> converge", "observe orient decide act this session".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: orchestration-convergence
   cross_link_slug: ooda-loop
@@ -75,7 +75,8 @@ OBSERVE   goal-recovery --scope=<scope>  ->  handoff-as-prompt envelope   (recov
             v
 ORIENT    invoke Prisma (decompose-abstract-to-measurable) on the recovered goal
             construct := "is {{goal}} DONE and healthy?"; context_lock <- handoff (context/objectives/scope)
-            ->  dod-as-prompt envelope  (the DoD as a D/T/J value-tree + termination_predicate)
+            ->  bin/render_dod_as_prompt.py PROJECTS the Prisma spec -> dod-as-prompt envelope
+                (deterministic: acceptance <- material D/T leaves; kpis; termination_predicate; self-gated)
             | Prisma STRUCTURAL gate (scripts/structural_route.py, fail-closed): a value-tree validly
             |   represents only ADDITIVE/atomic constructs. status=additive_unverified OR relational/gestalt
             |   -> the aggregate score is assistive-only (human_review) -> treat as inconclusive -> STOP-HITL
@@ -128,9 +129,9 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | Step | Composes (reimplements nothing) |
 |---|---|
 | OBSERVE | `skills/goal-recovery` (-> handoff-as-prompt; Skopos recon-first inference ladder) |
-| ORIENT-a | `skills/decompose-abstract-to-measurable` (Prisma; -> dod-as-prompt; D/T/J value-tree + `scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` deterministic roll-up) |
-| ORIENT-b | `skills/derive-system-from-goal` (Hodos; -> system-as-prompt; the minimal recurring vehicle. Law: akasha `rules/derive-system-from-goal.md` `[C22]`) |
-| DECIDE | `agents/COWORK-AUTONOMY-POLICY.md` bands + `[C17]` §2 HUMAN_DOMAIN + `anti-theater` **9Q** gate (8 unconditional + **R9 MECHANIZED** conditional: *is there a system conducting to this goal?*) |
+| ORIENT-a | `skills/decompose-abstract-to-measurable` (Prisma value-tree; `scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` roll-up) THEN `bin/render_dod_as_prompt.py` (deterministic PROJECTION: spec -> dod-as-prompt, acceptance/kpis/termination_predicate, self-gated against `validate_envelope.py`) |
+| ORIENT-b | `skills/derive-system-from-goal` (Hodos; -> system-as-prompt; the minimal recurring vehicle — **N/A for a one-shot/bounded goal**. Law: akasha `docs/derive-system-from-goal.md` `[C22]`) |
+| DECIDE | `agents/COWORK-AUTONOMY-POLICY.md` bands + `[C17]` §2 HUMAN_DOMAIN + `anti-theater` **9Q** gate (8 unconditional + **R9** conditional·additive: *recurring goal with only a one-shot vehicle? -> REFINE, never an override of a core REJECT*) |
 | ACT (default) | `skills/gap-loop` (harness-agnostic 5-phase loop; MoE RESOLVE + independent VALIDATE + derived score) |
 | ACT (session) | `skills/quiesce` (`/goal`-driven session quiescence; PR-green + comments-answered) |
 | verify (both) | `maos:persona-pipeline`/`perspective-trio` inside the driver (verifier != generator master condition) |
@@ -148,6 +149,8 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | `--auto-merge-reason` | *(none)* | required-non-empty when `--auto-merge=authorized` (auditability, `auto-merge-standing-authorization` G8) |
 | `--output` | `text` | `text` \| `json` (emit the run envelope, below) |
 | `--dry-run` | off | run OBSERVE+ORIENT+DECIDE, print the {goal, dod} pair + chosen driver + predicate, but do NOT drive ACT |
+| `--only` | *(full run)* | `observe` \| `orient` \| `decide` — run OBSERVE..stage and STOP, emitting that stage's envelope. **`--only=orient` = the `dod-recovery` operation** (recover/ingest the goal -> derive + emit the measurable DoD via Prisma + `bin/render_dod_as_prompt.py`; no DECIDE, no ACT). Distinct from `--dry-run` (which runs through DECIDE). |
+| `--for-goal` | *(recover via OBSERVE)* | explicit goal string — skip OBSERVE, derive the DoD for THIS goal directly (the common `--only=orient` case: the goal is known, you want its measurable DoD). |
 
 ## Output contract (`--output=json`)
 ```json
@@ -201,6 +204,7 @@ ooda-loop --dry-run                               # print the recovered {goal, d
 ooda-loop --driver=quiesce --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"
 ooda-loop --scope=ticket:VKS-1234 --autonomy-threshold=0.9 --max-iterations=4
 ooda-loop --driver=gap-loop --conf-inconclusive=0.75   # stricter goal-recovery HITL gate, harness-agnostic driver
+ooda-loop --only=orient --for-goal "ship the session-handoff spine"   # dod-recovery: derive+emit the measurable DoD only; drive nothing
 ```
 
 ## Quality Tests (6/6 self-validity — dogfooded)
@@ -221,6 +225,7 @@ preset never fires (E3) · operator retraction (E4) · >=3 false-positive runs (
 ## Related
 - `commands/ooda-loop.md` — operator-facing command surface
 - `templates/dod-as-prompt.schema.json` — the ORIENT output contract (wraps Prisma)
+- `bin/render_dod_as_prompt.py` — the deterministic ORIENT projection (Prisma `measurement_spec` -> validator-gated `dod-as-prompt`; the `--only=orient`/`dod-recovery` renderer)
 - `skills/goal-recovery/SKILL.md` (+ `templates/handoff-as-prompt.schema.json`, `bin/validate_envelope.py`) — the OBSERVE step
 - `skills/decompose-abstract-to-measurable/SKILL.md` (Prisma) — the ORIENT engine (`scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` roll-up)
 - `skills/gap-loop/SKILL.md` — harness-agnostic ACT driver (default; verifier != generator) · `skills/quiesce/SKILL.md` — `/goal` session ACT driver
@@ -229,6 +234,17 @@ preset never fires (E3) · operator retraction (E4) · >=3 false-positive runs (
 - External grounding: Boyd OODA (1976) · GOOD arXiv:2508.15119 (uncertainty-aware goal) · RLCF 2507.18624 (judge x verifier per criterion ~ Prisma) · MoA 2406.04692 · Huang et al. 2310.01798 (verifier > generator, independent — the hard invariant) · optimal-stopping 2510.01394 (economic stop) · Raghavan & Schneier IEEE S&P 2025 (OODA)
 
 ## Versioning
+- v0.2.0 (2026-07-16) — **`dod-recovery` mode + the deterministic ORIENT renderer** (additive, backward-compatible).
+  Adds `bin/render_dod_as_prompt.py`: the missing deterministic PROJECTION that turns a Prisma
+  `measurement_spec` into a validator-gated `dod-as-prompt` envelope (acceptance <- material D/T leaves,
+  J excluded; kpis; `termination_predicate` = the driver `--condition`). Correct-by-construction, then
+  self-gated against `goal-recovery/bin/validate_envelope.py` (fail-closed: a refused render emits nothing,
+  exit 3). Adds `--only=observe|orient|decide` (run-to-stage-and-STOP) with **`--only=orient` = the
+  `dod-recovery` operation** (recover/ingest the goal -> derive+emit the DoD; no DECIDE/ACT) + `--for-goal`
+  (skip OBSERVE, DoD an explicit goal). `dod-recovery` is a MODE, not a new skill — honors the earlier
+  decision that a standalone `dod-recovery` skill is over-engineering. Reimplements nothing (composes
+  Prisma + the SSOT validator). Closes the R4 gap: the `dod-as-prompt` wire had a schema, an example, a
+  validator and 4 consumers, but no deterministic authorer.
 - v0.1.0 (2026-07-12) — bootstrap. Conductor for the operator's recover->measure->converge contract:
   OBSERVE (goal-recovery) -> ORIENT (Prisma DoD) -> DECIDE (dual inconclusive->HITL + autonomy gate) ->
   ACT (typed {goal,dod} pair into gap-loop/quiesce). Inherits verifier != generator, economic stop, idempotency,

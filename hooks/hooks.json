@@ -18,6 +18,10 @@
           },
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/reload-session.sh"
+          },
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/single-conductor-scan.sh"
           },
           {
@@ -86,6 +90,17 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/postflight-precompact.sh"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/postflight-postcompact.sh"
           }
         ]
       }
