@@ -54,13 +54,14 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
   REVISION guard (high adherence + absent outcome ⇒ falsify the **system**, don't blame the executor — the anti-Eliason
   counter the source material lacks). **P0.5 GOAL-SHAPE gate**: a one-shot/bounded goal exits with `N/A` and no envelope
   (*a plan IS its system*) — the Gordian floor that keeps a typo-fix from earning a "system".
-- **`templates/system-as-prompt.{schema,example}.json`** — the typed envelope (implementation-intention trigger→action
+- **`skills/derive-system-from-goal/templates/system-as-prompt.schema.json`** + **`…/system-as-prompt.example.json`**
+  — the typed envelope (implementation-intention trigger→action
   + cadence + signal + REV), mirroring `dod-as-prompt`: `data.layer:"community"` const, `data.contract` +
   `contract_version`, digest-idempotency + SpecError + exit codes.
 - **`skills/ooda-loop/SKILL.md`** — **ORIENT-b** branch added to the composition table; the DECIDE gate now validates
   *all APPLICABLE* envelopes (`system-as-prompt` is N/A for a bounded goal — the `{goal, dod}` pair suffices), so a
   one-shot task never blocks on a missing third envelope.
-- **`skills/goal-recovery/bin/validate_envelope.py` + `tests/run-tests.sh`** — the shared validator learns the new
+- **`skills/goal-recovery/bin/validate_envelope.py`** + **`skills/goal-recovery/tests/run-tests.sh`** — the shared validator learns the new
   type (reused, not duplicated); 20/20 envelope tests green.
 - **Honesty retained by design** (grep-gated at review): the source video is labeled **anecdote, n=1** (the weakest
   evidence in the dossier — the 3 steps map to real research, the raw "systems > goals" thesis is *not* adopted); the
