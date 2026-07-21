@@ -41,6 +41,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   DECIDE/ACT) + `--for-goal`. A MODE, not a new skill (honors the prior "standalone dod-recovery = over-engineering" decision).
   Closes the R4 gap: the `dod-as-prompt` wire had a schema/example/validator/4-consumers but no deterministic authorer.
 
+### Added — `derive-system-from-goal` (Hodos): the vehicle deriver at ooda-loop ORIENT-b (#264)
+
+The executable surface of the **Lei do Sistema** (*"dada a meta, construa o sistema ANTES de persegui-la; meta sem
+sistema é intenção sem ação"*) — akasha `[C22]` + the `anti-theater-grounding-protocol` Layer-5 **R9** gate are the
+law's text and fire-point; this is its runtime. Closes the ORIENT gap the recon proved: `goal-recovery` recovered the
+intent and Prisma measured the destination, but **nothing authored the route** — `ooda-loop` went `dod-as-prompt →
+gate → gap-loop` with DECIDE as a pure gate that never authors.
+
+- **`skills/derive-system-from-goal/SKILL.md`** (v0.1.0) — answers *"what is the smallest system that conducts to this
+  goal?"*. P1 MINIMAL (BJ Fogg tiny-habits) · P2 CONSISTENCY-over-INTENSITY · P3 THE-SYSTEM-IS-THE-MANAGED-OBJECT ·
+  REVISION guard (high adherence + absent outcome ⇒ falsify the **system**, don't blame the executor — the anti-Eliason
+  counter the source material lacks). **P0.5 GOAL-SHAPE gate**: a one-shot/bounded goal exits with `N/A` and no envelope
+  (*a plan IS its system*) — the Gordian floor that keeps a typo-fix from earning a "system".
+- **`templates/system-as-prompt.{schema,example}.json`** — the typed envelope (implementation-intention trigger→action
+  + cadence + signal + REV), mirroring `dod-as-prompt`: `data.layer:"community"` const, `data.contract` +
+  `contract_version`, digest-idempotency + SpecError + exit codes.
+- **`skills/ooda-loop/SKILL.md`** — **ORIENT-b** branch added to the composition table; the DECIDE gate now validates
+  *all APPLICABLE* envelopes (`system-as-prompt` is N/A for a bounded goal — the `{goal, dod}` pair suffices), so a
+  one-shot task never blocks on a missing third envelope.
+- **`skills/goal-recovery/bin/validate_envelope.py` + `tests/run-tests.sh`** — the shared validator learns the new
+  type (reused, not duplicated); 20/20 envelope tests green.
+- **Honesty retained by design** (grep-gated at review): the source video is labeled **anecdote, n=1** (the weakest
+  evidence in the dossier — the 3 steps map to real research, the raw "systems > goals" thesis is *not* adopted); the
+  **Eliason counter-critique** (*systems without goals = mediocrity*) is carried, resolved by keeping goals as
+  direction; and the **Metron tension** is stated — "counting executions" is activity-blacklisted, so the admissible
+  signal is *"the mechanism still fires — and does firing still move the goal?"* (decision-gated + outcome-anchored,
+  precedent SLI S6 drift-signal).
+
 ## [1.21.0] - 2026-07-15
 
 ### Added — memory-hygiene trio: sleep-time curator (ADR-012) + gateway spec (ADR-013)
