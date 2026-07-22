@@ -16,7 +16,15 @@
 #   lens improved an outcome (no control, no counterfactual; `autonomy_score` is an
 #   agent self-report, not a quality measure). Therefore:
 #     * `confidence` is NEVER hardcoded here. It is COMPUTED from the dogfood ledger
-#       (`dogfood-tally`), so this tool structurally cannot lie about its own status.
+#       (`dogfood-tally`) — so it faithfully reports WHATEVER THAT FILE SAYS.
+#       ⚠️ That is NOT the same as "cannot lie about its own status", which an earlier
+#       version of this header asserted and SKILL.md §"epistemic status" retracted:
+#       the ledger is mode-644 plaintext JSONL with no signature or hash-chain,
+#       `DOGFOOD_LEDGER_DIR` redirects it, and `dogfood-tally` counts `ratified==true`
+#       without re-checking `evidence`. Fabricated entries yield VALIDATED. The
+#       retraction lived only in SKILL.md for one round while this line kept shipping
+#       the claim — the R2 defect (retract in one file, assert in another) recurring
+#       in the same file it was found in. Correctness is bounded by ledger integrity.
 #     * With 0 ratified recipe-cycles in the ledger, EVERYTHING returns HYPOTHESIS.
 #     * `provenance` distinguishes a TRANSCRIBED mapping (verifiable against the
 #       catalog §13.5 text) from a BRIDGE mapping (authored 2026-07-22 as an explicit
@@ -80,8 +88,12 @@ Verdict logic (deterministic, ordered):
   4. --use-case resolves but IS §13.5.D          -> NULL_PROFILE  (guard, by work-class:
      (Debugging/investigation, UC15-18)                            same work as debug|fix,
                                                                    named by a different flag)
-  5. --session-type resolves in the bridge       -> DISPATCH      (provenance: bridge-hypothesis)
-  6. otherwise                                   -> NULL_PROFILE  (no mapping; status quo)
+  5. --session-type resolves to a §13.5.D use-case-> NULL_PROFILE (SAME guard as 4, on the
+                                                                   bridge route — every
+                                                                   route, not just the
+                                                                   one a test exercises)
+  6. --session-type resolves, NOT §13.5.D        -> DISPATCH      (provenance: bridge-hypothesis)
+  7. otherwise                                   -> NULL_PROFILE  (no mapping; status quo)
 
 confidence is COMPUTED from the dogfood ledger, never hardcoded:
   ratified complete cycles >= gate(2) -> VALIDATED ; else HYPOTHESIS.
@@ -106,11 +118,16 @@ lens_stack_for() {
     recipe-10) echo "tech-lead:§9.35,ux:§9.44,secops:§9.25,privacy:§9.29,qa:§9.22,critic:§4.16" ;;
     recipe-12) echo "buffett-value:§5.15,munger-models:§5.16,long-term:§1.31" ;;
     recipe-13) echo "crisis-operator:§6.28,calm-command:§6.15,sre:§9.9" ;;
-    # labels track the catalog's own entry names (§5.1 "Steve Jobs", §5.2 "Elon Musk").
-    # Was `founder-vision`/`moonshot` — right refs, INVENTED labels, on a row marked
-    # "TRANSCRIBED verbatim". Paraphrasing a source you claim to be quoting is the same
-    # defect as the fabricated rows, at token scale.
-    recipe-14) echo "jobs-simplicity:§5.1,musk-first-principles:§5.2,creator:§4.12,visionary:§4.33" ;;
+    # labels ARE the catalog's entry names, verbatim: §5.1 "Steve Jobs", §5.2 "Elon Musk"
+    # (catalog lines 361-362), kebab-cased for identifier use — no other transformation.
+    # ⚠️ TWO rounds of invented labels here. R1: `founder-vision`/`moonshot`. R2 "fix":
+    #    `jobs-simplicity`/`musk-first-principles` — which the comment above them claimed
+    #    "track the catalog's own entry names" while a positive-controlled grep returns
+    #    ZERO occurrences of either in the catalog. `simplicity` is folk knowledge about
+    #    Jobs imported from outside the source (§5.1 reads "Product polish + user
+    #    obsession + verticalization"). The comment NAMED the defect and COMMITTED it on
+    #    the next line, and golden 27 then pinned the paraphrase AS IF it were the source.
+    recipe-14) echo "steve-jobs:§5.1,elon-musk:§5.2,creator:§4.12,visionary:§4.33" ;;
     recipe-15) echo "dpo:§9.29,auditor:§10.10,compliance:§9.28,anubis-judgment:§7.17" ;;
     # Composed stacks (§13.5 rows that compose from §1-§12 rather than naming a recipe)
     uc-15)     echo "investigator:§10.9,first-principles:§1.21,systemic:§1.6" ;;
@@ -325,6 +342,16 @@ decide() { # $1=node_kind $2=session_type $3=use_case $4=stakes $5=signals
   if [ -z "$resolved_uc" ]; then echo "NULL_PROFILE|no-bridge-mapping-for-work||"; return; fi
   recipe="$(recipe_for_use_case "$resolved_uc")"
   if [ -z "$recipe" ]; then echo "NULL_PROFILE|bridge-target-has-no-mapping||"; return; fi
+  # ⚠️ SAME guard as Path 1 — the protection must hold on EVERY route that reaches a
+  #    §13.5.D recipe, not only the one a test happens to exercise (red-team H6, R3/F2).
+  #    The first fix closed `--use-case 15` and left `--session-type` open; the guard had
+  #    exactly ONE call site. It held only because Table B happens not to point at 15-18
+  #    today — true by ACCIDENT, not by construction, which is precisely the property
+  #    `harmonic` L9 forbids relying on ("remember not to map a work to 15" is recall).
+  #    A one-token edit to Table B re-opened it; the matrix proves this call closes it.
+  if is_protected_work_use_case "$resolved_uc"; then
+    echo "NULL_PROFILE|protected-work-use-case-lens-withheld||"; return
+  fi
   echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"
 }
 
@@ -485,7 +512,10 @@ self_test() {
   # ⚠️ Count, never hardcode (red-team H6): this line used to print a literal "21/21 PASS".
   #    Delete ten assertions and it still claimed 21/21 — the EXACT failure mode this
   #    tool's own thesis rejects ("confidence is COMPUTED from the ledger, never
-  #    hardcoded, so it cannot lie about its own status"), committed one function away.
+  #    hardcoded"), committed one function away. ⚠️ This comment used to finish that
+  #    quote with "so it cannot lie about its own status" — narrating the header's
+  #    overclaim while the header still asserted it. See the header: computed-from-ledger
+  #    means faithful-to-the-ledger, NOT unfalsifiable.
   if [ "$fails" -eq 0 ]; then echo "lens-dispatch self-test: $asserts/$asserts PASS"; exit 0
   else echo "lens-dispatch self-test: $fails FAIL of $asserts" >&2; exit 2; fi
 }
@@ -505,6 +535,17 @@ while [ $# -gt 0 ]; do
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1;;
   esac
 done
+
+# ⚠️ Fail-closed on --format, same as valid_signals (red-team H6, R3/F7). `[ "$FORMAT" =
+#    "text" ]` at emit-time means EVERY other value silently yields JSON — so `--format
+#    TEXT` and `--format bogus` both "work" and both return the wrong encoding. A caller
+#    that pipes the output to a text parser gets JSON and no signal that it asked wrong.
+#    Same defect family as `06`≠`6` and `fix`≠`debug`: a value that misses a string match
+#    and falls through to a default instead of being rejected. Usage error => exit 1.
+case "$FORMAT" in
+  json|text) ;;
+  *) echo "invalid --format: '$FORMAT' (use json|text)" >&2; exit 1;;
+esac
 
 result="$(decide "$NODE_KIND" "$SESSION_TYPE" "$USE_CASE" "$STAKES" "$SIGNALS")"
 verdict="${result%%|*}"; rest="${result#*|}"

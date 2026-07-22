@@ -161,12 +161,48 @@ golden 11 'recipe-02|architect:§9.13,conservative:§1.9,fowler:§5.22,systems-t
 golden 19 'recipe-03|devsecops:§9.8,suspicious:§1.3,pentester:§9.26,anubis-judgment:§7.17'
 golden 21 'recipe-15|dpo:§9.29,auditor:§10.10,compliance:§9.28,anubis-judgment:§7.17'
 golden 23 'uc-23|editor:§10.29,researcher:§10.27,patient:§3.14'
-golden 27 'recipe-14|jobs-simplicity:§5.1,musk-first-principles:§5.2,creator:§4.12,visionary:§4.33'
+# ⚠️ labels are the catalog's entry names (§5.1 "Steve Jobs", §5.2 "Elon Musk"), kebab-cased.
+#    This line previously pinned `jobs-simplicity`/`musk-first-principles` — labels that
+#    appear ZERO times in the catalog (positive-controlled grep). The pin was locking in a
+#    paraphrase AS IF it were the source: a golden test can enshrine a fabrication just as
+#    faithfully as it enshrines a fact. Pinning is only as honest as what it was pinned to.
+golden 27 'recipe-14|steve-jobs:§5.1,elon-musk:§5.2,creator:§4.12,visionary:§4.33'
 golden 28 'recipe-12|buffett-value:§5.15,munger-models:§5.16,long-term:§1.31'
 golden 29 'recipe-07|user-advocate:§9.44,engineering-centric:§9.1,business-centric:§11.1'
 golden 30 'uc-30|tdd-beck:§5.24,qa-engineer:§9.22,methodical:§1.17'
 golden 32 'uc-32|critic-shadow:§4.16,devils-advocate:§1.13,patient:§3.14,honest:§3.26'
 golden 33 'recipe-10|tech-lead:§9.35,ux:§9.44,secops:§9.25,privacy:§9.29,qa:§9.22,critic:§4.16'
+# ---------------------------------------------------------------------------
+# BRIDGE-ROUTE golden pins (red-team H6, R3/F3).
+#
+# WHY these exist: every pin above uses `--use-case`, but ALL 16 DISPATCH combinations
+# this matrix exercises resolve through `--session-type` (the bridge). So the content of
+# the route the suite actually walks was UNPINNED — R2's "both suites blind to lens
+# content" was still alive on the bridge while SKILL.md listed it as fixed. Verified by
+# mutant M7 (`docs -> 23` retargeted to 27): documentation work silently received
+# founder-vision lensing (jobs/musk/creator/visionary) and BOTH suites stayed green.
+#
+# The set is complete by construction: Table B maps exactly 4 works, and §4c counts that
+# number from source — so a 5th mapped work fails the count, and each mapped work's lens
+# content is pinned here. Coverage of the bridge route is total, not sampled.
+# ---------------------------------------------------------------------------
+golden_st() { # $1=work  $2=expected "recipe_id|entry:§ref,..."
+  local w="$1" want="$2" got
+  got="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null \
+        | jq -r '"\(.recipe_id)|\([.lens_stack[]|"\(.entry):\(.ref)"]|join(","))"')"
+  [ "$got" = "$want" ] || fail "bridge fresh×$w lens drift
+    want: $want
+    got : $got"
+}
+golden_st refactor  'recipe-02|architect:§9.13,conservative:§1.9,fowler:§5.22,systems-thinker:§2.9'
+golden_st harmonize 'uc-32|critic-shadow:§4.16,devils-advocate:§1.13,patient:§3.14,honest:§3.26'
+golden_st docs      'uc-23|editor:§10.29,researcher:§10.27,patient:§3.14'
+golden_st test      'uc-30|tdd-beck:§5.24,qa-engineer:§9.22,methodical:§1.17'
+# self-check: this pin must be capable of failing (same discipline as golden()'s probe).
+_gs_before=$fails; golden_st docs 'recipe-99|nonsense:§0.0' 2>/dev/null
+[ "$fails" -gt "$_gs_before" ] || fail "golden_st() is inert — it cannot detect drift"
+fails=$_gs_before
+
 # UC15 / UC18 are NOT pinned above — they are catalog §13.5.D (Debugging / investigation),
 # so the degradation guard now withholds their lens (N5: the guard must be a property of
 # the WORK, not of the flag used to name it). Their lens_stack is never emitted, so it
@@ -193,6 +229,33 @@ for uc in 16 17; do
     || fail "UC$uc must still report the withdrawal, got '$_r' (guard is masking it)"
 done
 
+# ---------------------------------------------------------------------------
+# BRIDGE-ROUTE GUARD reachability proof (red-team H6, R3/F2).
+#
+# THE PROBLEM this solves: the §13.5.D guard must hold on the bridge route too, but that
+# path is UNREACHABLE today — Table B maps no work to 15-18. A test cannot assert on a
+# path it cannot reach, so the natural move is to write no test and claim "it's fine
+# because nothing points there". That claim is TRUE and USELESS: it describes today's
+# table, not the guard. The first fix shipped exactly that state — one call site, the
+# other route open, protected only by an accident of data (`harmonic` L9: safety that
+# depends on nobody-later-mapping-a-work-to-15 is safety that depends on recall).
+#
+# SO: the test CONSTRUCTS the reachability. One-token mutant in an isolated copy, with an
+# applied-mutation control — because a mutation test whose mutant never landed is a
+# FALSE-PASS GENERATOR that measures the `sed`, not the suite (learned the hard way: the
+# first mutation run here reported CAUGHT for a mutant that was never applied).
+_mut_dir="$(mktemp -d)"; _mut="$_mut_dir/lens-dispatch"
+sed 's/refactor)         echo "11"/refactor)         echo "15"/' "$BIN" > "$_mut"
+chmod +x "$_mut"
+if cmp -s "$BIN" "$_mut"; then
+  fail "bridge-guard proof is INERT — the mutant never applied (sed did not match)"
+else
+  _mr="$("$_mut" --node-kind task --session-type "fresh×refactor" --format json 2>/dev/null | jq -r '.reason')"
+  [ "$_mr" = "protected-work-use-case-lens-withheld" ] \
+    || fail "bridge route does NOT honour the §13.5.D guard: with Table B pointed at UC15 it answered '$_mr' (expected withheld). The guard has a route it does not cover."
+fi
+rm -rf "$_mut_dir"
+
 # self-check: the pin must be capable of failing (guards against a no-op golden()).
 # stderr is suppressed for THIS call only — the probe is designed to mismatch, and an
 # expected "FAIL: UC6 lens drift" in the log is indistinguishable from a real regression
@@ -213,11 +276,15 @@ for uc in $(seq 1 33); do
 done
 [ "$_a" -eq 14 ] || fail "Table A has $_a mapped use-cases; SKILL.md claims 14"
 
-_b=0
-for w in $WORKS; do
-  "$BIN" --node-kind task --session-type "fresh×${w}" >/dev/null 2>&1 && _b=$((_b+1))
-done
-[ "$_b" -eq 4 ] || fail "Table B resolves $_b works; SKILL.md claims 4"
+# ⚠️ Count Table B's ROWS from source, not works that happen to DISPATCH (red-team H6,
+#    R3/F4). The old loop counted successful dispatches, so adding `chore -> 5` grew the
+#    table to 5 rows while the counter stayed at 4 and PASSED: UC5 has no recipe, so the
+#    new row resolved to NULL_PROFILE and was invisible to a dispatch-side probe. A
+#    growth detector that cannot see growth is decoration. Measure the thing you claim.
+#    Fail-closed: if the function is renamed the extraction yields 0 and this fails loudly.
+_b=$(awk '/^use_case_for_work\(\)/{f=1;next} f&&/^}/{exit} f' "$BIN" \
+     | grep -cE '^[[:space:]]*[a-z|]+\)[[:space:]]*echo "[0-9]+"' || true)
+[ "$_b" -eq 4 ] || fail "Table B has $_b mapped rows; SKILL.md claims 4"
 note "tables: A=$_a mapped use-cases · B=$_b mapped works"
 
 # ---------------------------------------------------------------------------
@@ -243,6 +310,21 @@ case "$_help" in
   *"unknown"*) : ;;
   *) fail "--help omits that an unknown --signals token is INCONCLUSIVE" ;;
 esac
+# the guard covers BOTH routes — help must say so, or it re-creates the one-route illusion
+case "$_help" in
+  *"SAME guard as 4, on the"*) : ;;
+  *) fail "--help omits that the §13.5.D guard also applies on the --session-type route" ;;
+esac
+# --format is pinned by BEHAVIOUR, not by prose. ⚠️ The first draft of this check matched
+# `*"json|text"*` in --help — a string that already existed in the usage block before the
+# validation was written, so it passed with or without the fix: an always-true match, the
+# exact rot the meta-check below exists to catch. A pin must be able to fail.
+"$BIN" --node-kind task --use-case 6 --format bogus >/dev/null 2>&1 \
+  && fail "--format accepts an invalid value (silently emits JSON instead of rejecting)"
+"$BIN" --node-kind task --use-case 6 --format TEXT >/dev/null 2>&1 \
+  && fail "--format is case-permissive: 'TEXT' must be rejected, not silently treated as JSON"
+"$BIN" --node-kind task --use-case 6 --format text >/dev/null 2>&1 \
+  || fail "--format text must still be accepted (validation over-tightened)"
 # meta-check: prove these can fire, so they cannot rot into always-true string matches
 case "$_help" in *"this-string-is-absent-on-purpose"*) fail "help-drift detector is inert" ;; esac
 

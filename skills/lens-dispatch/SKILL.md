@@ -1,6 +1,6 @@
 ---
 name: lens-dispatch
-version: 0.3.0
+version: 0.4.0
 description: >
   Deterministic dispatcher of cognitive lens-stacks per work-graph node. Given a node
   (ticket/task/step/decision/pr/session) it emits one of three verdicts — DISPATCH
@@ -9,9 +9,11 @@ description: >
   Third orthogonal axis of an existing family: `response-compression` controls WHAT is
   said (verbosity), `slm-routing` controls WHERE it is sent (compute target), this
   controls HOW it is thought. Confidence is COMPUTED from the dogfood ledger, never
-  hardcoded. NO lens-stack here has a measured efficacy result — read the epistemic-status
-  block before relying on it. Independent adversarial red-teams REFUTED v0.1.0 and
-  v0.2.0; v0.3.0 carries their repairs and is NOT yet cleared.
+  hardcoded — which means faithful to that ledger, NOT unfalsifiable. NO lens-stack here
+  has a measured efficacy result — read the epistemic-status block before relying on it.
+  Independent adversarial red-teams REFUTED v0.1.0, v0.2.0 and v0.3.0, each round finding
+  defects in the previous round's fix; v0.4.0 carries the third round's repairs and is
+  NOT yet cleared.
 agnostic: [os, project, vendor]
 ---
 
@@ -28,19 +30,31 @@ measure. Two of the three recorded "cycles" are the *same PR*.
 
 **v0.1.0 of this file made a safety claim that its own citation refutes.** See
 [The floor claim, corrected](#the-floor-claim-corrected). An independent red-team
-returned **REFUTED**; v0.2.0 was the repair — and a second independent round returned
-**STILL-REFUTED**, finding defects *in that repair* (incl. that both test suites were blind
-to lens content). v0.3.0 carries the second round's fixes and **has not been cleared**.
-What follows is written to be checkable, not to be believed.
+returned **REFUTED**; v0.2.0 was the repair — a second round returned **STILL-REFUTED**,
+finding defects *in that repair* (incl. that both test suites were blind to lens content);
+a third round returned **STILL-REFUTED** again, finding that the guard added in v0.3.0
+covered only one of the two routes that reach it. v0.4.0 carries the third round's fixes
+and **has not been cleared**. What follows is written to be checkable, not to be believed.
 
-> **Track record, stated plainly:** two independent verification rounds, two upheld
-> refutations, and the second found defects in the first's fix. The author's self-review
-> caught **0 of 2**. Treat "the author says it is fixed" — including everything below —
-> as an unverified claim until a third round clears it.
+> **Track record, stated plainly:** **three** independent verification rounds, **three**
+> upheld refutations. Each round found defects *in the previous round's fix*. The author's
+> self-review caught **0 of 3**. Treat "the author says it is fixed" — including everything
+> below — as an unverified claim until a round clears it.
+>
+> The rounds share ONE defect class, named by the R3 verifier: **the correction is applied
+> where the finding was demonstrated, not where the property must hold.** R1 — the flagged
+> rows were fixed, the source was never re-read. R2 — the claim was retracted in `SKILL.md`
+> and survived in `bin/`. R3 — the guard closed the route the test exercises and stayed
+> open on the other; the golden pin covered that same route and not the other; an invented
+> label was replaced by a *different* invented label. That is what an acceptance test of
+> *"the reported repro now passes"* buys you, instead of *"the invariant holds on every
+> path that reaches it."* v0.4.0 changes the workflow: for each fix, enumerate the paths
+> that reach the property, pin each one, then re-run **with the mutant still installed** to
+> confirm the suite actually fails.
 
 | Mechanism | Effect |
 |---|---|
-| `confidence` read from `bin/dogfood-tally`, never hardcoded | with 0 ratified recipe-cycles, **everything returns `HYPOTHESIS`** — including the "best" recipe |
+| `confidence` read from `bin/dogfood-tally`, never hardcoded | with 0 ratified recipe-cycles, **everything returns `HYPOTHESIS`** — including the "best" recipe. ⚠️ This means *faithful to the ledger*, **not** "cannot lie": the ledger is mode-644 plaintext JSONL, `DOGFOOD_LEDGER_DIR` redirects it, and `dogfood-tally` counts `ratified==true` without re-checking `evidence` — fabricated entries yield `VALIDATED` (R3 reproduced it). The `bin/` header asserted the stronger claim for one full round *after* this file retracted it |
 | `provenance` distinguishes `transcribed` from `bridge-hypothesis` | you always know whether a mapping came from a source document or an authored guess |
 | `bridge_authored` stamps the guess with a date | an invented mapping cannot silently age into apparent fact |
 | unmapped input → `NULL_PROFILE` | the fallback is the **status quo** (agent with no lens), never a fabricated pick |
@@ -87,7 +101,7 @@ lens-dispatch --self-test
 | `--session-type` | `<mode>x<work>`, e.g. `fresh×refactor`. **Bridge path** (authored hypothesis). |
 | `--stakes` | `trivial` `low` `medium` `high` (default `medium`) → sets `harness_mode` per §13.6.4 |
 | `--signals` | csv, e.g. `complex-reasoning,security,irreversible` |
-| `--format` | `json` (default) · `text` |
+| `--format` | `json` (default) · `text` — **fail-closed**: any other value (incl. `TEXT`) exits `1`, never silently falls through to JSON |
 
 **Exit codes** (`[C06]`): `0` DISPATCH · `3` NULL_PROFILE · `4` INCONCLUSIVE · `1` usage · `2` self-test-fail.
 
@@ -101,8 +115,9 @@ status-quo answer. Branch on the verdict, not on truthiness.
 2. `complex-reasoning` signal **or** `work=debug` **or** `work=fix` → `NULL_PROFILE` (**degradation guard**)
 3. `--use-case` resolves in §13.5 **and is not §13.5.D work** → `DISPATCH` · `provenance: transcribed`
 4. `--use-case` resolves but **is** §13.5.D (*Debugging / investigation*, UC15-18) → `NULL_PROFILE` (guard, by work-class)
-5. `--session-type` resolves in the bridge → `DISPATCH` · `provenance: bridge-hypothesis`
-6. otherwise → `NULL_PROFILE`
+5. `--session-type` resolves to a **§13.5.D** use-case → `NULL_PROFILE` (**same guard as 4**, on the bridge route)
+6. `--session-type` resolves, not §13.5.D → `DISPATCH` · `provenance: bridge-hypothesis`
+7. otherwise → `NULL_PROFILE`
 
 `--use-case` **wins** over `--session-type`. The degradation guard wins over **both**.
 
@@ -130,9 +145,32 @@ asserts only that their mapping still *exists*. Honest residual: a drift in thos
 would go unnoticed — accepted, because a value that is never emitted has no behavioural
 effect.
 
+> ⚠️ **Two exceptions to "verbatim" (R3/F5, R3/F6) — stated because the word was doing
+> work it had not earned:**
+> - **`recipe-14`** shipped invented labels *twice*. R1 used `founder-vision`/`moonshot`;
+>   the R1 "fix" used `jobs-simplicity`/`musk-first-principles` under a comment claiming
+>   they "track the catalog's own entry names" — a positive-controlled grep returns **zero**
+>   occurrences of either, and `simplicity` appears nowhere in §5.1 ("Product polish + user
+>   obsession + verticalization"). It was folk knowledge imported from outside the source,
+>   and the golden pin then locked the paraphrase in **as if it were the source**. Now
+>   `steve-jobs`/`elon-musk` — the catalog's own entry names, kebab-cased, nothing else.
+> - **`recipe-10`** is byte-identical to `recipe-04`. Catalog #10 ("6-stage virtual review
+>   board") is a **sequential pipeline** and supplies **no §refs of its own**; the refs are
+>   **inferred from row #4**, so "matches the catalog row verbatim" is false for this row —
+>   a row with no refs has none to match. The distinguishing attribute (*sequential*) is
+>   **not in the payload**, so a consumer cannot act on it: the id separates the two for
+>   ledger accounting, the dispatched lens does not. Open.
+
 **Table B — work → use-case (`bridge-hypothesis`).** ⚠️ **Exists in no source document.**
 Authored `2026-07-22` as an explicit hypothesis, operator-authorized to run-and-measure.
 4 rows: `refactor` `harmonize` `docs` `test`.
+
+All 4 rows' lens content is pinned by `golden_st` assertions, so bridge coverage is
+**total by construction, not sampled** — a 5th mapped row fails the row-count check
+before it can go unpinned. This closes R3/F3: *every* DISPATCH the matrix exercises goes
+through this route, and until v0.4.0 **none of it was content-pinned** — a mutant
+retargeting `docs` from UC23 to UC27 silently gave documentation work founder-vision
+lensing while both suites stayed green.
 
 Over the 44 canonical `mode × work` combinations the bridge resolves **16 DISPATCH /
 28 NULL_PROFILE** — i.e. **~36% of sessions apply a lens chosen by an unvalidated guess**.
@@ -171,7 +209,13 @@ A guess wearing the honest label's clothes is worse than an honestly-labelled gu
 | 20-digit input bypassing range check | length-gated before any arithmetic; no raw bash error leaks to stdout |
 | `"21/21 PASS"` hardcoded | counted — the same defect as hardcoding confidence, one function away |
 | "the 44-combination matrix" cited as proof | now `tests/lens-dispatch-matrix.sh`, committed and runnable |
-| both suites blind to lens content | **golden pin**: 12 rows pinned verbatim; a mutant repointing UC11 to another recipe used to pass green |
+| both suites blind to lens content | **golden pin**: 12 `--use-case` rows pinned; a mutant repointing UC11 used to pass green. ⚠️ **Incomplete** — see R3/F3 below |
+| **R3/F1** retracted ledger claim still shipping in `bin/` | header now says *faithful to the ledger*, with the attack (redirect + fabricate) written out; the quote one function away was corrected too |
+| **R3/F2** guard had **one** call site — bridge route open | the `--session-type` route now calls the same guard. Protection was previously an accident of Table B's data, not a property. Pinned by a **reachability proof**: the test builds an isolated copy, points Table B at UC15, and asserts the withholding — the only way to test a path no legitimate input reaches today |
+| **R3/F3** every golden pin used `--use-case`, but **all 16 DISPATCH combos go through the bridge** | 4 `golden_st` pins added — one per mapped work, so bridge coverage is **total by construction**, not sampled (a 5th mapped work fails the §4c count) |
+| **R3/F4** `_b` counted dispatching works, not table rows | counts arms from source: `chore -> 5` grows the table to 5 rows while resolving to `NULL_PROFILE`, and used to pass |
+| **R3/F5** invented labels on a "verbatim" row (2nd time) | `steve-jobs`/`elon-musk`; golden 27 re-pinned to the source, not the paraphrase |
+| **R3/F7** `--format` neither validated nor normalized | fail-closed (`json\|text`, exit 1). `--format TEXT` used to return JSON silently — the `06`≠`6` / `fix`≠`debug` family: a value that misses a match and falls through to a default instead of being rejected |
 | leak-detector dead under `pipefail` | captured to a variable, plus a meta-check proving the detector can still fire |
 | `--signals` accepted anything (N6) | closed vocabulary; an unknown token is `INCONCLUSIVE`, never a silent no-op that disarms the guard |
 | guard bypassable by **route** (N5) | `--use-case 15/18` (catalog §13.5.D *Debugging*) now hits the same guard as `work=debug\|fix` |
