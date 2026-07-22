@@ -182,19 +182,53 @@ All 4 rows' lens content is pinned by `golden_st` assertions, and the test asser
 **coverage property directly** over the rows the program itself declares (`--list-bridge`):
 every declared row that dispatches must be pinned, or the suite fails.
 
-**Scope of that claim, stated because three earlier versions overstated it.** It holds for
-every row the program *declares*, and the declared lookup is the only *path* that can
-dispatch — three path-count invariants assert that (`valid_work` 1 accepting path ·
-`use_case_for_work` 2 echoes · `decide()` 2 DISPATCH exits), each failing closed on any
-added or reshaped path. **Measured residual:** widening the *condition inside* both existing
-paths simultaneously, leaving `--list-works` and `--list-bridge` byte-identical, still
-produces an unpinned dispatch (`fresh×probe` → `DISPATCH|recipe-02` on the mutant,
-`INCONCLUSIVE` on clean). Every weaker shape is caught — a second accepting path, a second
-emitting path, a third DISPATCH exit, a widened condition plus a declared row, and a
-coverage loop gone inert. That is the honest boundary: `--list-*` publishes what the program
-*contains*, and a declaration remains editable independently of the behaviour it describes.
-Asking what the program **did** has never been foolable in six rounds; asking what it
-**contains** has been fooled three times.
+**Scope of that claim, stated because four earlier versions overstated it.** It holds for the
+**bridge** route (`--session-type`). Three path-count invariants assert that the declared
+lookup is the only *path* that can dispatch there (`valid_work` 1 accepting path ·
+`use_case_for_work` 2 echoes · `decide()` 2 DISPATCH exits), each failing closed on any added
+or reshaped path. The **transcribed** route (`--use-case`) never calls `valid_work` and is
+guarded separately by `_a`, which runs the binary over 1..33 and counts mapped rows against
+the number stated here — the one mechanism in the suite that has never been fooled, and the
+one that asks what the program *did*.
+
+⚠️ **`--list-works` is not literally the accept-set** (R7, verified here). `norm()` lowercases
+and trims, so `REFACTOR` and `Refactor` dispatch too. Normalisation is total *onto* the
+declared set, so this yields no unpinned dispatch — but "the declaration is the accept-set" is
+false as a sentence, and false sentences about true mechanisms are what this file has had to
+retract four times.
+
+**Measured residual — it splits, and only one half is still open (R7).**
+
+*Two-path widening — **OPEN**.* Widening the condition inside **both** paths at once, leaving
+`--list-works` and `--list-bridge` byte-identical, still produces an unpinned dispatch
+(`fresh×probe` → `DISPATCH|recipe-02` on the mutant, `INCONCLUSIVE` on clean) and is **not
+caught**. This is the declared boundary.
+
+*Single-path widening — **was open, now closed**.* Widening `valid_work` alone (prefix /
+suffix / substring) never produces a dispatch — Table B's lookup stays exact-match, so garbage
+moves from *rejected* to merely *unmapped*, the fail-safe direction. So "no unpinned dispatch"
+was true and every gate passed **silently**: undetected semantic drift. The signal that does
+change is the reason (`invalid-session-work` → `no-bridge-mapping-for-work`), so the near-miss
+battery asserts *that* — 33 checks (11 declared works × 3 shape-variants) whose expected verdict
+is rejection. It is **load-bearing, not belt-and-braces**: disabling only the battery and
+re-running every other gate lets all three globs pass **green** (rc=0, zero other failures),
+which is R7's finding reproduced; with it enabled all three fail. The battery does **not** close
+the two-path case above — different shape, still open.
+
+Every weaker shape **that produces an unpinned dispatch** is caught: a second accepting path, a
+second emitting path, a third DISPATCH exit, a widened condition plus a declared row, and a
+coverage loop gone inert. (The earlier wording said "every weaker shape is caught", which let
+one word do two jobs — *the suite fails* and *no hole is created* are different claims, and
+single-path widening satisfies only the second.)
+
+**Where the boundary actually sits** — R7's reframe, adopted because it is smaller and more
+defensible than the one this file used to state. An adversary who can edit `bin/` can edit
+`tests/`; against that adversary no assertion in a co-located suite helps, and that was never
+in scope. The suite's real job is **honest drift**: a maintainer who widens a condition without
+seeing the blast radius. Honest drift widens by *class* — case-insensitive, a prefix, a glob —
+essentially never by one hidden token, which is what the battery covers. Asking what the
+program **did** has never been foolable in seven rounds; asking what it **contains** has been
+fooled three times.
 
 > ⚠️ **v0.4.0 claimed this "by construction" and was wrong (R4/N1).** It rested the claim
 > on a row COUNT implemented as a source-text regex, which matched only single-line `case`

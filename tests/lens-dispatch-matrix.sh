@@ -228,6 +228,51 @@ for w in $WORKS; do
   [ "$_tr" != "invalid-session-work" ] || fail "\$WORKS lists '$w' but the tool rejects it"
 done
 
+# NEAR-MISS BATTERY (red-team H6, R7/ask-3) — the honest-drift half of the residual.
+#
+# The path-count invariants below constrain the NUMBER of paths. They say nothing about the
+# CONDITION inside an existing path. R7's finding: widening that condition in `valid_work`
+# ALONE passes every gate silently. It creates no unpinned dispatch (Table B's lookup stays
+# exact-match, so the work resolves to nothing) — garbage moves from *rejected* to *unmapped*,
+# the fail-safe direction. So "0 dispatches" would be a VACUOUS assertion here; what actually
+# changes is the reason: `invalid-session-work` -> `no-bridge-mapping-for-work`. Assert what
+# the program DID with a near-miss, not merely that it did not dispatch.
+#
+# Threat model (R7's reframe, adopted): this defends against honest DRIFT — a maintainer
+# widening a condition by CLASS without seeing the blast radius — not against an adversary,
+# who can edit tests as easily as bin/. Honest drift widens by class, so probe the classes.
+#
+# The three variants are not redundant; each catches a shape the others miss. MEASURED:
+#     widen $w*   -> caught by  docsx, docsdocs        widen $w?  -> caught by  docsx ONLY
+#     widen *$w   -> caught by  xdocs, docsdocs        widen ?$w  -> caught by  xdocs ONLY
+#     widen *$w*  -> caught by  docsx, xdocs, docsdocs
+# The doubled form looked like it subsumed the other two under the first three shapes; the
+# single-char globs refuted that. A coverage claim is only as wide as the set actually run.
+#
+# This battery is LOAD-BEARING, not belt-and-braces — measured by disabling it and re-running
+# every other gate against each mutant: $w* / *$w / *$w* all pass GREEN (rc=0, zero other
+# FAILs), which is R7's finding reproduced. Those three PRESERVE the exact match (`docs` still
+# matches `docs*`), so the program keeps working normally while quietly accepting garbage —
+# the realistic drift. The single-char forms REPLACE the exact match instead, breaking every
+# legitimate work, so the DISPATCH-count assertion catches them regardless; the battery fires
+# there too but is not what earns the catch. Precision matters: overstating which mechanism
+# does the work is how the SKILL.md claims drifted from their mechanisms four times.
+# Derived from --list-works (pinned to $WORKS by the gate above), so it grows with the vocabulary.
+_vw_ws=" $(echo $_vw) "
+_nm=0
+for _w in $_vw; do
+  for _v in "${_w}x" "x${_w}" "${_w}${_w}"; do
+    case "$_vw_ws" in *" $_v "*) continue ;; esac   # a declared work is not a near-miss
+    _nm=$((_nm+1))
+    _nr="$("$BIN" --node-kind task --session-type "fresh×${_v}" --format json 2>/dev/null | jq -r '.reason')"
+    [ "$_nr" = "invalid-session-work" ] \
+      || fail "near-miss '$_v' was ACCEPTED (reason=$_nr, expected invalid-session-work) — valid_work's
+    condition is wider than the vocabulary --list-works declares. Not an unpinned dispatch, but
+    undetected semantic drift: input the taxonomy rejects is now merely unmapped."
+  done
+done
+[ "$_nm" -gt 0 ] || fail "near-miss battery examined ZERO variants — INERT (empty --list-works?)"
+
 # COVERAGE, asserted directly instead of inferred from a count (red-team H6, R4/N1).
 #
 # v0.4.0 claimed bridge coverage was "total by construction" and rested that on the row
