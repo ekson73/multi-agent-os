@@ -363,16 +363,30 @@ _path_extract() { # $1=binary
 _path_src="$(_path_extract "$BIN")"
 # INERTNESS GUARD — an empty or truncated extraction would pin a hash of nothing and pass
 # forever (the free-negative defect this suite has hit four times, here in a new mechanism).
-# Every stage must be present by name, and decide() must be present from its FIRST statement to
-# its LAST — the tail marker is what detects an awk range that closed early on a nested brace.
+# Every stage must be present by name…
 for _marker in 'norm()' 'split_session_type()' 'valid_work()' 'use_case_for_work()' \
-               'split_session_type "$st" work' 'nk="$(norm "$1")"' \
-               'echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"'; do
+               'split_session_type "$st" work' 'nk="$(norm "$1")"'; do
   case "$_path_src" in
     *"$_marker"*) ;;
     *) fail "resolution-path extraction lost '$_marker' — the tripwire is INERT and would pin a truncated path" ;;
   esac
 done
+# …and the tail check must be POSITIONAL + WHOLE-LINE, never containment. I attacked this guard
+# myself before submitting: a padding string carrying the tail marker's TEXT plus a line starting
+# with `}` (valid bash inside a quoted string, but awk's /^}/ ends the range) truncated decide()
+# from 80 lines to 21 with ALL SEVEN containment markers still passing. What caught that mutant
+# was an UNRELATED invariant — the DISPATCH-exit count happened to see the duplicated echo — i.e.
+# true by accident, not by construction: a padding that evaded that counter would have defeated
+# both. `*"$m"*` asks whether the text is PRESENT (a declaration about the extraction); what the
+# guard actually needs is whether the extraction ENDS THERE (the structural fact). Same
+# FEZ-vs-CONTÉM distinction as the pin itself, one layer further in — applied to my own guard.
+_tail2="$(printf '%s\n' "$_path_src" | tail -2 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+_tail_want='echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"
+}'
+[ "$_tail2" = "$_tail_want" ] || fail "resolution-path extraction does not END at decide()'s last
+    statement — the awk range closed early (tripwire INERT: it would pin a truncated path, and a
+    careless re-pin would lock that blindness in permanently). Got tail:
+$_tail2"
 if command -v shasum >/dev/null 2>&1; then _path_hash="$(printf '%s' "$_path_src" | shasum -a 256 | cut -d' ' -f1)"
 else                                       _path_hash="$(printf '%s' "$_path_src" | sha256sum   | cut -d' ' -f1)"; fi
 # Pin computed BY the code above, never by a lookalike harness: my first value was produced by

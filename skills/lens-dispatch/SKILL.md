@@ -241,6 +241,24 @@ model to evade. The filter is gone; the cost (every `decide()` edit re-pins) is 
 direction of failure. A sibling attack — widening the `WORK_VOCAB` global, whose definition sits
 outside the extraction — is caught by the taxonomy drift-gate instead, measured.
 
+*The tripwire's own inertness guard was defeatable too, and I broke that before submitting as
+well.* An `awk` line-range (`/^decide()/,/^}/`) ends at the first line starting with `}` — and a
+line starting with `}` **inside a quoted string** is valid bash. A padding string carrying the
+tail marker's text truncated `decide()` from 80 lines to 21 with all seven *containment* markers
+still passing. What caught that mutant was an unrelated invariant (the DISPATCH-exit count saw
+the duplicated echo) — **true by accident, not by construction**. Fixed by making the tail check
+**positional + whole-line** (the extraction must *end* at `decide()`'s last statement) instead of
+containment: `*"$m"*` asks whether the text is present — a declaration about the extraction —
+where the guard needs whether the extraction *ends there*, the structural fact. Same
+effect-vs-declaration distinction as the pin itself, one layer further in.
+
+Measured after the fix, including the strongest attack I could build: a padding that reproduces
+`decide()`'s real last two lines exactly **does** satisfy the positional check — and still fails,
+because producing that tail requires injecting a literal `echo "DISPATCH|…"` line, which the
+DISPATCH-exit count reads as a third exit. The two gates are therefore interlocked **by
+construction, not by luck**: they key on the same string, so satisfying one necessarily trips the
+other. Stated rather than assumed — the positional check alone is *not* sufficient.
+
 *Say input→use-case, not input→recipe.* The draft of this paragraph said "the complete
 input→recipe path", which is false — the final `use_case_for_work → recipe_for_use_case` step is
 **outside** the pin. Positive control: a benign comment added inside `recipe_for_use_case` leaves
