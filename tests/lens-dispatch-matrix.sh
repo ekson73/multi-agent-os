@@ -194,10 +194,62 @@ golden_st() { # $1=work  $2=expected "recipe_id|entry:§ref,..."
     want: $want
     got : $got"
 }
+PINNED_WORKS="refactor harmonize docs test"
 golden_st refactor  'recipe-02|architect:§9.13,conservative:§1.9,fowler:§5.22,systems-thinker:§2.9'
 golden_st harmonize 'uc-32|critic-shadow:§4.16,devils-advocate:§1.13,patient:§3.14,honest:§3.26'
 golden_st docs      'uc-23|editor:§10.29,researcher:§10.27,patient:§3.14'
 golden_st test      'uc-30|tdd-beck:§5.24,qa-engineer:§9.22,methodical:§1.17'
+
+# TAXONOMY DRIFT GATE — the missing link that made the first R4/N1 repair unsound.
+#
+# Everything below ranges over `$WORKS`, a constant declared in THIS file. That makes the
+# coverage assertion only as complete as the test's model of the work taxonomy. Measured:
+# a mutant adding `probe` to BOTH `valid_work` and Table B produced a LIVE dispatching
+# bridge route that the coverage loop never probed (`probe` ∉ $WORKS) — and the FIRST
+# repair therefore SURVIVED it, while the source-regex it replaced had caught the
+# single-line form. The repair regressed the one case the broken mechanism got right.
+#
+# Same defect one level deeper: a source-text model of the program was swapped for a
+# test-side model of the program. So pin the model to the program. This is the ONE place
+# source is parsed, and only to detect drift in a CONSTANT — `valid_work` is a single
+# well-defined line, so any change to its shape breaks extraction and fails loudly
+# (empty extraction => mismatch => fail, never a silent pass).
+_vw="$(awk '/^valid_work\(\)/{getline; print; exit}' "$BIN" \
+       | sed -n 's/.*case "\$1" in \([a-z|]*\)).*/\1/p' | tr '|' ' ')"
+_vw_sorted="$(echo $_vw   | tr ' ' '\n' | sort | tr '\n' ' ')"
+_wk_sorted="$(echo $WORKS | tr ' ' '\n' | sort | tr '\n' ' ')"
+[ -n "$_vw" ] || fail "could not extract valid_work's vocabulary — the taxonomy gate is INERT"
+[ "$_vw_sorted" = "$_wk_sorted" ] \
+  || fail "work taxonomy drift: the tool accepts [$_vw_sorted] but this suite ranges over [$_wk_sorted].
+    Every coverage assertion below is scoped to \$WORKS, so a work the tool accepts and the
+    suite does not know about is an UNTESTED dispatch route."
+# ...and the tool must actually accept each one (the other direction, behaviourally).
+for w in $WORKS; do
+  _tr="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null | jq -r '.reason')"
+  [ "$_tr" != "invalid-session-work" ] || fail "\$WORKS lists '$w' but the tool rejects it"
+done
+
+# COVERAGE, asserted directly instead of inferred from a count (red-team H6, R4/N1).
+#
+# v0.4.0 claimed bridge coverage was "total by construction" and rested that on the row
+# COUNT: 4 rows, 4 pins. The count was a source-text regex matching only single-line case
+# arms — so `probe)⏎  echo "11" ;;` (identical bash, identical semantics) grew Table B to
+# 5 LIVE works while the counter still said 4, golden_st pinned 4, and the 5th dispatched
+# a lens with zero content coverage. Green suite. The mechanism was weaker than the claim,
+# which is this tool's recurring defect at the fourth iteration.
+#
+# The repair is not a better regex. A count is a PROXY for the property; assert the
+# PROPERTY: every work that dispatches through the bridge must be pinned. Behavioural, so
+# source formatting cannot fool it, and it fails on ANY new dispatching work however it is
+# spelled. `_a` was immune all along precisely because it probed the CLI instead of the text.
+for w in $WORKS; do
+  _cw="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null | jq -r '.reason')"
+  [ "$_cw" = "resolved-bridge" ] || continue
+  case " $PINNED_WORKS " in
+    *" $w "*) ;;
+    *) fail "work '$w' DISPATCHES through the bridge but has no golden_st pin — bridge coverage is not total" ;;
+  esac
+done
 # self-check: this pin must be capable of failing (same discipline as golden()'s probe).
 _gs_before=$fails; golden_st docs 'recipe-99|nonsense:§0.0' 2>/dev/null
 [ "$fails" -gt "$_gs_before" ] || fail "golden_st() is inert — it cannot detect drift"
@@ -276,15 +328,36 @@ for uc in $(seq 1 33); do
 done
 [ "$_a" -eq 14 ] || fail "Table A has $_a mapped use-cases; SKILL.md claims 14"
 
-# ⚠️ Count Table B's ROWS from source, not works that happen to DISPATCH (red-team H6,
-#    R3/F4). The old loop counted successful dispatches, so adding `chore -> 5` grew the
-#    table to 5 rows while the counter stayed at 4 and PASSED: UC5 has no recipe, so the
-#    new row resolved to NULL_PROFILE and was invisible to a dispatch-side probe. A
-#    growth detector that cannot see growth is decoration. Measure the thing you claim.
-#    Fail-closed: if the function is renamed the extraction yields 0 and this fails loudly.
-_b=$(awk '/^use_case_for_work\(\)/{f=1;next} f&&/^}/{exit} f' "$BIN" \
-     | grep -cE '^[[:space:]]*[a-z|]+\)[[:space:]]*echo "[0-9]+"' || true)
-[ "$_b" -eq 4 ] || fail "Table B has $_b mapped rows; SKILL.md claims 4"
+# Table B rows — counted BEHAVIOURALLY (red-team H6, R3/F4 then R4/N1).
+#
+# Two wrong versions preceded this one:
+#   v0.3.0 counted works that DISPATCH → `chore -> 5` grew the table while resolving to
+#          NULL_PROFILE (UC5 has no recipe) and stayed invisible. Growth detector, blind
+#          to growth.
+#   v0.4.0 counted `echo "N"` arms in the source text → a two-line case arm is identical
+#          bash and invisible to the regex. Parsing source to describe behaviour re-creates
+#          the whole class: the model of the program is not the program.
+#
+# A row EXISTS (and is reachable) iff the bridge path got far enough to look it up. The
+# reason strings already encode that, so ask the program instead of reading it.
+# NEGATIVE list on purpose: a reason string added later lands in the counted set and fails
+# LOUDLY. A positive allow-list would silently drop it — undercount, exactly the failure
+# being repaired. When in doubt, default to the branch that breaks the build.
+#   excluded: no-bridge-mapping-for-work        (no row at all)
+#             complex-reasoning-degradation-guard (guard fires before the lookup)
+#   counted : resolved-bridge · bridge-target-has-no-mapping · protected-work-...-withheld
+# Honest residual: a row for `debug`/`fix` is unreachable behind the degradation guard, so
+# it is invisible here. That row is DEAD (no lens can ever be emitted through it), so the
+# count measures LIVE rows — which is the set the coverage assertion above ranges over.
+_b=0
+for w in $WORKS; do
+  _r="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null | jq -r '.reason')"
+  case "$_r" in
+    no-bridge-mapping-for-work|complex-reasoning-degradation-guard) ;;
+    *) _b=$((_b+1)) ;;
+  esac
+done
+[ "$_b" -eq 4 ] || fail "Table B has $_b live rows; SKILL.md claims 4"
 note "tables: A=$_a mapped use-cases · B=$_b mapped works"
 
 # ---------------------------------------------------------------------------

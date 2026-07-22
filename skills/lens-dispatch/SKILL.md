@@ -1,6 +1,6 @@
 ---
 name: lens-dispatch
-version: 0.4.0
+version: 0.5.0
 description: >
   Deterministic dispatcher of cognitive lens-stacks per work-graph node. Given a node
   (ticket/task/step/decision/pr/session) it emits one of three verdicts — DISPATCH
@@ -11,9 +11,9 @@ description: >
   controls HOW it is thought. Confidence is COMPUTED from the dogfood ledger, never
   hardcoded — which means faithful to that ledger, NOT unfalsifiable. NO lens-stack here
   has a measured efficacy result — read the epistemic-status block before relying on it.
-  Independent adversarial red-teams REFUTED v0.1.0, v0.2.0 and v0.3.0, each round finding
-  defects in the previous round's fix; v0.4.0 carries the third round's repairs and is
-  NOT yet cleared.
+  Four independent adversarial red-team rounds have REFUTED every version so far
+  (v0.1.0-v0.4.0), each finding defects in the previous round's fix; v0.5.0 carries the
+  fourth round's repair and is NOT yet cleared.
 agnostic: [os, project, vendor]
 ---
 
@@ -32,13 +32,15 @@ measure. Two of the three recorded "cycles" are the *same PR*.
 [The floor claim, corrected](#the-floor-claim-corrected). An independent red-team
 returned **REFUTED**; v0.2.0 was the repair — a second round returned **STILL-REFUTED**,
 finding defects *in that repair* (incl. that both test suites were blind to lens content);
-a third round returned **STILL-REFUTED** again, finding that the guard added in v0.3.0
-covered only one of the two routes that reach it. v0.4.0 carries the third round's fixes
-and **has not been cleared**. What follows is written to be checkable, not to be believed.
+a third returned **STILL-REFUTED** again — the guard added in v0.3.0 covered only one of
+the two routes that reach it; a fourth returned **REFUTED** on one finding, materially
+narrower: the *coverage claim* v0.4.0 made was stronger than the mechanism backing it.
+v0.5.0 carries that repair and **has not been cleared**. What follows is written to be
+checkable, not to be believed.
 
-> **Track record, stated plainly:** **three** independent verification rounds, **three**
+> **Track record, stated plainly:** **four** independent verification rounds, **four**
 > upheld refutations. Each round found defects *in the previous round's fix*. The author's
-> self-review caught **0 of 3**. Treat "the author says it is fixed" — including everything
+> self-review caught **0 of 4**. Treat "the author says it is fixed" — including everything
 > below — as an unverified claim until a round clears it.
 >
 > The rounds share ONE defect class, named by the R3 verifier: **the correction is applied
@@ -48,9 +50,20 @@ and **has not been cleared**. What follows is written to be checkable, not to be
 > open on the other; the golden pin covered that same route and not the other; an invented
 > label was replaced by a *different* invented label. That is what an acceptance test of
 > *"the reported repro now passes"* buys you, instead of *"the invariant holds on every
-> path that reaches it."* v0.4.0 changes the workflow: for each fix, enumerate the paths
-> that reach the property, pin each one, then re-run **with the mutant still installed** to
-> confirm the suite actually fails.
+> path that reaches it."* R4 is the same class once more, one level up: the v0.4.0 fix was
+> correct, but the *claim about it* ("total by construction") outran the mechanism — a
+> source-text regex a two-line `case` arm defeats.
+>
+> Two workflow rules came out of this, and they are the durable part:
+> **(1)** for each fix, enumerate the paths that reach the property, pin each one, then
+> re-run **with the mutant still installed** to confirm the suite actually fails;
+> **(2)** assert the **property**, not a proxy for it — and never model the program by
+> parsing its source when you can ask the program. Every counter here that probed the CLI
+> (`_a`) was immune to all four rounds; the one that read text (`_b`) was broken twice.
+>
+> A third, from the R4 verifier and adopted: **every negative result needs a positive
+> control in the same command** — and for a mutation, assert the mutant's *effect*, not its
+> *presence*. That one habit would have caught all three of my own false negatives in R3.
 
 | Mechanism | Effect |
 |---|---|
@@ -165,9 +178,19 @@ effect.
 Authored `2026-07-22` as an explicit hypothesis, operator-authorized to run-and-measure.
 4 rows: `refactor` `harmonize` `docs` `test`.
 
-All 4 rows' lens content is pinned by `golden_st` assertions, so bridge coverage is
-**total by construction, not sampled** — a 5th mapped row fails the row-count check
-before it can go unpinned. This closes R3/F3: *every* DISPATCH the matrix exercises goes
+All 4 rows' lens content is pinned by `golden_st` assertions, and the test asserts the
+**coverage property directly**: it walks every valid work and fails if any of them
+dispatches without a pin. Coverage is therefore total *and checked*, not inferred.
+
+> ⚠️ **v0.4.0 claimed this "by construction" and was wrong (R4/N1).** It rested the claim
+> on a row COUNT implemented as a source-text regex, which matched only single-line `case`
+> arms — so a two-line arm (identical bash, identical semantics) grew Table B to 5 **live**
+> works while the counter still said 4 and the 5th dispatched unpinned, suite green. The
+> assertion was strictly stronger than the mechanism: this tool's recurring defect, fourth
+> iteration. A count is a proxy; the property is now asserted directly, and both counters
+> are behavioural — `_a` always was, which is why it was never foolable.
+
+This closes R3/F3: *every* DISPATCH the matrix exercises goes
 through this route, and until v0.4.0 **none of it was content-pinned** — a mutant
 retargeting `docs` from UC23 to UC27 silently gave documentation work founder-vision
 lensing while both suites stayed green.
@@ -212,7 +235,7 @@ A guess wearing the honest label's clothes is worse than an honestly-labelled gu
 | both suites blind to lens content | **golden pin**: 12 `--use-case` rows pinned; a mutant repointing UC11 used to pass green. ⚠️ **Incomplete** — see R3/F3 below |
 | **R3/F1** retracted ledger claim still shipping in `bin/` | header now says *faithful to the ledger*, with the attack (redirect + fabricate) written out; the quote one function away was corrected too |
 | **R3/F2** guard had **one** call site — bridge route open | the `--session-type` route now calls the same guard. Protection was previously an accident of Table B's data, not a property. Pinned by a **reachability proof**: the test builds an isolated copy, points Table B at UC15, and asserts the withholding — the only way to test a path no legitimate input reaches today |
-| **R3/F3** every golden pin used `--use-case`, but **all 16 DISPATCH combos go through the bridge** | 4 `golden_st` pins added — one per mapped work, so bridge coverage is **total by construction**, not sampled (a 5th mapped work fails the §4c count) |
+| **R3/F3** every golden pin used `--use-case`, but **all 16 DISPATCH combos go through the bridge** | 4 `golden_st` pins added — one per mapped work. ⚠️ v0.4.0 called this "total by construction" on the strength of a source-regex row count that a two-line `case` arm defeats (**R4/N1**); v0.5.0 asserts the coverage property directly instead — every dispatching work must be pinned — and makes both counters behavioural |
 | **R3/F4** `_b` counted dispatching works, not table rows | counts arms from source: `chore -> 5` grows the table to 5 rows while resolving to `NULL_PROFILE`, and used to pass |
 | **R3/F5** invented labels on a "verbatim" row (2nd time) | `steve-jobs`/`elon-musk`; golden 27 re-pinned to the source, not the paraphrase |
 | **R3/F7** `--format` neither validated nor normalized | fail-closed (`json\|text`, exit 1). `--format TEXT` used to return JSON silently — the `06`≠`6` / `fix`≠`debug` family: a value that misses a match and falls through to a default instead of being rejected |
