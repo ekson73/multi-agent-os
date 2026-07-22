@@ -344,19 +344,30 @@ done
 #   * It does NOT cover a widening achieved WITHOUT editing this code (via the data tables —
 #     those have their own gates above), nor an edit accompanied by a deliberate re-pin. The
 #     latter is the adversary who edits tests/ as easily as bin/, explicitly out of scope.
+# NO grep FILTER on decide(). The first version of this extraction filtered decide() down to the
+# lines mentioning the four helpers, and that filter WAS the hole: I self-attacked it and a
+# one-line insert the filter did not match —
+#     work="${work//-/}"          (placed directly below the split_session_type line)
+# — made fresh×re-factor return DISPATCH|resolved-bridge with the ENTIRE suite green. That is
+# R8's finding relocated by one line, surviving the fix written for R8. The cause is the defect
+# family this file keeps recording: a filter is a SELECTION, i.e. a model of which lines matter,
+# and the widening simply moved to a line the model excluded. A hash over the whole function has
+# no model to evade. Cost accepted deliberately: every decide() edit now re-pins.
 _path_extract() { # $1=binary
   sed -n '/^norm()/p' "$1"
   awk '/^split_session_type\(\)/,/^}/' "$1"
   awk '/^valid_work\(\)/,/^}/' "$1"
   awk '/^use_case_for_work\(\)/,/^}/' "$1"
-  awk '/^decide\(\)/,/^}/' "$1" | command grep -E 'norm "|split_session_type|valid_work "|use_case_for_work'
+  awk '/^decide\(\)/,/^}/' "$1"
 }
 _path_src="$(_path_extract "$BIN")"
 # INERTNESS GUARD — an empty or truncated extraction would pin a hash of nothing and pass
 # forever (the free-negative defect this suite has hit four times, here in a new mechanism).
-# Every stage must be present by name, and the decide() wiring must have survived the filter.
+# Every stage must be present by name, and decide() must be present from its FIRST statement to
+# its LAST — the tail marker is what detects an awk range that closed early on a nested brace.
 for _marker in 'norm()' 'split_session_type()' 'valid_work()' 'use_case_for_work()' \
-               'split_session_type "$st" work' 'nk="$(norm "$1")"'; do
+               'split_session_type "$st" work' 'nk="$(norm "$1")"' \
+               'echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"'; do
   case "$_path_src" in
     *"$_marker"*) ;;
     *) fail "resolution-path extraction lost '$_marker' — the tripwire is INERT and would pin a truncated path" ;;
@@ -367,7 +378,7 @@ else                                       _path_hash="$(printf '%s' "$_path_src
 # Pin computed BY the code above, never by a lookalike harness: my first value was produced by
 # an ad-hoc reimplementation that piped instead of using "$(...)", so it kept a trailing newline
 # and differed from what this file computes. The mechanism must be its own measuring instrument.
-_PATH_PIN='d6d229e3a51ba30d1defc1c48f3bb2fb604dece2c8bfd7b1ce464b5f211961b0'
+_PATH_PIN='89ecb70f60ac4f590bb3747e32f7d0edeeddde501ed517734b7b4701c3fa9186'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).

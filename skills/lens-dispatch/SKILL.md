@@ -225,9 +225,21 @@ transform applied upstream of the lookup is unreachable by declaration-derived g
 construction**. Adding separator-shaped variants would close `tr -d '-_.'` and not `tr -d ' '`,
 not a stemmer, not a soundex — **the gap is the stage, not the shape**. A stage is enumerable
 where a shape-space is not, so the tripwire pins the **input→use-case** resolution path (`norm` ·
-`split_session_type` · `valid_work` · `use_case_for_work` · the `decide` lines wiring them) and
+`split_session_type` · `valid_work` · `use_case_for_work` · **the whole of `decide()`**) and
 fails on any byte-change to it. Measured: it fires on R8's mutant, on single-path widening, and
 on the two-path case.
+
+*The first version of this tripwire was bypassable, and I broke it myself before submitting.*
+It extracted `decide()` through a `grep` filter keeping only the lines that mention the four
+helpers. A one-line insert the filter did not match —
+`work="${work//-/}"`, placed directly below the `split_session_type` line — made `fresh×re-factor`
+return `DISPATCH|resolved-bridge` with the **entire suite green**: R8's finding relocated by one
+line, surviving the fix written for R8. The cause is the defect family this file keeps recording,
+now applied to my own instrument: **a filter is a selection — a model of which lines matter — so
+the widening simply moved to a line the model excluded.** A hash over the whole function has no
+model to evade. The filter is gone; the cost (every `decide()` edit re-pins) is the correct
+direction of failure. A sibling attack — widening the `WORK_VOCAB` global, whose definition sits
+outside the extraction — is caught by the taxonomy drift-gate instead, measured.
 
 *Say input→use-case, not input→recipe.* The draft of this paragraph said "the complete
 input→recipe path", which is false — the final `use_case_for_work → recipe_for_use_case` step is
