@@ -179,8 +179,22 @@ Authored `2026-07-22` as an explicit hypothesis, operator-authorized to run-and-
 4 rows: `refactor` `harmonize` `docs` `test`.
 
 All 4 rows' lens content is pinned by `golden_st` assertions, and the test asserts the
-**coverage property directly**: it walks every valid work and fails if any of them
-dispatches without a pin. Coverage is therefore total *and checked*, not inferred.
+**coverage property directly** over the rows the program itself declares (`--list-bridge`):
+every declared row that dispatches must be pinned, or the suite fails.
+
+**Scope of that claim, stated because three earlier versions overstated it.** It holds for
+every row the program *declares*, and the declared lookup is the only *path* that can
+dispatch — three path-count invariants assert that (`valid_work` 1 accepting path ·
+`use_case_for_work` 2 echoes · `decide()` 2 DISPATCH exits), each failing closed on any
+added or reshaped path. **Measured residual:** widening the *condition inside* both existing
+paths simultaneously, leaving `--list-works` and `--list-bridge` byte-identical, still
+produces an unpinned dispatch (`fresh×probe` → `DISPATCH|recipe-02` on the mutant,
+`INCONCLUSIVE` on clean). Every weaker shape is caught — a second accepting path, a second
+emitting path, a third DISPATCH exit, a widened condition plus a declared row, and a
+coverage loop gone inert. That is the honest boundary: `--list-*` publishes what the program
+*contains*, and a declaration remains editable independently of the behaviour it describes.
+Asking what the program **did** has never been foolable in six rounds; asking what it
+**contains** has been fooled three times.
 
 > ⚠️ **v0.4.0 claimed this "by construction" and was wrong (R4/N1).** It rested the claim
 > on a row COUNT implemented as a source-text regex, which matched only single-line `case`

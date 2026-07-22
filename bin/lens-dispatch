@@ -77,6 +77,8 @@ Options:
   --stakes <level>        trivial | low | medium | high        (default: medium)
   --signals <csv>         e.g. complex-reasoning,security,irreversible
   --format json|text      (default: json)
+  --list-works            print the declared work vocabulary (one line, space-separated)
+  --list-bridge           print Table B as work:use-case pairs (one line, space-separated)
   --self-test             built-in assertion suite (deterministic oracle for THIS script)
   --help
 
@@ -177,27 +179,40 @@ recipe_for_use_case() {
 # ⚠️ This table is NOT in any source document. It is an explicit hypothesis, authorized
 #    by the operator to run-and-measure. Every DISPATCH resolved through it carries
 #    provenance=bridge-hypothesis so no downstream reader mistakes it for a fact.
-use_case_for_work() {
-  case "$1" in
-    refactor)         echo "11" ;;   # hypothesis: restructure => architecture review
-    harmonize)        echo "32" ;;   # hypothesis: drift/dedupe => conflict/dissent stack
-    docs)             echo "23" ;;   # hypothesis: docs => editorial stack
-    test)             echo "30" ;;   # hypothesis: tests => test-strategy stack
-    # --- deliberately UNMAPPED (each removal has a stated reason) ---
-    # feat|enhance|gap: WITHDRAWN 2026-07-22 by red-team H6. Mapped to UC1 -> recipe-01,
-    #   which catalog §13 names "Pre-decision audit" and whose required output is a
-    #   go/no-go verdict (proceed/refine/defer/escalate/reject). Binding a DECISION-GATE
-    #   recipe to EXECUTION work gives four rejection-biased lenses (doubt + critique +
-    #   argue-against + conservative) with no generative counterweight: the agent
-    #   re-litigates settled scope and emits a decision matrix instead of an
-    #   implementation. Was 12/44 combos — the single largest DISPATCH bucket.
-    # fix: WITHDRAWN 2026-07-22. Bug-fixing IS the complex reasoning the degradation
-    #   guard exists to protect; it escaped only because it is spelled `fix`, not
-    #   `debug`. Now ALSO covered by the guard (defence in depth).
-    hotfix)           echo ""   ;;   # urgency => no lens overhead
-    chore)            echo ""   ;;   # low value
-    *)                echo ""   ;;
-  esac
+# The rows are DATA, and `--list-bridge` publishes them (red-team H6, R5/M6). They used to
+# be `case` arms, which made a row visible ONLY to a source-text parser — and two successive
+# mechanisms died on exactly that: the R4 row-counter (a regex blind to multi-line arms) and
+# then its own R4 repair (a drift gate that reads ONE line, so a second `case` arm placed
+# BELOW it grew a live dispatching row while the suite stayed green — measured: `fresh×probe`
+# emitted a full 4-lens recipe-02 stack, `B=4 mapped works`, PASS). Publishing the rows lets
+# the suite range over the ROWS THEMSELVES instead of over a work-list the suite maintains,
+# so a new row demands a golden pin even when its work was never in the suite's vocabulary.
+BRIDGE_TABLE="refactor:11 harmonize:32 docs:23 test:30"
+#   refactor -> 11   hypothesis: restructure  => architecture review
+#   harmonize -> 32  hypothesis: drift/dedupe => conflict/dissent stack
+#   docs -> 23       hypothesis: docs         => editorial stack
+#   test -> 30       hypothesis: tests        => test-strategy stack
+# --- deliberately UNMAPPED (considered and DECLINED — not merely absent) --------------
+# Prose, not rows: absence-by-decision and absence-by-oversight are indistinguishable in a
+# data table, and that distinction IS the audit trail.
+#   hotfix: urgency => no lens overhead.        chore: low value.
+#   feat|enhance|gap: WITHDRAWN 2026-07-22 by red-team H6. Mapped to UC1 -> recipe-01,
+#     which catalog §13 names "Pre-decision audit" and whose required output is a
+#     go/no-go verdict (proceed/refine/defer/escalate/reject). Binding a DECISION-GATE
+#     recipe to EXECUTION work gives four rejection-biased lenses (doubt + critique +
+#     argue-against + conservative) with no generative counterweight: the agent
+#     re-litigates settled scope and emits a decision matrix instead of an
+#     implementation. Was 12/44 combos — the single largest DISPATCH bucket.
+#   fix: WITHDRAWN 2026-07-22. Bug-fixing IS the complex reasoning the degradation
+#     guard exists to protect; it escaped only because it is spelled `fix`, not
+#     `debug`. Now ALSO covered by the guard (defence in depth).
+# ⚠️ EXACTLY ONE emitting path (the `echo "${kv#*:}"`), and the suite asserts that count.
+use_case_for_work() { # $1=work -> use-case id, or "" when unmapped (=> NULL_PROFILE, status quo)
+  local kv
+  for kv in $BRIDGE_TABLE; do          # unquoted on purpose: word-splitting IS the iteration
+    if [ "${kv%%:*}" = "$1" ]; then echo "${kv#*:}"; return; fi
+  done
+  echo ""
 }
 
 valid_node_kind() {
@@ -206,8 +221,19 @@ valid_node_kind() {
 valid_stakes() {
   case "$1" in trivial|low|medium|high) return 0 ;; *) return 1 ;; esac
 }
+# Declared work vocabulary, published by `--list-works`. Transcribed from
+# skills/preflight/references/session-type-taxonomy.md (11 works × 4 modes = 44 combos).
+WORK_VOCAB="feat enhance fix hotfix debug gap refactor harmonize chore docs test"
+# ⚠️ EXACTLY ONE accepting path (`return 0`), and the suite asserts that count.
+#    A substring form — `case " $WORK_VOCAB " in *" $1 "*)` — would be shorter and WRONG:
+#    it accepts "feat enhance" (reachable as `--session-type "fresh×feat enhance"`), which
+#    the original case-statement rejected. Token equality, not substring containment.
 valid_work() {
-  case "$1" in feat|enhance|fix|hotfix|debug|gap|refactor|harmonize|chore|docs|test) return 0 ;; *) return 1 ;; esac
+  local w
+  for w in $WORK_VOCAB; do             # unquoted on purpose: word-splitting IS the iteration
+    if [ "$w" = "$1" ]; then return 0; fi
+  done
+  return 1
 }
 valid_mode() {
   case "$1" in continuation|fresh|debate|converge) return 0 ;; *) return 1 ;; esac
@@ -530,6 +556,15 @@ while [ $# -gt 0 ]; do
     --stakes)       need_val --stakes "$#";       STAKES="$2"; shift 2;;
     --signals)      need_val --signals "$#";      SIGNALS="$2"; shift 2;;
     --format)       need_val --format "$#";       FORMAT="$2"; shift 2;;
+    # Publish the two declarations so the suite can ASK instead of parsing source.
+    # ⚠️ Honest bound (red-team H6, R6/ask-1): this exposes what the program CONTAINS, not
+    #    what it DID. A declaration is still a model — an edit can change the lookup's
+    #    behaviour while leaving the published string byte-identical (measured: a second
+    #    accepting path below the loop dispatched `fresh×probe` with both flags unchanged).
+    #    It kills the source-PARSING class outright; the path-count invariants in the suite
+    #    are what constrain the behaviour side. Neither alone is sufficient.
+    --list-works)   printf '%s\n' "$WORK_VOCAB";   exit 0;;
+    --list-bridge)  printf '%s\n' "$BRIDGE_TABLE"; exit 0;;
     --self-test)    self_test;;
     --help|-h)      usage; exit 0;;
     *) echo "unknown arg: $1" >&2; usage >&2; exit 1;;

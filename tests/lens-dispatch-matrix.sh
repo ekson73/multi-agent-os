@@ -214,15 +214,14 @@ golden_st test      'uc-30|tdd-beck:§5.24,qa-engineer:§9.22,methodical:§1.17'
 # source is parsed, and only to detect drift in a CONSTANT — `valid_work` is a single
 # well-defined line, so any change to its shape breaks extraction and fails loudly
 # (empty extraction => mismatch => fail, never a silent pass).
-_vw="$(awk '/^valid_work\(\)/{getline; print; exit}' "$BIN" \
-       | sed -n 's/.*case "\$1" in \([a-z|]*\)).*/\1/p' | tr '|' ' ')"
+_vw="$("$BIN" --list-works 2>/dev/null)"
 _vw_sorted="$(echo $_vw   | tr ' ' '\n' | sort | tr '\n' ' ')"
 _wk_sorted="$(echo $WORKS | tr ' ' '\n' | sort | tr '\n' ' ')"
-[ -n "$_vw" ] || fail "could not extract valid_work's vocabulary — the taxonomy gate is INERT"
+[ -n "$_vw" ] || fail "--list-works returned nothing — the taxonomy gate is INERT"
 [ "$_vw_sorted" = "$_wk_sorted" ] \
-  || fail "work taxonomy drift: the tool accepts [$_vw_sorted] but this suite ranges over [$_wk_sorted].
-    Every coverage assertion below is scoped to \$WORKS, so a work the tool accepts and the
-    suite does not know about is an UNTESTED dispatch route."
+  || fail "work taxonomy drift: the tool declares [$_vw_sorted] but this suite ranges over [$_wk_sorted].
+    \$WORKS is this file's transcription of session-type-taxonomy.md; --list-works is the
+    program's own declaration. A divergence means one of the two drifted from the document."
 # ...and the tool must actually accept each one (the other direction, behaviourally).
 for w in $WORKS; do
   _tr="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null | jq -r '.reason')"
@@ -242,14 +241,41 @@ done
 # PROPERTY: every work that dispatches through the bridge must be pinned. Behavioural, so
 # source formatting cannot fool it, and it fails on ANY new dispatching work however it is
 # spelled. `_a` was immune all along precisely because it probed the CLI instead of the text.
-for w in $WORKS; do
-  _cw="$("$BIN" --node-kind task --session-type "fresh×${w}" --format json 2>/dev/null | jq -r '.reason')"
+# Range over the ROWS the program declares, not over a work-list this file maintains.
+# A row for a work absent from $WORKS was invisible to the previous loop; it is not to this
+# one. `_cov` is the N3 inertness counter PORTED HERE (red-team H6, R6/ask-2b): a typo'd
+# flag (`--list-bridges`) yields zero rows and would otherwise pass VACUOUSLY — the same
+# defect as the dead leak-detector, in a new mechanism. Applying it to the loop this one
+# replaced would have discarded the fix along with the loop.
+_cov=0
+for _kv in $("$BIN" --list-bridge 2>/dev/null); do
+  _cov=$((_cov+1))
+  _w="${_kv%%:*}"
+  _cw="$("$BIN" --node-kind task --session-type "fresh×${_w}" --format json 2>/dev/null | jq -r '.reason')"
   [ "$_cw" = "resolved-bridge" ] || continue
   case " $PINNED_WORKS " in
-    *" $w "*) ;;
-    *) fail "work '$w' DISPATCHES through the bridge but has no golden_st pin — bridge coverage is not total" ;;
+    *" $_w "*) ;;
+    *) fail "declared bridge row '$_kv' DISPATCHES but has no golden_st pin — bridge coverage is incomplete" ;;
   esac
 done
+[ "$_cov" -gt 0 ] || fail "coverage loop examined ZERO rows — INERT (bad flag name? empty --list-bridge?)"
+
+# PATH-COUNT INVARIANTS (red-team H6, R6/ask-1 + ask-3).
+# --list-* publishes what the program CONTAINS; that is a declaration, and an edit can move
+# the behaviour while leaving the declaration byte-identical — measured three times, the
+# same mutant surviving three different fixes. These three counts constrain the other side:
+# they do not read a VALUE out of the source (an extraction, silently defeatable), they
+# assert a NUMBER that any added path increments and any reshaping breaks. Fails closed.
+_n_accept="$(awk '/^valid_work\(\)/,/^}/' "$BIN" | grep -c 'return 0')"
+# ⚠️ GENERIC echo-count, not `grep -c 'echo "${kv#*:}"'`. That first form was an EXTRACTION
+#    wearing a count's clothes: it counts one specific spelling, so a second emitting path
+#    written any other way (`echo "11"`) left it at 1. Measured — the mutant survived. The
+#    generic count moves 2 -> 3 for ANY added emission regardless of how it is spelled.
+_n_emit="$(awk '/^use_case_for_work\(\)/,/^}/' "$BIN" | grep -c 'echo ')"
+_n_dispatch="$(grep -c 'echo "DISPATCH' "$BIN")"
+[ "$_n_accept"   -eq 1 ] || fail "valid_work has $_n_accept accepting paths, expected 1 — a second one accepts works --list-works never declares"
+[ "$_n_emit"     -eq 2 ] || fail "use_case_for_work has $_n_emit echo statements, expected 2 (the lookup hit + the empty miss) — a third is an emitting path --list-bridge never declares"
+[ "$_n_dispatch" -eq 2 ] || fail "decide() has $_n_dispatch DISPATCH exits, expected 2 (transcribed + bridge) — a third bypasses Table B entirely"
 # self-check: this pin must be capable of failing (same discipline as golden()'s probe).
 _gs_before=$fails; golden_st docs 'recipe-99|nonsense:§0.0' 2>/dev/null
 [ "$fails" -gt "$_gs_before" ] || fail "golden_st() is inert — it cannot detect drift"
@@ -297,7 +323,7 @@ done
 # FALSE-PASS GENERATOR that measures the `sed`, not the suite (learned the hard way: the
 # first mutation run here reported CAUGHT for a mutant that was never applied).
 _mut_dir="$(mktemp -d)"; _mut="$_mut_dir/lens-dispatch"
-sed 's/refactor)         echo "11"/refactor)         echo "15"/' "$BIN" > "$_mut"
+sed 's/refactor:11/refactor:15/' "$BIN" > "$_mut"   # Table B is DATA now; re-anchored (R6)
 chmod +x "$_mut"
 if cmp -s "$BIN" "$_mut"; then
   fail "bridge-guard proof is INERT — the mutant never applied (sed did not match)"
