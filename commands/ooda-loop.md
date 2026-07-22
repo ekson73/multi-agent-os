@@ -34,6 +34,16 @@ The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.sch
 DoD (Prisma value-tree -> `bin/render_dod_as_prompt.py` -> validator-gated `dod-as-prompt`), then STOP.
 No DECIDE, no ACT. It is a MODE of `ooda-loop`, not a separate skill.
 
+**ORIENT-b (`system-as-prompt`)** — after the DoD, `ooda-loop` invokes **Hodos**
+(`skills/derive-system-from-goal`) to derive the *vehicle*: the smallest recurring system that
+conducts to the goal (implementation-intention trigger→action + cadence + signal + revision guard).
+Per the law "meta sem sistema é intenção sem ação" (akasha `[C22]`; fire-point = `anti-theater`
+Layer-5 **R9**).
+
+⚠️ **GOAL-SHAPE first**: a one-shot/bounded goal exits with `system-as-prompt = N/A` — *a plan IS
+its system*. The DECIDE gate therefore validates **all APPLICABLE envelopes**, not a fixed three:
+`{goal, dod}` suffices for a bounded goal, so a typo-fix never blocks on a missing third envelope.
+
 Sibling routing: use `auto-pilot` when the goal is EXPLICIT and you only need decompose+delegate;
 use `gap-loop`/`quiesce` directly when you ALREADY have a typed goal + DoD; use `ooda-loop` when the
 goal is UNSTATED and you want the FULL recover->measure->converge contract in one move. `--driver=auto`
@@ -53,5 +63,6 @@ picks `quiesce` on a host with `/goal` + session scope, else the harness-agnosti
 
 - `skills/ooda-loop/SKILL.md` — full skill logic
 - `skills/ooda-loop/bin/render_dod_as_prompt.py` — the deterministic Orient projection (Prisma spec -> validator-gated dod-as-prompt; the `--only=orient`/dod-recovery renderer)
-- `skills/goal-recovery/SKILL.md` — the Observe step · `skills/decompose-abstract-to-measurable/SKILL.md` (Prisma) — the Orient step
+- `skills/goal-recovery/SKILL.md` — the Observe step · `skills/decompose-abstract-to-measurable/SKILL.md` (Prisma) — the Orient-a step
+- `skills/derive-system-from-goal/SKILL.md` (Hodos) — the **Orient-b** step (`system-as-prompt`; N/A for a bounded goal)
 - `commands/gap-loop.md` / `commands/quiesce.md` — the Act drivers
