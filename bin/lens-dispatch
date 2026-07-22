@@ -274,12 +274,22 @@ is_protected_work_use_case() { case "$1" in 15|16|17|18) return 0 ;; *) return 1
 # Closed vocabulary. Extend deliberately — an open set is how a typo becomes a silent
 # no-op on a safety gate.
 valid_signals() { # $1=signals-csv -> 0 if every token is known (empty csv is valid)
-  local csv tok
+  local csv rest tok
   csv="$(norm "$1" | sed 's/[[:space:]]*,[[:space:]]*/,/g')"
   [ -z "$csv" ] && return 0
-  local IFS=,
-  for tok in $csv; do
-    [ -z "$tok" ] && continue          # tolerate a trailing/duplicated comma
+  # ⚠️ Split on comma WITHOUT `for tok in $csv` — an unquoted expansion GLOBS. Red-team H6
+  #    (2026-07-22, coderabbit PR #279, reproduced): with a decoy file named after a signal
+  #    in the CWD, `--signals '*'` word-split to the token `*`, which then pathname-expanded
+  #    to that filename and PASSED validation → fail-OPEN, DISPATCH instead of INCONCLUSIVE.
+  #    `IFS=,` controls only the word-split; it does nothing to the glob step. A parameter-
+  #    expansion walk never expands pathnames — the token is read literally, never re-globbed.
+  #    This is the recurring class: N6 hardened the vocabulary CHECK; the token EXTRACTION
+  #    was where the property had to hold.
+  rest="$csv"
+  while [ -n "$rest" ]; do
+    tok="${rest%%,*}"                              # head token up to the first comma
+    case "$rest" in *,*) rest="${rest#*,}" ;; *) rest="" ;; esac
+    [ -z "$tok" ] && continue                      # tolerate a trailing/duplicated comma
     case "$tok" in
       complex-reasoning|security|irreversible|untrusted-input|cross-org|time-critical) ;;
       *) return 1 ;;

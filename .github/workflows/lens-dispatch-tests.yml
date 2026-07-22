@@ -28,6 +28,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Cancel a superseded run when new commits land on the same PR/branch — no point burning a
+  # full ~53s suite on a commit a newer push already obsoleted (coderabbit PR #279).
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lens-dispatch:
     name: self-test + 44-combination matrix + Layer Purity
@@ -41,6 +47,10 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 1
+          # Don't persist the checkout token in .git/config — this job only reads the tree and
+          # runs shell tests; it never pushes. OpenSSF Scorecard's dangling-credential check
+          # flags a persisted token (why the Scorecard run was NEUTRAL) (coderabbit PR #279).
+          persist-credentials: false
 
       - name: Assert jq is present
         # The golden pin parses JSON. Without jq the matrix would silently degrade to
@@ -55,3 +65,9 @@ jobs:
 
       - name: Layer Purity (community promotion gate)
         run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
+
+      - name: Validate plugin structure (repo MUST rule)
+        # CLAUDE.md § MUST: "Validate plugin structure before committing." lens-dispatch adds a
+        # bin/ tool + a skill; this asserts the manifest + skill/agent/command frontmatter still
+        # pass the repo's own structural validator (coderabbit PR #279).
+        run: bash tests/validate-plugin.sh

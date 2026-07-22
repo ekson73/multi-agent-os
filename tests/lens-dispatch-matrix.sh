@@ -397,7 +397,7 @@ done
 # newline the substitution ate). Strictly stronger: same file, now every on-disk byte.
 if command -v shasum >/dev/null 2>&1; then _path_hash="$(shasum -a 256 "$BIN" | cut -d' ' -f1)"
 else                                       _path_hash="$(sha256sum   "$BIN" | cut -d' ' -f1)"; fi
-_PATH_PIN='504414b10a0150cb4a142e10919d92c0823aa54a59ee0de9e29a98d708ee7053'
+_PATH_PIN='803a254aa825a06d8fba55375da0ff46616f814040f29b3c964487268a00b3f1'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).
@@ -570,6 +570,33 @@ esac
   || fail "--format text must still be accepted (validation over-tightened)"
 # meta-check: prove these can fire, so they cannot rot into always-true string matches
 case "$_help" in *"this-string-is-absent-on-purpose"*) fail "help-drift detector is inert" ;; esac
+
+# ---------------------------------------------------------------------------
+# 4e. SIGNALS VALIDATION — glob-injection must fail CLOSED (red-team H6, coderabbit PR #279).
+#
+# THE BUG (reproduced, fail-OPEN): valid_signals split its CSV with `for tok in $csv`. An
+# unquoted expansion word-splits THEN pathname-expands; `IFS=,` governs only the split. So
+# with a decoy file named after a signal in the CWD, `--signals '*'` glob-expanded to that
+# filename, PASSED the vocabulary check, and DISPATCHed instead of failing closed. N6 had
+# hardened the vocabulary CHECK; the token EXTRACTION was where the property had to hold —
+# the recurring class (the correction applied where the finding showed, not where it holds).
+#
+# This guard is LOAD-BEARING BY CONSTRUCTION: it MANUFACTURES the exact condition the bug
+# needs — a signal-named decoy in the CWD — so a regression to `for tok in $csv` makes '*'
+# glob-expand to valid signals and DISPATCH (exit 0), tripping the `= 4` assertion wherever
+# CI runs. The valid-input counter-assertion additionally rules out a reject-all over-fix.
+# (The one-time load-bearing proof against the PRE-fix bin is recorded in the PR, NOT here —
+# a git-HEAD self-check would invert the moment the fix is committed and fire false failures.)
+# ---------------------------------------------------------------------------
+_sig_rc() { # $1=signals -> exit code of a run FROM a decoy sandbox (no masking pipe)
+  local _s="$1" _sb _rc
+  _sb="$(mktemp -d)"; : > "$_sb/security"; : > "$_sb/complex-reasoning"; : > "$_sb/irreversible"
+  ( cd "$_sb" && "$BIN" --node-kind ticket --use-case 1 --signals "$_s" >/dev/null 2>&1 ); _rc=$?
+  rm -rf "$_sb"; printf '%s' "$_rc"
+}
+[ "$(_sig_rc '*')"        = 4 ] || fail "glob-injection OPEN: --signals '*' from a decoy dir did not fail closed (expected INCONCLUSIVE exit 4)"
+[ "$(_sig_rc 'sec*')"     = 4 ] || fail "partial-glob token 'sec*' not rejected (expected INCONCLUSIVE exit 4)"
+[ "$(_sig_rc 'security')" = 0 ] || fail "signals guard over-rejects: a valid token must still DISPATCH from a dir containing files"
 
 # ---------------------------------------------------------------------------
 # 5. Determinism — the whole premise of computing the verdict outside the model.

@@ -130,6 +130,21 @@ ledger under `set -euo pipefail`, a DISPATCH still exits `0` with `confidence: H
 `.github/workflows/lens-dispatch-tests.yml` asserts `jq --version` so the richer path is
 exercised in CI, but the dispatcher itself runs without it.
 
+## Trigger Phrases
+
+Natural-language cues that should make an agent REACH FOR this tool (rather than pick a lens
+by vibe). The tool itself is invoked deterministically — via the CLI above, or the planned
+A3 fire-points (`preflight` R0.c · `ooda-loop` Orient · `auto-best-fit-router` · `agent-select`):
+
+- "which mind / lens / mindset for this <ticket|task|PR|decision|node>?"
+- "what cognitive mode should I embody here?"
+- "should I apply a persona to this, or none?" · "pick the lens-stack for this node"
+- "cognitive routing" · "dispatch the lens" · "lens for this work-graph node"
+- (Orient step of an OODA loop — choosing the lens *is* the Orient act)
+
+⚠️ The honest answer is often **NULL_PROFILE** (embody no lens — today's default) or
+**INCONCLUSIVE** (fail-safe); a trigger phrase does not guarantee a DISPATCH.
+
 ## Verdict logic (deterministic, ordered)
 
 1. missing/invalid input → `INCONCLUSIVE` (fail-safe) — incl. an **unknown `--signals` token**
@@ -521,3 +536,12 @@ bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/len
 
 The assertion count is deliberately **not** written here: quoting it would re-create the
 `"21/21 PASS"` defect one file over — a number that drifts silently from what runs.
+
+---
+
+*Signed: `Claude-Dev-2d0e-lens-dispatch` (Claude Opus 4.8, session `2d0e0cdf`) | 2026-07-22 — per
+CLAUDE.md § MUST ("Sign documents with agent ID and timestamp", ISO 8601). Agent-authored; **not**
+human-signed. Independent adversarial red-team: 9 rounds (H6/Elenchus, verifier ≠ author). The
+`bin/lens-dispatch` glob-injection fix (coderabbit PR #279) re-opens the H6-cleared artifact →
+wants independent re-verification; the merge is the pending operator gate (R2: adds a
+`.github/workflows/` file).*
