@@ -1,0 +1,353 @@
+#!/usr/bin/env bash
+# MAOS — lens-dispatch · deterministic cognitive-lens dispatcher (per work-graph node)
+# Function: emit a BINDING verdict for WHICH cognitive lens-stack (persona/mind-set
+#   recipe) an agent must embody for a given node of the work graph — or, explicitly,
+#   NO lens. Sibling of `convergence-guard`: the verdict is computed OUTSIDE the model
+#   so the agent does not pick its own lens by vibe.
+#
+# Third orthogonal axis of the existing family:
+#   response-compression -> WHAT is said (verbosity)
+#   slm-routing          -> WHERE it is sent (compute target)
+#   lens-dispatch        -> HOW it is thought (cognitive lens)     <- this
+#
+# ⚠️ EPISTEMIC HONESTY (the reason this file exists in this shape):
+#   NO recipe in the catalog has a measured efficacy result. The catalog's own
+#   "evidence" records prove a recipe was APPLIED and a PR MERGED — never that the
+#   lens improved an outcome (no control, no counterfactual; `autonomy_score` is an
+#   agent self-report, not a quality measure). Therefore:
+#     * `confidence` is NEVER hardcoded here. It is COMPUTED from the dogfood ledger
+#       (`dogfood-tally`), so this tool structurally cannot lie about its own status.
+#     * With 0 ratified recipe-cycles in the ledger, EVERYTHING returns HYPOTHESIS.
+#     * `provenance` distinguishes a TRANSCRIBED mapping (verifiable against the
+#       catalog §13.5 text) from a BRIDGE mapping (authored 2026-07-22 as an explicit
+#       hypothesis, operator-authorized to run-and-measure — NOT a validated fact).
+#   A deterministic script guarantees the output is REPRODUCIBLE. It does not
+#   guarantee the output is CORRECT. Do not confuse the two.
+#
+# Verdicts: DISPATCH (embody this lens-stack) · NULL_PROFILE (embody NO lens — a
+#   first-class correct answer) · INCONCLUSIVE (fail-safe; ambiguous/missing input).
+#   NULL_PROFILE and INCONCLUSIVE are BOTH the status-quo behaviour (agent with no
+#   lens) => this tool has a NON-REGRESSION FLOOR by construction: it can only add a
+#   lens where a mapping exists, never remove capability.
+#
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only; no associative arrays,
+#   no ${var^^}. No organization-specific content — promotion-eligible per Layer Purity.
+# Exit codes ([C06]): 0 DISPATCH · 3 NULL_PROFILE · 4 INCONCLUSIVE · 1 usage · 2 self-test-fail.
+set -euo pipefail
+
+NODE_KIND=""; SESSION_TYPE=""; USE_CASE=""; STAKES="medium"; SIGNALS=""; FORMAT="json"
+BRIDGE_AUTHORED="2026-07-22"
+
+usage() {
+  cat <<EOF
+MAOS lens-dispatch — deterministic BINDING verdict: which cognitive lens-stack (if any).
+
+Usage:
+  $(basename "$0") --node-kind <kind> [--use-case N | --session-type <mode>x<work>] [options]
+  $(basename "$0") --self-test
+
+Required:
+  --node-kind <kind>      ticket | task | step | decision | pr | session
+
+Resolution input (at least one; --use-case wins — it is the TRANSCRIBED path):
+  --use-case <1..33>      catalog §13.5 use-case number (provenance: transcribed)
+  --session-type <m>x<w>  mode x work, e.g. fresh×feat / continuation×gap
+                          (provenance: bridge-hypothesis — authored $BRIDGE_AUTHORED)
+
+Options:
+  --stakes <level>        trivial | low | medium | high        (default: medium)
+  --signals <csv>         e.g. complex-reasoning,security,irreversible
+  --format json|text      (default: json)
+  --self-test             built-in assertion suite (deterministic oracle for THIS script)
+  --help
+
+Verdict logic (deterministic, ordered):
+  1. missing/invalid inputs                      -> INCONCLUSIVE (fail-safe)
+  2. complex-reasoning signal OR work=debug      -> NULL_PROFILE  (degradation guard)
+  3. --use-case resolves in §13.5                -> DISPATCH      (provenance: transcribed)
+  4. --session-type resolves in the bridge       -> DISPATCH      (provenance: bridge-hypothesis)
+  5. otherwise                                   -> NULL_PROFILE  (no mapping; status quo)
+
+confidence is COMPUTED from the dogfood ledger, never hardcoded:
+  ratified complete cycles >= gate(2) -> VALIDATED ; else HYPOTHESIS.
+EOF
+}
+
+norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+
+# --- Recipe lens-stacks (TRANSCRIBED verbatim from catalog §13 recipe table) ---------
+# Format kept flat (POSIX bash 3.2: no associative arrays).
+lens_stack_for() {
+  case "$1" in
+    recipe-01) echo "tome:§1.12,critical:§1.1,devils-advocate:§1.13,conservative:§1.9" ;;
+    recipe-02) echo "architect:§9.13,conservative:§1.9,fowler:§5.22,systems-thinker:§2.9" ;;
+    recipe-03) echo "devsecops:§9.8,suspicious:§1.3,pentester:§9.26,anubis-judgment:§7.17" ;;
+    recipe-04) echo "tech-lead:§9.35,ux:§9.44,secops:§9.25,privacy:§9.29,qa:§9.22,critic:§4.16" ;;
+    recipe-07) echo "user-advocate:§9.44,engineering-centric:§9.1,business-centric:§11.1" ;;
+    recipe-08) echo "first-principles:§1.21,pattern-matcher:§2.8,adversarial-redteam:§4.15" ;;
+    recipe-09) echo "critical:§1.1,systemic:§1.6,skeptical-tome:§1.12" ;;
+    recipe-12) echo "buffett-value:§5.15,munger-models:§5.16,long-term:§1.31" ;;
+    recipe-13) echo "crisis-operator:§6.28,calm-command:§6.15,sre:§9.9" ;;
+    recipe-14) echo "founder-vision:§5.1,moonshot:§5.2,creator:§4.12,visionary:§4.33" ;;
+    recipe-15) echo "dpo:§9.29,auditor:§10.10,compliance:§9.28,anubis-judgment:§7.17" ;;
+    # Composed stacks (§13.5 rows that compose from §1-§12 rather than naming a recipe)
+    uc-15)     echo "investigator:§10.9,first-principles:§1.21,systemic:§1.6" ;;
+    uc-23)     echo "editor:§10.29,researcher:§10.27,patient:§3.14" ;;
+    uc-30)     echo "tdd-beck:§5.24,qa-engineer:§9.22,methodical:§1.17" ;;
+    uc-32)     echo "critic-shadow:§4.16,devils-advocate:§1.13,patient:§3.14,honest:§3.26" ;;
+    *)         echo "" ;;
+  esac
+}
+
+# --- TABLE A: use-case -> recipe (TRANSCRIBED from §13.5; verifiable against the doc) --
+# Only rows whose mapping is unambiguous in the catalog text are transcribed.
+recipe_for_use_case() {
+  case "$1" in
+    1|4)    echo "recipe-01" ;;   # §13.5.A decision-making (pre-decision audit)
+    5)      echo "recipe-01" ;;
+    6)      echo "recipe-04" ;;   # §13.5.B PR multi-persona review (high-stakes)
+    11)     echo "recipe-02" ;;   # §13.5.C new service architecture
+    18)     echo "recipe-08" ;;   # §13.5.D unknown error / no precedent
+    19)     echo "recipe-03" ;;   # §13.5.E security audit
+    21)     echo "recipe-15" ;;   # §13.5.E data-protection / privacy-regime compliance
+    27)     echo "recipe-14" ;;   # §13.5.G strategic roadmap
+    28)     echo "recipe-12" ;;   # §13.5.G long-horizon valuation
+    29)     echo "recipe-07" ;;   # §13.5.G stakeholder alignment
+    33)     echo "recipe-04" ;;   # §13.5.H meta-validation (6-stage board)
+    15|16|17) echo "uc-15" ;;     # §13.5.D composed investigation stack
+    23|24|25|26) echo "uc-23" ;;  # §13.5.F documentation composed stack
+    30)     echo "uc-30" ;;       # §13.5.H test strategy
+    32)     echo "uc-32" ;;       # §13.5.H conflict / dissent
+    *)      echo "" ;;            # rows w/o an unambiguous transcription -> no mapping
+  esac
+}
+
+# --- TABLE B: work-axis -> use-case (BRIDGE — authored 2026-07-22, HYPOTHESIS) ---------
+# ⚠️ This table is NOT in any source document. It is an explicit hypothesis, authorized
+#    by the operator to run-and-measure. Every DISPATCH resolved through it carries
+#    provenance=bridge-hypothesis so no downstream reader mistakes it for a fact.
+use_case_for_work() {
+  case "$1" in
+    feat|enhance|gap) echo "1"  ;;   # hypothesis: new/changed scope => pre-decision audit
+    fix)              echo "15" ;;   # hypothesis: defect => root-cause investigation stack
+    refactor)         echo "11" ;;   # hypothesis: restructure => architecture review
+    harmonize)        echo "32" ;;   # hypothesis: drift/dedupe => conflict/dissent stack
+    docs)             echo "23" ;;   # hypothesis: docs => editorial stack
+    test)             echo "30" ;;   # hypothesis: tests => test-strategy stack
+    hotfix)           echo ""   ;;   # deliberately unmapped: urgency => no lens overhead
+    chore)            echo ""   ;;   # deliberately unmapped: low value
+    *)                echo ""   ;;
+  esac
+}
+
+valid_node_kind() {
+  case "$1" in ticket|task|step|decision|pr|session) return 0 ;; *) return 1 ;; esac
+}
+valid_stakes() {
+  case "$1" in trivial|low|medium|high) return 0 ;; *) return 1 ;; esac
+}
+valid_work() {
+  case "$1" in feat|enhance|fix|hotfix|debug|gap|refactor|harmonize|chore|docs|test) return 0 ;; *) return 1 ;; esac
+}
+valid_mode() {
+  case "$1" in continuation|fresh|debate|converge) return 0 ;; *) return 1 ;; esac
+}
+
+# Split "<mode>x<work>" on either ASCII 'x' or the '×' multiplication sign.
+split_session_type() { # $1=session_type $2=field(mode|work)
+  local s; s="$(printf '%s' "$1" | sed 's/×/x/g')"
+  case "$2" in
+    mode) printf '%s' "${s%%x*}" ;;
+    work) printf '%s' "${s#*x}" ;;
+  esac
+}
+
+has_signal() { # $1=signals-csv $2=needle
+  printf ',%s,' "$(norm "$1")" | command grep -q ",$2,"
+}
+
+# confidence is COMPUTED from the ledger — never asserted by this script.
+# Returns "VALIDATED|<n>" or "HYPOTHESIS|<n>"; degrades safely to HYPOTHESIS|0.
+confidence_for() { # $1=recipe_id
+  local n=0 tally
+  tally="$(dirname "$0")/dogfood-tally"
+  if [ -n "$1" ] && [ -x "$tally" ] && command -v jq >/dev/null 2>&1; then
+    n="$("$tally" "$1" --json 2>/dev/null | jq -r '(.[]?|select(.tool==$t)|.complete)//0' --arg t "$1" 2>/dev/null | head -1)"
+    case "$n" in ''|*[!0-9]*) n=0 ;; esac
+  fi
+  if [ "$n" -ge 2 ]; then echo "VALIDATED|$n"; else echo "HYPOTHESIS|$n"; fi
+}
+
+# Pure verdict function (no I/O) — used by both main path and --self-test.
+# Echoes "VERDICT|reason|recipe_id|provenance"; callers split on '|'.
+decide() { # $1=node_kind $2=session_type $3=use_case $4=stakes $5=signals
+  local nk st uc sk sg mode work resolved_uc recipe
+  nk="$(norm "$1")"; st="$(norm "$2")"; uc="$(norm "$3")"; sk="$(norm "$4")"; sg="$(norm "$5")"
+
+  [ -z "$nk" ] && { echo "INCONCLUSIVE|missing-node-kind||"; return; }
+  valid_node_kind "$nk" || { echo "INCONCLUSIVE|invalid-node-kind||"; return; }
+  valid_stakes "$sk"    || { echo "INCONCLUSIVE|invalid-stakes||"; return; }
+  [ -z "$st" ] && [ -z "$uc" ] && { echo "INCONCLUSIVE|no-resolution-input||"; return; }
+
+  if [ -n "$st" ]; then
+    mode="$(split_session_type "$st" mode)"; work="$(split_session_type "$st" work)"
+    valid_mode "$mode" || { echo "INCONCLUSIVE|invalid-session-mode||"; return; }
+    valid_work "$work" || { echo "INCONCLUSIVE|invalid-session-work||"; return; }
+  fi
+
+  # Degradation guard (conservative: withholding a lens = status quo, so this guard is
+  # safe even if its motivating citation is wrong — it can only decline, never harm).
+  if has_signal "$sg" "complex-reasoning" || [ "${work:-}" = "debug" ]; then
+    echo "NULL_PROFILE|complex-reasoning-degradation-guard||"; return
+  fi
+
+  # Path 1 — TRANSCRIBED (explicit use-case wins; verifiable against §13.5).
+  if [ -n "$uc" ]; then
+    case "$uc" in *[!0-9]*) echo "INCONCLUSIVE|invalid-use-case||"; return ;; esac
+    if [ "$uc" -lt 1 ] || [ "$uc" -gt 33 ]; then echo "INCONCLUSIVE|use-case-out-of-range||"; return; fi
+    recipe="$(recipe_for_use_case "$uc")"
+    if [ -n "$recipe" ]; then echo "DISPATCH|resolved-use-case|$recipe|transcribed"; return; fi
+    echo "NULL_PROFILE|use-case-has-no-transcribed-mapping||"; return
+  fi
+
+  # Path 2 — BRIDGE (hypothesis; only reachable when no use-case was supplied).
+  resolved_uc="$(use_case_for_work "$work")"
+  if [ -z "$resolved_uc" ]; then echo "NULL_PROFILE|no-bridge-mapping-for-work||"; return; fi
+  recipe="$(recipe_for_use_case "$resolved_uc")"
+  if [ -z "$recipe" ]; then echo "NULL_PROFILE|bridge-target-has-no-mapping||"; return; fi
+  echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"
+}
+
+# Harness mode per catalog §13.6.4: high stakes => robust (3 cases, >=2 pass), else light.
+mode_for_stakes() { case "$1" in high) echo "robust" ;; *) echo "light" ;; esac; }
+
+action_for() {
+  case "$1" in
+    missing-node-kind|no-resolution-input)      echo "supply --node-kind and (--use-case or --session-type)";;
+    invalid-node-kind)                          echo "use --node-kind ticket|task|step|decision|pr|session";;
+    invalid-stakes)                             echo "use --stakes trivial|low|medium|high";;
+    invalid-session-mode)                       echo "mode must be continuation|fresh|debate|converge";;
+    invalid-session-work)                       echo "work must be one of the 11 canonical work values";;
+    invalid-use-case|use-case-out-of-range)     echo "--use-case must be an integer 1..33";;
+    complex-reasoning-degradation-guard)        echo "operate WITHOUT a lens; persona-steering is withheld here by design";;
+    resolved-use-case)                          echo "embody the lens_stack; emit the 3-output (resumo/decisao/pendencia) per §13.6.3";;
+    resolved-bridge)                            echo "embody the lens_stack, BUT log the cycle — this mapping is an unvalidated hypothesis";;
+    use-case-has-no-transcribed-mapping|no-bridge-mapping-for-work|bridge-target-has-no-mapping)
+                                                echo "operate WITHOUT a lens (status quo); no verified mapping exists";;
+    *)                                          echo "review inputs";;
+  esac
+}
+
+emit() { # $1=verdict $2=reason $3=recipe $4=provenance $5=stakes
+  local verdict="$1" reason="$2" recipe="$3" prov="$4" stakes="$5"
+  local stack conf conf_label cycles hmode
+  stack="$(lens_stack_for "$recipe")"
+  conf="$(confidence_for "$recipe")"; conf_label="${conf%%|*}"; cycles="${conf#*|}"
+  hmode="$(mode_for_stakes "$stakes")"
+  [ "$verdict" = "DISPATCH" ] || { recipe=""; stack=""; prov=""; conf_label=""; }
+
+  if [ "$FORMAT" = "text" ]; then
+    printf '%s\t%s\t%s\t%s\t%s\n' "$verdict" "$reason" "${recipe:--}" "${prov:--}" "${conf_label:--}"
+  elif command -v jq >/dev/null 2>&1; then
+    jq -nc \
+      --arg v "$verdict" --arg r "$reason" --arg rc "$recipe" --arg p "$prov" \
+      --arg c "$conf_label" --arg n "$cycles" --arg s "$stack" --arg m "$hmode" \
+      --arg a "$(action_for "$reason")" --arg ba "$BRIDGE_AUTHORED" \
+      '{verdict:$v, reason:$r,
+        recipe_id:(if $rc=="" then null else $rc end),
+        lens_stack:(if $s=="" then [] else ($s|split(",")|map({entry:(split(":")[0]), ref:(split(":")[1])})) end),
+        provenance:(if $p=="" then null else $p end),
+        confidence:(if $c=="" then null else $c end),
+        ratified_cycles:($n|tonumber),
+        bridge_authored:(if $p=="bridge-hypothesis" then $ba else null end),
+        harness_mode:$m,
+        expected_3_output:{resumo:null, decisao:null, pendencia:null},
+        recommended_action:$a}'
+  else
+    printf '{"verdict":"%s","reason":"%s","recipe_id":"%s","provenance":"%s","confidence":"%s"}\n' \
+      "$verdict" "$reason" "$recipe" "$prov" "$conf_label"
+  fi
+  case "$verdict" in
+    DISPATCH)     exit 0 ;;
+    NULL_PROFILE) exit 3 ;;
+    *)            exit 4 ;;
+  esac
+}
+
+self_test() {
+  local fails=0 got
+  assert() { # $1=want_verdict $2=want_reason $3..=decide-args
+    local wv="$1" wr="$2"; shift 2
+    got="$(decide "$@")"
+    case "$got" in
+      "$wv|$wr"|"$wv|$wr|"*) : ;;
+      *) echo "FAIL: decide($*) => '$got' (wanted '$wv|$wr')" >&2; fails=$((fails+1)) ;;
+    esac
+  }
+  # --- fail-safe (INCONCLUSIVE) ---
+  assert INCONCLUSIVE missing-node-kind        ""      "fresh×feat" "" "medium" ""
+  assert INCONCLUSIVE invalid-node-kind        "blob"  "fresh×feat" "" "medium" ""
+  assert INCONCLUSIVE invalid-stakes           "pr"    "fresh×feat" "" "urgent" ""
+  assert INCONCLUSIVE no-resolution-input      "pr"    ""           "" "medium" ""
+  assert INCONCLUSIVE invalid-session-mode     "pr"    "wat×feat"   "" "medium" ""
+  assert INCONCLUSIVE invalid-session-work     "pr"    "fresh×wat"  "" "medium" ""
+  assert INCONCLUSIVE invalid-use-case         "pr"    ""           "six" "medium" ""
+  assert INCONCLUSIVE use-case-out-of-range    "pr"    ""           "99" "medium" ""
+  # --- degradation guard (NULL_PROFILE) — the arXiv-motivated conservative withhold ---
+  assert NULL_PROFILE complex-reasoning-degradation-guard "task" "fresh×debug" ""  "medium" ""
+  assert NULL_PROFILE complex-reasoning-degradation-guard "task" "fresh×feat"  ""  "medium" "complex-reasoning"
+  # guard must WIN over an explicit use-case (safety beats resolution)
+  assert NULL_PROFILE complex-reasoning-degradation-guard "pr"   "fresh×debug" "6" "high"   ""
+  # --- transcribed path (DISPATCH) ---
+  assert DISPATCH resolved-use-case "pr"      ""           "6"  "high"   ""
+  assert DISPATCH resolved-use-case "decision" ""          "1"  "medium" ""
+  # --- bridge path (DISPATCH, hypothesis) ---
+  assert DISPATCH resolved-bridge   "task"    "fresh×feat" ""   "medium" ""
+  assert DISPATCH resolved-bridge   "task"    "fresh×fix"  ""   "medium" ""
+  # --- non-regression floor: unmapped inputs fall back to status quo, never to a guess ---
+  assert NULL_PROFILE no-bridge-mapping-for-work "task" "fresh×chore"  "" "medium" ""
+  assert NULL_PROFILE no-bridge-mapping-for-work "task" "fresh×hotfix" "" "high"   ""
+  assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""    "8" "medium" ""
+  # --- use-case WINS over session-type (transcribed beats hypothesis) ---
+  got="$(decide "pr" "fresh×chore" "6" "high" "")"
+  case "$got" in DISPATCH\|resolved-use-case\|recipe-04\|transcribed) : ;;
+    *) echo "FAIL: use-case must win over session-type => '$got'" >&2; fails=$((fails+1)) ;; esac
+  # --- determinism: same input, same output, 3 runs ---
+  local d1 d2 d3
+  d1="$(decide "pr" "fresh×feat" "6" "high" "")"
+  d2="$(decide "pr" "fresh×feat" "6" "high" "")"
+  d3="$(decide "pr" "fresh×feat" "6" "high" "")"
+  if [ "$d1" != "$d2" ] || [ "$d2" != "$d3" ]; then
+    echo "FAIL: non-deterministic output" >&2; fails=$((fails+1))
+  fi
+  # --- provenance is never silently empty on a DISPATCH ---
+  case "$(decide "task" "fresh×feat" "" "medium" "")" in
+    *\|bridge-hypothesis) : ;;
+    *) echo "FAIL: bridge DISPATCH must carry provenance=bridge-hypothesis" >&2; fails=$((fails+1)) ;;
+  esac
+
+  if [ "$fails" -eq 0 ]; then echo "lens-dispatch self-test: 21/21 PASS"; exit 0
+  else echo "lens-dispatch self-test: $fails FAIL" >&2; exit 2; fi
+}
+
+need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --node-kind)    need_val --node-kind "$#";    NODE_KIND="$2"; shift 2;;
+    --session-type) need_val --session-type "$#"; SESSION_TYPE="$2"; shift 2;;
+    --use-case)     need_val --use-case "$#";     USE_CASE="$2"; shift 2;;
+    --stakes)       need_val --stakes "$#";       STAKES="$2"; shift 2;;
+    --signals)      need_val --signals "$#";      SIGNALS="$2"; shift 2;;
+    --format)       need_val --format "$#";       FORMAT="$2"; shift 2;;
+    --self-test)    self_test;;
+    --help|-h)      usage; exit 0;;
+    *) echo "unknown arg: $1" >&2; usage >&2; exit 1;;
+  esac
+done
+
+result="$(decide "$NODE_KIND" "$SESSION_TYPE" "$USE_CASE" "$STAKES" "$SIGNALS")"
+verdict="${result%%|*}"; rest="${result#*|}"
+reason="${rest%%|*}"; rest2="${rest#*|}"
+recipe="${rest2%%|*}"; provenance="${rest2#*|}"
+emit "$verdict" "$reason" "$recipe" "$provenance" "$(norm "$STAKES")"
