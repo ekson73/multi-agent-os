@@ -23,7 +23,7 @@ Each candidate archetype is scored against **five measurable leaves** (per the i
 | L2 | **democratic-eligible** | Deliberative / dispersed-power / accountable. Rejects dictatorial · monarchy · absolute-power · hereditary-authority (the operator's exclusion; and personas are behavior-lenses, never appeals-to-authority). |
 | L3 | **non-toxic** | Does NOT concentrate power, enable capture/collusion, or weaken a guardrail (⛔ deny-set / Layer-1). |
 | L4 | **implementable-on-existing** | Composes existing maos agents/skills, or a genuinely-thin new mechanism (native-over-custom). |
-| L5 | **autonomy-positive** | Raises the safe auto-authorization band **OR** strengthens the fail-safe, without eroding the boundary (measurable via the observability protocol: safe-auto-authorize-rate ↑ while authorize-then-regret held at 0). |
+| L5 | **autonomy-positive** | Raises the safe auto-authorization band **OR** strengthens the fail-safe, without eroding the boundary. **Two passing forms** (mirroring L1's, and the verdict rule below distinguishes them): **(a) measured** — carries its own observability SLI: `safe-auto-authorize-rate ↑` while `authorize-then-regret` held at **0**; **(b) enabling** — ships no SLI, so it must instead make a fail-safe property **checkable that was not enumerable before**. Test for (b), both conjuncts required: *(i)* the cluster/relation it names is **enumerable** (you can list its members), **and** *(ii)* a completeness check is **executable against that enumeration** (you can ask "is any member missing?" and get a determinate answer). A framing that satisfies neither is **not** L5-passing — "it feels enabling" is an assertion, not a test. |
 
 ### Verdict rule (deterministic — every verdict below is derivable from the marks, no judgment call)
 
@@ -31,12 +31,12 @@ Evaluate L1→L5 **in order**; the **first ✗ short-circuits** (remaining leave
 
 | Verdict | Rule |
 |---|---|
-| **ADOPT (mechanism)** | L1 ✓ *via form (a)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ |
-| **ADOPT (framing)** | L1 ✓ *via form (b)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ — adopted as taxonomy only; ships no machinery |
+| **ADOPT (mechanism)** | L1 ✓ *via form (a)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ *via form (a) — measured* |
+| **ADOPT (framing)** | L1 ✓ *via form (b)* ∧ L2 ✓ ∧ L3 ✓ ∧ L4 ✓ ∧ L5 ✓ *via form (b) — enabling, both conjuncts (i)+(ii) shown* — adopted as taxonomy only; ships no machinery |
 | **ALREADY-EMBODIED** | L1 ✗ *because the gate already implements it under its own name* ⇒ no new work (a confirmation, not an adoption) |
 | **REJECT** | any of L2..L5 ✗ ⇒ rejected, naming the first failing leaf |
 
-**Mark legend** (the only marks used — no undefined states): `✓` leaf passes · `✗` leaf fails · `n/e` **not evaluated** (an earlier leaf already failed and short-circuited).
+**Mark legend** (the only marks used — no undefined states): `✓` leaf passes · `✓ (a)` / `✓ (b)` leaf passes **via the named form** — used on the two leaves that define alternative passing forms (**L1** mechanism/framing, **L5** measured/enabling), so the verdict is derivable straight from the row · `✗` leaf fails · `n/e` **not evaluated** (an earlier leaf already failed and short-circuited).
 
 ## §2 — Prisma-filtered archetype catalogue
 
@@ -46,10 +46,10 @@ Applying §1 to the model space (families drawn from the academic-typology, real
 |---|:--:|:--:|:--:|:--:|:--:|---|
 | Consensual democracy (dispersed power · veto-players · coalitions; Lijphart) | ✗ | n/e | n/e | n/e | n/e | **ALREADY-EMBODIED** — this *is* the gate's convergence; no new work |
 | Ministries / portfolios (Finance · Foreign · Defense · Justice · Interior · Economy …) | ✗ | n/e | n/e | n/e | n/e | **ALREADY-EMBODIED** — this *is* the gate's seat roster; expand seats selectively (§4) |
-| **Cross-veto / dual-executive** (Roman *consul* — paired, mutual-veto, term-limited) | ✓ (a) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (mechanism)** — a 2nd independent verifier with veto on the highest-stakes cleared actions (§5.1) |
-| **Sortition / rotation** (Athenian assembly — sortition + rotativity) | ✓ (a) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (mechanism)** — rotate seats to defeat a pre-jailbroken/colluding council (§5.2) |
-| **Independent oversight authorities** (Ombudsman [SE 1809] · audit · rights-protection · intelligence-*under-democratic-oversight*) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — names the gate's existing verifier + red-team + observability + DPO as one cluster; no new machinery (§5.3) |
-| **Diplomatic / multilateral** (embassies · foreign-relations · UN-style assembly with executive council) | ✓ (b) | ✓ | ✓ | ✓ | ✓ | ✅ **ADOPT (framing)** — inter-body relations = the gate's family-wiring (§5.4) |
+| **Cross-veto / dual-executive** (Roman *consul* — paired, mutual-veto, term-limited) | ✓ (a) | ✓ | ✓ | ✓ | ✓ (a) | ✅ **ADOPT (mechanism)** — a 2nd independent verifier with veto on the highest-stakes cleared actions (§5.1) |
+| **Sortition / rotation** (Athenian assembly — sortition + rotativity) | ✓ (a) | ✓ | ✓ | ✓ | ✓ (a) | ✅ **ADOPT (mechanism)** — rotate seats to defeat a pre-jailbroken/colluding council (§5.2) |
+| **Independent oversight authorities** (Ombudsman [SE 1809] · audit · rights-protection · intelligence-*under-democratic-oversight*) | ✓ (b) | ✓ | ✓ | ✓ | ✓ (b) | ✅ **ADOPT (framing)** — names the gate's existing verifier + red-team + observability + DPO as one cluster; no new machinery (§5.3) |
+| **Diplomatic / multilateral** (embassies · foreign-relations · UN-style assembly with executive council) | ✓ (b) | ✓ | ✓ | ✓ | ✓ (b) | ✅ **ADOPT (framing)** — inter-body relations = the gate's family-wiring (§5.4) |
 | Weighted / reputation voting ("algorithmic citizenship" — votes weighted by reputation/contribution/expertise) | ✓ (a) | ✓ | ✗ | n/e | n/e | ❌ **REJECT (L3)** — weighting concentrates power + is Goodhart-gameable; flat convergence + stakes-scaled selection is safer |
 | Hive / ecosystem / network democracy (emergent-signal, habitat/node seats) | ✓ (a) | ✓ | ✓ | ✗ | n/e | ❌ **REJECT (L4)** — its L1-passing mechanism is genuinely distinct (**emergent-signal aggregation** over node/habitat seats, with *no* deliberation step — which the gate does not implement), but it would need new machinery, while the gate's *deliberative* convergence already serves the same decision purpose more auditably (YAGNI) |
 | Delegative · illiberal · strong-executive-majoritarian | ✓ (a) | ✗ | n/e | n/e | n/e | ❌ **REJECT (L2)** — concentrates power / erodes horizontal controls |
@@ -100,7 +100,14 @@ Offered to `council-gate` / *Boule* (**companion PR #255**) for incorporation �
 **The L5 leaf (`autonomy-positive`), per contribution kind** — all four pass L5, but the *strength* of the claim differs by kind, and saying so is the honest part:
 
 - **Mechanism (#1 · #2) — measurable**: they *strengthen the fail-safe*, which is precisely what lets the gate safely widen its auto-authorization band while holding **authorize-then-regret at 0** (an observability SLI, §7) — an honest autonomy gain, not theatre.
-- **Framing (#3 · #4) — enabling, not measurable**: **#3** makes the fail-safe's *completeness* auditable — a scattered, unnamed oversight set cannot be checked for holes *before* the band widens, so naming the cluster is a precondition for widening it responsibly. **#4** lets one authorization decision be *handed across* the loop family instead of each loop escalating to HITL independently — fewer independent HITL escalations for the same work. Neither carries an SLI of its own; both are recorded here as **enabling** claims so that their `L5 ✓` is *derivable from a stated rationale* rather than asserted.
+- **Framing (#3 · #4) — enabling**: neither carries an SLI of its own, so each must pass L5 **form (b)** by satisfying *both* conjuncts. Shown, not asserted:
+
+| # | *(i)* enumerable — what it names, listed | *(ii)* completeness check — the executable question |
+|---|---|---|
+| **#3** Oversight-authority taxonomy | The cluster is a closed 4-member set: `independent-verifier` · `red-team` · `observability` · `DPO`. | *"For this action, is any of the 4 absent or inactive?"* — determinate per action. A scattered, **unnamed** oversight set cannot be asked this at all; naming it is what makes the fail-safe's completeness auditable **before** the band widens. |
+| **#4** Diplomatic / family-integration | The bodies are the loop family, enumerable from the repo: `goal-loop` · `gap-loop` · `ooda-loop` · `quiesce` · `auto-pilot` · `enhance-pipeline`. | *"Was one authorization decision handed across the family, or did each member escalate to HITL independently?"* — countable (independent-escalation count per unit of work). |
+
+Both conjuncts hold for both, so their `L5 ✓` is **derivable from the stated test**, not from a narrative. Note the asymmetry that keeps this honest: form (b) is a *weaker* claim than form (a) — it establishes that the property became checkable, **not** that autonomy has already measurably risen. A framing may not be credited with an autonomy gain it has not yet produced.
 
 ## §6 — Rejected patterns (logged, per §1)
 
