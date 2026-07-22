@@ -188,8 +188,12 @@ lookup is the only *path* that can dispatch there (`valid_work` 1 accepting path
 `use_case_for_work` 2 echoes · `decide()` 2 DISPATCH exits), each failing closed on any added
 or reshaped path. The **transcribed** route (`--use-case`) never calls `valid_work` and is
 guarded separately by `_a`, which runs the binary over 1..33 and counts mapped rows against
-the number stated here — the one mechanism in the suite that has never been fooled, and the
-one that asks what the program *did*.
+the number stated here. It asks what the program *did* — but that alone does **not** make it
+unfoolable (R8 below refuted exactly that inference). `_a` is a **count**: it catches a row added
+to or removed from the mapped set, and is **blind to value-drift** — a mapped row whose recipe
+changes keeps the count. Measured (R9-cont ask-3): UC11 `recipe-02`→`recipe-14` was caught by
+golden-11 + the whole-file hash, **not** by `_a`. Its sound scope is count-integrity over 1..33;
+value-drift is covered elsewhere.
 
 ⚠️ **`--list-works` is not literally the accept-set** (R7, verified here). `norm()` lowercases
 and trims, so `REFACTOR` and `Refactor` dispatch too. Normalisation is total *onto* the
@@ -340,7 +344,12 @@ identity-pinned, per above). What a file hash still cannot reach is stated plain
 environment — now **only** `DOGFOOD_LEDGER_DIR` (confidence read, verdict-invariant, measured) plus
 the process context a file cannot pin (`PATH` / which-`coreutils`) — and the interpreter. *(`LC_ALL`
 was in this residual until the R9-continuation above; it is now pinned out by `export LC_ALL=C`,
-inside the hash — measured, not argued.)* I do not claim that remainder is empty. Against an adversary rather than a maintainer, nothing in a
+inside the hash — measured, not argued. Re-measured for R9′ ask-1: `fresh×HARMONİZE` with the
+Turkish dotted-İ (U+0130) under `C`, `tr_TR.UTF-8`, and `tr_TR.ISO8859-9` yields INCONCLUSIVE /
+exit 4 **identically** (measured here on BSD `tr`). The ambient-locale `tr`-fold flip is
+**structurally** eliminated on any `tr` implementation — the `export` forces `C` for every
+subprocess before `norm()` runs — but that generalization is *inferred from the forced-`C`
+mechanism, not measured on GNU `tr`/Linux here* (the DID-vs-CONTAINS split, marked honestly).)* I do not claim that remainder is empty. Against an adversary rather than a maintainer, nothing in a
 co-located suite helps — see the boundary below.
 
 **Where the boundary actually sits** — R7's reframe, adopted because it is smaller and more
@@ -367,7 +376,10 @@ essentially never by one hidden token, which is what the battery covers.
 > works while the counter still said 4 and the 5th dispatched unpinned, suite green. The
 > assertion was strictly stronger than the mechanism: this tool's recurring defect, fourth
 > iteration. A count is a proxy; the property is now asserted directly, and both counters
-> are behavioural — `_a` always was, which is why it was never foolable.
+> are behavioural — but **behavioural does not imply unfoolable** (the R8 refinement above
+refuted exactly that inference). `_a`'s soundness is *scoped*: it is a count, so it catches a
+row entering/leaving the mapped set and is blind to value-drift inside it — not an oracle that
+"was never foolable."
 
 This closes R3/F3: *every* DISPATCH the matrix exercises goes
 through this route, and until v0.4.0 **none of it was content-pinned** — a mutant
