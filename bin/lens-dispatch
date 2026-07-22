@@ -26,9 +26,20 @@
 #
 # Verdicts: DISPATCH (embody this lens-stack) · NULL_PROFILE (embody NO lens — a
 #   first-class correct answer) · INCONCLUSIVE (fail-safe; ambiguous/missing input).
-#   NULL_PROFILE and INCONCLUSIVE are BOTH the status-quo behaviour (agent with no
-#   lens) => this tool has a NON-REGRESSION FLOOR by construction: it can only add a
-#   lens where a mapping exists, never remove capability.
+#
+# ⚠️ THERE IS NO NON-REGRESSION FLOOR ON THE DISPATCH PATH. RETRACTED 2026-07-22.
+#   This header used to claim a floor "by construction" — that NULL_PROFILE and
+#   INCONCLUSIVE are the status quo, so the tool "can only add a lens, never remove
+#   capability." Two independent red-teams refuted it. The claim contradicts the very
+#   finding that motivates this tool's own degradation guard: if persona induction can
+#   IMPAIR, then a DISPATCH is a candidate capability REMOVAL. Binding says embody THIS
+#   stack, which implies not embodying others — removal by displacement. A wrong lens is
+#   worse than no lens (empirically: UC26 dispatched Editor+Researcher onto an onboarding
+#   doc whose catalog row requires UX+Empathetic+Teacher).
+#   Honest scope: the floor is REAL for the 28/44 non-DISPATCH combinations, where the
+#   verdict IS the status quo. For the 16 DISPATCH combinations there is no floor —
+#   only verified provenance and a measurable regret signal. Full retraction + the
+#   reasoning: skills/lens-dispatch/SKILL.md "The floor claim, corrected".
 #
 # Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only; no associative arrays,
 #   no ${var^^}. No organization-specific content — promotion-eligible per Layer Purity.
@@ -91,7 +102,11 @@ lens_stack_for() {
     recipe-10) echo "tech-lead:§9.35,ux:§9.44,secops:§9.25,privacy:§9.29,qa:§9.22,critic:§4.16" ;;
     recipe-12) echo "buffett-value:§5.15,munger-models:§5.16,long-term:§1.31" ;;
     recipe-13) echo "crisis-operator:§6.28,calm-command:§6.15,sre:§9.9" ;;
-    recipe-14) echo "founder-vision:§5.1,moonshot:§5.2,creator:§4.12,visionary:§4.33" ;;
+    # labels track the catalog's own entry names (§5.1 "Steve Jobs", §5.2 "Elon Musk").
+    # Was `founder-vision`/`moonshot` — right refs, INVENTED labels, on a row marked
+    # "TRANSCRIBED verbatim". Paraphrasing a source you claim to be quoting is the same
+    # defect as the fabricated rows, at token scale.
+    recipe-14) echo "jobs-simplicity:§5.1,musk-first-principles:§5.2,creator:§4.12,visionary:§4.33" ;;
     recipe-15) echo "dpo:§9.29,auditor:§10.10,compliance:§9.28,anubis-judgment:§7.17" ;;
     # Composed stacks (§13.5 rows that compose from §1-§12 rather than naming a recipe)
     uc-15)     echo "investigator:§10.9,first-principles:§1.21,systemic:§1.6" ;;
@@ -186,6 +201,34 @@ split_session_type() { # $1=session_type $2=field(mode|work)
   esac
 }
 
+# Use-cases that ARE the work the degradation guard protects. Criterion is DOCUMENTARY,
+# not judgment: catalog §13.5.D is titled "Debugging / investigation" and contains exactly
+# 15-18. Without this, the guard was bypassable by ROUTE: `--session-type fresh×debug`
+# withheld the lens while `--use-case 15` ("Bug root-cause analysis") dispatched one — the
+# identical cognitive work, different flag. Same family as the `fix`-vs-`debug` finding,
+# one layer up: a guard you can route around is not a guard.
+# Deliberately covers all four, incl. the currently-withdrawn 16/17 — so re-adding a
+# verified transcription later stays safe WITHOUT anyone remembering to update this
+# (`harmonic` L9: mechanize, do not rely on future recall).
+is_protected_work_use_case() { case "$1" in 15|16|17|18) return 0 ;; *) return 1 ;; esac; }
+
+# Closed vocabulary. Extend deliberately — an open set is how a typo becomes a silent
+# no-op on a safety gate.
+valid_signals() { # $1=signals-csv -> 0 if every token is known (empty csv is valid)
+  local csv tok
+  csv="$(norm "$1" | sed 's/[[:space:]]*,[[:space:]]*/,/g')"
+  [ -z "$csv" ] && return 0
+  local IFS=,
+  for tok in $csv; do
+    [ -z "$tok" ] && continue          # tolerate a trailing/duplicated comma
+    case "$tok" in
+      complex-reasoning|security|irreversible|untrusted-input|cross-org|time-critical) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 0
+}
+
 has_signal() { # $1=signals-csv $2=needle
   # ⚠️ Strip whitespace around EVERY comma, not just the ends of the whole string.
   #    Red-team H6 (2026-07-22): `norm` trims only the outer string, so the CSV a human
@@ -217,6 +260,15 @@ decide() { # $1=node_kind $2=session_type $3=use_case $4=stakes $5=signals
   [ -z "$nk" ] && { echo "INCONCLUSIVE|missing-node-kind||"; return; }
   valid_node_kind "$nk" || { echo "INCONCLUSIVE|invalid-node-kind||"; return; }
   valid_stakes "$sk"    || { echo "INCONCLUSIVE|invalid-stakes||"; return; }
+  # ⚠️ Validate the signal VOCABULARY, not just its whitespace (red-team H6, N6). Every
+  #    other input (node-kind, stakes, mode, work, use-case) hard-fails on an unrecognized
+  #    value; `--signals` silently no-opped. So `complex_reasoning`, `complex reasoning`,
+  #    or a `;` separator disarmed the degradation guard with NO error — the same bypass
+  #    family as the one-space case, one layer further out. A typo must never be
+  #    indistinguishable from "this signal is absent": that is a silent safety-gate
+  #    disarm. Grouped with the other input validators on purpose — validity of a value
+  #    is checked before anything reads its meaning.
+  valid_signals "$sg" || { echo "INCONCLUSIVE|unknown-signal||"; return; }
   [ -z "$st" ] && [ -z "$uc" ] && { echo "INCONCLUSIVE|no-resolution-input||"; return; }
 
   if [ -n "$st" ]; then
@@ -236,19 +288,30 @@ decide() { # $1=node_kind $2=session_type $3=use_case $4=stakes $5=signals
   # Path 1 — TRANSCRIBED (explicit use-case wins; verifiable against §13.5).
   if [ -n "$uc" ]; then
     case "$uc" in *[!0-9]*) echo "INCONCLUSIVE|invalid-use-case||"; return ;; esac
-    # ⚠️ Length-gate BEFORE any arithmetic (red-team H6): a 20-digit value made `[ N -lt 1 ]`
-    #    error with "integer expression expected" — the test returned 2, `set -e` did not
-    #    fire (test inside `if`), BOTH comparisons evaluated false, and the value sailed
-    #    PAST range validation while leaking raw bash error text into an agent's stdout.
-    case "$uc" in ??????*) echo "INCONCLUSIVE|use-case-out-of-range||"; return ;; esac
-    # ⚠️ Strip leading zeros (red-team H6): `06` passed the digit check, passed the
+    # ⚠️ Strip leading zeros FIRST (red-team H6): `06` passed the digit check, passed the
     #    NUMERIC range check, then missed the STRING `case` lookup — so the tool declared
     #    "use-case 06 has no transcribed mapping", which is FALSE (UC6 is mapped). A
     #    high-stakes PR review silently lost its lens AND the tool asserted a wrong claim
     #    about the source document. Mixed numeric/string comparison on one variable.
+    #    Order matters: the length-gate ran first in the previous fix, so `000006` still
+    #    returned "out-of-range" — the SAME false claim, relocated from 2 chars to 6.
     uc="$(printf '%s' "$uc" | sed 's/^0*//')"; [ -n "$uc" ] || uc="0"
+    # ⚠️ Length-gate BEFORE any arithmetic: a 20-digit value made `[ N -lt 1 ]` error with
+    #    "integer expression expected" — the test returned 2, `set -e` did not fire (test
+    #    inside `if`), BOTH comparisons evaluated false, and the value sailed PAST range
+    #    validation while leaking raw bash error text into an agent's stdout.
+    case "$uc" in ??????*) echo "INCONCLUSIVE|use-case-out-of-range||"; return ;; esac
     if [ "$uc" -lt 1 ] || [ "$uc" -gt 33 ]; then echo "INCONCLUSIVE|use-case-out-of-range||"; return; fi
     recipe="$(recipe_for_use_case "$uc")"
+    # ⚠️ Guard AFTER the lookup, on purpose. Withholding is not the same fact as having no
+    #    mapping, and the two must stay distinguishable: reporting "no transcribed mapping"
+    #    for UC15 would repeat the `06` defect (asserting something FALSE about the source
+    #    document). Ordering also keeps the fabricated-row withdrawal test sharp — 16/17
+    #    still answer "no transcribed mapping", so re-introducing a fabricated row there
+    #    fails loudly instead of hiding behind the guard.
+    if [ -n "$recipe" ] && is_protected_work_use_case "$uc"; then
+      echo "NULL_PROFILE|protected-work-use-case-lens-withheld||"; return
+    fi
     if [ -n "$recipe" ]; then echo "DISPATCH|resolved-use-case|$recipe|transcribed"; return; fi
     echo "NULL_PROFILE|use-case-has-no-transcribed-mapping||"; return
   fi
@@ -272,7 +335,9 @@ action_for() {
     invalid-session-mode)                       echo "mode must be continuation|fresh|debate|converge";;
     invalid-session-work)                       echo "work must be one of the 11 canonical work values";;
     invalid-use-case|use-case-out-of-range)     echo "--use-case must be an integer 1..33";;
+    unknown-signal)                             echo "--signals accepts only: complex-reasoning, security, irreversible, untrusted-input, cross-org, time-critical (comma-separated)";;
     complex-reasoning-degradation-guard)        echo "operate WITHOUT a lens; persona-steering is withheld here by design";;
+    protected-work-use-case-lens-withheld)      echo "operate WITHOUT a lens; a transcribed mapping EXISTS but this use-case is debugging/investigation work (catalog §13.5.D), where the same guard applies as for work=debug|fix";;
     resolved-use-case)                          echo "embody the lens_stack; emit the 3-output (resumo/decisao/pendencia) per §13.6.3";;
     resolved-bridge)                            echo "embody the lens_stack, BUT log the cycle — this mapping is an unvalidated hypothesis";;
     use-case-has-no-transcribed-mapping|no-bridge-mapping-for-work|bridge-target-has-no-mapping)
@@ -366,6 +431,26 @@ self_test() {
   assert NULL_PROFILE no-bridge-mapping-for-work          "task" "fresh×feat" ""   "medium" ""
   assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""           "26" "medium" ""
   assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""           "16" "medium" ""
+  # N5 — the guard is a property of the WORK, not of the flag that names it. `fresh×debug`
+  # withheld the lens while `--use-case 15` (catalog §13.5.D "Bug root-cause analysis")
+  # dispatched one: identical cognitive work, bypassable by route.
+  assert NULL_PROFILE protected-work-use-case-lens-withheld "task" ""         "15" "medium" ""
+  assert NULL_PROFILE protected-work-use-case-lens-withheld "pr"   ""         "18" "high"   ""
+  # ...but the guard must NOT mask the withdrawal of the fabricated rows (16/17): a
+  # re-introduced fabrication has to fail loudly, not hide behind a safety verdict.
+  assert NULL_PROFILE use-case-has-no-transcribed-mapping   "task" ""         "17" "medium" ""
+  # N6 — an unknown signal token must HARD-FAIL, never silently no-op. Each of these
+  # spellings used to sail through and leave the degradation guard disarmed while the
+  # tool DISPATCHED a lens, i.e. the typo was indistinguishable from "no signal given".
+  assert INCONCLUSIVE unknown-signal "pr"   ""           "6"  "high"   "complex_reasoning"
+  assert INCONCLUSIVE unknown-signal "pr"   ""           "6"  "high"   "complex reasoning"
+  assert INCONCLUSIVE unknown-signal "pr"   ""           "6"  "high"   "security;complex-reasoning"
+  assert INCONCLUSIVE unknown-signal "task" "fresh×docs" ""   "medium" "securty"
+  # ...while every documented token still resolves, and a trailing comma is tolerated
+  # (a lenient separator is not a lenient vocabulary).
+  assert DISPATCH resolved-use-case "pr" "" "6" "high" "security,irreversible"
+  assert DISPATCH resolved-use-case "pr" "" "6" "high" "untrusted-input,cross-org,time-critical"
+  assert DISPATCH resolved-use-case "pr" "" "6" "high" "security,"
   # UC33 must credit recipe-10 (catalog "Recipe #10"), NOT recipe-04 — else the ledger is
   # poisoned from cycle one: #10's cycles would promote #4 toward VALIDATED.
   asserts=$((asserts+1))

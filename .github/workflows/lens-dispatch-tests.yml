@@ -1,0 +1,54 @@
+name: lens-dispatch tests
+
+# tests/lens-dispatch-matrix.sh line 12 states: "It must run in CI or the claim must be
+# deleted." This file is that promise kept. The SKILL.md cites the matrix as proof of its
+# stated numbers; an uncited-because-unrun test is exactly the defect the red-team found in
+# v0.1.0 (a matrix that existed only as something the author ran by hand in a terminal).
+#
+# jq is required by the golden pin and the table-size counters — it ships on ubuntu-latest.
+
+on:
+  pull_request:
+    paths:
+      - "bin/lens-dispatch"
+      - "skills/lens-dispatch/**"
+      - "tests/lens-dispatch-matrix.sh"
+      - ".github/workflows/lens-dispatch-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "bin/lens-dispatch"
+      - "skills/lens-dispatch/**"
+      - "tests/lens-dispatch-matrix.sh"
+      - ".github/workflows/lens-dispatch-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lens-dispatch:
+    name: self-test + 44-combination matrix + Layer Purity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # SHA-pinned, matching supply-chain-sentinel.yml ("All third-party actions pinned").
+        # The nearest sibling (converge-tests.yml) uses the mutable `@v7.0.0` tag — copying
+        # it verbatim would have propagated that drift into a new file. Reuse the pattern,
+        # not the deviation.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Assert jq is present
+        # The golden pin parses JSON. Without jq the matrix would silently degrade to
+        # comparing empty strings — a green suite that checks nothing.
+        run: jq --version
+
+      - name: Self-test (prints its own assertion count; exit 2 on failure)
+        run: bash bin/lens-dispatch --self-test
+
+      - name: Non-regression matrix + golden lens pin + table sizes
+        run: bash tests/lens-dispatch-matrix.sh
+
+      - name: Layer Purity (community promotion gate)
+        run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
