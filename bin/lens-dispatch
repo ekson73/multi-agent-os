@@ -86,6 +86,9 @@ lens_stack_for() {
     recipe-07) echo "user-advocate:§9.44,engineering-centric:§9.1,business-centric:§11.1" ;;
     recipe-08) echo "first-principles:§1.21,pattern-matcher:§2.8,adversarial-redteam:§4.15" ;;
     recipe-09) echo "critical:§1.1,systemic:§1.6,skeptical-tome:§1.12" ;;
+    # catalog §13 #10 "6-stage virtual review board" — SEQUENTIAL pipeline. Same six
+    # lenses as recipe-04 but a distinct recipe id, so ledger cycles credit the right one.
+    recipe-10) echo "tech-lead:§9.35,ux:§9.44,secops:§9.25,privacy:§9.29,qa:§9.22,critic:§4.16" ;;
     recipe-12) echo "buffett-value:§5.15,munger-models:§5.16,long-term:§1.31" ;;
     recipe-13) echo "crisis-operator:§6.28,calm-command:§6.15,sre:§9.9" ;;
     recipe-14) echo "founder-vision:§5.1,moonshot:§5.2,creator:§4.12,visionary:§4.33" ;;
@@ -99,26 +102,38 @@ lens_stack_for() {
   esac
 }
 
-# --- TABLE A: use-case -> recipe (TRANSCRIBED from §13.5; verifiable against the doc) --
-# Only rows whose mapping is unambiguous in the catalog text are transcribed.
+# --- TABLE A: use-case -> recipe (TRANSCRIBED from §13.5) ------------------------------
+# EVERY row below is a 1:1 mapping whose lens set matches the catalog row VERBATIM.
+# Verify with: diff this list against ~/.claude/docs/persona-mindset-catalog.md §13.5.
+#
+# ⚠️ HISTORY (2026-07-22, independent red-team H6): the first version of this table
+#    collapsed whole §13.5 SUBSECTIONS onto one representative row (`15|16|17 -> uc-15`,
+#    `23|24|25|26 -> uc-23`, `1|4|5 -> recipe-01`) and shipped the result labelled
+#    `transcribed`. 8 of 21 rows did not match the source — UC26 had ZERO lens overlap
+#    with its catalog row. A guess wearing the honest label's clothes is worse than an
+#    honestly-labelled guess. Those rows are now REMOVED, not repaired-by-approximation:
+#    an unmapped use-case returns NULL_PROFILE (the status quo), never a fabricated pick.
+#    Restoring any of them requires transcribing its OWN lens stack from the catalog.
 recipe_for_use_case() {
   case "$1" in
-    1|4)    echo "recipe-01" ;;   # §13.5.A decision-making (pre-decision audit)
-    5)      echo "recipe-01" ;;
+    1)      echo "recipe-01" ;;   # §13.5.A pre-decision audit
     6)      echo "recipe-04" ;;   # §13.5.B PR multi-persona review (high-stakes)
     11)     echo "recipe-02" ;;   # §13.5.C new service architecture
+    15)     echo "uc-15" ;;       # §13.5.D root-cause investigation
     18)     echo "recipe-08" ;;   # §13.5.D unknown error / no precedent
     19)     echo "recipe-03" ;;   # §13.5.E security audit
     21)     echo "recipe-15" ;;   # §13.5.E data-protection / privacy-regime compliance
+    23)     echo "uc-23" ;;       # §13.5.F editorial stack
     27)     echo "recipe-14" ;;   # §13.5.G strategic roadmap
     28)     echo "recipe-12" ;;   # §13.5.G long-horizon valuation
     29)     echo "recipe-07" ;;   # §13.5.G stakeholder alignment
-    33)     echo "recipe-04" ;;   # §13.5.H meta-validation (6-stage board)
-    15|16|17) echo "uc-15" ;;     # §13.5.D composed investigation stack
-    23|24|25|26) echo "uc-23" ;;  # §13.5.F documentation composed stack
     30)     echo "uc-30" ;;       # §13.5.H test strategy
     32)     echo "uc-32" ;;       # §13.5.H conflict / dissent
-    *)      echo "" ;;            # rows w/o an unambiguous transcription -> no mapping
+    33)     echo "recipe-10" ;;   # §13.5.H meta-validation -> catalog says "Recipe #10"
+                                  #   (was recipe-04: same 6 lenses, WRONG id -> would
+                                  #    credit recipe-04's ledger with #10's cycles)
+    # REMOVED as unverifiable (see HISTORY above): 4, 5, 16, 17, 24, 25, 26
+    *)      echo "" ;;            # no transcribed mapping -> NULL_PROFILE (status quo)
   esac
 }
 
@@ -128,14 +143,23 @@ recipe_for_use_case() {
 #    provenance=bridge-hypothesis so no downstream reader mistakes it for a fact.
 use_case_for_work() {
   case "$1" in
-    feat|enhance|gap) echo "1"  ;;   # hypothesis: new/changed scope => pre-decision audit
-    fix)              echo "15" ;;   # hypothesis: defect => root-cause investigation stack
     refactor)         echo "11" ;;   # hypothesis: restructure => architecture review
     harmonize)        echo "32" ;;   # hypothesis: drift/dedupe => conflict/dissent stack
     docs)             echo "23" ;;   # hypothesis: docs => editorial stack
     test)             echo "30" ;;   # hypothesis: tests => test-strategy stack
-    hotfix)           echo ""   ;;   # deliberately unmapped: urgency => no lens overhead
-    chore)            echo ""   ;;   # deliberately unmapped: low value
+    # --- deliberately UNMAPPED (each removal has a stated reason) ---
+    # feat|enhance|gap: WITHDRAWN 2026-07-22 by red-team H6. Mapped to UC1 -> recipe-01,
+    #   which catalog §13 names "Pre-decision audit" and whose required output is a
+    #   go/no-go verdict (proceed/refine/defer/escalate/reject). Binding a DECISION-GATE
+    #   recipe to EXECUTION work gives four rejection-biased lenses (doubt + critique +
+    #   argue-against + conservative) with no generative counterweight: the agent
+    #   re-litigates settled scope and emits a decision matrix instead of an
+    #   implementation. Was 12/44 combos — the single largest DISPATCH bucket.
+    # fix: WITHDRAWN 2026-07-22. Bug-fixing IS the complex reasoning the degradation
+    #   guard exists to protect; it escaped only because it is spelled `fix`, not
+    #   `debug`. Now ALSO covered by the guard (defence in depth).
+    hotfix)           echo ""   ;;   # urgency => no lens overhead
+    chore)            echo ""   ;;   # low value
     *)                echo ""   ;;
   esac
 }
@@ -163,7 +187,13 @@ split_session_type() { # $1=session_type $2=field(mode|work)
 }
 
 has_signal() { # $1=signals-csv $2=needle
-  printf ',%s,' "$(norm "$1")" | command grep -q ",$2,"
+  # ⚠️ Strip whitespace around EVERY comma, not just the ends of the whole string.
+  #    Red-team H6 (2026-07-22): `norm` trims only the outer string, so the CSV a human
+  #    actually types — "security, complex-reasoning" — left a space glued to the token
+  #    and the needle ",complex-reasoning," never matched. ONE SPACE silently disarmed
+  #    the degradation guard, with no warning. A safety gate defeated by ordinary
+  #    formatting is not a safety gate.
+  printf ',%s,' "$(norm "$1" | sed 's/[[:space:]]*,[[:space:]]*/,/g')" | command grep -q ",$2,"
 }
 
 # confidence is COMPUTED from the ledger — never asserted by this script.
@@ -197,13 +227,26 @@ decide() { # $1=node_kind $2=session_type $3=use_case $4=stakes $5=signals
 
   # Degradation guard (conservative: withholding a lens = status quo, so this guard is
   # safe even if its motivating citation is wrong — it can only decline, never harm).
-  if has_signal "$sg" "complex-reasoning" || [ "${work:-}" = "debug" ]; then
+  # Guard also covers `fix` (red-team H6): `fix` and `debug` name the SAME cognitive
+  # work; guarding one string and not the other is a spelling check, not a safety check.
+  if has_signal "$sg" "complex-reasoning" || [ "${work:-}" = "debug" ] || [ "${work:-}" = "fix" ]; then
     echo "NULL_PROFILE|complex-reasoning-degradation-guard||"; return
   fi
 
   # Path 1 — TRANSCRIBED (explicit use-case wins; verifiable against §13.5).
   if [ -n "$uc" ]; then
     case "$uc" in *[!0-9]*) echo "INCONCLUSIVE|invalid-use-case||"; return ;; esac
+    # ⚠️ Length-gate BEFORE any arithmetic (red-team H6): a 20-digit value made `[ N -lt 1 ]`
+    #    error with "integer expression expected" — the test returned 2, `set -e` did not
+    #    fire (test inside `if`), BOTH comparisons evaluated false, and the value sailed
+    #    PAST range validation while leaking raw bash error text into an agent's stdout.
+    case "$uc" in ??????*) echo "INCONCLUSIVE|use-case-out-of-range||"; return ;; esac
+    # ⚠️ Strip leading zeros (red-team H6): `06` passed the digit check, passed the
+    #    NUMERIC range check, then missed the STRING `case` lookup — so the tool declared
+    #    "use-case 06 has no transcribed mapping", which is FALSE (UC6 is mapped). A
+    #    high-stakes PR review silently lost its lens AND the tool asserted a wrong claim
+    #    about the source document. Mixed numeric/string comparison on one variable.
+    uc="$(printf '%s' "$uc" | sed 's/^0*//')"; [ -n "$uc" ] || uc="0"
     if [ "$uc" -lt 1 ] || [ "$uc" -gt 33 ]; then echo "INCONCLUSIVE|use-case-out-of-range||"; return; fi
     recipe="$(recipe_for_use_case "$uc")"
     if [ -n "$recipe" ]; then echo "DISPATCH|resolved-use-case|$recipe|transcribed"; return; fi
@@ -275,9 +318,10 @@ emit() { # $1=verdict $2=reason $3=recipe $4=provenance $5=stakes
 }
 
 self_test() {
-  local fails=0 got
+  local fails=0 asserts=0 got
   assert() { # $1=want_verdict $2=want_reason $3..=decide-args
     local wv="$1" wr="$2"; shift 2
+    asserts=$((asserts+1))
     got="$(decide "$@")"
     case "$got" in
       "$wv|$wr"|"$wv|$wr|"*) : ;;
@@ -302,32 +346,59 @@ self_test() {
   assert DISPATCH resolved-use-case "pr"      ""           "6"  "high"   ""
   assert DISPATCH resolved-use-case "decision" ""          "1"  "medium" ""
   # --- bridge path (DISPATCH, hypothesis) ---
-  assert DISPATCH resolved-bridge   "task"    "fresh×feat" ""   "medium" ""
-  assert DISPATCH resolved-bridge   "task"    "fresh×fix"  ""   "medium" ""
+  assert DISPATCH resolved-bridge   "task"    "fresh×refactor" "" "medium" ""
+  assert DISPATCH resolved-bridge   "task"    "fresh×docs"     "" "medium" ""
   # --- non-regression floor: unmapped inputs fall back to status quo, never to a guess ---
   assert NULL_PROFILE no-bridge-mapping-for-work "task" "fresh×chore"  "" "medium" ""
   assert NULL_PROFILE no-bridge-mapping-for-work "task" "fresh×hotfix" "" "high"   ""
   assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""    "8" "medium" ""
+  # --- REGRESSION GUARDS for the red-team H6 findings (2026-07-22) ---
+  # Every one of these FAILED before the fix. They exist so the defect cannot silently return.
+  assert NULL_PROFILE complex-reasoning-degradation-guard "task" "fresh×fix"  ""   "medium" ""
+  # ⚠️ These carry a resolution-input on purpose. Without one the verdict is
+  #    INCONCLUSIVE|no-resolution-input BEFORE the guard is ever consulted — which is
+  #    itself safe (status quo), but it means a guard test with empty input proves
+  #    NOTHING about the guard. Found by this very suite while fixing the space bypass.
+  assert NULL_PROFILE complex-reasoning-degradation-guard "task" "fresh×docs" ""   "medium" "security, complex-reasoning"
+  assert NULL_PROFILE complex-reasoning-degradation-guard "pr"   ""           "6"  "high"   " complex-reasoning "
+  assert DISPATCH     resolved-use-case                   "pr"   ""           "06" "high"   ""
+  assert INCONCLUSIVE use-case-out-of-range               "pr"   ""           "99999999999999999999" "medium" ""
+  assert NULL_PROFILE no-bridge-mapping-for-work          "task" "fresh×feat" ""   "medium" ""
+  assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""           "26" "medium" ""
+  assert NULL_PROFILE use-case-has-no-transcribed-mapping "task" ""           "16" "medium" ""
+  # UC33 must credit recipe-10 (catalog "Recipe #10"), NOT recipe-04 — else the ledger is
+  # poisoned from cycle one: #10's cycles would promote #4 toward VALIDATED.
+  asserts=$((asserts+1))
+  case "$(decide "session" "" "33" "high" "")" in *\|recipe-10\|transcribed) : ;;
+    *) echo "FAIL: UC33 must map to recipe-10" >&2; fails=$((fails+1)) ;; esac
+
   # --- use-case WINS over session-type (transcribed beats hypothesis) ---
+  asserts=$((asserts+1))
   got="$(decide "pr" "fresh×chore" "6" "high" "")"
   case "$got" in DISPATCH\|resolved-use-case\|recipe-04\|transcribed) : ;;
     *) echo "FAIL: use-case must win over session-type => '$got'" >&2; fails=$((fails+1)) ;; esac
   # --- determinism: same input, same output, 3 runs ---
   local d1 d2 d3
+  asserts=$((asserts+1))
   d1="$(decide "pr" "fresh×feat" "6" "high" "")"
   d2="$(decide "pr" "fresh×feat" "6" "high" "")"
   d3="$(decide "pr" "fresh×feat" "6" "high" "")"
   if [ "$d1" != "$d2" ] || [ "$d2" != "$d3" ]; then
     echo "FAIL: non-deterministic output" >&2; fails=$((fails+1))
   fi
-  # --- provenance is never silently empty on a DISPATCH ---
-  case "$(decide "task" "fresh×feat" "" "medium" "")" in
+  # --- provenance is never silently empty on a DISPATCH (bridge path) ---
+  asserts=$((asserts+1))
+  case "$(decide "task" "fresh×refactor" "" "medium" "")" in
     *\|bridge-hypothesis) : ;;
     *) echo "FAIL: bridge DISPATCH must carry provenance=bridge-hypothesis" >&2; fails=$((fails+1)) ;;
   esac
 
-  if [ "$fails" -eq 0 ]; then echo "lens-dispatch self-test: 21/21 PASS"; exit 0
-  else echo "lens-dispatch self-test: $fails FAIL" >&2; exit 2; fi
+  # ⚠️ Count, never hardcode (red-team H6): this line used to print a literal "21/21 PASS".
+  #    Delete ten assertions and it still claimed 21/21 — the EXACT failure mode this
+  #    tool's own thesis rejects ("confidence is COMPUTED from the ledger, never
+  #    hardcoded, so it cannot lie about its own status"), committed one function away.
+  if [ "$fails" -eq 0 ]; then echo "lens-dispatch self-test: $asserts/$asserts PASS"; exit 0
+  else echo "lens-dispatch self-test: $fails FAIL of $asserts" >&2; exit 2; fi
 }
 
 need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; }
