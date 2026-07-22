@@ -54,7 +54,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
   REVISION guard (high adherence + absent outcome ⇒ falsify the **system**, don't blame the executor — the anti-Eliason
   counter the source material lacks). **P0.5 GOAL-SHAPE gate**: a one-shot/bounded goal exits with `N/A` and no envelope
   (*a plan IS its system*) — the Gordian floor that keeps a typo-fix from earning a "system".
-- **`skills/derive-system-from-goal/templates/system-as-prompt.schema.json`** + **`…/system-as-prompt.example.json`**
+- **`skills/derive-system-from-goal/templates/system-as-prompt.schema.json`** + **`skills/derive-system-from-goal/templates/system-as-prompt.example.json`**
   — the typed envelope (implementation-intention trigger→action
   + cadence + signal + REV), mirroring `dod-as-prompt`: `data.layer:"community"` const, `data.contract` +
   `contract_version`, digest-idempotency + SpecError + exit codes.
