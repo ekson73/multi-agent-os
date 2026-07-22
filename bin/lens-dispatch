@@ -73,11 +73,15 @@ Options:
   --help
 
 Verdict logic (deterministic, ordered):
-  1. missing/invalid inputs                      -> INCONCLUSIVE (fail-safe)
-  2. complex-reasoning signal OR work=debug      -> NULL_PROFILE  (degradation guard)
-  3. --use-case resolves in §13.5                -> DISPATCH      (provenance: transcribed)
-  4. --session-type resolves in the bridge       -> DISPATCH      (provenance: bridge-hypothesis)
-  5. otherwise                                   -> NULL_PROFILE  (no mapping; status quo)
+  1. missing/invalid inputs, incl. unknown       -> INCONCLUSIVE (fail-safe)
+     --signals token
+  2. complex-reasoning signal OR work=debug|fix  -> NULL_PROFILE  (degradation guard)
+  3. --use-case resolves in §13.5, NOT §13.5.D   -> DISPATCH      (provenance: transcribed)
+  4. --use-case resolves but IS §13.5.D          -> NULL_PROFILE  (guard, by work-class:
+     (Debugging/investigation, UC15-18)                            same work as debug|fix,
+                                                                   named by a different flag)
+  5. --session-type resolves in the bridge       -> DISPATCH      (provenance: bridge-hypothesis)
+  6. otherwise                                   -> NULL_PROFILE  (no mapping; status quo)
 
 confidence is COMPUTED from the dogfood ledger, never hardcoded:
   ratified complete cycles >= gate(2) -> VALIDATED ; else HYPOTHESIS.

@@ -49,7 +49,11 @@ note "matrix: DISPATCH=$d NULL_PROFILE=$n INCONCLUSIVE=$inc of $total"
 
 # ---------------------------------------------------------------------------
 # 2. THE LOAD-BEARING CLAIM: no DISPATCH without traceable provenance.
-#    This is the assertion the non-regression floor rests on.
+#    ⚠️ This is NOT a non-regression floor — that claim was retracted for the DISPATCH path
+#    (see SKILL.md "The floor claim, corrected"). An earlier version of this comment said
+#    the floor "rests on" this assertion, which quietly re-asserted the retracted claim from
+#    inside the test suite. What this actually proves is narrower and worth stating exactly:
+#    every DISPATCH is traceable to a labelled source. Traceability is not safety.
 # ---------------------------------------------------------------------------
 for m in $MODES; do
   for w in $WORKS; do
@@ -215,6 +219,32 @@ for w in $WORKS; do
 done
 [ "$_b" -eq 4 ] || fail "Table B resolves $_b works; SKILL.md claims 4"
 note "tables: A=$_a mapped use-cases · B=$_b mapped works"
+
+# ---------------------------------------------------------------------------
+# 4d. --help must describe the behaviour the tool ACTUALLY has.
+#
+# WHY: the help text drifted out of sync the moment the guard was extended to `fix`, and
+# stayed wrong through a whole repair round — no test looked at it. A user reading --help
+# would have been told `fresh×fix` dispatches. That is the R2 headline defect (a claim
+# corrected in one file and left stale in another) relocated into the user-facing contract.
+# These assertions do not pin prose; they pin the terms that name real behaviour, so the
+# next behaviour change forces the doc change instead of merely inviting it.
+# ---------------------------------------------------------------------------
+_help="$("$BIN" --help 2>&1)"
+case "$_help" in
+  *"work=debug|fix"*) : ;;
+  *) fail "--help omits that the guard covers work=fix (stale since the R2 fix)" ;;
+esac
+case "$_help" in
+  *"13.5.D"*) : ;;
+  *) fail "--help omits the §13.5.D work-class guard (UC15-18 are withheld)" ;;
+esac
+case "$_help" in
+  *"unknown"*) : ;;
+  *) fail "--help omits that an unknown --signals token is INCONCLUSIVE" ;;
+esac
+# meta-check: prove these can fire, so they cannot rot into always-true string matches
+case "$_help" in *"this-string-is-absent-on-purpose"*) fail "help-drift detector is inert" ;; esac
 
 # ---------------------------------------------------------------------------
 # 5. Determinism — the whole premise of computing the verdict outside the model.
