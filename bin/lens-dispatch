@@ -53,6 +53,18 @@
 #   no ${var^^}. No organization-specific content — promotion-eligible per Layer Purity.
 # Exit codes ([C06]): 0 DISPATCH · 3 NULL_PROFILE · 4 INCONCLUSIVE · 1 usage · 2 self-test-fail.
 set -euo pipefail
+# ⚠️ Pin the locale (red-team H6, R9-continuation, self-caught): LC_ALL reaches the
+#   DISPATCH verdict. `norm()`'s `tr '[:upper:]' '[:lower:]'` + `split_session_type`'s
+#   `sed 's/×/x/g'` + `valid_signals`' `[[:space:]]` are locale-sensitive; under an
+#   8-bit legacy locale (measured: tr_TR.ISO8859-9) the multibyte `×` (bytes C3 97) is
+#   mishandled and a would-be DISPATCH degraded to INCONCLUSIVE — and the signals path
+#   could flip the OTHER way (a mangled `complex-reasoning` signal skips the degradation
+#   guard and DISPATCHes a wrong lens). Forcing LC_ALL=C removes locale as an input to
+#   EVERY resolution stage by construction (Gordian: one line beats sprinkling per-command
+#   and missing one — the "closed one of two routes" class). Do NOT remove: the whole-file
+#   hash pin (tests/lens-dispatch-matrix.sh) covers this line, and the tr_TR flip is GONE
+#   only while it stays. See SKILL.md "R9-continuation" + plan §9.7.
+export LC_ALL=C LANG=C
 
 NODE_KIND=""; SESSION_TYPE=""; USE_CASE=""; STAKES="medium"; SIGNALS=""; FORMAT="json"
 BRIDGE_AUTHORED="2026-07-22"

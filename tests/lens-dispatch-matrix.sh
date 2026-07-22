@@ -384,7 +384,7 @@ else                                       _path_hash="$(printf '%s' "$_path_src
 # Pin computed BY the code above, never by a lookalike harness: my first value was produced by
 # an ad-hoc reimplementation that piped instead of using "$(...)", so it kept a trailing newline
 # and differed from what this file computes. The mechanism must be its own measuring instrument.
-_PATH_PIN='e17e69b7966093a872a226df82ff42be9002bae9cd442588e3fb948c393bd7b3'
+_PATH_PIN='e21676213425ed1cec22a33c74f0349b0dfc68628a400e8af51fbf5bfe37e95c'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).

@@ -260,8 +260,23 @@ it guarded no longer exists is the correct direction.
 *The cost is larger and stated, not hidden: **every** edit to `bin/lens-dispatch` re-pins,
 comments included* — measured, a benign comment added inside `decide()` turns the suite red. That
 friction IS the mechanism. *The residual is what a file hash cannot reach: the environment and the
-interpreter.* Grepped for it — `DOGFOOD_LEDGER_DIR` is the only externally-settable var reaching
-behaviour (the confidence read, red-team R3/F1) and it does **not** reach the dispatch decision.
+interpreter.* ⚠️ **R9-continuation, self-caught (the 10th): the first draft here *grepped* for the
+environment residual and concluded `DOGFOOD_LEDGER_DIR` was the only var reaching behaviour and that
+none reached dispatch — a CONTAINS-claim (read the source for env-reads), and the DID-test refuted
+it.** Measured: **`LC_ALL` reaches the dispatch verdict.** Under an 8-bit legacy locale
+(`tr_TR.ISO8859-9`) `FRESH×HARMONIZE` flipped `DISPATCH`→`INCONCLUSIVE` (rc 0→4), because `norm()`'s
+`tr '[:upper:]' '[:lower:]'` and `split_session_type`'s `sed 's/×/x/g'` are locale-sensitive — and
+the **signals path** could flip the *injection* direction (a locale-mangled `complex-reasoning` that
+fails to match would skip the degradation guard and DISPATCH a wrong lens). A structural "it's
+fail-safe" argument would be the un-measurable claim that broke nine times; instead the vector is
+**eliminated** — `export LC_ALL=C` in the preamble (inside the hashed file) removes locale as an
+input to every resolution stage by construction (Gordian: one line, not per-command sprinkling that
+misses one — the "closed one of two routes" class). Measured after: the tr_TR flip is **gone** (both
+locales DISPATCH), positive control still distinguishes NULL/INCONCLUSIVE. *(Instrument-fault, also
+self-caught: the `git checkout -- $BIN` trap that removed the regression **mutant** also removed the
+uncommitted **fix** — it restores to the committed base, not the working base; caught loudly because
+the already-edited test pin disagreed with the reverted bin. Restore an uncommitted-fix mutation
+test from a working-tree `cp`, never `git checkout`.)*
 That is the honest boundary of the mechanism, and the `WORK_VOCAB` global — a genuinely different
 sibling — is covered by the taxonomy drift-gate, which pins the vocabulary's *contents* (it does
 not cover a token rewritten before `valid_work` sees it, which is what MB/MC did — hence the file
@@ -322,8 +337,10 @@ hash. Re-verified: MB and MC are **CAUGHT** against the file hash. The classes n
 excluded are the data tables (own gates), **any in-file token preparation** (the file hash — no
 longer a selection to slip past), and the transcribed route (count-enumerated + 14/33
 identity-pinned, per above). What a file hash still cannot reach is stated plainly: the
-environment (`DOGFOOD_LEDGER_DIR`, which does not reach dispatch) and the interpreter. I do not
-claim that remainder is empty. Against an adversary rather than a maintainer, nothing in a
+environment — now **only** `DOGFOOD_LEDGER_DIR` (confidence read, verdict-invariant, measured) plus
+the process context a file cannot pin (`PATH` / which-`coreutils`) — and the interpreter. *(`LC_ALL`
+was in this residual until the R9-continuation above; it is now pinned out by `export LC_ALL=C`,
+inside the hash — measured, not argued.)* I do not claim that remainder is empty. Against an adversary rather than a maintainer, nothing in a
 co-located suite helps — see the boundary below.
 
 **Where the boundary actually sits** — R7's reframe, adopted because it is smaller and more
