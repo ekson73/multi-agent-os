@@ -7,20 +7,23 @@ name: lens-dispatch tests
 #
 # jq is required by the golden pin and the table-size counters — it ships on ubuntu-latest.
 
+# ⚠️ NO `paths:` filter, deliberately — diverging from the sibling workflows.
+# A filter listing only the tool's own files is a BYPASS: `bin/lens-dispatch` shells out to
+# `bin/dogfood-tally` at runtime (the confidence value) and the purity step runs
+# `bin/check-layer-purity`. Editing either changes this tool's behaviour or its gate while
+# the guard stays silent. Enumerating today's dependencies would only move the hole — the
+# next dependency added re-opens it, and "remember to update the filter" is precisely the
+# memory-dependent obligation `harmonic` L9 forbids.
+# Cost of running it always: ~53s measured locally (macOS, 2026-07-22) — the suite makes
+# ~170 CLI invocations and process-spawn dominates, so expect materially less on Linux CI.
+# Not "~2s" as an earlier draft of this comment asserted without measuring; the number is
+# stated because a cost claim used to justify a design choice has to be a measured one.
+# A guard you can skip by editing a dependency is a guard with a bypass — the exact defect
+# class this whole tool was repaired for. That trade is worth 53s.
 on:
   pull_request:
-    paths:
-      - "bin/lens-dispatch"
-      - "skills/lens-dispatch/**"
-      - "tests/lens-dispatch-matrix.sh"
-      - ".github/workflows/lens-dispatch-tests.yml"
   push:
     branches: [main]
-    paths:
-      - "bin/lens-dispatch"
-      - "skills/lens-dispatch/**"
-      - "tests/lens-dispatch-matrix.sh"
-      - ".github/workflows/lens-dispatch-tests.yml"
 
 permissions:
   contents: read
