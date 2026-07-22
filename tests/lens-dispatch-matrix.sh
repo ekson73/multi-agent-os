@@ -344,55 +344,47 @@ done
 #   * It does NOT cover a widening achieved WITHOUT editing this code (via the data tables —
 #     those have their own gates above), nor an edit accompanied by a deliberate re-pin. The
 #     latter is the adversary who edits tests/ as easily as bin/, explicitly out of scope.
-# NO grep FILTER on decide(). The first version of this extraction filtered decide() down to the
-# lines mentioning the four helpers, and that filter WAS the hole: I self-attacked it and a
-# one-line insert the filter did not match —
-#     work="${work//-/}"          (placed directly below the split_session_type line)
-# — made fresh×re-factor return DISPATCH|resolved-bridge with the ENTIRE suite green. That is
-# R8's finding relocated by one line, surviving the fix written for R8. The cause is the defect
-# family this file keeps recording: a filter is a SELECTION, i.e. a model of which lines matter,
-# and the widening simply moved to a line the model excluded. A hash over the whole function has
-# no model to evade. Cost accepted deliberately: every decide() edit now re-pins.
-_path_extract() { # $1=binary
-  sed -n '/^norm()/p' "$1"
-  awk '/^split_session_type\(\)/,/^}/' "$1"
-  awk '/^valid_work\(\)/,/^}/' "$1"
-  awk '/^use_case_for_work\(\)/,/^}/' "$1"
-  awk '/^decide\(\)/,/^}/' "$1"
-}
-_path_src="$(_path_extract "$BIN")"
-# INERTNESS GUARD — an empty or truncated extraction would pin a hash of nothing and pass
-# forever (the free-negative defect this suite has hit four times, here in a new mechanism).
-# Every stage must be present by name…
-for _marker in 'norm()' 'split_session_type()' 'valid_work()' 'use_case_for_work()' \
-               'split_session_type "$st" work' 'nk="$(norm "$1")"'; do
-  case "$_path_src" in
-    *"$_marker"*) ;;
-    *) fail "resolution-path extraction lost '$_marker' — the tripwire is INERT and would pin a truncated path" ;;
-  esac
-done
-# …and the tail check must be POSITIONAL + WHOLE-LINE, never containment. I attacked this guard
-# myself before submitting: a padding string carrying the tail marker's TEXT plus a line starting
-# with `}` (valid bash inside a quoted string, but awk's /^}/ ends the range) truncated decide()
-# from 80 lines to 21 with ALL SEVEN containment markers still passing. What caught that mutant
-# was an UNRELATED invariant — the DISPATCH-exit count happened to see the duplicated echo — i.e.
-# true by accident, not by construction: a padding that evaded that counter would have defeated
-# both. `*"$m"*` asks whether the text is PRESENT (a declaration about the extraction); what the
-# guard actually needs is whether the extraction ENDS THERE (the structural fact). Same
-# FEZ-vs-CONTÉM distinction as the pin itself, one layer further in — applied to my own guard.
-_tail2="$(printf '%s\n' "$_path_src" | tail -2 | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-_tail_want='echo "DISPATCH|resolved-bridge|$recipe|bridge-hypothesis"
-}'
-[ "$_tail2" = "$_tail_want" ] || fail "resolution-path extraction does not END at decide()'s last
-    statement — the awk range closed early (tripwire INERT: it would pin a truncated path, and a
-    careless re-pin would lock that blindness in permanently). Got tail:
-$_tail2"
+# NO SELECTION AT ALL — the pin is the FILE. Three versions were needed to get here, and the two
+# discarded ones are the argument:
+#   v1 pinned a grep-filtered slice of decide(). I broke it myself: a one-line insert the filter
+#      did not match — work="${work//-/}" — made fresh×re-factor DISPATCH with the suite green.
+#   v2 pinned the whole decide() body. The red-team broke THAT with two one-line transforms placed
+#      UPSTREAM of decide() — at the --session-type arg-parse assignment, and at the decide() call
+#      site — leaving every pinned byte untouched. Verified independently against the v2 commit:
+#      both OPEN (rc=0, zero FAILs) while an in-pin positive control was CAUGHT, so the negatives
+#      are meaningful and not a dead harness.
+# The sentence v2 shipped — "a hash over the whole function has no model to evade" — is FALSE, and
+# it is the same error one level up. THE RANGE IS THE MODEL. `awk '/^decide()/,/^}/'` is a
+# selection exactly as the grep was; widening a selection is not removing one. The residual is
+# never "a line the filter missed" — it is A STAGE THE SELECTION DOES NOT COVER, and the entire
+# arg-parse/dispatch prologue was outside it. By the time the pinned code ran, $SESSION_TYPE had
+# already been rewritten.
+# Hence: no selection. Every byte of the binary, or the tripwire is again precise about the wrong
+# thing.
+#   COST, stated rather than hidden: EVERY edit to bin/lens-dispatch re-pins — comments included.
+#   That is deliberate. The re-pin ritual is change → run this battery → update the pin. A pin
+#   that only fires on lines someone already thought to name buys precision with blindness.
+#   RESIDUAL, measured not assumed: a file hash cannot cover what is not IN the file — the
+#   environment and the interpreter. Grepped for externally-settable reads: DOGFOOD_LEDGER_DIR is
+#   the only env var reaching behaviour (the confidence read, red-team R3/F1) and it does NOT
+#   reach the dispatch decision. That is the honest boundary of this mechanism.
+[ -s "$BIN" ] || fail "tripwire INERT: $BIN is empty or missing"
+_path_src="$(cat "$BIN")"
+# NO INERTNESS GUARD IS NEEDED ANY MORE, and that is the point — it was machinery required only
+# because the extraction had a shape to be truncated. v2 needed a 7-marker presence loop plus a
+# positional tail assertion (the loop alone was defeatable: a padding string carrying the tail
+# marker's TEXT plus a line starting with `}` truncated decide() 80→21 lines with all 7 markers
+# passing; what caught it was an unrelated invariant, i.e. true by accident). With no selection
+# there is nothing to truncate: any missing byte changes the hash. `[ -s "$BIN" ]` above covers
+# the degenerate empty/missing case so the failure is legible rather than merely a mismatch.
+# Deleting a guard because the mechanism it guarded no longer exists is the correct direction;
+# keeping it would assert a check the code no longer performs.
 if command -v shasum >/dev/null 2>&1; then _path_hash="$(printf '%s' "$_path_src" | shasum -a 256 | cut -d' ' -f1)"
 else                                       _path_hash="$(printf '%s' "$_path_src" | sha256sum   | cut -d' ' -f1)"; fi
 # Pin computed BY the code above, never by a lookalike harness: my first value was produced by
 # an ad-hoc reimplementation that piped instead of using "$(...)", so it kept a trailing newline
 # and differed from what this file computes. The mechanism must be its own measuring instrument.
-_PATH_PIN='89ecb70f60ac4f590bb3747e32f7d0edeeddde501ed517734b7b4701c3fa9186'
+_PATH_PIN='e17e69b7966093a872a226df82ff42be9002bae9cd442588e3fb948c393bd7b3'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).

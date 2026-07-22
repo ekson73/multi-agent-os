@@ -224,40 +224,48 @@ lesson this file records: every behavioural gate *derives its inputs from the de
 transform applied upstream of the lookup is unreachable by declaration-derived generation **by
 construction**. Adding separator-shaped variants would close `tr -d '-_.'` and not `tr -d ' '`,
 not a stemmer, not a soundex — **the gap is the stage, not the shape**. A stage is enumerable
-where a shape-space is not, so the tripwire pins the **input→use-case** resolution path (`norm` ·
-`split_session_type` · `valid_work` · `use_case_for_work` · **the whole of `decide()`**) and
-fails on any byte-change to it. Measured: it fires on R8's mutant, on single-path widening, and
-on the two-path case.
+where a shape-space is not, so the tripwire pins the resolution path by **hashing the whole
+binary file** and failing on any byte-change to it.
 
-*The first version of this tripwire was bypassable, and I broke it myself before submitting.*
-It extracted `decide()` through a `grep` filter keeping only the lines that mention the four
-helpers. A one-line insert the filter did not match —
-`work="${work//-/}"`, placed directly below the `split_session_type` line — made `fresh×re-factor`
-return `DISPATCH|resolved-bridge` with the **entire suite green**: R8's finding relocated by one
-line, surviving the fix written for R8. The cause is the defect family this file keeps recording,
-now applied to my own instrument: **a filter is a selection — a model of which lines matter — so
-the widening simply moved to a line the model excluded.** A hash over the whole function has no
-model to evade. The filter is gone; the cost (every `decide()` edit re-pins) is the correct
-direction of failure. A sibling attack — widening the `WORK_VOCAB` global, whose definition sits
-outside the extraction — is caught by the taxonomy drift-gate instead, measured.
+*It took three versions to reach "the whole file", and the two I discarded are the argument —
+each was broken, twice by me and once by the red-team, and each break was the same mistake one
+level up: a selection I mistook for the program.*
 
-*The tripwire's own inertness guard was defeatable too, and I broke that before submitting as
-well.* An `awk` line-range (`/^decide()/,/^}/`) ends at the first line starting with `}` — and a
-line starting with `}` **inside a quoted string** is valid bash. A padding string carrying the
-tail marker's text truncated `decide()` from 80 lines to 21 with all seven *containment* markers
-still passing. What caught that mutant was an unrelated invariant (the DISPATCH-exit count saw
-the duplicated echo) — **true by accident, not by construction**. Fixed by making the tail check
-**positional + whole-line** (the extraction must *end* at `decide()`'s last statement) instead of
-containment: `*"$m"*` asks whether the text is present — a declaration about the extraction —
-where the guard needs whether the extraction *ends there*, the structural fact. Same
-effect-vs-declaration distinction as the pin itself, one layer further in.
+**v1 pinned a `grep`-filtered slice of `decide()`.** I broke it myself before submitting: a
+one-line insert the filter did not match — `work="${work//-/}"` below the `split_session_type`
+line — made `fresh×re-factor` dispatch with the suite green. *A filter is a selection — a model of
+which lines matter — so the widening moved to a line the model excluded.*
 
-Measured after the fix, including the strongest attack I could build: a padding that reproduces
-`decide()`'s real last two lines exactly **does** satisfy the positional check — and still fails,
-because producing that tail requires injecting a literal `echo "DISPATCH|…"` line, which the
-DISPATCH-exit count reads as a third exit. The two gates are therefore interlocked **by
-construction, not by luck**: they key on the same string, so satisfying one necessarily trips the
-other. Stated rather than assumed — the positional check alone is *not* sufficient.
+**v2 pinned the whole `decide()` body** (filter removed) and I wrote that it "has no model to
+evade." **That sentence was false, and the red-team refuted it.** Two one-line transforms placed
+**upstream of `decide()`** — one at the `--session-type` arg-parse assignment, one at the
+`decide()` call site — rewrite `$SESSION_TYPE` to `frescxrefactor` *before* the pinned code ever
+runs, so every pinned byte is untouched and both dispatch with the suite green. I verified both
+independently against the v2 commit with a verified-clean baseline (an in-pin positive control was
+CAUGHT, so the two OPENs are meaningful, not a dead harness). **The `awk` range was the model** —
+`/^decide()/,/^}/` is a selection exactly as the grep was. Widening a selection is not removing
+one; the residual is never "a line the filter missed" but **a stage the selection does not
+cover**, and the entire arg-parse/dispatch prologue was outside it.
+
+**v3 hashes the file.** No selection ⇒ no stage left uncovered inside the binary. Re-measured: the
+red-team's MB (arg-parse transform) and MC (call-site transform) — both OPEN against v2 — are now
+**CAUGHT**; the in-`decide()` MA and R8's in-pin mutant stay CAUGHT. The inertness guard is
+**deleted**, not fixed: it was machinery required only because the extraction had a shape to
+truncate (v2's 7-marker presence loop was itself defeatable — a padding carrying the tail marker's
+text truncated `decide()` 80→21 lines with all 7 markers passing, and what caught it was an
+unrelated invariant, true by accident). With no selection there is nothing to truncate; `[ -s ]`
+covers the degenerate empty case so the failure is legible. Deleting a guard because the mechanism
+it guarded no longer exists is the correct direction.
+
+*The cost is larger and stated, not hidden: **every** edit to `bin/lens-dispatch` re-pins,
+comments included* — measured, a benign comment added inside `decide()` turns the suite red. That
+friction IS the mechanism. *The residual is what a file hash cannot reach: the environment and the
+interpreter.* Grepped for it — `DOGFOOD_LEDGER_DIR` is the only externally-settable var reaching
+behaviour (the confidence read, red-team R3/F1) and it does **not** reach the dispatch decision.
+That is the honest boundary of the mechanism, and the `WORK_VOCAB` global — a genuinely different
+sibling — is covered by the taxonomy drift-gate, which pins the vocabulary's *contents* (it does
+not cover a token rewritten before `valid_work` sees it, which is what MB/MC did — hence the file
+hash).
 
 *Say input→use-case, not input→recipe.* The draft of this paragraph said "the complete
 input→recipe path", which is false — the final `use_case_for_work → recipe_for_use_case` step is
@@ -269,36 +277,54 @@ mechanisms, two scopes; naming them as one is the same word-doing-two-jobs error
 and it nearly shipped a fifth time in this very sentence.
 
 *Its cost, stated rather than hidden*: a hash is a **change**-detector, not a semantic gate. Any
-edit inside the pinned path fails the suite — including a benign rename or reformat — and must
-be re-pinned deliberately. That is the trade taken on purpose: the surface is small and rarely
-edited, and the failure direction is closed (loudly stale beats silently wrong). Two consequences
-worth knowing: the tripwire now fires *first* for mutants the path-count invariants also catch,
-so a FAIL there names the hash rather than the count (the counts still run; re-pinning does not
-silence them); and it is *not* its own proof — an anchor-break probe verifies the extraction
-still finds all six markers, because a truncated extraction would pin a shorter path and pass.
+edit to the file fails the suite — a benign rename, a reformat, a comment — and must be re-pinned
+deliberately. That is the trade taken on purpose: whole-file is the only scope with no selection
+to evade, and the failure direction is closed (loudly stale beats silently wrong). One consequence
+worth knowing: the tripwire fires *first* for mutants the path-count invariants also catch, so a
+FAIL there names the hash rather than the count — the counts still run; re-pinning does not
+silence them (verified: a co-firing mutant produced rc=1 with *both* messages present).
 
 **Why the transcribed route needs no tripwire — measured, not assumed.** The obvious next
 question is where else "the resolution path is pinned" must hold; the `--use-case` route has the
-same shape (a token, a normalization at `sed 's/^0*//'`, a table, a guard) and is **not** in the
-pinned path. Four mutants say it does not need to be: a fabricated Table A row (uc 4, the exact
+same shape (a token, a normalization at `sed 's/^0*//'`, a table, a guard) and is **not** in a
+hashed path. Four mutants say it does not need to be: a fabricated Table A row (uc 4, the exact
 R1 defect re-introduced) · an upstream transform folding out-of-range into range
 (`uc=$(( (uc-1) % 33 + 1 ))`, R8's attack ported to this route) · the protection guard disabled ·
-the guard narrowed to drop UC15 — **4/4 caught**. The reason is structural, not luck: this
-route's input domain is **enumerable** (integers 1–33, plus out-of-range) and the suite already
-enumerates it exhaustively, so declaration-derived generation has no blind spot to exploit. The
-bridge route needed a tripwire precisely because its domain is arbitrary strings. *Enumerate the
-domain where you can; pin the stage where you cannot.*
+the guard narrowed to drop UC15 — **4/4 caught**. *The reason is structural: this route's input
+domain is **enumerable** (integers 1–33, plus out-of-range).* But state the guarantee precisely —
+the red-team's R9 precision, folded in: the `for uc in $(seq 1 33)` loop asserts a **count**
+(`_a -eq 14` mapped) over the domain, **not per-input identity**; identity is pinned for the 12
+golden use-cases plus the two `withheld` reasons (15, 18). So the honest phrasing is *the domain
+is enumerated for count, and 14 of 33 inputs are pinned by identity* — not "exhaustively
+enumerated." The gap that phrasing hides was itself measured: a `SWAP-15-18` permutation is
+**OPEN** (rc=0, 0 FAILs) yet **harmless** — both emit byte-identical
+`protected-work-use-case-lens-withheld` with `recipe=null`, so the permutation is invisible *and*
+fail-safe (no dispatch). The bridge route needed a hash precisely because its domain is arbitrary
+strings. *Enumerate the domain where you can; pin the stage where you cannot — and say which
+guarantee the enumeration actually gives.*
 
 **Residual, stated precisely.** The two-path widening (both conditions widened, declarations
-byte-identical) is still invisible to every *behavioural* gate; it is now caught only by the
-*tripwire*. Those are different kinds of coverage and collapsing them is exactly the word-doing-
-two-jobs error corrected in R7 — a tripwire proves the code did not change, never that the code
-is right. So what remains uncovered for honest drift is a widening that changes **no byte** of
-the pinned path and **no declared table row**; the classes checked and excluded are the data
-tables (own gates), upstream token preparation on the bridge route (the tripwire), and the whole
-transcribed route (exhaustive enumeration — 4/4 measured above). I have not enumerated that
-remainder and do not claim it is empty. Against an adversary rather than a maintainer, nothing
-in a co-located suite helps — see the boundary below.
+byte-identical) is invisible to every *behavioural* gate; it is caught only by the *tripwire*.
+Those are different kinds of coverage and collapsing them is the word-doing-two-jobs error
+corrected in R7 — a tripwire proves the code did not change, never that the code is right. So
+what remains uncovered for honest drift is a widening that changes **no byte** of the file and
+**no declared table row**.
+
+*The R9 refutation of ask 4 lives here, because this is the sentence it broke.* An earlier draft
+listed "upstream token preparation on the bridge route" among the classes **checked and
+excluded** — while the pin was still v2's `decide()` body. That was false: the red-team's MB and
+MC **are** upstream token preparation on the bridge route (arg-parse and call-site), and v2 did
+not exclude them — they dispatched. The exclusion claim failed; only the closing hedge ("I have
+not enumerated that remainder and do not claim it is empty") survived. What now makes the claim
+true is the fix, not the wording: the pin became the **whole file**, so any upstream transform
+inside `bin/lens-dispatch` — arg-parse, call-site, or a stage nobody has named — changes the
+hash. Re-verified: MB and MC are **CAUGHT** against the file hash. The classes now genuinely
+excluded are the data tables (own gates), **any in-file token preparation** (the file hash — no
+longer a selection to slip past), and the transcribed route (count-enumerated + 14/33
+identity-pinned, per above). What a file hash still cannot reach is stated plainly: the
+environment (`DOGFOOD_LEDGER_DIR`, which does not reach dispatch) and the interpreter. I do not
+claim that remainder is empty. Against an adversary rather than a maintainer, nothing in a
+co-located suite helps — see the boundary below.
 
 **Where the boundary actually sits** — R7's reframe, adopted because it is smaller and more
 defensible than the one this file used to state. An adversary who can edit `bin/` can edit
