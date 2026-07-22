@@ -272,7 +272,7 @@ it.** Measured: **`LC_ALL` reaches the dispatch verdict.** Under an 8-bit legacy
 `tr '[:upper:]' '[:lower:]'` and `split_session_type`'s `sed 's/×/x/g'` are locale-sensitive — and
 the **signals path** could flip the *injection* direction (a locale-mangled `complex-reasoning` that
 fails to match would skip the degradation guard and DISPATCH a wrong lens). A structural "it's
-fail-safe" argument would be the un-measurable claim that broke nine times; instead the vector is
+fail-safe" argument would be the un-measurable claim that broke nine times; instead the attack path is
 **eliminated** — `export LC_ALL=C` in the preamble (inside the hashed file) removes locale as an
 input to every resolution stage by construction (Gordian: one line, not per-command sprinkling that
 misses one — the "closed one of two routes" class). Measured after: the tr_TR flip is **gone** (both
