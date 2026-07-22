@@ -188,6 +188,39 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Distinct from siblings: `maos-concierge` (framework-facing) · `work-compass` (aggregation engine it routes to) ·
   `pulse` (single-session re-orientation) · `reactivate`/Entelecheia (the agent-facing twin) · `ops-strategist`
   (the optional user-scope brain). Named by `skills/anima` per the naming authority.
+## [1.22.0] - 2026-07-22
+
+### Added — `reactivate` (soul-name *Entelecheia*): cold-start reactivation conductor for amnesic agents
+
+- **`skills/reactivate/SKILL.md`** + **`commands/reactivate.md`** — a thin **conductor** that wakes an agent
+  holding no context: classifies the **consumer** first, orients (`pulse`), recovers the unstated intent
+  (`goal-recovery`), deliberates (**THINK**), optionally deepens (`enhance-pipeline` → `converge` →
+  `praxis-audit`), then **presents** ranked recommendations routed to the consumer's own form — pt-BR via
+  the ask-tool for a live human, a persisted ranked set for a deferred human, a typed JSON
+  `recommendation-set` envelope for an agent/subagent/abiotic consumer. **Explicit operator instruction
+  overrides every computed condition.**
+- **Composes, does not reimplement**: phases 1/2/4 delegate to `pulse`, `goal-recovery`,
+  `enhance-pipeline`/`converge`/`praxis-audit`; the act-or-persist decision reuses the
+  `convergence-engine` **Return-Gate** verbatim — the conductor adds **no new authorization**.
+- **Newly authored only where the family had a genuine hole**: a **THINK** step (no sibling skill
+  deliberates over the *decision* — they analyze the object or critique the flaw), a **data-sanitize**
+  gate (the chain sanitizes *rhetoric* via `converge` Invariant 6; nothing sanitized *data* before
+  presenting), and **one unified PRESENT** (the parts were split across three skills).
+- **The zero-artifact branch** — `pulse` correctly **stops** on a true cold start (`fresh start` /
+  `all clear`). That is precisely the case this conductor exists for: it continues, enumerating
+  invocation → working directory → reachable capability, and when all are empty emits an **honest
+  nothing** rather than a fabricated prior state.
+- **Invariant**: `converge` is **never** the exit step — its Invariant 6 (*audit-not-persuasion*) forbids
+  framing a preferred answer; the recommendation is a downstream transformation at the PRESENT layer.
+- Named by `skills/anima` per the host naming authority (system-name `reactivate`; soul-name
+  *Entelecheia* — Aristotle, *De Anima* II.1, the second entelechy: latent knowledge moved into exercise);
+  recorded in `bin/artifact-registry`.
+
+### Release note — this bump activates the merged `PostCompact` auto-reload
+
+The session-handoff spine below (#273) has been in `main` since `22b3882` but **never shipped**: the last
+release predates it, so the installed plugin cache still declares only `PreCompact`. Cutting 1.22.0 is what
+makes the auto-reload-after-compaction half actually fire for consumers.
 
 ### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact) (#273)
 
