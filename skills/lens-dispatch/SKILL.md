@@ -1,6 +1,6 @@
 ---
 name: lens-dispatch
-version: 0.2.0
+version: 0.3.0
 description: >
   Deterministic dispatcher of cognitive lens-stacks per work-graph node. Given a node
   (ticket/task/step/decision/pr/session) it emits one of three verdicts — DISPATCH
@@ -9,7 +9,9 @@ description: >
   Third orthogonal axis of an existing family: `response-compression` controls WHAT is
   said (verbosity), `slm-routing` controls WHERE it is sent (compute target), this
   controls HOW it is thought. Confidence is COMPUTED from the dogfood ledger, never
-  hardcoded. v0.2.0 survived an independent adversarial red-team that REFUTED v0.1.0.
+  hardcoded. NO lens-stack here has a measured efficacy result — read the epistemic-status
+  block before relying on it. Independent adversarial red-teams REFUTED v0.1.0 and
+  v0.2.0; v0.3.0 carries their repairs and is NOT yet cleared.
 agnostic: [os, project, vendor]
 ---
 
@@ -26,8 +28,15 @@ measure. Two of the three recorded "cycles" are the *same PR*.
 
 **v0.1.0 of this file made a safety claim that its own citation refutes.** See
 [The floor claim, corrected](#the-floor-claim-corrected). An independent red-team
-returned **REFUTED**; v0.2.0 is the repair. What follows is written to be checkable,
-not to be believed.
+returned **REFUTED**; v0.2.0 was the repair — and a second independent round returned
+**STILL-REFUTED**, finding defects *in that repair* (incl. that both test suites were blind
+to lens content). v0.3.0 carries the second round's fixes and **has not been cleared**.
+What follows is written to be checkable, not to be believed.
+
+> **Track record, stated plainly:** two independent verification rounds, two upheld
+> refutations, and the second found defects in the first's fix. The author's self-review
+> caught **0 of 2**. Treat "the author says it is fixed" — including everything below —
+> as an unverified claim until a third round clears it.
 
 | Mechanism | Effect |
 |---|---|
@@ -134,7 +143,7 @@ number is not updated, the test fails.
 reads it. "44 combinations" is **11 behaviours tested four times**. The test asserts the
 inertness so this doc cannot overclaim coverage.
 
-## What the red-team removed (v0.1.0 → v0.2.0)
+## What the red-teams removed (v0.1.0 → v0.2.0 → v0.3.0)
 
 An independent adversarial red-team (H6 per `red-teaming-mandatory-trigger`) returned
 **REFUTED**. The headline finding was not in Table B — the admitted guess — but in
