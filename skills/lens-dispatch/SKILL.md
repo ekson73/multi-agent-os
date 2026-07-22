@@ -122,6 +122,14 @@ lens-dispatch --self-test
 A `set -e` caller, or `lens-dispatch … && next-step`, will die or silently skip on the
 status-quo answer. Branch on the verdict, not on truthiness.
 
+**Requirements.** Bash 3.2+ (POSIX; no associative arrays, no `mapfile`). `jq` is
+**optional, not required** — it is used for validated JSON emission and to read the dogfood
+ledger for the `confidence` field; when it is absent the tool **degrades** (a `printf` JSON
+fallback, and `confidence` → `HYPOTHESIS|0`), never aborts. Measured: with a guaranteed-absent
+ledger under `set -euo pipefail`, a DISPATCH still exits `0` with `confidence: HYPOTHESIS|0`.
+`.github/workflows/lens-dispatch-tests.yml` asserts `jq --version` so the richer path is
+exercised in CI, but the dispatcher itself runs without it.
+
 ## Verdict logic (deterministic, ordered)
 
 1. missing/invalid input → `INCONCLUSIVE` (fail-safe) — incl. an **unknown `--signals` token**

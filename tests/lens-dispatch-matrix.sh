@@ -12,6 +12,15 @@
 # This file is that claim, made real. It must run in CI or the claim must be deleted.
 #
 # Exit: 0 all assertions hold · 1 a claim in the SKILL.md is no longer true.
+#
+# Function     : assert every claim bin/lens-dispatch + SKILL.md make about the dispatcher's
+#                behaviour, provenance tables, and drift-tripwires — fail loud on any drift.
+# Spec         : skills/lens-dispatch/SKILL.md · catalog §13/§13.5/§13.6 · session-type-taxonomy.md
+# Idempotent   : yes — read-only over the artifact + a tempfile/in-place mutation battery that
+#                restores every mutant it installs (trap + verified-clean baseline); the tree is
+#                left byte-identical.
+# Portability  : Bash 3.2+ (POSIX; no associative arrays / mapfile) · shasum|sha256sum · jq optional.
+# Layer purity : community-clean — no org-specific names, jurisdictions, or credentials.
 set -uo pipefail
 
 BIN="$(cd "$(dirname "$0")/../bin" && pwd)/lens-dispatch"
@@ -369,22 +378,26 @@ done
 #   the only env var reaching behaviour (the confidence read, red-team R3/F1) and it does NOT
 #   reach the dispatch decision. That is the honest boundary of this mechanism.
 [ -s "$BIN" ] || fail "tripwire INERT: $BIN is empty or missing"
-_path_src="$(cat "$BIN")"
-# NO INERTNESS GUARD IS NEEDED ANY MORE, and that is the point — it was machinery required only
-# because the extraction had a shape to be truncated. v2 needed a 7-marker presence loop plus a
+# NO INERTNESS GUARD IS NEEDED, and that is the point — the earlier machinery existed only
+# because an EXTRACTION had a shape to be truncated. v2 needed a 7-marker presence loop plus a
 # positional tail assertion (the loop alone was defeatable: a padding string carrying the tail
 # marker's TEXT plus a line starting with `}` truncated decide() 80→21 lines with all 7 markers
 # passing; what caught it was an unrelated invariant, i.e. true by accident). With no selection
 # there is nothing to truncate: any missing byte changes the hash. `[ -s "$BIN" ]` above covers
 # the degenerate empty/missing case so the failure is legible rather than merely a mismatch.
-# Deleting a guard because the mechanism it guarded no longer exists is the correct direction;
-# keeping it would assert a check the code no longer performs.
-if command -v shasum >/dev/null 2>&1; then _path_hash="$(printf '%s' "$_path_src" | shasum -a 256 | cut -d' ' -f1)"
-else                                       _path_hash="$(printf '%s' "$_path_src" | sha256sum   | cut -d' ' -f1)"; fi
-# Pin computed BY the code above, never by a lookalike harness: my first value was produced by
-# an ad-hoc reimplementation that piped instead of using "$(...)", so it kept a trailing newline
-# and differed from what this file computes. The mechanism must be its own measuring instrument.
-_PATH_PIN='e21676213425ed1cec22a33c74f0349b0dfc68628a400e8af51fbf5bfe37e95c'
+#
+# HASH THE FILE ON DISK DIRECTLY — never $(cat "$BIN") first. Copilot (H6 PR-review, #279) surfaced
+# that command substitution strips trailing newlines, so `printf '%s' "$(cat "$BIN")" | shasum` was
+# blind to a trailing-newline-only change: measured, bin/lens-dispatch + one extra "\n" produced the
+# IDENTICAL old pin (e21676…) — a real byte-change invisible to a tripwire that claims "any byte
+# change fails". This is the recurring class one turn deeper: R8's lesson ("the pin's computation
+# must BE the check's computation") was satisfied, but the common method I had standardized on
+# ($(cat)) carried its OWN hole. `shasum -a 256 "$BIN"` is BOTH its own instrument (the pin is now
+# reproducible by anyone with `sha256sum bin/lens-dispatch`) AND byte-complete (covers the trailing
+# newline the substitution ate). Strictly stronger: same file, now every on-disk byte.
+if command -v shasum >/dev/null 2>&1; then _path_hash="$(shasum -a 256 "$BIN" | cut -d' ' -f1)"
+else                                       _path_hash="$(sha256sum   "$BIN" | cut -d' ' -f1)"; fi
+_PATH_PIN='504414b10a0150cb4a142e10919d92c0823aa54a59ee0de9e29a98d708ee7053'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).
