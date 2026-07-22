@@ -197,38 +197,96 @@ declared set, so this yields no unpinned dispatch — but "the declaration is th
 false as a sentence, and false sentences about true mechanisms are what this file has had to
 retract four times.
 
-**Measured residual — it splits, and only one half is still open (R7).**
+**What the gates cover, by mechanism — no universal claim, on purpose.** Four successive
+versions of this paragraph asserted that some class of attack was exhaustively caught, and each
+was refuted by an instance inside the class it claimed. The sentences below say which mechanism
+catches which measured mutant, and then name what is NOT covered. That is the whole claim.
 
-*Two-path widening — **OPEN**.* Widening the condition inside **both** paths at once, leaving
-`--list-works` and `--list-bridge` byte-identical, still produces an unpinned dispatch
-(`fresh×probe` → `DISPATCH|recipe-02` on the mutant, `INCONCLUSIVE` on clean) and is **not
-caught**. This is the declared boundary.
+*Behavioural gates* (they run the binary and read its verdict) catch: a second accepting path ·
+a second emitting path · a third `DISPATCH` exit · a widened condition plus a declared row · a
+coverage loop gone inert · single-path condition-widening in `valid_work`. The last of those is
+the **near-miss battery**, added in R7: `valid_work` widened alone never dispatches (Table B
+stays exact-match, so garbage moves from *rejected* to merely *unmapped* — the fail-safe
+direction), so "no unpinned dispatch" was true while every gate passed **silently**. What does
+change is the reason (`invalid-session-work` → `no-bridge-mapping-for-work`), so the battery
+asserts *that*, over inputs derived from `--list-works` (three shape-variants per declared work
+— 33 today, and the count follows the vocabulary rather than being fixed at 33). It is
+**load-bearing**: disable only the battery and all three globs pass green (rc=0, zero other
+failures); enable it and all three fail. Independently reproduced by R8.
 
-*Single-path widening — **was open, now closed**.* Widening `valid_work` alone (prefix /
-suffix / substring) never produces a dispatch — Table B's lookup stays exact-match, so garbage
-moves from *rejected* to merely *unmapped*, the fail-safe direction. So "no unpinned dispatch"
-was true and every gate passed **silently**: undetected semantic drift. The signal that does
-change is the reason (`invalid-session-work` → `no-bridge-mapping-for-work`), so the near-miss
-battery asserts *that* — 33 checks (11 declared works × 3 shape-variants) whose expected verdict
-is rejection. It is **load-bearing, not belt-and-braces**: disabling only the battery and
-re-running every other gate lets all three globs pass **green** (rc=0, zero other failures),
-which is R7's finding reproduced; with it enabled all three fail. The battery does **not** close
-the two-path case above — different shape, still open.
+*The resolution-path tripwire* (R8) catches what no behavioural gate can: a widening applied
+**before** the declaration is read. R8 broke every gate above with one line —
+`work="$(split_session_type "$st" work | tr -d '-_.')"` — making `fresh×re-factor` dispatch
+`recipe-02` while `--list-works`/`--list-bridge` stayed byte-identical, all path-counts passed,
+the battery stayed blind, and both suites went green. **Strictly weaker than the two-path case
+below: one edit, not two.** The reason it was invisible is structural, and it is the sharpest
+lesson this file records: every behavioural gate *derives its inputs from the declaration*, so a
+transform applied upstream of the lookup is unreachable by declaration-derived generation **by
+construction**. Adding separator-shaped variants would close `tr -d '-_.'` and not `tr -d ' '`,
+not a stemmer, not a soundex — **the gap is the stage, not the shape**. A stage is enumerable
+where a shape-space is not, so the tripwire pins the **input→use-case** resolution path (`norm` ·
+`split_session_type` · `valid_work` · `use_case_for_work` · the `decide` lines wiring them) and
+fails on any byte-change to it. Measured: it fires on R8's mutant, on single-path widening, and
+on the two-path case.
 
-Every weaker shape **that produces an unpinned dispatch** is caught: a second accepting path, a
-second emitting path, a third DISPATCH exit, a widened condition plus a declared row, and a
-coverage loop gone inert. (The earlier wording said "every weaker shape is caught", which let
-one word do two jobs — *the suite fails* and *no hole is created* are different claims, and
-single-path widening satisfies only the second.)
+*Say input→use-case, not input→recipe.* The draft of this paragraph said "the complete
+input→recipe path", which is false — the final `use_case_for_work → recipe_for_use_case` step is
+**outside** the pin. Positive control: a benign comment added inside `recipe_for_use_case` leaves
+the suite **green**, proving the tripwire does not reach it. That step is covered by a different
+mechanism, measured: repointing `recipe_for_use_case` 11 from `recipe-02` to `recipe-14` — the
+exact R2 fabrication — fails on `UC11 lens drift`, i.e. the golden pins, not the hash. Two
+mechanisms, two scopes; naming them as one is the same word-doing-two-jobs error R7 corrected,
+and it nearly shipped a fifth time in this very sentence.
+
+*Its cost, stated rather than hidden*: a hash is a **change**-detector, not a semantic gate. Any
+edit inside the pinned path fails the suite — including a benign rename or reformat — and must
+be re-pinned deliberately. That is the trade taken on purpose: the surface is small and rarely
+edited, and the failure direction is closed (loudly stale beats silently wrong). Two consequences
+worth knowing: the tripwire now fires *first* for mutants the path-count invariants also catch,
+so a FAIL there names the hash rather than the count (the counts still run; re-pinning does not
+silence them); and it is *not* its own proof — an anchor-break probe verifies the extraction
+still finds all six markers, because a truncated extraction would pin a shorter path and pass.
+
+**Why the transcribed route needs no tripwire — measured, not assumed.** The obvious next
+question is where else "the resolution path is pinned" must hold; the `--use-case` route has the
+same shape (a token, a normalization at `sed 's/^0*//'`, a table, a guard) and is **not** in the
+pinned path. Four mutants say it does not need to be: a fabricated Table A row (uc 4, the exact
+R1 defect re-introduced) · an upstream transform folding out-of-range into range
+(`uc=$(( (uc-1) % 33 + 1 ))`, R8's attack ported to this route) · the protection guard disabled ·
+the guard narrowed to drop UC15 — **4/4 caught**. The reason is structural, not luck: this
+route's input domain is **enumerable** (integers 1–33, plus out-of-range) and the suite already
+enumerates it exhaustively, so declaration-derived generation has no blind spot to exploit. The
+bridge route needed a tripwire precisely because its domain is arbitrary strings. *Enumerate the
+domain where you can; pin the stage where you cannot.*
+
+**Residual, stated precisely.** The two-path widening (both conditions widened, declarations
+byte-identical) is still invisible to every *behavioural* gate; it is now caught only by the
+*tripwire*. Those are different kinds of coverage and collapsing them is exactly the word-doing-
+two-jobs error corrected in R7 — a tripwire proves the code did not change, never that the code
+is right. So what remains uncovered for honest drift is a widening that changes **no byte** of
+the pinned path and **no declared table row**; the classes checked and excluded are the data
+tables (own gates), upstream token preparation on the bridge route (the tripwire), and the whole
+transcribed route (exhaustive enumeration — 4/4 measured above). I have not enumerated that
+remainder and do not claim it is empty. Against an adversary rather than a maintainer, nothing
+in a co-located suite helps — see the boundary below.
 
 **Where the boundary actually sits** — R7's reframe, adopted because it is smaller and more
 defensible than the one this file used to state. An adversary who can edit `bin/` can edit
 `tests/`; against that adversary no assertion in a co-located suite helps, and that was never
 in scope. The suite's real job is **honest drift**: a maintainer who widens a condition without
 seeing the blast radius. Honest drift widens by *class* — case-insensitive, a prefix, a glob —
-essentially never by one hidden token, which is what the battery covers. Asking what the
-program **did** has never been foolable in seven rounds; asking what it **contains** has been
-fooled three times.
+essentially never by one hidden token, which is what the battery covers.
+
+> **The observable-vs-input refinement (R8).** Seven rounds supported "asking what the program
+> **did** has never been foolable; asking what it **contains** has been fooled three times", and
+> R8 refuted the first half — but not where it looked. The near-miss battery asks what the
+> program DID, and was blind anyway. R8's own reading is the precise one: the observable
+> (`.reason`) was right; the **input domain** was wrong. Generation was anchored to the
+> declaration, so the effect-observable silently inherited the declaration's blind spot.
+> Corrected: *an effect-observable is only as wide as the inputs you can generate, and generating
+> them from the artifact's own declaration re-imports the very gap you were trying to escape.*
+> That is why the remaining mechanism is a tripwire on the stage rather than a wider sample —
+> when you cannot enumerate the inputs, enumerate the code they flow through.
 
 > ⚠️ **v0.4.0 claimed this "by construction" and was wrong (R4/N1).** It rested the claim
 > on a row COUNT implemented as a source-text regex, which matched only single-line `case`

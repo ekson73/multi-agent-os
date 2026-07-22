@@ -251,12 +251,19 @@ done
 #
 # This battery is LOAD-BEARING, not belt-and-braces — measured by disabling it and re-running
 # every other gate against each mutant: $w* / *$w / *$w* all pass GREEN (rc=0, zero other
-# FAILs), which is R7's finding reproduced. Those three PRESERVE the exact match (`docs` still
-# matches `docs*`), so the program keeps working normally while quietly accepting garbage —
-# the realistic drift. The single-char forms REPLACE the exact match instead, breaking every
-# legitimate work, so the DISPATCH-count assertion catches them regardless; the battery fires
-# there too but is not what earns the catch. Precision matters: overstating which mechanism
-# does the work is how the SKILL.md claims drifted from their mechanisms four times.
+# FAILs), which is R7's finding reproduced (independently confirmed R8/ask-2). Those three
+# PRESERVE the exact match (`docs` still matches `docs*`), so the program keeps working
+# normally while quietly accepting garbage — the realistic drift.
+# The single-char forms REPLACE the exact match instead, so every legitimate work is rejected
+# and ~11 assertions fire at once — the corpus-level `DISPATCH count is 0; SKILL.md claims 16`,
+# 4x exit-code, 4x lens-drift, and 11x `$WORKS lists '<w>' but the tool rejects it`. Those
+# mutants are caught by that CLUSTER, not by any single assertion, and NOT by `_n_dispatch`
+# (the other thing in this file called a "DISPATCH count", which does not fire). The battery
+# fires there too but does not earn the catch. Stated at this precision because the previous
+# wording named one ambiguous mechanism and was measured wrong by R8 — in the sentence whose
+# next line is the warning below.
+# Precision matters: overstating which mechanism does the work is how the SKILL.md claims
+# drifted from their mechanisms four times.
 # Derived from --list-works (pinned to $WORKS by the gate above), so it grows with the vocabulary.
 _vw_ws=" $(echo $_vw) "
 _nm=0
@@ -304,6 +311,68 @@ for _kv in $("$BIN" --list-bridge 2>/dev/null); do
   esac
 done
 [ "$_cov" -gt 0 ] || fail "coverage loop examined ZERO rows — INERT (bad flag name? empty --list-bridge?)"
+
+# RESOLUTION-PATH TRIPWIRE (red-team H6, R8) — the STAGE, not the shape.
+#
+# R8 broke every mechanism above with ONE line, strictly weaker than the M10 boundary:
+#     work="$(split_session_type "$st" work)"   ->   ... work | tr -d '-_.')"
+# `fresh×re-factor` -> DISPATCH|recipe-02 on the mutant, INCONCLUSIVE on clean. Declarations
+# byte-identical, all three path-counts pass, near-miss battery blind, matrix rc=0, self-test 40/40.
+#
+# The structural reason it was invisible, which is the whole lesson: every gate above derives
+# its inputs FROM the declaration (the drift gate compares --list-works to $WORKS; the coverage
+# loop ranges over --list-bridge; the battery generates its 33 from --list-works). But the token
+# is PREPARED before either lookup consults the declaration. A widening placed upstream of the
+# lookup is unreachable by declaration-derived generation BY CONSTRUCTION — no suffix/prefix/
+# doubling of a declared work can reach a stage that runs before the declaration is read.
+# So this is not "one more variant". Separator-shaped near-misses would close `tr -d '-_.'` and
+# not `tr -d ' '`, not a stemmer, not a soundex. The gap is the STAGE.
+#
+# A stage is enumerable where a shape-space is not. This pins the complete code path from raw
+# CLI input to recipe id — norm() · split_session_type() · valid_work() · use_case_for_work()
+# and the decide() lines that wire them — and fails on ANY byte-change to it. Shape-agnostic:
+# tr, sed, parameter expansion, a stemmer and a soundex all change bytes equally.
+#
+# HONEST SCOPE, because five versions of the SKILL.md have overstated in this exact place:
+#   * It is a TRIPWIRE, not a proof. It says the path did not change; it never says the path
+#     is correct.
+#   * It reads source — but it is a hash, the limit case of a count, not an extraction. An
+#     extraction can silently read the wrong value (how `_n_emit` was defeated); a hash cannot
+#     be silently wrong, only loudly stale.
+#   * Cost is real and deliberate: a legitimate refactor must re-pin. That friction IS the
+#     mechanism — it forces a maintainer to notice they touched a safety-relevant stage.
+#   * It does NOT cover a widening achieved WITHOUT editing this code (via the data tables —
+#     those have their own gates above), nor an edit accompanied by a deliberate re-pin. The
+#     latter is the adversary who edits tests/ as easily as bin/, explicitly out of scope.
+_path_extract() { # $1=binary
+  sed -n '/^norm()/p' "$1"
+  awk '/^split_session_type\(\)/,/^}/' "$1"
+  awk '/^valid_work\(\)/,/^}/' "$1"
+  awk '/^use_case_for_work\(\)/,/^}/' "$1"
+  awk '/^decide\(\)/,/^}/' "$1" | command grep -E 'norm "|split_session_type|valid_work "|use_case_for_work'
+}
+_path_src="$(_path_extract "$BIN")"
+# INERTNESS GUARD — an empty or truncated extraction would pin a hash of nothing and pass
+# forever (the free-negative defect this suite has hit four times, here in a new mechanism).
+# Every stage must be present by name, and the decide() wiring must have survived the filter.
+for _marker in 'norm()' 'split_session_type()' 'valid_work()' 'use_case_for_work()' \
+               'split_session_type "$st" work' 'nk="$(norm "$1")"'; do
+  case "$_path_src" in
+    *"$_marker"*) ;;
+    *) fail "resolution-path extraction lost '$_marker' — the tripwire is INERT and would pin a truncated path" ;;
+  esac
+done
+if command -v shasum >/dev/null 2>&1; then _path_hash="$(printf '%s' "$_path_src" | shasum -a 256 | cut -d' ' -f1)"
+else                                       _path_hash="$(printf '%s' "$_path_src" | sha256sum   | cut -d' ' -f1)"; fi
+# Pin computed BY the code above, never by a lookalike harness: my first value was produced by
+# an ad-hoc reimplementation that piped instead of using "$(...)", so it kept a trailing newline
+# and differed from what this file computes. The mechanism must be its own measuring instrument.
+_PATH_PIN='d6d229e3a51ba30d1defc1c48f3bb2fb604dece2c8bfd7b1ce464b5f211961b0'
+[ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
+    Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
+    declaration, and cannot see a transform applied BEFORE the declaration is read (R8).
+    If this change is intentional: re-run the mutation battery, then update _PATH_PIN. Do not
+    update the pin without re-reading what the change does to token acceptance."
 
 # PATH-COUNT INVARIANTS (red-team H6, R6/ask-1 + ask-3).
 # --list-* publishes what the program CONTAINS; that is a declaration, and an edit can move
