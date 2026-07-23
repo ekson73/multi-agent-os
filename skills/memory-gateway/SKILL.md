@@ -100,7 +100,9 @@ memory-gateway --corpus ~/mem neighborhood user/merge-preference --depth 2
 
 ## Advisory Posture
 
-This skill is **advisory-first**: it tells you *to route memory through the gateway* and *how*. It does not hard-block direct edits. If a direct edit is genuinely necessary (migration, repair), run `memory-gateway --corpus <dir> index` afterward to reconcile the index, and prefer the gateway for anything that mutates identity or supersedes a fact.
+This skill is **advisory-first**: it tells you *to route ALL memory mutations through the gateway* and *how*. Direct edits are **not** a supported mutation path — they bypass deduplication, canonical-identity resolution, supersession/forgetting, the corpus lock, WAL crash-recovery, and the audit trail, and can silently corrupt the index or resurrect a superseded fact.
+
+**Never** hand-edit to create, rename (an identity change), or supersede a topic — those MUST go through `create` / `update --supersede`, no exception. A direct edit is tolerated **only** as a last-resort one-off migration or repair, and only when it is: (1) performed on a **quiesced** corpus (no concurrent gateway writer), (2) followed immediately by `memory-gateway --corpus <dir> index` to reconcile the index, and (3) verified by re-reading the affected slugs. Anything that mutates identity or supersedes a fact is gateway-only.
 
 ## References
 

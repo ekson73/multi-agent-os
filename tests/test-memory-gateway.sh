@@ -50,7 +50,17 @@ gw() {
   ERR="$(cat "$ERRF" 2>/dev/null || true)"
   BODY=""   # consume
 }
-jqr() { printf '%s' "$1" | jq -r "$2" 2>/dev/null; }
+jqr() {  # retry-on-empty defeats a transient subprocess-spawn failure (fork EAGAIN) under the suite's
+         # burst load: jq prints "null" for null/absent fields, so a truly-empty result means jq
+         # failed to run, not a real value. No assertion compares a jqr result to literal "", so a
+         # deterministic parse-error retries to ""=unchanged (non-masking); only a transient clears.
+  local r a
+  for a in 1 2 3; do
+    r="$(printf '%s' "$1" | jq -r "$2" 2>/dev/null)"
+    [ -n "$r" ] && break
+  done
+  printf '%s' "$r"
+}
 fresh() { mktemp -d "$ROOT_TMP/corpus.XXXXXX"; }
 
 C="$(fresh)"
@@ -521,6 +531,115 @@ envs=$(printf '%s' "$OUT" | jq -s 'length' 2>/dev/null)
 [ "$irc" = 0 ] && [ "$envs" = 1 ] && [ "$(jqr "$OUT" '.status')" = ok ] && [ "$(jqr "$OUT" '.verb')" = index ] \
   && ok "36 #3: index emits exactly ONE envelope (no subshell double-emit)" \
   || no "36 #3 index envelope count=$envs (irc=$irc out=$OUT)"
+
+# ============================================================================
+# 37  BUG 5 (PDCA pass-3): a newline/CR in name OR description must refuse
+#     (USAGE) — a raw \n would inject/terminate the `---` frontmatter block
+#     (identity spoof / structural corruption). Nothing may be persisted.
+# ============================================================================
+IJ="$(fresh)"
+nl="$(printf '\nx')"; nl="${nl%x}"
+BODY="b" gw --corpus "$IJ" create "prof${nl}injected: evil" --type user
+r37a=$RC; c37a="$(jqr "$OUT" '.reason.code')"
+BODY="b" gw --corpus "$IJ" create legit --type user --description "line1${nl}type: reference"
+r37b=$RC; c37b="$(jqr "$OUT" '.reason.code')"
+BODY="b" gw --corpus "$IJ" update --supersede --type user --name "sup${nl}evil"
+r37c=$RC; c37c="$(jqr "$OUT" '.reason.code')"
+wrote37=$(find "$IJ" -path '*/.gateway' -prune -o -type f -name '*.md' ! -name MEMORY.md -print 2>/dev/null | wc -l | tr -d ' ')
+if [ "$r37a" = 1 ] && [ "$c37a" = USAGE ] && [ "$r37b" = 1 ] && [ "$c37b" = USAGE ] \
+   && [ "$r37c" = 1 ] && [ "$c37c" = USAGE ] && [ "$wrote37" = 0 ]; then
+  ok "37 Bug5: newline in name/description refused (USAGE) — no frontmatter injection, nothing written"
+else no "37 Bug5 newline injection (r37a=$r37a c37a=$c37a r37b=$r37b c37b=$c37b r37c=$r37c c37c=$c37c wrote=$wrote37)"; fi
+
+# ============================================================================
+# 38  BUG 4 (PDCA pass-3): E6 forgetting must hold for get_neighborhood too,
+#     not just search. A superseded (slug-CHANGING) neighbor disappears from
+#     the walk (its archived slug is no longer a live file -> skipped).
+# ============================================================================
+NB="$(fresh)"
+BODY="old neighbor NBRKW body" gw --corpus "$NB" create anchor-old --type reference
+BODY="hub links [[reference/anchor-old]] here" gw --corpus "$NB" create hub --type user
+gw --corpus "$NB" neighborhood user/hub --depth 1
+pre38="$(jqr "$OUT" '.data.nodes | index("reference/anchor-old")')"   # present -> a number; absent -> null
+BODY="new neighbor NBR2KW body" gw --corpus "$NB" update --supersede --type reference --name anchor-new --supersedes reference/anchor-old
+sup38=$RC
+gw --corpus "$NB" neighborhood user/hub --depth 1
+post38="$(jqr "$OUT" '.data.nodes | index("reference/anchor-old")')"
+if [ "$pre38" != null ] && [ "$sup38" = 0 ] && [ "$post38" = null ]; then
+  ok "38 Bug4: superseded neighbor ABSENT from get_neighborhood (present before, gone after supersession)"
+else no "38 Bug4 neighborhood exclusion (pre=$pre38 sup=$sup38 post=$post38)"; fi
+
+# ============================================================================
+# 39  BUG 3 (PDCA pass-3): an I/O failure on the topic write must NEVER report
+#     a false `ok`. Force mktemp-in-dir to fail (chmod 555: dir still traversable
+#     so the BOUNDARY cd resolves, but not writable) -> IO_ERROR exit 2, nothing
+#     persisted. (skip as root — root bypasses perms.)
+# ============================================================================
+if [ "$(id -u)" != 0 ]; then
+  IO="$(fresh)"
+  BODY="seed" gw --corpus "$IO" create seed --type user >/dev/null   # materialize user/
+  chmod 555 "$IO/user"                                               # r-x: traversable (cd ok) but not writable (mktemp fails)
+  BODY="should fail" gw --corpus "$IO" create victim --type user
+  r39=$RC; s39="$(jqr "$OUT" '.status')"; c39="$(jqr "$OUT" '.reason.code')"
+  chmod 755 "$IO/user"                                              # restore so trap cleanup can recurse
+  wrote39=0; [ -f "$IO/user/victim.md" ] && wrote39=1
+  if [ "$r39" = 2 ] && [ "$s39" = error ] && [ "$c39" = IO_ERROR ] && [ "$wrote39" = 0 ]; then
+    ok "39 Bug3: write I/O failure -> exit 2 IO_ERROR (never a false ok), nothing persisted"
+  else no "39 Bug3 io-failure (r39=$r39 s39=$s39 c39=$c39 wrote=$wrote39)"; fi
+else
+  ok "39 Bug3 skipped (running as root — perms bypassed)"
+fi
+
+# ============================================================================
+# 40  BUG 1 (PDCA pass-3): a stale-by-TS lock (LIVE holder pid but ts older than
+#     LOCK_STALE_SECS) is reclaimed via the atomic rename-steal (complements test
+#     30's dead-pid path; exercises the ts branch + single-winner reclaim).
+# ============================================================================
+SL="$(fresh)"
+BODY="v" gw --corpus "$SL" create x --type user            # materialize .gateway/
+mkdir -p "$SL/.gateway/lock.d"
+echo "$$" > "$SL/.gateway/lock.d/pid"                      # a LIVE pid (this test) -> NOT dead: forces the ts branch
+echo 1 > "$SL/.gateway/lock.d/ts"                          # epoch 1 -> age >> 900s -> stale-by-ts
+BODY="after stale" gw --corpus "$SL" create y --type user
+if [ "$RC" = 0 ] && [ "$(jqr "$OUT" '.status')" = ok ]; then
+  gw --corpus "$SL" read user/y
+  [ "$RC" = 0 ] && ok "40 Bug1: stale-by-ts lock reclaimed via rename-steal (next writer proceeds)" || no "40 y unreadable after stale-ts reclaim"
+else no "40 Bug1 stale-ts reclaim (rc=$RC out=$OUT)"; fi
+
+# ============================================================================
+# 41  CodeRabbit (PDCA pass-4, EPERM vs ESRCH): a DEAD holder pid with a FRESH ts
+#     must still FAST-reclaim. `kill -0` fails for both ESRCH (dead) and EPERM
+#     (live/other-UID); the fix adds a `ps -p` probe so only a pid ps ALSO cannot
+#     see is reclaimed. Fresh ts => the ts backstop does NOT apply, isolating the
+#     pid-death (ESRCH) branch — proves the EPERM split didn't break dead-pid recovery.
+# ============================================================================
+DP="$(fresh)"
+BODY="v" gw --corpus "$DP" create x --type user            # materialize .gateway/
+mkdir -p "$DP/.gateway/lock.d"
+echo 99999999 > "$DP/.gateway/lock.d/pid"                  # a pid above every OS's PID_MAX: kill -0 -> ESRCH AND
+                                                           # ps -p -> absent, DETERMINISTICALLY. an un-reusable pid
+                                                           # avoids the reap-then-reuse race a real spawned pid has.
+date +%s > "$DP/.gateway/lock.d/ts"                        # FRESH ts -> ts backstop inert; isolates the pid-death (ESRCH) branch
+BODY="after dead" gw --corpus "$DP" create y --type user
+if [ "$RC" = 0 ] && [ "$(jqr "$OUT" '.status')" = ok ]; then
+  gw --corpus "$DP" read user/y
+  [ "$RC" = 0 ] && ok "41 EPERM/ESRCH: dead holder (impossible pid, fresh ts) fast-reclaimed via ps-absent probe" || no "41 y unreadable after dead-pid reclaim"
+else no "41 dead-pid fast-reclaim (rc=$RC out=$OUT)"; fi
+
+# ============================================================================
+# 42  qodo #4 (PDCA pass-4, minimal-PATH): _resolve_bin's absolute-candidate list must
+#     contain a jq that actually WORKS when PATH is stripped (launchd/cron). This asserts
+#     the fix's premise directly — an absolute fallback candidate resolves AND runs under
+#     an empty PATH — without a full-gateway run (which also needs PATH-resolved coreutils,
+#     an orthogonal concern). Complements the manual /usr/bin:/bin end-to-end check.
+# ============================================================================
+jq_fb=""   # first candidate from the gateway's own fallback list that exists here
+for c in "${HOME:-}/.local/share/mise/shims/jq" "${HOME:-}/.asdf/shims/jq" /opt/homebrew/bin/jq /usr/local/bin/jq /usr/bin/jq /bin/jq; do
+  [ -x "$c" ] && { jq_fb="$c"; break; }
+done
+if [ -n "$jq_fb" ] && [ "$(PATH="" "$jq_fb" -nr '"ok"' 2>/dev/null)" = ok ]; then
+  ok "42 qodo#4: absolute jq fallback resolves + runs under empty PATH ($jq_fb) — minimal-PATH safe"
+else no "42 qodo#4 no working absolute jq fallback candidate (jq_fb=$jq_fb)"; fi
 
 echo ""
 [ "$fail" -eq 0 ] && { echo "test-memory-gateway: PASS"; exit 0; } || { echo "test-memory-gateway: FAIL"; exit 1; }
