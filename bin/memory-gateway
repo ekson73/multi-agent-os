@@ -82,6 +82,7 @@ PS_BIN="$(_resolve_bin ps /bin/ps /usr/bin/ps || true)"   # for _lock_is_stale l
 
 VERB=""
 CORPUS=""
+ARCHSEQ=""   # output var of _archive_topic/_archive_if_stale — set in the CALLER's process (NOT via $()) so _err_io's exit 2 propagates on an archive-move I/O failure (qodo PDCA-6)
 LOCK=""
 LOCK_HELD=0
 LOCK_STALE_SECS=900
@@ -359,7 +360,7 @@ _rebuild_index() {  # rebuilds MEMORY.md; echoes the live-entry count
 # ---------------------------------------------------------------------------
 # archive tier (seq-numbered; content NEVER destroyed)
 # ---------------------------------------------------------------------------
-_archive_topic() {  # _archive_topic <slug>  -> moves live to archive, echoes seq
+_archive_topic() {  # _archive_topic <slug>  -> moves live to archive; sets $ARCHSEQ to the seq
   local slug="$1" live adir cnt seq padded dst
   live="$CORPUS/$slug.md"
   adir="$CORPUS/.archive/$slug"
@@ -370,16 +371,17 @@ _archive_topic() {  # _archive_topic <slug>  -> moves live to archive, echoes se
   dst="$adir/$padded.md"
   mv "$live" "$dst" || _err_io "failed to move '$slug' into the archive tier — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
   _fsync "$(dirname "$live")"; _fsync "$adir"
-  printf '%s' "$seq"
+  ARCHSEQ="$seq"   # global out-var — MUST run in the caller's process (was `printf '%s' "$seq"` read via $(), which forked a subshell that swallowed _err_io's exit 2 on mv failure -> parent continued -> false ok; qodo PDCA-6)
 }
 
-_archive_if_stale() {  # _archive_if_stale <slug> <new-payload>  (idempotent guard)
+_archive_if_stale() {  # _archive_if_stale <slug> <new-payload>  (idempotent guard); sets $ARCHSEQ ('' = no-op, else the archived seq)
   local slug="$1" payload="$2" live cur
+  ARCHSEQ=""                                        # reset the global out-var (was: `printf ''` on the two no-op branches)
   live="$CORPUS/$slug.md"
-  [ -f "$live" ] || { printf ''; return 0; }       # already archived / absent -> no-op
+  [ -f "$live" ] || return 0                        # already archived / absent -> no-op (ARCHSEQ stays '')
   cur="$(cat "$live")"
-  [ "$cur" = "$payload" ] && { printf ''; return 0; }  # new already installed -> no double-archive
-  _archive_topic "$slug"
+  [ "$cur" = "$payload" ] && return 0               # new already installed -> no double-archive (ARCHSEQ stays '')
+  _archive_topic "$slug"                            # sets $ARCHSEQ; on I/O failure _err_io exits the REAL process (no subshell to swallow it)
 }
 
 # ---------------------------------------------------------------------------
@@ -422,7 +424,8 @@ _replay_supersede() {  # _replay_supersede <intent-json>  (idempotent). returns 
       return 1   # corrupt payload: mutate NOTHING (neither archive nor write) — never persist corruption
     fi
   fi
-  [ -n "$superseded" ] && [ "$superseded" != "null" ] && _archive_if_stale "$superseded" "$payload" >/dev/null
+  # recovery replay: archive-first (via $ARCHSEQ, NOT $()) so an archive-move I/O failure here also exits 2 with the [C06] envelope on real stdout (the old `>/dev/null` even ate _err_io's envelope), leaving the intent OPEN for the next retry
+  [ -n "$superseded" ] && [ "$superseded" != "null" ] && _archive_if_stale "$superseded" "$payload"
   _atomic_write "$CORPUS/$new_slug.md" "$payload" || _err_io "recovery: failed to write '$new_slug' — I/O error (intent left OPEN for the next recovery; no commit marker written)"
   _rebuild_index >/dev/null
 }
@@ -468,7 +471,8 @@ _wal_supersede() {  # _wal_supersede <new_slug> <superseded_slug> <content>
   _fsync "$wal"; _fsync "$CORPUS/.gateway"
   _crash_if intent
   # STAGE 2 — archive the superseded (archive-FIRST; see header NOTE)
-  archseq="$(_archive_if_stale "$superseded" "$content")"
+  # NOT `$(...)`: an archive-move I/O failure must let _err_io's exit 2 abort THIS process (WAL intent stays OPEN, successor never written) — a command substitution would fork a subshell, swallow the exit, and let STAGE 3-5 emit a false ok (qodo PDCA-6)
+  _archive_if_stale "$superseded" "$content"; archseq="$ARCHSEQ"
   _crash_if archive
   # STAGE 3 — write the new live topic (atomic temp->rename, fsync)
   _atomic_write "$CORPUS/$new_slug.md" "$content" || _err_io "supersede: failed to write new topic '$new_slug' — I/O error (WAL intent stays OPEN; recovery completes it idempotently)"
@@ -690,7 +694,7 @@ do_archive() {
   [ -n "$SLUG" ] || _refuse archive "" USAGE "archive requires a slug"
   _valid_slug "$SLUG" || _refuse archive "$SLUG" BOUNDARY "slug escapes the corpus"
   [ -f "$CORPUS/$SLUG.md" ] || _refuse archive "$SLUG" NOT_FOUND "no live topic at slug '$SLUG'"
-  seq="$(_archive_topic "$SLUG")"
+  _archive_topic "$SLUG"; seq="$ARCHSEQ"   # NOT `$()`: same subshell-swallows-exit-2 hazard as the supersede path — the standalone archive verb must also fail loud on an archive-move I/O error (qodo PDCA-6)
   _rebuild_index >/dev/null
   _audit archive "$SLUG"
   _emit ok archive "$SLUG" \

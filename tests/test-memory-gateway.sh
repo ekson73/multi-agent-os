@@ -665,5 +665,34 @@ if [ "$RC" = 0 ] \
 else no "43 symlink-escaping neighbor leaked OR legit neighbor dropped (rc=$RC nodes=[$nb_nodes])"; fi
 rm -f "$OUTSIDE"
 
+# ============================================================================
+# 44  qodo (PDCA pass-6, archive-move I/O failure): a supersede whose archive `mv`
+#     fails must exit 2 IO_ERROR with NOTHING half-applied — never a false ok. Pass-4's
+#     pin (39) covered a topic-WRITE failure; the archive-MOVE path ran via
+#     `archseq="$(_archive_if_stale ...)"`, whose subshell SWALLOWED _err_io's exit 2 ->
+#     the parent wrote the successor over the un-archived original + stamped the WAL commit
+#     + emitted ok (E6 atomicity + intent-stays-open both broken). Root fix: $ARCHSEQ
+#     out-var (no cmd-subst) so exit 2 aborts the real process. Inject: pre-create the
+#     target archive dir r-x (555) -> `mkdir -p` no-ops, `find` traverses, but `mv` INTO
+#     it -> EACCES -> _err_io. Asserts exit 2 + IO_ERROR + the ORIGINAL still live
+#     (successor never overwrote it).
+# ============================================================================
+if [ "$(id -u)" != 0 ]; then
+  AF="$(fresh)"
+  BODY="ARCHV1 original fact" gw --corpus "$AF" create profile --type user >/dev/null 2>&1   # the fact to be superseded
+  mkdir -p "$AF/.archive/user/profile"                                    # pre-create the archive tier dir...
+  chmod 555 "$AF/.archive/user/profile"                                   # ...r-x: mkdir -p no-ops + find traverses, but `mv` INTO it -> EACCES
+  BODY="ARCHV2 successor fact" gw --corpus "$AF" update --supersede --type user --name profile --supersedes user/profile
+  r44=$RC; s44="$(jqr "$OUT" '.status')"; c44="$(jqr "$OUT" '.reason.code')"
+  chmod 755 "$AF/.archive/user/profile"                                   # restore so the trap's rm -rf can recurse
+  live44="$(cat "$AF/user/profile.md" 2>/dev/null)"
+  orig_kept=0; printf '%s' "$live44" | grep -q "ARCHV1" && ! printf '%s' "$live44" | grep -q "ARCHV2" && orig_kept=1
+  if [ "$r44" = 2 ] && [ "$s44" = error ] && [ "$c44" = IO_ERROR ] && [ "$orig_kept" = 1 ]; then
+    ok "44 qodo#PDCA-6: archive-move I/O failure -> exit 2 IO_ERROR (never a false ok), original kept un-overwritten (E6 atomicity held)"
+  else no "44 qodo#PDCA-6 archive-io (r44=$r44 s44=$s44 c44=$c44 orig_kept=$orig_kept live=[$live44])"; fi
+else
+  ok "44 qodo#PDCA-6 archive-io skipped (running as root — perms bypassed)"
+fi
+
 echo ""
 [ "$fail" -eq 0 ] && { echo "test-memory-gateway: PASS"; exit 0; } || { echo "test-memory-gateway: FAIL"; exit 1; }
