@@ -1,0 +1,895 @@
+#!/usr/bin/env bash
+# MAOS — memory-gateway · the ONE writer to the memory corpus (ADR-013, EKO-116)
+# ----------------------------------------------------------------------------
+# WHY: an amnesic-agent ecosystem needs a SINGLE, crash-safe, deterministic
+#   front-door to persistent memory. Ad-hoc Edit/Write on topic files means:
+#   (a) two facts silently collide on the same identity, (b) a superseded fact
+#   is left live next to its replacement ("forgetting" never happens), and
+#   (c) a crash mid-write leaves the corpus in a state that never existed.
+#   This gateway makes those three failure modes structurally impossible:
+#   dedup on a canonical identity key, an atomic supersession that archives
+#   the old fact in the SAME operation, and a write-ahead log that any next
+#   invocation completes before serving a single verb.
+#
+# THE 7-VERB NARROW API (mem0-absorbed CRUD):
+#   create · read · update · archive · search · neighborhood · index
+#   mutating: create/update/archive/index   read-only: read/search/neighborhood
+#
+# IDENTITY: the canonical key is (type, normalize(name)); the slug is that
+#   key's type-qualified projection  slug = <type>/<normalize(name)>  — so
+#   (user,profile) -> user/profile and (project,profile) -> project/profile are
+#   distinct addresses that never collide. Dedup (create) and implicit
+#   supersession (update) both operate on this one unambiguous identity.
+#
+# FORGETTING (the E6 mutation-hook): an `update --supersede` whose (type,name)
+#   matches an active topic archives that topic IN THE SAME OPERATION — no
+#   separate `archive` call. `archive` is the ONLY removal verb, and it never
+#   destroys content: it TIERS the topic into <corpus>/.archive/ (retrievable).
+#   Purge / true-erasure is deliberately OUT of scope (tiering-never-deletion).
+#
+# CRASH-SAFETY (supersession): a 5-stage write-ahead transaction over the WAL
+#   (<corpus>/.gateway/wal.jsonl), guarded by an exclusive corpus lock:
+#     (1) intent (fsync'd FIRST, carries the full new-topic payload+sha)
+#     (2) archive the superseded topic          <-- archive-FIRST, see NOTE
+#     (3) write the new live topic (temp->rename, fsync file+dir)
+#     (4) rebuild the index (atomic)
+#     (5) commit marker (fsync)
+#   Every mutating/read invocation runs recovery FIRST: it discards a trailing
+#   partial WAL line and idempotently replays any intent-without-commit, so no
+#   verb is ever served over a half-applied supersession.
+#
+#   NOTE (the one deliberate refinement over ADR-013's literal stage order):
+#   the ADR lists new-topic-write (stage 2) BEFORE archive (stage 3). But the
+#   implicit-supersession match is INHERENTLY same-slug (the new fact matches
+#   the topic it supersedes on (type,name), so both share the canonical path).
+#   Writing the new topic first would OVERWRITE the superseded content at that
+#   path before it could be archived -> the old fact is destroyed, not tiered,
+#   and the E6 forgetting guarantee fails. So archive precedes the new-topic
+#   write. This preserves every crash-recovery property the ADR requires:
+#   recovery re-applies archive-move + new-topic-write idempotently and
+#   order-independently (the ADR says so explicitly), and startup-recovery-
+#   before-serving means no reader ever observes the momentary no-live window.
+#   Replay uses a content-guard (archive only if the live file still holds the
+#   OLD content, != the new payload) so a crash AFTER the new-topic write never
+#   double-archives.
+#
+# Portability: POSIX Bash 3.2 + jq only. python3 is used for fsync of files AND
+#   dirs (probed; degrades to `sync`). stat/shasum are probed. No `declare -A`,
+#   no `mapfile`, no `${var^^}`.
+# Output: exactly ONE JSON envelope on stdout per execution:
+#   {status, verb, slug, data, reason}  — human diagnostics go to stderr ONLY.
+# Exit codes ([C06]): 0 ok (incl. idempotent no-op) · 1 refused/usage · 2 setup.
+set -uo pipefail
+
+# ---------------------------------------------------------------------------
+# setup / tool probes
+# ---------------------------------------------------------------------------
+# Binary resolution: PATH first (command -v), then known absolute candidates. launchd/cron strip PATH to a
+# minimal set, and this gateway is designed for UNATTENDED/hook invocation, so a bare `command -v` would make
+# it spuriously fail there. Candidates cover macOS Homebrew (arm+intel), system, and common Linux locations.
+_resolve_bin() {  # _resolve_bin <name> <abs-candidate>...  -> prints an absolute path, or nothing (rc 1)
+  local p; p="$(command -v "$1" 2>/dev/null || true)"; [ -n "$p" ] && { printf '%s' "$p"; return 0; }
+  shift; for c in "$@"; do [ -x "$c" ] && { printf '%s' "$c"; return 0; }; done
+  return 1
+}
+# version-manager shims (mise/asdf) are version-independent absolute paths that work under an empty PATH, so
+# they cover managed installs the fixed system paths miss; ${HOME:-} guards an unset HOME under set -u.
+_MISE="${HOME:-}/.local/share/mise/shims"; _ASDF="${HOME:-}/.asdf/shims"
+JQ="$(_resolve_bin jq "$_MISE/jq" "$_ASDF/jq" /opt/homebrew/bin/jq /usr/local/bin/jq /usr/bin/jq /bin/jq || true)"
+[ -n "$JQ" ] || { echo "memory-gateway: jq is required (install jq)" >&2; exit 2; }
+PYTHON3="$(_resolve_bin python3 "$_MISE/python3" "$_ASDF/python3" /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3 /bin/python3 || true)"
+PS_BIN="$(_resolve_bin ps /bin/ps /usr/bin/ps || true)"   # for _lock_is_stale liveness disambiguation (EPERM vs ESRCH); ps is a system binary, no shim
+
+VERB=""
+CORPUS=""
+ARCHSEQ=""   # output var of _archive_topic/_archive_if_stale — set in the CALLER's process (NOT via $()) so _err_io's exit 2 propagates on an archive-move I/O failure (qodo PDCA-6)
+LOCK=""
+LOCK_HELD=0
+LOCK_STALE_SECS=900
+LOCK_MAX_TRIES=15   # ~1.5s at 0.1s/try before refusing CONCURRENT_WRITER
+
+usage() {
+  cat >&2 <<'EOF'
+memory-gateway — the ONE writer to the memory corpus (ADR-013).
+
+USAGE
+  memory-gateway --corpus <dir> <verb> [args]      (or set MEMORY_GATEWAY_CORPUS)
+
+VERBS
+  create <name> --type {user|feedback|project|reference} [--description D]   (body on stdin)
+  read <slug> [--archived]
+  update <slug>                                     (append; delta on stdin)
+  update --supersede --type T --name N [--supersedes <slug>] [--description D]  (new body on stdin)
+  archive <slug>
+  search <query>
+  neighborhood <seed-slug> [--depth N] [--budget N] (depth 1..3; >3 clamped)
+  index
+
+OUTPUT   one JSON envelope on stdout: {status, verb, slug, data, reason}
+EXIT     0 ok · 1 refused/usage · 2 setup (jq/corpus)
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# envelope emitters (stdout = JSON only; stderr = human diagnostics only)
+# ---------------------------------------------------------------------------
+_emit() {  # _emit <status> <verb> <slug> <data-json|null> <reason-json|null>
+  "$JQ" -cn --arg status "$1" --arg verb "$2" --arg slug "$3" \
+    --argjson data "${4:-null}" --argjson reason "${5:-null}" \
+    '{status:$status, verb:$verb, slug:(if $slug=="" then null else $slug end), data:$data, reason:$reason}'
+}
+_refuse() {  # _refuse <verb> <slug> <code> <message> [data-json]
+  local data="${5:-null}"
+  _emit refused "$1" "$2" "$data" "$("$JQ" -nc --arg c "$3" --arg m "$4" '{code:$c, message:$m}')"
+  exit 1
+}
+_err_setup() {  # _err_setup <message>   (setup/environment failure)
+  _emit error "${VERB:-}" "" null "$("$JQ" -nc --arg c SETUP --arg m "$1" '{code:$c, message:$m}')"
+  exit 2
+}
+_err_io() {  # _err_io <message>  — mid-op I/O failure (disk full / perms): the environment cannot persist.
+             # exit 2 (environment-can't-serve, [C06]) — NEVER a false `ok`. In a WAL transaction the intent
+             # stays open, so the next invocation's recovery completes the mutation idempotently.
+  _emit error "${VERB:-}" "" null "$("$JQ" -nc --arg c IO_ERROR --arg m "$1" '{code:$c, message:$m}')"
+  exit 2
+}
+
+# ---------------------------------------------------------------------------
+# small helpers
+# ---------------------------------------------------------------------------
+_ts()     { date -u +%Y-%m-%dT%H:%M:%SZ; }
+_txn_id() { printf '%s-%s-%s' "$(date -u +%s)" "$$" "${RANDOM:-0}"; }
+
+_valid_type() { case "$1" in user|feedback|project|reference) return 0 ;; *) return 1 ;; esac; }
+
+_need_val() {  # _need_val <remaining-argc> <flagname> — guards `shift 2` against a valueless trailing flag
+  # (bash 3.2 `shift 2` with $#<2 does NOT shift and returns non-zero; under set -uo pipefail the
+  #  arg-parse while-loop then re-enters unchanged -> infinite loop / DoS holding the corpus lock).
+  [ "$1" -ge 2 ] || _refuse "${VERB:-}" "" USAGE "$2 requires a value"
+}
+
+_normalize() {  # case-fold + kebab: lower, non-alnum runs -> '-', trim '-'
+  printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]' \
+    | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
+}
+
+_valid_slug() {  # safe type/name slug; rejects traversal / absolute / illegal
+  local s="$1" type name
+  case "$s" in
+    ""|/*|*..*) return 1 ;;
+    *[!a-z0-9/._-]*) return 1 ;;
+  esac
+  type="${s%%/*}"; name="${s#*/}"
+  [ "$type" != "$s" ] || return 1          # must contain a slash
+  case "$name" in */*) return 1 ;; esac     # exactly one slash
+  [ -n "$type" ] && [ -n "$name" ] || return 1
+  _valid_type "$type" || return 1
+  return 0
+}
+
+_NL="$(printf '\nx')"; _NL="${_NL%x}"   # one literal LF (the `printf x`+strip guard survives command-subst)
+_CR="$(printf '\rx')"; _CR="${_CR%x}"   # one literal CR
+_no_ctrl_lines() {  # _no_ctrl_lines <string> — 0 iff no LF/CR. Frontmatter fields (name/description) are
+                    # single-line by construction; an embedded newline would inject/terminate the `---` block
+                    # (identity spoof / structural corruption). Reject at input; multi-line detail belongs in the body.
+  case "$1" in *"$_NL"*|*"$_CR"*) return 1 ;; *) return 0 ;; esac
+}
+
+_fm_field() {  # _fm_field <file> <field>  -> value of a frontmatter field
+  awk -v key="$2" '
+    NR==1 { if ($0=="---") { infm=1; next } else { exit } }
+    infm==1 && $0=="---" { exit }
+    infm==1 {
+      idx=index($0, ":")
+      if (idx>0) {
+        k=substr($0,1,idx-1); v=substr($0,idx+1)
+        gsub(/^[ \t]+|[ \t]+$/, "", k); gsub(/^[ \t]+|[ \t]+$/, "", v)
+        if (k==key) { print v; exit }
+      }
+    }' "$1"
+}
+
+_topic_content() {  # _topic_content <name> <type> <desc> <body>
+  printf -- '---\nname: %s\ntype: %s\ndescription: %s\n---\n%s\n' "$1" "$2" "$3" "$4"
+}
+
+_sha256() {  # _sha256 <string>  -> hex digest (empty if no tool)
+  if command -v shasum >/dev/null 2>&1; then printf '%s' "$1" | shasum -a 256 | awk '{print $1}'
+  elif command -v sha256sum >/dev/null 2>&1; then printf '%s' "$1" | sha256sum | awk '{print $1}'
+  else printf ''; fi
+}
+
+_fsync() {  # _fsync <path>  (file OR dir); best-effort, degrades to sync
+  [ -e "$1" ] || return 0
+  if [ -n "$PYTHON3" ]; then
+    "$PYTHON3" - "$1" >/dev/null 2>&1 <<'PY' || sync
+import os, sys
+fd = os.open(sys.argv[1], os.O_RDONLY)
+try:
+    os.fsync(fd)
+finally:
+    os.close(fd)
+PY
+  else
+    sync
+  fi
+}
+
+# BOUNDARY THREAT MODEL (the 3 helpers below).
+#   These realpath guards defend the DELIBERATE-scope threat: a *pre-planted* symlink already in the
+#   corpus tree (a symlinked type-dir/topic-file/.archive) that would send a write/read/mv OUTSIDE
+#   CORPUS. That defense is exact under this gateway's core ADR-013 contract: the gateway is the ONE
+#   writer to the corpus, so the corpus tree is not being mutated by a cooperating peer mid-op (the
+#   corpus lock serializes gateway instances).
+#   OUT of scope — and NOT closable at this layer: a TOCTOU race by a *non-cooperating* process that
+#   holds write access to $CORPUS and swaps a validated ancestor for an external symlink between the
+#   check and the mkdir/mv. The gateway lock does NOT bind such a process. This is unsolvable at the
+#   application layer (a process with arbitrary write to $CORPUS can `rm -rf $CORPUS` outright); the
+#   real control is OS-level filesystem ownership/permissions — the corpus dir must be owned/writable
+#   ONLY by the gateway's uid. Deploy the corpus that way; these checks are the in-process complement,
+#   not a substitute for the filesystem-ownership invariant.
+_assert_within_corpus() {  # _assert_within_corpus <dest-path> — 0 iff the resolved parent dir stays inside canonical CORPUS
+  local dir real                                   # (CORPUS is already `pwd -P` canonical; realpath here defeats a symlinked type-dir escape)
+  dir="$(dirname "$1")"
+  real="$(cd "$dir" 2>/dev/null && pwd -P || true)"
+  case "$real" in "$CORPUS"|"$CORPUS"/*) return 0 ;; *) return 1 ;; esac
+}
+
+_assert_read_safe() {  # _assert_read_safe <path> — read-side symmetry of the write BOUNDARY guard: the resolved
+                       # parent stays inside CORPUS AND the target itself is not a symlink escaping it. read/search/
+                       # neighborhood trusted _valid_slug (string-safe) but not this realpath check -> a symlinked
+                       # type-dir (or symlinked topic file) could exfiltrate outside the corpus. defense-in-depth.
+  _assert_within_corpus "$1" && ! [ -L "$1" ]
+}
+
+_assert_new_path_within_corpus() {  # _assert_new_path_within_corpus <target> — 0 iff the deepest EXISTING ancestor of
+                                    # a not-yet-created <target> resolves inside CORPUS. For a path `mkdir -p` will
+                                    # CREATE, a symlinked EXISTING ancestor is the only escape (the to-be-created tail
+                                    # components are literal, symlink-free) — so validating the existing prefix BEFORE
+                                    # mkdir refuses a symlinked `.archive` WITHOUT creating any artifact outside CORPUS.
+  local d="$1" real
+  while [ ! -e "$d" ]; do d="$(dirname "$d")"; [ "$d" = "/" ] && break; done
+  real="$(cd "$d" 2>/dev/null && pwd -P || true)"
+  case "$real" in "$CORPUS"|"$CORPUS"/*) return 0 ;; *) return 1 ;; esac
+}
+
+_atomic_write() {  # _atomic_write <dest> <content>   (content is an ARG, NOT stdin: this MUST run in the
+                   # caller's shell so a boundary _refuse can abort the whole process — a pipe-subshell exit
+                   # cannot, which silently produced a double-envelope + exit 0 on a symlink escape; temp->rename+fsync)
+  local dest="$1" content="$2" dir tmp
+  dir="$(dirname "$dest")"
+  mkdir -p "$dir" || return 1
+  _assert_within_corpus "$dest" || _refuse "${VERB:-}" "" BOUNDARY "resolved write path escapes the corpus root (symlinked dir?): $dest"
+  tmp="$(mktemp "$dir/.mgw.XXXXXX")" || return 1
+  if ! printf '%s' "$content" > "$tmp"; then rm -f "$tmp" 2>/dev/null || true; return 1; fi  # e.g. ENOSPC/quota -> NEVER false-ok
+  _fsync "$tmp"
+  mv "$tmp" "$dest" || { rm -f "$tmp" 2>/dev/null || true; return 1; }
+  _fsync "$dir"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# corpus lock (mkdir-based POSIX mutex + epoch-marker stale reclaim)
+# ---------------------------------------------------------------------------
+_lock_is_stale() {  # _lock_is_stale <lockdir> — stale if the holder PID is provably dead OR ts older than LOCK_STALE_SECS
+  local ts now age pid
+  pid="$(cat "$1/pid" 2>/dev/null || true)"
+  # `kill -0` returns non-zero for BOTH ESRCH (dead -> reclaim) AND EPERM (holder ALIVE but owned by another
+  # UID -> must NOT reclaim; blind reclaim would evict a live cross-UID writer -> concurrent writers). Disambiguate
+  # with `ps -p` (UID- AND locale-independent, unlike stderr text): only a pid ps ALSO cannot see is truly dead ->
+  # fast real-crash reclaim; a live-but-other-UID holder (or ps unavailable) falls through to the ts backstop
+  # below (fail-safe: never evict a holder we cannot PROVE is dead).
+  case "$pid" in ''|*[!0-9]*) ;; *)
+    if ! kill -0 "$pid" 2>/dev/null; then
+      if [ -n "$PS_BIN" ]; then "$PS_BIN" -p "$pid" >/dev/null 2>&1 || return 0; fi
+    fi ;;
+  esac
+  ts="$(cat "$1/ts" 2>/dev/null || true)"
+  case "$ts" in ''|*[!0-9]*) return 1 ;; esac  # no valid ts yet (just-acquired window) -> NOT stale (fail-safe: never reclaim a lock you can't prove is old)
+  now="$(date +%s)"; age=$(( now - ts ))
+  [ "$age" -ge "$LOCK_STALE_SECS" ]
+}
+_lock_acquire() {  # refuses CONCURRENT_WRITER on timeout (exit 1)
+  mkdir -p "$CORPUS/.gateway"
+  LOCK="$CORPUS/.gateway/lock.d"
+  local tries=0
+  while ! mkdir "$LOCK" 2>/dev/null; do
+    if _lock_is_stale "$LOCK"; then
+      # single-winner reclaim: atomically RENAME the stale dir out of the way; only ONE racer wins moving the
+      # ORIGINAL (a concurrent reclaimer's mv finds the source already gone -> fails harmlessly). blind `rm -rf`
+      # + retry had a TOCTOU: two racers could both delete-then-mkdir -> two live writers. rename is atomic.
+      if mv "$LOCK" "$LOCK.stale.$$" 2>/dev/null; then rm -rf "$LOCK.stale.$$" 2>/dev/null || true; fi
+      continue
+    fi
+    tries=$(( tries + 1 ))
+    [ "$tries" -ge "$LOCK_MAX_TRIES" ] && _refuse "$VERB" "" CONCURRENT_WRITER \
+      "another writer holds the corpus lock ($LOCK) — refusing to clobber; retry shortly"
+    sleep 0.1
+  done
+  date +%s > "$LOCK/ts" 2>/dev/null || true
+  echo "$$" > "$LOCK/pid" 2>/dev/null || true   # holder PID -> enables dead-holder reclaim (see _lock_is_stale)
+  LOCK_HELD=1
+  trap '_lock_release' EXIT
+  trap '_lock_release; exit 130' INT    # release + EXIT (do not resume the interrupted work)
+  trap '_lock_release; exit 143' TERM
+}
+_lock_release() {
+  [ "${LOCK_HELD:-0}" = 1 ] || return 0
+  rm -rf "$LOCK" 2>/dev/null || true
+  LOCK_HELD=0
+  trap - EXIT INT TERM
+}
+
+# ---------------------------------------------------------------------------
+# crash injection (TEST-ONLY): a hard exit AFTER stage <n>, before the next.
+# The commit marker is written explicitly (never in a trap), so a simulated
+# crash genuinely leaves an intent-without-commit for recovery to complete.
+# ---------------------------------------------------------------------------
+_crash_if() {  # _crash_if <stage>
+  [ "${MEMORY_GATEWAY_CRASH_AT:-}" = "$1" ] || return 0
+  printf 'memory-gateway: SIMULATED CRASH after stage "%s"\n' "$1" >&2
+  exit 111
+}
+
+# ---------------------------------------------------------------------------
+# audit ledger (structural guarantee #4: one JSONL line per mutation)
+# external + env-overridable (matches artifact-registry), so tests isolate it.
+# ---------------------------------------------------------------------------
+_audit() {  # _audit <verb> <slug>
+  local dir led llock i=0 acquired=0
+  dir="${MEMORY_GATEWAY_DIR:-$HOME/.claude/audit}"
+  mkdir -p "$dir"
+  led="$dir/memory-gateway.jsonl"
+  llock="$dir/.lock-memory-gateway"
+  while true; do
+    if mkdir "$llock" 2>/dev/null; then acquired=1; break; fi
+    i=$(( i + 1 ))
+    [ "$i" -ge 50 ] && break   # give up the lock: do NOT force-remove a LIVE holder's dir (that clobber could
+                               # interleave two appenders). the append below is ONE sub-PIPE_BUF line -> atomic
+                               # under POSIX even unlocked, so proceeding lock-free is safe (liveness > exclusivity here).
+    sleep 0.02
+  done
+  "$JQ" -nc --arg ts "$(_ts)" --arg verb "$1" --arg slug "$2" --arg corpus "$CORPUS" \
+    '{ts:$ts, verb:$verb, slug:(if $slug=="" then null else $slug end), corpus:$corpus}' >> "$led"
+  [ "$acquired" = 1 ] && { rm -rf "$llock" 2>/dev/null || true; }   # release ONLY the lock WE created
+}
+
+# ---------------------------------------------------------------------------
+# index (one line per LIVE topic; active dirs only, .archive/.gateway excluded)
+# ---------------------------------------------------------------------------
+_rebuild_index() {  # rebuilds MEMORY.md; echoes the live-entry count
+  local d f name desc rel body="" lines=0
+  for d in feedback project reference user; do
+    [ -d "$CORPUS/$d" ] || continue
+    for f in "$CORPUS/$d"/*.md; do
+      [ -f "$f" ] || continue
+      name="$(_fm_field "$f" name)"; [ -n "$name" ] || name="$(basename "$f" .md)"
+      desc="$(_fm_field "$f" description)"
+      rel="${f#$CORPUS/}"
+      body="${body}- [${name}](${rel}) — ${desc}
+"
+      lines=$(( lines + 1 ))
+    done
+  done
+  local _idx
+  _idx="$( { printf '# Memory Index\n\n> Regenerated by memory-gateway (ADR-013). One line per live topic.\n\n'; printf '%s' "$body"; }; printf x )"; _idx="${_idx%x}"
+  _atomic_write "$CORPUS/MEMORY.md" "$_idx" || _err_io "failed to persist the index (MEMORY.md) — I/O error"
+  REBUILD_COUNT="$lines"   # global out-param: lets callers read the count WITHOUT $() — a $()
+                           # capture would re-nest _atomic_write in a command-substitution
+                           # subshell, where its BOUNDARY _refuse could only kill the subshell
+                           # (the pass-1 double-envelope+exit-0 class). do_index reads this. (#3)
+  printf '%s' "$lines"
+}
+
+# ---------------------------------------------------------------------------
+# archive tier (seq-numbered; content NEVER destroyed)
+# ---------------------------------------------------------------------------
+_archive_topic() {  # _archive_topic <slug>  -> moves live to archive; sets $ARCHSEQ to the seq
+  local slug="$1" live adir cnt seq padded dst
+  live="$CORPUS/$slug.md"
+  adir="$CORPUS/.archive/$slug"
+  _assert_new_path_within_corpus "$adir" || _refuse "${VERB:-}" "$slug" BOUNDARY "resolved archive path escapes the corpus root (symlinked .archive?): $adir"   # BEFORE mkdir: refuse a symlinked .archive WITHOUT creating any artifact outside CORPUS (CodeRabbit PDCA-7 refinement; stricter than _atomic_write's post-mkdir check — see follow-up note in PR)
+  mkdir -p "$adir" || _err_io "failed to create the archive dir for '$slug' — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
+  cnt="$(find "$adir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  seq=$(( cnt + 1 ))
+  padded="$(printf '%04d' "$seq")"
+  dst="$adir/$padded.md"
+  mv "$live" "$dst" || _err_io "failed to move '$slug' into the archive tier — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
+  _fsync "$(dirname "$live")"; _fsync "$adir"
+  ARCHSEQ="$seq"   # global out-var — MUST run in the caller's process (was `printf '%s' "$seq"` read via $(), which forked a subshell that swallowed _err_io's exit 2 on mv failure -> parent continued -> false ok; qodo PDCA-6)
+}
+
+_archive_if_stale() {  # _archive_if_stale <slug> <new-payload>  (idempotent guard); sets $ARCHSEQ ('' = no-op, else the archived seq)
+  local slug="$1" payload="$2" live cur
+  ARCHSEQ=""                                        # reset the global out-var (was: `printf ''` on the two no-op branches)
+  live="$CORPUS/$slug.md"
+  [ -f "$live" ] || return 0                        # already archived / absent -> no-op (ARCHSEQ stays '')
+  cur="$(cat "$live")"
+  [ "$cur" = "$payload" ] && return 0               # new already installed -> no double-archive (ARCHSEQ stays '')
+  _archive_topic "$slug"                            # sets $ARCHSEQ; on I/O failure _err_io exits the REAL process (no subshell to swallow it)
+}
+
+# ---------------------------------------------------------------------------
+# WAL + recovery (supersession only — the transaction with a dangerous step)
+# ---------------------------------------------------------------------------
+_wal_path() { printf '%s' "$CORPUS/.gateway/wal.jsonl"; }
+
+_wal_open_txns() {  # echoes txn ids of intents WITHOUT a matching commit
+  local wal; wal="$(_wal_path)"
+  [ -f "$wal" ] || return 0
+  "$JQ" -R 'fromjson? // empty' "$wal" | "$JQ" -s -r '
+    ([.[] | select(.state=="commit") | .txn]) as $c
+    | [.[] | select(.state=="intent") | select(.txn as $t | ($c|index($t))|not) | .txn] | .[]'
+}
+_wal_intent_record() {  # _wal_intent_record <txn>  -> the intent JSON line
+  local wal; wal="$(_wal_path)"
+  "$JQ" -R 'fromjson? // empty' "$wal" \
+    | "$JQ" -c --arg t "$1" 'select(.state=="intent" and .txn==$t)' | head -1
+}
+_wal_needs_recovery() {  # 0 = recovery needed (partial line OR open intent)
+  local wal last open
+  wal="$(_wal_path)"
+  [ -f "$wal" ] || return 1
+  last="$(tail -n1 "$wal" 2>/dev/null || true)"
+  if [ -n "$last" ] && ! printf '%s' "$last" | "$JQ" -e . >/dev/null 2>&1; then return 0; fi
+  open="$(_wal_open_txns)"
+  [ -n "$open" ] && return 0 || return 1
+}
+
+_replay_supersede() {  # _replay_supersede <intent-json>  (idempotent). returns 1 (mutate NOTHING) on payload sha mismatch.
+  local intent="$1" new_slug superseded payload sha calc
+  new_slug="$(printf '%s' "$intent" | "$JQ" -r '.new_slug')"
+  superseded="$(printf '%s' "$intent" | "$JQ" -r '.superseded_slug')"
+  payload="$(printf '%s' "$intent" | "$JQ" -r '.payload')"
+  sha="$(printf '%s' "$intent" | "$JQ" -r '.sha256 // ""')"
+  if [ -n "$sha" ]; then
+    calc="$(_sha256 "$payload")"
+    if [ -n "$calc" ] && [ "$calc" != "$sha" ]; then
+      printf 'memory-gateway: WAL intent payload sha mismatch (corrupt intent) — skipping replay of %s\n' "$new_slug" >&2
+      return 1   # corrupt payload: mutate NOTHING (neither archive nor write) — never persist corruption
+    fi
+  fi
+  # recovery replay: archive-first (via $ARCHSEQ, NOT $()) so an archive-move I/O failure here also exits 2 with the [C06] envelope on real stdout (the old `>/dev/null` even ate _err_io's envelope), leaving the intent OPEN for the next retry
+  [ -n "$superseded" ] && [ "$superseded" != "null" ] && _archive_if_stale "$superseded" "$payload"
+  _atomic_write "$CORPUS/$new_slug.md" "$payload" || _err_io "recovery: failed to write '$new_slug' — I/O error (intent left OPEN for the next recovery; no commit marker written)"
+  _rebuild_index >/dev/null
+}
+
+_recover() {  # complete unclosed intents + discard a trailing partial line
+  local wal last open txn intent
+  wal="$(_wal_path)"
+  [ -f "$wal" ] || return 0
+  last="$(tail -n1 "$wal" 2>/dev/null || true)"
+  if [ -n "$last" ] && ! printf '%s' "$last" | "$JQ" -e . >/dev/null 2>&1; then
+    sed '$d' "$wal" > "$wal.tmp" 2>/dev/null && mv "$wal.tmp" "$wal"
+    _fsync "$wal"
+  fi
+  open="$(_wal_open_txns)"
+  [ -n "$open" ] || return 0
+  while IFS= read -r txn; do
+    [ -n "$txn" ] || continue
+    intent="$(_wal_intent_record "$txn")"
+    [ -n "$intent" ] || continue
+    if _replay_supersede "$intent"; then
+      "$JQ" -nc --arg txn "$txn" --arg ts "$(_ts)" '{txn:$txn, state:"commit", ts:$ts}' >> "$wal"
+    else
+      # corrupt intent skipped — write an aborted-commit marker so recovery converges (idempotent, not re-attempted) + is auditable
+      "$JQ" -nc --arg txn "$txn" --arg ts "$(_ts)" '{txn:$txn, state:"commit", ts:$ts, aborted:"sha_mismatch"}' >> "$wal"
+    fi
+    _fsync "$wal"
+  done <<EOF
+$open
+EOF
+}
+
+_wal_supersede() {  # _wal_supersede <new_slug> <superseded_slug> <content>
+  local new_slug="$1" superseded="$2" content="$3" wal txn sha archseq
+  wal="$(_wal_path)"
+  mkdir -p "$CORPUS/.gateway"
+  txn="$(_txn_id)"
+  sha="$(_sha256 "$content")"
+  # STAGE 1 — intent (write FIRST, fsync)
+  "$JQ" -nc --arg txn "$txn" --arg op supersede --arg ts "$(_ts)" \
+    --arg new_slug "$new_slug" --arg superseded "$superseded" \
+    --arg payload "$content" --arg sha "$sha" \
+    '{txn:$txn, state:"intent", op:$op, ts:$ts, new_slug:$new_slug, superseded_slug:$superseded, payload:$payload, sha256:$sha}' >> "$wal"
+  _fsync "$wal"; _fsync "$CORPUS/.gateway"
+  _crash_if intent
+  # STAGE 2 — archive the superseded (archive-FIRST; see header NOTE)
+  # NOT `$(...)`: an archive-move I/O failure must let _err_io's exit 2 abort THIS process (WAL intent stays OPEN, successor never written) — a command substitution would fork a subshell, swallow the exit, and let STAGE 3-5 emit a false ok (qodo PDCA-6)
+  _archive_if_stale "$superseded" "$content"; archseq="$ARCHSEQ"
+  _crash_if archive
+  # STAGE 3 — write the new live topic (atomic temp->rename, fsync)
+  _atomic_write "$CORPUS/$new_slug.md" "$content" || _err_io "supersede: failed to write new topic '$new_slug' — I/O error (WAL intent stays OPEN; recovery completes it idempotently)"
+  _crash_if newtopic
+  # STAGE 4 — rebuild the index
+  _rebuild_index >/dev/null
+  _crash_if index
+  # STAGE 5 — commit marker (fsync) + audit
+  "$JQ" -nc --arg txn "$txn" --arg ts "$(_ts)" '{txn:$txn, state:"commit", ts:$ts}' >> "$wal"
+  _fsync "$wal"; _fsync "$CORPUS/.gateway"
+  _audit update "$new_slug"
+  if [ -z "$archseq" ]; then
+    # nothing was tiered (content byte-identical, or target already archived) -> honest: no fact was superseded
+    _emit ok update "$new_slug" "$("$JQ" -nc --arg s "$new_slug" '{slug:$s, superseded:null, archived_seq:null}')" null
+  else
+    _emit ok update "$new_slug" "$("$JQ" -nc --arg s "$new_slug" --arg sup "$superseded" --arg aseq "$archseq" \
+      '{slug:$s, superseded:$sup, archived_seq:($aseq|tonumber)}')" null
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# candidate matching for implicit supersession (active corpus only)
+# ---------------------------------------------------------------------------
+_match_candidates() {  # _match_candidates <type> <norm-name>  -> matching slugs
+  local wtype="$1" wnorm="$2" f ftype fname fnorm rel s
+  [ -d "$CORPUS/$wtype" ] || return 0
+  for f in "$CORPUS/$wtype"/*.md; do
+    [ -f "$f" ] || continue
+    ftype="$(_fm_field "$f" type)"; [ -n "$ftype" ] || ftype="$wtype"
+    fname="$(_fm_field "$f" name)"
+    fnorm="$(_normalize "$fname")"
+    if [ "$ftype" = "$wtype" ] && [ "$fnorm" = "$wnorm" ]; then
+      rel="${f#$CORPUS/}"; s="${rel%.md}"
+      printf '%s\n' "$s"
+    fi
+  done
+}
+
+# ===========================================================================
+# VERB IMPLEMENTATIONS
+# ===========================================================================
+do_create() {
+  local NAME="" TYPE="" DESC="" norm slug path body content
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --type) _need_val "$#" --type; TYPE="$2"; shift 2 ;;
+      --type=*) TYPE="${1#*=}"; shift ;;
+      --description) _need_val "$#" --description; DESC="$2"; shift 2 ;;
+      --description=*) DESC="${1#*=}"; shift ;;
+      --*) _refuse create "" USAGE "unknown option '$1'" ;;
+      *) if [ -z "$NAME" ]; then NAME="$1"; else _refuse create "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$TYPE" ] || _refuse create "" USAGE "create requires --type {user|feedback|project|reference}"
+  _valid_type "$TYPE" || _refuse create "" USAGE "invalid --type '$TYPE'"
+  [ -n "$NAME" ] || _refuse create "" USAGE "create requires a topic name (positional)"
+  _no_ctrl_lines "$NAME" || _refuse create "" USAGE "name must be a single line (no newline/CR — would inject into the frontmatter)"
+  _no_ctrl_lines "$DESC" || _refuse create "" USAGE "description must be a single line (no newline/CR); put multi-line detail in the body"
+  norm="$(_normalize "$NAME")"
+  [ -n "$norm" ] || _refuse create "" USAGE "name '$NAME' normalizes to empty"
+  slug="$TYPE/$norm"
+  _valid_slug "$slug" || _refuse create "$slug" BOUNDARY "computed slug escapes the corpus"
+  path="$CORPUS/$slug.md"
+  if [ -f "$path" ]; then
+    _refuse create "$slug" DEDUP_COLLISION "a topic with identity ($TYPE, $norm) already exists" \
+      "$("$JQ" -nc --arg s "$slug" '{existing:$s}')"
+  fi
+  body="$STDIN_BODY"   # pre-read off-lock in dispatch (#1); byte-identical to the old inline $(cat)
+  content="$(_topic_content "$NAME" "$TYPE" "$DESC" "$body")"
+  _atomic_write "$path" "$content" || _err_io "create: failed to persist '$slug' — I/O error (no false success reported)"
+  _rebuild_index >/dev/null
+  _audit create "$slug"
+  _emit ok create "$slug" \
+    "$("$JQ" -nc --arg s "$slug" --arg t "$TYPE" --arg n "$NAME" --arg p "$slug.md" \
+       '{slug:$s, type:$t, name:$n, path:$p}')" null
+}
+
+do_read() {
+  local SLUG="" ARCHIVED=0 path content adir f seq rel c archived_json n=0 data
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --archived) ARCHIVED=1; shift ;;
+      --*) _refuse read "" USAGE "unknown option '$1'" ;;
+      *) if [ -z "$SLUG" ]; then SLUG="$1"; else _refuse read "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$SLUG" ] || _refuse read "" USAGE "read requires a slug"
+  _valid_slug "$SLUG" || _refuse read "$SLUG" BOUNDARY "slug escapes the corpus (traversal/absolute)"
+  if [ "$ARCHIVED" = 1 ]; then
+    adir="$CORPUS/.archive/$SLUG"
+    archived_json="[]"
+    if [ -d "$adir" ]; then
+      for f in "$adir"/*.md; do
+        [ -f "$f" ] || continue
+        _assert_read_safe "$f" || continue   # skip a symlink-escaping archived file (defense-in-depth)
+        seq="$(basename "$f" .md)"; rel="${f#$CORPUS/}"; c="$(cat "$f")"
+        archived_json="$("$JQ" -nc --argjson a "$archived_json" --arg seq "$seq" --arg path "$rel" --arg content "$c" \
+          '$a + [{seq:$seq, path:$path, content:$content}]')"
+        n=$(( n + 1 ))
+      done
+    fi
+    data="$("$JQ" -nc --arg s "$SLUG" --argjson a "$archived_json" '{slug:$s, archived:$a}')"
+    _emit ok read "$SLUG" "$data" null
+  else
+    path="$CORPUS/$SLUG.md"
+    [ -f "$path" ] || _refuse read "$SLUG" NOT_FOUND "no live topic at slug '$SLUG' (try --archived)"
+    _assert_read_safe "$path" || _refuse read "$SLUG" BOUNDARY "resolved read path escapes the corpus (symlinked dir/file?)"
+    content="$(cat "$path")"
+    _emit ok read "$SLUG" "$("$JQ" -nc --arg s "$SLUG" --arg c "$content" '{slug:$s, content:$c}')" null
+  fi
+}
+
+do_update() {
+  local a has_supersede=0
+  for a in "$@"; do [ "$a" = "--supersede" ] && has_supersede=1; done
+  if [ "$has_supersede" = 1 ]; then _update_supersede "$@"; else _update_append "$@"; fi
+}
+
+_update_append() {
+  local SLUG="" path delta
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --*) _refuse update "" USAGE "unknown option '$1' in append-mode update" ;;
+      *) if [ -z "$SLUG" ]; then SLUG="$1"; else _refuse update "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$SLUG" ] || _refuse update "" USAGE "update requires a slug (or --supersede mode)"
+  _valid_slug "$SLUG" || _refuse update "$SLUG" BOUNDARY "slug escapes the corpus"
+  path="$CORPUS/$SLUG.md"
+  [ -f "$path" ] || _refuse update "$SLUG" NOT_FOUND "no live topic at slug '$SLUG' to update"
+  delta="$STDIN_BODY"   # pre-read off-lock in dispatch (#1); byte-identical to the old inline $(cat)
+  local _merged
+  _merged="$( { cat "$path"; printf '\n%s\n' "$delta"; }; printf x )"; _merged="${_merged%x}"
+  _atomic_write "$path" "$_merged" || _err_io "update: failed to persist append to '$SLUG' — I/O error (no false success reported)"
+  _audit update "$SLUG"
+  _emit ok update "$SLUG" "$("$JQ" -nc --arg s "$SLUG" '{slug:$s, appended:true}')" null
+}
+
+_update_supersede() {
+  local TYPE="" NAME="" SUPERSEDES="" DESC="" norm new_slug body content superseded cands cnt carr
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --supersede) shift ;;
+      --type) _need_val "$#" --type; TYPE="$2"; shift 2 ;;
+      --type=*) TYPE="${1#*=}"; shift ;;
+      --name) _need_val "$#" --name; NAME="$2"; shift 2 ;;
+      --name=*) NAME="${1#*=}"; shift ;;
+      --supersedes) _need_val "$#" --supersedes; SUPERSEDES="$2"; shift 2 ;;
+      --supersedes=*) SUPERSEDES="${1#*=}"; shift ;;
+      --description) _need_val "$#" --description; DESC="$2"; shift 2 ;;
+      --description=*) DESC="${1#*=}"; shift ;;
+      --*) _refuse update "" USAGE "unknown option '$1'" ;;
+      *) _refuse update "" USAGE "unexpected positional '$1' in supersede mode (use --name)" ;;
+    esac
+  done
+  [ -n "$TYPE" ] || _refuse update "" USAGE "supersede requires --type"
+  _valid_type "$TYPE" || _refuse update "" USAGE "invalid --type '$TYPE'"
+  [ -n "$NAME" ] || _refuse update "" USAGE "supersede requires --name"
+  _no_ctrl_lines "$NAME" || _refuse update "" USAGE "name must be a single line (no newline/CR — would inject into the frontmatter)"
+  _no_ctrl_lines "$DESC" || _refuse update "" USAGE "description must be a single line (no newline/CR); put multi-line detail in the body"
+  norm="$(_normalize "$NAME")"
+  [ -n "$norm" ] || _refuse update "" USAGE "name '$NAME' normalizes to empty"
+  new_slug="$TYPE/$norm"
+  _valid_slug "$new_slug" || _refuse update "$new_slug" BOUNDARY "computed slug escapes the corpus"
+  body="$STDIN_BODY"   # pre-read off-lock in dispatch (#1); byte-identical to the old inline $(cat)
+  content="$(_topic_content "$NAME" "$TYPE" "$DESC" "$body")"
+  superseded=""
+  if [ -n "$SUPERSEDES" ]; then
+    _valid_slug "$SUPERSEDES" || _refuse update "$new_slug" BOUNDARY "invalid --supersedes slug"
+    [ -f "$CORPUS/$SUPERSEDES.md" ] || _refuse update "$new_slug" NOT_FOUND "explicit --supersedes target not live: $SUPERSEDES"
+    superseded="$SUPERSEDES"
+  else
+    cands="$(_match_candidates "$TYPE" "$norm")"
+    cnt="$(printf '%s\n' "$cands" | grep -c . || true)"
+    if [ "$cnt" -eq 0 ]; then
+      superseded=""
+    elif [ "$cnt" -eq 1 ]; then
+      superseded="$(printf '%s\n' "$cands" | grep . | head -1)"
+    else
+      carr="$(printf '%s\n' "$cands" | grep . | "$JQ" -R . | "$JQ" -sc .)"
+      _refuse update "$new_slug" SUPERSEDE_AMBIGUOUS \
+        "≥2 active topics match identity ($TYPE, $norm); refusing to guess which to archive — pass --supersedes to disambiguate" \
+        "$("$JQ" -nc --argjson c "$carr" '{candidates:$c}')"
+    fi
+  fi
+  # #1/#2 fix (the create-guards-on-existence vs supersede-matches-on-frontmatter asymmetry root):
+  # the new-topic write must NEVER clobber a live topic that is not the archive target.
+  if [ -f "$CORPUS/$new_slug.md" ] && [ "$new_slug" != "$superseded" ]; then
+    if [ -n "$SUPERSEDES" ]; then
+      # explicit target named, but the new identity is a DIFFERENT occupied slug -> refuse (do not destroy an unmentioned live fact)
+      _refuse update "$new_slug" NEW_SLUG_OCCUPIED \
+        "new identity '$new_slug' is already live and is NOT the supersede target '$superseded' — refusing to overwrite an unrelated fact; archive it explicitly or supersede it directly" \
+        "$("$JQ" -nc --arg s "$new_slug" --arg sup "$superseded" '{occupant:$s, supersede_target:$sup}')"
+    else
+      # implicit 0-match, but a match-invisible (raw/legacy/frontmatter-divergent) live file occupies the target identity
+      # -> tier it via the WAL (archive-first), never blind-overwrite it
+      superseded="$new_slug"
+    fi
+  fi
+  if [ -z "$superseded" ]; then
+    # 0-match AND new_slug free: plain create path (no archive, no WAL)
+    _atomic_write "$CORPUS/$new_slug.md" "$content" || _err_io "supersede(create): failed to persist '$new_slug' — I/O error (no false success reported)"
+    _rebuild_index >/dev/null
+    _audit update "$new_slug"
+    _emit ok update "$new_slug" "$("$JQ" -nc --arg s "$new_slug" '{slug:$s, superseded:null, created:true}')" null
+  else
+    _wal_supersede "$new_slug" "$superseded" "$content"
+  fi
+}
+
+do_archive() {
+  local SLUG="" seq
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --*) _refuse archive "" USAGE "unknown option '$1'" ;;
+      *) if [ -z "$SLUG" ]; then SLUG="$1"; else _refuse archive "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$SLUG" ] || _refuse archive "" USAGE "archive requires a slug"
+  _valid_slug "$SLUG" || _refuse archive "$SLUG" BOUNDARY "slug escapes the corpus"
+  [ -f "$CORPUS/$SLUG.md" ] || _refuse archive "$SLUG" NOT_FOUND "no live topic at slug '$SLUG'"
+  _archive_topic "$SLUG"; seq="$ARCHSEQ"   # NOT `$()`: same subshell-swallows-exit-2 hazard as the supersede path — the standalone archive verb must also fail loud on an archive-move I/O error (qodo PDCA-6)
+  _rebuild_index >/dev/null
+  _audit archive "$SLUG"
+  _emit ok archive "$SLUG" \
+    "$("$JQ" -nc --arg s "$SLUG" --arg seq "$seq" --arg p ".archive/$SLUG/$(printf '%04d' "$seq").md" \
+       '{slug:$s, archived_seq:($seq|tonumber), archive_path:$p}')" null
+}
+
+do_index() {
+  local n
+  _rebuild_index >/dev/null; n="$REBUILD_COUNT"   # in-shell (NOT $()) so _atomic_write's BOUNDARY refuse
+                                                  # aborts the whole process, never just a subshell (#3)
+  _audit index ""
+  _emit ok index "" "$("$JQ" -nc --argjson e "${n:-0}" '{entries:$e, index:"MEMORY.md"}')" null
+}
+
+do_search() {
+  local QUERY="" d f rel s matches="[]"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --*) _refuse search "" USAGE "unknown option '$1'" ;;
+      *) if [ -z "$QUERY" ]; then QUERY="$1"; else _refuse search "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$QUERY" ] || _refuse search "" USAGE "search requires a query"
+  # structural grep over LIVE topics only (.archive/.gateway never scanned).
+  # NOTE: episodic-memory semantic recall is not callable from bash — degrade
+  # to grep-only and report it (semantic:false), per ADR-013 graceful fallback.
+  for d in user feedback project reference; do
+    [ -d "$CORPUS/$d" ] || continue
+    _assert_within_corpus "$CORPUS/$d/.probe" || continue   # skip a symlinked type-dir escaping the corpus (grep -r would follow a CLI-arg symlink)
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      rel="${f#$CORPUS/}"; s="${rel%.md}"
+      matches="$("$JQ" -nc --argjson a "$matches" --arg s "$s" '$a + [{slug:$s}]')"
+    done <<EOF
+$(grep -rlF -- "$QUERY" "$CORPUS/$d" 2>/dev/null || true)
+EOF
+  done
+  _emit ok search "" "$("$JQ" -nc --arg q "$QUERY" --argjson m "$matches" '{query:$q, semantic:false, matches:$m}')" null
+}
+
+do_neighborhood() {
+  local SEED="" DEPTH=1 visited frontier nodes level nf node f links l nodes_json
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --depth) _need_val "$#" --depth; DEPTH="$2"; shift 2 ;;
+      --depth=*) DEPTH="${1#*=}"; shift ;;
+      --budget) _need_val "$#" --budget; shift 2 ;;   # accepted; bounded by depth × corpus
+      --budget=*) shift ;;
+      --*) _refuse neighborhood "" USAGE "unknown option '$1'" ;;
+      *) if [ -z "$SEED" ]; then SEED="$1"; else _refuse neighborhood "" USAGE "unexpected extra arg '$1'"; fi; shift ;;
+    esac
+  done
+  [ -n "$SEED" ] || _refuse neighborhood "" USAGE "neighborhood requires a seed slug"
+  _valid_slug "$SEED" || _refuse neighborhood "$SEED" BOUNDARY "seed slug escapes the corpus"
+  case "$DEPTH" in ''|*[!0-9]*) DEPTH=1 ;; esac
+  [ "$DEPTH" -lt 1 ] && DEPTH=1
+  if [ "$DEPTH" -gt 3 ]; then
+    echo "memory-gateway: --depth $DEPTH clamped to 3 (max walk depth)" >&2
+    DEPTH=3
+  fi
+  # BFS over [[type/name]] wikilinks (type-qualified slugs for unambiguous resolution)
+  visited="$SEED"; frontier="$SEED"; nodes=""; level=1
+  while [ "$level" -le "$DEPTH" ]; do
+    nf=""
+    while IFS= read -r node; do
+      [ -n "$node" ] || continue
+      f="$CORPUS/$node.md"
+      [ -f "$f" ] || continue
+      _assert_read_safe "$f" || continue   # skip a symlink-escaping node (defense-in-depth)
+      links="$(grep -o '\[\[[^]]*\]\]' "$f" 2>/dev/null | sed 's/^\[\[//; s/\]\]$//' || true)"
+      while IFS= read -r l; do
+        [ -n "$l" ] || continue
+        _valid_slug "$l" || continue
+        [ -f "$CORPUS/$l.md" ] || continue   # E6 forgetting: a link to a superseded/archived (or dangling) topic is NOT a live neighbor -> never reported
+        _assert_read_safe "$CORPUS/$l.md" || continue   # boundary symmetry (CodeRabbit PDCA-5): a _valid_slug (string-safe) neighbor whose
+                                                        # type-dir or topic file is a symlink escaping the corpus passes [ -f ] (follows the
+                                                        # link) -> never surface its slug. A leaf neighbor is listed but never promoted to $node,
+                                                        # so the line-763 node-guard would never run on it; guard it here so read/search/neighborhood
+                                                        # all apply the SAME realpath boundary to every item they surface. (Also stops it entering the frontier.)
+        case "
+$visited
+" in *"
+$l
+"*) continue ;; esac
+        visited="$visited
+$l"
+        nodes="$nodes
+$l"
+        nf="$nf
+$l"
+      done <<EOF
+$links
+EOF
+    done <<EOF
+$frontier
+EOF
+    frontier="$nf"
+    level=$(( level + 1 ))
+  done
+  nodes_json="$(printf '%s\n' "$nodes" | grep . | "$JQ" -R . | "$JQ" -sc . 2>/dev/null || true)"
+  [ -n "$nodes_json" ] || nodes_json="[]"
+  _emit ok neighborhood "$SEED" \
+    "$("$JQ" -nc --arg s "$SEED" --argjson d "$DEPTH" --argjson n "$nodes_json" '{seed:$s, depth:$d, nodes:$n}')" null
+}
+
+# ===========================================================================
+# ARG PARSE (extract global --corpus/--help anywhere; verb = first positional)
+# ===========================================================================
+CORPUS_ARG=""
+HELP=0
+ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --corpus) _need_val "$#" --corpus; CORPUS_ARG="$2"; shift 2 ;;
+    --corpus=*) CORPUS_ARG="${1#*=}"; shift ;;
+    -h|--help|help) HELP=1; shift ;;
+    *) ARGS[${#ARGS[@]}]="$1"; shift ;;
+  esac
+done
+[ "$HELP" = 1 ] && { usage; exit 0; }
+if [ "${#ARGS[@]}" -gt 0 ]; then set -- "${ARGS[@]}"; else set --; fi
+VERB="${1:-}"
+[ $# -gt 0 ] && shift || true
+[ -n "$VERB" ] || { usage; _refuse "" "" USAGE "no verb given (create|read|update|archive|search|neighborhood|index)"; }
+
+# resolve + validate corpus (setup errors -> exit 2)
+CORPUS="${CORPUS_ARG:-${MEMORY_GATEWAY_CORPUS:-}}"
+[ -n "$CORPUS" ] || _err_setup "no corpus given (pass --corpus <dir> or set MEMORY_GATEWAY_CORPUS)"
+[ -d "$CORPUS" ] || _err_setup "corpus root not found: $CORPUS"
+CORPUS="$(cd "$CORPUS" && pwd -P)"   # physical/canonical: MUST match the `pwd -P` in _assert_within_corpus (else macOS /var->/private/var symlink asymmetry refuses every write)
+
+# ===========================================================================
+# DISPATCH — recovery runs before serving ANY verb (spec: never serve over a
+# half-applied supersession). Mutating verbs hold the lock across the mutation;
+# read verbs take the lock only if recovery is actually pending, then release.
+# ===========================================================================
+case "$VERB" in
+  create|update|archive|index)
+    # #1 (MED availability): drain the body from stdin BEFORE acquiring the lock. An
+    # open-but-silent stdin (a mis-wired caller that spawns the gateway and forgets to
+    # feed/close the body) would otherwise block $(cat) INSIDE the critical section and
+    # wedge every other writer with CONCURRENT_WRITER until EOF. Read off-lock: a blocking
+    # read now stalls the caller's OWN process only, never the single-writer lock. NOTE the
+    # drain precedes the verb's arg-validation: an EOF/piped stdin (the agent case) still
+    # refuses bad args fast, but an open-but-silent stdin self-stalls HERE before any
+    # USAGE/DEDUP/etc. refuse — off-lock & self-only, so it degrades to a caller-local hang,
+    # never a corpus-wide wedge. archive and index take no body, so they are not pre-read
+    # (reading their stdin could itself block).
+    case "$VERB" in create|update) STDIN_BODY="$(cat)" ;; esac
+    _lock_acquire
+    _recover
+    case "$VERB" in
+      create) do_create "$@" ;;
+      update) do_update "$@" ;;
+      archive) do_archive "$@" ;;
+      index) do_index "$@" ;;
+    esac
+    _lock_release
+    ;;
+  read|search|neighborhood)
+    if _wal_needs_recovery; then _lock_acquire; _recover; _lock_release; fi
+    case "$VERB" in
+      read) do_read "$@" ;;
+      search) do_search "$@" ;;
+      neighborhood) do_neighborhood "$@" ;;
+    esac
+    ;;
+  *)
+    _refuse "$VERB" "" UNKNOWN_VERB "unknown verb '$VERB' (create|read|update|archive|search|neighborhood|index)"
+    ;;
+esac
+exit 0
