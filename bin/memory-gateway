@@ -364,11 +364,12 @@ _archive_topic() {  # _archive_topic <slug>  -> moves live to archive; sets $ARC
   local slug="$1" live adir cnt seq padded dst
   live="$CORPUS/$slug.md"
   adir="$CORPUS/.archive/$slug"
-  mkdir -p "$adir"
+  mkdir -p "$adir" || _err_io "failed to create the archive dir for '$slug' — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
   cnt="$(find "$adir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
   seq=$(( cnt + 1 ))
   padded="$(printf '%04d' "$seq")"
   dst="$adir/$padded.md"
+  _assert_within_corpus "$dst" || _refuse "${VERB:-}" "$slug" BOUNDARY "resolved archive path escapes the corpus root (symlinked .archive?): $dst"   # mirror _atomic_write's write-boundary guard on the ARCHIVE-move path — a pre-planted symlinked .archive must NOT send mv outside CORPUS (CodeRabbit PDCA-7)
   mv "$live" "$dst" || _err_io "failed to move '$slug' into the archive tier — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
   _fsync "$(dirname "$live")"; _fsync "$adir"
   ARCHSEQ="$seq"   # global out-var — MUST run in the caller's process (was `printf '%s' "$seq"` read via $(), which forked a subshell that swallowed _err_io's exit 2 on mv failure -> parent continued -> false ok; qodo PDCA-6)
