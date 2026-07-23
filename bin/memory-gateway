@@ -766,6 +766,11 @@ do_neighborhood() {
         [ -n "$l" ] || continue
         _valid_slug "$l" || continue
         [ -f "$CORPUS/$l.md" ] || continue   # E6 forgetting: a link to a superseded/archived (or dangling) topic is NOT a live neighbor -> never reported
+        _assert_read_safe "$CORPUS/$l.md" || continue   # boundary symmetry (CodeRabbit PDCA-5): a _valid_slug (string-safe) neighbor whose
+                                                        # type-dir or topic file is a symlink escaping the corpus passes [ -f ] (follows the
+                                                        # link) -> never surface its slug. A leaf neighbor is listed but never promoted to $node,
+                                                        # so the line-763 node-guard would never run on it; guard it here so read/search/neighborhood
+                                                        # all apply the SAME realpath boundary to every item they surface. (Also stops it entering the frontier.)
         case "
 $visited
 " in *"

@@ -603,7 +603,7 @@ echo 1 > "$SL/.gateway/lock.d/ts"                          # epoch 1 -> age >> 9
 BODY="after stale" gw --corpus "$SL" create y --type user
 if [ "$RC" = 0 ] && [ "$(jqr "$OUT" '.status')" = ok ]; then
   gw --corpus "$SL" read user/y
-  [ "$RC" = 0 ] && ok "40 Bug1: stale-by-ts lock reclaimed via rename-steal (next writer proceeds)" || no "40 y unreadable after stale-ts reclaim"
+  if [ "$RC" = 0 ]; then ok "40 Bug1: stale-by-ts lock reclaimed via rename-steal (next writer proceeds)"; else no "40 y unreadable after stale-ts reclaim"; fi
 else no "40 Bug1 stale-ts reclaim (rc=$RC out=$OUT)"; fi
 
 # ============================================================================
@@ -623,7 +623,7 @@ date +%s > "$DP/.gateway/lock.d/ts"                        # FRESH ts -> ts back
 BODY="after dead" gw --corpus "$DP" create y --type user
 if [ "$RC" = 0 ] && [ "$(jqr "$OUT" '.status')" = ok ]; then
   gw --corpus "$DP" read user/y
-  [ "$RC" = 0 ] && ok "41 EPERM/ESRCH: dead holder (impossible pid, fresh ts) fast-reclaimed via ps-absent probe" || no "41 y unreadable after dead-pid reclaim"
+  if [ "$RC" = 0 ]; then ok "41 EPERM/ESRCH: dead holder (impossible pid, fresh ts) fast-reclaimed via ps-absent probe"; else no "41 y unreadable after dead-pid reclaim"; fi
 else no "41 dead-pid fast-reclaim (rc=$RC out=$OUT)"; fi
 
 # ============================================================================
@@ -640,6 +640,30 @@ done
 if [ -n "$jq_fb" ] && [ "$(PATH="" "$jq_fb" -nr '"ok"' 2>/dev/null)" = ok ]; then
   ok "42 qodo#4: absolute jq fallback resolves + runs under empty PATH ($jq_fb) — minimal-PATH safe"
 else no "42 qodo#4 no working absolute jq fallback candidate (jq_fb=$jq_fb)"; fi
+
+# ============================================================================
+# 43  CodeRabbit (PDCA pass-5, boundary symmetry): a neighbor slug whose topic file
+#     is a symlink ESCAPING the corpus must NOT be surfaced. do_read/do_search guard
+#     every item with _assert_read_safe; neighborhood must too. A leaf neighbor is
+#     listed but never promoted to a $node, so the node-guard (line ~763) can't catch
+#     it — the guard has to run at neighbor-discovery. The outside target is a REAL
+#     file so the E6 [ -f ] liveness gate PASSES first, actually exercising the new guard.
+# ============================================================================
+NB="$(fresh)"
+OUTSIDE="$NB.escaped-target"                               # a real file OUTSIDE the corpus root (sibling, not under $NB/)
+printf 'secret outside the corpus\n' > "$OUTSIDE"
+mkdir -p "$NB/reference"
+ln -s "$OUTSIDE" "$NB/reference/escaped.md"                # symlinked topic file escaping the corpus ([ -f ] follows it -> exists)
+BODY="anchor topic body" gw --corpus "$NB" create legit --type reference    # an in-corpus neighbor (positive control)
+BODY="seed links [[reference/legit]] and [[reference/escaped]]" gw --corpus "$NB" create seed --type project
+gw --corpus "$NB" neighborhood project/seed --depth 1
+nb_nodes="$(jqr "$OUT" '.data.nodes[]')"
+if [ "$RC" = 0 ] \
+   && printf '%s' "$nb_nodes" | grep -q "reference/legit" \
+   && ! printf '%s' "$nb_nodes" | grep -q "reference/escaped"; then
+  ok "43 CodeRabbit#PDCA-5: symlink-escaping neighbor excluded, legit neighbor kept (read/search/neighborhood share one boundary)"
+else no "43 symlink-escaping neighbor leaked OR legit neighbor dropped (rc=$RC nodes=[$nb_nodes])"; fi
+rm -f "$OUTSIDE"
 
 echo ""
 [ "$fail" -eq 0 ] && { echo "test-memory-gateway: PASS"; exit 0; } || { echo "test-memory-gateway: FAIL"; exit 1; }
