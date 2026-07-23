@@ -95,7 +95,7 @@ memory-gateway --corpus ~/mem neighborhood user/merge-preference --depth 2
 - **Atomic forgetting** — supersede archives the superseded topic in the same operation; the corpus never shows a fact next to its own replacement.
 - **Crash-safe** — a 5-stage WAL over an exclusive corpus lock; the next invocation completes any interrupted supersession *before* serving a verb, so reads never observe a half-applied state. `archive`/`create`/append use atomic temp→rename + fsync (any partial state is a benign orphan healed by `index`).
 - **Concurrency-safe** — a mutating verb that cannot take the corpus lock **refuses** (`CONCURRENT_WRITER`) rather than clobber a peer's in-flight write.
-- **Boundary-safe** — slugs that escape the corpus root (`..`, absolute) are refused (`BOUNDARY`).
+- **Boundary-safe** — slugs that escape the corpus root (`..`, absolute) are refused (`BOUNDARY`), and every write/read/archive path is realpath-checked so a **pre-planted** symlink (type-dir, topic file, or `.archive`) cannot send an operation outside the corpus. **Threat-model invariant:** this holds under the gateway's single-writer contract — the corpus dir MUST be owned/writable ONLY by the gateway's uid. A non-cooperating process with write access to the corpus can TOCTOU-race any in-process check (or delete the corpus outright); defending that is an OS-level filesystem-ownership concern, not an application one.
 - **Auditable** — every mutation appends one JSONL line (`verb`/`slug`/`ts`/`corpus`) to `${MEMORY_GATEWAY_DIR:-~/.claude/audit}/memory-gateway.jsonl`.
 
 ## Advisory Posture

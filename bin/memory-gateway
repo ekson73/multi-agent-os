@@ -215,6 +215,19 @@ PY
   fi
 }
 
+# BOUNDARY THREAT MODEL (the 3 helpers below).
+#   These realpath guards defend the DELIBERATE-scope threat: a *pre-planted* symlink already in the
+#   corpus tree (a symlinked type-dir/topic-file/.archive) that would send a write/read/mv OUTSIDE
+#   CORPUS. That defense is exact under this gateway's core ADR-013 contract: the gateway is the ONE
+#   writer to the corpus, so the corpus tree is not being mutated by a cooperating peer mid-op (the
+#   corpus lock serializes gateway instances).
+#   OUT of scope — and NOT closable at this layer: a TOCTOU race by a *non-cooperating* process that
+#   holds write access to $CORPUS and swaps a validated ancestor for an external symlink between the
+#   check and the mkdir/mv. The gateway lock does NOT bind such a process. This is unsolvable at the
+#   application layer (a process with arbitrary write to $CORPUS can `rm -rf $CORPUS` outright); the
+#   real control is OS-level filesystem ownership/permissions — the corpus dir must be owned/writable
+#   ONLY by the gateway's uid. Deploy the corpus that way; these checks are the in-process complement,
+#   not a substitute for the filesystem-ownership invariant.
 _assert_within_corpus() {  # _assert_within_corpus <dest-path> — 0 iff the resolved parent dir stays inside canonical CORPUS
   local dir real                                   # (CORPUS is already `pwd -P` canonical; realpath here defeats a symlinked type-dir escape)
   dir="$(dirname "$1")"
