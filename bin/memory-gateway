@@ -229,6 +229,17 @@ _assert_read_safe() {  # _assert_read_safe <path> — read-side symmetry of the 
   _assert_within_corpus "$1" && ! [ -L "$1" ]
 }
 
+_assert_new_path_within_corpus() {  # _assert_new_path_within_corpus <target> — 0 iff the deepest EXISTING ancestor of
+                                    # a not-yet-created <target> resolves inside CORPUS. For a path `mkdir -p` will
+                                    # CREATE, a symlinked EXISTING ancestor is the only escape (the to-be-created tail
+                                    # components are literal, symlink-free) — so validating the existing prefix BEFORE
+                                    # mkdir refuses a symlinked `.archive` WITHOUT creating any artifact outside CORPUS.
+  local d="$1" real
+  while [ ! -e "$d" ]; do d="$(dirname "$d")"; [ "$d" = "/" ] && break; done
+  real="$(cd "$d" 2>/dev/null && pwd -P || true)"
+  case "$real" in "$CORPUS"|"$CORPUS"/*) return 0 ;; *) return 1 ;; esac
+}
+
 _atomic_write() {  # _atomic_write <dest> <content>   (content is an ARG, NOT stdin: this MUST run in the
                    # caller's shell so a boundary _refuse can abort the whole process — a pipe-subshell exit
                    # cannot, which silently produced a double-envelope + exit 0 on a symlink escape; temp->rename+fsync)
@@ -364,12 +375,12 @@ _archive_topic() {  # _archive_topic <slug>  -> moves live to archive; sets $ARC
   local slug="$1" live adir cnt seq padded dst
   live="$CORPUS/$slug.md"
   adir="$CORPUS/.archive/$slug"
+  _assert_new_path_within_corpus "$adir" || _refuse "${VERB:-}" "$slug" BOUNDARY "resolved archive path escapes the corpus root (symlinked .archive?): $adir"   # BEFORE mkdir: refuse a symlinked .archive WITHOUT creating any artifact outside CORPUS (CodeRabbit PDCA-7 refinement; stricter than _atomic_write's post-mkdir check — see follow-up note in PR)
   mkdir -p "$adir" || _err_io "failed to create the archive dir for '$slug' — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
   cnt="$(find "$adir" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')"
   seq=$(( cnt + 1 ))
   padded="$(printf '%04d' "$seq")"
   dst="$adir/$padded.md"
-  _assert_within_corpus "$dst" || _refuse "${VERB:-}" "$slug" BOUNDARY "resolved archive path escapes the corpus root (symlinked .archive?): $dst"   # mirror _atomic_write's write-boundary guard on the ARCHIVE-move path — a pre-planted symlinked .archive must NOT send mv outside CORPUS (CodeRabbit PDCA-7)
   mv "$live" "$dst" || _err_io "failed to move '$slug' into the archive tier — I/O error (refusing to proceed; the superseding write must never overwrite an un-archived fact)"
   _fsync "$(dirname "$live")"; _fsync "$adir"
   ARCHSEQ="$seq"   # global out-var — MUST run in the caller's process (was `printf '%s' "$seq"` read via $(), which forked a subshell that swallowed _err_io's exit 2 on mv failure -> parent continued -> false ok; qodo PDCA-6)

@@ -699,28 +699,29 @@ fi
 #     _atomic_write guards the topic-WRITE path with _assert_within_corpus (test 31),
 #     but _archive_topic's `mv "$live" "$dst"` did NOT -> a pre-planted `.archive`
 #     symlink pointing OUTSIDE the corpus would send the live topic's content out of
-#     CORPUS. Root fix: _assert_within_corpus "$dst" before the mv (mirrors
-#     _atomic_write:238). Inject: symlink `.archive` -> an OUTSIDE dir, then archive.
-#     Asserts: refused BOUNDARY + live topic un-moved + NO *.md written outside corpus
-#     (mkdir may leave an empty out-of-corpus dir, exactly as _atomic_write does — the
-#     guarantee is that no CONTENT leaves, parallel to test 31's `! -e $OUTSIDE/pwned.md`).
+#     CORPUS. Root fix (refined per CodeRabbit re-review): _assert_new_path_within_corpus
+#     "$adir" BEFORE `mkdir -p` — resolve the deepest EXISTING ancestor of .archive and
+#     refuse a symlinked escape without creating ANY filesystem artifact. Stricter than
+#     _atomic_write's post-mkdir check (that asymmetry is a documented deferred follow-up).
+#     Inject: symlink `.archive` -> an OUTSIDE dir, then archive.
+#     Asserts: refused BOUNDARY + live topic un-moved + the OUTSIDE dir has ZERO descendants
+#     (nothing at all created outside corpus — stronger than "no *.md"; holds because the
+#     boundary check now runs BEFORE mkdir).
+#     Runs as root too — the symlink boundary is UID-independent (cd+pwd -P), unlike test 44
+#     which relies on a chmod-555 perm-bypass that root would defeat.
 # ============================================================================
-if [ "$(id -u)" != 0 ]; then
-  AS="$(fresh)"
-  BODY="ARCHSYM original fact" gw --corpus "$AS" create profile --type user >/dev/null 2>&1   # the live fact to be archived
-  ASOUT="$ROOT_TMP/arch-outside.$$"; mkdir -p "$ASOUT"
-  ln -s "$ASOUT" "$AS/.archive"                                           # .archive now resolves OUTSIDE the corpus root
-  gw --corpus "$AS" archive user/profile
-  r45=$RC; c45="$(jqr "$OUT" '.reason.code')"
-  live45="$(cat "$AS/user/profile.md" 2>/dev/null)"
-  kept45=0; printf '%s' "$live45" | grep -q "ARCHSYM original" && kept45=1
-  nooutside45=0; [ -z "$(find "$ASOUT" -type f -name '*.md' 2>/dev/null)" ] && nooutside45=1
-  if [ "$r45" = 1 ] && [ "$c45" = BOUNDARY ] && [ "$kept45" = 1 ] && [ "$nooutside45" = 1 ]; then
-    ok "45 CodeRabbit#PDCA-7: symlinked .archive escape refused (BOUNDARY), live topic un-moved, no content written outside corpus"
-  else no "45 CodeRabbit#PDCA-7 archive-symlink (r45=$r45 c45=$c45 kept45=$kept45 nooutside45=$nooutside45 live=[$live45])"; fi
-else
-  ok "45 CodeRabbit#PDCA-7 archive-symlink skipped (running as root — symlink boundary still enforced by _assert_within_corpus)"
-fi
+AS="$(fresh)"
+BODY="ARCHSYM original fact" gw --corpus "$AS" create profile --type user >/dev/null 2>&1   # the live fact to be archived
+ASOUT="$ROOT_TMP/arch-outside.$$"; mkdir -p "$ASOUT"
+ln -s "$ASOUT" "$AS/.archive"                                           # .archive now resolves OUTSIDE the corpus root
+gw --corpus "$AS" archive user/profile
+r45=$RC; c45="$(jqr "$OUT" '.reason.code')"
+live45="$(cat "$AS/user/profile.md" 2>/dev/null)"
+kept45=0; printf '%s' "$live45" | grep -q "ARCHSYM original" && kept45=1
+noart45=0; [ -z "$(find "$ASOUT" -mindepth 1 2>/dev/null)" ] && noart45=1   # ZERO descendants: pre-mkdir refusal leaves the outside dir untouched
+if [ "$r45" = 1 ] && [ "$c45" = BOUNDARY ] && [ "$kept45" = 1 ] && [ "$noart45" = 1 ]; then
+  ok "45 CodeRabbit#PDCA-7: symlinked .archive refused BOUNDARY before any fs change (live un-moved, ZERO artifacts outside corpus)"
+else no "45 CodeRabbit#PDCA-7 archive-symlink (r45=$r45 c45=$c45 kept45=$kept45 noart45=$noart45 live=[$live45])"; fi
 
 echo ""
 [ "$fail" -eq 0 ] && { echo "test-memory-gateway: PASS"; exit 0; } || { echo "test-memory-gateway: FAIL"; exit 1; }
