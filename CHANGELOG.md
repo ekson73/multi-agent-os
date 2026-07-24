@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `chief-of-staff` (Oikonomos): the operator work-focus conductor — human twin of `reactivate`/Entelecheia
+
+The operator-facing counterpart of the agent-facing `reactivate` conductor: **Entelecheia** orients a fresh
+amnesic **agent** at cold-wake; **Oikonomos** keeps the **operator** (human) on focus across live work. ONE
+front-door answering *"what should I focus on now? who asked me for what, by when? any loose ends?"*
+
+- **`skills/chief-of-staff/SKILL.md`** (v0.1.0, soul-name **Oikonomos** — Greek *οἰκονόμος*, the household
+  steward; root of both *economy* and *ecosystem*, resonating with the operator's Eko-System) — a **route-never-reimplement**
+  conductor with a 5-phase pipeline: **GATHER** (delegates `work-compass` — ONE N-Tree of all scattered work across the
+  7 CPT domains) → **PRIORITIZE** (delegates `pulse`'s Eisenhower 2×2, the maos-resident core; optionally the richer
+  user-scope `ops-strategist` 4-lens at `--depth full` **if present**) → **SURFACE** (the newly-authored people-ask view
+  *who·when·by-when*, a **read projection over EXISTING tracker fields** — Jira `reporter`/`duedate`, GitHub author/milestone
+  — NOT a new store) → **BRIEF** (`morning-briefing` 7-section SitRep contract) → **PRESENT** (one operator briefing:
+  ▶ next-action · Eisenhower quadrants · ⏰ who-asked/by-when · 🧹 loose-ends, read-only). Adds ONLY the genuinely-absent
+  pieces (the people-ask projection, the `tag`/`categorize` verbs, the unified front-door); reimplements no aggregation or
+  Eisenhower logic. **Read-only by default** (writes/notify/schedule printed for approval), **on-demand only** (no hooks —
+  MAOS stays the sole conductor), **Layer-pure** (runs fully on the maos-resident core; `ops-strategist` never a hard dep).
+- **`commands/chief-of-staff.md`** — thin `/chief-of-staff` wrapper delegating to the skill (`--mode
+  catch-up|drift|who-owes-me|full`, `--depth quick|full`, `--scope`, `--who`, `--lang`, `--json`).
+- Distinct from siblings: `maos-concierge` (framework-facing) · `work-compass` (aggregation engine it routes to) ·
+  `pulse` (single-session re-orientation) · `reactivate`/Entelecheia (the agent-facing twin) · `ops-strategist`
+  (the optional user-scope brain). Named by `skills/anima` per the naming authority.
+
 ### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact) (#273)
 
 - **`plugin-scripts/governance/lib/seed-io.sh`** — shared multi-writer seed I/O lib: `seed_dir` (honors
