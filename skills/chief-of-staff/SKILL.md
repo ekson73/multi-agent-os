@@ -2,23 +2,17 @@
 name: chief-of-staff
 version: "0.1.0"
 description: |
-  Operator-facing work-focus conductor — the human twin of `reactivate`/Entelecheia (which orients a
-  fresh AGENT; this keeps the OPERATOR on focus). ONE front-door that answers "what should I focus on
-  now? who asked me for what, by when? any loose ends?" It GATHERS all scattered work (delegates
-  work-compass), PRIORITIZES it (delegates pulse's Eisenhower 2x2; optionally the richer ops-strategist
-  4-lens if the user has it), SURFACES a people-ask view (who asked / when / by-when) over existing
-  tracker fields, and PRESENTS one operator briefing (next-action · Eisenhower quadrants · who-asked ·
-  loose-ends). Composes the existing family and newly authors only what was genuinely absent: the
-  people-ask projection, the tag/categorize surface, and the unified operator front-door. Read-only by
-  default — any write/notify/schedule is PRINTED for approval, never executed. On-demand only (no hooks,
-  no always-on runtime — MAOS stays the sole conductor). Explicit operator instruction overrides every
-  computed condition.
-  Soul-name: Oikonomos (Greek οἰκονόμος, oikos "household" + nomos "management" — the classical household
-  steward / majordomo who administers the principal's whole household of affairs; root of both "economy"
-  and "ecosystem"). Triggers: "chief of staff", "keep me on track", "keep me focused", "what should I
-  focus on", "my priorities", "what's on my plate", "who asked me for what", "o que devo focar",
-  "me mantenha no foco", "minhas prioridades", "second brain", "baby-sit me".
-allowed-tools: Read, Grep, Glob, Bash, Task, AskUserQuestion
+  Operator-facing work-focus conductor — the human twin of the agent-facing reactivate/Entelecheia.
+  ONE front-door answering "what should I focus on now? who asked me for what, by when? any loose
+  ends?" GATHERS all scattered work (delegates work-compass), PRIORITIZES it (delegates pulse's
+  Eisenhower 2x2; optionally ops-strategist's 4-lens if present), SURFACES a people-ask view
+  (who / when / by-when) over existing tracker fields, and PRESENTS one operator briefing. Composes
+  the existing family; reimplements nothing. Read-only by default; on-demand only (MAOS stays sole
+  conductor). Soul-name: Oikonomos (the classical household steward). Triggers: "chief of staff",
+  "keep me on track", "keep me focused", "what should I focus on", "my priorities", "what's on my
+  plate", "who asked me for what", "o que devo focar", "me mantenha no foco", "minhas prioridades",
+  "second brain".
+allowed-tools: Read, Grep, Glob, Task, AskUserQuestion
 metadata:
   version: "0.1.0"
   scope: AAIF cross-vendor
@@ -36,7 +30,8 @@ metadata:
 > own **Eko-System** — *oikos* is the same root. *(Display-only name. The machine identifier is the
 > slug `chief-of-staff`.)*
 >
-> **Twin**: `reactivate`/**Entelecheia** orients a fresh amnesic **agent** at cold-wake. `chief-of-staff`/
+> **Twin** (the incoming agent-facing sibling, landing in PR #280 — may not be installed in this repo
+> version yet): `reactivate`/**Entelecheia** orients a fresh amnesic **agent** at cold-wake. `chief-of-staff`/
 > **Oikonomos** keeps the **operator** (human) on focus across live work. Same premise — correct
 > orientation over scattered state — pointed at the two different consumers.
 
@@ -50,7 +45,8 @@ metadata:
   - You just need the raw aggregated N-Tree of everything, no prioritization/briefing → `work-compass`
     directly (this routes TO it and adds the prioritize + people-ask + brief layer).
   - You are mid-task in ONE session and need re-orientation → `pulse` directly.
-  - A fresh **agent** woke with no context → `reactivate` (the agent-facing twin).
+  - A fresh **agent** woke with no context → `reactivate` (the agent-facing twin — incoming in PR #280;
+    once merged).
   - You have a raw brain-dump to sort into tickets → `directive-braindump-triage`.
 
 ## The pipeline (5 phases — lean by default, deepened on demand)
@@ -102,9 +98,11 @@ are already ≥2 prioritizers; a third would be entropy (anti-over-eng).
 ### PHASE 3 — SURFACE (newly authored — the people-ask view + tag/categorize)
 
 The genuine gap: no tool projects *"who asked ME for what, and by when?"* as a first-class view. Build it
-as a **read projection over EXISTING fields** — NOT a new store:
+as a **read projection over the fields PHASE-1 already surfaced** — NOT a new store, NOT a fresh tracker
+query (route-never-reimplement: `work-compass` is the tracker-access layer; pass it `--with-provenance`
+so its N-Tree carries these native fields, then project — never re-fetch here):
 
-| Field | Read from (existing, native) |
+| Field | Native source `work-compass` surfaces |
 |---|---|
 | `asked_by` (who asked) | Jira `reporter` · GitHub issue `author` · Linear `creator` · a memory `[[slug]]` note |
 | `asked_at` (when) | issue `created` timestamp |
@@ -202,7 +200,8 @@ absorbs it into a unified entry · operator retraction · ≥3 false-fires (fire
 - Composed (never reimplemented): `skills/work-compass` (GATHER) · `skills/pulse` (Eisenhower core) ·
   `skills/morning-briefing` (SitRep contract).
 - Optional (user-scope, probed-not-required): `ops-strategist` (the 4-lens TPM+CoS+SRE+Agentic brain).
-- Siblings (distinct): `skills/maos-concierge` (framework-facing) · `skills/reactivate` (Entelecheia —
+- Siblings (distinct): `skills/maos-concierge` (framework-facing) · `skills/reactivate` (Entelecheia,
+  incoming PR #280 —
   agent-facing twin) · `skills/session-reentry` (Anamnesis) · `skills/directive-braindump-triage`.
 - Governance: the host's end-of-action briefing protocol §7 (PRESENT format) · Cowork-Process-Topology §9
   (the 7 CPT domains work-compass renders) · loose-end-triage-queue / Taxis (the no-silent-drop discipline
