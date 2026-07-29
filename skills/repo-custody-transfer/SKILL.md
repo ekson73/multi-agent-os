@@ -20,7 +20,7 @@ description: |
   existing primitives (legacy-archaeologist · council-gate · red-team · convergence-engine ·
   preflight/postflight · session-reentry · artifact-registry · decision-capture · the hub's
   Bitbucket gateway); forges no new engine. Use when a repo must change git hosts with its
-  history AND its governance intact — e.g. "migrate <repo> from bitbucket to github",
+  history AND its governance intact — e.g. "migrate <repo> from Bitbucket to GitHub",
   "cutover this repo to GitHub", "transferir a custódia deste repo", "move repo host
   preserving history/branches/tags/PRs/pipelines".
 ---
@@ -103,7 +103,7 @@ IMPEDIMENT REPORT · <repo> · phase <N>
 
 Format follows `council-gate` §5.3 (**contestable ranked evidence, never a blank ask**) +
 `end-of-action-briefing` §7.1 (`AskUserQuestion`, recommended-option first). The report is an
-artifact (registered via `artifact-registry`), not just a message — it survives the session.
+artifact (registered via `bin/artifact-registry`), not just a message — it survives the session.
 
 ⛔ **Free-negative discipline** (`environment-capability-reconnaissance` §1.1.1): a probe that
 returned nothing is **NOT** proof of absence. Before declaring ANY impediment, run a **positive
@@ -158,13 +158,13 @@ irreversible∧blast · H7 external exposure) — **HOLD, not force**, if indepe
 
 | Need | Existing primitive |
 |---|---|
-| source-host archaeology | `maos:legacy-archaeologist` · `maos:reveng` |
+| source-host archaeology | the `legacy-archaeologist` agent · `maos:reveng` |
 | host API surface (PRs · pipelines · variables · branches) | the hub's Bitbucket gateway · `gh` (GitHub) |
 | CI health/parity observation | `maos:bitbucket-pipeline-watch` |
 | authorization ladder | `maos:council-gate` · `auto-merge-standing-authorization` |
 | adversarial verification | `maos:red-team` (Elenchus) · `maos:convergence-engine` |
 | session lifecycle | `maos:preflight` · `maos:postflight` · `maos:quiesce` · `maos:session-reentry` |
-| artifacts + decisions | `maos:artifact-registry` · `maos:decision-capture` |
+| artifacts + decisions | `bin/artifact-registry` · `maos:decision-capture` |
 | destination repo baseline | `[C18]` agentic-repo-config-baseline (B1–B8) |
 | naming | `maos:anima` (`[C-naming]`) |
 
@@ -221,9 +221,9 @@ positive-control discipline, not deprecate). Dormant-by-design otherwise.
 
 ## §Refs
 
-`maos:legacy-archaeologist` · `maos:council-gate` (Boule) · `maos:red-team` (Elenchus) ·
+the `legacy-archaeologist` agent · `maos:council-gate` (Boule) · `maos:red-team` (Elenchus) ·
 `maos:convergence-engine` · `maos:preflight`/`postflight` · `maos:session-reentry` (ADR-009) ·
-`maos:artifact-registry` (ADR-011) · `maos:decision-capture` · `maos:bitbucket-pipeline-watch` ·
+`bin/artifact-registry` (ADR-011) · `maos:decision-capture` · `maos:bitbucket-pipeline-watch` ·
 `maos:anima` (`[C-naming]`) · `[C04]` worktree · `[C07]`/`[C07b]` PR+SemVer · `[C17]` §2
 HUMAN_DOMAIN · `[C18]` repo-config baseline · `[C19]` multi-identity git/ssh (a private-repo
 `Repository not found` is a **404-not-403 credential masquerade**, never "repo absent") · `[C21]`
