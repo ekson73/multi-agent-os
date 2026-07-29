@@ -142,6 +142,9 @@
   .notchecked { border-left: 3px solid var(--warning); }
   footer.foot { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--grid);
                 color: var(--muted); font-size: 12px; }
+  /* Emitter signature: recessive, but present in print — the provenance is part of
+     the artifact, not chrome, so a printed copy must still say what produced it. */
+  .prov { display: inline-block; margin-top: 8px; font-size: 11px; letter-spacing: .02em; opacity: .85; }
   a { color: inherit; }
 
   @media (prefers-reduced-motion: reduce) {
@@ -180,6 +183,13 @@
   var stored = null;
   try { stored = localStorage.getItem("rd-theme"); } catch (e) { /* private mode */ }
   if (stored === "light" || stored === "dark") root.setAttribute("data-theme", stored);
+  // Announce the CURRENT state at reveal, not just after the first click. The button
+  // is hidden until JS runs, so this is the first moment it exists for assistive
+  // tech — shipping it unset (or false while the page is dark) makes it lie exactly
+  // to the users who cannot see the contradiction.
+  var effective = root.getAttribute("data-theme")
+    || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  btn.setAttribute("aria-pressed", String(effective === "dark"));
   btn.style.display = "inline-block";
   btn.addEventListener("click", function () {
     var t = root.getAttribute("data-theme"), dark;

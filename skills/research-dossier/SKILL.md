@@ -93,6 +93,19 @@ reformatting with no evidential claims (`content-recast`).
 | `--out` | `out` | output directory |
 | `--strict` | off | a missing dataviz validator FAILS instead of warning |
 
+## Requirements
+
+| Need | Why | If absent |
+|---|---|---|
+| **Node ≥ 18** | the renderer and both gates | hard requirement — nothing runs |
+| **`dataviz`** (bundled) | gate 2's `validate_palette.js` | loud WARN; `--strict` makes it fail |
+| **`od` daemon** (optional) | `open-design` templates | falls back to `templates/dossier.html` |
+| **`python3`** (optional) | test-suite IR mutations only | those blocks self-skip |
+
+Zero npm dependencies, by design: a decision artifact whose renderer needs a
+lockfile ages badly. The only third-party code involved is `dataviz`'s validator,
+which ships with the CLI and is invoked, never vendored.
+
 ## The pipeline
 
 ### 1 — Extract the IR (probabilistic; this is the judgement work)

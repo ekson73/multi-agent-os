@@ -51,6 +51,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SKILL_DIR = resolve(HERE, '..', 'skills', 'research-dossier');
 
 const EXIT_OK = 0, EXIT_GATE = 1, EXIT_USAGE = 2;
+// Stable emitter identity stamped into every rendered artifact. Version-bearing so
+// a dossier in the wild can be traced to the gate revision that cleared it — the
+// checks tightened materially once already, and an artifact that predates that
+// hardening should not be indistinguishable from one that followed it.
+const RENDERER_ID = 'research-dossier v0.1.0';
 
 // ── tiny arg parser (zero-dep) ──────────────────────────────────────────────
 function parseArgs(argv) {
@@ -235,15 +240,32 @@ function gateProvenance(ir) {
     // carrying a total and the parts do not reach it, the chart silently drops the
     // remainder — every part can match its own claim while the composition lies.
     if (ch.form === 'stacked-bar' || ch.form === 'stacked-area') {
-      const plotted = ys.reduce((a, b) => a + b, 0);
+      // A stack composes PER BUCKET: in a two-quarter chart, each quarter's parts
+      // form that quarter's whole. Summing every point flat would compare two
+      // quarters against a one-quarter total and fail a perfectly valid chart —
+      // a false positive on the gate is not a harmless excess of caution, it
+      // teaches authors that the gate is noise and trains them to route around it.
+      const buckets = new Map();
+      for (const s of ch.series || [])
+        for (const p of s.data || [])
+          if (typeof p.y === 'number') {
+            const k = p.x !== undefined ? JSON.stringify(p.x) : '__single__';
+            buckets.set(k, (buckets.get(k) || 0) + p.y);
+          }
       const cited = (ch.source_claims || [])
         .map(id => (ir.claims || []).find(c => c && c.id === id))
         .filter(c => c && c.metric && typeof c.metric.value === 'number' && /total|sum|overall/i.test(`${c.metric.name} ${c.id} ${c.text}`));
       for (const t of cited) {
         const tv = t.metric.value;
-        if (tv > 0 && Math.abs(plotted - tv) > tv * 0.05)
+        if (!(tv > 0)) continue;
+        // A cited total matching ANY bucket is the total OF that bucket, and the
+        // stack is honest. Only when no bucket reaches it is the whole overstated.
+        const sums = [...buckets.values()];
+        if (!sums.length) continue;
+        const nearest = sums.reduce((a, b) => (Math.abs(b - tv) < Math.abs(a - tv) ? b : a));
+        if (Math.abs(nearest - tv) > tv * 0.05)
           FAIL('STACKED_PARTS_MISMATCH',
-            `${at}: stacked parts sum to ${plotted} but cited claim "${t.id}" states a total of ${tv} — the stack presents itself as the whole while omitting ${(100 * (1 - plotted / tv)).toFixed(0)}% of it`);
+            `${at}: no stacked bucket reaches the total cited by claim "${t.id}" (${tv}); the closest composes to ${nearest}, omitting ${(100 * (1 - nearest / tv)).toFixed(0)}% — a stack presents itself as the whole`);
       }
     }
 
@@ -550,6 +572,24 @@ function gatePalette(ir, opts) {
 // ═══════════════════════════════════════════════════════════════════════════
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// esc() stops an attribute from being broken out of; it does not stop a URL from
+// being dangerous *within* a well-formed attribute. `javascript:alert(1)` survives
+// escaping intact and becomes a clickable link — and this artifact's whole purpose
+// is to be opened in a browser and passed around, so a citation URL is attack
+// surface, not decoration. Allowlist the schemes a citation could legitimately
+// use rather than blocklisting the ones we happen to remember.
+const SAFE_URL = /^(?:https?:|mailto:|\/|\.{1,2}\/|#)/i;
+const safeHref = u => (SAFE_URL.test(String(u ?? '').trim()) ? String(u).trim() : null);
+
+// Palette values are interpolated into a <style> block as `--series-N: ${hex};`.
+// The palette gate would reject a malformed colour, but it degrades to a WARN when
+// the bundled dataviz validator is absent (a supported path) — so on that path an
+// unvalidated string reaches the stylesheet and `#fff;} body{display:none} .x{a:b`
+// closes the declaration and injects rules. A colour token is a closed grammar;
+// anything outside it is not a colour, whatever the validator was able to say.
+const SAFE_COLOR = /^(?:#[0-9a-f]{3,8}|(?:rgb|hsl|oklch|oklab|lab|lch)a?\([0-9a-z%.,\s/+-]*\)|[a-z]+)$/i;
+const safeColor = (c, fallback) => (SAFE_COLOR.test(String(c ?? '').trim()) ? String(c).trim() : fallback);
+
 function renderMarkdown(ir) {
   const L = [];
   const claimById = new Map((ir.claims || []).map(c => [c.id, c]));
@@ -792,8 +832,14 @@ function renderHtmlBody(ir) {
   H.push('<section><h2>Evidence</h2><div class="card"><table>');
   H.push('<thead><tr><th scope="col">id</th><th scope="col">Claim</th><th scope="col">Source</th><th scope="col">As of</th><th scope="col">Confidence</th></tr></thead><tbody>');
   for (const c of ir.claims || []) {
+    // A rejected scheme still shows the URL as text — the provenance stays visible
+    // and auditable; only its clickability is withdrawn. Silently dropping it would
+    // hide evidence, which is the opposite of what this table is for.
+    const href = safeHref(c.source?.url);
     const src = c.source?.url
-      ? `<a href="${esc(c.source.url)}" rel="noopener noreferrer">${esc(c.source.label)}</a>`
+      ? (href
+        ? `<a href="${esc(href)}" rel="noopener noreferrer">${esc(c.source.label)}</a>`
+        : `${esc(c.source.label)} <span class="tag st-warning" title="Link not rendered: unsupported URL scheme">⚠ ${esc(c.source.url)}</span>`)
       : esc(c.source?.label || '—');
     H.push(`<tr id="claim-${esc(c.id)}"><th scope="row"><code class="cid">${esc(c.id)}</code></th>`
       + `<td>${esc(c.text)}${c.contested ? '<span class="tag st-warning" style="margin-left:8px">▲ contested</span>' : ''}</td>`
@@ -810,7 +856,14 @@ function renderHtmlBody(ir) {
     + 'checked for a source and a date, every citation for existence and agreement '
     + 'with the value it cites, every magnitude axis for undeclared distortion, and '
     + 'the palette for colour-vision separation in both themes. That is a check of '
-    + 'the evidence, not an endorsement of the conclusion.</footer>');
+    + 'the evidence, not an endorsement of the conclusion.<br>'
+    // Who emitted this, and as of when. `as_of` is the IR's own dated horizon —
+    // deterministic, so re-rendering the same IR yields a byte-identical file. A
+    // wall-clock stamp would make every render differ from the last and turn a
+    // diff into noise; the question "how current is this?" is answered by the
+    // evidence's date, not by when someone happened to press the button.
+    + `<span class="prov">${esc(RENDERER_ID)} · evidence as of ${esc(ir.as_of || 'undated')}`
+    + `${ir.audience ? ` · ${esc(ir.audience)} density` : ''}</span></footer>`);
 
   return H.join('\n');
 }
@@ -823,7 +876,9 @@ function renderHtml(ir) {
   }
   const tpl = readFileSync(tplPath, 'utf8');
   const pal = resolvePalette(ir);
-  const vars = list => list.map((hex, i) => `--series-${i + 1}: ${hex};`).join(' ');
+  // currentColor is an inert fallback: a rejected token renders as the surrounding
+  // ink rather than breaking the stylesheet or silently disappearing.
+  const vars = list => list.map((hex, i) => `--series-${i + 1}: ${safeColor(hex, 'currentColor')};`).join(' ');
 
   // Every substitution is GLOBAL. A single-match .replace() here was a real bug:
   // the template's own header comment named the placeholders, so the first match

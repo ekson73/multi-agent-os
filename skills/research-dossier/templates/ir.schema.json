@@ -376,7 +376,12 @@
             "winner": {"$ref": "#/$defs/id"},
             "rationale": {"type": "string"},
             "runner_up": {"$ref": "#/$defs/id"},
-            "rejected_because": {"type": "string"}
+            "rejected_because": {"type": "string"},
+            "override_rationale": {
+              "type": "string",
+              "minLength": 20,
+              "description": "Declares a judgement that deliberately overrides the weighted arithmetic, and satisfies VERDICT_UNSUPPORTED. A verdict may depart from its own grid — an incommensurable factor, a strategic constraint, a veto the criteria do not model — but only in writing. The cost is the disclosure: the reader sees that the decision was made outside the numbers, which is honest, rather than finding a grid quietly bent to fit it."
+            }
           }
         }
       }
@@ -454,6 +459,21 @@
           "type": "boolean",
           "default": true,
           "description": "Emit an accessible <table> carrying the same numbers. Default true and rarely worth disabling: Chart.js has no native accessibility, so the table IS the accessible rendering, not a courtesy."
+        },
+        "transform": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Declares a deterministic conversion between a cited claim's metric.value and the value plotted, so CHART_POINT_VALUE_MISMATCH can tell a unit conversion apart from a contradiction. A chart plotting 0.208 against a claim of 208 KB is honest at scale 0.001 and a lie at scale 1 — and the gate cannot know which without being told.",
+          "properties": {
+            "scale": {
+              "type": "number",
+              "description": "Multiplier applied to metric.value to obtain the plotted y (208 KB → 0.208 MB is scale 0.001). Must be exact: the gate compares within floating-point epsilon, not a tolerance band, because an approximate scale is indistinguishable from a small fabrication."
+            },
+            "unit": {
+              "type": "string",
+              "description": "The unit the plotted values are in after scaling — what the axis label should say."
+            }
+          }
         }
       }
     }

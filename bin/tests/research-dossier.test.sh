@@ -10,7 +10,16 @@
 # of its LAST command, so `node render.mjs | grep x` silently reports grep's status
 # and a failing build reads as green.
 #
-# Bash 3.2-safe, self-contained, network-free.
+# Spec:        skills/research-dossier/SKILL.md (§Verify) — the gates under test.
+# Requires:    bash 3.2+, node >= 18. python3 is OPTIONAL: the blocks that need it
+#              build IR mutations on the fly and self-skip with a logged SKIP when it
+#              is absent, so the suite still runs (narrower) on a minimal host.
+# Idempotent:  yes — all writes go to a mktemp dir removed on EXIT; nothing outside
+#              it is touched, so repeated runs on the same tree are identical.
+# Network:     none. Offline by construction.
+# Portability: POSIX-spelled utilities (`head -n 1`, not `head -1`); no GNU-only flags.
+# Layer:       no organization-specific content — Layer-Purity clean.
+#
 # Run: bash bin/tests/research-dossier.test.sh
 set -uo pipefail
 
@@ -283,8 +292,9 @@ PY
 
   rd() { node "$REND" --ir "$TMP/$1" --formats html --out "$TMP/den-$2" >/dev/null 2>&1; }
   # grep -c prints 0 AND exits 1 on no-match, so a `|| echo 0` would emit TWO
-  # lines and every numeric compare downstream would silently fail. Take head -1.
-  cnt() { grep -c "$2" "$TMP/den-$1/dossier.html" 2>/dev/null | head -1; }
+  # lines and every numeric compare downstream would silently fail. Take head -n 1
+  # (the POSIX spelling; `head -1` is an obsolescent form).
+  cnt() { grep -c "$2" "$TMP/den-$1/dossier.html" 2>/dev/null | head -n 1; }
 
   rd ir-exec.json exec
   eq '0' "$(cnt exec 'details class="tableview" open')" 'exec density collapses the evidence table'
@@ -321,6 +331,118 @@ PY
   fi
 else
   ok 'SKIP density tests (python3 unavailable)'
+fi
+
+# ── stacked composition is PER BUCKET (2026-07-29 review) ─────────────────────
+# A stack composes per x-bucket: two quarters against a one-quarter total is not a
+# discrepancy. Both directions matter — a false positive here would train authors
+# to treat the gate as noise, which is how a gate stops being a gate.
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$EX/ir-valid.json" "$TMP/ir-stack-ok.json" "$TMP/ir-stack-bad.json" <<'PY' 2>/dev/null
+import json,sys
+base=json.load(open(sys.argv[1]))
+def build(dst, per_bucket, buckets, total):
+    ir=json.loads(json.dumps(base))
+    ir['claims']=[c for c in ir['claims'] if c['id']!='c-stack-total'] + [{
+        "id":"c-stack-total","text":f"Total spend was {total}.","source":{"label":"finance"},
+        "as_of":"2026-07-01","confidence":"high",
+        "metric":{"name":"total spend","value":total,"unit":"USD"}}]
+    ir['charts']=[{"id":"ch-stack","form":"stacked-bar","title":"Spend composition",
+        "source_claims":["c-stack-total"],
+        "series":[{"label":f"part{p}","data":[{"x":f"Q{b+1}","y":per_bucket/2} for b in range(buckets)]}
+                  for p in range(2)]}]
+    json.dump(ir,open(dst,'w'))
+# honest: 2 buckets, each composing to the cited 1-bucket total
+build(sys.argv[2], 1000, 2, 1000)
+# dishonest: no bucket reaches the cited total
+build(sys.argv[3],  100, 2, 1000)
+PY
+  if [ -s "$TMP/ir-stack-ok.json" ]; then
+    OUT="$(node "$REND" --ir "$TMP/ir-stack-ok.json" --gates-only 2>&1)"
+    case "$OUT" in
+      *STACKED_PARTS_MISMATCH*) no 'multi-bucket stack is NOT a false positive' "$OUT" ;;
+      *) ok 'multi-bucket stack is NOT a false positive (per-bucket, not flat sum)' ;;
+    esac
+    node "$REND" --ir "$TMP/ir-stack-bad.json" --gates-only >/dev/null 2>&1
+    eq '1' "$?" 'a stack where NO bucket reaches its cited total still FAILS'
+    case "$(node "$REND" --ir "$TMP/ir-stack-bad.json" --gates-only 2>&1)" in
+      *STACKED_PARTS_MISMATCH*) ok '→ STACKED_PARTS_MISMATCH (real omission still caught)' ;;
+      *) no '→ STACKED_PARTS_MISMATCH (real omission still caught)' 'not raised' ;;
+    esac
+  fi
+fi
+
+# ── every artifact carries its emitter + evidence horizon ─────────────────────
+# CLAUDE.md MUST: "Sign documents with agent ID and timestamp". Dated from the IR's
+# own as_of, NOT wall-clock: re-rendering an unchanged IR must be byte-identical, or
+# every diff becomes noise and the signature stops being auditable.
+if [ -s "$HTML" ]; then
+  grep -q 'research-dossier v' "$HTML" && ok 'rendered dossier is signed with the emitter id' \
+                                       || no 'rendered dossier is signed with the emitter id' 'absent'
+  grep -q 'evidence as of' "$HTML" && ok 'rendered dossier states its evidence horizon' \
+                                   || no 'rendered dossier states its evidence horizon' 'absent'
+  node "$REND" --ir "$EX/ir-valid.json" --formats html --out "$TMP/idem" >/dev/null 2>&1
+  if cmp -s "$HTML" "$TMP/idem/dossier.html"; then ok 'render is idempotent (no wall-clock in the artifact)'
+  else no 'render is idempotent (no wall-clock in the artifact)' 'byte-differs across runs'; fi
+fi
+
+# ── the rendered HTML is untrusted-input-safe (2026-07-29 review) ─────────────
+# This artifact exists to be opened in a browser and passed around, so an IR field
+# is attack surface, not decoration. Both holes below were live and demonstrated
+# before the fix; each assertion checks the EXPLOIT is dead AND the legitimate
+# behaviour it rode on still works — a "safe" renderer that drops the evidence or
+# the colour would pass a naive check while breaking the dossier.
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$EX/ir-valid.json" "$TMP/ir-xss.json" "$TMP/ir-cssinj.json" <<'PY' 2>/dev/null
+import json,sys
+base=json.load(open(sys.argv[1]))
+a=json.loads(json.dumps(base))
+a['claims'][0]['source']['url']='javascript:alert(document.domain)'
+json.dump(a,open(sys.argv[2],'w'))
+b=json.loads(json.dumps(base))
+# The key must be the one resolvePalette() actually reads. An earlier draft of this
+# fixture used theme.palette=[...] — the payload then only ever appeared inside the
+# inert JSON island, so the assertion passed with the guard REMOVED. A security test
+# that cannot fail is worse than none: it certifies a hole it never touched.
+t=b.setdefault('theme',{}).setdefault('palette',{})
+t['categorical_light']=['#1f77b4;} body{display:none} .x{color:red','#ff7f0e']
+t['categorical_dark'] =['#1f77b4;} body{display:none} .y{color:red','#ff7f0e']
+json.dump(b,open(sys.argv[3],'w'))
+PY
+  if [ -s "$TMP/ir-xss.json" ]; then
+    node "$REND" --ir "$TMP/ir-xss.json" --formats html --out "$TMP/sec-xss" >/dev/null 2>&1
+    X="$TMP/sec-xss/dossier.html"
+    n=$(grep -c 'href="javascript:' "$X" 2>/dev/null || true)
+    eq '0' "${n:-0}" 'a javascript: source URL never becomes a clickable href'
+    # Withdrawing clickability must not withdraw the PROVENANCE — hiding the URL
+    # would trade an XSS for an evidence gap, which is the worse defect here.
+    n=$(grep -c 'javascript:alert' "$X" 2>/dev/null || true)
+    [ "${n:-0}" -ge 1 ] && ok 'the rejected URL is still shown as text (evidence preserved)' \
+                        || no 'the rejected URL is still shown as text (evidence preserved)' 'URL vanished'
+    n=$(grep -cE 'href="https?://' "$X" 2>/dev/null || true)
+    [ "${n:-0}" -ge 1 ] && ok 'legitimate http(s) citations remain clickable' \
+                        || no 'legitimate http(s) citations remain clickable' 'allowlist too strict'
+  fi
+  if [ -s "$TMP/ir-cssinj.json" ]; then
+    # WITHOUT the bundled validator: the supported degrade-to-WARN path is exactly
+    # where an unvalidated palette token would reach the stylesheet.
+    DATAVIZ_VALIDATOR=/nonexistent node "$REND" --ir "$TMP/ir-cssinj.json" --formats html --out "$TMP/sec-css" >/dev/null 2>&1
+    C="$TMP/sec-css/dossier.html"
+    n=$(grep -cE -- '--series-[0-9]+:[^;]*[{}]' "$C" 2>/dev/null || true)
+    eq '0' "${n:-0}" 'a palette token cannot close its declaration and inject CSS rules'
+    # ...and the payload must not reach the stylesheet by ANY route. Checking only
+    # the declaration shape would miss a token that escaped the <style> block whole.
+    n=$(sed -n '/<style/,/<\/style>/p' "$C" 2>/dev/null | grep -c 'display:none' || true)
+    eq '0' "${n:-0}" 'the injected rule never lands inside <style> (inert JSON island is fine)'
+    # A rejected token must be neutralised, not silently dropped: the inert fallback
+    # is what keeps the chart legible instead of colourless.
+    n=$(grep -c -- '--series-1: currentColor;' "$C" 2>/dev/null || true)
+    [ "${n:-0}" -ge 1 ] && ok 'a rejected palette token degrades to an inert fallback' \
+                        || no 'a rejected palette token degrades to an inert fallback' 'no fallback emitted'
+    n=$(grep -cE -- '--series-2: *#[0-9a-fA-F]{3,8};' "$C" 2>/dev/null || true)
+    [ "${n:-0}" -ge 1 ] && ok 'valid palette hexes alongside it still reach the stylesheet' \
+                        || no 'valid palette hexes alongside it still reach the stylesheet' 'colour lost'
+  fi
 fi
 
 # ── CLI contract: 2 is usage/IO, distinct from 1 (gate failure) ───────────────
