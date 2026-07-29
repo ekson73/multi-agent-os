@@ -85,11 +85,27 @@ records its state in the **custody ledger** (§6) so a cold agent resumes from a
 |---|---|---|---|---|
 | **0** | **RECON** | inventory both hosts · **drift-detect (§5)** · classify (greenfield / pipeline-heavy / SSOT / split-brain) · blast-score · assign tiers · pick pilot | n/a (read-only) | **autonomous** |
 | **1** | **DRY-RUN** | simulate into a scratch target · verify T1 exactness · translate pipelines (proposal only) · extract T3 sample · inventory secret **names** | discard scratch | **autonomous** |
-| **2** | **CARRY (T1)** | explicit-refspec push · **dual-remote coexistence** (source stays authoritative) | delete the pushed refs on destination | council-gated |
+| **2** | **CARRY (T1)** | snapshot destination refs (§5.0-fresh) → explicit-refspec push · **dual-remote coexistence** (source stays authoritative) | delete ONLY refs absent from the pre-carry snapshot (§3.1) | council-gated |
 | **3** | **FLIP (T2/T4)** | CI/Actions live · protections · teams · fresh secrets provisioned · webhooks repointed | revert CI to source host | council-gated |
 | **4** | **SEAL** | verify parity · source host **read-only/archived** (⛔ never deleted) · docs/ADR/CHANGELOG PRs | re-open the source host | council-gated |
 
 **Point of no return = Phase 4 only.** Everything before it is reversible by design.
+
+### §3.1 — ⛔ Rollback is SUBTRACTIVE-ONLY (a rollback must never destroy)
+
+A naive Phase-2 rollback ("delete the pushed refs") **cannot distinguish a ref it created from a ref
+that was already there** — so on any non-empty destination the rollback is itself a data-loss event.
+Therefore Phase 2 MUST, in order:
+
+1. **Snapshot** the destination's full ref→sha map (§5.0-fresh) into the ledger **before** pushing.
+2. Push with an **explicit refspec** (never `--mirror`, never `+`-force, never a wildcard that can
+   clobber tags).
+3. On rollback, delete a ref **only if** it is absent from the snapshot. A ref present in the
+   snapshot is **out of scope for rollback, permanently** — even if the carry also wrote to it.
+4. If the snapshot is missing or unverifiable ⇒ **rollback is forbidden**; HALT and emit an
+   Impediment Report (§4). A rollback you cannot bound is not a rollback.
+
+**No-snapshot ⇒ no-push.** A carry that did not snapshot first has no safe reverse and must not run.
 
 ## §4 — BLOCKING-GATE + Impediment Report (first-class capability)
 
@@ -121,7 +137,28 @@ targeted a non-existent org.)*
 
 ## §5 — Drift-detector (mandatory before Phase 2)
 
-For each ref namespace, compare source ↔ destination:
+### §5.0 — ⛔ FRESHNESS PRECONDITION (the classification is only as true as its refs)
+
+**Before ANY comparison**, both sides' refs MUST be re-read from the wire in this run — never from
+remote-tracking refs, never from a cached/earlier read:
+
+```
+git ls-remote --heads --tags <source>        # wire truth, not refs/remotes/*
+git ls-remote --heads --tags <destination>   # wire truth, not refs/remotes/*
+```
+
+Then a **positive control** (§4): the destination read must return SOMETHING known to exist (e.g. its
+default branch) — an empty result is `unknown`, **never** `no refs`. If the destination genuinely has
+zero refs, prove it with a second instrument (a repo-exists API call) before classifying.
+
+**Why this is ⛔ and not advice** — reproduced empirically 2026-07-29: an observer holding
+remote-tracking refs from an earlier clone does **not** see a branch a peer pushed afterwards. That
+stale view classifies the destination as empty ⇒ CLEAN-CARRY ⇒ §7 authorizes an **unattended** push
+⇒ the peer's work enters the blast radius. A classification derived from a stale ref is not a
+classification; it is a guess wearing one. Classification without a same-run wire read = **HALT**
+(Impediment Report §4), never a default to CLEAN-CARRY.
+
+For each ref namespace, compare source ↔ destination (on §5.0-fresh refs only):
 
 ```
 both sides have unique commits/tags  → SPLIT-BRAIN  ⇒ reconciliation protocol, ⛔ no mirror, ⛔ no force-push
@@ -151,7 +188,7 @@ action → council-gate Layer-1 deterministic deny-set (⛔secrets · irreversib
 
 | Band | Actions |
 |---|---|
-| **Autonomous** (unattended; `--auto-merge` inherits the existing standing chain) | recon · drift-detect · classification · tier assignment · plan/roadmap · tickets · ADRs · docs PRs · dry-run in scratch · pipeline translation *proposals* · T1 push into an already-created destination for a CLEAN-CARRY repo |
+| **Autonomous** (unattended; `--auto-merge` inherits the existing standing chain) | recon · drift-detect · classification · tier assignment · plan/roadmap · tickets · ADRs · docs PRs · dry-run in scratch · pipeline translation *proposals* · T1 push into an already-created destination for a CLEAN-CARRY repo — **only if** §5.0 freshness (same-run wire read + positive control) AND §3.1 snapshot both hold; either missing ⇒ the push leaves the autonomous band |
 | **Council-first, then HITL** | destination repo creation · visibility · permissions/teams · secret provisioning · CI flip · source-host archive · **anything SPLIT-BRAIN** |
 | **HITL irreducible** | secret **values** ⛔ · a capability genuinely absent after positive-control verification |
 
@@ -191,6 +228,11 @@ ledger/state-machine · the pipeline→Actions translation report.
 9. ❌ **Treat SPLIT-BRAIN as a harder carry** — it is reconciliation, a distinct protocol.
 10. ❌ **Trust recall over the ledger** — a cold agent must resume from artifacts (§6).
 11. ❌ **Rewrite history** (`git-filter-repo`) unless separately authorized — it changes hashes.
+12. ❌ **Classify from stale refs** — deriving CLEAN-CARRY from `refs/remotes/*` or an earlier read
+    instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
+    routes an unattended push at it.
+13. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry snapshot, or deleting a
+    ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
 
 ### Skip (proportionality)
 - **S1** read-only inspection with no cutover intent.
