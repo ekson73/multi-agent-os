@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.2.0"
+version: "0.3.0"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -85,7 +85,7 @@ records its state in the **custody ledger** (§6) so a cold agent resumes from a
 |---|---|---|---|---|
 | **0** | **RECON** | inventory both hosts · **drift-detect (§5)** · classify (greenfield / pipeline-heavy / SSOT / split-brain) · blast-score · assign tiers · pick pilot | n/a (read-only) | **autonomous** |
 | **1** | **DRY-RUN** | simulate into a scratch target · verify T1 exactness · translate pipelines (proposal only) · extract T3 sample · inventory secret **names** | discard scratch | **autonomous** |
-| **2** | **CARRY (T1)** | snapshot destination refs (§5.0-fresh) → explicit-refspec push · **dual-remote coexistence** (source stays authoritative) | delete ONLY refs absent from the pre-carry snapshot (§3.1) | council-gated |
+| **2** | **CARRY (T1)** | capture the write-once `carry_baseline` → explicit-refspec push · **dual-remote coexistence** (source stays authoritative) | mode per §3.1: empty baseline → delete the destination repo; non-empty → delete ONLY refs absent from the baseline | council-gated |
 | **3** | **FLIP (T2/T4)** | CI/Actions live · protections · teams · fresh secrets provisioned · webhooks repointed | revert CI to source host | council-gated |
 | **4** | **SEAL** | verify parity · source host **read-only/archived** (⛔ never deleted) · docs/ADR/CHANGELOG PRs | re-open the source host | council-gated |
 
@@ -97,15 +97,57 @@ A naive Phase-2 rollback ("delete the pushed refs") **cannot distinguish a ref i
 that was already there** — so on any non-empty destination the rollback is itself a data-loss event.
 Therefore Phase 2 MUST, in order:
 
-1. **Snapshot** the destination's full ref→sha map (§5.0-fresh) into the ledger **before** pushing.
+1. **Snapshot** the destination's full ref→sha map from the wire **before the first push**, and
+   persist it in the ledger as the **write-once baseline** (`carry_baseline`, with `captured_at`).
 2. Push with an **explicit refspec** (never `--mirror`, never `+`-force, never a wildcard that can
    clobber tags).
-3. On rollback, delete a ref **only if** it is absent from the snapshot. A ref present in the
-   snapshot is **out of scope for rollback, permanently** — even if the carry also wrote to it.
-4. If the snapshot is missing or unverifiable ⇒ **rollback is forbidden**; HALT and emit an
+3. On rollback, delete a ref **only if** it is absent from the **baseline**. A ref present in the
+   baseline is **out of scope for rollback, permanently** — even if the carry also wrote to it.
+4. If the baseline is missing or unverifiable ⇒ **rollback is forbidden**; HALT and emit an
    Impediment Report (§4). A rollback you cannot bound is not a rollback.
 
-**No-snapshot ⇒ no-push.** A carry that did not snapshot first has no safe reverse and must not run.
+**No-baseline ⇒ no-push.** A carry that did not snapshot first has no safe reverse and must not run.
+
+#### ⛔ The baseline is WRITE-ONCE per cutover — a re-run MUST NOT re-derive it
+
+§3 makes Phase 2 **idempotent** (re-runnable to convergence) and §5.0 forbids "a cached/earlier
+read". Read together and applied to rule 1, those two force a re-run to **re-derive** the snapshot —
+at which point the re-derived map *already contains the refs the previous run created*, rule 3 puts
+them permanently out of rollback scope, and the rollback silently degrades to a **no-op**. Reproduced
+2026-07-29 in a sandbox: run #1 baseline `{peer}` → rollback correctly deletes `main`, keeps `peer`;
+run #2 re-derived baseline `{peer, main}` → rollback keeps **both** ⇒ the carry is irreversible and
+`§3` "Point of no return = Phase 4 only" becomes false, with **no trip-wire firing** (a snapshot
+*exists* — it is merely the wrong one).
+
+Therefore the two freshness questions are **distinct and must not be conflated**:
+
+| Question | Needs | Source |
+|---|---|---|
+| "What is the drift **right now**?" (classification, §5) | **current** truth | same-run `ls-remote` — re-read every run |
+| "What did the destination hold **before I touched it**?" (rollback bound, §3.1) | **first-touch** truth | the write-once `carry_baseline` — re-read **never** |
+
+Rules: the baseline is captured **once per cutover** and is immutable for its lifetime; every
+re-run **reuses** it verbatim from the ledger; a re-derived baseline is **not** a baseline (P9); and
+a cutover whose baseline is absent while `carry_count > 0` has **lost its reverse** ⇒ HALT, report,
+and treat reversibility as forfeited rather than pretend it exists.
+
+#### The baseline's emptiness selects the rollback MODE (ref-level vs repo-level)
+
+Subtractive ref deletion is **not universally available**: a host refuses to delete the ref that
+`HEAD`/the default branch points at. Measured 2026-07-29 — with a **non-empty** baseline the carried
+ref deletes cleanly (`HEAD` sits on a baseline ref); with an **empty** baseline the carried ref
+*becomes* the default branch and `--delete` is **rejected**. So the mode follows the baseline:
+
+| Baseline | Rollback mode | Why it is safe |
+|---|---|---|
+| **empty** (destination created by this cutover) | **repo-level**: delete the destination repository | nothing pre-existed — by definition zero collateral. Confirm the destination was absent with a second instrument (P7) **before** relying on this. |
+| **non-empty** | **ref-level subtractive** (rules 2–3 above) | `HEAD` rests on a baseline ref, so the carried refs delete cleanly |
+
+⛔ **Never repoint `HEAD`/the default branch to force a ref deletion.** It mutates destination state
+the baseline does not cover (and can leave a dangling `HEAD`) — a rollback that mutates beyond its
+bound is the §3.1 violation, not a workaround. If ref-level is blocked and repo-level does not apply
+(non-empty baseline whose `HEAD` moved), the carry is **not reversible by this skill** ⇒ HALT +
+Impediment Report with the residual state named explicitly.
 
 ## §4 — BLOCKING-GATE + Impediment Report (first-class capability)
 
@@ -122,14 +164,16 @@ trip-wires first**; the judgement only *widens* coverage, never gates it alone:
 |---|---|
 | P1 | an in-scope axis has **no tier assigned** in writing (§2 rule) |
 | P2 | drift classification derived without a same-run wire read, or a §5.0 positive control that FAILED |
-| P3 | a push would run without a §3.1 pre-carry snapshot |
+| P3 | a push would run without a §3.1 write-once `carry_baseline` |
 | P4 | the drift verdict is **SPLIT-BRAIN** or **INVESTIGATE** (never autonomous) |
 | P5 | a T4 secret **value** would be read, printed, or written anywhere |
 | P6 | a required §0.1 dependency is absent **and** its absent-behavior is `hard stop` |
 | P7 | the destination read returned empty **without** a second-instrument confirmation |
 | P8 | Phase 4 (the point of no return) without an Elenchus red-team CLEARED |
+| P9 | `carry_baseline.captured_at` is **not** strictly earlier than the first push of this cutover — i.e. the baseline was re-derived after a carry (mechanically: baseline contains a ref the ledger records this cutover as having created) |
+| P10 | `carry_count > 0` **and** `carry_baseline` absent/unreadable — reversibility already forfeited; never silently proceed as if reversible |
 
-Any P1–P8 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
+Any P1–P10 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
 
 **SECONDARY (agent judgement — widens, never replaces):** an axis the agent believes unsupported
@@ -199,8 +243,9 @@ decisions, a dedicated red-team pass, and an explicit freeze point. It never run
 
 ## §6 — Custody ledger (amnesic re-activation)
 
-A durable per-repo record: phase states · tier assignments · drift verdict · impediments raised ·
-artifacts produced · resume instructions. It is the SSOT for "where is this cutover?" so a
+A durable per-repo record: phase states · tier assignments · drift verdict · **the write-once
+`carry_baseline` (ref→sha + `captured_at`) and `carry_count`** (§3.1 — the rollback bound; a re-run
+reads it, never rewrites it) · impediments raised · artifacts produced · resume instructions. It is the SSOT for "where is this cutover?" so a
 fresh amnesic agent (`ai-as-pwd-axiom` §1) resumes from artifacts, **never from recall**
 (`harmonic` L9 persist-first). Hooks `session-reentry` (ADR-009) for anamnesis and emits a
 continuation seed per `end-of-action-briefing` §7.2.
@@ -259,9 +304,13 @@ ledger/state-machine · the pipeline→Actions translation report.
     instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
     routes an unattended push at it.
 13. ❌ **Self-scored gate** — treating "no supported path" as pure judgement and skipping the §4.0
-    P1–P8 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
-14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry snapshot, or deleting a
+    P1–P10 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
+14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry baseline, or deleting a
     ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
+15. ❌ **Re-derive the rollback baseline on a re-run** — reading it "fresh" per §5.0 on an idempotent
+    replay folds the refs the previous run created into the baseline, silently degrading rollback to a
+    **no-op** with no trip-wire firing (§3.1 write-once, P9). Classification is re-read every run; the
+    rollback bound is read **once, ever**. Two different questions, two different freshness rules.
 
 ### Skip (proportionality)
 - **S1** read-only inspection with no cutover intent.
@@ -313,5 +362,6 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3.0 | 2026-07-29 | **§3.1 write-once `carry_baseline` + rollback-mode selection (BLOCKING, self-red-teamed).** Two more data-loss holes in the UNATTENDED band, both found by *executing* the artifact's own rules in a sandbox rather than re-reading them. **(1) The idempotence × freshness contradiction (P9/P10, anti-pattern #15)** — §3 promises Phase 2 is "re-runnable to convergence" and §5.0 forbids "a cached/earlier read"; applied together to the v0.2.0 snapshot rule they *force* a re-run to re-derive the snapshot, which then already contains the refs the previous run created ⇒ rule-3 puts them permanently out of rollback scope ⇒ **rollback silently degrades to a no-op** and "point of no return = Phase 4 only" becomes false — with **no trip-wire firing**, because a snapshot *does* exist, it is merely the wrong one. Reproduced: run #1 baseline `{peer}` → `DELETE main / KEEP peer` (correct); run #2 re-derived `{peer,main}` → `KEEP` both. Fixed by splitting the two freshness questions that were conflated under one word: *"what is the drift now?"* (classification — re-read **every** run) vs *"what did the destination hold before I touched it?"* (rollback bound — read **once, ever**). The baseline is now write-once + immutable, `captured_at`-stamped, ledger-persisted, reused verbatim on replay; P9 catches a re-derived baseline mechanically, P10 catches `carry_count > 0` with the baseline gone (reversibility already forfeited — halt, never proceed as if reversible). **(2) Ref deletion is not universally available** — the fix's own verification run then failed on the *real* rollback: a host refuses to delete the ref `HEAD`/the default branch points at. Measured both cases: **non-empty** baseline → `HEAD` rests on a baseline ref, carried refs delete cleanly; **empty** baseline → the carried ref *becomes* the default branch and `--delete` is **rejected** (exactly the pilot's shape). So the baseline's emptiness now *selects the mode*: empty ⇒ repo-level (delete the destination — zero collateral by definition, P7 second-instrument confirmation required first); non-empty ⇒ ref-level subtractive. ⛔ **Never repoint `HEAD` to force a deletion** — it mutates state outside the baseline (and can leave a dangling `HEAD`), which is the §3.1 violation rather than a workaround; if neither mode applies, the carry is **not reversible by this skill** ⇒ HALT + Impediment Report naming the residual state. Also: `carry_baseline`/`carry_count` added to the §6 ledger contract; Phase-2 rollback cell now states both modes; P1–P8 → **P1–P10**. Method note: the two prior BLOCKING fixes were found by an independent red-team; these two were found by *running* the rules — a rule that reads coherent can still be incoherent when executed, and the sandbox is the only honest verifier of a reversibility claim. |
 | 0.2.0 | 2026-07-29 | **Red-team hardening (pre-merge PDCA, PR #289)** — 3 defects closed, 2 of them BLOCKING data-loss holes in the UNATTENDED band, each refuted EMPIRICALLY (sandbox reproduction) rather than by opinion. **(1) §5.0 FRESHNESS PRECONDITION ⛔** — `grep` proved the artifact had ZERO mentions of fetch/fresh/stale: the drift-detector never required same-run wire truth. Reproduced: an observer holding remote-tracking refs from an earlier clone does not see a branch a peer pushed afterwards ⇒ destination reads empty ⇒ CLEAN-CARRY ⇒ §7 authorizes an unattended push at live peer work. Now both sides re-read via same-run `ls-remote` + a positive control, and a missing wire read HALTS instead of defaulting to CLEAN-CARRY. **(2) §3.1 SUBTRACTIVE-ONLY rollback ⛔** — the Phase-2 rollback ("delete the pushed refs") could not distinguish a ref it created from one that predates the carry, making the *rollback itself* a data-loss event on any non-empty destination. Now: snapshot ref→sha before pushing · delete only refs absent from the snapshot · a snapshotted ref is permanently out of rollback scope · no snapshot ⇒ rollback forbidden ⇒ no-push. **(3) §4.0 PRIMARY trip-wires P1–P8** — the Blocking-Gate trigger was self-scored by the agent that wants to proceed (the self-exemption gradient); now deterministic `f=0` trip-wires HALT regardless of confidence, with judgement only *widening* coverage and uncertainty treated as fired (fail-closed). §7's autonomous band is conditioned on §5.0 ∧ §3.1 both holding. Also from bot PDCA: `bin/artifact-registry` (a CLI, not `maos:`) · `legacy-archaeologist` is an **agent** (caught by verifying the bot's adjacent finding, unreported by any bot) · description 1753→985 chars · new **§0.1 Requirements** with per-dependency absent-behavior (hard-stop vs degrade-to-GAP vs warn). One Qodo finding REJECTED with evidence (`resolve-session.sh` belongs to `session-reentry`, not here). **Probe 5b SURVIVED and is recorded as surviving** — the 4-branch drift classification is total + disjoint over a binary predicate pair, so two independent agents converge; no fix manufactured. Bots: CodeRabbit APPROVED · amazon-q no-blocking-defects · 7/7 checks SUCCESS. |
 | 0.1.0 | 2026-07-29 | Bootstrap — forged from a real 9-repo Bitbucket-Cloud→GitHub cutover need. Named by `anima`: system-name `repo-custody-transfer`, soul-name **Translatio** (12/12; rejected `git-host-migration` — "migration" is the false promise the tool refuses). Design decisions: **carry-then-rename** (any repo-rename program runs AFTER a clean cutover — lower impact) · Blocking-Gate + Impediment Report as a first-class capability · autonomy-max with council-before-HITL. Ships the fidelity contract (T1/T2/T3/T4), the 5-phase reversible cutover, the drift-detector (SPLIT-BRAIN class), the custody ledger, and the §8 composition map. Residue scripts (extractor/archiver · pipeline translator · ledger CLI · drift CLI) deferred until a real cycle demands them (Gordian/YAGNI). **Empirical grounding**: drift-detect found bidirectional divergence in 3 of 9 repos (a `--mirror` would have destroyed 11+10 commits and 10 tags); a positive control disproved a self-fabricated `admin:org` impediment; T3 archival validated via a host API gateway with a positive control. 6/6 §10 + 8/8 anti-theater + 6/6 scope-discipline. PR `ekson73/multi-agent-os#289`. |
