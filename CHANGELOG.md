@@ -8,6 +8,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `research-dossier`: finished research → decision-ready visual dossier, behind two deterministic gates (#287)
+
+The missing spine between researchers and the ~110 `design-templates/` + ~150 `design-systems/`
+already installed. Research emits prose; every renderer wants structured input; nothing converted
+one to the other — so each dashboard was hand-rolled, with no provenance and no reuse.
+
+The lever is the **IR**, not the HTML: once research becomes JSON with per-claim provenance, the
+existing renderers are reachable for free. One contract unlocks N consumers.
+
+- **`skills/research-dossier/SKILL.md`** (v0.1.0) — thin orchestrator routing
+  `corpus → IR → (scorecard) → render`. Never renders directly.
+- **`templates/ir.schema.json`** — the contract. `claims[]` carry `source` + `as_of` + `confidence`;
+  charts, scorecard cells and recommendations all cite claims **by id**, so a number in a chart that
+  appears in no claim is unsourced by construction. `not_checked[]` is **required and non-empty** —
+  a dossier that states its own blind spots is the one worth trusting.
+- **`bin/research-dossier-render.mjs`** — fan-out (html · md · json; pdf/pptx/xlsx as hand-off
+  manifests) behind **two f=0 oracles**, both of which fail the build:
+  - **provenance** — unsourced claim · dangling `source_claims` · recommendation with no owner/eta ·
+    empty `not_checked[]` · **undeclared truncation on a magnitude axis**. That last check is what
+    carries the text-level faithfulness discipline into the *visual* layer: a bar chart starting at
+    60 distorts a ratio whether or not anyone meant it to. Declared truncation passes, and the
+    rationale is then printed on the face of the chart.
+  - **palette** — delegates to the bundled `dataviz` skill's own `validate_palette.js` in **both**
+    light and dark (CVD ΔE OKLab per protan/deutan/tritan, lightness band, chroma floor,
+    normal-vision floor, surface contrast). Colour is cited, never reimplemented. The validator
+    lives in a version-and-hash-keyed temp dir that moves on every CLI upgrade → discovered at
+    runtime, degrading to a **loud WARN** when absent (`--strict` makes it a failure; a silent
+    green would be worse than no gate).
+- **`references/scorecard.md`** — the comparison primitive: N options × M criteria with evidence
+  **per cell**. Sparse is honest, complete is often fabricated; weights are declared or they are
+  smuggled; the verdict names its runner-up and why it lost.
+- **`references/audience-map.md`** — closes the long-standing gap where `--audience` stopped at
+  lens selection and never reached the design system. Maps audience → design system → the eight
+  parameters `dataviz` consumes. Audience changes **presentation only** — never the claims, the
+  scorecard, or `not_checked[]`.
+- **`templates/dossier.html`** — fallback for when the `od` daemon is absent. Single file, opens
+  over `file://`, zero network, inline SVG (no library to bundle, no canvas to hide from a screen
+  reader). Every chart: `role="img"` + a value-describing `aria-label` + a real `<table>`.
+  Server-rendered, so **JS off still shows the whole dossier**; JS only reveals the theme toggle.
+  Dark mode is *selected*, not flipped.
+- **`commands/research-dossier.md`** — `/maos:research-dossier` surface.
+- **`examples/`** — 1 working fixture (dogfood: the chart-library comparison that chose the
+  template's own renderer) + **5 negative fixtures**, each of which must fail.
+
+Verified by execution: 6/6 fixtures hit their expected exit codes, 18/18 output checks pass,
+Layer Purity clean, `validate-plugin.sh` 0 errors.
+
+Two defects were found and root-fixed *while verifying* — both the same family, a test passing for
+the wrong reason. The body was initially client-rendered (JS off → blank page). And substitution
+used single-match `.replace()` while the template's own header comment named the placeholders, so
+the first match was the *documentation* and the live slot never filled — output that looked
+plausible while carrying no dossier, which the first verification scored as 12,613 chars of content
+(real figure: 4,657). Fixed globally, and the renderer now **asserts no slot survives**.
+
+Composes, never duplicates: zero new design systems, zero new per-format renderers, chart form and
+colour delegated to the bundled `dataviz` skill.
+
 ### Added — `chief-of-staff` (Oikonomos): the operator work-focus conductor — human twin of `reactivate`/Entelecheia
 
 The operator-facing counterpart of the agent-facing `reactivate` conductor: **Entelecheia** orients a fresh
