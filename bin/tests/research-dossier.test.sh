@@ -169,6 +169,67 @@ else
   ok 'SKIP declared-truncation (python3 unavailable)'
 fi
 
+# ── density: audience reaches the RENDER, not just the prose ──────────────────
+# Gap #5. Density changes presentation only — never claims, cells, or not_checked[].
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$EX/ir-valid.json" "$TMP" <<'PY' 2>/dev/null
+import json,copy,sys,os
+ir=json.load(open(sys.argv[1])); t=sys.argv[2]
+for aud in ('exec','engineer'):
+    v=copy.deepcopy(ir); v['audience']=aud
+    json.dump(v,open(os.path.join(t,f'ir-{aud}.json'),'w'))
+v=copy.deepcopy(ir); v['audience']='exec'; v['stakes']='high'
+json.dump(v,open(os.path.join(t,'ir-exec-high.json'),'w'))
+# 4 charts: over the public cap (2), under the engineer cap (Infinity)
+v=copy.deepcopy(ir); base=v['charts'][0]; v['charts']=[]
+for i in range(4):
+    c=copy.deepcopy(base); c['id']=f"{base['id']}-{i}"; v['charts'].append(c)
+v['audience']='public'; json.dump(v,open(os.path.join(t,'ir-many-public.json'),'w'))
+v['audience']='engineer'; json.dump(v,open(os.path.join(t,'ir-many-eng.json'),'w'))
+PY
+
+  rd() { node "$REND" --ir "$TMP/$1" --formats html --out "$TMP/den-$2" >/dev/null 2>&1; }
+  # grep -c prints 0 AND exits 1 on no-match, so a `|| echo 0` would emit TWO
+  # lines and every numeric compare downstream would silently fail. Take head -1.
+  cnt() { grep -c "$2" "$TMP/den-$1/dossier.html" 2>/dev/null | head -1; }
+
+  rd ir-exec.json exec
+  eq '0' "$(cnt exec 'details class="tableview" open')" 'exec density collapses the evidence table'
+  rd ir-engineer.json eng
+  [ "$(cnt eng 'details class="tableview" open')" -ge 1 ] \
+    && ok 'engineer density expands the evidence table' \
+    || no 'engineer density expands the evidence table' 'not open'
+  # High stakes re-expands regardless of audience: the reader with the least
+  # context must not receive the least-qualified version of the truth.
+  rd ir-exec-high.json exechigh
+  [ "$(cnt exechigh 'details class="tableview" open')" -ge 1 ] \
+    && ok 'stakes:high re-expands evidence even at exec density' \
+    || no 'stakes:high re-expands evidence even at exec density' 'stayed collapsed'
+
+  rd ir-many-public.json manypub
+  eq '2' "$(cnt manypub '<svg')" 'public density caps charts at 2'
+  # A dropped chart is disclosed — an omission the reader cannot see is an edit.
+  [ "$(cnt manypub 'omitted at')" -ge 1 ] \
+    && ok 'omitted charts are DISCLOSED, not silently swallowed' \
+    || no 'omitted charts are DISCLOSED, not silently swallowed' 'no notice'
+  rd ir-many-eng.json manyeng
+  eq '4' "$(cnt manyeng '<svg')" 'engineer density renders all 4 charts'
+  eq '0' "$(cnt manyeng 'omitted at')" 'no omission notice when nothing is omitted'
+
+  # Density is PRESENTATION. The evidence must be byte-identical across audiences.
+  node "$REND" --ir "$TMP/ir-exec.json"     --formats json --out "$TMP/j-exec" >/dev/null 2>&1
+  node "$REND" --ir "$TMP/ir-engineer.json" --formats json --out "$TMP/j-eng"  >/dev/null 2>&1
+  a="$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(json.dumps([d.get('claims'),d.get('not_checked'),(d.get('scorecard') or {}).get('cells')],sort_keys=True))" "$TMP/j-exec/dossier.json" 2>/dev/null)"
+  b="$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(json.dumps([d.get('claims'),d.get('not_checked'),(d.get('scorecard') or {}).get('cells')],sort_keys=True))" "$TMP/j-eng/dossier.json" 2>/dev/null)"
+  if [ -n "$a" ] && [ "$a" = "$b" ]; then
+    ok 'audience changes presentation ONLY — claims/cells/not_checked identical'
+  else
+    no 'audience changes presentation ONLY — claims/cells/not_checked identical' 'evidence differs across audiences'
+  fi
+else
+  ok 'SKIP density tests (python3 unavailable)'
+fi
+
 # ── CLI contract: 2 is usage/IO, distinct from 1 (gate failure) ───────────────
 node "$REND" --ir /nonexistent/nope.json --gates-only >/dev/null 2>&1
 eq '2' "$?" 'missing IR file exits 2 (usage/IO, not a gate failure)'

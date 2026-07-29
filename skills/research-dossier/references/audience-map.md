@@ -43,11 +43,21 @@ output, just with fewer typographic options.
 
 ### Density is a real parameter, not a mood
 
-It changes three concrete things: how many charts survive into the render, whether
-the evidence table starts expanded or collapsed, and whether a chart under ~4 data
-points is demoted to a stat tile. That last one comes straight from `dataviz`'s
-"is it even a chart?" table — three numbers are a KPI row, not a bar chart, and an
-exec dossier is exactly where that mistake gets made.
+Two things are **implemented in the renderer** today (`DENSITY` in
+`bin/research-dossier-render.mjs`, covered by `bin/tests/research-dossier.test.sh`):
+
+| Effect | Behaviour |
+|---|---|
+| **Chart cap** | charts beyond the audience's cap are not rendered — and the omission is **disclosed** on the page ("N further charts omitted at … density"). An omission the reader cannot see is an edit, not a summary. |
+| **Evidence table default** | `<details open>` for `engineer`, collapsed elsewhere. Collapsed is still reachable with JS off — `<details>` is a native element, so the evidence is never script-gated. |
+
+`stakes: high` overrides the collapse: evidence re-expands at every audience.
+
+**Not yet implemented:** demoting a chart under ~4 data points to a stat tile.
+That one comes straight from `dataviz`'s "is it even a chart?" table — three
+numbers are a KPI row, not a bar chart, and an exec dossier is exactly where that
+mistake gets made. It is listed here as a gap rather than described as behaviour,
+because a documented-but-inert parameter is the theater the gates exist to prevent.
 
 ## What audience does NOT change
 

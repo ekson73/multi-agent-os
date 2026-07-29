@@ -444,8 +444,29 @@ function renderMarkdown(ir) {
  *  in the output reveals the theme toggle; with JS off the dossier is complete.
  *  That is affordable because theming is pure CSS — the validated palette lands as
  *  --series-N under both scopes and the SVG marks reference them by var(). */
+/** audience → density. See references/audience-map.md.
+ *  Density is a real parameter, not a mood: it changes how many charts survive
+ *  into the render and whether the evidence table starts expanded. It NEVER
+ *  changes the claims, the scorecard cells, or not_checked[] — an exec dossier
+ *  and an engineer dossier carry the same evidence and pass the same gates.
+ *  stakes:"high" overrides density downward everywhere (gaps stay expanded). */
+const DENSITY = {
+  exec:     { maxCharts: 3, tablesOpen: false },
+  client:   { maxCharts: 3, tablesOpen: false },
+  public:   { maxCharts: 2, tablesOpen: false },
+  team:     { maxCharts: 5, tablesOpen: false },
+  engineer: { maxCharts: Infinity, tablesOpen: true }
+};
+function densityOf(ir) {
+  const d = DENSITY[ir.audience] || DENSITY.team;
+  // High stakes expands evidence regardless of audience: the reader with the
+  // least context must not get the least-qualified version of the truth.
+  return ir.stakes === 'high' ? { ...d, tablesOpen: true } : d;
+}
+
 function renderHtmlBody(ir) {
   const H = [];
+  const den = densityOf(ir);
   const claimIds = new Set((ir.claims || []).map(c => c.id));
   const entityLabel = id => (ir.entities || []).find(e => e.id === id)?.label ?? id;
   const entityIdx = id => {
@@ -496,8 +517,16 @@ function renderHtmlBody(ir) {
 
   // charts — inline SVG + mandatory data table
   if ((ir.charts || []).length) {
+    // Density caps how many charts survive. A dropped chart is DISCLOSED, never
+    // silently swallowed: an omission the reader cannot see is an edit, not a
+    // summary. The charts' underlying claims stay in the evidence table either way.
+    const shown = ir.charts.slice(0, den.maxCharts);
+    const dropped = ir.charts.length - shown.length;
     H.push('<section><h2>Charts</h2>');
-    for (const ch of ir.charts) {
+    if (dropped > 0) {
+      H.push(`<p class="note">${dropped} further chart${dropped === 1 ? '' : 's'} omitted at "${esc(ir.audience)}" density; the underlying claims remain in the evidence table below.</p>`);
+    }
+    for (const ch of shown) {
       const pts = [];
       for (const s of ch.series || [])
         for (const p of s.data || []) pts.push({ ...p, entity: s.entity, sLabel: s.label });
@@ -543,7 +572,7 @@ function renderHtmlBody(ir) {
       // A declared truncation is stated in the OUTPUT, not just in the IR.
       if (ax.axis_truncated === true)
         H.push(`<p class="axis-note">⚠ Axis truncated at ${esc(ax.y_min)} — ${esc(ax.truncation_rationale || 'rationale not recorded')}. Bar lengths are not proportional to values.</p>`);
-      H.push('<details class="tableview" open><summary>Data table</summary><table>');
+      H.push(`<details class="tableview"${den.tablesOpen ? ' open' : ''}><summary>Data table</summary><table>`);
       H.push(`<thead><tr><th scope="col">${esc(ax.x_label || 'Item')}</th><th scope="col" class="num">${esc(ax.y_label || 'Value')}</th></tr></thead><tbody>${rows}</tbody>`);
       H.push('</table></details></figure></div>');
     }
