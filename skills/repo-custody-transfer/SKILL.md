@@ -255,7 +255,7 @@ deliberately.** When you invert a check, ask what the *new* form requires that t
 
 Every defect found in this artifact's deterministic layer maps to **exactly one constructible repo
 state**. That turns a list of scars into a test matrix — and it is why the ask is not *"write a
-verifier"* but *"write these seven fixtures and the verifier falls out of them"*:
+verifier"* but *"write these eight fixtures and the verifier falls out of them"*:
 
 | Instance (all found post-hoc, by execution) | Fixture state — all `/tmp`-constructible, no real host |
 |---|---|
@@ -508,7 +508,7 @@ git for-each-ref --format='%(refname) %(objectname)' "$QUAR" \
 git merge-base --is-ancestor <pinned_dst_sha> <src_sha>   # dst reachable from src? → fast-forwardable
 git merge-base --is-ancestor <src_sha> <pinned_dst_sha>   # src reachable from dst? → destination ahead
 git merge-base <src_sha> <pinned_dst_sha>                 # non-zero ⇒ DISJOINT ROOTS
-# ⛔ An empty/absent pinned sha is NOT "no destination ref" — it is a MISSING MEASUREMENT (P16).
+# ⛔ An empty/absent pinned sha is NOT "no destination ref" — it is a MISSING MEASUREMENT (P17).
 
 # and ALWAYS, once classified — clean ONLY THIS RUN's slice. ⛔ Never sweep the whole namespace:
 # a concurrent classification's quarantine lives there and is its live input (see the TOCTOU note).
