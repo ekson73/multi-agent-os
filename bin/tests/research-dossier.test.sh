@@ -169,6 +169,78 @@ else
   ok 'SKIP declared-truncation (python3 unavailable)'
 fi
 
+# ── red-team hardening: the semantic checks (2026-07-29) ──────────────────────
+# An independent adversary produced a board-grade dossier that inverted a
+# $1.18M-vs-$0.34M comparison at exit 0. Referential integrity held throughout —
+# every pointer resolved. What was missing was any check that a citation AGREED
+# with what it cited. Each assertion below pins one of those bypasses shut.
+if command -v python3 >/dev/null 2>&1; then
+  mk() { python3 - "$EX/ir-valid.json" "$TMP/$1" "$2" <<'PY' 2>/dev/null
+import json,sys
+ir=json.load(open(sys.argv[1])); out=sys.argv[2]; which=sys.argv[3]
+sc=ir.get('scorecard') or {}
+if which=='point-mismatch':          # chart plots a number its cited claim contradicts
+    ir['charts'][0]['series'][0]['data'][0]['y']=41
+elif which=='display-lie':           # display overrides value with an inverted magnitude
+    for c in sc.get('cells',[]):
+        if c.get('criterion')=='size' and isinstance(c.get('value'),(int,float)):
+            c['display']='18 KB'; break
+elif which=='form-dodge':            # non-magnitude form + truncated axis
+    ir['charts'][0]['form']='line'; ir['charts'][0]['axis']['y_min']=60
+elif which=='compression':           # inflated y_max flattens every mark
+    ir['charts'][0]['axis']['y_max']=100000
+elif which=='vacuous-nc':
+    ir['not_checked']=[{'text':'Everything material was checked.','reason':'Comprehensive review.','impact':'none'}]
+elif which=='all-none-nc':
+    for n in ir['not_checked']: n['impact']='none'
+elif which=='stale':                 # every claim years older than the dossier
+    ir['stakes']='high'
+    for c in ir['claims']: c['as_of']='2019-01-01'
+json.dump(ir,open(out,'w'))
+PY
+  }
+  gt() { node "$REND" --ir "$TMP/$1" --gates-only 2>&1; }
+
+  mk ir-point.json point-mismatch
+  node "$REND" --ir "$TMP/ir-point.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'chart data contradicting its cited claim FAILS'
+  case "$(gt ir-point.json)" in *CHART_POINT_VALUE_MISMATCH*) ok '→ CHART_POINT_VALUE_MISMATCH' ;; *) no '→ CHART_POINT_VALUE_MISMATCH' 'not raised' ;; esac
+
+  mk ir-display.json display-lie
+  node "$REND" --ir "$TMP/ir-display.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'cell display contradicting its own value FAILS'
+  case "$(gt ir-display.json)" in *CELL_DISPLAY_DIVERGES*) ok '→ CELL_DISPLAY_DIVERGES' ;; *) no '→ CELL_DISPLAY_DIVERGES' 'not raised' ;; esac
+
+  # The renderer draws every chart as proportional bars, so a declared form that
+  # the renderer ignores must not exempt a chart from the truncation check.
+  mk ir-form.json form-dodge
+  node "$REND" --ir "$TMP/ir-form.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'truncation is caught regardless of declared form'
+  case "$(gt ir-form.json)" in *UNDECLARED_TRUNCATION*) ok '→ UNDECLARED_TRUNCATION on a non-bar form' ;; *) no '→ UNDECLARED_TRUNCATION on a non-bar form' 'not raised' ;; esac
+
+  mk ir-compress.json compression
+  node "$REND" --ir "$TMP/ir-compress.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'inflated y_max (difference-hiding) FAILS'
+  case "$(gt ir-compress.json)" in *UNDECLARED_COMPRESSION*) ok '→ UNDECLARED_COMPRESSION' ;; *) no '→ UNDECLARED_COMPRESSION' 'not raised' ;; esac
+
+  # The empty-array check was evaded by writing the omniscience claim longhand.
+  mk ir-vacuous.json vacuous-nc
+  node "$REND" --ir "$TMP/ir-vacuous.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'boilerplate not_checked[] FAILS'
+  case "$(gt ir-vacuous.json)" in *NOT_CHECKED_VACUOUS*|*NOT_CHECKED_ALL_INCONSEQUENTIAL*) ok '→ NOT_CHECKED_VACUOUS / ALL_INCONSEQUENTIAL' ;; *) no '→ NOT_CHECKED_VACUOUS / ALL_INCONSEQUENTIAL' 'not raised' ;; esac
+
+  mk ir-allnone.json all-none-nc
+  node "$REND" --ir "$TMP/ir-allnone.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'every blind spot marked impact:none FAILS'
+
+  mk ir-stale.json stale
+  node "$REND" --ir "$TMP/ir-stale.json" --gates-only >/dev/null 2>&1
+  eq '1' "$?" 'years-stale evidence FAILS at stakes:high'
+  case "$(gt ir-stale.json)" in *CLAIM_STALE*) ok '→ CLAIM_STALE' ;; *) no '→ CLAIM_STALE' 'not raised' ;; esac
+else
+  ok 'SKIP red-team hardening tests (python3 unavailable)'
+fi
+
 # ── density: audience reaches the RENDER, not just the prose ──────────────────
 # Gap #5. Density changes presentation only — never claims, cells, or not_checked[].
 if command -v python3 >/dev/null 2>&1; then

@@ -111,6 +111,16 @@ function gateProvenance(ir) {
     if (!c.as_of) FAIL('CLAIM_NO_AS_OF', `${at}: missing as_of`);
     else if (!ISO_DATE.test(c.as_of)) FAIL('CLAIM_BAD_AS_OF', `${at}: as_of must be YYYY-MM-DD, got "${c.as_of}"`);
     else if (ir.as_of && c.as_of > ir.as_of) FAIL('CLAIM_FUTURE', `${at}: as_of ${c.as_of} is newer than the dossier's as_of ${ir.as_of}`);
+    // Only FUTURE dates failed, so evidence could be arbitrarily old and still read
+    // as current — a dossier dated today resting entirely on years-old claims.
+    else if (ir.as_of && ISO_DATE.test(ir.as_of)) {
+      const days = (Date.parse(ir.as_of) - Date.parse(c.as_of)) / 86400000;
+      if (days > 365) {
+        const msg = `${at}: as_of ${c.as_of} is ${Math.floor(days / 365)}y older than the dossier (${ir.as_of}) — stale evidence presented as current`;
+        if (ir.stakes === 'high') FAIL('CLAIM_STALE', msg);
+        else WARN('CLAIM_STALE', msg);
+      }
+    }
 
     if (!c.confidence) FAIL('CLAIM_NO_CONFIDENCE', `${at}: missing confidence`);
     else if (!CONFIDENCE.has(c.confidence)) FAIL('CLAIM_BAD_CONFIDENCE', `${at}: confidence must be high|medium|low, got "${c.confidence}"`);
@@ -166,22 +176,44 @@ function gateProvenance(ir) {
       if (!Array.isArray(s.data) || s.data.length === 0) FAIL('SERIES_NO_DATA', `${at}.series[${j}]: data[] is empty`);
       if (s.entity && Array.isArray(ir.entities) && !ir.entities.some(e => e.id === s.entity))
         FAIL('SERIES_DANGLING_ENTITY', `${at}.series[${j}]: entity "${s.entity}" not in entities[]`);
-      for (const [k, p] of (s.data || []).entries())
-        if (p && p.claim && !ids.has(p.claim))
+      for (const [k, p] of (s.data || []).entries()) {
+        if (!p || !p.claim) continue;
+        if (!ids.has(p.claim)) {
           FAIL('POINT_DANGLING_CLAIM', `${at}.series[${j}].data[${k}]: claim "${p.claim}" is not a claim id`);
+          continue;
+        }
+        // A resolving citation is not a true one. Until this check existed, a point
+        // could cite a claim saying "208 KB" and plot 41 — cited, resolving, rendered,
+        // and false. metric.value exists precisely so a chart can cite instead of
+        // restate; comparing them is what makes the citation load-bearing.
+        const src = (ir.claims || []).find(c => c && c.id === p.claim);
+        const mv = src && src.metric ? src.metric.value : undefined;
+        if (typeof mv === 'number' && typeof p.y === 'number' && p.y !== mv) {
+          const t = ch.transform || {};
+          const scaled = typeof t.scale === 'number' ? mv * t.scale : null;
+          const explained = scaled !== null && Math.abs(p.y - scaled) <= Math.abs(scaled) * 1e-9;
+          if (!explained)
+            FAIL('CHART_POINT_VALUE_MISMATCH',
+              `${at}.series[${j}].data[${k}]: plots y=${p.y} while its cited claim "${p.claim}" states ${mv}${src.metric.unit ? ' ' + src.metric.unit : ''} — a chart may cite a claim or contradict it, not both (declare chart.transform.scale if the difference is a unit conversion)`);
+        }
+      }
     }
 
     // THE magnitude-distortion check. A bar chart starting at 90 turns a 2%
     // difference into a visual landslide; declaring it is the price of doing it.
     const ax = ch.axis || {};
-    if (MAGNITUDE_FORMS.has(ch.form)) {
-      const ys = series.flatMap(s => (s.data || []).map(p => p && p.y)).filter(v => typeof v === 'number');
+    const ys = series.flatMap(s => (s.data || []).map(p => p && p.y)).filter(v => typeof v === 'number');
+    // Gate on what is DRAWN, not what is DECLARED. The renderer draws every chart
+    // as proportional bars regardless of ch.form, so keying this check to a
+    // form allow-list let `form:"line"` bypass it while still rendering truncated
+    // bars. Declaring a form the renderer does not honour is not a defence.
+    {
       const dataMin = ys.length ? Math.min(...ys) : null;
       const naturalBaseline = dataMin !== null && dataMin < 0 ? dataMin : 0;
       const truncates = typeof ax.y_min === 'number' && ax.y_min > naturalBaseline;
       if (truncates && ax.axis_truncated !== true)
         FAIL('UNDECLARED_TRUNCATION',
-          `${at}: y_min=${ax.y_min} truncates a "${ch.form}" magnitude axis above its natural baseline (${naturalBaseline}) without axis.axis_truncated:true — this is magnitude distortion`);
+          `${at}: y_min=${ax.y_min} truncates a magnitude axis above its natural baseline (${naturalBaseline}) without axis.axis_truncated:true — this is magnitude distortion (declared form "${ch.form}" does not exempt it; the renderer draws proportional marks)`);
       if (ax.axis_truncated === true && !truncates)
         WARN('TRUNCATION_FLAG_UNUSED', `${at}: axis_truncated:true but y_min does not truncate — flag is misleading`);
     }
@@ -189,6 +221,31 @@ function gateProvenance(ir) {
       FAIL('TRUNCATION_NO_RATIONALE', `${at}: axis_truncated:true requires axis.truncation_rationale`);
     if (typeof ax.y_min === 'number' && typeof ax.y_max === 'number' && ax.y_min >= ax.y_max)
       FAIL('AXIS_INVERTED', `${at}: y_min (${ax.y_min}) >= y_max (${ax.y_max})`);
+    // Truncation is only ONE way to lie with an axis. Inflating y_max compresses
+    // every mark toward zero, so 4% and 96% render as two identical stubs — a
+    // difference-hiding distortion the truncation check never sees.
+    if (typeof ax.y_max === 'number' && ys.length) {
+      const dataMax = Math.max(...ys);
+      if (dataMax > 0 && ax.y_max > dataMax * 1.5 && ax.axis_truncated !== true)
+        FAIL('UNDECLARED_COMPRESSION',
+          `${at}: y_max=${ax.y_max} is ${(ax.y_max / dataMax).toFixed(1)}x the largest plotted value (${dataMax}), compressing every mark toward the baseline — declare it via axis.axis_truncated + truncation_rationale or use a fitted maximum`);
+    }
+
+    // A stack asserts "these parts compose this whole". If the chart cites a claim
+    // carrying a total and the parts do not reach it, the chart silently drops the
+    // remainder — every part can match its own claim while the composition lies.
+    if (ch.form === 'stacked-bar' || ch.form === 'stacked-area') {
+      const plotted = ys.reduce((a, b) => a + b, 0);
+      const cited = (ch.source_claims || [])
+        .map(id => (ir.claims || []).find(c => c && c.id === id))
+        .filter(c => c && c.metric && typeof c.metric.value === 'number' && /total|sum|overall/i.test(`${c.metric.name} ${c.id} ${c.text}`));
+      for (const t of cited) {
+        const tv = t.metric.value;
+        if (tv > 0 && Math.abs(plotted - tv) > tv * 0.05)
+          FAIL('STACKED_PARTS_MISMATCH',
+            `${at}: stacked parts sum to ${plotted} but cited claim "${t.id}" states a total of ${tv} — the stack presents itself as the whole while omitting ${(100 * (1 - plotted / tv)).toFixed(0)}% of it`);
+      }
+    }
 
     if (ch.emphasis && Array.isArray(ir.entities) && !ir.entities.some(e => e.id === ch.emphasis))
       FAIL('CHART_DANGLING_EMPHASIS', `${at}: emphasis "${ch.emphasis}" not in entities[]`);
@@ -220,9 +277,71 @@ function gateProvenance(ir) {
       if (!cell.confidence) FAIL('CELL_NO_CONFIDENCE', `${at}: missing confidence`);
       else if (!CONFIDENCE.has(cell.confidence)) FAIL('CELL_BAD_CONFIDENCE', `${at}: confidence must be high|medium|low`);
       checkRefs(cell.source_claims, at);
+      // `display` is emitted verbatim and overrides `value`, so a cell carrying
+      // value:1180000 could print "$0.18M" — the audit trail stays correct in the
+      // JSON while the human artifact states the opposite. One field, no
+      // arithmetic, total inversion. The renderer trusts display; the gate must not.
+      if (typeof cell.value === 'number' && typeof cell.display === 'string') {
+        const m = cell.display.replace(/[\s,$%]/g, '').match(/-?\d+(?:\.\d+)?\s*([KMB])?/i);
+        if (m) {
+          const mult = { k: 1e3, m: 1e6, b: 1e9 }[(m[1] || '').toLowerCase()] || 1;
+          const shown = parseFloat(m[0]) * mult;
+          const av = Math.abs(cell.value);
+          // Accept unit-consistent restatements (1180000 → "1.18M", 0.42 → "42%")
+          // and rounding; reject a magnitude that contradicts the recorded value.
+          const ok = [1, 1e-3, 1e-6, 1e-9, 1e3, 1e6, 1e9, 100, 0.01]
+            .some(s => av === 0 ? shown === 0 : Math.abs(Math.abs(shown) - av * s) <= av * s * 0.01 + 1e-9);
+          if (!ok)
+            FAIL('CELL_DISPLAY_DIVERGES',
+              `${at}: display "${cell.display}" reads as ${shown} but the recorded value is ${cell.value} — the rendered cell would contradict its own audit trail`);
+        }
+      }
       const key = `${cell.option}::${cell.criterion}`;
       if (seen.has(key)) FAIL('CELL_DUPLICATE', `${at}: duplicate cell for (${cell.option}, ${cell.criterion})`);
       seen.add(key);
+    }
+
+    // Selective omission is the scorecard's sharpest weapon: a sparse grid is
+    // honest ONLY when the evidence is genuinely absent. If a claim exists whose
+    // entity is the missing option, the cell was not unmeasured — it was dropped.
+    for (const cr of sc.criteria || []) {
+      const missing = (sc.options || []).filter(o => !seen.has(`${o}::${cr.id}`));
+      if (missing.length === 0 || missing.length === (sc.options || []).length) continue;
+      for (const o of missing) {
+        const covered = (ir.claims || []).some(c => {
+          if (!c || c.entity !== o) return false;
+          const inCell = (sc.cells || []).some(x => (x.source_claims || []).includes(c.id));
+          return !inCell;
+        });
+        if (covered)
+          FAIL('SCORECARD_ASYMMETRIC_COVERAGE',
+            `scorecard: (${o}, ${cr.id}) is blank while claims about "${o}" sit unused in the evidence — a blank cell must mean unmeasured, not omitted; cite it or state why it does not apply`);
+      }
+    }
+    // Weighting after seeing the numbers is how a verdict is smuggled. A dominant
+    // weight on a criterion only ONE option was scored against decides the outcome
+    // by construction rather than by evidence.
+    {
+      const ws = (sc.criteria || []).filter(c => typeof c.weight === 'number').map(c => c.weight);
+      if (ws.length > 1) {
+        const mx = Math.max(...ws), mn = Math.min(...ws.filter(w => w > 0));
+        if (mx / mn >= 3) {
+          const rest = ws.reduce((a, b) => a + b, 0) - mx;
+          for (const cr of sc.criteria || []) {
+            if (cr.weight !== mx) continue;
+            const scored = (sc.options || []).filter(o => seen.has(`${o}::${cr.id}`)).length;
+            if (scored === 1 && (sc.options || []).length > 1)
+              WARN('SCORECARD_WEIGHT_CONCENTRATION',
+                `scorecard: criterion "${cr.id}" carries the dominant weight (${mx}, ${(mx / mn).toFixed(1)}x the lowest) but only ${scored} of ${sc.options.length} options were scored on it — the weighting, not the evidence, is deciding`);
+            // A single criterion outweighing all others COMBINED cannot be
+            // outvoted by any amount of contrary evidence: the grid's remaining
+            // rows are decorative, whatever they say.
+            else if (rest > 0 && mx > rest)
+              WARN('SCORECARD_WEIGHT_DOMINANT',
+                `scorecard: criterion "${cr.id}" (weight ${mx}) outweighs every other criterion combined (${rest}) — no evidence in the remaining rows can change the outcome; confirm the weights were set before the cells were filled`);
+          }
+        }
+      }
     }
 
     const v = sc.verdict;
@@ -233,6 +352,42 @@ function gateProvenance(ir) {
       // A verdict that names no loser is an endorsement, not a decision.
       if (v.winner && !v.runner_up && optIds.size > 1)
         WARN('VERDICT_NO_RUNNER_UP', 'scorecard.verdict names a winner but no runner_up — the rejected alternative is the field that ages best');
+
+      // The grid is arithmetic; the verdict is a claim ABOUT that arithmetic. If
+      // the declared winner is not the argmax of its own weighted cells, the
+      // scorecard is decoration for a decision made elsewhere. Everything needed
+      // to check this — weight, direction, per-cell values — is already in the IR.
+      if (v.winner && (sc.cells || []).length) {
+        const score = {};
+        let comparable = 0;
+        for (const cr of sc.criteria || []) {
+          const w = typeof cr.weight === 'number' ? cr.weight : 1;
+          const vals = (sc.options || []).map(o => {
+            const c = (sc.cells || []).find(x => x.option === o && x.criterion === cr.id);
+            if (!c) return null;
+            if (typeof c.value === 'number') return c.value;
+            if (typeof c.value === 'boolean') return c.value ? 1 : 0;
+            return null;
+          });
+          if (vals.some(x => x === null)) continue;   // sparse row: not comparable
+          const lo = Math.min(...vals), hi = Math.max(...vals);
+          if (hi === lo) continue;
+          comparable++;
+          (sc.options || []).forEach((o, i) => {
+            // Normalise to 0..1 "better", honouring the criterion's own direction.
+            const n = (vals[i] - lo) / (hi - lo);
+            score[o] = (score[o] || 0) + w * (cr.direction === 'lower-better' ? 1 - n : n);
+          });
+        }
+        // Only judge when at least two criteria were fully scored — a verdict
+        // resting on one comparable row is a judgement call, not arithmetic.
+        if (comparable >= 2) {
+          const best = Object.keys(score).reduce((a, b) => (score[b] > score[a] ? b : a));
+          if (score[best] - (score[v.winner] ?? -Infinity) > 1e-9 && !v.override_rationale)
+            FAIL('VERDICT_UNSUPPORTED',
+              `scorecard.verdict: winner "${v.winner}" scores ${(score[v.winner] ?? 0).toFixed(2)} against "${best}" at ${score[best].toFixed(2)} on the declared weights and directions — the grid does not support the verdict; either the weights are wrong or the decision is being made outside the evidence (set verdict.override_rationale to declare a judgement that overrides the arithmetic)`);
+        }
+      }
     }
   }
 
@@ -243,7 +398,20 @@ function gateProvenance(ir) {
   for (const [i, n] of nc.entries()) {
     if (!n.text) FAIL('NOT_CHECKED_NO_TEXT', `not_checked[${i}]: missing text`);
     if (!n.reason) FAIL('NOT_CHECKED_NO_REASON', `not_checked[${i}]: missing reason`);
+    // The gate rejects an EMPTY array as a claim of omniscience — so the evasion
+    // is to write that claim out longhand ("everything material was checked") or
+    // to fill the field with a placeholder. A blind spot must be NAMED to count.
+    const t = String(n.text || '').trim();
+    if (t && (t.length < 25 || /^(all|everything|nothing|none|n\/?a|[-.·]+)\b/i.test(t)))
+      FAIL('NOT_CHECKED_VACUOUS',
+        `not_checked[${i}]: "${t}" names no specific blind spot — this field is load-bearing precisely because it is the part a reader cannot verify; state what was actually left unexamined`);
   }
+  // At least one acknowledged gap must be capable of affecting the conclusion.
+  // An all-"none" list satisfies the letter of the check while asserting that
+  // nothing unexamined could possibly matter — omniscience by another route.
+  if (nc.length && nc.every(n => !n.impact || n.impact === 'none'))
+    FAIL('NOT_CHECKED_ALL_INCONSEQUENTIAL',
+      'not_checked[]: every entry is marked impact:"none" — a review whose blind spots provably cannot matter is a review that has not found its blind spots');
 
   // -- stakes=high tightens the bar.
   if (ir.stakes === 'high') {
