@@ -237,6 +237,27 @@ PY
   node "$REND" --ir "$TMP/ir-stale.json" --gates-only >/dev/null 2>&1
   eq '1' "$?" 'years-stale evidence FAILS at stakes:high'
   case "$(gt ir-stale.json)" in *CLAIM_STALE*) ok '→ CLAIM_STALE' ;; *) no '→ CLAIM_STALE' 'not raised' ;; esac
+
+  # A malformed IR must produce a GATE VERDICT, never a stack trace. A crash is
+  # strictly worse than a failure: it tells the author nothing about which
+  # invariant broke, and an exit code from an uncaught throw is indistinguishable
+  # from a legitimate rejection. Empty options + retained cells slipped past the
+  # sparse-row guard (`[].some()` is vacuously false) into an empty-object reduce.
+  python3 - "$EX/ir-valid.json" "$TMP/ir-nooptions.json" <<'PY' 2>/dev/null
+import json,sys
+ir=json.load(open(sys.argv[1]))
+(ir.get('scorecard') or {})['options']=[]        # cells deliberately RETAINED
+json.dump(ir,open(sys.argv[2],'w'))
+PY
+  if [ -s "$TMP/ir-nooptions.json" ]; then
+    OUT="$(node "$REND" --ir "$TMP/ir-nooptions.json" --gates-only 2>&1)"; RC=$?
+    eq '1' "$RC" 'options:[] with cells retained fails the GATE (exit 1, not a crash)'
+    case "$OUT" in
+      *TypeError*|*RangeError*|*"at gateProvenance"*) no 'malformed IR never throws — a crash is not a verdict' "$OUT" ;;
+      *) ok 'malformed IR never throws — a crash is not a verdict' ;;
+    esac
+    case "$OUT" in *BUILD\ FAILED*) ok 'crash-path still reports a readable gate verdict' ;; *) no 'crash-path still reports a readable gate verdict' "$OUT" ;; esac
+  fi
 else
   ok 'SKIP red-team hardening tests (python3 unavailable)'
 fi

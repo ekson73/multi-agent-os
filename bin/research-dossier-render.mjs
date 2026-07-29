@@ -369,7 +369,10 @@ function gateProvenance(ir) {
             if (typeof c.value === 'boolean') return c.value ? 1 : 0;
             return null;
           });
-          if (vals.some(x => x === null)) continue;   // sparse row: not comparable
+          // `[].some()` is vacuously false, so a criterion with NO options at all
+          // would slip past the sparse-row guard and count as "comparable" while
+          // contributing nothing — zero options compared is not a comparison.
+          if (!vals.length || vals.some(x => x === null)) continue;   // sparse row: not comparable
           const lo = Math.min(...vals), hi = Math.max(...vals);
           if (hi === lo) continue;
           comparable++;
@@ -381,7 +384,12 @@ function gateProvenance(ir) {
         }
         // Only judge when at least two criteria were fully scored — a verdict
         // resting on one comparable row is a judgement call, not arithmetic.
-        if (comparable >= 2) {
+        // `score` can still be empty here (cells citing options the scorecard no
+        // longer declares), and an unhandled reduce would replace the verdict with
+        // a stack trace — strictly worse than a gate failure, since a crash tells
+        // the author nothing about which invariant broke. The dangling-option
+        // failures above already report the real defect; guard and let them speak.
+        if (comparable >= 2 && Object.keys(score).length) {
           const best = Object.keys(score).reduce((a, b) => (score[b] > score[a] ? b : a));
           if (score[best] - (score[v.winner] ?? -Infinity) > 1e-9 && !v.override_rationale)
             FAIL('VERDICT_UNSUPPORTED',
