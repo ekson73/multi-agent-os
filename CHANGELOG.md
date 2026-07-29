@@ -52,14 +52,14 @@ existing renderers are reachable for free. One contract unlocks N consumers.
 - **`examples/`** — 1 working fixture (dogfood: the chart-library comparison that chose the
   template's own renderer) + **5 negative fixtures**, each of which must fail.
 
-- **`bin/tests/research-dossier.test.sh`** — 55 assertions, wired into `validate-plugin.sh`. Every
+- **`bin/tests/research-dossier.test.sh`** — 68 assertions, wired into `validate-plugin.sh`. Every
   negative fixture is asserted on its **specific failure code**, not merely on exit 1: a fixture
   failing for an unintended reason would satisfy a naive check while proving nothing about the check
   it exists to exercise. Exit codes captured directly — a pipe reports its *last* command's status,
   so `render | grep` would make a failing build read green. Mutation-tested: emptying
   `MAGNITUDE_FORMS` turns 2 assertions red, so the suite is known capable of failing.
 
-Verified by execution: 6/6 fixtures hit their expected exit codes, 55/55 tests pass, Layer Purity
+Verified by execution: 6/6 fixtures hit their expected exit codes, 68/68 tests pass, Layer Purity
 clean, `validate-plugin.sh` 0 errors, and the full render succeeds under a stripped environment
 (`env -i PATH=/usr/bin:/bin`) with every offline/a11y/print invariant intact.
 
@@ -82,6 +82,35 @@ used single-match `.replace()` while the template's own header comment named the
 the first match was the *documentation* and the live slot never filled — output that looked
 plausible while carrying no dossier, which the first verification scored as 12,613 chars of content
 (real figure: 4,657). Fixed globally, and the renderer now **asserts no slot survives**.
+
+**Red-teamed, and it broke.** An independent adversary (≠ author) was tasked with passing the
+provenance gate while producing a misleading dossier, and succeeded — a board-grade artifact that
+inverted a $1.18M-vs-$0.34M cost comparison, hid a 6-hour outage and a lapsed attestation, and drew
+a 19x-reversed chart, at exit 0 with zero failures. The diagnosis was exact: the gate verified that
+citations **resolve**, never that they **agree**. Referential integrity was airtight — 19/19
+structural attacks caught — while every *semantic* relationship went unchecked. The IR already
+carried everything needed (`metric.value`, `direction`, `weight`, per-cell `source_claims`), so the
+data model was right and the checks were simply never written.
+
+Nine now close it, each with a test and each mutation-verified: a chart point contradicting the
+claim it cites; a `display` string overriding its own `value` (one field, no arithmetic, total
+inversion); stacked parts missing their cited total; a verdict that is not the argmax of its
+declared weights; a blank scorecard cell whose evidence exists but went unused; `not_checked[]`
+filled with boilerplate or marked entirely inconsequential; evidence years staler than the dossier;
+and an inflated `y_max`, since truncation is only one of two ways to lie with an axis.
+
+The sharpest structural finding: **`ch.form` was read by the gate and ignored by the renderer**,
+which draws every chart as proportional bars — so `form: "line"` bypassed the truncation check while
+still rendering truncated bars. `MAGNITUDE_FORMS` was guarding a rendering that did not exist. The
+check now gates on what is *drawn*, not what is *declared*.
+
+Two limits are **surfaced rather than hidden**: a weighting can decide an outcome on its own (when
+one criterion outweighs all others combined the build warns, because arithmetic cannot refute a
+rigged weight — only disclosure can), and summary-vs-claims plus recommendation-vs-its-own-citations
+remain semantic judgements outside `f=0` reach. `SKILL.md` now says so. The rendered footer no
+longer claims "gates passed" — that read as a certificate over the *conclusion*, and was
+load-bearing in the adversary's deception; it now states exactly what was verified and closes with
+"a check of the evidence, not an endorsement of the conclusion".
 
 Composes, never duplicates: zero new design systems, zero new per-format renderers, chart form and
 colour delegated to the bundled `dataviz` skill.
