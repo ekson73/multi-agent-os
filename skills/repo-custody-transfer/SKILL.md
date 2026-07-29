@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.5.5"
+version: "0.6.0"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -33,7 +33,7 @@ Serves the operator's intent. If a phase/gate obstructs helping NOW, skip it, lo
 
 ⛔ **NEVER skippable** (the safety floor — §0 cannot reach any of these): **T4** (secret values never
 cross) · the **§9.0 unconditional no-force/no-destructive-push rule** · the **Blocking-Gate** itself
-(§4, incl. the P1–P18 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
+(§4, incl. the P1–P19 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
 non-FF response · **§3.1** write-once baseline + subtractive-only rollback · the **Phase-4
 point-of-no-return**.
 
@@ -216,8 +216,9 @@ verdicts. Until then, treat these as *deterministic in specification, self-repor
 | P16 | the §5.1 **fetch** exited non-zero, **OR** the wire and quarantine ref **SETS** differ — ⛔ a **set difference on ref NAMES**, never a count (a count is a *signature*: one **stale** ref + one **missing** ref cancel to the right total) · ⛔ with peeled `^{}` lines filtered (`ls-remote` emits an extra peeled line per **annotated** tag that `for-each-ref` does not — unfiltered, this halts every repo with a release tag) · ⛔ over a **per-repo + per-run** quarantine path (a fixed shared path makes a leftover indistinguishable from a fetched ref). A partial fetch can exit 0, so both clauses are needed — ⛔ **an empty quarantine is `unknown`, never "no divergent refs"**. Without this, a dead fetch iterates zero refs, invokes `merge-base` zero times, and the worst-ref-class over an empty set is **vacuous** ⇒ every source ref reads *"exists only on source"* ⇒ **CLEAN CARRY on the autonomous path**. **The only fail-OPEN found in this artifact.** |
 | P17 | a per-ref `dst_sha` is read **by re-resolving the ref** instead of from the pre-loop pinned file, **OR** a pinned sha is empty/absent while its ref was present at the P16 gate, **OR** the pinned file is written to a **per-repo (not per-run)** path or without an atomic `.tmp`+`mv` publish, **OR** the cleanup sweeps beyond `$QUAR` — the gate proved the input existed *at the gate*, nothing holds it *until use*; an absent name reads as *"exists only on source"* ⇒ **CLEAN CARRY** while the destination objects are intact (§5.1 TOCTOU note). An absent pinned sha is a **MISSING MEASUREMENT**, never "no destination ref" |
 | P18 | an impediment is **written in this run** without `reported_by` / `reported_at` (ISO 8601 + offset) — ⛔ **write-time only**; a *pre-existing* impediment lacking them is a MISSING MEASUREMENT, never a P18 halt (§6.0) — provenance would then need reconstruction from message logs, which fails exactly where a compaction-inherited claim **reads complete** (§6.0) |
+| P19 | the ledger is read **without** comparing its `run_id` to this run's `$RUN_ID`, **OR** a per-RUN field (`drift_verdict` · `carry_count` · `dst_pinned_path`) from a **mismatched** run is used as this run's own, **OR** `dst_pinned_path` is **followed as an address** instead of `$DST_PINNED` being recomputed, **OR** the ledger is written **non-atomically** (`>` instead of `.tmp`+`mv`), **OR** an **unparseable** ledger is treated as *absent* — ⛔ a clobbered `drift_verdict` moves a repo from the HITL row into the **unattended** row with no agent disobeying anything, and a clobbered `carry_count` **disarms P10** (its condition became *someone else's*, never false). Corrupt ≠ absent: absent fails closed, corrupt was **silent** (§6.0) |
 
-Any P1–P18 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
+Any P1–P19 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
 
 #### ⛔ Trip-wire design rule: never key on a property the failure mode is defined by LACKING
@@ -700,7 +701,9 @@ modifications) `.git` is a **file**, not a directory, so a literal `.git/maos/..
 LEDGER_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/maos/custody"
 mkdir -p "$LEDGER_DIR"
 
-"$LEDGER_DIR/<repo-slug>.json"              # the ledger (states · tiers · verdict · impediments)
+"$LEDGER_DIR/<repo-slug>.json"              # the ledger — ⛔ publish ATOMICALLY (.tmp + mv), never `>`
+                                            #   per-CUTOVER: phase_states · tiers · impediments
+                                            #   per-RUN (owned by run_id): drift_verdict · carry_count · dst_pinned_path
 "$LEDGER_DIR/<repo-slug>.refs-before.txt"   # write-once carry_baseline — DESTINATION, rollback (§3.1)
 "$LEDGER_DIR/<repo-slug>.src-tags-before.txt" # SOURCE tag snapshot — P15 set-difference (§5.1)
 "$LEDGER_DIR/<repo-slug>.dst-pinned.$RUN_ID.txt" # DESTINATION ref→sha pinned pre-loop, PER-RUN + atomic — P17 (§5.1)
@@ -735,7 +738,10 @@ was not.* Registered via `bin/artifact-registry` when the cutover completes.
   "carry_baseline_path": "<LEDGER_DIR>/<slug>.refs-before.txt",
   "src_tags_before_path": "<LEDGER_DIR>/<slug>.src-tags-before.txt",
   "src_tags_before_captured_at": "<iso8601+offset|null>",
-  "dst_pinned_path": "<LEDGER_DIR>/<slug>.dst-pinned.<run-id>.txt",   // per-RUN, atomic-published
+  "run_id": "<run-id>",   // ⛔ OWNER of every per-RUN field below. Loader MUST compare to its own
+                         //    $RUN_ID; mismatch ⇒ those fields are ANOTHER run's measurement ⇒ MISSING
+  "dst_pinned_path": "<LEDGER_DIR>/<slug>.dst-pinned.<run-id>.txt",   // per-RUN · atomic-published
+                         // ⛔ a RECORD, never an ADDRESS — recompute $DST_PINNED from your own $RUN_ID
   "carry_baseline_captured_at": "<iso8601+offset|null>", "carry_count": 0,
   "impediments": [{"trip_wire":"P5","report":"<path>",
                    "reported_by":"<agent-id>","reported_at":"<iso8601+offset>",
@@ -771,6 +777,37 @@ the moment of observation** rather than deriving it later from state that may ha
   ledger means an absent `carry_baseline`, which per §3.1 means **rollback is forbidden**, which
   means the push is out of the autonomous band (§7).
 - **Never enter a phase without writing its entry first** (persist-first, `harmonic` L9).
+- ⛔ **Unparseable** ⇒ **HALT + Impediment Report (P19)** — *not* "absent". Absent means *"I am not
+  resuming"* and fails closed. Corrupt means *"I cannot tell what I already did"*, which is **strictly
+  worse** and was previously **silent**: the three-way branch had no case for it. A ledger read
+  mid-write is reachable because `>` truncates-then-writes — the same argument that made the pin file
+  atomic, applied to the file that *names* the pin file.
+- ⛔ **Compare `run_id` to your own `$RUN_ID` BEFORE trusting any per-RUN field.** On mismatch,
+  `drift_verdict` · `carry_count` · `dst_pinned_path` are **another run's measurement** ⇒ treat as
+  **MISSING MEASUREMENT** (§5.1's vocabulary), never as yours: re-derive the verdict from a same-run
+  wire read (§5.0), and ⛔ **do not push** on a verdict you did not measure.
+- ⛔ **Never follow `dst_pinned_path` as an address** — recompute `$DST_PINNED` from your own `$RUN_ID`.
+  The key is a **record of what this run pinned**, kept for audit. Following it reads a snapshot you
+  never took (P17 one indirection out).
+
+#### ⛔ Ownership of state is invisible to a reader and immediate to a second process
+
+The pin file learned `$RUN_ID`; the file that *names* it did not. Three measured consequences of one
+per-slug object holding two lifetimes:
+
+| Trace | Mechanism | Outcome |
+|---|---|---|
+| verdict clobber | A measures `SPLIT_BRAIN`; overlapping B writes `CLEAN_CARRY` to the same path; A loads per this rule at its push gate | the repo moves from the **council-then-HITL** row (§7) into the **unattended** row — ⛔ **no agent disobeyed anything** |
+| P10 disarm | A has `carry_count=2` + baseline lost (P10 armed); B legitimately has `carry_count=0` and overwrites | P10 goes **SILENT** — its condition never became false, it became **someone else's** |
+| corrupt resume | interrupted `>` write | `JSONDecodeError`; branches were exists/absent ⇒ **unspecified** |
+
+**The generalization**, now stated where a reader meets it: a guard whose **input is shared mutable
+state** is only as strong as the *ownership* of that state. Four rounds moved the ownership question up
+one indirection each time — discarded count identity → unheld quarantine name → unattributed pin →
+**unattributed verdict** — because each fix answered *"is the value right?"* instead of *"whose value
+is this?"* ⛔ **Every field a trip-wire reads must name its owner**, or a second process answers for it.
+
+
 
 ⛔ **Legacy impediments (written before provenance was a field) do NOT halt a resume.** P18 is a
 **write-time** gate. An impediment already on disk with only `trip_wire` + `report` is a **MISSING
@@ -898,7 +935,7 @@ subtractive within a proven bound. Everything else ⇒ **HALT + Impediment Repor
     instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
     routes an unattended push at it.
 13. ❌ **Self-scored gate** — treating "no supported path" as pure judgement and skipping the §4.0
-    P1–P18 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
+    P1–P19 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
 14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry baseline, or deleting a
     ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
 15. ❌ **Re-derive the rollback baseline on a re-run** — reading it "fresh" per §5.0 on an idempotent
@@ -969,6 +1006,7 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 | Version | Date | Change |
 |---|---|---|
+| 0.6.0 | 2026-07-29 | **The per-slug ledger clobbers the verdict that gates the unattended push, and disarms P10** (`elenchus-2`, round 11 — 3 BLOCKING, all reproduced in `/tmp` before any edit). v0.5.0 made the pin **data** per-run; the **pointer to it** and the **verdict derived from it** stayed in one per-slug `<slug>.json` with **no `run_id`** (measured: `grep -c run_id` over the schema = **0**) — while §6.0 *mandates* reading that file back (*"load it and resume — never re-derive from recall"*). So the shared file is not incidental state, it is the **prescribed source of truth at the gate**. Measured, three ways: **(1)** A classifies `SPLIT_BRAIN`, overlapping B writes `CLEAN_CARRY`, A loads at its push gate ⇒ the repo crosses from §7's **council-then-HITL** row into the **unattended** row — ⛔ *no agent disobeyed anything*, and the `dst_pinned_path` it reads now addresses **another run's** pin (**P17 restored one indirection out**); **(2)** A has `carry_count=2` with its baseline lost (**P10 armed**), B legitimately has `0` and overwrites ⇒ **P10 goes SILENT** — its condition never became false, it became **someone else's**; **(3)** the ledger has **no atomic publish** while the pin file it points at does ⇒ an interrupted `>` yields `JSONDecodeError`, and §6.0's branches were **exists/absent** — *corrupt is neither*, so absent failed closed and **corrupt was silent**. **Fix**: `run_id` becomes a schema field and the **OWNER** of every per-run key; loader MUST compare it and treat a mismatch as **MISSING MEASUREMENT** (§5.1's existing vocabulary), never as its own; `dst_pinned_path` demoted to a **record, never an address** (recompute `$DST_PINNED` locally); ledger **atomic-published** (`.tmp`+`mv`); §6.0 gains a **4th branch — unparseable ⇒ HALT**; new **P19** covers all five; and the lifetime split (per-**cutover** vs per-**run**) is named in the file listing. **The generalization, now written where a reader meets it**: a guard whose input is **shared mutable state** is only as strong as the **ownership** of that state — four rounds each moved the ownership question up one indirection (discarded count identity → unheld quarantine name → unattributed pin → **unattributed verdict**) because every fix answered *"is the value right?"* instead of *"whose value is this?"* ⛔ **Every field a trip-wire reads must name its owner.** Peer's own caveat honoured: the exact per-run **serialization** is a proposal, so the ownership *check* is what P19 mandates — not a particular file layout. Fixture rows **ten** (two overlapping runs; later verdict wins at the earlier run's gate) and **eleven** (resume from a partially-written ledger) added to B6's spec. ⚠️ My own fixture was malformed on the first attempt (an extra positional arg put an unquoted `SPLIT_BRAIN` into `carry_count`) — the `JSONDecodeError` was **my instrument confessing**, not the defect reproducing; re-run correctly before any edit. |
 | 0.5.5 | 2026-07-29 | ⚠️ **A finding I rejected was correct, and my own output already held the disproof** (`qodo-code-review`, PR #295 — flagged a date-less `T21:29-03:00`). I probed, saw full timestamps (`2026-07-29T21:27-03:00`) on the cited lines, and concluded the bare ones were **substrings** of them. ⛔ **The counts never reconciled**: the bare pattern matched **4** times, the date-prefixed pattern **2**. If every bare match were contained in a full one the two counts would be equal. They differed by two — the exact number of genuinely date-less timestamps — and that arithmetic was sitting in my own terminal output when I wrote "rejected with evidence". **Fix**: the real defect (a same-day shorthand that dropped the date on the second timestamp of a pair) is corrected; the false rejection in v0.5.4's row is retracted in place, not edited away. **Third instance this session of the same meta-failure** — phantom `admin:org` (§3.1), wrong-subject probe (v0.5.3), and now **containment asserted without the arithmetic that would test it**. The species is not "bad probe"; it is **a probe whose result I interpreted instead of reconciled**. Rule earned: ⛔ when rejecting a finding as *"that's a substring / already covered"*, the claim is **containment**, and containment is **falsifiable by counting** — `count(suspect_pattern)` MUST equal `count(explaining_pattern)`; unequal counts **disprove the rejection**, and the difference localises the real instances. A rejection is a claim requiring evidence exactly as much as a finding is. |
 | 0.5.4 | 2026-07-29 | **P18 would have deadlocked every ledger written before it** (`qodo-code-review`, PR #295 — severity-high, and correct). P18 read *"an impediment is recorded without `reported_by`/`reported_at` ⇒ HALT"* with no write-time/read-time distinction, while §6.0 orders an amnesic to **load and resume** any ledger it finds. A pre-0.5.2 ledger holds impediments with only `trip_wire` + `report` ⇒ the conservative reading halts the resume ⇒ the artifact's own continuity contract is unreachable. **The same failure shape as v0.4.2** (the ledger address unwritable in the very environment `[C04]` mandates): a guard that forbids the operation it was written to protect. **Fix**: P18 scoped ⛔ **write-time only**; §6.0 gains the read-time rule — a pre-existing impediment lacking provenance is a **MISSING MEASUREMENT** (§5.1's vocabulary, not a new one), loads as `provenance: unknown`, is ⛔ never cited as verified, is ⛔ **never back-filled from recall** (a reconstructed provenance *reads complete* while invented — the fourth species P18 exists to prevent), and does **not** halt. The unknown set is closed and shrinking, since every impediment from this run onward carries provenance. ⚠️ **Retraction (v0.5.5)**: this row originally recorded the review's *other* finding as "rejected with evidence". **The reviewer was right and I was wrong** — see v0.5.5. |
 | 0.5.3 | 2026-07-29 | **A controlled probe of the WRONG SUBJECT — the free-negative committed by this artifact's own author, against its own reviewer, mid-review** (Copilot, PR #295). Two findings (trip-wire rows out of numeric order; the ledger schema mixing `<iso8601+offset>` with an undefined `<iso8601|null>` while P18 mandates the offset) were **declared hallucinated** — after a probe that ran a positive control, passed it, and was pointed at the **main checkout (v0.5.1)** instead of this PR's worktree (v0.5.2), where both existed. The control proved the instrument **reached**; nothing proved it was **aimed** at the subject under test, and a `cd <path> 2>/dev/null || cd <fallback>` idiom had silently relocated that subject when the worktree path was absent. **Both findings were real and are fixed**; the diagnostic error is the durable lesson. §5.0 gains a ⛔ **step 0 — confirm the SUBJECT before trusting the instrument** (`--show-toplevel` + `--abbrev-ref HEAD` + `worktree list`), ahead of the existing reach-control and second-instrument steps, with the fallback-idiom anti-pattern named; the closing rule becomes **all three steps** (subject → reach → instrument-class), because steps 1-2 without step 0 merely *confirm a conclusion about the wrong object*. **P2 widened** to fire on a missing subject confirmation, so the trip-wire watches all three steps rather than one. Adds `wrong-tree` to the probe checklist beside `wrong-string`, `wrong-place` and `wrong-instrument` — the fourth way a negative lies, and the only one that survives a passing control. |
