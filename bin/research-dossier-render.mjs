@@ -794,7 +794,15 @@ function renderHtmlBody(ir) {
   H.push('</tbody></table></div></section>');
 
   H.push(`<footer class="foot">Question: ${esc(ir.question)}<br>`
-    + 'Rendered by research-dossier — provenance and palette gates passed before this file was written.</footer>');
+    // Say what was actually verified. "Gates passed" reads as a warrant for the
+    // ARGUMENT; the gates check the evidential chain and the numbers' consistency,
+    // not whether the conclusion follows. A certificate that outruns its check
+    // transfers unearned trust — worse than no certificate.
+    + 'Rendered by research-dossier. Before this file was written, every claim was '
+    + 'checked for a source and a date, every citation for existence and agreement '
+    + 'with the value it cites, every magnitude axis for undeclared distortion, and '
+    + 'the palette for colour-vision separation in both themes. That is a check of '
+    + 'the evidence, not an endorsement of the conclusion.</footer>');
 
   return H.join('\n');
 }

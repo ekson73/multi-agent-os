@@ -47,6 +47,30 @@ over the resolved palette in **both** light and dark: lightness band, chroma flo
 CVD separation (ΔE OKLab per protan/deutan/tritan), normal-vision floor, surface
 contrast. Colour is not reimplemented here — `dataviz` owns it, we cite it.
 
+### What the gates check — and what they do not
+
+An independent red-team broke the first version of gate 1, so this section is
+written from evidence rather than intent. Its finding: the gate verified that
+citations **resolve** and never that they **agree**. Both are now checked — a chart
+point contradicting the claim it cites, a `display` string contradicting its own
+`value`, stacked parts that miss their cited total, a verdict that is not the argmax
+of its declared weights, a blank scorecard cell whose evidence exists but went
+unused, evidence years staler than the dossier: all fail the build.
+
+Two things remain **outside** deterministic reach, and are stated here rather than
+implied away:
+
+- **Summary vs. claims.** Prose can contradict the evidence beneath it. A numeral in
+  the summary that appears in no claim raises a warning; a purely qualitative
+  inversion ("the pilot succeeded") does not.
+- **A recommendation citing the claims that refute it.** Citations are checked for
+  existence and agreement-on-value, not for whether they *support* the sentence.
+
+Both are semantic judgements. Do not read a green build as a claim that the argument
+is sound — only that its numbers are consistent with its evidence. A weighting can
+also decide an outcome on its own; when one criterion outweighs all others combined
+the build warns, because arithmetic cannot refute a rigged weight, only disclosure can.
+
 ## Use it / don't
 
 **Use when** research is finished and needs to become decidable: a tool comparison,
