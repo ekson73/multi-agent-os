@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<!--
+  research-dossier · fallback template (shell)
+
+  The LAST resort, not the flagship: with the open-design daemon present the renderer
+  uses one of its ~110 templates instead. This exists so the skill degrades to
+  something honest rather than to nothing.
+
+  Design decision that drives everything below: the BODY IS SERVER-RENDERED by
+  bin/research-dossier-render.mjs. JavaScript is a progressive enhancement for the
+  theme toggle alone. With JS disabled the full dossier — every table, chart, and
+  citation — is still there. An archival decision artifact that needs a script to
+  show its evidence is not archival.
+
+  That is only affordable because theming is PURE CSS: the validated palette is
+  injected as --series-N custom properties under both the light and dark scopes,
+  and the SVG marks reference them via fill="var(--series-N)". Switching theme
+  recolors the charts with no redraw and no script.
+
+  Non-negotiables, all grep-verifiable on the OUTPUT:
+    · zero network — no CDN, no font fetch, no analytics. Opens over file://.
+    · charts are inline SVG built by the renderer; nothing to inline, no canvas.
+    · every chart: role="img" + aria-label + a real <table> of the same numbers.
+      Per dataviz, the table IS the accessible rendering, not a courtesy.
+    · colors come only from the palette the gate already validated in both modes.
+    · dark mode is selected, not flipped — own steps, OS query + data-theme toggle,
+      toggle winning both ways.
+    · @media print and prefers-reduced-motion present.
+
+  Substitution slots are written as double-underscored tokens in the markup below
+  (title, lang, the two palette-var blocks, the body comment, the IR-JSON comment).
+  They are deliberately NOT spelled out literally in this comment: string
+  replacement takes the FIRST match, so a doc line naming them would consume the
+  substitution and leave the real slot unfilled — a failure that renders as a
+  plausible-looking page. The renderer replaces globally and then asserts that no
+  slot survives.
+-->
+<html lang="__LANG__" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+    --success-text: #006300;
+    /*__PALETTE_VARS_LIGHT__*/
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --success-text: #0ca30c;
+      /*__PALETTE_VARS_DARK__*/
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --success-text: #0ca30c;
+    /*__PALETTE_VARS_DARK__*/
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    background: var(--page); color: var(--text-primary);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 72px; }
+  header.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 8px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 4px; font-weight: 650; }
+  .meta { color: var(--text-secondary); font-size: 13px; }
+  .meta b { color: var(--text-primary); font-weight: 600; }
+
+  /* Hidden until the enhancement runs — a dead button is worse than none. */
+  button.theme {
+    display: none;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+  }
+  button.theme:hover { color: var(--text-primary); }
+  button.theme:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+
+  section { margin-top: 34px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
+       margin: 0 0 12px; font-weight: 650; }
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+  .card + .card { margin-top: 16px; }
+  .lede { font-size: 16px; line-height: 1.6; margin: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
+  caption { caption-side: top; text-align: left; color: var(--muted); font-size: 12.5px; padding: 0 0 8px; }
+  code.cid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; white-space: nowrap; }
+
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  ul.items li { padding: 11px 0; border-bottom: 1px solid var(--grid); }
+  ul.items li:last-child { border-bottom: none; }
+
+  .tag { display: inline-block; font-size: 11px; font-weight: 650; letter-spacing: 0.04em;
+         text-transform: uppercase; padding: 2px 7px; border-radius: 5px; margin-right: 8px;
+         border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+  /* Status always ships icon + label — never colour alone (dataviz non-negotiable). */
+  .st-good { color: var(--good); } .st-warning { color: var(--warning); }
+  .st-serious { color: var(--serious); } .st-critical { color: var(--critical); }
+
+  .cite { font-size: 11px; color: var(--muted); text-decoration: none; vertical-align: super; margin-left: 2px; }
+  .cite:hover, .cite:focus-visible { color: var(--text-primary); text-decoration: underline; }
+  .conf { font-size: 11px; color: var(--muted); margin-left: 6px; white-space: nowrap; }
+  .nomeasure { font-size: 12px; color: var(--muted); font-style: italic; }
+
+  figure.chart { margin: 0; }
+  figure.chart figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; }
+  .bar-label { font-size: 12.5px; fill: var(--text-secondary); }
+  .bar-value { font-size: 12.5px; fill: var(--text-primary); font-weight: 600; }
+  .axis-note { font-size: 12px; color: var(--critical); font-weight: 600; margin-top: 10px; }
+  .chart-title { margin: 0 0 4px; font-weight: 650; }
+
+  details.tableview { margin-top: 16px; }
+  details.tableview summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 4px 0; }
+  details.tableview summary:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+
+  .notchecked { border-left: 3px solid var(--warning); }
+  footer.foot { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--grid);
+                color: var(--muted); font-size: 12px; }
+  /* Emitter signature: recessive, but present in print — the provenance is part of
+     the artifact, not chrome, so a printed copy must still say what produced it. */
+  .prov { display: inline-block; margin-top: 8px; font-size: 11px; letter-spacing: .02em; opacity: .85; }
+  a { color: inherit; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+                             transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+  @media print {
+    :root { color-scheme: light; }
+    body { background: #fff; }
+    .wrap { max-width: none; padding: 0; }
+    button.theme { display: none !important; }
+    .card { border: 1px solid #ccc; break-inside: avoid; }
+    section { break-inside: avoid; }
+    /* Tables must print even when collapsed on screen. */
+    details.tableview summary { display: none; }
+    details.tableview > *:not(summary) { display: block !important; }
+    a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 10px; color: #666; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap"><!--__BODY__--></div>
+
+<!-- The full IR, embedded. No fetch, no network, no build step. Machine-readable
+     companion to the human rendering above — same data, same provenance. -->
+<script type="application/json" id="dossier-data"><!--__IR_JSON__--></script>
+
+<script>
+/* Progressive enhancement, and only that: reveal the theme toggle and remember the
+   choice. Every byte of content above already rendered without this running.
+   Theme switching is pure CSS (--series-N under both scopes), so there is no redraw. */
+(function () {
+  "use strict";
+  var root = document.documentElement, btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  var stored = null;
+  try { stored = localStorage.getItem("rd-theme"); } catch (e) { /* private mode */ }
+  if (stored === "light" || stored === "dark") root.setAttribute("data-theme", stored);
+  // Announce the CURRENT state at reveal, not just after the first click. The button
+  // is hidden until JS runs, so this is the first moment it exists for assistive
+  // tech — shipping it unset (or false while the page is dark) makes it lie exactly
+  // to the users who cannot see the contradiction.
+  var effective = root.getAttribute("data-theme")
+    || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  btn.setAttribute("aria-pressed", String(effective === "dark"));
+  btn.style.display = "inline-block";
+  btn.addEventListener("click", function () {
+    var t = root.getAttribute("data-theme"), dark;
+    if (t === "dark") dark = true;
+    else if (t === "light") dark = false;
+    else dark = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    btn.setAttribute("aria-pressed", String(next === "dark"));
+    try { localStorage.setItem("rd-theme", next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

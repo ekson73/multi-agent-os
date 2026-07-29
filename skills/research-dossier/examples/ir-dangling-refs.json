@@ -1,0 +1,330 @@
+{
+  "schema_version": "1.0.0",
+  "question": "Which charting library should a zero-build, offline-first HTML dossier embed?",
+  "as_of": "2026-07-29",
+  "audience": "engineer",
+  "stakes": "low",
+  "title": "NEGATIVE FIXTURE — dangling claim refs + empty not_checked",
+  "summary": "Chart.js is the pick. It is the smallest library that still covers every form the dossier template needs, and its one real weakness — no native accessibility — is already closed by the mandatory table view. ECharts generates better ARIA descriptions but costs roughly five times the bytes for a benefit we get for free elsewhere.",
+  "entities": [
+    {
+      "id": "chartjs",
+      "label": "Chart.js",
+      "url": "https://www.chartjs.org/"
+    },
+    {
+      "id": "echarts",
+      "label": "Apache ECharts",
+      "url": "https://echarts.apache.org/"
+    },
+    {
+      "id": "frappe",
+      "label": "Frappe Charts",
+      "url": "https://frappe.io/charts"
+    }
+  ],
+  "claims": [
+    {
+      "id": "chartjs-size",
+      "text": "Chart.js UMD build is about 208 KB raw, roughly 68 KB gzipped.",
+      "source": {
+        "label": "Chart.js dist inspection",
+        "kind": "measurement",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high",
+      "entity": "chartjs",
+      "metric": {
+        "name": "bundle_raw",
+        "value": 208,
+        "unit": "KB",
+        "direction": "lower-better"
+      }
+    },
+    {
+      "id": "echarts-size",
+      "text": "ECharts full build is about 1020 KB raw; a custom build trims it but requires a bundler, which the zero-build constraint rules out.",
+      "source": {
+        "label": "ECharts dist inspection",
+        "kind": "measurement",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high",
+      "entity": "echarts",
+      "metric": {
+        "name": "bundle_raw",
+        "value": 1020,
+        "unit": "KB",
+        "direction": "lower-better"
+      }
+    },
+    {
+      "id": "frappe-size",
+      "text": "Frappe Charts is about 69 KB raw — the smallest of the three.",
+      "source": {
+        "label": "Frappe Charts dist inspection",
+        "kind": "measurement",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high",
+      "entity": "frappe",
+      "metric": {
+        "name": "bundle_raw",
+        "value": 69,
+        "unit": "KB",
+        "direction": "lower-better"
+      }
+    },
+    {
+      "id": "chartjs-a11y",
+      "text": "Chart.js renders to canvas and ships no native accessibility layer; its documentation directs authors to supply their own fallback content.",
+      "source": {
+        "label": "Chart.js accessibility documentation",
+        "kind": "doc",
+        "url": "https://www.chartjs.org/docs/latest/general/accessibility.html",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high",
+      "entity": "chartjs"
+    },
+    {
+      "id": "echarts-a11y",
+      "text": "ECharts can generate ARIA descriptions from the series data when aria.enabled is set.",
+      "source": {
+        "label": "ECharts aria option documentation",
+        "kind": "doc",
+        "url": "https://echarts.apache.org/en/option.html#aria",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high",
+      "entity": "echarts"
+    },
+    {
+      "id": "frappe-forms",
+      "text": "Frappe Charts covers bar, line, and percentage forms but has no heatmap or scatter, both of which the dossier template requires.",
+      "source": {
+        "label": "Frappe Charts feature docs",
+        "kind": "doc",
+        "url": "https://frappe.io/charts/docs",
+        "accessed": "2026-07-29"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "medium",
+      "entity": "frappe"
+    },
+    {
+      "id": "table-view-closes-a11y",
+      "text": "The dossier template emits a <table> carrying the same numbers for every chart, which is the accessible rendering regardless of the library's own ARIA support.",
+      "source": {
+        "label": "dossier.html template contract",
+        "kind": "internal"
+      },
+      "as_of": "2026-07-29",
+      "confidence": "high"
+    }
+  ],
+  "scorecard": {
+    "options": [
+      "chartjs",
+      "echarts",
+      "frappe"
+    ],
+    "criteria": [
+      {
+        "id": "size",
+        "label": "Bundle (raw)",
+        "unit": "KB",
+        "direction": "lower-better",
+        "weight": 3
+      },
+      {
+        "id": "forms",
+        "label": "Covers required forms",
+        "direction": "higher-better",
+        "weight": 3
+      },
+      {
+        "id": "a11y",
+        "label": "Native accessibility",
+        "direction": "higher-better",
+        "weight": 1
+      }
+    ],
+    "cells": [
+      {
+        "option": "chartjs",
+        "criterion": "size",
+        "value": 208,
+        "display": "208 KB",
+        "source_claims": [
+          "chartjs-size"
+        ],
+        "confidence": "high",
+        "as_of": "2026-07-29"
+      },
+      {
+        "option": "echarts",
+        "criterion": "size",
+        "value": 1020,
+        "display": "1020 KB",
+        "source_claims": [
+          "echarts-size"
+        ],
+        "confidence": "high",
+        "as_of": "2026-07-29"
+      },
+      {
+        "option": "frappe",
+        "criterion": "size",
+        "value": 69,
+        "display": "69 KB",
+        "source_claims": [
+          "frappe-size"
+        ],
+        "confidence": "high",
+        "as_of": "2026-07-29"
+      },
+      {
+        "option": "frappe",
+        "criterion": "forms",
+        "value": false,
+        "display": "no heatmap / scatter",
+        "source_claims": [
+          "frappe-forms"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "option": "chartjs",
+        "criterion": "a11y",
+        "value": false,
+        "display": "none (docs-confirmed)",
+        "source_claims": [
+          "chartjs-a11y"
+        ],
+        "confidence": "high"
+      },
+      {
+        "option": "echarts",
+        "criterion": "a11y",
+        "value": true,
+        "display": "generated ARIA",
+        "source_claims": [
+          "echarts-a11y"
+        ],
+        "confidence": "high"
+      }
+    ],
+    "verdict": {
+      "winner": "chartjs",
+      "rationale": "Smallest library that still covers every required form; the accessibility hole is closed by the template's mandatory table view rather than by the library.",
+      "runner_up": "echarts",
+      "rejected_because": "Better generated ARIA, but roughly 5x the bytes for a benefit the table view already delivers."
+    }
+  },
+  "charts": [
+    {
+      "id": "bundle-size",
+      "form": "bar",
+      "title": "Bundle size, raw",
+      "subtitle": "Lower is better; zero-baseline preserved so the ratio reads honestly",
+      "source_claims": [
+        "chartjs-size",
+        "does-not-exist"
+      ],
+      "color_job": "categorical",
+      "axis": {
+        "y_label": "KB (raw)",
+        "y_min": 0
+      },
+      "series": [
+        {
+          "label": "Bundle (raw KB)",
+          "data": [
+            {
+              "x": "Frappe Charts",
+              "y": 69,
+              "claim": "frappe-size"
+            },
+            {
+              "x": "Chart.js",
+              "y": 208,
+              "claim": "chartjs-size"
+            },
+            {
+              "x": "Apache ECharts",
+              "y": 1020,
+              "claim": "echarts-size"
+            }
+          ]
+        }
+      ],
+      "table_view": true
+    }
+  ],
+  "insights": [
+    {
+      "id": "smallest-is-not-cheapest",
+      "text": "The smallest library is not the cheapest choice: Frappe saves 139 KB but cannot draw two of the required forms, so adopting it means adding a second library and losing the saving.",
+      "source_claims": [
+        "frappe-size",
+        "frappe-forms",
+        "chartjs-size"
+      ],
+      "confidence": "high"
+    }
+  ],
+  "risks": [
+    {
+      "id": "canvas-a11y",
+      "text": "A canvas-rendered chart is invisible to a screen reader without an explicit text equivalent.",
+      "severity": "serious",
+      "likelihood": "high",
+      "mitigation": "The template emits role=\"img\" plus aria-label plus a <table> with the same numbers for every chart; grep-verified in the test suite.",
+      "source_claims": [
+        "chartjs-a11y",
+        "table-view-closes-a11y"
+      ],
+      "confidence": "high"
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "adopt-chartjs",
+      "text": "Inline Chart.js in the fallback template and keep the table view mandatory rather than optional.",
+      "owner": "dossier maintainer",
+      "eta": "immediate",
+      "priority": "P1",
+      "effort": "S",
+      "source_claims": [
+        "ghost-claim"
+      ]
+    }
+  ],
+  "not_checked": [],
+  "methodology": {
+    "approach": "Direct inspection of each library's distributed bundle plus a read of its published accessibility and feature documentation. No benchmarks were run; the decision turns on size, form coverage, and accessibility, all of which are observable without one.",
+    "sources_consulted": 6,
+    "window": {
+      "from": "2026-07-29",
+      "to": "2026-07-29"
+    },
+    "tools": [
+      "dist inspection",
+      "vendor documentation"
+    ],
+    "limitations": [
+      "Sizes are raw dist bytes, not per-application tree-shaken output.",
+      "Accessibility assessed from documentation, not from a screen-reader session."
+    ]
+  },
+  "provenance": {
+    "generated_by": "research-dossier (dogfood fixture)",
+    "corpus_path": "session recon 2026-07-29"
+  }
+}
