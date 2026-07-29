@@ -109,8 +109,35 @@ Therefore Phase 2 MUST, in order:
 
 ## §4 — BLOCKING-GATE + Impediment Report (first-class capability)
 
-When an axis has **no supported path** — or a probe reveals a hard limit — the skill **HALTS the
-phase**. It does not improvise, does not force, does not silently downgrade. It emits:
+### §4.0 — The trigger is PRIMARY (deterministic), not SECONDARY (self-scored)
+
+"An axis has no supported path" is a judgement — and left as one it is self-scored by the very
+agent that wants to proceed, which is the self-exemption gradient
+`red-teaming-mandatory-trigger` exists to remove. So the gate fires on **deterministic
+trip-wires first**; the judgement only *widens* coverage, never gates it alone:
+
+**PRIMARY (deterministic · `f=0` · HALT regardless of any confidence):**
+
+| # | Trip-wire (mechanically checkable) |
+|---|---|
+| P1 | an in-scope axis has **no tier assigned** in writing (§2 rule) |
+| P2 | drift classification derived without a same-run wire read, or a §5.0 positive control that FAILED |
+| P3 | a push would run without a §3.1 pre-carry snapshot |
+| P4 | the drift verdict is **SPLIT-BRAIN** or **INVESTIGATE** (never autonomous) |
+| P5 | a T4 secret **value** would be read, printed, or written anywhere |
+| P6 | a required §0.1 dependency is absent **and** its absent-behavior is `hard stop` |
+| P7 | the destination read returned empty **without** a second-instrument confirmation |
+| P8 | Phase 4 (the point of no return) without an Elenchus red-team CLEARED |
+
+Any P1–P8 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
+argue with.
+
+**SECONDARY (agent judgement — widens, never replaces):** an axis the agent believes unsupported
+even though no trip-wire fired ⇒ also HALT. Uncertain whether a trip-wire fired ⇒ **treat as
+fired** (fail-closed), never as clear.
+
+When any of the above holds — or a probe reveals a hard limit — the skill **HALTS the phase**. It
+does not improvise, does not force, does not silently downgrade. It emits:
 
 ```
 IMPEDIMENT REPORT · <repo> · phase <N>
@@ -231,7 +258,9 @@ ledger/state-machine · the pipeline→Actions translation report.
 12. ❌ **Classify from stale refs** — deriving CLEAN-CARRY from `refs/remotes/*` or an earlier read
     instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
     routes an unattended push at it.
-13. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry snapshot, or deleting a
+13. ❌ **Self-scored gate** — treating "no supported path" as pure judgement and skipping the §4.0
+    P1–P8 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
+14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry snapshot, or deleting a
     ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
 
 ### Skip (proportionality)
