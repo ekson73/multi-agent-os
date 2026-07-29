@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.3.0"
+version: "0.4.0"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -29,8 +29,25 @@ description: |
 
 ## §0 — BEING > Rules
 Serves the operator's intent. If a phase/gate obstructs helping NOW, skip it, log
-`Skipped <phase> — BEING > Rules`, proceed. ⛔ **Never skippable**: T4 (secret values never
-cross) · the no-force-push rule on SPLIT-BRAIN · the Blocking-Gate itself.
+`Skipped <phase> — BEING > Rules`, proceed.
+
+⛔ **NEVER skippable** (the safety floor — §0 cannot reach any of these): **T4** (secret values never
+cross) · the **§9.0 unconditional no-force/no-destructive-push rule** · the **Blocking-Gate** itself
+(§4, incl. the P1–P14 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
+non-FF response · **§3.1** write-once baseline + subtractive-only rollback · the **Phase-4
+point-of-no-return**.
+
+**§0 is presentation-only, never a safety bypass** (the shape `council-gate` §0 already hardened):
+skipping a *format*, a *report style*, or a *ceremony* is fine. A skipped or un-evidenced **safety
+gate** does **not** become "passed" — it sets its predicate conjunct to **`false`** (fail-safe),
+which means: the classification degrades to **INVESTIGATE**, the action **leaves the autonomous
+band** (§7), and it routes to HITL. There is no path by which §0 authorizes a push, a deletion, or a
+Phase-4 seal that a gate did not clear.
+
+*Why this list is explicit*: two independent red-teams found the same hole — §5.0 and §3.1 declared
+themselves ⛔ in their own headings but were **absent from this list**, so the entire fix for both
+BLOCKING data-loss holes was skippable by this very clause. Worse, skipping §5 means nothing is ever
+*classified* SPLIT-BRAIN, which disarmed the one force-push rule that **was** listed.
 
 ## §0.1 — Requirements (external dependencies)
 
@@ -172,8 +189,12 @@ trip-wires first**; the judgement only *widens* coverage, never gates it alone:
 | P8 | Phase 4 (the point of no return) without an Elenchus red-team CLEARED |
 | P9 | `carry_baseline.captured_at` is **not** strictly earlier than the first push of this cutover — i.e. the baseline was re-derived after a carry (mechanically: baseline contains a ref the ledger records this cutover as having created) |
 | P10 | `carry_count > 0` **and** `carry_baseline` absent/unreadable — reversibility already forfeited; never silently proceed as if reversible |
+| P11 | the class was derived **without** a §5.1 per-ref `merge-base` ancestry run (i.e. from `ls-remote` ref lists alone) — `ls-remote` proves existence, never uniqueness |
+| P12 | the destination holds a commit **disjoint** from the source's root (`merge-base` finds no common ancestor) — includes every `--add-readme`/auto-init destination ⇒ SPLIT-BRAIN, never CLEAN CARRY |
+| P13 | a push returned **non-fast-forward / fetch-first** — the classification was wrong; ⛔ never clear it with force (§5.2) |
+| P14 | the ledger at `.git/maos/custody/<slug>.json` (§6.0) is absent while a push is contemplated — no ledger ⇒ no baseline ⇒ rollback forbidden ⇒ out of the autonomous band |
 
-Any P1–P10 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
+Any P1–P14 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
 
 **SECONDARY (agent judgement — widens, never replaces):** an axis the agent believes unsupported
@@ -229,19 +250,109 @@ stale view classifies the destination as empty ⇒ CLEAN-CARRY ⇒ §7 authorize
 classification; it is a guess wearing one. Classification without a same-run wire read = **HALT**
 (Impediment Report §4), never a default to CLEAN-CARRY.
 
-For each ref namespace, compare source ↔ destination (on §5.0-fresh refs only):
+### §5.1 — ⛔ `ls-remote` establishes EXISTENCE, never UNIQUENESS (classify on objects, not on ref lists)
+
+"Both sides have **unique** commits" is an **ancestry** question. `git ls-remote` returns ref→sha
+only — it cannot answer it. Classifying uniqueness from a ref list is deriving a verdict the
+prescribed instrument **cannot produce**, and the failure is silent: the two sides simply have
+different SHAs, which is equally consistent with *fast-forwardable* and with *disjoint roots*.
+
+So after §5.0 establishes existence, **fetch the objects and classify with ancestry**:
 
 ```
-both sides have unique commits/tags  → SPLIT-BRAIN  ⇒ reconciliation protocol, ⛔ no mirror, ⛔ no force-push
-only source has refs                 → CLEAN CARRY  ⇒ standard T1
-only destination has refs            → INVESTIGATE  ⇒ prior partial cutover; do not assume ownership
-identical                            → ALREADY DONE ⇒ skip to verification
+git fetch <destination> '+refs/heads/*:refs/remotes/_dst/*' '+refs/tags/*:refs/tags/_dst/*'
+# then, PER REF:
+git merge-base --is-ancestor <dst_sha> <src_sha>   # dst reachable from src? → fast-forwardable
+git merge-base --is-ancestor <src_sha> <dst_sha>   # src reachable from dst? → destination is ahead
+git merge-base <src_sha> <dst_sha>                 # non-zero ⇒ DISJOINT ROOTS
 ```
+
+| Per-ref ancestry result | Class |
+|---|---|
+| equal SHA | **ALREADY DONE** → verify only |
+| destination is an ancestor of source | **CLEAN CARRY** (fast-forwardable) → standard T1 |
+| source is an ancestor of destination | **INVESTIGATE** — the destination is *ahead*; never assume ownership |
+| neither, **or `merge-base` finds no common ancestor** | ⛔ **SPLIT-BRAIN** → reconciliation protocol |
+| ref exists only on source | **CLEAN CARRY** for that ref |
+| ref exists only on destination | **INVESTIGATE** — prior partial cutover |
+
+The repo's class is the **worst** class across all its refs (one SPLIT-BRAIN ref ⇒ the repo is
+SPLIT-BRAIN). A ref-by-ref verdict is what makes `--branches '[*]'` safe: a clean branch does not
+launder a divergent one.
+
+#### ⛔ The auto-init destination is SPLIT-BRAIN, not "empty"
+
+`gh repo create --add-readme` (and every "initialize with a README" equivalent) leaves the
+destination holding **one unrelated root commit**. It is **not empty** and **not** CLEAN CARRY:
+its root is **disjoint** from the source's, so by the table above it is SPLIT-BRAIN and leaves the
+§7 autonomous band.
+
+Reproduced 2026-07-29: dest `main=d8e5e15` (auto-init), source `main=c412f39` + tag `v1`.
+`ls-remote` shows only *"both have `refs/heads/main`, SHAs differ, not identical"* — from which one
+agent reads SPLIT-BRAIN/halt and another reads *"it's just a README, effectively empty"* ⇒ CLEAN
+CARRY ⇒ **unattended push**. Same repo, same file, opposite bands, one of them autonomous. Ancestry
+resolves it deterministically: neither is an ancestor, `merge-base` finds nothing ⇒ disjoint roots.
+
+⇒ **Create the destination EMPTY** (no `--add-readme`, no license/gitignore template) when a carry
+is planned. An auto-init destination is a self-inflicted SPLIT-BRAIN.
+
+### §5.2 — ⛔ A non-fast-forward rejection is a POSITIVE SPLIT-BRAIN signal (never clear it with force)
+
+The git push rejection (`! [rejected] ... (non-fast-forward)` / `(fetch first)`) is the **only**
+safety signal that fires without any prose being obeyed — it is the strongest real safety property
+in this whole flow, and the skill owns its response:
+
+**A rejection means the classification was wrong.** Correct response: **HALT + Impediment Report**
+(§4), re-run §5.1 ancestry classification, and treat the repo as SPLIT-BRAIN until proven otherwise.
+⛔ **NEVER** clear a rejection with `--force`, `-f`, `+<refspec>`, `--force-with-lease`, or
+`--mirror`. The rejection is git protecting a commit that the destination would otherwise lose;
+escalating past it converts a caught error into data loss.
 
 SPLIT-BRAIN is a **distinct class**, not a harder migration: it demands per-branch merge/rebase
 decisions, a dedicated red-team pass, and an explicit freeze point. It never runs on cycle 1.
 
 ## §6 — Custody ledger (amnesic re-activation)
+
+### §6.0 — ⛔ THE LEDGER HAS AN ADDRESS (a checkpoint with no address is a promise, not a checkpoint)
+
+```
+.git/maos/custody/<repo-slug>.json      ← the ledger (states · tiers · verdict · impediments)
+.git/maos/custody/<repo-slug>.refs-before.txt   ← the write-once carry_baseline (ref<TAB>sha), §3.1
+```
+
+Reusing the **existing** `.git/maos/` convention this repo already writes
+(`.git/maos/continuation-seed.latest.json`, per `plugin-scripts/governance/preflight-session.sh`) —
+not a new one. Written in the **source-repo clone the agent is operating from**, so it travels with
+the checkout, and registered via `bin/artifact-registry` when the cutover completes.
+
+**Minimum schema** (extend freely; these keys are load-bearing):
+
+```json
+{ "repo": "<slug>", "source": "<url>", "destination": "<url>",
+  "phase": 0, "phase_states": {"0":"done","1":"dispensed","2":"halted:P5"},
+  "drift_verdict": "CLEAN_CARRY|SPLIT_BRAIN|INVESTIGATE|ALREADY_DONE",
+  "tiers": {"commits":"T1","pipelines":"T2","prs":"T3","secrets":"T4"},
+  "carry_baseline_path": ".git/maos/custody/<slug>.refs-before.txt",
+  "carry_baseline_captured_at": "<iso8601|null>", "carry_count": 0,
+  "impediments": [{"trip_wire":"P5","report":"<path>"}],
+  "resume": "<one concrete next step>" }
+```
+
+**Phase-0 rule (makes resume real)**: **first** action is to read the ledger path above.
+- **Exists** ⇒ **load it and resume** from `phase_states` — never re-derive from recall.
+- **Absent** ⇒ you are **NOT resuming**: re-run Phase 0 read-only, and ⛔ **do not push** — an absent
+  ledger means an absent `carry_baseline`, which per §3.1 means **rollback is forbidden**, which
+  means the push is out of the autonomous band (§7).
+- **Never enter a phase without writing its entry first** (persist-first, `harmonic` L9).
+
+*Why this is ⛔*: both red-teams landed on the same hole — §7 granted **unattended push** authority
+partly on the strength of "ledger-bounded state", while the ledger had **no path and no schema**. The
+resume instructions lived inside an artifact the cold agent could not locate (circular), and §9
+forbids the fallback ("trust recall over the ledger"). So §3.1's *exceptional* "snapshot missing ⇒
+rollback forbidden" was in fact the **default** state of every cold resume. An address fixes it;
+without one, the amnesic contract is unhonorable by construction.
+
+---
 
 A durable per-repo record: phase states · tier assignments · drift verdict · **the write-once
 `carry_baseline` (ref→sha + `captured_at`) and `carry_count`** (§3.1 — the rollback bound; a re-run
@@ -287,9 +398,41 @@ irreversible∧blast · H7 external exposure) — **HOLD, not force**, if indepe
 the Blocking-Gate/Impediment Report · the drift-detector classification · the phase
 ledger/state-machine · the pipeline→Actions translation report.
 
+## §9.0 — ⛔ THE UNCONDITIONAL RULE (stated as a PROPERTY, not as a list of spellings)
+
+> **No operation may cause a destination ref to stop pointing at a commit that is still reachable
+> from that destination — in ANY class, including UNCLASSIFIED.**
+
+This is deliberately **unconditional**. The previous formulation predicated the prohibition on the
+verdict *"SPLIT-BRAIN"* / *"a destination with unique refs"* — i.e. on the classification. **A
+prohibition conditioned on a classification cannot protect the case where the classification
+failed**, which is exactly the case that loses data. Measured 2026-07-29: an auto-init destination
+was never labelled SPLIT-BRAIN, so `git push --force` destroyed its commit **without violating any
+rule in this file**.
+
+Non-exhaustive spellings of the forbidden property — the property governs, this list only helps you
+recognize it (and it now includes the ones the skill itself *mandates* elsewhere, which the old
+spelling-based ban missed):
+
+| Forbidden | Note |
+|---|---|
+| `--mirror` | deletes every destination ref absent from the source |
+| `--force` · `-f` | the canonical case |
+| `+<refspec>` (leading `+`) | force, spelled differently — easy to miss in review |
+| `--force-with-lease` | **still lossy under a wrong/stale lease** — not a safe alternative here |
+| `--delete` · `push <remote> :<ref>` | ⚠️ the skill *requires* ref deletion on rollback ⇒ permitted **only** inside §3.1's baseline bound |
+| `--prune` | deletes by omission — the silent form |
+| `git filter-repo` / history rewrite | changes every hash (anti-pattern #11) |
+| repointing `HEAD`/default branch to enable a deletion | §3.1 — mutates outside the baseline |
+
+**The two carve-outs, and nothing else**: (a) §3.1 rollback deleting a ref **absent from the
+write-once baseline**; (b) §3.1 **repo-level** rollback on an **empty** baseline. Both are
+subtractive within a proven bound. Everything else ⇒ **HALT + Impediment Report**.
+
 ## §9 — Anti-patterns (do NOT)
 
-1. ❌ **`push --mirror` / force-push** onto a destination with unique refs — irreversible loss (§5).
+1. ❌ **Any operation violating §9.0** — force/mirror/prune/`+refspec`/rewrite, in **any** class
+   including unclassified. Conditioning this on SPLIT-BRAIN is what made it bypassable (§9.0).
 2. ❌ **Promise T1 on T3 axes** — claiming PRs/issues "migrated" when they were archived (theater).
 3. ❌ **Copy/print/commit a secret value** ⛔ — T4 is exclusion by construction.
 4. ❌ **Improvise past an unsupported axis** — the Blocking-Gate exists precisely to halt (§4).
@@ -304,7 +447,7 @@ ledger/state-machine · the pipeline→Actions translation report.
     instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
     routes an unattended push at it.
 13. ❌ **Self-scored gate** — treating "no supported path" as pure judgement and skipping the §4.0
-    P1–P10 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
+    P1–P14 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
 14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry baseline, or deleting a
     ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
 15. ❌ **Re-derive the rollback baseline on a re-run** — reading it "fresh" per §5.0 on an idempotent
@@ -338,6 +481,19 @@ ledger/state-machine · the pipeline→Actions translation report.
 WHY=9 real repos + a split-brain near-miss · WHO=any agent · FITS=lifecycle family ·
 MIN=one skill, residue scripts deferred until a cycle demands them).
 
+## §Vocabulary — say "probe" or "attack-path" for adversarial review
+
+`bin/check-layer-purity` reserves one word here: the corporate name in its `\bv…r(inf)?\b` pattern
+(run the checker to see it — this section deliberately does not spell it). That word is also the
+most natural English term for a red-team attack-path, so the collision is structural, not
+accidental: it fired **three times** while authoring this skill, each time caught only by the gate.
+
+**Use `probe` / `attack-path` / `finding` instead.** The gate is deterministic and correct; the
+vocabulary was the bug — never request an exception for it.
+
+*(Recursive proof: the first draft of this very section tripped the gate **four times**, because it
+quoted the forbidden token in order to explain it. A rule about a word must not contain the word.)*
+
 ## §DUED — Sunset (qualitative, not counter-based)
 
 Deprecate when ANY: a vendor ships a supported Bitbucket-**Cloud**→GitHub importer that makes T3
@@ -362,6 +518,7 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 | Version | Date | Change |
 |---|---|---|
+| 0.4.0 | 2026-07-29 | **TWO INDEPENDENT RED-TEAMS delivered; 5 fixes, 3 of them closing a live data-loss path.** ⚠️ **Retraction first**: v0.3.0's method-note said the red-team "did not deliver" and that P8 stood unmet. **Both reported** (`redteam-translatio`: CLEAR-WITH-FINDINGS, 8 blockers; `elenchus-2`: probe-1 REFUTED, 3 defects). That note was wrong at the time of writing and is corrected here — the independent pass exists, and it found what self-red-teaming had not. **(1) §5.1 ancestry classification (the root defect, `elenchus-2`)** — §5 classified on *"both sides have **unique** commits"*, which is an **ancestry** question, while §5.0 prescribed `git ls-remote`, which returns **ref→sha only**. `grep` confirmed **zero** hits for `merge-base`/`is-ancestor`/`git fetch` in the whole artifact ⇒ the agent was told to derive a verdict its prescribed instrument **cannot produce**, and the failure is *silent* (differing SHAs are equally consistent with fast-forwardable and with disjoint roots). Now: fetch objects, classify **per-ref** with `merge-base --is-ancestor`, repo-class = **worst** ref-class (a clean branch cannot launder a divergent one — this is what makes `--branches '[*]'` safe). **`ls-remote` establishes EXISTENCE, never UNIQUENESS.** **(2) The auto-init destination is SPLIT-BRAIN, not "empty"** — `gh repo create --add-readme` leaves **one unrelated root commit**. Reproduced end-to-end: dest `main=d8e5e15`, source `main=c412f39`+`v1`; `ls-remote` shows only *"both have main, SHAs differ"*, from which one agent reads halt and another reads *"just a README, effectively empty"* ⇒ CLEAN-CARRY ⇒ **unattended push**. Same file, opposite bands, one autonomous. Then the §3.1-compliant explicit-refspec push was **rejected** (git's non-FF backstop — the strongest real safety property in the flow) and `--force` **destroyed the destination commit without violating any rule in this file**, because the case was never labelled SPLIT-BRAIN. **(3) §9.0 the unconditional rule, restated as a PROPERTY** (both red-teams) — *no operation may cause a destination ref to stop pointing at a commit still reachable from that destination, in **any** class **including unclassified***. The old ban was predicated on the *verdict*, and **a prohibition conditioned on a classification cannot protect the case where classification failed** — which is precisely the case that loses data. The spelling table now includes what the old one missed: `--delete`, `:<ref>`, `--prune`, `--force-with-lease` (lossy under a stale lease) — including the deletion the skill itself **mandates** on rollback, now permitted only inside §3.1's baseline bound. **(4) §0 can no longer route around the safety floor** (both red-teams, independently) — §5.0/§3.1 declared themselves ⛔ in their own headings yet were **absent from the never-skippable list**, so the entire fix for both v0.2.0 BLOCKING holes was skippable by §0; worse, skipping §5 meant nothing was ever *classified* SPLIT-BRAIN, disarming the one force rule that **was** listed. §0 is now **presentation-only**: a skipped safety gate does not become "passed", it sets its conjunct **`false`** ⇒ class degrades to INVESTIGATE ⇒ leaves the autonomous band ⇒ HITL (the shape `council-gate` §0 already hardened — pattern inherited, fix had not been). **(5) §6.0 the ledger has an ADDRESS** (both red-teams; the one gating production for both) — §7 granted **unattended push** authority partly on "ledger-bounded state" while the ledger had **no path and no schema**; the resume instructions lived inside an artifact the cold agent could not locate (circular), and §9 forbids the recall fallback ⇒ §3.1's *exceptional* "no snapshot ⇒ rollback forbidden" was the **default** state of every cold resume. Now `.git/maos/custody/<slug>.json` + `.refs-before.txt`, reusing the **existing** convention (`.git/maos/continuation-seed.latest.json`, verified: 24 refs, written by `preflight-session.sh`) — not a new one — plus a minimum schema and a Phase-0 load-or-restart rule. **+ §5.2**: a non-FF rejection is a **positive SPLIT-BRAIN signal** ⇒ HALT, ⛔ never cleared with force. **+ P11–P14** deterministic trip-wires (class-without-ancestry · disjoint-root/auto-init · non-FF-returned · ledger-absent-while-pushing); P1–P10 → **P1–P14**. Verified: the exploit that destroyed a commit at v0.3.0 now classifies **SPLIT_BRAIN** and leaves the autonomous band. **Honest residue**: `elenchus-2` examined only vectors 1+5 (2/3/4/6/7 NOT_EXAMINED by it); `redteam-translatio` covered 1–7 but read the file rather than running a cutover, and its 4 unverified items are excluded from these fixes. Its B3 (T3 extraction needs a fail-closed gitleaks scrub), B4 (protections arrive one phase after history — `[C18]` explicitly does **not** supply ref protection), B5 (no freeze for CLEAN CARRY ⇒ coexistence manufactures divergence), B6 (no deterministic PRIMARY layer beyond P1–P14) and B7 (`council-gate` ships UNARMED ⇒ "council-gated" means consultative-with-human-confirm, not autonomous authorization) are **queued, not silently patched** — they gate anything beyond a pilot. Also honored: both red-teams' free-negative discipline caught their own false negatives mid-review, which is evidence **for** the §4 rule, not against it. |
 | 0.3.0 | 2026-07-29 | **§3.1 write-once `carry_baseline` + rollback-mode selection (BLOCKING, self-red-teamed).** Two more data-loss holes in the UNATTENDED band, both found by *executing* the artifact's own rules in a sandbox rather than re-reading them. **(1) The idempotence × freshness contradiction (P9/P10, anti-pattern #15)** — §3 promises Phase 2 is "re-runnable to convergence" and §5.0 forbids "a cached/earlier read"; applied together to the v0.2.0 snapshot rule they *force* a re-run to re-derive the snapshot, which then already contains the refs the previous run created ⇒ rule-3 puts them permanently out of rollback scope ⇒ **rollback silently degrades to a no-op** and "point of no return = Phase 4 only" becomes false — with **no trip-wire firing**, because a snapshot *does* exist, it is merely the wrong one. Reproduced: run #1 baseline `{peer}` → `DELETE main / KEEP peer` (correct); run #2 re-derived `{peer,main}` → `KEEP` both. Fixed by splitting the two freshness questions that were conflated under one word: *"what is the drift now?"* (classification — re-read **every** run) vs *"what did the destination hold before I touched it?"* (rollback bound — read **once, ever**). The baseline is now write-once + immutable, `captured_at`-stamped, ledger-persisted, reused verbatim on replay; P9 catches a re-derived baseline mechanically, P10 catches `carry_count > 0` with the baseline gone (reversibility already forfeited — halt, never proceed as if reversible). **(2) Ref deletion is not universally available** — the fix's own verification run then failed on the *real* rollback: a host refuses to delete the ref `HEAD`/the default branch points at. Measured both cases: **non-empty** baseline → `HEAD` rests on a baseline ref, carried refs delete cleanly; **empty** baseline → the carried ref *becomes* the default branch and `--delete` is **rejected** (exactly the pilot's shape). So the baseline's emptiness now *selects the mode*: empty ⇒ repo-level (delete the destination — zero collateral by definition, P7 second-instrument confirmation required first); non-empty ⇒ ref-level subtractive. ⛔ **Never repoint `HEAD` to force a deletion** — it mutates state outside the baseline (and can leave a dangling `HEAD`), which is the §3.1 violation rather than a workaround; if neither mode applies, the carry is **not reversible by this skill** ⇒ HALT + Impediment Report naming the residual state. Also: `carry_baseline`/`carry_count` added to the §6 ledger contract; Phase-2 rollback cell now states both modes; P1–P8 → **P1–P10**. Method note: **all four BLOCKING fixes so far (v0.2.0's two and v0.3.0's two) were found by the author, not by an independent party** — each by *executing* the rules in a sandbox rather than re-reading them, since a rule that reads coherent can still be incoherent when run, and a sandbox is the only honest verifier of a reversibility claim. An independent red-team (Elenchus) was dispatched and did **not** deliver; vectors 2/3/4/6/7 therefore remain **without independent review**. That gap is recorded rather than papered over: self-red-teaming found real defects but it shares the author's blind spots by construction, so it does **not** satisfy the §7 `verifier > generator` independence requirement for Phase 4 (P8 still stands, unmet). |
 | 0.2.0 | 2026-07-29 | **Red-team hardening (pre-merge PDCA, PR #289)** — 3 defects closed, 2 of them BLOCKING data-loss holes in the UNATTENDED band, each refuted EMPIRICALLY (sandbox reproduction) rather than by opinion. **(1) §5.0 FRESHNESS PRECONDITION ⛔** — `grep` proved the artifact had ZERO mentions of fetch/fresh/stale: the drift-detector never required same-run wire truth. Reproduced: an observer holding remote-tracking refs from an earlier clone does not see a branch a peer pushed afterwards ⇒ destination reads empty ⇒ CLEAN-CARRY ⇒ §7 authorizes an unattended push at live peer work. Now both sides re-read via same-run `ls-remote` + a positive control, and a missing wire read HALTS instead of defaulting to CLEAN-CARRY. **(2) §3.1 SUBTRACTIVE-ONLY rollback ⛔** — the Phase-2 rollback ("delete the pushed refs") could not distinguish a ref it created from one that predates the carry, making the *rollback itself* a data-loss event on any non-empty destination. Now: snapshot ref→sha before pushing · delete only refs absent from the snapshot · a snapshotted ref is permanently out of rollback scope · no snapshot ⇒ rollback forbidden ⇒ no-push. **(3) §4.0 PRIMARY trip-wires P1–P8** — the Blocking-Gate trigger was self-scored by the agent that wants to proceed (the self-exemption gradient); now deterministic `f=0` trip-wires HALT regardless of confidence, with judgement only *widening* coverage and uncertainty treated as fired (fail-closed). §7's autonomous band is conditioned on §5.0 ∧ §3.1 both holding. Also from bot PDCA: `bin/artifact-registry` (a CLI, not `maos:`) · `legacy-archaeologist` is an **agent** (caught by verifying the bot's adjacent finding, unreported by any bot) · description 1753→985 chars · new **§0.1 Requirements** with per-dependency absent-behavior (hard-stop vs degrade-to-GAP vs warn). One Qodo finding REJECTED with evidence (`resolve-session.sh` belongs to `session-reentry`, not here). **Probe 5b SURVIVED and is recorded as surviving** — the 4-branch drift classification is total + disjoint over a binary predicate pair, so two independent agents converge; no fix manufactured. Bots: CodeRabbit APPROVED · amazon-q no-blocking-defects · 7/7 checks SUCCESS. |
 | 0.1.0 | 2026-07-29 | Bootstrap — forged from a real 9-repo Bitbucket-Cloud→GitHub cutover need. Named by `anima`: system-name `repo-custody-transfer`, soul-name **Translatio** (12/12; rejected `git-host-migration` — "migration" is the false promise the tool refuses). Design decisions: **carry-then-rename** (any repo-rename program runs AFTER a clean cutover — lower impact) · Blocking-Gate + Impediment Report as a first-class capability · autonomy-max with council-before-HITL. Ships the fidelity contract (T1/T2/T3/T4), the 5-phase reversible cutover, the drift-detector (SPLIT-BRAIN class), the custody ledger, and the §8 composition map. Residue scripts (extractor/archiver · pipeline translator · ledger CLI · drift CLI) deferred until a real cycle demands them (Gordian/YAGNI). **Empirical grounding**: drift-detect found bidirectional divergence in 3 of 9 repos (a `--mirror` would have destroyed 11+10 commits and 10 tags); a positive control disproved a self-fabricated `admin:org` impediment; T3 archival validated via a host API gateway with a positive control. 6/6 §10 + 8/8 anti-theater + 6/6 scope-discipline. PR `ekson73/multi-agent-os#289`. |
