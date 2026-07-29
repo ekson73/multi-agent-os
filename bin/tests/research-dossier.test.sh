@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# Tests for bin/research-dossier-render.mjs — the renderer and its two f=0 gates.
+#
+# The point of this file: a gate is only real if it is proven in BOTH directions.
+# Every negative fixture is therefore asserted on its SPECIFIC failure code, not
+# merely on "exit 1" — a fixture that failed for an unintended reason would pass a
+# naive check while proving nothing about the check it was written to exercise.
+#
+# Exit codes are captured DIRECTLY, never through a pipe: a pipe reports the exit
+# of its LAST command, so `node render.mjs | grep x` silently reports grep's status
+# and a failing build reads as green.
+#
+# Bash 3.2-safe, self-contained, network-free.
+# Run: bash bin/tests/research-dossier.test.sh
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+ROOT="$DIR/.."
+REND="$ROOT/research-dossier-render.mjs"
+EX="$ROOT/../skills/research-dossier/examples"
+
+pass=0 ; fail=0
+ok() { pass=$((pass + 1)); printf '  \xe2\x9c\x93 %s\n' "$1"; }
+no() { fail=$((fail + 1)); printf '  \xe2\x9c\x97 %s\n      got: [%s]\n' "$1" "$2"; }
+eq() { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
+
+printf 'research-dossier.test.sh\n'
+
+if ! command -v node >/dev/null 2>&1; then
+  printf '  SKIP: node not available\n\n0 passed, 0 failed\n'; exit 0
+fi
+
+TMP="$(mktemp -d 2>/dev/null || echo /tmp/rdt.$$)"; mkdir -p "$TMP"
+cleanup() { rm -rf "$TMP" 2>/dev/null || true; }
+trap cleanup EXIT
+
+# gates <fixture> [extra-args...] → sets RC and OUT (exit code captured directly)
+gates() {
+  local f="$1"; shift
+  OUT="$(node "$REND" --ir "$EX/$f" --gates-only "$@" 2>&1)"; RC=$?
+}
+
+# ── fixtures exist ────────────────────────────────────────────────────────────
+for f in valid missing-source truncated-axis dangling-refs bad-palette wish-not-decision; do
+  [ -f "$EX/ir-$f.json" ] && ok "fixture ir-$f.json present" || no "fixture ir-$f.json present" "missing"
+done
+
+# ── the positive: the valid IR must actually pass ─────────────────────────────
+# A gate that rejects everything is not a gate, it is a wall.
+gates ir-valid.json
+eq '0' "$RC" 'ir-valid passes both gates (exit 0)'
+
+# ── the negatives: each must fail, and fail for ITS OWN reason ────────────────
+gates ir-missing-source.json
+eq '1' "$RC" 'ir-missing-source fails (exit 1)'
+case "$OUT" in *CLAIM_NO_SOURCE*)     ok 'missing-source → CLAIM_NO_SOURCE' ;;     *) no 'missing-source → CLAIM_NO_SOURCE' "$OUT" ;; esac
+case "$OUT" in *CLAIM_NO_CONFIDENCE*) ok 'missing-source → CLAIM_NO_CONFIDENCE' ;; *) no 'missing-source → CLAIM_NO_CONFIDENCE' "$OUT" ;; esac
+case "$OUT" in *CLAIM_NO_AS_OF*)      ok 'missing-source → CLAIM_NO_AS_OF' ;;      *) no 'missing-source → CLAIM_NO_AS_OF' "$OUT" ;; esac
+
+# The load-bearing one: this is what carries the text-level faithfulness
+# discipline into the visual layer. A bar chart starting at 60 exaggerates a small
+# difference into a landslide whether or not anyone intended it.
+gates ir-truncated-axis.json
+eq '1' "$RC" 'ir-truncated-axis fails (exit 1)'
+case "$OUT" in *UNDECLARED_TRUNCATION*) ok 'truncated-axis → UNDECLARED_TRUNCATION' ;; *) no 'truncated-axis → UNDECLARED_TRUNCATION' "$OUT" ;; esac
+
+gates ir-dangling-refs.json
+eq '1' "$RC" 'ir-dangling-refs fails (exit 1)'
+case "$OUT" in *DANGLING_CLAIM_REF*) ok 'dangling-refs → DANGLING_CLAIM_REF' ;; *) no 'dangling-refs → DANGLING_CLAIM_REF' "$OUT" ;; esac
+case "$OUT" in *EMPTY_NOT_CHECKED*)  ok 'dangling-refs → EMPTY_NOT_CHECKED' ;;  *) no 'dangling-refs → EMPTY_NOT_CHECKED' "$OUT" ;; esac
+
+gates ir-wish-not-decision.json
+eq '1' "$RC" 'ir-wish-not-decision fails (exit 1)'
+case "$OUT" in *REC_NO_OWNER*) ok 'wish-not-decision → REC_NO_OWNER' ;; *) no 'wish-not-decision → REC_NO_OWNER' "$OUT" ;; esac
+case "$OUT" in *REC_NO_ETA*)   ok 'wish-not-decision → REC_NO_ETA' ;;   *) no 'wish-not-decision → REC_NO_ETA' "$OUT" ;; esac
+
+# ── gate 2: colour is computable, so it is computed ───────────────────────────
+gates ir-bad-palette.json
+eq '1' "$RC" 'ir-bad-palette fails (exit 1)'
+case "$OUT" in *PALETTE_FAIL*) ok 'bad-palette → PALETTE_FAIL' ;; *) no 'bad-palette → PALETTE_FAIL' "$OUT" ;; esac
+# Both modes are validated: dark is SELECTED, not flipped, so it can fail alone.
+case "$OUT" in *light*) ok 'palette gate validates light mode' ;; *) no 'palette gate validates light mode' "$OUT" ;; esac
+case "$OUT" in *dark*)  ok 'palette gate validates dark mode'  ;; *) no 'palette gate validates dark mode'  "$OUT" ;; esac
+
+# ── degradation: the bundled validator lives in a version-and-hash-keyed temp
+# dir that MOVES on every CLI upgrade. Absent → loud WARN, never a silent pass.
+OUT="$(DATAVIZ_VALIDATOR=/nonexistent node "$REND" --ir "$EX/ir-valid.json" --gates-only 2>&1)"; RC=$?
+eq '0' "$RC" 'missing validator degrades to WARN (still exit 0)'
+case "$OUT" in *WARN*) ok 'missing validator emits a visible WARN' ;; *) no 'missing validator emits a visible WARN' "$OUT" ;; esac
+
+# ...and --strict turns that warning into a failure, so CI cannot drift green.
+OUT="$(DATAVIZ_VALIDATOR=/nonexistent node "$REND" --ir "$EX/ir-valid.json" --gates-only --strict 2>&1)"; RC=$?
+eq '1' "$RC" '--strict makes a missing validator a FAILURE'
+case "$OUT" in *PALETTE_VALIDATOR_MISSING*) ok '--strict → PALETTE_VALIDATOR_MISSING' ;; *) no '--strict → PALETTE_VALIDATOR_MISSING' "$OUT" ;; esac
+
+# ── gates run BEFORE anything is written ──────────────────────────────────────
+# A failed dossier must produce NO output at all, rather than a plausible-looking
+# one. Half a dossier is more dangerous than none: it looks finished.
+OUTDIR="$TMP/nowrite"
+node "$REND" --ir "$EX/ir-missing-source.json" --formats html,md,json --out "$OUTDIR" >/dev/null 2>&1; RC=$?
+eq '1' "$RC" 'failing IR exits 1 on a full render'
+if [ ! -d "$OUTDIR" ] || [ -z "$(ls -A "$OUTDIR" 2>/dev/null)" ]; then
+  ok 'failing IR wrote NOTHING (gates precede all writes)'
+else
+  no 'failing IR wrote NOTHING (gates precede all writes)' "$(ls -A "$OUTDIR" 2>/dev/null | tr '\n' ' ')"
+fi
+
+# ── fan-out: one IR → three formats ───────────────────────────────────────────
+OUTDIR="$TMP/out"
+node "$REND" --ir "$EX/ir-valid.json" --formats html,md,json --out "$OUTDIR" >/dev/null 2>&1; RC=$?
+eq '0' "$RC" 'valid IR renders (exit 0)'
+for f in dossier.html dossier.md dossier.json; do
+  [ -s "$OUTDIR/$f" ] && ok "emits $f (non-empty)" || no "emits $f (non-empty)" "missing or empty"
+done
+
+HTML="$OUTDIR/dossier.html"
+if [ -s "$HTML" ]; then
+  # ── offline: opens over file://, no network ────────────────────────────────
+  # The invariant is no remote SUBRESOURCE — source citation URLs are provenance
+  # and MUST stay. Grepping for "https" would flag the evidence as the defect.
+  n=$(grep -cE '<(script|link|img)[^>]+(src|href)="https?://' "$HTML" 2>/dev/null || true)
+  eq '0' "${n:-0}" 'zero remote subresources (script/link/img) — opens offline'
+
+  # ── JS off → the dossier still renders completely ──────────────────────────
+  # An archival decision artifact that needs a script to show its evidence is not
+  # archival. The body is server-side; JS only reveals the theme toggle.
+  n=$(grep -c '<table' "$HTML" 2>/dev/null || true)
+  [ "${n:-0}" -ge 1 ] && ok "evidence tables are server-rendered (${n} <table>)" \
+                      || no 'evidence tables are server-rendered' "found ${n:-0}"
+  n=$(grep -c '__[A-Z_]*__' "$HTML" 2>/dev/null || true)
+  eq '0' "${n:-0}" 'no unfilled template placeholders survived substitution'
+
+  # ── accessibility + print (per dataviz: the table IS the accessible rendering)
+  n=$(grep -c 'role="img"' "$HTML" 2>/dev/null || true)
+  [ "${n:-0}" -ge 1 ] && ok "charts carry role=\"img\" (${n})" || no 'charts carry role="img"' "found ${n:-0}"
+  n=$(grep -c 'aria-label' "$HTML" 2>/dev/null || true)
+  [ "${n:-0}" -ge 1 ] && ok "charts carry aria-label (${n})" || no 'charts carry aria-label' "found ${n:-0}"
+  for pat in '@media print' 'prefers-reduced-motion' 'prefers-color-scheme'; do
+    grep -q "$pat" "$HTML" 2>/dev/null && ok "honors $pat" || no "honors $pat" 'absent'
+  done
+
+  # ── the blind spots are what make the rest credible ────────────────────────
+  grep -qi 'not checked\|not_checked' "$HTML" 2>/dev/null \
+    && ok 'not_checked[] is surfaced in the output' || no 'not_checked[] is surfaced in the output' 'absent'
+fi
+
+# ── declared truncation: passes, AND the rationale is printed on the chart ────
+# The declaration is a cost, not a bypass — it survives into what the reader sees.
+python3 - "$EX/ir-valid.json" "$TMP/ir-declared.json" <<'PY' 2>/dev/null
+import json,sys
+ir=json.load(open(sys.argv[1]))
+ch=(ir.get('charts') or [])
+if ch:
+    ax=ch[0].setdefault('axis',{})
+    ax['y_min']=60; ax['axis_truncated']=True
+    ax['truncation_rationale']='Baseline is 60 KB; below that no library is viable.'
+json.dump(ir,open(sys.argv[2],'w'))
+PY
+if [ -s "$TMP/ir-declared.json" ]; then
+  node "$REND" --ir "$TMP/ir-declared.json" --gates-only >/dev/null 2>&1; RC=$?
+  eq '0' "$RC" 'DECLARED truncation passes the gate'
+  node "$REND" --ir "$TMP/ir-declared.json" --formats html --out "$TMP/decl" >/dev/null 2>&1
+  if [ -s "$TMP/decl/dossier.html" ]; then
+    grep -qi 'truncat' "$TMP/decl/dossier.html" \
+      && ok 'declared truncation is disclosed in the rendered chart' \
+      || no 'declared truncation is disclosed in the rendered chart' 'no notice in output'
+  fi
+else
+  ok 'SKIP declared-truncation (python3 unavailable)'
+fi
+
+# ── CLI contract: 2 is usage/IO, distinct from 1 (gate failure) ───────────────
+node "$REND" --ir /nonexistent/nope.json --gates-only >/dev/null 2>&1
+eq '2' "$?" 'missing IR file exits 2 (usage/IO, not a gate failure)'
+node "$REND" >/dev/null 2>&1
+eq '2' "$?" 'no --ir exits 2 (usage)'
+node "$REND" --help >/dev/null 2>&1
+eq '0' "$?" '--help exits 0'
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

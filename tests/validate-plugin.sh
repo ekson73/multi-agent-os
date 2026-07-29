@@ -353,6 +353,19 @@ else
     fail "bin/tests/continuation-broadcast.test.sh missing"
 fi
 
+# research-dossier: the two f=0 gates, proven in BOTH directions (valid passes,
+# each negative fixture fails for its OWN reason). Skips cleanly without node.
+RD_TESTS="$PLUGIN_ROOT/bin/tests/research-dossier.test.sh"
+if [ -f "$RD_TESTS" ]; then
+    if bash "$RD_TESTS" >/dev/null 2>&1; then
+        pass "bin/tests/research-dossier.test.sh passes"
+    else
+        fail "bin/tests/research-dossier.test.sh FAILED (run 'bash bin/tests/research-dossier.test.sh')"
+    fi
+else
+    fail "bin/tests/research-dossier.test.sh missing"
+fi
+
 # signoff skill + command frontmatter
 if [ -f "$PLUGIN_ROOT/skills/signoff/SKILL.md" ] && grep -q "^name: signoff$" "$PLUGIN_ROOT/skills/signoff/SKILL.md"; then
     pass "skills/signoff/SKILL.md has correct frontmatter"
