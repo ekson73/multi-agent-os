@@ -52,14 +52,19 @@ existing renderers are reachable for free. One contract unlocks N consumers.
 - **`examples/`** — 1 working fixture (dogfood: the chart-library comparison that chose the
   template's own renderer) + **5 negative fixtures**, each of which must fail.
 
-- **`bin/tests/research-dossier.test.sh`** — 68 assertions, wired into `validate-plugin.sh`. Every
+- **`bin/tests/research-dossier.test.sh`** — 89 assertions, wired into `validate-plugin.sh`. Every
   negative fixture is asserted on its **specific failure code**, not merely on exit 1: a fixture
   failing for an unintended reason would satisfy a naive check while proving nothing about the check
   it exists to exercise. Exit codes captured directly — a pipe reports its *last* command's status,
-  so `render | grep` would make a failing build read green. Mutation-tested: emptying
-  `MAGNITUDE_FORMS` turns 2 assertions red, so the suite is known capable of failing.
+  so `render | grep` would make a failing build read green. **Mutation-tested**: reverting a guard
+  turns the assertion covering it red — the truncation baseline, the `javascript:`/palette
+  allowlists, per-bucket stacked composition, the emitter signature and both crash guards were each
+  neutered and the corresponding assertions observed to fail. One security assertion was rewritten
+  after mutation testing showed it passed with its guard removed: the fixture used a palette key the
+  renderer never reads, so the payload only reached the inert JSON island. A security test that
+  cannot fail is worse than none — it certifies a hole it never touched.
 
-Verified by execution: 6/6 fixtures hit their expected exit codes, 68/68 tests pass, Layer Purity
+Verified by execution: 6/6 fixtures hit their expected exit codes, 89/89 tests pass, Layer Purity
 clean, `validate-plugin.sh` 0 errors, and the full render succeeds under a stripped environment
 (`env -i PATH=/usr/bin:/bin`) with every offline/a11y/print invariant intact.
 

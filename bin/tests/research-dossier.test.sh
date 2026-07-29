@@ -39,7 +39,11 @@ if ! command -v node >/dev/null 2>&1; then
   printf '  SKIP: node not available\n\n0 passed, 0 failed\n'; exit 0
 fi
 
-TMP="$(mktemp -d 2>/dev/null || echo /tmp/rdt.$$)"; mkdir -p "$TMP"
+# No predictable fallback path: `/tmp/rdt.$$` is guessable, so on a shared host a
+# pre-created symlink there would redirect every write in this suite. If mktemp
+# cannot give us a private directory, stop — a test run is not worth that risk.
+TMP="$(mktemp -d 2>/dev/null)" || { printf '  ✗ cannot create a private temp dir\n'; exit 1; }
+[ -d "$TMP" ] || { printf '  ✗ mktemp returned no directory\n'; exit 1; }
 cleanup() { rm -rf "$TMP" 2>/dev/null || true; }
 trap cleanup EXIT
 
@@ -84,12 +88,23 @@ case "$OUT" in *REC_NO_OWNER*) ok 'wish-not-decision → REC_NO_OWNER' ;; *) no 
 case "$OUT" in *REC_NO_ETA*)   ok 'wish-not-decision → REC_NO_ETA' ;;   *) no 'wish-not-decision → REC_NO_ETA' "$OUT" ;; esac
 
 # ── gate 2: colour is computable, so it is computed ───────────────────────────
-gates ir-bad-palette.json
-eq '1' "$RC" 'ir-bad-palette fails (exit 1)'
-case "$OUT" in *PALETTE_FAIL*) ok 'bad-palette → PALETTE_FAIL' ;; *) no 'bad-palette → PALETTE_FAIL' "$OUT" ;; esac
-# Both modes are validated: dark is SELECTED, not flipped, so it can fail alone.
-case "$OUT" in *light*) ok 'palette gate validates light mode' ;; *) no 'palette gate validates light mode' "$OUT" ;; esac
-case "$OUT" in *dark*)  ok 'palette gate validates dark mode'  ;; *) no 'palette gate validates dark mode'  "$OUT" ;; esac
+# Gate 2 needs the bundled dataviz validator, which lives in a version-and-hash
+# keyed temp dir that only exists inside a Claude Code session. Its absence is a
+# SUPPORTED condition everywhere else in this suite (loud WARN, --strict to fail),
+# so asserting PALETTE_FAIL unconditionally would red the build on exactly the
+# hosts the degradation path was written for. Skip loudly rather than lie either way.
+gates ir-valid.json
+case "$OUT" in
+  *PALETTE_VALIDATOR_MISSING*)
+    ok 'SKIP bad-palette assertions (bundled dataviz validator not present on this host)' ;;
+  *)
+    gates ir-bad-palette.json
+    eq '1' "$RC" 'ir-bad-palette fails (exit 1)'
+    case "$OUT" in *PALETTE_FAIL*) ok 'bad-palette → PALETTE_FAIL' ;; *) no 'bad-palette → PALETTE_FAIL' "$OUT" ;; esac
+    # Both modes are validated: dark is SELECTED, not flipped, so it can fail alone.
+    case "$OUT" in *light*) ok 'palette gate validates light mode' ;; *) no 'palette gate validates light mode' "$OUT" ;; esac
+    case "$OUT" in *dark*)  ok 'palette gate validates dark mode'  ;; *) no 'palette gate validates dark mode'  "$OUT" ;; esac ;;
+esac
 
 # ── degradation: the bundled validator lives in a version-and-hash-keyed temp
 # dir that MOVES on every CLI upgrade. Absent → loud WARN, never a silent pass.
@@ -331,6 +346,60 @@ PY
   fi
 else
   ok 'SKIP density tests (python3 unavailable)'
+fi
+
+# ── asymmetric coverage is TOPICAL, not any-claim-about-the-option ────────────
+# A gate that fires on honest sparsity teaches authors to fabricate cells to
+# silence it — the exact behaviour this check exists to prevent. So an unused
+# LICENCE note must not fail a blank TELEMETRY cell, while an unused telemetry
+# claim still must.
+if command -v python3 >/dev/null 2>&1; then
+  python3 - "$EX/ir-valid.json" "$TMP/ir-cov-ok.json" "$TMP/ir-cov-bad.json" <<'PY' 2>/dev/null
+import json,sys
+ir=json.load(open(sys.argv[1])); sc=ir['scorecard']; opts=sc['options']
+sc['criteria'].append({"id":"telemetry","label":"Telemetry footprint","weight":1,"direction":"lower-better"})
+have={(c['option'],c['criterion']) for c in sc['cells']}
+for o in opts:
+    for cr in [c['id'] for c in sc['criteria']]:
+        if (o,cr) not in have and cr!='telemetry':
+            sc['cells'].append({"option":o,"criterion":cr,"value":1,"confidence":"medium","source_claims":[]})
+for o in opts[1:]:
+    sc['cells'].append({"option":o,"criterion":"telemetry","value":0,"confidence":"low","source_claims":[]})
+ir['claims'].append({"id":"c-licence","text":f"{opts[0]} is MIT licensed.","entity":opts[0],
+  "source":{"label":"repo"},"as_of":"2026-07-01","confidence":"high"})
+json.dump(ir,open(sys.argv[2],'w'))
+ir['claims'].append({"id":"c-tel","text":f"{opts[0]} sends telemetry on load.","entity":opts[0],
+  "source":{"label":"audit"},"as_of":"2026-07-01","confidence":"high",
+  "metric":{"name":"telemetry","value":1,"unit":"flag"}})
+json.dump(ir,open(sys.argv[3],'w'))
+PY
+  if [ -s "$TMP/ir-cov-ok.json" ]; then
+    case "$(node "$REND" --ir "$TMP/ir-cov-ok.json" --gates-only 2>&1)" in
+      *SCORECARD_ASYMMETRIC_COVERAGE*) no 'an unrelated unused claim does NOT fail a blank cell' 'fired on honest sparsity' ;;
+      *) ok 'an unrelated unused claim does NOT fail a blank cell' ;;
+    esac
+    case "$(node "$REND" --ir "$TMP/ir-cov-bad.json" --gates-only 2>&1)" in
+      *SCORECARD_ASYMMETRIC_COVERAGE*) ok 'a TOPICALLY relevant unused claim still fails the blank cell' ;;
+      *) no 'a TOPICALLY relevant unused claim still fails the blank cell' 'selective omission slipped through' ;;
+    esac
+  fi
+fi
+
+# ── a render-time failure must reach the EXIT CODE ────────────────────────────
+# renderHtml() returns null after registering a FAIL, and that happens AFTER the
+# gate summary prints. Without propagation the run says GATES PASS, writes no
+# file, and exits 0 — a build claiming success while producing nothing, which is
+# the silent-plausibility failure TEMPLATE_SLOT_UNFILLED exists to prevent.
+TPL="$ROOT/../skills/research-dossier/templates/dossier.html"
+if [ -f "$TPL" ]; then
+  cp "$TPL" "$TMP/tpl.bak"
+  printf '\n<!-- __GHOST_SLOT__ -->\n' >> "$TPL"
+  node "$REND" --ir "$EX/ir-valid.json" --formats html --out "$TMP/slot" >"$TMP/slot.log" 2>&1; RC=$?
+  cp "$TMP/tpl.bak" "$TPL"
+  eq '1' "$RC" 'an unfilled template slot FAILS the build (never a silent exit 0)'
+  [ -f "$TMP/slot/dossier.html" ] && no 'no artifact is written when a slot survives' 'file written' \
+                                  || ok 'no artifact is written when a slot survives'
+  case "$(cat "$TMP/slot.log")" in *TEMPLATE_SLOT_UNFILLED*) ok '→ TEMPLATE_SLOT_UNFILLED is reported, not swallowed' ;; *) no '→ TEMPLATE_SLOT_UNFILLED is reported, not swallowed' 'never surfaced' ;; esac
 fi
 
 # ── stacked composition is PER BUCKET (2026-07-29 review) ─────────────────────

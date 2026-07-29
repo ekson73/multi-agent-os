@@ -85,10 +85,13 @@ const INFO = m => report.info.push(m);
 // ═══════════════════════════════════════════════════════════════════════════
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CONFIDENCE = new Set(['high', 'medium', 'low']);
-/** Forms where the y-axis encodes MAGNITUDE — the family where a truncated
- *  baseline lies about proportion. A line chart of a bounded index may legitimately
- *  start above zero; a bar chart may not. */
-const MAGNITUDE_FORMS = new Set(['bar', 'column', 'stacked-bar', 'area', 'diverging-bar']);
+/* A MAGNITUDE_FORMS allow-list used to scope the truncation check to bar-like
+ * charts. It is deliberately GONE: the renderer draws every chart as proportional
+ * bars regardless of ch.form, so keying the check to a declared form let
+ * `form:"line"` bypass it while still rendering truncated bars — the gate was
+ * guarding a rendering that did not exist. The check now keys off what is DRAWN.
+ * Recorded rather than deleted silently, so the next reader does not reintroduce
+ * the allow-list as an apparent improvement. */
 
 function gateProvenance(ir) {
   // -- structural minimums the schema also states, re-checked here because the
@@ -332,6 +335,15 @@ function gateProvenance(ir) {
       for (const o of missing) {
         const covered = (ir.claims || []).some(c => {
           if (!c || c.entity !== o) return false;
+          // The unused claim must plausibly be about THIS criterion. Matching any
+          // unused claim about the option made an unrelated note (a licence, a
+          // release date) fail an unrelated blank cell — and a gate that fires on
+          // honest sparsity teaches authors to fabricate cells to silence it,
+          // which is the exact behaviour this check exists to prevent.
+          const topic = `${c.metric?.name || ''} ${c.text || ''}`.toLowerCase();
+          const label = `${cr.id} ${cr.label || ''}`.toLowerCase().trim();
+          const relevant = label.split(/[\s_-]+/).filter(w => w.length > 2).some(w => topic.includes(w));
+          if (!relevant) return false;
           const inCell = (sc.cells || []).some(x => (x.source_claims || []).includes(c.id));
           return !inCell;
         });
@@ -578,8 +590,21 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 // is to be opened in a browser and passed around, so a citation URL is attack
 // surface, not decoration. Allowlist the schemes a citation could legitimately
 // use rather than blocklisting the ones we happen to remember.
-const SAFE_URL = /^(?:https?:|mailto:|\/|\.{1,2}\/|#)/i;
-const safeHref = u => (SAFE_URL.test(String(u ?? '').trim()) ? String(u).trim() : null);
+// Protocol-relative `//host/x` is excluded deliberately: this artifact is opened
+// over file://, where it resolves against the local filesystem rather than a host,
+// so it is never the right way to write a citation and is a needless ambiguity.
+const SAFE_URL = /^(?:https?:\/\/|mailto:|[^/]|\/(?!\/)|#)/i;
+const SAFE_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+const safeHref = u => {
+  const s = String(u ?? '').trim();
+  if (!s) return null;
+  // Any explicit scheme must be one we allow; anything schemeless is a relative
+  // reference, which cannot execute. Allowlist the schemes rather than blocklist
+  // the dangerous ones — `javascript:` is the famous case, but `vbscript:`,
+  // `data:` and whatever a future browser adds all fail closed this way.
+  if (SAFE_SCHEME.test(s)) return /^(?:https?:\/\/|mailto:)/i.test(s) ? s : null;
+  return s.startsWith('//') ? null : s;
+};
 
 // Palette values are interpolated into a <style> block as `--series-N: ${hex};`.
 // The palette gate would reject a malformed colour, but it degrades to a WARN when
@@ -961,6 +986,15 @@ Exit: 0 ok · 1 gate failure · 2 usage/IO`);
     return EXIT_OK;
   }
 
+  // Failures registered DURING rendering (after the gate summary was already
+  // printed) still have to reach the exit code and the operator's eyes.
+  const renderFailure = () => {
+    for (const f of report.fail) console.log(`    ✗ ${f.code}  ${f.msg}`);
+    console.log(`  → RENDER FAILED — ${report.fail.length} failure(s); the artifact was NOT written.`);
+    console.log('');
+    return EXIT_GATE;
+  };
+
   mkdirSync(a.out, { recursive: true });
   const written = [];
   for (const fmt of a.formats) {
@@ -974,6 +1008,12 @@ Exit: 0 ok · 1 gate failure · 2 usage/IO`);
       } else if (fmt === 'html') {
         const html = renderHtml(ir);
         if (html) { const p = join(a.out, 'dossier.html'); writeFileSync(p, html); written.push(p); }
+        // renderHtml() returns null after registering a FAIL (a missing template, an
+        // unfilled slot). Those failures land AFTER the gate summary was printed, so
+        // without this the run reports GATES PASS, writes nothing, and exits 0 — a
+        // build claiming success while producing no artifact, which is precisely the
+        // silent-plausibility failure TEMPLATE_SLOT_UNFILLED exists to prevent.
+        else return renderFailure();
       } else if (['pdf', 'pptx', 'xlsx'].includes(fmt)) {
         // Handed off, not reimplemented: make-pdf / document-skills own these.
         const p = join(a.out, `handoff.${fmt}.json`);

@@ -17,7 +17,7 @@ the anti-patterns). **This file is the command surface only.**
 
 ## Usage
 
-```
+```text
 /maos:research-dossier --corpus ~/.claude/plans/tool-comparison.md
 /maos:research-dossier --corpus <path> --audience exec --formats html,pdf
 /maos:research-dossier --ir out/dossier.json --audience engineer     # re-render, skip extraction
