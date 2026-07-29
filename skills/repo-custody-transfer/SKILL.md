@@ -216,7 +216,7 @@ verdicts. Until then, treat these as *deterministic in specification, self-repor
 | P16 | the §5.1 **fetch** exited non-zero, **OR** the wire and quarantine ref **SETS** differ — ⛔ a **set difference on ref NAMES**, never a count (a count is a *signature*: one **stale** ref + one **missing** ref cancel to the right total) · ⛔ with peeled `^{}` lines filtered (`ls-remote` emits an extra peeled line per **annotated** tag that `for-each-ref` does not — unfiltered, this halts every repo with a release tag) · ⛔ over a **per-repo + per-run** quarantine path (a fixed shared path makes a leftover indistinguishable from a fetched ref). A partial fetch can exit 0, so both clauses are needed — ⛔ **an empty quarantine is `unknown`, never "no divergent refs"**. Without this, a dead fetch iterates zero refs, invokes `merge-base` zero times, and the worst-ref-class over an empty set is **vacuous** ⇒ every source ref reads *"exists only on source"* ⇒ **CLEAN CARRY on the autonomous path**. **The only fail-OPEN found in this artifact.** |
 | P17 | a per-ref `dst_sha` is read **by re-resolving the ref** instead of from the pre-loop pinned file, **OR** a pinned sha is empty/absent while its ref was present at the P16 gate, **OR** the pinned file is written to a **per-repo (not per-run)** path or without an atomic `.tmp`+`mv` publish, **OR** the cleanup sweeps beyond `$QUAR` — the gate proved the input existed *at the gate*, nothing holds it *until use*; an absent name reads as *"exists only on source"* ⇒ **CLEAN CARRY** while the destination objects are intact (§5.1 TOCTOU note). An absent pinned sha is a **MISSING MEASUREMENT**, never "no destination ref" |
 | P18 | an impediment is **written in this run** without `reported_by` / `reported_at` (ISO 8601 + offset) — ⛔ **write-time only**; a *pre-existing* impediment lacking them is a MISSING MEASUREMENT, never a P18 halt (§6.0) — provenance would then need reconstruction from message logs, which fails exactly where a compaction-inherited claim **reads complete** (§6.0) |
-| P19 | the ledger is read **without** comparing its `run_id` to this run's `$RUN_ID`, **OR** a per-RUN field (`drift_verdict` · `carry_count` · `dst_pinned_path`) from a **mismatched** run is used as this run's own, **OR** `dst_pinned_path` is **followed as an address** instead of `$DST_PINNED` being recomputed, **OR** the ledger is written **non-atomically** (`>` instead of `.tmp`+`mv`), **OR** an **unparseable** ledger is treated as *absent* — ⛔ a clobbered `drift_verdict` moves a repo from the HITL row into the **unattended** row with no agent disobeying anything, and a clobbered `carry_count` **disarms P10** (its condition became *someone else's*, never false). Corrupt ≠ absent: absent fails closed, corrupt was **silent** (§6.0) |
+| P19 | the ledger is read **without** comparing its `run_id` to this run's `$RUN_ID`, **OR** a per-RUN field (`drift_verdict` · `dst_pinned_path`) from a **mismatched** run is used as this run's own, **OR** `carry_count` (per-**CUTOVER**, monotonic) is **discarded** on a `run_id` mismatch or its **absence read as `0`** instead of `unknown ⇒ >0`, **OR** `dst_pinned_path` is **followed as an address** instead of `$DST_PINNED` being recomputed, **OR** the ledger is written **non-atomically** (`>` instead of `.tmp`+`mv`), **OR** an **unparseable** ledger is treated as *absent* — ⛔ a clobbered `drift_verdict` moves a repo from the HITL row into the **unattended** row with no agent disobeying anything, and a clobbered `carry_count` **disarms P10** (its condition became *someone else's*, never false). Corrupt ≠ absent: absent fails closed, corrupt was **silent** (§6.0) |
 
 Any P1–P19 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
@@ -703,7 +703,8 @@ mkdir -p "$LEDGER_DIR"
 
 "$LEDGER_DIR/<repo-slug>.json"              # the ledger — ⛔ publish ATOMICALLY (.tmp + mv), never `>`
                                             #   per-CUTOVER: phase_states · tiers · impediments
-                                            #   per-RUN (owned by run_id): drift_verdict · carry_count · dst_pinned_path
+                                            #     ⛔ + carry_baseline · src_tags_before · carry_count (MONOTONIC — §3.1)
+                                            #   per-RUN (owned by run_id): drift_verdict · dst_pinned_path
 "$LEDGER_DIR/<repo-slug>.refs-before.txt"   # write-once carry_baseline — DESTINATION, rollback (§3.1)
 "$LEDGER_DIR/<repo-slug>.src-tags-before.txt" # SOURCE tag snapshot — P15 set-difference (§5.1)
 "$LEDGER_DIR/<repo-slug>.dst-pinned.$RUN_ID.txt" # DESTINATION ref→sha pinned pre-loop, PER-RUN + atomic — P17 (§5.1)
@@ -738,8 +739,10 @@ was not.* Registered via `bin/artifact-registry` when the cutover completes.
   "carry_baseline_path": "<LEDGER_DIR>/<slug>.refs-before.txt",
   "src_tags_before_path": "<LEDGER_DIR>/<slug>.src-tags-before.txt",
   "src_tags_before_captured_at": "<iso8601+offset|null>",
-  "run_id": "<run-id>",   // ⛔ OWNER of every per-RUN field below. Loader MUST compare to its own
-                         //    $RUN_ID; mismatch ⇒ those fields are ANOTHER run's measurement ⇒ MISSING
+  "run_id": "<run-id>",   // ⛔ OWNER of the per-RUN fields — `drift_verdict` + `dst_pinned_path` —
+                         //    REGARDLESS OF ORDER in this object. Loader MUST compare to its own
+                         //    $RUN_ID; mismatch ⇒ those two are ANOTHER run's measurement ⇒ MISSING.
+                         //    ⛔ `carry_count` is per-CUTOVER + monotonic ⇒ NEVER discarded (§3.1/P10)
   "dst_pinned_path": "<LEDGER_DIR>/<slug>.dst-pinned.<run-id>.txt",   // per-RUN · atomic-published
                          // ⛔ a RECORD, never an ADDRESS — recompute $DST_PINNED from your own $RUN_ID
   "carry_baseline_captured_at": "<iso8601+offset|null>", "carry_count": 0,
@@ -783,9 +786,16 @@ the moment of observation** rather than deriving it later from state that may ha
   mid-write is reachable because `>` truncates-then-writes — the same argument that made the pin file
   atomic, applied to the file that *names* the pin file.
 - ⛔ **Compare `run_id` to your own `$RUN_ID` BEFORE trusting any per-RUN field.** On mismatch,
-  `drift_verdict` · `carry_count` · `dst_pinned_path` are **another run's measurement** ⇒ treat as
-  **MISSING MEASUREMENT** (§5.1's vocabulary), never as yours: re-derive the verdict from a same-run
-  wire read (§5.0), and ⛔ **do not push** on a verdict you did not measure.
+  `drift_verdict` and `dst_pinned_path` are **another run's measurement** ⇒ treat as **MISSING
+  MEASUREMENT** (§5.1's vocabulary), never as yours: re-derive the verdict from a same-run wire read
+  (§5.0), and ⛔ **do not push** on a verdict you did not measure.
+- ⛔ **`carry_count` is per-CUTOVER and MONOTONIC — it is NEVER discarded on `run_id` mismatch.** It
+  counts *what this cutover has already carried*, which a later run **inherits** rather than owns
+  (§3.1 · P10). A resume legitimately has a fresh `$RUN_ID` (`:512` — `RUN_ID="$$-…"` per invocation),
+  so discarding it on mismatch would **disarm P10 on every honest resume** — no concurrency required.
+  ⛔ And its **absence fails CLOSED**: an unreadable/missing `carry_count` on a ledger that exists is
+  **`unknown`, treated as `> 0`** (assume refs were carried) — never as `0`. Reading a missing
+  measurement as *"nothing was carried"* is the free-negative that P10 exists to stop.
 - ⛔ **Never follow `dst_pinned_path` as an address** — recompute `$DST_PINNED` from your own `$RUN_ID`.
   The key is a **record of what this run pinned**, kept for audit. Following it reads a snapshot you
   never took (P17 one indirection out).
@@ -800,6 +810,7 @@ per-slug object holding two lifetimes:
 | verdict clobber | A measures `SPLIT_BRAIN`; overlapping B writes `CLEAN_CARRY` to the same path; A loads per this rule at its push gate | the repo moves from the **council-then-HITL** row (§7) into the **unattended** row — ⛔ **no agent disobeyed anything** |
 | P10 disarm | A has `carry_count=2` + baseline lost (P10 armed); B legitimately has `carry_count=0` and overwrites | P10 goes **SILENT** — its condition never became false, it became **someone else's** |
 | corrupt resume | interrupted `>` write | `JSONDecodeError`; branches were exists/absent ⇒ **unspecified** |
+| P10 disarm **by honest resume** | `carry_count` mis-classified per-RUN; a resume's fresh `$RUN_ID` mismatches ⇒ discarded | P10 SILENT with **no second process at all** — the ownership fix re-opened the hole it closed (⇒ per-CUTOVER + monotonic + absence-fails-closed) |
 
 **The generalization**, now stated where a reader meets it: a guard whose **input is shared mutable
 state** is only as strong as the *ownership* of that state. Four rounds moved the ownership question up
