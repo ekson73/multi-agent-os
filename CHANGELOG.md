@@ -52,8 +52,29 @@ existing renderers are reachable for free. One contract unlocks N consumers.
 - **`examples/`** — 1 working fixture (dogfood: the chart-library comparison that chose the
   template's own renderer) + **5 negative fixtures**, each of which must fail.
 
-Verified by execution: 6/6 fixtures hit their expected exit codes, 18/18 output checks pass,
-Layer Purity clean, `validate-plugin.sh` 0 errors.
+- **`bin/tests/research-dossier.test.sh`** — 55 assertions, wired into `validate-plugin.sh`. Every
+  negative fixture is asserted on its **specific failure code**, not merely on exit 1: a fixture
+  failing for an unintended reason would satisfy a naive check while proving nothing about the check
+  it exists to exercise. Exit codes captured directly — a pipe reports its *last* command's status,
+  so `render | grep` would make a failing build read green. Mutation-tested: emptying
+  `MAGNITUDE_FORMS` turns 2 assertions red, so the suite is known capable of failing.
+
+Verified by execution: 6/6 fixtures hit their expected exit codes, 55/55 tests pass, Layer Purity
+clean, `validate-plugin.sh` 0 errors, and the full render succeeds under a stripped environment
+(`env -i PATH=/usr/bin:/bin`) with every offline/a11y/print invariant intact.
+
+**Density now reaches the render.** `--audience` previously stopped at the prose — `ir.audience` was
+read only to print it in the header, so gap #5 was half-closed and `audience-map.md` described
+effects the renderer did not implement. A documented-but-inert parameter is exactly the theater
+these gates exist to prevent. Now: charts beyond the audience cap are omitted **with the omission
+disclosed on the page** (an omission the reader cannot see is an edit, not a summary), and the
+evidence table starts expanded for `engineer`, collapsed elsewhere — collapsed but never
+script-gated, since `<details>` is native and works with JS off. `stakes: "high"` re-expands
+evidence at every audience, so the reader with the least context does not receive the
+least-qualified version of the truth. Audience stays presentation-only: a test asserts `claims`,
+scorecard `cells` and `not_checked[]` are byte-identical across an exec and an engineer render. The
+one remaining documented effect (demote a <4-point chart to a stat tile) is listed in
+`audience-map.md` as a **gap**, not described as behaviour.
 
 Two defects were found and root-fixed *while verifying* — both the same family, a test passing for
 the wrong reason. The body was initially client-rendered (JS off → blank page). And substitution
