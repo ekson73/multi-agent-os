@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.4.10"
+version: "0.5.0"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -33,7 +33,7 @@ Serves the operator's intent. If a phase/gate obstructs helping NOW, skip it, lo
 
 ⛔ **NEVER skippable** (the safety floor — §0 cannot reach any of these): **T4** (secret values never
 cross) · the **§9.0 unconditional no-force/no-destructive-push rule** · the **Blocking-Gate** itself
-(§4, incl. the P1–P15 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
+(§4, incl. the P1–P17 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
 non-FF response · **§3.1** write-once baseline + subtractive-only rollback · the **Phase-4
 point-of-no-return**.
 
@@ -212,10 +212,11 @@ verdicts. Until then, treat these as *deterministic in specification, self-repor
 | P12 | the destination holds a commit **disjoint** from the source's root (`merge-base` finds no common ancestor) — includes every `--add-readme`/auto-init destination ⇒ SPLIT-BRAIN, never CLEAN CARRY |
 | P13 | a push returned **non-fast-forward / fetch-first** — the classification was wrong; ⛔ never clear it with force (§5.2) |
 | P14 | the ledger at `$(git rev-parse --path-format=absolute --git-common-dir)/maos/custody/<slug>.json` (§6.0 — **derived**, never the literal `.git/…`) is absent while a push is contemplated — no ledger ⇒ no baseline ⇒ rollback forbidden ⇒ out of the autonomous band |
+| P17 | a per-ref `dst_sha` is read **by re-resolving the ref** instead of from the pre-loop pinned file, **OR** a pinned sha is empty/absent while its ref was present at the P16 gate, **OR** the pinned file is written to a **per-repo (not per-run)** path or without an atomic `.tmp`+`mv` publish, **OR** the cleanup sweeps beyond `$QUAR` — the gate proved the input existed *at the gate*, nothing holds it *until use*; an absent name reads as *"exists only on source"* ⇒ **CLEAN CARRY** while the destination objects are intact (§5.1 TOCTOU note). An absent pinned sha is a **MISSING MEASUREMENT**, never "no destination ref" |
 | P16 | the §5.1 **fetch** exited non-zero, **OR** the wire and quarantine ref **SETS** differ — ⛔ a **set difference on ref NAMES**, never a count (a count is a *signature*: one **stale** ref + one **missing** ref cancel to the right total) · ⛔ with peeled `^{}` lines filtered (`ls-remote` emits an extra peeled line per **annotated** tag that `for-each-ref` does not — unfiltered, this halts every repo with a release tag) · ⛔ over a **per-repo + per-run** quarantine path (a fixed shared path makes a leftover indistinguishable from a fetched ref). A partial fetch can exit 0, so both clauses are needed — ⛔ **an empty quarantine is `unknown`, never "no divergent refs"**. Without this, a dead fetch iterates zero refs, invokes `merge-base` zero times, and the worst-ref-class over an empty set is **vacuous** ⇒ every source ref reads *"exists only on source"* ⇒ **CLEAN CARRY on the autonomous path**. **The only fail-OPEN found in this artifact.** |
 | P15 | the source-tag snapshot is **absent** while classification has run, **or** it was **re-derived** (not write-once), **or** the source's real tag namespace **changed**, **or** a `_dst` leftover exists. ⛔ **Primary clause = SET DIFFERENCE, not a marker test** — `diff <(git for-each-ref --format='%(refname)' refs/tags \| sort) "$LEDGER_DIR/<slug>.src-tags-before.txt"` non-empty ⇒ the classifier mutated the source ⇒ HALT. **Secondary clause** (catches an *uncleaned quarantine*, which the diff cannot see): `git for-each-ref refs/tags refs/rct/_dst \| grep -q _dst`. See §5.1 for why the marker test alone is blind. |
 
-Any P1–P15 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
+Any P1–P17 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
 
 #### ⛔ Trip-wire design rule: never key on a property the failure mode is defined by LACKING
@@ -250,11 +251,11 @@ meta-failure here (§0-vs-`council-gate`-§0 · v0.4.0's own fetch refspec · §
 literal-path-vs-derivation · this). **The pattern gets inherited; the fix has to be carried
 deliberately.** When you invert a check, ask what the *new* form requires that the old one did not.
 
-##### ⭐ The seven instances ARE a fixture spec (the actionable form of "build the runner")
+##### ⭐ The nine instances ARE a fixture spec (the actionable form of "build the runner")
 
 Every defect found in this artifact's deterministic layer maps to **exactly one constructible repo
 state**. That turns a list of scars into a test matrix — and it is why the ask is not *"write a
-verifier"* but *"write these seven fixtures and the verifier falls out of them"*:
+verifier"* but *"write these nine fixtures and the verifier falls out of them"*:
 
 | Instance (all found post-hoc, by execution) | Fixture state — all `/tmp`-constructible, no real host |
 |---|---|
@@ -265,12 +266,46 @@ verifier"* but *"write these seven fixtures and the verifier falls out of them"*
 | mismatched universes | an **annotated** tag (+ a `refs/pull/*` ref) |
 | a count that cancels | one **stale** ref ⊕ one **missing** ref |
 | a colliding run-id | two classifications in the **same second** |
+| a gate that doesn't hold its input | **two overlapping classifications**, cleanup between gate and loop |
+| a shared pinned file | **two concurrent runs** writing the pinned file |
 
-**Prose cannot hold any of these seven** — which is precisely why seven consecutive rounds found them
+**Prose cannot hold any of these nine** — which is precisely why nine consecutive rounds found them
 *after* the fact. The sharpest evidence isn't any single defect: it is that **the fix for the fix had a
 counting bug twice, in opposite directions, written by two agents who had just spent five rounds on
 this exact failure class.** A blank line and a missing trailing newline are invisible to reading and
-trivial to a fixture. ⇒ This matrix is **B6's specification**.
+trivial to a fixture. ⇒ This matrix is **B6's specification**. (Row 8 also proves the general point twice over: prose could not hold a **blank line**, and it cannot hold a **race**.)
+
+##### ⛔ …and the loop needs its input to STILL EXIST when it reads it (gate ≠ hold)
+
+P16 proves the input existed **at the gate**. Nothing held it between the gate and its use — so the
+quartet has a fifth member. Measured on the prescribed code, **two classifications in one checkout with
+distinct run-ids** (no collision needed):
+
+```
+B's clause 2  → rc=0, PASSES, proceeds to the per-ref loop
+A's whole-tree cleanup fires → quarantine refs = 0
+B reads dst_sha at use → <EMPTY> ⇒ "exists only on source" ⇒ *** CLEAN CARRY ***
+destination objects: INTACT (cat-file -e passes) — only the NAME vanished
+```
+
+The carry would then overwrite **live** destination refs. And note the precision: if the sweep lands
+*before* clause 2, the gate **catches** it (measured, `diff rc=1` ⇒ HALT). The window is exactly
+**after the gate, before the read** — which is why this is a specific race, not a general
+"cleanup is unsafe" claim.
+
+**Two causes, one fix each — both applied, because they are independent:**
+
+1. **Never sweep the whole namespace.** The old `refs/rct/_dst` sweep was insurance against the
+   cancellation bug that v0.4.6 fixed a better way (per-run path + identity set-diff). It now
+   *destroys a sibling's live input*. Scoped to `$QUAR`.
+2. **Pin the destination SHAs before the loop** (the stronger fix, and it stands alone): a ref name
+   can vanish from *any* cause — an interrupted process, an external deletion, not just a sibling —
+   while the git **object** survives. Pinning makes the classification immune to all of them.
+   ⛔ An absent pinned sha is a **MISSING MEASUREMENT**, never *"no destination ref"*.
+
+⚠️ **Why not a prose rule ("one classification per checkout at a time")?** Because the artifact
+*anticipates* concurrency (the run-id comment says so) and then shared mutable state across it — and
+**prose cannot hold a race any better than it held a blank line.** The guard has to be in the data flow.
 
 ##### ⛔ The dual failure: a check that never RAN is not a check that PASSED
 
@@ -461,13 +496,34 @@ diff <(if [ -n "$wire_set" ]; then printf '%s\n' "$wire_set"; fi) \
      <(git for-each-ref --format='%(refname)' "$QUAR" | sed "s|^$QUAR/||" | sort) \
   >/dev/null 2>&1 || halt "P16: fetch under-delivered — wire/quarantine ref SETS differ"
 
-# then, PER REF (valid ONLY once P16 passed — see the vacuous-CLEAN-CARRY note below):
-git merge-base --is-ancestor <dst_sha> <src_sha>   # dst reachable from src? → fast-forwardable
-git merge-base --is-ancestor <src_sha> <dst_sha>   # src reachable from dst? → destination is ahead
-git merge-base <src_sha> <dst_sha>                 # non-zero ⇒ DISJOINT ROOTS
-# and ALWAYS, once classified — clean the WHOLE tree, not just this run's slice, so a leftover
-# from a crashed earlier run cannot survive to be mistaken for data later:
-git for-each-ref --format='%(refname)' refs/rct/_dst | xargs -r -n1 git update-ref -d
+# ⛔ PIN the destination SHAs into the ledger BEFORE the loop. The gate above proved the input
+#    existed *at the gate*; nothing holds it between the gate and its use. A ref name can vanish
+#    mid-loop (a sibling run's cleanup, an interrupted process, any external deletion) while the
+#    OBJECT survives — and an absent name reads as "exists only on source" ⇒ CLEAN CARRY.
+#    Pinning makes the classification immune to ANY cause of ref disappearance, not just cleanup.
+# ⛔ PER-RUN path + ATOMIC publish. A per-repo path is shared mutable state — exactly what pinning
+#    exists to remove: a concurrent run truncates it with `>` and the loop then reads an EMPTY
+#    pinned sha ⇒ the P17 misclassification returns. Measured. The quarantine is per-run; the
+#    pinned FILE must inherit that isolation. `>` also truncates-then-writes, so an interruption
+#    leaves a partial file — hence write-to-.tmp-then-mv (rename is atomic on one filesystem).
+DST_PINNED="$LEDGER_DIR/<slug>.dst-pinned.$RUN_ID.txt"
+git for-each-ref --format='%(refname) %(objectname)' "$QUAR" \
+  | sed "s|^$QUAR/||" > "$DST_PINNED.tmp" && mv "$DST_PINNED.tmp" "$DST_PINNED"
+# ⚠️ Do NOT "unify" this with §3.1's carry_baseline: that one is per-CUTOVER and write-once (a
+#    rollback bound that must survive re-runs); this one is per-RUN (a classification input that
+#    must NOT survive into another run). Different lifetimes, deliberately.
+
+# then, PER REF, reading dst_sha from the PINNED file — never re-resolving the ref:
+#   (valid ONLY once P16 passed — see the vacuous-CLEAN-CARRY note below)
+git merge-base --is-ancestor <pinned_dst_sha> <src_sha>   # dst reachable from src? → fast-forwardable
+git merge-base --is-ancestor <src_sha> <pinned_dst_sha>   # src reachable from dst? → destination ahead
+git merge-base <src_sha> <pinned_dst_sha>                 # non-zero ⇒ DISJOINT ROOTS
+# ⛔ An empty/absent pinned sha is NOT "no destination ref" — it is a MISSING MEASUREMENT (P17).
+
+# and ALWAYS, once classified — clean ONLY THIS RUN's slice. ⛔ Never sweep the whole namespace:
+# a concurrent classification's quarantine lives there and is its live input (see the TOCTOU note).
+# A per-run path already makes a foreign leftover harmless, and clause 2's set-diff now SEES one.
+git for-each-ref --format='%(refname)' "$QUAR" | xargs -r -n1 git update-ref -d
 # then P15 — SET DIFFERENCE first (the only form that sees an unmarked contaminant).
 # ⛔ Key on the EXIT STATUS, never on stdout emptiness: diff exits 1 = differences,
 #    but 2 = TROUBLE (e.g. missing baseline) and on 2 stdout is EMPTY.
@@ -595,6 +651,7 @@ mkdir -p "$LEDGER_DIR"
 "$LEDGER_DIR/<repo-slug>.json"              # the ledger (states · tiers · verdict · impediments)
 "$LEDGER_DIR/<repo-slug>.refs-before.txt"   # write-once carry_baseline — DESTINATION, rollback (§3.1)
 "$LEDGER_DIR/<repo-slug>.src-tags-before.txt" # SOURCE tag snapshot — P15 set-difference (§5.1)
+"$LEDGER_DIR/<repo-slug>.dst-pinned.$RUN_ID.txt" # DESTINATION ref→sha pinned pre-loop, PER-RUN + atomic — P17 (§5.1)
 ```
 
 **Why `--git-common-dir` and not `--absolute-git-dir`** — measured 2026-07-29, and this is the whole
@@ -626,6 +683,7 @@ was not.* Registered via `bin/artifact-registry` when the cutover completes.
   "carry_baseline_path": "<LEDGER_DIR>/<slug>.refs-before.txt",
   "src_tags_before_path": "<LEDGER_DIR>/<slug>.src-tags-before.txt",
   "src_tags_before_captured_at": "<iso8601|null>",
+  "dst_pinned_path": "<LEDGER_DIR>/<slug>.dst-pinned.<run-id>.txt",   // per-RUN, atomic-published
   "carry_baseline_captured_at": "<iso8601|null>", "carry_count": 0,
   "impediments": [{"trip_wire":"P5","report":"<path>"}],
   "resume": "<one concrete next step>" }
@@ -748,7 +806,7 @@ subtractive within a proven bound. Everything else ⇒ **HALT + Impediment Repor
     instead of a same-run `ls-remote` (§5.0). Empirically reproduced: it hides a peer's branch and
     routes an unattended push at it.
 13. ❌ **Self-scored gate** — treating "no supported path" as pure judgement and skipping the §4.0
-    P1–P15 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
+    P1–P17 trip-wires; a gate the proceeding agent scores itself is a gate it can talk past.
 14. ❌ **Unbounded rollback** — deleting destination refs without a pre-carry baseline, or deleting a
     ref that predates the carry (§3.1). The rollback then destroys what the cutover promised to protect.
 15. ❌ **Re-derive the rollback baseline on a re-run** — reading it "fresh" per §5.0 on an idempotent
@@ -819,6 +877,7 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 | Version | Date | Change |
 |---|---|---|
+| 0.5.0 | 2026-07-29 | **TOCTOU fail-open in `main`: the gate proved the input existed, nothing held it until use** (`elenchus-2`, against merged code — not a branch under review). **MINOR bump, not patch**: the per-ref loop's data source changes (pinned file, not live refs) and the cleanup's scope narrows — a behavioural contract change for any consumer. **Reproduced on the prescribed code**, two classifications in one checkout with **distinct** run-ids (no collision needed): B's clause 2 → `rc=0`, PASSES → A's **whole-tree** cleanup fires → quarantine = 0 refs → B reads `dst_sha` *at use* → `<EMPTY>` ⇒ *"exists only on source"* ⇒ ***CLEAN CARRY*** — while `cat-file -e` confirms the **destination objects are intact**. Only the *name* vanished, and the name was the input; the carry would then overwrite **live** destination refs. **Precision matters**: if the sweep lands *before* clause 2 the gate **catches** it (measured, `diff rc=1` ⇒ HALT). The window is exactly **after the gate, before the read** — a specific race, not a general "cleanup is unsafe" claim. **Two independent causes, one fix each, both applied**: **(1)** the `refs/rct/_dst` **whole-tree** sweep was insurance against the cancellation bug v0.4.6 already fixed better (per-run path ⊕ identity set-diff) and now *destroys a sibling's live input* ⇒ scoped to `$QUAR`. **(2)** *(the stronger fix, standing alone)* **pin the destination ref→sha into the ledger BEFORE the loop** (`<slug>.dst-pinned.<run-id>.txt`, `dst_pinned_path` in the schema) and read `dst_sha` from it, never by re-resolving — a ref name can vanish from **any** cause (interrupted process, external deletion, not just a sibling) while the git **object** survives. Verified: FIX A → B's quarantine survives A's cleanup, `dst_sha` readable · FIX B → pinned shas survive a **hostile whole-tree sweep**, `is-ancestor` still classifies, objects present. ⛔ **An absent pinned sha is a MISSING MEASUREMENT, never "no destination ref"** (**P17**). **Why not a prose rule** ("one classification per checkout at a time")? The artifact *anticipates* concurrency — the v0.4.7 run-id comment says so — and then shared mutable state across it. **Prose cannot hold a race any better than it held a blank line**, so the guard is in the data flow. ⇒ **P17** added; live P-range refs synced to **P1–P17**; the fixture matrix gains its **eighth** row (*two overlapping classifications, cleanup between gate and loop*). **The red-team's framing, kept**: eight rounds, eight defects, **every one found by execution and none by reading** — and this one proves the general claim twice over, since prose held neither the blank line nor the race. **HELD this round** (attacked, survived): the `<run-id>` surface I had flagged to it — it built the collision (`date +%Y%m%dT%H%M%S` twice → identical, reproducing my `date +%s` measurement) and confirmed it **fails closed** via v0.4.6's identity set-diff, then moot entirely under v0.4.7's `$$`-based id (3/3 distinct) · clause 2 correct on all four states at v0.4.9 · both P16 invariants greppable · the `n_wire` supply guard. ⚠️ **A red-team's process warning, adopted**: `elenchus-2` went idle on a **transport error** earlier, and `redteam-translatio` sharpened how that must be recorded — an agent lost mid-flight may hold **found-but-unsent** findings, which leave *no gap in the coverage table at all*. So the record says **`last pass status UNKNOWN — may hold unsent findings`**, never *incomplete*: "incomplete" implies the gap is where the silence is, and it may not be. That is the free-negative one turn further — a probe that **found** the real thing and had its report dropped in transit. `redteam-translatio` also stated its own queue **empty** to make the request symmetric. **Pre-merge PDCA on this PR added three fixes, all verified before accepting.** **(a) qodo — a RACE in the pinned file I had just added** (`Action required · Bug · Reliability`): I made the *quarantine* per-run and left the *pinned file* on a **per-repo** path — the very shared mutable state pinning exists to remove. Measured: run B pins 2 refs → run A truncates the same path with `>` → A cleans its slice and re-pins → **the file is 0 lines** → B reads `pinned_dst_sha=<EMPTY>` ⇒ **the P17 misclassification returns**. Its second point is equally right: `>` truncates-then-writes, so an interruption leaves a *partial* file. ⇒ per-run path `<slug>.dst-pinned.$RUN_ID.txt` + **atomic publish** (`.tmp` then `mv`), schema and P17 synced. ⚠️ Noted inline that this must **not** be unified with §3.1's `carry_baseline`: that is per-**cutover** and **write-once** (a rollback bound that must survive re-runs); this is per-**run** (a classification input that must **not** survive into another run). Different lifetimes, deliberately. **(b)+(c) copilot — two of my own sync errors when adding P17**: the pinned-sha note cited **P16** where P17 is meant (the table and changelog said P17; only the inline comment was stale — a wrong cross-reference makes the spec harder to implement *and* audit), and the fixture narrative still said *"nine fixtures"* while the heading, table and closing line said eight. Both fixed. **Deliberate non-change**: the v0.4.9 row also says "seven" — merged history (verified on `origin/main`), accurate when written, kept verbatim per `[C07b]`; rewriting it would falsify what was known when. **Ninth fixture row**: *two concurrent runs writing the pinned file*. |
 | 0.4.9 | 2026-07-29 | **Close-out. Doc-only, and it crosses my own stop line — stated plainly.** I said *"a reachable fail-open gets fixed; another paragraph does not"*, and this **is** another paragraph. Justification, narrower than v0.4.6-8: both items are **correctness-preservation for a fix already shipped**, not new hardening, and both come from the red-teams' close-out rather than a new probe. If that reads as rationalisation, the honest summary is: I judged two specific decay risks worth one final commit, and there is no third. **(1) P16's wire set has TWO invariants, and only one was named** (`redteam-translatio`, flagged as *unverified* by it — I verified it). The peeled-line `grep` was documented; the **`--heads --tags` SCOPE was not**. Measured: a **bare** `ls-remote` also advertises `HEAD`, `refs/pull/*`, `refs/notes/*`, `refs/replace/*` — 3 lines (HEAD · main · refs/pull/7/head) vs **1** under `--heads --tags`; on a live GitHub remote **258 of 274** lines were `refs/pull/*`. Drop *either* invariant and the comparison breaks (explodes, or cancels). Its reasoning for why this needed naming is the load-bearing part: **a later simplifier is far likelier to ask "why is this `grep` here?" than "why these flags?"** — so the flags read as ordinary argument choice and get "cleaned up". Both invariants are now named inline as load-bearing, with the measurement. **(2) The seven instances are a FIXTURE SPEC, not a list of scars** — its close-out contribution, and the most actionable thing produced this engagement. Each defect maps to **exactly one constructible repo state**: marker present/absent · a **linked worktree** (`.git` as a file) · a **second run** · an **unreachable** destination · an **annotated** tag · one **stale** ⊕ one **missing** ref · two classifications in the **same second**. All seven `/tmp`-constructible, none needing a real host. ⇒ **B6's ask is not "write a verifier" but "write these seven fixtures and the verifier falls out of them."** **A red-team disclosed its own process gap** (worse, in its judgement, than the redundancy it was reporting): it attacked `5887a86` because that was the sha in my invitation and **never checked whether HEAD had moved past it** — it asked *"is the working copy this sha?"* but not *"is this sha still current?"*, half of the two-freshness-questions shape §3.1 already states. Its fix — `git log --oneline <sha>..HEAD -- <path>` before reading — and its reason for recording it: **the next red-team on this artifact inherits the same invitation pattern.** ⚠️ **Coverage, stated so the record cannot be misread**: both red-teams' CLEAR-WITH-FINDINGS verdicts cover **probes 1 and 5 only**. Probes **2/3/4/6/7 are NOT_EXAMINED by either**, and §7/§8/§9.0/§10 were never re-read past `8a0ed09`. **Do not read the verdicts as coverage.** Standing guidance unchanged: §9.0's ⛔ literal spellings **are the oracle** — if that table is ever rewritten they move to a fenced block or a data file the trip-wires read, **never into paraphrase**. PR #291 stays blocked on the operator's YARA ruling; CodeRabbit's review stays **unread** — both red-teams independently declined to route around it, on the grounds that doing so is the same escalate-past-a-rejection §5.2 forbids one layer down. |
 | 0.4.8 | 2026-07-29 | **P16 guarded ONE operand of its own comparison and not the other — a reachable fail-open that SURVIVED the v0.4.6 set-diff rewrite** (`elenchus-2`). Its report targeted `7444d33` where clause 2 was still a count; I had rewritten it to a set difference in v0.4.6, so I tested whether the substance survived rather than assuming it didn't. **It did**: inside a pipeline (or a process substitution) the exit status is the **LAST** command's — `grep`/`awk`/`sort` — so **`ls-remote`'s 128 is discarded** and the stream is simply empty. Measured: unreachable destination → pipeline `rc=0`, 0 bytes ⇒ the set-diff compares **empty against empty** ⇒ ***CLEAN***. `n_quar`'s supply was protected by clause 1; **`n_wire`'s was not** — my own *guard-the-supply* doctrine applied to one operand and not the other. Exploitable path (not theoretical, and the red-team was right to insist): a partial fetch delivering **zero** refs at `rc=0` **plus** a failed wire read ⇒ empty-vs-empty ⇒ silent ⇒ vacuous loop ⇒ **CLEAN CARRY**. Those are **one root cause**, not two coincidences — a flaky or half-authenticated remote produces both. ⇒ **Fix: assign, CHECK, then compare** (`wire=$(...)`; `rc_ls=$?`; non-zero ⇒ HALT). **Two counting traps inside a three-line fix, both caught only by RUNNING it**: (a) the red-team disclosed that its *own* first version was wrong — `printf '%s\n' ""` emits **one blank line** that survives `grep -v`, so a genuinely-empty destination counted **1** instead of 0 ⇒ hence the `-z` guard; (b) my first version then inverted it — `printf '%s'` **drops the trailing newline**, so the left side lost its terminator and **false-positived on a perfectly healthy fetch** (measured: sets byte-identical, diff empty, yet my harness reported FIRES). I isolated it as a harness bug before touching the skill, then found the skill had inherited the same `printf`. Verified 5/5: unreachable → HALT · empty → silent · healthy w/ annotated tag → silent · fetch-skipped → FIRES · cancellation → FIRES. **The residual from v0.4.5 is CLOSED** — the red-team built a destination carrying `refs/notes/commits` + `refs/replace/<sha>` + a symref branch + a dangling `HEAD` + both tag kinds **at once**: `--heads --tags` excludes notes/replace from **both** sides so the universes match (`n_wire=5 = n_quar`), and `HEAD` is never counted. Notes/replace/peeled/symref/dangling-HEAD: **none** break clause 2. ⭐ **The strongest argument for B6 is not the finding — it is that the fix for the fix had a counting bug, twice, written by two agents who had just spent five rounds on precisely this failure class. Prose cannot catch a blank line.** Seven consecutive rounds in the deterministic layer's *specification*; `n_wire`'s guard belongs in **B6's spec** alongside marker-independence, baseline-integrity and supply-guard. The red-team **endorsed the Gordian stop** and asked that this be the last prose finding. |
 | 0.4.7 | 2026-07-29 | **The `<run-id>` I introduced in v0.4.6 was collision-prone — self-caught immediately, while naming it as the untested surface to a red-team.** v0.4.6 fixed P16 by moving the quarantine to a per-repo+per-run path, but left `<run-id>` a placeholder with no stated provenance. Probed the obvious choice: **`date +%s` twice in a row returns the IDENTICAL value** (measured), so two concurrent classifications in one checkout would share a namespace — **re-opening the exact stale-vs-fetched contamination the per-run path exists to prevent**. `date +%s%N` is **not portable** (BSD/Darwin `date` lacks `%N`). ⇒ Fixed: `RUN_ID="$$-<8 hex from uuidgen or /dev/urandom>"` — pid ⊕ random, unique per process **and** per invocation, with a `/dev/urandom` fallback when `uuidgen` is absent. Verified **6/6 distinct within one second**. Same lesson as v0.4.5: **the defect was found in the act of writing down what I had not verified** — twice now, naming an unverified assumption to a red-team is what made it checkable. A placeholder in a safety path is an unverified assumption wearing a variable name. |
