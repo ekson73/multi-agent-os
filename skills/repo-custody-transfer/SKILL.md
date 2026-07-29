@@ -4,25 +4,16 @@ version: "0.1.0"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
-  soul-name Translatio). NOT a "migration" that pretends everything crosses — a reversible,
-  resumable, idempotent 5-phase cutover under an HONEST FIDELITY CONTRACT: T1 git-exact
-  (commits/branches/tags/LFS), T2 translated (pipelines→Actions, permissions→teams,
-  protections), T3 archived-not-recreated (PRs/issues/comments/build-history extracted to
-  queryable artifacts + GAP report), T4 excluded (secret VALUES never cross — names-only
-  inventory + fresh provisioning + rotation). Carries a BLOCKING-GATE: when an axis has no
-  supported migration path, it HALTS the phase and emits an Impediment Report (blocked axis ·
-  root cause with probed evidence · achievable fidelity tier · ranked options w/ confidence ·
-  best practices · concrete next action · resume instructions) instead of improvising or
-  forcing. Carries a DRIFT-DETECTOR: any host-pair where BOTH sides have unique refs is
-  reclassified SPLIT-BRAIN (reconciliation, never `push --mirror`, never force-push).
-  Autonomy = council-before-HITL: max autonomy on the deterministically-cleared band, then
-  MoE debate-converge → council decide, HITL only for the irreducible residue. Composes
-  existing primitives (legacy-archaeologist · council-gate · red-team · convergence-engine ·
-  preflight/postflight · session-reentry · artifact-registry · decision-capture · the hub's
-  Bitbucket gateway); forges no new engine. Use when a repo must change git hosts with its
-  history AND its governance intact — e.g. "migrate <repo> from Bitbucket to GitHub",
-  "cutover this repo to GitHub", "transferir a custódia deste repo", "move repo host
-  preserving history/branches/tags/PRs/pipelines".
+  soul-name Translatio) as a reversible, resumable, idempotent 5-phase cutover under an HONEST
+  FIDELITY CONTRACT — not a "migration" pretending everything crosses: T1 git-exact
+  (commits/branches/tags/LFS) · T2 translated (pipelines→Actions, permissions→teams) · T3
+  archived-not-recreated (PRs/issues/builds → artifacts + GAP report) · T4 excluded (secret
+  VALUES never cross). HALTS on an unsupported axis with a ranked Impediment Report instead of
+  improvising; flags a host-pair where BOTH sides hold unique refs as SPLIT-BRAIN (never
+  `push --mirror`, never force-push); council-before-HITL autonomy; composes existing
+  primitives. Use when a repo must change git hosts with history AND governance intact — e.g.
+  "migrate <repo> from Bitbucket to GitHub", "cutover this repo to GitHub", "transferir a
+  custódia deste repo", "move repo host preserving history/branches/tags/PRs".
 ---
 
 # repo-custody-transfer — *Translatio*
@@ -40,6 +31,21 @@ description: |
 Serves the operator's intent. If a phase/gate obstructs helping NOW, skip it, log
 `Skipped <phase> — BEING > Rules`, proceed. ⛔ **Never skippable**: T4 (secret values never
 cross) · the no-force-push rule on SPLIT-BRAIN · the Blocking-Gate itself.
+
+## §0.1 — Requirements (external dependencies)
+
+| Dependency | Used for | If absent |
+|---|---|---|
+| `git` ≥ 2.30 | all T1 operations (refspec push, `ls-remote`, ref comparison) | hard stop — no cutover possible |
+| `gh` (authenticated, `repo` scope) | destination repo create · `[C18]` baseline · protections · teams · secret **names** | Impediment Report → HITL |
+| Bitbucket API access (host gateway **or** an app-password/token) | T3 extraction (PRs/issues/builds) · T4 secret-name inventory · source archive | T3 degrades to a declared GAP |
+| `git-lfs` | only when the source uses LFS (`.gitattributes`) | Impediment Report if LFS present |
+| `gitleaks` | pre-commit/pre-push scan of produced artifacts | warn; do not skip silently |
+| `jq` | parsing host API JSON in the ledger/report | fall back to inline parsing |
+| a secret manager (e.g. `op`) | T4 fresh provisioning at the destination | Phase 3 halts — ⛔ never inline a value |
+
+Probe **before** assuming any of these (`environment-capability-reconnaissance`), and apply the
+§4 positive-control rule before reporting one as absent.
 
 ## §1 — The premise (why "custody", not "migration")
 
