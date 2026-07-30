@@ -47,12 +47,18 @@ set -uo pipefail
 CACHE="${PCS_CACHE:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache}"
 AGE_MIN="${PCS_AGE_MIN:-180}"
 APPLY=0
+BAD_OPT=""   # set by the arg loop when an option's value is absent/empty; gate -3 refuses on it
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --apply)    APPLY=1 ;;
-    --age-min)  shift; AGE_MIN="${1:-180}" ;;
-    --cache)    shift; CACHE="${1:-$CACHE}" ;;
+    # ⛔ A MISSING value must NOT fall back to the default. `--cache` with nothing after it used to
+    #    silently keep the DEFAULT cache — so `--apply --cache` (value lost to a typo, an unquoted
+    #    empty shell var, or a truncated wrapper) aimed the deletion at the operator's REAL plugin
+    #    cache while the envelope reported that path as if it had been requested. `${1:-default}`
+    #    cannot distinguish "absent" from "empty"; both are refusals here (coderabbit #282 round 2).
+    --age-min)  if [ $# -ge 2 ] && [ -n "${2:-}" ]; then shift; AGE_MIN="$1"; else BAD_OPT="--age-min"; break; fi ;;
+    --cache)    if [ $# -ge 2 ] && [ -n "${2:-}" ]; then shift; CACHE="$1";   else BAD_OPT="--cache";   break; fi ;;
     -h|--help)  sed -n '2,45p' "$0"; exit 0 ;;
     *)          printf 'unknown argument: %s (try --help)\n' "$1" >&2; exit 0 ;;
   esac
@@ -62,6 +68,14 @@ done
 # JSON-escape a string field. The cache path is caller-supplied (--cache / PCS_CACHE)
 # and a quote or backslash in it would otherwise terminate the field early and emit
 # malformed JSON to a machine consumer.
+# JSON-escape a string field: backslash, quote, tab, and embedded newlines.
+# ⛔ RAW C0 CONTROL CHARS ARE REJECTED UPSTREAM, NOT ESCAPED HERE (see the reject gate below).
+#    RFC 8259 forbids U+0000-U+001F raw inside a string, and a `\uXXXX` escaper written in awk
+#    is a TRAP: awk strings cannot hold NUL, so a 32-entry lookup table silently SHIFTS and the
+#    envelope then parses cleanly while decoding the WRONG byte (measured: \x01 decoded as \x00,
+#    \x0b as \t — a collision). Valid JSON pointing at a byte the caller never passed is worse
+#    than invalid JSON: the first fails loudly, the second lies. A cache path has no legitimate
+#    use for a control char, so the honest handling is to refuse the input (Gordian).
 json_esc() {
   printf '%s' "$1" | awk 'BEGIN{ORS=""}
     { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t")
@@ -69,12 +83,40 @@ json_esc() {
       printf "%s", $0 }'
 }
 
+
 emit() { # emit <swept> <would> <young> <refused> <remaining> <freed_mb> <inuse> <note>
   printf '{"tool":"plugin-cache-sweeper","cache":"%s","mode":"%s","age_min":%s,' \
     "$(json_esc "$CACHE")" "$([ "$APPLY" -eq 1 ] && echo apply || echo report)" "$AGE_MIN"
   printf '"swept":%s,"would_sweep":%s,"too_young":%s,"refused":%s,' "$1" "$2" "$3" "$4"
   printf '"remaining":%s,"freed_mb":%s,"in_use":%s,"note":"%s"}\n' "$5" "$6" "$7" "$(json_esc "$8")"
 }
+
+# gate -3 — an option whose value was absent or empty. MUST come first: the later gates read
+# $CACHE/$AGE_MIN, and acting on a value the caller never supplied is the whole defect.
+if [ -n "$BAD_OPT" ]; then
+  emit 0 0 0 0 0 0 0 "missing-option-value"
+  printf 'plugin-cache-sweeper: %s requires a non-empty value — nothing swept\n' "$BAD_OPT" >&2
+  exit 0
+fi
+
+# gate -2 — refuse a CACHE path carrying a raw C0 control char. Fails CLOSED (sweeps nothing,
+# reports, exits 0) exactly like the age gate: a path we cannot faithfully serialize is a path we
+# must not act on. `tr -d` keeps the comparison byte-exact and needs no locale assumption.
+# ⛔ MUST sit AFTER emit() is defined — placed above it this called an undefined function and
+#    emitted NOTHING at all (measured: `emit: command not found`, empty stdout, so a machine
+#    consumer got no envelope instead of a refusal). A fail-closed gate that cannot report is a
+#    silent exit, not a guard.
+if [ "$(printf '%s' "$CACHE" | LC_ALL=C tr -d '\001-\037' | wc -c)" != "$(printf '%s' "$CACHE" | wc -c)" ]; then
+  # ⛔ SANITIZE BEFORE REPORTING — the refusal envelope must itself be parseable. Emitting the
+  #    offending path verbatim reproduced the exact defect being refused (measured: the gate fired
+  #    correctly, note=invalid-cache-path swept=0, yet `python json.load` still rejected the output
+  #    at the `cache` field). A guard whose own report is malformed hands the machine consumer
+  #    nothing to act on. `?` marks each removed byte so the path stays recognizable to a human.
+  CACHE="$(printf '%s' "$CACHE" | LC_ALL=C tr '\001-\037' '?')"
+  emit 0 0 0 0 0 0 0 "invalid-cache-path"
+  printf 'plugin-cache-sweeper: --cache contains a control character — nothing swept\n' >&2
+  exit 0
+fi
 
 # gate -1 — the age floor must be a non-negative integer BEFORE it reaches the
 # envelope. `age_min` is a JSON *number* field, so a non-numeric value is
@@ -132,7 +174,19 @@ if command -v lsof >/dev/null 2>&1; then
     # The candidate basename may carry a `.clone` suffix (temp_subdir_<ms>_<rand>.clone).
     # The pattern MUST admit it — gate 4 compares whole names, so a truncated capture
     # never matches its own candidate and silently exempts the .clone class.
-    INUSE="$(printf '%s\n' "$RAW" | grep -o "temp_[a-z]*_[0-9]*_[a-z0-9]*\(\.clone\)\?" | sort -u)"
+    # ⛔ SCOPE TO $BOUND BEFORE NAME-MATCHING. lsof reports every open path on the machine, and
+    #    gate 4 compares BASENAMES — so an open file in an unrelated directory that merely SHARES a
+    #    candidate's name refused the legitimate in-cache candidate forever (measured: a namesake
+    #    held open outside the cache → swept=0 refused=1 in_use=1, the in-cache orphan blocked).
+    #    Filter to `$BOUND/` paths FIRST (keeping the full path through the boundary test), then
+    #    derive names only from what survived. Over-refusing is safer than over-deleting, but a
+    #    permanent false refusal makes the sweeper useless at its one job.
+    INUSE="$(printf '%s\n' "$RAW" \
+      | sed -n 's|^n||p' \
+      | grep -F "$BOUND/" \
+      | sed -n "s|^$(printf '%s' "$BOUND" | sed 's/[][\.*^$/]/\\&/g')/\([^/]*\).*|\1|p" \
+      | grep -x "temp_[a-z]*_[0-9]*_[a-z0-9]*\(\.clone\)\?" \
+      | sort -u)"
   fi
   unset RAW
 fi

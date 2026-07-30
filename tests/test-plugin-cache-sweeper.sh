@@ -88,6 +88,29 @@ case "$out" in *'"swept":0'*) ok "invalid --age-min sweeps NOTHING (fail-closed)
 out="$("$BIN" --cache "$FIX/we\"ird" 2>/dev/null)"
 case "$out" in *'"note":"cache-absent"'*) ok "quoted cache path keeps envelope parseable" ;; *) no "quote broke envelope: $out" ;; esac
 
+# ── 7b. an option whose VALUE is missing must never fall back to the default ──
+# `--apply --cache` (value lost to a typo / an unquoted empty var / a truncated wrapper) used to
+# keep the DEFAULT cache and aim the deletion at the operator's REAL plugin cache. Asserted on the
+# EFFECT (did it delete) rather than the envelope text, with a control proving the test can see a
+# deletion at all — an assertion that only reads `note` would pass even if the files were removed.
+DECOY="$FIX/decoy-cache"
+mkdir -p "$DECOY/temp_git_${OLD_MS}_victim"; echo payload > "$DECOY/temp_git_${OLD_MS}_victim/file"
+out="$(PCS_CACHE="$DECOY" "$BIN" --apply --cache 2>/dev/null)"
+case "$out" in *'"note":"missing-option-value"'*) ok "missing --cache value refused" ;; *) no "missing-value not refused: $out" ;; esac
+[ -d "$DECOY/temp_git_${OLD_MS}_victim" ] && ok "missing --cache value did NOT delete from the fallback cache" || no "DELETED from fallback cache on missing --cache value"
+out="$("$BIN" --apply --cache "$DECOY" 2>/dev/null)"
+[ -d "$DECOY/temp_git_${OLD_MS}_victim" ] && no "control failed: supplied path did not delete (test is blind)" || ok "control: supplied path still reclaims"
+out="$("$BIN" --age-min 2>/dev/null)"
+case "$out" in *'"note":"missing-option-value"'*) ok "missing --age-min value refused" ;; *) no "missing --age-min not refused: $out" ;; esac
+
+# ── 7c. a raw C0 control char in --cache is refused, and the REFUSAL still parses ─
+# RFC 8259 forbids U+0000-U+001F raw in a string. The gate fired correctly from the start, but the
+# refusal envelope itself embedded the offending byte — reproducing the very defect it refused.
+CTLPATH="$(printf '%s' "$FIX/ev")$(printf '\001')x"
+out="$("$BIN" --cache "$CTLPATH" 2>/dev/null)"
+case "$out" in *'"note":"invalid-cache-path"'*) ok "control-char cache path refused" ;; *) no "ctl-char not refused: $out" ;; esac
+case "$out" in *$(printf '\001')*) no "refusal envelope still embeds the raw control byte" ;; *) ok "refusal envelope is free of raw control bytes" ;; esac
+
 # ── 8. gate 4 — open handle blocks deletion, INCLUDING the .clone class ──────
 # The lsof capture pattern must admit the `.clone` suffix: gate 4 compares WHOLE
 # names, so a truncated capture never matches its own candidate and would silently
@@ -101,8 +124,34 @@ if command -v lsof >/dev/null 2>&1; then
   exec 9<&-
   [ -d "$HELD" ] && ok "gate4 refused a held-open .clone candidate" || no "DELETED a .clone with an open handle"
   case "$out" in *'"refused":1'*) ok "gate4 counted the .clone refusal" ;; *) no "refusal not counted: $out" ;; esac
+
+  # ── 8a. an out-of-boundary NAMESAKE must not block the in-cache candidate ───
+  # lsof reports every open path on the machine and gate 4 compares BASENAMES, so an open file in an
+  # unrelated directory that merely SHARES a candidate's name refused the legitimate in-cache
+  # candidate forever. Over-refusing is safer than over-deleting, but a PERMANENT false refusal makes
+  # the sweeper useless at its one job — so the in-use set is scoped to "$BOUND/" before name-matching.
+  CACHE5="$FIX/cache5"; TWIN="temp_git_${OLD_MS}_bnd001"
+  mkdir -p "$CACHE5/$TWIN"; echo c > "$CACHE5/$TWIN/file"          # legit, NOT held
+  mkdir -p "$FIX/elsewhere/$TWIN"; echo o > "$FIX/elsewhere/$TWIN/file"
+  exec 8<"$FIX/elsewhere/$TWIN/file"                               # hold the OUT-OF-BOUNDARY twin
+  out="$("$BIN" --cache "$CACHE5" --apply 2>/dev/null)"
+  exec 8<&-
+  [ -d "$CACHE5/$TWIN" ] && no "out-of-boundary namesake blocked the in-cache candidate (false refusal)" || ok "out-of-boundary namesake does NOT block the in-cache candidate"
+
+  # ── 8b. an UNAVAILABLE probe must refuse, not pass ──────────────────────────
+  # `INUSE=""` means two opposite things — "nothing is open" and "I could not look". Reading the
+  # second as the first is the free-negative that turns gate 4 into a no-op exactly when it cannot
+  # see. Simulated by shadowing lsof with a non-zero stub on PATH (covers absent/broken/timed-out).
+  SHADOW="$FIX/shadow-bin"; mkdir -p "$SHADOW"
+  printf '#!/bin/sh\nexit 1\n' > "$SHADOW/lsof"; chmod +x "$SHADOW/lsof"
+  CACHE4="$FIX/cache4"; BLIND="$CACHE4/temp_subdir_${OLD_MS}_888888.clone"
+  mkdir -p "$BLIND"; echo x > "$BLIND/file"
+  out="$(PATH="$SHADOW:$PATH" "$BIN" --cache "$CACHE4" --apply 2>/dev/null)"
+  [ -d "$BLIND" ] && ok "gate4 fail-closed when the probe could not run" || no "DELETED while the in-use probe was blind"
+  case "$out" in *'"refused":1'*) ok "blind-probe refusal counted" ;; *) no "blind refusal not counted: $out" ;; esac
 else
   ok "gate4 .clone test skipped (no lsof)"
+  ok "gate4 blind-probe test skipped (no lsof)"
 fi
 
 echo
