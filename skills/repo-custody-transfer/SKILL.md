@@ -509,6 +509,13 @@ fi
 #    IDENTICAL value (measured), so two concurrent classifications in one checkout would share a
 #    namespace — re-opening the exact contamination the per-run path exists to prevent.
 #    `date +%s%N` is NOT portable (BSD/Darwin date lacks %N unless coreutils is installed).
+# ⛔ ASSIGN THIS AT PROCESS START — BEFORE the Phase-0 ledger read (§6.0), not here.
+#    Its site still reflects the narrower job it had before v0.6.0 promoted it to the OWNER of the
+#    ledger's per-RUN fields. §6.0 mandates writing a phase entry BEFORE entering the phase, so a
+#    Phase-0 writer with RUN_ID unset persists `"run_id":""` — and a pre-assignment reader then
+#    compares '' == '' and MATCHES, adopting another run's `drift_verdict` as its own with P19
+#    SILENT (measured: trace 13). Set-vs-empty already fails closed; empty-vs-empty is the hole.
+: "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
 RUN_ID="$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)"
 QUAR="refs/rct/_dst/<slug>/$RUN_ID"      # pid ⊕ random: unique per process AND per invocation
 
@@ -702,6 +709,13 @@ LEDGER_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/maos/custod
 mkdir -p "$LEDGER_DIR"
 
 "$LEDGER_DIR/<repo-slug>.json"              # the ledger — ⛔ publish ATOMICALLY (.tmp + mv), never `>`
+                                            #   ⛔ the .tmp MUST be created INSIDE $LEDGER_DIR — `mv`
+                                            #     is atomic only within one filesystem; from /tmp it
+                                            #     degrades to copy+unlink, i.e. a torn window again.
+                                            #   ⛔ atomicity is NOT serialization: two overlapping runs
+                                            #     can still last-writer-wins whole-file. Read-modify-
+                                            #     publish under an exclusive lock on $LEDGER_DIR, or a
+                                            #     run may erase another's phase_states/tiers/impediments.
                                             #   per-CUTOVER: phase_states · tiers · impediments
                                             #     ⛔ + carry_baseline · src_tags_before · carry_count (MONOTONIC — §3.1)
                                             #   per-RUN (owned by run_id): drift_verdict · dst_pinned_path
@@ -796,6 +810,15 @@ the moment of observation** rather than deriving it later from state that may ha
   ⛔ And its **absence fails CLOSED**: an unreadable/missing `carry_count` on a ledger that exists is
   **`unknown`, treated as `> 0`** (assume refs were carried) — never as `0`. Reading a missing
   measurement as *"nothing was carried"* is the free-negative that P10 exists to stop.
+- ⛔ **A ledger with NO `run_id` key at all (legacy ≤v0.5.5, or written before `RUN_ID` was set) is
+  an UNATTRIBUTED measurement ⇒ every per-RUN field in it is a MISSING MEASUREMENT.** Same class as
+  the legacy-impediment rule below, and the same reason: absence of provenance is *`unknown`*, never
+  *"mine"*. ⛔ It does **NOT** halt a resume (`carry_count` is per-CUTOVER and still inherited, §3.1),
+  and ⛔ it is **never** back-filled with your own `$RUN_ID` — stamping it makes another run's
+  verdict *read* as yours, which is the defect wearing the fix's clothes.
+- ⛔ **`dst_pinned_path` absent or unreadable is a MISSING MEASUREMENT ⇒ P17 keeps blocking** until
+  this run re-pins. Never read it as *"no destination ref"* — that is the free-negative P17 exists to
+  stop, one indirection out.
 - ⛔ **Never follow `dst_pinned_path` as an address** — recompute `$DST_PINNED` from your own `$RUN_ID`.
   The key is a **record of what this run pinned**, kept for audit. Following it reads a snapshot you
   never took (P17 one indirection out).
