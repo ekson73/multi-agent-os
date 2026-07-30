@@ -59,12 +59,36 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# JSON-escape a string field. The cache path is caller-supplied (--cache / PCS_CACHE)
+# and a quote or backslash in it would otherwise terminate the field early and emit
+# malformed JSON to a machine consumer.
+json_esc() {
+  printf '%s' "$1" | awk 'BEGIN{ORS=""}
+    { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t")
+      if (NR>1) printf "\\n"
+      printf "%s", $0 }'
+}
+
 emit() { # emit <swept> <would> <young> <refused> <remaining> <freed_mb> <inuse> <note>
   printf '{"tool":"plugin-cache-sweeper","cache":"%s","mode":"%s","age_min":%s,' \
-    "$CACHE" "$([ "$APPLY" -eq 1 ] && echo apply || echo report)" "$AGE_MIN"
+    "$(json_esc "$CACHE")" "$([ "$APPLY" -eq 1 ] && echo apply || echo report)" "$AGE_MIN"
   printf '"swept":%s,"would_sweep":%s,"too_young":%s,"refused":%s,' "$1" "$2" "$3" "$4"
-  printf '"remaining":%s,"freed_mb":%s,"in_use":%s,"note":"%s"}\n' "$5" "$6" "$7" "$8"
+  printf '"remaining":%s,"freed_mb":%s,"in_use":%s,"note":"%s"}\n' "$5" "$6" "$7" "$(json_esc "$8")"
 }
+
+# gate -1 — the age floor must be a non-negative integer BEFORE it reaches the
+# envelope. `age_min` is a JSON *number* field, so a non-numeric value is
+# interpolated raw and produces invalid JSON (a crafted value injects arbitrary
+# text into a machine-parsed envelope). Fail CLOSED: sweep nothing, report the
+# refusal, and still exit 0 — the never-fail-a-session guarantee is unconditional.
+case "$AGE_MIN" in
+  ''|*[!0-9]*)
+    BAD_AGE="$AGE_MIN"; AGE_MIN=0
+    emit 0 0 0 0 0 0 0 "invalid-age-min"
+    printf 'plugin-cache-sweeper: --age-min must be a non-negative integer (got %s) — nothing swept\n' \
+      "$BAD_AGE" >&2
+    exit 0 ;;
+esac
 
 [ -d "$CACHE" ] || { emit 0 0 0 0 0 0 0 "cache-absent"; printf 'plugin-cache-sweeper: no cache at %s\n' "$CACHE" >&2; exit 0; }
 
@@ -91,8 +115,27 @@ free_mb() { df -m "$BOUND" 2>/dev/null | awk 'NR==2{print $4+0}'; }
 #  *            excludes in-flight work. */
 TB=""; command -v timeout >/dev/null 2>&1 && TB="timeout 25"
 INUSE=""
-command -v lsof >/dev/null 2>&1 && \
-  INUSE="$($TB lsof -n -w -F n 2>/dev/null | grep -o "temp_[a-z]*_[0-9]*_[a-z0-9]*" | sort -u)"
+# INUSE_OK is the gate-4 TRUST flag, not a convenience: the empty-set and the
+# could-not-look cases are indistinguishable in `INUSE` alone, and reading a
+# blind "" as "nothing is open" is the free-negative that turns a safety gate
+# into a no-op precisely when it matters. Only a probe that RAN may license a
+# delete; absent/timed-out `lsof` ⇒ gate 4 refuses everything under --apply.
+INUSE_OK=0
+if command -v lsof >/dev/null 2>&1; then
+  # Capture lsof SEPARATELY from the filter. Piping them together conflates two
+  # opposite meanings into one rc: `grep -o` exits 1 on NO MATCH, which is the
+  # HEALTHY common case (nothing open) — reading that as "the probe failed" would
+  # refuse every delete forever. Only lsof's own rc may clear the trust flag.
+  RAW="$($TB lsof -n -w -F n 2>/dev/null)"; LSOF_RC=$?
+  if [ "$LSOF_RC" -eq 0 ]; then
+    INUSE_OK=1
+    # The candidate basename may carry a `.clone` suffix (temp_subdir_<ms>_<rand>.clone).
+    # The pattern MUST admit it — gate 4 compares whole names, so a truncated capture
+    # never matches its own candidate and silently exempts the .clone class.
+    INUSE="$(printf '%s\n' "$RAW" | grep -o "temp_[a-z]*_[0-9]*_[a-z0-9]*\(\.clone\)\?" | sort -u)"
+  fi
+  unset RAW
+fi
 # NOT `grep -c . || echo 0`: grep -c ALWAYS prints the count and exits 1 when that
 # count is zero, so the `||` fires too and the value becomes "0\n0". awk always
 # exits 0 and always prints exactly one number.
@@ -140,8 +183,15 @@ while IFS= read -r t; do
   r="$(cd "$t" 2>/dev/null && pwd -P)" || { refused=$((refused+1)); continue; }
   case "$r" in "$BOUND"/*) : ;; *) refused=$((refused+1)); continue ;; esac
 
-  # gate 4 — not currently open by any process
-  printf '%s\n' "$INUSE" | grep -qx "$b" && { refused=$((refused+1)); continue; }
+  # gate 4 — not currently open by any process.
+  # -F is load-bearing: a candidate name can contain `.` (…_<rand>.clone) and as a
+  # REGEX that dot matches any character, so a plain -x compare could match the
+  # wrong entry. Fixed-string keeps the comparison literal.
+  printf '%s\n' "$INUSE" | grep -Fqx "$b" && { refused=$((refused+1)); continue; }
+  # …and if the probe never RAN, we do not know. Under --apply that unknown is a
+  # refusal, not a pass: an untrusted gate must not license an irreversible delete.
+  # Report mode still counts the candidate (it deletes nothing by construction).
+  [ "$APPLY" -eq 1 ] && [ "$INUSE_OK" -eq 0 ] && { refused=$((refused+1)); continue; }
 
   if [ "$APPLY" -eq 1 ]; then
     rm -rf -- "$t" 2>/dev/null && swept=$((swept+1)) || refused=$((refused+1))

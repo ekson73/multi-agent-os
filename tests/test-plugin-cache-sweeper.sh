@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test: bin/plugin-cache-sweeper.sh — orphaned plugin staging-clone reclaim.
 # Portable (bash 3.2). Exit 0 = all pass; 1 = a failure.
-set -uo pipefail
+set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$HERE/bin/plugin-cache-sweeper.sh"
 FIX="$(mktemp -d 2>/dev/null || mktemp -d -t 'pcsweep')"
@@ -71,6 +71,39 @@ case "$out" in *'"note":"cache-absent"'*) ok "absent cache reported in envelope"
 # with a 1-minute floor the young orphan becomes eligible
 out="$("$BIN" --cache "$CACHE" --age-min 0 2>/dev/null)"
 case "$out" in *'"too_young":0'*) ok "--age-min override honored" ;; *) no "age override ignored: $out" ;; esac
+
+# ── 7. --age-min must be a non-negative integer (fail CLOSED, valid JSON) ────
+# A non-numeric value used to be interpolated raw into the `age_min` NUMBER field,
+# so a crafted argument emitted malformed JSON to a machine consumer.
+CACHE2="$FIX/cache2"
+mkdir -p "$CACHE2/temp_git_${OLD_MS}_ffffff"
+out="$("$BIN" --cache "$CACHE2" --age-min 'abc"; rm -rf /' --apply 2>/dev/null)"; rc=$?
+[ "$rc" -eq 0 ] && ok "invalid --age-min still exits 0" || no "invalid age exit=$rc"
+case "$out" in *'"note":"invalid-age-min"'*) ok "invalid --age-min reported in envelope" ;; *) no "invalid-age note missing: $out" ;; esac
+case "$out" in *'"age_min":0,'*) ok "age_min stays a valid JSON number" ;; *) no "age_min not numeric: $out" ;; esac
+case "$out" in *'"swept":0'*) ok "invalid --age-min sweeps NOTHING (fail-closed)" ;; *) no "swept despite invalid age: $out" ;; esac
+[ -d "$CACHE2/temp_git_${OLD_MS}_ffffff" ] && ok "candidate survived invalid --age-min" || no "DELETED under invalid --age-min"
+
+# a quote/backslash in the cache path must not terminate the JSON string early
+out="$("$BIN" --cache "$FIX/we\"ird" 2>/dev/null)"
+case "$out" in *'"note":"cache-absent"'*) ok "quoted cache path keeps envelope parseable" ;; *) no "quote broke envelope: $out" ;; esac
+
+# ── 8. gate 4 — open handle blocks deletion, INCLUDING the .clone class ──────
+# The lsof capture pattern must admit the `.clone` suffix: gate 4 compares WHOLE
+# names, so a truncated capture never matches its own candidate and would silently
+# exempt every temp_subdir_*.clone with a live file handle.
+if command -v lsof >/dev/null 2>&1; then
+  CACHE3="$FIX/cache3"
+  HELD="$CACHE3/temp_subdir_${OLD_MS}_999999.clone"
+  mkdir -p "$HELD"; echo held > "$HELD/open-file"
+  exec 9<"$HELD/open-file"            # hold a real handle for the duration
+  out="$("$BIN" --cache "$CACHE3" --apply 2>/dev/null)"
+  exec 9<&-
+  [ -d "$HELD" ] && ok "gate4 refused a held-open .clone candidate" || no "DELETED a .clone with an open handle"
+  case "$out" in *'"refused":1'*) ok "gate4 counted the .clone refusal" ;; *) no "refusal not counted: $out" ;; esac
+else
+  ok "gate4 .clone test skipped (no lsof)"
+fi
 
 echo
 [ "$fail" -eq 0 ] && echo "test-plugin-cache-sweeper: ALL PASS" || echo "test-plugin-cache-sweeper: FAILURES"
