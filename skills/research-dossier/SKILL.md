@@ -1,6 +1,6 @@
 ---
 name: research-dossier
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Turn finished research into a decision-ready visual dossier — html, md, json, and
   hand-offs to pdf/pptx/xlsx — routed through an intermediate representation that
@@ -57,6 +57,18 @@ point contradicting the claim it cites, a `display` string contradicting its own
 of its declared weights, a blank scorecard cell whose evidence exists but went
 unused, evidence years staler than the dossier: all fail the build.
 
+**Declared form vs. drawn form.** The schema takes 13 `chart.form` values; the
+renderer draws exactly one geometry — horizontal proportional bars. A chart declaring
+`form:"line"` therefore renders as bars, and until v0.2.0 nothing said so: accepted,
+ignored, and silently substituted. `FORM_NOT_RENDERED` now names that gap. It is a
+**WARN**, not a FAIL — the evidence is still sourced and still truncation-checked, so
+only the label overpromises; `--strict` escalates it for CI. Two alternatives were
+rejected on measurement: shrinking the enum is a **breaking** change (it is
+enum-constrained with `additionalProperties:false`, so an existing IR carrying
+`form:"line"` would stop validating) and would delete vocabulary `dataviz` teaches;
+building 13 geometries is YAGNI while every fixture chart in the suite declares only
+`bar`. Note this adds **no exemption** to anything — truncation stays form-agnostic.
+
 Two things remain **outside** deterministic reach, and are stated here rather than
 implied away:
 
@@ -91,7 +103,7 @@ reformatting with no evidential claims (`content-recast`).
 | `--design-system` | `auto` | `auto` resolves from audience |
 | `--stakes` | `low` | `high` tightens the gate and expands gaps |
 | `--out` | `out` | output directory |
-| `--strict` | off | a missing dataviz validator FAILS instead of warning |
+| `--strict` | off | escalates advisory findings to failures: a missing dataviz validator, and `FORM_NOT_RENDERED` |
 
 ## Requirements
 
@@ -218,6 +230,23 @@ DATAVIZ_VALIDATOR=/nonexistent node bin/research-dossier-render.mjs --ir skills/
 
 Capture exit codes directly. A pipe returns the exit of the *last* command in it, so
 `cmd | grep` silently reports the grep's status and a failing build reads as green.
+
+## Not built (measured, not implied)
+
+Stated here because a skill that quietly lacks a capability its callers assume is the
+same failure `FORM_NOT_RENDERED` exists to catch. Each was probed, not guessed.
+
+| Gap | State | Why not yet |
+|---|---|---|
+| **drill-down** | absent | Needs `dataviz` `references/interaction.md` first, and a design that does not create a second evidence store — a drilled-into detail must be the *same* claim ids, gated once. |
+| **filter controls** | declared, inert | `references/audience-map.md` lists it as `dataviz` parameter #8; nothing implements it. Interaction must **degrade**, never gate: with JS off the dossier already renders every claim server-side, and that property is not negotiable for an archival artifact. |
+| **burn-down** | absent | No consumer. Deferred deliberately rather than built on spec. |
+| **stat-tile demotion** (<4 points) | declared, inert | `references/audience-map.md` self-declares it "Not yet implemented". |
+| **yaml output** | absent | `--formats` takes `html,md,json` (+ pdf/pptx/xlsx hand-offs). yaml is neither rendered nor schema-known; an unknown format is a logged `UNKNOWN_FORMAT` warning, not a silent skip. |
+
+**Responsive** is implemented as of v0.2.0: width breakpoints at 760px and 420px
+(header stacks, data tables scroll rather than the page, claim ids wrap), declared
+before `@media print` so print keeps the last word.
 
 ## Anti-patterns
 

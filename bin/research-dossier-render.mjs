@@ -55,7 +55,7 @@ const EXIT_OK = 0, EXIT_GATE = 1, EXIT_USAGE = 2;
 // a dossier in the wild can be traced to the gate revision that cleared it — the
 // checks tightened materially once already, and an artifact that predates that
 // hardening should not be indistinguishable from one that followed it.
-const RENDERER_ID = 'research-dossier v0.1.0';
+const RENDERER_ID = 'research-dossier v0.2.0';
 
 // ── tiny arg parser (zero-dep) ──────────────────────────────────────────────
 function parseArgs(argv) {
@@ -93,7 +93,15 @@ const CONFIDENCE = new Set(['high', 'medium', 'low']);
  * Recorded rather than deleted silently, so the next reader does not reintroduce
  * the allow-list as an apparent improvement. */
 
-function gateProvenance(ir) {
+/* The chart forms the renderer actually DRAWS distinctly. The schema accepts 13;
+ * this is the honest subset. Keep it in lockstep with the rendering code: adding a
+ * geometry means adding its form here, and nothing else in the gate keys off form
+ * (truncation stays form-agnostic by design). Bar and column are one geometry here —
+ * the marks are horizontal, so "column" is an orientation the renderer does not yet
+ * honour and it is intentionally absent. */
+const RENDERED_FORMS = new Set(['bar']);
+
+function gateProvenance(ir, opts) {
   // -- structural minimums the schema also states, re-checked here because the
   //    renderer must never assume an upstream validator ran.
   for (const f of ['question', 'as_of', 'audience', 'claims', 'not_checked', 'methodology']) {
@@ -174,6 +182,29 @@ function gateProvenance(ir) {
     const at = `charts[${i}]${ch && ch.id ? ` (${ch.id})` : ''}`;
     if (!ch || typeof ch !== 'object') { FAIL('CHART_SHAPE', `${at}: not an object`); continue; }
     if (!ch.form) FAIL('CHART_NO_FORM', `${at}: missing form`);
+    // A form the renderer does not honour is accepted-then-ignored: the schema takes
+    // 13 values and every one of them draws as horizontal proportional bars. That is
+    // theater of the exact kind this skill exists to refuse — the IR says "line", the
+    // artifact shows bars, and nothing announces the substitution. Two roads were
+    // rejected before this one: shrinking the enum is a BREAKING change (it is
+    // enum-constrained with additionalProperties:false, so an existing IR carrying
+    // form:"line" would stop validating) and it would delete vocabulary the bundled
+    // dataviz reference actively teaches; building 13 geometries is YAGNI while every
+    // fixture chart in the suite declares only "bar". So the substitution is made
+    // VISIBLE and deterministic instead: same input, same verdict, every time.
+    // Deliberately NOT a FAIL — the dossier is still honest, its charts are still
+    // sourced and still truncation-checked; only the form label overpromises. WARN
+    // keeps that proportionate, and --strict escalates it for CI.
+    // ⚠️ This is NOT the MAGNITUDE_FORMS allow-list returning. That list scoped the
+    // truncation check BY FORM and was removed on purpose (see the note above
+    // gateProvenance) because it let form:"line" escape a check on bars that were
+    // drawn anyway. This code adds no exemption to anything: truncation stays
+    // form-agnostic, and this only reports the gap between declared and drawn.
+    else if (!RENDERED_FORMS.has(ch.form)) {
+      const m = `${at}: form "${ch.form}" is declared but the renderer draws proportional bars — the artifact will not match the label (honoured: ${[...RENDERED_FORMS].join(', ')})`;
+      if (opts && opts.strict) FAIL('FORM_NOT_RENDERED', `${m} (--strict: treated as failure)`);
+      else WARN('FORM_NOT_RENDERED', m);
+    }
     if (!ch.title) FAIL('CHART_NO_TITLE', `${at}: missing title`);
     checkRefs(ch.source_claims, at);
 
@@ -942,7 +973,11 @@ function main() {
   --formats <list>     html,md,json          [default: html,md,json]
   --out <dir>          output directory      [default: out]
   --gates-only         run both gates, render nothing
-  --strict             a missing dataviz validator FAILS instead of warning
+  --strict             escalate advisory findings to build failures:
+                       · a missing dataviz validator (gate 2) FAILS instead of warning
+                       · FORM_NOT_RENDERED (gate 1) FAILS — a declared chart.form the
+                         renderer does not draw. Intended for CI, where a dossier whose
+                         charts do not match their labels should not ship.
   --quiet              suppress the report on success
 
 Env: DATAVIZ_VALIDATOR   explicit validator path (nonexistent => exercises degradation)
@@ -959,7 +994,7 @@ Exit: 0 ok · 1 gate failure · 2 usage/IO`);
     return EXIT_USAGE;
   }
 
-  gateProvenance(ir);
+  gateProvenance(ir, a);
   const paletteInfo = gatePalette(ir, a);
 
   const failed = report.fail.length > 0;
