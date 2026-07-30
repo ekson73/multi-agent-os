@@ -539,7 +539,7 @@ The assertion count is deliberately **not** written here: quoting it would re-cr
 
 ---
 
-*Signed: `Claude-Dev-2d0e-lens-dispatch` (Claude Opus 4.8, session `2d0e0cdf`) | 2026-07-22T20:15:36-03:00 — per
+*Signed: `Claude-Dev-2d0e-001` (Claude Opus 4.8, session `2d0e0cdf`) | 2026-07-22T20:15:36-03:00 — per
 CLAUDE.md § MUST ("Sign documents with agent ID and timestamp", ISO 8601). Agent-authored; **not**
 human-signed. Independent adversarial red-team: 9 rounds (H6/Elenchus, verifier ≠ author). The
 `bin/lens-dispatch` glob-injection fix (coderabbit PR #279) re-opens the H6-cleared artifact →
