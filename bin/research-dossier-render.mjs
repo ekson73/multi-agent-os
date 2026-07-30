@@ -973,7 +973,11 @@ function main() {
   --formats <list>     html,md,json          [default: html,md,json]
   --out <dir>          output directory      [default: out]
   --gates-only         run both gates, render nothing
-  --strict             a missing dataviz validator FAILS instead of warning
+  --strict             escalate advisory findings to build failures:
+                       · a missing dataviz validator (gate 2) FAILS instead of warning
+                       · FORM_NOT_RENDERED (gate 1) FAILS — a declared chart.form the
+                         renderer does not draw. Intended for CI, where a dossier whose
+                         charts do not match their labels should not ship.
   --quiet              suppress the report on success
 
 Env: DATAVIZ_VALIDATOR   explicit validator path (nonexistent => exercises degradation)

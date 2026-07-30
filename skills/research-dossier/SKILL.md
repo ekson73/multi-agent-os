@@ -103,7 +103,7 @@ reformatting with no evidential claims (`content-recast`).
 | `--design-system` | `auto` | `auto` resolves from audience |
 | `--stakes` | `low` | `high` tightens the gate and expands gaps |
 | `--out` | `out` | output directory |
-| `--strict` | off | a missing dataviz validator FAILS instead of warning |
+| `--strict` | off | escalates advisory findings to failures: a missing dataviz validator, and `FORM_NOT_RENDERED` |
 
 ## Requirements
 
