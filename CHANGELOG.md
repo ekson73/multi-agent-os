@@ -188,6 +188,7 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Distinct from siblings: `maos-concierge` (framework-facing) · `work-compass` (aggregation engine it routes to) ·
   `pulse` (single-session re-orientation) · `reactivate`/Entelecheia (the agent-facing twin) · `ops-strategist`
   (the optional user-scope brain). Named by `skills/anima` per the naming authority.
+
 ## [1.22.0] - 2026-07-22
 
 ### Added — `reactivate` (soul-name *Entelecheia*): cold-start reactivation conductor for amnesic agents

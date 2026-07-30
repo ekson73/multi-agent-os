@@ -1,6 +1,6 @@
 ---
 name: reactivate
-description: Cold-start reactivation conductor for new-fresh-born amnesic agents. Orients from whatever evidence exists (or honestly reports none), recovers the unstated intent, deliberates, and PRESENTS ranked recommendations routed to the consumer's own form — pt-BR ask-tool for a live human, persisted ranked set for a deferred human, typed JSON envelope for an agent/abiotic consumer. Explicit operator instruction overrides every computed condition. Soul-name Entelecheia.
+description: Cold-start reactivation conductor for new-fresh-born amnesic agents. Orients from whatever evidence exists (or honestly reports none), recovers the unstated intent, deliberates, and PRESENTS ranked recommendations routed to the consumer's own form — operator_language ask-tool for a live human, persisted ranked set for a deferred human, typed JSON envelope for an agent/abiotic consumer. Explicit operator instruction overrides every computed condition. Soul-name Entelecheia.
 ---
 
 # /reactivate Command
@@ -21,14 +21,16 @@ the first to the second.
 /reactivate ["<optional hint about what you were doing>"]
             [--consumer=human-live|human-deferred|machine|auto]   (default auto; explicit ALWAYS wins)
             [--depth=quick|full]        (default quick — phases 0-3,5; full adds the PHASE-4 chain)
-            [--lang=pt|en|auto]         (default auto — pt-BR for human classes, en-US for machine)
+            [--lang=pt|en|auto]         (default auto — human classes RESOLVE operator_language per the
+                                         host language policy, never a hardcoded tag; machine is always
+                                         en-US. --lang=en forces en-US human-facing output, --lang=pt pt-BR)
             [--json]                    (force the machine envelope regardless of class)
             [--no-act]                  (present only — never let the Return-Gate act, even if it clears)
 ```
 
 ## What it does
 
-```
+```text
 PHASE 0  CONSUMER   classify the consumer first, so every phase knows its output form
 PHASE 1  ORIENT     pulse ──(pulse stops on a true cold start)──► zero-artifact branch
 PHASE 2  INTENT     goal-recovery — ranked hypotheses + confidence, or inconclusive

@@ -5,7 +5,7 @@ description: |
   Cold-start reactivation conductor for new-fresh-born amnesic agents. Wakes an agent that has
   NO context — orients from whatever evidence exists (or honestly reports that none does),
   recovers the often-unstated intent, deliberates, and PRESENTS ranked recommendations /
-  next-actions routed to the consumer's own form: pt-BR via the ask-tool for a live human,
+  next-actions routed to the consumer's own form: operator_language via the ask-tool for a live human,
   a persisted ranked set for a deferred human, a typed JSON envelope for an agent/subagent/
   abiotic consumer. Composes the existing family (pulse · goal-recovery · enhance-pipeline ·
   converge · convergence-engine Return-Gate) and newly authors only what was genuinely absent:
@@ -47,7 +47,7 @@ metadata:
 
 ## The pipeline (6 phases — lean by default, deepened on demand)
 
-```
+```text
 PHASE 0  CONSUMER   classify the consumer (cheap, always) — every later phase knows its output form
 PHASE 1  ORIENT     pulse  ──(pulse stops on true cold-start)──► ZERO-ARTIFACT branch
 PHASE 2  INTENT     goal-recovery — ranked hypotheses + confidence, or inconclusive
@@ -186,9 +186,16 @@ This is reused whole. The conductor adds no new authorization logic and no new m
 
 | Class | Channel | Form |
 |---|---|---|
-| `human-live` | the ask-tool — recommended option **first** and tagged, description carries the *tradeoff*, escape always available | **pt-BR** |
-| `human-deferred` | **the Return-Gate above, unchanged** — act when the gate clears, else persist the ranked set and return. **Never blocks.** | pt-BR + envelope |
+| `human-live` | the ask-tool — recommended option **first** and tagged, description carries the *tradeoff*, escape always available | **`operator_language`** |
+| `human-deferred` | **the Return-Gate above, unchanged** — act when the gate clears, else persist the ranked set and return. **Never blocks.** | `operator_language` + envelope |
 | `machine` | one typed `recommendation-set` envelope | JSON, en-US |
+
+⛔ **`operator_language` is RESOLVED at emission time — never hardcoded.** It is whatever the host
+language policy resolves for this operator (mirror the operator's most recent language, *including*
+en-US); `--lang=<tag>` overrides the resolution explicitly (`--lang=en` ⇒ en-US human-facing output).
+Writing a literal `pt-BR` into this contract would bake one operator's current setting into a
+cross-vendor skill and be wrong for that same operator the moment they write in English. The
+`machine` row stays en-US unconditionally — a typed envelope is machine-register, not operator-facing.
 
 The `recommendation-set` payload is one schema for all classes (the human-facing channels render
 it; the machine channel emits it):
@@ -197,7 +204,8 @@ it; the machine channel emits it):
 {
   "recommendation_set": {
     "context": "<one line: what decision is on the table>",
-    "recommended": "<id of the recommended option>",
+    "verdict": "recommended | inconclusive",
+    "recommended": "<id of the recommended option> | null",
     "options": [
       {"id": "A", "label": "<≤5 words>", "rationale": "<why>",
        "tradeoff": "<consequence if chosen>", "confidence": 0.0,
@@ -208,6 +216,24 @@ it; the machine channel emits it):
   }
 }
 ```
+
+**Field contract** — every field above is **required** (present in every emission, all classes). Only
+`recommended` and `audit_ref` are nullable:
+
+| Field | Required | Nullable | Note |
+|---|---|---|---|
+| `context` · `options` · `escape` · `verdict` | ✅ | ❌ | `options` may be an empty array only when `verdict:"inconclusive"` |
+| `recommended` | ✅ | ✅ | `null` ⟺ `verdict:"inconclusive"` |
+| `audit_ref` | ✅ | ✅ | `null` when nothing was captured |
+| per-option `id` · `label` · `rationale` · `tradeoff` · `confidence` · `next_action` | ✅ | ❌ | `confidence` is a number `0.0`–`1.0` |
+
+⛔ **`recommended: null` is a VERDICT, never an option id.** An inconclusive deliberation must survive
+the machine channel intact — a consumer that coerces `null` into a lookup key either crashes or, worse,
+silently resolves to a first/default option and reports a recommendation the deliberation refused to
+make. `verdict` exists so the distinction is readable **without** inspecting `recommended` for null:
+the honest-nothing branch (PHASE 1 zero-artifact, PHASE 2 inconclusive) has a typed representation
+rather than an absent one. The human-facing classes render the same state as an explicit *"no
+recommendation — here is why"*, never as a silently-dropped field.
 
 **Recommending here does not violate Invariant 6** — that invariant binds the *synthesizer*, whose
 job is to record neutrally. Recommending is the act of whoever **delivers**, never of whoever
@@ -221,7 +247,7 @@ job is to record neutrally. Recommending is the act of whoever **delivers**, nev
 |---|---|---|
 | `--consumer` | `auto` | `human-live` · `human-deferred` · `machine` · `auto`. **Explicit always wins** (PHASE 0 rung 1). |
 | `--depth` | `quick` | `quick` (phases 0-3,5) · `full` (adds PHASE 4). |
-| `--lang` | `auto` | `pt` · `en` · `auto` (pt-BR for human classes, en-US for machine). |
+| `--lang` | `auto` | `pt` · `en` · `auto` (`auto` RESOLVES `operator_language` for human classes — never a hardcoded tag; machine is always en-US). |
 | `--json` | off | Force the machine envelope regardless of class (debugging / piping). |
 | `--no-act` | off | Present only — never let the Return-Gate act, even when it clears. |
 
