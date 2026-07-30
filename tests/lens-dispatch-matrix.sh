@@ -622,10 +622,25 @@ if PATH="$_njdir" command -v jq >/dev/null 2>&1; then
   fail "jq-absent test is BLIND: jq still reachable on the stripped PATH"
 elif ! PATH="$_njdir" command -v grep >/dev/null 2>&1; then
   fail "jq-absent test is BLIND: the stripped PATH lost grep, so any failure is the harness, not the tool"
+elif ! PATH="$_njdir" command -v bash >/dev/null 2>&1; then
+  # `#!/usr/bin/env bash` resolves `bash` THROUGH PATH, not absolutely — so a stripped PATH without
+  # it makes the shebang itself fail, and every rc below would measure the harness, not the gate.
+  fail "jq-absent test is BLIND: the stripped PATH lost bash, so the shebang would fail before the tool runs"
 else
-  ( PATH="$_njdir" sh "$BIN" --node-kind decision --use-case 6 >/dev/null 2>&1 ); _njrc=$?
+  # ⛔ INVOKE "$BIN" DIRECTLY — never `sh "$BIN"`. The tool ships `#!/usr/bin/env bash` and uses
+  #    `set -o pipefail`; forcing it through `sh` bypasses that contract and runs it under whatever
+  #    /bin/sh happens to be. That passes HERE by accident (macOS /bin/sh IS bash-3.2, measured:
+  #    `$BASH_VERSION` = 3.2.57) and FAILS on the ubuntu-latest runner this PR's own workflow uses,
+  #    where /bin/sh is dash: measured `dash ./bin/lens-dispatch …` → `set: Illegal option -o
+  #    pipefail` (line 56) → **rc=2**, not 5.
+  #    ⚠️ The damage is the DIAGNOSIS, not the red: rc=2 trips the `!= 5` branch, whose message
+  #    reads "a reduced schema may be shipping" — so a harness defect would be reported as the exact
+  #    schema regression this section exists to detect, sending the next reader to the wrong file.
+  #    A regression test must exercise the SHIPPED runtime; the stripped PATH already supplies
+  #    `env` + `bash` for the shebang (asserted by the grep control above).
+  ( PATH="$_njdir" "$BIN" --node-kind decision --use-case 6 >/dev/null 2>&1 ); _njrc=$?
   [ "$_njrc" = 5 ] || fail "--format json without jq did not fail closed (expected exit 5, got $_njrc — a reduced schema may be shipping)"
-  ( PATH="$_njdir" sh "$BIN" --node-kind decision --use-case 6 --format text >/dev/null 2>&1 ); _txrc=$?
+  ( PATH="$_njdir" "$BIN" --node-kind decision --use-case 6 --format text >/dev/null 2>&1 ); _txrc=$?
   [ "$_txrc" = 0 ] || fail "--format text broke without jq (expected exit 0, got $_txrc — the gate over-refused)"
 fi
 rm -rf "$_njdir"
