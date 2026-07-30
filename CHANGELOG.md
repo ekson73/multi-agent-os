@@ -8,6 +8,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — `research-dossier` v0.2.0: the declared form stops lying, and the page fits a phone
+
+Two gaps found by reading v0.1.0 against what callers assume it does.
+
+**`FORM_NOT_RENDERED` (new WARN, `--strict` ⇒ FAIL).** The schema accepts 13
+`chart.form` values; the renderer draws exactly one geometry — horizontal proportional
+bars (`<rect>` + baseline `<line>`). So `form:"line"` was accepted, ignored, and
+silently substituted: theater of precisely the kind this skill refuses, inside the
+skill built to refuse it. The gap is now named and deterministic. WARN rather than
+FAIL is proportionate — the evidence stays sourced and truncation-checked, only the
+label overpromises.
+
+Two alternatives were rejected **on measurement, not taste**: shrinking the enum is a
+breaking change (`enum` + `additionalProperties:false` ⇒ an existing IR carrying
+`form:"line"` would stop validating) and would delete vocabulary the bundled `dataviz`
+reference teaches; building 13 geometries is YAGNI while 6 of 6 fixture charts declare
+only `bar`, leaving 12 forms with zero test coverage.
+
+⚠️ This adds **no exemption** to anything. The `MAGNITUDE_FORMS` allow-list is *not*
+back: truncation stays form-agnostic, exactly as `bin/research-dossier-render.mjs` records above
+`gateProvenance` ("so the next reader does not reintroduce the allow-list as an
+apparent improvement"). The new code only reports the declared-vs-drawn gap.
+
+**Width breakpoints (760px / 420px).** Before this the only `@media` queries were
+`prefers-color-scheme`, `prefers-reduced-motion` and `print` — a viewport meta plus a
+`max-width` made the page *shrink*, which is not the same as being readable. A decision
+artifact is read where the decision happens, often not at a desk. The header stacks,
+wide data tables scroll instead of the page, claim ids wrap. Declared before
+`@media print` so print keeps the last word.
+
+**Stated, not implied** — a new "Not built" table in SKILL.md records what is absent
+and why, each probed rather than guessed: drill-down (absent), filter controls
+(declared in `audience-map.md` as `dataviz` parameter #8, inert), burn-down (absent, no
+consumer — deferred rather than built on spec), stat-tile demotion (self-declared "Not
+yet implemented"), yaml (unknown format ⇒ logged `UNKNOWN_FORMAT`, verified to write
+zero files).
+
+- **93 tests pass** (was 89). Every new assertion mutation-verified in **both**
+  directions. One of them was caught being a *test that cannot fail*: it addressed the
+  fixture through a `$TMP`-relative path that silently `ENOENT`s, so node printed no
+  code, the negative `case` matched, and it would have passed with the guard deleted
+  *and* inverted. Fixed to address `$EX` directly, plus an empty-output branch so an
+  assertion can never again pass by observing nothing.
+- Idempotent render verified; `tests/validate-plugin.sh` PASSED; zero npm deps; zero
+  remote subresources; JS-off render unaffected.
+
 ### Added — `research-dossier`: finished research → decision-ready visual dossier, behind two deterministic gates (#287)
 
 The missing spine between researchers and the ~110 `design-templates/` + ~150 `design-systems/`

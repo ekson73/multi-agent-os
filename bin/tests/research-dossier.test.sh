@@ -211,6 +211,12 @@ elif which=='display-lie':           # display overrides value with an inverted 
             c['display']='18 KB'; break
 elif which=='form-dodge':            # non-magnitude form + truncated axis
     ir['charts'][0]['form']='line'; ir['charts'][0]['axis']['y_min']=60
+elif which=='form-unrendered':       # form the renderer does not draw, axis otherwise CLEAN
+    # Deliberately distinct from 'form-dodge': that one pairs form:"line" with a
+    # truncated axis to prove truncation is form-agnostic. This one leaves the axis
+    # honest, so the ONLY thing wrong is the declared-vs-drawn gap — otherwise the
+    # assertion could pass on the truncation code and prove nothing about this check.
+    ir['charts'][0]['form']='line'
 elif which=='compression':           # inflated y_max flattens every mark
     ir['charts'][0]['axis']['y_max']=100000
 elif which=='vacuous-nc':
@@ -241,6 +247,28 @@ PY
   node "$REND" --ir "$TMP/ir-form.json" --gates-only >/dev/null 2>&1
   eq '1' "$?" 'truncation is caught regardless of declared form'
   case "$(gt ir-form.json)" in *UNDECLARED_TRUNCATION*) ok '→ UNDECLARED_TRUNCATION on a non-bar form' ;; *) no '→ UNDECLARED_TRUNCATION on a non-bar form' 'not raised' ;; esac
+
+  # A declared form the renderer does not draw is accepted-then-ignored: the IR says
+  # "line", the artifact shows bars, and until this check nothing said so. Proportionate
+  # by construction — WARN by default (the evidence is still sound; only the label
+  # overpromises), FAIL under --strict so CI can refuse it.
+  mk ir-unrendered.json form-unrendered
+  node "$REND" --ir "$TMP/ir-unrendered.json" --gates-only >/dev/null 2>&1
+  eq '0' "$?" 'an unrendered form WARNs but does not fail the build'
+  case "$(gt ir-unrendered.json)" in *FORM_NOT_RENDERED*) ok '→ FORM_NOT_RENDERED names the declared-vs-drawn gap' ;; *) no '→ FORM_NOT_RENDERED names the declared-vs-drawn gap' 'not raised' ;; esac
+  node "$REND" --ir "$TMP/ir-unrendered.json" --gates-only --strict >/dev/null 2>&1
+  eq '1' "$?" '--strict escalates an unrendered form to a build failure'
+  # The honoured form must stay silent, or the check is noise that trains authors to
+  # ignore it — a false positive on a gate is not harmless caution.
+  # `gt` resolves against $TMP, so the shipped fixture must be addressed directly —
+  # a $TMP-relative path silently ENOENTs, node prints no code, and the negative case
+  # below would fire unconditionally: a test that cannot fail.
+  BAR_OUT="$(node "$REND" --ir "$EX/ir-valid.json" --gates-only 2>&1)"
+  case "$BAR_OUT" in
+    *FORM_NOT_RENDERED*) no 'the honoured form (bar) stays silent' 'warned on a rendered form' ;;
+    '') no 'the honoured form (bar) stays silent' 'no output — assertion could not observe anything' ;;
+    *) ok 'the honoured form (bar) stays silent' ;;
+  esac
 
   mk ir-compress.json compression
   node "$REND" --ir "$TMP/ir-compress.json" --gates-only >/dev/null 2>&1
