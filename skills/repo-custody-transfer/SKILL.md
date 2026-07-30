@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.6.1"
+version: "0.6.2"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -63,6 +63,66 @@ BLOCKING data-loss holes was skippable by this very clause. Worse, skipping §5 
 
 Probe **before** assuming any of these (`environment-capability-reconnaissance`), and apply the
 §4 positive-control rule before reporting one as absent.
+
+## §0.2 — ⛔ BOOTSTRAP (process start — runs BEFORE Phase 0, before ANY ledger access)
+
+This is the **first executable step of the run**, ahead of every phase. It exists because `RUN_ID`
+is the **owner** of the ledger's per-RUN fields (§6.0 · P19), and an owner must exist before the
+thing it owns is read or written.
+
+⛔ **Why it cannot live at its point of use (§5.1).** §6.0's Phase-0 rule makes *"read the ledger"*
+the **first** action, and mandates writing a phase entry **before** entering a phase. §5.1 runs at
+the drift-detector, i.e. **after** Phase 0. So a `RUN_ID` assigned there is assigned **too late**:
+
+- a Phase-0 writer with `RUN_ID` unset persists `"run_id":""`, and a pre-assignment reader then
+  compares `'' == ''` and **MATCHES** — adopting another run's `drift_verdict` as its own with
+  **P19 SILENT** (measured: trace 13). Set-vs-empty already fails closed; **empty-vs-empty** is the hole.
+- the format gate below likewise cannot protect a ledger path that was already built from an
+  unvalidated value. A validation that runs after the sink it guards is decoration.
+
+```sh
+# ⛔ The run-id MUST be collision-proof, NOT a timestamp: `date +%s` twice in a row returns the
+#    IDENTICAL value (measured), so two concurrent classifications in one checkout would share a
+#    namespace — re-opening the exact contamination the per-run path exists to prevent.
+#    `date +%s%N` is NOT portable (BSD/Darwin date lacks %N unless coreutils is installed).
+# ⛔ ORDER IS LOAD-BEARING — generate-if-unset FIRST, validate SECOND. A `${RUN_ID:?…}` guard placed
+#    ABOVE the assignment aborts unconditionally and makes the assignment UNREACHABLE (the fix
+#    wearing the defect's clothes — caught by coderabbit on PR #296 round 2). `:-` also PRESERVES a
+#    caller-supplied RUN_ID, which a bare `=` would silently clobber.
+RUN_ID="${RUN_ID:-$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)}"
+: "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
+# ⛔ VALIDATE THE *FORMAT*, not merely non-emptiness — `:?` only proves the value EXISTS. RUN_ID is
+#    caller-supplyable (the `:-` above preserves it by design) and is then interpolated into BOTH a
+#    git ref namespace AND a filesystem path, so a hostile value reaches two different sinks whose
+#    defences are NOT equal:
+#      • the REF sink is already fail-closed — measured: `git update-ref` rejects `../../escape`,
+#        `x/../../y` and `a b` with rc=128 (⇒ P16 clause 1 HALTs), and `git check-ref-format` REJECTs
+#        all three. Traversal cannot create a ref outside the quarantine.
+#      • the PATH sink has NO such check — measured with the §5.1 expression verbatim: RUN_ID
+#        `x/../../../VICTIM/pwned` WROTE `VICTIM/pwned.txt` **outside $LEDGER_DIR**, and
+#        `../../../VICTIM/prod-secrets` landed a file next to a decoy secret. Arbitrary-path write
+#        from a variable the skill invites the caller to set.
+#    ⚠️ `-flag` is accepted by BOTH sinks (measured: ref created, ledger file written) — it is not a
+#    traversal, it is an ARGUMENT-INJECTION seed for any later `git`/`rm`/`find` that takes the name
+#    positionally. Non-emptiness would pass it; a format gate does not.
+#    ⇒ Constrain to the shape the generator itself produces (`<pid>-<hex8>`): alphanumerics, `-`,
+#    `_`, `.` only, never leading `-` or `.`, no slash/space/control/traversal. Bounded length keeps
+#    it inside ref-name and PATH_MAX limits. Fail CLOSED — an invalid run-id aborts before the first
+#    ledger read, because the alternative is a write whose destination the caller chose.
+case "$RUN_ID" in
+  ''|-*|.*)                     RUN_ID_BAD=1 ;;   # empty, or leading dash/dot
+  *[!A-Za-z0-9._-]*)            RUN_ID_BAD=1 ;;   # slash, space, control, traversal, glob
+  *)                            RUN_ID_BAD=0 ;;
+esac
+[ "${#RUN_ID}" -le 64 ] || RUN_ID_BAD=1
+[ "$RUN_ID_BAD" -eq 0 ] || { printf 'FATAL: RUN_ID must match [A-Za-z0-9._-]{1,64} and not start with - or . (§6.0 · P19)\n' >&2; exit 1; }
+export RUN_ID                            # every later phase CONSUMES this value; none re-derives it
+```
+
+⛔ **Downstream sites consume, never re-derive.** §5.1 (`QUAR`) and §6.0 (`$DST_PINNED`, the ledger
+path) read `$RUN_ID` as already-valid. A second `${RUN_ID:-…}` anywhere would mint a **different**
+id than the one Phase 0 persisted, and the run would then read its own earlier rows as *another
+run's* (P19 mismatch) — self-inflicted amnesia dressed as a safety check.
 
 ## §1 — The premise (why "custody", not "migration")
 
@@ -505,47 +565,11 @@ fi
 
 # ⛔ PER-REPO + PER-RUN quarantine path. A fixed shared path makes a leftover from a previous
 #    classification indistinguishable from a legitimately-fetched ref (see the cancellation note).
-# ⛔ The run-id MUST be collision-proof, NOT a timestamp: `date +%s` twice in a row returns the
-#    IDENTICAL value (measured), so two concurrent classifications in one checkout would share a
-#    namespace — re-opening the exact contamination the per-run path exists to prevent.
-#    `date +%s%N` is NOT portable (BSD/Darwin date lacks %N unless coreutils is installed).
-# ⛔ ASSIGN THIS AT PROCESS START — BEFORE the Phase-0 ledger read (§6.0), not here.
-#    Its site still reflects the narrower job it had before v0.6.0 promoted it to the OWNER of the
-#    ledger's per-RUN fields. §6.0 mandates writing a phase entry BEFORE entering the phase, so a
-#    Phase-0 writer with RUN_ID unset persists `"run_id":""` — and a pre-assignment reader then
-#    compares '' == '' and MATCHES, adopting another run's `drift_verdict` as its own with P19
-#    SILENT (measured: trace 13). Set-vs-empty already fails closed; empty-vs-empty is the hole.
-# ⛔ ORDER IS LOAD-BEARING — generate-if-unset FIRST, validate SECOND. A `${RUN_ID:?…}` guard placed
-#    ABOVE the assignment aborts unconditionally and makes the assignment UNREACHABLE (the fix
-#    wearing the defect's clothes — caught by coderabbit on PR #296 round 2). `:-` also PRESERVES a
-#    caller-supplied RUN_ID, which a bare `=` would silently clobber.
-RUN_ID="${RUN_ID:-$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)}"
-: "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
-# ⛔ VALIDATE THE *FORMAT*, not merely non-emptiness — `:?` only proves the value EXISTS. RUN_ID is
-#    caller-supplyable (the `:-` above preserves it by design) and is then interpolated into BOTH a
-#    git ref namespace AND a filesystem path, so a hostile value reaches two different sinks whose
-#    defences are NOT equal:
-#      • the REF sink is already fail-closed — measured: `git update-ref` rejects `../../escape`,
-#        `x/../../y` and `a b` with rc=128 (⇒ P16 clause 1 HALTs), and `git check-ref-format` REJECTs
-#        all three. Traversal cannot create a ref outside the quarantine.
-#      • the PATH sink has NO such check — measured with the §5.1 expression verbatim: RUN_ID
-#        `x/../../../VICTIM/pwned` WROTE `VICTIM/pwned.txt` **outside $LEDGER_DIR**, and
-#        `../../../VICTIM/prod-secrets` landed a file next to a decoy secret. Arbitrary-path write
-#        from a variable the skill invites the caller to set.
-#    ⚠️ `-flag` is accepted by BOTH sinks (measured: ref created, ledger file written) — it is not a
-#    traversal, it is an ARGUMENT-INJECTION seed for any later `git`/`rm`/`find` that takes the name
-#    positionally. Non-emptiness would pass it; a format gate does not.
-#    ⇒ Constrain to the shape the generator itself produces (`<pid>-<hex8>`): alphanumerics, `-`,
-#    `_`, `.` only, never leading `-` or `.`, no slash/space/control/traversal. Bounded length keeps
-#    it inside ref-name and PATH_MAX limits. Fail CLOSED — an invalid run-id aborts before the first
-#    ledger read, because the alternative is a write whose destination the caller chose.
-case "$RUN_ID" in
-  ''|-*|.*)                     RUN_ID_BAD=1 ;;   # empty, or leading dash/dot
-  *[!A-Za-z0-9._-]*)            RUN_ID_BAD=1 ;;   # slash, space, control, traversal, glob
-  *)                            RUN_ID_BAD=0 ;;
-esac
-[ "${#RUN_ID}" -le 64 ] || RUN_ID_BAD=1
-[ "$RUN_ID_BAD" -eq 0 ] || { printf 'FATAL: RUN_ID must match [A-Za-z0-9._-]{1,64} and not start with - or . (§6.0 · P19)\n' >&2; exit 1; }
+# ⛔ `$RUN_ID` IS ALREADY SET AND FORMAT-VALIDATED HERE — it comes from **§0.2 BOOTSTRAP**, which runs
+#    at process start, BEFORE the Phase-0 ledger read (§6.0). This site only CONSUMES it.
+#    Do NOT re-generate or re-validate it here: a second `${RUN_ID:-…}` would mint a *different* id
+#    for the quarantine than the one Phase 0 already persisted into the ledger, and the run would
+#    then read its own earlier rows as **another run's** (P19 mismatch) — a self-inflicted amnesia.
 QUAR="refs/rct/_dst/<slug>/$RUN_ID"      # pid ⊕ random: unique per process AND per invocation
 
 # ⛔ --no-tags is load-bearing, and the quarantine MUST be outside refs/tags/ and refs/remotes/
