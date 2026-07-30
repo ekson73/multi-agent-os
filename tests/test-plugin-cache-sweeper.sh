@@ -138,6 +138,28 @@ if command -v lsof >/dev/null 2>&1; then
   exec 8<&-
   [ -d "$CACHE5/$TWIN" ] && no "out-of-boundary namesake blocked the in-cache candidate (false refusal)" || ok "out-of-boundary namesake does NOT block the in-cache candidate"
 
+  # ── 8c. a held-open candidate OUTSIDE the narrow name shape must still block ─
+  # ⛔ THE IN-USE FILTER MUST ADMIT EXACTLY THE CANDIDATE CLASS (`temp_*`). A narrower pattern is
+  # FAIL-OPEN, not strict: gate 4 compares whole basenames, so any held-open candidate the filter
+  # drops is INVISIBLE to the gate and gets deleted WHILE IN USE. Measured on the prior
+  # `temp_[a-z]*_[0-9]*_[a-z0-9]*(\.clone)?` matcher: 3 of 3 held-open candidates slipped through.
+  # Each name below IS a candidate (`find -name 'temp_*'` + gate 0 both admit it) yet fails that
+  # narrower shape — no epoch / uppercase / hyphen. Asserts DELETION IS REFUSED, i.e. the gate can
+  # SEE them; the age/boundary gates narrow by REFUSING, they must never EXEMPT.
+  CACHE6="$FIX/cache6"
+  for odd in "temp_weird" "temp_UPPER_${OLD_MS}_x" "temp_a-b_${OLD_MS}_x"; do
+    mkdir -p "$CACHE6/$odd"; echo o > "$CACHE6/$odd/file"
+  done
+  exec 6<"$CACHE6/temp_weird/file" 5<"$CACHE6/temp_UPPER_${OLD_MS}_x/file" 4<"$CACHE6/temp_a-b_${OLD_MS}_x/file"
+  out="$("$BIN" --cache "$CACHE6" --apply 2>/dev/null)"
+  exec 6<&- 5<&- 4<&-
+  odd_gone=0
+  for odd in "temp_weird" "temp_UPPER_${OLD_MS}_x" "temp_a-b_${OLD_MS}_x"; do
+    [ -d "$CACHE6/$odd" ] || odd_gone=$((odd_gone+1))
+  done
+  [ "$odd_gone" -eq 0 ] && ok "held-open candidates outside the narrow name shape are still seen by gate4" \
+                        || no "DELETED $odd_gone held-open candidate(s) invisible to the in-use filter (fail-open)"
+
   # ── 8b. an UNAVAILABLE probe must refuse, not pass ──────────────────────────
   # `INUSE=""` means two opposite things — "nothing is open" and "I could not look". Reading the
   # second as the first is the free-negative that turns gate 4 into a no-op exactly when it cannot

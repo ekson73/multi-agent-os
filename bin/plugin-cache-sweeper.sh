@@ -171,9 +171,6 @@ if command -v lsof >/dev/null 2>&1; then
   RAW="$($TB lsof -n -w -F n 2>/dev/null)"; LSOF_RC=$?
   if [ "$LSOF_RC" -eq 0 ]; then
     INUSE_OK=1
-    # The candidate basename may carry a `.clone` suffix (temp_subdir_<ms>_<rand>.clone).
-    # The pattern MUST admit it — gate 4 compares whole names, so a truncated capture
-    # never matches its own candidate and silently exempts the .clone class.
     # ⛔ SCOPE TO $BOUND BEFORE NAME-MATCHING. lsof reports every open path on the machine, and
     #    gate 4 compares BASENAMES — so an open file in an unrelated directory that merely SHARES a
     #    candidate's name refused the legitimate in-cache candidate forever (measured: a namesake
@@ -181,11 +178,23 @@ if command -v lsof >/dev/null 2>&1; then
     #    Filter to `$BOUND/` paths FIRST (keeping the full path through the boundary test), then
     #    derive names only from what survived. Over-refusing is safer than over-deleting, but a
     #    permanent false refusal makes the sweeper useless at its one job.
+    # ⛔ THE IN-USE FILTER MUST ADMIT *EXACTLY* THE CANDIDATE CLASS — `temp_*`, the same glob the
+    #    enumeration (`find -name 'temp_*'`) and gate 0 (`case "$b" in temp_*)`) use. A NARROWER
+    #    pattern here is FAIL-OPEN, not strict: gate 4 compares whole basenames, so any held-open
+    #    candidate the pattern drops becomes INVISIBLE to the gate and is deleted WHILE IN USE.
+    #    Measured on a 5-dir fixture — a prior `temp_[a-z]*_[0-9]*_[a-z0-9]*(\.clone)?` matcher let
+    #    3 of 3 held-open candidates through (`temp_weird` no-epoch · `temp_UPPER_123_x` uppercase ·
+    #    `temp_a-b_123_x` hyphen): each IS a candidate, each was open, and the gate saw NONE of them.
+    #    ⚠️ Tightening the epoch segment (e.g. requiring exactly 13 digits) moves in the WRONG
+    #    direction — it shrinks the admitted set, so it ADDS members to that invisible set.
+    #    The asymmetry is the bug: any divergence between "what we may delete" and "what we check
+    #    for use" is a silent exemption. Keep both sides on ONE class, and let the LATER gates
+    #    (embedded-epoch age, boundary, ownership) do the narrowing — they refuse, they never exempt.
     INUSE="$(printf '%s\n' "$RAW" \
       | sed -n 's|^n||p' \
       | grep -F "$BOUND/" \
       | sed -n "s|^$(printf '%s' "$BOUND" | sed 's/[][\.*^$/]/\\&/g')/\([^/]*\).*|\1|p" \
-      | grep -x "temp_[a-z]*_[0-9]*_[a-z0-9]*\(\.clone\)\?" \
+      | grep -x "temp_.*" \
       | sort -u)"
   fi
   unset RAW
