@@ -151,6 +151,37 @@
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
                              transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   }
+
+  /* Width breakpoints. Until these existed the only @media queries were
+     prefers-color-scheme, prefers-reduced-motion and print: a viewport meta and a
+     max-width made the page SHRINK, which is not the same as being readable on a
+     phone. A decision artifact is read where the decision happens, and that is often
+     not a desktop. Mobile-first would have meant rewriting the desktop rules above,
+     so these narrow ONLY what actually breaks — declared here, before @media print,
+     so print keeps the last word (it resets .wrap to full width and must not be
+     overridden by a width query that happens to match the paper size). */
+  @media (max-width: 760px) {
+    .wrap { padding: 20px 14px 48px; }
+    /* The header is the one hard break: a flex row with a title and a button has no
+       room to sit side-by-side once the title wraps to three lines. */
+    header.head { flex-direction: column; gap: 12px; }
+    h1 { font-size: 21px; }
+    .card { padding: 16px 14px; border-radius: 10px; }
+    .lede { font-size: 15px; }
+    /* Wide data tables are the second break. Scrolling the TABLE beats scrolling the
+       PAGE sideways, and the table is the accessible rendering of every chart — it
+       must stay reachable, never clipped. -webkit-overflow-scrolling keeps momentum
+       on iOS; overflow-x alone reads as frozen there. */
+    details.tableview { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { font-size: 13px; }
+    th, td { padding: 8px 9px; }
+  }
+  @media (max-width: 420px) {
+    .wrap { padding: 16px 11px 40px; }
+    h1 { font-size: 19px; }
+    /* Below this width a nowrap claim id forces horizontal page scroll. */
+    code.cid { white-space: normal; word-break: break-all; }
+  }
   @media print {
     :root { color-scheme: light; }
     body { background: #fff; }
