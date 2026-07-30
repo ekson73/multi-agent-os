@@ -157,10 +157,14 @@
      max-width made the page SHRINK, which is not the same as being readable on a
      phone. A decision artifact is read where the decision happens, and that is often
      not a desktop. Mobile-first would have meant rewriting the desktop rules above,
-     so these narrow ONLY what actually breaks — declared here, before @media print,
-     so print keeps the last word (it resets .wrap to full width and must not be
-     overridden by a width query that happens to match the paper size). */
-  @media (max-width: 760px) {
+     so these narrow ONLY what actually breaks.
+     Scoped to `screen` deliberately. Source order is NOT enough: an unqualified width
+     query also matches PRINT, whose page box is narrow, and @media print below resets
+     .wrap but never touches overflow-x — so `details.tableview { overflow-x: auto }`
+     would stay live on paper, where nothing can scroll, and clip exactly the wide
+     tables the print block exists to render in full. Ordering only protects the
+     properties print actually overrides; `screen` protects the rest. */
+  @media screen and (max-width: 760px) {
     .wrap { padding: 20px 14px 48px; }
     /* The header is the one hard break: a flex row with a title and a button has no
        room to sit side-by-side once the title wraps to three lines. */
@@ -176,7 +180,7 @@
     table { font-size: 13px; }
     th, td { padding: 8px 9px; }
   }
-  @media (max-width: 420px) {
+  @media screen and (max-width: 420px) {
     .wrap { padding: 16px 11px 40px; }
     h1 { font-size: 19px; }
     /* Below this width a nowrap claim id forces horizontal page scroll. */

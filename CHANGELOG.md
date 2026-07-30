@@ -27,7 +27,7 @@ reference teaches; building 13 geometries is YAGNI while 6 of 6 fixture charts d
 only `bar`, leaving 12 forms with zero test coverage.
 
 ⚠️ This adds **no exemption** to anything. The `MAGNITUDE_FORMS` allow-list is *not*
-back: truncation stays form-agnostic, exactly as `render.mjs` records above
+back: truncation stays form-agnostic, exactly as `bin/research-dossier-render.mjs` records above
 `gateProvenance` ("so the next reader does not reintroduce the allow-list as an
 apparent improvement"). The new code only reports the declared-vs-drawn gap.
 
