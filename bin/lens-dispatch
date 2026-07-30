@@ -51,7 +51,8 @@
 #
 # Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only; no associative arrays,
 #   no ${var^^}. No organization-specific content — promotion-eligible per Layer Purity.
-# Exit codes ([C06]): 0 DISPATCH · 3 NULL_PROFILE · 4 INCONCLUSIVE · 1 usage · 2 self-test-fail.
+# Exit codes ([C06]): 0 DISPATCH · 3 NULL_PROFILE · 4 INCONCLUSIVE · 1 usage · 2 self-test-fail ·
+#                     5 unmet-dependency (--format json without jq — fail-closed, never a reduced schema).
 set -euo pipefail
 # ⚠️ Pin the locale (red-team H6, R9-continuation, self-caught): LC_ALL reaches the
 #   DISPATCH verdict. `norm()`'s `tr '[:upper:]' '[:lower:]'` + `split_session_type`'s
@@ -451,8 +452,20 @@ emit() { # $1=verdict $2=reason $3=recipe $4=provenance $5=stakes
         expected_3_output:{resumo:null, decisao:null, pendencia:null},
         recommended_action:$a}'
   else
-    printf '{"verdict":"%s","reason":"%s","recipe_id":"%s","provenance":"%s","confidence":"%s"}\n' \
-      "$verdict" "$reason" "$recipe" "$prov" "$conf_label"
+    # ⛔ NO REDUCED JSON. `--format json` is the DEFAULT, so this branch was the more likely one on
+    #    any host without jq — and it emitted a DIFFERENT contract under the SAME flag: measured on a
+    #    PATH containing every real bin except jq, the output carried **5 keys instead of 11**
+    #    (missing `lens_stack` · `ratified_cycles` · `harness_mode` · `bridge_authored` ·
+    #    `expected_3_output` · `recommended_action`) with **rc=0 and no warning**. A consumer that
+    #    reads `.lens_stack` gets `null` and cannot distinguish "no lenses" from "this producer
+    #    silently shipped a smaller schema" — the free-negative, one layer out from the data.
+    #    ⚠️ It is NOT the `confidence_for()` case: that degrades a documented VALUE
+    #    (`HYPOTHESIS|0`, announced in the payload). This degraded the SHAPE, unannounced. A missing
+    #    value can be read; a missing key cannot be distinguished from an absent fact.
+    #    ⇒ Fail CLOSED and name the remedy. The tool already asserts jq in CI ("Assert jq is
+    #    present"), so this only fires off-CI, where a silent contract swap is worst.
+    printf 'FATAL: --format json requires jq (not found on PATH). Install jq, or use --format text.\n' >&2
+    exit 5
   fi
   case "$verdict" in
     DISPATCH)     exit 0 ;;

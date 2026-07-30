@@ -397,7 +397,7 @@ done
 # newline the substitution ate). Strictly stronger: same file, now every on-disk byte.
 if command -v shasum >/dev/null 2>&1; then _path_hash="$(shasum -a 256 "$BIN" | cut -d' ' -f1)"
 else                                       _path_hash="$(sha256sum   "$BIN" | cut -d' ' -f1)"; fi
-_PATH_PIN='803a254aa825a06d8fba55375da0ff46616f814040f29b3c964487268a00b3f1'
+_PATH_PIN='f3bb986cc232bea3a3dc1f78bcdf507de5617ca86dca289a7f4206e9b3ae7543'
 [ "$_path_hash" = "$_PATH_PIN" ] || fail "resolution path CHANGED (sha256 $_path_hash != pinned $_PATH_PIN).
     Every input-to-dispatch stage is pinned because the gates above sample inputs FROM the
     declaration, and cannot see a transform applied BEFORE the declaration is read (R8).
@@ -597,6 +597,38 @@ _sig_rc() { # $1=signals -> exit code of a run FROM a decoy sandbox (no masking 
 [ "$(_sig_rc '*')"        = 4 ] || fail "glob-injection OPEN: --signals '*' from a decoy dir did not fail closed (expected INCONCLUSIVE exit 4)"
 [ "$(_sig_rc 'sec*')"     = 4 ] || fail "partial-glob token 'sec*' not rejected (expected INCONCLUSIVE exit 4)"
 [ "$(_sig_rc 'security')" = 0 ] || fail "signals guard over-rejects: a valid token must still DISPATCH from a dir containing files"
+
+# ---------------------------------------------------------------------------
+# 4b. `--format json` without jq must FAIL CLOSED — never a reduced schema.
+# json is the DEFAULT format, so this branch was the more likely one off-CI, and it used to emit a
+# DIFFERENT contract under the SAME flag: 5 keys instead of 11 (no lens_stack / ratified_cycles /
+# harness_mode / bridge_authored / expected_3_output / recommended_action) with rc=0 and no warning.
+# A consumer reading `.lens_stack` got null and could not tell "no lenses" from "smaller schema".
+# ⚠️ Asserts BOTH directions: json REFUSES (exit 5) and text STILL WORKS — a fail-closed gate that
+# also breaks the working path is a regression, not a fix. Built by symlinking every real bin
+# EXCEPT jq: a failing `jq` stub would test "broken", not "absent" (`command -v` still finds a stub).
+_nojq_path() {
+  local d="$1" src b
+  for src in /usr/bin /bin /usr/sbin /sbin /opt/homebrew/bin /usr/local/bin; do
+    [ -d "$src" ] || continue
+    for f in "$src"/*; do
+      b="$(basename "$f")"; [ "$b" = jq ] && continue
+      [ -e "$d/$b" ] || ln -sf "$f" "$d/$b" 2>/dev/null
+    done
+  done
+}
+_njdir="$(mktemp -d)"; _nojq_path "$_njdir"
+if PATH="$_njdir" command -v jq >/dev/null 2>&1; then
+  fail "jq-absent test is BLIND: jq still reachable on the stripped PATH"
+elif ! PATH="$_njdir" command -v grep >/dev/null 2>&1; then
+  fail "jq-absent test is BLIND: the stripped PATH lost grep, so any failure is the harness, not the tool"
+else
+  ( PATH="$_njdir" sh "$BIN" --node-kind decision --use-case 6 >/dev/null 2>&1 ); _njrc=$?
+  [ "$_njrc" = 5 ] || fail "--format json without jq did not fail closed (expected exit 5, got $_njrc — a reduced schema may be shipping)"
+  ( PATH="$_njdir" sh "$BIN" --node-kind decision --use-case 6 --format text >/dev/null 2>&1 ); _txrc=$?
+  [ "$_txrc" = 0 ] || fail "--format text broke without jq (expected exit 0, got $_txrc — the gate over-refused)"
+fi
+rm -rf "$_njdir"
 
 # ---------------------------------------------------------------------------
 # 5. Determinism — the whole premise of computing the verdict outside the model.
