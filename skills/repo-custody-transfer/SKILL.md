@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.6.0"
+version: "0.6.1"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -216,7 +216,7 @@ verdicts. Until then, treat these as *deterministic in specification, self-repor
 | P16 | the §5.1 **fetch** exited non-zero, **OR** the wire and quarantine ref **SETS** differ — ⛔ a **set difference on ref NAMES**, never a count (a count is a *signature*: one **stale** ref + one **missing** ref cancel to the right total) · ⛔ with peeled `^{}` lines filtered (`ls-remote` emits an extra peeled line per **annotated** tag that `for-each-ref` does not — unfiltered, this halts every repo with a release tag) · ⛔ over a **per-repo + per-run** quarantine path (a fixed shared path makes a leftover indistinguishable from a fetched ref). A partial fetch can exit 0, so both clauses are needed — ⛔ **an empty quarantine is `unknown`, never "no divergent refs"**. Without this, a dead fetch iterates zero refs, invokes `merge-base` zero times, and the worst-ref-class over an empty set is **vacuous** ⇒ every source ref reads *"exists only on source"* ⇒ **CLEAN CARRY on the autonomous path**. **The only fail-OPEN found in this artifact.** |
 | P17 | a per-ref `dst_sha` is read **by re-resolving the ref** instead of from the pre-loop pinned file, **OR** a pinned sha is empty/absent while its ref was present at the P16 gate, **OR** the pinned file is written to a **per-repo (not per-run)** path or without an atomic `.tmp`+`mv` publish, **OR** the cleanup sweeps beyond `$QUAR` — the gate proved the input existed *at the gate*, nothing holds it *until use*; an absent name reads as *"exists only on source"* ⇒ **CLEAN CARRY** while the destination objects are intact (§5.1 TOCTOU note). An absent pinned sha is a **MISSING MEASUREMENT**, never "no destination ref" |
 | P18 | an impediment is **written in this run** without `reported_by` / `reported_at` (ISO 8601 + offset) — ⛔ **write-time only**; a *pre-existing* impediment lacking them is a MISSING MEASUREMENT, never a P18 halt (§6.0) — provenance would then need reconstruction from message logs, which fails exactly where a compaction-inherited claim **reads complete** (§6.0) |
-| P19 | the ledger is read **without** comparing its `run_id` to this run's `$RUN_ID`, **OR** a per-RUN field (`drift_verdict` · `dst_pinned_path`) from a **mismatched** run is used as this run's own, **OR** `carry_count` (per-**CUTOVER**, monotonic) is **discarded** on a `run_id` mismatch or its **absence read as `0`** instead of `unknown ⇒ >0`, **OR** `dst_pinned_path` is **followed as an address** instead of `$DST_PINNED` being recomputed, **OR** the ledger is written **non-atomically** (`>` instead of `.tmp`+`mv`), **OR** an **unparseable** ledger is treated as *absent* — ⛔ a clobbered `drift_verdict` moves a repo from the HITL row into the **unattended** row with no agent disobeying anything, and a clobbered `carry_count` **disarms P10** (its condition became *someone else's*, never false). Corrupt ≠ absent: absent fails closed, corrupt was **silent** (§6.0) |
+| P19 | the ledger is read **without** comparing its `run_id` to this run's `$RUN_ID`, **OR** a per-RUN field (`drift_verdict` · `dst_pinned_path`) from a **mismatched** run is used as this run's own, **OR** `carry_count` (per-**CUTOVER**, monotonic) is **discarded** on a `run_id` mismatch or its **absence read as `0`** instead of `unknown ⇒ >0`, **OR** `dst_pinned_path` is **followed as an address** instead of `$DST_PINNED` being recomputed, **OR** the ledger is written **non-atomically** (`>` instead of `.tmp`+`mv`), **OR** an **unparseable** ledger is treated as *absent* — ⛔ a clobbered `drift_verdict` moves a repo from the HITL row into the **unattended** row with no agent disobeying anything, and a clobbered `carry_count` **disarms P10** (its condition became *someone else's*, never false). Corrupt ≠ absent: absent fails closed, corrupt was **silent** (§6.0), **OR** `RUN_ID` is used **without validating its FORMAT** — `:?` proves only that the value EXISTS, and the value is caller-supplyable by design (`:-`) and reaches **two sinks with unequal defences**: the ref sink is already fail-closed (measured: `git update-ref`/`check-ref-format` REJECT `../../escape` · `x/../../y` · `a b`), the **path** sink has none (measured with §5.1's expression verbatim: `x/../../../VICTIM/pwned` WROTE a file **outside `$LEDGER_DIR`**) ⇒ arbitrary-path write from the variable the skill invites the caller to set; and `-flag` passes **both** sinks, seeding argument-injection into any later positional `git`/`rm`/`find`. ⛔ Validate the SHAPE (`[A-Za-z0-9._-]{1,64}`, never leading `-`/`.`) before the first ledger read — a non-emptiness check is not a format check |
 
 Any P1–P19 true ⇒ **HALT + Impediment Report**, no discretion. Cheap to check, impossible to
 argue with.
@@ -521,6 +521,31 @@ fi
 #    caller-supplied RUN_ID, which a bare `=` would silently clobber.
 RUN_ID="${RUN_ID:-$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)}"
 : "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
+# ⛔ VALIDATE THE *FORMAT*, not merely non-emptiness — `:?` only proves the value EXISTS. RUN_ID is
+#    caller-supplyable (the `:-` above preserves it by design) and is then interpolated into BOTH a
+#    git ref namespace AND a filesystem path, so a hostile value reaches two different sinks whose
+#    defences are NOT equal:
+#      • the REF sink is already fail-closed — measured: `git update-ref` rejects `../../escape`,
+#        `x/../../y` and `a b` with rc=128 (⇒ P16 clause 1 HALTs), and `git check-ref-format` REJECTs
+#        all three. Traversal cannot create a ref outside the quarantine.
+#      • the PATH sink has NO such check — measured with the §5.1 expression verbatim: RUN_ID
+#        `x/../../../VICTIM/pwned` WROTE `VICTIM/pwned.txt` **outside $LEDGER_DIR**, and
+#        `../../../VICTIM/prod-secrets` landed a file next to a decoy secret. Arbitrary-path write
+#        from a variable the skill invites the caller to set.
+#    ⚠️ `-flag` is accepted by BOTH sinks (measured: ref created, ledger file written) — it is not a
+#    traversal, it is an ARGUMENT-INJECTION seed for any later `git`/`rm`/`find` that takes the name
+#    positionally. Non-emptiness would pass it; a format gate does not.
+#    ⇒ Constrain to the shape the generator itself produces (`<pid>-<hex8>`): alphanumerics, `-`,
+#    `_`, `.` only, never leading `-` or `.`, no slash/space/control/traversal. Bounded length keeps
+#    it inside ref-name and PATH_MAX limits. Fail CLOSED — an invalid run-id aborts before the first
+#    ledger read, because the alternative is a write whose destination the caller chose.
+case "$RUN_ID" in
+  ''|-*|.*)                     RUN_ID_BAD=1 ;;   # empty, or leading dash/dot
+  *[!A-Za-z0-9._-]*)            RUN_ID_BAD=1 ;;   # slash, space, control, traversal, glob
+  *)                            RUN_ID_BAD=0 ;;
+esac
+[ "${#RUN_ID}" -le 64 ] || RUN_ID_BAD=1
+[ "$RUN_ID_BAD" -eq 0 ] || { printf 'FATAL: RUN_ID must match [A-Za-z0-9._-]{1,64} and not start with - or . (§6.0 · P19)\n' >&2; exit 1; }
 QUAR="refs/rct/_dst/<slug>/$RUN_ID"      # pid ⊕ random: unique per process AND per invocation
 
 # ⛔ --no-tags is load-bearing, and the quarantine MUST be outside refs/tags/ and refs/remotes/
@@ -1042,7 +1067,7 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 ## Changelog
 
-Full version history: **[`CHANGELOG.md`](./CHANGELOG.md)** (20 rows, v0.1.0 → v0.6.0).
+Full version history: **[`CHANGELOG.md`](./CHANGELOG.md)** (21 rows, v0.1.0 → v0.6.1).
 
 Extracted 2026-07-30 per `[C07b]` separate-spec-file — the changelog was **62KB of the 142KB
 file (44%)**, and this file is **instruction loaded into context**, so the history was
