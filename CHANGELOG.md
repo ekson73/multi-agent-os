@@ -216,11 +216,22 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
   *Entelecheia* — Aristotle, *De Anima* II.1, the second entelechy: latent knowledge moved into exercise);
   recorded in `bin/artifact-registry`.
 
-### Release note — this bump activates the merged `PostCompact` auto-reload
+### Release note — this entry documents an ALREADY-CUT version, it does not cut one
 
-The session-handoff spine below (#273) has been in `main` since `22b3882` but **never shipped**: the last
-release predates it, so the installed plugin cache still declares only `PreCompact`. Cutting 1.22.0 is what
-makes the auto-reload-after-compaction half actually fire for consumers.
+⚠️ **Corrected 2026-07-30 during the PDCA rebase.** This section originally claimed *"cutting 1.22.0 is
+what makes the auto-reload-after-compaction half actually fire"*. Measured against `origin/main` at rebase
+time, that is **no longer true** and would have shipped a false statement:
+
+- `.claude-plugin/plugin.json` on `main` **already declares `1.22.0`** — the bump landed independently via
+  `1a35fdf` (`research-dossier`, #287/#288), not through this PR. Our `plugin.json` diff against `main` is
+  now **empty**: this PR no longer performs a version bump at all.
+- `hooks/hooks.json` on `main` **already declares `PostCompact`** (verified: 1 occurrence, alongside
+  `PreCompact`), so the auto-reload half is already wired for consumers.
+
+What this PR actually contributes to the release is the **missing CHANGELOG heading**: `main` carries the
+`1.22.0` *version* with **no `## [1.22.0]` section** documenting it (verified absent on `origin/main`). This
+entry fills that gap and records the `reactivate` conductor under it — the version was cut silently, and a
+released version with no changelog section is the same undocumented-state problem one layer out.
 
 ### Added — deterministic session-handoff spine (auto-save-before-compact → auto-reload-after-compact) (#273)
 
