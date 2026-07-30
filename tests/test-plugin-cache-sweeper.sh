@@ -160,6 +160,30 @@ if command -v lsof >/dev/null 2>&1; then
   [ "$odd_gone" -eq 0 ] && ok "held-open candidates outside the narrow name shape are still seen by gate4" \
                         || no "DELETED $odd_gone held-open candidate(s) invisible to the in-use filter (fail-open)"
 
+  # ── 8d. a cache path containing regex METACHARACTERS must not bypass gate 4 ──
+  # ⛔ $BOUND MUST NEVER REACH A REGEX. The in-use extraction used to embed it in a `sed` s|…|…|
+  # expression, so a `|` in the path became the DELIMITER: sed died (`bad flag in substitute
+  # command`), INUSE came back EMPTY, `INUSE_OK=1` was still trusted (it is assigned on lsof's rc
+  # alone, BEFORE the filter runs), and a held-open candidate was DELETED — measured `swept:1
+  # in_use:0` with a live handle. Escaping `|` would patch one delimiter; the fix removes the regex.
+  # ⚠️ THE POSITIVE CONTROL IS NOT OPTIONAL HERE. My first attempt at that fix used bash-4 `case`
+  # syntax inside `$( )`, which bash 3.2 (this file's floor) mis-parses — the script ABORTED and the
+  # held-open dir "survived", which reads exactly like a pass. Only asserting that a PLAIN path
+  # still reclaims exposed it: the tool was broken, not strict. Survival proves refusal only when
+  # the same build can still delete.
+  for _mc in 'cache|pipe' 'cache*star' 'cache?q' 'cache[b]br' 'cache sp' 'cache.dot'; do
+    _mcC="$FIX/mc/$_mc"; _mcH="$_mcC/temp_git_${OLD_MS}_mc0001"
+    _mcO="$_mcC/temp_git_${OLD_MS}_mc0002"                 # eligible, NOT held → the control
+    mkdir -p "$_mcH" "$_mcO"; echo h > "$_mcH/file"; echo o > "$_mcO/file"
+    exec 3<"$_mcH/file"
+    "$BIN" --cache "$_mcC" --apply >/dev/null 2>&1
+    exec 3<&-
+    [ -d "$_mcH" ] || no "DELETED a held-open candidate under cache path '$_mc' (gate 4 bypassed)"
+    [ -d "$_mcO" ] && no "control blind for '$_mc': the unheld candidate was NOT reclaimed, so survival proves nothing"
+    [ -d "$_mcH" ] && [ ! -d "$_mcO" ] && ok "gate4 holds under metachar cache path '$_mc' (held refused, unheld reclaimed)"
+    rm -rf "$FIX/mc"
+  done
+
   # ── 8b. an UNAVAILABLE probe must refuse, not pass ──────────────────────────
   # `INUSE=""` means two opposite things — "nothing is open" and "I could not look". Reading the
   # second as the first is the free-negative that turns gate 4 into a no-op exactly when it cannot

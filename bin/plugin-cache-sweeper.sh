@@ -190,12 +190,35 @@ if command -v lsof >/dev/null 2>&1; then
     #    The asymmetry is the bug: any divergence between "what we may delete" and "what we check
     #    for use" is a silent exemption. Keep both sides on ONE class, and let the LATER gates
     #    (embedded-epoch age, boundary, ownership) do the narrowing — they refuse, they never exempt.
-    INUSE="$(printf '%s\n' "$RAW" \
-      | sed -n 's|^n||p' \
-      | grep -F "$BOUND/" \
-      | sed -n "s|^$(printf '%s' "$BOUND" | sed 's/[][\.*^$/]/\\&/g')/\([^/]*\).*|\1|p" \
-      | grep -x "temp_.*" \
-      | sort -u)"
+    # ⛔ NEVER INTERPOLATE $BOUND INTO A REGEX. The previous extraction embedded it in a `sed`
+    #    s|…|…| expression, so any `|` in the cache path became the DELIMITER: measured with
+    #    `--cache '/tmp/cache|with-pipe'`, sed died (`bad flag in substitute command`), INUSE came
+    #    back EMPTY, `INUSE_OK=1` was still trusted (assigned on lsof's rc alone, before the
+    #    filter), and a held-open candidate was DELETED — `swept:1 in_use:0` with a live handle.
+    #    Escaping `|` would only patch this delimiter; the defect is the regex itself, whose
+    #    metacharacter set is unbounded relative to what a filesystem path may legally contain.
+    #    ⇒ Strip the prefix with shell parameter expansion (${line#"$BOUND"/}) — no regex, no
+    #    delimiter, nothing to escape — and derive the basename by cutting at the first `/`.
+    #    The quotes in ${line#"$BOUND"/} are load-bearing: unquoted, $BOUND would be read as a
+    #    PATTERN and a path containing `*`/`?`/`[` would strip the wrong prefix.
+    # ⛔ AND MAKE FILTER FAILURE CLEAR THE TRUST FLAG. `INUSE_OK=1` on lsof's rc alone means "I
+    #    looked", not "I parsed what I saw" — the gap the pipe exploited. Any failure while
+    #    building the set now sets INUSE_OK=0, so gate 4 refuses instead of trusting a blind "".
+    # ⛔ BALANCED-PAREN case patterns — `(pat)` not `pat)`. Bash 3.2 (the macOS system bash, and
+    #    this file's declared floor) mis-parses an UNBALANCED `)` inside `$( )`: measured, the
+    #    substitution died with `syntax error near unexpected token 'newline'`, INUSE captured the
+    #    literal REST OF THE SOURCE TEXT, and the script then aborted on `b: unbound variable`.
+    #    ⚠️ That abort LOOKED like a pass — the held-open candidate "survived" because the process
+    #    died before the sweep, not because gate 4 refused it. Only the positive control (a plain
+    #    path must still RECLAIM) exposed it: it over-refused too, i.e. the tool was simply broken.
+    INUSE="$(
+      printf '%s\n' "$RAW" | while IFS= read -r line; do
+        case "$line" in (n"$BOUND"/*) ;; (*) continue ;; esac
+        rest="${line#n}"; rest="${rest#"$BOUND"/}"
+        b="${rest%%/*}"
+        case "$b" in (temp_*) printf '%s\n' "$b" ;; esac
+      done | sort -u
+    )" || INUSE_OK=0
   fi
   unset RAW
 fi
