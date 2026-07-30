@@ -515,8 +515,12 @@ fi
 #    Phase-0 writer with RUN_ID unset persists `"run_id":""` — and a pre-assignment reader then
 #    compares '' == '' and MATCHES, adopting another run's `drift_verdict` as its own with P19
 #    SILENT (measured: trace 13). Set-vs-empty already fails closed; empty-vs-empty is the hole.
+# ⛔ ORDER IS LOAD-BEARING — generate-if-unset FIRST, validate SECOND. A `${RUN_ID:?…}` guard placed
+#    ABOVE the assignment aborts unconditionally and makes the assignment UNREACHABLE (the fix
+#    wearing the defect's clothes — caught by coderabbit on PR #296 round 2). `:-` also PRESERVES a
+#    caller-supplied RUN_ID, which a bare `=` would silently clobber.
+RUN_ID="${RUN_ID:-$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)}"
 : "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
-RUN_ID="$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)"
 QUAR="refs/rct/_dst/<slug>/$RUN_ID"      # pid ⊕ random: unique per process AND per invocation
 
 # ⛔ --no-tags is load-bearing, and the quarantine MUST be outside refs/tags/ and refs/remotes/
