@@ -31,7 +31,8 @@ description: |
 Serves the operator's intent. If a phase/gate obstructs helping NOW, skip it, log
 `Skipped <phase> — BEING > Rules`, proceed.
 
-⛔ **NEVER skippable** (the safety floor — §0 cannot reach any of these): **T4** (secret values never
+⛔ **NEVER skippable** (the safety floor — §0 cannot reach any of these): **§0.2** BOOTSTRAP
+(RUN_ID generate+validate — the ownership gate every later phase consumes) · **T4** (secret values never
 cross) · the **§9.0 unconditional no-force/no-destructive-push rule** · the **Blocking-Gate** itself
 (§4, incl. the P1–P19 trip-wires) · **§5.0** freshness · **§5.1** ancestry classification · **§5.2**
 non-FF response · **§3.1** write-once baseline + subtractive-only rollback · the **Phase-4
@@ -87,12 +88,14 @@ the drift-detector, i.e. **after** Phase 0. So a `RUN_ID` assigned there is assi
 #    `date +%s%N` is NOT portable (BSD/Darwin date lacks %N unless coreutils is installed).
 # ⛔ FAIL CLOSED on entropy loss — if uuidgen AND od both fail, the suffix pipeline yields EMPTY
 #    and `$$-` would pass the non-empty+shape checks: a reused PID matching stale ledger state.
+#    Entropy is drawn ONLY when RUN_ID is unset — a caller-supplied value never needs it, and an
+#    entropy failure must not kill a run whose identity was already provided.
 # ⛔ ORDER IS LOAD-BEARING — generate-if-unset FIRST, validate SECOND. A `${RUN_ID:?…}` guard placed
 #    ABOVE the assignment aborts unconditionally and makes the assignment UNREACHABLE (the fix
 #    wearing the defect's clothes — caught by coderabbit on PR #296 round 2). `:-` also PRESERVES a
 #    caller-supplied RUN_ID, which a bare `=` would silently clobber.
-_RUN_ID_SUFFIX="$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)"
-[ -n "$_RUN_ID_SUFFIX" ] || { printf 'FATAL: no entropy source (uuidgen + od both failed) — RUN_ID suffix empty (§0.2 · P19)\n' >&2; exit 1; }
+_RUN_ID_SUFFIX=""; [ -n "$RUN_ID" ] || _RUN_ID_SUFFIX="$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)"
+[ -n "$RUN_ID$_RUN_ID_SUFFIX" ] || { printf 'FATAL: no entropy source (uuidgen + od both failed) — RUN_ID suffix empty (§0.2 · P19)\n' >&2; exit 1; }
 RUN_ID="${RUN_ID:-$$-$_RUN_ID_SUFFIX}"
 unset _RUN_ID_SUFFIX
 : "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
@@ -1096,9 +1099,9 @@ External: *translatio imperii* / *translatio studii* (medieval historiography) �
 
 ## Changelog
 
-Full version history: **[`CHANGELOG.md`](./CHANGELOG.md)** (21 rows, v0.1.0 → v0.6.1).
+Full version history: **[`changelog.md`](./changelog.md)** (21 rows, v0.1.0 → v0.6.1).
 
 Extracted 2026-07-30 per `[C07b]` separate-spec-file — the changelog was **62KB of the 142KB
 file (44%)**, and this file is **instruction loaded into context**, so the history was
-displacing safety-critical rules (P1–P19). Rows are preserved **verbatim** in `CHANGELOG.md`
+displacing safety-critical rules (P1–P19). Rows are preserved **verbatim** in `changelog.md`
 (append-only, nothing rewritten — `[C07b]`). New entries go at the TOP (newest-first, matching the table's existing order).
