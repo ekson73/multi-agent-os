@@ -1,0 +1,117 @@
+# Release Coherence Workflow (PR gate)
+#
+# Root problem being closed (drift, measured): a feature PR may change
+# `.claude-plugin/plugin.json`'s `version` field inside a FEATURE commit
+# (e.g. 1a35fdf `research-dossier` bumped 1.21.0 → 1.22.0 inside a feature PR),
+# so the release becomes INVISIBLE — it ships without a dedicated `chore(release)`
+# commit to mark it as an event and to carry its release note alongside.
+#
+# The drift was NOT "no note at all" — v1.22.0's changelog section exists
+# (`## [1.22.0] - 2026-07-22`, added in feb1c1f). The drift is DISORDER: the
+# bump, the release commit, and the note arrived in three different commits
+# across two weeks, so the release was never one coherent, visible event.
+# This check makes a version bump inside a feature commit fail the PR BEFORE
+# merge, so the bump must travel as a dedicated `chore(release)` commit.
+#
+# What it enforces (only when the PR actually changes the version field):
+#   the commit(s) that change the version field MUST be `chore(release)` commits.
+#
+# What it deliberately does NOT do: it does not block PRs that don't touch the
+# version field (99% of PRs pass instantly), it does not rewrite anything, and
+# it does not invent a new SSOT (plugin.json stays the single source of truth;
+# version-sync.yml keeps syncing docs to it post-merge).
+
+name: Release Coherence
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  release-coherence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for commit-message inspection)
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect whether the PR bumps the plugin.json version
+        id: bump
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1 >/dev/null 2>&1 || true
+          BASE="origin/$BASE_REF"
+          DIFF=$(git diff "$BASE"...HEAD -- .claude-plugin/plugin.json || true)
+          if echo "$DIFF" | grep -qE '^\+.*"version":' ; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            NEWV=$(jq -r '.version' .claude-plugin/plugin.json)
+            echo "new_version=$NEWV" >> "$GITHUB_OUTPUT"
+            echo "🔀 Version field changed in this PR → coherence check applies (new=$NEWV)"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ plugin.json version untouched by this PR — nothing to enforce"
+          fi
+
+      - name: Enforce release coherence when the version changed
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          NEWV: ${{ steps.bump.outputs.new_version }}
+        run: |
+          set -euo pipefail
+          BASE="origin/$BASE_REF"
+
+          # Per-commit: does THIS commit change the version field specifically
+          # (not merely touch plugin.json — a name/description edit must not count).
+          BUMPERS=""
+          for sha in $(git log --format='%H' "$BASE"..HEAD -- .claude-plugin/plugin.json); do
+            if git diff "${sha}^" "$sha" -- .claude-plugin/plugin.json | grep -qE '^\+.*"version"'; then
+              BUMPERS="$BUMPERS$(git log -1 --format='%s' "$sha")\n"
+            fi
+          done
+          echo "📋 version-FIELD-changing commit messages:"; printf '%b' "$BUMPERS" | sed 's/^/   /'
+
+          # Every version-field-changing commit must be a chore(release) commit.
+          if [ -z "$(printf '%b' "$BUMPERS" | tr -d '[:space:]')" ]; then
+            NONCHORE=0
+          else
+            NONCHORE=$(printf '%b' "$BUMPERS" | grep -cvE 'chore\(release\)' || true)
+          fi
+
+          # Soft signal (not a pass condition): a matching CHANGELOG section should exist.
+          CHANGELOG_SECTION=$(grep -cE "^## \[${NEWV}\]" CHANGELOG.md || true)
+
+          echo ""
+          echo "non-chore(release) version-touching commits: $NONCHORE · CHANGELOG section for $NEWV: $CHANGELOG_SECTION"
+
+          if [ "$NONCHORE" -eq 0 ]; then
+            echo "✅ Release coherence satisfied — the version bump travels as a chore(release) commit"
+            [ "$CHANGELOG_SECTION" -ge 1 ] || echo "⚠️  note: no CHANGELOG section '## [$NEWV]' yet — add one in the same chore(release) commit"
+            exit 0
+          fi
+
+          cat >&2 <<EOF
+          ❌ RELEASE COHERENCE VIOLATION
+
+          This PR changes .claude-plugin/plugin.json's version to $NEWV
+          inside a feature commit, not a dedicated 'chore(release)' commit.
+
+          This is the drift behind v1.22.0: the version bump (1a35fdf), the
+          release commit (feb1c1f), and the release note arrived in three
+          different commits across two weeks — the release was never one
+          coherent, visible event.
+
+          Fix: split the version bump into its own dedicated commit with a
+          message of the form:
+
+            chore(release): <short description of the release>
+
+          (and carry the '## [$NEWV]' CHANGELOG.md section in that same commit).
+          EOF
+          exit 1
