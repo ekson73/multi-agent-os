@@ -1,6 +1,6 @@
 ---
 name: 9router-concierge
-version: "1.0.0"
+version: "1.0.1"
 description: |
   Concierge / health-check / inventory / router for the operator's **9Router** gateway
   (local OpenAI-compatible AI gateway). Knows real ports, DB paths, comboStrategies SSOT,
@@ -22,7 +22,7 @@ allowed-tools: Read, Glob, Grep, Bash
 | Tool | Used for |
 |---|---|
 | `lsof` | TCP listen probe on `:20130` |
-| `curl` | `/api/health`, `/v1/models` |
+| `curl` | `/api/health`, `/v1/models` (with connect/max timeouts) |
 | `sqlite3` | existence counts + inventory (never `SELECT key`) |
 | `bash` | Phase-0 / inventory only (same family as `maos-concierge`) |
 
@@ -30,36 +30,38 @@ allowed-tools: Read, Glob, Grep, Bash
 
 ## Identity
 
-I am the **concierge of 9Router**. I orient over the live instance: health, combos, strategies, providers, logs. I never reimplement the gateway and never echo API keys/secrets.
+I am the **concierge of 9Router**. I orient over the live instance: health, combos, strategies, providers, logs. Gateway is never reimplemented; API keys/secrets are never echoed.
 
 ## Phase 0 — Capability detection (always first)
 
 | Probe | How | If absent |
 |---|---|---|
 | Process/port | `lsof -nP -iTCP:20130 -sTCP:LISTEN` | try other ports; report down |
-| Health | `curl -s $NINEROUTER_URL/api/health` → `{"ok":true}` | gateway down |
+| Health | `curl --silent --show-error --connect-timeout 2 --max-time 5 "$NINEROUTER_URL/api/health"` → `{"ok":true}` | gateway down / stall |
 | **Real DB** | `~/.9router/db/data.sqlite` (NOT `~/.omniroute/services/9router/...` which may be empty) | wrong path → false inventory |
 | API key present? | **existence only** — `sqlite3 … "SELECT COUNT(*) FROM apiKeys WHERE isActive=1"` (report 0/N; **never** `SELECT key`) | 401 on chat if 0 and requireApiKey |
 | Combos | `GET /v1/models` + `owned_by=="combo"` AND table `combos` | split-brain if diverge |
-| Strategies SSOT | `settings.data.comboStrategies` (JSON in `settings` table) | absence of key = **fallback** default |
+| Strategies SSOT | **`settings.data.comboStrategies`** (JSON in `settings` table `data` blob) | absence of key = **fallback** default |
 | Logs | file logs often **empty**; use `requestDetails` / `usageDaily` / `usageHistory` | don't claim "no errors" from empty dirs |
 
 **Default env (this machine):**
+
 ```bash
 export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute here)
-# NINEROUTER_KEY: load from apiKeys when requireApiKey=true — inject into env/1P; NEVER echo/print/log
+# NINEROUTER_KEY: obtain out-of-band from approved secret store (1Password / env injection).
+# NEVER SELECT key from apiKeys · NEVER echo/print/log the token.
 ```
 
-**Secret discipline (binding):** never `SELECT key` / never `printf` the token / never paste keys into PR comments or skill output. If a probe needs auth, set `NINEROUTER_KEY` out-of-band and use it only in `Authorization` headers; redact transcripts.
+**Secret discipline (binding):** never `SELECT key` / never `printf` the token / never paste keys into PR comments or skill output. If a probe needs auth, set `NINEROUTER_KEY` from the approved secret store and use it only in `Authorization` headers; redact transcripts. Phase 0 only checks **presence** (`COUNT(*)`), never materializes the secret.
 
 ## Landscape Decision Matrix
 
 | Intent | Do |
 |---|---|
 | Health-check | Phase 0 probes + process uptime |
-| List combos + strategies | Join `combos` + `settings.comboStrategies` |
-| Rename combo safely | Update `combos.name` **and** `comboStrategies` key **and** any `judgeModel` refs |
-| Strategy change | `PATCH /api/settings` with full `comboStrategies` object (not PUT-only) |
+| List combos + strategies | Join `combos` + **`settings.data.comboStrategies`** |
+| Rename combo safely | Update `combos.name` **and** `settings.data.comboStrategies` key **and** any `judgeModel` refs |
+| Strategy change | `PATCH /api/settings` with full `comboStrategies` object inside settings `data` (not PUT-only) |
 | Errors/forensics | `requestDetails` WHERE status='error' (ring ~1000); never grep secrets |
 | Nested leaves | Models without `/` are **combo refs** — recurse until `provider/model` |
 | Compare to OmniRoute | Use `omniroute-concierge` / dual inventory; 9r is SSOT for this operator's strategies |
@@ -79,7 +81,7 @@ export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute h
 
 | value | Label | Persistence |
 |---|---|---|
-| `fallback` | Fallback — try in order | **default** — entry deleted from `comboStrategies` when set |
+| `fallback` | Fallback — try in order | **default** — entry deleted from `settings.data.comboStrategies` when set |
 | `round-robin` | Round Robin — rotate | explicit entry |
 | `fusion` | Fusion — panel + judge | explicit + `judgeModel` |
 
@@ -97,8 +99,8 @@ export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute h
 1. ❌ Reading `~/.omniroute/services/9router/data/db/data.sqlite` as live SSOT (often empty)  
 2. ❌ Assuming empty log dirs ⇒ no traffic (use SQLite)  
 3. ❌ **Printing / selecting API keys** (`SELECT key`, `echo $NINEROUTER_KEY`, paste into chat/PR)  
-4. ❌ Renaming combo without updating `judgeModel` / `comboStrategies` keys  
-5. ❌ Treating `/v1/models` alone as full config (strategies live in settings)  
+4. ❌ Renaming combo without updating `judgeModel` / `settings.data.comboStrategies` keys  
+5. ❌ Treating `/v1/models` alone as full config (strategies live in `settings.data.comboStrategies`)  
 6. ❌ Using Bash for anything beyond Phase-0 probes / read-only inventory (no destructive `rm`/`pkill` without operator)
 
 ## Refs
@@ -107,3 +109,6 @@ export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute h
 - Sibling: `omniroute-concierge`  
 - Docs: `~/Projects/9router-megacontext/`  
 - Cross-link: `[[9router-concierge]]`
+
+---
+*Signed: Claude-Dev-e731-001 · 2026-07-31T21:55:00Z*

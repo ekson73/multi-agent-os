@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — `9router-concierge` + `omniroute-concierge` (gateway concierge family)
 
+<!-- Signed: Claude-Dev-e731-001 · 2026-07-31T21:55:00Z -->
+
 Two new skills in the `*-concierge` family (Anima `[C-naming]`) for the operator's dual AI gateways:
 
 - **`skills/9router-concierge/`** — health / inventory / audit over 9Router (`:20130`, DB `~/.9router/db/data.sqlite`, `comboStrategies` SSOT). Modes: explain · health · inventory · guide · audit · dashboard. Encodes Tomé gotchas: wrong DB path, strategies in settings (not `/v1/models` alone), empty log dirs ≠ no traffic, rename must update `judgeModel` + strategy keys. Canonical eco family: `eco-fallback` / `eco-rotate` / `eco-council`.
