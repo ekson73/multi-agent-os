@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `9router-concierge` + `omniroute-concierge` (gateway concierge family)
+
+<!-- Signed: Claude-Dev-e731-001 · 2026-07-31T21:55:00Z -->
+
+Two new skills in the `*-concierge` family (Anima `[C-naming]`) for the operator's dual AI gateways:
+
+- **`skills/9router-concierge/`** — health / inventory / audit over 9Router (`:20130`, DB `~/.9router/db/data.sqlite`, `comboStrategies` SSOT). Modes: explain · health · inventory · guide · audit · dashboard. Encodes Tomé gotchas: wrong DB path, strategies in settings (not `/v1/models` alone), empty log dirs ≠ no traffic, rename must update `judgeModel` + strategy keys. Canonical eco family: `eco-fallback` / `eco-rotate` / `eco-council`.
+- **`skills/omniroute-concierge/`** — same surface for OmniRoute (`:20128`, `~/.omniroute/storage.sqlite`). Modes include **`heal-parity`** (9r → omni strategy map: fallback→priority, round-robin→round-robin, fusion→fusion). Never declare gateway dead on `/api/health` 401 alone (prefer `/v1/models`).
+
+Companion inventory (literal paths, not brace-expansion):
+`~/Projects/9router-megacontext/INVENTORY-2026-07-31.md`,
+`~/Projects/9router-megacontext/CONCIERGE-REGISTRY.md`,
+`~/Projects/9router-megacontext/LOGS-INVENTORY-2026-07-31.md`.
+Provider-specific concierges (kimi/codex/grok/…) stay YAGNI until Triple-touch ops.
+Secret probes in both skills are **existence-only** (`COUNT(*)`); never document `SELECT key`.
+
 ### Changed — `research-dossier` v0.2.0: the declared form stops lying, and the page fits a phone
 
 Two gaps found by reading v0.1.0 against what callers assume it does.
