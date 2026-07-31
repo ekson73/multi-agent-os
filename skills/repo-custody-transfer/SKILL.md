@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.6.2"
+version: "0.6.3"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
@@ -85,11 +85,16 @@ the drift-detector, i.e. **after** Phase 0. So a `RUN_ID` assigned there is assi
 #    IDENTICAL value (measured), so two concurrent classifications in one checkout would share a
 #    namespace — re-opening the exact contamination the per-run path exists to prevent.
 #    `date +%s%N` is NOT portable (BSD/Darwin date lacks %N unless coreutils is installed).
+# ⛔ FAIL CLOSED on entropy loss — if uuidgen AND od both fail, the suffix pipeline yields EMPTY
+#    and `$$-` would pass the non-empty+shape checks: a reused PID matching stale ledger state.
 # ⛔ ORDER IS LOAD-BEARING — generate-if-unset FIRST, validate SECOND. A `${RUN_ID:?…}` guard placed
 #    ABOVE the assignment aborts unconditionally and makes the assignment UNREACHABLE (the fix
 #    wearing the defect's clothes — caught by coderabbit on PR #296 round 2). `:-` also PRESERVES a
 #    caller-supplied RUN_ID, which a bare `=` would silently clobber.
-RUN_ID="${RUN_ID:-$$-$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)}"
+_RUN_ID_SUFFIX="$( (uuidgen 2>/dev/null || od -An -tx1 -N4 /dev/urandom) | tr -d ' -' | head -c 8)"
+[ -n "$_RUN_ID_SUFFIX" ] || { printf 'FATAL: no entropy source (uuidgen + od both failed) — RUN_ID suffix empty (§0.2 · P19)\n' >&2; exit 1; }
+RUN_ID="${RUN_ID:-$$-$_RUN_ID_SUFFIX}"
+unset _RUN_ID_SUFFIX
 : "${RUN_ID:?RUN_ID must be set before any ledger read or write (§6.0 · P19)}"
 # ⛔ VALIDATE THE *FORMAT*, not merely non-emptiness — `:?` only proves the value EXISTS. RUN_ID is
 #    caller-supplyable (the `:-` above preserves it by design) and is then interpolated into BOTH a
@@ -1096,4 +1101,4 @@ Full version history: **[`CHANGELOG.md`](./CHANGELOG.md)** (21 rows, v0.1.0 → 
 Extracted 2026-07-30 per `[C07b]` separate-spec-file — the changelog was **62KB of the 142KB
 file (44%)**, and this file is **instruction loaded into context**, so the history was
 displacing safety-critical rules (P1–P19). Rows are preserved **verbatim** in `CHANGELOG.md`
-(append-only, nothing rewritten — `[C07b]`). Append new versions at the END of that table.
+(append-only, nothing rewritten — `[C07b]`). New entries go at the TOP (newest-first, matching the table's existing order).
