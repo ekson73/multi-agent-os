@@ -26,7 +26,7 @@ I orient over the live OmniRoute instance: health, combos (`storage.sqlite`), st
 | Probe | How | If absent |
 |---|---|---|
 | Process/port | `lsof -nP -iTCP:20128 -sTCP:LISTEN` | report down |
-| Auth | API key from `api_keys` table (never print); `Authorization: Bearer …` | 401 |
+| Auth present? | **existence only** — `sqlite3 … "SELECT COUNT(*) FROM api_keys WHERE revoked_at IS NULL"` (report 0/N; **never** `SELECT key`) | 401 if 0 |
 | Health | `/api/health` may be **unknown_route** or 401 — prefer `/v1/models` reachability | don't declare dead on health path alone |
 | DB | `~/.omniroute/storage.sqlite` table `combos` (`data` JSON) | — |
 | Restart | `omniroute stop && omniroute serve --daemon` (operator-known) | don't `pkill` casually |
@@ -35,8 +35,10 @@ I orient over the live OmniRoute instance: health, combos (`storage.sqlite`), st
 **Default env (this machine):**
 ```bash
 # OmniRoute :20128  ·  9Router :20130
-# Key: sqlite3 ~/.omniroute/storage.sqlite "SELECT key FROM api_keys WHERE revoked_at IS NULL LIMIT 1;"
+# API key: load from api_keys out-of-band into env/1P — NEVER SELECT key / echo / log the value
 ```
+
+**Secret discipline (binding):** never `SELECT key` / never print tokens from `api_keys` / never paste into skill output or PR comments. Auth header only; redact transcripts.
 
 ## Combo `data` JSON (canonical shape)
 
@@ -88,9 +90,10 @@ I orient over the live OmniRoute instance: health, combos (`storage.sqlite`), st
 
 1. ❌ `pkill omniroute` without known restart command  
 2. ❌ Declaring gateway dead because `/api/health` is 401/unknown_route  
-3. ❌ Printing API keys from `api_keys`  
+3. ❌ **Printing / selecting API keys** (`SELECT key`, echo token, paste into chat/PR)  
 4. ❌ Healing strategies without 9r SSOT when operator policy is 9r-first  
-5. ❌ Leaving fusion councils without `judgeModel`
+5. ❌ Leaving fusion councils without `judgeModel`  
+6. ❌ Bash beyond Phase-0 / inventory / documented restart (no casual destructive ops)
 
 ## Canonical eco family (post-Anima)
 

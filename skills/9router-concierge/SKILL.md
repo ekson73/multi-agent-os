@@ -28,7 +28,7 @@ I am the **concierge of 9Router**. I orient over the live instance: health, comb
 | Process/port | `lsof -nP -iTCP:20130 -sTCP:LISTEN` | try other ports; report down |
 | Health | `curl -s $NINEROUTER_URL/api/health` → `{"ok":true}` | gateway down |
 | **Real DB** | `~/.9router/db/data.sqlite` (NOT `~/.omniroute/services/9router/...` which may be empty) | wrong path → false inventory |
-| API key | `sqlite3 … "SELECT key FROM apiKeys WHERE isActive=1 LIMIT 1"` (never print) | 401 on chat |
+| API key present? | **existence only** — `sqlite3 … "SELECT COUNT(*) FROM apiKeys WHERE isActive=1"` (report 0/N; **never** `SELECT key`) | 401 on chat if 0 and requireApiKey |
 | Combos | `GET /v1/models` + `owned_by=="combo"` AND table `combos` | split-brain if diverge |
 | Strategies SSOT | `settings.data.comboStrategies` (JSON in `settings` table) | absence of key = **fallback** default |
 | Logs | file logs often **empty**; use `requestDetails` / `usageDaily` / `usageHistory` | don't claim "no errors" from empty dirs |
@@ -36,8 +36,10 @@ I am the **concierge of 9Router**. I orient over the live instance: health, comb
 **Default env (this machine):**
 ```bash
 export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute here)
-# NINEROUTER_KEY from apiKeys table when requireApiKey=true
+# NINEROUTER_KEY: load from apiKeys when requireApiKey=true — inject into env/1P; NEVER echo/print/log
 ```
+
+**Secret discipline (binding):** never `SELECT key` / never `printf` the token / never paste keys into PR comments or skill output. If a probe needs auth, set `NINEROUTER_KEY` out-of-band and use it only in `Authorization` headers; redact transcripts.
 
 ## Landscape Decision Matrix
 
@@ -83,9 +85,10 @@ export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute h
 
 1. ❌ Reading `~/.omniroute/services/9router/data/db/data.sqlite` as live SSOT (often empty)  
 2. ❌ Assuming empty log dirs ⇒ no traffic (use SQLite)  
-3. ❌ Printing API keys  
+3. ❌ **Printing / selecting API keys** (`SELECT key`, `echo $NINEROUTER_KEY`, paste into chat/PR)  
 4. ❌ Renaming combo without updating `judgeModel` / `comboStrategies` keys  
-5. ❌ Treating `/v1/models` alone as full config (strategies live in settings)
+5. ❌ Treating `/v1/models` alone as full config (strategies live in settings)  
+6. ❌ Using Bash for anything beyond Phase-0 probes / read-only inventory (no destructive `rm`/`pkill` without operator)
 
 ## Refs
 
