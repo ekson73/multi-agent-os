@@ -1,0 +1,73 @@
+name: lens-dispatch tests
+
+# tests/lens-dispatch-matrix.sh line 12 states: "It must run in CI or the claim must be
+# deleted." This file is that promise kept. The SKILL.md cites the matrix as proof of its
+# stated numbers; an uncited-because-unrun test is exactly the defect the red-team found in
+# v0.1.0 (a matrix that existed only as something the author ran by hand in a terminal).
+#
+# jq is required by the golden pin and the table-size counters — it ships on ubuntu-latest.
+
+# ⚠️ NO `paths:` filter, deliberately — diverging from the sibling workflows.
+# A filter listing only the tool's own files is a BYPASS: `bin/lens-dispatch` shells out to
+# `bin/dogfood-tally` at runtime (the confidence value) and the purity step runs
+# `bin/check-layer-purity`. Editing either changes this tool's behaviour or its gate while
+# the guard stays silent. Enumerating today's dependencies would only move the hole — the
+# next dependency added re-opens it, and "remember to update the filter" is precisely the
+# memory-dependent obligation `harmonic` L9 forbids.
+# Cost of running it always: ~53s measured locally (macOS, 2026-07-22) — the suite makes
+# ~170 CLI invocations and process-spawn dominates, so expect materially less on Linux CI.
+# Not "~2s" as an earlier draft of this comment asserted without measuring; the number is
+# stated because a cost claim used to justify a design choice has to be a measured one.
+# A guard you can skip by editing a dependency is a guard with a bypass — the exact defect
+# class this whole tool was repaired for. That trade is worth 53s.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel a superseded run when new commits land on the same PR/branch — no point burning a
+  # full ~53s suite on a commit a newer push already obsoleted (coderabbit PR #279).
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lens-dispatch:
+    name: self-test + 44-combination matrix + Layer Purity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # SHA-pinned, matching supply-chain-sentinel.yml ("All third-party actions pinned").
+        # The nearest sibling (converge-tests.yml) uses the mutable `@v7.0.0` tag — copying
+        # it verbatim would have propagated that drift into a new file. Reuse the pattern,
+        # not the deviation.
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          # Don't persist the checkout token in .git/config — this job only reads the tree and
+          # runs shell tests; it never pushes. OpenSSF Scorecard's dangling-credential check
+          # flags a persisted token (why the Scorecard run was NEUTRAL) (coderabbit PR #279).
+          persist-credentials: false
+
+      - name: Assert jq is present
+        # The golden pin parses JSON. Without jq the matrix would silently degrade to
+        # comparing empty strings — a green suite that checks nothing.
+        run: jq --version
+
+      - name: Self-test (prints its own assertion count; exit 2 on failure)
+        run: bash bin/lens-dispatch --self-test
+
+      - name: Non-regression matrix + golden lens pin + table sizes
+        run: bash tests/lens-dispatch-matrix.sh
+
+      - name: Layer Purity (community promotion gate)
+        run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
+
+      - name: Validate plugin structure (repo MUST rule)
+        # CLAUDE.md § MUST: "Validate plugin structure before committing." lens-dispatch adds a
+        # bin/ tool + a skill; this asserts the manifest + skill/agent/command frontmatter still
+        # pass the repo's own structural validator (coderabbit PR #279).
+        run: bash tests/validate-plugin.sh
