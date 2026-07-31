@@ -17,6 +17,16 @@ allowed-tools: Read, Glob, Grep, Bash
 > **Named by**: Anima (`[C-naming]`) · family `*-concierge`  
 > **Companion**: `9router-concierge` (strategy SSOT for this operator) · `~/Projects/9router-megacontext/INVENTORY-*.md`
 
+## Requirements (runtime probes)
+
+| Tool | Used for |
+|---|---|
+| `lsof` | TCP listen probe on `:20128` |
+| `curl` | `/v1/models` (prefer over `/api/health` 401/unknown_route) |
+| `sqlite3` | existence counts + inventory on `storage.sqlite` (never `SELECT key`) |
+| `omniroute` CLI | documented restart: `omniroute stop && omniroute serve --daemon` |
+| `bash` | Phase-0 / inventory / documented restart only |
+
 ## Identity
 
 I orient over the live OmniRoute instance: health, combos (`storage.sqlite`), strategies, providers, logs. I never print tokens/secrets. For this operator, **9Router is the strategy SSOT** when healing parity.

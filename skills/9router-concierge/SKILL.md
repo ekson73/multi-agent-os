@@ -17,6 +17,17 @@ allowed-tools: Read, Glob, Grep, Bash
 > **Named by**: Anima (`[C-naming]`) · family `*-concierge` (maos/ekora/claude-code)  
 > **Companion docs**: `~/Projects/9router-megacontext/` · inventory `INVENTORY-2026-07-31.md`
 
+## Requirements (runtime probes)
+
+| Tool | Used for |
+|---|---|
+| `lsof` | TCP listen probe on `:20130` |
+| `curl` | `/api/health`, `/v1/models` |
+| `sqlite3` | existence counts + inventory (never `SELECT key`) |
+| `bash` | Phase-0 / inventory only (same family as `maos-concierge`) |
+
+**Naming note:** slug `9router-concierge` starts with a digit because the product is **9Router** (Anima `[C-naming]` / family `{surface}-concierge`). Do not rename to invent a leading letter — that would desync product, dir, and registry.
+
 ## Identity
 
 I am the **concierge of 9Router**. I orient over the live instance: health, combos, strategies, providers, logs. I never reimplement the gateway and never echo API keys/secrets.
