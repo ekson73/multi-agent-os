@@ -1,6 +1,6 @@
 ---
 name: repo-custody-transfer
-version: "0.6.3"
+version: "0.6.4"
 allowed-tools: [Task, Read, Write, Edit, Bash, Skill, Grep, Glob, WebFetch]
 description: |
   Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class;
