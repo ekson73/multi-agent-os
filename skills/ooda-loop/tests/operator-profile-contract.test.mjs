@@ -42,6 +42,17 @@ test("stdlib validator accepts all complete contract examples", () => {
   }
 });
 
+test("three synthetic intake dogfood run envelopes validate", () => {
+  for (const name of [
+    "dogfood-01-delegated-technical.run.json",
+    "dogfood-02-business-rule.run.json",
+    "dogfood-03-webhook-deploy.run.json"
+  ]) {
+    const result = validate("run-envelope", path.join(root, "tests", "fixtures", name));
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  }
+});
+
 test("operator profile refuses invented authority, waived baseline and extra fields", async () => {
   const cases = [
     (value) => { value.authority.technical_delegation_claim = "authorized"; },

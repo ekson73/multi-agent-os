@@ -342,8 +342,9 @@ ooda-loop --operator-profile=./operator-profile.json --scope=ticket:ABC-42  # pr
 ## Quality evidence (progressive disclosure)
 
 Static quality, schema and negative-fixture evidence is recorded in
-`docs/dogfood/2026-08-01-ooda-loop-operator-profile-static-eval.md`. Behavioral v0.3 ACT dogfood was
-explicitly **NOT EXECUTED**. Load that report only for audit or maintenance.
+`docs/dogfood/2026-08-01-ooda-loop-operator-profile-static-eval.md`. Three synthetic, no-ACT intake
+dogfoods were executed on 2026-08-01; behavioral v0.3 ACT remains **UNVERIFIED** pending a sanitized,
+capability-mapped host run. Load that report only for audit or maintenance.
 
 ## §DUED Sunset (qualitative — not counter-based)
 Deprecate when ANY: a host ships a native recover->measure->converge primitive (E1) · gap-loop/quiesce absorb

@@ -18,4 +18,4 @@
 - [x] 3.2 Validate the example and negative fixtures with a real Draft 2020-12 validator.
 - [x] 3.3 Run targeted tests, plugin validation, strict OpenSpec validation and secret scan.
 - [x] 3.4 Complete independent review and close all material findings; review responses link the evidence.
-- [x] 3.5 Mark behavioral host dogfood as pending; do not execute the delivery loop in this change.
+- [x] 3.5 Execute three synthetic, no-ACT intake dogfoods; retain adapter-mapped behavioral ACT dogfood as pending.
