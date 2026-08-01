@@ -63,15 +63,21 @@ class RepoFixture:
     def switch(self, name: str) -> None:
         self.git("switch", name)
 
-    def release(self, version: str, *, extra_path: str | None = None) -> str:
+    def release(
+        self,
+        version: str,
+        *,
+        extra_path: str | None = None,
+        subject: str | None = None,
+    ) -> str:
         self.write_version(version)
         with (self.root / "CHANGELOG.md").open("a", encoding="utf-8") as changelog:
             changelog.write(f"\n## [{version}] - 2026-08-01\n")
         if extra_path:
             self.write(extra_path, "functional change\n")
-        return self.commit(f"chore(release): {version}")
+        return self.commit(subject or f"chore(release): {version}")
 
-    def check(self, base: str, head: str, title: str) -> subprocess.CompletedProcess[str]:
+    def check(self, base: str, head: str, _title: str = "") -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 "python3",
@@ -82,8 +88,6 @@ class RepoFixture:
                 base,
                 "--head-sha",
                 head,
-                "--pr-title",
-                title,
             ],
             check=False,
             text=True,
@@ -116,12 +120,45 @@ class ReleaseCoherenceTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("untouched", result.stdout)
 
-    def test_feature_title_is_rejected(self) -> None:
+    def test_feature_commit_subject_is_rejected(self) -> None:
         self.repo.branch("release")
-        head = self.repo.release("1.1.0")
-        result = self.repo.check(self.initial, head, "feat: hide a release")
+        head = self.repo.release("1.1.0", subject="feat: hide a release")
+        result = self.repo.check(self.initial, head)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("separate PR", result.stderr)
+        self.assertIn("commit subject", result.stderr)
+
+    def test_non_utf8_commit_subject_is_rejected_without_traceback(self) -> None:
+        self.repo.branch("release")
+        valid_commit = self.repo.release("1.1.0")
+        raw_commit = subprocess.run(
+            ["git", "-C", str(self.repo.root), "cat-file", "commit", valid_commit],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout.replace(b"chore(release): 1.1.0", b"chore(release): \xff")
+        commit = subprocess.run(
+            ["git", "-C", str(self.repo.root), "hash-object", "-t", "commit", "-w", "--stdin"],
+            check=True,
+            input=raw_commit,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        ).stdout.decode("ascii").strip()
+        self.repo.git("update-ref", "HEAD", commit)
+
+        result = self.repo.check(self.initial, commit)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("non-UTF-8 output", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_release_delta_must_be_exactly_one_commit(self) -> None:
+        self.repo.branch("release")
+        self.repo.write("notes.md", "unrelated precursor\n")
+        self.repo.commit("docs: precursor")
+        head = self.repo.release("1.1.0")
+        result = self.repo.check(self.initial, head)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("exactly one", result.stderr)
 
     def test_release_pr_with_merge_commit_is_rejected(self) -> None:
         self.repo.branch("release")
@@ -284,6 +321,7 @@ class TrustedWorkflowTests(unittest.TestCase):
         self.assertNotIn("cp scripts/check-release-coherence.py", workflow)
         self.assertNotIn("statuses: write", workflow)
         self.assertNotIn("statuses/$HEAD_SHA", workflow)
+        self.assertNotIn("pull_request.title", workflow)
 
 
 if __name__ == "__main__":
