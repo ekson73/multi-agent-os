@@ -36,7 +36,7 @@ jobs:
       - name: Checkout the trusted base with full history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: main
           fetch-depth: 0
           persist-credentials: false
 
@@ -53,7 +53,7 @@ jobs:
             git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
           git cat-file -e "$HEAD_SHA^{commit}"
 
-          # Both workflow and checker come from the trusted base checkout.
+          # Both workflow and checker come from the trusted default branch checkout.
           python3 scripts/check-release-coherence.py \
             --repo "$GITHUB_WORKSPACE" \
             --base-sha "$BASE_SHA" \
