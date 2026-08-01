@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   release-coherence:
@@ -43,11 +44,37 @@ jobs:
       - name: Validate the squash-surviving release artifact
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+
+          publish_status() {
+            gh api --method POST \
+              "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="$1" \
+              -f context='release-coherence/trusted-base' \
+              -f description="$2" \
+              -f target_url="$RUN_URL" >/dev/null
+          }
+
+          finish() {
+            rc=$?
+            trap - EXIT
+            if [ "$rc" -eq 0 ]; then
+              publish_status success 'Trusted-base release coherence passed'
+            else
+              publish_status failure 'Trusted-base release coherence failed'
+            fi
+            exit "$rc"
+          }
+
+          trap finish EXIT
+          publish_status pending 'Trusted-base release coherence is running'
+
           # Fetch head as inert Git objects. Never checkout or execute head code.
           git fetch --no-tags origin "$HEAD_SHA" >/dev/null 2>&1 || \
             git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"

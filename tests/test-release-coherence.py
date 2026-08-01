@@ -157,6 +157,24 @@ class ReleaseCoherenceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("only the version field", result.stderr)
 
+    def test_manifest_comparison_preserves_json_types(self) -> None:
+        self.repo.write(
+            ".claude-plugin/plugin.json",
+            json.dumps({"name": "maos", "version": "1.0.0", "prefix_required": True}) + "\n",
+        )
+        base = self.repo.commit("test: typed manifest baseline")
+        self.repo.branch("release")
+        self.repo.write(
+            ".claude-plugin/plugin.json",
+            json.dumps({"name": "maos", "version": "1.1.0", "prefix_required": 1}) + "\n",
+        )
+        with (self.repo.root / "CHANGELOG.md").open("a", encoding="utf-8") as changelog:
+            changelog.write("\n## [1.1.0] - 2026-08-01\n")
+        head = self.repo.commit("chore(release): 1.1.0")
+        result = self.repo.check(base, head, "chore(release): 1.1.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("only the version field", result.stderr)
+
     def test_release_pr_cannot_edit_derived_readme(self) -> None:
         self.repo.branch("release")
         self.repo.write_version("1.1.0")
@@ -183,6 +201,19 @@ class ReleaseCoherenceTests(unittest.TestCase):
         changelog.write_text(prior.replace("2026-01-01", "2099-01-01"), encoding="utf-8")
         head = self.repo.release("1.1.0")
         result = self.repo.check(self.initial, head, "chore(release): 1.1.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("additive", result.stderr)
+
+    def test_markdown_separator_removal_is_rejected(self) -> None:
+        with (self.repo.root / "CHANGELOG.md").open("a", encoding="utf-8") as changelog:
+            changelog.write("\n---\n")
+        base = self.repo.commit("docs: add separator")
+        self.repo.branch("release")
+        changelog = self.repo.root / "CHANGELOG.md"
+        prior = changelog.read_text(encoding="utf-8")
+        changelog.write_text(prior.replace("\n---\n", "\n"), encoding="utf-8")
+        head = self.repo.release("1.1.0")
+        result = self.repo.check(base, head, "chore(release): 1.1.0")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("additive", result.stderr)
 
@@ -251,6 +282,9 @@ class TrustedWorkflowTests(unittest.TestCase):
         self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", workflow)
         self.assertIn("python3 scripts/check-release-coherence.py", workflow)
         self.assertNotIn("cp scripts/check-release-coherence.py", workflow)
+        self.assertIn("statuses: write", workflow)
+        self.assertIn("release-coherence/trusted-base", workflow)
+        self.assertIn('"repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"', workflow)
 
 
 if __name__ == "__main__":

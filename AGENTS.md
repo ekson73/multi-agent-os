@@ -88,6 +88,6 @@ Before committing any changes:
 
 - **Trunk**: `main` is always releasable. **No environment branches** (no `homolog`/`ppe`/`prd` here — those exist only in Class A *deployed apps* like `vek-sales`/`vek-list`).
 - **Work**: branch `feature/<id>-slug` · `fix/<id>-slug` · `hotfix/<id>-slug` · `docs/` · `chore/` off `main` → PR → **squash-merge** → **delete branch**.
-- **Release PRs**: a `.claude-plugin/plugin.json` version delta travels in a separate, rebased, linear PR titled `chore(release): ...`; it changes only the manifest `version` field and adds exactly one matching, additive `CHANGELOG.md` section. README/CLAUDE versions remain derived by `version-sync`. The trusted-base CI gate enforces this squash-surviving artifact.
+- **Release PRs**: a `.claude-plugin/plugin.json` version delta travels in a separate, rebased, linear PR titled `chore(release): ...`; it changes only the manifest `version` field and adds exactly one matching, additive `CHANGELOG.md` section. README/CLAUDE versions remain derived by `version-sync`. The trusted-base workflow publishes `release-coherence/trusted-base` on the PR head; the repository ruleset requires that status before merge.
 - **Agents MUST**: never commit to `main` directly · always open a PR · never create env-branches here · treat tagging/release as a human/operator gate.
 - **Versioning & consumer source-pin**: governed by the companion **ADR-003** (`version-ssot-float`) + Jira — source `ref = main` during MVP (TTL'd). Do **not** re-decide it here.

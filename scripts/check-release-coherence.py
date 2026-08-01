@@ -31,6 +31,15 @@ class PolicyError(RuntimeError):
     """A deterministic release-coherence violation."""
 
 
+def strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    document: dict[str, object] = {}
+    for key, value in pairs:
+        if key in document:
+            raise PolicyError(f"duplicate JSON key is not allowed: {key}")
+        document[key] = value
+    return document
+
+
 def git(repo: Path, *args: str, text: bool = True) -> str | bytes:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
@@ -52,7 +61,9 @@ def read_blob(repo: Path, sha: str, path: str) -> str:
 
 def manifest_at(repo: Path, sha: str) -> dict[str, object]:
     try:
-        document = json.loads(read_blob(repo, sha, MANIFEST))
+        document = json.loads(
+            read_blob(repo, sha, MANIFEST), object_pairs_hook=strict_json_object
+        )
     except (json.JSONDecodeError, PolicyError) as exc:
         raise PolicyError(f"cannot read a valid {MANIFEST} at {sha[:12]}") from exc
     if not isinstance(document, dict):
@@ -164,7 +175,9 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     head_manifest = manifest_at(repo, head_sha)
     start_manifest.pop("version", None)
     head_manifest.pop("version", None)
-    if start_manifest != head_manifest:
+    start_canonical = json.dumps(start_manifest, sort_keys=True, separators=(",", ":"))
+    head_canonical = json.dumps(head_manifest, sort_keys=True, separators=(",", ":"))
+    if start_canonical != head_canonical:
         raise PolicyError("release PR may change only the version field inside plugin.json")
 
     base_changelog = read_blob(repo, base_sha, "CHANGELOG.md")
@@ -179,18 +192,20 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     changelog_diff = str(
         git(repo, "diff", "--unified=0", "--no-color", start_sha, head_sha, "--", "CHANGELOG.md")
     )
-    removed_lines = [
-        line for line in changelog_diff.splitlines() if line.startswith("-") and not line.startswith("---")
-    ]
-    hunk_count = sum(1 for line in changelog_diff.splitlines() if line.startswith("@@"))
+    removed_lines: list[str] = []
+    added_lines: list[str] = []
+    hunk_count = 0
+    in_hunk = False
+    for line in changelog_diff.splitlines():
+        if line.startswith("@@"):
+            hunk_count += 1
+            in_hunk = True
+        elif in_hunk and line.startswith("-"):
+            removed_lines.append(line[1:])
+        elif in_hunk and line.startswith("+"):
+            added_lines.append(line[1:])
     if removed_lines or hunk_count != 1:
         raise PolicyError("CHANGELOG delta must be one additive release-section hunk")
-
-    added_lines = [
-        line[1:]
-        for line in changelog_diff.splitlines()
-        if line.startswith("+") and not line.startswith("+++")
-    ]
     first_meaningful = next((line for line in added_lines if line.strip()), None)
     if first_meaningful is None or header_re.match(first_meaningful) is None:
         raise PolicyError("the new CHANGELOG hunk must begin with the release heading")
