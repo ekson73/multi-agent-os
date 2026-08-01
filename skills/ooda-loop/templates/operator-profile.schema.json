@@ -2,30 +2,51 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:multi-agent-os:operator-profile:1.0",
   "title": "Operator profile for OODA-loop intake",
-  "description": "Portable, non-secret input that tells ooda-loop how to resolve an operator's business role, delegated technical authority, escalation boundaries and lifecycle constraints. It never grants permissions absent from the live host, repository policy or environment gates.",
+  "description": "Portable, non-secret context claims and constraints for ooda-loop. A profile never grants authority: execution requires independent repository, user and live-host evidence, and immutable policy may only be tightened.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contract_version", "operator", "authority", "sources", "delivery"],
+  "required": ["contract_version", "provenance", "operator", "authority", "sources", "delivery"],
   "properties": {
     "contract_version": {"const": "1.0"},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_kind", "recorded_at", "expires_at", "project_binding"],
+      "properties": {
+        "source_kind": {"enum": ["operator-declaration", "repository-record"], "description": "Origin of the claims, not an authorization channel."},
+        "recorded_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time", "description": "Runtime must park an expired profile; schema validation alone does not prove freshness."},
+        "source_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "Optional digest of the separately retained source record; never a secret or credential."},
+        "project_binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["project_slug", "tenant_scope"],
+          "properties": {
+            "project_slug": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+            "tenant_scope": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$"}
+          }
+        }
+      }
+    },
     "operator": {
       "type": "object",
       "additionalProperties": false,
       "required": ["role", "technical_literacy", "language"],
       "properties": {
-        "role": {"type": "string", "minLength": 1, "description": "Business role, never a real name or account identifier."},
+        "role": {"type": "string", "minLength": 1, "maxLength": 80, "description": "Business role, never a real name or account identifier."},
         "technical_literacy": {"enum": ["limited", "working", "advanced"], "description": "Changes explanation style only; it does not constrain delegated technical decisions."},
-        "language": {"type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2}|-[0-9]{3})?$", "description": "BCP 47-style language tag for a necessary business-facing question, for example pt-BR."}
+        "language": {"type": "string", "minLength": 2, "maxLength": 16, "pattern": "^[a-z]{2,3}(-[A-Z]{2}|-[0-9]{3})?$", "description": "BCP 47-style language tag for a necessary business-facing question, for example pt-BR."}
       }
     },
     "authority": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["technical_delegation", "human_decision_domains", "hard_stop_domains"],
+      "description": "Non-authorizing claims and additional constraints. Effective execution authority is proved elsewhere.",
+      "required": ["technical_delegation_claim", "human_decision_domains", "baseline_acknowledgements"],
       "properties": {
-        "technical_delegation": {"enum": ["none", "bounded", "delegated"], "description": "A stated delegation remains limited by live project and host gates."},
-        "human_decision_domains": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["business-rule", "business-priority", "human-only-access", "human-only-acceptance"]}},
-        "hard_stop_domains": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "description": "The non-waivable generic baseline. A repository or live environment may add gates, but this profile cannot remove one.", "items": {"enum": ["secret", "personal-data", "identity-or-access", "money-or-cost", "legal-or-regulated-effect", "external-communication", "cross-organization", "destructive-or-irreversible"]}}
+        "technical_delegation_claim": {"enum": ["none", "bounded", "delegated"], "description": "Preference/claim only. It may route technical questions away from the operator after an independent grant is proved, but cannot authorize an action."},
+        "human_decision_domains": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": {"enum": ["business-rule", "business-priority", "human-only-access", "human-only-acceptance"]}},
+        "baseline_acknowledgements": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "description": "Acknowledges the immutable generic deny baseline; enforcement comes from policy, never this array. Project/live policy may add gates and the profile may not remove one.", "items": {"enum": ["secret", "personal-data", "identity-or-access", "money-or-cost", "legal-or-regulated-effect", "external-communication", "cross-organization", "destructive-or-irreversible"]}}
       }
     },
     "sources": {
@@ -33,16 +54,16 @@
       "additionalProperties": false,
       "required": ["authoritative", "signal_only"],
       "properties": {
-        "authoritative": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["repository-policy", "approved-specification", "accepted-decision-record", "verified-live-state", "approved-backlog"]}},
-        "signal_only": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["chat", "discord-message", "slack-message", "jira-issue", "linear-issue", "ticket", "backlog-item", "pull-request", "hook", "webhook", "bootstrap", "prototype", "notification", "agent-output"]}}
+        "authoritative": {"type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true, "description": "Declared context lookup order. The runtime must independently verify each cited source before treating it as evidence.", "items": {"enum": ["repository-policy", "approved-specification", "accepted-decision-record", "verified-live-state", "approved-backlog"]}},
+        "signal_only": {"type": "array", "minItems": 1, "maxItems": 15, "uniqueItems": true, "items": {"enum": ["chat", "discord-message", "slack-message", "jira-issue", "linear-issue", "ticket", "backlog-item", "pull-request", "hook", "webhook", "bootstrap", "prototype", "notification", "agent-output"]}}
       }
     },
     "delivery": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["permitted_stages", "deploy_mode"],
+      "required": ["candidate_stages", "deploy_mode"],
       "properties": {
-        "permitted_stages": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["recon", "prototype", "reverse-engineering", "specification", "source", "verification", "build", "deploy"]}},
+        "candidate_stages": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "description": "Requested routing candidates, not permissions. Evidence and live gates select the next stage.", "items": {"enum": ["recon", "prototype", "reverse-engineering", "specification", "source", "verification", "build", "deploy"]}},
         "deploy_mode": {"enum": ["disabled", "gated"], "description": "Gated means a real deployment still needs the target environment's live technical controls; it is never inferred from this file."}
       }
     },
@@ -50,8 +71,8 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "included": {"type": "array", "items": {"type": "string", "minLength": 1}},
-        "excluded": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        "included": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}},
+        "excluded": {"type": "array", "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
       }
     }
   }
