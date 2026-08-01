@@ -20,7 +20,7 @@ class RepoFixture:
         self.root = Path(self.tempdir.name)
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Release Test")
-        self.git("config", "user.email", "release@example.invalid")
+        self.git("config", "user.email", "release-test.invalid")
         self.git("config", "commit.gpgsign", "false")
         (self.root / ".claude-plugin").mkdir()
         self.write_version("1.0.0")
