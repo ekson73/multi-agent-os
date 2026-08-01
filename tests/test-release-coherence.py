@@ -282,9 +282,8 @@ class TrustedWorkflowTests(unittest.TestCase):
         self.assertNotIn("ref: ${{ github.event.pull_request.head.sha }}", workflow)
         self.assertIn("python3 scripts/check-release-coherence.py", workflow)
         self.assertNotIn("cp scripts/check-release-coherence.py", workflow)
-        self.assertIn("statuses: write", workflow)
-        self.assertIn("release-coherence/trusted-base", workflow)
-        self.assertIn('"repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"', workflow)
+        self.assertNotIn("statuses: write", workflow)
+        self.assertNotIn("statuses/$HEAD_SHA", workflow)
 
 
 if __name__ == "__main__":

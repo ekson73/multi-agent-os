@@ -14,8 +14,8 @@ Release version changes now require a separate, linear `chore(release): ...` PR 
 the repository's squash-merge policy. A fail-closed, standard-library checker compares against the
 merge base, requires a rebased linear history and monotonic unused SemVer, permits only the manifest
 version field plus one additive changelog section, and runs exclusively from trusted base code while
-treating the PR head as inert Git data. It publishes `release-coherence/trusted-base` directly on the
-head SHA for enforcement by a repository ruleset. Hermetic Git-history and static workflow tests cover valid
+treating the PR head as inert Git data. A repository ruleset requires that exact workflow from `main`,
+so no head-owned workflow or same-name status can impersonate the gate. Hermetic Git-history and static workflow tests cover valid
 release, stale branch, title/workflow bypasses, merge topology, content impurity, changelog integrity,
 downgrade, prerelease precedence and version reuse.
 
