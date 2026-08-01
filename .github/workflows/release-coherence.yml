@@ -1,0 +1,61 @@
+# Release Coherence Workflow (PR gate)
+#
+# The repository squash-merges PRs. A release therefore has to be represented
+# by the PR artifact that survives on main, not merely by an ephemeral internal
+# branch commit. When a PR changes the plugin version relative to its merge
+# base, this gate requires a separate, release-only PR with:
+#
+# - a `chore(release): ...` PR title (the expected squash subject);
+# - a monotonic SemVer advance over the current base;
+# - linear history, so second-parent changes cannot hide provenance;
+# - only the manifest version field and one additive changelog section;
+# - exactly one newly added CHANGELOG heading for that version; and
+# - no reuse of a version already present in the base changelog or Git tags.
+#
+# A stale branch that never changes the version remains a no-op. plugin.json
+# stays the SSOT; version-sync.yml continues syncing README/CLAUDE post-merge.
+
+name: Release Coherence
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  release-coherence:
+    name: release-coherence
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-coherence-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout the trusted base with full history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the squash-surviving release artifact
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          # Fetch head as inert Git objects. Never checkout or execute head code.
+          git fetch --no-tags origin "$HEAD_SHA" >/dev/null 2>&1 || \
+            git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+          git cat-file -e "$HEAD_SHA^{commit}"
+
+          # Both workflow and checker come from the trusted default branch checkout.
+          python3 scripts/check-release-coherence.py \
+            --repo "$GITHUB_WORKSPACE" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --pr-title "$PR_TITLE"
