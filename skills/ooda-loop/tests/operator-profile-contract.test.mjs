@@ -126,6 +126,26 @@ test("run envelope refuses vocabulary drift and unstructured authority", async (
       value.intake.execution_authority.state = "denied";
       value.intake.access = "ACCESS_FORBIDDEN";
     },
+    (value) => {
+      value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+      value.intake.execution_authority.state = "proven";
+      value.intake.access = "ACCESS_READY";
+      value.budget.lease = "expired";
+      value.budget.continuation_authorized = true;
+    },
+    (value) => {
+      value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+      value.intake.execution_authority.state = "proven";
+      value.intake.access = "ACCESS_READY";
+      value.budget.cancelled = true;
+      value.budget.continuation_authorized = true;
+    },
+    (value) => {
+      value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+      value.intake.execution_authority.state = "proven";
+      value.intake.access = "ACCESS_READY";
+      value.budget.continuation_authorized = false;
+    },
     (value) => { value.unexpected = true; }
   ];
   for (const mutate of cases) {
@@ -142,6 +162,21 @@ test("run envelope permits ACT only with proven authority and ready access", asy
     value.intake.execution_authority.state = "proven";
     value.intake.execution_authority.evidence_refs = ["repository-policy:accepted-decision-42"];
     value.intake.access = "ACCESS_READY";
+  }, (file) => {
+    const result = validate("run-envelope", file);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  });
+});
+
+test("run envelope permits CONTINUE-to-ACT only with a live authorized budget", async () => {
+  await withMutation("run-envelope.example.json", (value) => {
+    value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+    value.intake.execution_authority.state = "proven";
+    value.intake.execution_authority.evidence_refs = ["repository-policy:accepted-decision-42"];
+    value.intake.access = "ACCESS_READY";
+    value.budget.lease = "valid";
+    value.budget.cancelled = false;
+    value.budget.continuation_authorized = true;
   }, (file) => {
     const result = validate("run-envelope", file);
     assert.equal(result.status, 0, result.stdout + result.stderr);

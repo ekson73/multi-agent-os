@@ -39,9 +39,9 @@ architecture, tests, CI/CD, branches, or routine fixes.
 
 Before an ordinary escalation, run proportionate recon and exactly one best-fit independent
 council/convergence path; do not chain every reviewer as ceremony.
-Escalate only the irreducible residue: a missing/conflicting business rule or priority, a
-human-only access/approval/payment/acceptance/physical action, or a hard boundary that
-cannot be opened. Ask in the operator's declared language, with the operational decision,
+Escalate only the irreducible residue: upstream operator goal/DoD intent that remains inconclusive,
+a missing/conflicting business rule or priority, a human-only access/approval/payment/acceptance/
+physical action, or a hard boundary that cannot be opened. Ask in the operator's declared language, with the operational decision,
 evidence, risk, minimal options, and recommended option.
 
 Hard boundaries are never weakened by a trigger or profile: secrets, personal data,
@@ -58,7 +58,9 @@ Do not force every item through a fixed prototype -> reverse-engineering -> spec
 of Ready. Deployment is a separately gated promotion, not an automatic final step.
 
 Apply one global OODA+PDCA budget including attempts, tool/spawn/external calls, elapsed time,
-cancellation and lease validity. Two no-progress outer cycles park the best checkpoint. If the host
+cancellation and lease validity. An ACT route requires a valid lease and no cancellation; a
+CONTINUE-to-ACT route additionally requires explicit continuation authorization in the envelope.
+Two no-progress outer cycles park the best checkpoint. If the host
 cannot enforce those controls, run one OODA cycle only. Stop with DELIVERY_DONE only when the scoped
 measurable DoD is met, no eligible verified gap or applicable deferred/open specification remains,
 and all quality/promotion gates have passed. A completed stage is STAGE_DONE, not delivery done.

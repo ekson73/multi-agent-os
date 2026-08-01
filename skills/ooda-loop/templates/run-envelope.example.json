@@ -28,7 +28,8 @@
     "elapsed_minutes": 4.5,
     "plateau_cycles": 0,
     "lease": "valid",
-    "cancelled": false
+    "cancelled": false,
+    "continuation_authorized": false
   },
   "postflight": "done",
   "next_action": "Verify the current repository authorization record before ACT."

@@ -81,6 +81,13 @@ stop-marker enums rather than illustrative pipe-delimited aliases.
 - **THEN** run-envelope validation SHALL refuse the result
 - **AND** the adapter SHALL use `PARKED_PARTIAL` plus structured authority evidence as applicable
 
+#### Scenario: Adapter proposes an unauthorized continuation
+
+- **WHEN** an adapter emits a `CONTINUE` marker routed to ACT
+- **AND** the lease is not valid, cancellation is active, or continuation is not explicitly authorized
+- **THEN** run-envelope validation SHALL refuse the result
+- **AND** the conductor SHALL park or stop according to the validated terminal vocabulary
+
 ### Requirement: Escalation is proportional and business-readable
 
 The conductor MUST resolve ordinary technical uncertainty through the least expensive

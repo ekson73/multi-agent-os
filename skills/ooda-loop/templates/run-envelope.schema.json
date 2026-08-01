@@ -67,7 +67,7 @@
     "budget": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ooda_cycles", "attempts", "tool_calls", "spawns", "external_calls", "elapsed_minutes", "plateau_cycles", "lease", "cancelled"],
+      "required": ["ooda_cycles", "attempts", "tool_calls", "spawns", "external_calls", "elapsed_minutes", "plateau_cycles", "lease", "cancelled", "continuation_authorized"],
       "properties": {
         "ooda_cycles": {"type": "integer", "minimum": 0},
         "attempts": {"type": "integer", "minimum": 0},
@@ -77,7 +77,8 @@
         "elapsed_minutes": {"type": "number", "minimum": 0},
         "plateau_cycles": {"type": "integer", "minimum": 0},
         "lease": {"enum": ["valid", "expired", "unknown"]},
-        "cancelled": {"type": "boolean"}
+        "cancelled": {"type": "boolean"},
+        "continuation_authorized": {"type": "boolean"}
       }
     },
     "postflight": {"enum": ["pending", "done", "deferred"]},
@@ -96,6 +97,33 @@
             "properties": {
               "execution_authority": {"properties": {"state": {"const": "proven"}}},
               "access": {"const": "ACCESS_READY"}
+            }
+          },
+          "budget": {
+            "properties": {
+              "lease": {"const": "valid"},
+              "cancelled": {"const": false}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "result": {
+            "properties": {
+              "stop_marker": {"const": "CONTINUE"},
+              "route": {"const": "act"}
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "continuation_authorized": {"const": true}
             }
           }
         }

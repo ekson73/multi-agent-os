@@ -110,6 +110,24 @@ def test_trigger_envelope_negative_fixtures_are_rejected(mutate) -> None:
             value["intake"]["execution_authority"].update({"state": "denied"}),
             value["intake"].update({"access": "ACCESS_FORBIDDEN"}),
         ),
+        lambda value: (
+            value.update({"result": {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"}}),
+            value["intake"]["execution_authority"].update({"state": "proven"}),
+            value["intake"].update({"access": "ACCESS_READY"}),
+            value["budget"].update({"lease": "expired", "continuation_authorized": True}),
+        ),
+        lambda value: (
+            value.update({"result": {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"}}),
+            value["intake"]["execution_authority"].update({"state": "proven"}),
+            value["intake"].update({"access": "ACCESS_READY"}),
+            value["budget"].update({"cancelled": True, "continuation_authorized": True}),
+        ),
+        lambda value: (
+            value.update({"result": {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"}}),
+            value["intake"]["execution_authority"].update({"state": "proven"}),
+            value["intake"].update({"access": "ACCESS_READY"}),
+            value["budget"].update({"continuation_authorized": False}),
+        ),
     ],
 )
 def test_run_envelope_negative_fixtures_are_rejected(mutate) -> None:
@@ -132,4 +150,23 @@ def test_run_envelope_allows_act_with_proven_authority_and_ready_access() -> Non
         "evidence_refs": ["repository-policy:accepted-decision-42"],
     }
     instance["intake"]["access"] = "ACCESS_READY"
+    validator("run-envelope").validate(instance)
+
+
+def test_run_envelope_allows_continue_act_with_live_authorized_budget() -> None:
+    instance = copy.deepcopy(load("run-envelope.example.json"))
+    instance["result"] = {
+        "outcome": "CONTINUE",
+        "status": "partial",
+        "stop_marker": "CONTINUE",
+        "route": "act",
+    }
+    instance["intake"]["execution_authority"] = {
+        "state": "proven",
+        "evidence_refs": ["repository-policy:accepted-decision-42"],
+    }
+    instance["intake"]["access"] = "ACCESS_READY"
+    instance["budget"].update(
+        {"lease": "valid", "cancelled": False, "continuation_authorized": True}
+    )
     validator("run-envelope").validate(instance)
