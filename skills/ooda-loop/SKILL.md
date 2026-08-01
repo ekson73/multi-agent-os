@@ -23,14 +23,9 @@ metadata:
 Thin **goal-loop conductor**. `ooda-loop` composes the three steps of the operator's recurring
 contract into one override-friendly preset; every step lands on a primitive that already exists.
 
-> **Provenance / lineage**: distills the operator's hand-invoked contract
-> `{ ooda --scope=this.session --goal==$(goal-recovery ... --type handoff-as-prompt) --dod==$(Prisma ...
-> --type dod-as-prompt); /quiesce --dod={{dod}} --goal={{goal}}; }` into a reusable tool. The operator
-> literally frames it as OODA — Observe/Orient/Decide/Act maps exactly onto recover/measure/gate/drive.
-> Named via `anima` (agent-register): `ooda-loop` (Boyd 1976; the operator's own `ooda` verb; cited SOTA
-> Raghavan & Schneier IEEE S&P 2025). Rejected `conductor` (near-collides with the family's `orchestrator`);
-> rejected `goal-loop` (`goal` vendor-reserved) / `goal-pilot` (collides `auto-pilot`). Authored by Claude
-> Opus 4.8 (1M) under operator `/enhance` directive 2026-07-12; reviewed by @ekson73.
+> **Lineage**: `anima` retained the existing name `ooda-loop`; this skill distills the operator's
+> recover → measurable DoD → converge contract. Naming rationale and prior art live in git history,
+> ADR-014 and the dated dogfood report rather than the hot execution context.
 
 ## §0 — BEING > Rules (foundational)
 Serves the operator's intent. Only a non-safety presentation nicety may be skipped, with
@@ -133,8 +128,9 @@ If that resolves a technical decision with independently proved execution author
 If a host lacks an armed/compatible council adapter, it stays consultative and grants no authority; use the
 independent evidence already available and retain the normal hard gates.
 
-Escalate only the irreducible residue: (1) a missing or conflicting business rule/priority owned by the
-operator; (2) a human-only access, approval, payment, acceptance, or physical action; or (3) a hard boundary
+Escalate only the irreducible residue: (0) unresolved operator goal or acceptance intent reported inconclusive
+by an upstream typed envelope; (1) a missing or conflicting business rule/priority owned by the operator;
+(2) a human-only access, approval, payment, acceptance, or physical action; or (3) a hard boundary
 whose named live gate requires a human. A council cannot open a hard gate; do not delay immediate containment
 or that gate for a council. The question must state the
 operational decision, the minimal options, current evidence, risk, and recommended option; never ask the
@@ -153,7 +149,12 @@ ADJUST keep the best non-regressed result; fix/re-plan, record a new gap, or ret
 ```
 
 `gap-loop` and `quiesce` remain the PDCA drivers; they own their round limits, independent-verifier rule,
-state persistence, PR convergence and stop markers. Stage promotion is earned by the stage's DoD. A failed or
+state persistence and PR convergence. Their marker is a **child result**, not the conductor's outward marker:
+`ooda-loop` captures and normalizes it before emitting exactly one outer marker. Driver soft exhaustion or
+unresolved technical residue becomes `STOP-PARKED`; driver done becomes `STAGE_DONE`/`CONTINUE` unless the
+whole delivery contract earns `DELIVERY_DONE`; irreducible business/human or hard-gate residue remains
+`STOP-HITL`; unrecoverable error remains `STOP-ERROR`. If a host cannot capture a child result without leaking
+a second marker, its adapter MUST NOT run ACT. Stage promotion is earned by the stage's DoD. A failed or
 plateaued PDCA loop produces a bounded finding and re-enters OODA; it never becomes an unbounded "keep trying"
 instruction.
 
@@ -202,7 +203,10 @@ ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             v
 DECIDE    gate: all APPLICABLE envelopes valid (system-as-prompt is N/A for a one-shot/bounded goal —
             the {goal, dod} pair suffices) + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
-            | any red -> HITL (with the computed envelopes attached, never a blank ask)
+            | structurally invalid envelope -> STOP-ERROR (fail closed; attach validation evidence)
+            | upstream goal/DoD intent inconclusive OR HUMAN_DOMAIN/hard gate -> STOP-HITL
+            | autonomy_score below threshold -> one proportionate independent uplift path;
+            |   still below threshold -> STOP-PARKED (technical checkpoint + precise next action; no operator ask)
             | resolve --driver (auto: quiesce if host /goal + session scope, else gap-loop)
             v
 ACT       drive with the typed {goal, dod[, system]} set (system only when the goal is recurring):
@@ -254,7 +258,7 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | `--operator-profile` | *(none)* | trusted control-plane path to a validated, fresh profile of context claims/preferences. It can constrain, never grant. |
 | `--trigger-envelope` | *(derived for direct invocation)* | trusted control-plane path to a validated replay-safe event envelope; adapters must create it before accepting external payloads. |
 | `--driver` | `auto` | `auto` (quiesce if host `/goal` + session scope, else gap-loop) \| `gap-loop` \| `quiesce` \| `<custom>` |
-| `--conf-inconclusive` | `0.60` | `0.0`-`1.0` — goal-recovery HITL gate (below => STOP-HITL before ORIENT) |
+| `--conf-inconclusive` | `0.60` | `0.0`-`1.0` — upstream goal/DoD intent gate (below => preserve the typed envelope's `STOP-HITL`; do not ask a technical-choice question) |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — DECIDE gate + passed to the driver |
 | `--max-iterations` | `6` | int — ACT loop cap (passed to gap-loop `--max-iterations` / quiesce `--max-pdca`) |
 | `--max-ooda-cycles` | `3` | positive int — shared outer-cycle cap, including lifecycle re-observation. |
@@ -271,31 +275,23 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | `--for-goal` | *(recover via OBSERVE)* | explicit goal string — skip OBSERVE, derive the DoD for THIS goal directly (the common `--only=orient` case: the goal is known, you want its measurable DoD). |
 
 ## Output contract (`--output=json`)
-```json
-{"stage":"OBSERVE|ORIENT|DECIDE|ACT",
- "outcome":"STAGE_DONE|DELIVERY_DONE|PARKED_PARTIAL|BLOCKED_HITL|ERROR|CONTINUE",
- "status":"ok|partial|hitl|error",
- "stop_marker":"STOP-DONE|STOP-PARKED|STOP-HITL|STOP-ERROR|CONTINUE",
- "intake":{"trigger_kind":"direct-chat|discord|slack|ticket|backlog|specification|pull-request|hook|webhook|bootstrap|prototype|agent-output","profile":"present|absent","lifecycle_stage":"recon|prototype|reverse-engineering|specification|source|verification|build|deploy","route":"act|consult|hitl","execution_authority":{"state":"proven|unknown|denied","evidence_refs":["<current non-secret evidence reference>"]},"access":"ACCESS_READY|ACCESS_MISSING|ACCESS_CHANGE_REQUIRED|ACCESS_FORBIDDEN"},
- "handoff":{"goal":"<...>","confidence":0.0,"inconclusive":{"flag":false}},
- "dod":{"for_goal":"<...>","termination_predicate":"<...>","evaluation":{"band":"HIGH|MEDIUM|LOW"}},
- "driver":"gap-loop|quiesce","autonomy_score":0.0,
- "budget":{"ooda_cycles":0,"attempts":0,"tool_calls":0,"spawns":0,"external_calls":0,"elapsed_minutes":0,"plateau_cycles":0,"lease":"valid|expired|unknown","cancelled":false},
- "postflight":"pending|done|deferred"}
-```
+Emit one instance validated against
+[`templates/run-envelope.schema.json`](templates/run-envelope.schema.json); use the sanitized
+[`run-envelope.example.json`](templates/run-envelope.example.json) as the shape reference. The schema is
+the vocabulary SSOT for lifecycle stages, outcomes, access, authority evidence, budgets and outer markers.
 `STAGE_DONE` means one stage passed and normally continues to OBSERVE. `DELIVERY_DONE` alone may emit
 `STOP-DONE`: the scoped delivery DoD is met and no applicable gap, deferred/open specification, failed check or
 pending promotion remains. `PARKED_PARTIAL` preserves bounded progress; `BLOCKED_HITL` names the irreducible gate.
 
-Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (data/authority gap) · `4` STOP-PARKED (bounded partial).
+Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible operator intent/business/human/hard gate) · `4` STOP-PARKED (bounded technical/partial).
 
 ## STOP-marker grammar (reused — emit exactly ONE as the last line of each turn)
 ```text
-<!--ORCH-STATUS: STOP-DONE -->     DoD satisfied — termination_predicate met, verifier-confirmed, score >= threshold
+<!--ORCH-STATUS: STOP-DONE -->     DELIVERY_DONE only — DoD met; no applicable gap/open SPEC/failed check/pending promotion
 <!--ORCH-STATUS: STOP-PARKED -->   bounded partial — budget, lease or plateau stop; checkpoint + next action persisted
-<!--ORCH-STATUS: STOP-HITL -->     goal OR DoD inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
+<!--ORCH-STATUS: STOP-HITL -->     operator goal/DoD intent inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (validator / subagent / network)
-<!--ORCH-STATUS: CONTINUE -->      round done; DoD not yet met OR score < threshold; next round opens
+<!--ORCH-STATUS: CONTINUE -->      round done; DoD not met; another bounded OODA cycle is authorized and budgeted
 ```
 
 ## Relationship to siblings
@@ -338,21 +334,16 @@ ooda-loop --scope=this.session                    # recover this session's goal 
 ooda-loop --dry-run                               # print the recovered {goal, dod} + driver + predicate; drive nothing
 ooda-loop --driver=quiesce --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"
 ooda-loop --scope=ticket:VKS-1234 --autonomy-threshold=0.9 --max-iterations=4
-ooda-loop --driver=gap-loop --conf-inconclusive=0.75   # stricter goal-recovery HITL gate, harness-agnostic driver
+ooda-loop --driver=gap-loop --conf-inconclusive=0.75   # stricter upstream goal/DoD intent gate
 ooda-loop --only=orient --for-goal "ship the session-handoff spine"   # dod-recovery: derive+emit the measurable DoD only; drive nothing
 ooda-loop --operator-profile=./operator-profile.json --scope=ticket:ABC-42  # profile-aware intake -> OODA -> bounded PDCA
 ```
 
-## Quality Tests (6/6 static self-validity — behavioral extension not executed)
-1. **Self-Application** — the contract can represent its own creation goal and measurable DoD without requiring a second conductor. CONTRACT-COVERED; NOT EXECUTED in v0.3.0.
-2. **Non-Contradiction** — composes (not duplicates) goal-recovery/Prisma/gap-loop/quiesce; the OODA wiring + typed-pair are net-new; inherits `verifier != generator` without loosening it. PASS.
-3. **Survival** — applied to itself it advocates a recovered-goal + measurable-DoD + independent-verify loop; it is itself that. PASS.
-4. **Bounded-Responsibility** — inner+global budgets, cancellation/lease/no-progress stops, dual inconclusive
-   gates, authority/hard gates, STAGE_DONE vs DELIVERY_DONE vs PARKED_PARTIAL, and exactly one STOP marker. PASS.
-5. **Explicit-Exception** — When-not-to-use + HARD-gate HITL + §0 BEING>Rules + `--dry-run`. PASS.
-6. **Utility-Sunset** — §DUED below. PASS.
+## Quality evidence (progressive disclosure)
 
-`scope-discipline` 6Q: 6/6 (WHERE=multi-agent-os · DRY=~70% reused, composes 3 primitives · WHY=recurring hand-invoked contract, this session = a Triple-touch instance · WHO=operator+amnesic agents · FITS=orchestration-convergence sibling of gap-loop/quiesce/enhance-pipeline · MIN=1 thin conductor + 1 schema). `anti-theater` 8Q REALITY: 8/8.
+Static quality, schema and negative-fixture evidence is recorded in
+`docs/dogfood/2026-08-01-ooda-loop-operator-profile-static-eval.md`. Behavioral v0.3 ACT dogfood was
+explicitly **NOT EXECUTED**. Load that report only for audit or maintenance.
 
 ## §DUED Sunset (qualitative — not counter-based)
 Deprecate when ANY: a host ships a native recover->measure->converge primitive (E1) · gap-loop/quiesce absorb
@@ -364,7 +355,8 @@ preset never fires (E3) · operator retraction (E4) · >=3 false-positive runs (
 - `templates/operator-profile.schema.json` — portable intake and autonomy-profile contract; it is input to
   this conductor, not a new authority system
 - `templates/trigger-envelope.schema.json` — replay, freshness, sensitivity and injection-risk contract for
-  inbound signals; `bin/validate_intake_contract.py` fail-closes both intake schemas without dependencies
+  inbound signals; `bin/validate_intake_contract.py` fail-closes all three JSON contracts without dependencies
+- `templates/run-envelope.schema.json` — exact outward result vocabulary after child-driver normalization
 - `references/loop-contract.md` — concise, vendor-neutral execution prompt derived from this skill; the
   `SKILL.md` remains the normative instruction source
 - `references/runtime-adapters.md` — capability-based portability contract for Claude, Codex, Gemini,
@@ -399,7 +391,7 @@ preset never fires (E3) · operator retraction (E4) · >=3 false-positive runs (
 - v0.1.0 (2026-07-12) — bootstrap. Conductor for the operator's recover->measure->converge contract:
   OBSERVE (goal-recovery) -> ORIENT (Prisma DoD) -> DECIDE (dual inconclusive->HITL + autonomy gate) ->
   ACT (typed {goal,dod} pair into gap-loop/quiesce). Inherits verifier != generator, economic stop, idempotency,
-  STOP-marker from the drivers; adds only the OODA wiring + the typed-pair plumbing. Composes 3 primitives; reimplements nothing.
+  child-status semantics from the drivers and normalizes them into one outward STOP marker; adds only the OODA wiring + the typed-pair plumbing. Composes 3 primitives; reimplements nothing.
 
 ## License
 MIT (matches multi-agent-os repo `LICENSE`).

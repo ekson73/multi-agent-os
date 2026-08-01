@@ -2,7 +2,7 @@
 """Fail-closed stdlib validator for ooda-loop intake contracts.
 
 The repository intentionally does not require a JSON Schema package at runtime. This validator
-implements the exact Draft 2020-12 keyword subset used by the two intake schemas and refuses a
+implements the exact Draft 2020-12 keyword subset used by the intake/output schemas and refuses a
 schema containing an unsupported assertion keyword. It validates shape only; freshness, replay
 storage and effective authority still require live host evidence.
 
@@ -22,12 +22,13 @@ MAX_INPUT_BYTES = 1024 * 1024
 SCHEMAS = {
     "operator-profile": HERE / "templates" / "operator-profile.schema.json",
     "trigger-envelope": HERE / "templates" / "trigger-envelope.schema.json",
+    "run-envelope": HERE / "templates" / "run-envelope.schema.json",
 }
 ANNOTATIONS = {"$schema", "$id", "title", "description"}
 ASSERTIONS = {
     "type", "additionalProperties", "required", "properties", "const", "enum", "items",
     "minLength", "maxLength", "pattern", "format", "minItems", "maxItems", "uniqueItems",
-    "minimum", "maximum",
+    "minimum", "maximum", "allOf", "if", "then",
 }
 
 
@@ -70,6 +71,11 @@ def audit_schema(schema, where="$"):
         audit_schema(child, f"{where}.properties.{name}")
     if isinstance(schema.get("items"), dict):
         audit_schema(schema["items"], f"{where}.items")
+    for index, child in enumerate(schema.get("allOf") or []):
+        audit_schema(child, f"{where}.allOf[{index}]")
+    for keyword in ("if", "then"):
+        if isinstance(schema.get(keyword), dict):
+            audit_schema(schema[keyword], f"{where}.{keyword}")
 
 
 def type_matches(value, expected):
@@ -104,6 +110,14 @@ def validate(value, schema, where="$", errors=None):
         errors.append(f"{where}: must equal {schema['const']!r}")
     if "enum" in schema and value not in schema["enum"]:
         errors.append(f"{where}: value {value!r} is not in the allowed enum")
+
+    for child in schema.get("allOf") or []:
+        validate(value, child, where, errors)
+    if isinstance(schema.get("if"), dict):
+        condition_errors = []
+        validate(value, schema["if"], where, condition_errors)
+        if not condition_errors and isinstance(schema.get("then"), dict):
+            validate(value, schema["then"], where, errors)
 
     if isinstance(value, dict):
         properties = schema.get("properties", {})

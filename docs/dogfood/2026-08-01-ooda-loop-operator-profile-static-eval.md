@@ -18,10 +18,10 @@
 ## Deterministic evidence
 
 - `node --test skills/ooda-loop/tests/operator-profile-contract.test.mjs`: static contract checks cover
-  both examples, missing required properties, extra fields, invalid lifecycle stage, duplicate baseline
+  all three contract examples, missing required properties, extra fields, invalid lifecycle/outcome vocabulary, duplicate baseline
   acknowledgement, control-plane injection and fail-closed schema evolution.
 - `pytest skills/ooda-loop/tests/operator_profile_schema_test.py -v`: runs the pinned real Draft 2020-12
-  validator against both examples and negative fixtures. The repository's small stdlib validator validates
+  validator with an explicit calendar-aware RFC3339 checker against all examples and negative fixtures. The repository's small stdlib validator validates
   the exact assertion-keyword subset used at adapter boundaries and refuses unsupported future assertions;
   it does not claim to be a general JSON Schema implementation.
 - `bash skills/goal-recovery/tests/run-tests.sh`: 20/20 passed.

@@ -30,8 +30,9 @@ authentication proves transport origin only; it does not make payload content au
 ## Termination model
 
 Inner PDCA and outer OODA have separate ceilings. A stage may finish while delivery is
-still partial. The conductor therefore distinguishes stage-done, delivery-done, parked,
-partial, blocked, HITL and error states. Deferred work, accepted risk or an open
+still partial. The conductor therefore uses the exact run-envelope outcomes `STAGE_DONE`,
+`DELIVERY_DONE`, `PARKED_PARTIAL`, `BLOCKED_HITL`, `ERROR` and `CONTINUE`. Deferred work,
+accepted risk or an open
 specification cannot be relabeled as delivery-done.
 
 ## Validation boundary

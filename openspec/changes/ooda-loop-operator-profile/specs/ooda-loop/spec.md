@@ -38,7 +38,7 @@ call budget, or sustained no-progress, preserving a resumable evidence-backed st
 #### Scenario: Stage keeps re-entering Observe without progress
 
 - **WHEN** the no-progress threshold or global OODA ceiling is reached
-- **THEN** the conductor SHALL stop as `PARKED` or `PARTIAL`
+- **THEN** the conductor SHALL stop as `PARKED_PARTIAL`
 - **AND** it SHALL preserve the binding gap and safe next action
 - **AND** it SHALL NOT continue indefinitely or report delivery done
 
@@ -53,14 +53,47 @@ SHALL prevent a `DELIVERY_DONE` result.
 - **WHEN** source checks and build pass
 - **AND** deployment remains gated or out of scope
 - **THEN** the conductor MAY report `STAGE_DONE`
-- **AND** it SHALL report the delivery as `PARTIAL`, `PARKED` or `BLOCKED` as applicable
+- **AND** it SHALL report `PARKED_PARTIAL` or `BLOCKED_HITL` as applicable
 - **AND** it SHALL NOT claim deployment or end-to-end delivery
+
+### Requirement: Child-driver markers are normalized once
+
+The conductor MUST capture the selected PDCA driver's terminal marker as an internal result and
+MUST emit exactly one outward marker. Soft driver exhaustion or unresolved technical residue SHALL
+be normalized to `PARKED_PARTIAL`; a driver-level done result SHALL NOT become `DELIVERY_DONE`
+unless the whole delivery contract is satisfied.
+
+#### Scenario: Driver exhausts its rounds on a technical gap
+
+- **WHEN** `gap-loop` or `quiesce` reaches its soft round limit without resolving a technical gap
+- **THEN** `ooda-loop` SHALL emit one `STOP-PARKED` outer marker with a durable checkpoint
+- **AND** it SHALL NOT leak a child `STOP-HITL` marker or ask the operator a technical question
+
+### Requirement: Outward states use one validated vocabulary
+
+The conductor MUST validate its outward JSON result against the versioned run-envelope schema.
+Documentation, tests and adapters SHALL use the schema's exact lifecycle, outcome, access and
+stop-marker enums rather than illustrative pipe-delimited aliases.
+
+#### Scenario: Adapter proposes a legacy partial state
+
+- **WHEN** an adapter attempts to emit `PARTIAL`, `PARKED` or an unstructured authority string
+- **THEN** run-envelope validation SHALL refuse the result
+- **AND** the adapter SHALL use `PARKED_PARTIAL` plus structured authority evidence as applicable
+
+#### Scenario: Adapter proposes an unauthorized continuation
+
+- **WHEN** an adapter emits a `CONTINUE` marker routed to ACT
+- **AND** the lease is not valid, cancellation is active, or continuation is not explicitly authorized
+- **THEN** run-envelope validation SHALL refuse the result
+- **AND** the conductor SHALL park or stop according to the validated terminal vocabulary
 
 ### Requirement: Escalation is proportional and business-readable
 
 The conductor MUST resolve ordinary technical uncertainty through the least expensive
 applicable deterministic check or independent convergence path. It SHALL ask a human only
-for irreducible business rules or priorities, human-only acts, or hard boundaries, using
+when an upstream typed envelope cannot recover operator goal or acceptance intent, for
+irreducible business rules or priorities, for human-only acts, or for hard boundaries, using
 the operator's declared language and an operational recommendation.
 
 #### Scenario: Architecture choice is technically resolvable
@@ -69,6 +102,12 @@ the operator's declared language and an operational recommendation.
 - **AND** deterministic evidence or an independent review resolves it
 - **THEN** the agent SHALL decide and document the technical choice
 - **AND** it SHALL NOT ask a nontechnical operator to design the implementation
+
+#### Scenario: Technical autonomy score remains below threshold
+
+- **WHEN** a bounded deterministic check and one proportionate independent uplift path leave the technical autonomy score below threshold
+- **THEN** the conductor SHALL emit `PARKED_PARTIAL` with a technical checkpoint and precise next action
+- **AND** it SHALL NOT emit `BLOCKED_HITL` or ask the operator to choose a technology
 
 ### Requirement: Portability claims are evidence-qualified
 

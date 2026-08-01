@@ -22,7 +22,7 @@ The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.sch
            [--operator-profile=<trusted-path>]  (context claims/preferences; constrains, never grants)
            [--trigger-envelope=<trusted-path>]  (replay-safe sanitized event metadata)
            [--driver=auto|gap-loop|quiesce|<custom>]                (default auto)
-           [--conf-inconclusive=0.60]      (goal-recovery HITL gate)
+           [--conf-inconclusive=0.60]      (upstream goal/DoD intent gate)
            [--autonomy-threshold=0.85]     (DECIDE gate + passed to driver)
            [--max-iterations=6]            (ACT loop cap)
            [--max-ooda-cycles=3] [--max-total-attempts=18]
@@ -78,6 +78,8 @@ emit `STOP-PARKED`/`PARKED_PARTIAL` with a durable checkpoint. `STOP-DONE` is re
 finishing one stage while an applicable gap, deferred/open spec, failed check or promotion remains is not done.
 
 The vendor-neutral prompt contract is [`loop-contract.md`](../skills/ooda-loop/references/loop-contract.md).
+The outward JSON vocabulary is validated by
+[`run-envelope.schema.json`](../skills/ooda-loop/templates/run-envelope.schema.json).
 Portability is capability-based: the same Skill and JSON input can be consumed by an Agent Skills-capable host,
 but the host must explicitly map its own tools, identity and promotion gates. See
 [`runtime-adapters.md`](../skills/ooda-loop/references/runtime-adapters.md).
