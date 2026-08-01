@@ -1,13 +1,14 @@
 ---
 name: ooda-loop
-description: Run the operator's recover->measure->converge contract end-to-end as ONE preset — Observe (recover the goal -> handoff-as-prompt) -> Orient (derive a measurable DoD via Prisma -> dod-as-prompt) -> Decide (dual inconclusive->HITL + autonomy gate) -> Act (drive the typed {goal, dod} pair to quiescence via gap-loop or quiesce). Thin composer; inherits (never re-loosens) gap-loop's verifier != generator invariant.
+description: Run the operator's profile-aware recover->measure->converge contract end-to-end as ONE preset — classify an inbound trigger, resolve context/scope/authority, then Observe (recover the goal) -> Orient (derive a measurable DoD) -> Decide -> Act (bounded PDCA via gap-loop or quiesce). Thin composer; inherits gap-loop's verifier != generator invariant.
 ---
 
 # /ooda-loop Command
 
 Thin wrapper that invokes `skills/ooda-loop/SKILL.md`. The skill holds all logic
 (the OODA map, the typed {goal, dod} pair flow, the DECIDE gate, the driver resolution,
-the composition wiring, the override flags, the output contract, and the STOP-marker grammar).
+the profile-aware intake, the composition wiring, the override flags, the output contract, and the
+STOP-marker grammar).
 This file is the command surface only.
 
 The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.schema.json`
@@ -18,6 +19,7 @@ The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.sch
 ```text
 /ooda-loop "<extra instructions>"
            [--scope=this.session|branch|ticket:<id>|session:<id>]   (default this.session)
+           [--operator-profile=<path-to-json>]  (optional portable context/scope/authority contract)
            [--driver=auto|gap-loop|quiesce|<custom>]                (default auto)
            [--conf-inconclusive=0.60]      (goal-recovery HITL gate)
            [--autonomy-threshold=0.85]     (DECIDE gate + passed to driver)
@@ -49,6 +51,25 @@ use `gap-loop`/`quiesce` directly when you ALREADY have a typed goal + DoD; use 
 goal is UNSTATED and you want the FULL recover->measure->converge contract in one move. `--driver=auto`
 picks `quiesce` on a host with `/goal` + session scope, else the harness-agnostic `gap-loop`.
 
+An incoming chat, ticket, backlog item, webhook, hook, bootstrap signal, PR or prototype is **a trigger, not
+authority**. With `--operator-profile`, the command calculates the current context, in-scope work, delegated
+technical decisions, hard boundaries and smallest legitimate human question. It does not make a nontechnical
+business owner choose architecture or tools. Before ordinary escalation it uses recon and the repository's
+council/convergence primitives; hard safety, legal, identity/access, cost and external-effect gates remain
+human-controlled. See [`operator-profile.schema.json`](../skills/ooda-loop/templates/operator-profile.schema.json).
+
+ACT contains a bounded PDCA cycle — Plan the smallest eligible delivery stage, Do the scoped work, Check with
+deterministic and independent evidence, then Adjust or re-observe — owned by `gap-loop`/`quiesce`. It is not an
+unbounded daemon and it never assumes that every task must traverse prototype, reverse-engineering, spec, source,
+build and deploy in that order. For repository work, intake also composes `preflight`; terminal success or a
+parked residue composes `postflight` to preserve the next action. Any continuation spawn stays subject to the
+host's explicit budget and recursion safeguards.
+
+The vendor-neutral prompt contract is [`loop-contract.md`](../skills/ooda-loop/references/loop-contract.md).
+Portability is capability-based: the same Skill and JSON input can be consumed by an Agent Skills-capable host,
+but the host must explicitly map its own tools, identity and promotion gates. See
+[`runtime-adapters.md`](../skills/ooda-loop/references/runtime-adapters.md).
+
 ## Examples
 
 ```text
@@ -56,6 +77,7 @@ picks `quiesce` on a host with `/goal` + session scope, else the harness-agnosti
 /ooda-loop --dry-run                               # print the recovered {goal, dod} + driver + predicate
 /ooda-loop --driver=quiesce --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"
 /ooda-loop --scope=ticket:VKS-1234 --autonomy-threshold=0.9 --max-iterations=4
+/ooda-loop --operator-profile=./operator-profile.json --scope=ticket:ABC-42
 /ooda-loop --only=orient --for-goal="ship the session-handoff spine"   # dod-recovery: derive+emit the DoD; drive nothing
 ```
 

@@ -1,0 +1,69 @@
+{
+  "contract_version": "1.0",
+  "operator": {
+    "role": "business-owner",
+    "technical_literacy": "limited",
+    "language": "pt-BR"
+  },
+  "authority": {
+    "technical_delegation": "delegated",
+    "human_decision_domains": [
+      "business-rule",
+      "business-priority",
+      "human-only-access",
+      "human-only-acceptance"
+    ],
+    "hard_stop_domains": [
+      "secret",
+      "personal-data",
+      "identity-or-access",
+      "money-or-cost",
+      "legal-or-regulated-effect",
+      "external-communication",
+      "cross-organization",
+      "destructive-or-irreversible"
+    ]
+  },
+  "sources": {
+    "authoritative": [
+      "repository-policy",
+      "approved-specification",
+      "accepted-decision-record",
+      "verified-live-state",
+      "approved-backlog"
+    ],
+    "signal_only": [
+      "chat",
+      "discord-message",
+      "slack-message",
+      "jira-issue",
+      "linear-issue",
+      "ticket",
+      "backlog-item",
+      "pull-request",
+      "hook",
+      "webhook",
+      "bootstrap",
+      "prototype",
+      "notification",
+      "agent-output"
+    ]
+  },
+  "delivery": {
+    "permitted_stages": [
+      "recon",
+      "prototype",
+      "reverse-engineering",
+      "specification",
+      "source",
+      "verification",
+      "build",
+      "deploy"
+    ],
+    "deploy_mode": "gated"
+  },
+  "scope": {
+    "included": ["product delivery", "technical quality", "documentation"],
+    "excluded": ["real customer data", "financial commitments", "external communications"]
+  }
+}

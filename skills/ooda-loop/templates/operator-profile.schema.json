@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:multi-agent-os:operator-profile:1.0",
+  "title": "Operator profile for OODA-loop intake",
+  "description": "Portable, non-secret input that tells ooda-loop how to resolve an operator's business role, delegated technical authority, escalation boundaries and lifecycle constraints. It never grants permissions absent from the live host, repository policy or environment gates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "operator", "authority", "sources", "delivery"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "technical_literacy", "language"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1, "description": "Business role, never a real name or account identifier."},
+        "technical_literacy": {"enum": ["limited", "working", "advanced"], "description": "Changes explanation style only; it does not constrain delegated technical decisions."},
+        "language": {"type": "string", "pattern": "^[a-z]{2,3}(-[A-Z]{2}|-[0-9]{3})?$", "description": "BCP 47-style language tag for a necessary business-facing question, for example pt-BR."}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["technical_delegation", "human_decision_domains", "hard_stop_domains"],
+      "properties": {
+        "technical_delegation": {"enum": ["none", "bounded", "delegated"], "description": "A stated delegation remains limited by live project and host gates."},
+        "human_decision_domains": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["business-rule", "business-priority", "human-only-access", "human-only-acceptance"]}},
+        "hard_stop_domains": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "description": "The non-waivable generic baseline. A repository or live environment may add gates, but this profile cannot remove one.", "items": {"enum": ["secret", "personal-data", "identity-or-access", "money-or-cost", "legal-or-regulated-effect", "external-communication", "cross-organization", "destructive-or-irreversible"]}}
+      }
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoritative", "signal_only"],
+      "properties": {
+        "authoritative": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["repository-policy", "approved-specification", "accepted-decision-record", "verified-live-state", "approved-backlog"]}},
+        "signal_only": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["chat", "discord-message", "slack-message", "jira-issue", "linear-issue", "ticket", "backlog-item", "pull-request", "hook", "webhook", "bootstrap", "prototype", "notification", "agent-output"]}}
+      }
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["permitted_stages", "deploy_mode"],
+      "properties": {
+        "permitted_stages": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["recon", "prototype", "reverse-engineering", "specification", "source", "verification", "build", "deploy"]}},
+        "deploy_mode": {"enum": ["disabled", "gated"], "description": "Gated means a real deployment still needs the target environment's live technical controls; it is never inferred from this file."}
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "included": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "excluded": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}
