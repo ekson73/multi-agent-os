@@ -51,11 +51,18 @@ jobs:
           set -euo pipefail
           # Fetch the immutable base commit; fail closed if the comparison cannot be built.
           git fetch --no-tags origin "$BASE_SHA" >/dev/null 2>&1 || git fetch --no-tags --depth=50 origin "$BASE_SHA"
-          BASE_VERSION=$(git show "$BASE_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
+          START_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          BASE_VERSION=$(git show "$START_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
           HEAD_VERSION=$(git show "$HEAD_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
+
+          SAFE_VERSION_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ ! "$BASE_VERSION" =~ $SAFE_VERSION_RE || ! "$HEAD_VERSION" =~ $SAFE_VERSION_RE ]]; then
+            echo "::error::plugin version must be a single-line SemVer value" >&2
+            exit 1
+          fi
+
           if [ "$BASE_VERSION" != "$HEAD_VERSION" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "new_version=$HEAD_VERSION" >> "$GITHUB_OUTPUT"
             echo "🔀 Version field changed in this PR: $BASE_VERSION → $HEAD_VERSION"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -67,9 +74,16 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          NEWV: ${{ steps.bump.outputs.new_version }}
         run: |
           set -euo pipefail
+          START_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
+          NEWV=$(git show "$HEAD_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
+          SAFE_VERSION_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ ! "$NEWV" =~ $SAFE_VERSION_RE ]]; then
+            echo "::error::plugin version must be a single-line SemVer value" >&2
+            exit 1
+          fi
+
           BUMP_COUNT=0
           NONCHORE=0
           RELEASE_RE='^chore\(release\)(!)?:[[:space:]]+.+'
@@ -87,7 +101,7 @@ jobs:
             if [[ ! "$subject" =~ $RELEASE_RE ]]; then
               NONCHORE=$((NONCHORE + 1))
             fi
-          done < <(git rev-list --reverse --first-parent "$BASE_SHA..$HEAD_SHA")
+          done < <(git rev-list --reverse --first-parent "$START_SHA..$HEAD_SHA")
 
           # With an overall version delta, at least one PR-spine commit must explain it.
           if [ "$BUMP_COUNT" -eq 0 ]; then
@@ -96,7 +110,11 @@ jobs:
           fi
 
           # Soft signal (not a pass condition): a matching CHANGELOG section should exist.
-          CHANGELOG_SECTION=$(grep -cF "## [$NEWV]" CHANGELOG.md || true)
+          if [ -f CHANGELOG.md ]; then
+            CHANGELOG_SECTION=$(grep -cF "## [$NEWV]" CHANGELOG.md || true)
+          else
+            CHANGELOG_SECTION=0
+          fi
 
           echo ""
           echo "non-chore(release) version-touching commits: $NONCHORE · CHANGELOG section for $NEWV: $CHANGELOG_SECTION"
