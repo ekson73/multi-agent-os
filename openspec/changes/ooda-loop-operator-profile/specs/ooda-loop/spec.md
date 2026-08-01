@@ -70,6 +70,14 @@ the operator's declared language and an operational recommendation.
 - **THEN** the agent SHALL decide and document the technical choice
 - **AND** it SHALL NOT ask a nontechnical operator to design the implementation
 
+#### Scenario: Technical evidence remains inconclusive after one bounded path
+
+- **WHEN** targeted recon, deterministic verification and one proportionate independent path
+  cannot resolve a technical uncertainty
+- **THEN** the conductor SHALL emit a bounded parked checkpoint with the next evidence/action
+- **AND** it SHALL NOT ask the business operator to choose the technology
+- **AND** it SHALL bypass this path only for an immediate hard boundary or irreducible business/human-only act
+
 ### Requirement: Portability claims are evidence-qualified
 
 The portable core MUST conform to the Agent Skills format. Runtime documentation SHALL

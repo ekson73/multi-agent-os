@@ -135,7 +135,8 @@ independent evidence already available and retain the normal hard gates.
 
 Escalate only the irreducible residue: (1) a missing or conflicting business rule/priority owned by the
 operator; (2) a human-only access, approval, payment, acceptance, or physical action; or (3) a hard boundary
-that the council cannot open. Do not delay an immediate hard stop for a council. The question must state the
+whose named live gate requires a human. A council cannot open a hard gate; do not delay immediate containment
+or that gate for a council. The question must state the
 operational decision, the minimal options, current evidence, risk, and recommended option; never ask the
 operator to design the implementation.
 
@@ -173,7 +174,7 @@ precise next action. A fresh non-replayed trigger may resume the checkpoint; it 
 
 ```text
 OBSERVE   goal-recovery --scope=<scope>  ->  handoff-as-prompt envelope   (recover the intent; ladder + uncertainty)
-            | inconclusive.flag=true (low confidence / no anchor) -> STOP-HITL with ranked hypotheses
+            | ordinary inconclusive -> RESOLVE-INCONCLUSIVE (below); do not jump directly to HITL
             v
 ORIENT    invoke Prisma (decompose-abstract-to-measurable) on the recovered goal
             construct := "is {{goal}} DONE and healthy?"; context_lock <- handoff (context/objectives/scope)
@@ -181,9 +182,14 @@ ORIENT    invoke Prisma (decompose-abstract-to-measurable) on the recovered goal
                 (deterministic: acceptance <- material D/T leaves; kpis; termination_predicate; self-gated)
             | Prisma STRUCTURAL gate (scripts/structural_route.py, fail-closed): a value-tree validly
             |   represents only ADDITIVE/atomic constructs. status=additive_unverified OR relational/gestalt
-            |   -> the aggregate score is assistive-only (human_review) -> treat as inconclusive -> STOP-HITL
+            |   -> the aggregate score is assistive-only (human_review) -> RESOLVE-INCONCLUSIVE
             |   (do NOT auto-drive on a capped score). status=additive-verified -> proceed to the roll-up.
-            | Prisma roll-up (scripts/aggregate_spec.py) inconclusive.flag=true (judgment-dominated / conflict:<branch> / low-conf) -> STOP-HITL
+            | Prisma roll-up inconclusive.flag=true -> RESOLVE-INCONCLUSIVE
+            | RESOLVE-INCONCLUSIVE := targeted recon + deterministic evidence + exactly one proportionate
+            |   independent path. Resolved -> resume the current OODA act. Irreducible business-rule or
+            |   human-only act -> STOP-HITL with evidence and recommendation. Remaining technical uncertainty
+            |   after the bounded path -> STOP-PARKED with checkpoint and precise next evidence/action.
+            |   A hard gate bypasses this route and goes immediately to its named human gate.
             v
 ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             "what is the SMALLEST recurring system that conducts to this goal?"  (the vehicle, not the map)
@@ -201,7 +207,8 @@ ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             v
 DECIDE    gate: all APPLICABLE envelopes valid (system-as-prompt is N/A for a one-shot/bounded goal —
             the {goal, dod} pair suffices) + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
-            | any red -> HITL (with the computed envelopes attached, never a blank ask)
+            | hard gate / irreducible business or human-only residue -> STOP-HITL with envelopes
+            | ordinary inconclusive red -> RESOLVE-INCONCLUSIVE; bounded unresolved technical red -> STOP-PARKED
             | resolve --driver (auto: quiesce if host /goal + session scope, else gap-loop)
             v
 ACT       drive with the typed {goal, dod[, system]} set (system only when the goal is recurring):
@@ -290,9 +297,9 @@ Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (data/authority gap) · `
 
 ## STOP-marker grammar (reused — emit exactly ONE as the last line of each turn)
 ```text
-<!--ORCH-STATUS: STOP-DONE -->     DoD satisfied — termination_predicate met, verifier-confirmed, score >= threshold
+<!--ORCH-STATUS: STOP-DONE -->     DELIVERY_DONE only — DoD met, verifier-confirmed, no applicable gap/open or deferred spec/failed check/pending promotion
 <!--ORCH-STATUS: STOP-PARKED -->   bounded partial — budget, lease or plateau stop; checkpoint + next action persisted
-<!--ORCH-STATUS: STOP-HITL -->     goal OR DoD inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
+<!--ORCH-STATUS: STOP-HITL -->     irreducible business/human-only residue OR HARD gate — envelopes + recommendation attached
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (validator / subagent / network)
 <!--ORCH-STATUS: CONTINUE -->      round done; DoD not yet met OR score < threshold; next round opens
 ```
@@ -311,7 +318,9 @@ gap-loop/quiesce are its ACT drivers. It never re-implements recovery, measureme
 
 ## Protocol Rules (anti-loop + integrity invariants)
 - `verifier != generator` (gap-loop VALIDATE) is inherited and NEVER re-loosened — the improvement signal reads the DoD checks, not the generator's self-grade.
-- Both envelopes MUST pass `validate_envelope.py` before ACT; either `inconclusive.flag=true` => HITL (never drive on a fabricated goal or an unscoreable DoD).
+- Both envelopes MUST pass `validate_envelope.py` before ACT. An ordinary `inconclusive.flag=true` enters
+  bounded `RESOLVE-INCONCLUSIVE`; it never drives ACT. Only irreducible business/human residue becomes HITL;
+  unresolved technical residue parks. A hard gate still stops immediately at its named human gate.
 - `--max-iterations` caps ACT rounds; the global OODA/attempt/tool/spawn/external/time budget caps the whole
   invocation. Exhaustion, invalid lease, cancellation or two-cycle plateau parks the best state.
 - The global budget caps OODA and PDCA together. Budget/lease exhaustion or a two-cycle plateau emits

@@ -14,8 +14,8 @@
       "required": ["source_kind", "recorded_at", "expires_at", "project_binding"],
       "properties": {
         "source_kind": {"enum": ["operator-declaration", "repository-record"], "description": "Origin of the claims, not an authorization channel."},
-        "recorded_at": {"type": "string", "format": "date-time"},
-        "expires_at": {"type": "string", "format": "date-time", "description": "Runtime must park an expired profile; schema validation alone does not prove freshness."},
+        "recorded_at": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"},
+        "expires_at": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$", "description": "Runtime must park an expired profile; schema validation alone does not prove freshness."},
         "source_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "Optional digest of the separately retained source record; never a secret or credential."},
         "project_binding": {
           "type": "object",
