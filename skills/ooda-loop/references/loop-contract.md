@@ -28,8 +28,9 @@ Inside ACT, run bounded PDCA for each eligible item:
 
 Capture the PDCA driver's terminal marker as an internal child result and emit only one outer
 marker. Normalize soft exhaustion or unresolved technical residue to PARKED_PARTIAL; normalize
-driver done to STAGE_DONE unless the entire delivery DoD earns DELIVERY_DONE. Preserve hard/business
-HITL and unrecoverable ERROR. If the host cannot prevent a child marker from leaking, do not run ACT.
+driver done to STAGE_DONE unless the entire delivery DoD earns DELIVERY_DONE. Preserve upstream
+operator goal/DoD intent, hard/business/human HITL and unrecoverable ERROR. If the host cannot prevent
+a child marker from leaking, do not run ACT.
 
 Technical decisions with independently proved user/repository/live authority are decided and
 executed by the agent. An operator profile describes claims/preferences and can only constrain;

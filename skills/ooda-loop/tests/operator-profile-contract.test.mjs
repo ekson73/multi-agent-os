@@ -165,6 +165,7 @@ test("skill separates unresolved operator intent from ordinary technical uncerta
   assert.doesNotMatch(skill, /any red\s*->\s*HITL/);
   assert.match(skill, /autonomy_score below threshold[\s\S]*still below threshold -> STOP-PARKED/);
   assert.match(skill, /STOP-DONE[\s\S]*DELIVERY_DONE only[\s\S]*no applicable gap\/open SPEC\/failed check\/pending promotion/);
+  assert.doesNotMatch(skill, /CONTINUE[^\n]*score < threshold/);
 });
 
 test("trusted-root mode rejects a canonical path escape", async () => {

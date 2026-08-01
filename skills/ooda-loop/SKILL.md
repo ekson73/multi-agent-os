@@ -291,7 +291,7 @@ Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible operator int
 <!--ORCH-STATUS: STOP-PARKED -->   bounded partial — budget, lease or plateau stop; checkpoint + next action persisted
 <!--ORCH-STATUS: STOP-HITL -->     operator goal/DoD intent inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (validator / subagent / network)
-<!--ORCH-STATUS: CONTINUE -->      round done; DoD not yet met OR score < threshold; next round opens
+<!--ORCH-STATUS: CONTINUE -->      round done; DoD not met; another bounded OODA cycle is authorized and budgeted
 ```
 
 ## Relationship to siblings
