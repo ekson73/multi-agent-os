@@ -20,9 +20,7 @@ The conductor now makes the intended shape explicit: outer OODA selects the evid
 delivery stage and the existing `gap-loop`/`quiesce` drivers run bounded inner PDCA. A technical
 delegation prevents unnecessary architecture questions to a nontechnical business owner, while
 business-rule uncertainty, human-only access/acceptance and hard-boundary residue still reach
-HITL with a concise recommendation. Ordinary inconclusive evidence first follows one bounded
-recon/convergence path; unresolved technical uncertainty is parked with a checkpoint rather than
-laundered into a business decision. Deployment remains a gated promotion, not an automatic end.
+HITL with a concise recommendation. Deployment remains a gated promotion, not an automatic end.
 
 The change adds strict replay-safe intake schemas, sanitized examples, a dependency-free fail-closed
 adapter validator, real Draft 2020-12 fixture validation in CI, a concise vendor-neutral loop prompt
