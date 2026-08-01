@@ -8,7 +8,7 @@
 # - a `chore(release): ...` PR title (the expected squash subject);
 # - a monotonic SemVer advance over the current base;
 # - linear history, so second-parent changes cannot hide provenance;
-# - only manifest, changelog and derived version-documentation paths;
+# - only the manifest version field and one additive changelog section;
 # - exactly one newly added CHANGELOG heading for that version; and
 # - no reuse of a version already present in the base changelog or Git tags.
 #
@@ -18,8 +18,9 @@
 name: Release Coherence
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 permissions:
   contents: read
@@ -32,10 +33,10 @@ jobs:
       group: release-coherence-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     steps:
-      - name: Checkout PR head with full history
+      - name: Checkout the trusted base with full history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -43,21 +44,17 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "$BASE_SHA" >/dev/null 2>&1 || git fetch --no-tags --depth=50 origin "$BASE_SHA"
+          # Fetch head as inert Git objects. Never checkout or execute head code.
+          git fetch --no-tags origin "$HEAD_SHA" >/dev/null 2>&1 || \
+            git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+          git cat-file -e "$HEAD_SHA^{commit}"
 
-          # Execute the policy from the trusted base. The fallback exists only
-          # for this workflow's bootstrap PR, before the checker reaches main.
-          CHECKER="$RUNNER_TEMP/check-release-coherence.py"
-          if git cat-file -e "$BASE_SHA:scripts/check-release-coherence.py" 2>/dev/null; then
-            git show "$BASE_SHA:scripts/check-release-coherence.py" > "$CHECKER"
-          else
-            cp scripts/check-release-coherence.py "$CHECKER"
-          fi
-
-          python3 "$CHECKER" \
+          # Both workflow and checker come from the trusted base checkout.
+          python3 scripts/check-release-coherence.py \
             --repo "$GITHUB_WORKSPACE" \
             --base-sha "$BASE_SHA" \
             --head-sha "$HEAD_SHA" \

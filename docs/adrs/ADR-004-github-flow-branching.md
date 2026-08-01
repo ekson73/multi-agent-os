@@ -23,7 +23,7 @@ Adopt **GitHub Flow + SemVer** for this Class-B repo:
 3. **No environment branches** (`homolog`/`ppe`/`prd` do not exist here — they belong to Class A deployed apps only).
 4. **Versioning + consumer source-pin are governed by the companion ADR-003 (float, version SSOT in `plugin.json`, TTL'd)** — explicitly **not** re-decided here.
 5. Agents MUST: never commit to `main` directly · always open a PR · never create env-branches here · treat tagging/release as a human/operator gate.
-6. Because PRs are squash-merged, a version delta MUST use a separate, linear PR titled `chore(release): ...`. The release artifact is the PR-level net delta that survives on `main`: monotonic `plugin.json` SemVer, one matching new changelog heading, and release-only metadata/derived version-documentation paths. Feature code and release metadata do not share a PR.
+6. Because PRs are squash-merged, a version delta MUST use a separate, rebased, linear PR titled `chore(release): ...`. The release artifact is the PR-level net delta that survives on `main`: only the monotonic `plugin.json` version field plus one matching additive changelog section. README/CLAUDE versions are derived post-merge; feature code and release metadata do not share a PR. The gate runs from trusted base code and treats the head only as Git data.
 
 ## Consequences
 

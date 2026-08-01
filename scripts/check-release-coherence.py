@@ -15,8 +15,6 @@ MANIFEST = ".claude-plugin/plugin.json"
 ALLOWED_RELEASE_PATHS = {
     MANIFEST,
     "CHANGELOG.md",
-    "CLAUDE.md",
-    "README.md",
 }
 RELEASE_TITLE_RE = re.compile(r"^chore\(release\)(!)?:\s+.+$")
 SEMVER_RE = re.compile(
@@ -52,14 +50,22 @@ def read_blob(repo: Path, sha: str, path: str) -> str:
     return output
 
 
-def version_at(repo: Path, sha: str) -> str:
+def manifest_at(repo: Path, sha: str) -> dict[str, object]:
     try:
         document = json.loads(read_blob(repo, sha, MANIFEST))
     except (json.JSONDecodeError, PolicyError) as exc:
         raise PolicyError(f"cannot read a valid {MANIFEST} at {sha[:12]}") from exc
+    if not isinstance(document, dict):
+        raise PolicyError(f"{MANIFEST} must contain a JSON object")
+    return document
+
+
+def version_at(repo: Path, sha: str) -> str:
+    document = manifest_at(repo, sha)
     version = document.get("version")
     if not isinstance(version, str) or SEMVER_RE.fullmatch(version) is None:
         raise PolicyError("plugin version must be a single-line SemVer value")
+    semver_key(version)
     return version
 
 
@@ -132,6 +138,8 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     base_version = version_at(repo, base_sha)
     if RELEASE_TITLE_RE.fullmatch(pr_title) is None:
         raise PolicyError("a version delta requires a separate PR titled 'chore(release): ...'")
+    if start_sha != base_sha:
+        raise PolicyError("release PR must be rebased onto the current base before validation")
     if not semver_greater(head_version, base_version):
         raise PolicyError(
             f"release version {head_version} must advance current base version {base_version}"
@@ -152,6 +160,13 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     if MANIFEST not in paths or "CHANGELOG.md" not in paths:
         raise PolicyError("release PR must change both plugin.json and CHANGELOG.md")
 
+    start_manifest = manifest_at(repo, start_sha)
+    head_manifest = manifest_at(repo, head_sha)
+    start_manifest.pop("version", None)
+    head_manifest.pop("version", None)
+    if start_manifest != head_manifest:
+        raise PolicyError("release PR may change only the version field inside plugin.json")
+
     base_changelog = read_blob(repo, base_sha, "CHANGELOG.md")
     header_re = re.compile(rf"^## \[{re.escape(head_version)}\](?:\s|$)", re.MULTILINE)
     if header_re.search(base_changelog):
@@ -164,14 +179,26 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     changelog_diff = str(
         git(repo, "diff", "--unified=0", "--no-color", start_sha, head_sha, "--", "CHANGELOG.md")
     )
-    added_headers = [
+    removed_lines = [
+        line for line in changelog_diff.splitlines() if line.startswith("-") and not line.startswith("---")
+    ]
+    hunk_count = sum(1 for line in changelog_diff.splitlines() if line.startswith("@@"))
+    if removed_lines or hunk_count != 1:
+        raise PolicyError("CHANGELOG delta must be one additive release-section hunk")
+
+    added_lines = [
         line[1:]
         for line in changelog_diff.splitlines()
-        if line.startswith("+")
-        and not line.startswith("+++")
-        and header_re.match(line[1:]) is not None
+        if line.startswith("+") and not line.startswith("+++")
     ]
-    if len(added_headers) != 1:
+    first_meaningful = next((line for line in added_lines if line.strip()), None)
+    if first_meaningful is None or header_re.match(first_meaningful) is None:
+        raise PolicyError("the new CHANGELOG hunk must begin with the release heading")
+    added_headers = [
+        line for line in added_lines if header_re.match(line) is not None
+    ]
+    added_sections = [line for line in added_lines if line.startswith("## ")]
+    if len(added_headers) != 1 or added_sections != added_headers:
         raise PolicyError(
             f"release PR must add exactly one CHANGELOG heading for {head_version}"
         )

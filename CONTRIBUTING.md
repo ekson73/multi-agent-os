@@ -34,7 +34,7 @@ Maintainer-only operations. A release MUST:
 
 1. Use a separate, linear PR titled `chore(release): ...`, because that PR title becomes the squash commit visible on `main`.
 2. Advance `.claude-plugin/plugin.json` to a new SemVer version and add exactly one matching `CHANGELOG.md` heading in the same PR.
-3. Keep the release PR limited to the manifest, changelog and derived version references in `README.md` / `CLAUDE.md`; functional changes ship first in their own PRs.
+3. Rebase onto current `main`; change only the manifest `version` field and add one new changelog section. Functional changes ship first in their own PRs; `version-sync` derives README/CLAUDE versions after merge.
 4. Preserve the `chore(release): ...` title as the squash-merge subject.
 5. Tag the release (`v<version>`) and verify the downstream marketplace entry in [`ekson73/eko-claude-plugins`](https://github.com/ekson73/eko-claude-plugins) SHA-pins the validated commit.
 6. Confirm the CI release-coherence and version-sync workflows pass.
