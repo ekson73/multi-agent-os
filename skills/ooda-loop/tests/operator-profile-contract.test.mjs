@@ -67,6 +67,7 @@ test("trigger envelope refuses control-plane injection and unsafe raw payload me
     (value) => { value.request.summary = ""; },
     (value) => { value.idempotency.replay_key = "not-a-digest"; },
     (value) => { value.freshness.max_age_seconds = 0; },
+    (value) => { value.event.observed_at = "2026-08-01T12:00:00"; },
     (value) => { delete value.connector.authentication_state; },
     (value) => { value.binding.project_slug = "../escape"; }
   ];
@@ -114,6 +115,14 @@ test("skill treats profile delivery fields as restrictive routing constraints", 
   assert.match(skill, /never widen the list by inference/);
   assert.match(skill, /delivery\.deploy_mode=disabled/);
   assert.match(skill, /postflight sweep\/debrief\/handoff path[\s\S]*--no-spawn/);
+});
+
+test("skill resolves ordinary inconclusion before HITL and parks technical residue", async () => {
+  const skill = await readFile(path.join(root, "SKILL.md"), "utf8");
+  assert.match(skill, /ordinary inconclusive -> RESOLVE-INCONCLUSIVE/);
+  assert.match(skill, /Remaining technical uncertainty[\s\S]*STOP-PARKED/);
+  assert.match(skill, /irreducible business\/human-only residue OR HARD gate/);
+  assert.match(skill, /DELIVERY_DONE only[\s\S]*open or deferred spec/);
 });
 
 test("trusted-root mode rejects a canonical path escape", async () => {

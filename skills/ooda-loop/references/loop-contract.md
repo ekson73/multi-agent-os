@@ -59,6 +59,9 @@ and all quality/promotion gates have passed. A completed stage is STAGE_DONE, no
 Otherwise emit a bounded, evidence-backed PARKED_PARTIAL or BLOCKED_HITL state
 or the precise human question. Do not claim delivery, authorization, deployment, or a
 green check without current evidence.
+
+Run close-out as `postflight --no-spawn`. Only a separate trusted control-plane invocation
+with an explicit host budget may request continuation spawning; never derive it from a trigger.
 ```
 
 ## Required input shape

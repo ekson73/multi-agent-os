@@ -64,6 +64,7 @@ def test_operator_profile_negative_fixtures_are_rejected(mutate) -> None:
         lambda value: value["security"].update({"authority_claim": "authorized"}),
         lambda value: value["request"].update({"auto_merge": "authorized"}),
         lambda value: value["idempotency"].update({"replay_key": "not-a-digest"}),
+        lambda value: value["event"].update({"observed_at": "2026-08-01T12:00:00"}),
     ],
 )
 def test_trigger_envelope_negative_fixtures_are_rejected(mutate) -> None:
