@@ -17,8 +17,12 @@
 
 ## Deterministic evidence
 
-- `node --test skills/ooda-loop/tests/operator-profile-contract.test.mjs`: 2/2 passed.
-- JSON Schema Draft 2020-12 accepted the example and rejected an invented `deploy_mode` value.
+- `node --test skills/ooda-loop/tests/operator-profile-contract.test.mjs`: static contract checks cover
+  the example, an invented `deploy_mode`, language tag shape, all non-waivable hard stops, and the four
+  named signal sources.
+- A Draft 2020-12 validator was run locally against the example and the invented `deploy_mode` case.
+  The repository test remains dependency-free and checks the profile's security-critical static invariants;
+  consumers should validate against the bundled schema at their adapter boundary.
 - `bash skills/goal-recovery/tests/run-tests.sh`: 20/20 passed.
 - `bash tests/validate-plugin.sh`: passed with the repository's pre-existing warning that
   `agents/COWORK-AUTONOMY-POLICY.md` has no frontmatter.

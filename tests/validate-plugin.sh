@@ -407,6 +407,19 @@ else
 fi
 echo ""
 
+# OODA operator-profile: portable context must not become an authority bypass.
+OODA_PROFILE_TESTS="$PLUGIN_ROOT/skills/ooda-loop/tests/operator-profile-contract.test.mjs"
+if [ -f "$OODA_PROFILE_TESTS" ]; then
+    if node --test "$OODA_PROFILE_TESTS" >/dev/null 2>&1; then
+        pass "skills/ooda-loop/tests/operator-profile-contract.test.mjs passes"
+    else
+        fail "skills/ooda-loop/tests/operator-profile-contract.test.mjs FAILED (run 'node --test skills/ooda-loop/tests/operator-profile-contract.test.mjs')"
+    fi
+else
+    fail "skills/ooda-loop/tests/operator-profile-contract.test.mjs missing"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"
