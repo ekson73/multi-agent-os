@@ -88,5 +88,6 @@ Before committing any changes:
 
 - **Trunk**: `main` is always releasable. **No environment branches** (no `homolog`/`ppe`/`prd` here — those exist only in Class A *deployed apps* like `vek-sales`/`vek-list`).
 - **Work**: branch `feature/<id>-slug` · `fix/<id>-slug` · `hotfix/<id>-slug` · `docs/` · `chore/` off `main` → PR → **squash-merge** → **delete branch**.
+- **Release PRs**: a `.claude-plugin/plugin.json` version delta travels in a separate, linear PR titled `chore(release): ...`; it advances SemVer, adds exactly one matching `CHANGELOG.md` heading and contains only release metadata plus derived README/CLAUDE version documentation. The CI release-coherence gate enforces this squash-surviving artifact.
 - **Agents MUST**: never commit to `main` directly · always open a PR · never create env-branches here · treat tagging/release as a human/operator gate.
 - **Versioning & consumer source-pin**: governed by the companion **ADR-003** (`version-ssot-float`) + Jira — source `ref = main` during MVP (TTL'd). Do **not** re-decide it here.

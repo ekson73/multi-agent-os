@@ -1,25 +1,19 @@
 # Release Coherence Workflow (PR gate)
 #
-# Root problem being closed (drift, measured): a feature PR may change
-# `.claude-plugin/plugin.json`'s `version` field inside a FEATURE commit
-# (e.g. 1a35fdf `research-dossier` bumped 1.21.0 → 1.22.0 inside a feature PR),
-# so the release becomes INVISIBLE — it ships without a dedicated `chore(release)`
-# commit to mark it as an event and to carry its release note alongside.
+# The repository squash-merges PRs. A release therefore has to be represented
+# by the PR artifact that survives on main, not merely by an ephemeral internal
+# branch commit. When a PR changes the plugin version relative to its merge
+# base, this gate requires a separate, release-only PR with:
 #
-# The drift was NOT "no note at all" — v1.22.0's changelog section exists
-# (`## [1.22.0] - 2026-07-22`, added in feb1c1f). The drift is DISORDER: the
-# bump, the release commit, and the note arrived in three different commits
-# across two weeks, so the release was never one coherent, visible event.
-# This check makes a version bump inside a feature commit fail the PR BEFORE
-# merge, so the bump must travel as a dedicated `chore(release)` commit.
+# - a `chore(release): ...` PR title (the expected squash subject);
+# - a monotonic SemVer advance over the current base;
+# - linear history, so second-parent changes cannot hide provenance;
+# - only manifest, changelog and derived version-documentation paths;
+# - exactly one newly added CHANGELOG heading for that version; and
+# - no reuse of a version already present in the base changelog or Git tags.
 #
-# What it enforces (only when the PR actually changes the version field):
-#   the commit(s) that change the version field MUST be `chore(release)` commits.
-#
-# What it deliberately does NOT do: it does not block PRs that don't touch the
-# version field (99% of PRs pass instantly), it does not rewrite anything, and
-# it does not invent a new SSOT (plugin.json stays the single source of truth;
-# version-sync.yml keeps syncing docs to it post-merge).
+# A stale branch that never changes the version remains a no-op. plugin.json
+# stays the SSOT; version-sync.yml continues syncing README/CLAUDE post-merge.
 
 name: Release Coherence
 
@@ -29,118 +23,42 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   release-coherence:
+    name: release-coherence
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-coherence-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
-      - name: Checkout (full history for commit-message inspection)
+      - name: Checkout PR head with full history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Detect whether the PR bumps the plugin.json version
-        id: bump
+      - name: Validate the squash-surviving release artifact
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          # Fetch the immutable base commit; fail closed if the comparison cannot be built.
           git fetch --no-tags origin "$BASE_SHA" >/dev/null 2>&1 || git fetch --no-tags --depth=50 origin "$BASE_SHA"
-          START_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
-          BASE_VERSION=$(git show "$START_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
-          HEAD_VERSION=$(git show "$HEAD_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
 
-          SAFE_VERSION_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
-          if [[ ! "$BASE_VERSION" =~ $SAFE_VERSION_RE || ! "$HEAD_VERSION" =~ $SAFE_VERSION_RE ]]; then
-            echo "::error::plugin version must be a single-line SemVer value" >&2
-            exit 1
-          fi
-
-          if [ "$BASE_VERSION" != "$HEAD_VERSION" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "🔀 Version field changed in this PR: $BASE_VERSION → $HEAD_VERSION"
+          # Execute the policy from the trusted base. The fallback exists only
+          # for this workflow's bootstrap PR, before the checker reaches main.
+          CHECKER="$RUNNER_TEMP/check-release-coherence.py"
+          if git cat-file -e "$BASE_SHA:scripts/check-release-coherence.py" 2>/dev/null; then
+            git show "$BASE_SHA:scripts/check-release-coherence.py" > "$CHECKER"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "✅ plugin.json version untouched by this PR — nothing to enforce"
+            cp scripts/check-release-coherence.py "$CHECKER"
           fi
 
-      - name: Enforce release coherence when the version changed
-        if: steps.bump.outputs.changed == 'true'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          START_SHA=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
-          NEWV=$(git show "$HEAD_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
-          SAFE_VERSION_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
-          if [[ ! "$NEWV" =~ $SAFE_VERSION_RE ]]; then
-            echo "::error::plugin version must be a single-line SemVer value" >&2
-            exit 1
-          fi
-
-          BUMP_COUNT=0
-          NONCHORE=0
-          RELEASE_RE='^chore\(release\)(!)?:[[:space:]]+.+'
-          echo "📋 version-field-changing commits on the PR first-parent trajectory:"
-          while IFS= read -r sha; do
-            [ -n "$sha" ] || continue
-            parent=$(git rev-parse "${sha}^1")
-            before=$(git show "$parent:.claude-plugin/plugin.json" | jq -er '.version | strings')
-            after=$(git show "$sha:.claude-plugin/plugin.json" | jq -er '.version | strings')
-            [ "$before" != "$after" ] || continue
-
-            subject=$(git log -1 --format='%s' "$sha")
-            BUMP_COUNT=$((BUMP_COUNT + 1))
-            printf '   %s %s → %s | %s\n' "${sha:0:12}" "$before" "$after" "$subject"
-            if [[ ! "$subject" =~ $RELEASE_RE ]]; then
-              NONCHORE=$((NONCHORE + 1))
-            fi
-          done < <(git rev-list --reverse --first-parent "$START_SHA..$HEAD_SHA")
-
-          # With an overall version delta, at least one PR-spine commit must explain it.
-          if [ "$BUMP_COUNT" -eq 0 ]; then
-            echo "::error::base/head versions differ but no version-changing PR commit was found; update the branch and retry" >&2
-            exit 1
-          fi
-
-          # Soft signal (not a pass condition): a matching CHANGELOG section should exist.
-          if [ -f CHANGELOG.md ]; then
-            CHANGELOG_SECTION=$(grep -cF "## [$NEWV]" CHANGELOG.md || true)
-          else
-            CHANGELOG_SECTION=0
-          fi
-
-          echo ""
-          echo "non-chore(release) version-touching commits: $NONCHORE · CHANGELOG section for $NEWV: $CHANGELOG_SECTION"
-
-          if [ "$NONCHORE" -eq 0 ]; then
-            echo "✅ Release coherence satisfied — the version bump travels as a chore(release) commit"
-            [ "$CHANGELOG_SECTION" -ge 1 ] || echo "⚠️  note: no CHANGELOG section '## [$NEWV]' yet — add one in the same chore(release) commit"
-            exit 0
-          fi
-
-          cat >&2 <<EOF
-          ❌ RELEASE COHERENCE VIOLATION
-
-          This PR changes .claude-plugin/plugin.json's version to $NEWV
-          inside a feature commit, not a dedicated 'chore(release)' commit.
-
-          This is the drift behind v1.22.0: the version bump (1a35fdf), the
-          release commit (feb1c1f), and the release note arrived in three
-          different commits across two weeks — the release was never one
-          coherent, visible event.
-
-          Fix: split the version bump into its own dedicated commit with a
-          message of the form:
-
-            chore(release): <short description of the release>
-
-          (and carry the '## [$NEWV]' CHANGELOG.md section in that same commit).
-          EOF
-          exit 1
+          python3 "$CHECKER" \
+            --repo "$GITHUB_WORKSPACE" \
+            --base-sha "$BASE_SHA" \
+            --head-sha "$HEAD_SHA" \
+            --pr-title "$PR_TITLE"

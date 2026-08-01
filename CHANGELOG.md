@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — squash-aware release-coherence gate
+
+Release version changes now require a separate, linear `chore(release): ...` PR whose title survives
+the repository's squash-merge policy. A fail-closed, standard-library checker compares against the
+merge base, requires a monotonic unused SemVer, limits the PR to release metadata and derived version
+documentation, and verifies exactly one matching new changelog heading. Eight hermetic Git-history
+tests cover valid release, stale branch, feature-title bypass, merge topology, mixed functional path,
+missing changelog, downgrade and reused-tag cases.
+
 ### Added — `ooda-loop` v0.3.0: profile-aware, bounded autonomous delivery intake
 
 `ooda-loop` now accepts the optional portable `operator-profile` contract. It classifies inbound
