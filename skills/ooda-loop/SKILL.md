@@ -203,7 +203,10 @@ ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             v
 DECIDE    gate: all APPLICABLE envelopes valid (system-as-prompt is N/A for a one-shot/bounded goal —
             the {goal, dod} pair suffices) + not-inconclusive + NOT HUMAN_DOMAIN + autonomy_score >= threshold?
-            | any red -> HITL (with the computed envelopes attached, never a blank ask)
+            | structurally invalid envelope -> STOP-ERROR (fail closed; attach validation evidence)
+            | upstream goal/DoD intent inconclusive OR HUMAN_DOMAIN/hard gate -> STOP-HITL
+            | autonomy_score below threshold -> one proportionate independent uplift path;
+            |   still below threshold -> STOP-PARKED (technical checkpoint + precise next action; no operator ask)
             | resolve --driver (auto: quiesce if host /goal + session scope, else gap-loop)
             v
 ACT       drive with the typed {goal, dod[, system]} set (system only when the goal is recurring):
@@ -284,7 +287,7 @@ Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible operator int
 
 ## STOP-marker grammar (reused — emit exactly ONE as the last line of each turn)
 ```text
-<!--ORCH-STATUS: STOP-DONE -->     DoD satisfied — termination_predicate met, verifier-confirmed, score >= threshold
+<!--ORCH-STATUS: STOP-DONE -->     DELIVERY_DONE only — DoD met; no applicable gap/open SPEC/failed check/pending promotion
 <!--ORCH-STATUS: STOP-PARKED -->   bounded partial — budget, lease or plateau stop; checkpoint + next action persisted
 <!--ORCH-STATUS: STOP-HITL -->     operator goal/DoD intent inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (validator / subagent / network)

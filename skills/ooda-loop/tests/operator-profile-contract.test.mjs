@@ -162,6 +162,9 @@ test("skill separates unresolved operator intent from ordinary technical uncerta
   assert.match(skill, /unresolved operator goal or acceptance intent reported inconclusive/);
   assert.match(skill, /inconclusive\.flag=true[\s\S]*STOP-HITL/);
   assert.match(skill, /unresolved technical residue becomes `STOP-PARKED`/);
+  assert.doesNotMatch(skill, /any red\s*->\s*HITL/);
+  assert.match(skill, /autonomy_score below threshold[\s\S]*still below threshold -> STOP-PARKED/);
+  assert.match(skill, /STOP-DONE[\s\S]*DELIVERY_DONE only[\s\S]*no applicable gap\/open SPEC\/failed check\/pending promotion/);
 });
 
 test("trusted-root mode rejects a canonical path escape", async () => {

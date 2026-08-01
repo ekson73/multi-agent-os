@@ -96,6 +96,12 @@ the operator's declared language and an operational recommendation.
 - **THEN** the agent SHALL decide and document the technical choice
 - **AND** it SHALL NOT ask a nontechnical operator to design the implementation
 
+#### Scenario: Technical autonomy score remains below threshold
+
+- **WHEN** a bounded deterministic check and one proportionate independent uplift path leave the technical autonomy score below threshold
+- **THEN** the conductor SHALL emit `PARKED_PARTIAL` with a technical checkpoint and precise next action
+- **AND** it SHALL NOT emit `BLOCKED_HITL` or ask the operator to choose a technology
+
 ### Requirement: Portability claims are evidence-qualified
 
 The portable core MUST conform to the Agent Skills format. Runtime documentation SHALL
