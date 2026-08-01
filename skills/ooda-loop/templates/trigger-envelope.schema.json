@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:multi-agent-os:trigger-envelope:1.0",
+  "title": "Replay-safe trigger envelope for OODA-loop intake",
+  "description": "Sanitized data-plane envelope for an inbound signal, produced at a trusted adapter boundary. Neither envelope nor raw payload supplies flags, paths, shell text, identity or authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "binding", "connector", "event", "freshness", "idempotency", "security", "request"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_slug", "tenant_scope"],
+      "properties": {
+        "project_slug": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "tenant_scope": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$"}
+      }
+    },
+    "connector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authentication_state"],
+      "properties": {
+        "authentication_state": {"enum": ["verified", "missing", "not-applicable"]},
+        "evidence_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "source_kind", "observed_at"],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$"},
+        "source_kind": {"enum": ["direct-chat", "discord", "slack", "ticket", "backlog", "specification", "pull-request", "hook", "webhook", "bootstrap", "prototype", "agent-output"]},
+        "observed_at": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"}
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_age_seconds"],
+      "properties": {
+        "max_age_seconds": {"type": "integer", "minimum": 1, "maximum": 604800}
+      }
+    },
+    "idempotency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replay_key", "payload_digest"],
+      "properties": {
+        "replay_key": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "payload_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sensitivity", "injection_risk", "raw_payload_retained", "authority_claim"],
+      "properties": {
+        "sensitivity": {"enum": ["public", "internal", "confidential", "restricted", "unknown"]},
+        "injection_risk": {"enum": ["none-detected", "suspected", "unreviewed"]},
+        "raw_payload_retained": {"const": false},
+        "authority_claim": {"const": "none"}
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "requested_scope"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 1, "maxLength": 512},
+        "requested_scope": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
+      }
+    }
+  }
+}

@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `ooda-loop` v0.3.0: profile-aware, bounded autonomous delivery intake
+
+`ooda-loop` now accepts the optional portable `operator-profile` contract. It classifies inbound
+chat, Discord, Slack, Jira, Linear, ticket, PR, hook, webhook, bootstrap and prototype inputs as
+signals before they can influence a delivery cycle; no trigger, profile or repetition grants
+authority. The explicit authority intersection is evidenced user grant ∩ repository policy ∩
+host capability ∩ live action gate; the profile can only constrain scope or tailor an explanation.
+
+The conductor now makes the intended shape explicit: outer OODA selects the evidence-supported
+delivery stage and the existing `gap-loop`/`quiesce` drivers run bounded inner PDCA. A technical
+delegation prevents unnecessary architecture questions to a nontechnical business owner, while
+business-rule uncertainty, human-only access/acceptance and hard-boundary residue still reach
+HITL with a concise recommendation. Deployment remains a gated promotion, not an automatic end.
+
+The change adds strict replay-safe intake schemas plus a validated outward-run vocabulary, sanitized examples, a dependency-free fail-closed
+adapter validator, real Draft 2020-12 fixture validation in CI, a concise vendor-neutral loop prompt
+and runtime adapter guidance. It extends the existing conductor instead of creating a competing loop;
+its portable core is Agent Skills Markdown plus JSON, so a listed runtime is never represented as a
+verified native integration without a capability-mapped adapter and behavioral evidence.
+
 ### Added — `9router-concierge` + `omniroute-concierge` (gateway concierge family)
 
 <!-- Signed: Claude-Dev-e731-001 · 2026-07-31T21:55:00Z -->

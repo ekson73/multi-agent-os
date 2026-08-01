@@ -1,0 +1,78 @@
+{
+  "contract_version": "1.0",
+  "provenance": {
+    "source_kind": "operator-declaration",
+    "recorded_at": "2026-08-01T12:00:00Z",
+    "expires_at": "2026-08-08T12:00:00Z",
+    "project_binding": {
+      "project_slug": "example-project",
+      "tenant_scope": "example-tenant"
+    }
+  },
+  "operator": {
+    "role": "business-owner",
+    "technical_literacy": "limited",
+    "language": "pt-BR"
+  },
+  "authority": {
+    "technical_delegation_claim": "delegated",
+    "human_decision_domains": [
+      "business-rule",
+      "business-priority",
+      "human-only-access",
+      "human-only-acceptance"
+    ],
+    "baseline_acknowledgements": [
+      "secret",
+      "personal-data",
+      "identity-or-access",
+      "money-or-cost",
+      "legal-or-regulated-effect",
+      "external-communication",
+      "cross-organization",
+      "destructive-or-irreversible"
+    ]
+  },
+  "sources": {
+    "authoritative": [
+      "repository-policy",
+      "approved-specification",
+      "accepted-decision-record",
+      "verified-live-state",
+      "approved-backlog"
+    ],
+    "signal_only": [
+      "chat",
+      "discord-message",
+      "slack-message",
+      "jira-issue",
+      "linear-issue",
+      "ticket",
+      "backlog-item",
+      "pull-request",
+      "hook",
+      "webhook",
+      "bootstrap",
+      "prototype",
+      "notification",
+      "agent-output"
+    ]
+  },
+  "delivery": {
+    "candidate_stages": [
+      "recon",
+      "prototype",
+      "reverse-engineering",
+      "specification",
+      "source",
+      "verification",
+      "build",
+      "deploy"
+    ],
+    "deploy_mode": "gated"
+  },
+  "scope": {
+    "included": ["product delivery", "technical quality", "documentation"],
+    "excluded": ["real customer data", "financial commitments", "external communications"]
+  }
+}
