@@ -1,7 +1,7 @@
 # Ontology Validation — OS3PD v4.13.0+
 #
 # Validates the OWL/Turtle + JSON-LD machine-readable mirrors of
-# protocols/os3pd-manifesto.md whenever they change.
+# protocols/os3pd-manifesto.md and the OODA-loop JSON intake contracts whenever they change.
 #
 # Pinned third-party actions follow the supply-chain-sentinel.yml convention.
 # Python deps are pinned inline (NOT added to mcp-tools/maos-mcp-hub/requirements-dev.txt
@@ -16,6 +16,11 @@ on:
       - "ontology/**"
       - "protocols/os3pd-manifesto.md"
       - "tests/test_ontology_parse.py"
+      - "skills/ooda-loop/templates/operator-profile.schema.json"
+      - "skills/ooda-loop/templates/operator-profile.example.json"
+      - "skills/ooda-loop/templates/trigger-envelope.schema.json"
+      - "skills/ooda-loop/templates/trigger-envelope.example.json"
+      - "skills/ooda-loop/tests/operator_profile_schema_test.py"
       - ".github/workflows/ontology-validation.yml"
   pull_request:
     branches: [main]
@@ -23,6 +28,11 @@ on:
       - "ontology/**"
       - "protocols/os3pd-manifesto.md"
       - "tests/test_ontology_parse.py"
+      - "skills/ooda-loop/templates/operator-profile.schema.json"
+      - "skills/ooda-loop/templates/operator-profile.example.json"
+      - "skills/ooda-loop/templates/trigger-envelope.schema.json"
+      - "skills/ooda-loop/templates/trigger-envelope.example.json"
+      - "skills/ooda-loop/tests/operator_profile_schema_test.py"
       - ".github/workflows/ontology-validation.yml"
   workflow_dispatch: {}
 
@@ -35,7 +45,7 @@ concurrency:
 
 jobs:
   validate:
-    name: rdflib + jsonschema parse
+    name: rdflib + intake jsonschema parse
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -53,5 +63,5 @@ jobs:
           set -euo pipefail
           python -m pip install --require-hashes -r tests/ontology-validation-requirements.txt
 
-      - name: Validate ontology + matrix
-        run: pytest tests/test_ontology_parse.py -v
+      - name: Validate ontology + intake contracts
+        run: pytest tests/test_ontology_parse.py skills/ooda-loop/tests/operator_profile_schema_test.py -v
