@@ -77,6 +77,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 > Driver/loop family — auto-discovered from `skills/*/SKILL.md` (not all listed in the table above; the catalog is being backfilled). Shared methodology: `protocols/gap-loop-protocol.md`.
 
 - `gap-loop` — **harness-agnostic** self-driven, self-scored 5-phase convergence loop (DoR → RECAP gap-register → RESOLVE MoE-per-gap → VALIDATE independent-audit → PERSIST); loops until [gaps dispositioned ∧ convergence ∧ autonomy_score ≥ 0.85]. Fills the seam left by `quiesce` (which needs the `/goal` slash-command); composes `converge`/`convergence-engine`/`perspective-trio`/`persona-pipeline`/`cascade-resolver`/`pulse` — reimplements nothing. Siblings (auto-discovered): `quiesce` · `auto-pilot` · `enhance-pipeline` · `convergence-engine` · `converge` · `pulse` · `work-compass`.
+- `ooda-loop` — profile-aware outer OODA conductor over `goal-recovery`, measurable DoD and bounded `gap-loop`/`quiesce` PDCA. It classifies replay-safe triggers, routes the smallest evidence-ready delivery stage and separates engineering preferences from business-facing residues; neither its optional `operator-profile` nor a chat, ticket or webhook grants permission.
 
 ## Directory Structure
 
