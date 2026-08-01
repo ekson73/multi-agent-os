@@ -85,7 +85,8 @@ stop-marker enums rather than illustrative pipe-delimited aliases.
 
 The conductor MUST resolve ordinary technical uncertainty through the least expensive
 applicable deterministic check or independent convergence path. It SHALL ask a human only
-for irreducible business rules or priorities, human-only acts, or hard boundaries, using
+when an upstream typed envelope cannot recover operator goal or acceptance intent, for
+irreducible business rules or priorities, for human-only acts, or for hard boundaries, using
 the operator's declared language and an operational recommendation.
 
 #### Scenario: Architecture choice is technically resolvable

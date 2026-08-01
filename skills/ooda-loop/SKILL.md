@@ -128,8 +128,9 @@ If that resolves a technical decision with independently proved execution author
 If a host lacks an armed/compatible council adapter, it stays consultative and grants no authority; use the
 independent evidence already available and retain the normal hard gates.
 
-Escalate only the irreducible residue: (1) a missing or conflicting business rule/priority owned by the
-operator; (2) a human-only access, approval, payment, acceptance, or physical action; or (3) a hard boundary
+Escalate only the irreducible residue: (0) unresolved operator goal or acceptance intent reported inconclusive
+by an upstream typed envelope; (1) a missing or conflicting business rule/priority owned by the operator;
+(2) a human-only access, approval, payment, acceptance, or physical action; or (3) a hard boundary
 whose named live gate requires a human. A council cannot open a hard gate; do not delay immediate containment
 or that gate for a council. The question must state the
 operational decision, the minimal options, current evidence, risk, and recommended option; never ask the
@@ -254,7 +255,7 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | `--operator-profile` | *(none)* | trusted control-plane path to a validated, fresh profile of context claims/preferences. It can constrain, never grant. |
 | `--trigger-envelope` | *(derived for direct invocation)* | trusted control-plane path to a validated replay-safe event envelope; adapters must create it before accepting external payloads. |
 | `--driver` | `auto` | `auto` (quiesce if host `/goal` + session scope, else gap-loop) \| `gap-loop` \| `quiesce` \| `<custom>` |
-| `--conf-inconclusive` | `0.60` | `0.0`-`1.0` — inconclusive-resolution threshold (below => `RESOLVE-INCONCLUSIVE` before ORIENT; only irreducible business/human residue becomes HITL) |
+| `--conf-inconclusive` | `0.60` | `0.0`-`1.0` — upstream goal/DoD intent gate (below => preserve the typed envelope's `STOP-HITL`; do not ask a technical-choice question) |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — DECIDE gate + passed to the driver |
 | `--max-iterations` | `6` | int — ACT loop cap (passed to gap-loop `--max-iterations` / quiesce `--max-pdca`) |
 | `--max-ooda-cycles` | `3` | positive int — shared outer-cycle cap, including lifecycle re-observation. |
@@ -279,13 +280,13 @@ the vocabulary SSOT for lifecycle stages, outcomes, access, authority evidence, 
 `STOP-DONE`: the scoped delivery DoD is met and no applicable gap, deferred/open specification, failed check or
 pending promotion remains. `PARKED_PARTIAL` preserves bounded progress; `BLOCKED_HITL` names the irreducible gate.
 
-Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible business/human/hard gate) · `4` STOP-PARKED (bounded technical/partial).
+Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (irreducible operator intent/business/human/hard gate) · `4` STOP-PARKED (bounded technical/partial).
 
 ## STOP-marker grammar (reused — emit exactly ONE as the last line of each turn)
 ```text
 <!--ORCH-STATUS: STOP-DONE -->     DoD satisfied — termination_predicate met, verifier-confirmed, score >= threshold
 <!--ORCH-STATUS: STOP-PARKED -->   bounded partial — budget, lease or plateau stop; checkpoint + next action persisted
-<!--ORCH-STATUS: STOP-HITL -->     goal OR DoD inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
+<!--ORCH-STATUS: STOP-HITL -->     operator goal/DoD intent inconclusive, OR HARD gate (HUMAN_DOMAIN) — envelopes attached
 <!--ORCH-STATUS: STOP-ERROR -->    unrecoverable error (validator / subagent / network)
 <!--ORCH-STATUS: CONTINUE -->      round done; DoD not yet met OR score < threshold; next round opens
 ```
@@ -330,7 +331,7 @@ ooda-loop --scope=this.session                    # recover this session's goal 
 ooda-loop --dry-run                               # print the recovered {goal, dod} + driver + predicate; drive nothing
 ooda-loop --driver=quiesce --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"
 ooda-loop --scope=ticket:VKS-1234 --autonomy-threshold=0.9 --max-iterations=4
-ooda-loop --driver=gap-loop --conf-inconclusive=0.75   # stricter inconclusive-resolution threshold
+ooda-loop --driver=gap-loop --conf-inconclusive=0.75   # stricter upstream goal/DoD intent gate
 ooda-loop --only=orient --for-goal "ship the session-handoff spine"   # dod-recovery: derive+emit the measurable DoD only; drive nothing
 ooda-loop --operator-profile=./operator-profile.json --scope=ticket:ABC-42  # profile-aware intake -> OODA -> bounded PDCA
 ```

@@ -22,7 +22,7 @@ The DoD envelope contract lives in `skills/ooda-loop/templates/dod-as-prompt.sch
            [--operator-profile=<trusted-path>]  (context claims/preferences; constrains, never grants)
            [--trigger-envelope=<trusted-path>]  (replay-safe sanitized event metadata)
            [--driver=auto|gap-loop|quiesce|<custom>]                (default auto)
-           [--conf-inconclusive=0.60]      (inconclusive-resolution threshold)
+           [--conf-inconclusive=0.60]      (upstream goal/DoD intent gate)
            [--autonomy-threshold=0.85]     (DECIDE gate + passed to driver)
            [--max-iterations=6]            (ACT loop cap)
            [--max-ooda-cycles=3] [--max-total-attempts=18]

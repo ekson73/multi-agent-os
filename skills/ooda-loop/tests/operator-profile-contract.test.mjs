@@ -156,6 +156,14 @@ test("skill treats profile delivery fields as restrictive routing constraints", 
   assert.match(skill, /postflight sweep\/debrief\/handoff path[\s\S]*--no-spawn/);
 });
 
+test("skill separates unresolved operator intent from ordinary technical uncertainty", async () => {
+  const skill = await readFile(path.join(root, "SKILL.md"), "utf8");
+  assert.doesNotMatch(skill, /RESOLVE-INCONCLUSIVE/);
+  assert.match(skill, /unresolved operator goal or acceptance intent reported inconclusive/);
+  assert.match(skill, /inconclusive\.flag=true[\s\S]*STOP-HITL/);
+  assert.match(skill, /unresolved technical residue becomes `STOP-PARKED`/);
+});
+
 test("trusted-root mode rejects a canonical path escape", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "ooda-root-escape-"));
   try {
