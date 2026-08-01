@@ -102,7 +102,7 @@ test("validator fails closed if a future schema adds an unsupported assertion", 
   }
 });
 
-test("skill output lifecycle stages match the intake contract", async () => {
+test("run envelope lifecycle stages match operator profile candidate stages", async () => {
   const profile = await json("operator-profile.schema.json");
   const run = await json("run-envelope.schema.json");
   assert.deepEqual(
@@ -145,6 +145,13 @@ test("run envelope refuses vocabulary drift and unstructured authority", async (
       value.intake.execution_authority.state = "proven";
       value.intake.access = "ACCESS_READY";
       value.budget.continuation_authorized = false;
+    },
+    (value) => {
+      value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+      value.intake.execution_authority.state = "proven";
+      value.intake.execution_authority.evidence_refs = [];
+      value.intake.access = "ACCESS_READY";
+      value.budget.continuation_authorized = true;
     },
     (value) => { value.unexpected = true; }
   ];

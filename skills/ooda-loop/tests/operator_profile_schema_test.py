@@ -128,6 +128,12 @@ def test_trigger_envelope_negative_fixtures_are_rejected(mutate) -> None:
             value["intake"].update({"access": "ACCESS_READY"}),
             value["budget"].update({"continuation_authorized": False}),
         ),
+        lambda value: (
+            value.update({"result": {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"}}),
+            value["intake"]["execution_authority"].update({"state": "proven", "evidence_refs": []}),
+            value["intake"].update({"access": "ACCESS_READY"}),
+            value["budget"].update({"continuation_authorized": True}),
+        ),
     ],
 )
 def test_run_envelope_negative_fixtures_are_rejected(mutate) -> None:

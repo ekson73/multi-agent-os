@@ -95,7 +95,12 @@
         "properties": {
           "intake": {
             "properties": {
-              "execution_authority": {"properties": {"state": {"const": "proven"}}},
+              "execution_authority": {
+                "properties": {
+                  "state": {"const": "proven"},
+                  "evidence_refs": {"minItems": 1}
+                }
+              },
               "access": {"const": "ACCESS_READY"}
             }
           },
