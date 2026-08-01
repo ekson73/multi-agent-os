@@ -20,6 +20,8 @@ on:
       - "skills/ooda-loop/templates/operator-profile.example.json"
       - "skills/ooda-loop/templates/trigger-envelope.schema.json"
       - "skills/ooda-loop/templates/trigger-envelope.example.json"
+      - "skills/ooda-loop/templates/run-envelope.schema.json"
+      - "skills/ooda-loop/templates/run-envelope.example.json"
       - "skills/ooda-loop/tests/operator_profile_schema_test.py"
       - ".github/workflows/ontology-validation.yml"
   pull_request:
@@ -32,6 +34,8 @@ on:
       - "skills/ooda-loop/templates/operator-profile.example.json"
       - "skills/ooda-loop/templates/trigger-envelope.schema.json"
       - "skills/ooda-loop/templates/trigger-envelope.example.json"
+      - "skills/ooda-loop/templates/run-envelope.schema.json"
+      - "skills/ooda-loop/templates/run-envelope.example.json"
       - "skills/ooda-loop/tests/operator_profile_schema_test.py"
       - ".github/workflows/ontology-validation.yml"
   workflow_dispatch: {}

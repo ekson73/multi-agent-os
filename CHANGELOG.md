@@ -22,7 +22,7 @@ delegation prevents unnecessary architecture questions to a nontechnical busines
 business-rule uncertainty, human-only access/acceptance and hard-boundary residue still reach
 HITL with a concise recommendation. Deployment remains a gated promotion, not an automatic end.
 
-The change adds strict replay-safe intake schemas, sanitized examples, a dependency-free fail-closed
+The change adds strict replay-safe intake schemas plus a validated outward-run vocabulary, sanitized examples, a dependency-free fail-closed
 adapter validator, real Draft 2020-12 fixture validation in CI, a concise vendor-neutral loop prompt
 and runtime adapter guidance. It extends the existing conductor instead of creating a competing loop;
 its portable core is Agent Skills Markdown plus JSON, so a listed runtime is never represented as a

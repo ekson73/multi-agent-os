@@ -1,0 +1,35 @@
+{
+  "contract_version": "1.0",
+  "stage": "DECIDE",
+  "result": {
+    "outcome": "PARKED_PARTIAL",
+    "status": "partial",
+    "stop_marker": "STOP-PARKED",
+    "route": "park"
+  },
+  "intake": {
+    "trigger_kind": "ticket",
+    "profile": "present",
+    "lifecycle_stage": "specification",
+    "execution_authority": {
+      "state": "unknown",
+      "evidence_refs": []
+    },
+    "access": "ACCESS_READY"
+  },
+  "driver": "none",
+  "autonomy_score": 0.72,
+  "budget": {
+    "ooda_cycles": 1,
+    "attempts": 1,
+    "tool_calls": 8,
+    "spawns": 1,
+    "external_calls": 0,
+    "elapsed_minutes": 4.5,
+    "plateau_cycles": 0,
+    "lease": "valid",
+    "cancelled": false
+  },
+  "postflight": "done",
+  "next_action": "Verify the current repository authorization record before ACT."
+}

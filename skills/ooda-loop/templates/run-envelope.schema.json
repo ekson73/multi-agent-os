@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:multi-agent-os:ooda-loop-run-envelope:1.0",
+  "title": "OODA-loop outward run envelope",
+  "description": "Validated vocabulary for the conductor's single outward result. Child-driver markers are normalized before this envelope is emitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "stage", "result", "intake", "budget", "postflight"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "stage": {"enum": ["OBSERVE", "ORIENT", "DECIDE", "ACT"]},
+    "result": {
+      "type": "object",
+      "description": "Atomic outward tuple. Keeping route with outcome/status/marker makes contradictory terminal states unrepresentable.",
+      "enum": [
+        {"outcome": "STAGE_DONE", "status": "ok", "stop_marker": "CONTINUE", "route": "act"},
+        {"outcome": "DELIVERY_DONE", "status": "ok", "stop_marker": "STOP-DONE", "route": "act"},
+        {"outcome": "PARKED_PARTIAL", "status": "partial", "stop_marker": "STOP-PARKED", "route": "park"},
+        {"outcome": "BLOCKED_HITL", "status": "hitl", "stop_marker": "STOP-HITL", "route": "hitl"},
+        {"outcome": "ERROR", "status": "error", "stop_marker": "STOP-ERROR", "route": "park"},
+        {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"},
+        {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "consult"}
+      ]
+    },
+    "intake": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger_kind", "profile", "lifecycle_stage", "execution_authority", "access"],
+      "properties": {
+        "trigger_kind": {"enum": ["direct-chat", "discord", "slack", "ticket", "backlog", "specification", "pull-request", "hook", "webhook", "bootstrap", "prototype", "agent-output"]},
+        "profile": {"enum": ["present", "absent"]},
+        "lifecycle_stage": {"enum": ["recon", "prototype", "reverse-engineering", "specification", "source", "verification", "build", "deploy"]},
+        "execution_authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "evidence_refs"],
+          "properties": {
+            "state": {"enum": ["proven", "unknown", "denied"]},
+            "evidence_refs": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 160}}
+          }
+        },
+        "access": {"enum": ["ACCESS_READY", "ACCESS_MISSING", "ACCESS_CHANGE_REQUIRED", "ACCESS_FORBIDDEN"]}
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "confidence", "inconclusive"],
+      "properties": {
+        "goal": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "inconclusive": {"type": "boolean"}
+      }
+    },
+    "dod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["for_goal", "termination_predicate", "evaluation_band"],
+      "properties": {
+        "for_goal": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "termination_predicate": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "evaluation_band": {"enum": ["HIGH", "MEDIUM", "LOW"]}
+      }
+    },
+    "driver": {"enum": ["gap-loop", "quiesce", "none"]},
+    "autonomy_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ooda_cycles", "attempts", "tool_calls", "spawns", "external_calls", "elapsed_minutes", "plateau_cycles", "lease", "cancelled"],
+      "properties": {
+        "ooda_cycles": {"type": "integer", "minimum": 0},
+        "attempts": {"type": "integer", "minimum": 0},
+        "tool_calls": {"type": "integer", "minimum": 0},
+        "spawns": {"type": "integer", "minimum": 0},
+        "external_calls": {"type": "integer", "minimum": 0},
+        "elapsed_minutes": {"type": "number", "minimum": 0},
+        "plateau_cycles": {"type": "integer", "minimum": 0},
+        "lease": {"enum": ["valid", "expired", "unknown"]},
+        "cancelled": {"type": "boolean"}
+      }
+    },
+    "postflight": {"enum": ["pending", "done", "deferred"]},
+    "next_action": {"type": "string", "maxLength": 512}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "result": {"properties": {"route": {"const": "act"}}}
+        }
+      },
+      "then": {
+        "properties": {
+          "intake": {
+            "properties": {
+              "execution_authority": {"properties": {"state": {"const": "proven"}}},
+              "access": {"const": "ACCESS_READY"}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

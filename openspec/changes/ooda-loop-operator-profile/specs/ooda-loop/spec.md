@@ -38,7 +38,7 @@ call budget, or sustained no-progress, preserving a resumable evidence-backed st
 #### Scenario: Stage keeps re-entering Observe without progress
 
 - **WHEN** the no-progress threshold or global OODA ceiling is reached
-- **THEN** the conductor SHALL stop as `PARKED` or `PARTIAL`
+- **THEN** the conductor SHALL stop as `PARKED_PARTIAL`
 - **AND** it SHALL preserve the binding gap and safe next action
 - **AND** it SHALL NOT continue indefinitely or report delivery done
 
@@ -53,8 +53,33 @@ SHALL prevent a `DELIVERY_DONE` result.
 - **WHEN** source checks and build pass
 - **AND** deployment remains gated or out of scope
 - **THEN** the conductor MAY report `STAGE_DONE`
-- **AND** it SHALL report the delivery as `PARTIAL`, `PARKED` or `BLOCKED` as applicable
+- **AND** it SHALL report `PARKED_PARTIAL` or `BLOCKED_HITL` as applicable
 - **AND** it SHALL NOT claim deployment or end-to-end delivery
+
+### Requirement: Child-driver markers are normalized once
+
+The conductor MUST capture the selected PDCA driver's terminal marker as an internal result and
+MUST emit exactly one outward marker. Soft driver exhaustion or unresolved technical residue SHALL
+be normalized to `PARKED_PARTIAL`; a driver-level done result SHALL NOT become `DELIVERY_DONE`
+unless the whole delivery contract is satisfied.
+
+#### Scenario: Driver exhausts its rounds on a technical gap
+
+- **WHEN** `gap-loop` or `quiesce` reaches its soft round limit without resolving a technical gap
+- **THEN** `ooda-loop` SHALL emit one `STOP-PARKED` outer marker with a durable checkpoint
+- **AND** it SHALL NOT leak a child `STOP-HITL` marker or ask the operator a technical question
+
+### Requirement: Outward states use one validated vocabulary
+
+The conductor MUST validate its outward JSON result against the versioned run-envelope schema.
+Documentation, tests and adapters SHALL use the schema's exact lifecycle, outcome, access and
+stop-marker enums rather than illustrative pipe-delimited aliases.
+
+#### Scenario: Adapter proposes a legacy partial state
+
+- **WHEN** an adapter attempts to emit `PARTIAL`, `PARKED` or an unstructured authority string
+- **THEN** run-envelope validation SHALL refuse the result
+- **AND** the adapter SHALL use `PARKED_PARTIAL` plus structured authority evidence as applicable
 
 ### Requirement: Escalation is proportional and business-readable
 

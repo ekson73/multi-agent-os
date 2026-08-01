@@ -31,10 +31,11 @@ async function withMutation(sourceName, mutate, check) {
   }
 }
 
-test("stdlib validator accepts both complete examples", () => {
+test("stdlib validator accepts all complete contract examples", () => {
   for (const [kind, name] of [
     ["operator-profile", "operator-profile.example.json"],
-    ["trigger-envelope", "trigger-envelope.example.json"]
+    ["trigger-envelope", "trigger-envelope.example.json"],
+    ["run-envelope", "run-envelope.example.json"]
   ]) {
     const result = validate(kind, path.join(templates, name));
     assert.equal(result.status, 0, result.stderr);
@@ -68,6 +69,7 @@ test("trigger envelope refuses control-plane injection and unsafe raw payload me
     (value) => { value.idempotency.replay_key = "not-a-digest"; },
     (value) => { value.freshness.max_age_seconds = 0; },
     (value) => { value.event.observed_at = "2026-08-01T12:00:00"; },
+    (value) => { value.event.observed_at = "2026-99-99T99:99:99Z"; },
     (value) => { delete value.connector.authentication_state; },
     (value) => { value.binding.project_slug = "../escape"; }
   ];
@@ -101,12 +103,49 @@ test("validator fails closed if a future schema adds an unsupported assertion", 
 });
 
 test("skill output lifecycle stages match the intake contract", async () => {
-  const skill = await readFile(path.join(root, "SKILL.md"), "utf8");
   const profile = await json("operator-profile.schema.json");
-  const stages = profile.properties.delivery.properties.candidate_stages.items.enum;
-  const outputLine = skill.match(/"lifecycle_stage":"([^"]+)"/);
-  assert.ok(outputLine, "SKILL output contract must expose lifecycle stages");
-  assert.deepEqual(outputLine[1].split("|"), stages);
+  const run = await json("run-envelope.schema.json");
+  assert.deepEqual(
+    run.properties.intake.properties.lifecycle_stage.enum,
+    profile.properties.delivery.properties.candidate_stages.items.enum
+  );
+});
+
+test("run envelope refuses vocabulary drift and unstructured authority", async () => {
+  const cases = [
+    (value) => { value.result.outcome = "PARTIAL"; },
+    (value) => { value.result.stop_marker = "STOP-HITL-TECHNICAL"; },
+    (value) => { value.intake.lifecycle_stage = "reveng"; },
+    (value) => { value.intake.execution_authority = "proven"; },
+    (value) => { value.result = { outcome: "DELIVERY_DONE", status: "error", stop_marker: "STOP-HITL", route: "act" }; },
+    (value) => { value.result = { outcome: "PARKED_PARTIAL", status: "ok", stop_marker: "STOP-DONE", route: "park" }; },
+    (value) => { value.result = { outcome: "BLOCKED_HITL", status: "hitl", stop_marker: "STOP-ERROR", route: "act" }; },
+    (value) => { value.result = { outcome: "ERROR", status: "partial", stop_marker: "CONTINUE", route: "consult" }; },
+    (value) => {
+      value.result = { outcome: "CONTINUE", status: "partial", stop_marker: "CONTINUE", route: "act" };
+      value.intake.execution_authority.state = "denied";
+      value.intake.access = "ACCESS_FORBIDDEN";
+    },
+    (value) => { value.unexpected = true; }
+  ];
+  for (const mutate of cases) {
+    await withMutation("run-envelope.example.json", mutate, (file) => {
+      const result = validate("run-envelope", file);
+      assert.equal(result.status, 3, result.stdout + result.stderr);
+    });
+  }
+});
+
+test("run envelope permits ACT only with proven authority and ready access", async () => {
+  await withMutation("run-envelope.example.json", (value) => {
+    value.result = { outcome: "DELIVERY_DONE", status: "ok", stop_marker: "STOP-DONE", route: "act" };
+    value.intake.execution_authority.state = "proven";
+    value.intake.execution_authority.evidence_refs = ["repository-policy:accepted-decision-42"];
+    value.intake.access = "ACCESS_READY";
+  }, (file) => {
+    const result = validate("run-envelope", file);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  });
 });
 
 test("skill treats profile delivery fields as restrictive routing constraints", async () => {

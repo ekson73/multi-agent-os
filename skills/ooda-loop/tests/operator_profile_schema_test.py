@@ -8,7 +8,9 @@ the assertion-keyword subset that these contracts use and fails closed on schema
 from __future__ import annotations
 
 import copy
+import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -17,6 +19,22 @@ from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATES = ROOT / "templates"
+RFC3339 = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
+FORMAT_CHECKER = FormatChecker()
+
+
+@FORMAT_CHECKER.checks("date-time")
+def valid_rfc3339_datetime(value: object) -> bool:
+    """Validate both RFC3339 shape/offset and real calendar/time values."""
+    if not isinstance(value, str) or RFC3339.fullmatch(value) is None:
+        return False
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None and parsed.utcoffset() is not None
 
 
 def load(name: str) -> dict:
@@ -26,7 +44,7 @@ def load(name: str) -> dict:
 def validator(kind: str) -> Draft202012Validator:
     schema = load(f"{kind}.schema.json")
     Draft202012Validator.check_schema(schema)
-    return Draft202012Validator(schema, format_checker=FormatChecker())
+    return Draft202012Validator(schema, format_checker=FORMAT_CHECKER)
 
 
 @pytest.mark.parametrize(
@@ -34,6 +52,7 @@ def validator(kind: str) -> Draft202012Validator:
     [
         ("operator-profile", "operator-profile.example.json"),
         ("trigger-envelope", "trigger-envelope.example.json"),
+        ("run-envelope", "run-envelope.example.json"),
     ],
 )
 def test_examples_are_valid_draft_2020_12(kind: str, example: str) -> None:
@@ -65,6 +84,7 @@ def test_operator_profile_negative_fixtures_are_rejected(mutate) -> None:
         lambda value: value["request"].update({"auto_merge": "authorized"}),
         lambda value: value["idempotency"].update({"replay_key": "not-a-digest"}),
         lambda value: value["event"].update({"observed_at": "2026-08-01T12:00:00"}),
+        lambda value: value["event"].update({"observed_at": "2026-99-99T99:99:99Z"}),
     ],
 )
 def test_trigger_envelope_negative_fixtures_are_rejected(mutate) -> None:
@@ -72,3 +92,44 @@ def test_trigger_envelope_negative_fixtures_are_rejected(mutate) -> None:
     mutate(instance)
     with pytest.raises(ValidationError):
         validator("trigger-envelope").validate(instance)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda value: value["result"].update({"outcome": "PARTIAL"}),
+        lambda value: value["result"].update({"stop_marker": "STOP-HITL-TECHNICAL"}),
+        lambda value: value["intake"].update({"lifecycle_stage": "reveng"}),
+        lambda value: value["intake"].update({"execution_authority": "proven"}),
+        lambda value: value.update({"result": {"outcome": "DELIVERY_DONE", "status": "error", "stop_marker": "STOP-HITL", "route": "act"}}),
+        lambda value: value.update({"result": {"outcome": "PARKED_PARTIAL", "status": "ok", "stop_marker": "STOP-DONE", "route": "park"}}),
+        lambda value: value.update({"result": {"outcome": "BLOCKED_HITL", "status": "hitl", "stop_marker": "STOP-ERROR", "route": "act"}}),
+        lambda value: value.update({"result": {"outcome": "ERROR", "status": "partial", "stop_marker": "CONTINUE", "route": "consult"}}),
+        lambda value: (
+            value.update({"result": {"outcome": "CONTINUE", "status": "partial", "stop_marker": "CONTINUE", "route": "act"}}),
+            value["intake"]["execution_authority"].update({"state": "denied"}),
+            value["intake"].update({"access": "ACCESS_FORBIDDEN"}),
+        ),
+    ],
+)
+def test_run_envelope_negative_fixtures_are_rejected(mutate) -> None:
+    instance = copy.deepcopy(load("run-envelope.example.json"))
+    mutate(instance)
+    with pytest.raises(ValidationError):
+        validator("run-envelope").validate(instance)
+
+
+def test_run_envelope_allows_act_with_proven_authority_and_ready_access() -> None:
+    instance = copy.deepcopy(load("run-envelope.example.json"))
+    instance["result"] = {
+        "outcome": "DELIVERY_DONE",
+        "status": "ok",
+        "stop_marker": "STOP-DONE",
+        "route": "act",
+    }
+    instance["intake"]["execution_authority"] = {
+        "state": "proven",
+        "evidence_refs": ["repository-policy:accepted-decision-42"],
+    }
+    instance["intake"]["access"] = "ACCESS_READY"
+    validator("run-envelope").validate(instance)

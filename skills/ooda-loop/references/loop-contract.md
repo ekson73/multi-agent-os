@@ -26,6 +26,11 @@ Inside ACT, run bounded PDCA for each eligible item:
 - Adjust by keeping the best non-regressed result, fixing a verified gap, or returning to
   Observe with a recorded finding. Never loop indefinitely.
 
+Capture the PDCA driver's terminal marker as an internal child result and emit only one outer
+marker. Normalize soft exhaustion or unresolved technical residue to PARKED_PARTIAL; normalize
+driver done to STAGE_DONE unless the entire delivery DoD earns DELIVERY_DONE. Preserve hard/business
+HITL and unrecoverable ERROR. If the host cannot prevent a child marker from leaking, do not run ACT.
+
 Technical decisions with independently proved user/repository/live authority are decided and
 executed by the agent. An operator profile describes claims/preferences and can only constrain;
 it is never a grant. Do not ask a nontechnical business operator to choose technology,
