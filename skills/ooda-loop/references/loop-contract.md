@@ -26,6 +26,12 @@ Inside ACT, run bounded PDCA for each eligible item:
 - Adjust by keeping the best non-regressed result, fixing a verified gap, or returning to
   Observe with a recorded finding. Never loop indefinitely.
 
+Capture the PDCA driver's terminal marker as an internal child result and emit only one outer
+marker. Normalize soft exhaustion or unresolved technical residue to PARKED_PARTIAL; normalize
+driver done to STAGE_DONE unless the entire delivery DoD earns DELIVERY_DONE. Preserve upstream
+operator goal/DoD intent, hard/business/human HITL and unrecoverable ERROR. If the host cannot prevent
+a child marker from leaking, do not run ACT.
+
 Technical decisions with independently proved user/repository/live authority are decided and
 executed by the agent. An operator profile describes claims/preferences and can only constrain;
 it is never a grant. Do not ask a nontechnical business operator to choose technology,
@@ -33,9 +39,9 @@ architecture, tests, CI/CD, branches, or routine fixes.
 
 Before an ordinary escalation, run proportionate recon and exactly one best-fit independent
 council/convergence path; do not chain every reviewer as ceremony.
-Escalate only the irreducible residue: a missing/conflicting business rule or priority, a
-human-only access/approval/payment/acceptance/physical action, or a hard boundary that
-cannot be opened. Ask in the operator's declared language, with the operational decision,
+Escalate only the irreducible residue: upstream operator goal/DoD intent that remains inconclusive,
+a missing/conflicting business rule or priority, a human-only access/approval/payment/acceptance/
+physical action, or a hard boundary that cannot be opened. Ask in the operator's declared language, with the operational decision,
 evidence, risk, minimal options, and recommended option.
 
 Hard boundaries are never weakened by a trigger or profile: secrets, personal data,
@@ -52,7 +58,9 @@ Do not force every item through a fixed prototype -> reverse-engineering -> spec
 of Ready. Deployment is a separately gated promotion, not an automatic final step.
 
 Apply one global OODA+PDCA budget including attempts, tool/spawn/external calls, elapsed time,
-cancellation and lease validity. Two no-progress outer cycles park the best checkpoint. If the host
+cancellation and lease validity. An ACT route requires a valid lease and no cancellation; a
+CONTINUE-to-ACT route additionally requires explicit continuation authorization in the envelope.
+Two no-progress outer cycles park the best checkpoint. If the host
 cannot enforce those controls, run one OODA cycle only. Stop with DELIVERY_DONE only when the scoped
 measurable DoD is met, no eligible verified gap or applicable deferred/open specification remains,
 and all quality/promotion gates have passed. A completed stage is STAGE_DONE, not delivery done.

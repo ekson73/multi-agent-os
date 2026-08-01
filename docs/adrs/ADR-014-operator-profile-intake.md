@@ -77,6 +77,7 @@ until sanitized host dogfood is explicitly authorized and observed.
 - `skills/ooda-loop/SKILL.md`
 - `skills/ooda-loop/templates/operator-profile.schema.json`
 - `skills/ooda-loop/templates/trigger-envelope.schema.json`
+- `skills/ooda-loop/templates/run-envelope.schema.json`
 - `skills/ooda-loop/bin/validate_intake_contract.py`
 - `skills/ooda-loop/references/loop-contract.md`
 - `skills/ooda-loop/references/runtime-adapters.md`
