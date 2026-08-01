@@ -32,12 +32,12 @@ All three types are welcome. The PR template's **AI Involvement** checkbox is re
 
 Maintainer-only operations. A release MUST:
 
-1. Use a separate, linear PR titled `chore(release): ...`, because that PR title becomes the squash commit visible on `main`.
+1. Use a separate, rebased PR with exactly one commit whose subject is `chore(release): ...`; the repository's `COMMIT_OR_PR_TITLE` squash setting preserves that subject on `main`.
 2. Advance `.claude-plugin/plugin.json` to a new SemVer version and add exactly one matching `CHANGELOG.md` heading in the same PR.
 3. Rebase onto current `main`; change only the manifest `version` field and add one new changelog section. Functional changes ship first in their own PRs; `version-sync` derives README/CLAUDE versions after merge.
-4. Preserve the `chore(release): ...` title as the squash-merge subject.
+4. Keep the release commit single and intact; a matching PR title is recommended for readability but is not the authorization/gate input.
 5. Tag the release (`v<version>`) and verify the downstream marketplace entry in [`ekson73/eko-claude-plugins`](https://github.com/ekson73/eko-claude-plugins) SHA-pins the validated commit.
-6. Confirm the CI release-coherence and version-sync workflows pass.
+6. Confirm the trusted-base CI release-coherence check passes; it is mandatory process evidence but not yet an independently authenticated repository rule. Confirm version-sync after merge.
 
 ## Rollback
 

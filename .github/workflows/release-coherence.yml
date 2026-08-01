@@ -1,11 +1,11 @@
-# Release Coherence Workflow (PR gate)
+# Release Coherence Workflow (trusted-base advisory check)
 #
 # The repository squash-merges PRs. A release therefore has to be represented
 # by the PR artifact that survives on main, not merely by an ephemeral internal
 # branch commit. When a PR changes the plugin version relative to its merge
-# base, this gate requires a separate, release-only PR with:
+# base, this check evaluates a separate, release-only PR with:
 #
-# - a `chore(release): ...` PR title (the expected squash subject);
+# - exactly one commit with a `chore(release): ...` subject;
 # - a monotonic SemVer advance over the current base;
 # - linear history, so second-parent changes cannot hide provenance;
 # - only the manifest version field and one additive changelog section;
@@ -30,7 +30,7 @@ jobs:
     name: release-coherence
     runs-on: ubuntu-latest
     concurrency:
-      group: release-coherence-${{ github.event.pull_request.number }}
+      group: release-coherence-${{ github.event.pull_request.head.sha }}
       cancel-in-progress: true
     steps:
       - name: Checkout the trusted base with full history
@@ -45,9 +45,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
+
           # Fetch head as inert Git objects. Never checkout or execute head code.
           git fetch --no-tags origin "$HEAD_SHA" >/dev/null 2>&1 || \
             git fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
@@ -57,5 +57,4 @@ jobs:
           python3 scripts/check-release-coherence.py \
             --repo "$GITHUB_WORKSPACE" \
             --base-sha "$BASE_SHA" \
-            --head-sha "$HEAD_SHA" \
-            --pr-title "$PR_TITLE"
+            --head-sha "$HEAD_SHA"

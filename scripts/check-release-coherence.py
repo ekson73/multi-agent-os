@@ -41,13 +41,18 @@ def strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def git(repo: Path, *args: str, text: bool = True) -> str | bytes:
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=text,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo), *args],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            encoding="utf-8" if text else None,
+            errors="strict" if text else None,
+        )
+    except UnicodeDecodeError as exc:
+        raise PolicyError(f"git {' '.join(args[:2])} returned non-UTF-8 output") from exc
     if result.returncode != 0:
         raise PolicyError(f"git {' '.join(args[:2])} failed")
     return result.stdout
@@ -134,7 +139,7 @@ def changed_paths(repo: Path, start_sha: str, head_sha: str) -> set[str]:
     }
 
 
-def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) -> str:
+def validate_release(repo: Path, base_sha: str, head_sha: str) -> str:
     if SHA_RE.fullmatch(base_sha) is None or SHA_RE.fullmatch(head_sha) is None:
         raise PolicyError("base and head must be immutable 40-character commit SHAs")
 
@@ -147,8 +152,6 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
         return f"plugin version untouched by this PR ({head_version})"
 
     base_version = version_at(repo, base_sha)
-    if RELEASE_TITLE_RE.fullmatch(pr_title) is None:
-        raise PolicyError("a version delta requires a separate PR titled 'chore(release): ...'")
     if start_sha != base_sha:
         raise PolicyError("release PR must be rebased onto the current base before validation")
     if not semver_greater(head_version, base_version):
@@ -161,6 +164,13 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
     ).splitlines()
     if merge_commits:
         raise PolicyError("release PR history must be linear; rebase instead of merging")
+
+    release_commits = str(git(repo, "rev-list", "--reverse", f"{base_sha}..{head_sha}")).splitlines()
+    if release_commits != [head_sha]:
+        raise PolicyError("a version delta requires exactly one release commit")
+    release_subject = str(git(repo, "log", "-1", "--format=%s", head_sha)).strip()
+    if RELEASE_TITLE_RE.fullmatch(release_subject) is None:
+        raise PolicyError("the release commit subject must match 'chore(release): ...'")
 
     paths = changed_paths(repo, start_sha, head_sha)
     unexpected = sorted(paths - ALLOWED_RELEASE_PATHS)
@@ -220,7 +230,7 @@ def validate_release(repo: Path, base_sha: str, head_sha: str, pr_title: str) ->
 
     return (
         f"release coherence satisfied: {base_version} -> {head_version}; "
-        "release-only paths, linear history, title and changelog verified"
+        "one release commit, release-only content and changelog verified"
     )
 
 
@@ -229,14 +239,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--base-sha", required=True)
     parser.add_argument("--head-sha", required=True)
-    parser.add_argument("--pr-title", required=True)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     try:
-        message = validate_release(args.repo, args.base_sha, args.head_sha, args.pr_title)
+        message = validate_release(args.repo, args.base_sha, args.head_sha)
     except PolicyError as exc:
         print(f"::error::{exc}", file=sys.stderr)
         return 1
