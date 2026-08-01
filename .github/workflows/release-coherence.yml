@@ -36,23 +36,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history for commit-message inspection)
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect whether the PR bumps the plugin.json version
         id: bump
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch origin "$BASE_REF" --depth=1 >/dev/null 2>&1 || true
-          BASE="origin/$BASE_REF"
-          DIFF=$(git diff "$BASE"...HEAD -- .claude-plugin/plugin.json || true)
-          if echo "$DIFF" | grep -qE '^\+.*"version":' ; then
+          set -euo pipefail
+          # Fetch the immutable base commit; fail closed if the comparison cannot be built.
+          git fetch --no-tags origin "$BASE_SHA" >/dev/null 2>&1 || git fetch --no-tags --depth=50 origin "$BASE_SHA"
+          BASE_VERSION=$(git show "$BASE_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
+          HEAD_VERSION=$(git show "$HEAD_SHA:.claude-plugin/plugin.json" | jq -er '.version | strings')
+          if [ "$BASE_VERSION" != "$HEAD_VERSION" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            NEWV=$(jq -r '.version' .claude-plugin/plugin.json)
-            echo "new_version=$NEWV" >> "$GITHUB_OUTPUT"
-            echo "🔀 Version field changed in this PR → coherence check applies (new=$NEWV)"
+            echo "new_version=$HEAD_VERSION" >> "$GITHUB_OUTPUT"
+            echo "🔀 Version field changed in this PR: $BASE_VERSION → $HEAD_VERSION"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "✅ plugin.json version untouched by this PR — nothing to enforce"
@@ -61,31 +65,38 @@ jobs:
       - name: Enforce release coherence when the version changed
         if: steps.bump.outputs.changed == 'true'
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           NEWV: ${{ steps.bump.outputs.new_version }}
         run: |
           set -euo pipefail
-          BASE="origin/$BASE_REF"
+          BUMP_COUNT=0
+          NONCHORE=0
+          RELEASE_RE='^chore\(release\)(!)?:[[:space:]]+.+'
+          echo "📋 version-field-changing commits on the PR first-parent trajectory:"
+          while IFS= read -r sha; do
+            [ -n "$sha" ] || continue
+            parent=$(git rev-parse "${sha}^1")
+            before=$(git show "$parent:.claude-plugin/plugin.json" | jq -er '.version | strings')
+            after=$(git show "$sha:.claude-plugin/plugin.json" | jq -er '.version | strings')
+            [ "$before" != "$after" ] || continue
 
-          # Per-commit: does THIS commit change the version field specifically
-          # (not merely touch plugin.json — a name/description edit must not count).
-          BUMPERS=""
-          for sha in $(git log --format='%H' "$BASE"..HEAD -- .claude-plugin/plugin.json); do
-            if git diff "${sha}^" "$sha" -- .claude-plugin/plugin.json | grep -qE '^\+.*"version"'; then
-              BUMPERS="$BUMPERS$(git log -1 --format='%s' "$sha")\n"
+            subject=$(git log -1 --format='%s' "$sha")
+            BUMP_COUNT=$((BUMP_COUNT + 1))
+            printf '   %s %s → %s | %s\n' "${sha:0:12}" "$before" "$after" "$subject"
+            if [[ ! "$subject" =~ $RELEASE_RE ]]; then
+              NONCHORE=$((NONCHORE + 1))
             fi
-          done
-          echo "📋 version-FIELD-changing commit messages:"; printf '%b' "$BUMPERS" | sed 's/^/   /'
+          done < <(git rev-list --reverse --first-parent "$BASE_SHA..$HEAD_SHA")
 
-          # Every version-field-changing commit must be a chore(release) commit.
-          if [ -z "$(printf '%b' "$BUMPERS" | tr -d '[:space:]')" ]; then
-            NONCHORE=0
-          else
-            NONCHORE=$(printf '%b' "$BUMPERS" | grep -cvE 'chore\(release\)' || true)
+          # With an overall version delta, at least one PR-spine commit must explain it.
+          if [ "$BUMP_COUNT" -eq 0 ]; then
+            echo "::error::base/head versions differ but no version-changing PR commit was found; update the branch and retry" >&2
+            exit 1
           fi
 
           # Soft signal (not a pass condition): a matching CHANGELOG section should exist.
-          CHANGELOG_SECTION=$(grep -cE "^## \[${NEWV}\]" CHANGELOG.md || true)
+          CHANGELOG_SECTION=$(grep -cF "## [$NEWV]" CHANGELOG.md || true)
 
           echo ""
           echo "non-chore(release) version-touching commits: $NONCHORE · CHANGELOG section for $NEWV: $CHANGELOG_SECTION"
