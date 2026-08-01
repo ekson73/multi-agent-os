@@ -66,7 +66,12 @@ deterministic and independent evidence, then Adjust or re-observe — owned by `
 unbounded daemon and it never assumes that every task must traverse prototype, reverse-engineering, specification, source,
 build and deploy in that order. For repository work, intake also composes `preflight`; terminal success or a
 parked residue composes `postflight` to preserve the next action. Any continuation spawn stays subject to the
-host's explicit budget and recursion safeguards.
+host's explicit budget and recursion safeguards; the composed close-out uses `postflight --no-spawn` unless a
+separate trusted control-plane invocation explicitly authorizes and budgets continuation.
+
+When a profile is present, its `delivery.candidate_stages` restricts routing after authority and DoR checks;
+an empty intersection parks the work. `deploy_mode=disabled` excludes deploy, while `gated` still requires
+independent live promotion authority.
 
 One global budget spans OODA and PDCA. Exhaustion, cancellation, invalid lease or two no-progress outer cycles
 emit `STOP-PARKED`/`PARKED_PARTIAL` with a durable checkpoint. `STOP-DONE` is reserved for `DELIVERY_DONE`;
