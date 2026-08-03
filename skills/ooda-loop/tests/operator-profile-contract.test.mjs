@@ -42,14 +42,30 @@ test("stdlib validator accepts all complete contract examples", () => {
   }
 });
 
-test("three synthetic intake dogfood run envelopes validate", () => {
+test("three synthetic intake examples validate and stay within no-ACT evidence", async () => {
   for (const name of [
     "dogfood-01-delegated-technical.run.json",
     "dogfood-02-business-rule.run.json",
     "dogfood-03-webhook-deploy.run.json"
   ]) {
-    const result = validate("run-envelope", path.join(root, "tests", "fixtures", name));
+    const file = path.join(root, "tests", "fixtures", name);
+    const result = validate("run-envelope", file);
     assert.equal(result.status, 0, result.stdout + result.stderr);
+
+    // Schema validity alone does not pin these fixtures to the no-ACT claim the
+    // report makes: the same schema deliberately accepts ACT envelopes and a
+    // live authorized budget (see the ACT/CONTINUE-to-ACT tests below). Assert
+    // the containment invariants explicitly so a future fixture cannot silently
+    // contradict the retained evidence while keeping this test green.
+    const value = JSON.parse(await readFile(file, "utf8"));
+    assert.notEqual(value.stage, "ACT", `${name}: stage must not be ACT`);
+    assert.notEqual(value.result.route, "act", `${name}: route must not be act`);
+    assert.equal(value.budget.external_calls, 0, `${name}: external_calls must be 0`);
+    assert.equal(
+      value.budget.continuation_authorized,
+      false,
+      `${name}: continuation must stay unauthorized`
+    );
   }
 });
 
