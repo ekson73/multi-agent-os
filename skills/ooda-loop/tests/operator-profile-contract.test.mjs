@@ -69,6 +69,33 @@ test("three synthetic intake examples validate and stay within no-ACT evidence",
   }
 });
 
+test("the business-rule example carries the operator-facing question it claims", async () => {
+  // SKILL.md requires a business HITL question to state the operational
+  // decision, the minimal options, current evidence, risk and a recommended
+  // option. Without this the fixture can satisfy the schema while omitting the
+  // very behavior the report says it illustrates.
+  const file = path.join(root, "tests", "fixtures", "dogfood-02-business-rule.run.json");
+  const value = JSON.parse(await readFile(file, "utf8"));
+  const question = value.next_action;
+
+  for (const [label, pattern] of [
+    ["operational decision", /DECIS(Ã|A)O OPERACIONAL:/],
+    ["minimal options", /OP(Ç|C)(Õ|O)ES:[\s\S]*\(A\)[\s\S]*\(B\)/],
+    ["current evidence", /EVID(Ê|E)NCIA ATUAL:/],
+    ["risk", /RISCO:/],
+    ["recommended option", /RECOMENDA(Ç|C)(Ã|A)O:/]
+  ]) {
+    assert.match(question, pattern, `business-rule question must state the ${label}`);
+  }
+
+  // It must be the question itself, not an instruction to ask one later.
+  assert.doesNotMatch(
+    question,
+    /^Pergunte\b/,
+    "business-rule next_action must carry the question, not defer it"
+  );
+});
+
 test("operator profile refuses invented authority, waived baseline and extra fields", async () => {
   const cases = [
     (value) => { value.authority.technical_delegation_claim = "authorized"; },

@@ -32,5 +32,5 @@
     "continuation_authorized": false
   },
   "postflight": "done",
-  "next_action": "Pergunte ao responsável qual regra operacional prevalece entre as duas fontes conflitantes; recomende a opção que preserva o processamento atual até a resposta."
+  "next_action": "DECISÃO OPERACIONAL: qual regra de vencimento da parcela vale? OPÇÕES: (A) data de emissão + prazo (regra hoje em produção); (B) data de entrada + prazo (regra do anexo). EVIDÊNCIA ATUAL: a descrição do ticket declara (A), o anexo declara (B), nenhuma marcada como posterior e a recon não desempatou. RISCO: a escolha errada muda o vencimento de parcelas já emitidas e exige reprocessamento retroativo. RECOMENDAÇÃO: (A), que preserva o comportamento atual até sua resposta."
 }
