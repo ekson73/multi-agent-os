@@ -1,0 +1,36 @@
+{
+  "contract_version": "1.0",
+  "stage": "DECIDE",
+  "result": {
+    "outcome": "PARKED_PARTIAL",
+    "status": "partial",
+    "stop_marker": "STOP-PARKED",
+    "route": "park"
+  },
+  "intake": {
+    "trigger_kind": "webhook",
+    "profile": "present",
+    "lifecycle_stage": "deploy",
+    "execution_authority": {
+      "state": "unknown",
+      "evidence_refs": []
+    },
+    "access": "ACCESS_MISSING"
+  },
+  "driver": "none",
+  "autonomy_score": 0.42,
+  "budget": {
+    "ooda_cycles": 1,
+    "attempts": 1,
+    "tool_calls": 6,
+    "spawns": 0,
+    "external_calls": 0,
+    "elapsed_minutes": 2.4,
+    "plateau_cycles": 0,
+    "lease": "unknown",
+    "cancelled": false,
+    "continuation_authorized": false
+  },
+  "postflight": "done",
+  "next_action": "Retain the webhook as a signal only; verify the target environment promotion gate and access through the trusted control plane before considering deploy."
+}

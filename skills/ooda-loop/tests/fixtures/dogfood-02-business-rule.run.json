@@ -1,0 +1,36 @@
+{
+  "contract_version": "1.0",
+  "stage": "DECIDE",
+  "result": {
+    "outcome": "BLOCKED_HITL",
+    "status": "hitl",
+    "stop_marker": "STOP-HITL",
+    "route": "hitl"
+  },
+  "intake": {
+    "trigger_kind": "ticket",
+    "profile": "present",
+    "lifecycle_stage": "specification",
+    "execution_authority": {
+      "state": "unknown",
+      "evidence_refs": []
+    },
+    "access": "ACCESS_READY"
+  },
+  "driver": "none",
+  "autonomy_score": 0.81,
+  "budget": {
+    "ooda_cycles": 1,
+    "attempts": 2,
+    "tool_calls": 9,
+    "spawns": 0,
+    "external_calls": 0,
+    "elapsed_minutes": 5.1,
+    "plateau_cycles": 0,
+    "lease": "valid",
+    "cancelled": false,
+    "continuation_authorized": false
+  },
+  "postflight": "done",
+  "next_action": "DECISÃO OPERACIONAL: qual regra de vencimento da parcela vale? OPÇÕES: (A) data de emissão + prazo (regra hoje em produção); (B) data de entrada + prazo (regra do anexo). EVIDÊNCIA ATUAL: a descrição do ticket declara (A), o anexo declara (B), nenhuma marcada como posterior e a recon não desempatou. RISCO: a escolha errada muda o vencimento de parcelas já emitidas e exige reprocessamento retroativo. RECOMENDAÇÃO: (A), que preserva o comportamento atual até sua resposta."
+}
