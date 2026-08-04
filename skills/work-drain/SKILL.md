@@ -1,5 +1,6 @@
 ---
 name: work-drain
+version: "0.1.0"
 description: |
   Given one or more <object-targets> (a sprint, a backlog query, open PRs, tracker issues,
   a filter), DISCOVER every matching item across trackers, DERIVE a work-register from them,

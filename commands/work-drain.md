@@ -3,19 +3,24 @@ name: work-drain
 description: Drain a set of <object-targets> (sprint · backlog query · open PRs · tracker issues) item-by-item to quiescence — discover, derive an ordered register, and delegate each item to quiesce. Level-triggered and resumable. Soul-name: Antlia.
 ---
 
-# /work-drain Command
+# /maos:work-drain — Antlia
 
 Thin wrapper that invokes `skills/work-drain/SKILL.md`. The skill holds all logic
 (level-triggered register derivation, Eisenhower × dependency ordering, per-item
 delegation to `quiesce`, poison-item quarantine, bounds). This file is the command
 surface only.
 
+> **Invocation**: canonical form is `/maos:work-drain` (`plugin.json` sets
+> `command_namespace.prefix_required = true`, so plugin commands surface namespaced).
+> Bare `/work-drain` may work where the host does not implement the namespace layer,
+> but write the prefixed form everywhere.
+
 ## Usage
 
 ```text
-/work-drain <object-targets> [--owner=…] [--filter=…] [--sort=…] [--tracker=…] \
-            [--max-items=…] [--max-attempts=…] [--auto-merge=…] [--auto-merge-reason="…"] \
-            [--autonomy-threshold=…] [--max-pdca=…] [--dry-run]
+/maos:work-drain <object-targets> [--owner=…] [--filter=…] [--sort=…] [--tracker=…] \
+                 [--max-items=…] [--max-attempts=…] [--auto-merge=…] [--auto-merge-reason="…"] \
+                 [--autonomy-threshold=…] [--max-pdca=…] [--dry-run]
 ```
 
 `<object-targets>` is required. Everything else is optional and uses the skill's defaults.
