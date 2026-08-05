@@ -129,7 +129,7 @@ if [ "$VERB" = "lookup" ]; then
           | ( ($qslug != "") and ($r.slug == $qslug) ) as $exact
           | ( $r + {overlap:$ov, exact:$exact} )
         )
-      | map(select( $hastype | not or (.type == $qtype) ))
+      | map(select( ($hastype | not) or (.type == $qtype) ))
       | map(select(.exact or .overlap >= 2))
       | sort_by(.exact, .overlap) | reverse
       | { verdict: (if any(.exact or .overlap >= 2) then "DUP-RISK" else "CLEAR" end),

@@ -44,6 +44,29 @@ v=$("$BIN" lookup --purpose "generate a kubernetes helm chart for postgres" --js
 EMPTY="$(mktemp -d)"; v=$(ARTIFACT_REGISTRY_DIR="$EMPTY" "$BIN" lookup --purpose "anything" --json | jq -r '.verdict'); rm -rf "$EMPTY"
 [ "$v" = "CLEAR" ] && ok "empty registry -> CLEAR" || no "empty registry ($v)"
 
+# 6b. REGRESSION GUARD: lookup --type must FILTER, not crash (jq `|` vs `or` precedence).
+# Pre-fix, `$hastype | not or (.type == $qtype)` parsed as `$hastype | (not or (...))`,
+# piping a boolean into the disjunction -> "Cannot index boolean with string \"type\"".
+# Record a same-purpose sibling under a DIFFERENT type so the filter has to discriminate.
+"$BIN" record --kind create --slug praxis-audit-bin --type bin \
+  --purpose "self-referential session-method audit preset" >/dev/null 2>&1
+# control: no --type sees BOTH types
+n_all=$("$BIN" lookup --purpose "self-referential session-method audit preset" --json | jq -r '.matches | length')
+# --type skill admits only skill rows; --type bin only the bin row
+n_skill=$("$BIN" lookup --purpose "self-referential session-method audit preset" --type skill --json | jq -r '[.matches[] | select(.type=="skill")] | length')
+x_skill=$("$BIN" lookup --purpose "self-referential session-method audit preset" --type skill --json | jq -r '[.matches[] | select(.type!="skill")] | length')
+n_bin=$("$BIN" lookup --purpose "self-referential session-method audit preset" --type bin --json | jq -r '.matches | length')
+# a) it must not crash and must still find matches unfiltered
+[ "$n_all" -ge 2 ] && ok "lookup --type control: unfiltered sees >=2 ($n_all)" || no "lookup --type control ($n_all)"
+# b) --type skill must EXCLUDE every non-skill row (this is what the bug broke)
+[ "$x_skill" -eq 0 ] && ok "lookup --type skill excludes other types" || no "lookup --type skill leaked $x_skill non-skill row(s)"
+[ "$n_skill" -ge 1 ] && ok "lookup --type skill admits skill rows ($n_skill)" || no "lookup --type skill admitted none"
+# c) --type bin must admit exactly the bin sibling
+[ "$n_bin" -eq 1 ] && ok "lookup --type bin admits only the bin row" || no "lookup --type bin ($n_bin, want 1)"
+# d) a type present in NO row must yield CLEAR/0 (not a crash, not everything)
+v=$("$BIN" lookup --purpose "self-referential session-method audit preset" --type zzz-nonexistent --json | jq -r '.verdict')
+[ "$v" = "CLEAR" ] && ok "lookup --type <absent> -> CLEAR" || no "lookup --type <absent> ($v)"
+
 # 7. dry-run writes nothing
 before=$(wc -l < "$ARTIFACT_REGISTRY_DIR/artifact-registry.jsonl")
 "$BIN" record --kind name --slug foo-bar --dry-run >/dev/null 2>&1
