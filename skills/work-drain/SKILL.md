@@ -75,7 +75,7 @@ directly:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `<object-targets>` (positional) | *(required)* | What to drain: `sprint:current` · `sprint:<name>` · `jql:"<query>"` · `label:<x>` · `prs:open` · `issues:<repo>` · a comma-separated mix |
+| `<object-targets>` (positional) | *(required)* | What to drain: `sprint:current` · `sprint:<name>` · `jql:"<query>"` · `label:<x>` · `prs:open` · `issues:<owner>/<repo>` · a comma-separated mix |
 | `--owner` | `currentUser()` | Whose items; `any` widens (bounded by `--max-items`) |
 | `--filter` | `open` | `open` \| `pending` \| `all` — maps to the tracker's not-Done predicate |
 | `--sort` | `eisenhower` | `eisenhower` \| `dependency` \| `updated` \| `manual` (dependency-DAG always breaks ties) |
@@ -102,10 +102,17 @@ PASS (repeat until the register derives empty):
               cross-domain shape when unclear (delegate: work-compass)
   3. SELECT   the next item whose dependencies are all satisfied
               skip quarantined items (see Poison-item guard)
-  4. DRAIN    /maos:quiesce --scope ticket:<id> [forwarded flags]
+  4. DRAIN    /maos:quiesce --scope <scope-of(item)> [forwarded flags]
+              scope-of() maps the item's TYPE to quiesce's own scope grammar:
+                tracker item (Jira/Linear/GH issue) -> ticket:<id>
+                pull request                        -> pr:<n>
+              never hand a PR to ticket: — quiesce treats them as distinct scopes
   5. VERIFY   re-read the item; did it actually close?
               closed -> continue | unchanged -> count an attempt | error -> quarantine check
   6. LOOP     back to 1 — the register is re-derived, never popped
+              UNLESS the cumulative drained-count has reached --max-items:
+              then stop and report the remainder (see Bounds) — the cap binds the
+              INVOCATION, not one pass, or re-derivation would roll overflow past it
 ```
 
 Step 6 is the whole design. There is no "next item pointer" to lose.
@@ -116,7 +123,7 @@ Step 6 is the whole design. There is no "next item pointer" to lose.
 |---|---|
 | Cross-domain item discovery (ticket ↔ worktree ↔ branch ↔ PR) | `skills/work-compass` |
 | Eisenhower 2×2 prioritization | `skills/pulse` (via `chief-of-staff`'s established path) |
-| Actually finishing ONE item (goal-loop + PDCA + merge gate) | `skills/quiesce --scope ticket:<id>` |
+| Actually finishing ONE item (goal-loop + PDCA + merge gate) | `skills/quiesce --scope ticket:<id>` (a PR item → `--scope pr:<n>`) |
 | Abstract acceptance criterion → measurable | `skills/decompose-abstract-to-measurable` (Prisma) |
 | Adversarial verification on a hard-trigger | `skills/red-team` (Elenchus) |
 | Independent decision when score is short | `skills/council-gate` (Boule) → HITL residue only |
@@ -140,7 +147,14 @@ One item that always fails must never block the drain or burn the budget:
 
 ## Bounds (anti-runaway)
 
-- `--max-items` caps register size per drain; the overflow is **listed** in the briefing.
+- `--max-items` caps **items drained per invocation, cumulatively across passes** — not merely the
+  size of one derived register. Keep a per-invocation drained-count; when it reaches the cap, stop
+  and report, even if the register still derives non-empty. Without the cumulative reading, the
+  level-triggered re-derivation (step 6) would roll overflow into the next pass and work a
+  100-item backlog under a cap of 20 — the advertised blast-radius bound must hold for the
+  **invocation**, which is the unit the operator actually authorized.
+- The untouched remainder is **listed** in the briefing (`overflow beyond --max-items`), never
+  silently dropped. Re-invoke to continue — resumption is free (§ level-triggered).
 - `--max-attempts` caps per-item retries.
 - `quiesce`'s own bounds apply per item (`--max-pdca`, depth ≤ 2, 6-attempt escalation).
 - **No silent truncation, ever** — anything the drain declines to touch is named in the report.
