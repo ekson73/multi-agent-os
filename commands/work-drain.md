@@ -1,6 +1,7 @@
 ---
 name: work-drain
-description: Drain a set of <object-targets> (sprint · backlog query · open PRs · tracker issues) item-by-item to quiescence — discover, derive an ordered register, and delegate each item to quiesce. Level-triggered and resumable. Soul-name: Antlia.
+description: |
+  Drain a set of <object-targets> (sprint · backlog query · open PRs · tracker issues) item-by-item to quiescence — discover, derive an ordered register, and delegate each item to quiesce. Level-triggered and resumable. Soul-name: Antlia.
 ---
 
 # /maos:work-drain — Antlia
