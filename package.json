@@ -1,7 +1,7 @@
 {
   "name": "maos",
-  "version": "1.22.0",
-  "description": "MAOS (Multi-Agent OS) — skills pack for multi-agent coordination. Claude plugin + Pi package + OpenCode plugin entrypoints.",
+  "version": "1.22.1",
+  "description": "MAOS (Multi-Agent OS) \u2014 skills pack for multi-agent coordination. Claude plugin + Pi package + OpenCode plugin entrypoints.",
   "license": "MIT",
   "private": false,
   "type": "module",
@@ -14,12 +14,14 @@
     "url": "https://github.com/ekson73/multi-agent-os/issues"
   },
   "keywords": [
-    "pi-package",
+    "agent-skills",
+    "agentskills",
+    "ai-agents",
     "maos",
     "multi-agent",
-    "agent-skills",
     "orchestration",
-    "ai-agents"
+    "pi-package",
+    "skills-sh"
   ],
   "files": [
     "skills/**/SKILL.md",
@@ -30,9 +32,14 @@
     "AGENTS.md"
   ],
   "pi": {
-    "skills": ["./skills"]
+    "skills": [
+      "./skills"
+    ]
   },
   "engines": {
     "node": ">=20"
+  },
+  "scripts": {
+    "validate:skills": "bash scripts/validate-skill-frontmatter.sh"
   }
 }

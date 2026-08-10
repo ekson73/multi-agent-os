@@ -7,3 +7,5 @@
 | `.claude-plugin/` | **Claude Code** | via eko-plugin-marketplace / `maos@eko-claude-plugins` |
 
 Product content (skills, etc.) stays in-repo roots; these manifests only expose host loaders.
+
+Skills frontmatter gate: `npm run validate:skills` (Agent Skills / skills.sh compatibility).
