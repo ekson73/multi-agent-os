@@ -1,0 +1,31 @@
+{
+  "name": "opencode-maos",
+  "version": "1.22.0",
+  "description": "OpenCode plugin entry for MAOS (Multi-Agent OS). Thin runtime hook; full skills via npx skills add ekson73/multi-agent-os or Claude/Pi packaging.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "maos",
+    "multi-agent",
+    "ai-agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ekson73/multi-agent-os.git",
+    "directory": "packaging/opencode-maos"
+  },
+  "homepage": "https://github.com/ekson73/multi-agent-os/tree/main/packaging/opencode-maos",
+  "engines": {
+    "node": ">=20"
+  }
+}

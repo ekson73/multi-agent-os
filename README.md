@@ -68,6 +68,26 @@ Plugin management runs **inside a Claude Code session** via the `/plugin` comman
 
 Then run `/plugin` (Installed tab) to confirm, and `/help` to see the `/maos:*` skills. Need to update later? `/plugin marketplace update eko-claude-plugins`.
 
+
+### Pi package
+
+```bash
+pi install git:github.com/ekson73/multi-agent-os@main
+```
+
+Loads MAOS `skills/` via the root `package.json` `pi` manifest. See [docs/multi-host-packaging.md](./docs/multi-host-packaging.md).
+
+### OpenCode plugin (thin entry)
+
+```bash
+mkdir -p ~/.config/opencode/plugins
+curl -fsSL -o ~/.config/opencode/plugins/maos.js \
+  https://raw.githubusercontent.com/ekson73/multi-agent-os/main/packaging/opencode-maos/index.js
+```
+
+Full skills: `npx skills add ekson73/multi-agent-os -g -a opencode`. Details: [packaging/opencode-maos](./packaging/opencode-maos/).
+
+
 ### From source (local dev / self-use)
 
 ```bash
