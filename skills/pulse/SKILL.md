@@ -31,7 +31,7 @@ Run phases in **strict order**. Each phase has explicit output and a skip-rule.
 
 ### PHASE 1 — Memory refresh
 
-Read recent commits, open todos, top-level memory/changelog index, planning artifacts if any. **Output**: 3-7 bullet objectives map (primary / secondary / auxiliary). Lossy by intent — never a dump.
+Read recent commits, open todos, top-level memory/changelog index, planning artifacts if any. **Output**: 3-7 bullet objectives map (originating / primary / secondary / auxiliary — `originating` = *why we started at all* (causal root; plural if an external graft was absorbed) vs `primary` = *top deliverable now*; **collapse to 3 tiers when `originating == primary`**). Lossy by intent — never a dump.
 
 **Skip if** no memory + no commits + no todos + no prior pulse → emit "fresh start" + suggested first action; stop.
 
@@ -83,7 +83,7 @@ Per item, route ∈ {`now`, `delegate`, `defer-trigger`, `backlog`, `drop`} with
 
 ```text
 §1 TL;DR (1-3 sentences — where we are, what's next)
-§2 Objectives map (primary / secondary / auxiliary)
+§2 Objectives map (originating / primary / secondary / auxiliary — omit `originating` when == primary)
 §3 Status snapshot (per-item table)
 §4 Dependency graph (mermaid)
 §5 Eisenhower 2x2 (table)
