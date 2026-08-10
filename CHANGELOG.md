@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.22.1] - 2026-08-10
+
+### Fixed
+- `.agents/skills/multi-agent-os/SKILL.md` + `.claude/skills/multi-agent-os/SKILL.md`: add Agent Skills frontmatter (`name`/`description`) so `npx skills` no longer skips them
+- Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
+
+### Added
+- `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
+- `docs/multi-host-packaging.md` install matrix + agent id notes
+
+
 All notable changes to the Multi-Agent OS plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),

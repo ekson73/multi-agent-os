@@ -1,7 +1,7 @@
 {
   "_comment": "MAOS plugin manifest. Edit version on release; see CHANGELOG.md. Namespacing + vendor-reserved details below.",
   "name": "maos",
-  "version": "1.22.0",
+  "version": "1.22.1",
   "description": "MAOS (Multi-Agent OS) - Coordination Framework for AI Agents with Orchestration, Sentinel Protocol, Worktree Governance, Status Maps, Forge Meta-Agent, Governance Protocols",
   "author": {
     "name": "MAOS Community",
@@ -29,21 +29,51 @@
     "playbook"
   ],
   "command_namespace": {
-    "_comment": "Sandwich Namespacing Layer 2 — manifest-declared namespace prefix for plugin commands. Forward-compat: if host runtime supports `command_namespace` declaration, commands surface as /maos:<name> (preventing cross-plugin collision). If host does not support, fallback to function-specific filename (Layer 3) handles disambiguation. See AGENTS.md §34 and sister-PR ekson73/vek-dot-claude#54 (vendor-reserved-words audit list, Layer 4).",
+    "_comment": "Sandwich Namespacing Layer 2 \u2014 manifest-declared namespace prefix for plugin commands. Forward-compat: if host runtime supports `command_namespace` declaration, commands surface as /maos:<name> (preventing cross-plugin collision). If host does not support, fallback to function-specific filename (Layer 3) handles disambiguation. See AGENTS.md \u00a734 and sister-PR ekson73/vek-dot-claude#54 (vendor-reserved-words audit list, Layer 4).",
     "prefix": "maos",
     "separator": ":",
     "prefix_required": true,
     "fallback": "permit_unprefixed_if_no_collision"
   },
   "vendor_reserved_audit": {
-    "_comment": "Sandwich Namespacing Layer 4 reference — list of vendor-native command names plugins should NEVER override at filename level. Authoritative cross-vendor catalog: ekson73/vek-dot-claude:docs/vendor-reserved-words.md v1.0.0 (36+ Claude Code built-ins + Cursor/Copilot/Aider/Gemini/Goose).",
+    "_comment": "Sandwich Namespacing Layer 4 reference \u2014 list of vendor-native command names plugins should NEVER override at filename level. Authoritative cross-vendor catalog: ekson73/vek-dot-claude:docs/vendor-reserved-words.md v1.0.0 (36+ Claude Code built-ins + Cursor/Copilot/Aider/Gemini/Goose).",
     "source_of_truth": "https://github.com/ekson73/vek-dot-claude/blob/main/docs/vendor-reserved-words.md",
     "claude_code_builtins_sample": [
-      "help", "clear", "status", "compact", "cost", "exit", "quit", "resume",
-      "login", "logout", "model", "init", "memory", "context", "review",
-      "permissions", "hooks", "mcp", "agents", "plugin", "config", "ide",
-      "color", "vim", "goal", "loop", "schedule", "enhance", "bug", "doctor",
-      "output-style", "output-styles", "terminal-setup", "upgrade", "install-github-app"
+      "help",
+      "clear",
+      "status",
+      "compact",
+      "cost",
+      "exit",
+      "quit",
+      "resume",
+      "login",
+      "logout",
+      "model",
+      "init",
+      "memory",
+      "context",
+      "review",
+      "permissions",
+      "hooks",
+      "mcp",
+      "agents",
+      "plugin",
+      "config",
+      "ide",
+      "color",
+      "vim",
+      "goal",
+      "loop",
+      "schedule",
+      "enhance",
+      "bug",
+      "doctor",
+      "output-style",
+      "output-styles",
+      "terminal-setup",
+      "upgrade",
+      "install-github-app"
     ]
   }
 }
