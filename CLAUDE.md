@@ -351,7 +351,7 @@ Entry points: skill `delegate-governance` (discoverable) + CLI `plugin-scripts/g
 
 ---
 
-*Multi-Agent OS v1.22.0 | Plugin for Claude Code*
+*Multi-Agent OS v1.22.1 | Plugin for Claude Code*
 *Analysis by: Claude-Analyst-c614-plugin | 2026-01-08T21:30:00-03:00*
 
 ## Branching & Release Model

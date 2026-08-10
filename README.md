@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Plugin-blueviolet)](https://claude.ai/code)
-[![Version](https://img.shields.io/badge/Version-1.22.0-blue)](https://github.com/ekson73/multi-agent-os)
+[![Version](https://img.shields.io/badge/Version-1.22.1-blue)](https://github.com/ekson73/multi-agent-os)
 [![Sentinel](https://img.shields.io/badge/Sentinel-Protocol-green)](https://github.com/ekson73/multi-agent-os/tree/main/sentinel)
 [![Branching: GitHub Flow](https://img.shields.io/badge/branching-GitHub%20Flow%20(Class%20B)-0a7bbb)](./AGENTS.md)
 
@@ -284,4 +284,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-*Multi-Agent OS v1.22.0 | Created by Emilson Moraes | Powered by Claude Code*
+*Multi-Agent OS v1.22.1 | Created by Emilson Moraes | Powered by Claude Code*
