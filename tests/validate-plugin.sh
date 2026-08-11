@@ -420,6 +420,19 @@ else
 fi
 echo ""
 
+# Agent Skills frontmatter (skills.sh / multi-harness portable path)
+echo "Checking Agent Skills frontmatter..."
+if [ -x "$PLUGIN_ROOT/scripts/validate-skill-frontmatter.sh" ] || [ -f "$PLUGIN_ROOT/scripts/validate-skill-frontmatter.sh" ]; then
+    if bash "$PLUGIN_ROOT/scripts/validate-skill-frontmatter.sh"; then
+        pass "scripts/validate-skill-frontmatter.sh passes"
+    else
+        fail "scripts/validate-skill-frontmatter.sh FAILED (SKILL.md needs name+description YAML frontmatter)"
+    fi
+else
+    fail "scripts/validate-skill-frontmatter.sh missing"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"
