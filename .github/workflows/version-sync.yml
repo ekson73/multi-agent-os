@@ -1,10 +1,6 @@
 # Version Sync Workflow
-# Ensures version consistency between plugin.json (SSOT) and documentation files
-#
 # SSOT: .claude-plugin/plugin.json
-# Synced files: README.md (badge + footer), CLAUDE.md (footer)
-#
-# Trigger: On push to main when plugin.json changes, or manual dispatch
+# Synced: README.md, CLAUDE.md, package.json, packaging/opencode-maos/package.json
 
 name: Version Sync
 
@@ -26,7 +22,6 @@ permissions:
 jobs:
   sync-version:
     runs-on: ubuntu-latest
-    # Prevent infinite loop from our own commits
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
 
     steps:
@@ -46,34 +41,41 @@ jobs:
       - name: Sync README.md badge
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Update version badge
           sed -i "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
           echo "✅ README.md badge updated"
 
       - name: Sync README.md footer
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Update footer version
           sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" README.md
           echo "✅ README.md footer updated"
 
       - name: Sync CLAUDE.md footer
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Update CLAUDE.md footer
           sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" CLAUDE.md
           echo "✅ CLAUDE.md footer updated"
+
+      - name: Sync package.json + OpenCode packaging version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+          if [ -f packaging/opencode-maos/package.json ]; then
+            jq --arg v "$VERSION" '.version = $v' packaging/opencode-maos/package.json > /tmp/oc.json && mv /tmp/oc.json packaging/opencode-maos/package.json
+          fi
+          echo "✅ package.json + packaging/opencode-maos version → $VERSION"
 
       - name: Check for changes
         id: changes
         run: |
-          if git diff --quiet README.md CLAUDE.md; then
+          FILES=(README.md CLAUDE.md package.json packaging/opencode-maos/package.json)
+          if git diff --quiet -- "${FILES[@]}"; then
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "ℹ️ No version changes needed"
           else
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "📝 Version changes detected:"
-            git diff --stat README.md CLAUDE.md
+            git diff --stat -- "${FILES[@]}"
           fi
 
       - name: Commit and push changes
@@ -82,7 +84,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md CLAUDE.md
+          git add README.md CLAUDE.md package.json packaging/opencode-maos/package.json
           git commit -m "chore: sync version to v${VERSION} [skip ci]"
           git push
           echo "🚀 Version synced to v${VERSION}"
@@ -95,6 +97,6 @@ jobs:
           echo "| File | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| \`.claude-plugin/plugin.json\` | v${VERSION} (SSOT) |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`README.md\` badge | Synced |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`README.md\` footer | Synced |" >> $GITHUB_STEP_SUMMARY
-          echo "| \`CLAUDE.md\` footer | Synced |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`package.json\` | Synced |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`packaging/opencode-maos/package.json\` | Synced |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`README.md\` / \`CLAUDE.md\` | Synced |" >> $GITHUB_STEP_SUMMARY

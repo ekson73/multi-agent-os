@@ -1,6 +1,6 @@
 {
   "name": "opencode-maos",
-  "version": "1.22.0",
+  "version": "1.22.1",
   "description": "OpenCode plugin entry for MAOS (Multi-Agent OS). Thin runtime hook; full skills via npx skills add ekson73/multi-agent-os or Claude/Pi packaging.",
   "license": "MIT",
   "type": "module",
