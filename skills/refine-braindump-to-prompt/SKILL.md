@@ -1,7 +1,7 @@
 ---
 name: refine-braindump-to-prompt
 version: "0.3.0"
-description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. Five phases: RECOVER (dissect - relate - catalogue - prism - distill; emits the parts map and the drop-list with reasons) -> DRAFT (in an architecture profile) -> REFINE (N rounds x N distinct lenses; exits only on min-revisions AND consecutive-clean-rounds) -> RED-TEAM (independent refutation, verifier != generator) -> RENDER (one prompt + machine envelope + multi-sink emission). Use when a dump must become executable work rather than a ledger, an envelope or a PR. Parameterized by architecture profiles (--architecture, incl. gauntlet-loop) and by output sinks (--output-target: stdout, clipboard, vault, git-repo, agentic-tool). Composes in-repo primitives; reimplements nothing.
+description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. Five phases: RECOVER (dissect - relate - catalogue - prism - distill; emits the parts map and the drop-list with reasons) -> DRAFT (in an architecture profile) -> REFINE (N rounds x N distinct lenses; economic stop by default, floor only where the profile licenses the long loop) -> RED-TEAM (independent refutation, verifier != generator) -> RENDER (one prompt + machine envelope + multi-sink emission). Use when a dump must become executable work rather than a ledger, an envelope or a PR. Parameterized by architecture profiles (--architecture, incl. gauntlet-loop) and by output sinks (--output-target: stdout, clipboard, vault, git-repo, agentic-tool). Composes in-repo primitives; reimplements nothing.
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -365,8 +365,9 @@ concept. See `profiles/gauntlet-loop.md` for prior-art attribution and the diver
 | `--goal` | `auto` | override the recovered goal |
 | `--condition` | `auto` | override the DoD/stop-condition (measurable spec) |
 | `--principles` | `auto` | comma list, or `auto` = inherit the host's governance corpus by reference |
-| `--min-revisions` | `3` | REFINE floor — minimum revisions regardless of apparent cleanliness |
-| `--clean-rounds` | `3` | consecutive gap-free rounds required to exit REFINE |
+| `--min-revisions` | `3` | REFINE floor — **licensed profiles only**; ignored (with a warning) when `long_loop_licensed=false` |
+| `--clean-rounds` | `3` | consecutive gap-free rounds — **licensed profiles only**; same gate as above |
+| `--max-redteam-cycles` | `2` | cap on `RED-TEAM REFUTED → REFINE` returns; exhausted while still REFUTED → `STOP-HITL` |
 | `--lenses` | `3` | distinct perspectives per round; a repeated lens does not count |
 | `--max-rounds` | `12` | hard cap; exceeded → `STOP-HITL` (diminishing returns) |
 | `--dry-run` | `false` | run RECOVER→REFINE and emit the plan; STOP before RENDER writes |
@@ -476,7 +477,9 @@ the prompt itself (the operator names the target).
 
 ## Protocol Rules (anti-loop invariants + bounds)
 
-- REFINE stops on the **two-part** predicate; a single clean pass never terminates it.
+- REFINE stops on the economic stop (`n* <= 3-4`) by DEFAULT. The **two-part** floor (min-revisions
+  AND consecutive-clean-rounds) applies ONLY where the Verifiability Gate licenses the long loop —
+  asserting it unconditionally makes the floor exceed its own cap on every unlicensed run.
 - `--max-rounds` (default 12) is a hard cap → `STOP-HITL` on exhaustion.
 - RED-TEAM's critic MUST be independent of the DRAFT author (`bin/convergence-guard`); if
   independence cannot be secured on a high-stakes prompt → **HOLD, do not force**.

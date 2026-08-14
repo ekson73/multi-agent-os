@@ -23,6 +23,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `refine-braindump-to-prompt` (Lapidary) v0.3.0: one braindump → one executable prompt
+
+Turns a raw operator braindump into ONE ready-to-execute prompt, rather than the ledger, envelope or
+PR every existing terminus produces. Five phases: RECOVER (dissect → relate → catalogue → prism →
+distill; emits the parts map and the drop-list with reasons) → DRAFT (in an architecture profile) →
+REFINE (N rounds × N distinct lenses) → RED-TEAM (independent refutation, verifier ≠ generator) →
+RENDER (one prompt + machine envelope + multi-sink emission). Parameterized by architecture profiles
+(`--architecture`, incl. `gauntlet-loop`) and by output sinks (`--output-target`: stdout · clipboard ·
+vault · git-repo · agentic-tool), the latter defined as a membership test — reachable ∧ render-defined
+∧ can-refuse-by-name — rather than a fixed list of kinds. Composes existing primitives; inlines none.
+
+Shipped with its own evaluation, which returned FAIL and is published alongside the skill rather than
+summarized. Three blocking defects from the first round are independently verified repaired: a REFINE
+floor that exceeded its own cap on the default profile, a `clean_rounds` rule that made `STOP-DONE`
+unreachable, and a phase that claimed `convergence-engine`'s independence condition while critiquing
+its own draft. A second generation followed, two of them caused by those repairs — the fix moved the
+failure rather than removing it, and the report says so. Both the eval and its delta live in
+`examples/EVAL-REPORT-2026-08-14.md`, including the control run: without the skill, a single pass
+produced a comparable prompt. The skill's measured delta is the mechanically-derived material and the
+independent red-team, not the qualitative judgment.
+
+
 ### Added — squash-aware release-coherence gate
 
 Release version changes now require a separate, rebased PR containing exactly one

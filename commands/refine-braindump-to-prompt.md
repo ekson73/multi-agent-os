@@ -1,6 +1,6 @@
 ---
 name: refine-braindump-to-prompt
-description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT — RECOVER (DoR · motivation · goal · DoD-as-measurable) → DRAFT (in an architecture profile) → REFINE (N rounds × N distinct lenses; stops only on min-revisions AND consecutive-clean-rounds) → RED-TEAM (independent refutation) → RENDER. Parameterized by profiles (`--architecture`, incl. `gauntlet-loop`). Composes in-repo primitives; reimplements nothing.
+description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT — RECOVER (DoR · motivation · goal · DoD-as-measurable) → DRAFT (in an architecture profile) → REFINE (N rounds × N distinct lenses; economic stop by default, floor only where the profile licenses the long loop) → RED-TEAM (independent refutation) → RENDER. Parameterized by profiles (`--architecture`, incl. `gauntlet-loop`). Composes in-repo primitives; reimplements nothing.
 ---
 
 # /maos:refine-braindump-to-prompt Command
@@ -31,8 +31,9 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 | `--dor` / `--motivation` / `--goal` | `auto` | override what RECOVER inferred |
 | `--condition` | `auto` | override the DoD / stop-condition (measurable spec) |
 | `--principles` | `auto` | comma list, or `auto` = inherit the host's governance corpus by reference |
-| `--min-revisions` | `3` | REFINE floor — minimum revisions regardless of apparent cleanliness |
-| `--clean-rounds` | `3` | consecutive gap-free rounds required to exit REFINE |
+| `--min-revisions` | `3` | REFINE floor — **licensed profiles only**; ignored (with a warning) when the Verifiability Gate is false |
+| `--clean-rounds` | `3` | consecutive gap-free rounds — **licensed profiles only**; same gate as above |
+| `--max-redteam-cycles` | `2` | cap on `RED-TEAM REFUTED → REFINE` returns; exhausted while still REFUTED → `STOP-HITL` |
 | `--lenses` | `3` | distinct perspectives per round (a repeated lens does not count) |
 | `--max-rounds` | `12` | hard cap; exceeded → `STOP-HITL` |
 | `--dry-run` | `false` | run RECOVER→REFINE, emit the plan, STOP before RENDER writes |
