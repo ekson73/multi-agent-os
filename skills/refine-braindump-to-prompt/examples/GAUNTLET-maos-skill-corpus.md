@@ -226,8 +226,10 @@ STOP  (every term below is measured, not adjectival)
   NO round count: use convergence-engine's parameter-free escape — a harness-enforced
   cap plus the stagnation test above, neither of which needs an estimate.
 
-  HARNESS CAP: 10 attempts/piece · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
-  Unbounded running is REFUSED — if either cap is unset, stop and ask.
+  HARNESS CAP: <ATTEMPTS — operator-set> · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
+  Unbounded running is REFUSED — if ANY cap is unset, stop and ask. (No default attempt count is
+  rendered: a number here would be profile-derived, and the profile budget does not govern —
+  same discipline as the retracted `10 attempts/piece`.)
 
 ESCALATION
 Halt and escalate to a human when: a guardrail surface is touched (the Guardrails
@@ -241,7 +243,8 @@ Form may be raised autonomously. Meaning may not.
 
 The profile marks `cost_ceiling` and `wall_clock` as **`operator-set; REQUIRED before any long run`**,
 with no defaults ("unbounded time is not a budget"). The rendered `STOP` restates it: *"Unbounded
-running is REFUSED — if either cap is unset, stop and ask."*
+running is REFUSED — if ANY cap is unset, stop and ask."* — where "ANY cap" now includes the
+ATTEMPTS cap (round-5 symmetry: a default there would be an invented number).
 
 Asked; unanswered at render time. The loop is refused **by its own contract**, not by hesitation.
 Two slots remain, and only the operator can fill them:
