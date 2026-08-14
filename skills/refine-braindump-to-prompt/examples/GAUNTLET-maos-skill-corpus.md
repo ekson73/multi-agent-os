@@ -22,14 +22,29 @@
 > rather than reading the claim — which is the only reason it was caught. Recorded because the
 > failure shape (an instrument whose *reach* differs from the claim's *scope*) recurs.
 
-**What is gated today, stated precisely** (`tests/validate-plugin.sh`, read not assumed):
+**What is gated today** — measured by reading `tests/validate-plugin.sh` *and the script it calls*:
 
 | Check | skills | agents | commands |
 |---|---|---|---|
 | artifact file exists | ✅ | ✅ | ✅ |
-| frontmatter **parses as YAML** | ✅ | ✅ | ✅ |
-| `name` / `description` **present** | ❌ **not checked** | ✅ | ✅ |
+| frontmatter **parses as YAML** | ✅ | ⚠️ **top-level only** | ⚠️ **top-level only** |
+| `name` / `description` **present** | ✅ **hard fail** | ❌ only *warns* if frontmatter absent; keys never checked | ❌ same |
 | quality vs an external reference | ❌ | ❌ | ❌ |
+
+- Skills are the **strictest** class: `validate-plugin.sh:465` calls
+  `scripts/validate-skill-frontmatter.sh`, which walks `rglob("SKILL.md")` and `sys.exit(1)` unless
+  both `name` and `description` are present.
+- The YAML-parse gate globs `agents/*.md` / `commands/*.md`, and Python's `*` does **not** cross `/`
+  — so **30 artifacts** (21 `agents/consultants/`, 9 `commands/*/`) have never been parsed. Filed
+  as **#327**; measured blast of the fix is zero.
+
+> ⚠️ **This table has now been wrong twice, in opposite directions.** The first render claimed
+> skills were unchecked for `name`/`description` and agents/commands were checked — almost exactly
+> backwards. The second render "corrected" it by reading only the top-level loops in
+> `validate-plugin.sh` and never following the call on line 465. Both times the instrument was a
+> partial read presented as a full one. The reviewer that caught it named the called script by path.
+
+
 
 The validator answers *"is this a well-formed skill?"* It has never answered *"is this a **good**
 skill?"* — and "good" is the adjective the profile's `bar-nameability` lens forbids. That gap is the
@@ -159,13 +174,32 @@ T-metric, and the blind-guess outcome (guessed-correctly / could-not-tell). Roun
 know what round N-1 already failed. Sink: a journal under the worktree, committed with
 the batch.
 
-STOP
-Per piece: exit when 3 consecutive critic rounds produce no new gap, using a DISTINCT
-lens set each round (bar-nameability · critic-independence · evidence-inspectability ·
-decomposability · stop-rule-presence · blast-radius).
-Hard caps: 10 attempts/piece · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
-Early exit on gain-stagnation (round-over-round delta below threshold twice).
-Unbounded running is REFUSED — if either cap is unset, stop and ask.
+STOP  (every term below is measured, not adjectival)
+
+  GAP — the unit of measurement. One gap = one distinguishing feature the critic
+  names in a single sentence, recorded verbatim in the journal. The per-round count
+  G(k) is the number of gaps the critic named in round k. G(k)=0 means the critic
+  stated it could not tell which file was the reference.
+
+  EXIT (success): G(k) = 0 for three CONSECUTIVE rounds.
+  Not "no NEW gap" — a critic re-naming the SAME unresolved gap three times would
+  satisfy a novelty test while the skill stays distinguishable, contradicting the
+  acceptance rule. Consecutive ZERO is the condition.
+
+  LENS ASSIGNMENT — round k uses lens set (k mod 6) from this fixed order:
+    0 bar-nameability · 1 critic-independence · 2 evidence-inspectability
+    3 decomposability · 4 stop-rule-presence · 5 blast-radius
+  so the three exit rounds provably use three distinct lenses.
+
+  EVIDENCE required for the exit: three journal entries, consecutive round numbers,
+  each recording lens set, G(k)=0, and the critic's verbatim could-not-tell statement.
+
+  STAGNATION (early exit, failure): delta(k) = G(k-1) - G(k). Exit when delta(k) <= 0
+  for two consecutive rounds with G(k) > 0 — the critic keeps finding gaps and the
+  builder is not closing them. Report as NOT-CONVERGED; do not report as done.
+
+  HARD CAPS: 10 attempts/piece · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
+  Unbounded running is REFUSED — if either cap is unset, stop and ask.
 
 ESCALATION
 Halt and escalate to a human when: a guardrail surface is touched (the Guardrails
