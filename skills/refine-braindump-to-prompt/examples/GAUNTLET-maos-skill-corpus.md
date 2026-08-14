@@ -27,13 +27,16 @@
 | Check | skills | agents | commands |
 |---|---|---|---|
 | artifact file exists | ✅ | ✅ | ✅ |
-| frontmatter **parses as YAML** | ✅ | ⚠️ **top-level only** | ⚠️ **top-level only** |
+| frontmatter **parses as YAML** | ⚠️ **only if PyYAML present** | ⚠️ top-level only **+ PyYAML** | ⚠️ same |
 | `name` / `description` **present** | ✅ **hard fail** | ❌ only *warns* if frontmatter absent; keys never checked | ❌ same |
 | quality vs an external reference | ❌ | ❌ | ❌ |
 
 - Skills are the **strictest** class: `validate-plugin.sh:465` calls
   `scripts/validate-skill-frontmatter.sh`, which walks `rglob("SKILL.md")` and `sys.exit(1)` unless
   both `name` and `description` are present.
+- Without PyYAML the parse check `warn`s and the build can still PASS (`validate-plugin.sh:301`),
+  and `validate-skill-frontmatter.sh` uses `re.search`, not a parser — so "parses as YAML" is
+  **conditional on the runner**, not unconditional.
 - The YAML-parse gate globs `agents/*.md` / `commands/*.md`, and Python's `*` does **not** cross `/`
   — so **30 artifacts** (21 `agents/consultants/`, 9 `commands/*/`) have never been parsed. Filed
   as **#327**; measured blast of the fix is zero.
@@ -78,7 +81,7 @@ The 17 reference skills: `algorithmic-art` · `brand-guidelines` · `canvas-desi
 
 | Conjunct | Verdict | Basis |
 |---|---|---|
-| `bar_is_machine_verifiable` | **hybrid (not pure-D)** | **D** frontmatter parses · **T** description length, body word-count, disclosure-marker count · **J** blind A/B on clarity |
+| `bar_is_machine_verifiable` | **hybrid (not pure-D)** | **D** frontmatter parses · **T** description length, body word-count, linked-supporting-file count · **J** blind A/B on clarity |
 | `critic_is_independent_of_builder` | **partial — see below** | separate invocation without build history; the tag check is a *label* check, not a context check |
 | `evidence_is_directly_inspectable` | ✅ | both sides are readable files; the A/B is literal |
 | `long_loop_licensed` | **❌ FALSE** | the gate is an **AND** (`SKILL.md`): two conjuncts above are *hybrid* and *partial*, and partial is false in a conjunction ⇒ **the economic stop governs, not the profile budget** |
@@ -120,7 +123,7 @@ and its paired reference. One skill = one independently-judgeable piece.
 
 BUILD-METHOD
 A lead agent ranks the in-scope skills by measured gap (deterministic pass first:
-frontmatter fields, description length, body word-count, disclosure-marker count).
+frontmatter fields, description length, body word-count, linked-supporting-file count).
 Fan out one builder per skill; skills are independent — no verdict entanglement.
 
 Every builder spawn MUST route through the repository's delegation governance:
@@ -152,9 +155,16 @@ QUALITY-BAR  (named external artifacts — NOT adjectives)
                                                         no separate check needed here]
     T  description <= the spec's stated limit
     T  body <= 5,000 words
-    T  disclosure-markers >= 1 when body > 500 words, where a disclosure-marker is a
-       level-2 heading (`## `) or a `<details>` block. Both are countable; "progressive
-       disclosure is present" as a vibe is not.
+    T  progressive disclosure, per THIS REPO's definition (skills/skill-writer/SKILL.md
+       :184-195, :339 — "put advanced details in SEPARATE FILES" such as reference.md,
+       examples.md, scripts/, templates/, referenced from SKILL.md):
+         when body > 500 words, count sibling files in the skill directory that are
+         LINKED from SKILL.md. Require >= 1.
+       An earlier draft counted `## ` headings and <details> blocks instead. Neither
+       moves any material out of SKILL.md — a heading hides nothing, and <details> is
+       visual only since the agent receives the source regardless. That metric would
+       have passed large monolithic skills. It was invented without reading the
+       definition this repo already had.
     J  BLIND A/B, single success condition:
          the critic, shown the candidate and its paired reference with provenance
          stripped in randomised order, CANNOT reliably say which is Anthropic's.
@@ -202,9 +212,13 @@ STOP  (every term below is measured, not adjectival)
   EVIDENCE required for the exit: three journal entries, consecutive round numbers,
   each recording lens set, G(k)=0, and the critic's verbatim could-not-tell statement.
 
-  STAGNATION (early exit, failure): delta(k) = G(k-1) - G(k). Exit when delta(k) <= 0
-  for two consecutive rounds with G(k) > 0 — the critic keeps finding gaps and the
-  builder is not closing them. Report as NOT-CONVERGED; do not report as done.
+  STAGNATION (early exit, failure): measured on gap IDENTITY, not on the count.
+  A gap is identified by its verbatim recorded text. Exit NOT-CONVERGED when the SAME
+  gap is named in two consecutive rounds — the builder was handed it and did not close
+  it.
+  Counting instead would misfire on the common case: TASK asks each round to close the
+  LARGEST gap, so a builder closing one gap while the critic surfaces the next holds
+  G(k) constant at 1. A count-based delta reads that steady progress as stagnation.
 
   GOVERNING CAP: the ECONOMIC STOP, not the profile budget. long_loop_licensed is FALSE
   (see the gate table), so per SKILL.md the cap is convergence-engine's n*.
