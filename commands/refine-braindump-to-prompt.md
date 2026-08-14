@@ -5,7 +5,7 @@ description: Lapidate ONE raw operator braindump into ONE polished, ready-to-exe
 
 # /maos:refine-braindump-to-prompt Command
 
-Thin wrapper that invokes `skills/maos:refine-braindump-to-prompt/SKILL.md` (soul-name *Lapidary*).
+Thin wrapper that invokes `skills/refine-braindump-to-prompt/SKILL.md` (soul-name *Lapidary*).
 The skill holds all logic — five phases, per-phase primitive composition, the Verifiability Gate
 stopping doctrine, architecture profiles, STOP-marker grammar, bounds. This file is the command
 surface only.
@@ -27,7 +27,7 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 | Flag | Default | Allowed values |
 |---|---|---|
 | `"<braindump>"` (positional) | *required* | path to a braindump file, or inline text |
-| `--architecture` | `default` | `default`, `gauntlet-loop`, or any file in `skills/maos:refine-braindump-to-prompt/profiles/` |
+| `--architecture` | `default` | `default`, `gauntlet-loop`, or any file in `skills/refine-braindump-to-prompt/profiles/` |
 | `--dor` / `--motivation` / `--goal` | `auto` | override what RECOVER inferred |
 | `--condition` | `auto` | override the DoD / stop-condition (measurable spec) |
 | `--principles` | `auto` | comma list, or `auto` = inherit the host's governance corpus by reference |
@@ -61,4 +61,4 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 - "Ship this feature end-to-end" → `/enhance-pipeline`.
 - "Execute a prompt I already have" → `/auto-pilot`.
 
-See `skills/maos:refine-braindump-to-prompt/SKILL.md` for the full contract.
+See `skills/refine-braindump-to-prompt/SKILL.md` for the full contract.
