@@ -1,6 +1,6 @@
 ---
 name: goal-recovery
-version: "0.1.0"
+version: "0.2.0"
 description: |
   Recover a work session's real INTENT from its own live/context state — motivations, DoR,
   context, scope, and the objective tree {originating, primary, secondary, auxiliary} — into ONE
@@ -16,7 +16,7 @@ description: |
   actually trying to do", "detect the session intent", "handoff-as-prompt", "recover intent".
 allowed-tools: Read, Grep, Glob, Bash, Write, Task
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: session-lifecycle
   cross_link_slug: goal-recovery
@@ -68,13 +68,24 @@ Recover from the strongest available; corroborate across sources; a single sourc
 
 ```text
 1. postflight_seed     a prior session.continuation seed for this branch/session   (the exact inverse artifact)
-2. ticket              preflight R0 anchor — Jira/Linear/GH issue title+body+DoD    (stated intent, if any)
-3. objectives_ntree    postflight P2 objectives-map / work-compass CPT N-Tree        (synthesized objectives)
-4. ash_journal         agentic-session-harness journal: top-level `goal`, decisions[], spec_alignment drift
-5. git_branch          branch name (feat/<slug>) + PR title                          (weak but cheap signal)
-6. git_last_commit     last commit subject/body                                      (weak signal)
-7. transcript          this session's transcript (transcript_hash)                   (last resort; expensive)
+2. braindump           a raw operator dump supplied AS the invocation subject       (stated-but-unstructured
+                       (path or inline text)                                         intent; supersedes weaker
+                                                                                     inferred sources for the
+                                                                                     work it describes)
+3. ticket              preflight R0 anchor — Jira/Linear/GH issue title+body+DoD    (stated intent, if any)
+4. objectives_ntree    postflight P2 objectives-map / work-compass CPT N-Tree        (synthesized objectives)
+5. ash_journal         agentic-session-harness journal: top-level `goal`, decisions[], spec_alignment drift
+6. git_branch          branch name (feat/<slug>) + PR title                          (weak but cheap signal)
+7. git_last_commit     last commit subject/body                                      (weak signal)
+8. transcript          this session's transcript (transcript_hash)                   (last resort; expensive)
 ```
+
+> `braindump` is NOT session residue like the other sources — it is an artifact the operator hands in.
+> It is ranked high because it is the operator's own words about *this* work, but it is still
+> **recovery, not restatement**: the goal is present yet unstated-as-such, buried under mixed
+> directives and session-meta. Drop the session-meta (`/enhance` wrappers, pep-talk, cartesian
+> resource lists offered as examples) before synthesizing — a listed resource is not a requirement
+> to use it. Primary consumer: `skills/refine-braindump-to-prompt` PHASE 1.
 
 ## Pipeline (0 -> 4)
 
@@ -122,7 +133,7 @@ Recover from the strongest available; corroborate across sources; a single sourc
 ## Override parameters
 | Flag | Default | Allowed / Notes |
 |---|---|---|
-| `"<hint>"` (positional) | empty | optional operator hint appended to the recovery (does NOT override the ladder evidence) |
+| `"<hint>"` (positional) | empty | optional operator hint appended to the recovery (does NOT override the ladder evidence). **Exception — the `braindump` source (rank 2):** when a braindump path or text is supplied here, the positional IS the rank-2 evidence, not a hint, and it outranks every source below it. A `braindump` invocation with an empty positional has no rank-2 evidence and falls through to rank 3. |
 | `--scope` | `this.session` | `this.session` \| `branch` \| `ticket:<id>` \| `session:<id>` — where to recover from |
 | `--conf-inconclusive` | `0.60` | `0.0`-`1.0` — below this aggregate confidence => `inconclusive.flag=true` -> HITL |
 | `--ladder` | *(full ladder)* | comma-list to restrict sources (e.g. `postflight_seed,ticket,ash_journal`) |
@@ -188,6 +199,11 @@ Dormant-by-design otherwise.
 - External grounding: GOOD (arXiv:2508.15119, uncertainty-aware goal inference) · RECAP (2509.04472, intent-rewrite) · Boyd OODA (Observe) · Raghavan & Schneier IEEE S&P 2025 (auditable Observe inputs)
 
 ## Versioning
+- v0.2.0 (2026-08-14) — MINOR: `braindump` added to the inference ladder (rank 2) — a raw operator
+  dump supplied AS the invocation subject, ranked above `ticket` because it is the operator's own
+  words about *this* work, with an explicit drop-session-meta clause. Additive: no existing source
+  changed and the envelope schema is unchanged, but **recovery PRECEDENCE changes** for any invocation that supplies a braindump: it now outranks ticket, objectives-N-Tree, ASH-journal, git and transcript. Ranks 2-7 shift to 3-8. `handoff-as-prompt.schema.json` gains `braindump` in the `recovered_from[].source` enum. Enables `skills/refine-braindump-to-prompt`
+  PHASE 1 without forking a second recovery engine.
 - v0.1.0 (2026-07-12) — bootstrap. Recovery of an unstated session intent from an inference ladder;
   uncertainty-aware (ranked hypotheses + confidence + inconclusive->HITL); typed `handoff-as-prompt`
   envelope extending continuation-seed; direction-inverted twin of postflight; deterministic

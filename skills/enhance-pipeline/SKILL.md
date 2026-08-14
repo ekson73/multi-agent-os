@@ -160,6 +160,7 @@ evaluator (shared with `quiesce`/`auto-pilot`) reads it:
 | `auto-pilot` | ONE goal | decompose → select → spawn → converge (no research/ideation phase) |
 | `quiesce` | the SESSION | termination predicate over ALL open items → steady state |
 | `converge` | N proposals | 5-act merge (this skill's STAGE 3 lands here) |
+| `refine-braindump-to-prompt` | ONE braindump | RECOVER → DRAFT → REFINE → RED-TEAM → RENDER **one executable prompt** (does not ship; may hand the prompt to a driver) |
 
 `enhance-pipeline` MAY invoke `auto-pilot`/`quiesce` in DELIVER and `converge` in
 HARMONIZE; it never re-implements delegation, convergence, or anomaly detection.

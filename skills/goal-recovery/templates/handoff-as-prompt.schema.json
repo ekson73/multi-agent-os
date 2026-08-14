@@ -74,7 +74,7 @@
             "required": ["source", "read"],
             "additionalProperties": true,
             "properties": {
-              "source": {"type": "string", "enum": ["postflight_seed", "ticket", "objectives_ntree", "ash_journal", "git_branch", "git_last_commit", "transcript", "work_compass_cpt", "operator_prompt", "free_text"]},
+              "source": {"type": "string", "enum": ["postflight_seed", "braindump", "ticket", "objectives_ntree", "ash_journal", "git_branch", "git_last_commit", "transcript", "work_compass_cpt", "operator_prompt", "free_text"]},
               "read": {"type": "boolean", "description": "true = this source existed and was read; false = probed-but-absent (still auditable)"},
               "ref": {"type": "string", "description": "path/id/sha of the source, or 'absent'"}
             }
