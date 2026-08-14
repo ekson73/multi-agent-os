@@ -22,8 +22,9 @@ primitive that already exists in this repo**.
 Take ONE raw, unstructured operator braindump — mixed directives, cartesian resource lists,
 session-meta wrappers — and lapidate it into ONE prompt that an agent (or a team) can execute
 end-to-end with minimum human-in-the-loop. The distinctive act is **REFINE**: a bounded loop whose
-*object of criticism is the draft prompt itself*, run from multiple distinct lenses, terminating
-only on a two-part condition (a floor AND a dryness test), never on a single clean pass.
+*object of criticism is the draft prompt itself*, run from multiple distinct lenses, terminating on
+the economic stop (`n* ≤ 3-4`) by default — and, **only where a profile licenses the long loop**, on
+a two-part condition (a floor AND a dryness test) rather than a single clean pass.
 
 ## When to use
 
