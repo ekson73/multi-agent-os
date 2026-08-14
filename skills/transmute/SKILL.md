@@ -1,6 +1,6 @@
 ---
 name: transmute
-version: "0.1.1"
+version: "0.1.2"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · report) through a menu of transformations (comprehend · analyze ·
@@ -262,6 +262,14 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.1.2 — **dogfood cycle 2 COMPLETE → eval C5 re-scored 2→5 = PASS** (full pipeline
+  INTAKE→COMPREHEND→TRANSFORM→CAST→EMIT on a real source: the operator's recurring
+  `/enhance` round template, 4 live traces). Emitted `prompts/transmute-round.md`
+  (user-scope, synced to akasha-codex). Notable COMPREHEND finding: the template's
+  verb cascade and matrix spec ARE this skill's spec — the invocation was a
+  hand-rolled transmute all along (confirming the n+2 SSOT harmonization).
+  Dogfood ledger: cycle 1 (placeholder-class, live ×4) + cycle 2 (end-to-end,
+  real source) = **2 cycles per dogfooding-mandate R1 → promotion gate OPEN**.
 - v0.1.1 — dogfood cycle 1 recorded: INTAKE placeholder-detection failure mode
   validated live (rounds n+1 AND n+2 both arrived with `{{BRAINDUMP}}` unfilled →
   correct behavior: `STOP-ERROR` naming the placeholder — pattern is now a
