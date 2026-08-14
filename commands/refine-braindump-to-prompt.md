@@ -16,7 +16,7 @@ surface only.
 /refine-braindump-to-prompt "<braindump>" [--architecture=…] [--dor=…] [--motivation=…] \
                             [--goal=…] [--condition=…] [--principles=…] \
                             [--min-revisions=N] [--clean-rounds=N] [--lenses=N] [--max-rounds=N] \
-                            [--dry-run] [--output=…] [--persist=PATH] \
+                            [--dry-run] [--output=…] [--output-target=…] \
                             [--user-lang=…] [--agentic-lang=…]
 ```
 
@@ -37,7 +37,8 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 | `--max-rounds` | `12` | hard cap; exceeded → `STOP-HITL` |
 | `--dry-run` | `false` | run RECOVER→REFINE, emit the plan, STOP before RENDER writes |
 | `--output` | `table` | `table`, `list`, `json` (json = machine contract; skill §Output contract, exit 0/1/2) |
-| `--persist` | *(none)* | path to write the rendered prompt; omitted → return inline only |
+| `--persist` | *(none)* | **DEPRECATED alias** — `--persist=P` ≡ `--output-target=git-repo:P` |
+| `--output-target` | *(none)* | comma-separated sinks `<kind>[:<param>]`: `stdout` · `clipboard` · `vault:<path>` · `git-repo:<path>` · `agentic-tool:<sub-kind>:<path>`. A sink is valid iff **reachable** (probed) ∧ **render defined** ∧ **can refuse by name**. See skill §Output targets. |
 | `--user-lang` | `auto` | operator-facing prose language |
 | `--agentic-lang` | `en-us` | language of the RENDERED prompt (agent register) |
 
@@ -48,7 +49,9 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 /refine-braindump-to-prompt "<dump>" --architecture=gauntlet-loop
 /refine-braindump-to-prompt "<dump>" --dry-run --output=json
 /refine-braindump-to-prompt "<dump>" --min-revisions=5 --clean-rounds=2 --lenses=4
-/refine-braindump-to-prompt "<dump>" --persist=./prompts/migration.prompt.md
+/refine-braindump-to-prompt "<dump>" --output-target=clipboard
+/refine-braindump-to-prompt "<dump>" --output-target=vault:~/eko-engram/pages/x.md,clipboard
+/refine-braindump-to-prompt "<dump>" --output-target=agentic-tool:skill:./skills/x/SKILL.md
 ```
 
 ## Not this command

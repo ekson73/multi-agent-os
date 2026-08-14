@@ -328,9 +328,61 @@ concept. See `profiles/gauntlet-loop.md` for prior-art attribution and the diver
 | `--max-rounds` | `12` | hard cap; exceeded → `STOP-HITL` (diminishing returns) |
 | `--dry-run` | `false` | run RECOVER→REFINE and emit the plan; STOP before RENDER writes |
 | `--output` | `table` | `table` \| `list` \| `json` \| `json-rpc` (machine contract — see §Output contract). `json-rpc` is **not** a synonym for `json`: it emits `method` + `params` (notification shape, no `id`) per `[C06]`, which is what an agent-to-agent caller consumes. |
-| `--persist` | *(none)* | path to write the rendered prompt; omitted → return inline only |
+| `--persist` | *(none)* | **DEPRECATED alias** — `--persist=P` ≡ `--output-target=git-repo:P`. Kept working; do not remove. |
+| `--output-target` | *(none)* | one or more sinks, comma-separated: `<kind>[:<param>]`. Omitted → return inline only. See §Output targets. |
 | `--user-lang` | `auto` | operator-facing prose language (mirrors the host's language policy) |
 | `--agentic-lang` | `en-us` | language of the RENDERED prompt (agent register) |
+
+## Output targets (`--output-target`) — a TEST, not a kind list
+
+A rendered prompt that lands in exactly one place is **unmounted for every other harness**.
+The operator runs claude · codex · pi · opencode · gemini · antigravity · kiro; a distillate
+that only reaches one vault serves one of them. This axis is orthogonal to `--output`
+(*which wire format*) and to `agentic-tool-forge`'s type router (*which artifact type*).
+
+**A sink is a valid output-target iff:**
+
+> **(a) REACHABLE** — it exists and is reachable, **probed, never assumed**
+> **(b) RENDER DEFINED** — the distillate has a defined form for that sink
+> **(c) CAN REFUSE** — unreachable/unauthorized emits a **named reason**, never a silent drop
+
+Extend by the test, never by taste. The table below is the **instance**; `etc` is the open set.
+
+| Kind | `:param` | Render | idempotent | reversible | shared-surface |
+|---|---|---|---|---|---|
+| `stdout` | — | raw prompt | yes | n/a | no |
+| `clipboard` | — | raw prompt, **no frontmatter** | **NO** (declared) | no | no |
+| `vault` | note path | prompt + YAML frontmatter + wikilinks | yes | yes (git) | yes |
+| `git-repo` | file path | prompt as-is | yes | yes (git) | yes |
+| `agentic-tool` | `skill\|command\|agent\|rule\|memory\|mcp` **:path** | **per sub-kind** — see below | yes | yes (git) | yes |
+
+**Declared properties are not membership criteria.** `clipboard` is a valid target *while being
+non-idempotent* — it just has to **say so**. A target that hid that would fail (c) in spirit:
+silently producing a different result on re-run is a drop the caller cannot see.
+
+### The two cases that break an enum (and why the test exists)
+
+1. **`clipboard` is not a path.** Any axis shaped as `--persist=PATH` cannot express it. This is
+   what forces *target = sink*, not *target = location*. Verified live: `pbcopy` present **and**
+   round-tripped through `pbpaste` — presence of the binary is not reachability (a).
+2. **`agentic-tool` is not one kind.** A skill, a command, an agent, a rule, a memory and an MCP
+   have *different renders* — SKILL.md frontmatter ≠ a command's `name:` ≠ a rule's `[CXX]` header.
+   So (b) resolves **per sub-kind**, and `agentic-tool` alone is an under-specified target: it
+   MUST carry its sub-kind. A straddler a flat list would have hidden.
+
+### Multi-target semantics (explicit, never implicit)
+
+- **Order**: `gitleaks` gate runs **once, before any emission**, whenever ≥1 target declares
+  `shared-surface: yes`. A leak aborts **all** targets — including `clipboard`, which is not exempt.
+- **Partial failure**: **best-effort with a named report**, not all-or-nothing. Rationale: the
+  targets are independent sinks, so failing `clipboard` (headless host) must not withhold the
+  `vault` write the operator can actually use. Every failure is reported by kind + reason; a
+  silent partial success is forbidden.
+- **Unmerged-branch warning**: a `git-repo`/`vault` target on a branch with no upstream, or ahead
+  of it, emits a warning. Empirically earned: a braindump written to an unmerged branch became
+  invisible from the operator's own checkout on 2026-08-14.
+- **Per-kind render, never one blob copied N times** — a vault note carries frontmatter, a
+  clipboard payload must not.
 
 ## Output contract (`--output=json`)
 
