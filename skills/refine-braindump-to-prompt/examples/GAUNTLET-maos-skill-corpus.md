@@ -81,7 +81,7 @@ The 17 reference skills: `algorithmic-art` · `brand-guidelines` · `canvas-desi
 
 | Conjunct | Verdict | Basis |
 |---|---|---|
-| `bar_is_machine_verifiable` | **hybrid (not pure-D)** | **D** frontmatter parses · **T** description length, body word-count, linked-supporting-file count · **J** blind A/B on clarity |
+| `bar_is_machine_verifiable` | **hybrid (not pure-D)** | **D** frontmatter parses · **T** description length, body line-count, linked-supporting-file count · **J** blind A/B on clarity |
 | `critic_is_independent_of_builder` | **partial — see below** | separate invocation without build history; the tag check is a *label* check, not a context check |
 | `evidence_is_directly_inspectable` | ✅ | both sides are readable files; the A/B is literal |
 | `long_loop_licensed` | **❌ FALSE** | the gate is an **AND** (`SKILL.md`): two conjuncts above are *hybrid* and *partial*, and partial is false in a conjunction ⇒ **the economic stop governs, not the profile budget** |
@@ -123,7 +123,7 @@ and its paired reference. One skill = one independently-judgeable piece.
 
 BUILD-METHOD
 A lead agent ranks the in-scope skills by measured gap (deterministic pass first:
-frontmatter fields, description length, body word-count, linked-supporting-file count).
+frontmatter fields, description length, body line-count, linked-supporting-file count).
 Fan out one builder per skill; skills are independent — no verdict entanglement.
 
 Every builder spawn MUST route through the repository's delegation governance:
@@ -149,16 +149,24 @@ QUALITY-BAR  (named external artifacts — NOT adjectives)
   rather than pairing it badly.
 
   Compliance is per-skill and tri-level, declared explicitly:
-    D  frontmatter parses as YAML                      [validate-plugin.sh — gated]
+    D  frontmatter parses as YAML  [gated ONLY when PyYAML is present on the runner.
+       Without it, validate-plugin.sh:301 emits a WARN and the build can still pass,
+       and validate-skill-frontmatter.sh uses re.search, not a parser.
+       VERIFY FIRST: python3 -c "import yaml". Absent -> parse directly in this run;
+       do not report it as gated.]
     D  `name` and `description` keys present           [gated as a HARD FAIL for skills
                                                         via scripts/validate-skill-frontmatter.sh;
                                                         no separate check needed here]
     T  description <= the spec's stated limit
-    T  body <= 5,000 words
+    T  body <= 500 LINES — the pinned reference's own figure
+       (anthropics/skills@f6656c12 skills/skill-creator/SKILL.md:90,96 "keep SKILL.md
+       under 500 lines"). Anthropic's separate skills-overview page says "<=5k words";
+       where two sources disagree, the PINNED one governs, and the divergence is
+       recorded rather than silently averaged.
     T  progressive disclosure, per THIS REPO's definition (skills/skill-writer/SKILL.md
        :184-195, :339 — "put advanced details in SEPARATE FILES" such as reference.md,
        examples.md, scripts/, templates/, referenced from SKILL.md):
-         when body > 500 words, count sibling files in the skill directory that are
+         when body > 500 LINES, count sibling files in the skill directory that are
          LINKED from SKILL.md. Require >= 1.
        An earlier draft counted `## ` headings and <details> blocks instead. Neither
        moves any material out of SKILL.md — a heading hides nothing, and <details> is
@@ -204,10 +212,24 @@ STOP  (every term below is measured, not adjectival)
   satisfy a novelty test while the skill stays distinguishable, contradicting the
   acceptance rule. Consecutive ZERO is the condition.
 
-  LENS ASSIGNMENT — round k uses lens set (k mod 6) from this fixed order:
-    0 bar-nameability · 1 critic-independence · 2 evidence-inspectability
-    3 decomposability · 4 stop-rule-presence · 5 blast-radius
-  so the three exit rounds provably use three distinct lenses.
+  LENS ASSIGNMENT — round k uses lens (k mod 6) from this fixed order, so the three
+  exit rounds provably use three distinct lenses. Every lens is answerable from the
+  critic's PERMITTED INPUTS (two provenance-stripped SKILL.md texts + the T-metrics),
+  and each is derived from the pinned reference, not invented:
+
+    0 trigger-completeness  does `description` carry BOTH what it does AND specific
+                            when-to-use contexts?              [skill-creator:67]
+    1 trigger-assertiveness is the description assertive enough to fire, or passive?
+                            (the reference warns skills UNDER-trigger)   [:67]
+    2 whentouse-placement   is when-to-use in the DESCRIPTION, or misplaced in the
+                            body? ("all when-to-use info goes here")     [:67]
+    3 disclosure-layering   body within the line envelope, with advanced material in
+                            bundled resources referenced WITH guidance on when to
+                            read them?                              [:88-96]
+    4 imperative-voice      are instructions in the imperative form?      [:117]
+    5 why-over-must         does it explain WHY, instead of heavy-handed MUSTs, and
+                            stay general rather than over-fitted to its examples?
+                                                                        [:139]
 
   EVIDENCE required for the exit: three journal entries, consecutive round numbers,
   each recording lens set, G(k)=0, and the critic's verbatim could-not-tell statement.
