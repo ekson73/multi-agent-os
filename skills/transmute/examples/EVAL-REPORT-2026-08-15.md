@@ -1,0 +1,27 @@
+# EVAL-REPORT — transmute (skill + command) — 2026-08-15
+- Baseline: v0.1.1 · Golden cases: 5 (smoke-set — real invocation traces rounds n+1→n+4 + inspection)
+- Evaluator: agentic-tool-evaluator v1.1.0 (behavioral, with/without control approximated by pre-router vs post-router traces)
+
+## Scores (0–5)
+
+| Case | Trigger | TaskCompl | ToolCorr | Effic | ScopeFit | Regression |
+|------|---------|-----------|----------|-------|----------|------------|
+| C1 placeholder-empty input class (4 real occurrences: n+1–n+4) | 5 (router catches + names placeholder + emits fill-snippet since n+3) | 4 (correct STOP-ERROR; snippet DX added) | 5 | 5 (no wasted pipeline) | 5 | 0 |
+| C2 invocation surface `/transmute` (commands wrapper exists, name matches) | 5 | 5 | 5 | 5 | 5 | 0 |
+| C3 DRY routing (routes to siblings; no restatement — 15.5KB vs 45KB Lapidary; SSOTs cited in-line) | n/a (inspection) | 5 | 5 | 5 | 5 | 0 |
+| C4 safe-by-default (dry-run default; leak gate unconditional; worktree on git sinks) | n/a (spec inspection) | 4 (spec'd; untested on a dirty source — no real dirty-source run yet) | 4 | 5 | 5 | 0 |
+| C5 real source → cast → emit (a genuine filled braindump through COMPREHEND→…→EMIT) | 3 (trigger table + wrappers present) | **2 — NOT YET EXERCISED** | n/a | n/a | n/a | n/a |
+
+## Verdict: FLAG (passes, improvable)
+
+## Strengths
+- The router's failure-mode design was **validated by real input**: the placeholder-empty class occurred 4× and each occurrence improved the surface (n+1 detect → n+3 snippet DX → n+4 `## Optional` template evolution acknowledged).
+- Invocation-surface gate satisfied at creation (forge) AND at eval (wrapper present, name match).
+- DRY discipline measurable (size ratio + SSOT citations grep-verifiable).
+
+## Weaknesses
+- **C5 is the open hole**: no end-to-end run with a real filled source. TaskCompletion on the skill's core promise is unproven. This is exactly `dogfooding-mandate` cycle-2 pending.
+- With/without control is approximated (pre-router inline execution vs post-router delegation), not isolated-subagent A/B — smoke-set confidence LOW-to-MEDIUM.
+
+## Recommendation
+→ Hold promotion gate closed. Next: ONE real `/transmute "<filled source>"` run (dogfood cycle 2), then re-score C5. If C5 ≥4 → PASS and `agentic-tool-trainer` unnecessary; if C5 surfaces defects → trainer with the trace.
