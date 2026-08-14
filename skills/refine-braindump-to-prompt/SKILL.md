@@ -72,11 +72,13 @@ only on a two-part condition (a floor AND a dryness test), never on a single cle
 ## The five phases (the pipeline predicate)
 
 ```text
-RECOVER   := DISSECT  open the dump; type every part for what it IS
-                       (halt if a part cannot be typed — "I don't know what this is")
-           + CATALOGUE emit the parts table   <- REQUIRED OUTPUT, not incidental
-           + PRISM    DoD-as-measurable, on abstract criteria only
-           + DISTILL  drop session-meta; emit the drop-list WITH REASONS
+RECOVER   := DISSECT   open the dump; type every part for what it IS
+                        (halt: a part that cannot be typed — "I don't know what this is")
+           + RELATE    map how the parts constrain each other
+                        (halt: a cycle, a dangling dependency, an unresolvable reference)
+           + CATALOGUE emit parts table + relation map  <- REQUIRED OUTPUTS, not incidental
+           + PRISM     DoD-as-measurable, on abstract criteria only
+           + DISTILL   drop session-meta; emit the drop-list WITH REASONS
            + recover{DoR, motivation, goal}
            + derive recurring mechanism IFF the goal recurs
 DRAFT     := select architecture profile + render first-cut prompt
@@ -96,19 +98,35 @@ The pipeline has **one hard boundary and one soft one**. They are not equal, and
 equal is itself an error:
 
 ```text
-COMPREHEND (lossless)          ‖ HARD ‖   TRANSFORM (lossy)
-dissect -> type -> catalogue              distill  ~soft~  shape
-             + prism                      (drop-list)      (DRAFT->REFINE->RED-TEAM->RENDER)
-             RECOVER                              RECOVER  |  the rest
+COMPREHEND (lossless)               ‖ HARD ‖   TRANSFORM (lossy — i.e. DECIDING)
+dissect -> type -> relate -> catalogue         distill  ~soft~  shape
+                    + prism                    (drop-list)      (DRAFT->REFINE->RED-TEAM->RENDER)
+                    RECOVER                            RECOVER  |  the rest
 ```
 
-The sharpest cut in the whole pipeline is **lossless ↔ lossy**:
+The sharpest cut in the whole pipeline is **lossless ↔ lossy**, and the criterion under it is:
+
+> **A decision destroys an alternative. A recognition does not.**
+
+Deciding is not a fourth stage sitting beside distill and shape — it is **what makes that side
+lossy**. Distilling *is* deciding what to discard; shaping *is* deciding what form. Comprehension
+recognizes and can be redone; transformation decides and kills the branches it did not take.
 
 | | Receives | Goal | Anything lost? | Reversible? |
 |---|---|---|---|---|
-| dissect · type · catalogue | an opaque whole | see + name the parts | **no** — everything kept, now legible | yes |
-| distill | a legible mixture | keep only what carries constraint | yes, deliberately | no |
-| shape | a solid | reveal form | yes, as shaping waste | no |
+| dissect · type · **relate** · catalogue | an opaque whole | see, name + connect the parts | **no** — all kept, now legible | yes |
+| distill | a legible mixture | keep only what carries constraint | yes — an alternative dies | no |
+| shape | a solid | reveal form | yes — an alternative dies | no |
+
+**Relate is not cataloguing.** A catalogue is a *list*; relations make it a *graph*. You can hold a
+complete inventory and still not understand the thing, because understanding a system means knowing
+its **dependencies**, not its contents. Measured on the originating dogfood: typing the parts found
+five of them; the decisive insight — that the loop-spec *operationalizes* the DoD — was an **edge**,
+not a node, and it became this skill's core predicate.
+
+> **Inherited, not invented.** The ancestor protocol `braindump-distill` (*Alambique*) has emitted an
+> interdependency map per run since its first row (22 in its ledger). This skill shipped without one.
+> `RELATE` closes that composition gap — the discipline existed upstream and was silently dropped.
 
 **The hard boundary — you cannot justify a discard you do not understand.** Distilling without
 dissecting discards by heuristic — by length, by position, by vibe — and is right only by luck.
@@ -124,8 +142,20 @@ prompt; it yields a **polished wrapper**, because the shaping loop faithfully re
 it is handed — including mass that was never signal.
 
 So RECOVER spans the hard boundary and can **halt on either side**: on a part it cannot type
-(*"I don't know what this is"*), or on a mass it cannot justify dropping. A stage that cannot
-refuse is a label, not a gate.
+(*"I don't know what this is"*), on a relation it cannot resolve, or on a mass it cannot justify
+dropping.
+
+**Classify a candidate stage on two axes, not one** — *can it refuse?* (gate) crossed with
+*pertinent · related · useful?* (worth having):
+
+| | is a gate | not a gate |
+|---|---|---|
+| **passes** | keep as a **gate** | keep as an **artifact** — e.g. the catalogue + relation map |
+| **fails** | **over-gating** — ceremony with teeth | pure ceremony — a label |
+
+Over-gating is the dangerous quadrant: a stage that can halt *looks* rigorous, so a useless one
+survives review by blocking. One axis alone cannot separate the catalogue (not-a-gate, essential)
+from a certification ritual (a gate, worthless).
 
 ### The catalogue is a REQUIRED output (the absorption law)
 
