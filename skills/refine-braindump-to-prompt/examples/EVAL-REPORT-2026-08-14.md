@@ -322,3 +322,7 @@ yet tell a cold agent enough to run it the same way twice.
 
 **Verdict: FAIL — 3 claims held, 2 disproved, 22 decisions undelegated.** The failure is
 specification, not mechanism. The next cycle should close Q15's 22 before adding capability.
+
+---
+
+*Signed: Claude-Eval-ef60-321 | 2026-08-14T17:47:00-03:00*
