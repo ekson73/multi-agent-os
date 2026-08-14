@@ -1,28 +1,8 @@
 ---
 name: refine-braindump-to-prompt
 version: "0.1.0"
-description: |
-  Turn ONE raw operator braindump into ONE polished, ready-to-execute PROMPT that drives
-  an agent/team end-to-end with minimum HITL. Five phases: RECOVER (DoR · motivation · goal
-  via goal-recovery + DoD-as-measurable via decompose-abstract-to-measurable) → DRAFT
-  (first-cut prompt in the chosen architecture profile) → REFINE (bounded loop over the
-  DRAFT PROMPT itself: N rounds × N distinct lenses, stop only when min-revisions AND
-  consecutive-clean-rounds are both satisfied) → RED-TEAM (independent adversarial
-  refutation) → RENDER (ONE prompt + machine envelope). Parameterized by prompt-architecture
-  PROFILES (`--architecture`); profile #1 is `gauntlet-loop`. A thin preset that COMPOSES
-  existing primitives (goal-recovery, decompose-abstract-to-measurable, convergence-engine,
-  perspective-trio, cascade-resolver, red-team, council-gate, prompt-context-engineer) —
-  reimplements nothing. Accepts: --architecture, --dor, --motivation, --goal, --condition,
-  --principles, --min-revisions, --clean-rounds, --lenses, --max-rounds, --dry-run, --output,
-  --persist, --user-lang, --agentic-lang.
-  Use when the operator has a messy dump of intent and wants it lapidated into one executable
-  prompt: "turn this braindump into a prompt", "lapide este braindump", "polish this dump into
-  something runnable", "make an executable prompt out of this", "destrinche isto e me devolva
-  um prompt".
-  Triggers: "refine-braindump-to-prompt", "/refine-braindump-to-prompt", "braindump to prompt",
-  "lapidar braindump", "polish braindump", "one executable prompt from this dump", "gauntlet
-  loop prompt".
-allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
+description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. Five phases: RECOVER (dissect - relate - catalogue - prism - distill; emits the parts map and the drop-list with reasons) -> DRAFT (in an architecture profile) -> REFINE (N rounds x N distinct lenses; exits only on min-revisions AND consecutive-clean-rounds) -> RED-TEAM (independent refutation, verifier != generator) -> RENDER (one prompt + machine envelope + multi-sink emission). Use when a dump must become executable work rather than a ledger, an envelope or a PR. Parameterized by architecture profiles (--architecture, incl. gauntlet-loop) and by output sinks (--output-target: stdout, clipboard, vault, git-repo, agentic-tool). Composes in-repo primitives; reimplements nothing.
+allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Refine-Braindump-to-Prompt
@@ -64,7 +44,7 @@ only on a two-part condition (a floor AND a dryness test), never on a single cle
 
 ## Trigger Phrases
 
-- "refine-braindump-to-prompt" / "/refine-braindump-to-prompt"
+- "refine-braindump-to-prompt" / "/maos:refine-braindump-to-prompt"
 - "turn this braindump into a prompt" / "lapide este braindump"
 - "one executable prompt from this dump" / "polish this dump into something runnable"
 - "gauntlet loop prompt for <X>"
@@ -223,7 +203,7 @@ reproduces, one level down, the exact failure this skill exists to prevent.
 ## How it works
 
 ```text
-operator invokes /refine-braindump-to-prompt "<braindump-path-or-text>"
+operator invokes /maos:refine-braindump-to-prompt "<braindump-path-or-text>"
         |
         v   resolve flags -> profile defaults unless overridden
         v
@@ -474,17 +454,17 @@ the prompt itself (the operator names the target).
 ## Examples
 
 ```text
-/refine-braindump-to-prompt "~/dumps/2026-08-14-gauntlet.braindump.md"
-/refine-braindump-to-prompt "<dump>" --architecture=gauntlet-loop
-/refine-braindump-to-prompt "<dump>" --dry-run --output=json
-/refine-braindump-to-prompt "<dump>" --min-revisions=5 --clean-rounds=2 --lenses=4
-/refine-braindump-to-prompt "<dump>" --persist=./prompts/migration.prompt.md
+/maos:refine-braindump-to-prompt "~/dumps/2026-08-14-gauntlet.braindump.md"
+/maos:refine-braindump-to-prompt "<dump>" --architecture=gauntlet-loop
+/maos:refine-braindump-to-prompt "<dump>" --dry-run --output=json
+/maos:refine-braindump-to-prompt "<dump>" --min-revisions=5 --clean-rounds=2 --lenses=4
+/maos:refine-braindump-to-prompt "<dump>" --persist=./prompts/migration.prompt.md
 ```
 
 ## Validation
 
-- `tests/validate-plugin.sh` enforces: `skills/refine-braindump-to-prompt/SKILL.md` exists with
-  valid frontmatter; `commands/refine-braindump-to-prompt.md` carries matching `name:`.
+- `tests/validate-plugin.sh` enforces: `skills/maos:refine-braindump-to-prompt/SKILL.md` exists with
+  valid frontmatter; `commands/maos:refine-braindump-to-prompt.md` carries matching `name:`.
 - `--dry-run` proves composition: grep the run — only `Task`-delegation to existing skills/agents
   plus native tools; zero reimplementation.
 - Dogfood gate: running the skill on its own originating braindump must yield a prompt containing
@@ -492,7 +472,7 @@ the prompt itself (the operator names the target).
 
 ## Related
 
-- `commands/refine-braindump-to-prompt.md` — operator-facing command surface
+- `commands/maos:refine-braindump-to-prompt.md` — operator-facing command surface
 - `profiles/default.md` · `profiles/gauntlet-loop.md` — architecture profiles
 - `skills/goal-recovery/SKILL.md` — PHASE 1 recovery (braindump source)
 - `skills/decompose-abstract-to-measurable/SKILL.md` — PHASE 1 DoD measurement (Prisma)

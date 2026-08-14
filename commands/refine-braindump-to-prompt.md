@@ -3,9 +3,9 @@ name: refine-braindump-to-prompt
 description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT — RECOVER (DoR · motivation · goal · DoD-as-measurable) → DRAFT (in an architecture profile) → REFINE (N rounds × N distinct lenses; stops only on min-revisions AND consecutive-clean-rounds) → RED-TEAM (independent refutation) → RENDER. Parameterized by profiles (`--architecture`, incl. `gauntlet-loop`). Composes in-repo primitives; reimplements nothing.
 ---
 
-# /refine-braindump-to-prompt Command
+# /maos:refine-braindump-to-prompt Command
 
-Thin wrapper that invokes `skills/refine-braindump-to-prompt/SKILL.md` (soul-name *Lapidary*).
+Thin wrapper that invokes `skills/maos:refine-braindump-to-prompt/SKILL.md` (soul-name *Lapidary*).
 The skill holds all logic — five phases, per-phase primitive composition, the Verifiability Gate
 stopping doctrine, architecture profiles, STOP-marker grammar, bounds. This file is the command
 surface only.
@@ -13,7 +13,7 @@ surface only.
 ## Usage
 
 ```text
-/refine-braindump-to-prompt "<braindump>" [--architecture=…] [--dor=…] [--motivation=…] \
+/maos:refine-braindump-to-prompt "<braindump>" [--architecture=…] [--dor=…] [--motivation=…] \
                             [--goal=…] [--condition=…] [--principles=…] \
                             [--min-revisions=N] [--clean-rounds=N] [--lenses=N] [--max-rounds=N] \
                             [--dry-run] [--output=…] [--output-target=…] \
@@ -27,7 +27,7 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 | Flag | Default | Allowed values |
 |---|---|---|
 | `"<braindump>"` (positional) | *required* | path to a braindump file, or inline text |
-| `--architecture` | `default` | `default`, `gauntlet-loop`, or any file in `skills/refine-braindump-to-prompt/profiles/` |
+| `--architecture` | `default` | `default`, `gauntlet-loop`, or any file in `skills/maos:refine-braindump-to-prompt/profiles/` |
 | `--dor` / `--motivation` / `--goal` | `auto` | override what RECOVER inferred |
 | `--condition` | `auto` | override the DoD / stop-condition (measurable spec) |
 | `--principles` | `auto` | comma list, or `auto` = inherit the host's governance corpus by reference |
@@ -45,13 +45,13 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 ## Examples
 
 ```text
-/refine-braindump-to-prompt "~/dumps/2026-08-14-gauntlet.braindump.md"
-/refine-braindump-to-prompt "<dump>" --architecture=gauntlet-loop
-/refine-braindump-to-prompt "<dump>" --dry-run --output=json
-/refine-braindump-to-prompt "<dump>" --min-revisions=5 --clean-rounds=2 --lenses=4
-/refine-braindump-to-prompt "<dump>" --output-target=clipboard
-/refine-braindump-to-prompt "<dump>" --output-target=vault:~/eko-engram/pages/x.md,clipboard
-/refine-braindump-to-prompt "<dump>" --output-target=agentic-tool:skill:./skills/x/SKILL.md
+/maos:refine-braindump-to-prompt "~/dumps/2026-08-14-gauntlet.braindump.md"
+/maos:refine-braindump-to-prompt "<dump>" --architecture=gauntlet-loop
+/maos:refine-braindump-to-prompt "<dump>" --dry-run --output=json
+/maos:refine-braindump-to-prompt "<dump>" --min-revisions=5 --clean-rounds=2 --lenses=4
+/maos:refine-braindump-to-prompt "<dump>" --output-target=clipboard
+/maos:refine-braindump-to-prompt "<dump>" --output-target=vault:~/eko-engram/pages/x.md,clipboard
+/maos:refine-braindump-to-prompt "<dump>" --output-target=agentic-tool:skill:./skills/x/SKILL.md
 ```
 
 ## Not this command
@@ -61,4 +61,4 @@ The positional `"<braindump>"` (a file path or inline text) is required; all fla
 - "Ship this feature end-to-end" → `/enhance-pipeline`.
 - "Execute a prompt I already have" → `/auto-pilot`.
 
-See `skills/refine-braindump-to-prompt/SKILL.md` for the full contract.
+See `skills/maos:refine-braindump-to-prompt/SKILL.md` for the full contract.
