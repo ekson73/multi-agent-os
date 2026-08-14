@@ -35,13 +35,20 @@ a two-part condition (a floor AND a dryness test) rather than a single clean pas
 
 ## When **not** to use
 
+The five hand-offs below are terminal when this skill is invoked anyway: it does **not** silently
+do the neighbour's job. Each ends the run with `STOP-DONE` · `skipped.condition: "wrong-tool"` ·
+`skipped.handed_to: "<sibling>"` — the same field pair §Skip conditions uses, so a caller reads
+one shape for every non-entry.
+
 - "What in this dump is already done?" → `directive-braindump-triage` (classification ledger).
 - "Make this dump into a reusable TOOL" → `agentic-tool-forge` (forges an artifact, not a prompt).
 - "File this dump as vault knowledge" → the operator's vault protocol (`braindump-distill`).
 - "Ship this feature idea end-to-end" → `enhance-pipeline` (delivers a PR, not a prompt).
 - "Re-target existing content for another audience" → `content-recast`.
-- One clear sentence already states the task → just write the prompt inline (§Skip S1).
-- Destructive ops (force-push protected, drop prod) — always HITL.
+- One clear sentence already states the task → just write the prompt inline (§Skip S1 · `STOP-DONE`).
+- **Destructive ops** (force-push protected, drop prod) — **always HITL → `STOP-HITL`**, carrying the
+  requested op and the guardrail it touches. This is a halt, not routing advice; it was markerless
+  and is one of the 11 the v0.3.0 eval found outside §Failure modes.
 
 ## Trigger Phrases
 
@@ -166,9 +173,22 @@ relation it cannot resolve, or on a mass it cannot justify dropping.
 utterance is this?* — directive, constraint, criterion. *(b) **What does it refer to?*** Reading (a)
 alone, `do jeito que o fulano sugeriu` types cleanly as a method-constraint and passes. Only (b)
 catches that `fulano` is a placeholder for an explicitly-unnamed person, i.e. that the part names
-nothing. **DISSECT is the single halt site for referents**; `relate` halts on graph properties (cycles,
-goal-blocking dangles), not on naming. Putting the referent check in DISSECT is what makes the halt
-robust when `relate` is thin.
+nothing. **DISSECT is where an empty referent is DETECTED** — emptiness is a per-part naming property,
+and question (b) is the only place it is asked. **`relate` is where an empty referent is ADJUDICATED** —
+whether it *blocks* is a dependency question (does the goal or the DoD hang on it?), and dependency is
+a graph property, which is `relate`'s domain. The halt is the **conjunction**: detected in `dissect`
+∧ load-bearing per `relate`. Neither member is "the single halt site"; each answers a different
+question, and the halt needs both answers.
+
+> **Corrected 2026-08-14 (v0.3.0 eval, claim disproved).** An earlier form of this clause read
+> *"DISSECT is the single halt site for referents; `relate` halts on graph properties …, not on
+> naming"* — which contradicted **two** other passages of this same section: the non-skippability
+> rule above justifies `relate` precisely by its role in catching *"every part hangs on an absent
+> referent"*, and the proportionality rule below conditions the halt on *"only if the goal or the
+> DoD depends on it"* — a dependency test the denied member is the one equipped to compute. The
+> word doing the damage was **"single"**: it forced one member to own a check that structurally
+> takes two. Detect ∧ adjudicate resolves all three passages without weakening either gate, and
+> makes the proportionality rule mechanically executable instead of merely asserted.
 
 ⚠️ **Proportionality — halt on what BLOCKS, carry what merely gaps.** An unresolvable referent halts
 RECOVER **only if the goal or the DoD depends on it**. Otherwise name it as an **open parameter**,
@@ -374,7 +394,7 @@ concept. See `profiles/gauntlet-loop.md` for prior-art attribution and the diver
 | `--dry-run` | `false` | run RECOVER→REFINE and emit the plan; STOP before RENDER writes |
 | `--output` | `table` | `table` \| `list` \| `json` \| `json-rpc` (machine contract — see §Output contract). `json-rpc` is **not** a synonym for `json`: it emits `method` + `params` (notification shape, no `id`) per `[C06]`, which is what an agent-to-agent caller consumes. |
 | `--persist` | *(none)* | **DEPRECATED alias** — `--persist=P` ≡ `--output-target=git-repo:P`. Kept working; do not remove. |
-| `--output-target` | *(none)* | one or more sinks, comma-separated: `<kind>[:<param>]`. Omitted → return inline only. See §Output targets. |
+| `--output-target` | *(none)* | one or more sinks, comma-separated: `<kind>[:<param>]`. Omitted → **report inline, emit nothing** — `inline` is NOT a sink kind (see §Output targets, N5a). See §Output targets. |
 | `--user-lang` | `auto` | operator-facing prose language (mirrors the host's language policy) |
 | `--agentic-lang` | `en-us` | language of the RENDERED prompt (agent register) |
 
@@ -405,6 +425,27 @@ Extend by the test, never by taste. The table below is the **instance**; `etc` i
 non-idempotent* — it just has to **say so**. A target that hid that would fail (c) in spirit:
 silently producing a different result on re-run is a drop the caller cannot see.
 
+**`inline` is NOT a sink — omitting `--output-target` REPORTS, it does not emit.** With no target
+the run returns the prompt in its answer and writes nowhere. That is *reporting*, a distinct act
+from *emitting*, and it is why `inline` does not appear in the table above.
+
+> **Corrected 2026-08-14 (v0.3.0 eval, N5a).** The flag row previously read *"Omitted → return
+> inline only"*, which named `inline` as though it were a sixth kind — while the table gives it no
+> row and therefore no **Render** cell. By this section's own criterion (b) (*a sink is valid iff
+> its render is DEFINED*), the skill's **default path was an inadmissible sink**: the one route
+> every caller takes without a flag was the one route the membership test rejected. The repair
+> names the act instead of inventing a kind. Vault-side counterpart: `persist-locus.spec.yaml`
+> `inline: {admissible: false}` + `default_rule` — same finding, closed on both sides of the
+> ratified N2 split.
+
+**SSOT of this axis (N2 contract, ratified `coexistence-pr11xpr12-20260814`).** `--output-target`
+exists in two places and they do not compete: **[[persist-locus]] is SSOT of ROUTING** — which
+houses × kinds a distillate may land in, and the membership test that admits them —
+(`eko-engram` `pages/persist-locus.md:96` + `resources/agentic-tools/persist-locus.spec.yaml:104`);
+**this flag is SSOT of EMISSION** — how one run reshapes and delivers to a named sink. Each cites
+the other; neither redefines the other's half. A future change to *which* kinds exist belongs there;
+a change to *how* a run emits belongs here.
+
 ### The two cases that break an enum (and why the test exists)
 
 1. **`clipboard` is not a path.** Any axis shaped as `--persist=PATH` cannot express it. This is
@@ -417,12 +458,32 @@ silently producing a different result on re-run is a drop the caller cannot see.
 
 ### Multi-target semantics (explicit, never implicit)
 
-- **Order**: `gitleaks` gate runs **once, before any emission**, whenever ≥1 target declares
-  `shared-surface: yes`. A leak aborts **all** targets — including `clipboard`, which is not exempt.
+- **Order**: `gitleaks` gate runs **once, before any emission — UNCONDITIONALLY**. There is no
+  predicate, because no sink is exempt: a leak escapes through `stdout` (terminal · logs · session
+  transcripts · a shared screen), through `clipboard` (paste-anywhere), and through the three
+  git-backed kinds (committed). A hit **aborts every target of the run** and emits `STOP-ERROR`
+  with `leak.rule` + `leak.target_kinds`; nothing is written, nothing is copied, nothing is printed.
+
+  > **Corrected 2026-08-14 (v0.3.0 eval, N5b).** This gate previously fired *"whenever ≥1 target
+  > declares `shared-surface: yes`"* — and `stdout` and `clipboard` are both declared `no`. A
+  > clipboard-only run therefore **never scanned**, while the very next clause ("a leak aborts all
+  > targets — including `clipboard`, which is not exempt") stayed textually true and operationally
+  > **vacuous**: nothing aborts if nothing ran. The repair is not a better flag value — it is
+  > deleting the predicate. A per-target condition implies some target is exempt; enumerating the
+  > five shows none is, so the condition discriminated nothing and only hid the hole. `shared-surface`
+  > keeps its own true meaning (is this a shared, persistent artifact?) and stops doing double duty
+  > as a security key. Vault-side counterpart: `persist-locus.spec.yaml` `shared_surface_binds_leak_gate`
+  > — **cite, do not redefine** (routing is Locus's SSOT; this emission-side gate is the skill's,
+  > per the ratified N2 split).
+
 - **Partial failure**: **best-effort with a named report**, not all-or-nothing. Rationale: the
   targets are independent sinks, so failing `clipboard` (headless host) must not withhold the
   `vault` write the operator can actually use. Every failure is reported by kind + reason; a
-  silent partial success is forbidden.
+  silent partial success is forbidden. **Terminal marker `STOP-DONE` with `targets[].status`
+  per kind** — a run that emitted to 2 of 3 sinks is *done with a named gap*, never a bare success.
+- **Sink refusal** (a target fails the membership test — unreachable, no Render defined, or
+  unnameable): **`STOP-ERROR` with `refused.kind` + `refused.criterion`**, before any emission.
+  Refusing without a marker was one of the 13 markerless halts the v0.3.0 eval counted.
 - **Unmerged-branch warning**: a `git-repo`/`vault` target on a branch with no upstream, or ahead
   of it, emits a warning. Empirically earned: a braindump written to an unmerged branch became
   invisible from the operator's own checkout on 2026-08-14.
@@ -443,7 +504,20 @@ silently producing a different result on re-run is a drop the caller cannot see.
   "verifiability_gate": { "machine_verifiable": false, "independent_critic": false,
                           "inspectable_evidence": false, "long_loop_licensed": false },
   "prompt": "<the rendered prompt, or null under --dry-run>",
-  "dropped_session_meta": [] }
+  "dropped_session_meta": [],
+
+  // Emission outcome — every halt on this axis is BOTH marked and fielded (v0.3.0 eval, D2).
+  // A marker with no field is unreadable by a machine; a field with no marker is unreadable
+  // by the loop. The three below had NEITHER before this repair.
+  "emission": {
+    "targets": [ { "kind": "", "param": null, "status": "emitted|failed|refused",
+                   "reason": null } ],          // partial failure → STOP-DONE + per-kind status
+    "refused": { "kind": null, "criterion": null },   // membership-test refusal → STOP-ERROR
+    "leak":    { "hit": false, "rule": null, "target_kinds": [] } },   // gitleaks → STOP-ERROR
+
+  // Non-entry is a terminal state too (§Skip conditions). Distinguishes "finished, nothing to do"
+  // from "finished, prompt attached" — both carry STOP-DONE, so the FIELD is the discriminator.
+  "skipped": { "condition": null, "handed_to": null } }
 ```
 
 Exit codes: `0` = prompt rendered OR plan emitted (`--dry-run`) · `1` = error (`STOP-ERROR`) ·
@@ -535,9 +609,23 @@ the prompt itself (the operator names the target).
 
 ## Skip conditions (proportionality)
 
+A skip is a **terminal state**, not a no-op: the run ends without this skill rendering a prompt. It
+therefore names a marker like every other halt — `STOP-DONE` with `skipped.condition` and
+`skipped.handed_to`, so a caller can tell *"finished, nothing to do"* apart from *"finished, prompt
+attached"*. No fourth marker is minted; the discriminator is the field, not a new word.
+
 - **S1** the intent is already one clear sentence → write the prompt inline; skip the pipeline.
+  → `STOP-DONE` · `skipped.condition: S1` · `skipped.handed_to: null`
 - **S2** the operator supplied the prompt and wants only execution → hand to `auto-pilot`.
+  → `STOP-DONE` · `skipped.condition: S2` · `skipped.handed_to: "auto-pilot"`
 - **S3** mid-orchestration under a parent that already recovered the goal upstream.
+  → `STOP-DONE` · `skipped.condition: S3` · `skipped.handed_to: "<parent>"`
+
+> **Corrected 2026-08-14 (v0.3.0 eval, D2).** These three carried no marker, and they are three of
+> the **11 markerless points the eval found OUTSIDE §Failure modes** — the section that asserts
+> *"every halt names a terminal marker; a halt without one is an unfinished rule."* The rule had
+> been enforced where it was written rather than across the domain it claims, which is the same
+> shape as the defect it exists to prevent. Fixing only §Failure modes would have repeated it.
 
 ## DNA Geracional (inherited by every spawned agent)
 
