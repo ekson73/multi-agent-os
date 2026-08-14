@@ -1,6 +1,6 @@
 ---
 name: transmute
-version: "0.1.2"
+version: "0.1.3"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · report) through a menu of transformations (comprehend · analyze ·
@@ -61,6 +61,7 @@ every non-entry, per `refine-braindump-to-prompt`'s convention):
 | "braindump → ONE executable prompt" | `refine-braindump-to-prompt` |
 | "recurring intent → reusable tool" | `agentic-tool-forge` |
 | "re-target content for an audience" | `content-recast` |
+| "braindump → durable VAULT artifacts (PARA placement)" | `braindump-distill` (eko-engram *Alambique* — vault-side SSOT; routing per `persist-locus`) |
 | "what in this dump is already done?" | `directive-braindump-triage` |
 | "ship this feature end-to-end (PR)" | `enhance-pipeline` |
 | "improve an EXISTING tool" | `agentic-tool-trainer` |
@@ -111,6 +112,7 @@ consumes. DONE when EMIT reports (or, under `--dry-run`, when the plan is emitte
 | `audience-recast` | `content-recast` | faithfulness guard lives there |
 | `artifact:{md\|html\|pdf\|slides\|diagram}` | renderers (`document-generate` · `archify` · `make-pdf` · host-native) | never re-implement a renderer |
 | `ledger` | `directive-braindump-triage` | provenance ledger |
+| `vault-artifact` | `braindump-distill` (eko-engram *Alambique*, user-scope IF vault mounted) | vault-side standing protocol — PARA placement + ledger + `persist-locus` routing; transmute routes there, never reimplements placement |
 | `ticket` | `ticket-as-prompt` (user-scope, IF installed) | Jira/Linear render |
 
 The router EMITS invocations (anti-NIH); a missing optional primitive degrades to the
@@ -262,6 +264,16 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.1.3 — **cross-harness SSOT consolidation** (round n+5 recon): recon of the
+  eko-engram ledger revealed the vault family (2026-08-14) reached the OPPOSITE
+  verdict on the same directive-class ("dropped: new generic enhancer skill —
+  compose-not-fork") — resolved as different denominators (vault: mint-in-
+  ~/.agents? NO · repo: N×M-router gap? YES). Division ratified (extends the N2
+  split): WHERE=persist-locus · HOW=Lapidary `--output-target` · WHICH=transmute
+  · vault-protocol=Alambique. This patch cross-links: cast-router row
+  `vault-artifact` → Alambique + hand-off row. **Eval C3 caveat recorded**: DRY
+  score was measured intra-maos only; cross-harness audit now complete — no
+  overlap (Alambique = vault placement SSOT; transmute = repo routing SSOT).
 - v0.1.2 — **dogfood cycle 2 COMPLETE → eval C5 re-scored 2→5 = PASS** (full pipeline
   INTAKE→COMPREHEND→TRANSFORM→CAST→EMIT on a real source: the operator's recurring
   `/enhance` round template, 4 live traces). Emitted `prompts/transmute-round.md`
