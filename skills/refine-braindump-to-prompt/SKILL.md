@@ -32,7 +32,7 @@ Take ONE raw, unstructured operator braindump — mixed directives, cartesian re
 session-meta wrappers — and lapidate it into ONE prompt that an agent (or a team) can execute
 end-to-end with minimum human-in-the-loop. The distinctive act is **REFINE**: a bounded loop whose
 *object of criticism is the draft prompt itself*, run from multiple distinct lenses, terminating on
-the economic stop (`n* (typically 3 or 4)`) by default — and, **only where a profile licenses the long loop**, on
+the economic stop (`n*` (per `convergence-engine`)) by default — and, **only where a profile licenses the long loop**, on
 a two-part condition (a floor AND a dryness test) rather than a single clean pass.
 
 ## When to use
@@ -86,7 +86,7 @@ DRAFT     := select architecture profile + render first-cut prompt
 REFINE    := loop{ critique draft from N distinct lenses -> correct }
              if long_loop_licensed: until (revisions >= min_revisions)
                                       AND (clean_rounds >= clean_rounds_required)
-             else:                  until the economic stop (n* (typically 3 or 4)), floor OFF
+             else:                  until the economic stop (n*, per convergence-engine), floor OFF
 RED-TEAM  := independent adversarial refutation of the DRAFT (verifier != generator)
              REFUTED -> classify: craft-defect => back to REFINE (<= max_redteam_cycles)
                                   missing-fact => STOP-HITL now (rounds cannot invent facts)
@@ -317,7 +317,7 @@ Three sources disagree about when an agentic loop may stop, and the disagreement
 |---|---|
 | Shumer's aim-prompt (and skills derived from it) | *"loop until utterly perfect — you are the brake"* → **none** |
 | Osmani, *Loop Engineering* | clear stopping rules are the **5th mandatory component** (cost · attempts · wall-clock · gain-stagnation) |
-| `skills/convergence-engine` (this repo) | economic stop at `n*`, the closed form `n* = 1 + ⌈ln((1−ρ)·g₀·V/C) / ln(1/ρ)⌉` (ρ=retained-gap fraction · g₀=initial gap · V=value/correct-unit · C=round cost). It grows only **logarithmically** in `V/C`, so it evaluates to **3 or 4** across realistic inputs — a computed bound, not a magic literal. Floor is human-parity, **not** perfection; looping past `n*` costs 4-10× for <1% gain |
+| `skills/convergence-engine` (this repo) | economic stop at `n*` — `skills/convergence-engine/SKILL.md` is the **SSOT** for the closed form, its parameter bounds, its marginal-value indexing, and its round-count convention (is `n*` the last affordable round or the first rejected one?). This skill **cites** the bound and never restates it. Floor is human-parity, **not** perfection; looping past `n*` costs 4-10× for <1% gain |
 
 **The synthesis this skill encodes — the Verifiability Gate:**
 
@@ -327,7 +327,7 @@ long_loop_licensed := bar_is_machine_verifiable
                     AND evidence_is_directly_inspectable
 
 if long_loop_licensed -> cap = profile budget (attempts | cost | wall-clock | stagnation delta)
-else                  -> cap = convergence-engine economic stop (n* (typically 3 or 4))
+else                  -> cap = convergence-engine economic stop (n*, per convergence-engine)
 NEVER                 -> unbounded, on work that is irreversible, costly, or unobservable
 ```
 
@@ -353,12 +353,12 @@ stop_refine := (rounds <= --max-rounds)                    # hard cap; exceeded 
                    (revisions    >= --min-revisions)       # floor   — profile-supplied
                    AND (clean_rounds >= --clean-rounds)    # dryness — profile-supplied
                else:
-                   economic stop governs ALONE (n* (typically 3 or 4)) # no floor, no dryness counter
+                   economic stop governs ALONE (n*, per convergence-engine) # no floor, no dryness counter
 ```
 
 **The floor is licensed, not global — and that is load-bearing.** A round either produces a
 revision or is clean, never both, so a `min-revisions=3 AND clean-rounds=3` floor requires **≥6
-rounds**. When the loop is *unlicensed* the cap is `n* (typically 3 or 4)`. **A global floor would therefore
+rounds**. When the loop is *unlicensed* the cap is `n*` (per `convergence-engine`). **A global floor would therefore
 exceed its own cap on every unlicensed run** — and `profiles/default.md` states the gate normally
 evaluates false for that profile, so that is the common path, not an edge case. The floor belongs to
 the profile that licenses it (`gauntlet-loop`, whose `≥3 revisions AND ≥3 consecutive clean rounds`
@@ -561,7 +561,7 @@ the prompt itself (the operator names the target).
 
 ## Protocol Rules (anti-loop invariants + bounds)
 
-- REFINE stops on the economic stop (`n* (typically 3 or 4)`) by DEFAULT. The **two-part** floor (min-revisions
+- REFINE stops on the economic stop (`n*` (per `convergence-engine`)) by DEFAULT. The **two-part** floor (min-revisions
   AND consecutive-clean-rounds) applies ONLY where the Verifiability Gate licenses the long loop —
   asserting it unconditionally makes the floor exceed its own cap on every unlicensed run.
 - `--max-rounds` (default 12) is a hard cap → `STOP-HITL` on exhaustion.
@@ -605,7 +605,7 @@ the prompt itself (the operator names the target).
   tolerance) → **`STOP-HITL` immediately**: no number of refine rounds can manufacture a fact the
   dump does not contain. **Precedence**: this outranks the economic stop — the stop caps iteration
   *within* REFINE and never governs the RED-TEAM return path. Without that precedence the two
-  collide structurally on any unlicensed run (stop caps REFINE at `n* (typically 3 or 4)`; a refutation at round
+  collide structurally on any unlicensed run (stop caps REFINE at `n*` (per `convergence-engine`); a refutation at round
   4 demands a round 5 that is over-cap by construction).
 - **`--max-redteam-cycles` exhausted while still REFUTED** → `STOP-HITL` carrying the standing
   findings as the escalation payload.

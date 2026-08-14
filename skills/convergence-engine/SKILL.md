@@ -8,7 +8,7 @@ description: |
   three regimes by verifiability — REFINE (self-improve loop), SELECT (best-of-N /
   debate→converge), DEFER (HITL) — under a non-negotiable master condition
   (verifier > generator, verifier independent) and a closed-form economic stop
-  (robustly ≤3–4 rounds). Composes existing primitives; builds no new engine.
+  (bounded by an economic stop whose round count is dominated by the retained-gap fraction ρ — see Economic stop). Composes existing primitives; builds no new engine.
   Use when a result must be driven to high quality through bounded iterative review
   rather than a single pass, when multiple proposals must be reconciled, or when an
   autonomy_score must be lifted across the HIGH gate before escalating to a human.
@@ -88,7 +88,37 @@ n* = 1 + ⌈ ln( (1−ρ)·g₀·V / C ) / ln(1/ρ) ⌉
    ρ = retained-gap-fraction · g₀ = initial gap · V = value/correct-unit · C = round-cost
 ```
 
-`n*` grows only **logarithmically** in `V/C` → **robustly ≤ 3–4 rounds** (100× the value buys ~1 more round). Floor = **human-parity (~90%, NOT 100%)**; cap is harness-enforced (`cascade-resolver` termination), not model-judged. Also stop on `Δ < ε for K rounds` OR consensus. The curve is **sub-geometric** (easy errors re-found, hard residual resists) → plateau arrives sooner; looping past `n*` costs 4–10× for <1% gain.
+**Round-count convention (binding — `n*` is the FIRST REJECTED round).** Round `k` shrinks the gap
+`g₀ρ^(k-1) → g₀ρ^k`, so it buys `V·g₀·(1−ρ)·ρ^(k-1)`; keep looping while that exceeds `C`. Solving
+gives `n* = last_affordable + 1` — verified numerically across 16 parameter sets (15/16; the 16th is
+the degenerate case where no round is affordable at all). ⇒ **the last round worth running is `n*−1`.**
+Anyone treating `n*` as a round *budget* runs **one round too many**.
+
+**Marginal-value indexing**: round `k` is affordable iff `V·g₀·(1−ρ)·ρ^(k-1) > C` — the value of the
+gap that round *closes*, not the gap remaining. Index from `k=1` (the first refine round after DRAFT).
+
+**Parameter bounds — `n*` is dominated by `ρ`, NOT by `V/C`.** The `ln(V/C)` numerator does grow only
+logarithmically, but the `ln(1/ρ)` **denominator collapses as `ρ→1`**, so a slow-converging loop
+needs many rounds:
+
+| `ρ` (retained-gap fraction) | `V/C`=20 | `V/C`=100 | `V/C`=1000 |
+|---|---|---|---|
+| 0.3 (fast — each round kills 70% of the gap) | 4 | 5 | 7 |
+| 0.5 | 5 | 7 | 10 |
+| 0.7 | 7 | 11 | 17 |
+| 0.9 (slow — each round kills 10%) | 8 | **23** | **45** |
+
+> **Corrected 2026-08-14.** This line previously asserted *"robustly ≤ 3–4 rounds"*. That is **false**
+> and was never computed — `ρ=0.9, g₀=1, V/C=100` yields **23**. The claim survived because the
+> logarithmic-in-`V/C` half is true and nobody evaluated the other half. Measure `ρ` for your task
+> class before assuming a small `n*`; if you cannot estimate `ρ`, do not quote a round count — use the
+> harness cap and the stagnation test below, which need no parameter estimate.
+
+Floor = **human-parity (~90%, NOT 100%)**; cap is harness-enforced (`cascade-resolver` termination),
+not model-judged. Also stop on `Δ < ε for K rounds` OR consensus — **these are the parameter-free
+stopping rules and are the ones to prefer when `ρ` is unknown.** The curve is **sub-geometric** (easy
+errors re-found, hard residual resists) → the plateau arrives sooner than the formula's worst case;
+looping past `n*` costs 4–10× for <1% gain.
 
 ## Composition map (no new engine)
 
