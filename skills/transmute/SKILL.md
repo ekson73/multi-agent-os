@@ -1,6 +1,6 @@
 ---
 name: transmute
-version: "0.1.0"
+version: "0.1.1"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · report) through a menu of transformations (comprehend · analyze ·
@@ -262,6 +262,14 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.1.1 — dogfood cycle 1 recorded: INTAKE placeholder-detection failure mode
+  validated live (rounds n+1 AND n+2 both arrived with `{{BRAINDUMP}}` unfilled →
+  correct behavior: `STOP-ERROR` naming the placeholder — pattern is now a
+  confirmed recurring input class, not an edge). SSOT harmonization: user-scope
+  `~/.Codex/prompts/enhance.md` now carries a ROUTER header delegating
+  transmute-intent invocations here (the 3-semantics "enhance" conflict resolved:
+  legacy prompt-enhancer stays fallback · feature→PR stays `enhance-pipeline` ·
+  source×transform×cast×emit matrix = THIS skill).
 - v0.1.0 (initial) — INTAKE→COMPREHEND→TRANSFORM→CAST→EMIT router; cast router
   (8 target families); transform-verb composition map; sink axis citing persist-locus;
   safe-default dry-run; placeholder-detection failure mode (dogfooded on the round-`n+1`
