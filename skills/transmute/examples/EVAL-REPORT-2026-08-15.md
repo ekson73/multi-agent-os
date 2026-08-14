@@ -12,7 +12,14 @@
 | C4 safe-by-default (dry-run default; leak gate unconditional; worktree on git sinks) | n/a (spec inspection) | 4 (spec'd; untested on a dirty source — no real dirty-source run yet) | 4 | 5 | 5 | 0 |
 | C5 real source → cast → emit (a genuine filled braindump through COMPREHEND→…→EMIT) | 3 (trigger table + wrappers present) | **2 — NOT YET EXERCISED** | n/a | n/a | n/a | n/a |
 
-## Verdict: FLAG (passes, improvable)
+## Verdict: FLAG → **PASS (re-scored 2026-08-15, dogfood cycle 2)**
+
+**C5 re-score: 2 → 5.** Full pipeline exercised on a real source (operator's
+recurring `/enhance` round template): INTAKE (typed directive-template) →
+COMPREHEND (9-part catalogue + key relation: the template's verb cascade IS the
+transmute spec) → TRANSFORM (dedupe/session-meta strip/flag-mapping) → CAST
+(prompt seat) → EMIT (path sink: `prompts/transmute-round.md`, synced to
+akasha-codex). Deliverable independently useful. All cases ≥4 → **PASS**.
 
 ## Strengths
 - The router's failure-mode design was **validated by real input**: the placeholder-empty class occurred 4× and each occurrence improved the surface (n+1 detect → n+3 snippet DX → n+4 `## Optional` template evolution acknowledged).
