@@ -122,3 +122,65 @@ therefore **downgraded, not cleared**, exactly as that row promised.
 *Artifacts: `/tmp/eval-rbtp/case-{A,B}.braindump.md` (synthetic; the operator's real braindumps were
 not used — they remain objects of manipulation under a standing constraint). Traces reviewed for
 secrets before writing; inputs are synthetic and contain no PII.*
+
+---
+
+# DELTA — v0.2.0 (fix round 1) and v0.3.0 (fix round 2)
+
+`agentic-tool-trainer` `improve` mode, iterations 2 and 3 of a 3-iteration cap. Same golden-set,
+same blind-agent protocol, author excluded from scoring throughout.
+
+## v0.2.0 — re-evaluated. Three blocking defects VERIFIED repaired.
+
+| # | Fix | How the independent agent verified it |
+|---|-----|---------------------------------------|
+| A9.1 + A9.2 | Floor is **profile-scoped**, not global | *"Was the predicate satisfiable? **Yes** — on this profile, and only because of the v0.2.0 repair."* The gate evaluated `false`, the floor switched off, the economic stop governed alone |
+| A9.3 | Stopped claiming a master condition REFINE does not meet | Ran `bin/convergence-guard` and got the **exact predicted string**: `REFUSE correlated-verifier-violates-independence`. *"reproduces the skill's own predicted string verbatim"* |
+| B2 | Drop-list `MUST` conditional on reaching DISTILL | Case B: *"The drop-list absence is explicitly licensed, not a gap"* · Case A: emitted, DISTILL reached |
+| B1 + B5 | Referent check in DISSECT; `relate` non-skippable | Case B halted **at DISSECT** citing the new clause; ran `relate` anyway and found two undecidable edges the parts list cannot expose |
+| A9.6, B3 | Straddler rule; resolution-paths | Case A kept `busque semelhantes`/`invoque Forge` as constraints; both cases emitted ranked resolution-paths and refused candidate goals |
+
+**But both cases still terminated `STOP-HITL`.** The evaluator's own summary: *"The repair moved the
+failure, it did not remove it."*
+
+## The second generation of defects — and the two that were mine
+
+Two independent agents converged on the same gap from opposite directions. Case B **predicted** it
+(*"there is no proportionality clause on the referent-halt"*); Case A **hit** it (`sistema X`, the
+one redacted token in an otherwise concretely-named dump).
+
+| # | Defect | Origin |
+|---|--------|--------|
+| **C5** | The `RED-TEAM → REFUTED → REFINE` cycle is **unbounded**, with no precedence rule against the economic stop. Making the stop govern alone (the v0.2.0 fix) made the collision *structural*: refutation at round 4 demands a round 5 that is over-cap by construction | **introduced by the v0.2.0 fix** |
+| **C1 + C3** | Same input, two halt sites — the pipeline block assigns unresolvable-referent to RELATE, the new §Typing clause assigns it to DISSECT. And the criterion has two readings that yield **different terminal states** | **introduced by the v0.2.0 fix** |
+| **C4** | `profiles/default.md` still asserted the floor. **The fix landed in SKILL.md and not in the profile** — one surface of two. A second surface (the REFINE line in the pipeline block) was found only while repairing the first | **incomplete v0.2.0 fix** |
+| C2 | No failure mode mapped a RECOVER halt to a STOP marker | pre-existing |
+| C6 | `RENDER := … + persist decision` vs `--output-target` omitted → inline only | pre-existing |
+| C7, C8, C9 | `--output=table` schema undefined · gate conjunct phase-ambiguous · PRISM applicability ambiguous, so its two failure modes were **never exercised** — *"I can confirm they are documented, not that they work"* | pre-existing |
+
+## v0.3.0 — fixes applied, **NOT re-evaluated**
+
+| Fix | What changed |
+|-----|--------------|
+| **C1 + C3 + Case-B proportionality** *(one root)* | DISSECT is the **single halt site for referents**; `relate` halts on graph properties only. Added the proportionality rule: a referent halts **only if the goal or the DoD depends on it** — otherwise carry it as a named open parameter into ESCALATION, never guess it. Worked contrast documented from both measured cases |
+| **C5 + C2** | RED-TEAM refutations are **classified**: a *craft defect* returns to REFINE bounded by `--max-redteam-cycles` (default 2); a *missing fact about the operator's world* → `STOP-HITL` immediately, because no number of rounds can manufacture a fact the dump lacks. Explicit **precedence**: this outranks the economic stop, which caps iteration *within* REFINE only. Every halt now names a terminal marker |
+| **C4** | Floor removed from `profiles/default.md` **and** from the REFINE line of the pipeline block, with the rationale inline so it is not re-added |
+| **C6** | `persist decision` defined: the recorded *choice* of sinks; "inline only" **is** the record, not a no-op |
+
+⚠️ **v0.3.0 carries no independent verification.** The trainer's iteration cap (3) is reached: eval →
+fix → re-eval → fix. A fourth pass would exceed the bound the trainer sets, and the author re-scoring
+his own third revision is precisely the correlated-verifier failure this report already documents
+twice. **Status: v0.3.0 is an un-re-evaluated candidate.** The verified state of the world is v0.2.0
+— three blocking defects repaired, a second generation open.
+
+## Standing verdict
+
+**FAIL → improved, still not PASS.** Two generations of blocking defects found and repaired under
+independent verification; a third generation applied but unmeasured. The Pareto guard holds: no case
+regressed across v0.1.0 → v0.2.0.
+
+The finding that outlives the verdict: **the control produced a comparable prompt in one pass, with
+no skill.** Two red-team passes at ~600k subagent tokens each found what six self-critique rounds
+missed — which is the skill's own thesis confirming itself, and also its efficiency indictment.
+
+**Next**: an independent re-eval of v0.3.0 by a fresh cycle — not by this one.

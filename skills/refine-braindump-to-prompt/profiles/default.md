@@ -32,11 +32,15 @@ Default `--lenses=3`, drawn in rotation so no round repeats a lens:
 
 ## Loop budget
 
-Inherits the skill defaults: `--min-revisions=3`, `--clean-rounds=3`, `--max-rounds=12`.
+Inherits `--max-rounds=12` and `--max-redteam-cycles=2`. It does **NOT** carry a revision/dryness
+floor: the Verifiability Gate normally evaluates **false** for this profile (a generic prompt rarely
+has a machine-verifiable external bar), and on an unlicensed run the economic stop governs **alone**
+— convergence expected within `n* ≤ 3-4` productive rounds, **not** "beyond the floor".
 
-The Verifiability Gate normally evaluates **false** for this profile (a generic prompt rarely has a
-machine-verifiable external bar), so the economic stop applies: convergence is expected within
-`n* ≤ 3-4` productive rounds beyond the floor.
+> The floor (`--min-revisions=3` AND `--clean-rounds=3`) belongs to `gauntlet-loop`, which licenses
+> the long loop. Asserting it here re-creates the defect repaired in v0.2.0: a floor needing ≥6
+> rounds against a cap of 3-4. Passing the flags explicitly on this profile is honoured but warns —
+> you are opting into a budget the gate did not license.
 
 ## When this profile is wrong
 

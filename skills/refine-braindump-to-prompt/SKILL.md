@@ -1,6 +1,6 @@
 ---
 name: refine-braindump-to-prompt
-version: "0.1.0"
+version: "0.3.0"
 description: Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. Five phases: RECOVER (dissect - relate - catalogue - prism - distill; emits the parts map and the drop-list with reasons) -> DRAFT (in an architecture profile) -> REFINE (N rounds x N distinct lenses; exits only on min-revisions AND consecutive-clean-rounds) -> RED-TEAM (independent refutation, verifier != generator) -> RENDER (one prompt + machine envelope + multi-sink emission). Use when a dump must become executable work rather than a ledger, an envelope or a PR. Parameterized by architecture profiles (--architecture, incl. gauntlet-loop) and by output sinks (--output-target: stdout, clipboard, vault, git-repo, agentic-tool). Composes in-repo primitives; reimplements nothing.
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 ---
@@ -53,9 +53,10 @@ only on a two-part condition (a floor AND a dryness test), never on a single cle
 
 ```text
 RECOVER   := DISSECT   open the dump; type every part for what it IS
-                        (halt: a part that cannot be typed — "I don't know what this is")
+                        (halt: a part that cannot be typed — "I don't know what this is",
+                         OR a referent that blocks the goal/DoD — see proportionality)
            + RELATE    map how the parts constrain each other
-                        (halt: a cycle, a dangling dependency, an unresolvable reference)
+                        (halt: a cycle, or a dangling dependency that blocks the goal)
            + CATALOGUE emit parts table + relation map  <- REQUIRED OUTPUTS, not incidental
            + recover{DoR, motivation, goal, DoD}        <- recognition: still lossless
            + PRISM     the RECOVERED DoD -> measurable, abstract criteria only
@@ -66,10 +67,15 @@ RECOVER   := DISSECT   open the dump; type every part for what it IS
            + derive recurring mechanism IFF the goal recurs
 DRAFT     := select architecture profile + render first-cut prompt
 REFINE    := loop{ critique draft from N distinct lenses -> correct }
-             until (revisions >= min_revisions) AND (clean_rounds >= clean_rounds_required)
-             capped by the economic stop
+             if long_loop_licensed: until (revisions >= min_revisions)
+                                      AND (clean_rounds >= clean_rounds_required)
+             else:                  until the economic stop (n* <= 3-4), floor OFF
 RED-TEAM  := independent adversarial refutation of the DRAFT (verifier != generator)
+             REFUTED -> classify: craft-defect => back to REFINE (<= max_redteam_cycles)
+                                  missing-fact => STOP-HITL now (rounds cannot invent facts)
 RENDER    := emit ONE prompt + machine envelope + persist decision
+             (persist decision = the recorded CHOICE of sinks; with no --output-target
+              the decision is "inline only" and IS the record, not a no-op)
 ```
 
 A phase is COMPLETE when its primitive returns a structured artifact the next phase consumes.
@@ -130,8 +136,14 @@ cannot catch that; only the test can. When a candidate operation is ambiguous, r
 (a): *does this instance discard anything?*
 
 **Escalation, not exhaustion:** run the members the input actually needs. A dump with no abstract
-criterion does not need `prism`; one with three independent parts barely needs `relate`. Membership
-says what *may* enter, not what *must* run.
+criterion does not need `prism`. Membership says what *may* enter, not what *must* run.
+
+⚠️ **`dissect` and `relate` are NOT skippable.** An earlier form of this clause offered *"one with
+three independent parts barely needs `relate`"* — and that is precisely backwards on the input class
+it matters for. A referentially-empty dump (*"fazer aquilo que o fulano sugeriu"*) presents parts
+that **look** independent on a surface read; skipping `relate` there means never discovering that
+every part hangs on an absent referent, and reaching DRAFT with a guessed goal. The one gate that
+catches that class is the one the clause invited you to skip.
 
 **The hard boundary — you cannot justify a discard you do not understand.** Distilling without
 dissecting discards by heuristic — by length, by position, by vibe — and is right only by luck.
@@ -146,9 +158,29 @@ preference*, not a wall: the first distillation differs from a refine-round drop
 prompt; it yields a **polished wrapper**, because the shaping loop faithfully refines whatever mass
 it is handed — including mass that was never signal.
 
-So RECOVER spans the hard boundary and can **halt on either side**: on a part it cannot type
-(*"I don't know what this is"*), on a relation it cannot resolve, or on a mass it cannot justify
-dropping.
+So RECOVER spans the hard boundary and can **halt on either side**: on a part it cannot type, on a
+relation it cannot resolve, or on a mass it cannot justify dropping.
+
+**Typing a part has two questions, and the second is the discriminating one.** *(a) What kind of
+utterance is this?* — directive, constraint, criterion. *(b) **What does it refer to?*** Reading (a)
+alone, `do jeito que o fulano sugeriu` types cleanly as a method-constraint and passes. Only (b)
+catches that `fulano` is a placeholder for an explicitly-unnamed person, i.e. that the part names
+nothing. **DISSECT is the single halt site for referents**; `relate` halts on graph properties (cycles,
+goal-blocking dangles), not on naming. Putting the referent check in DISSECT is what makes the halt
+robust when `relate` is thin.
+
+⚠️ **Proportionality — halt on what BLOCKS, carry what merely gaps.** An unresolvable referent halts
+RECOVER **only if the goal or the DoD depends on it**. Otherwise name it as an **open parameter**,
+carry it into the prompt's ESCALATION section, and continue — never guess it. Without this rule the
+check is all-or-nothing: a dump with four crisp directives and one vague aside (*"…e conserta aquilo
+que o Bob mencionou"*) would hard-halt instead of rendering the resolvable 80% and escalating the
+aside — importing exactly the exhaustion that *"escalation, not exhaustion"* rejects above.
+
+Worked contrast, both measured (`examples/EVAL-REPORT-2026-08-14.md`): a dump whose every part is a
+placeholder (`fazer aquilo que o fulano sugeriu`) has **no** recoverable goal → **halt**. A dump that
+names its pipeline concretely but redacts one node (`sistema X`, alongside `extrato bancário`,
+`planilha de ajuste`, `PDF`, `contador`) still yields a goal and a DoD → **carry it open**. The
+discriminator is *does the goal survive the gap*, not *is there a gap*.
 
 **Classify a candidate stage on two axes, not one** — *can it refuse?* (gate) crossed with
 *pertinent · related · useful?* (worth having):
@@ -171,33 +203,39 @@ Shaping is visible — you see the finished prompt. Separation is semi-visible �
 unless forced to. So pipelines drift toward being named, and then built, for their last movement.
 This is a gradient, not carelessness, and it recurs at every level.
 
-Therefore RECOVER MUST emit **both** the parts catalogue and the drop-list-with-reasons. They are
-not debug output. Without them the answer to *"what was in there, and what did you drop, and why"*
+Therefore RECOVER MUST emit the parts catalogue **and** the relation map; and **if it reaches
+DISTILL**, the drop-list-with-reasons as well. The conditional is not a loophole — DISTILL runs
+*last*, so a halt at DISSECT or RELATE precedes it and there is no drop-list to emit. In that case
+RECOVER emits the catalogue, the map, and **the halt reason**, which is the same obligation
+discharged at the point it stopped. (An unconditional MUST here would be unsatisfiable on every
+halt — a rule the pipeline's own ordering forbids obeying.) They are not debug output. Without them the answer to *"what was in there, and what did you drop, and why"*
 does not exist — and if that answer does not exist, comprehension did not happen; parsing did.
 
 **Prism only abstract criteria** (the DoD, a quality bar). Prismming a concrete part is ceremony.
 
-> **House lineage.** MOVEMENT 2 is the same operation the operator's vault protocol
-> `braindump-distill` (*Alambique*) performs at a different terminus; MOVEMENT 3 gives this skill
-> its soul-name (*Lapidary*). Sequential, not rival — a still, then a lapidary. No third name is
-> minted for MOVEMENT 1: it is named by its outputs (catalogue + drop-list), which is the point.
+> **House pair.** The movements are named, never numbered — *comprehend · distill · shape*.
+> **Distill** is the same operation the operator's vault protocol `braindump-distill` (*Alambique*)
+> performs at a different terminus; **shape** gives this skill its soul-name (*Lapidary*). The two
+> names already exist and are **sequential, not rival** — a still, then a lapidary. No third name is
+> minted for **comprehend**: it is named by its outputs (catalogue + relation map), which is the
+> point. This skill inlines its own separation (goal-oriented) rather than composing the vault's
+> (artifact-oriented), because the two sort for different things.
 
-> **House pair.** This skill owns MOVEMENT 2 and is soul-named for it (*Lapidary*). MOVEMENT 1 is
-> the same operation the operator's vault protocol `braindump-distill` (*Alambique*) performs at a
-> different terminus. The two names already exist and are **sequential, not rival** — a still, then
-> a lapidary. This skill inlines its own separation (goal-oriented) rather than composing the
-> vault's (artifact-oriented), because the two separations sort for different things.
-
-**Measured, not asserted** (`examples/DOGFOOD-gauntlet.md`): on the originating braindump, the two
-longest passages — a cartesian resource list and a 40-item principle enumeration — contributed
-**zero** constraints to the rendered prompt, while its shortest clause became the acceptance metric.
-Most of the input was mass. Separation is where the work is; shaping is where it becomes visible.
+**Measured, then corrected** (`examples/DOGFOOD-gauntlet.md` → falsified by `DOGFOOD-thesis.md`):
+the first run claimed the two longest passages — a cartesian resource list and a 40-item principle
+enumeration — contributed **zero** constraints. Re-run with `relate`, the count was **17**: the items
+appearing in *both* lists, said twice in two independent syntaxes, which is emphasis rather than
+mass. The first run dropped each list *on its own merits* and never asked whether they **intersect**
+— it read nodes; the finding was an **edge**. What survives unchanged: the shortest clause still
+became the acceptance metric. Mass is not content — but **length is not a proxy for emptiness**
+either, and only `relate` can tell them apart.
 
 ### Recursion clause (the discipline must propagate)
 
 A rendered prompt SHALL itself carry separate-before-shape into the work it drives. Concretely,
-BUILD-METHOD must require the executing agent to **decompose the target and name what is out of
-scope** before building — never to begin shaping an undifferentiated goal. A prompt that skips this
+the rendered prompt's **method section — whatever the active profile calls it** (`BUILD-METHOD` in
+`gauntlet-loop`, `SCOPE` in `default`) — must require the executing agent to **decompose the target
+and name what is out of scope** before building — never to begin shaping an undifferentiated goal. A prompt that skips this
 reproduces, one level down, the exact failure this skill exists to prevent.
 
 ## How it works
@@ -265,18 +303,43 @@ NEVER                 -> unbounded, on work that is irreversible, costly, or uno
 
 A long loop pays off **only when the gain signal is real** — i.e. when an independent critic can
 measure the artifact against an external bar. Absent that, extra rounds buy self-assessment, which
-is the very bias the loop was built to defeat. The REFINE loop therefore terminates on a
+is the very bias the loop was built to defeat.
+
+> ⚠️ **REFINE is self-critique, and its critic is the draft's author.** `bin/convergence-guard` run
+> against this loop returns `REFUSE / correlated-verifier-violates-independence` — correctly. So
+> REFINE does **not** satisfy `convergence-engine`'s `verifier > generator ∧ independent` master
+> condition, and this skill does not claim it does: REFINE is the *cheap* pass that catches surface
+> defects, and **RED-TEAM (PHASE 4) is the independent gate**, which is why it is non-optional.
+> Measured on `examples/EVAL-REPORT-2026-08-14.md`: six clean-scoring self-critique rounds missed
+> two BLOCKING defects that one independent refutation found. Adding rounds does not fix this —
+> more self-assessment is more of the same bias. Only the independent pass does.
+
+The REFINE loop therefore terminates on a
 **two-part** condition, never a single clean pass:
 
 ```text
-stop_refine := (revisions >= --min-revisions)          # floor: 3 by default
-           AND (clean_rounds >= --clean-rounds)        # dryness: 3 consecutive, by default
-           AND (rounds <= --max-rounds)                # hard cap; exceeded -> STOP-HITL
+stop_refine := (rounds <= --max-rounds)                    # hard cap; exceeded -> STOP-HITL
+           AND if long_loop_licensed:
+                   (revisions    >= --min-revisions)       # floor   — profile-supplied
+                   AND (clean_rounds >= --clean-rounds)    # dryness — profile-supplied
+               else:
+                   economic stop governs ALONE (n* <= 3-4) # no floor, no dryness counter
 ```
 
-The floor exists because a draft that *looks* clean on pass 1 usually is not; the dryness test
-exists because a single clean pass is noise. Each round uses `--lenses` **distinct** perspectives
-(default 3); a round that reuses a lens does not count toward `clean_rounds`.
+**The floor is licensed, not global — and that is load-bearing.** A round either produces a
+revision or is clean, never both, so a `min-revisions=3 AND clean-rounds=3` floor requires **≥6
+rounds**. When the loop is *unlicensed* the cap is `n* ≤ 3-4`. **A global floor would therefore
+exceed its own cap on every unlicensed run** — and `profiles/default.md` states the gate normally
+evaluates false for that profile, so that is the common path, not an edge case. The floor belongs to
+the profile that licenses it (`gauntlet-loop`, whose `≥3 revisions AND ≥3 consecutive clean rounds`
+comes from the operator's own loop spec); `default` runs on the economic stop alone.
+
+The floor exists — where licensed — because a draft that *looks* clean on pass 1 usually is not, and
+because a single clean pass is noise. Each round uses `--lenses` perspectives that are **distinct
+from each other within that round**; a round that repeats a lens *inside itself* does not count
+toward `clean_rounds`. **Cross-round reuse is expected and required** — rotating 3 lenses per round
+through a 5-lens roster cannot keep rounds mutually disjoint past round 2, so a cross-round reading
+would make `clean_rounds >= 3` need 9 distinct lenses and render `STOP-DONE` unreachable.
 
 ## Architecture profiles
 
@@ -419,7 +482,15 @@ the prompt itself (the operator names the target).
   independence cannot be secured on a high-stakes prompt → **HOLD, do not force**.
 - Session-meta (`/enhance` wrappers, pep-talk, "do a good job") is DROPPED in RECOVER and listed
   in `dropped_session_meta` — never silently.
-- A cartesian list of resources in the braindump is **not** a requirement to instantiate each one.
+- A cartesian list of resources in the braindump is **not** a requirement to instantiate each one —
+  but rendering it as *"permissible, none mandated"* **inverts an imperative into a permission**.
+  Carry it as a *permission* only when the dump offers it as a menu; carry it as a *constraint* when
+  the dump mandates it.
+- **Straddler: a method-directive that shapes the OUTPUT is not session-meta.** `busque semelhantes`
+  (reuse before build) and `invoque Forge` (produce a *reusable* artifact, not a one-off) constrain
+  what the deliverable must be, not how the distiller should work — they belong in the prompt. Test:
+  *if this were dropped, would the acceptable output change?* Yes → constraint, keep. No → meta,
+  drop. (`/enhance` wrappers and pep-talk fail this test; those still drop.)
 - Worktree discipline always on (`skills/worktree-policy`); never commit to main.
 - Delegation depth ≤ 2; parallel fan-out ≤ 3 per round.
 - Exactly ONE STOP marker per turn.
@@ -430,9 +501,30 @@ the prompt itself (the operator names the target).
 ## Failure modes
 
 - **Empty / unreadable braindump** → `STOP-ERROR` before RECOVER (nothing to lapidate).
-- **RECOVER cannot find a goal** → `STOP-HITL` carrying the ranked hypotheses (never guess a goal).
+- **RECOVER cannot find a goal** → `STOP-HITL` carrying **ranked resolution-paths** — the specific
+  referents that must be resolved for a goal to exist — never candidate goals. On a referentially
+  empty dump any content-level hypothesis *is* the guess this clause forbids; the only honest
+  payload is the list of questions whose answers would produce a goal.
+- **`decompose-abstract-to-measurable` returns `human_review: true` / `allowed_use: assistive_only`**
+  (from `structural_route.py`) → carry the verdict into the prompt as an explicit tier; a DoD the
+  primitive itself says needs human review must not pass silently. This is a **second, independent**
+  refusal signal — `aggregate_spec.py` can return `inconclusive.flag: false` on the same DoD that
+  the router caps. Reading only the flag misses it.
 - **DoD not measurable after `decompose-abstract-to-measurable`** (`inconclusive.flag`) →
   `STOP-HITL`; a prompt with an unmeasurable stop-condition is the failure this skill exists to prevent.
+- **RED-TEAM returns REFUTED** → classify before looping. A **craft defect** (unclear,
+  unfalsifiable, under-scoped) returns to REFINE, bounded by `--max-redteam-cycles` (default 2). A
+  **missing fact about the operator's world** (an unnamed system, an unknown schedule, an unmeasured
+  tolerance) → **`STOP-HITL` immediately**: no number of refine rounds can manufacture a fact the
+  dump does not contain. **Precedence**: this outranks the economic stop — the stop caps iteration
+  *within* REFINE and never governs the RED-TEAM return path. Without that precedence the two
+  collide structurally on any unlicensed run (stop caps REFINE at `n* ≤ 3-4`; a refutation at round
+  4 demands a round 5 that is over-cap by construction).
+- **`--max-redteam-cycles` exhausted while still REFUTED** → `STOP-HITL` carrying the standing
+  findings as the escalation payload.
+- **RECOVER halts** (untypeable part · goal-blocking referent · unjustifiable drop) → `STOP-HITL`
+  carrying the catalogue, the map and the halt reason. *(Every halt names a terminal marker; a halt
+  without one is an unfinished rule.)*
 - **`--max-rounds` exhausted** → `STOP-HITL` (diminishing returns → escalate).
 - **RED-TEAM independence unavailable at high stakes** → `STOP-HITL` (hold, don't force).
 - **Profile not found** → `STOP-ERROR` listing available profiles.
@@ -463,8 +555,8 @@ the prompt itself (the operator names the target).
 
 ## Validation
 
-- `tests/validate-plugin.sh` enforces: `skills/maos:refine-braindump-to-prompt/SKILL.md` exists with
-  valid frontmatter; `commands/maos:refine-braindump-to-prompt.md` carries matching `name:`.
+- `tests/validate-plugin.sh` enforces: `skills/refine-braindump-to-prompt/SKILL.md` exists with
+  valid frontmatter; `commands/refine-braindump-to-prompt.md` carries matching `name:`.
 - `--dry-run` proves composition: grep the run — only `Task`-delegation to existing skills/agents
   plus native tools; zero reimplementation.
 - Dogfood gate: running the skill on its own originating braindump must yield a prompt containing
@@ -472,7 +564,7 @@ the prompt itself (the operator names the target).
 
 ## Related
 
-- `commands/maos:refine-braindump-to-prompt.md` — operator-facing command surface
+- `commands/refine-braindump-to-prompt.md` — operator-facing command surface
 - `profiles/default.md` · `profiles/gauntlet-loop.md` — architecture profiles
 - `skills/goal-recovery/SKILL.md` — PHASE 1 recovery (braindump source)
 - `skills/decompose-abstract-to-measurable/SKILL.md` — PHASE 1 DoD measurement (Prisma)
