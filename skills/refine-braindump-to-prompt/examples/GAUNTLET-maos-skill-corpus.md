@@ -81,8 +81,15 @@ The 17 reference skills: `algorithmic-art` · `brand-guidelines` · `canvas-desi
 | `bar_is_machine_verifiable` | **hybrid (not pure-D)** | **D** frontmatter parses · **T** description length, body word-count, disclosure-marker count · **J** blind A/B on clarity |
 | `critic_is_independent_of_builder` | **partial — see below** | separate invocation without build history; the tag check is a *label* check, not a context check |
 | `evidence_is_directly_inspectable` | ✅ | both sides are readable files; the A/B is literal |
-| `long_loop_licensed` (**policy**) | ✅ | a deterministic floor exists ⇒ the profile budget *may* apply |
-| `run_armed` (**this run**) | ❌ | caps unset ⇒ refused. Policy-licensed ≠ armed; the two are tracked separately on purpose |
+| `long_loop_licensed` | **❌ FALSE** | the gate is an **AND** (`SKILL.md`): two conjuncts above are *hybrid* and *partial*, and partial is false in a conjunction ⇒ **the economic stop governs, not the profile budget** |
+| `run_armed` (**this run**) | ❌ | caps unset ⇒ refused |
+
+> ⚠️ **An earlier render marked `long_loop_licensed` ✅ while marking two of its own conjuncts
+> unsatisfied, three rows above.** The governing predicate is literally
+> `bar_is_machine_verifiable AND critic_is_independent_of_builder AND evidence_is_directly_inspectable`;
+> acknowledging a failed conjunct and keeping the ✅ on the conclusion that depends on it is a
+> contradiction the table carried in plain sight. The consequence is not cosmetic: it selects a
+> **different stopping rule**.
 
 ⚠️ **`bin/convergence-guard` does NOT enforce fresh context, and an earlier render said it did.**
 Read: it compares **caller-supplied** brand/axis tags, and its own help states `axis:author` ≠
@@ -139,9 +146,10 @@ QUALITY-BAR  (named external artifacts — NOT adjectives)
   rather than pairing it badly.
 
   Compliance is per-skill and tri-level, declared explicitly:
-    D  frontmatter parses as YAML                      [validate-plugin.sh, already gated]
-    D  `name` and `description` keys present           [NOT gated for skills today —
-                                                        this run must check it directly]
+    D  frontmatter parses as YAML                      [validate-plugin.sh — gated]
+    D  `name` and `description` keys present           [gated as a HARD FAIL for skills
+                                                        via scripts/validate-skill-frontmatter.sh;
+                                                        no separate check needed here]
     T  description <= the spec's stated limit
     T  body <= 5,000 words
     T  disclosure-markers >= 1 when body > 500 words, where a disclosure-marker is a
@@ -198,7 +206,13 @@ STOP  (every term below is measured, not adjectival)
   for two consecutive rounds with G(k) > 0 — the critic keeps finding gaps and the
   builder is not closing them. Report as NOT-CONVERGED; do not report as done.
 
-  HARD CAPS: 10 attempts/piece · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
+  GOVERNING CAP: the ECONOMIC STOP, not the profile budget. long_loop_licensed is FALSE
+  (see the gate table), so per SKILL.md the cap is convergence-engine's n*.
+  And since rho (retained-gap fraction) is not estimable for a prose-clarity loop, cite
+  NO round count: use convergence-engine's parameter-free escape — a harness-enforced
+  cap plus the stagnation test above, neither of which needs an estimate.
+
+  HARNESS CAP: 10 attempts/piece · <COST CEILING — operator-set> · <WALL-CLOCK — operator-set>.
   Unbounded running is REFUSED — if either cap is unset, stop and ask.
 
 ESCALATION
