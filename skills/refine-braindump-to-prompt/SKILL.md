@@ -72,8 +72,12 @@ only on a two-part condition (a floor AND a dryness test), never on a single cle
 ## The five phases (the pipeline predicate)
 
 ```text
-RECOVER   := parse braindump + drop session-meta
-           + recover{DoR, motivation, goal} + DoD-as-measurable
+RECOVER   := DISSECT  open the dump; type every part for what it IS
+                       (halt if a part cannot be typed — "I don't know what this is")
+           + CATALOGUE emit the parts table   <- REQUIRED OUTPUT, not incidental
+           + PRISM    DoD-as-measurable, on abstract criteria only
+           + DISTILL  drop session-meta; emit the drop-list WITH REASONS
+           + recover{DoR, motivation, goal}
            + derive recurring mechanism IFF the goal recurs
 DRAFT     := select architecture profile + render first-cut prompt
 REFINE    := loop{ critique draft from N distinct lenses -> correct }
@@ -86,24 +90,62 @@ RENDER    := emit ONE prompt + machine envelope + persist decision
 A phase is COMPLETE when its primitive returns a structured artifact the next phase consumes.
 The pipeline is DONE when RENDER emits the prompt, or — under `--dry-run` — the plan for it.
 
-## Two movements — SEPARATE precedes SHAPE (binding)
+## One hard boundary — COMPREHEND before TRANSFORM (binding)
 
-The five phases group into **two movements**, and the order between them is not stylistic:
+The pipeline has **one hard boundary and one soft one**. They are not equal, and treating them as
+equal is itself an error:
 
 ```text
-MOVEMENT 1 — SEPARATE (distill)   RECOVER
-MOVEMENT 2 — SHAPE   (lapidate)   DRAFT -> REFINE -> RED-TEAM -> RENDER
+COMPREHEND (lossless)          ‖ HARD ‖   TRANSFORM (lossy)
+dissect -> type -> catalogue              distill  ~soft~  shape
+             + prism                      (drop-list)      (DRAFT->REFINE->RED-TEAM->RENDER)
+             RECOVER                              RECOVER  |  the rest
 ```
 
-**You cannot facet a mixture.** A lapidary receives a *solid*; a still receives a *mixture*. A
-braindump arrives as the latter — intent dissolved in session-wrappers, resource enumerations and
-principle lists. Attempting to shape it before separating it does not produce a rough prompt; it
-produces a **polished wrapper**, because the shaping phases will faithfully refine whatever mass
-they are handed, including the mass that carries no constraint.
+The sharpest cut in the whole pipeline is **lossless ↔ lossy**:
 
-So RECOVER is **not** a parsing convenience placed first for tidiness. It is the **precondition**
-that makes the second movement possible at all. If RECOVER cannot separate a goal from the mass,
-the pipeline halts (`STOP-HITL`) rather than shaping the mass.
+| | Receives | Goal | Anything lost? | Reversible? |
+|---|---|---|---|---|
+| dissect · type · catalogue | an opaque whole | see + name the parts | **no** — everything kept, now legible | yes |
+| distill | a legible mixture | keep only what carries constraint | yes, deliberately | no |
+| shape | a solid | reveal form | yes, as shaping waste | no |
+
+**The hard boundary — you cannot justify a discard you do not understand.** Distilling without
+dissecting discards by heuristic — by length, by position, by vibe — and is right only by luck.
+Test: *can you invert the order?* Distill before dissect → **impossible**. This boundary gets a gate.
+
+**The soft boundary — shaping micro-separates continuously.** Every refine round discards a little
+(an adjective replaced by a named bar is a discard). So distill→shape is a strong *ordering
+preference*, not a wall: the first distillation differs from a refine-round drop in **scale**
+(dropping most of the input mass ≠ replacing one clause), not in kind. This boundary gets no gate.
+
+**You still cannot facet a mixture.** Shaping without a *first* distillation does not yield a rough
+prompt; it yields a **polished wrapper**, because the shaping loop faithfully refines whatever mass
+it is handed — including mass that was never signal.
+
+So RECOVER spans the hard boundary and can **halt on either side**: on a part it cannot type
+(*"I don't know what this is"*), or on a mass it cannot justify dropping. A stage that cannot
+refuse is a label, not a gate.
+
+### The catalogue is a REQUIRED output (the absorption law)
+
+> **The movement with a visible output absorbs the movement without one.**
+
+Shaping is visible — you see the finished prompt. Separation is semi-visible — a drop-list exists
+*if someone wrote one*. Comprehension is **invisible**: understanding leaves no artifact at all
+unless forced to. So pipelines drift toward being named, and then built, for their last movement.
+This is a gradient, not carelessness, and it recurs at every level.
+
+Therefore RECOVER MUST emit **both** the parts catalogue and the drop-list-with-reasons. They are
+not debug output. Without them the answer to *"what was in there, and what did you drop, and why"*
+does not exist — and if that answer does not exist, comprehension did not happen; parsing did.
+
+**Prism only abstract criteria** (the DoD, a quality bar). Prismming a concrete part is ceremony.
+
+> **House lineage.** MOVEMENT 2 is the same operation the operator's vault protocol
+> `braindump-distill` (*Alambique*) performs at a different terminus; MOVEMENT 3 gives this skill
+> its soul-name (*Lapidary*). Sequential, not rival — a still, then a lapidary. No third name is
+> minted for MOVEMENT 1: it is named by its outputs (catalogue + drop-list), which is the point.
 
 > **House pair.** This skill owns MOVEMENT 2 and is soul-named for it (*Lapidary*). MOVEMENT 1 is
 > the same operation the operator's vault protocol `braindump-distill` (*Alambique*) performs at a
