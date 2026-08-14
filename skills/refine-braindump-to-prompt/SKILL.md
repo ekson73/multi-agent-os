@@ -86,6 +86,43 @@ RENDER    := emit ONE prompt + machine envelope + persist decision
 A phase is COMPLETE when its primitive returns a structured artifact the next phase consumes.
 The pipeline is DONE when RENDER emits the prompt, or — under `--dry-run` — the plan for it.
 
+## Two movements — SEPARATE precedes SHAPE (binding)
+
+The five phases group into **two movements**, and the order between them is not stylistic:
+
+```text
+MOVEMENT 1 — SEPARATE (distill)   RECOVER
+MOVEMENT 2 — SHAPE   (lapidate)   DRAFT -> REFINE -> RED-TEAM -> RENDER
+```
+
+**You cannot facet a mixture.** A lapidary receives a *solid*; a still receives a *mixture*. A
+braindump arrives as the latter — intent dissolved in session-wrappers, resource enumerations and
+principle lists. Attempting to shape it before separating it does not produce a rough prompt; it
+produces a **polished wrapper**, because the shaping phases will faithfully refine whatever mass
+they are handed, including the mass that carries no constraint.
+
+So RECOVER is **not** a parsing convenience placed first for tidiness. It is the **precondition**
+that makes the second movement possible at all. If RECOVER cannot separate a goal from the mass,
+the pipeline halts (`STOP-HITL`) rather than shaping the mass.
+
+> **House pair.** This skill owns MOVEMENT 2 and is soul-named for it (*Lapidary*). MOVEMENT 1 is
+> the same operation the operator's vault protocol `braindump-distill` (*Alambique*) performs at a
+> different terminus. The two names already exist and are **sequential, not rival** — a still, then
+> a lapidary. This skill inlines its own separation (goal-oriented) rather than composing the
+> vault's (artifact-oriented), because the two separations sort for different things.
+
+**Measured, not asserted** (`examples/DOGFOOD-gauntlet.md`): on the originating braindump, the two
+longest passages — a cartesian resource list and a 40-item principle enumeration — contributed
+**zero** constraints to the rendered prompt, while its shortest clause became the acceptance metric.
+Most of the input was mass. Separation is where the work is; shaping is where it becomes visible.
+
+### Recursion clause (the discipline must propagate)
+
+A rendered prompt SHALL itself carry separate-before-shape into the work it drives. Concretely,
+BUILD-METHOD must require the executing agent to **decompose the target and name what is out of
+scope** before building — never to begin shaping an undifferentiated goal. A prompt that skips this
+reproduces, one level down, the exact failure this skill exists to prevent.
+
 ## How it works
 
 ```text
