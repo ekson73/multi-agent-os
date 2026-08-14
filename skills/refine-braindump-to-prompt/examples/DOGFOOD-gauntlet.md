@@ -33,8 +33,13 @@ critic, (c) an explicit stopping rule.
 | The `[scripts, flows, processes, … marketplaces]` cartesian list | a list of *available* resources offered as examples. **A listed resource is not a requirement to instantiate it** |
 | The 40+ `--principles` list | already codified as auto-loaded governance in the host corpus — referenced, never inlined (inlining would duplicate an SSOT) |
 
-> The cartesian list is the single largest token mass in the braindump and contributes **zero**
-> constraints. Recovering the goal required deleting most of the text — which is the job.
+> ⚠️ **FALSIFIED 2026-08-14 by dogfood #5 — kept, not deleted, because the correction is the finding.**
+> This run claimed the cartesian list contributes **zero** constraints. Re-running with `RELATE` (a
+> phase this run did not have) **measured 17** — the items appearing in *both* the resource list and
+> the `--principles` flag, said twice in two independent syntaxes. Repetition across syntax is the
+> operator's emphasis mechanism, exactly as clause-triplication was in dogfood #2.
+> This run could not see them: it dropped both lists *separately*, and never asked whether they
+> **intersect**. An edge, invisible to a phase that only reads nodes. See `DOGFOOD-thesis.md`.
 
 ---
 
@@ -186,8 +191,19 @@ production, cross-org); or the caps above are exhausted.
 | (b) independent critic | ✅ fresh context, refute-prompted, may not restate the bar |
 | (c) explicit stopping rule | ✅ two-part predicate + three hard caps + stagnation exit |
 
-**PASS.** The skill lapidated the braindump that originated it.
+**PASS** on the three gates. The skill lapidated the braindump that originated it.
 
-The dropped mass is the finding worth keeping: the braindump's longest passages — the cartesian
-resource list and the 40-principle enumeration — contributed **zero** constraints to the rendered
-prompt, while the shortest clause (`mínimo HITL`) became the acceptance metric.
+⚠️ **But this run's headline finding was WRONG, and the correction outlives it.**
+
+It concluded that the two longest passages contributed **zero** constraints. Dogfood #5 re-ran the
+same input through the repaired pipeline and **measured 17** — the intersection of the 161-item
+resource list and the 51-item `--principles` flag. The operator had said those seventeen **twice, in
+two different syntaxes**, which is emphasis, not mass.
+
+The error is instructive because of its shape: this run dropped each list *on its own merits* and
+never asked whether they **intersect**. It read nodes. The finding was an **edge** — and `RELATE`,
+the phase that recovers edges, did not exist yet when this ran. It was added *because of* dogfood #2,
+and its first act on old evidence was to falsify its own predecessor.
+
+What survives unchanged: the shortest clause (`mínimo HITL`) still became the acceptance metric.
+Mass is not content — but **neither is length a proxy for emptiness**, which is what this run assumed.

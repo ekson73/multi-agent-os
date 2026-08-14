@@ -77,9 +77,12 @@ RECOVER   := DISSECT   open the dump; type every part for what it IS
            + RELATE    map how the parts constrain each other
                         (halt: a cycle, a dangling dependency, an unresolvable reference)
            + CATALOGUE emit parts table + relation map  <- REQUIRED OUTPUTS, not incidental
-           + PRISM     DoD-as-measurable, on abstract criteria only
+           + recover{DoR, motivation, goal, DoD}        <- recognition: still lossless
+           + PRISM     the RECOVERED DoD -> measurable, abstract criteria only
+                        (inner-first: Prisma(dod-recovery()) — you cannot prism
+                         a DoD you have not recovered)
            + DISTILL   drop session-meta; emit the drop-list WITH REASONS
-           + recover{DoR, motivation, goal}
+                        <- LAST: the only lossy step, run over evidence
            + derive recurring mechanism IFF the goal recurs
 DRAFT     := select architecture profile + render first-cut prompt
 REFINE    := loop{ critique draft from N distinct lenses -> correct }
@@ -324,7 +327,7 @@ concept. See `profiles/gauntlet-loop.md` for prior-art attribution and the diver
 | `--lenses` | `3` | distinct perspectives per round; a repeated lens does not count |
 | `--max-rounds` | `12` | hard cap; exceeded → `STOP-HITL` (diminishing returns) |
 | `--dry-run` | `false` | run RECOVER→REFINE and emit the plan; STOP before RENDER writes |
-| `--output` | `table` | `table` \| `list` \| `json` (machine contract — see §Output contract) |
+| `--output` | `table` | `table` \| `list` \| `json` \| `json-rpc` (machine contract — see §Output contract). `json-rpc` is **not** a synonym for `json`: it emits `method` + `params` (notification shape, no `id`) per `[C06]`, which is what an agent-to-agent caller consumes. |
 | `--persist` | *(none)* | path to write the rendered prompt; omitted → return inline only |
 | `--user-lang` | `auto` | operator-facing prose language (mirrors the host's language policy) |
 | `--agentic-lang` | `en-us` | language of the RENDERED prompt (agent register) |
