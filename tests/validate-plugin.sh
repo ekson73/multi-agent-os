@@ -262,6 +262,46 @@ else
     fail "plugin-scripts/gaac/delegate.sh missing or not executable"
 fi
 
+# ─── Frontmatter must actually PARSE as YAML ─────────────────────────────────
+# Root-cause fix (2026-08-14): every frontmatter check above greps for a LINE
+# (`^name: x$`) and therefore reports PASS on a file whose YAML the loader
+# rejects. A skill shipped with an unquoted plain scalar containing ': ' —
+# structurally unloadable — while this script printed "✓ PASSED". A grep answers
+# "does the text contain?", never "does the parser accept?"; the second question
+# is the one that decides whether the artifact loads at all.
+# Capability-detected: PyYAML absent → WARN, never a red build for a missing dep.
+echo "Validating frontmatter parses as YAML..."
+if python3 -c "import yaml" 2>/dev/null; then
+    YAML_BAD=$(python3 - "$PLUGIN_ROOT" <<'PYEOF'
+import glob, io, os, sys, yaml
+root = sys.argv[1]
+bad = []
+for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
+    for p in sorted(glob.glob(os.path.join(root, pat))):
+        if os.path.basename(p) == "README.md":
+            continue                      # docs, not artifacts (same rule as above)
+        try:
+            t = io.open(p, encoding="utf-8").read()
+            if not t.startswith("---\n"):
+                continue                  # 'missing frontmatter' is already warned above
+            yaml.safe_load(t.split("---\n", 2)[1])
+        except yaml.YAMLError as e:
+            bad.append(f"{os.path.relpath(p, root)} :: {str(e).splitlines()[0]}")
+        except Exception as e:
+            bad.append(f"{os.path.relpath(p, root)} :: {type(e).__name__}: {e}")
+print("\n".join(bad))
+PYEOF
+)
+    if [ -z "$YAML_BAD" ]; then
+        pass "all artifact frontmatter parses as YAML"
+    else
+        while IFS= read -r line; do [ -n "$line" ] && fail "unparseable frontmatter: $line"; done <<< "$YAML_BAD"
+    fi
+else
+    warn "PyYAML absent — frontmatter parse check SKIPPED (grep-only checks cannot catch a broken loader)"
+fi
+echo ""
+
 # Skill frontmatter
 SKILL_FILE="$PLUGIN_ROOT/skills/delegate-governance/SKILL.md"
 if [ -f "$SKILL_FILE" ] && grep -q "^name: delegate-governance$" "$SKILL_FILE"; then
