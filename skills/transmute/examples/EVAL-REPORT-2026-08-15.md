@@ -9,6 +9,13 @@
 | C1 placeholder-empty input class (4 real occurrences: n+1–n+4) | 5 (router catches + names placeholder + emits fill-snippet since n+3) | 4 (correct STOP-ERROR; snippet DX added) | 5 | 5 (no wasted pipeline) | 5 | 0 |
 | C2 invocation surface `/transmute` (commands wrapper exists, name matches) | 5 | 5 | 5 | 5 | 5 | 0 |
 | C3 DRY routing (routes to siblings; no restatement — 15.5KB vs 45KB Lapidary; SSOTs cited in-line) | n/a (inspection) | 5 | 5 | 5 | 5 | 0 |
+
+> **C3 caveat (recorded 2026-08-15, round n+5)**: this 5/5 was measured **intra-maos only**.
+ Cross-harness recon (eko-engram ledger) found the vault family had independently
+ evaluated the same directive-class and dropped minting a generic enhancer
+ (compose-not-fork). Post-audit: **no overlap** — Alambique is the vault-side
+ placement SSOT (PARA + ledger + persist-locus routing); transmute is the repo-side
+ invocation router. Cross-links added in v0.1.3. Score stands.
 | C4 safe-by-default (dry-run default; leak gate unconditional; worktree on git sinks) | n/a (spec inspection) | 4 (spec'd; untested on a dirty source — no real dirty-source run yet) | 4 | 5 | 5 | 0 |
 | C5 real source → cast → emit (a genuine filled braindump through COMPREHEND→…→EMIT) | 3 (trigger table + wrappers present) | **2 — NOT YET EXERCISED** | n/a | n/a | n/a | n/a |
 
