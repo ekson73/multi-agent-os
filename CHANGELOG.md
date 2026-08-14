@@ -39,7 +39,10 @@ summarized. Three blocking defects from the first round are independently verifi
 floor that exceeded its own cap on the default profile, a `clean_rounds` rule that made `STOP-DONE`
 unreachable, and a phase that claimed `convergence-engine`'s independence condition while critiquing
 its own draft. A second generation followed, two of them caused by those repairs — the fix moved the
-failure rather than removing it, and the report says so. Both the eval and its delta live in
+failure rather than removing it, and the report says so. One repair was itself incomplete three times
+over: the REFINE floor turned out to be asserted on **seven** surfaces, and successive sweeps closed
+two, then four, then the seventh — a §Purpose summary that no grep for a *termination rule* would
+reach, because it describes the rule without being it. Both the eval and its delta live in
 `examples/EVAL-REPORT-2026-08-14.md`, including the control run: without the skill, a single pass
 produced a comparable prompt. The skill's measured delta is the mechanically-derived material and the
 independent red-team, not the qualitative judgment.
