@@ -128,6 +128,28 @@ not a node, and it became this skill's core predicate.
 > interdependency map per run since its first row (22 in its ledger). This skill shipped without one.
 > `RELATE` closes that composition gap — the discipline existed upstream and was silently dropped.
 
+### The lossless movement is a PREDICATE, not a list
+
+`dissect · identify · relate · prism · catalogue` is an **instance**, not a definition. A fixed list
+caps a fresh agent at whatever its author happened to think of. The membership test does not:
+
+> An operation belongs to the lossless movement **iff**
+> **(a)** it discards nothing;
+> **(b)** after it you can answer a question you could not before;
+> **(c)** it can halt on *"I cannot do this to this input"*, **or** it emits an artifact.
+
+Extend by the test, never by taste. `(c)` is where the two-axis classification lands: an operation
+that halts is a **gate**; one that emits is an **artifact**; one that does neither is ceremony.
+
+**Watch for straddlers.** *Separate* is a member in the sense **distinguish** (lossless) and belongs
+on the lossy side in the sense **set aside** — one word, both sides of the hard boundary. A list
+cannot catch that; only the test can. When a candidate operation is ambiguous, resolve it by asking
+(a): *does this instance discard anything?*
+
+**Escalation, not exhaustion:** run the members the input actually needs. A dump with no abstract
+criterion does not need `prism`; one with three independent parts barely needs `relate`. Membership
+says what *may* enter, not what *must* run.
+
 **The hard boundary — you cannot justify a discard you do not understand.** Distilling without
 dissecting discards by heuristic — by length, by position, by vibe — and is right only by luck.
 Test: *can you invert the order?* Distill before dissect → **impossible**. This boundary gets a gate.
