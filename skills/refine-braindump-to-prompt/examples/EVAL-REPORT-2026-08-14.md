@@ -184,3 +184,121 @@ no skill.** Two red-team passes at ~600k subagent tokens each found what six sel
 missed — which is the skill's own thesis confirming itself, and also its efficiency indictment.
 
 **Next**: an independent re-eval of v0.3.0 by a fresh cycle — not by this one.
+
+---
+
+# DELTA — v0.3.0 RE-EVALUATED (the re-eval the line above asked for)
+
+Four blind agents, dispatched in parallel against a **frozen artifact** (SHA verified identical to the
+dispatch commit, tree clean — no edit entered mid-test). Three behavioral trials, one cold-start
+operability interrogation with no run. Author excluded from all scoring; the author's role was
+dispatch, repair of the dispatch, and this write-up.
+
+## The method had to be repaired before it could measure anything
+
+The first dispatch plan was red-teamed and returned **REFUTED**, four blocking. All four were real.
+
+| # | Defect in the plan | Why it would have invalidated the result |
+|---|---|---|
+| B1 | `SKILL.md` names the two test cases' tokens **with their verdicts** (`fulano`→halt, `sistema X`→carry). | An agent applying the rule and an agent copying the example emit identical output *and identical citations*. The plan's self-report item was not a control. **Repaired by replacing the inputs, not by redacting the artifact** — redaction would have mutated the thing under test. New inputs verified token-disjoint (16/16 → 0, with a positive control proving the grep reached the file). |
+| B2 | The trial directory held the plan itself and a solved DoD spec. | Leak. Repaired: one directory per trial, neutral filename, planner artifacts out of reach, `examples/` structurally absent rather than politely forbidden. |
+| B3 | Sub-agent bound **4** — *below* the procedure's own mandated delegation count (~12-16). | Would fire in REFINE round 2; every reported TERMINATION would describe the harness, not the procedure. Raised to 24. |
+| B4 | Iteration bound **12** — *numerically identical* to `--max-rounds=12`. | A run reaching 12 is indistinguishable between "procedure hit its cap" and "harness cut it off" — and which stop fires is the claim under test. Raised to 20. |
+| **B5** | Found at dispatch time, in the repaired plan: nine items of report **format** and no **delivery channel**. | Four agents completed work they could not hand over; two idled twice with reports stranded. A report format is not a report path. |
+
+**Confirmation the repairs mattered**: no harness bound was reached in any run (0 of 24 delegations
+in two trials, 1 refuter in the third; 3 of 12 rounds). Every termination was the procedure's own.
+
+## Claim-by-claim
+
+| Claim | Verdict | Evidence |
+|---|---|---|
+| Floor removed from every surface | **HELD** | The interrogation enumerated 12 termination passages and returned `RESOLVED`: governing condition for `default` is the economic stop alone. **And** the executing trial evaluated the Verifiability Gate's three conjuncts to `false` and exited REFINE at **3 rounds** — under an unconditional floor it needs ≥6 by construction. |
+| Classified red-team returns + precedence | **HELD** | All three disproof clauses passed; the precedence is written and names the exact arithmetic. The executing trial exercised the missing-fact branch live (1 of 2 cycles used, not exhausted). |
+| Proportionality discriminates | **HELD** | The carry-open trial carried its role-named node open **on two axes**, refused to guess it (`Do not guess the identity of any of the four systems`), and proceeded through 4 of 5 phases. Both disproof clauses silent. |
+| DISSECT is the single referent halt site | **DISPROVED** | Two passages in the same section make **opposite** phase assignments. One assigns the absent-referent class to RELATE; the other states "DISSECT is the single halt site for referents" and denies RELATE halts on naming — while elsewhere granting RELATE "goal-blocking dangles", which an absent referent in a dependency chain also is. |
+| Every halt names a terminal marker | **DISPROVED** | **13 of 29 stop/refuse/escalate points carry no marker; 4 more are inferred.** Sink-refusal, gitleaks-abort and partial-sink-failure have no marker *and no field in the machine envelope*. |
+
+**3 held, 2 disproved.** More precise than v0.1.0's flat FAIL: the surviving claims are now named, and
+so is the reason the others do not survive.
+
+## The self-check the document sets and fails
+
+§Failure modes asserts: *"(Every halt names a terminal marker; a halt without one is an unfinished
+rule.)"* Applied corpus-wide, **11 of the 13 markerless points sit outside §Failure modes** — in
+§Skip conditions, §When not to use, §Output targets, §Multi-target semantics.
+
+The rule was enforced where it lives, not across its domain. This is structurally identical to the
+REFINE floor defect repaired three times in this same cycle — two surfaces, then four, then a seventh
+in §Purpose, a summary paragraph that describes the rule without being it. Enumerating by *section*
+finds the first kind; enumerating by *string* finds both.
+
+## Findings no claim covered
+
+- **The default path fails the skill's own membership test.** With `--output-target` omitted the
+  document specifies *"return inline only"*. But `inline` is **not one of the five sink kinds**, so it
+  has no Render cell — and criterion (b) of the skill's own test is *"RENDER DEFINED — the distillate
+  has a defined form for that sink"*. Compounded: `--output=table` is the default and has **no
+  schema** (`ABSENT` — it appears only as a default cell and an allowed value; §Output contract is
+  titled `(--output=json)` and does not mention it). The no-flag path has neither sink render nor wire
+  format. Corroborated behaviorally: two trials independently reported inventing the catalogue column
+  schema and the relation-map format.
+- **The leak gate is inert on the default path.** It fires *"whenever ≥1 target declares
+  `shared-surface: yes`"*; `stdout` and `clipboard` are both `no`. A clipboard-only run — or the
+  default inline path — never triggers it. The clause *"a leak aborts all targets — including
+  clipboard, which is not exempt"* stays true and becomes vacuous: nothing aborts if nothing ran.
+  Specification defect, not an observed leak — this artifact is a document, not a runtime.
+- **The recursion clause is unimplemented in `default`.** It names `SCOPE` as that profile's *method
+  section* and requires it to instruct the executing agent to decompose. `profiles/default.md` defines
+  `SCOPE` as a declaration by the prompt's author, and the profile's eight sections contain no method
+  section at all. The executing trial resolved this by applying the clause over the profile — one
+  defensible reading of two.
+- **Cited paths need an undeclared base.** Every internal path resolves, but only after choosing
+  between repo-root-relative and skill-relative — and both bases appear in a single table cell. Four
+  agents are cited without `.md` and fail `test -e` as written.
+- **22 decisions the document does not make** for an agent holding only these files, a short input,
+  and nobody to ask.
+
+## The aggregate: three inputs, three classes, three halts, zero prompts
+
+| Trial | Class | Halted at | Marker |
+|---|---|---|---|
+| t2 | referentially empty | PHASE 1 RECOVER / DISSECT | `STOP-HITL` |
+| t3 | concrete goal, unnamed acceptance threshold | PHASE 1 RECOVER / DISSECT | `STOP-HITL` |
+| t1 | carry-open (goal + DoD survive one role-named node) | PHASE 4 RED-TEAM, missing-fact | `STOP-HITL` |
+
+Each halt is individually defensible and traceable to a quoted clause — and t3's was independently
+derived from the document alone by the interrogation, so it is conformance, not drift. But a skill
+whose stated purpose is *"ONE polished, ready-to-execute PROMPT"* rendered **zero** across three
+classes, including one input constructed to be renderable. The halt surface may be large enough that
+RENDER is rarely reachable. That is a design question this eval raises and does not settle.
+
+## Standing finding, refined rather than repeated
+
+The v0.1.0 standing finding was: *the control produced a comparable prompt in one pass, with no
+skill.* This cycle sharpens it in both directions.
+
+**Against the skill**: a competent agent must supply 22 decisions before it can finish a run. Much of
+what looks like the skill working is the agent filling gaps.
+
+**For the skill**: the one trial that reached the pipeline's interior produced material a single pass
+does not. Its relation graph found that the operator's DoD is *the measurable inverse of the observed
+symptom* — so acceptance reads the same signal that evidences the problem — and that the described
+failure has *two independent facets* where fixing either leaves the loop intact. Both were marked
+decisive; both are edges, not nodes. `derive-system-from-goal` fired on a recurring goal and produced
+a signal admissible under the observability rule (*fires **and** moves*, not a run-count). The
+independent refuter returned 10 findings, two of them missing-facts the draft's author had not seen —
+including that the draft's own derived mechanism imposed a duty on a person without anyone asking
+whether the operator had authority to impose it.
+
+Independently, on a different input, that trial re-derived a structural finding a previous dogfood had
+gotten wrong and later corrected: that a resource list and a directive chain **intersect**, and that
+saying the same thing twice in two syntaxes is emphasis rather than mass.
+
+So the delta is real, and it is **mechanically-derived material plus independent refutation** — not
+the qualitative judgment, which the control matched. The skill is not broken. It is
+**under-specified**: its machinery earns its keep when the pipeline runs, and its document does not
+yet tell a cold agent enough to run it the same way twice.
+
+**Verdict: FAIL — 3 claims held, 2 disproved, 22 decisions undelegated.** The failure is
+specification, not mechanism. The next cycle should close Q15's 22 before adding capability.

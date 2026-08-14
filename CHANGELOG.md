@@ -47,6 +47,17 @@ reach, because it describes the rule without being it. Both the eval and its del
 produced a comparable prompt. The skill's measured delta is the mechanically-derived material and the
 independent red-team, not the qualitative judgment.
 
+v0.3.0 has since been re-evaluated by four blind agents against a frozen artifact — the independent
+re-eval the report itself asked for. Result: **3 of 5 claims held, 2 disproved, and 22 decisions the
+document does not make for a cold agent.** The floor repair is confirmed on both methods (a reader
+enumerating termination passages, and a run that exited REFINE at 3 rounds where an unconditional
+floor needs ≥6). Disproved: the referent halt site is assigned to two different phases by two
+passages of the same section; and 13 of 29 stop points carry no terminal marker, against the
+document's own assertion that a halt without one is an unfinished rule — 11 of those 13 outside the
+section that makes the assertion. Three inputs of three classes produced three halts and zero
+rendered prompts. The verdict stands at FAIL, but the failure is now located: **specification, not
+mechanism.**
+
 
 ### Added — squash-aware release-coherence gate
 
