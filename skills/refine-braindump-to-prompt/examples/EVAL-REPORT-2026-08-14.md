@@ -267,11 +267,22 @@ finds the first kind; enumerating by *string* finds both.
 | t3 | concrete goal, unnamed acceptance threshold | PHASE 1 RECOVER / DISSECT | `STOP-HITL` |
 | t1 | carry-open (goal + DoD survive one role-named node) | PHASE 4 RED-TEAM, missing-fact | `STOP-HITL` |
 
-Each halt is individually defensible and traceable to a quoted clause — and t3's was independently
-derived from the document alone by the interrogation, so it is conformance, not drift. But a skill
-whose stated purpose is *"ONE polished, ready-to-execute PROMPT"* rendered **zero** across three
-classes, including one input constructed to be renderable. The halt surface may be large enough that
-RENDER is rarely reachable. That is a design question this eval raises and does not settle.
+Each halt is individually defensible and traceable to a quoted clause. But a skill whose stated
+purpose is *"ONE polished, ready-to-execute PROMPT"* rendered **zero** across three classes, including
+one input constructed to be renderable.
+
+Two qualifiers, both supplied by the trials rather than by the author:
+
+- t3's halt was independently derived from the document alone by the interrogation, so it is
+  conformance, not drift.
+- t1's halt sat **one defensible fork from rendering**. It recorded that treating the refuter's
+  missing-fact as a fixable ESCALATION gap instead — adding the question, running one more REFINE
+  cycle and a second red-team pass — would on a clean verdict have reached RENDER with `STOP-DONE`:
+  the opposite terminal state, still inside the declared cycle budget (1 of 2 used).
+
+So the halt surface is large; whether it is *too* large is not settled by three runs, and this report
+does not claim it is. What is settled: the render path was not reached, and the document does not
+adjudicate the fork that would have reached it.
 
 ## Standing finding, refined rather than repeated
 
@@ -291,9 +302,18 @@ independent refuter returned 10 findings, two of them missing-facts the draft's 
 including that the draft's own derived mechanism imposed a duty on a person without anyone asking
 whether the operator had authority to impose it.
 
-Independently, on a different input, that trial re-derived a structural finding a previous dogfood had
-gotten wrong and later corrected: that a resource list and a directive chain **intersect**, and that
-saying the same thing twice in two syntaxes is emphasis rather than mass.
+On a different input, that trial produced a finding of the same shape as one a previous dogfood had
+gotten wrong and later corrected — that a resource list and a directive chain **intersect**, and that
+saying the same thing twice in two syntaxes is emphasis rather than mass. **The trial declares this
+was primed**, unprompted: `SKILL.md` narrates that earlier measurement inline, and the agent said so
+rather than claiming independence. Recorded here as a primed application of a documented finding, not
+as an independent re-derivation — the first draft of this delta claimed the latter, and was wrong.
+
+That correction exposes a second contamination axis the method missed. B1 removed token-identity on
+the axis under test (halt-vs-carry). It did not check that the document **narrates other prior
+findings inline**, and those prime other moves. The repair was enumerated over the axis being
+measured rather than over the domain — the same defect shape this report keeps finding elsewhere,
+here committed by the eval's own author, in the eval's own method.
 
 So the delta is real, and it is **mechanically-derived material plus independent refutation** — not
 the qualitative judgment, which the control matched. The skill is not broken. It is
