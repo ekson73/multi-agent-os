@@ -3,6 +3,36 @@
 # Tracking system: Linear VKO (NOT Jira).
 # Purpose: prevent recurring false-positive "missing Jira key" findings on PRs
 # of this open-source repository.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ MEASURED DRIFT — read this BEFORE "fixing" the Jira rule again (2026-08-15)
+#
+# The instructions below are already the strongest form available: they name the
+# rule, the tracker, and the literal regex. Qodo still emits the finding anyway.
+#
+#   Measured over the 6 most-recent PRs at 2026-08-15:
+#     #344 FIRED · #338 FIRED · #343 ok · #341 ok · #340 ok · #337 ok
+#     → ~33% violation rate (2/6). Obeyed most of the time; drifts the rest.
+#
+# ROOT CAUSE — `extra_instructions` is a DECLARATION, not a MECHANISM: soft prompt
+# guidance to an LLM reviewer, with no runtime interlock. It is honored
+# probabilistically and therefore drifts. This is the same failure shape the
+# decision-macro spec admits of itself ("the real block lives in the EXTERNAL
+# deterministic layer, not in this config").
+#
+# DISPOSITION when the finding fires:
+#   ✅ dismiss that occurrence (it is a verified false positive for THIS repo)
+#   ⛔ do NOT add a third, louder restatement of the rule below — the rule is
+#      already explicit; a louder declaration cannot fix a missing mechanism,
+#      and writing one is theater (a 2026-08-15 session started to do exactly
+#      that before measuring that the fix already existed, twice).
+#   ⛔ NEVER extend this file to suppress a security or logic finding. This
+#      carve-out covers a mis-scoped TRACEABILITY convention only.
+#
+# A real fix would need enforcement outside the reviewer (a repo gate that
+# evaluates the PR before Qodo, or an upstream Qodo option that is a hard
+# setting rather than prose). Neither exists today — hence: record, don't re-fix.
+# ─────────────────────────────────────────────────────────────────────────────
 
 [config]
 # This is primarily a documentation + shell-scripts + markdown skills repo.
