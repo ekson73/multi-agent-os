@@ -331,7 +331,10 @@ if os.path.exists(os.path.join(root, ".git")):
                                  capture_output=True, text=True, timeout=10)
             if out.returncode != 0:
                 raise OSError(f"git ls-files rc={out.returncode}")
-            tracked.update(f.replace("\\", "/") for f in out.stdout.split()
+            # splitlines(): git ls-files is newline-delimited. `.split()` would corrupt any
+            # tracked path containing spaces (zero today — probed — but the gate's whole
+            # purpose is to not silently under-report again, per #327).
+            tracked.update(f.replace("\\", "/") for f in out.stdout.splitlines()
                            if os.path.basename(f) != "README.md")
         missed = sorted(tracked - seen)
         if missed:
