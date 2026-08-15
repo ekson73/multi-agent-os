@@ -327,14 +327,16 @@ if os.path.exists(os.path.join(root, ".git")):
     try:
         tracked = set()
         for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
-            out = subprocess.run(["git", "-C", root, "ls-files", pat],
-                                 capture_output=True, text=True, timeout=10)
+            out = subprocess.run(["git", "-C", root, "ls-files", "-z", pat],
+                                 capture_output=True, timeout=10)
             if out.returncode != 0:
                 raise OSError(f"git ls-files rc={out.returncode}")
-            # splitlines(): git ls-files is newline-delimited. `.split()` would corrupt any
-            # tracked path containing spaces (zero today — probed — but the gate's whole
-            # purpose is to not silently under-report again, per #327).
-            tracked.update(f.replace("\\", "/") for f in out.stdout.splitlines()
+            # `-z` + byte-split on NUL + os.fsdecode: paths are preserved EXACTLY
+            # (spaces, backslashes, non-UTF-8 bytes). No separator munging: git always
+            # emits `/`, and `\\` is a legal POSIX filename character — replacing it
+            # would corrupt such a path. (CodeRabbit round 6; supersedes the splitlines
+            # fix, which still split on whitespace runs.)
+            tracked.update(f for f in (os.fsdecode(b) for b in out.stdout.split(b"\0") if b)
                            if os.path.basename(f) != "README.md")
         missed = sorted(tracked - seen)
         if missed:
