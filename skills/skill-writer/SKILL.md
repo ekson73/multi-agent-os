@@ -1,6 +1,8 @@
 ---
 name: skill-writer
 description: Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). Use when the user wants to create a new Skill, update an existing SKILL.md's structure, content, or frontmatter, validate a Skill against the spec, audit or rewrite a Skill's description for reliable triggering, debug why a Skill isn't activating, or convert an existing prompt or workflow into a reusable Skill.
+version: "1.0.0"
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Skill Writer
@@ -299,3 +301,10 @@ The result will be a complete, working Skill that follows all best practices and
 - **Improve** it over time, OR **distill** a new skill from an observed human↔agent task → `agentic-tool-trainer` (trace→reflect→distill).
 
 Shared vocabulary/taxonomy/rubric/Rovo-bridge: `protocols/agentic-tool-lifecycle.md`. For **agents** (not skills), the authoring + 33-Socratic-Question + KPI counterpart is `agents/forge.md`.
+
+## Versioning
+
+- **1.0.0** (2026-08-15) — First versioned release. Content = the Gauntlet pilot state
+  (maos PR #340): direct-capability description, distinct trigger contexts, imperative voice,
+  why-over-must principle stated, body split into `examples.md` + `reference.md`.
+  Prior history predates version tracking (untracked).
