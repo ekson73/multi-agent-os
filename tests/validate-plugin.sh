@@ -137,20 +137,31 @@ echo ""
 echo "Checking commands..."
 
 COMMAND_COUNT=0
-for cmd in "$PLUGIN_ROOT/commands"/*.md; do
+# find, not a glob: bash's `*` does NOT cross `/` (and globstar needs bash 4+,
+# absent on macOS's stock 3.2) — the old loop silently never saw commands/*/*.md.
+# Sibling of issue #327 / PR #333; measured hole: #336. `while read` (not a
+# `for` over $(...)) so paths with spaces survive.
+# Messages use the RELATIVE path (not basename): with recursion, homonymous files
+# in different subdirs would print identically (Qodo #337). The dir-existence
+# guard keeps a missing dir on the old code path's behavior (count=0 -> warn),
+# without find's stderr noise — the earlier structure gate is the loud reporter.
+if [ -d "$PLUGIN_ROOT/commands" ]; then
+while IFS= read -r cmd; do
     if [ -f "$cmd" ]; then
         cmd_name=$(basename "$cmd")
+        cmd_rel="${cmd#"$PLUGIN_ROOT"/}"
         if [ "$cmd_name" != "README.md" ]; then
             # Check for frontmatter
             if head -1 "$cmd" | grep -q "^---"; then
-                pass "$cmd_name has frontmatter"
+                pass "$cmd_rel has frontmatter"
             else
-                warn "$cmd_name missing frontmatter"
+                warn "$cmd_rel missing frontmatter"
             fi
             ((COMMAND_COUNT++)) || true
         fi
     fi
-done
+done < <(find "$PLUGIN_ROOT/commands" -type f -name '*.md' | sort)
+fi
 
 if [ $COMMAND_COUNT -eq 0 ]; then
     warn "No commands found"
@@ -163,20 +174,26 @@ echo ""
 echo "Checking agents..."
 
 AGENT_COUNT=0
-for agent in "$PLUGIN_ROOT/agents"/*.md; do
+# Same reach fix as the commands loop above (#336): `find` recurses where
+# `agents/*.md` could not — 21 consultants were invisible to this presence check.
+# Relative-path messages + dir guard, same rationale as the commands loop.
+if [ -d "$PLUGIN_ROOT/agents" ]; then
+while IFS= read -r agent; do
     if [ -f "$agent" ]; then
         agent_name=$(basename "$agent")
+        agent_rel="${agent#"$PLUGIN_ROOT"/}"
         if [ "$agent_name" != "README.md" ]; then
             # Check for frontmatter
             if head -1 "$agent" | grep -q "^---"; then
-                pass "$agent_name has frontmatter"
+                pass "$agent_rel has frontmatter"
             else
-                warn "$agent_name missing frontmatter"
+                warn "$agent_rel missing frontmatter"
             fi
             ((AGENT_COUNT++)) || true
         fi
     fi
-done
+done < <(find "$PLUGIN_ROOT/agents" -type f -name '*.md' | sort)
+fi
 
 if [ $AGENT_COUNT -eq 0 ]; then
     warn "No agents found"
