@@ -117,8 +117,16 @@ Independence here therefore rests on a **procedural** control, with the residual
 
 ```text
 TARGET
-Raise the maos skill corpus (82 skills under skills/*/SKILL.md) to the quality bar of
-Anthropic's own reference skills — measured per skill, never asserted.
+Raise, to the quality bar of Anthropic's own reference skills, every maos skill that HAS a
+same-purpose reference among the 17 — measured per skill, never asserted. The candidate
+pool is the 82 under skills/*/SKILL.md; the TARGET is the PAIRABLE SUBSET of it, and the
+size of that subset is not known until PAIRING runs, so it is not stated here.
+  The unpairable remainder is an OUTPUT, not a silence: enumerate it, count it, and report
+  it with each skill's domain. Domains like PII masking or session orchestration have no
+  counterpart among the 17, and a blind A/B against a reference that does not exist is not
+  a weaker measurement — it is not a measurement. An earlier draft claimed the whole
+  82-skill corpus as the target while the PAIRING rule quietly dropped the unmatched ones;
+  the run would have "finished" against a promise it never attempted.
 Out of scope: agents/ (49) and commands/ (46) — see Scope boundary.
 
 TASK
@@ -170,13 +178,19 @@ QUALITY-BAR  (named external artifacts — NOT adjectives)
     T  progressive disclosure, per THIS REPO's definition (skills/skill-writer/SKILL.md
        :184-195, :339 — "put advanced details in SEPARATE FILES" such as reference.md,
        examples.md, scripts/, templates/, referenced from SKILL.md):
-         when body > 500 LINES, count sibling files in the skill directory that are
-         LINKED from SKILL.md. Require >= 1.
-       An earlier draft counted `## ` headings and <details> blocks instead. Neither
-       moves any material out of SKILL.md — a heading hides nothing, and <details> is
-       visual only since the agent receives the source regardless. That metric would
-       have passed large monolithic skills. It was invented without reading the
-       definition this repo already had.
+         count sibling files in the skill directory LINKED from SKILL.md, for the
+         CANDIDATE and for its PAIRED REFERENCE. Gap when the reference links >= 1 and
+         the candidate links 0. Measured on both sides, like every other T-metric, and
+         with no threshold gate — so it runs on every candidate.
+       TWO earlier drafts failed here, differently, and both let a monolith through:
+       (1) counting `## ` headings and <details> blocks — neither moves material OUT of
+       SKILL.md (a heading hides nothing; <details> is visual only, the agent gets the
+       source regardless), a proxy invented without reading the definition this repo
+       already had; (2) gating on "when body > 500 LINES" while the metric ABOVE requires
+       body <= 500 LINES — so the check could only fire on a candidate already failing,
+       i.e. it was unreachable, and a 500-line monolith with zero supporting files passed
+       "progressive disclosure" untested. Wrong-proxy, then dead-code: the same failure
+       twice, which is why the threshold is now the paired reference rather than a number.
     J  BLIND A/B, single success condition:
          the critic, shown the candidate and its paired reference with provenance
          stripped in randomised order, CANNOT reliably say which is Anthropic's.
@@ -184,9 +198,19 @@ QUALITY-BAR  (named external artifacts — NOT adjectives)
        Do not restate this in softer words at any point.
 
 CRITIC
-A separate agent invocation, receiving ONLY: the two provenance-stripped files, the
-T-metrics for both, and validate-plugin.sh output for the candidate. It receives NEITHER
-the diff, NOR the builder's reasoning, NOR this document.
+A separate agent invocation, receiving ONLY: the two provenance-stripped files and the
+T-metrics for both. It receives NEITHER the diff, NOR the builder's reasoning, NOR this
+document, NOR any validator output.
+  WHY NO VALIDATOR OUTPUT: an earlier draft handed the critic validate-plugin.sh output
+  "for the candidate". That single asymmetry destroyed the blind gate, and the leak is
+  more direct than asymmetry alone — the script's FIRST output line is the banner
+  "Multi-Agent OS Plugin Validation" followed by an absolute path containing
+  multi-agent-os, and each pass() line prints the candidate's own skill name. The critic
+  would not have inferred provenance; it would have READ it. Running it on both sides does
+  not fix this: the reference is not a MAOS plugin, so the validator fails it structurally
+  for reasons unrelated to quality — a signal that always condemns one side is a second
+  leak, not symmetry. D-level checks therefore move to a PRE-GATE (below); the critic
+  judges only what is judgement.
 Prompted to REFUTE. It must state which file is the reference and why, or state that it
 cannot tell. It may not lower the bar.
 Run bin/convergence-guard for what it does catch (correlated brand/axis peers). Note its
@@ -200,10 +224,19 @@ limit: it compares caller-supplied labels and cannot observe context freshness.
   the critic itself and controls what enters its context — which does not exist yet.
   Recorded as a known hole rather than described in language that implies a gate.
 
+D-PRE-GATE  (run by the LEAD, before the A/B — never seen by the critic)
+The D-level checks are deterministic (f=0), so they are SETTLED before judgement begins,
+not offered as evidence during it: run validate-plugin.sh + validate-skill-frontmatter.sh
+on the candidate; a FAIL sends it back to the builder and it never reaches the critic.
+This keeps the validator's real value (a free, exact gate) without leaking its banner.
+
 EVIDENCE  (directly inspectable — no inference from the build story)
   - both SKILL.md texts, provenance-stripped, side by side
-  - validate-plugin.sh output for the candidate
   - the countable T-metrics for both sides
+That is the whole list, and it now MATCHES the LENS ASSIGNMENT clause below, which already
+said every lens is answerable from "two provenance-stripped SKILL.md texts + the T-metrics".
+The two sections had disagreed: one handed the critic a validator dump the other did not
+list. Removing it made the document consistent rather than poorer.
 The critic may NOT read the builder's reasoning or this prompt's derivation.
 
 STATE
@@ -225,15 +258,32 @@ STOP  (every term below is measured, not adjectival)
   G(k) is the number of gaps the critic named in round k. G(k)=0 means the critic
   stated it could not tell which file was the reference.
 
-  EXIT (success): G(k) = 0 for three CONSECUTIVE rounds.
-  Not "no NEW gap" — a critic re-naming the SAME unresolved gap three times would
-  satisfy a novelty test while the skill stays distinguishable, contradicting the
-  acceptance rule. Consecutive ZERO is the condition.
+  GAP IDENTITY — assigned by the LEAD, never by string comparison. On first record the
+  LEAD gives the gap a stable ID (skill + lens + short slug) and the journal carries it.
+  Each subsequent round the LEAD marks every OPEN gap closed-or-still-open by INSPECTING
+  THE ARTIFACT, not by matching critic prose against the previous round's.
+  Why not verbatim text: the critic writes prose and the lens rotates, so the same
+  unresolved defect comes back paraphrased — or simply is not revisited next round — and
+  never compares equal. A stagnation test keyed on string equality would therefore read a
+  builder that keeps failing the SAME defect as steady progress. Identity has to be a
+  decision about the artifact, not a diff of two sentences about it.
 
-  LENS ASSIGNMENT — round k uses lens (k mod 6) from this fixed order, so the three
-  exit rounds provably use three distinct lenses. Every lens is answerable from the
-  critic's PERMITTED INPUTS (two provenance-stripped SKILL.md texts + the T-metrics),
-  and each is derived from the pinned reference, not invented:
+  EXIT (success): EVERY ONE of the six lenses returned G=0 on its MOST RECENT run.
+  Not "no NEW gap" — a critic re-naming the SAME unresolved gap would satisfy a novelty
+  test while the skill stays distinguishable. And not "zero for three consecutive rounds"
+  either, which an earlier draft used: with a six-lens rotation, three consecutive rounds
+  cover only HALF the lenses, so a gap found by lens 0 and never fixed could sit untested
+  while rounds 1-3 came back clean on their own axes and tripped the exit. That draft even
+  cited "the three exit rounds provably use three distinct lenses" as a STRENGTH — it is
+  the proof of the hole: three distinct is three MISSING. A lens that found a gap must be
+  re-run and come back zero before exit is available, which makes the rule self-anchoring.
+  Consequence, stated plainly: minimum six rounds, since a lens that never ran cannot
+  report zero — you may not call a skill indistinguishable on an axis you never tested.
+
+  LENS ASSIGNMENT — round k uses lens (k mod 6) from this fixed order, so the rotation
+  reaches every lens and the exit condition above is always eventually satisfiable. Every
+  lens is answerable from the critic's PERMITTED INPUTS (two provenance-stripped SKILL.md
+  texts + the T-metrics), and each is derived from the pinned reference, not invented:
 
     0 trigger-completeness  does `description` carry BOTH what it does AND specific
                             when-to-use contexts?              [skill-creator:67]
@@ -287,14 +337,19 @@ running is REFUSED — if ANY cap is unset, stop and ask."* — where "ANY cap" 
 ATTEMPTS cap (round-5 symmetry: a default there would be an invented number).
 
 Asked; unanswered at render time. The loop is refused **by its own contract**, not by hesitation.
-Three slots remain, and only the operator can fill them:
+**Three** slots remain, and only the operator can fill them:
 
 ```text
-<ATTEMPTS>       — required (harness cap; the document renders no default — a default here would
-                   be an invented number, the class round 5 retracted)
+<ATTEMPTS>       — required (max build attempts per skill; the document renders no default —
+                   a default here would be an invented number, the class round 5 retracted)
 <COST CEILING>   — required
 <WALL-CLOCK>     — required
 ```
+
+The attempts row was missing for one round: `STOP` had been tightened to refuse on ANY unset cap
+while this form still offered two fields, so an operator who filled the form exactly as printed
+would have been refused by the prompt for a slot it never asked them for. A fill-in form that
+cannot satisfy its own gate is worse than no form — it reads as completable.
 
 Recommended first run once a ceiling exists: **a 3-skill pilot**, ranked by the deterministic gap
 pass and drawn from domains with a clear same-purpose reference. Rationale — if the blind A/B fails
