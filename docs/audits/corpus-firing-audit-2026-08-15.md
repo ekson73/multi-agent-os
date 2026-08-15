@@ -1,6 +1,7 @@
 # Corpus Firing Audit — Camada 0 (2026-08-15)
 
 > Régua híbrido-ancorada, Camada 0 (council decision [[ruler-33-synthesis]]).
+> Tracking: council decision 2026-08-15 (vault `pages/ruler-33-synthesis.md`, ekson73/eko-engram) — sem ticket JIRA por design (repo pessoal/community; a convenção de ticket é corporate-scope).
 > Corpus: **83/83 skills** `skills/*/SKILL.md` · branch audit/corpus-firing-r2.
 > Anchors estruturais derivados de logs reais (não assertados — red-team R2 C1) e codificados em script reproduzível.
 

@@ -18,7 +18,11 @@ REPO = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
                       capture_output=True, text=True).stdout.strip()
 os.chdir(REPO)
 TODAY = date.today().isoformat()
-EXCLUDE = '!--Users-emilson-moraes-Projects--/**'  # sessão da auditoria (dashes! dots no glob mata tudo)
+# Exclui a sessão de auditoria em curso (auto-referência) — derivado do ambiente,
+# nunca hardcoded (path pessoal não pertence ao repo; Qodo #346 finding 3).
+_sess = os.environ.get('PI_SESSION_FILE', '')
+_sess_dir = os.path.basename(os.path.dirname(_sess)) if _sess else ''
+EXCLUDE = f'!{_sess_dir}/**' if _sess_dir else '!__none__'
 
 skills = sorted(d for d in os.listdir('skills') if os.path.exists(f'skills/{d}/SKILL.md'))
 
