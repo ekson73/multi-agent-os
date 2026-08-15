@@ -276,8 +276,18 @@ if python3 -c "import yaml" 2>/dev/null; then
 import glob, io, os, sys, yaml
 root = sys.argv[1]
 bad = []
-for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
-    for p in sorted(glob.glob(os.path.join(root, pat))):
+seen = set()
+# `**` + recursive=True: Python's `*` does NOT cross `/`, unlike git's pathspec of the
+# same shape. With the non-recursive patterns this gate never saw agents/consultants/*.md
+# nor commands/*/*.md — 30 artifacts that were reported as covered. See issue #327.
+# NOTE both halves are load-bearing: `**` without recursive=True behaves as plain `*`.
+for pat in ("skills/**/SKILL.md", "agents/**/*.md", "commands/**/*.md"):
+    for p in sorted(glob.glob(os.path.join(root, pat), recursive=True)):
+        seen.add(os.path.relpath(p, root))   # REACHED — must precede every `continue`
+                                             # below, or `seen` records "parsed" while the
+                                             # assertion claims "reached" (they differ for
+                                             # files with no frontmatter, which are skipped
+                                             # on purpose and are NOT a reach gap).
         if os.path.basename(p) == "README.md":
             continue                      # docs, not artifacts (same rule as above)
         try:
@@ -289,6 +299,27 @@ for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
             bad.append(f"{os.path.relpath(p, root)} :: {str(e).splitlines()[0]}")
         except Exception as e:
             bad.append(f"{os.path.relpath(p, root)} :: {type(e).__name__}: {e}")
+
+# REACH ASSERTION — the gate must not silently under-reach again (issue #327).
+# git's pathspec `*` crosses `/`, so these patterns are the ground truth for what
+# SHOULD have been parsed. Degrade-safe: no git / not a repo -> skip, never fail,
+# because this validator also runs from an installed plugin dir with no .git.
+try:
+    import subprocess
+    tracked = set()
+    for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
+        out = subprocess.run(["git", "-C", root, "ls-files", pat],
+                             capture_output=True, text=True, timeout=10)
+        if out.returncode != 0:
+            raise RuntimeError("git unavailable")
+        tracked.update(f for f in out.stdout.split() if os.path.basename(f) != "README.md")
+    missed = sorted(tracked - seen)
+    if missed:
+        bad.append(f"REACH GAP :: {len(missed)} tracked artifact(s) the glob never parsed, "
+                   f"e.g. {missed[0]} — the gate under-reaches (see #327)")
+except Exception:
+    pass                                  # no git here; the glob fix above still applies
+
 print("\n".join(bad))
 PYEOF
 )
