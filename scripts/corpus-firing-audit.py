@@ -7,7 +7,7 @@ Conta FIRING estrutural de cada skill em logs reais de 3 vendors:
   pi    : read tool-call do SKILL.md       em ~/.pi/agent/sessions/**/*.jsonl
           (sessão da própria auditoria EXCLUÍDA — auto-referência)
 
-Word-boundary livre NUNCA promove a FIRING. Buckets: FIRING / DORMANT-NO-EVIDENCE.
+Word-boundary livre NUNCA promove a FIRING. Buckets: FIRING / DORMANT/NO-EVIDENCE.
 Boundedness = regex-proxy rotulado. Frontmatter = YAML parse + name==dir + description.
 Saída: docs/audits/audit-matrix-YYYY-MM-DD.md (tabela 83-row) + stdout summary.
 """
