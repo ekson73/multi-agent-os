@@ -320,7 +320,8 @@ if [ -e "$PLUGIN_ROOT/.git" ]; then
         is_entry "$tracked_path" && printf '%s\n' "$tracked_path" >> "$TRACKED_LIST"
     done < "$TRACKED_RAW"
     TRACKED_RAW_N=$(wc -l < "$TRACKED_RAW" | tr -d ' ')
-    rm -f "$TRACKED_RAW"
+    # TRACKED_RAW stays alive past the comparison: EXTRA must be able to ask "is this path
+    # git-tracked at all?" to tell real drift from a not-yet-committed file (qodo #341).
     if [ "$REACH_RC" -ne 0 ]; then
         fail "reach assertion DID NOT RUN (git ls-files rc=$REACH_RC) — coverage is UNVERIFIED, not clean"
     else
@@ -340,18 +341,41 @@ if [ -e "$PLUGIN_ROOT/.git" ]; then
         # sees it. A third-order guard-for-the-guard is where this stops being proportionate.
         MISSED=$(comm -23 <(sort "$TRACKED_LIST") <(sort "$VISITED_LIST"))
         EXTRA=$(comm -13 <(sort "$TRACKED_LIST") <(sort "$VISITED_LIST"))
+        # EXTRA has TWO causes and only one is a defect (qodo #341, reproduced: an uncommitted
+        # `commands/foo.md` failed the run with the wrong diagnosis). The loops walk the
+        # FILESYSTEM — validating a file before `git add` is the normal dev loop, and is exactly
+        # why the walk is not driven by git. Split by tracked-ness BEFORE the verdict chain:
+        #   in TRACKED_RAW -> git knows it, yet the expectation dropped it => is_entry DRIFT (fail)
+        #   not in git     -> simply not committed yet                     => report, never fail
+        EXTRA_DRIFT=""
+        EXTRA_NEW_N=0
+        if [ -n "$EXTRA" ]; then
+            while IFS= read -r extra_path; do
+                [ -n "$extra_path" ] || continue
+                if grep -qxF "$extra_path" "$TRACKED_RAW"; then
+                    EXTRA_DRIFT="${EXTRA_DRIFT}${extra_path}
+"
+                else
+                    EXTRA_NEW_N=$((EXTRA_NEW_N + 1))
+                fi
+            done <<EOF
+$EXTRA
+EOF
+        fi
         if [ -n "$MISSED" ]; then
             MISSED_N=$(printf '%s\n' "$MISSED" | wc -l | tr -d ' ')
             fail "REACH GAP :: $MISSED_N tracked artifact(s) the shell loops never visited, e.g. $(printf '%s\n' "$MISSED" | head -n 1) — the loops under-reach (see #336)"
-        elif [ -n "$EXTRA" ]; then
-            EXTRA_N=$(printf '%s\n' "$EXTRA" | wc -l | tr -d ' ')
-            fail "EXPECTATION GAP :: $EXTRA_N artifact(s) were visited but are absent from the expectation, e.g. $(printf '%s\n' "$EXTRA" | head -n 1) — is_entry over-skips (see #339)"
+        elif [ -n "$EXTRA_DRIFT" ]; then
+            EXTRA_N=$(printf '%s' "$EXTRA_DRIFT" | grep -c .)
+            fail "EXPECTATION GAP :: $EXTRA_N git-tracked artifact(s) were visited but dropped from the expectation, e.g. $(printf '%s' "$EXTRA_DRIFT" | head -n 1) — is_entry over-skips (see #339)"
         else
             SKIPPED_N=$(( TRACKED_RAW_N - $(wc -l < "$TRACKED_LIST") ))
-            pass "shell loops reached every tracked artifact ($(wc -l < "$TRACKED_LIST" | tr -d ' ') entries; $SKIPPED_N classified as docs/sub-documents)"
+            UNTRACKED_NOTE=""
+            [ "$EXTRA_NEW_N" -gt 0 ] && UNTRACKED_NOTE="; $EXTRA_NEW_N not yet committed"
+            pass "shell loops reached every tracked artifact ($(wc -l < "$TRACKED_LIST" | tr -d ' ') entries; $SKIPPED_N classified as docs/sub-documents$UNTRACKED_NOTE)"
         fi
     fi
-    rm -f "$TRACKED_LIST"
+    rm -f "$TRACKED_LIST" "$TRACKED_RAW"
 fi
 rm -f "$VISITED_LIST"
 echo ""
