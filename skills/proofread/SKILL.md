@@ -7,7 +7,7 @@ description: |
   TYPOS, and MIS-FORMATTING before it ships. For the THOROUGH tier, run cspell
   (the workhorse — it flags novel typos like "Aurona" that grep and codespell miss) +
   LanguageTool (grammar/concordância/acentos/spelling, LOCAL — never a public API)
-  + markdownlint (structure), and offer an optional Grammar-Genie rewrite for tone.
+  + markdownlint-cli2 (structure), and offer an optional Grammar-Genie rewrite for tone.
   Compose the deterministic linters with the probabilistic rewrite (ECE pattern);
   do not build a new engine. Report issues with file:line + fix suggestions; apply
   fixes only with confirmation.

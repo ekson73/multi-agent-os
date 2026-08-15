@@ -24,7 +24,7 @@ BUILD r5→r6 (attempt 5/5, esgotado): why-clauses inline em todas as constraint
 
 === RE-RUN phase (exit exige G=0 no most-recent run de CADA lens) ===
 RE-RUNS (most-recent per lens): l0 wrong-guess G=0 ✓ · l1 wrong-guess G=0 ✓ · l2 CANNOT-TELL G=0 ✓ · l3 wrong-guess G=0 ✓ · l4 CANNOT-TELL G=0 ✓ · l5 REF identified → G=1 OPEN
-  OPEN GAP skill-writer·l5·missing-principle := "candidate appends rationale clauses per-constraint but never articulates why-over-must as a guiding PRINCIPLE (ref states it verbatim)"
+  [SUPERSEDED by the post-extension l5 re-run below → G=0] OPEN GAP skill-writer·l5·missing-principle := "candidate appends rationale clauses per-constraint but never articulates why-over-must as a guiding PRINCIPLE (ref states it verbatim)"
 STATUS skill-writer: HALTED-AT-CAP (attempts 5/5) — 5/6 lenses indistinguishable; exit blocked on ATTEMPTS, not on quality. Escalated in final report.
 
 === TRACK 2: proofread ↔ doc-coauthoring ===
@@ -44,11 +44,15 @@ F3 instrument bugs: T-metric desc_len literal-block · validator-output leak (j�
 HALT: wall-clock cap 03:40:40Z atingido — contract stop, journal íntegro.
 BUILD (lead, attempt 6 — EXTENSÃO ratificada pelo operator): princípio why-over-must enunciado no topo de ## Instructions · fm OK
 R-final lens5 (pi/Gemini): critic named A=CANDIDATE → WRONG guess → G=0 ✓ (verbatim: candidate "embodies it as a discipline applied to itself"; ref "preaches generality while shipping a procedure only runnable inside its own harness")
-EXIT-EVIDENCE: 3 consecutive rounds G=0 (lens3 wrong-guess · lens4 CANNOT-TELL · lens5 wrong-guess) — all = "cannot reliably say which is the reference" per the J success condition.
+EXIT-EVIDENCE (wording corrected post-review): the exit rule is per-lens MOST-RECENT G=0, and all six lenses hold it — l0,l1,l3 (wrong guesses) · l2,l4 (CANNOT TELL) · l5 (wrong guess, post-extension). The three FINAL critic invocations of the track (lens3 → lens4 → lens5 re-runs, consecutive in time) each returned G=0 with verbatim statements recorded above; that is the temporal sequence, not three consecutive lens numbers.
 === EXIT (SUCCESS): skill-writer — 6/6 lenses indistinguishable ===
 BUILD (lead) proofread: description recast imperativo (run cspell / compose ECE / do-not-build-engine) · fm OK
 R-final lens4 (pi/Gemini): critic named A=CANDIDATE → WRONG guess → G=0 ✓ (verbatim: candidate "never leaves the imperative register"; ref "oscillates between imperative commands and declarative descriptions")
 === EXIT (SUCCESS): proofread — 6/6 lenses indistinguishable (2 builds) ===
 
 === PILOT FINAL: 2/2 tracks CONVERGED (6/6 each) ===
-skill-writer: 6 builds (5 + 1 operator-extended) · proofread: 2 builds · 16 critic rounds total · channels claude→codex→pi · journal integrity: atomic per-event
+skill-writer: 6 critic-driven builds (5 cap + 1 operator-ratified extension) + 1 reviewer-driven frontmatter commit (Qodo; not a Gauntlet build) · proofread: 2 builds · critic rounds: 21 completed (13 skill-writer + 8 proofread) + 1 failed spawn (codex quota, produced no round) · channels claude→codex(quota-dead)→pi · journal integrity: atomic per-event
+
+---
+Signed: **Pi-Lead-01a0-340** (pi harness · kimi-coding/k3 · session 01a002b3) · journal closed 2026-08-15T04:30Z.
+Note: the journal (append-only log) carries a full ISO timestamp; living docs in this PR carry the agent ID + git-log pointer instead, per the repo's own round-6 lesson that hand-written stamps go stale silently.

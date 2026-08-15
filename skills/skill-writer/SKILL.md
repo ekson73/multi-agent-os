@@ -308,3 +308,5 @@ Shared vocabulary/taxonomy/rubric/Rovo-bridge: `protocols/agentic-tool-lifecycle
   (maos PR #340): direct-capability description, distinct trigger contexts, imperative voice,
   why-over-must principle stated, body split into `examples.md` + `reference.md`.
   Prior history predates version tracking (untracked).
+
+Signed: **Pi-Lead-01a0-340** · last revised: `git log -1 --format=%cI -- skills/skill-writer/SKILL.md` — read it, do not copy it here (hand-written stamps went stale three times in one session on the sibling artifact; git is the authority).
