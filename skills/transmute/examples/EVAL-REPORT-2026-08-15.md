@@ -66,6 +66,19 @@ Before this round the changelog claimed 2 cycles while the ledger held **0** —
 per-skill *island counter* that `skills/dogfood-ledger/SKILL.md:56` forbids. The claim was true;
 it was merely unmeasurable, which under `anti-theater` is not a lesser defect.
 
+> **⚠️ Auditability limit — declared, not glossed** (raised by CodeRabbit on PR #343, upheld):
+> the ledger is **user-scope and machine-local** (`~/.claude/audit/`, by design per
+> `skills/dogfood-ledger/SKILL.md:16` — "one user-scope, append-only, jq-countable ledger …
+> fed by any session/project/vendor"). It is therefore **NOT auditable from a clone of this
+> repository**. A reviewer without the operator's machine can verify the *upstream* evidence
+> the entries cite — PRs #328/#330, and the artifact's existence — but must take the tally
+> itself on trust.
+> This is the same defect class this very report corrects one section above (a citation the
+> reader cannot resolve), so it is recorded rather than asserted away. It is a **known
+> limitation of a deliberately user-scope design**, not a defect introduced here: a
+> cross-machine ledger would have to solve identity and merge, which `dogfood-ledger` did not
+> set out to do. Reproduce locally with `bash bin/dogfood-tally transmute`.
+
 → **Next, in order:** (1) exercise **C4** on a genuinely dirty source — the one case still scored
 by inspection alone; (2) decide the chained-cast gap: either implement `--to-type` as a list with
 an array `cast` contract, or delete the multi-cast promise from §When-to-use. Shipping a
