@@ -287,9 +287,11 @@ running is REFUSED — if ANY cap is unset, stop and ask."* — where "ANY cap" 
 ATTEMPTS cap (round-5 symmetry: a default there would be an invented number).
 
 Asked; unanswered at render time. The loop is refused **by its own contract**, not by hesitation.
-Two slots remain, and only the operator can fill them:
+Three slots remain, and only the operator can fill them:
 
 ```text
+<ATTEMPTS>       — required (harness cap; the document renders no default — a default here would
+                   be an invented number, the class round 5 retracted)
 <COST CEILING>   — required
 <WALL-CLOCK>     — required
 ```
