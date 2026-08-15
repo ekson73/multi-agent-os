@@ -9,6 +9,8 @@ This Skill helps you create well-structured Agent Skills that follow the [Agent 
 
 ## Instructions
 
+**Governing principle** — explain *why* each rule matters instead of piling up heavy-handed MUSTs: an author who understands the reason generalizes; one who only obeys over-fits. Keep guidance general, not narrow to its own examples. Apply this principle to every constraint below — and to every Skill these instructions produce.
+
 ### Step 1: Determine Skill scope
 
 First, understand what the Skill will do:

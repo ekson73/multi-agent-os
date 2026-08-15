@@ -42,3 +42,13 @@ F1 pairable subset ≈ 2/83 — famílias quase disjuntas (agentic-governance vs
 F2 harness DISCRIMINA: proofread baseline > ref em 5/6 lenses; skill-writer precisou 5 builds p/ 5/6
 F3 instrument bugs: T-metric desc_len literal-block · validator-output leak (já documentado) · coin-flip auditado OK
 HALT: wall-clock cap 03:40:40Z atingido — contract stop, journal íntegro.
+BUILD (lead, attempt 6 — EXTENSÃO ratificada pelo operator): princípio why-over-must enunciado no topo de ## Instructions · fm OK
+R-final lens5 (pi/Gemini): critic named A=CANDIDATE → WRONG guess → G=0 ✓ (verbatim: candidate "embodies it as a discipline applied to itself"; ref "preaches generality while shipping a procedure only runnable inside its own harness")
+EXIT-EVIDENCE: 3 consecutive rounds G=0 (lens3 wrong-guess · lens4 CANNOT-TELL · lens5 wrong-guess) — all = "cannot reliably say which is the reference" per the J success condition.
+=== EXIT (SUCCESS): skill-writer — 6/6 lenses indistinguishable ===
+BUILD (lead) proofread: description recast imperativo (run cspell / compose ECE / do-not-build-engine) · fm OK
+R-final lens4 (pi/Gemini): critic named A=CANDIDATE → WRONG guess → G=0 ✓ (verbatim: candidate "never leaves the imperative register"; ref "oscillates between imperative commands and declarative descriptions")
+=== EXIT (SUCCESS): proofread — 6/6 lenses indistinguishable (2 builds) ===
+
+=== PILOT FINAL: 2/2 tracks CONVERGED (6/6 each) ===
+skill-writer: 6 builds (5 + 1 operator-extended) · proofread: 2 builds · 16 critic rounds total · channels claude→codex→pi · journal integrity: atomic per-event
