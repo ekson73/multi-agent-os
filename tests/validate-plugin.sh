@@ -272,6 +272,13 @@ fi
 # Capability-detected: PyYAML absent → WARN, never a red build for a missing dep.
 echo "Validating frontmatter parses as YAML..."
 if python3 -c "import yaml" 2>/dev/null; then
+    # Initialize IN THIS SCOPE before the capture below. `YAML_RC` is a generic-enough
+    # name that an outer wrapper may already export it; without this reset a SUCCESSFUL
+    # python run never executes `|| YAML_RC=$?`, so the inherited value survives and the
+    # gate reports a crash that never happened. `${VAR:-0}` does NOT cover this: it
+    # substitutes only when unset/null, not when set to garbage. Never read a variable
+    # you did not initialize in your own scope.
+    YAML_RC=0
     YAML_BAD=$(python3 - "$PLUGIN_ROOT" <<'PYEOF'
 import glob, io, os, sys, yaml
 root = sys.argv[1]
@@ -338,7 +345,6 @@ if os.path.exists(os.path.join(root, ".git")):
 print("\n".join(bad))
 PYEOF
 ) || YAML_RC=$?
-    YAML_RC=${YAML_RC:-0}
     # `|| YAML_RC=$?` on the assignment above is load-bearing: this script runs under
     # `set -euo pipefail` (line 9), so a bare `X=$(python3 ...)` that exits non-zero
     # ABORTS the whole script right there — the run does fail (safe), but with no
