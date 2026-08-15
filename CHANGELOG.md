@@ -279,11 +279,13 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 ## [1.22.1] - 2026-08-10
 
 ### Fixed
+
 - Sync `packaging/opencode-maos` version to plugin SSOT; wire `validate-skill-frontmatter` into `tests/validate-plugin.sh`; extend `version-sync.yml` to package manifests
 - `.agents/skills/multi-agent-os/SKILL.md` + `.claude/skills/multi-agent-os/SKILL.md`: add Agent Skills frontmatter (`name`/`description`) so `npx skills` no longer skips them
 - Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
 
 ### Added
+
 - `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
 - `docs/multi-host-packaging.md` install matrix + agent id notes
 
