@@ -272,12 +272,36 @@ fi
 # Capability-detected: PyYAML absent → WARN, never a red build for a missing dep.
 echo "Validating frontmatter parses as YAML..."
 if python3 -c "import yaml" 2>/dev/null; then
+    # Initialize IN THIS SCOPE before the capture below. `YAML_RC` is a generic-enough
+    # name that an outer wrapper may already export it; without this reset a SUCCESSFUL
+    # python run never executes `|| YAML_RC=$?`, so the inherited value survives and the
+    # gate reports a crash that never happened. `${VAR:-0}` does NOT cover this: it
+    # substitutes only when unset/null, not when set to garbage. Never read a variable
+    # you did not initialize in your own scope.
+    YAML_RC=0
     YAML_BAD=$(python3 - "$PLUGIN_ROOT" <<'PYEOF'
 import glob, io, os, sys, yaml
 root = sys.argv[1]
 bad = []
-for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
-    for p in sorted(glob.glob(os.path.join(root, pat))):
+seen = set()
+# `**` + recursive=True: Python's `*` does NOT cross `/`, unlike git's pathspec of the
+# same shape. With the non-recursive patterns this gate never saw agents/consultants/*.md
+# nor commands/*/*.md — 30 artifacts that were reported as covered. See issue #327.
+# NOTE both halves are load-bearing: `**` without recursive=True behaves as plain `*`.
+for pat in ("skills/**/SKILL.md", "agents/**/*.md", "commands/**/*.md"):
+    for p in sorted(glob.glob(os.path.join(root, pat), recursive=True)):
+        # REACHED — must precede every `continue` below (see note under the except).
+        # `.replace(os.sep, "/")`: on Windows os.path.relpath returns `agents\foo.md`
+        # while `git ls-files` ALWAYS emits `/`, so without this every artifact lands in
+        # `tracked - seen` and the assertion reports a false total reach gap on every run.
+        # os.sep (not a literal "\\"): on POSIX os.sep == "/" so this is a no-op, which
+        # matters because `\` is a legal filename character there and a literal replace
+        # would corrupt it.
+        seen.add(os.path.relpath(p, root).replace(os.sep, "/"))
+                                             # below, or `seen` records "parsed" while the
+                                             # assertion claims "reached" (they differ for
+                                             # files with no frontmatter, which are skipped
+                                             # on purpose and are NOT a reach gap).
         if os.path.basename(p) == "README.md":
             continue                      # docs, not artifacts (same rule as above)
         try:
@@ -289,10 +313,52 @@ for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
             bad.append(f"{os.path.relpath(p, root)} :: {str(e).splitlines()[0]}")
         except Exception as e:
             bad.append(f"{os.path.relpath(p, root)} :: {type(e).__name__}: {e}")
+
+# REACH ASSERTION — the gate must not silently under-reach again (issue #327).
+# git's pathspec `*` crosses `/`, so these patterns are the ground truth for what
+# SHOULD have been parsed. Degrade-safe: no git / not a repo -> skip, never fail,
+# because this validator also runs from an installed plugin dir with no .git.
+# `.git` absent is the ONE legitimate skip (installed plugin dir) — silent by design.
+# Anything else is reported: a control that disables itself on any error is not a control,
+# it is an invisible bypass. Narrow excepts only, so a real bug in this block propagates
+# and is caught by the rc check in the shell above rather than swallowed here.
+if os.path.exists(os.path.join(root, ".git")):
+    import subprocess
+    try:
+        tracked = set()
+        for pat in ("skills/*/SKILL.md", "agents/*.md", "commands/*.md"):
+            out = subprocess.run(["git", "-C", root, "ls-files", pat],
+                                 capture_output=True, text=True, timeout=10)
+            if out.returncode != 0:
+                raise OSError(f"git ls-files rc={out.returncode}")
+            # splitlines(): git ls-files is newline-delimited. `.split()` would corrupt any
+            # tracked path containing spaces (zero today — probed — but the gate's whole
+            # purpose is to not silently under-report again, per #327).
+            tracked.update(f.replace("\\", "/") for f in out.stdout.splitlines()
+                           if os.path.basename(f) != "README.md")
+        missed = sorted(tracked - seen)
+        if missed:
+            bad.append(f"REACH GAP :: {len(missed)} tracked artifact(s) the glob never parsed, "
+                       f"e.g. {missed[0]} — the gate under-reaches (see #327)")
+    except (OSError, subprocess.SubprocessError) as e:
+        # .git IS here, so git failing is an anomaly, not the expected no-repo case.
+        bad.append(f"REACH ASSERTION DID NOT RUN :: {type(e).__name__}: {e} — "
+                   f"the under-reach guard was skipped; treat coverage as UNVERIFIED")
+
 print("\n".join(bad))
 PYEOF
-)
-    if [ -z "$YAML_BAD" ]; then
+) || YAML_RC=$?
+    # `|| YAML_RC=$?` on the assignment above is load-bearing: this script runs under
+    # `set -euo pipefail` (line 9), so a bare `X=$(python3 ...)` that exits non-zero
+    # ABORTS the whole script right there — the run does fail (safe), but with no
+    # message saying why, and any check written after it is unreachable. The `||`
+    # keeps the failure local so it can be reported instead of just ending the script.
+    # Emptiness alone is NOT the test: a python crash exits non-zero with EMPTY stdout,
+    # which reads as "nothing bad found". Per script-safety §6 the authority is the
+    # captured exit code.
+    if [ "$YAML_RC" -ne 0 ]; then
+        fail "frontmatter YAML check crashed (python rc=$YAML_RC) — result is UNKNOWN, not clean"
+    elif [ -z "$YAML_BAD" ]; then
         pass "all artifact frontmatter parses as YAML"
     else
         while IFS= read -r line; do [ -n "$line" ] && fail "unparseable frontmatter: $line"; done <<< "$YAML_BAD"
