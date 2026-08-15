@@ -83,3 +83,7 @@ it was merely unmeasurable, which under `anti-theater` is not a lesser defect.
 by inspection alone; (2) decide the chained-cast gap: either implement `--to-type` as a list with
 an array `cast` contract, or delete the multi-cast promise from §When-to-use. Shipping a
 capability in the prose and not in the grammar is the failure mode this report exists to catch.
+
+---
+
+*Signed: `Claude-Eval-78dd-343` (Claude Opus 5 1M, session `78dd97cc`) | 2026-08-15T15:41:56Z — round n+8 reconciliation: C5 closed on verified artifact, island counter migrated to SSOT, ledger auditability limit declared, `.Codex`→`.codex` casing outlier fixed (qodo). Artifact existence and inode-identity measured, not assumed.*

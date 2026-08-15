@@ -292,7 +292,7 @@ router added no routing). Dormant-by-design otherwise.
   validated live (rounds n+1 AND n+2 both arrived with `{{BRAINDUMP}}` unfilled →
   correct behavior: `STOP-ERROR` naming the placeholder — pattern is now a
   confirmed recurring input class, not an edge). SSOT harmonization: user-scope
-  `~/.Codex/prompts/enhance.md` now carries a ROUTER header delegating
+  `~/.codex/prompts/enhance.md` now carries a ROUTER header delegating
   transmute-intent invocations here (the 3-semantics "enhance" conflict resolved:
   legacy prompt-enhancer stays fallback · feature→PR stays `enhance-pipeline` ·
   source×transform×cast×emit matrix = THIS skill).
