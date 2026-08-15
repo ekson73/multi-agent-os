@@ -137,7 +137,11 @@ echo ""
 echo "Checking commands..."
 
 COMMAND_COUNT=0
-for cmd in "$PLUGIN_ROOT/commands"/*.md; do
+# find, not a glob: bash's `*` does NOT cross `/` (and globstar needs bash 4+,
+# absent on macOS's stock 3.2) — the old loop silently never saw commands/*/*.md.
+# Sibling of issue #327 / PR #333; measured hole: #336. `while read` (not a
+# `for` over $(...)) so paths with spaces survive.
+while IFS= read -r cmd; do
     if [ -f "$cmd" ]; then
         cmd_name=$(basename "$cmd")
         if [ "$cmd_name" != "README.md" ]; then
@@ -150,7 +154,7 @@ for cmd in "$PLUGIN_ROOT/commands"/*.md; do
             ((COMMAND_COUNT++)) || true
         fi
     fi
-done
+done < <(find "$PLUGIN_ROOT/commands" -type f -name '*.md' | sort)
 
 if [ $COMMAND_COUNT -eq 0 ]; then
     warn "No commands found"
@@ -163,7 +167,9 @@ echo ""
 echo "Checking agents..."
 
 AGENT_COUNT=0
-for agent in "$PLUGIN_ROOT/agents"/*.md; do
+# Same reach fix as the commands loop above (#336): `find` recurses where
+# `agents/*.md` could not — 21 consultants were invisible to this presence check.
+while IFS= read -r agent; do
     if [ -f "$agent" ]; then
         agent_name=$(basename "$agent")
         if [ "$agent_name" != "README.md" ]; then
@@ -176,7 +182,7 @@ for agent in "$PLUGIN_ROOT/agents"/*.md; do
             ((AGENT_COUNT++)) || true
         fi
     fi
-done
+done < <(find "$PLUGIN_ROOT/agents" -type f -name '*.md' | sort)
 
 if [ $AGENT_COUNT -eq 0 ]; then
     warn "No agents found"
