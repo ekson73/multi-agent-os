@@ -332,10 +332,12 @@ if os.path.exists(os.path.join(root, ".git")):
             if out.returncode != 0:
                 raise OSError(f"git ls-files rc={out.returncode}")
             # `-z` + byte-split on NUL + os.fsdecode: paths are preserved EXACTLY
-            # (spaces, backslashes, non-UTF-8 bytes). No separator munging: git always
-            # emits `/`, and `\\` is a legal POSIX filename character — replacing it
-            # would corrupt such a path. (CodeRabbit round 6; supersedes the splitlines
-            # fix, which still split on whitespace runs.)
+            # (spaces, backslashes, non-UTF-8 bytes — and newlines, which are legal in
+            # POSIX filenames and would break any line-based split). No separator munging:
+            # git always emits `/`, and `\` is a legal POSIX filename character — replacing
+            # it would corrupt such a path. (CodeRabbit round 6. Note: the intermediate
+            # splitlines() step DID handle spaces correctly; what it could not survive is a
+            # newline-in-path — that residual is what `-z` closes.)
             tracked.update(f for f in (os.fsdecode(b) for b in out.stdout.split(b"\0") if b)
                            if os.path.basename(f) != "README.md")
         missed = sorted(tracked - seen)
