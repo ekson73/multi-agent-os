@@ -1,25 +1,9 @@
 # Changelog
 
-## [1.22.1] - 2026-08-10
-
-### Fixed
-- Sync `packaging/opencode-maos` version to plugin SSOT; wire `validate-skill-frontmatter` into `tests/validate-plugin.sh`; extend `version-sync.yml` to package manifests
-
-
-### Fixed
-- `.agents/skills/multi-agent-os/SKILL.md` + `.claude/skills/multi-agent-os/SKILL.md`: add Agent Skills frontmatter (`name`/`description`) so `npx skills` no longer skips them
-- Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
-
-### Added
-- `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
-- `docs/multi-host-packaging.md` install matrix + agent id notes
-
-
 All notable changes to the Multi-Agent OS plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 
 ## [Unreleased]
 
@@ -291,6 +275,19 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Distinct from siblings: `maos-concierge` (framework-facing) · `work-compass` (aggregation engine it routes to) ·
   `pulse` (single-session re-orientation) · `reactivate`/Entelecheia (the agent-facing twin) · `ops-strategist`
   (the optional user-scope brain). Named by `skills/anima` per the naming authority.
+
+## [1.22.1] - 2026-08-10
+
+### Fixed
+
+- Sync `packaging/opencode-maos` version to plugin SSOT; wire `validate-skill-frontmatter` into `tests/validate-plugin.sh`; extend `version-sync.yml` to package manifests
+- `.agents/skills/multi-agent-os/SKILL.md` + `.claude/skills/multi-agent-os/SKILL.md`: add Agent Skills frontmatter (`name`/`description`) so `npx skills` no longer skips them
+- Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
+
+### Added
+
+- `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
+- `docs/multi-host-packaging.md` install matrix + agent id notes
 
 ## [1.22.0] - 2026-07-22
 
