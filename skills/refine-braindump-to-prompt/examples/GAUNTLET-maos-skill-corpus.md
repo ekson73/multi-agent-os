@@ -4,7 +4,11 @@
 > **maos itself** as the target (recursive dogfood). This file is the **artifact**; it is not armed.
 > See §Budget — the loop is refused until a ceiling exists.
 >
-> Signed: **Claude-Doc-ef60-325** · rendered `2026-08-14T22:03Z` · revised `2026-08-14T22:58Z`
+> Signed: **Claude-Doc-ef60-325** · first rendered `2026-08-14T22:03Z`
+> · last revised: **`git log -1 --format=%cI -- <this file>`** — read it, do not copy it here.
+> A hand-written `revised` stamp lived here and went stale three times in one session,
+> silently, because it duplicates a fact git already tracks authoritatively. The signature
+> the review asked for is the agent ID; the timestamp is git's to answer.
 
 ## Why this target, from measurement
 
@@ -188,6 +192,14 @@ cannot tell. It may not lower the bar.
 Run bin/convergence-guard for what it does catch (correlated brand/axis peers). Note its
 limit: it compares caller-supplied labels and cannot observe context freshness.
 
+  NOT RUNNER-ENFORCED — stated, not hidden. A review asked for critic isolation to be a
+  runner-enforced contract. It is not, and no primitive in this repo can make it one:
+  convergence-guard reads labels the CALLER supplies, so a caller that mislabels a
+  context-contaminated critic passes the guard. Isolation here is a PROMPT-level contract
+  the invoking agent can violate without detection. Closing it needs a runner that spawns
+  the critic itself and controls what enters its context — which does not exist yet.
+  Recorded as a known hole rather than described in language that implies a gate.
+
 EVIDENCE  (directly inspectable — no inference from the build story)
   - both SKILL.md texts, provenance-stripped, side by side
   - validate-plugin.sh output for the candidate
@@ -197,8 +209,14 @@ The critic may NOT read the builder's reasoning or this prompt's derivation.
 STATE
 Persist OUTSIDE the conversation, per skill: every attempt, every refutation, every
 T-metric, and the blind-guess outcome (guessed-correctly / could-not-tell). Round N must
-know what round N-1 already failed. Sink: a journal under the worktree, committed with
-the batch.
+know what round N-1 already failed.
+  SINK: a journal under the worktree, appended ATOMICALLY (write temp + rename) after
+  EACH event, BEFORE the next round starts. The batch commit reconciles what is already
+  on disk; it is not the moment the state first exists.
+  Why not "committed with the batch" alone: an interrupted batch would lose exactly the
+  round-to-round history the paragraph above requires — the sink would contradict its own
+  stated purpose. An earlier draft of this prompt said precisely that, and the review that
+  caught it named the contradiction rather than restating a preference.
 
 STOP  (every term below is measured, not adjectival)
 
