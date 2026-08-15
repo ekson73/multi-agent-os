@@ -305,3 +305,7 @@ router added no routing). Dormant-by-design otherwise.
 ## License
 
 MIT (matches multi-agent-os repo `LICENSE`).
+
+---
+
+*Changelog corrections v0.1.2/v0.1.1 signed: `Claude-Eval-78dd-343` (Claude Opus 5 1M, session `78dd97cc`) | 2026-08-15T15:41:56Z — scope: the two changelog entries only (sink path, retracted sync claim, island-counter→SSOT pointer, `.Codex`→`.codex`). NOT an authorship claim over the skill, whose contract is unchanged by this PR.*
