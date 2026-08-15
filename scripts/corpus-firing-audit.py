@@ -26,6 +26,9 @@ def hits(pattern, path):
     r = subprocess.run(['rg', '-o', '--no-filename', pattern, path,
                         '-g', '*.jsonl', '--glob', EXCLUDE],
                        capture_output=True, text=True)
+    # fail-loud (Qodo #346): rg ausente/erro ≠ zero hits — silenciar pintaria tudo DORMANT
+    if r.returncode not in (0, 1):  # 1 = no matches (legítimo); outros = erro real
+        raise RuntimeError(f'rg falhou rc={r.returncode}: {r.stderr[:200]}')
     return r.stdout
 
 def per_skill(vendor):
@@ -49,7 +52,7 @@ C, X, P = per_skill('claude'), per_skill('codex'), per_skill('pi')
 
 rows = []
 for s in skills:
-    txt = open(f'skills/{s}/SKILL.md').read()
+    txt = open(f'skills/{s}/SKILL.md', encoding='utf-8', errors='replace').read()
     b = bool(re.search(r'DUED|sunset|max_iterations|exit.?condition|time.?box|stop.?condition|bail',
                        txt, re.I))
     try:
