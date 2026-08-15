@@ -161,6 +161,20 @@ if [ -d "$PLUGIN_ROOT/commands" ]; then
 # `-print0` + `read -d ''` rather than line-based: a NEWLINE is a legal POSIX filename
 # character, and a line-based read turns one such path into two bogus entries. Same
 # residual `-z` closed on the Python side in #335. `head -n 1` is the POSIX spelling.
+#
+# Discovery runs in the PARENT (into a file) instead of `done < <(find ...)`: a process
+# substitution runs the producer in a SEPARATE process, so a `find` that dies reaches the
+# loop as plain end-of-input — indistinguishable from "the dir was empty". Neither `set -e`
+# nor `pipefail` sees it, and the run reports GREEN having validated nothing (CodeRabbit
+# #338, Major). As a parent statement, `pipefail` makes `$?` reflect ANY stage and
+# `|| RC=$?` captures it without aborting; the loop then reads a plain file, so the
+# process-substitution class is gone rather than patched.
+CMD_LIST="$(mktemp -t mao-cmdlist.XXXXXX)"
+CMD_DISCOVER_RC=0
+find "$PLUGIN_ROOT/commands" -type f -name '*.md' -print0 | $SORT_NUL > "$CMD_LIST" || CMD_DISCOVER_RC=$?
+if [ "$CMD_DISCOVER_RC" -ne 0 ]; then
+    fail "command discovery FAILED (rc=$CMD_DISCOVER_RC) — coverage is UNVERIFIED, not clean"
+fi
 while IFS= read -r -d '' cmd; do
     if [ -f "$cmd" ]; then
         cmd_name=$(basename "$cmd")
@@ -176,7 +190,8 @@ while IFS= read -r -d '' cmd; do
             ((COMMAND_COUNT++)) || true
         fi
     fi
-done < <(find "$PLUGIN_ROOT/commands" -type f -name '*.md' -print0 | $SORT_NUL)
+done < "$CMD_LIST"
+rm -f "$CMD_LIST"
 fi
 
 if [ $COMMAND_COUNT -eq 0 ]; then
@@ -194,7 +209,14 @@ AGENT_COUNT=0
 # `agents/*.md` could not — 21 consultants were invisible to this presence check.
 # Relative-path messages + dir guard, same rationale as the commands loop.
 if [ -d "$PLUGIN_ROOT/agents" ]; then
-# Same `-print0` / `head -n 1` rationale as the commands loop above.
+# Same `-print0` / `head -n 1` rationale as the commands loop above, and the same
+# parent-statement discovery so a failing `find` cannot masquerade as an empty dir.
+AGENT_LIST="$(mktemp -t mao-agentlist.XXXXXX)"
+AGENT_DISCOVER_RC=0
+find "$PLUGIN_ROOT/agents" -type f -name '*.md' -print0 | $SORT_NUL > "$AGENT_LIST" || AGENT_DISCOVER_RC=$?
+if [ "$AGENT_DISCOVER_RC" -ne 0 ]; then
+    fail "agent discovery FAILED (rc=$AGENT_DISCOVER_RC) — coverage is UNVERIFIED, not clean"
+fi
 while IFS= read -r -d '' agent; do
     if [ -f "$agent" ]; then
         agent_name=$(basename "$agent")
@@ -210,7 +232,8 @@ while IFS= read -r -d '' agent; do
             ((AGENT_COUNT++)) || true
         fi
     fi
-done < <(find "$PLUGIN_ROOT/agents" -type f -name '*.md' -print0 | $SORT_NUL)
+done < "$AGENT_LIST"
+rm -f "$AGENT_LIST"
 fi
 
 if [ $AGENT_COUNT -eq 0 ]; then
