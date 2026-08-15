@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `changelog-required` CI gate: a contract change must carry a CHANGELOG entry
+
+Closes the drift in #278. A PR that changes the **consumable contract** — a skill's `SKILL.md` or
+`profiles/`, a `commands/*.md`, an `agents/*.md` — is now checked for an accompanying `CHANGELOG.md`
+entry. Escape: the `no-changelog` label, waived explicitly and logged in the job (never silent).
+
+Two choices were made from measurement rather than from the issue's first draft:
+
+- **Trigger = contract, not tree.** Firing on everything under `skills/**` also fires on a skill's
+  own `EVAL-REPORT-*.md` and `examples/` — not consumer-visible. Replayed over the last 25 merged
+  PRs, the broad trigger fires on 13 and the contract trigger on 10, correctly dropping #325/#329/#332.
+- **WARN before BLOCK** (`ai-as-pwd-axiom` §4). The measured baseline is ~80% of contract-touching PRs
+  carrying no entry; a hard fail would have blocked 8 of the last 13 and made `no-changelog` the
+  default — a gate defeated by its own escape. Ships as `ENFORCE: '0'`; promotion is an operator call.
+
+Verified by replaying the **workflow's own regex** (extracted from the YAML, so the test cannot drift
+from the implementation) across four control classes — 9/9: the two documented drifts warn, real
+contract+entry PRs pass, auxiliary-only PRs are N/A, non-surface PRs are N/A. Head is never checked
+out; the diff is read from the API with a read-only token.
+
 ### Added — `refine-braindump-to-prompt` (Lapidary) v0.3.0: one braindump → one executable prompt
 
 Turns a raw operator braindump into ONE ready-to-execute prompt, rather than the ledger, envelope or

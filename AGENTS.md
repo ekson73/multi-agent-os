@@ -53,6 +53,7 @@ Before committing any changes:
 - **Worktree**: Never commit directly to main. Use `git worktree add` (enforced by GaaS hook)
 - **Secret scan**: gitleaks runs on pre-commit (enforced by GaaS hook)
 - **PR review**: Bot reviewers (CodeRabbit, Copilot, Qodo) run automatically
+- **CHANGELOG entry**: a PR that changes the *consumable contract* — a skill's `SKILL.md` or `profiles/`, a `commands/*.md`, an `agents/*.md` — must add an entry under `## [Unreleased]`. Checked by `changelog-required.yml`, which reads the diff from the API and never checks out head. Auxiliary files inside those trees (`examples/`, `EVAL-REPORT-*.md`) are *not* the contract and do not trigger it. **Escape**: apply the `no-changelog` label when a change genuinely alters nothing a consumer would notice — the waiver is logged in the job, never silent. The gate ships in **WARN** mode (`ENFORCE: '0'`); promoting it to BLOCK is an operator decision (see #278)
 
 ## Key Directories
 

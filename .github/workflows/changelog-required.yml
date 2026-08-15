@@ -1,0 +1,107 @@
+# Require a CHANGELOG entry when a PR changes the consumable contract.
+#
+# Closes the drift documented in #278: skills ship without a CHANGELOG entry, so
+# `[Unreleased]` under-reports what the plugin actually delivers — and whoever reads
+# it to decide a release bump sees less than exists.
+#
+# Two deliberate design choices, both measured rather than assumed (see the PR body):
+#
+#   1. TRIGGER = the consumable CONTRACT, not every path under skills/agents/commands.
+#      A skill's own EVAL-REPORT or examples/ file is not a consumer-visible change;
+#      firing on it would train contributors to reach for the escape label. Measured
+#      on the last 25 merged PRs: the broad trigger fires on 13, the contract trigger
+#      on 10 — it correctly drops #325/#329/#332, which touched only auxiliary files.
+#
+#   2. MODE = WARN first, BLOCK on evidence (`ai-as-pwd-axiom` §4: "start with
+#      reinforcement, promote to BLOCK only after evidence"). At the measured baseline
+#      (~80% of contract-touching PRs carry no entry) a hard fail would have blocked
+#      8 of the last 13 and turned `no-changelog` into the default — Goodhart, not a
+#      gate. Flip ENFORCE to '1' to promote once the rate falls.
+#
+# Security posture matches release-coherence.yml: the head is never checked out or
+# executed. The changed-file list is read from the API with a read-only token.
+
+name: changelog-required
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: changelog-required-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog-required:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a CHANGELOG entry when the consumable contract changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          # WARN (0) -> BLOCK (1). Promotion is an operator decision; see the header.
+          ENFORCE: '0'
+        run: |
+          set -euo pipefail
+
+          # --- explicit, logged escape -------------------------------------------------
+          # A skipped job reads as "not run"; an early exit that says why reads as a
+          # decision. #278 asks for the escape to be explicit and logged, not silent.
+          case ",${PR_LABELS}," in
+            *,no-changelog,*)
+              echo "::notice::escape label 'no-changelog' present — gate waived for this PR"
+              exit 0
+              ;;
+          esac
+
+          # --- read the diff without touching head code --------------------------------
+          files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+          if [ -z "${files}" ]; then
+            echo "::notice::no changed files reported — nothing to gate"
+            exit 0
+          fi
+
+          # --- the consumable contract -------------------------------------------------
+          # A consumer loads: a skill's SKILL.md and its profiles/, a command, an agent.
+          # Everything else under those trees (examples/, EVAL-REPORT-*.md, internal
+          # notes) is not part of what a consumer receives.
+          contract_re='(^skills/[^/]+/SKILL\.md$|^skills/[^/]+/profiles/|^commands/[^/]+\.md$|^agents/[^/]+\.md$)'
+
+          contract="$(printf '%s\n' "${files}" | grep -E "${contract_re}" || true)"
+          if [ -z "${contract}" ]; then
+            echo "::notice::no contract file changed — gate not applicable"
+            exit 0
+          fi
+
+          if printf '%s\n' "${files}" | grep -qxF 'CHANGELOG.md'; then
+            echo "::notice::contract changed and CHANGELOG.md updated — ok"
+            exit 0
+          fi
+
+          # --- the finding -------------------------------------------------------------
+          {
+            echo "### changelog-required"
+            echo
+            echo "This PR changes the consumable contract but does not touch \`CHANGELOG.md\`."
+            echo
+            echo "Contract files changed:"
+            echo
+            printf '%s\n' "${contract}" | sed 's/^/- `/; s/$/`/'
+            echo
+            echo "Add an entry under \`## [Unreleased]\`, or apply the \`no-changelog\` label"
+            echo "if this genuinely changes nothing a consumer would notice."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          msg="PR changes the consumable contract without a CHANGELOG.md entry (see the job summary; label 'no-changelog' to waive)"
+          if [ "${ENFORCE}" = '1' ]; then
+            echo "::error::${msg}"
+            exit 1
+          fi
+          echo "::warning::${msg}"
+          echo "gate is in WARN mode (ENFORCE=0) — not failing the PR"
