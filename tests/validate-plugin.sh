@@ -121,6 +121,51 @@ VISITED_LIST="$(mktemp -t mao-visited.XXXXXX)"
 # passed through instead of lost.
 if printf '' | sort -z >/dev/null 2>&1; then SORT_NUL="sort -z"; else SORT_NUL="cat"; fi
 
+# ONE predicate for "is this a command/agent ENTRY, or a doc / sub-document that merely lives
+# under those directories?" — consumed by the discovery loops AND by the reach assertion's
+# expectation below. A second copy would drift, and two instruments disagreeing about the same
+# set is precisely the defect class this file exists to catch (#327 / #336 / #338).
+#
+# Context: once the loops became recursive (#333/#337), they started reaching files that were
+# never commands — the recursion is right, the CLASSIFICATION was wrong, and a validator that
+# warns about non-defects trains people to ignore it (#339). Takes a REPO-RELATIVE path.
+is_entry() {
+    local path="$1"
+    # `skills/<name>/SKILL.md` IS a skill's entry point — all-caps by design, allow before (a).
+    case "$path" in
+        skills/*/SKILL.md) return 0 ;;
+    esac
+    # (a) An ALL-CAPS basename is a document by repo convention (README.md, SKILL.md,
+    #     COWORK-AUTONOMY-POLICY.md), not an entry. Generalizes the former literal
+    #     `!= README.md`, which only knew about one of them.
+    #     Two traps here, both measured:
+    #     (i) test the STEM, not the basename — `.md` is lowercase by definition, so a test
+    #         against `README.md` always matches on the extension and never fires.
+    #     (ii) `[[:lower:]]`, NOT `[a-z]`: the bracket RANGE is resolved by locale COLLATION,
+    #          which in any UTF-8 locale interleaves aAbBcC..., so `[a-z]` matches `README`
+    #          under bash. (It does not under zsh — so a probe run in the wrong shell reports
+    #          the opposite verdict. Measured: bash+UTF-8 MATCH, zsh nomatch, bash+C nomatch.)
+    #          `[[:lower:]]` is the POSIX class that actually means "a lowercase letter" and
+    #          agrees across bash/zsh × C/en_US/pt_BR.
+    local base="${path##*/}"
+    local stem="${base%.*}"
+    case "$stem" in
+        *[[:lower:]]*) ;;   # contains a lowercase letter -> ordinary entry name
+        *) return 1 ;;      # no lowercase at all -> shouty doc
+    esac
+    # (b) Anything inside a directory holding a SKILL.md is that SKILL's territory:
+    #     `commands/auto-shard/operations/*.md` are the skill's sub-documents and were never
+    #     meant to carry command frontmatter. Walk ancestors, so depth does not matter.
+    #     Deliberately NOT "skip anything nested": `commands/code/analyze/dependencies.md` is a
+    #     genuinely nested COMMAND (it has frontmatter) and must keep being validated.
+    local d="${path%/*}"
+    while [ -n "$d" ] && [ "$d" != "$path" ]; do
+        [ -f "$PLUGIN_ROOT/$d/SKILL.md" ] && return 1
+        case "$d" in */*) d="${d%/*}" ;; *) d="" ;; esac
+    done
+    return 0
+}
+
 # Check skills (subdirectory format)
 echo "Checking skills (subdirectory format)..."
 
@@ -177,9 +222,8 @@ if [ "$CMD_DISCOVER_RC" -ne 0 ]; then
 fi
 while IFS= read -r -d '' cmd; do
     if [ -f "$cmd" ]; then
-        cmd_name=$(basename "$cmd")
         cmd_rel="${cmd#"$PLUGIN_ROOT"/}"
-        if [ "$cmd_name" != "README.md" ]; then
+        if is_entry "$cmd_rel"; then
             printf '%s\n' "$cmd_rel" >> "$VISITED_LIST"
             # Check for frontmatter
             if head -n 1 "$cmd" | grep -q "^---"; then
@@ -219,9 +263,8 @@ if [ "$AGENT_DISCOVER_RC" -ne 0 ]; then
 fi
 while IFS= read -r -d '' agent; do
     if [ -f "$agent" ]; then
-        agent_name=$(basename "$agent")
         agent_rel="${agent#"$PLUGIN_ROOT"/}"
-        if [ "$agent_name" != "README.md" ]; then
+        if is_entry "$agent_rel"; then
             printf '%s\n' "$agent_rel" >> "$VISITED_LIST"
             # Check for frontmatter
             if head -n 1 "$agent" | grep -q "^---"; then
@@ -265,21 +308,74 @@ echo "Checking shell-loop reach..."
 if [ -e "$PLUGIN_ROOT/.git" ]; then
     REACH_RC=0
     TRACKED_LIST="$(mktemp -t mao-tracked.XXXXXX)"
+    TRACKED_RAW="$(mktemp -t mao-trackedraw.XXXXXX)"
     git -C "$PLUGIN_ROOT" ls-files \
-        'agents/*.md' 'commands/*.md' 'skills/*/SKILL.md' ':!*README.md' \
-        > "$TRACKED_LIST" 2>/dev/null || REACH_RC=$?
+        'agents/*.md' 'commands/*.md' 'skills/*/SKILL.md' \
+        > "$TRACKED_RAW" 2>/dev/null || REACH_RC=$?
+    # Filter the EXPECTATION through the very same `is_entry` the loops used. Two separate
+    # notions of "what counts" (a pathspec here, a literal there) is how the sets drift apart
+    # and the assertion starts reporting phantom gaps — the #336 class, one level up.
+    : > "$TRACKED_LIST"
+    while IFS= read -r tracked_path; do
+        is_entry "$tracked_path" && printf '%s\n' "$tracked_path" >> "$TRACKED_LIST"
+    done < "$TRACKED_RAW"
+    TRACKED_RAW_N=$(wc -l < "$TRACKED_RAW" | tr -d ' ')
+    # TRACKED_RAW stays alive past the comparison: EXTRA must be able to ask "is this path
+    # git-tracked at all?" to tell real drift from a not-yet-committed file (qodo #341).
     if [ "$REACH_RC" -ne 0 ]; then
         fail "reach assertion DID NOT RUN (git ls-files rc=$REACH_RC) — coverage is UNVERIFIED, not clean"
     else
+        # BIDIRECTIONAL on purpose. Filtering both sides through the same `is_entry` kills
+        # drift, but it also makes a one-directional check VACUOUS: a predicate that skips
+        # everything shrinks BOTH sets to empty and they agree trivially — measured, the
+        # assertion went green on a deliberately-broken predicate. So compare both ways:
+        #   MISSED (tracked \ visited) -> the LOOPS under-reach   (the #336 defect)
+        #   EXTRA  (visited \ tracked) -> the expectation shrank below what was visited
+        #
+        # HONEST BOUND, measured — do not read EXTRA as "over-skipping is now impossible":
+        # `is_entry` filters BOTH sides, so a predicate that over-skips COMMANDS/AGENTS shrinks
+        # both sets symmetrically and they still agree. EXTRA only fires where a loop records
+        # into VISITED WITHOUT consulting the predicate — today just the skills loop. The
+        # residual (a predicate that silently drops commands/agents) is covered by REPORTING
+        # the skip count in the pass line, not by a gate: if it jumps from 10 to 170 a reader
+        # sees it. A third-order guard-for-the-guard is where this stops being proportionate.
         MISSED=$(comm -23 <(sort "$TRACKED_LIST") <(sort "$VISITED_LIST"))
+        EXTRA=$(comm -13 <(sort "$TRACKED_LIST") <(sort "$VISITED_LIST"))
+        # EXTRA has TWO causes and only one is a defect (qodo #341, reproduced: an uncommitted
+        # `commands/foo.md` failed the run with the wrong diagnosis). The loops walk the
+        # FILESYSTEM — validating a file before `git add` is the normal dev loop, and is exactly
+        # why the walk is not driven by git. Split by tracked-ness BEFORE the verdict chain:
+        #   in TRACKED_RAW -> git knows it, yet the expectation dropped it => is_entry DRIFT (fail)
+        #   not in git     -> simply not committed yet                     => report, never fail
+        EXTRA_DRIFT=""
+        EXTRA_NEW_N=0
+        if [ -n "$EXTRA" ]; then
+            while IFS= read -r extra_path; do
+                [ -n "$extra_path" ] || continue
+                if grep -qxF "$extra_path" "$TRACKED_RAW"; then
+                    EXTRA_DRIFT="${EXTRA_DRIFT}${extra_path}
+"
+                else
+                    EXTRA_NEW_N=$((EXTRA_NEW_N + 1))
+                fi
+            done <<EOF
+$EXTRA
+EOF
+        fi
         if [ -n "$MISSED" ]; then
             MISSED_N=$(printf '%s\n' "$MISSED" | wc -l | tr -d ' ')
             fail "REACH GAP :: $MISSED_N tracked artifact(s) the shell loops never visited, e.g. $(printf '%s\n' "$MISSED" | head -n 1) — the loops under-reach (see #336)"
+        elif [ -n "$EXTRA_DRIFT" ]; then
+            EXTRA_N=$(printf '%s' "$EXTRA_DRIFT" | grep -c .)
+            fail "EXPECTATION GAP :: $EXTRA_N git-tracked artifact(s) were visited but dropped from the expectation, e.g. $(printf '%s' "$EXTRA_DRIFT" | head -n 1) — is_entry over-skips (see #339)"
         else
-            pass "shell loops reached every tracked artifact ($(wc -l < "$TRACKED_LIST" | tr -d ' '))"
+            SKIPPED_N=$(( TRACKED_RAW_N - $(wc -l < "$TRACKED_LIST") ))
+            UNTRACKED_NOTE=""
+            [ "$EXTRA_NEW_N" -gt 0 ] && UNTRACKED_NOTE="; $EXTRA_NEW_N not yet committed"
+            pass "shell loops reached every tracked artifact ($(wc -l < "$TRACKED_LIST" | tr -d ' ') entries; $SKIPPED_N classified as docs/sub-documents$UNTRACKED_NOTE)"
         fi
     fi
-    rm -f "$TRACKED_LIST"
+    rm -f "$TRACKED_LIST" "$TRACKED_RAW"
 fi
 rm -f "$VISITED_LIST"
 echo ""
