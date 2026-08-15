@@ -276,17 +276,23 @@ router added no routing). Dormant-by-design otherwise.
   overlap (Alambique = vault placement SSOT; transmute = repo routing SSOT).
 - v0.1.2 — **dogfood cycle 2 COMPLETE → eval C5 re-scored 2→5 = PASS** (full pipeline
   INTAKE→COMPREHEND→TRANSFORM→CAST→EMIT on a real source: the operator's recurring
-  `/enhance` round template, 4 live traces). Emitted `prompts/transmute-round.md`
-  (user-scope, synced to akasha-codex). Notable COMPREHEND finding: the template's
+  `/enhance` round template, 4 live traces). Emitted `~/.codex/prompts/transmute-round.md`
+  (user-scope, **Codex** harness). Notable COMPREHEND finding: the template's
   verb cascade and matrix spec ARE this skill's spec — the invocation was a
   hand-rolled transmute all along (confirming the n+2 SSOT harmonization).
-  Dogfood ledger: cycle 1 (placeholder-class, live ×4) + cycle 2 (end-to-end,
-  real source) = **2 cycles per dogfooding-mandate R1 → promotion gate OPEN**.
+  Dogfood cycles are counted in the **SSOT ledger**, not here — `bin/dogfood-tally transmute`
+  is the authority (`skills/dogfood-ledger/SKILL.md:56`: *"do NOT keep per-skill island
+  counters"*). Cycles 001/002 backfilled 2026-08-15 (round n+8) → `GATE>=2 ELIGIBLE`.
+  **Corrected 2026-08-15 (round n+8)**: the sink path was written `prompts/transmute-round.md`
+  (reads as repo-relative → resolves to nothing) and carried an uncorroborated
+  *"synced to akasha-codex"* — retracted; `~/akasha-codex` has no `prompts/`. The artifact
+  itself was verified present. Prior text claimed the gate from this line alone while the
+  ledger held zero cycles — true claim, unmeasurable evidence.
 - v0.1.1 — dogfood cycle 1 recorded: INTAKE placeholder-detection failure mode
   validated live (rounds n+1 AND n+2 both arrived with `{{BRAINDUMP}}` unfilled →
   correct behavior: `STOP-ERROR` naming the placeholder — pattern is now a
   confirmed recurring input class, not an edge). SSOT harmonization: user-scope
-  `~/.Codex/prompts/enhance.md` now carries a ROUTER header delegating
+  `~/.codex/prompts/enhance.md` now carries a ROUTER header delegating
   transmute-intent invocations here (the 3-semantics "enhance" conflict resolved:
   legacy prompt-enhancer stays fallback · feature→PR stays `enhance-pipeline` ·
   source×transform×cast×emit matrix = THIS skill).
@@ -299,3 +305,7 @@ router added no routing). Dormant-by-design otherwise.
 ## License
 
 MIT (matches multi-agent-os repo `LICENSE`).
+
+---
+
+*Changelog corrections v0.1.2/v0.1.1 signed: `Claude-Eval-78dd-343` (Claude Opus 5 1M, session `78dd97cc`) | 2026-08-15T15:41:56Z — scope: the two changelog entries only (sink path, retracted sync claim, island-counter→SSOT pointer, `.Codex`→`.codex`). NOT an authorship claim over the skill, whose contract is unchanged by this PR.*
