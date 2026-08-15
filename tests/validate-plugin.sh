@@ -110,6 +110,17 @@ for script in "session-start.sh" "pre-delegate.sh" "post-delegate.sh" "session-e
 done
 echo ""
 
+# Every artifact the loops below actually visit is recorded here (repo-relative) so the
+# reach assertion at the end can PROVE the walk did not under-reach. #337 fixed the
+# reach; this makes a future regression impossible to land silently. See #336.
+VISITED_LIST="$(mktemp -t mao-visited.XXXXXX)"
+: > "$VISITED_LIST"
+
+# `sort -z` is GNU/newer-BSD only and exists purely to stabilize output order — no
+# check depends on it. Probe rather than assume: absent -> `cat`, so the NUL stream is
+# passed through instead of lost.
+if printf '' | sort -z >/dev/null 2>&1; then SORT_NUL="sort -z"; else SORT_NUL="cat"; fi
+
 # Check skills (subdirectory format)
 echo "Checking skills (subdirectory format)..."
 
@@ -119,6 +130,7 @@ for skill_dir in "$PLUGIN_ROOT/skills"/*/; do
         skill_name=$(basename "$skill_dir")
         if [ -f "${skill_dir}SKILL.md" ]; then
             pass "skills/$skill_name/SKILL.md exists"
+            printf '%s\n' "skills/$skill_name/SKILL.md" >> "$VISITED_LIST"
             ((SKILL_COUNT++)) || true
         else
             fail "skills/$skill_name/ missing SKILL.md"
@@ -146,13 +158,31 @@ COMMAND_COUNT=0
 # guard keeps a missing dir on the old code path's behavior (count=0 -> warn),
 # without find's stderr noise — the earlier structure gate is the loud reporter.
 if [ -d "$PLUGIN_ROOT/commands" ]; then
-while IFS= read -r cmd; do
+# `-print0` + `read -d ''` rather than line-based: a NEWLINE is a legal POSIX filename
+# character, and a line-based read turns one such path into two bogus entries. Same
+# residual `-z` closed on the Python side in #335. `head -n 1` is the POSIX spelling.
+#
+# Discovery runs in the PARENT (into a file) instead of `done < <(find ...)`: a process
+# substitution runs the producer in a SEPARATE process, so a `find` that dies reaches the
+# loop as plain end-of-input — indistinguishable from "the dir was empty". Neither `set -e`
+# nor `pipefail` sees it, and the run reports GREEN having validated nothing (CodeRabbit
+# #338, Major). As a parent statement, `pipefail` makes `$?` reflect ANY stage and
+# `|| RC=$?` captures it without aborting; the loop then reads a plain file, so the
+# process-substitution class is gone rather than patched.
+CMD_LIST="$(mktemp -t mao-cmdlist.XXXXXX)"
+CMD_DISCOVER_RC=0
+find "$PLUGIN_ROOT/commands" -type f -name '*.md' -print0 | $SORT_NUL > "$CMD_LIST" || CMD_DISCOVER_RC=$?
+if [ "$CMD_DISCOVER_RC" -ne 0 ]; then
+    fail "command discovery FAILED (rc=$CMD_DISCOVER_RC) — coverage is UNVERIFIED, not clean"
+fi
+while IFS= read -r -d '' cmd; do
     if [ -f "$cmd" ]; then
         cmd_name=$(basename "$cmd")
         cmd_rel="${cmd#"$PLUGIN_ROOT"/}"
         if [ "$cmd_name" != "README.md" ]; then
+            printf '%s\n' "$cmd_rel" >> "$VISITED_LIST"
             # Check for frontmatter
-            if head -1 "$cmd" | grep -q "^---"; then
+            if head -n 1 "$cmd" | grep -q "^---"; then
                 pass "$cmd_rel has frontmatter"
             else
                 warn "$cmd_rel missing frontmatter"
@@ -160,7 +190,8 @@ while IFS= read -r cmd; do
             ((COMMAND_COUNT++)) || true
         fi
     fi
-done < <(find "$PLUGIN_ROOT/commands" -type f -name '*.md' | sort)
+done < "$CMD_LIST"
+rm -f "$CMD_LIST"
 fi
 
 if [ $COMMAND_COUNT -eq 0 ]; then
@@ -178,13 +209,22 @@ AGENT_COUNT=0
 # `agents/*.md` could not — 21 consultants were invisible to this presence check.
 # Relative-path messages + dir guard, same rationale as the commands loop.
 if [ -d "$PLUGIN_ROOT/agents" ]; then
-while IFS= read -r agent; do
+# Same `-print0` / `head -n 1` rationale as the commands loop above, and the same
+# parent-statement discovery so a failing `find` cannot masquerade as an empty dir.
+AGENT_LIST="$(mktemp -t mao-agentlist.XXXXXX)"
+AGENT_DISCOVER_RC=0
+find "$PLUGIN_ROOT/agents" -type f -name '*.md' -print0 | $SORT_NUL > "$AGENT_LIST" || AGENT_DISCOVER_RC=$?
+if [ "$AGENT_DISCOVER_RC" -ne 0 ]; then
+    fail "agent discovery FAILED (rc=$AGENT_DISCOVER_RC) — coverage is UNVERIFIED, not clean"
+fi
+while IFS= read -r -d '' agent; do
     if [ -f "$agent" ]; then
         agent_name=$(basename "$agent")
         agent_rel="${agent#"$PLUGIN_ROOT"/}"
         if [ "$agent_name" != "README.md" ]; then
+            printf '%s\n' "$agent_rel" >> "$VISITED_LIST"
             # Check for frontmatter
-            if head -1 "$agent" | grep -q "^---"; then
+            if head -n 1 "$agent" | grep -q "^---"; then
                 pass "$agent_rel has frontmatter"
             else
                 warn "$agent_rel missing frontmatter"
@@ -192,7 +232,8 @@ while IFS= read -r agent; do
             ((AGENT_COUNT++)) || true
         fi
     fi
-done < <(find "$PLUGIN_ROOT/agents" -type f -name '*.md' | sort)
+done < "$AGENT_LIST"
+rm -f "$AGENT_LIST"
 fi
 
 if [ $AGENT_COUNT -eq 0 ]; then
@@ -201,6 +242,48 @@ else
     pass "$AGENT_COUNT agents found"
 fi
 echo ""
+
+# ── Shell-loop reach assertion — sibling of the Python gate's (#327/#333) ─────
+# #337 fixed the reach. This proves it STAYS fixed: the loops walk the FILESYSTEM on
+# purpose (a new artifact not yet `git add`ed must still be validated), and git is used
+# only as an INDEPENDENT source of truth to show the walk missed nothing. Without it a
+# green run can state a coverage number smaller than reality, and nobody audits a ✓.
+#
+# `-e`, not `-d`: in a linked worktree `.git` is a FILE (`gitdir: …`), so a directory
+# test is false there and this whole block would skip SILENTLY — that was the first
+# draft's bug, caught only because the negative control printed nothing instead of
+# firing. `-e` also separates "not a repo" (silent, legitimate) from "git broke"
+# (reported below); gating on `git rev-parse` would collapse both into one non-zero
+# exit and skip either way — error-as-absence.
+#
+# READMEs are excluded via git pathspec `:!*README.md`, NOT `grep -v`: under
+# `set -euo pipefail` a grep that filters every line exits 1 and would abort the run.
+#
+# Limitation stated rather than papered over: this comparison is line-based, so a path
+# containing a NEWLINE evades the ASSERTION (the loops themselves handle it via -print0).
+echo "Checking shell-loop reach..."
+if [ -e "$PLUGIN_ROOT/.git" ]; then
+    REACH_RC=0
+    TRACKED_LIST="$(mktemp -t mao-tracked.XXXXXX)"
+    git -C "$PLUGIN_ROOT" ls-files \
+        'agents/*.md' 'commands/*.md' 'skills/*/SKILL.md' ':!*README.md' \
+        > "$TRACKED_LIST" 2>/dev/null || REACH_RC=$?
+    if [ "$REACH_RC" -ne 0 ]; then
+        fail "reach assertion DID NOT RUN (git ls-files rc=$REACH_RC) — coverage is UNVERIFIED, not clean"
+    else
+        MISSED=$(comm -23 <(sort "$TRACKED_LIST") <(sort "$VISITED_LIST"))
+        if [ -n "$MISSED" ]; then
+            MISSED_N=$(printf '%s\n' "$MISSED" | wc -l | tr -d ' ')
+            fail "REACH GAP :: $MISSED_N tracked artifact(s) the shell loops never visited, e.g. $(printf '%s\n' "$MISSED" | head -n 1) — the loops under-reach (see #336)"
+        else
+            pass "shell loops reached every tracked artifact ($(wc -l < "$TRACKED_LIST" | tr -d ' '))"
+        fi
+    fi
+    rm -f "$TRACKED_LIST"
+fi
+rm -f "$VISITED_LIST"
+echo ""
+
 
 # Delegation Framework (GaaS/GaaC) — protocols + skill + CLI
 echo "Validating delegation framework..."
