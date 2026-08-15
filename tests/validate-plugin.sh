@@ -283,7 +283,14 @@ seen = set()
 # NOTE both halves are load-bearing: `**` without recursive=True behaves as plain `*`.
 for pat in ("skills/**/SKILL.md", "agents/**/*.md", "commands/**/*.md"):
     for p in sorted(glob.glob(os.path.join(root, pat), recursive=True)):
-        seen.add(os.path.relpath(p, root))   # REACHED — must precede every `continue`
+        # REACHED — must precede every `continue` below (see note under the except).
+        # `.replace(os.sep, "/")`: on Windows os.path.relpath returns `agents\foo.md`
+        # while `git ls-files` ALWAYS emits `/`, so without this every artifact lands in
+        # `tracked - seen` and the assertion reports a false total reach gap on every run.
+        # os.sep (not a literal "\\"): on POSIX os.sep == "/" so this is a no-op, which
+        # matters because `\` is a legal filename character there and a literal replace
+        # would corrupt it.
+        seen.add(os.path.relpath(p, root).replace(os.sep, "/"))
                                              # below, or `seen` records "parsed" while the
                                              # assertion claims "reached" (they differ for
                                              # files with no frontmatter, which are skipped
