@@ -4,12 +4,13 @@ version: "1.0.0"
 description: |
   Use when FINALIZING any text artifact — a doc / ADR / README / ticket body /
   PR description / commit message / release note — to check GRAMMAR (pt-BR + en-US),
-  TYPOS, and MIS-FORMATTING before it ships. The THOROUGH tier: cspell (catch-anything
-  spell-check — flags novel typos like "Aurona" that grep and codespell miss) +
-  LanguageTool (grammar/concordância/acentos/spelling, run LOCAL — never a public API)
-  + markdownlint (structure) + an optional Grammar-Genie rewrite for tone. An ECE
-  composition (deterministic linters × probabilistic rewrite), not a new engine.
-  Reports issues with file:line + fix suggestions; applies fixes only with confirmation.
+  TYPOS, and MIS-FORMATTING before it ships. For the THOROUGH tier, run cspell
+  (the workhorse — it flags novel typos like "Aurona" that grep and codespell miss) +
+  LanguageTool (grammar/concordância/acentos/spelling, LOCAL — never a public API)
+  + markdownlint-cli2 (structure), and offer an optional Grammar-Genie rewrite for tone.
+  Compose the deterministic linters with the probabilistic rewrite (ECE pattern);
+  do not build a new engine. Report issues with file:line + fix suggestions; apply
+  fixes only with confirmation.
   SKIP for trivial/throwaway text. Triggers: "proofread this", "revise / check grammar",
   "revisar gramática / ortografia", "find typos", "antes de commitar revise o texto",
   "is this text clean", "lint this doc", "check spelling pt-BR", "/proofread".
@@ -81,9 +82,9 @@ change) · never block a workflow (this is advisory — the on-demand THOROUGH p
 also wire a fast warn-only pre-commit backstop separately).
 
 ## Cross-links
-- ECE pattern: `agentic-first-decision-protocol §4.7` (deterministic harness × probabilistic cognition).
-- Named via `skills/anima` (soul-name envelope). Forged via the `agentic-tool-forge` discipline.
-- A consuming repo's `docs/text-quality-tooling.md` = the install/when/how catalog.
+- Apply the ECE pattern from `agentic-first-decision-protocol §4.7` (deterministic harness × probabilistic cognition).
+- Consult `docs/text-quality-tooling.md` in a consuming repo for the install/when/how catalog.
+- Lineage: named via `skills/anima`; forged via the `agentic-tool-forge` discipline.
 
 ## Changelog
 | Version | Date | Change |
