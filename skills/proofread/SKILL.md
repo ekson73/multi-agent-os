@@ -9,7 +9,7 @@ description: |
   LanguageTool (grammar/concordância/acentos/spelling, run LOCAL — never a public API)
   + markdownlint (structure) + an optional Grammar-Genie rewrite for tone. An ECE
   composition (deterministic linters × probabilistic rewrite), not a new engine.
-  Reports issues with file:line + fix suggestions; applies fixes only with confirmation.
+  Report issues with file:line + fix suggestions; apply fixes only with confirmation.
   SKIP for trivial/throwaway text. Triggers: "proofread this", "revise / check grammar",
   "revisar gramática / ortografia", "find typos", "antes de commitar revise o texto",
   "is this text clean", "lint this doc", "check spelling pt-BR", "/proofread".
@@ -81,9 +81,9 @@ change) · never block a workflow (this is advisory — the on-demand THOROUGH p
 also wire a fast warn-only pre-commit backstop separately).
 
 ## Cross-links
-- ECE pattern: `agentic-first-decision-protocol §4.7` (deterministic harness × probabilistic cognition).
-- Named via `skills/anima` (soul-name envelope). Forged via the `agentic-tool-forge` discipline.
-- A consuming repo's `docs/text-quality-tooling.md` = the install/when/how catalog.
+- Apply the ECE pattern from `agentic-first-decision-protocol §4.7` (deterministic harness × probabilistic cognition).
+- Consult `docs/text-quality-tooling.md` in a consuming repo for the install/when/how catalog.
+- Lineage: named via `skills/anima`; forged via the `agentic-tool-forge` discipline.
 
 ## Changelog
 | Version | Date | Change |

@@ -1,26 +1,17 @@
 ---
 name: skill-writer
-description: Guide users through creating Agent Skills following the open standard (compatible with 30+ AI tools). Use when the user wants to create, write, author, or design a new Skill, or needs help with SKILL.md files, frontmatter, or skill structure.
+description: Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). Use when the user wants to create a new Skill, update an existing SKILL.md's structure, content, or frontmatter, validate a Skill against the spec, audit or rewrite a Skill's description for reliable triggering, debug why a Skill isn't activating, or convert an existing prompt or workflow into a reusable Skill.
 ---
 
 # Skill Writer
 
 This Skill helps you create well-structured Agent Skills that follow the [Agent Skills open standard](https://agentskills.io) — compatible with Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and 25+ other AI tools.
 
-## When to use this Skill
-
-Use this Skill when:
-- Creating a new Agent Skill
-- Writing or updating SKILL.md files
-- Designing skill structure and frontmatter
-- Troubleshooting skill discovery issues
-- Converting existing prompts or workflows into Skills
-
 ## Instructions
 
 ### Step 1: Determine Skill scope
 
-First, understand what the Skill should do:
+First, understand what the Skill will do:
 
 1. **Ask clarifying questions**:
    - What specific capability should this Skill provide?
@@ -86,17 +77,17 @@ description: Brief description of what this does and when to use it
 **Field requirements**:
 
 - **name**:
-  - Lowercase letters, numbers, hyphens only
-  - Max 64 characters
-  - Must match directory name
+  - Lowercase letters, numbers, hyphens only — becomes the invocation slug parsed programmatically across 30+ tools
+  - Max 64 characters — frontmatter field limit enforced by the spec
+  - Must match directory name — the loader resolves a Skill by its directory, so a mismatch breaks discovery
   - Good: `pdf-processor`, `git-commit-helper`
   - Bad: `PDF_Processor`, `Git Commits!`
 
 - **description**:
-  - Max 1024 characters
-  - Include BOTH what it does AND when to use it
-  - Use specific trigger words users would say
-  - Mention file types, operations, and context
+  - Max 1024 characters — frontmatter field limit; longer text gets truncated by loaders
+  - Include BOTH what it does AND when to use it — the agent decides whether to invoke the Skill from the description alone, before reading the body
+  - Use specific trigger words users would say — matches how agents index descriptions against real user queries
+  - Mention file types, operations, and context — sharpens matching accuracy for the phrasing users actually use
 
 **Optional frontmatter fields**:
 
@@ -205,26 +196,26 @@ python scripts/helper.py input.txt
 Check these requirements:
 
 ✅ **File structure**:
-- [ ] SKILL.md exists in correct location
-- [ ] Directory name matches frontmatter `name`
+- [ ] SKILL.md exists in correct location — the loader only scans known Skill directories
+- [ ] Directory name matches frontmatter `name` — a mismatch breaks discovery (loader resolves by directory)
 
 ✅ **YAML frontmatter**:
-- [ ] Opening `---` on line 1
-- [ ] Closing `---` before content
-- [ ] Valid YAML (no tabs, correct indentation)
-- [ ] `name` follows naming rules
-- [ ] `description` is specific and < 1024 chars
+- [ ] Opening `---` on line 1 — required delimiter for the parser to recognize frontmatter
+- [ ] Closing `---` before content — malformed delimiters fail parsing and disable the whole Skill
+- [ ] Valid YAML (no tabs, correct indentation) — a parse error disables the whole Skill, not just the bad field
+- [ ] `name` follows naming rules — see field requirements above
+- [ ] `description` is specific and < 1024 chars — see field requirements above
 
 ✅ **Content quality**:
-- [ ] Clear instructions for the agent
-- [ ] Concrete examples provided
-- [ ] Edge cases handled
-- [ ] Dependencies listed (if any)
+- [ ] Clear instructions for the agent — the agent follows these verbatim when invoked; ambiguity causes wrong behavior
+- [ ] Concrete examples provided — reduces the agent's need to guess intended usage
+- [ ] Edge cases handled — prevents failure on non-happy-path inputs
+- [ ] Dependencies listed (if any) — the agent needs prerequisites known before it can execute the steps
 
 ✅ **Testing**:
-- [ ] Description matches user questions
-- [ ] Skill activates on relevant queries
-- [ ] Instructions are clear and actionable
+- [ ] Description matches user questions — validates real-world triggering before shipping
+- [ ] Skill activates on relevant queries — confirms discovery actually works end-to-end
+- [ ] Instructions are clear and actionable — confirms the Skill is usable, not just discoverable
 
 ### Step 9: Test the Skill
 
@@ -235,97 +226,17 @@ Check these requirements:
    Can you help me extract text from this PDF?
    ```
 
-3. **Verify activation**: the agent should use the Skill automatically
+3. **Verify activation**: the agent uses the Skill automatically
 
 4. **Check behavior**: confirm the agent follows the instructions correctly
 
 ### Step 10: Debug if needed
 
-If the agent doesn't use the Skill:
-
-1. **Make description more specific**:
-   - Add trigger words
-   - Include file types
-   - Mention common user phrases
-
-2. **Check file location**:
-   ```bash
-   # Claude Code
-   ls ~/.claude/skills/skill-name/SKILL.md
-   ls .claude/skills/skill-name/SKILL.md
-
-   # Other agents: check your agent's skill directory
-   ```
-
-3. **Validate YAML**:
-   ```bash
-   cat SKILL.md | head -n 10
-   ```
-
-4. **Run debug mode** (agent-specific):
-   ```bash
-   # Claude Code
-   claude --debug
-
-   # Other agents: check your agent's debug/verbose flag
-   ```
+If the agent doesn't use the Skill, make the description more specific (trigger words, file types, "Use when..." phrases). For the full checklist — file-location checks, YAML validation, agent debug-mode flags — see [reference.md](reference.md); read it when a Skill silently fails to activate or throws Skill-loading errors.
 
 ## Common patterns
 
-### Read-only Skill
-
-```yaml
----
-name: code-reader
-description: Read and analyze code without making changes. Use for code review, understanding codebases, or documentation.
-allowed-tools: Read, Grep, Glob
----
-```
-
-### Script-based Skill
-
-```yaml
----
-name: data-processor
-description: Process CSV and JSON data files with Python scripts. Use when analyzing data files or transforming datasets.
----
-
-# Data Processor
-
-## Instructions
-
-1. Use the processing script:
-\`\`\`bash
-python scripts/process.py input.csv --output results.json
-\`\`\`
-
-2. Validate output with:
-\`\`\`bash
-python scripts/validate.py results.json
-\`\`\`
-```
-
-### Multi-file Skill with progressive disclosure
-
-```yaml
----
-name: api-designer
-description: Design REST APIs following best practices. Use when creating API endpoints, designing routes, or planning API architecture.
----
-
-# API Designer
-
-Quick start: See [examples.md](examples.md)
-
-Detailed reference: See [reference.md](reference.md)
-
-## Instructions
-
-1. Gather requirements
-2. Design endpoints (see examples.md)
-3. Document with OpenAPI spec
-4. Review against best practices (see reference.md)
-```
+For copy-paste-ready starting points (read-only Skill, script-based Skill, multi-file Skill with progressive disclosure), see [examples.md](examples.md); read it when starting a new Skill and you want a working template to adapt.
 
 ## Best practices for Skill authors
 
@@ -342,34 +253,20 @@ Detailed reference: See [reference.md](reference.md)
 
 Before finalizing a Skill, verify:
 
-- [ ] Name is lowercase, hyphens only, max 64 chars
-- [ ] Description is specific and < 1024 chars
-- [ ] Description includes "what" and "when"
-- [ ] YAML frontmatter is valid
-- [ ] Instructions are step-by-step
-- [ ] Examples are concrete and realistic
-- [ ] Dependencies are documented
-- [ ] File paths use forward slashes
-- [ ] Skill activates on relevant queries
-- [ ] Agent follows instructions correctly
+- [ ] Name is lowercase, hyphens only, max 64 chars — see field requirements in Step 4
+- [ ] Description is specific and < 1024 chars — see field requirements in Step 4
+- [ ] Description includes "what" and "when" — the agent invokes from the description alone
+- [ ] YAML frontmatter is valid — a parse error disables the whole Skill
+- [ ] Instructions are step-by-step — the agent follows them verbatim; ambiguity causes wrong behavior
+- [ ] Examples are concrete and realistic — reduces the agent's need to guess intended usage
+- [ ] Dependencies are documented — the agent needs prerequisites known before it can execute the steps
+- [ ] File paths use forward slashes — keeps references portable across the 30+ compatible tools/OSes
+- [ ] Skill activates on relevant queries — confirms discovery actually works end-to-end
+- [ ] Agent follows instructions correctly — confirms the Skill is usable, not just discoverable
 
 ## Troubleshooting
 
-**Skill doesn't activate**:
-- Make description more specific with trigger words
-- Include file types and operations in description
-- Add "Use when..." clause with user phrases
-
-**Multiple Skills conflict**:
-- Make descriptions more distinct
-- Use different trigger words
-- Narrow the scope of each Skill
-
-**Skill has errors**:
-- Check YAML syntax (no tabs, proper indentation)
-- Verify file paths (use forward slashes)
-- Ensure scripts have execute permissions
-- List all dependencies
+See [reference.md](reference.md) for the troubleshooting playbook (activation failures, Skill conflicts, YAML/path errors); read it when a Skill you already wrote starts misbehaving.
 
 ## Examples
 
