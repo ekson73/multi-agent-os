@@ -63,6 +63,41 @@ Empirical (session `e528b822` / PR #250): both CodeRabbit findings were verified
 post-fix and declared FALSE; anchored at `comment.commit_id` `a02d70b` the bot was right on **both** — an
 independent arbiter reached truth only by *disobeying* the stale-premised brief. Closes #262.
 
+### Added — `changelog-required` CI gate: a contract change must carry a CHANGELOG entry
+
+Closes the drift in #278. A PR that changes the **consumable contract** — a skill's `SKILL.md` or
+`profiles/`, a `commands/*.md`, an `agents/*.md` — is now checked for an accompanying `CHANGELOG.md`
+entry. Escape: the `no-changelog` label, waived explicitly and logged in the job (never silent).
+
+**"Contract" is not a path pattern.** The rule needs filesystem state — *does an ancestor hold a
+`SKILL.md`?* — so every regex attempt fails in one of two directions, both measured: the first draft
+of this gate missed **30 nested entries** (`agents/consultants/*`, `commands/*/*`) and flagged **4
+ALL-CAPS documents** as contract. Classification is therefore delegated to
+`scripts/entry-classifier.sh` — the **same `is_entry()` predicate `tests/validate-plugin.sh` uses**,
+extracted so there is one definition and no second copy to drift (the defect class of #339/#341).
+
+Reuse is valid only where the two consumers ask the same question, and they diverge in exactly one
+place: `is_entry()` answers *"validate this for frontmatter?"*, the gate asks *"would a consumer
+notice?"*. A skill's `profiles/` is loaded by whoever runs it — contract — yet sits under a directory
+holding `SKILL.md`, so `is_entry()` rightly (for its own question) calls it a sub-document. The gate
+extends at its own layer, leaving the validator's reach assertion byte-identical (proved file-by-file
+over 336 tracked paths: 169 entries before, 169 after, verdicts identical).
+
+**WARN before BLOCK** (`ai-as-pwd-axiom` §4). Measured baseline: ~80% of contract-touching PRs carry
+no entry, so a hard fail would have blocked 8 of the last 13 and made `no-changelog` the default — a
+gate defeated by its own escape. Ships `ENFORCE: '0'`; promotion is an operator call.
+
+Verified 19/19 across two control sets: 9 real PRs (the two drifts #278 documents warn; contract+entry
+pass; auxiliary-only and non-surface are N/A) and 10 **discriminating** probes chosen to differ between
+the old regex and the predicate — nested entries, ALL-CAPS docs, sub-documents, profiles. The
+discriminating set earned its keep: it caught a regression this change introduced, where reusing
+`is_entry()` unmodified would have stopped treating skill profiles as contract.
+
+Also hardened: `gh api` is guarded (an unguarded `$( )` under `set -e` aborts before the empty-result
+check, so a transient API failure read as "clean" instead of "unverified"); `labeled`/`unlabeled` are
+in `pull_request.types`, without which applying the escape label left a stale verdict. The classifier
+runs from a **trusted checkout of `main`** — the head is never checked out or executed.
+
 ### Added — `refine-braindump-to-prompt` (Lapidary) v0.3.0: one braindump → one executable prompt
 
 Turns a raw operator braindump into ONE ready-to-execute prompt, rather than the ledger, envelope or
