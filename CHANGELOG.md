@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `ichnos` v1.0.0: Google-Analytics-style usage analytics for the agentic-tools corpus
+
+Applies web/app-analytics discipline (attribution, RFM/retention, trend, funnel drop-off) to our
+OWN 83-skill corpus — a different question than `corpus-firing-audit`'s binary FIRING/DORMANT
+snapshot: not *does it fire*, but *how is it found and used, over time, and does that usage stick*?
+Composes the same 3 log sources (Claude/Codex/pi) but keeps per-hit timestamp + session-id, which
+the firing-audit intentionally discards, to compute: **attribution** (`direct` /command · `explicit`
+Skill-tool-call · `referral` cited by another skill's own body), **RFM-lite** (recency-days,
+days-active, sessions), **retention** buckets (`NEVER` / `ONE-SHOT` / `STICKY`), an adaptive-window
+**trend** (recent vs prior period), and **funnels** for 2 named lifecycle chains. Bounce-rate,
+goal/conversion, and A/B-testing are explicitly out of scope for v1 (documented, not silently
+dropped) — see `skills/ichnos/SKILL.md` §Roadmap.
+
+Live findings at authoring time (not hypothetical — measured against the real logs): the
+`genesis` funnel (`agentic-tool-forge -> agentic-tool-evaluator -> agentic-tool-trainer`) drops
+11 -> 1 -> 0, showing the formal eval/train steps are being bypassed by an ad-hoc manual process;
+the `quiesce-compose` funnel (`quiesce -> auto-pilot -> bot-finding-arbiter -> converge`) shows
+quiesce firing heavily while its own composed primitives show 0 *direct* hits — the "cited but
+never top-level-invoked" pattern a raw firing count cannot distinguish from genuine non-use.
+
+### Fixed — `corpus-firing-audit` v1.1.0: Claude vendor missed the `Skill`-tool-call channel
+
+The Claude-vendor anchor matched only `<command-name>/x</command-name>` — an agent invoking a
+skill via an explicit `Skill maos:x` tool-use call (no slash command at all) was invisible to the
+audit, silently undercounting exactly the skills meant to be discovered/invoked by name rather
+than by a command wrapper. Added a second anchor (`"name":"Skill","input":{"skill":"x"}`),
+additive-only (same output schema, more accurate counts). Measured before/after on the live logs:
+FIRING 17 -> **25** (+8), all 8 flips are the `*-concierge` family (`9router-` · `claude-code-` ·
+`maos-` · `omniroute-` · `opendesign-`) plus `chief-of-staff` and `voice-director` — exactly the
+skills that are named entry-points an agent picks by name, not slash-invokable commands. Surfaced
+while building `ichnos` (above), which needed the richer per-hit event stream this shares.
+
 ### Fixed — `bot-finding-arbiter` (Praetor) v1.4.0: anchor a `bot-wrong` verdict to the ref the bot reviewed
 
 A review comment is anchored to `comment.commit_id`, **not** the PR HEAD. The `bot-wrong` gate let a
