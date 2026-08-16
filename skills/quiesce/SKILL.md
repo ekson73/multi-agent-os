@@ -80,7 +80,6 @@ list unpushed commits in EVERY worktree (others' = reported, never reaped; own =
 **C2** — every failed check classified `[externo-quota | gate-real]` with the error message
 as evidence BEFORE any merge. **C3** — `reviewDecision` pinned to an old commit ⇒ re-measure
 the findings against current `headRefOid`; never read the verdict, re-read the code.
-```
 
 Agentic convergence = all bot reviewers + CI (e.g. CodeRabbit, Amazon Q, Qodo,
 gitleaks) GREEN or resolved — see `CONTRIBUTING.md` (Bot review convergence) and
