@@ -14,8 +14,8 @@ s2 = [s for s in pool if 4 <= s['firing'] <= 9]
 s3 = [s for s in pool if 1 <= s['firing'] <= 3]
 def draw(xs, k):
     if len(xs) < k:
-        import sys
-        print(f'AVISO: pool com {len(xs)} < k={k} — amostra encolhida (loud, nunca silencioso)', file=sys.stderr)
-    return sorted(random.Random(3407).sample(xs, min(k, len(xs))), key=lambda s: s['name'])
+        # pré-registro fixa k por estrato; pool menor = violação da spec, NÃO shrink silencioso
+        raise SystemExit(f'ERRO: pool com {len(xs)} < k={k} pré-registrado — a spec foi violada, redesenhe o estrato')
+    return sorted(random.Random(3407).sample(xs, k), key=lambda s: s['name'])
 sel = {'S1': draw(s1, 2), 'S2': draw(s2, 3), 'S3': draw(s3, 3)}
 print(json.dumps({k: [s['name'] for s in v] for k, v in sel.items()}, indent=1))
