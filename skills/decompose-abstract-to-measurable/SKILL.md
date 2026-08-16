@@ -15,7 +15,7 @@ triggers:
   - "turn this DoD / KPI / acceptance criterion into a score"
   - "is this inconclusive / can I decide this autonomously?"
   - "score / rate / evaluate <thing> against an abstract standard"
-version: 1.2.1
+version: 1.3.0
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 agnostic: [os, project, vendor]
 soul-name: Prisma
@@ -87,6 +87,13 @@ and calling it a "measurement". Split the labour:
 You produce a **measurement-spec** (JSON). The script consumes it and returns the
 number. The number is only as honest as the spec — which is why the steps below
 are guard-railed.
+
+**The one-sentence measurement answer** (rubric C2 — *"how would I measure this
+tomorrow morning?"*): *"write the tree into the spec JSON and run `scripts/aggregate_spec.py`
+— score, confidence, sensitivity and the inconclusive verdict come back computed, never
+estimated in my head."* Every construct decomposed here MUST have an equivalent
+one-sentence answer before its spec is written; a leaf that cannot say how it would be
+measured is not yet a measurable leaf.
 
 ## When NOT to use (skip — anti-over-engineering)
 
@@ -200,7 +207,7 @@ router closes evasion-by-omission (A2) and declared/derived conflict, not A1.
 ### 6 · GUARDS (built into the script + your reading)
 - **Goodhart** — the score is **evidence, not a target** (Metron §5). Never tune the tree so a favored item "passes".
 - **construct-validity** — is the tree measuring the construct, or something adjacent? Report coverage-by-anchors.
-- **inconclusive is a first-class verdict** — the script raises `inconclusive.flag` on ANY of: `low_confidence` (agg-conf < 0.60) · `judgment_dominated` (Σ J-leaf flow ≥ 0.50) · `conflict:<branch>` (a material branch whose children's weighted-value stdev ≥ 0.25). **On inconclusive → abstain + escalate HITL** (`convergence-engine` DEFER regime). A high J-share is not a bug to hide — it is the true statement "this needs human judgment".
+- **inconclusive is a first-class verdict** — the script raises `inconclusive.flag` on ANY of: `low_confidence` (agg-conf < 0.60) · `judgment_dominated` (Σ J-leaf flow ≥ 0.50) · `conflict:<branch>` (a material branch whose children's weighted-value stdev ≥ 0.25). **Threshold provenance (declared, per the number-source rule)**: these three are **uncalibrated heuristic defaults** — chosen by judgment, NOT measured against a labeled set and NOT pinned from an external reference. They are **operator-tunable parameters** (override per decision criticality: stricter for irreversible, looser for exploration). If a calibration set ever exists (held-out anchors with known outcomes), re-derive them from it and delete this paragraph — an uncalibrated number that pretends to be measured is worse than one that declares itself. (Rubric anchor: `docs/rubrics/v0.1/decompose-abstract-to-measurable.md` C1) **On inconclusive → abstain + escalate HITL** (`convergence-engine` DEFER regime). A high J-share is not a bug to hide — it is the true statement "this needs human judgment".
 - **non-compensatory veto-gate** — weighted-sum is *compensatory* by nature, so a **hard blocker** (unresolved critical CVE · secret leak · irreversible-prod · any absolute no-go) must be a **deterministic pre-gate that vetoes to LOW / no-go**, NOT a tree leaf — else a high sibling averages the blocker away (the `conflict` detector only catches it when siblings *disagree* AND the branch is material). The tree grades the *negotiable* qualities; absolute blockers gate **before** it.
 
 ### 7 · VALIDATE against held-out anchors
