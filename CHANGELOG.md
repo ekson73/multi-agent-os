@@ -19,10 +19,13 @@ staleness check had no data to run on.
 Three surgical edits, one file: **(a)** the capture list now takes `comment.commit_id` + `comment.line`;
 **(b)** a deterministic proof MUST name its ref, which on a mutable branch MUST equal `comment.commit_id`,
 and `line == null` (GitHub's OUTDATED marker) routes to staleness-recon before any verdict — the correct
-disposition being `stale-but-correct`, never `bot-wrong`; **(c)** staleness-recon reads metadata only
-(`%H %ci`), never `%B`, because reading the fixing commit's *message* hands the verifier its conclusion and
-destroys the independence the `verifier > generator` gate exists to guarantee. (b) generalizes the
-Security-class `AND` hardening that was already correct for one class and was always the general rule.
+disposition being `stale-but-correct`, never `bot-wrong`; **(c)** staleness-recon reads metadata only, and
+each command may claim only what it reaches — `git log … -- <file>` reaches **file** level (indirect: it can
+rule staleness OUT, never IN), `git diff --unified=0 … -- <file>` reaches **line** level (read the `@@`
+ranges against `comment.line`) — and ⛔ never `%B`, because reading the fixing commit's *message* hands the
+verifier its conclusion and destroys the independence the `verifier > generator` gate exists to guarantee.
+(b) generalizes the Security-class `AND` hardening that was already correct for one class and was always
+the general rule.
 
 Empirical (session `e528b822` / PR #250): both CodeRabbit findings were verified at HEAD `10c54b0`
 post-fix and declared FALSE; anchored at `comment.commit_id` `a02d70b` the bot was right on **both** — an
