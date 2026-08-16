@@ -1,5 +1,6 @@
 ---
 name: agentic-delegation
+version: "1.1.0"
 description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 10 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
 ---
 
@@ -43,12 +44,25 @@ Every spawn MUST include all 10. Skipping any item is the under-briefing anti-pa
 | 9 | **Feedback loops / retro** | How progress is reported + how the parent gives feedback (sync/async) |
 | 10 | **Constraints** | Time-box + risk tolerance + escalation triggers |
 
-## 3. Accompaniment — HOW to supervise (4 disciplines)
+**11. Channel fallback-chain** — the parent declares BEFORE the first spawn which alternative
+   channels/carriers take over if the spawn channel dies (quota, outage, rate-limit), e.g.
+   `primary CLI → alternate CLI → lead-executes`. A delegation without a declared fallback chain is
+   fragile by construction — quota exhaustion mid-loop is a when, not an if. (Observed live
+   2026-08-15: two CLI channels hit weekly/quota limits mid-chain; the fallback had to be
+   improvised. Rubric anchor: C2.)
+
+## 3. Accompaniment — HOW to supervise (5 disciplines)
 
 1. **Check-in cadence** defined upfront (sync streaming OR async polling)
 2. **Termination conditions** explicit (success / failure / interrupt / timeout)
 3. **Audit checklist** post-completion (zero-drift: output matches brief?)
-4. **Re-spawn discipline** with brief refinement (max 6 attempts per the 6-failure escalation rule below)
+4. **Artifact verification (non-delivery detection)** — MANDATORY: every delegation names the
+   expected artifact upfront (file, PR, JSON, row); after the spawn returns, the parent VERIFIES the
+   artifact exists and is non-empty. **Empty stdout with rc=0 is NOT success.** A missing/empty
+   artifact = a failed spawn (counts toward the 6-failure rule). Observed live 2026-08-15: two
+   executor spawns died of quota mid-run producing exit-0 silence; the parent detected it only via
+   the missing file. (Rubric anchor: `docs/rubrics/v0.1/agentic-delegation.md` C1)
+5. **Re-spawn discipline** with brief refinement (max 6 attempts per the 6-failure escalation rule below)
 
 ## 4. Accountability — WHO retains (parent does NOT waive)
 
@@ -158,4 +172,5 @@ No counter-based sunset. Insurance discipline — dormant-by-design.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-08-16 | MINOR — rubric-driven (pilot eval FAILs C1+C2, PR #354): adds accompaniment discipline #4 "Artifact verification (non-delivery detection)" (empty stdout + rc=0 ≠ success; missing artifact = failed spawn) and briefing component #11 "Channel fallback-chain" (declared before the first spawn). Both from observed live failures 2026-08-15. |
 | 1.0.0 | 2026-05-17 | Community promotion from a user-scope skill of the same version (extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body). Sanitization: replaced all proprietary attributions with generic equivalents (agentic-inheritance principle · autonomous-resolution protocol · standard delegation chain · host-local framework SSOT); replaced host-absolute paths with portable descriptions; preserved the 6 criteria + 10 briefing components + 4 accompaniment disciplines + accountability rule + recursion bounds + Quality Tests dogfooding + BEING > Rules compliance + DUED sunset. License: MIT. |
