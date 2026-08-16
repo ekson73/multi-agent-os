@@ -89,7 +89,7 @@ number. The number is only as honest as the spec — which is why the steps belo
 are guard-railed.
 
 **The one-sentence measurement answer** (rubric C2 — *"how would I measure this
-tomorrow morning?"*): *"write the tree into the spec JSON and run `scripts/aggregate_spec.py`
+tomorrow morning?"*): *"write the tree into the spec JSON and run `python3 scripts/aggregate_spec.py`
 — score, confidence, sensitivity and the inconclusive verdict come back computed, never
 estimated in my head."* Every construct decomposed here MUST have an equivalent
 one-sentence answer before its spec is written; a leaf that cannot say how it would be
