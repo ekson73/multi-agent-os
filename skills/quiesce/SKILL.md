@@ -1,6 +1,6 @@
 ---
 name: quiesce
-version: "0.2.0"
+version: "0.3.0"
 description: |
   Drive the current work session to QUIESCENCE — a steady state with no pending
   work: no open ticket/gap/fix/failure/PR, every PR green, every PR comment
@@ -59,12 +59,27 @@ Canonical invocations that should activate this skill:
 
 ## Quiescence predicate (default `--condition`)
 
+> **Override preservation**: a custom `--condition` REPLACES the default predicate, but the three
+> rubric conjuncts below (C1 loose-end sweep · C2 check classification · C3 stale-verdict
+> re-measurement) are **invariants that survive any override** — if the custom condition cannot
+> honor them, the run must report them as skipped-by-override with rationale (never silently
+> dropped). Silent weakening via override is the failure this clause exists to prevent.
+
 ```text
 QUIESCENCE := NOT(unaddressed in-scope TICKET or GAP or pending FIX or FAILURE or open PR)
               AND every PR green (all required checks pass)
               AND every PR comment answered
               AND agentic convergence reached
+              AND loose-end sweep across ALL worktrees (rubric C1)
+              AND check-failure classification recorded (rubric C2)
+              AND stale-verdict re-measurement (rubric C3)
 ```
+
+**Rubric conjuncts** (pilot-eval FAILs 2026-08-16, PR #354): **C1** — before quiescence,
+list unpushed commits in EVERY worktree (others' = reported, never reaped; own = blocker).
+**C2** — every failed check classified `[externo-quota | gate-real]` with the error message
+as evidence BEFORE any merge. **C3** — `reviewDecision` pinned to an old commit ⇒ re-measure
+the findings against current `headRefOid`; never read the verdict, re-read the code.
 
 Agentic convergence = all bot reviewers + CI (e.g. CodeRabbit, Amazon Q, Qodo,
 gitleaks) GREEN or resolved — see `CONTRIBUTING.md` (Bot review convergence) and
@@ -133,7 +148,7 @@ is only `--mode`/`--band`/`--max-depth`, so its controls are translated (see tab
 |---|---|---|
 | `"<instructions>"` (positional) | empty | extra free-text appended to the driver action |
 | `--scope` | `this.session` | `this.session` \| `repo` \| `branch` \| `ticket:<id>` \| `pr:<n>` |
-| `--condition` | *(quiescence predicate above)* | override the termination predicate string; MAY be a `dod-as-prompt.termination_predicate` (a measurable Prisma-derived DoD) when driven by `ooda-loop` — the recovered goal's D/T/J leaves become the stop test |
+| `--condition` | *(quiescence predicate above)* | override the termination predicate string — **rubric conjuncts C1-C3 survive any override** (skipped-by-override must be reported with rationale); MAY be a `dod-as-prompt.termination_predicate` (a measurable Prisma-derived DoD) when driven by `ooda-loop` — the recovered goal's D/T/J leaves become the stop test |
 | `--driver` | `auto-pilot` | `auto-pilot` \| `auto-orchestrator` \| `<custom>` |
 | `--auto-merge` | `authorized` | `authorized` \| `hold` \| `off` |
 | `--auto-merge-reason` | *(operator invocation)* | required-non-empty when `authorized`; invoking `/quiesce --auto-merge=authorized` IS the authorization |
@@ -186,24 +201,11 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
   prod/irreversible, cross-org) ALWAYS halt the loop -> HITL.
 
 ## DNA Geracional (inherited by every spawned agent)
-
-- **Dogfood**: validate the loop on its own artifacts before declaring done.
-- **Persist-over-fail**: write-ahead-checkpoint each obligation (task/ticket/note)
-  BEFORE executing, so a mid-session collapse is recoverable.
-- **DRY / KISS / YAGNI / SSOT** — compose primitives, never duplicate them.
-- **No self-destructive decisions** — nothing that boomerangs on a future session.
-- **Boy-Scout** — leave every repo cleaner than found: no stale branches/worktrees,
-  no loose ends, no unanswered comments.
+Transcribed to every spawned agent (liberdade-com-responsabilidade · efeito-borboleta · self-healing). Full text: governance corpus DNA-geracional (do not duplicate here).
 
 ## Examples
 
-```text
-/quiesce
-/quiesce "prioritize the auth PRs first"
-/quiesce --scope=pr:42 --auto-merge=hold
-/quiesce --condition='NOT open PR AND every PR green' --max-pdca=3
-/quiesce --driver=auto-orchestrator --auto-merge=authorized --auto-merge-reason="nightly convergence"
-```
+See [examples.md](./examples.md).
 
 ## Validation
 
@@ -216,28 +218,17 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
 ## Related
 
-- `commands/quiesce.md` — operator-facing command surface
-- `skills/bot-finding-arbiter/SKILL.md` — *Praetor*: default per-finding handler when a PR is red/blocked on a bot-reviewer finding (7-way disposition + teach-the-bot)
-- `skills/auto-pilot/SKILL.md` — single-goal delegation kernel (default driver, sibling)
-- `skills/ooda-loop/SKILL.md` — the recover->measure->converge CONDUCTOR that may drive quiesce as its Act step (typed `handoff-as-prompt` + `dod-as-prompt` envelope pair; `--condition=<dod termination_predicate>`)
-- `skills/converge/SKILL.md` — 5-act proposal merge (used inside PDCA)
-- `skills/worktree-policy/SKILL.md` — write discipline every iteration honors
-- `skills/status-map/SKILL.md` — status reporting templates
-- `sentinel/config.json` + `sentinel/detection_rules.md` — anomaly thresholds
-- `CONTRIBUTING.md` — PR convergence + tracker conventions
-- `agents/orchestrator.md` — master coordinator persona
+- `commands/quiesce.md`
+- `skills/bot-finding-arbiter/SKILL.md`
+- `skills/auto-pilot/SKILL.md`
+- `skills/ooda-loop/SKILL.md`
+- `skills/converge/SKILL.md`
+- `skills/worktree-policy/SKILL.md`
+- `skills/status-map/SKILL.md`
+- `sentinel/config.json` + `sentinel/detection_rules.md`
+- `CONTRIBUTING.md`
+- `agents/orchestrator.md`
 
 ## Versioning
 
-- v0.2.0 (2026-07-01) — **fire-point effectivation for `bot-finding-arbiter`**: a PR red/blocked
-  on a bot-reviewer finding now routes each finding to `skills/bot-finding-arbiter` (*Praetor*)
-  as the default per-finding handler inside the PDCA loop (7-way disposition + teach-the-bot),
-  instead of generic ad-hoc PDCA. Closes the "toda vez que" trigger gap (arbiter existed but
-  nothing invoked it automatically — Skopos PHASE-2: sharpen a fire-point > passive skill).
-- v0.1.0 (initial) — quiescence predicate; `/goal` + pluggable-driver composition
-  (default `auto-pilot`); override flags incl. `--driver`; PDCA-converge open PRs +
-  auto-file tracking tickets; STOP-marker grammar reuse; depth/PDCA bounds; DNA Geracional.
-
-## License
-
-MIT (matches multi-agent-os repo `LICENSE`).
+See [CHANGELOG.md](./CHANGELOG.md) (kept out of SKILL.md per progressive disclosure).

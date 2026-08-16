@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — régua pilot backlog: quiesce v0.3.0 + progressive-disclosure split
+
+- `skills/quiesce` v0.3.0 — 3 rubric conjuncts (loose-end sweep all-worktrees · check
+  classification · stale-verdict re-measure) + override-preservation clause; Versioning/Examples
+  moved to sibling files (file back under its own 12KB guideline).
+
 ### Added — rubric-driven skill fixes (régua pilot #354 backlog)
 
 - `skills/decompose-abstract-to-measurable` v1.3.0 — threshold provenance declared
