@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — régua v0.1 pilot evaluation (D6-7)
+
+- `docs/rubrics/pilot-eval-2026-08-16.md` — external-judge pilot of the 8 pre-registered rubrics:
+  3 PASS / 14 FAIL (kill-note satisfied: rubrics discriminate). 2 lead×judge disagreements
+  published; the 14 FAILs are the ruler's evidence-anchored backlog.
+
 ### Added — `ichnos` v1.0.0: Google-Analytics-style usage analytics for the agentic-tools corpus
 
 Applies web/app-analytics discipline (attribution, RFM/retention, trend, funnel drop-off) to our
