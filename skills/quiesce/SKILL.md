@@ -1,6 +1,6 @@
 ---
 name: quiesce
-version: "0.2.0"
+version: "0.3.0"
 description: |
   Drive the current work session to QUIESCENCE — a steady state with no pending
   work: no open ticket/gap/fix/failure/PR, every PR green, every PR comment
@@ -59,11 +59,36 @@ Canonical invocations that should activate this skill:
 
 ## Quiescence predicate (default `--condition`)
 
+> **Override preservation**: a custom `--condition` REPLACES the default predicate, but the three
+> rubric conjuncts below (C1 loose-end sweep · C2 check classification · C3 stale-verdict
+> re-measurement) are **invariants that survive any override** — if the custom condition cannot
+> honor them, the run must report them as skipped-by-override with rationale (never silently
+> dropped). Silent weakening via override is the failure this clause exists to prevent.
+
 ```text
 QUIESCENCE := NOT(unaddressed in-scope TICKET or GAP or pending FIX or FAILURE or open PR)
               AND every PR green (all required checks pass)
               AND every PR comment answered
               AND agentic convergence reached
+              AND loose-end sweep across ALL worktrees (rubric C1)
+              AND check-failure classification recorded (rubric C2)
+              AND stale-verdict re-measurement (rubric C3)
+```
+
+**Rubric conjuncts (pilot-eval FAILs 2026-08-16, PR #354 → closed in the PR that adds these lines):**
+
+- **C1 — Loose-end sweep covers OTHER sessions' worktrees**: before declaring quiescence,
+  list unpushed local commits across EVERY worktree (`git worktree list` + per-worktree
+  `git log origin/<branch>..HEAD`). Other sessions' loose ends are REPORTED (marked
+  owner-alheio), never reaped; my own = quiescence blocker. Observed live: an unpushed
+  commit on a merged branch stayed invisible until a manual review.
+- **C2 — Classify every failed check `[externo-quota | gate-real]` with evidence** (the
+  error message) BEFORE any merge proceeds. An external quota outage (e.g. "Code test
+  limit reached") is not a green check and not a real gate failure — it must be named,
+  not averaged into "unstable".
+- **C3 — Stale-verdict re-measurement**: when `reviewDecision` (e.g. CHANGES_REQUESTED) is
+  pinned to an old commit, re-measure the FINDINGS against the current `headRefOid` —
+  the verdict's age is not the findings' validity. Never read the verdict; re-read the code.
 ```
 
 Agentic convergence = all bot reviewers + CI (e.g. CodeRabbit, Amazon Q, Qodo,
@@ -229,6 +254,12 @@ queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
 ## Versioning
 
+- v0.3.0 (2026-08-16) — **rubric-driven MINOR** (pilot-eval FAILs C1-C3, PR #354): three rubric
+  conjuncts added to the default quiescence predicate (loose-end sweep across ALL worktrees ·
+  check-failure classification externo-quota|gate-real · stale-verdict re-measurement) +
+  override-preservation clause. Judge re-eval (pi/Gemini, 3rd family): 3/3 PASS. Known-size note:
+  file exceeds the <12KB guideline because the conjuncts are load-bearing; splitting them out
+  would orphan them from the predicate they guard — accepted with this record.
 - v0.2.0 (2026-07-01) — **fire-point effectivation for `bot-finding-arbiter`**: a PR red/blocked
   on a bot-reviewer finding now routes each finding to `skills/bot-finding-arbiter` (*Praetor*)
   as the default per-finding handler inside the PDCA loop (7-way disposition + teach-the-bot),
