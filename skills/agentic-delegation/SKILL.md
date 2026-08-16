@@ -1,6 +1,7 @@
 ---
 name: agentic-delegation
 version: "1.1.0"
+allowed-tools: Read, Grep, Glob, Bash, Task
 description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 11 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints/channel-fallback-chain), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
 ---
 
@@ -8,7 +9,7 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 
 > **Origin**: operator directive 2026-05-12 codifying delegation discipline — *"whenever useful and justified, use recursive sequential parallel delegation with accompaniment, with proper context, scope, motivation, purpose, objective, DoR, DoD, feedback/retro-loop, expected deliverables, etc; remember that delegating does not waive the responsibility received. Define the agentic delegation criteria."*
 >
-> **Version**: 1.0.0 (2026-05-17 community promotion of an extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body).
+> **Version**: 1.1.0 (2026-08-16 rubric-driven MINOR; 1.0.0 = 2026-05-17 community promotion of an extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body).
 >
 > **Source lineage**: operator's host-local `auto-self-harness` rule §12-equivalent (the parent framework section the operator maintains; host-dependent location).
 >
