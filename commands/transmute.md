@@ -1,6 +1,6 @@
 ---
 name: transmute
-description: Transmute ONE source of any kind (text · prompt · draft · braindump · doc · code · agentic-tool) through a transformation menu (analyze · critique · red-team · validate · fix · enhance · refine · sanitize · harmonize) and CAST it into a target type (same-as-source default · prompt · agentic-tool · audience-recast · artifact · ledger · ticket) emitted to one-or-more sinks (stdout · clipboard · vault · path · git-repo · agentic-tool). Thin router composing existing primitives. Safe default dry-run.
+description: Transmute ONE source of any kind (text · prompt · draft · braindump · doc · code · agentic-tool) through a transformation menu (analyze · critique · meta-critique · red-team · validate · fix · enhance · refine · sanitize · harmonize · compliance) and CAST it into a target type (same-as-source default · prompt · agentic-tool · audience-recast · artifact · ledger · ticket) emitted to one-or-more sinks (stdout · clipboard · vault/obsidian · path · git-repo · jira · linear · atlassian · bitbucket · github · confluence · gamma · canva · agentic-tool). Thin router composing existing primitives. Safe default dry-run.
 ---
 
 # /transmute Command
@@ -23,12 +23,13 @@ bounds). This file is the command surface only. Soul-name: *Proteus*.
 |---|---|---|
 | `"<source>"` (positional) | *required* | path · glob · inline text · `-` (stdin). Empty/unfilled placeholder → STOP-ERROR |
 | `--transforms` | `analyze,refine` | ordered comma list (analyze, critique, meta-critique, red-team, validate, fix, enhance, refine, sanitize, harmonize, dogfood); `auto` = infer |
-| `--to-type` | `same-as-source` | `prompt` · `agentic-tool:{skill\|command\|agent\|rule\|memory\|mcp\|hook\|plugin}` · `audience-recast` · `artifact:{md\|html\|pdf\|slides\|diagram}` · `ledger` · `ticket` |
-| `--output-target` | *(report inline)* | comma sinks: `stdout` · `clipboard` · `vault:path` · `path:P` · `git-repo:P` · `agentic-tool:kind:path` |
+| `--to-type` | `same-as-source` | `prompt` · `agentic-tool:{skill\|command\|agent\|subagent\|rule\|memory\|hook\|webhook\|event\|trigger\|mcp\|plugin\|marketplace}` · `audience-recast` · `artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}` · `ledger` · `ticket`/`ticket:{jira\|linear}` |
+| `--output-target` | *(report inline)* | comma sinks: `stdout` · `clipboard` · `vault[:path]`/`obsidian[:path]` · `path:P` · `git-repo:P` · `agentic-tool:kind:path` · `jira[:key]` · `linear[:key]` · `confluence[:space]` · `gamma[:deck]` · `canva[:design]` · `bitbucket:P` · `github:P` · `atlassian:P` |
 | `--mode` | `dry-run` | `dry-run` · `run` · `dogfood` (aliases: `--dry-run`/`--run`/`--dogfood`) |
-| `--principles` | `auto` | inherit host governance corpus by reference |
+| `--principles` | `auto` | inherit host governance corpus by reference (`auto`=full 40+ list; csv validated) |
 | `--user-lang` | `pt-BR` | operator-facing prose |
 | `--agentic-lang` | `en-US` | rendered-artifact language |
+| `--agentic-format` | `json-rpc` | alias of `--output=json-rpc` (`method`+`params` per [C06]) |
 | `--output` | `table` | `table` · `json` · `json-rpc` |
 | `--max-rounds` | `12` | hard cap for looped verbs |
 

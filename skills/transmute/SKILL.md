@@ -1,14 +1,14 @@
 ---
 name: transmute
-version: "0.1.3"
+version: "0.2.0"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
-  agentic-tool · report) through a menu of transformations (comprehend · analyze ·
+  agentic-tool · email · report) through a menu of transformations (comprehend · analyze ·
   critique · meta-critique · validate · red-team · fix · enhance · expand · refine ·
-  sanitize · harmonize) and CAST it into a chosen target type (same-as-source default ·
-  prompt · agentic-tool · audience-recast · artifact md/pdf/html · ledger · ticket)
-  emitted to one-or-more sinks (stdout · clipboard · vault · path · git-repo ·
-  agentic-tool). Source-agnostic generalization of the fixed-pair siblings — a thin
+  sanitize · harmonize · compliance) and CAST it into a chosen target type (same-as-source default ·
+  prompt · agentic-tool · audience-recast · artifact md/pdf/html/confluence/gamma/canva · ledger · ticket)
+  emitted to one-or-more sinks (stdout · clipboard · vault/obsidian · path · git-repo ·
+  agentic-tool · jira · linear · atlassian · bitbucket · github · confluence · gamma · canva). Source-agnostic generalization of the fixed-pair siblings — a thin
   router that COMPOSES in-repo primitives (refine-braindump-to-prompt,
   agentic-tool-forge, content-recast, converge, red-team, audit, pii-masking) and
   reimplements nothing. Soul-name: Proteus. Triggers: "transmute", "/transmute",
@@ -106,14 +106,16 @@ consumes. DONE when EMIT reports (or, under `--dry-run`, when the plan is emitte
 
 | `--to-type` | Route to | Notes |
 |---|---|---|
-| `same-as-source` *(default)* | inline TRANSFORM output | source type from INTAKE; no re-cast |
-| `prompt` | `refine-braindump-to-prompt` (source=braindump) · `agents/prompt-context-engineer` + profile (else) | the prompt-craft seat |
-| `agentic-tool:{skill\|command\|agent\|rule\|memory\|mcp\|hook\|plugin}` | `agentic-tool-forge` | type-decision router SSOT is the forge's; naming → `anima`; worktree→branch→PR per `[C04]` |
+| `same-as-source` *(default)* | inline TRANSFORM output | source type from INTAKE; no re-cast; **dynamic calculated** per `--output-target` |
+| `prompt` | `refine-braindump-to-prompt` (source=braindump → Lapidary) · `agents/prompt-context-engineer` + profile (else) | the prompt-craft seat; enhanced-prompt + gauntlet-prompt via profile `gauntlet-loop` |
+| `agentic-tool:{skill\|command\|agent\|subagent\|rule\|memory\|hook\|webhook\|event\|trigger\|mcp\|plugin\|marketplace}` | `agentic-tool-forge` | type-decision router SSOT is the forge's; naming → `anima`; worktree→branch→PR per `[C04]`; marketplace needs `[C12]` provenance |
 | `audience-recast` | `content-recast` | faithfulness guard lives there |
-| `artifact:{md\|html\|pdf\|slides\|diagram}` | renderers (`document-generate` · `archify` · `make-pdf` · host-native) | never re-implement a renderer |
+| `artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}` | renderers (`document-generate` · `archify` · `make-pdf` · Gamma MCP · Canva fallback · atlassian-concierge) | never re-implement a renderer; `confluence` via atlassian MCP, `gamma`/`canva` via slides renderer |
 | `ledger` | `directive-braindump-triage` | provenance ledger |
 | `vault-artifact` | `braindump-distill` (eko-engram *Alambique*, user-scope IF vault mounted) | vault-side standing protocol — PARA placement + ledger + `persist-locus` routing; transmute routes there, never reimplements placement |
-| `ticket` | `ticket-as-prompt` (user-scope, IF installed) | Jira/Linear render |
+| `ticket` / `ticket:{jira\|linear}` | `ticket-as-prompt` (user-scope, IF installed) + `atlassian-concierge` / `vek-issue-router` | Jira/Linear render; `jira` = Atlassian, `linear` = Linear; backlog-ticket kind |
+
+> **PT-verb mapping (operator dump → canonical TRANSFORM):** `analisado→analyze` · `dissecado/destrinchado→COMPREHEND dissect·catalogue·relate` · `investigado→analyze+research` · `criticado→critique` · `meta-criticado→meta-critique` · `validado→validate` · `revisto→critique+validate` · `corrigido→fix/solve` · `enhanced/improved/expanded→enhance/expand` · `refinado/lapidado→refine/polish` · `sanitizado→sanitize` · `harmonizado→converge/harmonize` · `compliance→validate+sanitize` (LGPD/GDPR/secure-by-design).
 
 The router EMITS invocations (anti-NIH); a missing optional primitive degrades to the
 in-repo column with a one-line diagnostic, never a hard failure.
@@ -138,15 +140,16 @@ in-repo column with a one-line diagnostic, never a hard failure.
 
 | Flag | Default | Notes |
 |---|---|---|
-| `<source>` (positional) | *required* | path · glob · inline text · `-` (stdin pipe). Empty or unfilled placeholder → `STOP-ERROR` |
-| `--transforms` | `analyze,refine` | ordered comma list from the verb families above; `auto` = infer from source+target |
-| `--to-type` | `same-as-source` | see §Cast router |
-| `--output-target` | *(none = report inline)* | comma sinks `stdout[,]{clipboard\|vault:path\|path:P\|git-repo:P\|agentic-tool:kind:path}` — membership test per §EMIT |
-| `--mode` | `dry-run` | `dry-run` (report+plan only) · `run` (execute writes) · `dogfood` (run, then validate-on-self + ledger) |
-| `--principles` | `auto` | inherit host governance corpus BY REFERENCE (worktree · PDCA · S-SDLC · DRY/KISS/YAGNI · anti-over-eng · anti-theater · secure/privacy-by-design · LGPD/GDPR · boy-scout …) — never inline the corpus |
-| `--user-lang` | `pt-BR` | operator-facing prose |
-| `--agentic-lang` | `en-US` | language of the rendered artifact |
-| `--output` | `table` | `table` \| `json` \| `json-rpc` (notification shape per `[C06]`) |
+| `<source>` (positional) | *required* | path · glob · inline text · `email` · `braindump` · `-` (stdin pipe). Empty or unfilled placeholder → `STOP-ERROR` |
+| `--transforms` | `analyze,refine` | ordered comma list from the verb families above; `auto` = infer from source+target. PT verbs auto-mapped (see §Cast router). |
+| `--to-type` | `same-as-source` | see §Cast router; `same-as-source` = **dynamic calculated** (type preserved); explicit `prompt`/`artifact:*/`/`agentic-tool:*`/`ticket` overrides |
+| `--output-target` | *(none = report inline)* | comma sinks `stdout[,]{clipboard\|vault[:path]\|obsidian[:path]\|path:P\|git-repo:P\|agentic-tool:kind:path\|jira[:key]\|linear[:key]\|confluence[:space]\|gamma[:deck]\|canva[:design]\|bitbucket:P\|github:P\|atlassian:P}` — membership test per §EMIT (REACHABLE·RENDER DEFINED·CAN REFUSE). `obsidian` is alias of `vault`; `git-repo` covers `iketrans`/`vek-ai-toolkit`/`akasha` per `persist-locus` gate |
+| `--mode` | `dry-run` | `dry-run` (report+plan only) · `run` (execute writes) · `dogfood` (run, then validate-on-self + ledger). Aliases `--dry-run`/`--run`/`--dogfood` accepted |
+| `--principles` | `auto` | inherit host governance corpus BY REFERENCE (worktree · PDCA · S-SDLC · DRY/KISS/YAGNI · anti-over-eng · anti-theater · secure/privacy-by-design · LGPD/GDPR · boy-scout …) — never inline the corpus. `auto` = full corpus; `list` = csv subset validated against corpus (e.g. `GIT-WORKTREES-MANDATORY,IDEMPOTENT,SSOT,DRY`); unknown token → `STOP-ERROR` with valid list |
+| `--user-lang` | `pt-BR` | operator-facing prose (`pt-BR` default) |
+| `--agentic-lang` | `en-US` | language of the rendered artifact (`en-US` default, json-rpc payload) |
+| `--agentic-format` | `json-rpc` | alias of `--output=json-rpc` (per `[C06]` notification shape `method`+`params`, no `id`); `table`/`json` also valid |
+| `--output` | `table` | `table` \| `json` \| `json-rpc` (notification shape per `[C06]`). `--agentic-format` is alias |
 | `--max-rounds` | `12` | hard cap for any looped verb → `STOP-HITL` on exhaustion |
 
 `--dry-run`/`--run`/`--dogfood` are accepted as aliases of `--mode`. Dynamic runtime
@@ -192,9 +195,10 @@ Exactly ONE terminal marker per turn — the `/goal` Stop-hook contract:
 
 ## Protocol Rules
 
-- **Safe default**: `--mode=dry-run`; writes only under `--mode=run|dogfood`.
+- **Safe default**: `--mode=dry-run`; writes only under `--mode=run|dogfood`. `--dry-run` emits plan as `json-rpc` when `--agentic-format=json-rpc`.
+- **Principles by-reference**: `--principles` never inlines the corpus; unknown principle → `STOP-ERROR` listing valid 40+ principals (GIT-WORKTREES-MANDATORY, GIT-PR-SUBMIT, IDEMPOTENT, SSOT, DRY, CLEAN-CODE, ANTI-OVER-ENG, ANTI-THEATER, LGPD-COMPLIANCE, etc). Dynamic runtime params beyond this list are computed per delegated primitive, never invented.
 - **Worktree discipline always on** for any `git-repo`/`agentic-tool` sink
-  (`skills/worktree-policy`); never commit to main.
+  (`skills/worktree-policy`); never commit to main. `iketrans`/`vek-ai-toolkit`/`akasha` are `git-repo:` kinds, same gate.
 - **Delegation depth ≤ 2; parallel fan-out ≤ 3**; DNA-geracional transcribed to every
   delegate ("delegar não isenta a responsabilidade recebida").
 - **Sanitize-first on dirty sources** (stop-bleeding-before-root-cause); gitleaks+PII
@@ -264,6 +268,7 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.2.0 — **generic enhance matrix (round n+9 /n+10)**: source×transform×cast×emit fully parametrizable per operator `/enhance` spec. **Cast router**: `agentic-tool:*` extended to `subagent/rule/memory/hook/webhook/event/trigger/mcp/plugin/marketplace`; `artifact:*` adds `confluence/gamma/canva`; `ticket` now `ticket:{jira|linear}`; `obsidian` alias of `vault`. **Sink axis**: `--output-target` adds `obsidian`, `jira`, `linear`, `confluence`, `gamma`, `canva`, `bitbucket`, `github`, `atlassian` (all mapped through `vault`/`git-repo`/`atlassian-concierge`/`ticket-as-prompt` renderers). **PT-verb mapping** table. **`--principles` validation** (csv against 40+ governance corpus; by-reference). **`--agentic-format=json-rpc`** alias + `--dry-run/--run/--dogfood` aliases documented. **COMPREHEND**: source kinds now include `email`·`folder`·`braindump`. **Prisma**: output/format/target as first-class `--to-type`+`--output-target` test (REACHABLE·RENDER DEFINED·CAN REFUSE). Dogfood targets: `braindump-distill.*`, `prompt-gauntlet-loop`, `prompt-transkriptor-import`, `theca/_inbox/2026-08-*.braindump.md` → `prompt`/`gauntlet-prompt`/`agentic-tool` at `obsidian/akasha/maos/vek-ai-toolkit/iketrans`. No new rival skill — extends Proteus per forge ≥50% gate.
 - v0.1.3 — **cross-harness SSOT consolidation** (round n+5 recon): recon of the
   eko-engram ledger revealed the vault family (2026-08-14) reached the OPPOSITE
   verdict on the same directive-class ("dropped: new generic enhancer skill —
