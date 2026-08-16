@@ -13,19 +13,34 @@ Closes the drift in #278. A PR that changes the **consumable contract** — a sk
 `profiles/`, a `commands/*.md`, an `agents/*.md` — is now checked for an accompanying `CHANGELOG.md`
 entry. Escape: the `no-changelog` label, waived explicitly and logged in the job (never silent).
 
-Two choices were made from measurement rather than from the issue's first draft:
+**"Contract" is not a path pattern.** The rule needs filesystem state — *does an ancestor hold a
+`SKILL.md`?* — so every regex attempt fails in one of two directions, both measured: the first draft
+of this gate missed **30 nested entries** (`agents/consultants/*`, `commands/*/*`) and flagged **4
+ALL-CAPS documents** as contract. Classification is therefore delegated to
+`scripts/entry-classifier.sh` — the **same `is_entry()` predicate `tests/validate-plugin.sh` uses**,
+extracted so there is one definition and no second copy to drift (the defect class of #339/#341).
 
-- **Trigger = contract, not tree.** Firing on everything under `skills/**` also fires on a skill's
-  own `EVAL-REPORT-*.md` and `examples/` — not consumer-visible. Replayed over the last 25 merged
-  PRs, the broad trigger fires on 13 and the contract trigger on 10, correctly dropping #325/#329/#332.
-- **WARN before BLOCK** (`ai-as-pwd-axiom` §4). The measured baseline is ~80% of contract-touching PRs
-  carrying no entry; a hard fail would have blocked 8 of the last 13 and made `no-changelog` the
-  default — a gate defeated by its own escape. Ships as `ENFORCE: '0'`; promotion is an operator call.
+Reuse is valid only where the two consumers ask the same question, and they diverge in exactly one
+place: `is_entry()` answers *"validate this for frontmatter?"*, the gate asks *"would a consumer
+notice?"*. A skill's `profiles/` is loaded by whoever runs it — contract — yet sits under a directory
+holding `SKILL.md`, so `is_entry()` rightly (for its own question) calls it a sub-document. The gate
+extends at its own layer, leaving the validator's reach assertion byte-identical (proved file-by-file
+over 336 tracked paths: 169 entries before, 169 after, verdicts identical).
 
-Verified by replaying the **workflow's own regex** (extracted from the YAML, so the test cannot drift
-from the implementation) across four control classes — 9/9: the two documented drifts warn, real
-contract+entry PRs pass, auxiliary-only PRs are N/A, non-surface PRs are N/A. Head is never checked
-out; the diff is read from the API with a read-only token.
+**WARN before BLOCK** (`ai-as-pwd-axiom` §4). Measured baseline: ~80% of contract-touching PRs carry
+no entry, so a hard fail would have blocked 8 of the last 13 and made `no-changelog` the default — a
+gate defeated by its own escape. Ships `ENFORCE: '0'`; promotion is an operator call.
+
+Verified 19/19 across two control sets: 9 real PRs (the two drifts #278 documents warn; contract+entry
+pass; auxiliary-only and non-surface are N/A) and 10 **discriminating** probes chosen to differ between
+the old regex and the predicate — nested entries, ALL-CAPS docs, sub-documents, profiles. The
+discriminating set earned its keep: it caught a regression this change introduced, where reusing
+`is_entry()` unmodified would have stopped treating skill profiles as contract.
+
+Also hardened: `gh api` is guarded (an unguarded `$( )` under `set -e` aborts before the empty-result
+check, so a transient API failure read as "clean" instead of "unverified"); `labeled`/`unlabeled` are
+in `pull_request.types`, without which applying the escape label left a stale verdict. The classifier
+runs from a **trusted checkout of `main`** — the head is never checked out or executed.
 
 ### Added — `refine-braindump-to-prompt` (Lapidary) v0.3.0: one braindump → one executable prompt
 

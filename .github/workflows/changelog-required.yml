@@ -2,30 +2,36 @@
 #
 # Closes the drift documented in #278: skills ship without a CHANGELOG entry, so
 # `[Unreleased]` under-reports what the plugin actually delivers — and whoever reads
-# it to decide a release bump sees less than exists.
+# it to size a release bump sees less than exists. Measured on the last 25 merged PRs:
+# 13 touch skills/agents/commands, 11 carry no entry (84%).
 #
-# Two deliberate design choices, both measured rather than assumed (see the PR body):
+# Design, from measurement rather than assumption (see #348):
 #
-#   1. TRIGGER = the consumable CONTRACT, not every path under skills/agents/commands.
-#      A skill's own EVAL-REPORT or examples/ file is not a consumer-visible change;
-#      firing on it would train contributors to reach for the escape label. Measured
-#      on the last 25 merged PRs: the broad trigger fires on 13, the contract trigger
-#      on 10 — it correctly drops #325/#329/#332, which touched only auxiliary files.
+#   1. CLASSIFICATION is delegated to scripts/entry-classifier.sh — the SAME predicate
+#      tests/validate-plugin.sh uses. A path regex cannot express this rule: it needs
+#      filesystem state (does an ancestor hold a SKILL.md?). The first draft of this
+#      workflow tried a regex and measurably missed 30 nested entries
+#      (agents/consultants/*, commands/*/*) while flagging 4 ALL-CAPS documents
+#      (agents/README.md, agents/COWORK-AUTONOMY-POLICY.md, ...). One predicate, two
+#      consumers, no second copy to drift.
 #
 #   2. MODE = WARN first, BLOCK on evidence (`ai-as-pwd-axiom` §4: "start with
-#      reinforcement, promote to BLOCK only after evidence"). At the measured baseline
-#      (~80% of contract-touching PRs carry no entry) a hard fail would have blocked
-#      8 of the last 13 and turned `no-changelog` into the default — Goodhart, not a
-#      gate. Flip ENFORCE to '1' to promote once the rate falls.
+#      reinforcement, promote to BLOCK only after evidence"). At the measured baseline a
+#      hard fail would have blocked 8 of the last 13 PRs and made `no-changelog` the
+#      default — a gate defeated by its own escape. Flip ENFORCE to '1' to promote.
 #
-# Security posture matches release-coherence.yml: the head is never checked out or
-# executed. The changed-file list is read from the API with a read-only token.
+# Security posture matches release-coherence.yml: the classifier comes from a TRUSTED
+# checkout of `main`; the PR head is never checked out or executed, only its file LIST
+# is read from the API.
 
 name: changelog-required
 
 on:
   pull_request:
     branches: [main]
+    # `labeled`/`unlabeled` matter: the escape is a label, so applying or removing it must
+    # re-evaluate the gate. Without them the verdict goes stale until the next push.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -39,6 +45,12 @@ jobs:
   changelog-required:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout the trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
       - name: Require a CHANGELOG entry when the consumable contract changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,27 +73,36 @@ jobs:
           esac
 
           # --- read the diff without touching head code --------------------------------
-          files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
-          if [ -z "${files}" ]; then
-            echo "::notice::no changed files reported — nothing to gate"
+          # Guarded: under `set -e` an unguarded $( ) would abort the job on a transient
+          # API failure, before the emptiness check below could degrade gracefully.
+          files=''
+          api_rc=0
+          files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')" || api_rc=$?
+
+          if [ "${api_rc}" -ne 0 ] || [ -z "${files}" ]; then
+            # Could not read the diff => the gate is UNVERIFIED, which is not the same as clean.
+            if [ "${ENFORCE}" = '1' ]; then
+              echo "::error::could not read the changed-file list (gh api rc=${api_rc}) — failing closed in BLOCK mode"
+              exit 1
+            fi
+            echo "::warning::could not read the changed-file list (gh api rc=${api_rc}) — gate UNVERIFIED, not clean"
             exit 0
           fi
 
-          # --- the consumable contract -------------------------------------------------
-          # A consumer loads: a skill's SKILL.md and its profiles/, a command, an agent.
-          # Everything else under those trees (examples/, EVAL-REPORT-*.md, internal
-          # notes) is not part of what a consumer receives.
-          contract_re='(^skills/[^/]+/SKILL\.md$|^skills/[^/]+/profiles/|^commands/[^/]+\.md$|^agents/[^/]+\.md$)'
+          # --- classify with the repo's own predicate ----------------------------------
+          set +e
+          verdict="$(printf '%s\n' "${files}" | bash scripts/changelog-required-check.sh)"
+          check_rc=$?
+          set -e
 
-          contract="$(printf '%s\n' "${files}" | grep -E "${contract_re}" || true)"
-          if [ -z "${contract}" ]; then
-            echo "::notice::no contract file changed — gate not applicable"
+          echo "${verdict}"
+
+          if [ "${check_rc}" -eq 0 ]; then
             exit 0
           fi
-
-          if printf '%s\n' "${files}" | grep -qxF 'CHANGELOG.md'; then
-            echo "::notice::contract changed and CHANGELOG.md updated — ok"
-            exit 0
+          if [ "${check_rc}" -ne 2 ]; then
+            echo "::error::changelog-required-check.sh failed unexpectedly (rc=${check_rc})"
+            exit 1
           fi
 
           # --- the finding -------------------------------------------------------------
@@ -90,9 +111,9 @@ jobs:
             echo
             echo "This PR changes the consumable contract but does not touch \`CHANGELOG.md\`."
             echo
-            echo "Contract files changed:"
-            echo
-            printf '%s\n' "${contract}" | sed 's/^/- `/; s/$/`/'
+            echo '```'
+            echo "${verdict}"
+            echo '```'
             echo
             echo "Add an entry under \`## [Unreleased]\`, or apply the \`no-changelog\` label"
             echo "if this genuinely changes nothing a consumer would notice."
