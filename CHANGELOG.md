@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `bot-finding-arbiter` (Praetor) v1.4.0: anchor a `bot-wrong` verdict to the ref the bot reviewed
+
+A review comment is anchored to `comment.commit_id`, **not** the PR HEAD. The `bot-wrong` gate let a
+"deterministic proof" substitute the independent verify with **no constraint on which ref the proof was
+taken at** — so verifying against HEAD after the code was fixed showed clean code and yielded *"the bot
+misread it"*, when the bot was right and the finding was merely stale. Compounding it, the capture list
+never collected `commit_id` or `line` (`grep -ciE "commit_id|outdated"` over the skill = **0**), so a
+staleness check had no data to run on.
+
+Three surgical edits, one file: **(a)** the capture list now takes `comment.commit_id` + `comment.line`;
+**(b)** a deterministic proof MUST name its ref, which on a mutable branch MUST equal `comment.commit_id`,
+and `line == null` (GitHub's OUTDATED marker) routes to staleness-recon before any verdict — the correct
+disposition being `stale-but-correct`, never `bot-wrong`; **(c)** staleness-recon reads metadata only, and
+each command may claim only what it reaches — `git log … -- <file>` reaches **file** level (indirect: it can
+rule staleness OUT, never IN), `git diff --unified=0 … -- <file>` reaches **line** level (read the `@@`
+ranges against `comment.line`) — and ⛔ never `%B`, because reading the fixing commit's *message* hands the
+verifier its conclusion and destroys the independence the `verifier > generator` gate exists to guarantee.
+(b) generalizes the Security-class `AND` hardening that was already correct for one class and was always
+the general rule.
+
+Empirical (session `e528b822` / PR #250): both CodeRabbit findings were verified at HEAD `10c54b0`
+post-fix and declared FALSE; anchored at `comment.commit_id` `a02d70b` the bot was right on **both** — an
+independent arbiter reached truth only by *disobeying* the stale-premised brief. Closes #262.
+
 ### Added — `refine-braindump-to-prompt` (Lapidary) v0.3.0: one braindump → one executable prompt
 
 Turns a raw operator braindump into ONE ready-to-execute prompt, rather than the ledger, envelope or
