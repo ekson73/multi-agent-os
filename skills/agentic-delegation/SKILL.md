@@ -1,13 +1,15 @@
 ---
 name: agentic-delegation
-description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 10 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
+version: "1.1.0"
+allowed-tools: Read, Grep, Glob, Bash, Task
+description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 11 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints/channel-fallback-chain), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
 ---
 
 # Agentic Delegation — Criteria & Discipline
 
 > **Origin**: operator directive 2026-05-12 codifying delegation discipline — *"whenever useful and justified, use recursive sequential parallel delegation with accompaniment, with proper context, scope, motivation, purpose, objective, DoR, DoD, feedback/retro-loop, expected deliverables, etc; remember that delegating does not waive the responsibility received. Define the agentic delegation criteria."*
 >
-> **Version**: 1.0.0 (2026-05-17 community promotion of an extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body).
+> **Version**: 1.1.0 (2026-08-16 rubric-driven MINOR; 1.0.0 = 2026-05-17 community promotion of an extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body).
 >
 > **Source lineage**: operator's host-local `auto-self-harness` rule §12-equivalent (the parent framework section the operator maintains; host-dependent location).
 >
@@ -26,9 +28,9 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 
 **6/6 PASS → delegate. ≥ 1 FAIL → execute inline OR escalate.**
 
-## 2. Briefing components — WHAT to brief (10 mandatory items)
+## 2. Briefing components — WHAT to brief (11 mandatory items)
 
-Every spawn MUST include all 10. Skipping any item is the under-briefing anti-pattern.
+Every spawn MUST include all 11. Skipping any item is the under-briefing anti-pattern.
 
 | # | Component | Content |
 |---|---|---|
@@ -42,13 +44,20 @@ Every spawn MUST include all 10. Skipping any item is the under-briefing anti-pa
 | 8 | **Deliverables** | Artifacts list + format + paths/return-data shape |
 | 9 | **Feedback loops / retro** | How progress is reported + how the parent gives feedback (sync/async) |
 | 10 | **Constraints** | Time-box + risk tolerance + escalation triggers |
+| 11 | **Channel fallback-chain** | Alternative channels/carriers declared BEFORE the first spawn (e.g. `primary CLI → alternate CLI → lead-executes`) — quota/outage mid-loop is a when, not an if; a delegation without one is fragile by construction (observed live 2026-08-15: two CLI channels hit weekly/quota limits mid-chain; rubric anchor C2) |
 
-## 3. Accompaniment — HOW to supervise (4 disciplines)
+## 3. Accompaniment — HOW to supervise (5 disciplines)
 
 1. **Check-in cadence** defined upfront (sync streaming OR async polling)
 2. **Termination conditions** explicit (success / failure / interrupt / timeout)
 3. **Audit checklist** post-completion (zero-drift: output matches brief?)
-4. **Re-spawn discipline** with brief refinement (max 6 attempts per the 6-failure escalation rule below)
+4. **Artifact verification (non-delivery detection)** — MANDATORY: every delegation names the
+   expected artifact upfront (file, PR, JSON, row); after the spawn returns, the parent VERIFIES the
+   artifact exists and is non-empty. **Empty stdout with rc=0 is NOT success.** A missing/empty
+   artifact = a failed spawn (counts toward the 6-failure rule). Observed live 2026-08-15: two
+   executor spawns died of quota mid-run producing exit-0 silence; the parent detected it only via
+   the missing file. (Rubric anchor: `docs/rubrics/v0.1/agentic-delegation.md` C1)
+5. **Re-spawn discipline** with brief refinement (max 6 attempts per the 6-failure escalation rule below)
 
 ## 4. Accountability — WHO retains (parent does NOT waive)
 
@@ -113,7 +122,7 @@ Per the sibling `rule-quality-tests` skill:
 | Test | Self-application | Result |
 |---|---|---|
 | Self-Application | Codifying this skill IS an act of delegation (to a future agent applying the criteria) | ✓ |
-| Non-Contradiction | 6 + 10 + 6 + 6 + 4 + 6 components internally consistent | ✓ |
+| Non-Contradiction | 6 + 11 + 6 + 6 + 5 + 6 components internally consistent | ✓ |
 | Survival | Skill applied to itself survives | ✓ |
 | Bounded-Responsibility | All counts explicitly bounded | ✓ |
 | Explicit-Exception | "Skip if 1/6 FAIL"; HUMAN_DOMAIN exception; Escape Clause Universal | ✓ |
@@ -158,4 +167,5 @@ No counter-based sunset. Insurance discipline — dormant-by-design.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1.0 | 2026-08-16 | MINOR — rubric-driven (pilot eval FAILs C1+C2, PR #354): adds accompaniment discipline #4 "Artifact verification (non-delivery detection)" (empty stdout + rc=0 ≠ success; missing artifact = failed spawn) and briefing component #11 "Channel fallback-chain" (declared before the first spawn). Both from observed live failures 2026-08-15. |
 | 1.0.0 | 2026-05-17 | Community promotion from a user-scope skill of the same version (extraction from the operator's host-local `auto-self-harness §12`-equivalent rule body). Sanitization: replaced all proprietary attributions with generic equivalents (agentic-inheritance principle · autonomous-resolution protocol · standard delegation chain · host-local framework SSOT); replaced host-absolute paths with portable descriptions; preserved the 6 criteria + 10 briefing components + 4 accompaniment disciplines + accountability rule + recursion bounds + Quality Tests dogfooding + BEING > Rules compliance + DUED sunset. License: MIT. |
