@@ -1042,6 +1042,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - **Secret-safety** — token sourced inside a subshell, used only in an Authorization header, never echoed; all log output passes through `redact()` (AWS temp keys · long base64 · token/password · `bitbucket_api_token`).
 - **PDCA-hardened during review** (bot convergence): `mktemp` for the log file (was predictable `/tmp/_bbw_log.$$` — CWE-377) · `--max-time` on every curl (was indefinite-hang risk that would defeat the `--max-polls` cap) · URL-encode the pipeline uuid + `curl -g` (was a globbing/encoding bug) · fail-fast env sourcing (dropped a masking `|| true`) · added the `bitbucket_api_token` redaction pattern (CWE-532).
 - **Layer-Purity 0** — genericized example workspace/repo, made `--workspace` required (no hardcoded org default); gitleaks-clean; `version`+`triggers` frontmatter.
+
 ### Added — `voice` skill — official on-demand TTS narration for the content-lifecycle family (`skills/voice` v0.1.0 + `bin/speak.sh` + `commands/speak.md`)
 
 - **NEW skill `voice`** (#172) — the **opt-in** audio producer for the eko-system family. Ratified by an operator-eared TTS bake-off (dogfood cycle 002 of `agentic-tool-pipeline`, the operator's ear = the independent verifier per the Convergence-Engine doctrine). Official fallback chain **Gemini 3.1 Flash TTS → ElevenLabs v3 → Kokoro** (local, free).
@@ -1352,6 +1353,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - Source: cherry-picked from PR #47 (closed as superseded) which was opened pre-#46 merge; this PR preserves PR #47's unique valuable additions atop main's current v1.1.0.
 
 #### Skill `converge` v1.0.0 → v1.1.0
+
 - **NEW Invariant 6: audit-not-persuasion / anti-prompt-injection** — output is a record for downstream evaluation, NOT a debate move. Forbids leading questions, asymmetric framing, victory tallies, "what do you think?" closers, first-person possessives, emotive adjectives applied unevenly, and embedded prompt-injection patterns
 - **NEW end-of-ACT-4 mandatory impartiality scan** — before emitting §5 synthesis, scan output for persuasive framing and rewrite neutrally
 - **NEW toggle `output_language`** ∈ {`auto`, `pt`, `en`, `es`, `<ISO-639-1>`} — explicit control over output language with reproducibility recorded in audit chain
@@ -1385,6 +1387,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - Safety: `_normalize_pr_id` raises `ValueError` on conflict or missing — bad calls fail fast with clear message.
 
 #### GaaS/GaaC Agentic Delegation Framework (v1.0)
+
 - `protocols/delegation/provider-matrix.md` — cross-provider lookup (Jira/Linear × Bitbucket/GitHub/GitLab × Secrets × Observability) citing source-of-truth files per cell
 - `protocols/delegation/delegation-init-prompt.md` (~894 tok) — start-of-delegation prompt (4 cognitive lenses, Anti-Conflict Phase-1, provider detection, output contract)
 - `protocols/delegation/delegation-dna-prompt.md` (~973 tok) — mid-flight guardrails (token watchdog, TTL, Sentinel, escalation, DNA heritage block for recursion)
@@ -1410,17 +1413,20 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Fixed
 
 #### maos-mcp-hub — VKO-88: Jira search endpoint migration (CHANGE-2046)
+
 - `lib/jira/client.py:search_jql` — Migrated from deprecated `/rest/api/3/search` (HTTP 410) to new `/rest/api/3/search/jql`. Replaced `startAt` integer pagination with `nextPageToken` opaque string. Added optional `fields` and `expand` params for payload control.
 - `gateways/jira/actions.py:search_jql` — Updated signature to match: `next_page_token: str = ""`, `fields: list[str] | None = None`, `expand: str | None = None`. Schema auto-regenerated via `SchemaRegistry` from the new signature.
 - `tests/test_gateway_jira.py` — Updated existing mock to `/search/jql` + `nextPageToken`. Added 2 regression tests: `test_execution_search_jql_with_pagination_and_fields` (token + fields + expand) and `test_execution_search_jql_no_deprecated_startat_sent` (guard against re-introducing `startAt`).
 
 #### Validated
+
 - pytest tests/ → 153/153 passing (151 + 2 new)
 - Real Jira API smoke test: page 1 returned 3 VKS issues + valid `nextPageToken`, page 2 paginated successfully.
 
 ### Removed
 
 #### maos-mcp-hub — VKS-1694 Flat-Tools Residue Cleanup (Phase 2 / v1.7)
+
 - `hub.py` — Removed the legacy flat-tool registration block in its entirety (the `if _expose_flat:` gate, the flat loop, and the per-server stderr dump in the summary)
 - `MAOS_EXPOSE_FLAT_TOOLS` env var — No longer honored; variable removed from `.env.example`
 - `mcp-tools/maos-mcp-hub/servers/bitbucket/server.py` — Deleted (metadata no longer needed; auto-discovery deprecated for Atlassian dirs)
@@ -1430,12 +1436,14 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Changed
 
 #### maos-mcp-hub — VKS-1694 Phase 2 follow-up
+
 - `servers/{bitbucket,jira}/__init__.py` — Gateway-only modules now export just `TOOLS` (no longer `SERVER_INFO`); package version bumped to `2.0.0`
 - `hub.py` — Simplified hub summary (no more "Flat servers" line), silenced auto-discovery skip warnings for directories without `server.py` (expected state)
 - README.md — "Migration: Flat → Gateway" section updated to reflect v1.7 (removal complete, rollback path removed); "Why the change" + "Timeline" now reference v1.5 → v1.7 trajectory
 - CLAUDE.md (root) — Simplified "MCP Tools" section to single-paragraph description of gateway-only architecture
 
 #### Impact (v1.6 → v1.7)
+
 - **No behavior change at runtime** — v1.6 already defaulted to flat-hidden via `MAOS_EXPOSE_FLAT_TOOLS=false`
 - **Rollback via env flag removed** — consumers must use `atlassian_*` gateways (zero runtime consumers confirmed by VKS-1694 audit)
 - **Handlers preserved** — `servers/{bitbucket,jira}/tools.py` unchanged; gateways still import `TOOLS` dict directly
@@ -1443,6 +1451,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Phase 1 (previously under [Unreleased])
 
 #### maos-mcp-hub — VKS-1694 Flat-Tools Residue Cleanup (Phase 1 / v1.6)
+
 - `hub.py` — Flat-tool registration loop gated behind `MAOS_EXPOSE_FLAT_TOOLS` env var (default: `false`); introduced in this release, removed in v1.7
 - `.env.example` — Documented `MAOS_EXPOSE_FLAT_TOOLS` rollback flag (removed in v1.7)
 - `README.md` — Added "Migration: Flat → Gateway" section with full 30-tool mapping table; marked flat namespace as deprecated
@@ -1454,18 +1463,23 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Added
 
 #### Skills (skills/)
+
 - `response-compression/SKILL.md` — Output verbosity control (60-85% token reduction); profiles: none/lite/full/ultra; auto-mapped to agent role; derived from JuliusBrussee/caveman (MIT)
 
 #### Governance (plugin-scripts/governance/)
+
 - `token-budget-gate.sh` — PreToolUse[Bash] hook implementing RULE-009 (Token Bloat detection); blocks excessively verbose Task delegations; GaaS enforcement point
 
 #### Documentation (docs/)
+
 - `research-caveman-response-compression.md` — Research notes on response compression lineage and caveman protocol origins
 
 #### Standards
+
 - `AGENTS.md` — Agent coding standard following AAIF/Linux Foundation open standard (60k+ projects); covers build commands, code conventions, testing, commit guidelines, architecture decisions
 
 #### maos-mcp-hub — Branch Management Tools (Sprint 8 — VKS-1647)
+
 - `bitbucket_create_branch` — Create branch from commit hash (POST /refs/branches)
 - `bitbucket_delete_branch` — Delete branch with default-branch protection (DELETE /refs/branches/{name})
 - `bitbucket_set_default_branch` — Change repository default branch (PUT /repositories/{ws}/{repo})
@@ -1475,6 +1489,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - 19 unit tests covering all new tools (success, error, edge cases)
 
 ### Changed
+
 - `hooks/hooks.json` — Added `PreToolUse[Bash]` hook for `token-budget-gate.sh` (RULE-009)
 - `sentinel/config.json` — Updated detection thresholds and rule weights
 - `skills/context-prep/SKILL.md` — Refined trigger conditions and protocol rules
@@ -1488,11 +1503,13 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Added
 
 #### Rules (rules/)
+
 - `action-now-protocol.md` (C15) — Eisenhower matrix for task prioritization with interdependency analysis
 - `ai-native-errors.md` (C06) — MCP-JSON-RPC error protocol with recovery instructions
 - `context-before-commit.md` (R01) — Context analysis before git commit (scope determination)
 
 #### Documentation (docs/)
+
 - `git-worktree-protocol.md` — Complete C04 git worktree protocol specification
 - `git-workflow-standard.md` — Standard git workflow patterns
 - `pr-review-protocol-spec.md` — PR review protocol full specification (C07)
@@ -1508,6 +1525,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - `session-identifiers-research.md` — Research on session identity patterns
 
 #### Specs (docs/specs/)
+
 - `auto-shard-agent-architecture.md` — Auto-shard agent architecture design
 - `auto-shard-agent-brd.md` — Auto-shard agent business requirements
 - `claude-md-sharding-spec.md` — CLAUDE.md sharding specification
@@ -1515,15 +1533,18 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - `sync-to-git-spec.md` — Sync-to-git specification
 
 #### Agents (agents/)
+
 - `code-reviewer.md` — Automated code review agent
 - `data-analyst.md` — Data analysis and reporting agent
 - `debugger.md` — Debugging specialist agent
 
 #### Skills (skills/)
+
 - `skill-writer/SKILL.md` — Skill creation and authoring tool
 - `sync-to-git/SKILL.md` — Git synchronization skill
 
 #### Commands (commands/)
+
 - `auto-shard/` — CLAUDE.md sharding utility (8 files: SKILL.md, 6 operations, 1 script)
   - `operations/analyze.md` — Analyze CLAUDE.md for sharding opportunities
   - `operations/classify.md` — Classify content into shard categories
@@ -1536,6 +1557,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - `analyze/research/quick-web-research.md` — Quick web research command
 
 ### Technical Details
+
 - 36 new files consolidated from user-scope (`~/.claude/`) generic artifacts
 - All files verified: no personal or proprietary data included
 - Personal file paths sanitized in session-identifiers-research.md
@@ -1546,6 +1568,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 ### Added
 
 #### Governance Subsystem
+
 - `plugin-scripts/governance/` - Git worktree enforcement hooks
   - `worktree-gate.sh` - Unified gatekeeper for C04 protocol enforcement
   - `auto-name-session.sh` - Automatic session naming based on project/branch/worktree
@@ -1554,6 +1577,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
   - `lib/worktree-utils.sh` - Git worktree detection utilities
 
 #### Enforcement Rules
+
 - **RF01**: Block branch creation outside of git worktree
 - **RF02**: Block checkout in main working directory
 - **RF03**: Block commits to main/master branches
@@ -1562,6 +1586,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - **RF06**: Bypass flag (`--force-no-worktree`, `--maos-bypass`)
 
 #### Test Suite
+
 - `tests/governance/` - Comprehensive unit tests for governance subsystem
   - `test-common.sh` - Tests for common.sh library
   - `test-json-rpc.sh` - Tests for JSON-RPC error emission
@@ -1570,10 +1595,12 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
   - `run-all.sh` - Test suite runner
 
 ### Changed
+
 - `hooks/hooks.json` - Added Bash matcher for worktree-gate.sh
 - `hooks/hooks.json` - Added auto-name-session.sh to SessionStart
 
 ### Technical Details
+
 - All scripts use `set -euo pipefail` for safety
 - Errors emitted in MCP-JSON-RPC format to stderr (C06 compliant)
 - Exit codes: 0=allow, 2=block (C06 standard)
@@ -1581,6 +1608,7 @@ gate → gap-loop` with DECIDE as a pure gate that never authors.
 - Audit logging to `~/.claude/audit/governance_*.jsonl`
 
 ### Migration Notes
+
 After installing v1.3.0, you can remove duplicate hooks from user settings:
 - `~/.claude/hooks/enforce-worktree.sh`
 - `~/.claude/hooks/prevent-main-commit.sh`
@@ -1591,12 +1619,14 @@ These are now consolidated in the MAOS plugin governance subsystem.
 ## [1.2.1] - 2026-01-10
 
 ### Fixed
+
 - Version sync: plugin.json now matches CHANGELOG (was 1.2.1 vs 1.2.0)
 - Note: No code changes, only version metadata alignment
 
 ## [1.2.0] - 2026-01-09
 
 ### Added
+
 - Auto-install statusline feature in session-start.sh hook
 - Statusline script template (`templates/statusline-command.sh`) with:
   - Model and version display
@@ -1607,6 +1637,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
   - Visual semaphores for context consumption
 
 ### Fixed
+
 - BUG-001: Arithmetic increment with `set -e` in validate-plugin.sh (Critical)
   - Changed `((VAR++))` to `((VAR++)) || true` to prevent exit on 0-to-1 increment
 - BUG-002: grep failure in session-end.sh when session log does not exist (High)
@@ -1624,11 +1655,13 @@ These are now consolidated in the MAOS plugin governance subsystem.
 ### Added
 
 #### MVV Generator System
+
 - `commands/mvv.md` - `/mvv` command for Mission, Vision, Values generation
 - `skills/ontological-analysis/SKILL.md` - 8-dimension philosophical analysis (v1.0.0)
 - `skills/mvv-synthesis/SKILL.md` - Mission/Vision/Values synthesis (v1.0.0)
 
 #### Documentation & Tooling
+
 - `CLAUDE.md` - AI agent development guidance
 - `CHANGELOG.md` - Version tracking (Keep a Changelog format)
 - `docs/ANALYSIS_REPORT_2026-01-08.md` - Plugin analysis report
@@ -1639,14 +1672,17 @@ These are now consolidated in the MAOS plugin governance subsystem.
   - `session_lock.template.json` - Lock file template
 
 #### README Enhancements
+
 - Added badges (MIT License, Claude Code Plugin, Version, Sentinel)
 - MVV Generator documentation
 
 ### Changed
+
 - Skills count increased from 8 to 10 (added ontological-analysis, mvv-synthesis)
 - Commands count increased from 5 to 6 (added /mvv)
 
 ### Fixed
+
 - Standardized YAML frontmatter in audit, agent-select, and context-prep skills
 - Consistent skill format across all 10 skills
 
@@ -1655,6 +1691,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
 ### Added
 
 #### Plugin Structure
+
 - `.claude-plugin/plugin.json` - Plugin manifest for Claude Code integration
 - `hooks/hooks.json` - Hook configuration for lifecycle events
 - `plugin-scripts/` - 4 lifecycle hook scripts
@@ -1664,6 +1701,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
   - `session-end.sh` - Session cleanup
 
 #### Skills (8 initial)
+
 - `audit/SKILL.md` - Sentinel Protocol auditing (v1.1.0)
 - `agent-select/SKILL.md` - Agent selection algorithm (v1.0.0)
 - `context-prep/SKILL.md` - Pre-delegation context preparation (v1.0.0)
@@ -1674,6 +1712,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
 - `ttl-policy/SKILL.md` - Content freshness management (v1.0.0)
 
 #### Commands (5 initial)
+
 - `/sync` - Framework synchronization to consumer projects
 - `/audit` - On-demand session auditing
 - `/status` - Status map visualization
@@ -1681,12 +1720,14 @@ These are now consolidated in the MAOS plugin governance subsystem.
 - `/delegate` - Task delegation to sub-agents
 
 #### Agents (4 total)
+
 - `orchestrator.md` - Master coordinator for multi-agent sessions
 - `sentinel-monitor.md` - Anomaly detection and alerting
 - `qa-validator.md` - Quality assurance validation
 - `consolidator.md` - Output synthesis and consolidation
 
 #### Sentinel Protocol v1.0.0
+
 - `sentinel/config.json` - Detection thresholds configuration
 - `sentinel/detection_rules.md` - 10 detection rules:
   1. Loop Detection (auto-block)
@@ -1705,6 +1746,7 @@ These are now consolidated in the MAOS plugin governance subsystem.
 - `sentinel/lib/alert_handler.md` - Alert routing logic
 
 #### Status Map System v1.0.0
+
 - 9 individual template types + 1 consolidated reference file (10 total):
   - PULSE (1-line, every response)
   - COMPACT (6-line, every 5 responses)
@@ -1720,24 +1762,28 @@ These are now consolidated in the MAOS plugin governance subsystem.
 - Semaphore indicators (green/yellow/red)
 
 #### Protocols
+
 - `protocols/hierarchical-merge-protocol.md` - HMP v1.0
   - Parent-child branch convergence
   - Child Completion Constraint
   - Exception prefixes (hotfix/, emergency/)
 
 #### Documentation
+
 - `README.md` - Plugin overview and installation guide
 - `docs/framework-consumption.md` - Consumer project integration
 - `docs/worktrees-guide.md` - Multi-agent worktree coordination
 - `LICENSE` - MIT License
 
 ### Technical Details
+
 - Hook scripts use `set -euo pipefail` for safety
 - JSON output from all hook scripts
 - OpenTelemetry GenAI semantic conventions for traces
 - W3C Trace Context compliant span IDs
 
 ### Deprecated
+
 - `claude-md/` directory - Use README.md instead
 - `install/` directory - Use Claude Code plugin system
 - `scripts/` directory - Use plugin-scripts/
@@ -1745,11 +1791,13 @@ These are now consolidated in the MAOS plugin governance subsystem.
 ## [0.9.0] - 2026-01-07
 
 ### Added
+
 - Initial framework structure
 - Core protocol documentation drafts
 - Agent definitions (conceptual)
 
 ### Technical
+
 - Repository initialization
 - MIT License
 
