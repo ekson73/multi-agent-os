@@ -1,6 +1,6 @@
 ---
 name: bot-finding-arbiter
-version: "1.3.0"
+version: "1.4.0"
 description: |
   Soul-name **Praetor**. Adjudicates a code-reviewer bot's finding when a build / CI /
   pipeline / PR fails or is blocked on it — and, like the Roman praetor who both judged
@@ -73,7 +73,10 @@ If omitted → ingest ALL open findings on the PR and arbitrate each.
   is intentionally NOT built — the native flags already return a structured failure diagnosis (Gordian:
   native-primitive-over-custom-machinery).
 - For each finding capture: `bot` · `context` (check name) · `state` (error/failure/pending) ·
-  `description` · `target_url` · the code hunk it points at.
+  `description` · `target_url` · the code hunk it points at · **`comment.commit_id`** (the ref the bot
+  actually reviewed — NOT the PR HEAD) · **`comment.line`** (`null` is GitHub's OUTDATED marker).
+  Without those last two a staleness check has no data to run on, and every verdict silently
+  assumes the bot reviewed HEAD.
 - **Recon-before-assume (Skopos)**: read the actual finding + the code it cites before forming any verdict.
 
 ### 2 — ORIENT (classify + INDEPENDENTLY verify)
@@ -83,9 +86,23 @@ independent lens** (not the same reasoning that proposed it):
 | Bucket | Meaning | Verify gate (verifier > generator) |
 |---|---|---|
 | **valid-actionable** | the bot is right; the code should change | a deterministic oracle where one exists (test / compile / re-run the scanner on the hunk) OR a 2nd-lens read |
-| **bot-wrong** | false-positive · governance-misalignment · style-only · **infra/account error** (e.g. quota, not code) | **MANDATORY** independent verify via `perspective-trio` / `cascade-resolver` / `convergence-engine` (REFINE/SELECT) OR a deterministic proof (the pattern is in our governance / the flagged file is our documented convention) |
+| **bot-wrong** | false-positive · governance-misalignment · style-only · **infra/account error** (e.g. quota, not code) | **MANDATORY** independent verify via `perspective-trio` / `cascade-resolver` / `convergence-engine` (REFINE/SELECT) OR a deterministic proof that **names the ref it was proven at** (see the anchoring rule below) |
 | **ambiguous** | can't ground either way after recon | → DEFER + comment (never guess a config edit) |
 
+- ⛔ **Anchor the proof to the ref the bot reviewed** — a review comment is anchored to
+  `comment.commit_id`, **not** the PR HEAD. A "deterministic proof" MUST name the ref it was taken at,
+  and on a mutable branch that ref MUST equal `comment.commit_id`. Verifying against HEAD after the code
+  was fixed shows clean code and yields *"the bot misread it"* — when the bot was right and the finding is
+  merely **stale**. That is a `bot-wrong` verdict reached with full confidence and zero grounding, and it
+  is worse than no verdict: it teaches the next reader to distrust a correct bot.
+  **`comment.line == null` ⇒ OUTDATED ⇒ staleness-recon BEFORE any verdict** — the correct disposition is
+  `stale-but-correct`, never `bot-wrong`. (Empirical, session `e528b822` / PR #250: both CodeRabbit findings
+  were verified at HEAD `10c54b0` post-fix and declared FALSE; anchored at `comment.commit_id` `a02d70b` the
+  bot was right on **both**. An independent arbiter reached truth only by *disobeying* the stale-premised brief.)
+  This generalizes the Security-class `AND` below — the hardening was always the general rule, applied to one class.
+- **Staleness-recon reads metadata ONLY** — `git log --format='%H %ci' <ref>..HEAD -- <file>` to establish
+  *whether* the hunk moved. ⛔ Never `%B`: reading the fixing commit's **message** hands the verifier the
+  conclusion and destroys the independence the `verifier > generator` gate exists to guarantee.
 - ⛔ **Security class** (secret/injection/auth/CVE/data-loss): a "bot-wrong" verdict here requires a
   deterministic proof AND is **HITL-gated** before any suppression-style config edit — no autonomous silence.
 - **Account/infra error** (the bot's *platform* failed, not the code — e.g. Snyk "test limit reached",
