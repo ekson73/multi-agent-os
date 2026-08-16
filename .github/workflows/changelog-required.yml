@@ -56,7 +56,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          # Exact array membership, evaluated by Actions — NOT a comma-joined string match.
+          # A GitHub label may itself contain commas, and a label literally named
+          # `feat,no-changelog,bug` satisfies a `*,no-changelog,*` test (measured). Computing
+          # the predicate here keeps the escape exact while still letting the shell LOG it,
+          # which a job-level `if:` could not (a skipped job reads as "not run", not "waived").
+          HAS_WAIVER: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
           # WARN (0) -> BLOCK (1). Promotion is an operator decision; see the header.
           ENFORCE: '0'
         run: |
@@ -65,12 +70,10 @@ jobs:
           # --- explicit, logged escape -------------------------------------------------
           # A skipped job reads as "not run"; an early exit that says why reads as a
           # decision. #278 asks for the escape to be explicit and logged, not silent.
-          case ",${PR_LABELS}," in
-            *,no-changelog,*)
-              echo "::notice::escape label 'no-changelog' present — gate waived for this PR"
-              exit 0
-              ;;
-          esac
+          if [ "${HAS_WAIVER}" = 'true' ]; then
+            echo "::notice::escape label 'no-changelog' present — gate waived for this PR"
+            exit 0
+          fi
 
           # --- read the diff without touching head code --------------------------------
           # Guarded: under `set -e` an unguarded $( ) would abort the job on a transient

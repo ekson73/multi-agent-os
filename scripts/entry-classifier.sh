@@ -22,8 +22,20 @@
 is_entry() {
     local path="$1"
     # `skills/<name>/SKILL.md` IS a skill's entry point — all-caps by design, allow before (a).
+    #
+    # Depth must be guarded explicitly: a `case` glob is NOT pathname expansion, so `*` DOES
+    # cross `/` (measured: `skills/a/b/SKILL.md` matches `skills/*/SKILL.md` under bash). Without
+    # the guard a nested SKILL.md would be promoted to a root skill entry. No such file exists
+    # today (83 SKILL.md, all at depth 1), so this is latent — which is exactly when it is cheap
+    # to close. A nested one falls through to the rules below and is classified as a document by
+    # its ALL-CAPS stem, which is the correct answer for something that is not a skill root.
     case "$path" in
-        skills/*/SKILL.md) return 0 ;;
+        skills/*/SKILL.md)
+            case "${path%/SKILL.md}" in
+                skills/*/*) ;;            # deeper than skills/<name> -> not a root entry
+                skills/*) return 0 ;;     # exactly skills/<name>/SKILL.md
+            esac
+            ;;
     esac
     # (a) An ALL-CAPS basename is a document by repo convention (README.md, SKILL.md,
     #     COWORK-AUTONOMY-POLICY.md), not an entry. Generalizes the former literal
