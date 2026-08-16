@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — rubric-driven skill fixes (régua pilot #354 backlog)
+
+- `skills/decompose-abstract-to-measurable` v1.3.0 — threshold provenance declared
+  (uncalibrated heuristics, operator-tunable) + one-sentence measurement answer (C2).
+
 ### Added — régua v0.1 pilot evaluation (D6-7)
 
 - `docs/rubrics/pilot-eval-2026-08-16.md` — external-judge pilot of the 8 pre-registered rubrics:
