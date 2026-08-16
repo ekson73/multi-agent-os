@@ -1,7 +1,7 @@
 # Rubrica v0.1 — agentic-delegation
 
 > PRÉ-REGISTRADA 2026-08-15 antes de qualquer avaliação (council D5).
-> Critérios derivados 1:1 de failure modes em traces reais (evidence/<skill>.md).
+> Critérios derivados de failure modes em traces reais (evidence). Todo critério tem âncora; um anchor pode fundamentar 2 critérios da mesma classe.
 > Formulados como CLASSE de falha, não incidente único.
 
 ## C1 — Detecção de não-entrega
