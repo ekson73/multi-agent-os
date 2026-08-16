@@ -2,7 +2,13 @@
 """corpus-firing-audit — Camada 0 determinística (régua híbrido-ancorada, council 2026-08-15).
 
 Conta FIRING estrutural de cada skill em logs reais de 3 vendors:
-  Claude: <command-name>/x</command-name>  em ~/.claude/projects/**/*.jsonl
+  Claude: <command-name>/x</command-name> OU "name":"Skill","input":{"skill":"x"}
+                                           em ~/.claude/projects/**/*.jsonl
+                                           (2 anchors — v1.0.0 só via cobria comandos
+                                           /-prefixados; Skill-tool-call era um blind
+                                           spot real: um agente pode invocar uma skill
+                                           via `Skill maos:x` sem NUNCA passar por um
+                                           `<command-name>`. Ichnos §Attribution 2026-08-16.)
   Codex : "/x" em input_text              em ~/.codex/sessions/**/*.jsonl
   pi    : read tool-call do SKILL.md       em ~/.pi/agent/sessions/**/*.jsonl
           (sessão da própria auditoria EXCLUÍDA — auto-referência)
@@ -38,9 +44,12 @@ def hits(pattern, path):
 def per_skill(vendor):
     out = {}
     if vendor == 'claude':
-        raw = hits(r'<command-name>/[a-z0-9:._-]+</command-name>',
-                   os.path.expanduser('~/.claude/projects'))
-        names = re.findall(r'<command-name>/(?:maos:)?([a-z0-9._-]+)</command-name>', raw)
+        raw_cmd = hits(r'<command-name>/[a-z0-9:._-]+</command-name>',
+                       os.path.expanduser('~/.claude/projects'))
+        raw_skill = hits(r'"name":"Skill","input":\{"skill":"[a-z0-9:._-]+"',
+                         os.path.expanduser('~/.claude/projects'))
+        names = (re.findall(r'<command-name>/(?:maos:)?([a-z0-9._-]+)</command-name>', raw_cmd)
+                 + re.findall(r'"name":"Skill","input":\{"skill":"(?:maos:)?([a-z0-9._-]+)"', raw_skill))
     elif vendor == 'codex':
         raw = hits(r'"/[a-z][a-z0-9._-]{2,}"', os.path.expanduser('~/.codex/sessions'))
         names = re.findall(r'"/([a-z][a-z0-9._-]{2,})"', raw)
