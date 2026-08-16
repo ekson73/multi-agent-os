@@ -1,8 +1,38 @@
 # Qodo PR Agent — multi-agent-os (OSS, community-agnostic)
 #
-# Tracking system: Linear VKO (NOT Jira).
+# Tracking system: Linear VKO. Jira appears throughout this repo as an
+# INTEGRATION SUBJECT (maos-mcp-hub ships an Atlassian/Jira gateway; see
+# AGENTS.md:93 and ADR-002 "VKO-88: Jira search endpoint migration") — NOT as
+# this repo's own tracker. The two are distinct and the distinction is the
+# whole point of the carve-out below.
 # Purpose: prevent recurring false-positive "missing Jira key" findings on PRs
 # of this open-source repository.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# CITATIONS — required by the Bot-Config Correction Discipline for any edict
+#
+# (1) MECHANISM (official vendor doc for `extra_instructions`):
+#     https://qodo-merge-docs.qodo.ai/usage-guide/additional_configurations/
+#     https://docs.qodo.ai/qodo-documentation/qodo-merge/configuration/configuration-file/configuration-options
+#     Per-tool free-text guidance under each tool's namespace ([pr_reviewer],
+#     [pr_description], [pr_code_suggestions]). Repo-level file = `.pr_agent.toml`
+#     at the root of the default branch.
+#
+# (2) GOVERNANCE ANCHOR:
+#     rules/pr-governance-unified.md § "Bot-Config Correction Discipline"
+#       (v1.2.0, 2026-07-01) — the 5 binding rules for a teach-the-bot edict.
+#     skills/bot-finding-arbiter/bot-config-registry.md — SSOT bot→config map;
+#       the Qodo row names `.pr_agent.toml` / `extra_instructions` as the
+#       verified teaching surface, `repo-fixable? = yes`.
+#
+# (3) VERIFIER > GENERATOR (Discipline rule 2 — the bot-wrong verdict is NOT
+#     self-asserted; it rests on a deterministic, executable oracle):
+#       `.githooks/pre-push:19` →
+#         VALID_PATTERN="^(feature|feat|bugfix|fix|chore|docs|refactor|test|ci|hotfix)\/.*$"
+#       The repo's OWN enforced branch contract requires NO ticket key of any
+#       kind. f=0, re-runnable, independent of any reviewer's judgment.
+#       Corroborated by AGENTS.md:90 (`feature/<id>-slug`, no key format mandated).
+# ─────────────────────────────────────────────────────────────────────────────
 #
 # ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ MEASURED DRIFT — read this BEFORE "fixing" the Jira rule again (2026-08-15)
@@ -21,7 +51,8 @@
 # deterministic layer, not in this config").
 #
 # DISPOSITION when the finding fires:
-#   ✅ dismiss that occurrence (it is a verified false positive for THIS repo)
+#   ✅ dismiss that occurrence — false positive for THIS repo, verified against
+#      the deterministic oracle in CITATION (3), not by reviewer judgment
 #   ⛔ do NOT add a third, louder restatement of the rule below — the rule is
 #      already explicit; a louder declaration cannot fix a missing mechanism,
 #      and writing one is theater (a 2026-08-15 session started to do exactly
