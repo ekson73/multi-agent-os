@@ -1,7 +1,7 @@
 ---
 name: agentic-delegation
 version: "1.1.0"
-description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 10 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
+description: Use when about to spawn a subagent/skill/task (Task tool, Agent tool, /command). Defines 6 decision criteria (decomposable/specialist-exists/audit-capacity/score≥MEDIUM/not-HUMAN-DOMAIN/time-budget), 11 mandatory briefing components (context/scope/motivation/purpose/objective/DoR/DoD/deliverables/feedback-loops/constraints/channel-fallback-chain), accountability preservation (parent NEVER delegates accountability — only execution; "delegating does not waive the responsibility received"), recursion ≤2, parallel ≤3. Harmonizes the agentic-inheritance principle (tree-returns-to-root · subordinate-is-parent's-full-responsibility · audit-output · zero-drift). Cross-vendor AAIF.
 ---
 
 # Agentic Delegation — Criteria & Discipline
@@ -27,9 +27,9 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 
 **6/6 PASS → delegate. ≥ 1 FAIL → execute inline OR escalate.**
 
-## 2. Briefing components — WHAT to brief (10 mandatory items)
+## 2. Briefing components — WHAT to brief (11 mandatory items)
 
-Every spawn MUST include all 10. Skipping any item is the under-briefing anti-pattern.
+Every spawn MUST include all 11. Skipping any item is the under-briefing anti-pattern.
 
 | # | Component | Content |
 |---|---|---|
@@ -127,7 +127,7 @@ Per the sibling `rule-quality-tests` skill:
 | Test | Self-application | Result |
 |---|---|---|
 | Self-Application | Codifying this skill IS an act of delegation (to a future agent applying the criteria) | ✓ |
-| Non-Contradiction | 6 + 10 + 6 + 6 + 4 + 6 components internally consistent | ✓ |
+| Non-Contradiction | 6 + 11 + 6 + 6 + 5 + 6 components internally consistent | ✓ |
 | Survival | Skill applied to itself survives | ✓ |
 | Bounded-Responsibility | All counts explicitly bounded | ✓ |
 | Explicit-Exception | "Skip if 1/6 FAIL"; HUMAN_DOMAIN exception; Escape Clause Universal | ✓ |
