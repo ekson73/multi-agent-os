@@ -44,13 +44,7 @@ Every spawn MUST include all 11. Skipping any item is the under-briefing anti-pa
 | 8 | **Deliverables** | Artifacts list + format + paths/return-data shape |
 | 9 | **Feedback loops / retro** | How progress is reported + how the parent gives feedback (sync/async) |
 | 10 | **Constraints** | Time-box + risk tolerance + escalation triggers |
-
-**11. Channel fallback-chain** — the parent declares BEFORE the first spawn which alternative
-   channels/carriers take over if the spawn channel dies (quota, outage, rate-limit), e.g.
-   `primary CLI → alternate CLI → lead-executes`. A delegation without a declared fallback chain is
-   fragile by construction — quota exhaustion mid-loop is a when, not an if. (Observed live
-   2026-08-15: two CLI channels hit weekly/quota limits mid-chain; the fallback had to be
-   improvised. Rubric anchor: C2.)
+| 11 | **Channel fallback-chain** | Alternative channels/carriers declared BEFORE the first spawn (e.g. `primary CLI → alternate CLI → lead-executes`) — quota/outage mid-loop is a when, not an if; a delegation without one is fragile by construction (observed live 2026-08-15: two CLI channels hit weekly/quota limits mid-chain; rubric anchor C2) |
 
 ## 3. Accompaniment — HOW to supervise (5 disciplines)
 
