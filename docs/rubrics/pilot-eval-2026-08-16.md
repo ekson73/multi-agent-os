@@ -2,7 +2,7 @@
 
 > Council D6-7 executado. **Juiz**: claude (família Anthropic) — autor das rubricas: kimi-coding/k3 ⇒ famílias cruzadas ✓.
 > Juiz recebeu SÓ critérios + SKILL.md (nunca derivação, evidence, ou história — blind à proveniência do critério).
-> Pré-registro honrado: rubricas publicadas (#350) ANTES desta avaliação (commit separado, como registrado).
+> Pré-registro honrado: rubricas publicadas ([#350](https://github.com/ekson73/multi-agent-os/pull/350) · [`prereg-d34-2026-08-15.md`](./prereg-d34-2026-08-15.md) · [`v0.1/`](./v0.1)) ANTES desta avaliação (commit separado, como registrado).
 
 ## Resultados (17 critérios, 8 skills)
 
