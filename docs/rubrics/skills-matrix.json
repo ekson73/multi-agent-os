@@ -1,0 +1,333 @@
+{
+ "_comment": "Derivado de docs/audits/audit-matrix-2026-08-15.md (firing real, Camada 0). Fonte canônica: scripts/corpus-firing-audit.py. Regenerar com d34-derive se a matrix mudar.",
+ "skills": [
+  {
+   "name": "9router-concierge",
+   "firing": 0
+  },
+  {
+   "name": "agent-select",
+   "firing": 0
+  },
+  {
+   "name": "agentic-delegation",
+   "firing": 1
+  },
+  {
+   "name": "agentic-session-harness",
+   "firing": 0
+  },
+  {
+   "name": "agentic-tool-evaluator",
+   "firing": 0
+  },
+  {
+   "name": "agentic-tool-forge",
+   "firing": 7
+  },
+  {
+   "name": "agentic-tool-intake",
+   "firing": 0
+  },
+  {
+   "name": "agentic-tool-pipeline",
+   "firing": 0
+  },
+  {
+   "name": "agentic-tool-trainer",
+   "firing": 0
+  },
+  {
+   "name": "anima",
+   "firing": 7
+  },
+  {
+   "name": "anti-conflict",
+   "firing": 0
+  },
+  {
+   "name": "audit",
+   "firing": 0
+  },
+  {
+   "name": "auto-pilot",
+   "firing": 0
+  },
+  {
+   "name": "bitbucket-pipeline-watch",
+   "firing": 0
+  },
+  {
+   "name": "bot-finding-arbiter",
+   "firing": 0
+  },
+  {
+   "name": "chief-of-staff",
+   "firing": 0
+  },
+  {
+   "name": "claude-code-concierge",
+   "firing": 0
+  },
+  {
+   "name": "content-recast",
+   "firing": 4
+  },
+  {
+   "name": "context-prep",
+   "firing": 0
+  },
+  {
+   "name": "converge",
+   "firing": 0
+  },
+  {
+   "name": "convergence-engine",
+   "firing": 0
+  },
+  {
+   "name": "corpus-firing-audit",
+   "firing": 0
+  },
+  {
+   "name": "council-gate",
+   "firing": 0
+  },
+  {
+   "name": "decision-capture",
+   "firing": 0
+  },
+  {
+   "name": "decompose-abstract-to-measurable",
+   "firing": 2
+  },
+  {
+   "name": "delegate-governance",
+   "firing": 0
+  },
+  {
+   "name": "deliberate-coding",
+   "firing": 0
+  },
+  {
+   "name": "derive-system-from-goal",
+   "firing": 0
+  },
+  {
+   "name": "directive-braindump-triage",
+   "firing": 4
+  },
+  {
+   "name": "dogfood-ledger",
+   "firing": 0
+  },
+  {
+   "name": "enhance-pipeline",
+   "firing": 1
+  },
+  {
+   "name": "find-docs",
+   "firing": 0
+  },
+  {
+   "name": "founder-playbook",
+   "firing": 0
+  },
+  {
+   "name": "founder-stage-idea",
+   "firing": 0
+  },
+  {
+   "name": "founder-stage-launch",
+   "firing": 0
+  },
+  {
+   "name": "founder-stage-mvp",
+   "firing": 0
+  },
+  {
+   "name": "founder-stage-scale",
+   "firing": 0
+  },
+  {
+   "name": "gap-loop",
+   "firing": 0
+  },
+  {
+   "name": "goal-recovery",
+   "firing": 0
+  },
+  {
+   "name": "hierarchical-merge",
+   "firing": 0
+  },
+  {
+   "name": "lens-dispatch",
+   "firing": 0
+  },
+  {
+   "name": "maos-concierge",
+   "firing": 0
+  },
+  {
+   "name": "memory-gateway",
+   "firing": 0
+  },
+  {
+   "name": "morning-briefing",
+   "firing": 132
+  },
+  {
+   "name": "mvv-synthesis",
+   "firing": 0
+  },
+  {
+   "name": "notebooklm",
+   "firing": 0
+  },
+  {
+   "name": "omniroute-concierge",
+   "firing": 0
+  },
+  {
+   "name": "ontological-analysis",
+   "firing": 0
+  },
+  {
+   "name": "ooda-loop",
+   "firing": 1
+  },
+  {
+   "name": "opendesign-concierge",
+   "firing": 0
+  },
+  {
+   "name": "opera-debrief",
+   "firing": 0
+  },
+  {
+   "name": "operator-quote-capture",
+   "firing": 1
+  },
+  {
+   "name": "pii-masking",
+   "firing": 0
+  },
+  {
+   "name": "postflight",
+   "firing": 4
+  },
+  {
+   "name": "praxis-audit",
+   "firing": 1
+  },
+  {
+   "name": "preflight",
+   "firing": 2
+  },
+  {
+   "name": "proofread",
+   "firing": 0
+  },
+  {
+   "name": "pulse",
+   "firing": 0
+  },
+  {
+   "name": "quiesce",
+   "firing": 161
+  },
+  {
+   "name": "reactivate",
+   "firing": 0
+  },
+  {
+   "name": "red-team",
+   "firing": 0
+  },
+  {
+   "name": "refine-braindump-to-prompt",
+   "firing": 1
+  },
+  {
+   "name": "repo-custody-transfer",
+   "firing": 0
+  },
+  {
+   "name": "research-dossier",
+   "firing": 0
+  },
+  {
+   "name": "response-compression",
+   "firing": 0
+  },
+  {
+   "name": "reveng",
+   "firing": 0
+  },
+  {
+   "name": "rule-quality-tests",
+   "firing": 0
+  },
+  {
+   "name": "session-fission",
+   "firing": 0
+  },
+  {
+   "name": "session-reentry",
+   "firing": 0
+  },
+  {
+   "name": "signoff",
+   "firing": 1
+  },
+  {
+   "name": "slm-routing",
+   "firing": 0
+  },
+  {
+   "name": "status-map",
+   "firing": 0
+  },
+  {
+   "name": "sync-to-git",
+   "firing": 0
+  },
+  {
+   "name": "system-health-responder",
+   "firing": 0
+  },
+  {
+   "name": "transcript-corrector",
+   "firing": 0
+  },
+  {
+   "name": "transmute",
+   "firing": 1
+  },
+  {
+   "name": "ttl-policy",
+   "firing": 0
+  },
+  {
+   "name": "voice-director",
+   "firing": 0
+  },
+  {
+   "name": "walkthrough-concierge",
+   "firing": 0
+  },
+  {
+   "name": "work-compass",
+   "firing": 0
+  },
+  {
+   "name": "work-drain",
+   "firing": 0
+  },
+  {
+   "name": "worktree-policy",
+   "firing": 0
+  }
+ ]
+}
