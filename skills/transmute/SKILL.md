@@ -79,7 +79,7 @@ escalate, never auto-act. **The gitleaks/PII gate before emission is non-negotia
 
 ```text
 INTAKE    := resolve <source> (path | inline | pipe | glob) and TYPE it
-            (text · prompt · draft · braindump · doc · code · agentic-tool · report)
+            (text · prompt · draft · braindump · doc · code · agentic-tool · email · folder · report)
             + resolve params; detect unfilled template placeholder (e.g. "{{BRAINDUMP}}"
               verbatim) -> STOP-ERROR naming the placeholder (do not transmute the wrapper)
 COMPREHEND := lossless movement ONLY (dissect · type · relate · catalogue · prism DoD)
@@ -88,7 +88,7 @@ COMPREHEND := lossless movement ONLY (dissect · type · relate · catalogue · 
 TRANSFORM := apply --transforms menu, in canonical order:
             sanitize-first (stop-bleeding) -> analyze -> critique -> meta-critique
             -> red-team -> validate -> fix/solve -> enhance/expand -> refine/polish
-            -> converge/harmonize. Each verb lands on its primitive (§Composition).
+            -> converge/harmonize -> compliance (=validate+sanitize). Each verb lands on its primitive (§Composition).
             Bounded by the economic stop (n*, per convergence-engine); NEVER unbounded.
 CAST      := resolve target type (--to-type | default same-as-source, dynamic)
             and route to the OWNING sibling (§Cast router). Naming a cast artifact
@@ -140,15 +140,15 @@ in-repo column with a one-line diagnostic, never a hard failure.
 
 | Flag | Default | Notes |
 |---|---|---|
-| `<source>` (positional) | *required* | path · glob · inline text · `email` · `braindump` · `-` (stdin pipe). Empty or unfilled placeholder → `STOP-ERROR` |
-| `--transforms` | `analyze,refine` | ordered comma list from the verb families above; `auto` = infer from source+target. PT verbs auto-mapped (see §Cast router). |
+| `<source>` (positional) | *required* | path · glob · inline text · `email` · `braindump` · `folder` · `artifact` · `-` (stdin pipe). Empty or unfilled placeholder → `STOP-ERROR` |
+| `--transforms` | `analyze,refine` | ordered comma list from the verb families above (`analyze`, `critique`, `meta-critique`, `red-team`, `validate`, `fix`, `enhance`, `expand`, `refine`, `polish`, `sanitize`, `harmonize`, `compliance` (=`validate`+`sanitize`), `dogfood`); `auto` = infer from source+target. PT verbs auto-mapped (see §Cast router). |
 | `--to-type` | `same-as-source` | see §Cast router; `same-as-source` = **dynamic calculated** (type preserved); explicit `prompt`/`artifact:*/`/`agentic-tool:*`/`ticket` overrides |
 | `--output-target` | *(none = report inline)* | comma sinks `stdout[,]{clipboard\|vault[:path]\|obsidian[:path]\|path:P\|git-repo:P\|agentic-tool:kind:path\|jira[:key]\|linear[:key]\|confluence[:space]\|gamma[:deck]\|canva[:design]\|bitbucket:P\|github:P\|atlassian:P}` — membership test per §EMIT (REACHABLE·RENDER DEFINED·CAN REFUSE). `obsidian` is alias of `vault`; `git-repo` covers `iketrans`/`vek-ai-toolkit`/`akasha` per `persist-locus` gate |
 | `--mode` | `dry-run` | `dry-run` (report+plan only) · `run` (execute writes) · `dogfood` (run, then validate-on-self + ledger). Aliases `--dry-run`/`--run`/`--dogfood` accepted |
 | `--principles` | `auto` | inherit host governance corpus BY REFERENCE (worktree · PDCA · S-SDLC · DRY/KISS/YAGNI · anti-over-eng · anti-theater · secure/privacy-by-design · LGPD/GDPR · boy-scout …) — never inline the corpus. `auto` = full corpus; `list` = csv subset validated against corpus (e.g. `GIT-WORKTREES-MANDATORY,IDEMPOTENT,SSOT,DRY`); unknown token → `STOP-ERROR` with valid list |
 | `--user-lang` | `pt-BR` | operator-facing prose (`pt-BR` default) |
 | `--agentic-lang` | `en-US` | language of the rendered artifact (`en-US` default, json-rpc payload) |
-| `--agentic-format` | `json-rpc` | alias of `--output=json-rpc` (per `[C06]` notification shape `method`+`params`, no `id`); `table`/`json` also valid |
+| `--agentic-format` | `table` | alias of `--output` — when passed overrides `--output`; default `table` (same as `--output`). `json-rpc` is the recommended value for agent-to-agent calls per `[C06]` (`method`+`params`, no `id`) |
 | `--output` | `table` | `table` \| `json` \| `json-rpc` (notification shape per `[C06]`). `--agentic-format` is alias |
 | `--max-rounds` | `12` | hard cap for any looped verb → `STOP-HITL` on exhaustion |
 

@@ -22,14 +22,14 @@ bounds). This file is the command surface only. Soul-name: *Proteus*.
 | Flag | Default | Allowed values |
 |---|---|---|
 | `"<source>"` (positional) | *required* | path · glob · inline text · `-` (stdin). Empty/unfilled placeholder → STOP-ERROR |
-| `--transforms` | `analyze,refine` | ordered comma list (analyze, critique, meta-critique, red-team, validate, fix, enhance, refine, sanitize, harmonize, dogfood); `auto` = infer |
+| `--transforms` | `analyze,refine` | ordered comma list (analyze, critique, meta-critique, red-team, validate, fix, enhance, expand, refine, polish, sanitize, harmonize, compliance (=validate+sanitize), dogfood); `auto` = infer |
 | `--to-type` | `same-as-source` | `prompt` · `agentic-tool:{skill\|command\|agent\|subagent\|rule\|memory\|hook\|webhook\|event\|trigger\|mcp\|plugin\|marketplace}` · `audience-recast` · `artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}` · `ledger` · `ticket`/`ticket:{jira\|linear}` |
 | `--output-target` | *(report inline)* | comma sinks: `stdout` · `clipboard` · `vault[:path]`/`obsidian[:path]` · `path:P` · `git-repo:P` · `agentic-tool:kind:path` · `jira[:key]` · `linear[:key]` · `confluence[:space]` · `gamma[:deck]` · `canva[:design]` · `bitbucket:P` · `github:P` · `atlassian:P` |
 | `--mode` | `dry-run` | `dry-run` · `run` · `dogfood` (aliases: `--dry-run`/`--run`/`--dogfood`) |
 | `--principles` | `auto` | inherit host governance corpus by reference (`auto`=full 40+ list; csv validated) |
 | `--user-lang` | `pt-BR` | operator-facing prose |
 | `--agentic-lang` | `en-US` | rendered-artifact language |
-| `--agentic-format` | `json-rpc` | alias of `--output=json-rpc` (`method`+`params` per [C06]) |
+| `--agentic-format` | `table` | alias of `--output` — when passed overrides `--output`; default `table`. Use `json-rpc` for agent-to-agent per [C06] |
 | `--output` | `table` | `table` · `json` · `json-rpc` |
 | `--max-rounds` | `12` | hard cap for looped verbs |
 
