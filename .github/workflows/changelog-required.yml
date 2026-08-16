@@ -89,6 +89,22 @@ jobs:
             exit 0
           fi
 
+          # --- bootstrap: the classifier must pre-exist on the TRUSTED base -------------
+          # Structural to this pattern, not a bug: the checker runs from `main`, so the PR
+          # that INTRODUCES it cannot exercise it — main does not have it yet. Absence is a
+          # third state, distinct from both "clean" and "violation", and it is named as such.
+          # (Once this PR lands, main carries the script and the branch never fires again.
+          #  If it ever fires afterwards it means the checker was deleted from main — which
+          #  BLOCK mode must refuse to treat as a pass.)
+          if [ ! -f scripts/changelog-required-check.sh ]; then
+            if [ "${ENFORCE}" = '1' ]; then
+              echo "::error::classifier absent from the trusted base — failing closed in BLOCK mode"
+              exit 1
+            fi
+            echo "::warning::classifier not yet on main (bootstrap) — gate UNVERIFIED, not clean"
+            exit 0
+          fi
+
           # --- classify with the repo's own predicate ----------------------------------
           set +e
           verdict="$(printf '%s\n' "${files}" | bash scripts/changelog-required-check.sh)"
