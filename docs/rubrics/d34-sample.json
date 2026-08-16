@@ -1,0 +1,16 @@
+{
+  "S1": [
+    "morning-briefing",
+    "quiesce"
+  ],
+  "S2": [
+    "agentic-tool-forge",
+    "directive-braindump-triage",
+    "postflight"
+  ],
+  "S3": [
+    "agentic-delegation",
+    "decompose-abstract-to-measurable",
+    "praxis-audit"
+  ]
+}
