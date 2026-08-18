@@ -1,6 +1,6 @@
 ---
 name: eisenhower-matrix
-version: "0.2.0"
+version: "0.2.1"
 description: |
   List unresolved pendencies for --scope=[current|session|repo|vault|all] ordered by
   Eisenhower matrix (Q1 urgent+important → Q4). Thin composer over work-compass
@@ -27,7 +27,7 @@ metadata:
   lifecycle-stage: forge
   forge_parent: agentic-tool-forge
   anima_parent: anima
-  dogfood_status: first-real-cycle
+  dogfood_status: dogfooded-2-cycles
   scope_default: current
   sort_default: Eisenhower
   supersedes_pr: 368
@@ -169,7 +169,7 @@ next: Q1 pr:…#368 — disposition per row; writes are operator-gated (…)
 ## Validation
 
 - **Self-test:** `python3 bin/tests/test_work_compass.py` — 92 stdlib tests; classifier block covers quadrants, determinism, scope filter, pending filter, next_action, flag-collision, backward-compat (default N-Tree path unchanged).
-- **Dogfood (cycle 1, live):** run on maos main worktree — surfaced `Q1: gh:365-adjacent PRs + dirty worktrees; Q2: 45 branch-no-PR/ticket-no-session; Q4: quiet sessions` — deterministic, read-only.
+- **Dogfood (gate authority = the structured ledger, NOT prose):** `bin/dogfood-tally eisenhower-matrix` → **2 COMPLETE ratified cycles, ELIGIBLE** (≥2-cycle gate per dogfooding-mandate R1). Cycle 1 (`001`): live run in PR #369 (repo scope, 49 rows, Q1 = open PRs + dirty worktrees). Cycle 2 (`002`): post-merge run `--sort=Eisenhower --pendency-scope=current --include=pending` (2428 rows; Q1=0 session-clean; surfaced the sibling WIP branch). Evidence rows in `~/.claude/audit/dogfood-cycles.jsonl` (see `skills/dogfood-ledger` — a prose ledger section here would DUPLICATE that SSOT).
 
 ## Anima naming note (sovereign)
 
@@ -187,6 +187,7 @@ next: Q1 pr:…#368 — disposition per row; writes are operator-gated (…)
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2.1 | 2026-08-18 | **PATCH — dogfood gate closed via the structured ledger + sibling-branch disposition.** Cycles 1+2 marked `complete ratified` in `bin/dogfood-mark` (evidence: PR #369 + live cycle-2 run) → `dogfood-tally eisenhower-matrix` = **2 COMPLETE / ELIGIBLE**; `dogfood_status` → `dogfooded-2-cycles` (now TRUE, structured-auditable). Rejected the superseded branch's prose "§Dogfood Ledger" section (would duplicate `skills/dogfood-ledger` SSOT — its own spec calls changelog-prose counting "unmeasurable = theater"); Validation now cites the tally as gate authority. Disposition recorded: `origin/feat/eisenhower-matrix-v02` (v0.3.0/v0.4.0 + prose-ledger commits, 12:08–12:18, pre-#369) = superseded by #369+v0.2.1; its defensible deltas now all absorbed (Triple-AAA framing [v0.2.0] · ledger [this], structured) or deferred w/ rationale; branch + `/tmp/wt-eisenhower` worktree left in place (others' WIP = reported per quiesce C1, never reaped). |
 | 0.2.0 | 2026-08-18 | **EXECUTABLE.** Classifier implemented in `bin/work-compass-aggregate.py` (v1.3.0): `classify_eisenhower` + `urgency_rank`/`importance_rank` (transparent derived signals) + `in_pendency_scope` + `build_pendency_view` + `render_pendency_ascii` + flags `--sort`/`--pendency-scope`/`--include` (case-insensitive, honoring the `Eisenhower` capitalized contract). Fixes: frontmatter version drift (was 0.1.0 under a v0.1.1 commit), `anima_parent` self-reference (→ `anima`), CLI `--scope` flag-name collision (CPT §9.5 verbs vs pendency scoping → orthogonal `--pendency-scope`). 92 stdlib tests (16 new: classifier quadrants/determinism/scope/pending/next_action/collision/backcompat). Dogfood cycle 1 live (real repo: 49 rows, Q1 = open PRs + dirty worktrees). **Supersedes doc-only PR #368** (its `--sort=Prisma`, `--format`, `--lang`, 9-value `--scope` expansion deferred with rationale — YAGNI; its internal 0.4.0-vs-0.2.0 version contradiction and `dogfooded-2-cycles` claim over non-existent code are exactly the anti-theater class this v0.2.0 closes). |
 | 0.1.1 | 2026-08-18 | Harmonized alias: `work-compass --sort=Eisenhower` as SSOT implementation, this skill = discoverable alias + classifier SSOT (spec-only; superseded by 0.2.0 executable). |
 | 0.1.0 | 2026-08-18 | Bootstrap: Eisenhower-ordered pendency queue `--scope/--sort` triple-A spec (PR #367). |
