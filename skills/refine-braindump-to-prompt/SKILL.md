@@ -699,14 +699,24 @@ attached"*. No fourth marker is minted; the discriminator is the field, not a ne
   boundary note directly under the sink's own explanation; `agentic-tool-forge` reciprocated with a
   matching note + a new §Refs entry (closing a one-directional cross-ref this file already implied
   3× — "When not to use", the orthogonality note, the sibling table — but the forge never echoed).
-  Zero mechanism change; documentation-completeness only. *(Note: this changelog's v0.1.0 row below
-  predates the version now in this frontmatter — 0.2.0/0.3.0 intermediate entries are missing;
-  flagged, not reconstructed, per anti-theater R3/R4 — do not invent unverified history.)*
+  Zero mechanism change; documentation-completeness only.
+
+  **Gap note (resolved via archaeology, issue #364):** `git log --follow -p` on this file's full
+  history (4 commits: #321 initial → #322 → #324 → #362) shows the frontmatter already read
+  `version: "0.3.0"` at the VERY FIRST commit (`755ca20`, 2026-08-14) that introduced this skill into
+  the repo — there is no `0.1.0`/`0.2.0` commit here to backfill from; #322 and #324 modified the
+  file without bumping the version at all. The gap is **permanent and pre-existing**, not an
+  oversight: this skill's `0.1.0`→`0.3.0` evolution happened entirely BEFORE its first commit into
+  `multi-agent-os` (drafted/iterated elsewhere), so no in-repo diff can reconstruct those two rows.
+  The `v0.1.0 (initial)` row below is therefore a **narrative label only** (describing the
+  five-phase design as first conceived), not a claim that a `0.1.0`-tagged commit exists.
 - v0.1.0 (initial) — five-phase braindump→prompt lifecycle composing in-repo primitives;
   architecture profiles (`default`, `gauntlet-loop`); the Verifiability Gate stopping doctrine
   (synthesising Shumer's unbounded loop, Osmani's mandatory stopping rules, and this repo's
   economic stop); two-part REFINE termination (floor AND dryness); STOP-marker grammar reuse;
-  depth/round bounds; `--output=json` contract.
+  depth/round bounds; `--output=json` contract. *(Pre-repo design narrative — see gap note above;
+  this row's "initial" refers to the skill's original design, not this repo's first commit, which
+  already carried `0.3.0`.)*
 
 ## License
 
