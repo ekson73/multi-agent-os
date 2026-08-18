@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — eisenhower-matrix v0.3.1 (lifecycle-stage: forge → operate)
+
+- `agentic-tool-evaluator` pass on `skills/eisenhower-matrix`: **PASS (flags noted)** —
+  `skills/eisenhower-matrix/examples/EVAL-REPORT-2026-08-18.md`: 6/6 smoke-set cases ran for
+  real (canonical envelope · scope mapping · case-insensitive contract · Q4 reap-route gated
+  dry-run · vault honest-degrade · backward-compat N-Tree). Efficiency 4/5 (sequential
+  collectors — optional trainer handoff). All promotion inputs met (dogfood 3 COMPLETE /
+  ELIGIBLE · eval PASS · 97 stdlib tests) → `lifecycle-stage: operate`.
+
 ### Changed — eisenhower-matrix v0.3.0 (Q3 honesty) + work-compass v1.3.1 (Q4 reap loop closed)
 
 - `bin/work-compass-aggregate.py` v1.3.1 — `route()`: stale quiet session → suggests
