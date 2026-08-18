@@ -113,6 +113,9 @@ bin/work-compass-aggregate.py --format=mermaid
 | `--route <id> [--action A]` | print a reviewable routing command (read-only) |
 | `--no-jira / --no-github / --no-sessions / --no-git` | skip a domain |
 | `--repo owner/name` / `--repo-dir <path>` | provider/repo targeting |
+| `--scope [current\|session\|repo\|vault\|all]` | pendency scope filter (v1.2, composes `eisenhower-matrix` classifier) — default `all` for N-Tree, `current` for `--sort=Eisenhower` |
+| `--sort [Eisenhower\|created\|updated\|urgent\|important]` | sorter; `Eisenhower` = Q1→Q4 `urgent×important` (Do/Schedule/Delegate/Eliminate) — default `created` for N-Tree, `Eisenhower` when `--scope=current` via alias |
+| `--json` | also available for Eisenhower view (same Q1→Q4 envelope) |
 
 ## The 7 CPT domains (grouping)
 
@@ -160,6 +163,19 @@ work-compass adopts the 5 canonical verbs (`current/down/sideways/up/forward`) p
 CPT §9.5 consumer-contract: verb-membership validation (invalid → diagnostic + fallback
 `current`), determinism (same input+verb → same output), graceful degrade, cross-vendor
 (stdlib). Registered as a consumer alongside morning-briefing / auto-orchestrator.
+
+## Eisenhower priority view (v1.2 — composes `eisenhower-matrix`)
+
+Thin **Eisenhower extension** — reuses `work-compass` aggregation as SSOT, delegates Q1→Q4 classification to `eisenhower-matrix` (Accuracy·Auditability·Accountability). Activated via `--sort=Eisenhower` (alias `eisenhower-matrix --scope=current --sort=Eisenhower` → `work-compass --scope=current --sort=Eisenhower --json` + classifier). Deterministic, read-only, `HUMAN_DOMAIN` defer (prints `twg`/`gh` dry-run). `Q1 urgent+important Do` / `Q2 Schedule` / `Q3 Delegate` / `Q4 Eliminate` per `eisenhower-matrix` quadrant table. Example:
+
+```bash
+bin/work-compass-aggregate.py --scope current --sort Eisenhower
+bin/work-compass-aggregate.py --scope current --sort Eisenhower --json
+# alias (same, more discoverable):
+eisenhower-matrix --scope=current --sort=Eisenhower
+```
+
+`work-compass` remains N-Tree SSOT; `eisenhower-matrix` remains **classifier SSOT + discoverable alias** — no duplication (KISS/YAGNI, pr-pdca-loop).
 
 ## Deferred (build-on-demand — the 26 blind-spots in `references/work-surface-taxonomy.md`)
 
