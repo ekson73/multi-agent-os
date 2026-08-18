@@ -1,6 +1,6 @@
 ---
 name: eisenhower-matrix
-version: "0.3.0"
+version: "0.3.1"
 description: |
   List unresolved pendencies for --scope=[current|session|repo|vault|all] ordered by
   Eisenhower matrix (Q1 urgent+important → Q4). Thin composer over work-compass
@@ -24,7 +24,7 @@ metadata:
   cross_link_slug: eisenhower-matrix
   family: work-visibility
   target: multi-agent-os
-  lifecycle-stage: forge
+  lifecycle-stage: operate
   forge_parent: agentic-tool-forge
   anima_parent: anima
   dogfood_status: dogfooded-2-cycles
@@ -187,6 +187,7 @@ next: Q1 pr:…#368 — disposition per row; writes are operator-gated (…)
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3.1 | 2026-08-18 | **PATCH — `lifecycle-stage: forge → operate`** (the last promotion degrau). `agentic-tool-evaluator` pass: **PASS** (flags noted) — `examples/EVAL-REPORT-2026-08-18.md`: 6/6 smoke-set cases RAN for real (canonical ask → envelope · scope mapping · case-insensitive contract · Q4 reap-route dry-run gated · vault honest-degrade · backward-compat N-Tree), scores 5×5 except Efficiency 4 (sequential collector fan-out — trainer-handoff, optional). All promotion inputs now met: dogfood ≥2 ratified cycles (ledger: 3/ELIGIBLE) · behavioral eval PASS · 97 stdlib tests · read-only contract. |
 | 0.3.0 | 2026-08-18 | **MINOR — red-team honesty + the Eliminate loop closed.** (1) **Q3 signal-starvation documented**: a self red-team proved Q3 is structurally unreachable with today's collectors (every urgency signal lands on an important domain — urgency_rank 2 flags are worktree/process, rank-1 PR-window is domain process; all → important ⇒ Q1/Q2 only). The 4-quadrant matrix is honestly 3-quadrant in production; the v0.1.0-spec Q3 signals (external quota / rate-limited CI checks) need a CI-check collector — **deferred (YAGNI), stated, never faked**; the branch is wired + forward-compatible (`test_q3_forward_compat` synthetic proof). (2) **Q4 Eliminate loop wired** (work-compass v1.3.1 `route()`): stale quiet session → prints `bin/reap-sessions.sh --repo-dir .` dry-run preview (reaper built exactly for this gap: "work-compass DETECTS stale/orphan but nothing REAPS"); active sessions still route to resume. Read-only contract intact (prints; `--apply` is operator-only). 96 stdlib tests (+4: reap routing dry-run/gate/active-resume · Q3 forward-compat). (3) Evaluator-pass enqueued: `lifecycle-stage` stays `forge` until `agentic-tool-evaluator` runs (no overclaim; dogfood gate ≥2 cycles already ELIGIBLE via the structured ledger). |
 | 0.2.1 | 2026-08-18 | **PATCH — dogfood gate closed via the structured ledger + sibling-branch disposition.** Cycles 1+2 marked `complete ratified` in `bin/dogfood-mark` (evidence: PR #369 + live cycle-2 run) → `dogfood-tally eisenhower-matrix` = **2 COMPLETE / ELIGIBLE**; `dogfood_status` → `dogfooded-2-cycles` (now TRUE, structured-auditable). Rejected the superseded branch's prose "§Dogfood Ledger" section (would duplicate `skills/dogfood-ledger` SSOT — its own spec calls changelog-prose counting "unmeasurable = theater"); Validation now cites the tally as gate authority. Disposition recorded: `origin/feat/eisenhower-matrix-v02` (v0.3.0/v0.4.0 + prose-ledger commits, 12:08–12:18, pre-#369) = superseded by #369+v0.2.1; its defensible deltas now all absorbed (Triple-AAA framing [v0.2.0] · ledger [this], structured) or deferred w/ rationale; branch + `/tmp/wt-eisenhower` worktree left in place (others' WIP = reported per quiesce C1, never reaped). |
 | 0.2.0 | 2026-08-18 | **EXECUTABLE.** Classifier implemented in `bin/work-compass-aggregate.py` (v1.3.0): `classify_eisenhower` + `urgency_rank`/`importance_rank` (transparent derived signals) + `in_pendency_scope` + `build_pendency_view` + `render_pendency_ascii` + flags `--sort`/`--pendency-scope`/`--include` (case-insensitive, honoring the `Eisenhower` capitalized contract). Fixes: frontmatter version drift (was 0.1.0 under a v0.1.1 commit), `anima_parent` self-reference (→ `anima`), CLI `--scope` flag-name collision (CPT §9.5 verbs vs pendency scoping → orthogonal `--pendency-scope`). 92 stdlib tests (16 new: classifier quadrants/determinism/scope/pending/next_action/collision/backcompat). Dogfood cycle 1 live (real repo: 49 rows, Q1 = open PRs + dirty worktrees). **Supersedes doc-only PR #368** (its `--sort=Prisma`, `--format`, `--lang`, 9-value `--scope` expansion deferred with rationale — YAGNI; its internal 0.4.0-vs-0.2.0 version contradiction and `dogfooded-2-cycles` claim over non-existent code are exactly the anti-theater class this v0.2.0 closes). |
