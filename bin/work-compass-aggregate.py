@@ -569,6 +569,7 @@ ROUTES = {
     "worktree-no-branch": ("preflight", "/preflight detect  # inspect {id}", "worktree detached — inspect"),
     "_stale":         ("morning-briefing", "/morning-briefing --mode=recap  # review stale {id}", "stale — recap before deciding"),
     "_session":       ("auto-orchestrator", "/auto-orchestrator  # resume {id}", "resume session work"),
+    "_session_stale": ("reap-sessions", "bin/reap-sessions.sh --repo-dir .  # dry-run preview; {id} is a Q4 Eliminate/Archive candidate — re-run with --apply only after review (WIP + main always preserved)", "stale quiet session — archive candidate, not a resume (closes the Q4 Eliminate loop; reaper is dry-run by default)"),
     "_pr":            ("quiesce", "/maos:quiesce  # converge open PR {id}", "drive PR to green"),
     "worktree-dirty-wip": ("postflight", "/maos:postflight  # commit or stash WIP in {id}", "uncommitted WIP inside worktree — commit/stash before it is lost"),
     "stash-forgotten":    ("git", "git stash show -p {id}  # review then pop/drop", "forgotten stash — review + pop or drop"),
@@ -591,7 +592,13 @@ def route(node: dict, action: str | None) -> dict:
         if node["id"].startswith("pr:"):
             chosen_key = "_pr"
         elif node["domain"] == "session":
-            chosen_key = "_session"
+            # stale OR producer-marked-orphan session → archive candidate (Q4 Eliminate),
+            # NOT a resume; active session → resume. (v1.3.1 — closes the detect-but-
+            # never-reap gap. "orphaned-" is inventory-sessions.py's own id marker.)
+            if node["status"] == "stale" or "orphaned-" in node["id"]:
+                chosen_key = "_session_stale"
+            else:
+                chosen_key = "_session"
         elif node["status"] == "stale":
             chosen_key = "_stale"
     if chosen_key is None:

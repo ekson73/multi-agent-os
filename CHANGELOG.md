@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — eisenhower-matrix v0.3.0 (Q3 honesty) + work-compass v1.3.1 (Q4 reap loop closed)
+
+- `bin/work-compass-aggregate.py` v1.3.1 — `route()`: stale quiet session → suggests
+  `bin/reap-sessions.sh --repo-dir .` (dry-run default; `--apply` operator-gated), closing the
+  detect-but-never-reap gap for Q4 Eliminate/Archive rows. Active sessions still route to
+  resume. 96 stdlib tests (+4: reap dry-run/gate/active-resume · Q3 forward-compat synthetic).
+- `skills/eisenhower-matrix` v0.3.0 — self red-team finding **documented, not faked**: Q3 is
+  wired but structurally signal-starved today (every production urgency signal lands on an
+  important domain → Q1/Q2 only); the spec's Q3 signals (external quota / rate-limited CI
+  checks) require a CI-check collector — deferred (YAGNI). `lifecycle-stage` stays `forge`
+  pending an `agentic-tool-evaluator` pass (no overclaim; ≥2-cycle dogfood gate ELIGIBLE).
+
 ### Changed — eisenhower-matrix v0.2.1 (dogfood gate CLOSED) + preset/engine boundary (transmute v0.2.1 ↔ agentic-tool-pipeline v0.1.1)
 
 - `skills/eisenhower-matrix` v0.2.1 — cycles 1+2 marked `complete ratified` in the structured

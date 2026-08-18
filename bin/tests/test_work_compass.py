@@ -439,8 +439,41 @@ def test_sort_flags_and_backcompat():
     check("sort: build_graph honors sort_key", "items" in g2 and len(g2["items"]) == 2)
 
 
+# ── 18. Q4 reap routing + Q3 honesty (v1.3.1 — closes the Eliminate loop) ──────
+def test_stale_session_routes_to_reap():
+    stale = wc.item("session:old", "session", "old", last_ts=_old(40), status="stale",
+                    flags=[">7d-no-update"])
+    r = wc.route(stale, None)
+    check("reap: stale quiet session → reap-sessions (NOT resume)",
+          r["tool"] == "reap-sessions"
+          and r["suggested_command"].startswith("bin/reap-sessions.sh --repo-dir ."))
+    check("reap: dry-run default + explicit operator gate (--apply only after review)",
+          "--apply only after review" in r["suggested_command"] and r["execute"] is False)
+    active = wc.item("session:live", "session", "live", last_ts=_new(), status="ok")
+    r2 = wc.route(active, None)
+    check("reap: active session still routes to resume",
+          r2["tool"] == "auto-orchestrator")
+    # producer-marked orphan (inventory id marker) with no timestamp/flags → archive, not resume
+    orphan = wc.item("session:x.orphaned-1700000000000-abc", "session", "x",
+                     status="unknown")
+    r3 = wc.route(orphan, None)
+    check("reap: producer-orphaned session (no ts/flags) → reap, not resume",
+          r3["tool"] == "reap-sessions")
+
+
+def test_q3_forward_compat():
+    # RED-TEAM finding (v0.3.0): every production urgency signal lands on an important
+    # domain → Q3 is structurally signal-starved today (needs an external-quota/CI-check
+    # collector — deferred). The branch is wired: this synthetic item (urgent flag on a
+    # non-delivery domain — no current collector emits it) proves forward-compat.
+    synth = wc.item("plan:quota.md", "graph-node", "quota", flags=["job-orphan"])
+    c = wc.classify_eisenhower(synth)
+    check("q3: branch wired — synthetic urgency-without-importance → Q3 Delegate",
+          c["quadrant"] == "Q3" and c["disposition"] == "Delegate")
+
+
 def main() -> int:
-    print("test_work_compass — work-compass v1.3.0")
+    print("test_work_compass — work-compass v1.3.1")
     print("=" * 60)
     for fn in [
         test_item_normalization, test_build_graph_deterministic,
@@ -453,6 +486,7 @@ def main() -> int:
         test_eisenhower_classifier, test_eisenhower_determinism,
         test_pendency_scope_filter, test_pendency_include_pending,
         test_pendency_next_action, test_sort_flags_and_backcompat,
+        test_stale_session_routes_to_reap, test_q3_forward_compat,
     ]:
         print(f"\n[{fn.__name__}]")
         fn()
