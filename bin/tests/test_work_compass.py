@@ -365,6 +365,47 @@ def test_eisenhower_classifier():
           and wc.classify_eisenhower(quiet)["disposition"] == "Eliminate/Archive")
 
 
+# ── automated-review-queue session-orphan carve-out (root-cause: 2026-08-18 dogfood — ─────
+# 1679/2143 real ~/.claude session transcripts open on a "queue-operation" bookkeeping
+# record from an automated review-queue worker, not an operator turn; their session-orphan
+# flag (H6, branch gone) was blanket-counted as importance=2, flooding Q2 Schedule (259/411
+# rows empirically) with jobs nobody will ever resume. ──────────────────────────────────
+def test_session_orphan_automated_queue_job_not_important():
+    automated = wc.item(
+        "session:auto1", "session", "Review this change for security vulnerabilities",
+        last_ts=_old(20), flags=["session-orphan", ">7d-no-update"],
+        refs={"branch": "gone-branch", "first_record_type": "queue-operation"},
+    )
+    check("importance: automated queue-job session-orphan → 0 (not counted)",
+          wc.importance_rank(automated) == 0)
+    check("eisenhower: automated queue-job session-orphan → Q4 Eliminate/Archive",
+          wc.classify_eisenhower(automated)["quadrant"] == "Q4")
+    check("flags: session-orphan flag itself is preserved (display/routing untouched)",
+          "session-orphan" in automated["flags"])
+
+
+def test_session_orphan_interactive_still_important():
+    """Control: a REAL interactive session's vanished branch is still a loss signal."""
+    interactive = wc.item(
+        "session:real1", "session", "actual unfinished feature work",
+        last_ts=_old(20), flags=["session-orphan", ">7d-no-update"],
+        refs={"branch": "gone-branch", "first_record_type": "user"},
+    )
+    check("importance: interactive session-orphan → 2 (unchanged)",
+          wc.importance_rank(interactive) == 2)
+    check("eisenhower: interactive session-orphan → Q2 Schedule",
+          wc.classify_eisenhower(interactive)["quadrant"] == "Q2")
+
+    # backward-compat: a row from a not-yet-upgraded inventory-sessions.py (no
+    # first_record_type key at all) must behave exactly like before this fix.
+    legacy = wc.item(
+        "session:legacy1", "session", "old row shape",
+        last_ts=_old(20), flags=["session-orphan"], refs={"branch": "gone-branch"},
+    )
+    check("importance: pre-upgrade row shape (no first_record_type) → still 2",
+          wc.importance_rank(legacy) == 2)
+
+
 def test_eisenhower_determinism():
     items = [
         wc.item("pr:repo#9", "process", "p", last_ts=_new()),
@@ -483,7 +524,10 @@ def main() -> int:
         test_collect_plans, test_collect_bg_jobs, test_collect_stashes,
         test_tree_state_and_wip, test_collect_codex,
         test_openclaw_exclusion, test_registry_flags, test_new_domains_populated,
-        test_eisenhower_classifier, test_eisenhower_determinism,
+        test_eisenhower_classifier,
+        test_session_orphan_automated_queue_job_not_important,
+        test_session_orphan_interactive_still_important,
+        test_eisenhower_determinism,
         test_pendency_scope_filter, test_pendency_include_pending,
         test_pendency_next_action, test_sort_flags_and_backcompat,
         test_stale_session_routes_to_reap, test_q3_forward_compat,

@@ -196,6 +196,7 @@ def collect_sessions(inventory_path: str | None) -> tuple[list[dict], str | None
                 "tickets": row.get("ticket_refs", []),
                 "prs": row.get("pr_refs", []),
                 "kind": row.get("kind", ""),
+                "first_record_type": row.get("first_record_type", ""),
             },
         ))
     return items, None
@@ -731,6 +732,14 @@ _IMPORTANT_FLAGS = {
 }
 # delivery surfaces: a pending item here is important by construction
 _IMPORTANT_DOMAINS = {"ticket", "process", "worktree"}
+# session-orphan (H6) fires on ANY session whose ref'd branch is gone — but a session
+# whose transcript OPENS on an automated review-queue bookkeeping record (dogfooded
+# 2026-08-18: 1679/2143 real transcripts) never represented resumable operator work; its
+# branch vanishing is expected post-cleanup, not a governance/loss signal. Root cause +
+# evidence: inventory-sessions.py's new "first_record_type" field (composed, not
+# reimplemented — this set is the ONLY interpretation layer, per that script's own
+# read-only/no-interpretation contract).
+_AUTOMATED_SESSION_RECORD_TYPES = {"queue-operation"}
 _DONE_STATUSES = {"processed", "superseded", "archived", "merged", "closed", "done"}
 ACTIVE_PR_WINDOW_D = 2.0  # open PR touched <=2d → active convergence (urgent)
 QUADRANT_LABELS = {"Q1": "Do", "Q2": "Schedule", "Q3": "Delegate", "Q4": "Eliminate/Archive"}
@@ -749,7 +758,14 @@ def urgency_rank(it: dict, ref=None) -> int:
 
 def importance_rank(it: dict) -> int:
     """0 none · 1 delivery-surface domain · 2 governance/loss flag (transparent)."""
-    if _IMPORTANT_FLAGS & set(it.get("flags", [])):
+    flags = set(it.get("flags", []))
+    if ("session-orphan" in flags
+            and it.get("refs", {}).get("first_record_type") in _AUTOMATED_SESSION_RECORD_TYPES):
+        # an automated review-queue job's orphan branch is not a loss signal — drop it
+        # from THIS item's importance-triggering set only (the flag itself is kept for
+        # display/routing; reap-sessions still sees it)
+        flags = flags - {"session-orphan"}
+    if _IMPORTANT_FLAGS & flags:
         return 2
     if it.get("domain") in _IMPORTANT_DOMAINS:
         return 1
