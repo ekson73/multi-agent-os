@@ -18,7 +18,7 @@ description: |
   (reconciled with exit-hygiene by ADR-010). The end-of-session counterpart to the `preflight` skill. Reads
   whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/
   memories) and adapts.
-version: 0.9.0
+version: 0.10.0
 triggers:
   - postflight
   - run postflight
@@ -34,7 +34,7 @@ triggers:
   - sync the backlog
   - file the loose ends as tickets
 metadata:
-  version: "0.8.0"
+  version: "0.10.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -141,6 +141,17 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    - git: status clean? worktrees only main? stale branches? unpushed commits? uncommitted
      edits in main checkout? → commit-via-worktree / push / open PR or DEFER per workflow.
      Drive open PRs toward green (compose quiesce).
+     **Session-owner discrimination (rubric C1)**: dirty/uncommitted files MUST be attributed
+     to their owning session BEFORE any action (cross-ref active worktrees/sessions;
+     `.worktrees/sessions.json` when present). Another session's WIP is REPORTED
+     (marked owner-alheio), NEVER committed/reaped/reverted — touching a peer's WIP is a
+     fatal postflight fault. Attribution order: session registry / owning worktree branch
+     FIRST (structural), git authorship as FALLBACK (heuristic — identical author emails
+     across sessions can mis-attribute; when ambiguous, mark `owner-uncertain` and DEFER). (Observed live 2026-08-15: a peer session's transkriptor WIP
+     sat in the main checkout all night; distinguishing it was manual.)
+     **Unpushed-own = FAILED run (rubric C2)**: if the report closes with local commits
+     authored by the CURRENT session still unpushed, postflight reports **FAILURE** —
+     not DEFER. (DEFER stays valid for out-of-scope/peer items, never for own commits.)
    - stale/orphan worktrees + merged orphan branches → **reap** via `bin/reap-sessions.sh`
      (the executor that closes the detect→act loop; `work-compass`/`worktree-policy` only detect).
      ALWAYS survey dry-run first — `bin/reap-sessions.sh --repo-dir <main-checkout-root> --stale-days <N> --json`
