@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — régua pilot backlog: directive-braindump-triage v1.1.0
+
+- `skills/directive-braindump-triage` v1.1.0 — banner↔ledger-row atomicity (one without the
+  other = failed triage; fix the missing half before closing). Rubric C1 (pilot #354).
+
 ### Added — régua pilot backlog: postflight v0.10.0
 
 - `skills/postflight` v0.10.0 — session-owner discrimination in the git sweep (peer WIP reported,
