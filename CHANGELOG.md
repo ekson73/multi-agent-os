@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — eisenhower-matrix v0.2.1 (dogfood gate CLOSED) + preset/engine boundary (transmute v0.2.1 ↔ agentic-tool-pipeline v0.1.1)
+
+- `skills/eisenhower-matrix` v0.2.1 — cycles 1+2 marked `complete ratified` in the structured
+  dogfood ledger (`bin/dogfood-mark`; evidence: PR #369 + live cycle-2 run) → `dogfood-tally
+  eisenhower-matrix` = **2 COMPLETE / ELIGIBLE**; `dogfood_status` → `dogfooded-2-cycles`
+  (structured-auditable, not prose). Prose-ledger section rejected (would duplicate
+  `skills/dogfood-ledger` SSOT). Sibling-branch disposition recorded (superseded; branch +
+  `/tmp/wt-eisenhower` reported-not-reaped per quiesce C1).
+- `skills/transmute` v0.2.1 + `skills/agentic-tool-pipeline` v0.1.1 — the zero-mutual-cross-ref
+  redundancy flagged in `agentic-tool-forge` v1.1.1 investigated + closed: **preset/engine
+  doctrine** (pipeline = fixed-discipline genesis preset, `quiesce`-over-`/goal` pattern;
+  transmute = general N×M engine), boundary notes + hand-off row + rule of thumb both ways.
+
 ### Added — eisenhower-matrix v0.2.0 EXECUTABLE + work-compass v1.3.0 (supersedes draft #368)
 
 - `bin/work-compass-aggregate.py` v1.3.0 — the v1.2 spec-only "harmonization" made REAL:
