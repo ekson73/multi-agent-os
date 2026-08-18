@@ -1,6 +1,6 @@
 ---
 name: refine-braindump-to-prompt
-version: "0.3.0"
+version: "0.3.1"
 description: >-
   Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. Five phases:
   RECOVER (dissect - relate - catalogue - prism - distill; emits the parts map and the drop-list
@@ -465,6 +465,17 @@ a change to *how* a run emits belongs here.
    So (b) resolves **per sub-kind**, and `agentic-tool` alone is an under-specified target: it
    MUST carry its sub-kind. A straddler a flat list would have hidden.
 
+> ⚠️ **This sink is NOT tool-genesis.** It writes REFINED CONTENT into a `skill|command|agent|
+> rule|memory|mcp` whose type + name + path + creation-governance the CALLER has already
+> resolved — updating an existing artifact, or authoring a new one the caller is deliberately
+> keeping outside the full lifecycle. It does **not** run `agentic-tool-forge`'s dedup scan,
+> type-decision router, `anima` naming, invocation-surface gate (the `/name`-wrapper check), or
+> DNA-geracional inheritance (§0 + gates + DUED + Refs), and it does not record to the
+> artifact-registry. A braindump whose intent is "make me a NEW, recurring, reusable tool" is
+> the `agentic-tool-forge` case from §When not to use above, not this sink — invoke this sink
+> directly for prose-refinement only; for genesis, go through `transmute`'s `cast:agentic-tool`
+> router (→ `agentic-tool-forge`) or call the forge itself.
+
 ### Multi-target semantics (explicit, never implicit)
 
 - **Order**: `gitleaks` gate runs **once, before any emission — UNCONDITIONALLY**. There is no
@@ -678,6 +689,19 @@ attached"*. No fourth marker is minted; the discriminator is the field, not a ne
 
 ## Versioning
 
+- v0.3.1 (2026-08-18) — **Boundary note: the `agentic-tool` sink is NOT tool-genesis.** Comparative
+  audit against the `agentic-tool-*` family found this sink's "RENDER DEFINED" criterion satisfied
+  only illustratively (frontmatter-vs-`name:`-vs-`[CXX]` contrast, no worked spec) and silent on its
+  relationship to `agentic-tool-forge`'s create-time governance (dedup/naming/invocation-surface-
+  gate/DNA-geracional-inheritance/artifact-registry-record) — risking a caller reproducing the exact
+  skill-without-`/`-wrapper regression forge v1.1.0 exists to prevent, under the SAME natural-language
+  trigger ("cast this braindump as a skill") both tools' descriptions claim. Added an explicit
+  boundary note directly under the sink's own explanation; `agentic-tool-forge` reciprocated with a
+  matching note + a new §Refs entry (closing a one-directional cross-ref this file already implied
+  3× — "When not to use", the orthogonality note, the sibling table — but the forge never echoed).
+  Zero mechanism change; documentation-completeness only. *(Note: this changelog's v0.1.0 row below
+  predates the version now in this frontmatter — 0.2.0/0.3.0 intermediate entries are missing;
+  flagged, not reconstructed, per anti-theater R3/R4 — do not invent unverified history.)*
 - v0.1.0 (initial) — five-phase braindump→prompt lifecycle composing in-repo primitives;
   architecture profiles (`default`, `gauntlet-loop`); the Verifiability Gate stopping doctrine
   (synthesising Shumer's unbounded loop, Osmani's mandatory stopping rules, and this repo's
