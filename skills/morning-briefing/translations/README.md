@@ -9,7 +9,7 @@ The `morning-briefing` skill loads `translations/<lang>.yml` at Phase 0 based on
 1. `--lang <BCP-47>` flag (explicit override)
 2. `LC_MESSAGES` env var
 3. `LANG` env var (note: `LC_ALL` is intentionally skipped — too aggressive)
-4. `~/.claude/CLAUDE.md` OR `~/.claude/rules/user-rules.md` `**Language**:` line parse
+4. `~/.claude/AGENTS.md` OR `~/.claude/rules/user-rules.md` `**Language**:` line parse
 5. Fallback `en-us.yml`
 
 Static labels come from the bundle (deterministic, QA-gated). Dynamic content
