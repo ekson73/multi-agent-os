@@ -9,7 +9,7 @@ The `morning-briefing` skill loads `translations/<lang>.yml` at Phase 0 based on
 1. `--lang <BCP-47>` flag (explicit override)
 2. `LC_MESSAGES` env var
 3. `LANG` env var (note: `LC_ALL` is intentionally skipped — too aggressive)
-4. `~/.claude/CLAUDE.md` OR `~/.claude/rules/user-rules.md` `**Language**:` line parse
+4. `~/.claude/AGENTS.md` OR `~/.claude/rules/user-rules.md` `**Language**:` line parse
 5. Fallback `en-us.yml`
 
 Static labels come from the bundle (deterministic, QA-gated). Dynamic content
@@ -30,8 +30,8 @@ prompt instruction in the same target language.
 - **Flat key-value structure** — no nesting (yq + awk-fallback compatibility).
 - **All bundles must have the SAME KEY SET** as `en-us.yml`. Missing keys
   cause fallback to en-us per-key (graceful degradation).
-- **PRESERVE strings** (currently `branch`, `worktrees`) keep the en-US value
-  in ALL bundles. They appear here for grep-stability, not translation.
+- **PRESERVE strings** (currently `branch`, `worktrees`, `pulse`) keep the en-US
+  value in ALL bundles. They appear here for grep-stability, not translation.
 - **Encoding**: UTF-8. Special characters (acentos, ç, ñ, kanji, etc.) OK.
 - **Quotes**: Double-quote all string values for yq robustness.
 
