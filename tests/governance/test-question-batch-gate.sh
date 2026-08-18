@@ -100,19 +100,33 @@ O="$(jq -cn '{session_id:"h",prompt_id:"h2",last_assistant_message:"a?\nb?\nc?"}
   | env -u HOME -u QBG_STATE_DIR PATH="$PATH" bash "$HOOK" 2>&1)"; RC=$?
 [ "$RC" -eq 0 ] && ok "unset HOME -> exit 0 (BLOCKING-1)" \
   || bad "unset HOME" "rc=$RC out=$(printf '%s' "$O" | head -1)"
+# Issue #366 finding 4: with HOME unset, the hook falls back to
+# ${HOME:-/tmp}/.claude/state/question-batch-gate = /tmp/.claude/state/
+# question-batch-gate — a REAL path outside $TMP, left uncleaned and
+# polluting later test runs' idempotency path (stray markers accumulate
+# across CI runs on a shared /tmp). Bounded, literal, non-computed path.
+rm -rf "/tmp/.claude/state/question-batch-gate" 2>/dev/null || true
 
-# BLOCKING-2: payload-controlled ids must never escape STATE_DIR
+# BLOCKING-2: payload-controlled ids must never escape STATE_DIR. Assert on
+# directory-EMPTINESS of the victim dir, not a specific filename — issue #366
+# finding 2: the original assertions checked for "$VICTIM/1.pwned.2.p9.marker.d"
+# / "$VICTIM/1.x.marker.d", but the hook's actual marker format is
+# "${#sid}.${sid}.${#pid}.${pid}.marker.d" (both filenames omitted the
+# length-prefix), so those exact paths could never exist regardless of
+# whether the guard held or regressed — the assertion was vacuous. The
+# emptiness check (already used correctly below for the unsafe-session_id
+# ord2 case) is robust to the exact marker-naming format.
 VICTIM="$TMP/victim"; mkdir -p "$VICTIM"
 SID="../../victim/pwned" emit "p9" "a?
 b?
 c?"
-[ ! -e "$VICTIM/1.pwned.2.p9.marker.d" ] && [ "$RC" -eq 0 ] \
+[ -z "$(ls -A "$VICTIM" 2>/dev/null)" ] && [ "$RC" -eq 0 ] \
   && ok "traversal via session_id blocked (BLOCKING-2)" \
   || bad "traversal session_id" "escaped to $VICTIM"
 SID=sess1 emit "../../victim/x" "a?
 b?
 c?"
-[ ! -e "$VICTIM/1.x.marker.d" ] && [ "$RC" -eq 0 ] \
+[ -z "$(ls -A "$VICTIM" 2>/dev/null)" ] && [ "$RC" -eq 0 ] \
   && ok "traversal via prompt_id blocked (BLOCKING-2)" \
   || bad "traversal prompt_id" "escaped to $VICTIM"
 
@@ -177,6 +191,25 @@ jq -cn '{session_id:"ord4",prompt_id:"ord4p",last_assistant_message:"a?\nb?\nc?"
   | QBG_STATE_DIR="$OL" bash "$HOOK" 2>/dev/null | grep -q 'additionalContext' \
   && ok "advisory still fires with valid ids (no regression)" \
   || bad "advisory regression" "did not fire with valid ids"
+
+printf '\n# issue #366 fix 1a: overlong ids are rejected (closes the ENAMETOOLONG root cause)\n'
+LONG="$(awk 'BEGIN{s="";for(i=0;i<129;i++)s=s "a"; print s}')"  # 129 chars, over the 128 cap
+O="$(jq -cn --arg s "$LONG" '{session_id:$s,prompt_id:"okpid",last_assistant_message:"a?\nb?\nc?"}' \
+  | bash "$HOOK" 2>/dev/null)"; RC=$?
+[ "$RC" -eq 0 ] && ! printf '%s' "$O" | grep -q additionalContext \
+  && ok "overlong session_id rejected, no injection" \
+  || bad "overlong session_id" "rc=$RC out=$O"
+
+printf '\n# issue #366 fix 1b: a non-duplicate mkdir failure logs marker_claim_failed, not idempotent\n'
+FL="$TMP/failstate"; mkdir -p "$FL"
+MARKER="$FL/3.fl1.3.fl2.marker.d"
+: > "$MARKER"   # pre-existing FILE (not dir) at the exact marker path the hook targets
+jq -cn '{session_id:"fl1",prompt_id:"fl2",last_assistant_message:"a?\nb?\nc?"}' \
+  | QBG_STATE_DIR="$FL" bash "$HOOK" >/dev/null 2>&1
+FLL="$FL/ledger.jsonl"
+tail -1 "$FLL" 2>/dev/null | grep -q '"skipped":"marker_claim_failed"' \
+  && ok "mkdir-failure-not-a-duplicate logs marker_claim_failed (not idempotent)" \
+  || bad "marker_claim_failed" "got: $(tail -1 "$FLL" 2>/dev/null)"
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 rm -rf "$TMP"
