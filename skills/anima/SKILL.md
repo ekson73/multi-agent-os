@@ -1,22 +1,14 @@
 ---
 name: anima
-version: 1.0.0
-description: >
-  Use to generate ONE precise name/identifier for ANYTHING that needs a name — directory · path · file ·
-  variable · function · module · sub-module · server · database · schema · instance · table · column · index ·
-  relationship · constraint · protocol · methodology · framework · acronym · mnemonic · abbreviation · alias ·
-  nickname · agentic-tool (skill/command/agent/subagent/mcp/plugin/marketplace/rule) · spawn · swarm · spark ·
-  manifesto · document · interview · media (text/audio/video/image) · NotebookLM source · artifact · chat · prompt.
-  Triggers: "name this X" · "batize isto" · "qual o melhor nome para …" · "how should I name …" · "pick a name
-  for …" · "sugira um nome" · "rename / re-baptize …" · "what should I call …" · "nomear …" · "give it a name".
-  PROTOCOL: always researches the subject on the web FIRST (re-researches on a data gap; escalates to HITL with
-  ranked options ONLY when data is genuinely missing), classifies the target's REGISTER (machine · agent · human),
-  analyzes candidates across 12 CORRECTNESS aspects + (for human-register names) 4 RESONANCE aspects, and returns a
-  SINGLE sovereign decided name + rationale + rejected runner-up — NOT a menu. Multi-disciplinary sub-adapters
-  (databases · agentic-tools · brand/product · …) + a self-extending sub-KB it grows on new domains.
-  Cross-vendor AAIF (Claude / Cursor / Codex / Copilot / Gemini / Aider).
-  NOT for: organizing/renaming an EXISTING name-set in bulk (→ maos:naming-organizer); forging the tool itself
-  (→ agentic-tool-forge, which DELEGATES its naming step to this skill).
+version: 1.2.0
+description: >-
+  Generate ONE precise name/identifier for anything (files, modules, DBs, agentic-tools,
+  brands, media, prompts). Triggers: "name this X", "batize isto", "qual o melhor nome",
+  "how should I name", "sugira um nome", "rename", "what should I call". Researches first,
+  classifies register (machine/agent/human), scores 12 correctness + 4 resonance aspects,
+  returns a single decided name + rationale + runner-up — not a menu. NOT for bulk rename
+  sets (maos:naming-organizer) or forging tools (agentic-tool-forge delegates naming here).
+  Cross-vendor AAIF.
 ---
 
 # Anima — the namer (sovereign precision-naming engine: body → soul)
@@ -33,6 +25,11 @@ This skill serves the operator's intent. If a phase/gate obstructs delivering th
 `Skipped <phase> — BEING > Rules`, proceed. Sovereignty is bounded by the research-gate (§4), never by ritual.
 HUMAN_DOMAIN (a name that encodes secrets · real PII · a brand/legal/trademark commitment · a cross-org public
 identity · a paid domain) → present the decided name **but flag it for operator ratification**, never auto-commit it.
+> **Standing authority `[C-naming]`** (operator carve-out 2026-06-29, rule `[[naming-authority]]`): naming **exits**
+> the `[C17]` §2 HUMAN_DOMAIN globally — Anima holds the **capability + authority + authorization to DECIDE** the name
+> **autonomously, with NO human pre-approval gate** (default = *act*, override is post-hoc). The HUMAN_DOMAIN-*name*
+> exception above (secrets/PII/brand/legal/cross-org) and §4's `--n>1`/genuine-data-gap escalations are the **only**
+> carve-outs that re-enter ratification. Scope boundary: Anima decides the NAME, nothing beyond naming.
 
 ## When to use / not use
 - **Use**: anything in the `description` object-list needs a name, rename, alias, acronym, or identifier.
@@ -46,7 +43,7 @@ identity · a paid domain) → present the decided name **but flag it for operat
 | `--class` | `auto` | Object class → routes a sub-adapter (`databases`·`agentic-tools`·`brand-product`·…); `auto` = classify. |
 | `--register` | `auto` | `machine` · `agent` · `human` · `auto` (the Register Gate §0.5 infers it from the class). |
 | `--lang` | `auto` | `en` · `pt` · `auto` (per `language-policy-en-pt`: en-US for technical/global; pt-BR Brazil-specific). |
-| `--family` | — | Existing namespace/family to align with (e.g. `agentic-tool-*`, `svc-auth-*`, `pk_`/`fk_`). |
+| `--family` | — | Existing namespace/family to align with (e.g. `agentic-tool-*`, `vks-jss-*`, `pk_`/`fk_`). |
 | `--constraints` | — | Hard limits (charset, max-length, reserved-words, kebab/snake, no-collision-with). |
 | `--n` | `1` | How many to return. Default **1** (sovereign). `--n>1` only when operator explicitly wants a slate. |
 | `--research` | `web` | `web` (always, default) · `local` · `both` · `off` (off ⇒ must justify, lowers confidence). |
@@ -54,7 +51,7 @@ identity · a paid domain) → present the decided name **but flag it for operat
 
 ## §0.5 — Register Gate (deterministic object-class → register · KISS)
 Before scoring, classify the target's **communication register** — this sets *how much warmth the name must carry*
-(aligns with the host's register policy — e.g. `[[language-policy-en-pt]]` §7 Register-Adaptive Communication — when present; else the class→register table below is self-sufficient):
+(per `[[language-policy-en-pt]]` §7 Register-Adaptive Communication, the SSOT — this gate is its naming consumer):
 
 | Register | Triggered by object-class (examples) | Name posture | Warmth weight |
 |---|---|---|---|
@@ -78,8 +75,7 @@ collision/availability check → DECIDE one (§5) → emit (name + rationale + r
 ```
 **DoD (done)**: exactly `--n` name(s) · a scorecard for the winner (12 correctness, + 4 resonance if human-register)
 · ≥1 research citation · a collision check · one rejected runner-up w/ reason · adapter + register conventions
-honored · zero invented-word-presented-as-real · **the decided name recorded to the dedup-memory**
-(`artifact-registry record --kind name --slug <name> --type <t> --purpose "<intent>"` — so a future name/forge sees it).
+honored · zero invented-word-presented-as-real.
 
 **KPIs**: research-grounded-rate (% names backed by a cited source) · zero-invention-rate (target 100%) ·
 collision-avoidance-rate · operator-override-rate (low = good calibration) · re-research-rate · single-name-return-rate.
@@ -114,6 +110,8 @@ Grouped 11×3 over the operator's dimensions:
 | 10 | **context** | right for THIS project/ecosystem/audience? |
 | 11 | **scope** | neither too narrow (out-grown next week) nor too broad (says nothing)? |
 | 12 | **temporality** | durable (won't date) OR honestly time-bound if that's intended? |
+| 17 | **gloss-independence** | Can a first-time EN+PT reader state the referent in one plain clause **without** project glossary/README? Stacked abstract nouns (`pack-index`, `artifact-plane`) without an industry anchor (`plugin`, `marketplace`, `registry`) → hard flag. Renames must keep ≥1 high-signal token from the prior name **or** still pass this elevator test. |
+| 18 | **attributive-number (EN)** | In English noun compounds, attributive nouns are usually **singular** (`plugin marketplace`, `car dealership`). Plural attributives (`plugins-marketplace`) are marked/awkward unless intentional brand voice — flag and prefer singular unless operator HITL overrides. |
 
 ### §3.2 — The 4 RESONANCE aspects (scored ONLY when Register Gate = human; the "pitada de humanidade")
 A correct name can still be cold. For a human-register target, also score — **measurably, not by vibes**:
@@ -156,17 +154,54 @@ Default house-form (overridable per adapter): kebab-case · ≤6 words · role-t
    THEN escalate to the operator **with the best ranked options already computed** (not a blank question).
 4. **Otherwise return ONE decided name** — sovereign, with confidence. Do NOT bounce raw options back: the
    operator delegated the *decision*, not the *deliberation*. (Exception: `--n>1`, or HUMAN_DOMAIN §0.)
+5. **`naming_confidence` (formalized)** — emit `naming_confidence = research_coverage × aspect_fit` (research_coverage
+   = fraction of decision-relevant aspects empirically grounded by §4.1-2 citations; aspect_fit = the §3 winner's
+   normalized scorecard pass-rate). It surfaces as `decision.confidence` in the `--json`. **Escalate to HITL ONLY on a
+   genuine data-gap** (low research_coverage that changes the decision, per §4.3) — never on mere aspect-fit jitter.
+   This formalizes the existing behavior; it does not add a new gate.
 > Sovereignty is *earned by the research-gate*: a name is only pronounced when grounded; an ungrounded name is a
 > HITL escalation, never a confident guess.
 
-## §5 — Decision + collision/availability check
-- Score candidates (§3) → drop any with a hard-aspect failure → check collision (local namespace via `Grep`/family,
-  + web/availability per `kb/brand-product.md` when the class is a brand/domain/package).
-- **Dedup-memory check** (before deciding): `artifact-registry lookup --purpose "<intent>" [--type <t>]` — the persisted
-  log of Anima's past NAMES + Forge's past CREATES. The `Grep` above catches an exact-slug clash; this catches a
-  *synonym of the intent* a slug-grep misses (e.g. `session-method-audit` vs the already-named `praxis-audit`).
-  `DUP-RISK` ⇒ prefer the existing artifact (or an explicit deliberate variant) over minting a near-duplicate.
-  See `docs/artifact-registry-spec.md`. (Advisory — never a hard block; the decider still owns the call per `naming-authority`.)
+
+## §4.5 — Composition with Prisma (`decompose-abstract-to-measurable`)
+When a naming decision hinges on **abstract quality** ("is this name good / soulful / self-explicit / resonant?")
+or multi-candidate **aspect conflict**, do **not** invent a score in-head. Compose **Prisma**:
+system-name `decompose-abstract-to-measurable` (MAOS skill; soul-name Prisma).
+
+| Prisma | Role in naming |
+|---|---|
+| CONTEXT-LOCK | purpose · audience · register · prior name · must-not-imply · object class |
+| Value-tree | gloss · semantics/role · category-fit · continuity · collision · resonance(J) |
+| D/T/J leaves | elevator (T) · industry-anchor (T) · token continuity (T) · namespace free (D/T) · sayability (J) |
+| `aggregate_spec.py` | deterministic roll-up; **LOW band or inconclusive.flag → cannot be sole winner** |
+
+### Class routing (examples — same skill, different context_lock)
+
+| Object class | Prisma? | Notes |
+|---|---|---|
+| hub / marketplace / plugin-index repo | SHOULD/MUST on rename or conflict | dogfood R2: `eko-plugin-marketplace` HIGH 0.875 vs `eko-pack-index` LOW 0.445 |
+| skill / command / agent / mcp name | SHOULD if vague candidates | dogfood R2: `bitbucket-pipeline-watch` HIGH 0.942 vs `bb-helper` LOW 0.478 |
+| db schema/table/column/index | MAY if non-conventional; SKIP `*_id` FK conventions | machine register; correctness > resonance |
+| file/dir/path | MAY if product-facing path; SKIP trivial | |
+| server/instance/host label | SHOULD if human-facing inventory names | |
+| swarm/spawn/hive-mind labels | SHOULD — high collision + metaphor risk | keep role-typed; Prisma on "soulful" claims |
+
+**Template:** `templates/naming-fitness.measurement-spec.json` · **Dogfood log:** `examples/DOGFOOD-R2.md`
+
+**Triggers (SHOULD/MUST):** high-stakes hub/product rename · ≥2 candidates with conflict · gloss-independence fail / operator "needs explanation" · agentic-tool name fight · explicit `--with-prisma`.
+**Skip (MUST NOT):** machine-conventional ids · single obvious low-stakes name · already-concrete constraints only.
+**SSOT:** Anima still **decides the name**; Prisma supplies **traceable measurement evidence**. Do not merge skills. Score = evidence, not target (Goodhart). Cite `[[anima-prisma-compose]]` · ADR `[[anima-prisma-compose]]`.
+
+## §5 — Decision + collision/availability check (the 360° namespace sweep)
+- Score candidates (§3) → drop any with a hard-aspect failure → run the **360° namespace sweep** (v1.2 — four sources, holistic; a slug-grep alone catches only exact clashes):
+  1. **Local namespace** — `Grep` over the target family's dirs (`skills/`, `commands/`, `agents/`, `rules/`, `bin/` — incl. CLI flag names when the object is a flag/param);
+  2. **Dedup-memory** — `artifact-registry lookup --purpose "<intent>" [--type <t>]`: the persisted log of Anima's NAMES + Forge's CREATES; catches a *synonym of the intent* a slug-grep misses (e.g. `session-method-audit` vs the already-named `praxis-audit`). `DUP-RISK` ⇒ prefer the existing artifact (or an explicit deliberate variant). Advisory — the decider still owns the call per `naming-authority`. *(restored v1.2.0 — dropped by the v1.1.0 user-scope edit; it is the DRY loop with the forge)*
+  3. **Cross-link slugs** — `Grep` `[[<candidate]]` across the corpus (a name that is already a live cross-link belongs to something);
+  4. **Sibling-role adjacency** — the family's *role map*: does the candidate claim a role a sibling already owns (semantic collision beyond exact slug — e.g. two `*-compass` aggregators, or a `*-matrix` that is really a router)? Sibling names, not just sibling slugs.
+  + web/availability per `kb/brand-product.md` when the class is a brand/domain/package.
+- **Gloss gate:** if register is human or agent **and** class is repo/product/hub/marketplace/plugin-index, a hard-fail on **gloss-independence** disqualifies the candidate (pick next, or HITL if none pass). Operator signal “needs explanation / disconnected” ⇒ treat as hard-fail and re-open council.
+- **Operator-proposed candidates** are mandatory rows in the score table (never only internal shortlist).
+- **agent vs agents vs agentic:** `agent`/`agents` as nouns often signal **content payload** (ontology collision with product repos). `agentic` is a **domain adjective** (“for agentic work”) — allowed but jargon-costly; do not blanket-ban all `agent*` tokens.
 - **Decide the winner.** Emit: `NAME` (system-name; + soul-name only if a human-register entity asked for one) ·
   1-line rationale · the scorecard verdict (PASS/flags) · the **rejected runner-up** + why · research citations ·
   `[HUMAN_DOMAIN: ratify]` flag if §0 fired.
@@ -246,7 +281,7 @@ Dormant-by-design otherwise.
 - Delegator/sibling: `agentic-tool-forge` (Phase 4 Name → delegates here; body↔soul §6.5) · `maos:naming-organizer` (organize-existing, distinct axis) · `maos:forge` (RBAD + 33-Socratic).
 - Register SSOT: `[[language-policy-en-pt]]` §7 Register-Adaptive Communication (the Register Gate §0.5 consumer).
 - Gates: `scope-discipline-pre-creation` (6Q) · `anti-theater-grounding-protocol` (8Q, esp. R4 not-invented) · `rule-quality-tests` (6) · `root-cause-first-prevention-priority §10` (5-axis naming rigor).
-- Governance: `[C09]` Naming Conventions · `language-policy-en-pt` · `[C04]` worktree · `pr-review-protocol`.
+- Governance: `[[naming-authority]]` `[C-naming]` (the standing authority that delegates ALL naming here — §0) · `[C09]` Naming Conventions · `language-policy-en-pt` · `[C04]` worktree · `pr-review-protocol`.
 - Identity/research grounding: Aristotle *De Anima* (SEP) · Jung *anima* archetype · OED/Wiktionary (*anima*) · prior art surveyed `bazingga08/nomira` · `jbold/namer` (Placek Diamond + sound-symbolism) · `siddmax/Namera` (availability) · NAMeGEn/MAGIC-HMO arXiv 2511.15408 · onomastics · Bell 1984 (audience design, register).
 - Cross-link slug: `[[anima]]`.
 
@@ -263,5 +298,7 @@ Exit: `0` named · `1` error · `2` HITL-ranked (data gap).
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 1.2.0 | 2026-08-18 | **MINOR — 360° namespace sweep + SSOT↔live sync channel + v1.1.0 port.** (1) **Port**: the v1.1.0 content (standing authority `[C-naming]`, aspects 17 gloss-independence + 18 attributive-number, `naming_confidence`, §4.5 Prisma composition, gloss gate, `templates/naming-fitness.measurement-spec.json` + `examples/` assets incl. DOGFOOD-R2) existed ONLY in the user-scope live copy — promoted to this repo SSOT (régua v0.2 golden rule: cross-scope copies without a sync channel = drift). (2) **§5 raised**: collision check → **360° namespace sweep** — 4 sources (local namespace incl. CLI flags · artifact-registry dedup-memory [**restored** — the v1.1.0 user-scope edit had dropped it; it is the DRY loop with the forge] · cross-link slugs · sibling-role adjacency [semantic collision beyond exact slug]) + web/availability for brand-class. (3) **Sync channel** clause in §Refs: repo = SSOT, user-scope = live cache, re-sync on every bump. Frontmatter `version` restored (was missing). Dogfood: the sweep's source-4 (sibling-role adjacency) is exactly the lens that would have caught the `--scope` pendency-values colliding with the CPT verbs (work-compass v1.2 miss, fixed v1.3). §9 self-validity retained (additive). |
+| 1.1.0 | 2026-06-29 | **MINOR — standing-authority `[C-naming]` + `naming_confidence` formalized + `MAOS Agora` KB anchor** per operator directive 2026-06-29 (rule `[[naming-authority]]`, user-scope). §0: cite the standing carve-out (naming EXITS `[C17]` §2 HUMAN_DOMAIN globally → Anima autonomous, no pre-approval gate; the HUMAN_DOMAIN-*name* + `--n>1` + data-gap exceptions stay; scope boundary = name only). §4: formalize `naming_confidence = research_coverage × aspect_fit` (surfaces as `decision.confidence`; escalate only on genuine data-gap — formalizes existing behavior, no new gate). §Refs: `[[naming-authority]]` added. KB: `MAOS Agora` resolved anchor-case in `kb/brand-product.md`. Additive / low-regression (no scoring change). Targeted enhancement (not a `agentic-tool-trainer` retrain — Gordian: the change formalizes behavior the skill already exhibits); before/after = §9 6/6 self-validity retained + the 3 additions are purely additive. PR `ekson73/akasha-Codex#TBD`. |
 | 1.0.0 | 2026-06-06 | **Clean refactor `nomenclator` → `anima`** (the namer) per operator directive 2026-06-06 (0 prior real uses ⇒ no backward-compat; "O Batista"/"Baptist" was religion-coded ⇒ failed secular global-universal convention; consolidate the persona-zoo into ONE lean identity). NEW: §0.5 **Register Gate** (deterministic object-class→register; consumes `language-policy-en-pt` §7 SSOT; numeric warmth-tuning deferred KISS) · §3.2 **4 resonance aspects** (pronounceability · memorability · evocation · fluency — measurable, not vibes; scored only for human register — the "pitada de humanidade") · §3.3 **soul+identity rubric** · §3.4 **envelope-safety** (system-name vs soul-name; dual-name as a capability, not self-applied) · §6.5 **Forge↔Anima synergy** (body↔soul; forge Phase-4 delegates + passes type→register hint; DRY single engine). Persona-zoo removed. Re-baptism dogfood (§7): `anima` 12/12 + soul-rubric, rejected `onoma`/`kerux`/keep-nomenclator. `git mv` preserved history. 6/6 self-validity + 8/8 anti-theater + 6/6 scope-discipline. |
 | 0.1.0 | 2026-06-05 | Bootstrap as `nomenclator` ("O Batista") — forged via `/enhance` → `agentic-tool-forge`. Sovereign precision-naming engine: 12-aspect scorecard · 33-Socratic · research-first sovereignty · sub-adapters + self-extending KB · self-baptism. (Superseded by v1.0.0 refactor.) |
