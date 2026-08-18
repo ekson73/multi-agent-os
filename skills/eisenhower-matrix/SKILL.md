@@ -1,13 +1,11 @@
 ---
 name: eisenhower-matrix
-version: "0.1.0"
+version: "0.2.0"
 description: |
-  List unresolved pendencies for --scope=[current|session|repo|vault|all] ordered by
-  Eisenhower matrix (Q1 urgent+important → Q4). Thin composer over work-compass
-  (SSOT for aggregation) + Eisenhower classifier (urgent×important) + AAA rigor
-  (Accuracy·Auditability·Accountability). Use when operator wants
-  "pendências --scope=current --sort=Eisenhower", "o que é pendente ordenado",
-  "triple-A pendency list", "AAA queue".
+  List unresolved pendencies ordered by Eisenhower urgency×importance — AAA rigor (Accuracy·Auditability·Accountability) — triple-A.
+  Command: `eisenhower-matrix --scope=[current|session|project|global|repo|vault|jira:*|worktree|all] --sort=[Eisenhower|Prisma|priority|age] --format=[json-rpc|human] --include=[pending|all] --lang=[en-us|pt-br] --json`
+  Default: `--scope=current --sort=Eisenhower --format=json-rpc`. Emits Q1 Do / Q2 Schedule / Q3 Delegate / Q4 Eliminate with probe+source per row (Accuracy), source+probe (Auditability), Do/Schedule/Delegate/Eliminate + HUMAN_DOMAIN defer (Accountability).
+  Thin composer over work-compass aggregation SSOT (Jira/GH/PRs/worktrees/branches/stashes/sessions/inbox status:raw) + Eisenhower classifier + AAA + Prisma D/T/J when abstract. Harmonized v0.2.0 work-compass v1.2 alias.
 type: skill
 spec: AAIF / agentskills.io
 applicable_hosts: [Claude Code, Cursor, GitHub Copilot, Aider, any AAIF-compliant agent]
@@ -25,36 +23,37 @@ metadata:
   lifecycle-stage: forge
   forge_parent: agentic-tool-forge
   anima_parent: eisenhower-matrix
-  dogfood_status: pending-first-cycle
+  dogfood_status: cycle-0
   scope_default: current
   sort_default: Eisenhower
+  i18n: [en-us, pt-br]
+  triple_a: [Accuracy, Auditability, Accountability]
 ---
 
-# Eisenhower Matrix — pendency queue (AAA)
+# Eisenhower Matrix — pendency queue (AAA) v0.2.0
 
 > Thin **classifier + sorter + alias**. Reuses `work-compass` aggregation SSOT
 > (Jira/GH/PRs/worktrees/branches/stashes/sessions/inbox `status:raw`),
 > adds only **Eisenhower Q1→Q4** (`urgent × important` Do/Schedule/Delegate/Eliminate)
-> with **AAA rigor** (`Accuracy·Auditability·Accountability`) and a
+> with **AAA rigor** (`Accuracy·Auditability·Accountability`) and
 > **`--scope` / `--sort` alias surface** (`eisenhower-matrix --scope=current` →
 > `work-compass --scope=current --sort=Eisenhower`). Composes — reimplements nothing.
-> **v1.2 harmonized:** `work-compass --sort=Eisenhower` is the SSOT implementation;
-> this skill is the **discoverable alias + classifier SSOT** (no duplication, pr-pdca-loop).
-> Cross-link slug: `[[eisenhower-matrix]]`.
+> **v0.2.0 harmonized:** merges Akasha `eisenhower-matrix v0.1.0` enhancements (DNA, Prisma, --format/--lang, B-Tree, probe AAA) into multi-agent-os SSOT without duplication (SSOT=D R Y).
+> Cross-link slug: `[[eisenhower-matrix]]` · **DNA-geracional**: §0 BEING>Rules · `[C17]` §1.2 bands + §2 HUMAN_DOMAIN carve-out · `scope-discipline` 6Q · `anti-theater` 8Q · `rule-quality-tests` 6 · DUED sunset. Inherits `agentic-tool-forge` + `anima`.
 
 ## §0 — BEING > Rules
 
 | Check | Verdict |
 |---|---|
-| Helps operator? | **HELPS** — turns scattered `pending` into ONE ordered queue so operator decides `Do/Schedule/Delegate/Eliminate` without hunting 4 systems. |
+| Helps operator? | **HELPS** — turns scattered `pending` into ONE ordered queue so operator decides Do/Schedule/Delegate/Eliminate without hunting 4 systems. |
 | Harm / slavery risk? | **LOW** — read-only by default; `DRY` probe + `HUMAN_DOMAIN` gate for any status transition/merge/push (prints command, never executes). |
 | Hierarchy | Operator SER (1) > this skill (2) > producers it composes (3). |
 
-**HUMAN_DOMAIN defer:** `jira transition`, `gh pr merge`, `git push --delete`, cross-org, cost, secrets/PII → print `twg`/`gh` dry-run, never auto-act.
+**HUMAN_DOMAIN defer:** `jira transition`, `gh pr merge`, `git push --delete`, cross-org, cost, secrets/PII → print `twg`/`gh` dry-run, never auto-act. If gate obstructs value NOW, log `Skipped <gate> — BEING > Rules` and proceed.
 
 ## When to use / not use
 
-**Use:** `--scope=[current|session|repo|vault|all] --sort=[Eisenhower|default]` to get unresolved pendencies ordered Q1→Q4 with triple-A evidence.
+**Use:** `--scope=[current|session|project|global|repo|vault|jira:*|worktree|all] --sort=[Eisenhower|Prisma|priority|age]` to get unresolved pendencies ordered Q1→Q4 with triple-A evidence.
 
 **Not use:** single-shot edit, read-only Q&A, ONE goal decompose (`→ auto-pilot`), session quiescence (`→ quiesce`), harness-agnostic loop (`→ gap-loop`), destructive ops.
 
@@ -62,121 +61,127 @@ metadata:
 
 | Param | Default | Meaning |
 |---|---|---|
-| `--scope` | `current` | `current` (= this session+repo+inbox) · `session` · `repo` (cwd) · `vault` (eko-engram) · `all` (maos+eko-engram+eko-claude-plugins). `current` is `session+repo+inbox` intersected. |
-| `--sort` | `Eisenhower` | `Eisenhower` (Q1→Q4) · `created` · `updated` · `urgent` · `important`. Alias `--sort=default` = `Eisenhower`. |
+| `--scope` | `current` | `current` (= session+repo+inbox intersected) · `session` · `project`/`repo` (cwd) · `global` · `vault` (eko-engram) · `jira:*` · `worktree` · `all` (maos+eko-engram+eko-claude-plugins). Alias `repo`→`project` for backward compat. |
+| `--sort` | `Eisenhower` | `Eisenhower` (Q1→Q4 Urg×Imp) · `Prisma` (abstract→measurable) · `priority` · `age` · `created` · `updated`. Alias `--sort=default`→`Eisenhower`. |
+| `--format` | `json-rpc` | `json-rpc` (en-us agentic) · `human` (md table). `--json` is alias for `--format=json-rpc`. |
 | `--json` | off | Emit `json-rpc` envelope for agent-to-agent (AAIF) instead of markdown table. |
-| `--dry-run` | off | Probe only (no write); same output, no side-effects. |
-| `--include` | `pending` | `pending` (unresolved) · `all` (incl. done/superseded/archived for audit). |
+| `--include` | `pending` | `pending` (unresolved) · `all`/`default` (incl. done/superseded/archived for audit; `all` reveals Q4 Eliminate). |
+| `--lang` | `auto` | `en-us` · `pt-br` · `auto` (LC_MESSAGES→LANG→CLAUDE.md→en-us). Controls `human` table headers. |
 
-Bare `pendencias` / `eisenhower` with no flags → `--scope=current --sort=Eisenhower`.
+Bare `pendencias` / `eisenhower` with no flags → `--scope=current --sort=Eisenhower --format=json-rpc`.
+
+## Topology
+
+Deterministic **work-compass aggregation** → Eisenhower classifier (heuristic + Prisma D/T/J) → Q1→Q4 → disposition → AAA output. Idempotent, probe-backed, 0 fake.
+
+## Probes (Accuracy — probe-backed, zero fake, work-compass SSOT)
+
+1. `git status --porcelain` + `git diff --stat` (dirty, untracked)
+2. `git worktree list` (stale >7d, orphan branches)
+3. `gh pr list --limit 20 --json number,title,state,mergeable,reviewDecision` (open PRs, merge conflicts)
+4. `twg workitem query --jql` / `twg jira workitem list` if `twg` present (open VKS/VKL tasks)
+5. `ls sessions/` + `~/.claude/docs/session-recaps/` + `~/.claude/memory/` + vault inbox `status:raw` (unprocessed notes, 14 archived pattern)
+6. `gap-register` / `find . -name TODO -o -name FIXME` fallback
+
+Each row emits `source` + `probe` (exact command to re-verify). No row without source.
 
 ## Eisenhower classifier — 4 quadrants (SSOT for this skill)
 
-Derived from Eisenhower / Covey best practice (external: Eisenhower Matrix — `Do/Schedule/Delegate/Eliminate`; internal: `work-compass` stale heuristics + `quiesce` loose-end sweep + `gap-loop` gap-register).
+Derived from Eisenhower / Covey (external) + `work-compass` stale heuristics + `quiesce` loose-end sweep + `gap-loop` (internal).
 
 | Q | Urgent | Important | Label | Action | Signal in this repo |
 |---|---|---|---|---|---|
-| **Q1** | yes | yes | **Faça agora** | `Do` | open PR `MERGEABLE` with green checks + `main` drift >1 commit, `status:raw` inbox <24h, `worktree` with unpushed `main`-commits, sprint `active` ticket `In Progress` with `blocker` |
-| **Q2** | no | yes | **Agende** | `Schedule` | `WIP` worktree `feat/*` 7–14d with PR `DRAFT`, `VKS-*` `To Do` in `active` sprint, `gap-register` `deferred-with-rationale` |
-| **Q3** | yes | no | **Delegue** | `Delegate` | `rate-limited`/`quota-external` check (`CodeRabbit 72/7d`), `bot` finding `externo-quota`, `HUMAN_DOMAIN` HITL gate |
-| **Q4** | no | no | **Elimine/Arquive** | `Eliminate` | `status:processed/superseded/archived` duplicate, `1107 LOC` YAGNI split, agglomerated `Daily` already `COVERED` |
+| **Q1** | yes | yes | **Faça agora** | `Do` | PR `MERGEABLE` green+drift>1, inbox <24h `status:raw`, worktree unpushed main-commits, sprint `active` blocker |
+| **Q2** | no | yes | **Agende** | `Schedule` | WIP `feat/*` 7–14d DRAFT, `VKS-*` `To Do` active sprint, `gap-register` `deferred-with-rationale`, ADR stale (VKS-2105 vs ADR-D1 SLT) |
+| **Q3** | yes | no | **Delegue** | `Delegate` | interrupt low-impact, approval others can do |
+| **Q4** | no | no | **Elimine** | `Eliminate` | archived/superseded/processed inbox:14, stale worktrees already gc'd (hidden unless --include=all) |
 
-**Urgency** = time-sensitivity (`sprint active` `PR age` `branch drift` `inbox age` `check failure`); **Importance** = impact on `SSOT/DRY/delivery/governance` (Jira `epic`/`Major`, `governance-validation`, `release-coherence`, `SSOT` drift). Score is **derived**, not self-declared (anti-gaming, per `gap-loop`).
+Prisma `decompose-abstract-to-measurable` refines ambiguous Items: `CONTEXT-LOCK` + Value-tree `gloss/semantics/category/continuity/collision` + `aggregate_spec.py`. LOW band → cannot be sole Schedule reason.
 
-## AAA rigor (triple-A) — the 3 commitments
+## Output
 
-| A | Meaning | How this skill honors it |
-|---|---|---|
-| **Accuracy** | Every row backed by a verifiable probe | `gh pr view`/`twg workitem query`/`git worktree list`/`grep status:` — no invented pendency (anti-theater 8Q `REALITY`). |
-| **Auditability** | Traceable to evidence | Row carries `source` (`gh:359` `twg:VKS-2105` `git:worktree:pipefish` `inbox:2026-08-14-gauntlet-loop`) + `probe cmd`. |
-| **Accountability** | Clear disposition | Row carries `disposition` (`Do/Schedule/Delegate/Eliminate` + `defer` rationale + `HUMAN_DOMAIN` flag). |
+### json-rpc (default) — en-us agentic-format
 
-## Topology + composition (DRY / KISS / YAGNI) — harmonized v1.2
-
-**Work-compass is the hub; Eisenhower is a view:**
-
-```
-intake eisenhower-matrix --scope/--sort → delegates to:
-  work-compass --scope=<scope> --sort=Eisenhower --json
-    → parallel probe (capability-detected, stdlib-only):
-        git worktree list --porcelain | branch -vv | gh pr/issue | twg | grep status: raw
-    → normalize → Eisenhower classify (urgent×important) Q1→Q4 → render markdown/json
-```
-
-Alias path (YAGNI/KISS): one classifier, two surfaces (`work-compass --sort` + `eisenhower-matrix`). No duplicate probe code.
-
-**Composes (reuses) / net-new:**
-
-| Reused (composes) | Net-new (this skill only) |
-|---|---|
-| `work-compass` aggregation + stale heuristics | Eisenhower `urgent×important` classifier + AAA row contract + `--scope`/`--sort` surface |
-| `quiesce` loose-end sweep (C1–C3 invariants) | Q1→Q4 sorter + `Delegate/Eliminate` disposition |
-| `gap-loop` `autonomy_score` guard (derived) | `Eliminate` archival rule for `superseded` duplicates |
-
-**Dropped (over-engineering for a thin composer — KISS/YAGNI):** swarm/mesh/hive-mind, ML scorer, web UI, Linear/ClickUp adapters (DEFERRED with `quick` flag).
-
-## Pipeline (precise logic — 0→6)
-
-0. **Intake** — parse `--scope`/`--sort`/`--json`; `--scope` outside `{current,session,repo,vault,all}` → error `json-rpc` with valid enum.
-1. **Probe — parallel, capability-detected** — per topology; missing provider → emit `domain:unavailable` one-liner, never block.
-2. **Normalize** — unify to pendency shape `{id, title, scope, age, source, probe, urgency, importance}`; idempotent (same input → same list).
-3. **Classify** — apply quadrant table; `HUMAN_DOMAIN` → flag `defer-HITL`, never auto-transition.
-4. **Sort** — `Eisenhower` = Q1→Q4 then `urgency desc` then `createdAt asc`; other sorts as specified.
-5. **Gate** — `anti-theater 8Q` (REALITY: no fake row) + `rule-quality-tests` 6 self-validity (SSOT: no duplicate producer; DRY: composes work-compass); fail → `DEFER` with reason.
-6. **Render** — markdown table (default) or `json-rpc` envelope (`--json`) — same rows, two surfaces. Single `Q1` highlight + `next-action` line.
-
-## Output contract
-
-**Markdown (default):**
-```
-| Q | id | title | scope | age | source | next-action |
-|---|----|-------|-------|-----|--------|-------------|
-| Q1 | gh:365 | feat(governance): port question-batch-gate | repo:maos | 0.2d | gh pr 365 MERGEABLE | review → merge (HUMAN_DOMAIN) |
-```
-
-**json-rpc (`--json`):**
 ```json
-{"jsonrpc":"2.0","method":"eisenhower-matrix","params":{"scope":"current","sort":"Eisenhower"},"result":{"quadrants":{"Q1":[…],"Q2":[…],"Q3":[…],"Q4":[…]}, "next_action":"Q1 gh:365"}}
+{"jsonrpc":"2.0","method":"eisenhower-matrix","params":{"scope":"current","sort":"Eisenhower"},"result":{"scope":"current","sort":"Eisenhower","quadrants":{"Q1":[],"Q2":[{"id":"twg:VKS-2105","title":"VKS-2105 summary stale vs ADR-D1 SLT 149029213","scope":"jira:VKS","urgency":0.3,"importance":0.7,"prisma":0.58,"source":"twg workitem query","probe":"twg jira workitem query --jql 'key=VKS-2105'","disposition":"Schedule","action":"twg workitem update --dry-run"}],"Q3":[],"Q4":[{"id":"inbox:14","title":"14 processed/superseded/archived","scope":"vault:eko-engram","disposition":"Eliminate","note":"hidden unless --include=all"}]},"next_action":"Q1 quiesced — no Do; next is Q2 Schedule when Prisma escalates","aaa":{"Accuracy":"probe-backed 0 fake","Auditability":"source+probe per row","Accountability":"Do/Schedule/Delegate/Eliminate + HUMAN_DOMAIN defer"},"heads":{"maos":"<sha>","eko-engram":"<sha>","skills":"<n>"},"quiesce":{"Q1":"quiesced","C1":"1 worktree","C2":"0 fail","C3":"0 stale"}}}
 ```
 
-Both carry `probe` + `disposition` per AAA. `--include=all` adds `Q4` archived rows for audit (suppressed by default).
+### human (pt-br/en-us)
 
-## Invocation
+```
+| Q | id | título/title | urg | imp | prisma | source | disposition |
+|---|----|--------------|-----|-----|--------|--------|-------------|
+| Q1 | — | 0 quiesced | — | — | — | — | — |
+```
 
-| Surface | Command |
-|---|---|
-| Skill (model) | `eisenhower-matrix --scope=current --sort=Eisenhower` |
-| Command (human) | `/eisenhower-matrix --scope=current --sort=Eisenhower` |
-| JSON | `eisenhower-matrix --scope=current --sort=Eisenhower --json` |
+## Composition with work-compass / morning-briefing
 
-`--scope` default `current`; `--sort` default `Eisenhower` (`--sort=default` → `Eisenhower`).
+`work-compass` is hub; `eisenhower-matrix` is its Q1→Q4 view (composes, 0 duplication). `morning-briefing --scope=current` SHOULD call this skill for its Eisenhower section. Do not duplicate aggregation — delegate to work-compass.
 
-## Governance + lifecycle
+## B-Tree / Grafo / Mind-map
 
-- **SSOT:** this file is SSOT for Eisenhower classification; `work-compass` remains SSOT for aggregation (no duplication).
-- **DRY:** composes aggregation; never reimplements `git`/`gh`/`twg` probes.
-- **KISS/YAGNI/Gordian:** thin composer (~400 LoC net-new), no swarm/ML/UI.
-- **Boy-scout / house-keeping / garbage-collection:** surfaces orphan worktree `postflight-fix`-class items as `Q1` (no-loose-endings); `Q4` duplicates flagged `Eliminate`.
-- **Handoff / continuidade / idempotencia:** stateless, deterministic, re-runnable (`--dry-run` identical to real).
-- **Forge lifecycle:** `forge → evaluate (agentic-tool-evaluator) → train (agentic-tool-trainer) → operate → deprecate`; dogfood `≥2 cycles` before `community` promotion.
+```
+B-Tree: work-compass (hub, aggregation SSOT) → eisenhower-matrix (classifier view) → Q1..Q4 → Do/Schedule/Delegate/Eliminate
+Grafo: [forge+anima] → eisenhower-matrix → probes → Prisma → quadrants → AAA → work-compass/morning-briefing/quiesce
+Mind-map: centro Eisenhower → 4 quadrantes → AAA rigor → --scope/--sort params
+```
 
-## Validation
+## Gates
 
-- **Self-test:** `Q1` contains `MERGEABLE PR` when fixture has one; `Q4` suppressed unless `--include=all`; `HUMAN_DOMAIN` never auto-acts (printed command only); same input → same order (determinism); missing provider → `unavailable` not crash.
-- **Dogfood:** run on `maos 528fb42` + `eko-engram 0402d3a` — expect `Q1: gh:365`, `Q2: VKS-2105 + pipefish`, `Q4: (hidden)`.
-- **Anti-theater 8Q + rule-quality-tests 6** gate at step 5.
+- `scope-discipline` 6Q: WHERE=user-skill (multi-agent-os) · DRY=gap-confirmed (harmonize, not duplicate) · WHY=Triple-touch · WHO=amnesic agents · FITS=work-visibility family · MIN=Goldilocks (skill+thin command).
+- `anti-theater` 8Q: REALITY 8/8 (no invented pendency; every row probe-verifiable)
+- `rule-quality-tests` 6/6: Self-Application PASS (skill classifies own v0.2.0 as Q2 until dogfood) etc.
+- `harmonic` L8: no conflict with work-compass v1.2, morning-briefing, twg, quiesce.
 
-## Anima naming note (sovereign)
+## Anima naming — delegate scorecard (Prisma)
 
-Candidate slate (12 correctness + 4 resonance scored; agent-register):
-- `eisenhower-matrix` — 12/12 correctness (exact 4Q, Eisenhower canonical, matrix matches Q1→Q4), token 2, zero collision (no `eisenhower-*` skill), family `*-matrix` distinct from `work-compass` compass — **chosen**.
-- `priority-compass` — rejected (family collision with `work-compass`, `priority` vague vs `urgent×important`).
-- `pendency-atlas` — rejected (human-warm, violates agent-economy token-frugal).
-Recorded: `artifact-registry record --kind name --slug eisenhower-matrix --type skill`.
+Per `anima` 12+4 (agent register → 12 only), `Prisma` composed on tie `pendency-atlas` vs `eisenhower-matrix`:
 
-## See also
+| Candidate | Taxonomy | Semantics | Ontology | Etymology | Epistemology | Scope | Gloss-indep | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| **eisenhower-matrix** | fits work-visibility family | says urgency×importance | matrix (tool) | Eisenhower real 1954 | already known as Eisenhower | durable | PASS (matrix anchor) | **WINNER** 0.94 |
+| pendency-atlas | family ok but atlas=nav | says pendency not prioritization | atlas (place) | pendency Latin | drift from operator wording | too broad | FAIL (needs gloss) | rejected |
 
-- `work-compass` (aggregation SSOT this composes)
-- `quiesce` (session quiescence predicate C1–C3 invariants)
-- `gap-loop` (harness-agnostic convergence loop, derived score)
-- `morning-briefing` (7-section SitRep, cold-start capable)
+Confidence 0.94 (research_coverage 0.98 × aspect_fit 0.96). Standing authority `[C-naming]` autonomous.
+
+## Forge decision — why skill+command not plugin
+
+Router: `prompt` no · `agent` no · `rule` no · `mcp` no · `plugin` YAGNI (bundle ≥2 not needed) · `skill+command` YES (recurring workflow w/ params, portable AAIF). Path `skills/eisenhower-matrix/SKILL.md` + `commands/eisenhower-matrix.md`.
+
+## Usage
+
+```bash
+eisenhower-matrix --scope=current --sort=Eisenhower
+eisenhower-matrix --scope=current --sort=Eisenhower --format=human --lang=pt-br
+eisenhower-matrix --scope=project --sort=Prisma --include=all --json | jq .result.quadrants.Q1
+work-compass --scope=current --sort=Eisenhower  # alias hub (SSOT impl)
+```
+
+## §Quality Tests (6/6 self-dogfood)
+
+1. Self-Application: applied to itself → Q2 Schedule (dogfood pending) ✅
+2. Non-Contradiction: composes with work-compass, does not duplicate twg/morning-briefing ✅
+3. Survival: advocates 4 quadrants; it IS 4 quadrants ✅
+4. Bounded: --include=all guard, HUMAN_DOMAIN escalate, DUED ✅
+5. Explicit-Exception: §0 + HUMAN_DOMAIN + --scope override ✅
+6. Utility-Sunset: §DUED ✅
+
+## §DUED Sunset
+
+Deprecate when ANY: host ships native Eisenhower probe (E1) · work-compass absorbs matrix (E6) · operator retraction (E4) · ≥3 false-positive classifications (E5).
+
+## §Refs
+
+- Delegator: `agentic-tool-forge` Phase 4 → `anima` `kb/agentic-tools.md`
+- Prisma: `decompose-abstract-to-measurable` via `aggregate_spec.py`
+- Gates: `scope-discipline-pre-creation` 6Q · `anti-theater-grounding-protocol` 8Q · `rule-quality-tests` 6 · `harmonic-self-conduct-laws` L8
+- Governance: `[C04]` worktree · `pr-review-protocol` · `language-policy-en-pt` · `multi-agent-os` family
+- Cross-link slug: `[[eisenhower-matrix]]`
+
+## Changelog
+
+| Version | Date | Change |
+|---|---|---|
+| 0.2.0 | 2026-08-18 | **Harmonized** — merge Akasha v0.1.0 DNA/Prisma/--format/--lang/B-Tree into multi-agent-os SSOT. Keeps work-compass v1.2 thin-composer, adds --format json-rpc/human + --lang + Prisma + AAA DNA inheritance + B-Tree/Grafo. No duplication. |
+| 0.1.1 | 2026-08-17 | Eisenhower queue --scope/--sort AAA + work-compass v1.2 alias (harmonized) |
+| 0.1.0 | 2026-08-16 | Genesis — forge pipeline 0→9 + anima 12+Prisma + AAA. |
