@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — régua pilot backlog: postflight v0.10.0
+
+- `skills/postflight` v0.10.0 — session-owner discrimination in the git sweep (peer WIP reported,
+  never touched; structural attribution first) + unpushed-own-commits = FAILURE verdict
+  (not DEFER). Version drift (0.9.0 vs 0.8.0) superseded.
+
 ### Added — régua pilot backlog: quiesce v0.3.0 + progressive-disclosure split
 
 - `skills/quiesce` v0.3.0 — 3 rubric conjuncts (loose-end sweep all-worktrees · check
