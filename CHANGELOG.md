@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — eisenhower-matrix v0.2.0 EXECUTABLE + work-compass v1.3.0 (supersedes draft #368)
+
+- `bin/work-compass-aggregate.py` v1.3.0 — the v1.2 spec-only "harmonization" made REAL:
+  Eisenhower classifier (`classify_eisenhower` · `urgency_rank`/`importance_rank` — transparent
+  derived signals) + `--sort [Eisenhower|created|updated|urgent|important]` (case-insensitive)
+  + orthogonal `--pendency-scope [current|session|repo|vault|all]` (resolves the `--scope`
+  flag-name collision with the CPT §9.5 verbs; `vault` → honest `unavailable`, never fabricated)
+  + `--include [pending|all]` + Q1→Q4 ASCII queue render / quadrants `--json` envelope.
+  Default invocation byte-identical (backward compat). 92 stdlib tests (16 new). Dogfooded live
+  (repo scope: 49 rows; Q1 = open PRs + dirty worktrees).
+- `skills/eisenhower-matrix` v0.2.0 — classifier-semantics SSOT now backed by code; fixes
+  version drift (0.1.0→commit-v0.1.1), `anima_parent` self-reference (→ `anima`); dogfood
+  cycle 1 real. **Supersedes doc-only PR #368** (its `--sort=Prisma`/`--format`/`--lang`/
+  9-value `--scope` deferred with rationale — YAGNI; its internal 0.4.0-vs-0.2.0 contradiction
+  and `dogfooded-2-cycles` claim over non-existent code are the anti-theater class this closes).
+
+### Added — anima v1.2.0 (360° sweep + sync channel + v1.1.0 port)
+
+- Ported v1.1.0 (standing authority `[C-naming]`, aspects 17-18, `naming_confidence`, §4.5
+  Prisma composition + templates/examples assets) from the user-scope live copy to this SSOT
+  (golden rule: cross-scope copies without a sync channel = drift). §5 raised to the **360°
+  namespace sweep** (local incl. CLI flags · artifact-registry dedup-memory restored ·
+  cross-link slugs · sibling-role adjacency). §Refs sync-channel clause: repo = SSOT,
+  user-scope = live cache, re-sync on bump.
+
+### Added — agentic-tool-forge v1.2.0 (Prisma-grounded create-vs-update)
+
+- Phase-2 `NO_CANDIDATE` ≥50% gate: contested calls (or `--with-prisma`) decompose the intent
+  into a Prisma value-tree, mark leaves D-covered/not, roll up coverage deterministically —
+  evidence instead of eyeball; fast heuristic retained for clear calls (KISS).
+
 ### Added — régua v0.2 dispositions
 
 - `docs/rubrics/v0.2-dispositions-2026-08-18.md` — pilot cycle closed: 5/8 skills fixed

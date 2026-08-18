@@ -1,0 +1,44 @@
+{
+  "meta": {
+    "construct": "fitness of system-name 'eko-pack-index' for the Eko multi-host pack distribution hub",
+    "version": "1.0.0",
+    "structural_form": "additive",
+    "context_lock": {
+      "context": "GitHub repo currently eko-claude-plugins; domain=distribution only; NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator",
+      "purpose": "pick a rename target that is self-explicit, multi-host OK, continuous with legacy, does not imply agentic-tools live in-repo",
+      "priority_focus": "gloss-independence > category-fit > continuity > sayability",
+      "stakeholder": "operator + future amnesic agents scanning ekson73/* repos",
+      "targets": "the candidate system-name slug alone (no README cheat)"
+    }
+  },
+  "thresholds": {"band_high": 0.85, "band_med": 0.65},
+  "nodes": [
+    {"id": "root", "label": "name-fitness", "parents": [], "kind": "branch"},
+    {"id": "self_evidence", "label": "self-evidence", "parents": [{"id": "root", "weight": 0.35}], "kind": "branch"},
+    {"id": "l_elevator", "label": "elevator-without-gloss", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.25, "method": "stranger test: 'pack index' needs gloss", "confidence": 0.9,
+     "anchors": {"positive": "plain clause without glossary → 1.0", "negative": "needs README → 0.0"}},
+    {"id": "l_jargon_stack", "label": "low-jargon-stack", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.15, "raw": "pack+index abstract stack", "method": "abstract non-industry nouns", "confidence": 0.9,
+     "anchors": {"positive": "industry anchor present → ≥0.85", "negative": "only abstract stack → ≤0.2"}},
+    {"id": "category", "label": "category-fit", "parents": [{"id": "root", "weight": 0.25}], "kind": "branch"},
+    {"id": "l_ontology", "label": "index-not-product", "parents": [{"id": "category", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.85, "method": "index signals catalog role", "confidence": 0.85,
+     "anchors": {"positive": "distribution/catalog → ≥0.8", "negative": "product OS → ≤0.2"}},
+    {"id": "l_host_port", "label": "multi-host-ok", "parents": [{"id": "category", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.95, "method": "no host lock", "confidence": 0.95,
+     "anchors": {"positive": "no host lock → 1.0", "negative": "host lock → 0.0"}},
+    {"id": "continuity", "label": "rename-continuity", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
+    {"id": "l_token", "label": "prior-token-kept", "parents": [{"id": "continuity", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "raw": "drops plugin and marketplace/claude signals", "method": "token overlap with eko-claude-plugins", "confidence": 0.99,
+     "anchors": {"positive": "≥1 high-signal prior token → 1.0", "negative": "zero → 0.0"}},
+    {"id": "resonance", "label": "resonance", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_say", "label": "sayability", "parents": [{"id": "resonance", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.7, "method": "short but cold", "confidence": 0.7,
+     "anchors": {"positive": "easy aloud → 0.9", "negative": "hard → 0.2"}},
+    {"id": "risk", "label": "misread-risk", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_monorepo_misread", "label": "not-implies-plugins-in-repo", "parents": [{"id": "risk", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.8, "method": "index less likely monorepo misread", "confidence": 0.7,
+     "anchors": {"positive": "index-only → 0.9", "negative": "monorepo code → 0.2"}}
+  ]
+}

@@ -31,6 +31,9 @@ Usage:
                             [--stale-days N] [--repo owner/name] [--inventory PATH]
                             [--no-jira] [--no-github] [--no-sessions] [--no-git]
                             [--route ID --action ACTION] [--detect-only]
+  pendency view (composes skills/eisenhower-matrix — classifier SSOT):
+  work-compass-aggregate.py --sort Eisenhower [--pendency-scope current|session|repo|vault|all]
+                            [--include pending|all] [--json]
 """
 from __future__ import annotations
 
@@ -702,12 +705,150 @@ def _refs_point_to(it: dict, target_id: str) -> bool:
     return False
 
 
+# ── Eisenhower pendency view (v1.3 — executable surface of skills/eisenhower-matrix) ──
+# Classifier SSOT = skills/eisenhower-matrix (quadrant table + AAA contract); this is
+# its implementation over the aggregated items. Signals are DERIVED (flags set by
+# detect(), age from last_ts, domain) — never self-declared (anti-gaming, anti-theater).
+# NOTE: pendency scoping deliberately does NOT reuse --scope (the CPT §9.5 verbs);
+# it is the orthogonal --pendency-scope flag (flag-name collision resolved v1.3).
+EISENHOWER_SORTS = ("created", "updated", "urgent", "important", "eisenhower")
+PENDENCY_SCOPES = ("current", "session", "repo", "vault", "all")
+INCLUDE_MODES = ("pending", "all")
+
+# time-sensitive regardless of domain: live loss-risk / live claims
+_URGENT_FLAGS = {"worktree-dirty-wip", "job-orphan"}
+# governance / loss / delivery impact
+_IMPORTANT_FLAGS = {
+    "branch-no-PR", "PR-no-ticket", "ticket-no-session", "worktree-no-branch",
+    "session-orphan", "worktree-dirty-wip", "plan-orphan", "stash-forgotten",
+}
+# delivery surfaces: a pending item here is important by construction
+_IMPORTANT_DOMAINS = {"ticket", "process", "worktree"}
+_DONE_STATUSES = {"processed", "superseded", "archived", "merged", "closed", "done"}
+ACTIVE_PR_WINDOW_D = 2.0  # open PR touched <=2d → active convergence (urgent)
+QUADRANT_LABELS = {"Q1": "Do", "Q2": "Schedule", "Q3": "Delegate", "Q4": "Eliminate/Archive"}
+
+
+def urgency_rank(it: dict, ref=None) -> int:
+    """0 none · 1 active-convergence window · 2 live loss-risk/claim (transparent)."""
+    if _URGENT_FLAGS & set(it.get("flags", [])):
+        return 2
+    if it.get("id", "").startswith("pr:") and it.get("domain") == "process":
+        age = days_since(it.get("last_ts"), ref)
+        if age is not None and age <= ACTIVE_PR_WINDOW_D:
+            return 1
+    return 0
+
+
+def importance_rank(it: dict) -> int:
+    """0 none · 1 delivery-surface domain · 2 governance/loss flag (transparent)."""
+    if _IMPORTANT_FLAGS & set(it.get("flags", [])):
+        return 2
+    if it.get("domain") in _IMPORTANT_DOMAINS:
+        return 1
+    return 0
+
+
+def classify_eisenhower(it: dict, ref=None) -> dict:
+    """Q1..Q4 + disposition. Deterministic pure function of flags/age/domain."""
+    u, i = urgency_rank(it, ref), importance_rank(it)
+    q = "Q1" if u and i else "Q2" if i else "Q3" if u else "Q4"
+    return {"quadrant": q, "urgency": u, "importance": i,
+            "disposition": QUADRANT_LABELS[q]}
+
+
+def _is_pending(it: dict) -> bool:
+    return str(it.get("status", "")).lower() not in _DONE_STATUSES
+
+
+def in_pendency_scope(it: dict, scope: str) -> bool:
+    """WHERE the pendency lives (id-prefix), orthogonal to the CPT --scope verbs.
+
+    current = session+repo surfaces · session = host session state · repo = repo state
+    · vault = eko-engram inbox (no collector yet — caller reports unavailable, never
+    fabricates) · all = everything (incl. external jira:)."""
+    if scope == "all":
+        return True
+    if scope == "vault":
+        return False
+    prefixes = {
+        "session": ("session:", "codex-session:", "job:", "plan:"),
+        "repo": ("branch:", "worktree:", "pr:", "gh:", "stash:"),
+    }
+    if scope == "current":
+        prefixes["current"] = prefixes["session"] + prefixes["repo"]
+    return it.get("id", "").startswith(prefixes.get(scope, ()))
+
+
+def build_pendency_view(items: list[dict], scope: str, include: str,
+                        unavailable: list[str], ref=None) -> dict:
+    """Filter → classify → Q1..Q4 buckets (the eisenhower-matrix payload)."""
+    if scope == "vault":
+        unavailable = unavailable + ["vault: no eko-engram collector (deferred — YAGNI)"]
+    rows = [it for it in items if in_pendency_scope(it, scope)]
+    if include == "pending":
+        rows = [it for it in rows if _is_pending(it)]
+    quadrants: dict[str, list[dict]] = {q: [] for q in ("Q1", "Q2", "Q3", "Q4")}
+    for it in sorted(rows, key=lambda x: x["id"]):  # deterministic base order
+        c = classify_eisenhower(it, ref)
+        quadrants[c["quadrant"]].append({
+            "id": it["id"], "title": it["title"][:60], "domain": it["domain"],
+            "age_d": round(days_since(it.get("last_ts"), ref) or -1.0, 1),
+            "source": it.get("source", ""), "flags": it.get("flags", []),
+            **c,  # quadrant, urgency, importance, disposition (AAA evidence)
+        })
+    next_up = None
+    for q in ("Q1", "Q2", "Q3", "Q4"):
+        if quadrants[q]:
+            next_up = f"{q} {quadrants[q][0]['id']}"
+            break
+    return {"quadrants": quadrants, "next_action": next_up,
+            "meta": {"pendency_scope": scope, "include": include,
+                     "count": sum(len(v) for v in quadrants.values()),
+                     "unavailable": unavailable}}
+
+
+def render_pendency_ascii(view: dict, ascii_only: bool = False) -> str:
+    out = ["🧭 work-compass — Eisenhower pendency queue" if not ascii_only
+           else "work-compass — Eisenhower pendency queue"]
+    m = view["meta"]
+    out.append(f"scope: {m['pendency_scope']}  include: {m['include']}  "
+               f"rows: {m['count']}")
+    for diag in m.get("unavailable", []):
+        out.append(f"  ⚠ {diag}" if not ascii_only else f"  [!] {diag}")
+    out.append("─" * 70)
+    for q, label in QUADRANT_LABELS.items():
+        rows = view["quadrants"][q]
+        out.append(f"{q} {label} ({len(rows)})" if rows else f"{q} {label} (0)")
+        for r in rows:
+            flags = (" · " + ",".join(r["flags"])) if r["flags"] else ""
+            age = f"{r['age_d']:.0f}d" if r["age_d"] >= 0 else "?"
+            out.append(f"  ├─ {r['id']}  {r['title']}{flags}  [{age}]")
+    out.append("─" * 70)
+    if view["next_action"]:
+        out.append(f"next: {view['next_action']} — disposition per row; "
+                   "writes are operator-gated (--route prints commands, never executes)")
+    return "\n".join(out) + "\n"
+
+
+PENDENCY_SORT_KEYS = {
+    "created":   lambda it, ref: it["id"],                       # id-order (deterministic; no created_ts probe)
+    "updated":   lambda it, ref: (-(days_since(it.get("last_ts"), ref) or -1.0), it["id"]),
+    "urgent":    lambda it, ref: (-urgency_rank(it, ref), it["id"]),
+    "important": lambda it, ref: (-importance_rank(it), it["id"]),
+    "eisenhower": lambda it, ref: (classify_eisenhower(it, ref)["quadrant"],
+                                   -urgency_rank(it, ref), -importance_rank(it), it["id"]),
+}
+
+
 # ── graph assembly ───────────────────────────────────────────────────────────────
 def build_graph(items: list[dict], scope: str, node_id: str | None,
-                unavailable: list[str]) -> dict:
+                unavailable: list[str], sort_key=None) -> dict:
     items = apply_scope(items, scope, node_id)
+    order = sort_key if sort_key is not None else (lambda x: x["id"])  # deterministic
+    ordered = sorted(items, key=order)
     by_domain: dict[str, list[dict]] = {d: [] for d in DOMAINS}
-    for it in sorted(items, key=lambda x: x["id"]):  # deterministic order
+    for it in ordered:
         by_domain.setdefault(it["domain"], []).append(it)
     candidate_count = sum(1 for it in items if it["flags"])
     domains_present = sum(1 for d in DOMAINS if by_domain.get(d))
@@ -721,7 +862,7 @@ def build_graph(items: list[dict], scope: str, node_id: str | None,
             "generated_utc": now_utc().isoformat(),
         },
         "by_domain": by_domain,
-        "items": sorted(items, key=lambda x: x["id"]),
+        "items": ordered,
     }
 
 
@@ -770,6 +911,16 @@ def main(argv: list[str] | None = None) -> int:
         ap.add_argument(f"--no-{_name}", action="store_true", help=f"skip the {_name} collector")
     ap.add_argument("--detect-only", action="store_true",
                     help="print only the flagged candidates")
+    # pendency view (composes skills/eisenhower-matrix — orthogonal to the CPT --scope verbs)
+    ap.add_argument("--sort", choices=EISENHOWER_SORTS, default="created",
+                    type=str.lower,
+                    help="row order: created(id) | updated | urgent | important | Eisenhower (Q1→Q4 queue)")
+    ap.add_argument("--pendency-scope", choices=PENDENCY_SCOPES, default=None,
+                    type=str.lower,
+                    help="filter WHERE pendencies live: current|session|repo|vault|all "
+                         "(vault: no collector yet → unavailable, never fabricated)")
+    ap.add_argument("--include", choices=INCLUDE_MODES, default="all", type=str.lower,
+                    help="pending = unresolved only (Q4 done/archived suppressed) · all")
     ap.add_argument("--route", default=None, help="node id to route (prints suggested command)")
     ap.add_argument("--action", default=None,
                     help="route action: open|recap|delegate|pause|stop|delete")
@@ -777,6 +928,19 @@ def main(argv: list[str] | None = None) -> int:
 
     items, unavailable = aggregate(args)
     detect(items, args.stale_days)
+
+    # pendency view path (any pendency flag ⇒ the Eisenhower queue surface). Default
+    # invocation (no pendency flags) keeps the N-Tree path byte-identical (backward compat).
+    pendency_view = (args.sort == "eisenhower" or args.pendency_scope is not None
+                     or args.include == "pending")
+    if pendency_view and not args.route and not args.detect_only:
+        scope = args.pendency_scope or "current"  # skill default: --scope=current
+        view = build_pendency_view(items, scope, args.include, unavailable)
+        if args.json:
+            print(json.dumps(view, ensure_ascii=False, indent=2))
+        else:
+            sys.stdout.write(render_pendency_ascii(view, ascii_only=args.ascii_only))
+        return 0
 
     # delegation-router path (read-only: prints a command, never executes)
     if args.route:
@@ -787,7 +951,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(route(node, args.action), ensure_ascii=False, indent=2))
         return 0
 
-    graph = build_graph(items, args.scope, args.node, unavailable)
+    # N-Tree path — --sort re-orders rows (default created = id order, unchanged)
+    graph = build_graph(items, args.scope, args.node, unavailable,
+                        sort_key=(None if args.sort == "created"
+                                  else lambda it: PENDENCY_SORT_KEYS[args.sort](it, None)))
 
     if args.detect_only:
         cands = [it for it in graph["items"] if it["flags"]]
