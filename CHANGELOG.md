@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — régua v0.2 dispositions
+
+- `docs/rubrics/v0.2-dispositions-2026-08-18.md` — pilot cycle closed: 5/8 skills fixed
+  (#355-#360), 2 with recorded dispositions (morning-briefing = version-sync port 1.0.0→1.7.x;
+  praxis-audit C1 migrates). Golden rule: cross-scope skill copies without a sync channel = drift.
+
 ### Added — régua pilot backlog: directive-braindump-triage v1.1.0
 
 - `skills/directive-braindump-triage` v1.1.0 — banner↔ledger-row atomicity (one without the
