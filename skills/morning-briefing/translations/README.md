@@ -30,8 +30,8 @@ prompt instruction in the same target language.
 - **Flat key-value structure** — no nesting (yq + awk-fallback compatibility).
 - **All bundles must have the SAME KEY SET** as `en-us.yml`. Missing keys
   cause fallback to en-us per-key (graceful degradation).
-- **PRESERVE strings** (currently `branch`, `worktrees`) keep the en-US value
-  in ALL bundles. They appear here for grep-stability, not translation.
+- **PRESERVE strings** (currently `branch`, `worktrees`, `pulse`) keep the en-US
+  value in ALL bundles. They appear here for grep-stability, not translation.
 - **Encoding**: UTF-8. Special characters (acentos, ç, ñ, kanji, etc.) OK.
 - **Quotes**: Double-quote all string values for yq robustness.
 
