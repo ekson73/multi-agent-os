@@ -32,12 +32,15 @@ metadata:
 
 # Eisenhower Matrix — pendency queue (AAA)
 
-> Thin **composer + classifier + sorter**. Reuses `work-compass` for aggregation
-> (Jira/GH issues, PRs, worktrees/branches/stashes, sessions, inbox `status:raw`),
-> adds only what that family lacks: an **Eisenhower classifier** (`urgent × important`)
+> Thin **classifier + sorter + alias**. Reuses `work-compass` aggregation SSOT
+> (Jira/GH/PRs/worktrees/branches/stashes/sessions/inbox `status:raw`),
+> adds only **Eisenhower Q1→Q4** (`urgent × important` Do/Schedule/Delegate/Eliminate)
 > with **AAA rigor** (`Accuracy·Auditability·Accountability`) and a
-> **`--scope` / `--sort` surface** that emits an **ordenada Q1→Q4** list.
-> Composes — reimplements nothing. Cross-link slug: `[[eisenhower-matrix]]`.
+> **`--scope` / `--sort` alias surface** (`eisenhower-matrix --scope=current` →
+> `work-compass --scope=current --sort=Eisenhower`). Composes — reimplements nothing.
+> **v1.2 harmonized:** `work-compass --sort=Eisenhower` is the SSOT implementation;
+> this skill is the **discoverable alias + classifier SSOT** (no duplication, pr-pdca-loop).
+> Cross-link slug: `[[eisenhower-matrix]]`.
 
 ## §0 — BEING > Rules
 
@@ -88,20 +91,19 @@ Derived from Eisenhower / Covey best practice (external: Eisenhower Matrix — `
 | **Auditability** | Traceable to evidence | Row carries `source` (`gh:359` `twg:VKS-2105` `git:worktree:pipefish` `inbox:2026-08-14-gauntlet-loop`) + `probe cmd`. |
 | **Accountability** | Clear disposition | Row carries `disposition` (`Do/Schedule/Delegate/Eliminate` + `defer` rationale + `HUMAN_DOMAIN` flag). |
 
-## Topology + composition (DRY / KISS / YAGNI)
+## Topology + composition (DRY / KISS / YAGNI) — harmonized v1.2
 
-**Hub-and-spoke, parallel fan-out, sequential classify+sort:**
+**Work-compass is the hub; Eisenhower is a view:**
 
 ```
-intake --scope/--sort → parallel probe (capability-detected, stdlib-only):
-  work-compass producers: git worktree list --porcelain
-                          git branch -vv
-                          gh pr list --state open --json
-                          gh issue list
-                          twg workitem query (if acli/twg present)
-                          grep -R "status: raw" resources/theca/_inbox/*.braindump.md
-→ normalize → Eisenhower classify (urgent×important) → sort Q1→Q4 → render
+intake eisenhower-matrix --scope/--sort → delegates to:
+  work-compass --scope=<scope> --sort=Eisenhower --json
+    → parallel probe (capability-detected, stdlib-only):
+        git worktree list --porcelain | branch -vv | gh pr/issue | twg | grep status: raw
+    → normalize → Eisenhower classify (urgent×important) Q1→Q4 → render markdown/json
 ```
+
+Alias path (YAGNI/KISS): one classifier, two surfaces (`work-compass --sort` + `eisenhower-matrix`). No duplicate probe code.
 
 **Composes (reuses) / net-new:**
 
