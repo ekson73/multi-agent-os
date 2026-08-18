@@ -20,10 +20,10 @@ triggers:
   - converta isto em uma ferramenta
   - research then build the best tool
   - which artifact type should this be
-version: 1.1.0
+version: 1.1.1
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task, Skill
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   scope: AAIF cross-vendor
   family: agentic-tool-lifecycle
   lifecycle-stage: forge
@@ -44,7 +44,9 @@ The forge **orchestrates existing assets, it does not reinvent them**: it reuses
 - A workflow/intent has recurred (≥3× — Triple-touch) and deserves codification.
 - You need to decide *which artifact type* an intent should become.
 
-**When NOT to use**: improving an existing tool (→ `agentic-tool-trainer`); scoring/QA a tool (→ `agentic-tool-evaluator`); validating a *rule* for self-consistency (→ `rule-quality-tests`); just wanting better-worded prose for one turn (write the prompt inline). If an existing tool already covers ≥50% of the intent → the forge tells you to EXTEND it, not create a new one.
+**When NOT to use**: improving an existing tool (→ `agentic-tool-trainer`); scoring/QA a tool (→ `agentic-tool-evaluator`); validating a *rule* for self-consistency (→ `rule-quality-tests`); a messy/unstructured braindump that needs the REFINE+RED-TEAM discipline but is meant to become ONE executable prompt, not a recurring reusable tool (→ `refine-braindump-to-prompt`); one clear sentence already states the task (write the prompt inline). If an existing tool already covers ≥50% of the intent → the forge tells you to EXTEND it, not create a new one.
+
+> ⚠️ **Boundary vs `refine-braindump-to-prompt` (Lapidary).** That skill's `--output-target=agentic-tool:{skill|command|agent|...}:<path>` sink can WRITE prompt-content directly into an agentic-tool's body — but it does **not** run this forge's dedup/naming/type-decision/invocation-surface-gate/DNA-geracional-inheritance/artifact-registry-record. It is for refining content into an artifact whose type+name+path+creation-governance are already resolved (or for updating an existing artifact's prose) — **not** a substitute for genesis. Casting a braindump into a NEW reusable tool should route through `transmute`'s cast router (`cast:agentic-tool` → this forge), or invoke this skill directly; do not reach for Lapidary's sink to skip these gates.
 
 ## §0 — BEING > Rules (foundational)
 This skill serves the operator's intent. If any phase/gate obstructs delivering value NOW, skip it, log `Skipped <phase> — BEING > Rules`, and proceed. The gates are for quality, never for ritual. HUMAN_DOMAIN (secrets · PII · irreversibles · cross-org · cost) → escalate, never auto-act.
@@ -148,6 +150,7 @@ Deprecate when ANY: the lifecycle family absorbs forge into a unified `agentic-t
 
 ## §Refs
 - Lifecycle siblings (co-located): `skills/agentic-tool-evaluator`, `skills/agentic-tool-trainer`, shared `protocols/agentic-tool-lifecycle.md`.
+- Peer at the same decision point (braindump → one prompt, not a tool): `skills/refine-braindump-to-prompt` (soul-name Lapidary) — see the boundary note under "When NOT to use". Routed to by the general N×M conductor `skills/transmute` (Proteus) for any `cast:agentic-tool` target.
 - Reused methodology: `agents/forge.md` (Goldilocks · RBAD · 33-Socratic) · best-fit routing/scoring · `debate-converge`/`converge`.
 - Gates: `rule-quality-tests` (6 tests, co-located) · host pre-creation scope-discipline (6Q) + anti-theater grounding (8Q), if present · pre-decision 4-lens audit, if present.
 - Governance: the host's worktree+PR governance (e.g. worktree-policy + hierarchical-merge here; `[C04]`/`pr-review-protocol` in user-scope hosts).
@@ -156,6 +159,7 @@ Deprecate when ANY: the lifecycle family absorbs forge into a unified `agentic-t
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 1.1.1 | 2026-08-18 | **Boundary vs `refine-braindump-to-prompt` (Lapidary) + closed one-directional cross-ref gap.** Comparative audit (`refine-braindump-to-prompt` vs the `agentic-tool-*` family) found Lapidary named this forge as a hand-off target 3× (its "When NOT to use", its output-target orthogonality note, its "Relationship to siblings" table) while this forge never referenced Lapidary back nor distinguished itself from Lapidary's own `--output-target=agentic-tool:*` sink — which can write directly into a skill/command/agent's body WITHOUT this forge's dedup/naming/type-decision/invocation-surface-gate/DNA-geracional-inheritance/artifact-registry-record, risking the exact skill-without-`/`-wrapper regression this forge's own v1.1.0 was built to prevent. Fixes: (1) replaced the stale "just wanting better-worded prose for one turn (write the prompt inline)" hand-off with an explicit route to `refine-braindump-to-prompt` for the messy-braindump-needing-REFINE+RED-TEAM-but-not-a-recurring-tool case; (2) added a boundary note under "When NOT to use" naming Lapidary's sink and what it does NOT run; (3) added Lapidary + `transmute` (the conductor that correctly delegates any `cast:agentic-tool` to this forge, confirmed via its own Cast-router table) to §Refs. Non-fixed, flagged finding (out of scope for this PATCH, enqueued): `agentic-tool-pipeline` (v0.1.0) and `transmute` (v0.2.0) are both self-described "thin conductors that compose forge/intake/evaluator/trainer and reimplement nothing," with zero mutual cross-reference — likely organic-growth redundancy warranting its own dedicated investigation before any merge/deprecation. Zero behavioral change to the pipeline itself (docs/boundary-completeness only). |
 | 1.1.0 | 2026-06-18 | **Invocation-surface gate** (new § after Type-decision router) — elevates the wrapper from a passive *mention* ("optional", "when both invocation styles are wanted") to an explicit **gate + author-step check**, separating the orthogonal axes WHAT-the-tool-is (type) vs HOW-it's-fired (surface). Rule: a `skill`/`agent` meant to be human-`/slash`-invokable MUST ship `commands/<name>.md` in the same deliverable; skill-without-wrapper = auto-trigger/`plugin:name`-only, so `/name` does nothing. Wires the gate into phase 3 (decide) + phase 7 (forge, wrapper-check gotcha). Root-cause fix for an empirical skill-landed-slash-less miss (the `/name`-never-appeared symptom). DRY: lives inside the genesis skill (SSOT), not a new rule/memory. Stale user-scope copy (`~/.claude/skills/agentic-tool-forge` v0.1.1) should re-sync from this SSOT — not edited in parallel. |
 | 1.0.0 | 2026-05-30 | **Promoted user-scope → multi-agent-os (community).** Graduated from the user-scope bootstrap (v0.1.x) into the `agentic-tool-lifecycle` family on the framework repo, reuniting `forge` with its already-landed siblings (`agentic-tool-evaluator` + `agentic-tool-trainer` + `protocols/agentic-tool-lifecycle.md`, PR #98). Refinements at promotion: dropped Apache-2.0 license (inherits repo MIT); genericized user-scope path/gate refs (host-relative + "if present"); repointed §Refs at co-located siblings. Dogfood-cycle counter waived (was theater per the dogfood-cycle-ledger finding); validation-by-use evidence: self-evaluated via evaluate→train (v0.1.1). |
 | 0.1.1 | 2026-05-30 | **Lifecycle dogfood (evaluate→train).** Ran `agentic-tool-evaluator` (PASS-with-FLAGs, 4-4-4-5-4) + `agentic-tool-trainer` (improve mode) on this skill itself. Applied 5 Pareto-safe fixes: (1) `.gitignore` force-add gotcha in phase 7; (2) `--json` machine envelope; (3) MCP-tools-via-ToolSearch note; (4) `prompt`/`marketplace` rare→escalate footnote; (5) write-time worktree→PR governance in phase 8. |
