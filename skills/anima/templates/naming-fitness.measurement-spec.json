@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "construct": "fitness of system-name '<CANDIDATE>' for <REFERENT>",
+    "version": "1.0.0",
+    "structural_form": "additive",
+    "context_lock": {
+      "context": "<bind object class: hub|skill|db|path|server|…; audience; register>",
+      "purpose": "<why this name is being chosen>",
+      "priority_focus": "gloss-independence > semantics > category-fit > continuity > collision",
+      "stakeholder": "<who must understand the slug alone>",
+      "targets": "the candidate system-name alone (no README cheat)"
+    }
+  },
+  "thresholds": {"band_high": 0.85, "band_med": 0.65},
+  "nodes": [
+    {"id": "root", "label": "name-fitness", "parents": [], "kind": "branch"},
+    {"id": "self_evidence", "label": "self-evidence", "parents": [{"id": "root", "weight": 0.30}], "kind": "branch"},
+    {"id": "l_elevator", "label": "elevator-without-gloss", "parents": [{"id": "self_evidence", "weight": 0.55}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "method": "stranger test one plain clause", "confidence": 0.9,
+     "anchors": {"positive": "clause matches roots without glossary → 1.0", "negative": "needs README → 0.0"}},
+    {"id": "l_jargon", "label": "industry-anchor", "parents": [{"id": "self_evidence", "weight": 0.45}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "method": "class-appropriate industry anchor present", "confidence": 0.9,
+     "anchors": {"positive": "anchor present → ≥0.85", "negative": "only abstract stack → ≤0.2"}},
+    {"id": "semantics", "label": "semantics", "parents": [{"id": "root", "weight": 0.25}], "kind": "branch"},
+    {"id": "l_role", "label": "says-role-or-referent", "parents": [{"id": "semantics", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "method": "name encodes role/object", "confidence": 0.9,
+     "anchors": {"positive": "role-typed → 1.0", "negative": "helper/util opaque → 0.0"}},
+    {"id": "category", "label": "category-fit", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
+    {"id": "l_ontology", "label": "right-kind-of-being", "parents": [{"id": "category", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "method": "marketplace≠product; table≠view; skill≠agent", "confidence": 0.85,
+     "anchors": {"positive": "correct category → ≥0.85", "negative": "wrong category → ≤0.2"}},
+    {"id": "continuity", "label": "continuity", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_token", "label": "prior-token-or-na", "parents": [{"id": "continuity", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "method": "rename continuity or greenfield N/A", "confidence": 0.9,
+     "anchors": {"positive": "kept token or greenfield → 1.0", "negative": "dropped all → 0.0"}},
+    {"id": "collision", "label": "collision", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_free", "label": "namespace-free", "parents": [{"id": "collision", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.0, "method": "gh/npm/local grep", "confidence": 0.95,
+     "anchors": {"positive": "free → 1.0", "negative": "taken → 0.0"}},
+    {"id": "resonance", "label": "resonance", "parents": [{"id": "root", "weight": 0.05}], "kind": "branch"},
+    {"id": "l_say", "label": "sayability", "parents": [{"id": "resonance", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.5, "method": "EN+PT pronounce; downweight for pure machine", "confidence": 0.6,
+     "anchors": {"positive": "easy → 0.9", "negative": "hard → 0.2"}}
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "construct": "fitness of system-name 'eko-plugin-marketplace' for the Eko multi-host pack distribution hub",
+    "version": "1.0.0",
+    "structural_form": "additive",
+    "context_lock": {
+      "context": "GitHub repo currently eko-claude-plugins; domain=distribution only (marketplace/registry pointers); NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator; register=human+agent",
+      "purpose": "pick a rename target that is self-explicit, multi-host OK, continuous with legacy, does not imply agentic-tools live in-repo",
+      "priority_focus": "gloss-independence > category-fit > continuity > sayability",
+      "stakeholder": "operator + future amnesic agents scanning ekson73/* repos",
+      "targets": "the candidate system-name slug alone (no README cheat)"
+    }
+  },
+  "thresholds": {"band_high": 0.85, "band_med": 0.65},
+  "nodes": [
+    {"id": "root", "label": "name-fitness", "parents": [], "kind": "branch"},
+
+    {"id": "self_evidence", "label": "self-evidence", "parents": [{"id": "root", "weight": 0.35}], "kind": "branch"},
+    {"id": "l_elevator", "label": "elevator-without-gloss", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.95, "method": "stranger test: slug alone → 'Eko plugin marketplace'", "confidence": 0.9,
+     "anchors": {"positive": "plain clause matches roots without glossary → 1.0", "negative": "needs README to decode → 0.0"}},
+    {"id": "l_jargon_stack", "label": "low-jargon-stack", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.9, "raw": "plugin+marketplace=industry anchors", "method": "count abstract non-industry nouns", "confidence": 0.9,
+     "anchors": {"positive": "≥1 industry anchor (plugin/marketplace/registry) → ≥0.85", "negative": "only abstract stack (pack-index) → ≤0.2"}},
+
+    {"id": "category", "label": "category-fit", "parents": [{"id": "root", "weight": 0.25}], "kind": "branch"},
+    {"id": "l_ontology", "label": "index-not-product", "parents": [{"id": "category", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.8, "method": "marketplace implies catalog/store role not OS curriculum", "confidence": 0.85,
+     "anchors": {"positive": "name signals distribution/catalog → ≥0.8", "negative": "signals agents/skills/OS product → ≤0.2"}},
+    {"id": "l_host_port", "label": "multi-host-ok", "parents": [{"id": "category", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.85, "method": "no claude/cursor lock token", "confidence": 0.95,
+     "anchors": {"positive": "no single-host lock → 1.0", "negative": "claude-/cursor- lock → 0.0"}},
+
+    {"id": "continuity", "label": "rename-continuity", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
+    {"id": "l_token", "label": "prior-token-kept", "parents": [{"id": "continuity", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "raw": "keeps 'plugin' from eko-claude-plugins", "method": "token overlap with prior name", "confidence": 0.99,
+     "anchors": {"positive": "≥1 high-signal prior token → 1.0", "negative": "zero overlap → 0.0"}},
+
+    {"id": "resonance", "label": "resonance", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_say", "label": "sayability", "parents": [{"id": "resonance", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.75, "method": "EN+PT pronounce; 4 tokens kebab", "confidence": 0.7,
+     "anchors": {"positive": "easy aloud first try → 0.9", "negative": "ambiguous cluster → 0.2"}},
+
+    {"id": "risk", "label": "misread-risk", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_monorepo_misread", "label": "not-implies-plugins-in-repo", "parents": [{"id": "risk", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "J", "value": 0.7, "method": "marketplace can mean store-of-refs; residual monorepo misread", "confidence": 0.65,
+     "anchors": {"positive": "clearly index-only to peers → 0.9", "negative": "reads as monorepo of plugin code → 0.2"}}
+  ]
+}

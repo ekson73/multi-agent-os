@@ -1,0 +1,40 @@
+{
+  "meta": {
+    "construct": "fitness of system-name 'bitbucket-pipeline-watch' for a MAOS skill that polls BB pipelines and reports status",
+    "version": "1.0.0",
+    "structural_form": "additive",
+    "context_lock": {
+      "context": "multi-agent-os skill; agent-register; family maos skills; already exists in corpus as control",
+      "purpose": "validate Anima∘Prisma on agentic-tool class (not only hub renames)",
+      "priority_focus": "semantic role-type > family fit > gloss",
+      "stakeholder": "amnesic agents selecting skills by name+description",
+      "targets": "candidate skill system-name"
+    }
+  },
+  "thresholds": {"band_high": 0.85, "band_med": 0.65},
+  "nodes": [
+    {"id": "root", "label": "name-fitness", "parents": [], "kind": "branch"},
+    {"id": "semantics", "label": "semantics", "parents": [{"id": "root", "weight": 0.40}], "kind": "branch"},
+    {"id": "l_says_what", "label": "says-what-it-does", "parents": [{"id": "semantics", "weight": 0.6}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.95, "method": "bitbucket+pipeline+watch = vendor+object+verb", "confidence": 0.95,
+     "anchors": {"positive": "role-typed verb-noun clear → 1.0", "negative": "helper/util → 0.0"}},
+    {"id": "l_gloss", "label": "gloss-independence", "parents": [{"id": "semantics", "weight": 0.4}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.9, "method": "elevator without glossary", "confidence": 0.9,
+     "anchors": {"positive": "clear first read → 1.0", "negative": "opaque → 0.0"}},
+    {"id": "family", "label": "family-fit", "parents": [{"id": "root", "weight": 0.30}], "kind": "branch"},
+    {"id": "l_kebab", "label": "kebab-agent-register", "parents": [{"id": "family", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "method": "kebab-case ≤6 tokens", "confidence": 0.99,
+     "anchors": {"positive": "valid agent-register form → 1.0", "negative": "invalid → 0.0"}},
+    {"id": "l_no_person", "label": "no-personal-name", "parents": [{"id": "family", "weight": 0.5}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "method": "no operator PII in name", "confidence": 0.99,
+     "anchors": {"positive": "role-only → 1.0", "negative": "emilson-* → 0.0"}},
+    {"id": "scope", "label": "scope", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
+    {"id": "l_vendor", "label": "vendor-in-name-ok", "parents": [{"id": "scope", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 0.85, "method": "bitbucket is true vendor scope of skill", "confidence": 0.9,
+     "anchors": {"positive": "vendor lock iff skill is vendor-specific → 0.9", "negative": "false host lock → 0.2"}},
+    {"id": "collision", "label": "collision", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
+    {"id": "l_exists", "label": "known-in-corpus", "parents": [{"id": "collision", "weight": 1.0}], "kind": "leaf",
+     "leaf_type": "T", "value": 1.0, "raw": "exists as maos skill — control PASS for fitness of existing good name", "method": "corpus presence as positive control", "confidence": 0.95,
+     "anchors": {"positive": "name already correctly used → 1.0", "negative": "collides wrong tool → 0.0"}}
+  ]
+}

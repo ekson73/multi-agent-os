@@ -12,7 +12,7 @@ description: |
   de trabalho", "o que está parado/órfão". Read-only by default; every write/pause/stop/
   delete is operator-gated (prints a command, never executes). Capability-detected
   (git/gh/acli optional), stdlib-only, cross-vendor (AAIF).
-prompt_version: "1.1.0"
+prompt_version: "1.3.0"
 type: skill
 spec: AAIF / agentskills.io
 applicable_hosts: [Claude Code, Cursor, GitHub Copilot, Aider, any AAIF-compliant agent]
@@ -113,9 +113,9 @@ bin/work-compass-aggregate.py --format=mermaid
 | `--route <id> [--action A]` | print a reviewable routing command (read-only) |
 | `--no-jira / --no-github / --no-sessions / --no-git` | skip a domain |
 | `--repo owner/name` / `--repo-dir <path>` | provider/repo targeting |
-| `--scope [current\|session\|repo\|vault\|all]` | pendency scope filter (v1.2, composes `eisenhower-matrix` classifier) — default `all` for N-Tree, `current` for `--sort=Eisenhower` |
-| `--sort [Eisenhower\|created\|updated\|urgent\|important]` | sorter; `Eisenhower` = Q1→Q4 `urgent×important` (Do/Schedule/Delegate/Eliminate) — default `created` for N-Tree, `Eisenhower` when `--scope=current` via alias |
-| `--json` | also available for Eisenhower view (same Q1→Q4 envelope) |
+| `--sort [Eisenhower\|created\|updated\|urgent\|important]` | sorter (v1.3, composes `eisenhower-matrix` classifier). `Eisenhower` = Q1→Q4 `urgent×important` queue (Do/Schedule/Delegate/Eliminate; case-insensitive). Default `created` = id-order (deterministic; collectors expose no created_ts). Applies to the N-Tree rows AND gates the pendency view |
+| `--pendency-scope [current\|session\|repo\|vault\|all]` | pendency view (v1.3): filter WHERE pendencies live (id-prefix — orthogonal to the CPT `--scope` verbs). `current` = session+repo surfaces · `session` = sessions/jobs/plans · `repo` = branches/worktrees/PRs/issues/stashes · `vault` = eko-engram (no collector → honest `unavailable`) · `all` = everything incl. `jira:*`. Alias surface: `eisenhower-matrix --scope=<v>` |
+| `--include [pending\|all]` | pendency view: `pending` = unresolved only (done/archived suppressed) · `all` = audit view. Any of `--sort=Eisenhower`/`--pendency-scope`/`--include=pending` switches to the pendency-queue render; default invocation keeps the N-Tree byte-identical |
 
 ## The 7 CPT domains (grouping)
 
@@ -164,18 +164,26 @@ CPT §9.5 consumer-contract: verb-membership validation (invalid → diagnostic 
 `current`), determinism (same input+verb → same output), graceful degrade, cross-vendor
 (stdlib). Registered as a consumer alongside morning-briefing / auto-orchestrator.
 
-## Eisenhower priority view (v1.2 — composes `eisenhower-matrix`)
+## Eisenhower priority view (v1.3 — EXECUTABLE; composes `eisenhower-matrix` classifier SSOT)
 
-Thin **Eisenhower extension** — reuses `work-compass` aggregation as SSOT, delegates Q1→Q4 classification to `eisenhower-matrix` (Accuracy·Auditability·Accountability). Activated via `--sort=Eisenhower` (alias `eisenhower-matrix --scope=current --sort=Eisenhower` → `work-compass --scope=current --sort=Eisenhower --json` + classifier). Deterministic, read-only, `HUMAN_DOMAIN` defer (prints `twg`/`gh` dry-run). `Q1 urgent+important Do` / `Q2 Schedule` / `Q3 Delegate` / `Q4 Eliminate` per `eisenhower-matrix` quadrant table. Example:
+The v1.2 section claimed CLI flags that did not exist in code (spec-theater — closed
+by v1.3). Real surface since v1.3:
 
 ```bash
-bin/work-compass-aggregate.py --scope current --sort Eisenhower
-bin/work-compass-aggregate.py --scope current --sort Eisenhower --json
-# alias (same, more discoverable):
-eisenhower-matrix --scope=current --sort=Eisenhower
+bin/work-compass-aggregate.py --sort=Eisenhower --pendency-scope=current --include=pending
+bin/work-compass-aggregate.py --sort=Eisenhower --pendency-scope=repo --include=pending --json
+# skill alias (same, more discoverable): /eisenhower-matrix --scope=current --sort=Eisenhower
 ```
 
-`work-compass` remains N-Tree SSOT; `eisenhower-matrix` remains **classifier SSOT + discoverable alias** — no duplication (KISS/YAGNI, pr-pdca-loop).
+Classifier = pure functions over EXISTING fields (`classify_eisenhower` ·
+`urgency_rank` 0-2 · `importance_rank` 0-2 — transparent derived signals, never
+self-declared). `--json` emits the quadrants envelope
+`{quadrants:{Q1..Q4}, next_action, meta}` (rows carry quadrant·urgency·importance·
+disposition·source·flags·age_d). Read-only preserved; writes stay operator-gated
+(`--route` prints, never executes). `work-compass` remains N-Tree/aggregation SSOT;
+`eisenhower-matrix` remains classifier-semantics SSOT + discoverable alias (no
+duplication — KISS/YAGNI, pr-pdca-loop). Pendency scoping deliberately does NOT
+reuse `--scope` (CPT §9.5 verbs) — orthogonal flag, collision resolved.
 
 ## Deferred (build-on-demand — the 26 blind-spots in `references/work-surface-taxonomy.md`)
 
@@ -215,5 +223,6 @@ composes expose a joint API making aggregation redundant (E6) · operator retrac
 
 | Version | Date | Change |
 |---|---|---|
+| 1.3.0 | 2026-08-18 | **Eisenhower view EXECUTABLE** (composes `eisenhower-matrix` v0.2.0 classifier SSOT). New: `--sort [Eisenhower\|created\|updated\|urgent\|important]` (case-insensitive; `created`=id-order) on the N-Tree path via `build_graph(sort_key=…)`; pendency view path (`--sort=Eisenhower` ∨ `--pendency-scope` ∨ `--include=pending`) renders the Q1→Q4 queue (ASCII house-style) or the quadrants `--json` envelope; classifier = `classify_eisenhower` + `urgency_rank`/`importance_rank` (transparent: urgent-flags `worktree-dirty-wip`/`job-orphan`, PR ≤2d active-convergence window; important-flags + delivery domains) + `in_pendency_scope` (id-prefix: session/jobs/plans vs branches/worktrees/PRs/issues/stashes; `vault` → honest `unavailable`, never fabricated) + `build_pendency_view` + `render_pendency_ascii`. **Fixes v1.2 spec-theater**: v1.2 (PR #367) documented `--scope=[current\|session\|repo\|vault\|all]` + `--sort` that did NOT exist in code and silently overloaded `--scope` (collision with CPT §9.5 verbs) — resolved as orthogonal `--pendency-scope`; v1.2 also shipped without a version bump/changelog row (drift) — folded here. 92 stdlib tests (16 new); dogfooded live (repo scope: 49 rows, Q1 = open PRs + dirty worktree). Backward compat: default invocation byte-identical. |
 | 1.1.0 | 2026-07-10 | Blind-spot extension (Strata — extend, don't reinvent). **Collector registry** refactor (`COLLECTORS` — add-surface = 1 entry, auto-generates `--no-<name>`). **5 new surfaces**: WIP-dirty-inside-worktree (H7, reuses `gbd_tree_state` porcelain), git stashes (`collect_stashes`, H8), plans (`collect_plans`, H9), background jobs (`collect_bg_jobs`, H10), cross-vendor **Codex** sessions (`collect_codex_sessions`). Coverage **~6→~11 surfaces, 5/7→6/7 CPT domains** (`graph-node` filled by plans+stashes, `process` enriched by jobs). New `references/work-surface-taxonomy.md` SSOT (37 surfaces / 6 categories / coverage roadmap). ⛔ `~/openclaw/` detect-only guard (`_is_openclaw`); metadata-only (no file-body leak); read-only preserved. **73 stdlib tests** (was 34); dogfooded live (5288 items full-run, 176 local-only, 6/7 domains, deterministic). Cursor/Copilot/Gemini/Aider + `--depth/breadth/height` + 26 other surfaces deferred (tracked in the taxonomy). |
 | 1.0.0 | 2026-06-13 | Phase-1 bootstrap — aggregator + ASCII/mermaid N-Tree renderer + 6-heuristic detector + read-only delegation-router. Composes inventory-sessions.py + gh + acli + git; reimplements none. 34 stdlib tests; dogfooded on real data (4364 items, 5/7 domains). CPT §9.5 consumer registered. HTML/adapters/ML deferred. |

@@ -341,8 +341,106 @@ def test_new_domains_populated():
     check("new domains: process populated", len(g1["by_domain"]["process"]) == 1)
 
 
+# ── 17. Eisenhower pendency view (v1.3 — composes skills/eisenhower-matrix) ─────
+def test_eisenhower_classifier():
+    dirty = wc.item("worktree:/w/x", "worktree", "x",
+                    refs={"path": "/w/x", "wip_state": "DIRTY"}, flags=["worktree-dirty-wip"])
+    check("eisenhower: dirty-wip worktree → Q1 Do",
+          wc.classify_eisenhower(dirty)["quadrant"] == "Q1")
+    active_pr = wc.item("pr:repo#9", "process", "p", last_ts=_new(), source="gh")
+    check("eisenhower: PR ≤ 2d → Q1 (active convergence)",
+          wc.classify_eisenhower(active_pr)["quadrant"] == "Q1")
+    old_pr = wc.item("pr:repo#8", "process", "p", last_ts=_old(10), source="gh")
+    check("eisenhower: old PR → Q2 Schedule",
+          wc.classify_eisenhower(old_pr)["quadrant"] == "Q2")
+    stale_branch = wc.item("branch:feat/x", "branch", "x", last_ts=_old(10),
+                           flags=["branch-no-PR"])
+    check("eisenhower: stale branch-no-PR → Q2",
+          wc.classify_eisenhower(stale_branch)["quadrant"] == "Q2")
+    quiet = wc.item("session:abc", "session", "s", last_ts=_old(30))
+    check("eisenhower: unflagged session → Q4 Eliminate/Archive",
+          wc.classify_eisenhower(quiet)["quadrant"] == "Q4")
+    check("eisenhower: disposition labels",
+          wc.classify_eisenhower(active_pr)["disposition"] == "Do"
+          and wc.classify_eisenhower(quiet)["disposition"] == "Eliminate/Archive")
+
+
+def test_eisenhower_determinism():
+    items = [
+        wc.item("pr:repo#9", "process", "p", last_ts=_new()),
+        wc.item("branch:b", "branch", "b", last_ts=_old(9), flags=["branch-no-PR"]),
+        wc.item("session:s", "session", "s", last_ts=_old(30)),
+    ]
+    v1 = wc.build_pendency_view([dict(i) for i in items], "all", "all", [], ref=None)
+    v2 = wc.build_pendency_view([dict(i) for i in items], "all", "all", [], ref=None)
+    check("pendency: deterministic (same input → same buckets)",
+          [r["id"] for q in v1["quadrants"].values() for r in q]
+          == [r["id"] for q in v2["quadrants"].values() for r in q])
+
+
+def test_pendency_scope_filter():
+    items = [
+        wc.item("session:s1", "session", "s"),
+        wc.item("codex-session:c1", "session", "c"),
+        wc.item("job:j1", "process", "j"),
+        wc.item("branch:b1", "branch", "b"),
+        wc.item("worktree:/w", "worktree", "w"),
+        wc.item("pr:repo#1", "process", "p"),
+        wc.item("jira:VKS-1", "ticket", "t"),
+    ]
+    ids = lambda scope: sorted(i["id"] for i in items if wc.in_pendency_scope(i, scope))
+    check("pendency-scope: session → host session state",
+          ids("session") == ["codex-session:c1", "job:j1", "session:s1"])
+    check("pendency-scope: repo → repo state",
+          ids("repo") == ["branch:b1", "pr:repo#1", "worktree:/w"])
+    check("pendency-scope: current = session+repo",
+          ids("current") == ["branch:b1", "codex-session:c1", "job:j1",
+                              "pr:repo#1", "session:s1", "worktree:/w"])
+    check("pendency-scope: all → everything incl. jira",
+          ids("all") == sorted(i["id"] for i in items))
+    view = wc.build_pendency_view(items, "vault", "pending", [])
+    check("pendency-scope: vault → empty + unavailable diag (no fabrication)",
+          view["meta"]["count"] == 0
+          and any("vault" in d for d in view["meta"]["unavailable"]))
+
+
+def test_pendency_include_pending():
+    done = wc.item("plan:p.md", "graph-node", "p", status="superseded")
+    open_ = wc.item("plan:q.md", "graph-node", "q", status="unknown")
+    check("include: pending drops superseded", wc._is_pending(done) is False
+          and wc._is_pending(open_) is True)
+    view = wc.build_pendency_view([done, open_], "all", "pending", [])
+    got = [r["id"] for q in view["quadrants"].values() for r in q]
+    check("include: view honors pending filter", got == ["plan:q.md"])
+
+
+def test_pendency_next_action():
+    items = [wc.item("session:s", "session", "s", last_ts=_old(30))]
+    view = wc.build_pendency_view(items, "all", "pending", [])
+    check("pendency: next_action = first non-empty quadrant head",
+          view["next_action"] == "Q4 session:s")
+
+
+def test_sort_flags_and_backcompat():
+    # flag-name collision resolved: --scope (CPT verbs) and --pendency-scope coexist
+    import argparse
+    src = open(wc.__file__, encoding="utf-8").read()
+    check("cli: both --scope and --pendency-scope declared",
+          '--scope", default="current"' in src or '"--scope"' in src
+          and '"--pendency-scope"' in src)
+    check("cli: --sort choices include eisenhower", '"eisenhower"' in src)
+    # backward compat: default build_graph output shape unchanged (id-sorted)
+    items = [wc.item("b:2", "branch", "2"), wc.item("b:1", "branch", "1")]
+    g = wc.build_graph(items, "current", None, [])
+    check("backcompat: default order still id-asc",
+          [i["id"] for i in g["items"]] == ["b:1", "b:2"])
+    g2 = wc.build_graph(items, "current", None, [],
+                        sort_key=lambda it: -wc.importance_rank(it))
+    check("sort: build_graph honors sort_key", "items" in g2 and len(g2["items"]) == 2)
+
+
 def main() -> int:
-    print("test_work_compass — work-compass v1.1.0")
+    print("test_work_compass — work-compass v1.3.0")
     print("=" * 60)
     for fn in [
         test_item_normalization, test_build_graph_deterministic,
@@ -352,6 +450,9 @@ def main() -> int:
         test_collect_plans, test_collect_bg_jobs, test_collect_stashes,
         test_tree_state_and_wip, test_collect_codex,
         test_openclaw_exclusion, test_registry_flags, test_new_domains_populated,
+        test_eisenhower_classifier, test_eisenhower_determinism,
+        test_pendency_scope_filter, test_pendency_include_pending,
+        test_pendency_next_action, test_sort_flags_and_backcompat,
     ]:
         print(f"\n[{fn.__name__}]")
         fn()
