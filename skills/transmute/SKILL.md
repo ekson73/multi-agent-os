@@ -1,6 +1,6 @@
 ---
 name: transmute
-version: "0.2.0"
+version: "0.2.1"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · email · report) through a menu of transformations (comprehend · analyze ·
@@ -65,6 +65,7 @@ every non-entry, per `refine-braindump-to-prompt`'s convention):
 | "what in this dump is already done?" | `directive-braindump-triage` |
 | "ship this feature end-to-end (PR)" | `enhance-pipeline` |
 | "improve an EXISTING tool" | `agentic-tool-trainer` |
+| "conduct the FULL tool-genesis lifecycle (analyze→debate→converge→harmonize→forge→save, fixed discipline)" | `agentic-tool-pipeline` (the genesis **preset**; this skill is the general N×M engine — see § Boundary below) |
 
 **Single-sentence ask, single obvious output → just do it inline.** Destructive ops,
 secrets, prod-irreversible → always `STOP-HITL`.
@@ -239,6 +240,25 @@ graph TD
 **shipped PR**; transmute drives ONE source to **cast artifacts at sinks** (no delivery
 guarantee). If the operator's bar is "merged", route to enhance-pipeline.
 
+### Boundary vs `agentic-tool-pipeline` (the genesis preset — v0.2.1)
+
+Both are self-described "thin conductors that compose the family and reimplement nothing",
+and were born with **zero mutual cross-references** (the organic-growth redundancy flagged
+in `agentic-tool-forge` v1.1.1's non-fixed findings — investigated + closed 2026-08-18).
+Council verdict (Prisma-grounded coverage: the preset is ~85% covered by this engine):
+**keep both, deliberately distinct** —
+- **`agentic-tool-pipeline` = the PRESET** (house pattern: `quiesce` over `/goal`):
+  ANY source → **agentic-tool genesis only**, through a FIXED discipline sequence
+  (analyze→research→debate→converge→harmonize→forge→save) with named principle gates.
+  Use it when the outcome is "the right tool, end-to-end, one governed pass".
+- **`transmute` = the general N×M ENGINE** (any source × transform-menu × cast × sink):
+  multi-cast, multi-sink, non-tool targets (artifact/ledger/ticket/audience-recast).
+  Use it when the target is not a tool, or >1 cast/sink is wanted.
+- Rule of thumb: **one tool outcome → preset; anything else / plural outcomes → engine.**
+  `cast:agentic-tool` here routes into `agentic-tool-forge` (the genesis primitive both
+  share) — NOT into the preset (no double-conducting; the preset wraps forge with its own
+  discipline pass).
+
 ## §Quality Tests (self-dogfood — 6/6)
 
 1. **Self-Application** — forged via the forge pipeline (research→verdict→type→name→gate);
@@ -268,6 +288,7 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.2.1 — **boundary vs `agentic-tool-pipeline` (preset/engine doctrine, both ways)**: the zero-mutual-cross-reference organic-growth redundancy flagged in `agentic-tool-forge` v1.1.1's non-fixed findings — investigated + closed (2026-08-18). Prisma-grounded coverage: the genesis preset is ~85% covered by this engine → council verdict **keep both**: `agentic-tool-pipeline` = the FIXED-discipline preset (one-tool outcome, house `quiesce`-over-`/goal` pattern) · `transmute` = the general N×M engine (multi-cast/sink, non-tool targets). Rule of thumb: one tool → preset; plural/non-tool → engine. `cast:agentic-tool` stays routed to `agentic-tool-forge` (the shared primitive — no double-conducting). Hand-off table row + §Relationship map + §Refs updated both sides.
 - v0.2.0 — **generic enhance matrix (round n+9 /n+10)**: source×transform×cast×emit fully parametrizable per operator `/enhance` spec. **Cast router**: `agentic-tool:*` extended to `subagent/rule/memory/hook/webhook/event/trigger/mcp/plugin/marketplace`; `artifact:*` adds `confluence/gamma/canva`; `ticket` now `ticket:{jira|linear}`; `obsidian` alias of `vault`. **Sink axis**: `--output-target` adds `obsidian`, `jira`, `linear`, `confluence`, `gamma`, `canva`, `bitbucket`, `github`, `atlassian` (all mapped through `vault`/`git-repo`/`atlassian-concierge`/`ticket-as-prompt` renderers). **PT-verb mapping** table. **`--principles` validation** (csv against 40+ governance corpus; by-reference). **`--agentic-format=json-rpc`** alias + `--dry-run/--run/--dogfood` aliases documented. **COMPREHEND**: source kinds now include `email`·`folder`·`braindump`. **Prisma**: output/format/target as first-class `--to-type`+`--output-target` test (REACHABLE·RENDER DEFINED·CAN REFUSE). Dogfood targets: `braindump-distill.*`, `prompt-gauntlet-loop`, `prompt-transkriptor-import`, `theca/_inbox/2026-08-*.braindump.md` → `prompt`/`gauntlet-prompt`/`agentic-tool` at `obsidian/akasha/maos/vek-ai-toolkit/iketrans`. No new rival skill — extends Proteus per forge ≥50% gate.
 - v0.1.3 — **cross-harness SSOT consolidation** (round n+5 recon): recon of the
   eko-engram ledger revealed the vault family (2026-08-14) reached the OPPOSITE
