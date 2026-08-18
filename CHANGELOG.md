@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — work-compass v1.3.2 (Eisenhower queue-job noise)
+
+- `bin/work-compass-aggregate.py` — `importance_rank()` no longer counts an automated
+  review-queue worker's `session-orphan` flag as importance (H6 no longer fires on a
+  vanished branch when the session's first record was a `queue-operation` bookkeeping
+  entry, not an operator turn). Root cause (2026-08-18 dogfood): 1679/2143 real
+  `~/.claude` session transcripts open on such a record, out of ~2468 pendency items
+  live-inventoried at time of writing. Simulated against real inventory data (real
+  session rows re-classified with a projected `first_record_type`, since the live
+  producer doesn't emit it yet — see below): Q2 Schedule projects 413→308 rows, with
+  the session-orphan share of Q2 dropping 259→154 (−40%). Consumer-side first: reads
+  a new `first_record_type` ref field (`row.get(..., "")`), which the producer
+  (`~/.claude/scripts/inventory-sessions.py`) does not populate yet — the carve-out
+  is a safe no-op in production until that sibling fix ships (tracked follow-up:
+  wire the producer to emit the field). 3 tests added (automated-queue-job ·
+  interactive control · pre-upgrade backward-compat); 103/103 stdlib tests pass.
+
 ### Changed — morning-briefing v1.0.0 → v1.7.0 (version-sync port)
 
 - `skills/morning-briefing` synced from the user-scope evolution (v1.7.0): V2 Priority-Triage
