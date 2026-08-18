@@ -23,7 +23,7 @@ metadata:
   lifecycle-stage: forge
   forge_parent: agentic-tool-forge
   anima_parent: eisenhower-matrix
-  dogfood_status: cycle-0
+  dogfood_status: dogfooded-2-cycles
   scope_default: current
   sort_default: Eisenhower
   i18n: [en-us, pt-br]
@@ -190,6 +190,15 @@ work-compass --scope=current --sort=Eisenhower  # alias hub (SSOT impl)
 4. Bounded: --include=all guard, HUMAN_DOMAIN escalate, DUED ✅
 5. Explicit-Exception: §0 + HUMAN_DOMAIN + --scope override ✅
 6. Utility-Sunset: §DUED ✅
+
+## Dogfood Ledger (2 cycles — 2026-08-18)
+
+| Cycle | Scope | Sort | Q1 | Q2 | Q4 | AAA 12D | Prisma | Verdict |
+|---|---|---|---|---|---|---|---|
+| 1 | current | Eisenhower | 0 quiesced | VKS-2105 Schedule Gov AAA | inbox:14 Eliminate | G1G2G3+T1T2T3+P1P2P3+C1C2C3 PASS | generalize T specific T GOV PASS | PASS |
+| 2 | current | Eisenhower | 0 quiesced idempotent | same Gov AAA | same | 12D PASS 2× | PASS | PASS idempotent |
+
+*Pre- vs post-patch identical Q1 [] → quiesce + idempotent, no drift, promotes to `dogfooded` per `dogfooding-mandate` R1.*
 
 ## §DUED Sunset
 
