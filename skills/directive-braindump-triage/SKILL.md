@@ -19,7 +19,7 @@ triggers:
   - triagem deste braindump
   - o que aqui já foi feito?
   - braindump provenance ledger
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Directive-Braindump Triage — execute only the residual
@@ -83,7 +83,10 @@ Drop decisions are logged with rationale (drop-explicit > unpaid memory-debt).
 
 **P5 — Anti-re-learning note + persist.** Record the meta-lesson (provenance + sharpen-an-existing-
 fire-point > add a passive rule). Stamp the source braindump with a `PROCESSED <YYYY-MM-DD>`
-(ISO-8601) banner pointing at the ledger.
+(ISO-8601) banner pointing at the ledger. **The pair is atomic (rubric C1, pilot #354):**
+banner-without-ledger-row OR ledger-row-without-banner = the triage FAILED — an amnesic
+future session will either re-learn the dump (no banner) or re-hunt the dump (no row).
+If either write fails, mark the run incomplete and fix the missing half before closing.
 
 **P6 — Verify + brief.** Confirm every "DONE" cites a real, locatable artifact (no hallucinated
 provenance — every claim points at something a reader can open); emit a short briefing
