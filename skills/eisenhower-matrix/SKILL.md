@@ -1,6 +1,6 @@
 ---
 name: eisenhower-matrix
-version: "0.2.0"
+version: "0.3.0"
 description: |
   List unresolved pendencies ordered by Eisenhower urgency×importance — AAA rigor (Accuracy·Auditability·Accountability) — triple-A.
   Command: `eisenhower-matrix --scope=[current|session|project|global|repo|vault|jira:*|worktree|all] --sort=[Eisenhower|Prisma|priority|age] --format=[json-rpc|human] --include=[pending|all] --lang=[en-us|pt-br] --json`
@@ -83,7 +83,7 @@ Deterministic **work-compass aggregation** → Eisenhower classifier (heuristic 
 5. `ls sessions/` + `~/.claude/docs/session-recaps/` + `~/.claude/memory/` + vault inbox `status:raw` (unprocessed notes, 14 archived pattern)
 6. `gap-register` / `find . -name TODO -o -name FIXME` fallback
 
-Each row emits `source` + `probe` (exact command to re-verify). No row without source.
+Each row emits `source` + `probe` + `AAA layer` (T/P/C) (exact command to re-verify). No row without source. **Test AAA** rows funded by `corpus-firing-audit` + `pii-masking` examples.
 
 ## Eisenhower classifier — 4 quadrants (SSOT for this skill)
 
@@ -103,7 +103,7 @@ Prisma `decompose-abstract-to-measurable` refines ambiguous Items: `CONTEXT-LOCK
 ### json-rpc (default) — en-us agentic-format
 
 ```json
-{"jsonrpc":"2.0","method":"eisenhower-matrix","params":{"scope":"current","sort":"Eisenhower"},"result":{"scope":"current","sort":"Eisenhower","quadrants":{"Q1":[],"Q2":[{"id":"twg:VKS-2105","title":"VKS-2105 summary stale vs ADR-D1 SLT 149029213","scope":"jira:VKS","urgency":0.3,"importance":0.7,"prisma":0.58,"source":"twg workitem query","probe":"twg jira workitem query --jql 'key=VKS-2105'","disposition":"Schedule","action":"twg workitem update --dry-run"}],"Q3":[],"Q4":[{"id":"inbox:14","title":"14 processed/superseded/archived","scope":"vault:eko-engram","disposition":"Eliminate","note":"hidden unless --include=all"}]},"next_action":"Q1 quiesced — no Do; next is Q2 Schedule when Prisma escalates","aaa":{"Accuracy":"probe-backed 0 fake","Auditability":"source+probe per row","Accountability":"Do/Schedule/Delegate/Eliminate + HUMAN_DOMAIN defer"},"heads":{"maos":"<sha>","eko-engram":"<sha>","skills":"<n>"},"quiesce":{"Q1":"quiesced","C1":"1 worktree","C2":"0 fail","C3":"0 stale"}}}
+{"jsonrpc":"2.0","method":"eisenhower-matrix","params":{"scope":"current","sort":"Eisenhower"},"result":{"scope":"current","sort":"Eisenhower","quadrants":{"Q1":[],"Q2":[{"id":"twg:VKS-2105","title":"VKS-2105 summary stale vs ADR-D1 SLT 149029213","scope":"jira:VKS","urgency":0.3,"importance":0.7,"prisma":0.58,"source":"twg workitem query","probe":"twg jira workitem query --jql 'key=VKS-2105'","disposition":"Schedule","action":"twg workitem update --dry-run"}],"Q3":[],"Q4":[{"id":"inbox:14","title":"14 processed/superseded/archived","scope":"vault:eko-engram","disposition":"Eliminate","note":"hidden unless --include=all"}]},"next_action":"Q1 quiesced — no Do; next is Q2 Schedule when Prisma escalates","aaa":{"Accuracy":"probe-backed 0 fake","Auditability":"source+probe per row","Accountability":"Do/Schedule/Delegate/Eliminate + HUMAN_DOMAIN defer"},"aaa_layers":{"Test":{"Accuracy":"probe testable","Auditability":"seed log","Accountability":"owner test"},"Production":{"Accuracy":"SLI real","Auditability":"SHA heads","Accountability":"guard"},"Compliance":{"Accuracy":"PII 0","Auditability":"LGPD audit","Accountability":"DPO"}},"heads":{"maos":"<sha>","eko-engram":"<sha>","skills":"<n>"},"quiesce":{"Q1":"quiesced","C1":"1 worktree","C2":"0 fail","C3":"0 stale"}}}
 ```
 
 ### human (pt-br/en-us)
@@ -121,9 +121,9 @@ Prisma `decompose-abstract-to-measurable` refines ambiguous Items: `CONTEXT-LOCK
 ## B-Tree / Grafo / Mind-map
 
 ```
-B-Tree: work-compass (hub, aggregation SSOT) → eisenhower-matrix (classifier view) → Q1..Q4 → Do/Schedule/Delegate/Eliminate
-Grafo: [forge+anima] → eisenhower-matrix → probes → Prisma → quadrants → AAA → work-compass/morning-briefing/quiesce
-Mind-map: centro Eisenhower → 4 quadrantes → AAA rigor → --scope/--sort params
+B-Tree: work-compass (hub, aggregation SSOT) → eisenhower-matrix v0.3.0 (Triple-A×3) → Q1..Q4 → Do/Schedule/Delegate/Eliminate → Test AAA / Production AAA / Compliance AAA → Prisma regulatory
+Grafo: [forge+anima] → eisenhower-matrix → probes (T/P/C) → Prisma (generalize×specific) → quadrants → 9D AAA → work-compass/morning-briefing/quiesce/preflight/postflight
+Mind-map: centro Eisenhower → 4 quadrantes → 3×AAA layers → --scope/--sort --format --lang params
 ```
 
 ## Gates
@@ -132,6 +132,28 @@ Mind-map: centro Eisenhower → 4 quadrantes → AAA rigor → --scope/--sort pa
 - `anti-theater` 8Q: REALITY 8/8 (no invented pendency; every row probe-verifiable)
 - `rule-quality-tests` 6/6: Self-Application PASS (skill classifies own v0.2.0 as Q2 until dogfood) etc.
 - `harmonic` L8: no conflict with work-compass v1.2, morning-briefing, twg, quiesce.
+
+
+## Triple-A — Test / Production / Compliance (9D rigor)
+
+> Cada camada replica **AAA = Accuracy·Auditability·Accountability** → **3×3 = 9 dimensões**. **Prisma** regula generalização vs especificidade: `generalize` = AAA portable AAIF, `specific` = AAA por caso (quando Prisma recomenda).
+
+| Layer | Accuracy | Auditability | Accountability |
+|---|---|---|---|
+| **Test AAA** | probe testável (Arrange-Act-Assert) + coverage ≥80% probe | source+probe+seed log reproduzível, `gitleaks` 0 | owner test, `DO NOT` sem assert, gate `preflight` |
+| **Production AAA** | probe prod (S-SDLC, SLI `maos`/`metron`), `git status`/`gh pr` real | `git log`/`gh pr view` audit trail, `heads` SHA | HUMAN_DOMAIN deploy/guard, `Do` only if `MERGEABLE` + green checks, rollback plan |
+| **Compliance AAA** | PII-masking, secrets-scan, `LGPD` art.7 / `GDPR` art.6 lawful basis, retention TTL | `corpus-firing-audit` + `pii-masking` leaves, `probe` sem PII | DPO accountable, `PRIVACY-BY-DESIGN`/`SECURE-BY-DESIGN`, `HUMAN_DOMAIN` cost/cross-org |
+
+**Prisma as regulatory helper:**
+- `Prisma` leaf `generalize` (T) = quando AAA deve ser genérico (AAIF portable, ex. json-rpc).
+- `Prisma` leaf `specific` (T) = quando AAA deve ser específico (ex. `twg:VKS-2105` HUMAN_DOMAIN defer).
+- `aggregate_spec.py` LOW → não schedule sem compliance PASS.
+- Anti-pattern: AAA genérico que esconde risco (theater) vs AAA específico que impede reuse → **Prisma decide**.
+
+**Gates por layer:**
+- Test: `T1` Arrange probe exists · `T2` Act idempotent · `T3` Assert `Q1 quiesced` boolean
+- Prod: `P1` prod probe real (no mock) · `P2` audit SHA heads · `P3` HUMAN_DOMAIN guard
+- Compliance: `C1` PII-scan 0 · `C2` secrets-scan 0 · `C3` retention TTL defined
 
 ## Anima naming — delegate scorecard (Prisma)
 
@@ -175,6 +197,7 @@ Deprecate when ANY: host ships native Eisenhower probe (E1) · work-compass abso
 - Delegator: `agentic-tool-forge` Phase 4 → `anima` `kb/agentic-tools.md`
 - Prisma: `decompose-abstract-to-measurable` via `aggregate_spec.py`
 - Gates: `scope-discipline-pre-creation` 6Q · `anti-theater-grounding-protocol` 8Q · `rule-quality-tests` 6 · `harmonic-self-conduct-laws` L8
+- Triple-A: Test/Production/Compliance 9D + `pii-masking` + `corpus-firing-audit` + `preflight`/`postflight`
 - Governance: `[C04]` worktree · `pr-review-protocol` · `language-policy-en-pt` · `multi-agent-os` family
 - Cross-link slug: `[[eisenhower-matrix]]`
 
@@ -182,6 +205,7 @@ Deprecate when ANY: host ships native Eisenhower probe (E1) · work-compass abso
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3.0 | 2026-08-18 | **Triple-A×3** — `Test AAA` `Production AAA` `Compliance AAA` (9D) + Prisma regulatory + LGPD/GDPR gate + PII-masking + SLI. Elevate rigor 12→14. Same classifier, same slug. |
 | 0.2.0 | 2026-08-18 | **Harmonized** — merge Akasha v0.1.0 DNA/Prisma/--format/--lang/B-Tree into multi-agent-os SSOT. Keeps work-compass v1.2 thin-composer, adds --format json-rpc/human + --lang + Prisma + AAA DNA inheritance + B-Tree/Grafo. No duplication. |
 | 0.1.1 | 2026-08-17 | Eisenhower queue --scope/--sort AAA + work-compass v1.2 alias (harmonized) |
 | 0.1.0 | 2026-08-16 | Genesis — forge pipeline 0→9 + anima 12+Prisma + AAA. |
