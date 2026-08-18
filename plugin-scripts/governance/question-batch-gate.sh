@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
-# question-batch-gate v1.1.0 — Stop-event advisory gate against QUESTION-BATCHING.
+# question-batch-gate v1.1.1 — Stop-event advisory gate against QUESTION-BATCHING.
+#
+# v1.1.1 (2026-08-18) LEDGER + LENGTH-BOUND FIX — re-synced from the source-of-
+#   truth fix (issue #366 finding 1): (a) a too-long session_id/prompt_id
+#   (payload-controlled, charset-checked only, no length bound) could make the
+#   one-shot `mkdir` fail with ENAMETOOLONG; (b) EVERY mkdir failure — a
+#   genuine duplicate-prompt replay OR a real operational failure
+#   (ENAMETOOLONG, EACCES, ENOSPC, read-only STATE_DIR) — was logged
+#   identically as "idempotent", hiding the failure case behind the expected-
+#   and-safe one. Fixed: `safe_id()` now also rejects ids over 128 chars
+#   (closes the ENAMETOOLONG root cause directly); the claim block now checks
+#   whether the marker dir actually EXISTS after a failed mkdir to tell a real
+#   duplicate from any other error (logged as "marker_claim_failed" instead of
+#   "idempotent"). Not a TOCTOU risk — no security decision hinges on the
+#   distinction, only the ledger label; either way the hook still skips and
+#   exits 0.
 #
 # COMMUNITY PORT (2026-08-18): dogfooded 16/1622 real fires (~1%) over 2026-07-25 to
 #   2026-08-18 in an operator's private `~/.claude` corpus before landing here — well
@@ -177,7 +192,7 @@ if [ "$questions" -le "$THRESHOLD" ]; then log "" "$questions" false; exit 0; fi
 # re-fire forever — so this still skips, but now it skips having MEASURED and
 # LOGGED the real question count instead of a hardcoded 0.
 # ---------------------------------------------------------------------------
-safe_id() { case "$1" in ''|*[!A-Za-z0-9._-]*) return 1 ;; *) return 0 ;; esac; }
+safe_id() { case "$1" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -le 128 ]; }
 safe_id "$pid" || { log "unsafe_or_absent_prompt_id" "$questions" false; exit 0; }
 safe_id "$sid" || { log "unsafe_session_id" "$questions" false; exit 0; }
 
@@ -185,7 +200,16 @@ safe_id "$sid" || { log "unsafe_session_id" "$questions" false; exit 0; }
 # One-shot claim: ATOMIC mkdir. Succeeds for exactly one racer.
 # ---------------------------------------------------------------------------
 marker="$STATE_DIR/${#sid}.${sid}.${#pid}.${pid}.marker.d"
-if ! mkdir "$marker" 2>/dev/null; then log "idempotent" "$questions" false; exit 0; fi
+if ! mkdir "$marker" 2>/dev/null; then
+  # Disambiguate a genuine duplicate-prompt replay (the marker dir already
+  # exists) from any other mkdir failure — see the v1.1.1 header note.
+  if [ -d "$marker" ]; then
+    log "idempotent" "$questions" false
+  else
+    log "marker_claim_failed" "$questions" false
+  fi
+  exit 0
+fi
 log "" "$questions" true
 
 # Bounded housekeeping: drop one-shot markers older than 7 days. Scoped to our own

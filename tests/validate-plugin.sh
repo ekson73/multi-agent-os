@@ -110,6 +110,40 @@ for script in "session-start.sh" "pre-delegate.sh" "post-delegate.sh" "session-e
 done
 echo ""
 
+# Governance script: question-batch-gate.sh (issue #366 finding 3 — this script
+# had NO existence/exec-bit/test-pass check in this validator, so a future
+# accidental chmod -x or move would go undetected by plugin validation)
+echo "Checking governance scripts..."
+
+QBG_HOOK="$PLUGIN_ROOT/plugin-scripts/governance/question-batch-gate.sh"
+QBG_TEST="$PLUGIN_ROOT/tests/governance/test-question-batch-gate.sh"
+if [ -f "$QBG_HOOK" ]; then
+    pass "plugin-scripts/governance/question-batch-gate.sh exists"
+    if [ -x "$QBG_HOOK" ]; then
+        pass "plugin-scripts/governance/question-batch-gate.sh is executable"
+    else
+        fail "plugin-scripts/governance/question-batch-gate.sh is not executable"
+    fi
+else
+    fail "plugin-scripts/governance/question-batch-gate.sh missing"
+fi
+
+if [ -f "$QBG_TEST" ]; then
+    if [ -x "$QBG_TEST" ]; then
+        pass "tests/governance/test-question-batch-gate.sh is executable"
+    else
+        fail "tests/governance/test-question-batch-gate.sh is not executable"
+    fi
+    if bash "$QBG_TEST" >/dev/null 2>&1; then
+        pass "tests/governance/test-question-batch-gate.sh passes"
+    else
+        fail "tests/governance/test-question-batch-gate.sh FAILED (run 'bash tests/governance/test-question-batch-gate.sh' for details)"
+    fi
+else
+    fail "tests/governance/test-question-batch-gate.sh missing"
+fi
+echo ""
+
 # Every artifact the loops below actually visit is recorded here (repo-relative) so the
 # reach assertion at the end can PROVE the walk did not under-reach. #337 fixed the
 # reach; this makes a future regression impossible to land silently. See #336.
