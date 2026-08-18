@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — pilot re-run (delta medido)
+
+- `docs/rubrics/pilot-rerun-2026-08-18.md` — 3/17 → 15/17 (88%; 100% no escopo legítimo).
+  morning-briefing curou pelo port; praxis-audit FAILs = critérios mis-scoped com disposição D2.
+
+### Fixed — decompose threshold provenance (pilot re-run nit)
+
+- `skills/decompose-abstract-to-measurable` — depth-cap 3 + materiality-prune 0.05 now carry
+  declared provenance (design guardrails, operator-tunable; never presented as measured).
+  Found by the external judge in the post-fix pilot re-run.
+
 ### Fixed — work-compass v1.3.2 (Eisenhower queue-job noise)
 
 - `bin/work-compass-aggregate.py` — `importance_rank()` no longer counts an automated

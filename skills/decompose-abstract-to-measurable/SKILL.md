@@ -146,7 +146,11 @@ predicate**). Individuation **surfaces the part-level divergence a generic avera
 
 Guards (non-negotiable):
 - **depth-cap 3** (root→leaf) — over-decomposition is analysis-paralysis.
+  *(provenance: design guardrail, operator-tunable — not a measurement; 3 ≈ the empirical
+  task→subtask→step depth of SDLC trees. Raise only with a recorded reason.)*
 - **materiality-prune** — drop a branch whose global flow `< 0.05`; it can't move the answer.
+  *(provenance: design guardrail, operator-tunable — a 5% materiality cutoff mirrors the
+  audit-materiality convention; it is a declared design choice, never a measured constant.)*
 - **shared sub-concept = one node with two parents** (a DAG, not a duplicated subtree).
 - **no cycles** (the script rejects them) — recursion must bottom out.
 - **deepen by sensitivity** — only split further the branches near a band boundary; leave settled branches shallow.
