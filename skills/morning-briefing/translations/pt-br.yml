@@ -1,0 +1,37 @@
+# morning-briefing translations · pt-br
+#
+# Synced with en-us.yml (canonical key set).
+# When new keys added to en-us.yml, this file MUST be updated in same PR.
+#
+# Strings marked "# PRESERVE" stay English (git terminology — same value).
+
+# Top-level callouts (Phase 3 V2 Priority-Triage layout)
+next_action: "Próxima Ação"
+why_first: "Por que primeiro"
+effort: "Esforço"
+deps: "Dep"
+none_token: "nenhuma"
+pulse: "Pulse"               # mantido — termo universal/familiar
+
+# Pulse callout fields (PRESERVE git terms)
+branch: "Branch"             # PRESERVE — git term
+worktrees: "Worktrees"       # PRESERVE — git term
+untracked: "Não-trackeados"
+done_24h: "Concluído 24h"
+
+# Section headings (V2 decision-value ordering)
+in_flight: "Em andamento"
+blockers: "Bloqueios / HITL"
+decisions: "Decisões pendentes"
+risks: "Riscos / heads-up"
+done: "Concluído (últimas 24h)"
+state_detail: "Detalhe de estado"
+narrative: "Narrativa"
+
+# Status descriptors
+mergeable: "pronto-merge"
+review_pending: "review pendente"
+checks_pending: "checks rodando"
+
+# Header subtitle (v1.0.1 session-name field)
+session_label: "Sessão Claude"

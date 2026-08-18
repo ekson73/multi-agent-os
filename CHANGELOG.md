@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — morning-briefing v1.0.0 → v1.7.0 (version-sync port)
+
+- `skills/morning-briefing` synced from the user-scope evolution (v1.7.0): V2 Priority-Triage
+  layout, recap mode, i18n bundles, Compass scope verbs, --save/--clipboard, factor flags.
+  Sanitized for community scope (generic host paths, no operator identifiers). Closes the
+  repo×user-scope drift measured by the régua pilot (D1 disposition).
+
 ### Changed — eisenhower-matrix v0.3.1 (lifecycle-stage: forge → operate)
 
 - `agentic-tool-evaluator` pass on `skills/eisenhower-matrix`: **PASS (flags noted)** —

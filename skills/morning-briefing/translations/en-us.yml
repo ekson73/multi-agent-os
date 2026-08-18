@@ -1,0 +1,41 @@
+# morning-briefing translations · en-us (canonical)
+#
+# This file is the SOURCE-OF-TRUTH for the label KEY SET.
+# All other bundles MUST contain EXACTLY these keys (values translated).
+# Add a new key here FIRST, then sync to all bundles in the same PR.
+#
+# Strings marked "# PRESERVE" should stay English in ALL bundles
+# (git terminology, status descriptors that are technical jargon).
+#
+# Format: flat key:value (no nesting). yq + awk-fallback compatible.
+
+# Top-level callouts (Phase 3 V2 Priority-Triage layout)
+next_action: "Next Action"
+why_first: "Why this first"
+effort: "Effort"
+deps: "Deps"
+none_token: "none"
+pulse: "Pulse"
+
+# Pulse callout fields (PRESERVE git terms across all bundles)
+branch: "Branch"             # PRESERVE — git term
+worktrees: "Worktrees"       # PRESERVE — git term
+untracked: "Untracked"
+done_24h: "Done 24h"
+
+# Section headings (V2 decision-value ordering)
+in_flight: "In-flight"
+blockers: "Blockers / HITL"
+decisions: "Decisions awaiting"
+risks: "Risks / heads-up"
+done: "Done (last 24h)"
+state_detail: "State detail"
+narrative: "Narrative"
+
+# Status descriptors (used inline in PR lists, etc.)
+mergeable: "mergeable"
+review_pending: "review"
+checks_pending: "checks"
+
+# Header subtitle (v1.0.1 session-name field)
+session_label: "Claude session"
