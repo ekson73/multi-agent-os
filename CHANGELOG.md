@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — atomize-and-route (Diairesis) v1.0.0
+
+- `bin/atomize-and-route` + `skills/atomize-and-route/SKILL.md` — deterministic
+  format+destination resolver and idempotent capture/routing ledger for typed
+  knowledge atoms (norm/procedure/role/insight/fact/decision/work/gap/pendency/
+  idea/braindump-seed/template/example/question/answer), per §Q1.2 KRDR. `route`
+  resolves WHERE+WHAT-FORMAT for one atom-type+scope; `ledger --append` records a
+  raw capture event; `ledger --query --unrouted` lists atoms awaiting a routing
+  decision. AAIF cross-vendor (POSIX Bash 3.2 + jq only). 27/27 tests.
+
+### Fixed — atomize-and-route lock-loop could spin forever on a wedged/dead holder
+
+- `bin/atomize-and-route` — the mkdir-lock retry loop (mirrored from
+  `bin/artifact-registry`'s own pattern — same bug is pre-existing there too,
+  tracked as a follow-up) had no upper bound: once the steal-threshold (50
+  attempts) was crossed, every subsequent iteration re-attempted the steal and
+  `continue`d PAST the `sleep`, producing an unbounded busy-spin if the lock was
+  held by a process that never releases it. Found by amazon-q-developer +
+  coderabbitai on PR #380. Fixed via a shared `acquire_lock()` helper with a
+  hard attempt cap (`ATOMIZE_ROUTE_LOCK_MAX_ATTEMPTS`, default 200 ≈ 20s) that
+  exits 1 instead of hanging, a periodic (not every-iteration) steal attempt,
+  and an unconditional sleep every iteration. +5 regression tests incl. a fast
+  env-overridden timeout proof.
+
 ### Added — pilot re-run (delta medido)
 
 - `docs/rubrics/pilot-rerun-2026-08-18.md` — 3/17 → 15/17 (88%; 100% no escopo legítimo).
