@@ -115,6 +115,34 @@ TAXONOMY_JSON='{
 
 VALID_SCOPES="self user project work community corporate durable-personal"
 
+# Lock-loop bounds (env-overridable — testability + tuning, mirrors ATOMIZE_ROUTE_DIR).
+# amazon-q + coderabbitai (PR #380) both flagged the ORIGINAL loop (copied from
+# bin/artifact-registry's own lock pattern — the bug is pre-existing there too,
+# tracked as a same-shape follow-up fix): once the steal-threshold was crossed,
+# EVERY subsequent iteration re-attempted mv+rm and `continue`d PAST the `sleep`,
+# with no upper bound on total attempts — a bare-metal busy-spin that never exits
+# if the lock is held by a wedged/dead process. Fixed via one shared helper with
+# a hard attempt CAP (exit 1, never hang) + a periodic (not every-iteration) steal
+# + an unconditional sleep every iteration (no more skip-the-sleep-on-continue).
+LOCK_MAX_ATTEMPTS="${ATOMIZE_ROUTE_LOCK_MAX_ATTEMPTS:-200}"   # ~20s worst-case @ 0.1s sleep
+LOCK_SLEEP="${ATOMIZE_ROUTE_LOCK_SLEEP:-0.1}"
+LOCK_STEAL_EVERY=50
+
+acquire_lock() { # <lock-dir> -> blocks until mkdir succeeds; exit 1 on timeout (never hangs)
+  local ld="$1" i=0
+  while ! mkdir "$ld" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -ge "$LOCK_MAX_ATTEMPTS" ]; then
+      echo "atomize-and-route: lock '$ld' still held after $i attempts — giving up (not hanging)" >&2
+      exit 1
+    fi
+    if [ $((i % LOCK_STEAL_EVERY)) -eq 0 ]; then
+      mv "$ld" "$ld.stale.$$" 2>/dev/null && rm -rf "$ld.stale.$$" 2>/dev/null || true
+    fi
+    sleep "$LOCK_SLEEP"
+  done
+}
+
 resolve_scope_prefix() {
   # scope only refines destination presentation, never the format decision —
   # a pure lookup, kept separate from TAXONOMY_JSON so the two axes (WHAT
@@ -186,11 +214,7 @@ if [ "$VERB" = "route" ]; then
   EVENT="$(printf '%s' "$RESULT" | jq -c --arg ts "$TS" '. + {event:"routed", ts:$ts}')"
 
   LOCK_DIR="$REG_DIR/.lock-atomize-and-route"
-  i=0
-  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-    i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
-    sleep 0.1
-  done
+  acquire_lock "$LOCK_DIR"
   trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
   printf '%s\n' "$EVENT" >> "$REG"
   rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM
@@ -224,11 +248,7 @@ if [ "$VERB" = "ledger" ]; then
     TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     EVENT="$(printf '%s' "$APPEND" | jq -c --arg ts "$TS" '. + {event:"captured", ts:$ts}')"
     LOCK_DIR="$REG_DIR/.lock-atomize-and-route"
-    i=0
-    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-      i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
-      sleep 0.1
-    done
+    acquire_lock "$LOCK_DIR"
     trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
     printf '%s\n' "$EVENT" >> "$REG"
     rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM

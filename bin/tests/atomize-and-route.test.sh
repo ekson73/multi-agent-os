@@ -99,5 +99,33 @@ rm -f "$ATOMIZE_ROUTE_DIR/atomize-and-route.jsonl"
 o="$("$BIN" ledger --query --unrouted --json 2>/dev/null)"
 eq "[]" "$o" 'empty/absent ledger --query --unrouted returns [] cleanly'
 
+# --- lock-loop bound (amazon-q + coderabbitai finding, PR #380): a HELD lock
+#     must exit 1 promptly, never spin forever. Pre-hold the lock dir, cap the
+#     attempts tiny via the env overrides, and assert (a) it exits non-zero
+#     (b) it does NOT hang (bounded wall-clock) (c) it never wrote the ledger.
+rm -f "$ATOMIZE_ROUTE_DIR/atomize-and-route.jsonl"
+mkdir -p "$ATOMIZE_ROUTE_DIR/.lock-atomize-and-route"   # simulate a wedged/dead holder
+START_TS="$(date +%s 2>/dev/null || echo 0)"
+ATOMIZE_ROUTE_LOCK_MAX_ATTEMPTS=3 ATOMIZE_ROUTE_LOCK_SLEEP=0.01 \
+  "$BIN" route --type norm --scope user --atom-id lock-test-1 --json >/dev/null 2>/tmp/aar-lock-test-err.$$
+rc=$?
+END_TS="$(date +%s 2>/dev/null || echo 0)"
+ELAPSED=$((END_TS - START_TS))
+eq "1" "$rc" 'a HELD lock exits 1 (not 0, not a hang) once the attempt cap is reached'
+[ "$ELAPSED" -le 5 ] && ok 'a HELD lock gives up within a few seconds (bounded, not an infinite spin)' \
+  || no 'a HELD lock gives up within a few seconds (bounded, not an infinite spin)' "elapsed=${ELAPSED}s"
+has 'giving up' "$(cat /tmp/aar-lock-test-err.$$ 2>/dev/null)" 'the timeout error names itself (not a silent hang)'
+rm -f /tmp/aar-lock-test-err.$$
+# the ledger FILE may legitimately exist (line "mkdir -p; touch" runs BEFORE the
+# lock, same as the pre-existing code) — the bug-relevant assertion is that NO
+# event line for this atom_id was written despite the lock never being acquired.
+hasnt 'lock-test-1' "$(cat "$ATOMIZE_ROUTE_DIR/atomize-and-route.jsonl" 2>/dev/null)" \
+  'a timed-out lock attempt writes NO ledger event for the atom (even though touch pre-creates the file)'
+rm -rf "$ATOMIZE_ROUTE_DIR/.lock-atomize-and-route"   # release the simulated holder
+
+# once the lock is free again, the SAME atom_id routes normally (no lingering state)
+o="$("$BIN" route --type norm --scope user --atom-id lock-test-1 --dry-run --json 2>/dev/null)"
+has 'norm' "$o" 'after the lock frees, a fresh route call for the same atom_id still works'
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
