@@ -1,0 +1,257 @@
+#!/usr/bin/env bash
+# MAOS — Atomize & Route · deterministic path-resolution for typed knowledge atoms
+#   (soul-name: Diairesis — διαίρεσις, the Platonic method of collection-and-division)
+# ----------------------------------------------------------------------------
+# WHY: `skills/atomize-and-route/SKILL.md` (Diairesis) decomposes any content
+#   into TYPED atoms (norm/procedure/role/insight/fact/decision/work/gap/
+#   idea/template/question), but deciding WHERE each atom-type lands + in what
+#   FORMAT is a deterministic lookup, not a cognitive act — exactly the class
+#   of decision that belongs in a script, not a prompt (Gordian: don't spend
+#   tokens re-deriving a fixed table every invocation). This bin is that table,
+#   made runnable + testable + idempotent, mirroring `bin/artifact-registry`'s
+#   conventions (same audit-dir, same ledger discipline, same exit-code scheme).
+#
+# Two verbs:
+#   route  — resolve (format, destination) for ONE atom-type + scope; prints
+#            the resolution (human or --json); with --dry-run, resolves ONLY
+#            (never writes the ledger). Without --dry-run, appends a ROUTED
+#            ledger entry (the routing DECISION, not the atom's persisted
+#            content — persistence itself stays the caller's job, per the
+#            SKILL.md P6 phase and the "capture ≠ auto-persist" guard CEL
+#            already established).
+#   ledger — append a raw atom-capture event (`--append`) OR list atoms still
+#            awaiting a routing decision (`--query --unrouted`).
+#
+# Ledger (machine-local, gitignored — mirrors artifact-registry's audit-state
+#   convention, NOT a repo artifact):
+#   ${ATOMIZE_ROUTE_DIR:-$HOME/.claude/audit}/atomize-and-route.jsonl
+#
+# Portability: AAIF cross-vendor — POSIX Bash 3.2 + jq only (no associative
+#   arrays, no ${var^^}); atomic append via mkdir-lock (POSIX, same pattern as
+#   artifact-registry). No org-specific content — promotion-eligible per Layer
+#   Purity.
+# Idempotent: re-`route`-ing the identical (atom_id) is a no-op on the ledger
+#   (the resolution itself is a pure function of --type/--scope, so re-running
+#   `route` twice always PRINTS the same answer regardless of ledger state).
+# Exit codes ([C06]): 0 success (incl. idempotent no-op / dry-run) ·
+#   1 usage/validation · 2 setup (jq missing).
+set -euo pipefail
+
+REG_DIR="${ATOMIZE_ROUTE_DIR:-$HOME/.claude/audit}"
+REG="$REG_DIR/atomize-and-route.jsonl"
+
+command -v jq >/dev/null 2>&1 || { echo "atomize-and-route: jq is required" >&2; exit 2; }
+
+usage() {
+  cat <<EOF
+MAOS atomize-and-route (Diairesis) — deterministic format+destination lookup
+for typed knowledge atoms, + an idempotent capture/routing ledger.
+
+USAGE
+  $(basename "$0") route --type <atom-type> --scope <scope> [--content-hint "<text>"] [--dry-run] [--json]
+  $(basename "$0") ledger --append '<json-line>'
+  $(basename "$0") ledger --query --unrouted [--json]
+
+route — resolve WHERE + WHAT-FORMAT for one atom:
+  --type <t>           REQUIRED. one of: norm|procedure|role|insight|fact|reference|
+                        decision|work|gap|pendency|idea|braindump-seed|template|
+                        example|question|answer
+  --scope <s>          REQUIRED. one of: self|user|project|work|community|corporate|
+                        durable-personal  (per KRDR §Q1 layer taxonomy)
+  --content-hint "<t>" free text describing the atom (recorded, not parsed — the
+                        caller/SKILL.md already classified --type; this bin does
+                        NOT re-classify from prose)
+  --atom-id <id>        stable id for ledger idempotency (default: sha1 of type+scope+hint+ts-less content)
+  --dry-run             resolve + print only; never touch the ledger
+  --json                machine output (default: human, to stderr summary + stdout path)
+
+ledger --append — record a raw capture event (usually from a caller like the
+  CEL hook's on-demand marker, BEFORE a routing decision has been made):
+  --append '<json>'    one JSON object; MUST include at least {atom_id, kind}
+
+ledger --query --unrouted — list captured atoms with no matching 'routed' event
+  (i.e. captured but never resolved via 'route') — the drain target for
+  SessionStart / postflight batch reconciliation.
+
+EXIT CODES ([C06]): 0 success · 1 usage/validation · 2 setup (jq missing)
+
+EXAMPLES
+  $(basename "$0") route --type norm --scope user --dry-run
+  $(basename "$0") route --type insight --scope project --content-hint "CEL background-agent lesson"
+  $(basename "$0") ledger --append '{"atom_id":"a1","kind":"insight","text":"..."}'
+  $(basename "$0") ledger --query --unrouted --json
+EOF
+  exit 0
+}
+
+[ $# -eq 0 ] && usage
+VERB="$1"; shift || true
+case "$VERB" in route|ledger) ;; --help|-h|help) usage ;; *) echo "unknown verb '$VERB' (use: route | ledger)" >&2; exit 1 ;; esac
+
+need_val() { [ "$2" -ge 2 ] || { echo "$1 requires a value" >&2; exit 1; }; case "$3" in -?*) echo "$1 requires a value (got option '$3')" >&2; exit 1 ;; esac; }
+
+# =====================================================================
+# The taxonomy table (atom-type -> format + destination + gate note).
+# ONE row per §Q1.2 KRDR type; a jq lookup keeps this a pure function.
+# =====================================================================
+TAXONOMY_JSON='{
+  "norm":            {"format":"markdown+frontmatter",   "destination_template":"~/.claude/rules/<slug>.md",                 "gate":"must-fire-every-session AND cross-project AND high-stakes else memory/doc"},
+  "procedure":       {"format":"skill-or-command",        "destination_template":"<repo>/skills/<slug>/SKILL.md",             "gate":"community(maos) vs corporate(vek-ai-toolkit) per scope"},
+  "role":            {"format":"agent",                   "destination_template":"<repo>/agents/<slug>.md",                   "gate":"registry lookup before creating"},
+  "insight":         {"format":"markdown",                "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"anti-bloat: elevate to norm only if Triple-touch (>=3x)"},
+  "fact":            {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
+  "reference":       {"format":"markdown-or-notebooklm",  "destination_template":"~/.claude/docs/<slug>.md",                  "gate":"prefer NotebookLM source for research/reference material"},
+  "decision":        {"format":"markdown+frontmatter",    "destination_template":"~/.claude/docs/decisions/<slug>.md",       "gate":"ADR-style; cite decision-capture skill"},
+  "work":            {"format":"tracker-item",            "destination_template":"tracker:<vek-jira|linear|gh-issue>",       "gate":"eko L4 routing: Vek->Jira, personal->Linear, repo->GH Issue"},
+  "gap":             {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
+  "pendency":        {"format":"tracker-item-or-ledger",  "destination_template":"tracker-or-taxis-queue",                    "gate":"loose-end-triage-queue tiers; never silent-drop"},
+  "idea":            {"format":"markdown-dendron",        "destination_template":"~/eko-engram/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
+  "braindump-seed":  {"format":"markdown-dendron",        "destination_template":"~/eko-engram/pages/<slug>.md",              "gate":"durable-personal; use plans/ instead if scratch/session-scoped"},
+  "template":        {"format":"markdown",                "destination_template":"~/eko-engram/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
+  "example":         {"format":"markdown",                "destination_template":"~/eko-engram/templates/<slug>.md",         "gate":"or <repo>/templates/ if repo-specific"},
+  "question":        {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"},
+  "answer":          {"format":"markdown-or-tracker",     "destination_template":"~/.claude/projects/<enc>/memory/<slug>.md","gate":"tracker only if independently actionable"}
+}'
+
+VALID_SCOPES="self user project work community corporate durable-personal"
+
+resolve_scope_prefix() {
+  # scope only refines destination presentation, never the format decision —
+  # a pure lookup, kept separate from TAXONOMY_JSON so the two axes (WHAT
+  # FORMAT vs WHICH LAYER) don't get conflated inside one table (KRDR §Q1
+  # is WHERE/layer; KRDR §Q1.2 is WHAT-TYPE/format — this bin composes both).
+  case "$1" in
+    self)             echo "self-scope (session-local, not persisted beyond this turn)" ;;
+    user)             echo "user-scope (~/.claude, auto-loaded cross-project)" ;;
+    project)          echo "project-scope (this repo's own memory/docs)" ;;
+    work)             echo "work-scope (Vek: Jira VKS, corp toolkit)" ;;
+    community)        echo "community-scope (multi-agent-os)" ;;
+    corporate)        echo "corporate-scope (vek-ai-toolkit)" ;;
+    durable-personal) echo "durable-personal-scope (~/eko-engram, git-backed)" ;;
+    *) echo "" ;;
+  esac
+}
+
+# ---- route ------------------------------------------------------------------
+if [ "$VERB" = "route" ]; then
+  TYPE=""; SCOPE=""; HINT=""; ATOM_ID=""; DRYRUN=0; JSONOUT=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --type)         need_val "$1" "$#" "${2:-}"; TYPE="$2"; shift 2 ;;
+      --scope)        need_val "$1" "$#" "${2:-}"; SCOPE="$2"; shift 2 ;;
+      --content-hint) need_val "$1" "$#" "${2:-}"; HINT="$2"; shift 2 ;;
+      --atom-id)      need_val "$1" "$#" "${2:-}"; ATOM_ID="$2"; shift 2 ;;
+      --dry-run)      DRYRUN=1; shift ;;
+      --json)         JSONOUT=1; shift ;;
+      --help|-h)      usage ;;
+      *) echo "unknown option '$1' for 'route'" >&2; exit 1 ;;
+    esac
+  done
+
+  [ -n "$TYPE" ]  || { echo "route: --type is required" >&2; exit 1; }
+  [ -n "$SCOPE" ] || { echo "route: --scope is required" >&2; exit 1; }
+
+  ROW="$(printf '%s' "$TAXONOMY_JSON" | jq -c --arg t "$TYPE" '.[$t] // empty')"
+  [ -n "$ROW" ] || { echo "route: unknown --type '$TYPE' (see --help for the taxonomy)" >&2; exit 1; }
+
+  SCOPE_NOTE="$(resolve_scope_prefix "$SCOPE")"
+  [ -n "$SCOPE_NOTE" ] || { echo "route: unknown --scope '$SCOPE' (valid: $VALID_SCOPES)" >&2; exit 1; }
+
+  [ -n "$ATOM_ID" ] || ATOM_ID="$(printf '%s|%s|%s' "$TYPE" "$SCOPE" "$HINT" | { command -v shasum >/dev/null 2>&1 && shasum -a 1 || sha1sum; } 2>/dev/null | cut -c1-12)"
+  [ -n "$ATOM_ID" ] || ATOM_ID="unresolved-$$"
+
+  RESULT="$(printf '%s' "$ROW" | jq -c \
+    --arg type "$TYPE" --arg scope "$SCOPE" --arg scope_note "$SCOPE_NOTE" \
+    --arg atom_id "$ATOM_ID" --arg hint "$HINT" \
+    '. + {atom_id:$atom_id, type:$type, scope:$scope, scope_note:$scope_note} + (if $hint != "" then {content_hint:$hint} else {} end)')"
+
+  if [ "$JSONOUT" -eq 1 ]; then
+    printf '%s\n' "$RESULT"
+  else
+    printf 'atomize-and-route: %s (%s) -> %s [%s]\n' "$TYPE" "$(printf '%s' "$RESULT" | jq -r .format)" "$(printf '%s' "$RESULT" | jq -r .destination_template)" "$SCOPE" >&2
+    printf 'gate: %s\n' "$(printf '%s' "$RESULT" | jq -r .gate)" >&2
+    printf '%s\n' "$(printf '%s' "$RESULT" | jq -r .destination_template)"
+  fi
+
+  [ "$DRYRUN" -eq 1 ] && exit 0
+
+  mkdir -p "$REG_DIR"; touch "$REG"
+  # idempotency: an identical atom_id already has a 'routed' event -> no-op
+  if jq -R 'fromjson? // empty' "$REG" 2>/dev/null \
+     | jq -se --arg id "$ATOM_ID" 'any(.event=="routed" and .atom_id==$id)' >/dev/null 2>&1; then
+    printf 'atomize-and-route: %s already routed (no-op)\n' "$ATOM_ID" >&2
+    exit 0
+  fi
+  TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  EVENT="$(printf '%s' "$RESULT" | jq -c --arg ts "$TS" '. + {event:"routed", ts:$ts}')"
+
+  LOCK_DIR="$REG_DIR/.lock-atomize-and-route"
+  i=0
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
+    sleep 0.1
+  done
+  trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
+  printf '%s\n' "$EVENT" >> "$REG"
+  rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM
+  exit 0
+fi
+
+# ---- ledger -------------------------------------------------------------
+if [ "$VERB" = "ledger" ]; then
+  APPEND=""; QUERY=0; UNROUTED=0; JSONOUT=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --append)   need_val "$1" "$#" "${2:-}"; APPEND="$2"; shift 2 ;;
+      --query)    QUERY=1; shift ;;
+      --unrouted) UNROUTED=1; shift ;;
+      --json)     JSONOUT=1; shift ;;
+      --help|-h)  usage ;;
+      *) echo "unknown option '$1' for 'ledger'" >&2; exit 1 ;;
+    esac
+  done
+
+  if [ -n "$APPEND" ]; then
+    printf '%s' "$APPEND" | jq -e 'type == "object" and has("atom_id") and has("kind")' >/dev/null 2>&1 \
+      || { echo "ledger --append: payload must be a JSON object with at least {atom_id, kind}" >&2; exit 1; }
+    mkdir -p "$REG_DIR"; touch "$REG"
+    ATOM_ID="$(printf '%s' "$APPEND" | jq -r .atom_id)"
+    if jq -R 'fromjson? // empty' "$REG" 2>/dev/null \
+       | jq -se --arg id "$ATOM_ID" 'any(.event=="captured" and .atom_id==$id)' >/dev/null 2>&1; then
+      printf 'atomize-and-route: %s already captured (no-op)\n' "$ATOM_ID" >&2
+      exit 0
+    fi
+    TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    EVENT="$(printf '%s' "$APPEND" | jq -c --arg ts "$TS" '. + {event:"captured", ts:$ts}')"
+    LOCK_DIR="$REG_DIR/.lock-atomize-and-route"
+    i=0
+    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+      i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
+      sleep 0.1
+    done
+    trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
+    printf '%s\n' "$EVENT" >> "$REG"
+    rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM
+    exit 0
+  fi
+
+  if [ "$QUERY" -eq 1 ] && [ "$UNROUTED" -eq 1 ]; then
+    [ -f "$REG" ] || { [ "$JSONOUT" -eq 1 ] && echo '[]' || echo "atomize-and-route: no ledger yet (0 unrouted)" >&2; exit 0; }
+    RESULT="$(jq -R 'fromjson? // empty' "$REG" \
+      | jq -s '
+          ( map(select(.event=="routed")) | map(.atom_id) ) as $routed
+          | map(select(.event=="captured" and (.atom_id as $id | $routed | index($id) | not)))
+        ')"
+    if [ "$JSONOUT" -eq 1 ]; then
+      printf '%s\n' "$RESULT"
+    else
+      N="$(printf '%s' "$RESULT" | jq 'length')"
+      printf 'atomize-and-route: %s unrouted atom(s)\n' "$N" >&2
+      printf '%s' "$RESULT" | jq -r '.[] | "  [\(.kind)] \(.atom_id) — \(.text // .content_hint // "(no text)")"'
+    fi
+    exit 0
+  fi
+
+  echo "ledger: use --append '<json>' OR --query --unrouted" >&2
+  exit 1
+fi
