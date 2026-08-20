@@ -116,6 +116,34 @@ fi
 # tokenizer used by lookup (lowercase, split on non-alnum, drop tokens <=2, unique)
 TOK_JQ='ascii_downcase | gsub("[^a-z0-9]+";" ") | split(" ") | map(select(length>2)) | unique'
 
+# Lock-loop bounds (env-overridable — testability + tuning). The ORIGINAL loop
+# here had no upper bound: once the steal-threshold (50 attempts) was crossed,
+# every subsequent iteration re-attempted the steal and `continue`d PAST the
+# `sleep`, producing an unbounded busy-spin if the lock was held by a
+# wedged/dead process. Same shape found + fixed in the sibling `bin/atomize-and-
+# route` (which mirrored this exact pattern) by amazon-q-developer +
+# coderabbitai on `multi-agent-os#380`; this is the promised same-shape
+# follow-up fix to the origin. Bounded via a hard attempt cap (exit 1, never
+# hang), a periodic (not every-iteration) steal, and an unconditional sleep.
+LOCK_MAX_ATTEMPTS="${ARTIFACT_REGISTRY_LOCK_MAX_ATTEMPTS:-200}"   # ~20s worst-case @ 0.1s sleep
+LOCK_SLEEP="${ARTIFACT_REGISTRY_LOCK_SLEEP:-0.1}"
+LOCK_STEAL_EVERY=50
+
+acquire_lock() { # <lock-dir> -> blocks until mkdir succeeds; exit 1 on timeout (never hangs)
+  local ld="$1" i=0
+  while ! mkdir "$ld" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -ge "$LOCK_MAX_ATTEMPTS" ]; then
+      echo "artifact-registry: lock '$ld' still held after $i attempts — giving up (not hanging)" >&2
+      exit 1
+    fi
+    if [ $((i % LOCK_STEAL_EVERY)) -eq 0 ]; then
+      mv "$ld" "$ld.stale.$$" 2>/dev/null && rm -rf "$ld.stale.$$" 2>/dev/null || true
+    fi
+    sleep "$LOCK_SLEEP"
+  done
+}
+
 # ---- lookup -----------------------------------------------------------------
 if [ "$VERB" = "lookup" ]; then
   [ -f "$REG" ] || { if [ "$JSONOUT" -eq 1 ]; then echo '{"verdict":"CLEAR","matches":[],"note":"registry empty"}'; else echo "artifact-registry lookup: CLEAR (registry empty)" >&2; fi; exit 0; }
@@ -181,11 +209,7 @@ fi
 
 # atomic append under mkdir-lock (POSIX-atomic)
 LOCK_DIR="$REG_DIR/.lock-artifact-registry"
-i=0
-while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-  i=$((i+1)); [ "$i" -ge 50 ] && { mv "$LOCK_DIR" "$LOCK_DIR.stale.$$" 2>/dev/null || true; rm -rf "$LOCK_DIR.stale.$$" 2>/dev/null || true; continue; }
-  sleep 0.1
-done
+acquire_lock "$LOCK_DIR"
 trap 'rm -rf "$LOCK_DIR" 2>/dev/null || true' EXIT INT TERM
 printf '%s\n' "$EVENT" >> "$REG"
 rm -rf "$LOCK_DIR" 2>/dev/null || true; trap - EXIT INT TERM
