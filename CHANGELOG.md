@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — artifact-registry lock-loop could spin forever on a wedged/dead holder
+
+- `bin/artifact-registry` — same-shape follow-up to the `bin/atomize-and-route`
+  fix (PR #380): the mkdir-lock retry loop had no upper bound — once the
+  steal-threshold (50 attempts) was crossed, every subsequent iteration
+  re-attempted the steal and `continue`d PAST the `sleep`, producing an
+  unbounded busy-spin if the lock was held by a process that never releases
+  it. Fixed via a shared `acquire_lock()` helper with a hard attempt cap
+  (`ARTIFACT_REGISTRY_LOCK_MAX_ATTEMPTS`, default 200 ≈ 20s) that exits 1
+  instead of hanging, a periodic (not every-iteration) steal attempt, and an
+  unconditional sleep every iteration. New `bin/tests/artifact-registry.test.sh`
+  (18/18 passing — record/lookup/dedup coverage this script previously had none
+  of, plus the lock-timeout regression proof).
+
 ### Added — atomize-and-route (Diairesis) v1.0.0
 
 - `bin/atomize-and-route` + `skills/atomize-and-route/SKILL.md` — deterministic
