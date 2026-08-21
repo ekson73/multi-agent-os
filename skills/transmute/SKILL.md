@@ -1,6 +1,6 @@
 ---
 name: transmute
-version: "0.2.2"
+version: "0.2.3"
 description: >-
   Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code ·
   agentic-tool · email · report) through a menu of transformations (comprehend · analyze ·
@@ -178,6 +178,38 @@ inside the source under analysis.
 params requested by a delegated primitive are computed and passed through (never
 invented: an unfilled mandatory param → `STOP-HITL` with ranked resolution-paths).
 
+### Declared-grammar aliases (operator braindump surface)
+
+The operator's braindump grammar names this skill's capability under different keys. They are
+**accepted as aliases** and resolve to the canonical params above — the capability was never
+missing, only the naming surface. An agent reading a braindump written in the left column MUST
+translate to the right column rather than report the param as unsupported.
+
+| Declared (braindump) | Canonical (this skill) | Fidelity |
+|---|---|---|
+| `--from <sources>` | `<source>` (positional) | **exact** — incl. the `{{sources}}` multi-source form |
+| `--cast-to` | `--to-type` | **exact** — same value space (§Cast router) |
+| `--target-location` | `--output-target` | **exact** — sink membership test per §EMIT |
+| `--target-format` | ⚠️ **ambiguous — two axes** | see note below |
+| `--target-style` | ⚠️ **no direct equivalent** | see note below |
+| `*-recovery()` default | `same-as-source` / `auto` | **exact idiom** — `--to-type=same-as-source` is *dynamic calculated*; `--transforms=auto` and `--principles=auto` infer from source+target |
+
+> **⚠️ `--target-format` is ambiguous by construction — do not collapse it.** This skill has *two
+> independent format axes*: the **artifact's** format (`--to-type=artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}`)
+> and the **report's** format (`--output`/`--agentic-format` = `table\|json\|json-rpc`). A braindump
+> `--target-format` MUST be disambiguated against the accompanying `--cast-to`: if the cast target is
+> `artifact:*`, it means the artifact axis; otherwise it means the report axis. When neither is
+> determinable → `STOP-HITL` with both readings offered, never a silent guess.
+
+> **⚠️ `--target-style` has no equivalent — and deliberately so.** Style is not a transmute param:
+> audience/register shaping is delegated to `content-recast` (via `--to-type=audience-recast`, which
+> owns the faithfulness guard) and prompt-shape to the `prompt` profile (`gauntlet-loop`).
+> `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. A braindump
+> `--target-style` routes to `--to-type=audience-recast`; if that is not the intent → `STOP-HITL`.
+
+Aliasing is documentation-level (translation contract), not a second parser: this skill stays a thin
+router and does not grow a competing flag surface (DRY · YAGNI · anti-over-eng).
+
 ## Output contract (`--output=json`)
 
 ```jsonc
@@ -312,6 +344,19 @@ router added no routing). Dormant-by-design otherwise.
 
 ## Versioning
 
+- v0.2.3 — **§Declared-grammar aliases — the naming-surface delta of the same braindump family.**
+  A third round on the family that drove v0.2.2 was triaged with `directive-braindump-triage`:
+  26 atomic directives → 17 DONE · 4 COVERED · 2 EXCLUDED · 3 residual, with the *capability* ask
+  (`--from` · `--cast-to` · `--target-location` · `*-recovery()` defaults) confirmed already
+  discharged by this skill + `atomize-and-route` + `goal-recovery`. `command grep` for
+  `cast-to|target-style|target-location` over `skills/ agents/` returned **0 declared params** —
+  so the residual was a *naming surface*, not a missing feature. Adds the alias translation
+  contract (doc-level, no second parser) and, more usefully, surfaces two cases the aliasing
+  cannot silently resolve: **`--target-format` is ambiguous** (this skill has two independent
+  format axes — artifact vs report — disambiguated by the accompanying `--cast-to`, else
+  `STOP-HITL`), and **`--target-style` has no equivalent** (style is delegated to `content-recast`
+  / the `prompt` profile; language ≠ style). Ledger:
+  `create-agent-braindump-provenance-ledger.md`. Closes #385.
 - v0.2.2 — **§Source-as-data (never-execute discipline) — empirical trigger.** A round
   invoked this skill's own genesis family with a source (`eko-engram`
   `braindump-create-agent-enhanced-braindump-prompt.md`) that was a self-referential
