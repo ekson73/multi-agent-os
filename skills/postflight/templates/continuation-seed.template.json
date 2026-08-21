@@ -38,6 +38,7 @@
       "session": "<source session id>"
     },
     "goal": "<one-line mission>",
+    "active_world": "<personal|work — the Two-Worlds boundary this session belongs to, inferred from the repo's git remote/org, never asserted; 'unknown' if pre-1.4.0>",
     "context": "<state-of-world the next agent needs>",
     "compact_summary": {
       "present": false,
@@ -100,6 +101,6 @@
   "data": {
     "layer": "community",
     "contract": "skills/postflight/references/continuation-seed-contract.md",
-    "contract_version": "1.3.0"
+    "contract_version": "1.4.0"
   }
 }

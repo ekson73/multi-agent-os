@@ -11,7 +11,7 @@
 #   DETERMINISTIC + no LLM. Enriches the seed MONOTONICALLY (never downgrades kind, never
 #   removes fields). NEVER blocks (fail-open, always exit 0, NEVER exit 2 — a PostCompact
 #   that vetoes during an API-context-limit recovery would fail the user's request).
-# Version: 0.1.0
+# Version: 0.1.1
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PostCompact
 #
@@ -93,7 +93,7 @@ if seed_lock "$SEED_DIR"; then
     # No (or corrupt) seed → PreCompact was skipped (e.g. an auto-compaction not paired with a
     # PreCompact). Synthesize a MINIMAL skeleton so the harness summary is not lost (safe, not lossy).
     MERGED="$(jq -n --argjson cs "$CS_OBJ" --arg sid "$SESSION_ID" --arg trig "$TRIGGER" --arg cap "$TS" \
-      '{jsonrpc:"2.0",method:"session.continuation",params:{kind:"deterministic-snapshot",captured_at:$cap,trigger:$trig,session_id:$sid,compact_summary:$cs,resume_instructions:"Run /maos:preflight to orient, then /maos:postflight for the full continuation seed (this seed carries only the harness compact_summary — PreCompact did not run)."},data:{layer:"community",contract:"skills/postflight/references/continuation-seed-contract.md",contract_version:"1.3.0"}}' 2>/dev/null || true)"
+      '{jsonrpc:"2.0",method:"session.continuation",params:{kind:"deterministic-snapshot",captured_at:$cap,trigger:$trig,session_id:$sid,compact_summary:$cs,resume_instructions:"Run /maos:preflight to orient, then /maos:postflight for the full continuation seed (this seed carries only the harness compact_summary — PreCompact did not run)."},data:{layer:"community",contract:"skills/postflight/references/continuation-seed-contract.md",contract_version:"1.4.0"}}' 2>/dev/null || true)"
   fi
   [ -n "$MERGED" ] && seed_write_atomic "$SEED_FILE" "$MERGED"
   seed_unlock

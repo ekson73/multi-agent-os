@@ -18,7 +18,7 @@ description: |
   (reconciled with exit-hygiene by ADR-010). The end-of-session counterpart to the `preflight` skill. Reads
   whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/
   memories) and adapts.
-version: 0.10.0
+version: 0.10.1
 triggers:
   - postflight
   - run postflight
@@ -248,7 +248,9 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   · `guardrails` · `dod` · `dag` · `refs` · `resume_instructions`; plus the optional debrief
   fields and the v1.1.0 additions `session_type` · `dna` (object) · `continuation_ticket` ·
   `tickets_created` + the v1.2.0 addition `risks` (the hunt's forward-looking half) + the v1.3.0
-  additions `kind` (`rich-synthesis` here) and `compact_summary` (merged by the PostCompact hook)). Populate
+  additions `kind` (`rich-synthesis` here) and `compact_summary` (merged by the PostCompact hook) +
+  the v1.4.0 addition `active_world` (`personal`\|`work` — the operator's Two-Worlds boundary,
+  deterministically read from the repo's git remote/org, never asserted)). Populate
   the template — do NOT re-derive the shape inline. Short excerpt:
 
 ```json
@@ -261,6 +263,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "guardrails":["..."], "dod":["..."], "dag":["<what comes after>"],
   "refs":{"git":"<repo+branch+PRs>","ticket":"<key|none>","memory":"<path|none>","session":"<id>"},
   "goal":"<one-line mission>",
+  "active_world":"personal|work",
   "session_type":"<mode>/<work>",
   "dna":{"principles":["...","...","..."],"canonical_ref":"...","session_learnings":["..."],"learnings_ref":"<path|none>"},
   "continuation_ticket":{"key":"<key|none>","url":"...","parent":"...","link":"relates-to|child-of"},
@@ -268,7 +271,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "risks":[{"risk":"<forward-looking hazard for the next agent>","mitigation":"<how to mitigate>","severity":"low|med|high"}],
   "next_actions":[{"task":"...","eisenhower":"Q1|Q2|Q3|Q4","blocked_by":null}],
   "resume_instructions":"Run /maos:preflight first; then follow bootstrap_order; then the first non-blocked next_action. INTERNALIZE params.dna + transcribe the 3 principles to every sub-agent you spawn."
-},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.3.0"}}
+},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.4.0"}}
 ```
 
 - **Human mirror**: the same, rendered as a short scannable briefing for the operator.

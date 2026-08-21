@@ -11,7 +11,7 @@
 #   (objectives N-Tree, Eisenhower next-actions, resume prose) — that is the skill's
 #   job (PROBABILISTIC MUSCLE). The hook captures only cheap, factual state + a nudge
 #   to run /maos:postflight for the rich seed. NEVER blocks the session (always exit 0).
-# Version: 0.1.1
+# Version: 0.1.2
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PreCompact
 #
@@ -109,7 +109,7 @@ fi
 mkdir -p "$SEED_DIR" 2>/dev/null || true
 SEED_FILE="${SEED_DIR}/continuation-seed.latest.json"
 SEED_JSON=$(cat <<JSON
-{"jsonrpc":"2.0","method":"session.continuation","params":{"kind":"deterministic-snapshot","captured_at":"$(json_escape "$TS")","trigger":"$(json_escape "$TRIGGER")","session_id":"$(json_escape "$SESSION_ID")","git":{"repo":"$(json_escape "$REPO_NAME")","branch":"$(json_escape "$BRANCH")","upstream":"$(json_escape "$UPSTREAM")","tree_state":"$(json_escape "$STATE")","worktrees":${WORKTREES:-0},"unpushed_commits":${UNPUSHED:-0},"open_prs":${PRS}},"refs":{"git":"$(json_escape "${REPO_NAME}@${BRANCH}")","ticket":"$(json_escape "$TICKET")","memory":"none","session":"$(json_escape "$SESSION_ID")","transcript":"$(json_escape "$TRANSCRIPT")","cwd":"$(json_escape "$CWD")"},"resume_instructions":"Run /maos:preflight to orient, then /maos:postflight for the full agentic continuation seed (this file is a deterministic skeleton, not the synthesized seed)."},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.3.0"}}
+{"jsonrpc":"2.0","method":"session.continuation","params":{"kind":"deterministic-snapshot","captured_at":"$(json_escape "$TS")","trigger":"$(json_escape "$TRIGGER")","session_id":"$(json_escape "$SESSION_ID")","git":{"repo":"$(json_escape "$REPO_NAME")","branch":"$(json_escape "$BRANCH")","upstream":"$(json_escape "$UPSTREAM")","tree_state":"$(json_escape "$STATE")","worktrees":${WORKTREES:-0},"unpushed_commits":${UNPUSHED:-0},"open_prs":${PRS}},"refs":{"git":"$(json_escape "${REPO_NAME}@${BRANCH}")","ticket":"$(json_escape "$TICKET")","memory":"none","session":"$(json_escape "$SESSION_ID")","transcript":"$(json_escape "$TRANSCRIPT")","cwd":"$(json_escape "$CWD")"},"resume_instructions":"Run /maos:preflight to orient, then /maos:postflight for the full agentic continuation seed (this file is a deterministic skeleton, not the synthesized seed)."},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.4.0"}}
 JSON
 )
 # ── UPGRADE-ONLY, lock-serialized write (the LYNCHPIN) ─────────────────────────
