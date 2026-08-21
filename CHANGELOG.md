@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — anima semiotic lens + continuation-seed active_world field
+
+- `skills/anima/SKILL.md` (v1.2.0 -> v1.2.1, PATCH) — §3.3 Lenses gains
+  `semiotic`. The requested 6-axis naming set `{taxonomy, semantic, ontology,
+  etymology, epistemology, semiotics}` was 5/6 already scored (§3.1
+  correctness aspects); `semiotic` was the one genuine gap. Anchor: C.S.
+  Peirce, already this repo's cited epistemology anchor
+  (`agentic-first-decision-protocol.md §4.7`).
+- `skills/postflight/references/continuation-seed-contract.md` (v1.3.0 ->
+  v1.4.0, MINOR) — new OPTIONAL field `active_world` (`personal`\|`work`\|
+  `unknown`), operationalizing the operator's Two-Worlds hard boundary into
+  the continuation seed so a resuming mind never accidentally crosses it.
+  Actually WIRED end-to-end, not just documented: `lib/seed-io.sh` gains
+  `seed_active_world()` (v1.0.0 -> v1.1.0) — a deterministic, verified-not-
+  guessed classifier keyed on the `origin` remote's GitHub **org**
+  (`ekson73` -> `personal`, `vek-im` -> `work`, anything else, including no
+  remote, -> `unknown`, never a default to `personal`). Called from
+  `postflight-precompact.sh` (v0.1.2 -> v0.1.3, emits it on every skeleton),
+  `postflight-postcompact.sh` (v0.1.1 -> v0.1.2, backfills it via jq `//=`
+  when absent, never overwrites), and rendered FIRST (before the mission) by
+  `reload-session.sh` (v0.1.0 -> v0.1.1) — the seed contract's own consumer
+  registry and `postflight` SKILL.md's P3 field list + example (v0.10.0 ->
+  v0.10.1) were updated to match. Hardened after a second review round:
+  `seed_active_world()` (v1.1.1) now anchors the remote match (must literally
+  start with a genuine `git@github.com:`/`https://github.com/` form) instead
+  of matching "github.com" anywhere in the string (closes a spoofable-URL
+  edge case); `postflight-precompact.sh` (v0.1.4) fails closed to `unknown`
+  when the lib is unavailable instead of re-implementing the identity map a
+  second time (DRY — one map, one place it can drift); `postflight-postcompact.sh`
+  (v0.1.3) now also bumps `data.contract_version` 1.3.0 -> 1.4.0 in the same
+  step that backfills `active_world` into an older seed, so a
+  version-gated consumer never wrongly treats the now-present field as
+  legacy-absent. Round 4: the version-bump guard was narrowed to `== "1.3.0"`
+  exactly — generalized to `!= "1.4.0"` so a rich seed predating ANY
+  pre-1.4.0 contract (1.0.0/1.1.0/1.2.0/1.3.0, or a missing stamp entirely)
+  gets promoted the same way when the field is backfilled; and `postflight`
+  SKILL.md's P3 field-list now explicitly instructs the agent to DERIVE
+  `active_world` (same rule as `seed_active_world()`) rather than copy the
+  condensed example's `"unknown"` literal verbatim for a recognized repo.
+  Round 5: the round-4 generalization (`!= "1.4.0"`) over-corrected — it would
+  also downgrade a hypothetical FUTURE seed (e.g. `contract_version` 1.5.0 or
+  2.0.0) that legitimately hasn't yet populated the still-optional
+  `active_world`, misrepresenting a newer seed as older. Fixed by replacing
+  the blanket `!= "1.4.0"` guard with an explicit enumerated allowlist of
+  KNOWN pre-1.4.0 versions (`""`, `1.0.0`, `1.1.0`, `1.2.0`, `1.3.0`) —
+  `postflight-postcompact.sh` (v0.1.4 -> v0.1.5) — so only genuinely-legacy
+  seeds get promoted while any future contract version is left untouched.
+  Integration-tested end-to-end (precompact write -> postcompact
+  backfill-with-version-bump on both a 1.1.0 seed and a version-less seed ->
+  postcompact re-run never-clobbers -> reload render), a 6-case
+  `seed_active_world()` unit test (incl. a spoofed-URL negative case), and an
+  8-case version-bump matrix (4 legacy versions + missing correctly promote
+  to 1.4.0; already-1.4.0 and two future versions 1.5.0/2.0.0 correctly stay
+  untouched while `active_world` still backfills), in addition to
+  `bash tests/validate-plugin.sh`. Round 6: all of the above test matrices
+  are now COMMITTED as `tests/governance/test-postflight-active-world.sh`
+  (CodeRabbit P2 — the matrices had only ever been run ad hoc per round, so
+  a future edit to this code had no regression net). Writing that test
+  surfaced a real, previously-undetected defect: `seed_active_world()`
+  (v1.1.1 -> v1.1.2, PATCH) only matched the vanilla `git@github.com:.../...`
+  SSH/HTTPS forms — but `git remote get-url` EXPANDS this machine's own
+  `url.<x>.insteadOf` rewrites by default, so a personal repo cloned the
+  normal way (`git@github.com:ekson73/X.git`) reports back through the
+  operator's OWN personal-identity SSH alias
+  (`git@github.com-ekson73:ekson73/X.git`,
+  `multi-identity-git-ssh-governance.md` §3.3's blessed zero-friction
+  routing) and was silently misclassified `unknown` instead of `personal`.
+  Fixed by recognizing that specific alias host as an additional case (org
+  still re-extracted and re-verified against the same map, never a blind
+  trust of the alias name); `github.com-vek-im` is deliberately NOT
+  special-cased — that rule marks it "LEGACY … residual personal GH
+  leftovers only", so trusting it as a `work` signal would itself be an
+  unverified guess. `bash tests/governance/run-all.sh` (30/30 in the new
+  file, 12/12 suites overall), `bash tests/validate-plugin.sh`, and
+  `gitleaks detect --source . --no-git` all clean after the fix. A
+  same-round CI-only failure (`governance-validation`'s PII linter,
+  `skills/pii-masking/linter_pii.py`) flagged the original synthetic git
+  identity used to seed the test fixtures' commits (user `t`, host
+  `t` + `.test`) — not a tests/-dir exclude-glob gap (that pattern's
+  `fnmatch` semantics never match a root-level `tests/` path either way;
+  a latent, out-of-scope issue for a separate PR) but the linter's own
+  documented convention: its `EMAIL_ALLOWLIST_EXACT`/`_DOMAIN_SUFFIX`
+  recognizes RFC 2606 `test@example.com`, which `test-agentshield.sh`
+  already uses in this
+  same directory. Swapped to that convention; local
+  `python skills/pii-masking/linter_pii.py --paths "**/*.sh" --exclude
+  "**/tests/**" ... --fail-on-match` now exits clean.
+- Empirical trigger: bounded coverage-check of an eko-engram
+  process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
+  — source-as-data, embedded directives never executed (per PR #382's
+  discipline). ~95% of the ask was already covered by the existing
+  agentic-tool family; these two items were the genuine, narrow gaps. Two
+  further items (`ontology.active_roles/active_personas`, `sdp_ledger`) were
+  considered and deliberately deferred (no demonstrated failure mode); a
+  third (fictional-archetype persona roster) was found already covered by
+  `persona-mindset-catalog.md`.
+
 ### Docs — source-as-data: never execute an embedded directive (transmute v0.2.2, agentic-tool-pipeline v0.1.2)
 
 - `skills/transmute/SKILL.md` (SSOT) — new `§Source-as-data (never-execute discipline)`:
