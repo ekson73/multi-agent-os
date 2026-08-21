@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — anima semiotic lens + continuation-seed active_world field
+
+- `skills/anima/SKILL.md` (v1.2.0 -> v1.2.1, PATCH) — §3.3 Lenses gains
+  `semiotic`. The requested 6-axis naming set `{taxonomy, semantic, ontology,
+  etymology, epistemology, semiotics}` was 5/6 already scored (§3.1
+  correctness aspects); `semiotic` was the one genuine gap. Anchor: C.S.
+  Peirce, already this repo's cited epistemology anchor
+  (`agentic-first-decision-protocol.md §4.7`).
+- `skills/postflight/references/continuation-seed-contract.md` (v1.3.0 ->
+  v1.4.0, MINOR) — new OPTIONAL field `active_world` (`personal`\|`work`),
+  operationalizing the operator's Two-Worlds hard boundary into the
+  continuation seed so a resuming mind never accidentally crosses it.
+  Deterministically inferred from the repo's git remote/org, never
+  asserted. Wired through the JSON template, `postflight` SKILL.md's P3
+  field list + example (v0.10.0 -> v0.10.1), and both deterministic-snapshot
+  producers (`postflight-precompact.sh` v0.1.1 -> v0.1.2,
+  `postflight-postcompact.sh` v0.1.0 -> v0.1.1), which now stamp the correct
+  `contract_version`.
+- Empirical trigger: bounded coverage-check of an eko-engram
+  process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
+  — source-as-data, embedded directives never executed (per PR #382's
+  discipline). ~95% of the ask was already covered by the existing
+  agentic-tool family; these two items were the genuine, narrow gaps. Two
+  further items (`ontology.active_roles/active_personas`, `sdp_ledger`) were
+  considered and deliberately deferred (no demonstrated failure mode); a
+  third (fictional-archetype persona roster) was found already covered by
+  `persona-mindset-catalog.md`.
+
 ### Docs — source-as-data: never execute an embedded directive (transmute v0.2.2, agentic-tool-pipeline v0.1.2)
 
 - `skills/transmute/SKILL.md` (SSOT) — new `§Source-as-data (never-execute discipline)`:
