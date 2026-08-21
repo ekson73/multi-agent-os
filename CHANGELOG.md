@@ -81,7 +81,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   leftovers only", so trusting it as a `work` signal would itself be an
   unverified guess. `bash tests/governance/run-all.sh` (30/30 in the new
   file, 12/12 suites overall), `bash tests/validate-plugin.sh`, and
-  `gitleaks detect --source . --no-git` all clean after the fix.
+  `gitleaks detect --source . --no-git` all clean after the fix. A
+  same-round CI-only failure (`governance-validation`'s PII linter,
+  `skills/pii-masking/linter_pii.py`) flagged the synthetic git identity
+  `t@t.test` used to seed the test fixtures' commits — not a tests/-dir
+  exclude-glob gap (that pattern's `fnmatch` semantics never match a
+  root-level `tests/` path either way; a latent, out-of-scope issue for a
+  separate PR) but the linter's own documented convention: its
+  `EMAIL_ALLOWLIST_EXACT`/`_DOMAIN_SUFFIX` recognizes RFC 2606
+  `test@example.com`, which `test-agentshield.sh` already uses in this
+  same directory. Swapped to that convention; local
+  `python skills/pii-masking/linter_pii.py --paths "**/*.sh" --exclude
+  "**/tests/**" ... --fail-on-match` now exits clean.
 - Empirical trigger: bounded coverage-check of an eko-engram
   process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
   — source-as-data, embedded directives never executed (per PR #382's

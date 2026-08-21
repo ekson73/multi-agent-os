@@ -65,7 +65,9 @@ mk_repo() { # mk_repo <dir> [remote-url]
   local dir="$1" remote="${2:-}"
   mkdir -p "$dir"
   git -C "$dir" init --initial-branch=main -q
-  git -C "$dir" -c user.email=t@t.test -c user.name=t commit --allow-empty -q -m init
+  # test@example.com is the linter_pii.py EMAIL_ALLOWLIST_EXACT convention (RFC 2606) —
+  # not the tests/-dir exclude glob, which does not match a root-level `tests/` path.
+  git -C "$dir" -c user.email=test@example.com -c user.name=test commit --allow-empty -q -m init
   [[ -n "$remote" ]] && git -C "$dir" remote add origin "$remote"
   true
 }
