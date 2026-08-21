@@ -16,11 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Peirce, already this repo's cited epistemology anchor
   (`agentic-first-decision-protocol.md §4.7`).
 - `skills/postflight/references/continuation-seed-contract.md` (v1.3.0 ->
-  v1.4.0, MINOR) — new OPTIONAL field `active_world` (`personal`\|`work`),
-  operationalizing the operator's Two-Worlds hard boundary into the
-  continuation seed so a resuming mind never accidentally crosses it.
-  Deterministically inferred from the repo's git remote/org, never
-  asserted. Wired through the JSON template, `postflight` SKILL.md's P3
+  v1.4.0, MINOR) — new OPTIONAL field `active_world` (`personal`\|`work`\|
+  `unknown`), operationalizing the operator's Two-Worlds hard boundary into
+  the continuation seed so a resuming mind never accidentally crosses it.
+  Verified against the producer's own identity map (never guessed): an
+  unrecognized remote/org emits `unknown`, it is never defaulted to
+  `personal`. Wired through the JSON template, `postflight` SKILL.md's P3
   field list + example (v0.10.0 -> v0.10.1), and both deterministic-snapshot
   producers (`postflight-precompact.sh` v0.1.1 -> v0.1.2,
   `postflight-postcompact.sh` v0.1.0 -> v0.1.1), which now stamp the correct
