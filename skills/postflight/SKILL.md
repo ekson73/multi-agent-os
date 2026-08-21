@@ -251,7 +251,12 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   additions `kind` (`rich-synthesis` here) and `compact_summary` (merged by the PostCompact hook) +
   the v1.4.0 addition `active_world` (`personal`\|`work`\|`unknown` — the operator's Two-Worlds
   boundary, verified against the producer's identity map, never guessed: an unrecognized
-  remote emits `unknown`, never defaults to `personal`)). Populate
+  remote emits `unknown`, never defaults to `personal`)). **For `active_world` specifically:
+  DERIVE it — do not copy the template's `"unknown"` literal verbatim.** Run `git remote get-url
+  origin` yourself and apply the SAME identity rule `lib/seed-io.sh`'s `seed_active_world()`
+  uses (`ekson73` org → `personal`; `vek-im` org → `work`; anything else, or no verified
+  GitHub-org match → `unknown`) — the template's `"unknown"` is a SAFE FALLBACK for an agent that
+  cannot check, never a shortcut for one that can. Populate
   the template — do NOT re-derive the shape inline. Short excerpt:
 
 ```json

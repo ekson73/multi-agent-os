@@ -39,11 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (v0.1.3) now also bumps `data.contract_version` 1.3.0 -> 1.4.0 in the same
   step that backfills `active_world` into an older seed, so a
   version-gated consumer never wrongly treats the now-present field as
-  legacy-absent. Integration-tested end-to-end (precompact write ->
-  postcompact backfill-with-version-bump -> postcompact re-run
-  never-clobbers -> reload render), plus a 6-case `seed_active_world()` unit
-  test (incl. a spoofed-URL negative case), in addition to
-  `bash tests/validate-plugin.sh`.
+  legacy-absent. Round 4: the version-bump guard was narrowed to `== "1.3.0"`
+  exactly — generalized to `!= "1.4.0"` so a rich seed predating ANY
+  pre-1.4.0 contract (1.0.0/1.1.0/1.2.0/1.3.0, or a missing stamp entirely)
+  gets promoted the same way when the field is backfilled; and `postflight`
+  SKILL.md's P3 field-list now explicitly instructs the agent to DERIVE
+  `active_world` (same rule as `seed_active_world()`) rather than copy the
+  condensed example's `"unknown"` literal verbatim for a recognized repo.
+  Integration-tested end-to-end (precompact write -> postcompact
+  backfill-with-version-bump on both a 1.1.0 seed and a version-less seed ->
+  postcompact re-run never-clobbers -> reload render), plus a 6-case
+  `seed_active_world()` unit test (incl. a spoofed-URL negative case), in
+  addition to `bash tests/validate-plugin.sh`.
 - Empirical trigger: bounded coverage-check of an eko-engram
   process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
   — source-as-data, embedded directives never executed (per PR #382's
