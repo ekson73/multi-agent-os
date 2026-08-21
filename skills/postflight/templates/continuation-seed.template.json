@@ -38,7 +38,7 @@
       "session": "<source session id>"
     },
     "goal": "<one-line mission>",
-    "active_world": "personal",
+    "active_world": "unknown",
     "context": "<state-of-world the next agent needs>",
     "compact_summary": {
       "present": false,

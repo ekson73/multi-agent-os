@@ -19,13 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   v1.4.0, MINOR) — new OPTIONAL field `active_world` (`personal`\|`work`\|
   `unknown`), operationalizing the operator's Two-Worlds hard boundary into
   the continuation seed so a resuming mind never accidentally crosses it.
-  Verified against the producer's own identity map (never guessed): an
-  unrecognized remote/org emits `unknown`, it is never defaulted to
-  `personal`. Wired through the JSON template, `postflight` SKILL.md's P3
-  field list + example (v0.10.0 -> v0.10.1), and both deterministic-snapshot
-  producers (`postflight-precompact.sh` v0.1.1 -> v0.1.2,
-  `postflight-postcompact.sh` v0.1.0 -> v0.1.1), which now stamp the correct
-  `contract_version`.
+  Actually WIRED end-to-end, not just documented: `lib/seed-io.sh` gains
+  `seed_active_world()` (v1.0.0 -> v1.1.0) — a deterministic, verified-not-
+  guessed classifier keyed on the `origin` remote's GitHub **org**
+  (`ekson73` -> `personal`, `vek-im` -> `work`, anything else, including no
+  remote, -> `unknown`, never a default to `personal`). Called from
+  `postflight-precompact.sh` (v0.1.2 -> v0.1.3, emits it on every skeleton),
+  `postflight-postcompact.sh` (v0.1.1 -> v0.1.2, backfills it via jq `//=`
+  when absent, never overwrites), and rendered FIRST (before the mission) by
+  `reload-session.sh` (v0.1.0 -> v0.1.1) — the seed contract's own consumer
+  registry and `postflight` SKILL.md's P3 field list + example (v0.10.0 ->
+  v0.10.1) were updated to match. Integration-tested end-to-end (precompact
+  write -> postcompact backfill/skeleton -> reload render) in addition to
+  `bash tests/validate-plugin.sh`.
 - Empirical trigger: bounded coverage-check of an eko-engram
   process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
   — source-as-data, embedded directives never executed (per PR #382's

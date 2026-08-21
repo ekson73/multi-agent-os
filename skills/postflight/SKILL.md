@@ -264,7 +264,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "guardrails":["..."], "dod":["..."], "dag":["<what comes after>"],
   "refs":{"git":"<repo+branch+PRs>","ticket":"<key|none>","memory":"<path|none>","session":"<id>"},
   "goal":"<one-line mission>",
-  "active_world":"personal",
+  "active_world":"unknown",
   "session_type":"<mode>/<work>",
   "dna":{"principles":["...","...","..."],"canonical_ref":"...","session_learnings":["..."],"learnings_ref":"<path|none>"},
   "continuation_ticket":{"key":"<key|none>","url":"...","parent":"...","link":"relates-to|child-of"},

@@ -10,7 +10,7 @@
 #   identical path.
 #   Sourced best-effort; a caller that cannot source it degrades safely (the precompact
 #   falls back to a lockless skeleton write; the postcompact no-ops its merge).
-# Version: 1.0.0
+# Version: 1.1.0
 # Protocol: C04 (Git Worktree), C06 (AI-Native)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -87,6 +87,28 @@ seed_unlock() {
   rm -f "${_SEED_LOCK_HELD}/ts" 2>/dev/null || true
   rmdir "${_SEED_LOCK_HELD}" 2>/dev/null || true
   _SEED_LOCK_HELD=""
+}
+
+# seed_active_world <repo> → "personal" | "work" | "unknown" — the Two-Worlds boundary
+#   (continuation-seed-contract.md v1.4.0 `active_world`). Parses the `origin` remote's
+#   GitHub org against a VERIFIED identity map (multi-identity-git-ssh-governance.md §0.5).
+#   NEVER guesses: any org that does not positively match yields "unknown" — never a silent
+#   default to "personal" (that would assign a credential-boundary classification with no
+#   evidence, exactly the failure this contract's Best-practice #2 forbids). Pure/read-only;
+#   safe to call from a hook that must never block (no network, plain string parsing).
+seed_active_world() {
+  local repo="$1" remote org
+  remote="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
+  org="$(printf '%s' "$remote" | sed -E 's#.*github\.com[:/]([^/]+)/.*#\1#')"
+  # GitHub ORG is the verified unit (not repo-name prefixes — those (vks-/vkl-/vek-) all live
+  # under the SAME `vek-im` org per multi-identity-git-ssh-governance.md §0.5). Bitbucket-only
+  # legacy orgs (e.g. vek-servicos) are intentionally NOT matched here (this parser is
+  # github.com-specific) — they fall through to "unknown", never guessed.
+  case "$org" in
+    ekson73) printf 'personal' ;;
+    vek-im)  printf 'work' ;;
+    *)       printf 'unknown' ;;
+  esac
 }
 
 # seed_write_atomic <file> <content> → tmp→mv atomic write (a partial file is never observed).
