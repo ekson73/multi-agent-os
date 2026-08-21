@@ -10,7 +10,7 @@
 #   identical path.
 #   Sourced best-effort; a caller that cannot source it degrades safely (the precompact
 #   falls back to a lockless skeleton write; the postcompact no-ops its merge).
-# Version: 1.1.0
+# Version: 1.1.1
 # Protocol: C04 (Git Worktree), C06 (AI-Native)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -99,7 +99,15 @@ seed_unlock() {
 seed_active_world() {
   local repo="$1" remote org
   remote="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
-  org="$(printf '%s' "$remote" | sed -E 's#.*github\.com[:/]([^/]+)/.*#\1#')"
+  # Anchored, not "contains github.com anywhere": require the remote to literally START with
+  # a genuine github.com SSH or HTTPS form. An unanchored `.*github\.com.*` match (the v1.1.0
+  # first draft) could be fooled by a non-GitHub host that merely CONTAINS the substring
+  # somewhere in its path/query — fail-closed instead (`unknown`).
+  case "$remote" in
+    git@github.com:*/*|https://github.com/*/*|http://github.com/*/*) : ;;
+    *) printf 'unknown'; return 0 ;;
+  esac
+  org="$(printf '%s' "$remote" | sed -E 's#^(git@github\.com:|https?://github\.com/)([^/]+)/.*#\2#')"
   # GitHub ORG is the verified unit (not repo-name prefixes — those (vks-/vkl-/vek-) all live
   # under the SAME `vek-im` org per multi-identity-git-ssh-governance.md §0.5). Bitbucket-only
   # legacy orgs (e.g. vek-servicos) are intentionally NOT matched here (this parser is

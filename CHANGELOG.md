@@ -29,8 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when absent, never overwrites), and rendered FIRST (before the mission) by
   `reload-session.sh` (v0.1.0 -> v0.1.1) — the seed contract's own consumer
   registry and `postflight` SKILL.md's P3 field list + example (v0.10.0 ->
-  v0.10.1) were updated to match. Integration-tested end-to-end (precompact
-  write -> postcompact backfill/skeleton -> reload render) in addition to
+  v0.10.1) were updated to match. Hardened after a second review round:
+  `seed_active_world()` (v1.1.1) now anchors the remote match (must literally
+  start with a genuine `git@github.com:`/`https://github.com/` form) instead
+  of matching "github.com" anywhere in the string (closes a spoofable-URL
+  edge case); `postflight-precompact.sh` (v0.1.4) fails closed to `unknown`
+  when the lib is unavailable instead of re-implementing the identity map a
+  second time (DRY — one map, one place it can drift); `postflight-postcompact.sh`
+  (v0.1.3) now also bumps `data.contract_version` 1.3.0 -> 1.4.0 in the same
+  step that backfills `active_world` into an older seed, so a
+  version-gated consumer never wrongly treats the now-present field as
+  legacy-absent. Integration-tested end-to-end (precompact write ->
+  postcompact backfill-with-version-bump -> postcompact re-run
+  never-clobbers -> reload render), plus a 6-case `seed_active_world()` unit
+  test (incl. a spoofed-URL negative case), in addition to
   `bash tests/validate-plugin.sh`.
 - Empirical trigger: bounded coverage-check of an eko-engram
   process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)

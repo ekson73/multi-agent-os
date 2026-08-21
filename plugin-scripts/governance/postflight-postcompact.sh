@@ -11,7 +11,7 @@
 #   DETERMINISTIC + no LLM. Enriches the seed MONOTONICALLY (never downgrades kind, never
 #   removes fields). NEVER blocks (fail-open, always exit 0, NEVER exit 2 — a PostCompact
 #   that vetoes during an API-context-limit recovery would fail the user's request).
-# Version: 0.1.2
+# Version: 0.1.3
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PostCompact
 #
@@ -94,8 +94,15 @@ if seed_lock "$SEED_DIR"; then
   if [ -f "$SEED_FILE" ] && jq -e . "$SEED_FILE" >/dev/null 2>&1; then
     # Enrich the existing seed (any kind) — set params.compact_summary, and backfill
     # params.active_world ONLY if absent (//= never clobbers a value a prior producer set).
+    # When the backfill actually ADDS the 1.4.0-only field to an older seed, bump
+    # data.contract_version to match — else a consumer that gates on contract_version would
+    # wrongly treat the now-present field as absent-because-legacy (CodeRabbit finding).
     MERGED="$(jq --argjson cs "$CS_OBJ" --arg aw "$ACTIVE_WORLD" \
-      '.params.compact_summary = $cs | .params.active_world //= $aw' "$SEED_FILE" 2>/dev/null || true)"
+      '.params.compact_summary = $cs
+       | (.params.active_world == null) as $backfilling
+       | .params.active_world //= $aw
+       | if $backfilling and .data.contract_version == "1.3.0" then .data.contract_version = "1.4.0" else . end' \
+      "$SEED_FILE" 2>/dev/null || true)"
   else
     # No (or corrupt) seed → PreCompact was skipped (e.g. an auto-compaction not paired with a
     # PreCompact). Synthesize a MINIMAL skeleton so the harness summary is not lost (safe, not lossy).

@@ -11,7 +11,7 @@
 #   (objectives N-Tree, Eisenhower next-actions, resume prose) — that is the skill's
 #   job (PROBABILISTIC MUSCLE). The hook captures only cheap, factual state + a nudge
 #   to run /maos:postflight for the rich seed. NEVER blocks the session (always exit 0).
-# Version: 0.1.3
+# Version: 0.1.4
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PreCompact
 #
@@ -67,18 +67,11 @@ if ! git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1; then
 fi
 REPO_NAME="$(basename "$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null || echo "$REPO")")"
 
-# ── active_world (contract 1.4.0) — prefer the shared lib; inline fallback mirrors it exactly
-# so a lib-absent env still verifies-not-guesses (never defaults to "personal").
-if command -v seed_active_world >/dev/null 2>&1; then
-  ACTIVE_WORLD="$(seed_active_world "$REPO" 2>/dev/null || echo unknown)"
-else
-  _aw_org="$(git -C "$REPO" remote get-url origin 2>/dev/null | sed -E 's#.*github\.com[:/]([^/]+)/.*#\1#')"
-  case "$_aw_org" in
-    ekson73) ACTIVE_WORLD=personal ;;
-    vek-im)  ACTIVE_WORLD=work ;;
-    *)       ACTIVE_WORLD=unknown ;;
-  esac
-fi
+# ── active_world (contract 1.4.0) — the identity map lives ONLY in seed-io.sh's
+# seed_active_world() (single source of truth); a lib-absent env fails CLOSED to "unknown"
+# rather than re-implementing the map here (a second copy risks drifting from it over time).
+ACTIVE_WORLD="unknown"
+command -v seed_active_world >/dev/null 2>&1 && ACTIVE_WORLD="$(seed_active_world "$REPO" 2>/dev/null || echo unknown)"
 
 # ── Deterministic git state (prefer lib; fall back to plain git) ──────────────
 if command -v gbd_current_branch >/dev/null 2>&1; then
