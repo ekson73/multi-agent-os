@@ -12,7 +12,7 @@
 #   hooks' additionalContext concatenate). Reads the seed from the FILE, not stdin — immune to
 #   the undocumented PostCompact↔SessionStart ordering (monotonic enrichment on disk).
 #   NEVER blocks (always exit 0, always valid JSON). NEVER fabricates (no seed / no jq → nothing).
-# Version: 0.1.0
+# Version: 0.1.1
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: SessionStart (matcher "")
 #
@@ -63,7 +63,10 @@ done
 jq -e . "$SEED" >/dev/null 2>&1 || exit 0       # corrupt → nothing (never fabricate)
 
 # ── Deterministic render (fixed priority; FACTS not imperatives; compact_summary capped) ──
-# Priority: goal → dod → next_actions → gaps → compact_summary → refs → resume_instructions.
+# Priority: active_world → goal → dod → next_actions → gaps → compact_summary → refs →
+# resume_instructions. active_world (1.4.0) renders FIRST, before the mission — which
+# identity/credential world a resuming agent is in is foundational orientation (Two-Worlds
+# hard boundary, `~/.claude/rules/user-rules.md`), and must land before any task detail.
 BODY="$(jq -r '
   .params as $p
   | ($p.refs // {}) as $r
@@ -73,6 +76,7 @@ BODY="$(jq -r '
       else [] end ) as $dod
   | [
       "Prior-session continuation seed loaded (kind=\($p.kind // "unknown"), captured \($p.captured_at // "n/a")). The following is verified prior state — resume from it rather than re-deriving.",
+      ( if ($p.active_world // "") != "" then "Active world: \($p.active_world) (Two-Worlds boundary — do not cross identities/repos/credentials)." else empty end ),
       ( if (($p.goal // $p.mission[0]) // "") != "" then "Mission: \(($p.goal // $p.mission[0]))." else empty end ),
       ( if ($dod|length) > 0 then "Definition of Done: " + ($dod|map(tostring)|join(" · ")) + "." else empty end ),
       ( if ($p.next_actions|type)=="array" and ($p.next_actions|length) > 0 then

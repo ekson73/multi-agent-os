@@ -11,7 +11,7 @@
 #   DETERMINISTIC + no LLM. Enriches the seed MONOTONICALLY (never downgrades kind, never
 #   removes fields). NEVER blocks (fail-open, always exit 0, NEVER exit 2 — a PostCompact
 #   that vetoes during an API-context-limit recovery would fail the user's request).
-# Version: 0.1.0
+# Version: 0.1.5
 # Protocol: C04 (Git Worktree), C06 (AI-Native Environment)
 # Event: PostCompact
 #
@@ -60,6 +60,11 @@ git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || exit 0   # off-git → not
 SEED_DIR="$(seed_dir "$REPO")"
 SEED_FILE="${SEED_DIR}/continuation-seed.latest.json"
 
+# ── active_world (contract 1.4.0) — computed here too, in case this hook synthesizes the
+# minimal-skeleton fallback below (PreCompact skipped) or is backfilling an older seed that
+# predates this field. Never overwrites a value a prior producer already set (see the //= merge).
+ACTIVE_WORLD="$(seed_active_world "$REPO" 2>/dev/null || echo unknown)"
+
 # ── Secret scan BEFORE persisting (⛔ ABSOLUTE — the summary may quote code with live secrets)
 # Idiom verbatim from bin/spawn-continuation.sh: on a hit, DROP the text + flag redacted.
 REDACTED=false
@@ -87,13 +92,28 @@ CS_OBJ="$(jq -n --arg trig "$TRIGGER" --arg cap "$TS" --argjson bytes "$BYTES" \
 if seed_lock "$SEED_DIR"; then
   MERGED=""
   if [ -f "$SEED_FILE" ] && jq -e . "$SEED_FILE" >/dev/null 2>&1; then
-    # Enrich the existing seed (any kind) — set only params.compact_summary.
-    MERGED="$(jq --argjson cs "$CS_OBJ" '.params.compact_summary = $cs' "$SEED_FILE" 2>/dev/null || true)"
+    # Enrich the existing seed (any kind) — set params.compact_summary, and backfill
+    # params.active_world ONLY if absent (//= never clobbers a value a prior producer set).
+    # When the backfill actually ADDS the 1.4.0-only field to an older seed, bump
+    # data.contract_version to match — else a consumer that gates on contract_version would
+    # wrongly treat the now-present field as absent-because-legacy (CodeRabbit finding). The
+    # promotion set is the ENUMERATED pre-1.4.0 versions (or missing) — NOT "!= 1.4.0" — a
+    # future 1.5.0/2.0.0+ seed that legitimately omits the still-optional active_world must
+    # NEVER be rewritten BACKWARD to 1.4.0 (that would misrepresent a newer seed as older and
+    # could make a version-gated consumer discard newer semantics; codex-connector, round 5).
+    MERGED="$(jq --argjson cs "$CS_OBJ" --arg aw "$ACTIVE_WORLD" \
+      '.params.compact_summary = $cs
+       | (.params.active_world == null) as $backfilling
+       | .params.active_world //= $aw
+       | (.data.contract_version // "") as $cv
+       | (["", "1.0.0", "1.1.0", "1.2.0", "1.3.0"] | index($cv) != null) as $pre_1_4_or_missing
+       | if $backfilling and $pre_1_4_or_missing then .data.contract_version = "1.4.0" else . end' \
+      "$SEED_FILE" 2>/dev/null || true)"
   else
     # No (or corrupt) seed → PreCompact was skipped (e.g. an auto-compaction not paired with a
     # PreCompact). Synthesize a MINIMAL skeleton so the harness summary is not lost (safe, not lossy).
-    MERGED="$(jq -n --argjson cs "$CS_OBJ" --arg sid "$SESSION_ID" --arg trig "$TRIGGER" --arg cap "$TS" \
-      '{jsonrpc:"2.0",method:"session.continuation",params:{kind:"deterministic-snapshot",captured_at:$cap,trigger:$trig,session_id:$sid,compact_summary:$cs,resume_instructions:"Run /maos:preflight to orient, then /maos:postflight for the full continuation seed (this seed carries only the harness compact_summary — PreCompact did not run)."},data:{layer:"community",contract:"skills/postflight/references/continuation-seed-contract.md",contract_version:"1.3.0"}}' 2>/dev/null || true)"
+    MERGED="$(jq -n --argjson cs "$CS_OBJ" --arg sid "$SESSION_ID" --arg trig "$TRIGGER" --arg cap "$TS" --arg aw "$ACTIVE_WORLD" \
+      '{jsonrpc:"2.0",method:"session.continuation",params:{kind:"deterministic-snapshot",captured_at:$cap,trigger:$trig,session_id:$sid,active_world:$aw,compact_summary:$cs,resume_instructions:"Run /maos:preflight to orient, then /maos:postflight for the full continuation seed (this seed carries only the harness compact_summary — PreCompact did not run)."},data:{layer:"community",contract:"skills/postflight/references/continuation-seed-contract.md",contract_version:"1.4.0"}}' 2>/dev/null || true)"
   fi
   [ -n "$MERGED" ] && seed_write_atomic "$SEED_FILE" "$MERGED"
   seed_unlock

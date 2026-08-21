@@ -18,7 +18,7 @@ description: |
   (reconciled with exit-hygiene by ADR-010). The end-of-session counterpart to the `preflight` skill. Reads
   whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/protocols/
   memories) and adapts.
-version: 0.10.0
+version: 0.10.1
 triggers:
   - postflight
   - run postflight
@@ -34,7 +34,7 @@ triggers:
   - sync the backlog
   - file the loose ends as tickets
 metadata:
-  version: "0.10.0"
+  version: "0.10.1"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -102,7 +102,7 @@ The environment MUST be left better, safer, and more traceable than it was found
 | **P1** | **SWEEP** — operationalize the exit-hygiene checklist: no loose ends, no banana peels | for each axis {git · docs · ADRs · changelogs · memories · rules · tickets/backlogs · worktrees/branches · stale metrics}: *survey* gaps/opportunities → classify by Eisenhower → **act** (persist/fix/version/commit/push/close) **or register** a tracked follow-up. Read-before-discard is mandatory. | `protocols/exit-hygiene.md`, `skills/sync-to-git`, `skills/quiesce`, `commands/worktree.md`, `bin/reap-sessions.sh`, `bin/dogfood-mark` |
 | **P2** | **DEBRIEF** — calculate the session map + run the complete close-out hunt | compose `morning-briefing` (its 7-section state: done · in-flight · blockers · decisions · next-action) then **synthesize on top** the objectives N-Tree (originating/primary/secondary/auxiliary × sequential/parallel/recursive — `originating` = *why we started at all* (the causal root; **plural when the session absorbed an external graft**, e.g. a handoff seed from a different prior session) vs `primary` = *the top deliverable now* (may have migrated to a derived sub-objective); **collapse to 3 tiers when `originating == primary` trivially** — a single-thread session gets no 4th-tier ceremony) + the **COMPLETE 10-item close-out HUNT** (`references/close-out-hunt-checklist.md` — fails · errors · warnings · risks+mitigations · gaps · pendings · decisions-not-taken · unasked-Qs · unanswered-Qs; each atom dispositioned fix-now / ticket / seed-field / drop-with-note — no silent drop), next-actions ranked by Eisenhower (non-blocked first). Then **render the glance-and-know locus** — D2 status line + D3 ntree + D4 conv — via `bin/locus.sh` (the compact projection of this debrief; grammar SSOT `references/locus-spec.md`), **and the end-of-action scorecard** — `bin/scorecard.py --model N` where `N` is chosen by `bin/scorecard-select-model.sh` (dynamic context-based decision table; round-robin preserved as `--mode round-robin` fallback; see "The End-of-Action Scorecard" below). | `skills/morning-briefing`, `bin/locus.sh`, `bin/scorecard.py`, `bin/scorecard-select-model.sh` |
 | **P2.5** | **TICKET-SYNC** — reconcile the backlog with the session | *(a)* triage each P2 atom (gaps · pendings · undecided · unasked-Qs · out-of-scope) → anti-theater filter → dedup → Eisenhower Q1-Q4 → file under the **cap (≤3 tickets + 1 batch housekeeping ticket)**; *(b)* create/reuse the **idempotent continuation ticket** (search-before-create; body mirrors the seed; provider-relative linkage); *(c)* enrich the anchored ticket. **All ops delegated** to a capability-detected ticketing primitive (no custom state — the tracker is the state). Bounded-autonomous; HITL only for HUMAN_DOMAIN / unknown-provider. **No tracker ⇒ DEFER(ticket), never block.** | `skills/postflight/references/ticket-sync-protocol.md` (SSOT) + a capability-detected ticketing skill (ref: `ticket-as-prompt`) |
-| **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from (the seed carries the D1 `locus` field `<status>·<anchor>·<slug>[·#seq]`, the `session_type`, the `dna` block, the `continuation_ticket` from P2.5, and `tickets_created`); **persist to the canonical reload path (`kind=rich-synthesis`, upgrade-in-place)** + print to screen + best-effort clipboard. DoR = P1+P2+P2.5 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) + `references/continuation-seed-contract.md` v1.3.0 |
+| **P3** | **HANDOFF** — emit the continuation seed | a minimal-sufficient, ai-agnostic seed (structured agent-register envelope + human mirror) a fresh amnesic agent can resume from (the seed carries the D1 `locus` field `<status>·<anchor>·<slug>[·#seq]`, the `session_type`, the `dna` block, the `continuation_ticket` from P2.5, and `tickets_created`); **persist to the canonical reload path (`kind=rich-synthesis`, upgrade-in-place)** + print to screen + best-effort clipboard. DoR = P1+P2+P2.5 done. | this skill (the elevation over `morning-briefing` recap) + `skills/session-fission` (seed shape) + `references/continuation-seed-contract.md` v1.4.0 |
 | **P3.5** | **SPAWN** *(optional, default-ON)* — launch the next session, pre-seeded | hand the P3 seed to `bin/spawn-continuation.sh`, which launches a fresh **named** detached `claude` session (tmux/cmux) — the name IS the D1 locus (`<status> · <anchor> · <slug> · #<short>`, e.g. `🟡 · VKS-123 · payment-retry · #a1b2c3d4`; pass the ticket via `--ticket` so it anchors, keep the `--slug` to the 2-4-word work essence — locus dedupes anchor-repeated tokens; emoji-first experiment, `POSTFLIGHT_NAME_STYLE=legacy` restores the ascii `<ticket>-<slug>-#<short>`) — with the seed injected as durable system context — so the work *continues itself* across the compact/clear boundary instead of waiting on a manual paste — the spawn also submits a positional **kickoff prompt** (pointing at the persisted seed file) so the new session STARTS WORKING instead of idling at the REPL (opt out: `--no-kickoff` / `POSTFLIGHT_KICKOFF=0`). DoR = P3 seed. Opt out: `--no-spawn`. | `bin/spawn-continuation.sh` (consumes the P3 seed; reuses `session-fission`'s reseed idea) |
 | **P3.6** | **BROADCAST** *(opt-in)* — make the tracked continuation discoverable at the point of future contact | ONLY when a pendency remains: inject a **bounded, structured, idempotent back-pointer marker** (to the P2.5 continuation ticket + P3 seed) into work artifacts via `bin/continuation-broadcast.sh` — `--scope conservative` (default) = the exit **commit trailer** (`Continue-Here: <key> · seed:<path>`) + the open **PR body** (idempotent upsert via `gh`); `--scope all` ALSO stamps **caller-named `--file` docs/changelogs** (ADRs REFUSED). The marker is a **structured back-pointer, not a free-form TODO** (reconciled with exit-hygiene by ADR-010): sentinel-delimited + machine-readable + idempotent (upsert, never accumulate) + metadata-only (sanitized) + `--dry-run` default + kill-switch (`MAOS_BROADCAST=0`). DoR = P3 seed and/or the P2.5 ticket. **NOOP when nothing pending.** OFF by default on `postflight` (`--broadcast` to enable); default-ON in `signoff`. | `bin/continuation-broadcast.sh` + `references/continuation-broadcast-protocol.md` (SSOT) + `docs/adrs/ADR-010-continuation-broadcast.md` (consumes the P3 seed + P2.5 ticket — reinvents neither) |
 
@@ -202,7 +202,7 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
 3. P3 HANDOFF: synthesize the continuation seed (below) from P1+P2+P2.5 → PERSIST to the canonical
    reload path (upgrade-in-place, `kind=rich-synthesis`, preserve any merged `compact_summary`,
    atomic under the seed lock — see "P3 PERSIST" below) + print + clipboard.
-   Populate (per contract v1.3.0): `refs.ticket` = **the P2.5 continuation ticket key** (so the
+   Populate (per contract v1.4.0): `refs.ticket` = **the P2.5 continuation ticket key** (so the
    spawned session's preflight R0 hook — which anchors off `refs.ticket` — wakes anchored on
    the *right* node; falls back to the current anchor only when no continuation ticket) ·
    `session_type` (`<mode>/<work>`) · `dna` (the 3 principles + ≤5 `session_learnings` +
@@ -240,7 +240,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
 - **Agent register** (default — economical, machine-parseable; emit as a JSON-RPC-style
   envelope, `--lang` selectable).
 
-  **SSOT (contract v1.3.0)**: the full seed shape lives in
+  **SSOT (contract v1.4.0)**: the full seed shape lives in
   [`templates/continuation-seed.template.json`](templates/continuation-seed.template.json)
   and its field-by-field contract in
   [`references/continuation-seed-contract.md`](references/continuation-seed-contract.md)
@@ -248,7 +248,15 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   · `guardrails` · `dod` · `dag` · `refs` · `resume_instructions`; plus the optional debrief
   fields and the v1.1.0 additions `session_type` · `dna` (object) · `continuation_ticket` ·
   `tickets_created` + the v1.2.0 addition `risks` (the hunt's forward-looking half) + the v1.3.0
-  additions `kind` (`rich-synthesis` here) and `compact_summary` (merged by the PostCompact hook)). Populate
+  additions `kind` (`rich-synthesis` here) and `compact_summary` (merged by the PostCompact hook) +
+  the v1.4.0 addition `active_world` (`personal`\|`work`\|`unknown` — the operator's Two-Worlds
+  boundary, verified against the producer's identity map, never guessed: an unrecognized
+  remote emits `unknown`, never defaults to `personal`)). **For `active_world` specifically:
+  DERIVE it — do not copy the template's `"unknown"` literal verbatim.** Run `git remote get-url
+  origin` yourself and apply the SAME identity rule `lib/seed-io.sh`'s `seed_active_world()`
+  uses (`ekson73` org → `personal`; `vek-im` org → `work`; anything else, or no verified
+  GitHub-org match → `unknown`) — the template's `"unknown"` is a SAFE FALLBACK for an agent that
+  cannot check, never a shortcut for one that can. Populate
   the template — do NOT re-derive the shape inline. Short excerpt:
 
 ```json
@@ -261,6 +269,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "guardrails":["..."], "dod":["..."], "dag":["<what comes after>"],
   "refs":{"git":"<repo+branch+PRs>","ticket":"<key|none>","memory":"<path|none>","session":"<id>"},
   "goal":"<one-line mission>",
+  "active_world":"unknown",
   "session_type":"<mode>/<work>",
   "dna":{"principles":["...","...","..."],"canonical_ref":"...","session_learnings":["..."],"learnings_ref":"<path|none>"},
   "continuation_ticket":{"key":"<key|none>","url":"...","parent":"...","link":"relates-to|child-of"},
@@ -268,7 +277,7 @@ amnesia premise: a gifted agent with no cross-session recall). Two registers, sa
   "risks":[{"risk":"<forward-looking hazard for the next agent>","mitigation":"<how to mitigate>","severity":"low|med|high"}],
   "next_actions":[{"task":"...","eisenhower":"Q1|Q2|Q3|Q4","blocked_by":null}],
   "resume_instructions":"Run /maos:preflight first; then follow bootstrap_order; then the first non-blocked next_action. INTERNALIZE params.dna + transcribe the 3 principles to every sub-agent you spawn."
-},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.3.0"}}
+},"data":{"layer":"community","contract":"skills/postflight/references/continuation-seed-contract.md","contract_version":"1.4.0"}}
 ```
 
 - **Human mirror**: the same, rendered as a short scannable briefing for the operator.
@@ -279,7 +288,7 @@ Output: **PERSIST to the canonical reload path + print to screen + best-effort c
 from the first non-blocked next-action — and, when **P3.5 SPAWN** fires, that next agent is *launched
 already holding the seed*, closing the loop `preflight → work → postflight → (spawn) → preflight …`.
 
-### P3 PERSIST — write the rich seed to the canonical reload path (contract 1.3.0)
+### P3 PERSIST — write the rich seed to the canonical reload path (contract 1.4.0)
 
 The clipboard alone is volatile: at the compact/clear boundary the operator rarely pastes, so the
 seed must ALSO land on disk at the path the reload reads. Write it there **upgrade-in-place** —
