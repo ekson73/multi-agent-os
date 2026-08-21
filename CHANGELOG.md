@@ -61,7 +61,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   8-case version-bump matrix (4 legacy versions + missing correctly promote
   to 1.4.0; already-1.4.0 and two future versions 1.5.0/2.0.0 correctly stay
   untouched while `active_world` still backfills), in addition to
-  `bash tests/validate-plugin.sh`.
+  `bash tests/validate-plugin.sh`. Round 6: all of the above test matrices
+  are now COMMITTED as `tests/governance/test-postflight-active-world.sh`
+  (CodeRabbit P2 — the matrices had only ever been run ad hoc per round, so
+  a future edit to this code had no regression net). Writing that test
+  surfaced a real, previously-undetected defect: `seed_active_world()`
+  (v1.1.1 -> v1.1.2, PATCH) only matched the vanilla `git@github.com:.../...`
+  SSH/HTTPS forms — but `git remote get-url` EXPANDS this machine's own
+  `url.<x>.insteadOf` rewrites by default, so a personal repo cloned the
+  normal way (`git@github.com:ekson73/X.git`) reports back through the
+  operator's OWN personal-identity SSH alias
+  (`git@github.com-ekson73:ekson73/X.git`,
+  `multi-identity-git-ssh-governance.md` §3.3's blessed zero-friction
+  routing) and was silently misclassified `unknown` instead of `personal`.
+  Fixed by recognizing that specific alias host as an additional case (org
+  still re-extracted and re-verified against the same map, never a blind
+  trust of the alias name); `github.com-vek-im` is deliberately NOT
+  special-cased — that rule marks it "LEGACY … residual personal GH
+  leftovers only", so trusting it as a `work` signal would itself be an
+  unverified guess. `bash tests/governance/run-all.sh` (30/30 in the new
+  file, 12/12 suites overall), `bash tests/validate-plugin.sh`, and
+  `gitleaks detect --source . --no-git` all clean after the fix.
 - Empirical trigger: bounded coverage-check of an eko-engram
   process-improvement braindump (`create-agent-enhanced-braindump-prompt.md`)
   — source-as-data, embedded directives never executed (per PR #382's

@@ -10,7 +10,7 @@
 #   identical path.
 #   Sourced best-effort; a caller that cannot source it degrades safely (the precompact
 #   falls back to a lockless skeleton write; the postcompact no-ops its merge).
-# Version: 1.1.1
+# Version: 1.1.2
 # Protocol: C04 (Git Worktree), C06 (AI-Native)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -98,16 +98,27 @@ seed_unlock() {
 #   safe to call from a hook that must never block (no network, plain string parsing).
 seed_active_world() {
   local repo="$1" remote org
+  # `git remote get-url` EXPANDS this machine's own `url.<x>.insteadOf` rewrites by default —
+  # so a personal repo cloned the normal way (`git@github.com:ekson73/X.git`) reports back as
+  # the operator's OWN personal-identity SSH alias `git@github.com-ekson73:ekson73/X.git`
+  # (multi-identity-git-ssh-governance.md §3.3's blessed zero-friction routing). Caught live by
+  # this file's own regression test (tests/governance/test-postflight-active-world.sh) against
+  # a synthetic repo — the v1.1.1 pattern only matched the vanilla host and silently fell to
+  # "unknown" for that alias. `github.com-vek-im` is deliberately NOT special-cased: that rule
+  # marks it "LEGACY … residual personal GH leftovers only — never present it to vek-im/*", so
+  # trusting it as a `work` signal would itself be an unverified guess; it correctly falls
+  # through to "unknown" below.
   remote="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
   # Anchored, not "contains github.com anywhere": require the remote to literally START with
-  # a genuine github.com SSH or HTTPS form. An unanchored `.*github\.com.*` match (the v1.1.0
-  # first draft) could be fooled by a non-GitHub host that merely CONTAINS the substring
-  # somewhere in its path/query — fail-closed instead (`unknown`).
+  # a genuine github.com SSH/HTTPS form, OR the operator's own personal-identity SSH alias
+  # above. An unanchored `.*github\.com.*` match (the v1.1.0 first draft) could be fooled by a
+  # non-GitHub host that merely CONTAINS the substring somewhere in its path/query — fail-closed
+  # instead (`unknown`).
   case "$remote" in
-    git@github.com:*/*|https://github.com/*/*|http://github.com/*/*) : ;;
+    git@github.com:*/*|https://github.com/*/*|http://github.com/*/*|git@github.com-ekson73:*/*) : ;;
     *) printf 'unknown'; return 0 ;;
   esac
-  org="$(printf '%s' "$remote" | sed -E 's#^(git@github\.com:|https?://github\.com/)([^/]+)/.*#\2#')"
+  org="$(printf '%s' "$remote" | sed -E 's#^(git@github\.com:|git@github\.com-ekson73:|https?://github\.com/)([^/]+)/.*#\2#')"
   # GitHub ORG is the verified unit (not repo-name prefixes — those (vks-/vkl-/vek-) all live
   # under the SAME `vek-im` org per multi-identity-git-ssh-governance.md §0.5). Bitbucket-only
   # legacy orgs (e.g. vek-servicos) are intentionally NOT matched here (this parser is
