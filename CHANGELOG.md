@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `session-to-vault` skill (Fonógrafo): vault-agnostic session export + cast
+
+- `skills/session-to-vault/SKILL.md` (new, v0.1.0) — preserves an agent session's
+  history as a durable, dated, tagged note in **any** markdown/Obsidian vault, and
+  can additionally **cast** that record into a medium a human can see. Promoted from
+  a personal-vault protocol and generalized: `--vault-path` and `--placement` are
+  parameters, so no vault path, folder taxonomy, or project slug is hardcoded
+  (Layer Purity — the engine ships here, the vault-specific routing stays in the
+  consuming vault as configuration).
+- **New axis `--cast-to`** (`markdown` · `html` · `diagram` · `slides` ·
+  `one-pager` · `notebooklm` · `artifact`), orthogonal to `--placement` (WHERE),
+  `--format` (HOW MUCH) and `--style` (REGISTER) — `--format=digest
+  --cast-to=slides` is a distinct request, so medium is not folded into format.
+  Default `none`: a cast is opt-in, and the note remains the authoritative record.
+- **Cast-only mode** — when the source is an already-saved note, phases 0→6 collapse
+  and only phase 7 runs, so a months-old export can be re-cast (e.g. into a diagram)
+  without the original transcript. With `--cast-to=none` it is an explicit no-op; it
+  never rewrites the note.
+- **Fail-closed disclosure gate** — `artifact`/`slides`/`notebooklm` publish to a
+  third-party service, so `--cast-to=auto` may resolve only to `markdown`/`html`/
+  `diagram`; external media are opt-in **by name**. Invariant:
+  `auto_may_select ∩ external_media = ∅`. A disclosure cannot be un-sent.
+- **§ Sanitize Gate** — the secret-scrub is a gate invoked immediately before *every*
+  write (the note, and each cast individually), not a positional phase; a missing
+  scanner counts as a hit, and any hit aborts the whole run.
+- **§ Producer availability** — `archify` (for `diagram`) and the host `Artifact`
+  tool are **not** bundled with this repo; `auto` probes before selecting and falls
+  back to a native medium while saying so, and an explicitly named unavailable
+  medium is reported as an error rather than silently substituted.
+- Composes `skills/session-fission` (read-only snapshot discipline),
+  `skills/opera-debrief` (`--style=narrative`) and `skills/content-recast`
+  (slides/PDF/NotebookLM producers) — no new engine, no forked producer.
+  `dogfood_status: pending-first-cycle`.
+
 ### Added — anima semiotic lens + continuation-seed active_world field
 
 - `skills/anima/SKILL.md` (v1.2.0 -> v1.2.1, PATCH) — §3.3 Lenses gains
