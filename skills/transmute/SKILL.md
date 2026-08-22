@@ -241,11 +241,22 @@ column, translate to the right column rather than report the param as unsupporte
 > **⚠️ `--target-style` has no equivalent — and deliberately so.** Style is not a transmute param.
 > `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. Route by intent:
 >
-> | Intent of `--target-style` | Route to | Owner |
-> |---|---|---|
-> | audience / register / tone (exec · junior · non-technical) | `--to-type=audience-recast` | `content-recast` (owns the faithfulness guard) |
-> | prompt shape / rigor profile | `--to-type=prompt` + profile (e.g. `gauntlet-loop`) | per §Cast router: `refine-braindump-to-prompt` when `source=braindump`; `agents/prompt-context-engineer` + profile otherwise |
-> | anything else, or intent undeterminable | — | `STOP-HITL` with both routes offered |
+> ⛔ **`--to-type` is single-valued** (one of `prompt` · `agentic-tool:*` · `audience-recast` ·
+> `artifact:*` · `ledger` · `ticket` — see `commands/transmute.md` §Flags). So the style route
+> depends on whether an **explicit `--cast-to` is also present**; it must never silently overwrite a
+> requested cast:
+>
+> | Intent of `--target-style` | No explicit `--cast-to` | WITH an explicit `--cast-to` | Owner |
+> |---|---|---|---|
+> | audience / register / tone (exec · junior · non-technical) | `--to-type=audience-recast` | cast **wins** `--to-type`; apply the recast as a **preprocessing transform** before the cast | `content-recast` (owns the faithfulness guard) |
+> | prompt shape / rigor profile | `--to-type=prompt` + profile (e.g. `gauntlet-loop`) | cast **wins** `--to-type`; apply the prompt-shaping as a **preprocessing transform** | per §Cast router: `refine-braindump-to-prompt` when `source=braindump`; `agents/prompt-context-engineer` + profile otherwise |
+> | anything else, or intent undeterminable | `STOP-HITL` with both routes offered | `STOP-HITL` | — |
+>
+> **Never discard either input.** `--cast-to=artifact:pdf --target-style=exec` means *"recast for an
+> executive audience, then render that as PDF"* — a preprocessing transform followed by the requested
+> cast, not a contest over one `--to-type` slot. If the style cannot be expressed as a preprocessing
+> transform for the requested cast → `STOP-HITL` naming the collision; **never silently drop the cast
+> or the style.**
 >
 > **⚠️ `*-recovery()` is NOT one shared idiom — map it per parameter.** `same-as-source` and `auto`
 > are values of *specific* params (`--to-type`, `--transforms`, `--principles`); they cannot populate

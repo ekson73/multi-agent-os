@@ -44,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `agents/prompt-context-engineer` + profile otherwise); language
     (`--user-lang`/`--agentic-lang`) is not style; undeterminable intent ->
     `STOP-HITL`.
+  - **Style never overwrites an explicit cast.** `--to-type` is single-valued,
+    so a `--target-style` route would collide with an explicit `--cast-to`
+    (`--cast-to=artifact:pdf --target-style=exec` would force the agent to
+    silently discard one). With an explicit cast present the cast **wins**
+    `--to-type` and the style is applied as a **preprocessing transform**;
+    if it cannot be, -> `STOP-HITL` naming the collision. Neither input is
+    ever dropped silently.
   - `*-recovery()` is **mapped per parameter, never as one wildcard**.
     `same-as-source`/`auto` are values of specific params and cannot populate a
     sink, a style, or a source, so a wildcard silently drops the requested
