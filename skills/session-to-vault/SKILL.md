@@ -102,6 +102,7 @@ secret.
 | `--provenance` | *(none)* | External artifacts stitched in as a **separately cited appendix** — each entry carries `source · origin/URL · date`, and the date is **ISO 8601** (`YYYY-MM-DD`), never relative. Never blended into the session's own turns. |
 | `--tags` | `auto` | Frontmatter tags: derived from `--focus` + project/repo + session date(s). |
 | `--cast-to` | `none` | **Medium** for a human-readable companion — see § Cast. Repeatable. |
+| `--scanner` | `gitleaks` | The secret-scanner the § Sanitize Gate invokes before every write. Any command honouring the gate contract (receives a path, returns exit 0 = clean / non-zero = hit). Absent or unrunnable ⇒ treated as a **hit**, with an error naming the prerequisite. |
 | `--dry-run` | `false` | Compute and report; **write nothing and invoke no producer that has a side effect**. Every cast is *reported as requested* (medium · would-be path · producer · sink class) but **not** produced: `artifact`, `slides` and `notebooklm` must not be published, uploaded, or created under `--dry-run` — a "dry" run that publishes is the worst possible surprise. Local media are not rendered to disk either. |
 
 ### Defaults doctrine
@@ -141,6 +142,31 @@ phase 6.
   run so it can be rolled back. Never write "just the clean ones".
 - **If the scanner is unavailable**: that is a **hit**, not a pass. Absence of a scan is not evidence of
   cleanliness — write nothing and say why (§0 explicitly does not cover this).
+
+#### The scanner is named, not assumed
+
+A fail-closed gate that names no scanner is not fail-closed — it is **broken**: every export would abort with
+no way to satisfy it. So the gate has a concrete, satisfiable contract:
+
+| | |
+|---|---|
+| **Supported scanner** | `gitleaks` — already this repo's CI secret-scanner, so it is the house standard rather than a new dependency invented here |
+| **Prerequisite** | `gitleaks` on `PATH` (`gitleaks version` answers) — **required to write**; this is documented, not implied |
+| **Override** | `--scanner=<command>` — any command honouring the contract below; lets a consumer plug their own |
+| **Contract** | the command receives **a path to the exact bytes about to be written** and returns **exit 0 = clean · non-zero = hit**. Anything else (command absent, non-executable, timeout, crash) = **unavailable = hit** |
+
+**Procedure — scan the bytes, then move them; never write-then-scan:**
+
+1. Render the artifact into a **temporary file** in a private directory (`0700` dir, `0600` file) *outside* the
+   vault — so a rejected artifact never existed at its destination.
+2. Run the scanner against that temp path (e.g. `gitleaks detect --no-git --source <tmp> --redact`).
+3. **Exit 0** → move the temp file to its resolved destination (§ Path safety) and record the write.
+4. **Non-zero, or the scanner could not be run** → delete the temp file, **write nothing**, abort the whole run,
+   and report *which artifact* failed and *why* (hit vs unavailable — these are different messages, and the
+   "unavailable" one names the prerequisite so the operator can act).
+
+**Under `--dry-run`** no artifact is written, so no scan is required — the gate is *not applicable*, not
+*waived*. The distinction matters: dry-run is safe because nothing is produced, never because the gate is soft.
 
 ### § Path safety (every write is confined to the vault)
 
@@ -247,17 +273,25 @@ unreadable. A cast is a **derived companion**: the note stays authoritative; del
 Only `markdown` and `html` are **native** to this skill. Every other medium delegates to a producer that may or
 may not be installed alongside it:
 
-| Producer | Ships with this repo? | Needed by |
+| Medium | Wrapper (ships here?) | **Terminal renderer** (the thing that actually produces the file) |
 |---|---|---|
-| native renderer | ✅ yes | `markdown` · `html` |
-| `skills/content-recast` | ✅ yes (same repo) | `slides` · `one-pager` · `notebooklm` |
-| `skills/opera-debrief` | ✅ yes (same repo) | `--style=narrative` |
-| `archify` | ❌ **no** — user/host-scope skill, installed separately | `diagram` |
-| host `Artifact` tool | ❌ no — provided by the agent host, not this repo | `artifact` |
+| `markdown` · `html` | native ✅ | native — nothing downstream |
+| `--style=narrative` | `skills/opera-debrief` ✅ | prose only — nothing downstream |
+| `slides` | `skills/content-recast` ✅ | ❌ **deck producer (e.g. Gamma / a `pptx` skill) — NOT bundled** |
+| `one-pager` | `skills/content-recast` ✅ | ❌ **PDF producer — NOT bundled** |
+| `notebooklm` | `skills/content-recast` ✅ | ❌ **NotebookLM access — NOT bundled** |
+| `diagram` | — | ❌ **`archify` — NOT bundled** (user/host-scope skill) |
+| `artifact` | — | ❌ **host `Artifact` tool — provided by the agent host** |
 
-**Rule**: a medium is admissible only if its producer is **reachable, probed at selection time** — a standalone
-installation of this repo has `content-recast` and `opera-debrief` but does **not** necessarily have `archify`
-or a host `Artifact` tool.
+**Rule — probe transitively, to the terminal renderer.** A medium is admissible only when the component that
+actually emits the file answers. **Probing the wrapper is not enough**: `content-recast` ships here, but it
+*delegates* slides/PDF/NotebookLM downstream — so with the wrapper present and the renderer absent it can only
+return **handoff instructions**, not an artifact. Instructions are not a cast:
+
+- if the terminal renderer does not answer, the medium is **unavailable** even though its wrapper is installed;
+- a wrapper that returns guidance instead of a file ⇒ **report the cast as not produced**. Never log a
+  `casts_written` entry for an artifact that does not exist — a phantom cast is worse than a missing one,
+  because the note's own frontmatter would then lie about what exists.
 
 - **`auto` must probe first** and choose only among producers that actually answered. If `archify` is absent,
   `auto` falls back to a native medium (`html`, else `markdown`) **and says which fallback it took and why** —
@@ -336,6 +370,14 @@ session-to-vault self --scope=focus-only            # -> ERROR: focus-only requi
 session-to-vault self --cast-to=diagram             # -> ERROR if archify is absent (no silent markdown fallback)
 session-to-vault self --focus=nonexistent-topic     # -> NO-MATCH: nothing written, projection reported
 session-to-vault note.md --cast-to=html             # -> ERROR if note.md lacks the session_to_vault marker
+session-to-vault self                               # -> ERROR if no scanner: names the prerequisite
+                                                    #    ("install gitleaks, or pass --scanner=<cmd>")
+session-to-vault self --cast-to=slides              # -> ERROR if content-recast is present but its deck
+                                                    #    producer is not: wrapper != terminal renderer
+
+# 8. Bring your own scanner.
+session-to-vault self --scanner=/usr/local/bin/my-secret-scan
+#    -> gate calls it with the temp path; exit 0 = clean, non-zero = hit.
 ```
 
 ## Anti-patterns (do NOT)
@@ -376,7 +418,7 @@ session-to-vault note.md --cast-to=html             # -> ERROR if note.md lacks 
 | 4 | YAML frontmatter valid | ✅ parsed with a YAML loader, not eyeballed |
 | 5 | Instructions step-by-step | ✅ pipeline 0→7, each phase with kind + action |
 | 6 | Examples concrete and realistic | ✅ § Examples — 6 working invocations + 4 error cases |
-| 7 | Dependencies documented | ✅ § Producer availability (what ships, what does not, probe rule) |
+| 7 | Dependencies documented | ✅ § Producer availability (what ships, what does not, transitive probe) + the § Sanitize Gate scanner prerequisite (`gitleaks`, or `--scanner`) |
 | 8 | File paths use forward slashes | ✅ throughout |
 | 9 | Skill activates on relevant queries | ✅ 8 triggers, EN + PT |
 | 10 | Agent follows instructions correctly | ⏳ **pending first dogfood cycle** — deliberately not claimed by this PR (`dogfood_status: pending-first-cycle`) |
@@ -411,7 +453,7 @@ MIT
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→7, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. |
+| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→7, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. **PDCA round 3 (Codex, 2 findings, both applied):** the § Sanitize Gate now **names its scanner** (`gitleaks`, this repo's own CI scanner) with a prerequisite, a `--scanner=<cmd>` override, an explicit exit-code contract and a render-to-temp → scan → move procedure — a fail-closed gate that named no scanner was not fail-closed but *unsatisfiable*, aborting every export; and § Producer availability now probes **transitively to the terminal renderer** — `content-recast` ships here but only *delegates* slides/PDF/NotebookLM downstream, so a present wrapper with an absent renderer yields handoff instructions, not an artifact, and must never be recorded as a written cast. |
 
 ---
 

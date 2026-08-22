@@ -35,7 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **§ Producer availability** — `archify` (for `diagram`) and the host `Artifact`
   tool are **not** bundled with this repo; `auto` probes before selecting and falls
   back to a native medium while saying so, and an explicitly named unavailable
-  medium is reported as an error rather than silently substituted.
+  medium is reported as an error rather than silently substituted. Probing is
+  **transitive**: `content-recast` ships here but only *delegates* `slides`/
+  `one-pager`/`notebooklm` to downstream renderers that are **not** bundled, so a
+  present wrapper with an absent renderer yields handoff instructions rather than an
+  artifact and is never recorded as a written cast.
+- **Prerequisite — a secret scanner is required to write.** The § Sanitize Gate names
+  `gitleaks` (already this repo's CI scanner) and accepts a `--scanner=<command>`
+  override honouring a documented contract (given the path to the exact bytes about to
+  be written: exit 0 = clean, non-zero = hit; absent/unrunnable = hit). Artifacts are
+  rendered to a private temp file, scanned there, and only then moved to their
+  destination — never written first and scanned after.
 - **Write-safety contract** — every resolved destination is normalized and confined
   beneath `--vault-path` (absolute paths, `..` traversal and symlink escapes are
   rejected before any write); `--dry-run` invokes **no** producer with a side effect,
