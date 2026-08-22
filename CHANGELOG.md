@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — transmute declared-grammar aliases (operator braindump surface)
+
+- `skills/transmute/SKILL.md` (v0.2.2 -> v0.2.3, PATCH) — new §Declared-grammar
+  aliases under §Parameters. The operator braindump family that drove v0.2.2
+  names this skill's capability under a different grammar (`--from` ·
+  `--cast-to` · `--target-location` · `--target-format` · `--target-style`,
+  each with a `*-recovery()` default). A `directive-braindump-triage` of the
+  third round scored 26 atomic directives 17 DONE / 4 COVERED / 2 EXCLUDED /
+  3 residual: the capability was already discharged by this skill +
+  `atomize-and-route` + `goal-recovery`, and `command grep` for
+  `cast-to|target-style|target-location` over `skills/ agents/` returned **0
+  declared params**. The residual was therefore a *naming surface*, not a
+  missing feature — so this is a documentation-level translation contract, NOT
+  a second parser (the skill stays a thin router; DRY · YAGNI · anti-over-eng).
+  Consumers gain the accepted grammar plus three explicit refusal contracts the
+  aliasing cannot silently resolve:
+  - `--from` is **SINGULAR**; a literal unexpanded `{{sources}}` reaching
+    INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
+    out of scope here (no iteration/ordering/aggregation semantics exist) and
+    routes to `atomize-and-route` or `converge`.
+  - `--target-format` resolves **value-space first, `--cast-to` second,
+    `STOP-HITL` last** — this skill has two independent format axes (artifact
+    vs report) and collapsing them would misread a valid request such as
+    `--cast-to=artifact:pdf --target-format=json`. Value in neither axis ->
+    `STOP-ERROR`; explicit axis conflict -> `STOP-HITL`.
+  - `--target-style` has **no equivalent by design**: audience/register routes
+    to `content-recast` (owns the faithfulness guard), prompt-shape to the
+    `prompt` profile; language (`--user-lang`/`--agentic-lang`) is not style;
+    undeterminable intent -> `STOP-HITL`.
+
 ### Added — anima semiotic lens + continuation-seed active_world field
 
 - `skills/anima/SKILL.md` (v1.2.0 -> v1.2.1, PATCH) — §3.3 Lenses gains

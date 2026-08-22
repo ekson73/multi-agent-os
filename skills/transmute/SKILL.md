@@ -187,25 +187,47 @@ translate to the right column rather than report the param as unsupported.
 
 | Declared (braindump) | Canonical (this skill) | Fidelity |
 |---|---|---|
-| `--from <sources>` | `<source>` (positional) | **exact** — incl. the `{{sources}}` multi-source form |
+| `--from <source>` | `<source>` (positional) | **exact, SINGULAR only** — see the fan-in note below |
 | `--cast-to` | `--to-type` | **exact** — same value space (§Cast router) |
 | `--target-location` | `--output-target` | **exact** — sink membership test per §EMIT |
 | `--target-format` | ⚠️ **ambiguous — two axes** | see note below |
 | `--target-style` | ⚠️ **no direct equivalent** | see note below |
 | `*-recovery()` default | `same-as-source` / `auto` | **exact idiom** — `--to-type=same-as-source` is *dynamic calculated*; `--transforms=auto` and `--principles=auto` infer from source+target |
 
+> **⚠️ `--from` is SINGULAR — `{{sources}}` must be expanded BEFORE INTAKE.** This skill guarantees
+> ONE source end-to-end (INTAKE types one source; the `--output=json` contract carries one `source`
+> object). No iteration, ordering, or aggregation semantics are defined, so the alias does **not**
+> license a plural `--from`. A literal unexpanded `{{sources}}` reaching INTAKE is an unfilled
+> placeholder → `STOP-ERROR` (existing `<source>` contract). The caller expands the placeholder
+> first and invokes once per source; cross-source aggregation is out of scope here — route a genuine
+> multi-source fan-in to `atomize-and-route` (per-atom routing) or `converge` (N→1 merge).
+>
 > **⚠️ `--target-format` is ambiguous by construction — do not collapse it.** This skill has *two
-> independent format axes*: the **artifact's** format (`--to-type=artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}`)
-> and the **report's** format (`--output`/`--agentic-format` = `table\|json\|json-rpc`). A braindump
-> `--target-format` MUST be disambiguated against the accompanying `--cast-to`: if the cast target is
-> `artifact:*`, it means the artifact axis; otherwise it means the report axis. When neither is
-> determinable → `STOP-HITL` with both readings offered, never a silent guess.
-
-> **⚠️ `--target-style` has no equivalent — and deliberately so.** Style is not a transmute param:
-> audience/register shaping is delegated to `content-recast` (via `--to-type=audience-recast`, which
-> owns the faithfulness guard) and prompt-shape to the `prompt` profile (`gauntlet-loop`).
-> `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. A braindump
-> `--target-style` routes to `--to-type=audience-recast`; if that is not the intent → `STOP-HITL`.
+> independent format axes*: the **artifact's** format
+> (`--to-type=artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}`) and the
+> **report's** format (`--output`/`--agentic-format` = `table\|json\|json-rpc`). Resolve in this
+> order — **value-space first, `--cast-to` second, `STOP-HITL` last**:
+>
+> 1. **Value-space test.** If the value belongs to exactly ONE axis' value-set, it selects that axis
+>    — even when `--cast-to` names the other. (`--cast-to=artifact:pdf --target-format=json`: the
+>    artifact axis is already fixed to `pdf` and `json` is report-only, so `json` sets the *report*
+>    axis. Reading it as the artifact axis would both contradict the already-fixed cast and reject a
+>    valid request.)
+> 2. **Cast-to test.** If the value is valid in BOTH axes (e.g. `md`), the accompanying `--cast-to`
+>    decides: `artifact:*` → artifact axis; anything else → report axis.
+> 3. **Neither settles it** → `STOP-HITL` with both readings offered, never a silent guess.
+>
+> A value in NEITHER axis' value-set → `STOP-ERROR` naming the valid set for each axis. An explicit
+> conflict (value fixes an axis the accompanying flag already fixed differently) → `STOP-HITL`.
+>
+> **⚠️ `--target-style` has no equivalent — and deliberately so.** Style is not a transmute param.
+> `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. Route by intent:
+>
+> | Intent of `--target-style` | Route to | Owner |
+> |---|---|---|
+> | audience / register / tone (exec · junior · non-technical) | `--to-type=audience-recast` | `content-recast` (owns the faithfulness guard) |
+> | prompt shape / rigor profile | `--to-type=prompt` + profile (e.g. `gauntlet-loop`) | `refine-braindump-to-prompt` |
+> | anything else, or intent undeterminable | — | `STOP-HITL` with both routes offered |
 
 Aliasing is documentation-level (translation contract), not a second parser: this skill stays a thin
 router and does not grow a competing flag surface (DRY · YAGNI · anti-over-eng).
@@ -351,11 +373,16 @@ router added no routing). Dormant-by-design otherwise.
   discharged by this skill + `atomize-and-route` + `goal-recovery`. `command grep` for
   `cast-to|target-style|target-location` over `skills/ agents/` returned **0 declared params** —
   so the residual was a *naming surface*, not a missing feature. Adds the alias translation
-  contract (doc-level, no second parser) and, more usefully, surfaces two cases the aliasing
-  cannot silently resolve: **`--target-format` is ambiguous** (this skill has two independent
-  format axes — artifact vs report — disambiguated by the accompanying `--cast-to`, else
-  `STOP-HITL`), and **`--target-style` has no equivalent** (style is delegated to `content-recast`
-  / the `prompt` profile; language ≠ style). Ledger:
+  contract (doc-level, no second parser) and, more usefully, three explicit refusal contracts the
+  aliasing cannot silently resolve: **`--from` is SINGULAR** (an unexpanded literal `{{sources}}`
+  reaching INTAKE is an unfilled placeholder → `STOP-ERROR`; multi-source fan-in has no
+  iteration/ordering/aggregation semantics here and routes to `atomize-and-route` / `converge`);
+  **`--target-format` resolves value-space → `--cast-to` → `STOP-HITL`** (two independent format
+  axes exist — artifact vs report — so a naive collapse would misread a valid
+  `--cast-to=artifact:pdf --target-format=json`; value in neither axis → `STOP-ERROR`); and
+  **`--target-style` has no equivalent by design** (audience/register → `content-recast`, which
+  owns the faithfulness guard; prompt-shape → the `prompt` profile; language ≠ style;
+  undeterminable → `STOP-HITL`). Ledger:
   `create-agent-braindump-provenance-ledger.md`. Closes #385.
 - v0.2.2 — **§Source-as-data (never-execute discipline) — empirical trigger.** A round
   invoked this skill's own genesis family with a source (`eko-engram`
