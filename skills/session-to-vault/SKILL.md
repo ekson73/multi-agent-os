@@ -102,7 +102,7 @@ secret.
 | `--provenance` | *(none)* | External artifacts stitched in as a **separately cited appendix** — each entry carries `source · origin/URL · date`, and the date is **ISO 8601** (`YYYY-MM-DD`), never relative. Never blended into the session's own turns. |
 | `--tags` | `auto` | Frontmatter tags: derived from `--focus` + project/repo + session date(s). |
 | `--cast-to` | `none` | **Medium** for a human-readable companion — see § Cast. Repeatable. |
-| `--scanner` | `gitleaks` | The secret-scanner the § Sanitize Gate invokes before every write. Any command honouring the gate contract (receives a path, returns exit 0 = clean / non-zero = hit). Absent or unrunnable ⇒ treated as a **hit**, with an error naming the prerequisite. |
+| `--scanner` | `gitleaks` | The secret-scanner the § Sanitize Gate runs over the whole staged set before any commit. Any command honouring the gate contract (receives a staged path, returns exit 0 = clean / non-zero = hit). Absent or unrunnable ⇒ treated as a **hit**, with an error naming the prerequisite. |
 | `--dry-run` | `false` | Compute and report; **write nothing and invoke no producer that has a side effect**. Every cast is *reported as requested* (medium · would-be path · producer · sink class) but **not** produced: `artifact`, `slides` and `notebooklm` must not be published, uploaded, or created under `--dry-run` — a "dry" run that publishes is the worst possible surprise. Local media are not rendered to disk either. |
 
 ### Defaults doctrine
@@ -116,7 +116,7 @@ secret.
   question; a deferred human → never block, act if `score ≥ 0.85 ∧ reversible ∧ ¬human-domain`, else persist a
   ranked recommendation set; a machine/hook → a JSON-RPC-shaped envelope, never prose.
 
-## Pipeline (0 → 7)
+## Pipeline (0 → 8)
 
 | # | Phase | Kind | Do |
 |---|---|---|---|
@@ -126,22 +126,46 @@ secret.
 | 3 | **Scope discipline** | nondet | Multi-session asks only — see § Scope discipline. |
 | 4 | **Enrich** | nondet | Attach `--provenance` items as a separately cited appendix. |
 | 5 | **Render** | hybrid | Shape per `--format`/`--style`. `narrative` delegates to `opera-debrief`. |
-| 6 | **Persist note** | det | Write the note idempotently per `--vault-path`/`--placement`, **through the § Sanitize Gate**. Log path + what was included/excluded — an uncited write did not happen. |
-| 7 | **Cast** | hybrid | Only when `--cast-to` ≠ `none`. For **each** medium: produce the artifact, pass it **through the § Sanitize Gate**, then write. See § Cast. |
+| 6 | **Stage note** | det | Render the note into the private staging area per `--vault-path`/`--placement` (destination *resolved and validated* per § Path safety, but **not yet written**). |
+| 7 | **Stage casts** | hybrid | Only when `--cast-to` ≠ `none`. Produce **every** requested cast into staging. See § Cast. |
+| 8 | **Scan + commit** | det | § Sanitize Gate over the **whole staged set**; on any hit, discard staging and stop — nothing was committed. On all-clean, commit local sinks first, external sinks last and one at a time. Log every write (path + what was included/excluded) — an uncited write did not happen. |
 
 ### § Sanitize Gate (a gate, not a phase)
 
-The secret-scrub is **not** a positional step that runs once — it is a **gate invoked immediately before every
-write, over the exact bytes about to be written**. A phase-shaped scrub cannot inspect an artifact that a later
-phase has not produced yet; a cast rendered in phase 7 would be written unscanned if the only scrub lived in
-phase 6.
+The secret-scrub is **not** a positional step that runs once mid-pipeline — it is a **gate standing between
+staging and *any* commit, over the exact bytes of every artifact the run produced**. A scrub bound to the note's
+own step could not inspect a cast that a later phase had not rendered yet, and would let it reach its sink
+unscanned; a per-artifact scan-then-write fixes that but still cannot *abort*, because by the time the second
+artifact fails the first is already written. Hence: stage everything, scan everything, then commit.
 
-- **Invoked at**: phase 6 (the note) and, separately, once per cast in phase 7 (the rendered HTML, diagram
-  source, deck, or payload about to be published).
-- **On a hit**: **abort the entire run.** Write nothing further; report every artifact already written in this
-  run so it can be rolled back. Never write "just the clean ones".
+- **Covers**: the note *and* every cast — the rendered HTML, diagram source, deck, or payload about to be
+  published. Each is scanned as **its own bytes**; scanning only the note would leave a cast unscanned.
+- **On a hit**: **nothing is committed at all** — see § Stage-scan-commit. This is an ordering guarantee, not a
+  cleanup promise: a rollback promise would be worthless for an already-published external artifact.
 - **If the scanner is unavailable**: that is a **hit**, not a pass. Absence of a scan is not evidence of
   cleanliness — write nothing and say why (§0 explicitly does not cover this).
+
+#### § Stage-scan-commit (why per-artifact scan-then-write is not enough)
+
+A per-artifact "scan then write" loop **cannot** deliver "a hit aborts the note and every cast". If the note
+passed and was written, and a later cast hits, the note is *already persisted*; if an external cast was already
+published, it **cannot be withdrawn at all**. The guarantee has to be established *before* the first commit:
+
+1. **STAGE** — render **every** output of the run (the note and each requested cast) into the private staging
+   directory (`0700` dir, `0600` files) **outside the vault**. Nothing touches a sink in this step.
+2. **SCAN** — run the scanner over **all** staged artifacts. Any hit, or any artifact whose scan could not run,
+   fails the **whole set**.
+3. **COMMIT** — only when the entire set is clean:
+   - **local sinks first** (the note, then local casts) — filesystem moves, individually reversible;
+   - **external sinks last, and one at a time** (`artifact` · `slides` · `notebooklm`) — because publication is
+     **irreversible**, it is the final act, never interleaved with work that could still fail.
+4. **On failure at step 2** — delete the staging directory and exit. Nothing was ever committed, so there is
+   nothing to roll back. This is the only atomicity that is actually achievable.
+
+**Honest limit** (stated, not glossed): if a run publishes to *several* external sinks and one fails **after**
+another has already published, the earlier publication stands and cannot be undone. The contract is therefore
+**"nothing is published unless everything scanned clean"** — not "everything can be undone". The run reports
+exactly which external sinks committed.
 
 #### The scanner is named, not assumed
 
@@ -155,15 +179,14 @@ no way to satisfy it. So the gate has a concrete, satisfiable contract:
 | **Override** | `--scanner=<command>` — any command honouring the contract below; lets a consumer plug their own |
 | **Contract** | the command receives **a path to the exact bytes about to be written** and returns **exit 0 = clean · non-zero = hit**. Anything else (command absent, non-executable, timeout, crash) = **unavailable = hit** |
 
-**Procedure — scan the bytes, then move them; never write-then-scan:**
+**How the scanner is invoked** (the *ordering* is § Stage-scan-commit; this is the call itself):
 
-1. Render the artifact into a **temporary file** in a private directory (`0700` dir, `0600` file) *outside* the
-   vault — so a rejected artifact never existed at its destination.
-2. Run the scanner against that temp path (e.g. `gitleaks detect --no-git --source <tmp> --redact`).
-3. **Exit 0** → move the temp file to its resolved destination (§ Path safety) and record the write.
-4. **Non-zero, or the scanner could not be run** → delete the temp file, **write nothing**, abort the whole run,
-   and report *which artifact* failed and *why* (hit vs unavailable — these are different messages, and the
-   "unavailable" one names the prerequisite so the operator can act).
+- it receives the **path to a staged artifact**, never a destination path — e.g.
+  `gitleaks detect --no-git --source <staged-path> --redact`;
+- exit **0** = clean · **non-zero** = hit · not runnable / timeout / crash = **unavailable**, treated as a hit;
+- **hit** and **unavailable** are reported as **different messages**: the unavailable one names the prerequisite
+  (`install gitleaks, or pass --scanner=<cmd>`) so the operator can act instead of being stuck;
+- the report always names **which artifact** failed, not just that the run failed.
 
 **Under `--dry-run`** no artifact is written, so no scan is required — the gate is *not applicable*, not
 *waived*. The distinction matters: dry-run is safe because nothing is produced, never because the gate is soft.
@@ -304,11 +327,13 @@ return **handoff instructions**, not an artifact. Instructions are not a cast:
 
 ### Cast-only mode
 
-When `<source>` is a **vault note** rather than a transcript, phases **0→6 collapse** — the material is already
-extracted, scoped, enriched, rendered **and persisted** — and only **phase 7 (Cast)** runs. Phase 6 is
-deliberately skipped: the note already exists, and re-running a *persist* phase over an existing note is exactly
-the silent rewrite this mode must never do. The § Sanitize Gate still fires, at each cast's own write (phase 7),
-so nothing leaves unscanned.
+When `<source>` is a **vault note** rather than a transcript, the run is **0 · 1 · 7 · 8**: resolve the source
+(0) and the parameters (1) as always, then **skip 2→6** — the material is already extracted, scoped, enriched,
+rendered **and persisted** — and go straight to staging the casts (7) and scanning/committing them (8).
+
+Phase **6 (Stage note) is deliberately skipped**: the note already exists, and re-staging it would put it back
+on the commit path — the silent rewrite this mode must never do. The § Sanitize Gate still covers everything
+this run actually produces, because the staged casts are scanned in phase 8 before any of them is committed.
 
 This is what lets you re-cast a previously persisted export (of any age) into a diagram without re-reading — or
 even still having — the original transcript. If `--cast-to` is `none` in this mode there is no phase left to
@@ -356,7 +381,7 @@ session-to-vault 0c841e65 --focus=payments --context=3 --filters=no-tool-noise
 session-to-vault self --format=digest --cast-to=slides
 #    -> note (<=500 words) + a deck produced by content-recast.
 
-# 5. Re-cast an ALREADY-SAVED note as a diagram (cast-only mode: phases 0-6 collapse).
+# 5. Re-cast an ALREADY-SAVED note as a diagram (cast-only mode: runs 0,1,7,8 — skips 2-6).
 session-to-vault /home/me/notes/2026/08/2026-08-21-payments.md --cast-to=diagram
 #    -> reads the note (marker required), writes 2026-08-21-payments.cast.diagram.svg
 #       The note itself is NOT rewritten.
@@ -390,12 +415,14 @@ session-to-vault self --scanner=/usr/local/bin/my-secret-scan
 - ❌ **Reimplement a producer** (a diagram engine, a slide renderer, a narrative pass). Delegate.
 - ❌ **Blend `--provenance` into the session's own turns.** Evidence sits *alongside* the record, cited.
 - ❌ **Bare-keyword multi-session export.** Apply § Scope discipline and show the excluded list.
-- ❌ **Write before sanitizing.** The gate precedes *every* write — the note and each cast, individually.
+- ❌ **Commit before sanitizing.** The gate precedes *any* commit and runs over the **whole staged set** — a
+  per-artifact scan-then-write cannot deliver the abort it promises, because the first artifact is already
+  written when the second one fails. See § Stage-scan-commit.
 - ❌ **Treat a missing scanner as a pass.** No scan ≠ clean. Write nothing and say why.
 - ❌ **Claim a medium whose producer is absent.** Probe first; fall back only from `auto`, only to a native
   medium, and only while saying so. An explicitly named unavailable medium is an error, not a substitution.
-- ❌ **Re-run the persist phase in cast-only mode.** The note already exists; re-persisting it is the silent
-  rewrite that mode exists to prevent.
+- ❌ **Stage or commit the note in cast-only mode.** The note already exists and is the *input*; phase 8 commits
+  the casts only. Re-writing it is the silent rewrite that mode exists to prevent.
 
 ## §Quality Tests (self-dogfood — 6/6)
 
@@ -416,7 +443,7 @@ session-to-vault self --scanner=/usr/local/bin/my-secret-scan
 | 2 | Description specific and <1024 chars | ✅ measured: **972** |
 | 3 | Description includes "what" and "when" | ✅ purpose + trigger phrasings + explicit non-uses |
 | 4 | YAML frontmatter valid | ✅ parsed with a YAML loader, not eyeballed |
-| 5 | Instructions step-by-step | ✅ pipeline 0→7, each phase with kind + action |
+| 5 | Instructions step-by-step | ✅ pipeline 0→8, each phase with kind + action |
 | 6 | Examples concrete and realistic | ✅ § Examples — 6 working invocations + 4 error cases |
 | 7 | Dependencies documented | ✅ § Producer availability (what ships, what does not, transitive probe) + the § Sanitize Gate scanner prerequisite (`gitleaks`, or `--scanner`) |
 | 8 | File paths use forward slashes | ✅ throughout |
@@ -453,7 +480,7 @@ MIT
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→7, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. **PDCA round 3 (Codex, 2 findings, both applied):** the § Sanitize Gate now **names its scanner** (`gitleaks`, this repo's own CI scanner) with a prerequisite, a `--scanner=<cmd>` override, an explicit exit-code contract and a render-to-temp → scan → move procedure — a fail-closed gate that named no scanner was not fail-closed but *unsatisfiable*, aborting every export; and § Producer availability now probes **transitively to the terminal renderer** — `content-recast` ships here but only *delegates* slides/PDF/NotebookLM downstream, so a present wrapper with an absent renderer yields handoff instructions, not an artifact, and must never be recorded as a written cast. |
+| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→8, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. **PDCA round 3 (Codex, 2 findings, both applied):** the § Sanitize Gate now **names its scanner** (`gitleaks`, this repo's own CI scanner) with a prerequisite, a `--scanner=<cmd>` override, an explicit exit-code contract and a render-to-temp → scan → move procedure — a fail-closed gate that named no scanner was not fail-closed but *unsatisfiable*, aborting every export; and § Producer availability now probes **transitively to the terminal renderer** — `content-recast` ships here but only *delegates* slides/PDF/NotebookLM downstream, so a present wrapper with an absent renderer yields handoff instructions, not an artifact, and must never be recorded as a written cast. **PDCA round 4 (Codex, 1 finding, applied):** per-artifact scan-then-write could not deliver the promised "a hit aborts the note *and* every cast" — once the note (or an earlier cast) had passed its own gate it was already persisted, and an already-published external cast cannot be withdrawn at all, so the guarantee was false by construction. Replaced with **§ Stage-scan-commit**: render every output into private staging, scan the **whole set**, and commit only if all-clean — local sinks first, external sinks last and one at a time (publication is irreversible, so it is the final act). On a hit nothing was ever committed, so there is nothing to roll back — the only atomicity actually achievable — and the residual limit is stated rather than glossed (with several external sinks, an earlier publication stands if a later one fails; the contract is "nothing is published unless everything scanned clean", not "everything can be undone"). This split staging from committing, so the pipeline renumbered **0→7 ⇒ 0→8** and cast-only became **0·1·7·8** (skipping 2→6); earlier entries in this row describe the pre-renumber numbering. |
 
 ---
 

@@ -21,17 +21,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--format` (HOW MUCH) and `--style` (REGISTER) — `--format=digest
   --cast-to=slides` is a distinct request, so medium is not folded into format.
   Default `none`: a cast is opt-in, and the note remains the authoritative record.
-- **Cast-only mode** — when the source is an already-saved note, phases 0→6 collapse
-  and only phase 7 runs, so a months-old export can be re-cast (e.g. into a diagram)
-  without the original transcript. With `--cast-to=none` it is an explicit no-op; it
-  never rewrites the note.
+- **Cast-only mode** — when the source is an already-saved note the run is
+  **0 · 1 · 7 · 8** (skipping 2→6), so a months-old export can be re-cast (e.g. into a
+  diagram) without the original transcript. Staging the note is deliberately skipped:
+  it is the *input*, and re-staging would put it back on the commit path. With
+  `--cast-to=none` it is an explicit no-op; it never rewrites the note.
 - **Fail-closed disclosure gate** — `artifact`/`slides`/`notebooklm` publish to a
   third-party service, so `--cast-to=auto` may resolve only to `markdown`/`html`/
   `diagram`; external media are opt-in **by name**. Invariant:
   `auto_may_select ∩ external_media = ∅`. A disclosure cannot be un-sent.
-- **§ Sanitize Gate** — the secret-scrub is a gate invoked immediately before *every*
-  write (the note, and each cast individually), not a positional phase; a missing
-  scanner counts as a hit, and any hit aborts the whole run.
+- **§ Sanitize Gate + § Stage-scan-commit** — the secret-scrub is not a positional
+  phase but a gate standing between staging and *any* commit: the run stages **every**
+  output (note and casts) in a private `0700` directory outside the vault, scans the
+  **whole set**, and commits only if all of it is clean — local sinks first, external
+  sinks last and one at a time. A missing scanner counts as a hit, and a hit discards
+  staging so nothing was ever committed. Per-artifact scan-then-write was rejected
+  because it cannot deliver the abort it promises: once the note passed its own scan
+  and was written, a later cast's hit arrives too late. Honest limit, stated in the
+  skill: across *several* external sinks an earlier publication still stands if a
+  later one fails — the contract is "nothing is published unless everything scanned
+  clean", not "everything can be undone".
 - **§ Producer availability** — `archify` (for `diagram`) and the host `Artifact`
   tool are **not** bundled with this repo; `auto` probes before selecting and falls
   back to a native medium while saying so, and an explicitly named unavailable
@@ -43,9 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prerequisite — a secret scanner is required to write.** The § Sanitize Gate names
   `gitleaks` (already this repo's CI scanner) and accepts a `--scanner=<command>`
   override honouring a documented contract (given the path to the exact bytes about to
-  be written: exit 0 = clean, non-zero = hit; absent/unrunnable = hit). Artifacts are
-  rendered to a private temp file, scanned there, and only then moved to their
-  destination — never written first and scanned after.
+  be written: exit 0 = clean, non-zero = hit; absent/unrunnable = hit). The scanner is
+  always handed a **staged** path, never a destination path, and the commit happens
+  only after the whole staged set has passed — never written first and scanned after.
 - **Write-safety contract** — every resolved destination is normalized and confined
   beneath `--vault-path` (absolute paths, `..` traversal and symlink escapes are
   rejected before any write); `--dry-run` invokes **no** producer with a side effect,
