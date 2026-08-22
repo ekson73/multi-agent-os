@@ -40,8 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `STOP-ERROR`; explicit axis conflict -> `STOP-HITL`.
   - `--target-style` has **no equivalent by design**: audience/register routes
     to `content-recast` (owns the faithfulness guard), prompt-shape to the
-    `prompt` profile; language (`--user-lang`/`--agentic-lang`) is not style;
-    undeterminable intent -> `STOP-HITL`.
+    `prompt` profile (`refine-braindump-to-prompt` for `source=braindump`,
+    `agents/prompt-context-engineer` + profile otherwise); language
+    (`--user-lang`/`--agentic-lang`) is not style; undeterminable intent ->
+    `STOP-HITL`.
+  - `*-recovery()` is **mapped per parameter, never as one wildcard**.
+    `same-as-source`/`auto` are values of specific params and cannot populate a
+    sink, a style, or a source, so a wildcard silently drops the requested
+    recovery. `cast-to-recovery()` is exact; `target-format-recovery()` resolves
+    via defaults; `target-location-recovery()` has **no** canonical recovery
+    (`--output-target` defaults to report-inline and this skill performs no sink
+    inference) -> delegate to `atomize-and-route` or `STOP-HITL`;
+    `target-style-recovery()` -> `STOP-HITL`; source recovery -> `STOP-ERROR`.
 
 ### Added — anima semiotic lens + continuation-seed active_world field
 

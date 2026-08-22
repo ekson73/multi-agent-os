@@ -201,7 +201,7 @@ column, translate to the right column rather than report the param as unsupporte
 | `--target-location` | `--output-target` | **exact** — sink membership test per §EMIT |
 | `--target-format` | ⚠️ **ambiguous — two axes** | see note below |
 | `--target-style` | ⚠️ **no direct equivalent** | see note below |
-| `*-recovery()` default | `same-as-source` / `auto` | **exact idiom** — `--to-type=same-as-source` is *dynamic calculated*; `--transforms=auto` and `--principles=auto` infer from source+target |
+| `*-recovery()` default | ⚠️ **per-parameter — NOT one idiom** | see the recovery note below |
 
 > **⚠️ `--from` is SINGULAR — `{{sources}}` must be expanded BEFORE INTAKE.** This skill guarantees
 > ONE source end-to-end (INTAKE types one source; the `--output=json` contract carries one `source`
@@ -246,6 +246,20 @@ column, translate to the right column rather than report the param as unsupporte
 > | audience / register / tone (exec · junior · non-technical) | `--to-type=audience-recast` | `content-recast` (owns the faithfulness guard) |
 > | prompt shape / rigor profile | `--to-type=prompt` + profile (e.g. `gauntlet-loop`) | per §Cast router: `refine-braindump-to-prompt` when `source=braindump`; `agents/prompt-context-engineer` + profile otherwise |
 > | anything else, or intent undeterminable | — | `STOP-HITL` with both routes offered |
+>
+> **⚠️ `*-recovery()` is NOT one shared idiom — map it per parameter.** `same-as-source` and `auto`
+> are values of *specific* params (`--to-type`, `--transforms`, `--principles`); they cannot populate
+> a sink, a style, or a source. Treating `*-recovery()` as a wildcard silently drops the requested
+> recovery for every parameter except the cast. Each maps separately, and where this skill has no
+> canonical recovery it **refuses or delegates — it never invents one**:
+>
+> | Declared recovery | Canonical behavior here | Verdict |
+> |---|---|---|
+> | `cast-to-recovery()` | `--to-type=same-as-source` — dynamic calculated from the INTAKE-typed source | **exact** |
+> | `target-format-recovery()` | inherited, not inferred: artifact format follows the resolved `--to-type`; report format falls back to the `--output`/`--agentic-format` default (`table`) | **exact via defaults** |
+> | `target-location-recovery()` | **none.** `--output-target` defaults to *(none = report inline)* — this skill performs no sink inference (`persist-locus` is a validation gate, not a resolver). Delegate destination resolution to `atomize-and-route`, else `STOP-HITL` | **refuse / delegate** |
+> | `target-style-recovery()` | **none** — style is not a param here at all (see the style routing table above) | **refuse → `STOP-HITL`** |
+> | source recovery (for `--from`) | **none** — `<source>` is a required positional; `goal-recovery` recovers the *goal*, not the source | **refuse → `STOP-ERROR`** |
 
 Aliasing is documentation-level (translation contract), not a second parser: this skill stays a thin
 router and does not grow a competing flag surface (DRY · YAGNI · anti-over-eng).
