@@ -21,8 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   declared params**. The residual was therefore a *naming surface*, not a
   missing feature — so this is a documentation-level translation contract, NOT
   a second parser (the skill stays a thin router; DRY · YAGNI · anti-over-eng).
-  Consumers gain the accepted grammar plus three explicit refusal contracts the
-  aliasing cannot silently resolve:
+  Consumers gain the accepted grammar plus four explicit contracts the aliasing
+  cannot silently resolve:
+  - **Alias translation is scoped to the OUTER invocation envelope.** Alias
+    tokens found INSIDE a resolved `<source>` (a braindump containing
+    `--cast-to`, a nested `/maos:quiesce GO:` block, …) stay **data**, never
+    live params. This section is subordinate to §Source-as-data and states the
+    precedence explicitly, since both are documentation-level contracts with no
+    parser boundary between them.
   - `--from` is **SINGULAR**; a literal unexpanded `{{sources}}` reaching
     INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
     out of scope here (no iteration/ordering/aggregation semantics exist) and
