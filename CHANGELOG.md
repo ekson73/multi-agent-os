@@ -36,6 +36,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool are **not** bundled with this repo; `auto` probes before selecting and falls
   back to a native medium while saying so, and an explicitly named unavailable
   medium is reported as an error rather than silently substituted.
+- **Write-safety contract** — every resolved destination is normalized and confined
+  beneath `--vault-path` (absolute paths, `..` traversal and symlink escapes are
+  rejected before any write); `--dry-run` invokes **no** producer with a side effect,
+  so it can never publish an `artifact`/`slides`/`notebooklm` cast; a `--focus` that
+  matches zero turns writes **nothing** and reports a no-match rather than persisting
+  an empty note; every successful write carries an audit section (source, scope,
+  included/excluded, sanitization verdict).
+- **Note identity** — persisted notes carry a `session_to_vault` frontmatter marker
+  plus `source_session_id`, `source_transcript_sha256`, `source_params` and `casts`,
+  which is what makes cast-only mode idempotent and prevents an arbitrary markdown
+  file from being treated as an export. All dates are ISO 8601.
+- **`--placement=para` is delegated, not hardcoded** — the project-bound/general
+  folder mapping is supplied by the consumer; this skill does not assume a vault's
+  taxonomy.
 - Composes `skills/session-fission` (read-only snapshot discipline),
   `skills/opera-debrief` (`--style=narrative`) and `skills/content-recast`
   (slides/PDF/NotebookLM producers) — no new engine, no forked producer.

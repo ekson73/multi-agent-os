@@ -23,7 +23,7 @@ triggers:
   - re-cast this export for a human
 version: 0.1.0
 license: MIT
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Skill
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Skill, Artifact
 metadata:
   version: "0.1.0"
   soul: "Fonógrafo"
@@ -89,20 +89,20 @@ secret.
 
 | Param | Default | Meaning |
 |---|---|---|
-| `<source>` (positional) | `self` | `self` (the invoking session) · a session-id · an absolute transcript path · **a vault note** already produced by this skill (→ cast-only mode) |
+| `<source>` (positional) | `self` | `self` (the invoking session) · a session-id · an absolute transcript path · **a vault note** carrying this skill's frontmatter marker (→ cast-only mode; see § Note identity — an arbitrary markdown file is **not** a valid source) |
 | `--vault-path` | `auto` | Absolute path to the destination vault root. `auto` = detect a vault marker (e.g. `.obsidian/`) upward from cwd, else ask. **Never hardcoded.** |
-| `--placement` | `flat` | Folder policy inside the vault: `flat` (one dated note at the vault root or `--subdir`) · `dated` (`YYYY/MM/`) · `para` (project-bound → `projects/<slug>/`, else `journals/`) · `custom:<pattern>` (e.g. `custom:archive/{yyyy}/{slug}.md`). |
-| `--subdir` | *(none)* | Optional subdirectory under the vault root, applied by `flat`/`dated`. |
+| `--placement` | `flat` | Folder policy inside the vault: `flat` (one dated note at the vault root, or under `--subdir`) · `dated` (`YYYY/MM/`) · `para:<mapping>` (**delegated** — the consumer supplies the project-bound/general folder mapping; this skill does not know your taxonomy, see § Placement is the consumer's) · `custom:<pattern>` (e.g. `custom:archive/{yyyy}/{slug}.md`). All resolved paths pass § Path safety. |
+| `--subdir` | *(none)* | Optional subdirectory under the vault root, applied by `flat`/`dated`. Confined by § Path safety. |
 | `--format` | `journal` | **How much text**: `journal` (dated note — gist, decision timeline, appendices) · `raw` (verbatim role-tagged) · `digest` (≤500 words). |
 | `--style` | `auto` | **Register**: `auto` (agent-economy for a machine consumer, technical-decision-log for a human) · `raw` · `technical` · `narrative` (**delegates** to `opera-debrief`). |
-| `--scope` | `all` | `all` · an ISO date/time range · `focus-only`. |
-| `--focus` | *(none)* | Topic to slice by; matching turns are kept **plus** `--context` padding — never a bare keyword grep. |
+| `--scope` | `all` | `all` · an ISO 8601 date/time range · `focus-only`. ⛔ `focus-only` with an absent or empty `--focus` is a **hard error — fail immediately** with a clear message; never fall through to a projection with an undefined selector (that silently exports everything or nothing). |
+| `--focus` | *(none)* | Topic to slice by; matching turns are kept **plus** `--context` padding — never a bare keyword grep. If a `--focus` yields **zero** matching turns, see § Empty projection — do not write an empty note. |
 | `--context` | `same-as-source` | Padding around a `--focus` hit: integer turns · `0` · `full` · `same-as-source` (computed from the session's own turn density). |
-| `--filters` | *(none)* | e.g. `no-tool-noise` — drops raw tool blocks, keeping role-tagged prose. The transcript remains the lossless record; this is a *reading* copy. |
-| `--provenance` | *(none)* | External artifacts stitched in as a **separately cited appendix** (source · origin/URL · date). Never blended into the session's own turns. |
+| `--filters` | *(none)* | Tool-block handling has **three explicit states**, and only these: **default (no filter)** → tool blocks are *collapsed to a one-line summary each* (kept, but not raw); **`no-tool-noise`** → tool blocks are *dropped entirely*, keeping only role-tagged prose; **`--format=raw`** → verbatim, nothing collapsed or dropped (raw means raw, and this filter does not apply). The transcript remains the lossless record; this is a *reading* copy. |
+| `--provenance` | *(none)* | External artifacts stitched in as a **separately cited appendix** — each entry carries `source · origin/URL · date`, and the date is **ISO 8601** (`YYYY-MM-DD`), never relative. Never blended into the session's own turns. |
 | `--tags` | `auto` | Frontmatter tags: derived from `--focus` + project/repo + session date(s). |
 | `--cast-to` | `none` | **Medium** for a human-readable companion — see § Cast. Repeatable. |
-| `--dry-run` | `false` | Compute and report; write nothing. |
+| `--dry-run` | `false` | Compute and report; **write nothing and invoke no producer that has a side effect**. Every cast is *reported as requested* (medium · would-be path · producer · sink class) but **not** produced: `artifact`, `slides` and `notebooklm` must not be published, uploaded, or created under `--dry-run` — a "dry" run that publishes is the worst possible surprise. Local media are not rendered to disk either. |
 
 ### Defaults doctrine
 
@@ -141,6 +141,59 @@ phase 6.
   run so it can be rolled back. Never write "just the clean ones".
 - **If the scanner is unavailable**: that is a **hit**, not a pass. Absence of a scan is not evidence of
   cleanliness — write nothing and say why (§0 explicitly does not cover this).
+
+### § Path safety (every write is confined to the vault)
+
+`--subdir` and `custom:<pattern>` accept caller-supplied text, so every resolved destination is **normalized and
+confined beneath `--vault-path` before any write**:
+
+- reject **absolute** paths and drive/UNC prefixes in `--subdir` / `custom:` patterns;
+- reject traversal segments (`..`) — after normalization, not merely by substring match;
+- resolve symlinks and re-check: a symlink inside the vault that points outside it is an **escape**;
+- the final real path must be **strictly under** the real `--vault-path`; if it is not, **write nothing** and
+  report the rejected path.
+
+A rendered `{slug}` is sanitized too — a focus/topic string flows into filenames, so path separators and
+traversal sequences are stripped there as well.
+
+### § Note identity (what makes a file a valid cast-only source)
+
+Cast-only mode must never treat an arbitrary markdown file as an export. A note is a valid `<source>` **only**
+if its frontmatter carries this skill's marker plus the identity/idempotency fields it writes on every persist:
+
+| Frontmatter key | Written at persist | Purpose |
+|---|---|---|
+| `session_to_vault: <skill-version>` | always | the **marker** — its absence means "not my artifact"; refuse cast-only |
+| `source_session_id` | always | which session this record came from |
+| `source_transcript_sha256` | when the transcript is readable | detect that the source changed since export |
+| `source_params` | always | the exact `{format, style, scope, focus, context, filters}` used — makes a re-run reproducible |
+| `casts` | when casts exist | `[{medium, path_or_url, producer, created}]` — so re-casting is idempotent rather than duplicative |
+| `created` / `updated` | always | **ISO 8601** |
+
+If the marker is absent → refuse and say so. If `source_transcript_sha256` no longer matches a still-present
+transcript → still allow the cast, but **state that the record is a snapshot of an since-changed source**.
+
+### § Placement is the consumer's (`para:<mapping>`)
+
+`flat`, `dated` and `custom:` are complete here. **`para` is not**: "project-bound goes to `projects/<slug>/`,
+everything else to `journals/`" is *one vault's* taxonomy, not a universal one — hardcoding it would reintroduce
+exactly the coupling this promotion exists to remove.
+
+So `para` **delegates**: the consumer supplies the mapping (a project-bound folder pattern and a general-trace
+folder pattern) via `--placement=para:<mapping>` or its own configuration. With no mapping supplied, this skill
+does **not** guess a folder layout — it asks, or falls back to `flat`, and says which it did.
+
+### § Empty projection (never write an empty record)
+
+A `--focus`/`--scope` combination can select **zero** turns. In that case:
+
+- **write nothing** — an empty note is not a record, it is litter that later reads as "we discussed nothing";
+- report the projection that matched nothing (source · scope · focus · context) so the caller can widen it;
+- exit as a **no-match**, distinct from both success and error.
+
+Conversely, every successful write is **non-empty and self-auditing**: the persisted note carries an audit
+section stating source, scope/focus applied, what was included, what was excluded and why, and the sanitization
+verdict. A write with no audit section is not a valid write.
 
 ## Cast (`--cast-to`) — the reading copy a human can *see*
 
@@ -223,9 +276,13 @@ deliberately skipped: the note already exists, and re-running a *persist* phase 
 the silent rewrite this mode must never do. The § Sanitize Gate still fires, at each cast's own write (phase 7),
 so nothing leaves unscanned.
 
-This is what lets you re-cast a months-old export into a diagram without re-reading — or even still having —
-the original transcript. If `--cast-to` is `none` in this mode there is no phase left to run: the invocation is
-a **no-op** and says so. It never rewrites the note.
+This is what lets you re-cast a previously persisted export (of any age) into a diagram without re-reading — or
+even still having — the original transcript. If `--cast-to` is `none` in this mode there is no phase left to
+run: the invocation is a **no-op** and says so. It never rewrites the note.
+
+All dates written or cited by this skill — frontmatter `created`/`updated`, `--provenance` entries, `--scope`
+ranges — are **ISO 8601** (`YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ssZ`). Relative or ambiguous dates ("last week",
+"months old", `08/09/26`) are never persisted.
 
 ## Scope discipline (multi-session asks)
 
@@ -237,13 +294,48 @@ term merely appears. Every session considered is **listed**; each one not export
 
 ## Composition map (zero new engines)
 
-```
+```text
 session-to-vault
 ├── extract/snapshot discipline ──→ session-fission   (read-only, never mutate)
 ├── --style=narrative ────────────→ opera-debrief
 ├── --cast-to=diagram ────────────→ archify
 ├── --cast-to=slides|one-pager|notebooklm ─→ content-recast
 └── --cast-to=artifact ───────────→ host Artifact tool
+```
+
+## Examples
+
+```text
+# 1. Save the current session, defaults, into a detected vault.
+session-to-vault
+#    -> writes one dated note; no cast (--cast-to defaults to none).
+
+# 2. Save a specific session into an explicit vault, dated folders.
+session-to-vault 0c841e65 --vault-path=/home/me/notes --placement=dated
+#    -> /home/me/notes/2026/08/2026-08-21-<slug>.md
+
+# 3. Slice by topic, keep surrounding sense, drop tool noise.
+session-to-vault 0c841e65 --focus=payments --context=3 --filters=no-tool-noise
+#    -> only payment-related turns +/- 3 turns of padding, prose only.
+
+# 4. Compress, then render as a deck (external medium: named explicitly, never via auto).
+session-to-vault self --format=digest --cast-to=slides
+#    -> note (<=500 words) + a deck produced by content-recast.
+
+# 5. Re-cast an ALREADY-SAVED note as a diagram (cast-only mode: phases 0-6 collapse).
+session-to-vault /home/me/notes/2026/08/2026-08-21-payments.md --cast-to=diagram
+#    -> reads the note (marker required), writes 2026-08-21-payments.cast.diagram.svg
+#       The note itself is NOT rewritten.
+
+# 6. See what a run would do, publish nothing.
+session-to-vault self --cast-to=artifact --dry-run
+#    -> reports "would publish artifact" and stops. Nothing is created or uploaded.
+
+# 7. Error cases (fail fast, never silently degrade):
+session-to-vault self --scope=focus-only            # -> ERROR: focus-only requires a non-empty --focus
+session-to-vault self --cast-to=diagram             # -> ERROR if archify is absent (no silent markdown fallback)
+session-to-vault self --focus=nonexistent-topic     # -> NO-MATCH: nothing written, projection reported
+session-to-vault note.md --cast-to=html             # -> ERROR if note.md lacks the session_to_vault marker
 ```
 
 ## Anti-patterns (do NOT)
@@ -274,6 +366,24 @@ session-to-vault
 | 5 | **Explicit-Exception** — §0 escape · `--dry-run` · cast-only no-op · the fail-closed external-medium gate. | ✅ |
 | 6 | **Utility-Sunset** — §DUED below. | ✅ |
 
+### `skills/skill-writer` 10-item validation checklist (required for new skills)
+
+| # | Item | Verdict |
+|---|---|---|
+| 1 | Name lowercase, hyphens only, ≤64 chars | ✅ `session-to-vault` (16) |
+| 2 | Description specific and <1024 chars | ✅ measured: **972** |
+| 3 | Description includes "what" and "when" | ✅ purpose + trigger phrasings + explicit non-uses |
+| 4 | YAML frontmatter valid | ✅ parsed with a YAML loader, not eyeballed |
+| 5 | Instructions step-by-step | ✅ pipeline 0→7, each phase with kind + action |
+| 6 | Examples concrete and realistic | ✅ § Examples — 6 working invocations + 4 error cases |
+| 7 | Dependencies documented | ✅ § Producer availability (what ships, what does not, probe rule) |
+| 8 | File paths use forward slashes | ✅ throughout |
+| 9 | Skill activates on relevant queries | ✅ 8 triggers, EN + PT |
+| 10 | Agent follows instructions correctly | ⏳ **pending first dogfood cycle** — deliberately not claimed by this PR (`dogfood_status: pending-first-cycle`) |
+
+Item 10 is the one item a PR **cannot** self-certify: it requires a real run. Marking it green here would be
+precisely the theater this repo's own gates exist to catch.
+
 ## §DUED Sunset (qualitative, not counter-based)
 
 Retire when ANY: agent hosts ship durable, queryable, exportable session history natively (the preservation half
@@ -301,4 +411,8 @@ MIT
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→7, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. |
+| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→7, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. |
+
+---
+
+*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-22T00:36:11Z*
