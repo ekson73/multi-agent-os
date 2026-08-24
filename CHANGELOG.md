@@ -83,6 +83,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (slides/PDF/NotebookLM producers) — no new engine, no forked producer.
   `dogfood_status: pending-first-cycle`.
 
+### Added — transmute declared-grammar aliases (operator braindump surface)
+
+- `skills/transmute/SKILL.md` (v0.2.2 -> v0.2.3, PATCH) — new §Declared-grammar
+  aliases under §Parameters. The operator braindump family that drove v0.2.2
+  names this skill's capability under a different grammar (`--from` ·
+  `--cast-to` · `--target-location` · `--target-format` · `--target-style`,
+  each with a `*-recovery()` default). A `directive-braindump-triage` of the
+  third round scored 26 atomic directives 17 DONE / 4 COVERED / 2 EXCLUDED /
+  3 residual: the capability was already discharged by this skill +
+  `atomize-and-route` + `goal-recovery`, and `command grep` for
+  `cast-to|target-style|target-location` over `skills/ agents/` returned **0
+  declared params**. The residual was therefore a *naming surface*, not a
+  missing feature — so this is a documentation-level translation contract, NOT
+  a second parser (the skill stays a thin router; DRY · YAGNI · anti-over-eng).
+  Consumers gain the accepted grammar plus four explicit contracts the aliasing
+  cannot silently resolve:
+  - **Alias translation is scoped to the OUTER invocation envelope.** Alias
+    tokens found INSIDE a resolved `<source>` (a braindump containing
+    `--cast-to`, a nested `/maos:quiesce GO:` block, …) stay **data**, never
+    live params. This section is subordinate to §Source-as-data and states the
+    precedence explicitly, since both are documentation-level contracts with no
+    parser boundary between them.
+  - `--from` is **SINGULAR**; a literal unexpanded `{{sources}}` reaching
+    INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
+    out of scope here (no iteration/ordering/aggregation semantics exist) and
+    routes to `atomize-and-route` or `converge`.
+  - `--target-format` resolves **slot-contention first, then value-space, then
+    `--cast-to`, `STOP-HITL` last** — this skill has two independent format
+    axes (artifact vs report) and collapsing them would misread a valid request
+    such as `--cast-to=artifact:pdf --target-format=json`. The **step-0
+    pre-check** catches the cross-family slot collision (an artifact-only value
+    plus a non-artifact `--cast-to` both claim the single-valued `--to-type`)
+    -> `STOP-HITL`; without it, the value-space test would run first and
+    *silently overwrite the requested cast*. An artifact format is **not**
+    expressible as a preprocessing transform of a non-artifact cast (unlike
+    `--target-style`), so the cast does not win — the collision is the
+    operator's call. Report-only values never contend (different slot). Value
+    in neither axis -> `STOP-ERROR`; intra-axis conflict -> `STOP-HITL`.
+  - `--target-style` has **no equivalent by design**: audience/register routes
+    to `content-recast` (owns the faithfulness guard), prompt-shape to the
+    `prompt` profile (`refine-braindump-to-prompt` for `source=braindump`,
+    `agents/prompt-context-engineer` + profile otherwise); language
+    (`--user-lang`/`--agentic-lang`) is not style; undeterminable intent ->
+    `STOP-HITL`.
+  - **Style never overwrites an explicit cast.** `--to-type` is single-valued,
+    so a `--target-style` route would collide with an explicit `--cast-to`
+    (`--cast-to=artifact:pdf --target-style=exec` would force the agent to
+    silently discard one). With an explicit cast present the cast **wins**
+    `--to-type` and the style is applied as a **preprocessing transform**;
+    if it cannot be, -> `STOP-HITL` naming the collision. Neither input is
+    ever dropped silently.
+  - `*-recovery()` is **mapped per parameter, never as one wildcard**.
+    `same-as-source`/`auto` are values of specific params and cannot populate a
+    sink, a style, or a source, so a wildcard silently drops the requested
+    recovery. `cast-to-recovery()` is exact; `target-format-recovery()` resolves
+    via defaults; `target-location-recovery()` has **no** canonical recovery
+    (`--output-target` defaults to report-inline and this skill performs no sink
+    inference) -> delegate to `atomize-and-route` or `STOP-HITL`;
+    `target-style-recovery()` -> `STOP-HITL`; source recovery -> `STOP-ERROR`.
+
 ### Added — anima semiotic lens + continuation-seed active_world field
 
 - `skills/anima/SKILL.md` (v1.2.0 -> v1.2.1, PATCH) — §3.3 Lenses gains
