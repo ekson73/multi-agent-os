@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
     out of scope here (no iteration/ordering/aggregation semantics exist) and
     routes to `atomize-and-route` or `converge`.
+  - **Normalize the cast BEFORE every collision branch.** `--cast-to` translates
+    to `--to-type` *first*; from there "an explicit cast" means the normalized
+    `--to-type` however the caller spelled it. A caller may legitimately mix the
+    canonical form with an alias (`--to-type=prompt --target-format=pdf`), so a
+    check keyed on the alias spelling alone would not fire and the value-space
+    test would silently overwrite the cast. Stated once; both the step-0
+    pre-check and the `--target-style` table read the normalized cast.
   - `--target-format` resolves **slot-contention first, then value-space, then
     `--cast-to`, `STOP-HITL` last** — this skill has two independent format
     axes (artifact vs report) and collapsing them would misread a valid request
