@@ -158,7 +158,9 @@ published, it **cannot be withdrawn at all**. The guarantee has to be establishe
 3. **COMMIT** — only when the entire set is clean:
    - **local sinks first** (the note, then local casts) — filesystem moves, individually reversible;
    - **external sinks last, and one at a time** (`artifact` · `slides` · `notebooklm`) — because publication is
-     **irreversible**, it is the final act, never interleaved with work that could still fail.
+     **irreversible**, it is the final act, never interleaved with work that could still fail. An external sink
+     may only appear here at all if its producer satisfies the **§ Two-phase contract**; one that publishes on
+     call cannot be staged, so it is excluded from the batch rather than published unscanned.
 4. **On failure at step 2** — delete the staging directory and exit. Nothing was ever committed, so there is
    nothing to roll back. This is the only atomicity that is actually achievable.
 
@@ -166,6 +168,10 @@ published, it **cannot be withdrawn at all**. The guarantee has to be establishe
 another has already published, the earlier publication stands and cannot be undone. The contract is therefore
 **"nothing is published unless everything scanned clean"** — not "everything can be undone". The run reports
 exactly which external sinks committed.
+
+**Second honest limit**: this whole model presumes every output *can* be staged. A producer that renders and
+publishes in one indivisible step cannot be staged at all — scanning what you hand it is not scanning what it
+emits. Such a medium is **excluded from the batch**, never published-then-hoped-about; see § Two-phase contract.
 
 #### The scanner is named, not assumed
 
@@ -281,10 +287,11 @@ unreadable. A cast is a **derived companion**: the note stays authoritative; del
    `artifact` · `slides` · `notebooklm` publish to a third-party service; a disclosure cannot be un-sent, so
    they require **explicit opt-in by name**. An `auto` that could reach them would silently externalise a
    private session. Invariant: `auto_may_select ∩ external_media = ∅`.
-2. **Every cast passes the § Sanitize Gate at its own write.** The gate is invoked per artifact, *after* the
-   cast is rendered and *before* it is written or published — a cast can introduce content the note never had
-   (an embedded payload, an inlined snippet), so scanning only the note would leave it unscanned. A hit
-   **aborts the whole run** — the note *and* every cast.
+2. **Every cast is staged, the whole set is scanned, nothing commits until every scan passes.** A cast can
+   introduce content the note never had (an embedded payload, an inlined snippet), so scanning only the note
+   would leave it unscanned — but scanning each cast *at its own write* is equally wrong, because the first
+   artifact is already committed when the second one fails. One rule, not two: stage → scan the set → commit.
+   A hit **aborts the whole run** — the note *and* every cast. See § Stage-scan-commit.
 3. **Idempotent + reversible.** Same source + same params ⇒ same cast, at a deterministic sibling path
    `<note-slug>.cast.<medium>.<ext>`. Always safe to delete and re-derive.
 4. **Opt-in by default (`none`).** An unbidden extra file is over-engineering; the capability exists for when a
@@ -322,6 +329,32 @@ return **handoff instructions**, not an artifact. Instructions are not a cast:
 - **An explicitly named unavailable medium is an error, not a substitution.** `--cast-to=diagram` with no
   `archify` present → report the missing producer and how to install it; do **not** quietly hand back markdown
   under a diagram's name.
+#### § Two-phase contract (an external producer must be able to render *without publishing*)
+
+Reachability answers *"can it produce?"*. An atomic batch needs a second, stricter answer: ***"can it produce
+without publishing?"*** A producer that renders and publishes in one indivisible step **cannot participate in
+§ Stage-scan-commit at all** — by the time bytes exist to scan, they are already disclosed.
+
+So an **external** medium (`artifact` · `slides` · `notebooklm`) is admissible only when its producer offers
+**both** operations:
+
+| # | Operation | Requirement |
+|---|---|---|
+| 1 | **render-to-staging** | produces the *complete* output into private staging with **no external side effect** — no upload, no share link, no third-party call that persists anything |
+| 2 | **publish-staged-bytes** | publishes **exactly** those staged bytes afterwards, unmodified — not a re-render, not a re-upload of the source payload |
+
+**If a producer cannot do both, the medium is unavailable for this batch — do not invoke it.** Report it the
+same way as an absent renderer (§ above): an explicitly named medium is an error, `auto` never selects it.
+
+⚠️ **Scanning the input payload is NOT scanning the artifact.** A producer may transform, embed, expand or
+enrich what it is given, so the published artifact can contain bytes the payload never had — the scan would
+have reached the *wrong subject*. Only operation 1's staged output is a valid scan target.
+
+**Honest current state**: no external producer here documents this two-phase contract today — `content-recast`
+defines a render **handoff** to downstream producers, and the host `Artifact` tool publishes on call. Until a
+producer declares both operations, **external media cannot join an atomic batch**, and a run that requests one
+says so instead of publishing unscanned. The note and local casts are unaffected.
+
 - **Never bundle a copy of a producer** to dodge this. Vendoring a diagram engine here would fork a tool that
   already exists; the honest fix is the probe plus the documented dependency.
 
@@ -421,6 +454,11 @@ session-to-vault self --scanner=/usr/local/bin/my-secret-scan
 - ❌ **Treat a missing scanner as a pass.** No scan ≠ clean. Write nothing and say why.
 - ❌ **Claim a medium whose producer is absent.** Probe first; fall back only from `auto`, only to a native
   medium, and only while saying so. An explicitly named unavailable medium is an error, not a substitution.
+- ❌ **Scan the payload and call the artifact scanned.** A producer can transform, embed or expand what it is
+  given, so the published bytes may not be the bytes you scanned — the scan reached the *wrong subject*. Scan
+  the **staged output**, or exclude the medium from the batch (§ Two-phase contract).
+- ❌ **Stage-and-commit a producer that publishes on call.** If render and publish are one indivisible step,
+  there is no pre-publication moment to scan; the medium is excluded, never published-and-then-inspected.
 - ❌ **Stage or commit the note in cast-only mode.** The note already exists and is the *input*; phase 8 commits
   the casts only. Re-writing it is the silent rewrite that mode exists to prevent.
 
@@ -480,7 +518,7 @@ MIT
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→8, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. **PDCA round 3 (Codex, 2 findings, both applied):** the § Sanitize Gate now **names its scanner** (`gitleaks`, this repo's own CI scanner) with a prerequisite, a `--scanner=<cmd>` override, an explicit exit-code contract and a render-to-temp → scan → move procedure — a fail-closed gate that named no scanner was not fail-closed but *unsatisfiable*, aborting every export; and § Producer availability now probes **transitively to the terminal renderer** — `content-recast` ships here but only *delegates* slides/PDF/NotebookLM downstream, so a present wrapper with an absent renderer yields handoff instructions, not an artifact, and must never be recorded as a written cast. **PDCA round 4 (Codex, 1 finding, applied):** per-artifact scan-then-write could not deliver the promised "a hit aborts the note *and* every cast" — once the note (or an earlier cast) had passed its own gate it was already persisted, and an already-published external cast cannot be withdrawn at all, so the guarantee was false by construction. Replaced with **§ Stage-scan-commit**: render every output into private staging, scan the **whole set**, and commit only if all-clean — local sinks first, external sinks last and one at a time (publication is irreversible, so it is the final act). On a hit nothing was ever committed, so there is nothing to roll back — the only atomicity actually achievable — and the residual limit is stated rather than glossed (with several external sinks, an earlier publication stands if a later one fails; the contract is "nothing is published unless everything scanned clean", not "everything can be undone"). This split staging from committing, so the pipeline renumbered **0→7 ⇒ 0→8** and cast-only became **0·1·7·8** (skipping 2→6); earlier entries in this row describe the pre-renumber numbering. |
+| 0.1.0 | 2026-08-21 | Promotion — generalized from a personal-vault protocol into a vault-agnostic community skill. The engine (pipeline 0→8, parameters, cast) lives here; vault-specific placement/routing stays in the consuming vault as configuration. Adds `--vault-path`/`--placement` (nothing hardcoded), the `--cast-to` medium axis with its fail-closed external gate, and cast-only mode. **Hardened pre-merge from PR review** (4 findings, all valid): sanitize promoted from a positional phase to the § Sanitize Gate invoked before *every* write (a phase-6 scrub could not inspect a phase-7 cast); §0's BEING > Rules escape explicitly exempted from safety gates (it previously licensed skipping the secret scrub); cast-only mode corrected to collapse 0→6 and run only phase 7 (re-running persist would be the silent rewrite the mode exists to prevent); § Producer availability added — `archify` and the host `Artifact` tool are **not** bundled, so `auto` probes before selecting and an explicitly named unavailable medium is an error, never a silent substitution. **PDCA round 2 (CodeRabbit, 13 findings — 12 applied, 1 already closed):** `focus-only` without `--focus` now fails fast; the three tool-block states made explicit (default collapses, `no-tool-noise` drops, `raw` stays verbatim); `--dry-run` gated against **all** external producers (a dry run must never publish); § Path safety confines every resolved path beneath `--vault-path` (absolute/traversal/symlink-escape rejected); § Note identity defines the frontmatter marker + idempotency fields that make a note a valid cast-only source; § Empty projection forbids writing an empty record and requires a self-auditing note; `para` demoted to a **delegated** mapping (hardcoding `projects/`/`journals/` was the very coupling this promotion removes); `Artifact` declared in `allowed-tools`; ISO 8601 mandated for all persisted dates; § Examples added (6 invocations + 4 error cases); the `skill-writer` 10-item checklist recorded with item 10 honestly pending. **PDCA round 3 (Codex, 2 findings, both applied):** the § Sanitize Gate now **names its scanner** (`gitleaks`, this repo's own CI scanner) with a prerequisite, a `--scanner=<cmd>` override, an explicit exit-code contract and a render-to-temp → scan → move procedure — a fail-closed gate that named no scanner was not fail-closed but *unsatisfiable*, aborting every export; and § Producer availability now probes **transitively to the terminal renderer** — `content-recast` ships here but only *delegates* slides/PDF/NotebookLM downstream, so a present wrapper with an absent renderer yields handoff instructions, not an artifact, and must never be recorded as a written cast. **PDCA round 4 (Codex, 1 finding, applied):** per-artifact scan-then-write could not deliver the promised "a hit aborts the note *and* every cast" — once the note (or an earlier cast) had passed its own gate it was already persisted, and an already-published external cast cannot be withdrawn at all, so the guarantee was false by construction. Replaced with **§ Stage-scan-commit**: render every output into private staging, scan the **whole set**, and commit only if all-clean — local sinks first, external sinks last and one at a time (publication is irreversible, so it is the final act). On a hit nothing was ever committed, so there is nothing to roll back — the only atomicity actually achievable — and the residual limit is stated rather than glossed (with several external sinks, an earlier publication stands if a later one fails; the contract is "nothing is published unless everything scanned clean", not "everything can be undone"). This split staging from committing, so the pipeline renumbered **0→7 ⇒ 0→8** and cast-only became **0·1·7·8** (skipping 2→6); earlier entries in this row describe the pre-renumber numbering. **PDCA round 5 (CodeRabbit re-review, 2 P1 findings, both applied):** (1) the § Cast rule still said each cast passes the gate *"at its own write"* — a **fifth** site of the same semantic drift, missed because the round-4 sweep grepped for the phrases it knew it had written, not for every phrasing of the idea; rewritten as one rule (stage → scan the set → commit). (2) **The external-producer staging contract was undefined** — the round-4 model presumed every output can be staged, but `artifact`/`slides`/`notebooklm` producers render *server-side*, so what a run could scan is the **input payload**, not the **published artifact**, and a producer may transform what it is given. Reachability answers *"can it produce?"*; an atomic batch needs *"can it produce **without publishing**?"* — a second-order instance of this skill's own presence≠reachability lesson, where the instrument reached but the **subject** was different. Added **§ Two-phase contract**: an external medium is admissible only if its producer offers both `render-to-staging` (complete output, zero external side effect) and `publish-staged-bytes` (exactly those bytes, unmodified); a producer that publishes on call is **excluded from the batch**, never published-unscanned. Honest current state recorded: no external producer here declares both operations today, so external media cannot presently join an atomic batch — stated rather than left implied. +2 anti-patterns (scan-the-payload-and-call-the-artifact-scanned · stage-and-commit-a-publish-on-call-producer). |
 
 ---
 

@@ -35,7 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   output (note and casts) in a private `0700` directory outside the vault, scans the
   **whole set**, and commits only if all of it is clean — local sinks first, external
   sinks last and one at a time. A missing scanner counts as a hit, and a hit discards
-  staging so nothing was ever committed. Per-artifact scan-then-write was rejected
+  staging so nothing was ever committed. **§ Two-phase contract** bounds this: the
+  model presumes every output *can* be staged, but external producers
+  (`artifact`/`slides`/`notebooklm`) render server-side — scanning the input payload
+  is not scanning the published artifact, since a producer may transform what it is
+  given. An external medium is therefore admissible only if its producer offers both
+  `render-to-staging` (complete output, no external side effect) and
+  `publish-staged-bytes` (exactly those bytes); one that publishes on call is
+  **excluded from the batch**, never published-unscanned. No external producer here
+  declares both operations today, so external media cannot presently join an atomic
+  batch — stated, not left implied. Per-artifact scan-then-write was rejected
   because it cannot deliver the abort it promises: once the note passed its own scan
   and was written, a later cast's hit arrives too late. Honest limit, stated in the
   skill: across *several* external sinks an earlier publication still stands if a
