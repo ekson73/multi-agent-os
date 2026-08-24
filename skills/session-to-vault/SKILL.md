@@ -329,6 +329,7 @@ return **handoff instructions**, not an artifact. Instructions are not a cast:
 - **An explicitly named unavailable medium is an error, not a substitution.** `--cast-to=diagram` with no
   `archify` present → report the missing producer and how to install it; do **not** quietly hand back markdown
   under a diagram's name.
+
 #### § Two-phase contract (an external producer must be able to render *without publishing*)
 
 Reachability answers *"can it produce?"*. An atomic batch needs a second, stricter answer: ***"can it produce
