@@ -215,7 +215,19 @@ column, translate to the right column rather than report the param as unsupporte
 > independent format axes*: the **artifact's** format
 > (`--to-type=artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}`) and the
 > **report's** format (`--output`/`--agentic-format` = `table\|json\|json-rpc`). Resolve in this
-> order — **value-space first, `--cast-to` second, `STOP-HITL` last**:
+> order — **slot-contention first, then value-space, then `--cast-to`, `STOP-HITL` last**:
+>
+> 0. **Slot-contention pre-check — runs BEFORE the value-space test.** An artifact-axis value needs
+>    the single-valued `--to-type` slot as `artifact:<value>`. So when the `--target-format` value is
+>    **artifact-only** AND an explicit `--cast-to` names a **non-artifact** family (`prompt` ·
+>    `agentic-tool:*` · `audience-recast` · `ledger` · `ticket`), both requests claim that one slot
+>    with incompatible values → **`STOP-HITL`**, naming the collision. ⛔ Do **not** let the
+>    value-space test run first here: it would set `--to-type=artifact:<value>` and *silently
+>    overwrite the requested cast*. Unlike `--target-style` below, an artifact format is **not**
+>    expressible as a preprocessing transform of a non-artifact cast — *"render as PDF"* and *"cast to
+>    prompt"* are incompatible **terminal** outputs with no declared composition — so here the cast
+>    does **not** win; the collision goes to the operator. A **report-only** value never contends: it
+>    sets `--output`, a different slot (`--target-format=json --cast-to=prompt` is valid — proceed).
 >
 > 1. **Value-space test.** If the value belongs to exactly ONE axis' value-set, it selects that axis
 >    — even when `--cast-to` names the other. (`--cast-to=artifact:pdf --target-format=json`: the
@@ -228,8 +240,11 @@ column, translate to the right column rather than report the param as unsupporte
 >    offered, never a silent guess.
 >
 > A value in **NEITHER** axis' value-set → `STOP-ERROR` naming the valid set for each axis (this is
-> an unsupported value, not an ambiguity — do not route it to `STOP-HITL`). An explicit conflict
-> (value fixes an axis the accompanying flag already fixed differently) → `STOP-HITL`.
+> an unsupported value, not an ambiguity — do not route it to `STOP-HITL`). An explicit **intra-axis**
+> conflict — the value fixes an axis the accompanying flag already fixed *differently*, e.g.
+> `--target-format=pdf --cast-to=artifact:html` → `STOP-HITL`. The distinct **cross-family** collision
+> (artifact value vs non-artifact cast) is caught earlier, by **step 0** — the two shapes do not
+> overlap: this one is one axis with two values, that one is one slot with two families.
 >
 > **Note — as declared today the two sets are disjoint** (`{md, html, pdf, slides, diagram,
 > confluence, gamma, canva}` vs `{table, json, json-rpc}`), so step 1 resolves every supported value

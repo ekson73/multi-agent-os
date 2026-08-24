@@ -33,11 +33,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
     out of scope here (no iteration/ordering/aggregation semantics exist) and
     routes to `atomize-and-route` or `converge`.
-  - `--target-format` resolves **value-space first, `--cast-to` second,
-    `STOP-HITL` last** — this skill has two independent format axes (artifact
-    vs report) and collapsing them would misread a valid request such as
-    `--cast-to=artifact:pdf --target-format=json`. Value in neither axis ->
-    `STOP-ERROR`; explicit axis conflict -> `STOP-HITL`.
+  - `--target-format` resolves **slot-contention first, then value-space, then
+    `--cast-to`, `STOP-HITL` last** — this skill has two independent format
+    axes (artifact vs report) and collapsing them would misread a valid request
+    such as `--cast-to=artifact:pdf --target-format=json`. The **step-0
+    pre-check** catches the cross-family slot collision (an artifact-only value
+    plus a non-artifact `--cast-to` both claim the single-valued `--to-type`)
+    -> `STOP-HITL`; without it, the value-space test would run first and
+    *silently overwrite the requested cast*. An artifact format is **not**
+    expressible as a preprocessing transform of a non-artifact cast (unlike
+    `--target-style`), so the cast does not win — the collision is the
+    operator's call. Report-only values never contend (different slot). Value
+    in neither axis -> `STOP-ERROR`; intra-axis conflict -> `STOP-HITL`.
   - `--target-style` has **no equivalent by design**: audience/register routes
     to `content-recast` (owns the faithfulness guard), prompt-shape to the
     `prompt` profile (`refine-braindump-to-prompt` for `source=braindump`,
