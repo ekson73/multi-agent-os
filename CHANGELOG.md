@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
     out of scope here (no iteration/ordering/aggregation semantics exist) and
     routes to `atomize-and-route` or `converge`.
+  - **Both spellings supplied with DIFFERENT values -> `STOP-HITL`.** Normalization
+    fills an *empty* slot; it never arbitrates a disagreement. `--to-type=prompt
+    --cast-to=artifact:pdf` is two explicit incompatible casts for one slot —
+    picking by assignment order would silently discard one.
+  - **`same-as-source` counts as a contending cast when supplied EXPLICITLY.** It
+    is the `--to-type` default AND a legitimate explicit type-preserving value;
+    omitting it from the step-0 non-artifact list let
+    `--target-format=pdf --to-type=same-as-source` bypass the check and overwrite
+    the very preservation requested. The *implicit* default does not contend.
   - **Normalize the cast BEFORE every collision branch.** `--cast-to` translates
     to `--to-type` *first*; from there "an explicit cast" means the normalized
     `--to-type` however the caller spelled it. A caller may legitimately mix the

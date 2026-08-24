@@ -208,7 +208,15 @@ column, translate to the right column rather than report the param as unsupporte
 > means *the normalized `--to-type`, however the caller spelled it*. A caller may legitimately mix
 > the canonical form with an alias (`--to-type=prompt --target-format=pdf`), so any check keyed on
 > the alias spelling alone would **not fire** — the value-space test would then run and silently
-> overwrite the requested cast. This normalization is what makes the step-0 pre-check and the
+> overwrite the requested cast.
+>
+> ⛔ **If BOTH spellings are supplied and normalize to DIFFERENT values → `STOP-HITL`.** Normalization
+> fills an *empty* slot; it never arbitrates a disagreement. `--to-type=prompt --cast-to=artifact:pdf`
+> is two explicit, incompatible casts for one slot — applying either assignment order would silently
+> discard the other. Name both readings and stop; **never pick by order**. (Same values → no
+> conflict, proceed.)
+>
+> This normalization is what makes the step-0 pre-check and the
 > `--target-style` routing table below spelling-agnostic; do not re-introduce a spelling-specific
 > test in either.
 
@@ -230,7 +238,11 @@ column, translate to the right column rather than report the param as unsupporte
 >    the single-valued `--to-type` slot as `artifact:<value>`. So when the `--target-format` value is
 >    **artifact-only** AND an explicit cast is present — **normalized per the rule above, so either
 >    spelling counts (`--to-type` canonical or `--cast-to` alias)** — naming a **non-artifact** family (`prompt` ·
->    `agentic-tool:*` · `audience-recast` · `ledger` · `ticket`), both requests claim that one slot
+>    `agentic-tool:*` · `audience-recast` · `ledger` · `ticket` · **`same-as-source` when supplied
+>    EXPLICITLY** — it is a type-preserving cast like any other, and omitting it from this list lets
+>    `--target-format=pdf --to-type=same-as-source` bypass the check and overwrite the very
+>    preservation the caller asked for; the *implicit* default `same-as-source` does **not** contend,
+>    since filling an unset slot is exactly what the alias is for), both requests claim that one slot
 >    with incompatible values → **`STOP-HITL`**, naming the collision. ⛔ Do **not** let the
 >    value-space test run first here: it would set `--to-type=artifact:<value>` and *silently
 >    overwrite the requested cast*. Unlike `--target-style` below, an artifact format is **not**
