@@ -26,10 +26,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   diagram) without the original transcript. Staging the note is deliberately skipped:
   it is the *input*, and re-staging would put it back on the commit path. With
   `--cast-to=none` it is an explicit no-op; it never rewrites the note.
-- **Fail-closed disclosure gate** — `artifact`/`slides`/`notebooklm` publish to a
-  third-party service, so `--cast-to=auto` may resolve only to `markdown`/`html`/
-  `diagram`; external media are opt-in **by name**. Invariant:
-  `auto_may_select ∩ external_media = ∅`. A disclosure cannot be un-sent.
+- **Fail-closed disclosure gate — bound to the resolved *sink class*, never to a name
+  list.** A medium that publishes to a third-party service is opt-in **by name**, and
+  `--cast-to=auto` may resolve only to `markdown`/`html`/`diagram`. Invariant:
+  `auto_may_select ∩ external_media = ∅`. Crucially, `one-pager`'s class is
+  *conditional* — `content-recast` may resolve its PDF producer to a local binary or a
+  hosted service — so § Sink class is resolved, not assumed resolves the class per run
+  and **fails closed to external** when it cannot. A disclosure cannot be un-sent.
+- **Native casts escape source text** — a transcript is untrusted input; `<script>`,
+  event handlers and network-capable URLs are rejected rather than rendered, because the
+  secret scan looks for *credentials* and is therefore silent about *markup*.
+- **`self` requires an exact host handle** — where sessions are concurrent, the
+  most-recent transcript is routinely a different conversation, so § Source resolution
+  makes `self` a hard error without exact correlation instead of exporting a neighbour.
+- **§ Cast metadata** — `casts` frontmatter is completed at the end of phase 7, inside
+  the staged set (cast-only mode uses a staged sidecar register, leaving the source note
+  byte-identical); post-scan mutation is forbidden, so no committed byte is unscanned.
 - **§ Sanitize Gate + § Stage-scan-commit** — the secret-scrub is not a positional
   phase but a gate standing between staging and *any* commit: the run stages **every**
   output (note and casts) in a private `0700` directory outside the vault, scans the
