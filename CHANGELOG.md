@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   --cast-to=slides` is a distinct request, so medium is not folded into format.
   Default `none`: a cast is opt-in, and the note remains the authoritative record.
 - **Cast-only mode** — when the source is an already-saved note the run is
-  **0 · 1 · 7 · 8** (skipping 2→6), so a months-old export can be re-cast (e.g. into a
+  **0 · 1 · 7 · 8** (skipping 2→6), so a previously saved export can be re-cast (e.g. into a
   diagram) without the original transcript. Staging the note is deliberately skipped:
   it is the *input*, and re-staging would put it back on the commit path. With
   `--cast-to=none` it is an explicit no-op; it never rewrites the note.
