@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs — skills/README.md full inventory refresh (86 skills + dependency graph)
+
+- `skills/README.md` regenerated from frontmatter `description` of all 86 skills
+  (was stale at ~22 entries). Adds name-cluster family map (agentic-tool lifecycle ·
+  session lifecycle · concierge routing · governance/convergence · loops/recovery ·
+  founder journey) + mermaid inter-dependency graph of the core families (edges from
+  `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+  Driven by operator inventory/quiesce round (eko-engram PDCA #41).
+
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 
 - `skills/transmute/SKILL.md` (v0.2.2 -> v0.2.3, PATCH) — new §Declared-grammar
