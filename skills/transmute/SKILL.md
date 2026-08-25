@@ -203,6 +203,23 @@ column, translate to the right column rather than report the param as unsupporte
 | `--target-style` | ⚠️ **no direct equivalent** | see note below |
 | `*-recovery()` default | ⚠️ **per-parameter — NOT one idiom** | see the recovery note below |
 
+> **⛔ NORMALIZE BEFORE BRANCHING — every collision check below reads the *normalized* cast, never a
+> spelling.** Translate `--cast-to` → `--to-type` **first**; from that point on "an explicit cast"
+> means *the normalized `--to-type`, however the caller spelled it*. A caller may legitimately mix
+> the canonical form with an alias (`--to-type=prompt --target-format=pdf`), so any check keyed on
+> the alias spelling alone would **not fire** — the value-space test would then run and silently
+> overwrite the requested cast.
+>
+> ⛔ **If BOTH spellings are supplied and normalize to DIFFERENT values → `STOP-HITL`.** Normalization
+> fills an *empty* slot; it never arbitrates a disagreement. `--to-type=prompt --cast-to=artifact:pdf`
+> is two explicit, incompatible casts for one slot — applying either assignment order would silently
+> discard the other. Name both readings and stop; **never pick by order**. (Same values → no
+> conflict, proceed.)
+>
+> This normalization is what makes the step-0 pre-check and the
+> `--target-style` routing table below spelling-agnostic; do not re-introduce a spelling-specific
+> test in either.
+
 > **⚠️ `--from` is SINGULAR — `{{sources}}` must be expanded BEFORE INTAKE.** This skill guarantees
 > ONE source end-to-end (INTAKE types one source; the `--output=json` contract carries one `source`
 > object). No iteration, ordering, or aggregation semantics are defined, so the alias does **not**
@@ -215,12 +232,17 @@ column, translate to the right column rather than report the param as unsupporte
 > independent format axes*: the **artifact's** format
 > (`--to-type=artifact:{md\|html\|pdf\|slides\|diagram\|confluence\|gamma\|canva}`) and the
 > **report's** format (`--output`/`--agentic-format` = `table\|json\|json-rpc`). Resolve in this
-> order — **slot-contention first, then value-space, then `--cast-to`, `STOP-HITL` last**:
+> order — **slot-contention first, then value-space, then the normalized cast, `STOP-HITL` last**:
 >
 > 0. **Slot-contention pre-check — runs BEFORE the value-space test.** An artifact-axis value needs
 >    the single-valued `--to-type` slot as `artifact:<value>`. So when the `--target-format` value is
->    **artifact-only** AND an explicit `--cast-to` names a **non-artifact** family (`prompt` ·
->    `agentic-tool:*` · `audience-recast` · `ledger` · `ticket`), both requests claim that one slot
+>    **artifact-only** AND an explicit cast is present — **normalized per the rule above, so either
+>    spelling counts (`--to-type` canonical or `--cast-to` alias)** — naming a **non-artifact** family (`prompt` ·
+>    `agentic-tool:*` · `audience-recast` · `ledger` · `ticket` · **`same-as-source` when supplied
+>    EXPLICITLY** — it is a type-preserving cast like any other, and omitting it from this list lets
+>    `--target-format=pdf --to-type=same-as-source` bypass the check and overwrite the very
+>    preservation the caller asked for; the *implicit* default `same-as-source` does **not** contend,
+>    since filling an unset slot is exactly what the alias is for), both requests claim that one slot
 >    with incompatible values → **`STOP-HITL`**, naming the collision. ⛔ Do **not** let the
 >    value-space test run first here: it would set `--to-type=artifact:<value>` and *silently
 >    overwrite the requested cast*. Unlike `--target-style` below, an artifact format is **not**
@@ -254,14 +276,15 @@ column, translate to the right column rather than report the param as unsupporte
 > assigning it to the report axis where it is invalid.
 >
 > **⚠️ `--target-style` has no equivalent — and deliberately so.** Style is not a transmute param.
-> `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. Route by intent:
+> `--user-lang`/`--agentic-lang` are *language*, not *style* — do not conflate them. Route by intent
+> (and read "explicit cast" below as the **normalized** cast — either spelling, per the rule above):
 >
 > ⛔ **`--to-type` is single-valued** (one of `prompt` · `agentic-tool:*` · `audience-recast` ·
 > `artifact:*` · `ledger` · `ticket` — see `commands/transmute.md` §Flags). So the style route
-> depends on whether an **explicit `--cast-to` is also present**; it must never silently overwrite a
+> depends on whether an **explicit cast is also present (normalized — either spelling)**; it must never silently overwrite a
 > requested cast:
 >
-> | Intent of `--target-style` | No explicit `--cast-to` | WITH an explicit `--cast-to` | Owner |
+> | Intent of `--target-style` | No explicit cast | WITH an explicit cast (normalized) | Owner |
 > |---|---|---|---|
 > | audience / register / tone (exec · junior · non-technical) | `--to-type=audience-recast` | cast **wins** `--to-type`; apply the recast as a **preprocessing transform** before the cast | `content-recast` (owns the faithfulness guard) |
 > | prompt shape / rigor profile | `--to-type=prompt` + profile (e.g. `gauntlet-loop`) | cast **wins** `--to-type`; apply the prompt-shaping as a **preprocessing transform** | per §Cast router: `refine-braindump-to-prompt` when `source=braindump`; `agents/prompt-context-engineer` + profile otherwise |
@@ -435,9 +458,11 @@ router added no routing). Dormant-by-design otherwise.
   aliasing cannot silently resolve: **`--from` is SINGULAR** (an unexpanded literal `{{sources}}`
   reaching INTAKE is an unfilled placeholder → `STOP-ERROR`; multi-source fan-in has no
   iteration/ordering/aggregation semantics here and routes to `atomize-and-route` / `converge`);
-  **`--target-format` resolves value-space → `--cast-to` → `STOP-HITL`** (two independent format
-  axes exist — artifact vs report — so a naive collapse would misread a valid
-  `--cast-to=artifact:pdf --target-format=json`; value in neither axis → `STOP-ERROR`); and
+  **`--target-format` resolves slot-contention (step 0) → value-space → normalized cast →
+  `STOP-HITL`** (two independent format axes exist — artifact vs report — so a naive collapse would
+  misread a valid `--cast-to=artifact:pdf --target-format=json`; but an artifact-only value plus a
+  non-artifact cast contend for the single `--to-type` slot and must `STOP-HITL` **before** the
+  value-space test, or the cast is silently overwritten; value in neither axis → `STOP-ERROR`); and
   **`--target-style` has no equivalent by design** (audience/register → `content-recast`, which
   owns the faithfulness guard; prompt-shape → the `prompt` profile; language ≠ style;
   undeterminable → `STOP-HITL`). Ledger:
