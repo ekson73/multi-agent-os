@@ -30,6 +30,11 @@ metadata:
   lifecycle-stage: operate
   cross_link_slug: preflight
   dogfood_status: in-progress
+  pairs-with: postflight   # reciprocal of postflight's `pairs-with: preflight`
+  # id/type/status/owner/dogfooding_validation deliberately OMITTED (issue #390): that block
+  # predates and is non-conformant with ADR-005 (docs/adrs/ADR-005-dogfood-cycle-ledger.md),
+  # which supersedes per-skill dogfood tracking with a canonical ledger; it is also unconsumed
+  # by any repo tooling and inconsistent in shape even among its 4 adopters. See PR for evidence.
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
