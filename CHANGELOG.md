@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs — skills/README.md full inventory refresh (86 skills + dependency graph)
+
+- `skills/README.md` regenerated from frontmatter `description` of all 86 skills
+  (was stale at ~22 entries). Adds name-cluster family map (agentic-tool lifecycle ·
+  session lifecycle · concierge routing · governance/convergence · loops/recovery ·
+  founder journey) + mermaid inter-dependency graph of the core families (edges from
+  `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+  Driven by operator inventory/quiesce round (eko-engram PDCA #41).
+
 ### Added — `session-to-vault` skill (Fonógrafo): vault-agnostic session export + cast
 
 - `skills/session-to-vault/SKILL.md` (new, v0.1.0) — preserves an agent session's
@@ -121,6 +130,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     INTAKE is an unfilled placeholder -> `STOP-ERROR`. Multi-source fan-in is
     out of scope here (no iteration/ordering/aggregation semantics exist) and
     routes to `atomize-and-route` or `converge`.
+  - **Both spellings supplied with DIFFERENT values -> `STOP-HITL`.** Normalization
+    fills an *empty* slot; it never arbitrates a disagreement. `--to-type=prompt
+    --cast-to=artifact:pdf` is two explicit incompatible casts for one slot —
+    picking by assignment order would silently discard one.
+  - **`same-as-source` counts as a contending cast when supplied EXPLICITLY.** It
+    is the `--to-type` default AND a legitimate explicit type-preserving value;
+    omitting it from the step-0 non-artifact list let
+    `--target-format=pdf --to-type=same-as-source` bypass the check and overwrite
+    the very preservation requested. The *implicit* default does not contend.
+  - **Normalize the cast BEFORE every collision branch.** `--cast-to` translates
+    to `--to-type` *first*; from there "an explicit cast" means the normalized
+    `--to-type` however the caller spelled it. A caller may legitimately mix the
+    canonical form with an alias (`--to-type=prompt --target-format=pdf`), so a
+    check keyed on the alias spelling alone would not fire and the value-space
+    test would silently overwrite the cast. Stated once; both the step-0
+    pre-check and the `--target-style` table read the normalized cast.
   - `--target-format` resolves **slot-contention first, then value-space, then
     `--cast-to`, `STOP-HITL` last** — this skill has two independent format
     axes (artifact vs report) and collapsing them would misread a valid request
