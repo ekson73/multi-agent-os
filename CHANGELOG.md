@@ -57,10 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **whole set**, and commits only if all of it is clean — local sinks first, external
   sinks last and one at a time. A missing scanner counts as a hit, and a hit discards
   staging so nothing was ever committed. **§ Two-phase contract** bounds this: the
-  model presumes every output *can* be staged, but external producers
-  (`artifact`/`slides`/`notebooklm`) render server-side — scanning the input payload
+  model presumes every output *can* be staged, but some external producers
+  (`artifact`/`slides`) render server-side — scanning the input payload
   is not scanning the published artifact, since a producer may transform what it is
-  given. An external medium is therefore admissible only if its producer offers both
+  given (`notebooklm` is NOT in this group — `content-recast` produces its
+  source+prompt inline, no external renderer involved, so it stages like any local
+  medium). An external medium is therefore admissible only if its producer offers both
   `render-to-staging` (complete output, no external side effect) and
   `publish-staged-bytes` (exactly those bytes); one that publishes on call is
   **excluded from the batch**, never published-unscanned. No external producer here
@@ -102,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Composes `skills/session-fission` (read-only snapshot discipline),
   `skills/opera-debrief` (`--style=narrative`) and `skills/content-recast`
   (slides/PDF/NotebookLM producers) — no new engine, no forked producer.
-  `dogfood_status: pending-first-cycle`.
+  `dogfood_status: cycle-1-complete` (real activation run — see the skill's own
+  `skills/skill-writer` checklist item 10).
 
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 
