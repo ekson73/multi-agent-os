@@ -190,6 +190,29 @@ disabled on the repo, or operator cancel). Otherwise use `hold` (operator merges
 or `off`. Always `--squash --delete-branch`. Fire-and-forget — no local merge
 queue across turns (amnesic-safe; delegates the merge contract to GitHub).
 
+## Dual-Impact Merge Gate (DIMG)
+
+Unattended merge DECISION (operator directive 2026-08-26: `--branches=[all]` =
+all OPEN PRs in scope — never a license to merge into protected branches). For
+each candidate PR, before queueing auto-merge:
+
+1. **Compute impact-of-MERGE** — 6M · Ishikawa · SWOT · blast radius (files,
+   deploy chain, downgrade/degrade risk, toxicity surface).
+2. **Compute impact-of-NOT-merge** — what decays or costs if left unmerged
+   (stale drift, security debt, review fatigue, CI rot).
+3. **Decide by category**:
+   - **Cat A** (routine: docs/deps/non-CI code, CI green) → ≥90% certainty that
+     the merge is beneficial + positive + non-destructive + non-downgrade +
+     non-toxic ⇒ AUTHORIZE.
+   - **Cat B** (CI/workflows/infra files) → same ≥90% calculus **+ mandatory
+     council** (debate → converge → council-before-HITL) ⇒ authorize.
+   - **Doubt** (<90%) → debate/converge/council-before-HITL.
+   - **Doubt persists** → FALLBACK to HITL.
+4. **⛔ The calculus NEVER overrides**: protected deploy branches, secrets/PII,
+   prod/irreversible actions, HUMAN_DOMAIN, and the refusal list above — those
+   stay unconditional HITL. The ≥90% gate widens autonomy INSIDE the safe band,
+   never outside it.
+
 ## Protocol Rules (anti-loop invariants + bounds)
 
 - `--max-pdca` (default 6) caps per-PR PDCA iterations; diminishing returns -> escalate.
