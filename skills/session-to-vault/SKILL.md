@@ -205,8 +205,10 @@ published, it **cannot be withdrawn at all**. The guarantee has to be establishe
    collision branch 2, a sidecar upsert, a re-cast to the same deterministic path) is a *replacement*, so
    deleting the new file forward would lose BOTH the failed run's output AND the pre-existing content it
    overwrote — leaving nothing where there was previously something. So step 3, at the moment it is about to
-   overwrite an already-occupied destination, **backs it up first** (rename the pre-existing bytes aside, in
-   staging, before the move) — the rollback then restores that backup to the destination rather than merely
+   overwrite an already-occupied destination, **backs it up first** (copy the pre-existing bytes aside, in
+   the run's staging subdirectory — the live destination stays in place until its replacement is
+   installed atomically; a rename-aside would leave the vault path empty across an interruption, with the only
+   good copy stranded in a per-run staging directory nobody knows about — before the move) — the rollback then restores that backup to the destination rather than merely
    deleting the new file, and only removes the new file outright when the destination had been empty. Unlike an
    external publication, a local filesystem move IS reversible, so the local-sink batch stays all-or-nothing: the
    note must never end up committed with `casts` metadata pointing at a cast that was never actually written,
@@ -561,6 +563,9 @@ existing `<note-slug>.casts.yml`, verify both match this run's source note. A mi
 path belongs to a *different* record — **refuse and report the conflicting path**; never merge into (or
 rewrite) an unrelated register. The step-5 backup restores a destination only when the run later fails; it is
 not a substitute for knowing *whose* register this is.
+   The sidecar's read→merge→commit is itself protected: it runs under the same destination-scoped lock
+   discipline as § Note collision branch 4 (`<sidecar>.lock`, `O_EXCL`), so two concurrent cast-only runs on
+   the same note serialize instead of each merging over the other's freshly committed entry.
 
 ### Cast-only mode
 
@@ -707,7 +712,7 @@ session-to-vault self --scanner=/usr/local/bin/my-secret-scan
 | 6 | Examples concrete and realistic | ✅ § Examples — 6 working invocations + 4 error cases |
 | 7 | Dependencies documented | ✅ § Producer availability (what ships, what does not, transitive probe) + the § Sanitize Gate scanner prerequisite (`gitleaks`, or `--scanner`) |
 | 8 | File paths use forward slashes | ✅ throughout |
-| 9 | Skill activates on relevant queries | ✅ 8 triggers, EN + PT |
+| 9 | Skill activates on relevant queries | ⚠️ **declared, not yet activation-tested** — 8 triggers (EN + PT) are *declared*; an end-to-end automatic-activation run (fresh host, ordinary matching query, no explicit invocation) is **pending** and tracked as post-merge dogfood cycle 2. The declaration alone does not prove discovery |
 | 10 | Agent follows instructions correctly | ✅ **real activation run executed** — see below (`dogfood_status: cycle-1-complete`) |
 
 Item 10 is the one item a PR **cannot** self-certify: it requires a real run. Marking it green here without
@@ -765,4 +770,4 @@ MIT
 
 ---
 
-*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-27T16:20:00-03:00 (last substantive edit — PDCA round 13)*
+*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-27T16:45:00-03:00 (last substantive edit — PDCA round 14)*

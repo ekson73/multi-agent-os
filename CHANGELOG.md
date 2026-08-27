@@ -127,6 +127,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   create, or a destination-scoped `O_EXCL` lock), closing the TOCTOU where two
   concurrent same-slug exports both passed the existence check and a plain rename
   silently replaced the first.
+  + PDCA round 14 (2026-08-27, Codex on `227f140`): step-5 backup is now
+  copy-aside + atomic replace (rename-aside would strand the only good copy in
+  per-run staging across an interruption); sidecar read→merge→commit runs under
+  the branch-4 destination lock (concurrent cast-only runs serialize); checklist
+  item 9 corrected to honest ⚠️ — triggers declared, automatic-activation run
+  tracked as post-merge dogfood cycle 2 (declaration ≠ discovery proof).
 
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 
