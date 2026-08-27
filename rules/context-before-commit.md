@@ -1,3 +1,7 @@
+---
+description: Análise de contexto antes de commit [R01]
+---
+
 # Context Analysis Before Commit [R01]
 
 <!-- Auto-loaded rule | Version: 1.0.0 | 2026-01-25 -->

@@ -1,3 +1,7 @@
+---
+description: Workflow operacional — PR governance + git worktrees + email cleanup
+---
+
 # Operational Workflow — PR Governance + Git Worktrees + Email Cleanup
 
 <!-- Auto-loaded rule | Version: 1.0.0 | 2026-03-07 -->

@@ -1,3 +1,7 @@
+---
+description: Princípios axiais do user scope (context layer)
+---
+
 # Principios Axiais do User Scope (Context Layer)
 
 > **Missao:** Manter a higiene, proatividade, delegacao inteligente, foco essencialista e melhoria continua em todo ciclo de trabalho.

@@ -1,3 +1,7 @@
+---
+description: Core Directive [C01] — propósito, delegação recursiva, entropia zero
+---
+
 # Core Directive [C01]
 
 <!-- Auto-loaded rule | Version: 1.0.0 | 2026-01-22 -->
