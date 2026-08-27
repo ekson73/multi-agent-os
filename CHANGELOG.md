@@ -78,19 +78,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back to a native medium while saying so, and an explicitly named unavailable
   medium is reported as an error rather than silently substituted. Probing is
   **transitive**: `content-recast` ships here but only *delegates* `slides`/
-  `one-pager`/`notebooklm` to downstream renderers that are **not** bundled, so a
-  present wrapper with an absent renderer yields handoff instructions rather than an
-  artifact and is never recorded as a written cast.
+  `one-pager` to downstream renderers that are **not** bundled, so a present wrapper
+  with an absent renderer yields handoff instructions rather than an artifact and is
+  never recorded as a written cast (`notebooklm` is not in this group — its
+  `nlm-source`/`nlm-prompt` formats render inline, no downstream renderer to probe).
 - **Prerequisite — a secret scanner is required to write.** The § Sanitize Gate names
   `gitleaks` (already this repo's CI scanner) and accepts a `--scanner=<command>`
   override honouring a documented contract (given the path to the exact bytes about to
-  be written: exit 0 = clean, non-zero = hit; absent/unrunnable = hit). The scanner is
+  be written and a report path: exit 0 = clean; a non-zero exit is disambiguated by the
+  report file, not the exit code alone — gitleaks itself exits 1 on both a genuine
+  finding and a fatal scanner error, so a present+non-empty report means a hit, an
+  absent/empty one means scan-error/unavailable). The scanner is
   always handed a **staged** path, never a destination path, and the commit happens
   only after the whole staged set has passed — never written first and scanned after.
 - **Write-safety contract** — every resolved destination is normalized and confined
   beneath `--vault-path` (absolute paths, `..` traversal and symlink escapes are
   rejected before any write); `--dry-run` invokes **no** producer with a side effect,
-  so it can never publish an `artifact`/`slides`/`notebooklm` cast; a `--focus` that
+  so it can never publish an `artifact`/`slides` cast (`notebooklm` is local, not
+  external, so it carries no publish risk to gate here); a `--focus` that
   matches zero turns writes **nothing** and reports a no-match rather than persisting
   an empty note; every successful write carries an audit section (source, scope,
   included/excluded, sanitization verdict).
@@ -103,7 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   taxonomy.
 - Composes `skills/session-fission` (read-only snapshot discipline),
   `skills/opera-debrief` (`--style=narrative`) and `skills/content-recast`
-  (slides/PDF/NotebookLM producers) — no new engine, no forked producer.
+  (delegates slides/PDF downstream; renders NotebookLM's source+prompt inline) —
+  no new engine, no forked producer.
   `dogfood_status: cycle-1-complete` (real activation run — see the skill's own
   `skills/skill-writer` checklist item 10).
 
