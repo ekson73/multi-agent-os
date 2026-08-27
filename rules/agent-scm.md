@@ -1,3 +1,7 @@
+---
+description: Software Configuration Management — disciplina de branches, merges e baselines
+---
+
 # Agent: SCM — Software Configuration Management Engineer
 
 <!-- Forge-created agent | Version: 1.1.0 | 2026-03-11 -->

@@ -1,3 +1,7 @@
+---
+description: Princípio do agora prioritário [C15] — agir agora quando adiar custa mais que agir
+---
+
 # Principio do Agora Prioritario [C15]
 
 <!-- Auto-loaded rule | Version: 1.0.0 | 2026-03-08 -->

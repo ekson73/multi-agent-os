@@ -1,3 +1,7 @@
+---
+description: Protocolo de erros AI-native [C06] — JSON-RPC em stderr, exit codes 0/1/2
+---
+
 # AI-Native Error Protocol [C06]
 
 <!-- Auto-loaded rule | Version: 1.0.0 | 2026-01-22 -->
