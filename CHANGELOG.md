@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — DIMG branch-tier ranking (operator refinement same-day)
+
+- Tier bars for unattended merge authorization: dev ≥85% · homolog ≥90% ·
+  pre-prod ≥95% (+council) · production ≥99% (+council + independent verifier;
+  99% cannot be self-declared — external evidence mandatory). GitHub branch
+  protections remain the hard floor at every tier; non-merge absolutes
+  (secrets, destructive non-merge, HUMAN_DOMAIN) stay outside the calculus.
+
 ### Added — Dual-Impact Merge Gate (DIMG) on autonomous merge decisions
 
 - Operator directive 2026-08-26: unattended `--auto-merge=authorized` decisions

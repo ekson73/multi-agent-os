@@ -104,13 +104,12 @@ Default band is `L2-bounded`. Operator may override via `/auto-pilot --band=L3`.
 ## Dual-Impact Merge Gate (DIMG)
 
 `L3-extended` auto-merge decisions follow the DIMG (SSOT: `skills/quiesce`
-§Dual-Impact Merge Gate): (1) compute impact-of-MERGE (6M · Ishikawa · SWOT ·
-blast radius) and (2) impact-of-NOT-merge (stale drift, security debt, review
-fatigue). (3) Cat A routine (docs/deps/non-CI code) → ≥90% certainty (beneficial,
-positive, non-destructive, non-downgrade, non-toxic) ⇒ authorize; Cat B
-(CI/infra) → ≥90% **+ mandatory council**; doubt (<90%) → debate/converge/
-council; doubt persists → HITL fallback. (4) ⛔ calculus never overrides:
-protected branches, secrets, prod/irreversible, HUMAN_DOMAIN.
+§Dual-Impact Merge Gate, incl. branch-tier bars): dev ≥85% · homolog ≥90% ·
+pre-prod ≥95% (+council) · production ≥99% (+council + independent verifier —
+99% cannot be self-declared). Cat A routine ⇒ authorize at the tier bar; Cat B
+(CI/infra) ⇒ +mandatory council; doubt → debate/converge/council → HITL.
+⛔ non-merge absolutes (secrets, destructive non-merge, HUMAN_DOMAIN) never
+enter the calculus.
 
 ## DNA payload v1.1 (additive)
 
