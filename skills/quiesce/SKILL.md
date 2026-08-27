@@ -200,18 +200,28 @@ each candidate PR, before queueing auto-merge:
    deploy chain, downgrade/degrade risk, toxicity surface).
 2. **Compute impact-of-NOT-merge** — what decays or costs if left unmerged
    (stale drift, security debt, review fatigue, CI rot).
-3. **Decide by category**:
-   - **Cat A** (routine: docs/deps/non-CI code, CI green) → ≥90% certainty that
-     the merge is beneficial + positive + non-destructive + non-downgrade +
-     non-toxic ⇒ AUTHORIZE.
-   - **Cat B** (CI/workflows/infra files) → same ≥90% calculus **+ mandatory
-     council** (debate → converge → council-before-HITL) ⇒ authorize.
-   - **Doubt** (<90%) → debate/converge/council-before-HITL.
+3. **Decide by category AND branch tier** (operator ranking 2026-08-26):
+
+   | Target branch tier | Confidence bar | Extra gate |
+   |---|---|---|
+   | dev / test / etc | ≥85% | — |
+   | homolog / uat | ≥90% | — |
+   | pre-prod / canary | ≥95% | council |
+   | production | ≥99% | council + **independent verifier** |
+
+   - **Cat A** (routine: docs/deps/non-CI code, CI green) ⇒ authorize at the tier bar.
+   - **Cat B** (CI/workflows/infra files) ⇒ tier bar + **mandatory council**.
+   - **Doubt** (below bar) → debate/converge/council-before-HITL.
    - **Doubt persists** → FALLBACK to HITL.
-4. **⛔ The calculus NEVER overrides**: protected deploy branches, secrets/PII,
-   prod/irreversible actions, HUMAN_DOMAIN, and the refusal list above — those
-   stay unconditional HITL. The ≥90% gate widens autonomy INSIDE the safe band,
-   never outside it.
+4. **⛔ The calculus NEVER overrides** (non-merge absolutes): secrets/PII,
+   destructive/irreversible NON-merge actions, HUMAN_DOMAIN — always HITL.
+   For merges, GitHub branch protections remain the hard floor: native
+   auto-merge will not fire unless required checks pass, at ANY tier.
+   **≥99% cannot be self-declared**: the production tier requires the
+   certainty to be externally evidenced (all bots + CI green, zero
+   CHANGES_REQUESTED, AND an independent verifier — a second agent or an
+   operator-set check). An agent that cannot produce the independent
+   verification falls back to HITL — never fabricate the 99%.
 
 ## Protocol Rules (anti-loop invariants + bounds)
 
