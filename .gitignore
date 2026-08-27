@@ -21,3 +21,6 @@ step*_logs.txt
 
 # research-dossier render output (build artifact, never committed)
 out/
+
+# codegraph index cache (local tool state, never committed)
+.codegraph/
