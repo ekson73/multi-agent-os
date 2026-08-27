@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — DIMG v3 ladder (operator refinement same-day, 4th iteration)
+
+- Cascata por tier: global floor <85% → HITL direto; dev ≥85% GO; hml ≥90% GO
+  (senão debate→council→HITL); ppe debate obrigatório sempre + ≥95% GO (senão
+  council→HITL); prd cadeia completa sempre + verificador independente + ≥99%
+  GO (senão HITL). Harmonized from operator notation (removed ambiguous
+  duplicated bar token; kept global floor from prior iteration).
+
 ### Added — DIMG confidence floor (operator refinement same-day)
 
 - Confidence ladder completo: <85% → HITL direto (sem council); 85% ≤ conf <
