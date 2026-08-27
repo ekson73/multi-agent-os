@@ -55,6 +55,124 @@ própria). Economic stop embutido nos estágios.
   `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
   Driven by operator inventory/quiesce round (eko-engram PDCA #41).
 
+### Added — `session-to-vault` skill (Fonógrafo): vault-agnostic session export + cast
+
+- `skills/session-to-vault/SKILL.md` (new, v0.1.0) — preserves an agent session's
+  history as a durable, dated, tagged note in **any** markdown/Obsidian vault, and
+  can additionally **cast** that record into a medium a human can see. Promoted from
+  a personal-vault protocol and generalized: `--vault-path` and `--placement` are
+  parameters, so no vault path, folder taxonomy, or project slug is hardcoded
+  (Layer Purity — the engine ships here, the vault-specific routing stays in the
+  consuming vault as configuration).
+- **New axis `--cast-to`** (`markdown` · `html` · `diagram` · `slides` ·
+  `one-pager` · `notebooklm` · `artifact`), orthogonal to `--placement` (WHERE),
+  `--format` (HOW MUCH) and `--style` (REGISTER) — `--format=digest
+  --cast-to=slides` is a distinct request, so medium is not folded into format.
+  Default `none`: a cast is opt-in, and the note remains the authoritative record.
+- **Cast-only mode** — when the source is an already-saved note the run is
+  **0 · 1 · 7 · 8** (skipping 2→6), so a previously saved export can be re-cast (e.g. into a
+  diagram) without the original transcript. Staging the note is deliberately skipped:
+  it is the *input*, and re-staging would put it back on the commit path. With
+  `--cast-to=none` it is an explicit no-op; it never rewrites the note.
+- **Fail-closed disclosure gate — bound to the resolved *sink class*, never to a name
+  list.** A medium that publishes to a third-party service is opt-in **by name**, and
+  `--cast-to=auto` may resolve only to `markdown`/`html`/`diagram`. Invariant:
+  `auto_may_select ∩ external_media = ∅`. Crucially, `one-pager`'s class is
+  *conditional* — `content-recast` may resolve its PDF producer to a local binary or a
+  hosted service — so § Sink class is resolved, not assumed resolves the class per run
+  and **fails closed to external** when it cannot. A disclosure cannot be un-sent.
+- **Native casts escape source text** — a transcript is untrusted input; `<script>`,
+  event handlers and network-capable URLs are rejected rather than rendered, because the
+  secret scan looks for *credentials* and is therefore silent about *markup*.
+- **`self` requires an exact host handle** — where sessions are concurrent, the
+  most-recent transcript is routinely a different conversation, so § Source resolution
+  makes `self` a hard error without exact correlation instead of exporting a neighbour.
+- **§ Cast metadata** — `casts` frontmatter is completed at the end of phase 7, inside
+  the staged set (cast-only mode uses a staged sidecar register, leaving the source note
+  byte-identical); post-scan mutation is forbidden, so no committed byte is unscanned.
+- **§ Sanitize Gate + § Stage-scan-commit** — the secret-scrub is not a positional
+  phase but a gate standing between staging and *any* commit: the run stages **every**
+  output (note and casts) in a private `0700` directory outside the vault, scans the
+  **whole set**, and commits only if all of it is clean — local sinks first, external
+  sinks last and one at a time. A missing scanner counts as a hit, and a hit discards
+  staging so nothing was ever committed. **§ Two-phase contract** bounds this: the
+  model presumes every output *can* be staged, but some external producers
+  (`artifact`/`slides`) render server-side — scanning the input payload
+  is not scanning the published artifact, since a producer may transform what it is
+  given (`notebooklm` is NOT in this group — `content-recast` produces its
+  source+prompt inline, no external renderer involved, so it stages like any local
+  medium). An external medium is therefore admissible only if its producer offers both
+  `render-to-staging` (complete output, no external side effect) and
+  `publish-staged-bytes` (exactly those bytes); one that publishes on call is
+  **excluded from the batch**, never published-unscanned. No external producer here
+  declares both operations today, so external media cannot presently join an atomic
+  batch — stated, not left implied. Per-artifact scan-then-write was rejected
+  because it cannot deliver the abort it promises: once the note passed its own scan
+  and was written, a later cast's hit arrives too late. Honest limit, stated in the
+  skill: across *several* external sinks an earlier publication still stands if a
+  later one fails — the contract is "nothing is published unless everything scanned
+  clean", not "everything can be undone".
+- **§ Producer availability** — `archify` (for `diagram`) and the host `Artifact`
+  tool are **not** bundled with this repo; `auto` probes before selecting and falls
+  back to a native medium while saying so, and an explicitly named unavailable
+  medium is reported as an error rather than silently substituted. Probing is
+  **transitive**: `content-recast` ships here but only *delegates* `slides`/
+  `one-pager` to downstream renderers that are **not** bundled, so a present wrapper
+  with an absent renderer yields handoff instructions rather than an artifact and is
+  never recorded as a written cast (`notebooklm` is not in this group — its
+  `nlm-source`/`nlm-prompt` formats render inline, no downstream renderer to probe).
+- **Prerequisite — a secret scanner is required to write.** The § Sanitize Gate names
+  `gitleaks` (already this repo's CI scanner) and accepts a `--scanner=<command>`
+  override honouring a documented contract (given the path to the exact bytes about to
+  be written and a report path: exit 0 = clean; a non-zero exit is disambiguated by the
+  report file, not the exit code alone — gitleaks itself exits 1 on both a genuine
+  finding and a fatal scanner error, so a present+non-empty report means a hit, an
+  absent/empty one means scan-error/unavailable). The scanner is
+  always handed a **staged** path, never a destination path, and the commit happens
+  only after the whole staged set has passed — never written first and scanned after.
+- **Write-safety contract** — every resolved destination is normalized and confined
+  beneath `--vault-path` (absolute paths, `..` traversal and symlink escapes are
+  rejected before any write); `--dry-run` invokes **no** producer with a side effect,
+  so it can never publish an `artifact`/`slides` cast (`notebooklm` is local, not
+  external, so it carries no publish risk to gate here); a `--focus` that
+  matches zero turns writes **nothing** and reports a no-match rather than persisting
+  an empty note; every successful write carries an audit section (source, scope,
+  included/excluded, sanitization verdict).
+- **Note identity** — persisted notes carry a `session_to_vault` frontmatter marker
+  plus `source_session_id`, `source_transcript_sha256`, `source_params` and `casts`,
+  which is what makes cast-only mode idempotent and prevents an arbitrary markdown
+  file from being treated as an export. All dates are ISO 8601.
+- **`--placement=para` is delegated, not hardcoded** — the project-bound/general
+  folder mapping is supplied by the consumer; this skill does not assume a vault's
+  taxonomy.
+- Composes `skills/session-fission` (read-only snapshot discipline),
+  `skills/opera-debrief` (`--style=narrative`) and `skills/content-recast`
+  (delegates slides/PDF downstream; renders NotebookLM's source+prompt inline) —
+  no new engine, no forked producer.
+  `dogfood_status: cycle-1-complete` (real activation run — see the skill's own
+  `skills/skill-writer` checklist item 10).
+  + PDCA round 12 (2026-08-27, CodeRabbit findings on `9eb56ea`): `diagram` sink
+  class is now resolved per producer (`archify` is not bundled and may be hosted)
+  instead of fixed-local; the two-phase contract gains operation 3
+  (`predetermined-publication-id`) so an external cast's `path_or_url` is final
+  before the scan; staging must live on the destination's filesystem (atomic
+  rename; no cross-FS copy+unlink); collision-derived paths are re-checked through
+  § Note collision before writing; rerun overwrites upsert the existing `casts`
+  block; sidecar registers carry and verify source identity before merging.
+  + PDCA round 13 (2026-08-27, Codex P1s on `289c194`): staging parent now holds
+  one private, unpredictable **per-run** subdirectory (concurrent exports to the
+  same vault can no longer prune/replace each other's staged bytes mid-gate);
+  § Note collision gains branch 4 — check+commit is one atomic window (no-replace
+  create, or a destination-scoped `O_EXCL` lock), closing the TOCTOU where two
+  concurrent same-slug exports both passed the existence check and a plain rename
+  silently replaced the first.
+  + PDCA round 14 (2026-08-27, Codex on `227f140`): step-5 backup is now
+  copy-aside + atomic replace (rename-aside would strand the only good copy in
+  per-run staging across an interruption); sidecar read→merge→commit runs under
+  the branch-4 destination lock (concurrent cast-only runs serialize); checklist
+  item 9 corrected to honest ⚠️ — triggers declared, automatic-activation run
+  tracked as post-merge dogfood cycle 2 (declaration ≠ discovery proof).
+
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 
 - `skills/transmute/SKILL.md` (v0.2.2 -> v0.2.3, PATCH) — new §Declared-grammar
