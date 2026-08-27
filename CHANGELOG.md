@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — DIMG v4 uniform cascade (operator refinement same-day, 5th iteration)
+
+- Cascata uniforme em todos os tiers: dev/hml = barra → GO, senão
+debate→council→HITL; ppe debate sempre; prd cadeia completa sempre +
+verificador. Substitui o global floor (redundante — dev agora tem cascata
+própria). Economic stop embutido nos estágios.
+
 ### Added — DIMG v3 ladder (operator refinement same-day, 4th iteration)
 
 - Cascata por tier: global floor <85% → HITL direto; dev ≥85% GO; hml ≥90% GO
