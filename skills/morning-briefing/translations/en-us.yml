@@ -15,7 +15,7 @@ why_first: "Why this first"
 effort: "Effort"
 deps: "Deps"
 none_token: "none"
-pulse: "Pulse"               # PRESERVE — universal status-callout term
+pulse: "Pulse"
 
 # Pulse callout fields (PRESERVE git terms across all bundles)
 branch: "Branch"             # PRESERVE — git term
