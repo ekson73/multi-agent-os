@@ -36,6 +36,13 @@ link() { # link <target> <linkpath>
   if [ -e "$linkpath" ] && [ ! -L "$linkpath" ]; then
     say "SKIP (real file, not ours): $linkpath"; return 0
   fi
+  if [ -L "$linkpath" ]; then
+    cur="$(readlink "$linkpath")"
+    if [ "$cur" = "$target" ]; then return 0; fi
+    say "REPOINT ($cur -> $target): $linkpath"
+    if [ "$APPLY" = 1 ]; then ln -sfn "$target" "$linkpath"; fi
+    return 0
+  fi
   say "LINK  $linkpath -> $target"
   if [ "$APPLY" = 1 ]; then ln -sfn "$target" "$linkpath"; fi
   return 0
@@ -69,7 +76,15 @@ for repo in "${REPOS[@]}"; do
   [ -d "$repo/rules" ] || continue
   for f in "$repo"/rules/*.md; do
     has_fm "$f" description || say "WARN (no description, loads-but-lurks): $f"
-    link "$f" "$RULES_DIR/$(basename "$f")"
+    base="$(basename "$f")"
+    if [ "$repo" = "$VEK" ] && [ -f "$MAOS/rules/$base" ]; then
+      if diff -q "$MAOS/rules/$base" "$f" >/dev/null 2>&1; then
+        say "TRUE-DUP (identical to maos canonical): $base"; continue
+      fi
+      link "$f" "$RULES_DIR/vek-$base"   # vek overlay of a maos rule -> namespaced
+      continue
+    fi
+    link "$f" "$RULES_DIR/$base"
   done
 done
 
