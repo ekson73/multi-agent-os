@@ -174,6 +174,13 @@ published, it **cannot be withdrawn at all**. The guarantee has to be establishe
 
 1. **STAGE** — render **every** output of the run (the note and each requested cast) into the private staging
    directory (`0700` dir, `0600` files) **outside the vault**. Nothing touches a sink in this step.
+   **The staging directory must live on the same filesystem as the destination sink.** A cross-filesystem
+   `mv` silently degrades to copy-and-unlink, so an interruption mid-"move" can leave a partial note or cast
+   at the destination. Default: a `0700` sibling directory next to the vault root (e.g.
+   `<vault-parent>/.session-to-vault.staging/`, pruned by the run); `$TMPDIR` only after verifying it shares
+   the destination's filesystem. If same-filesystem staging is genuinely impossible, commit via a temporary
+   file **on the destination filesystem** followed by an atomic rename there — never a bare cross-filesystem
+   move.
 2. **SCAN** — run the scanner over **all** staged artifacts. Any hit, or any artifact whose scan could not run,
    fails the **whole set**.
 3. **COMMIT** — only when the entire set is clean:
@@ -296,14 +303,22 @@ sessions that happen to share a date/topic slug. Phase 6 saying "write idempoten
    skill's artifact**; refuse to overwrite it and report the conflicting path — never clobber unrelated content.
 2. **Marker present, `source_session_id` AND `source_params` both match** this run → **same export, rerun** —
    this is the idempotent case; overwrite in place (the result should be byte-identical or a refinement of the
-   same record, not a different one).
+   same record, not a different one). On this overwrite path the existing note's `casts` block is **loaded and
+   upserted, never dropped**: this run's new entries are added, an entry for a medium this run re-produces
+   replaces its own prior entry, and every other medium's entry is carried forward — the same merge rule
+   § Cast metadata defines for the sidecar. A rerun with a different `--cast-to` set (deliberately excluded from
+   `source_params`) is this branch, and without the merge it would orphan an earlier cast's discovery record
+   while its file remains on disk.
 3. **Marker present, but `source_session_id` OR `source_params` differ** → a **genuine collision** between two
    distinct records that happen to share a slug. Never overwrite. Derive a disambiguated path by appending a
    short, stable suffix hashed from **both** `source_session_id` **and** `source_params` together (e.g.
    `{slug}-{sha256(session_id + canonicalized_params)[:8]}`) and write there instead — hashing `source_session_id`
    alone is not sufficient: two runs of the *same* session with *different* `source_params` (the exact case this
    branch exists to disambiguate) would then derive the *identical* suffix and silently clobber each other,
-   defeating the guarantee this section makes. Report both the collision and the disambiguated path chosen, so
+   defeating the guarantee this section makes. The derived path is **itself re-checked** through this same § Note collision
+   procedure before any write (read the marker, compare identity): if it also collides with a *different*
+   identity, extend the hash input with a counter and re-check — the never-clobber guarantee binds every
+   candidate path, not only the first. Report both the collision and the disambiguated path chosen, so
    it is discoverable, not silent.
 
 This is the write-side twin of § Note identity's read-side marker check — one gate protects a cast-only *read*
@@ -356,7 +371,7 @@ unreadable. A cast is a **derived companion**: the note stays authoritative; del
 | `auto` | picks from the **local** rows only | own reasoning | local |
 | `markdown` | a reading copy (gist + decision timeline + collapsed detail) | native | local |
 | `html` | one self-contained, theme-aware file | native (inline CSS/SVG, no external fetch) | local |
-| `diagram` | flow / sequence / lifecycle + SVG/PNG | `archify` ⚠️ **not bundled** — see § Producer availability | local |
+| `diagram` | flow / sequence / lifecycle + SVG/PNG | `archify` ⚠️ **not bundled** — see § Producer availability | **resolved per producer** — see § Sink class is resolved, not assumed |
 | `artifact` | a published, shareable page | host `Artifact` tool | **external** |
 | `slides` | a deck | `content-recast` → its slides producer | **resolved per producer** — see § Sink class is resolved, not assumed |
 | `one-pager` | a one-page PDF | `content-recast` → its PDF producer | **resolved per producer** — see § Sink class is resolved, not assumed |
@@ -364,7 +379,10 @@ unreadable. A cast is a **derived companion**: the note stays authoritative; del
 
 ### Rules (fail-closed)
 
-1. **`auto` NEVER selects an external medium.** It may resolve only to `markdown`, `html`, or `diagram`.
+1. **`auto` NEVER selects an external medium.** It may resolve only to `markdown`, `html`, or `diagram` — and
+   to `diagram` only when its sink class resolves **local** for this run (an `archify` whose class cannot be
+   determined is `external` by the fail-closed row, so `auto` then falls back to a native medium and says which
+   and why).
    A medium whose **resolved sink class is external** publishes to a third-party service; a disclosure cannot
    be un-sent, so it requires **explicit opt-in by name**. An `auto` that could reach one would silently
    externalise a private session. Invariant: `auto_may_select ∩ external_media = ∅`.
@@ -426,12 +444,13 @@ not a cast:
 
 #### § Sink class is resolved, not assumed (never gate on a name list)
 
-Some rows in the registry are **fixed** by construction (`markdown`/`html`/`diagram`/`notebooklm` are local;
-`artifact` is external). Two are **not**: `one-pager` and `slides` each render through whichever producer
-`content-recast` resolves to — a local binary (e.g. its documented `pptx`/PDF fallback skills) or a hosted
-service (e.g. a slides/PDF MCP) — and that resolution happens per run, not by the medium's name.
+Some rows in the registry are **fixed** by construction (`markdown`/`html`/`notebooklm` are local;
+`artifact` is external). Three are **not**: `one-pager` and `slides` render through whichever producer
+`content-recast` resolves to, and `diagram` renders through the host's `archify` installation — **not
+bundled**, a user/host-scope skill whose terminal renderer may be a local binary or a hosted service, exactly
+like the other two — and that resolution happens per run, not by the medium's name.
 
-So `one-pager`'s and `slides`' sink classes are a **property to be resolved per run**, not a constant — and
+So `one-pager`'s, `slides`' and `diagram`'s sink classes are **properties to be resolved per run**, not constants — and
 every external gate in this skill (the `auto` exclusion, § Two-phase contract, the commit ordering in
 § Stage-scan-commit) binds to the **resolved class**:
 
@@ -460,8 +479,9 @@ operations. The gate binds to the *class*, not to a list of names — see § Sin
 |---|---|---|
 | 1 | **render-to-staging** | produces the *complete* output into private staging with **no external side effect** — no upload, no share link, no third-party call that persists anything |
 | 2 | **publish-staged-bytes** | publishes **exactly** those staged bytes afterwards, unmodified — not a re-render, not a re-upload of the source payload |
+| 3 | **predetermined-publication-id** | `render-to-staging` returns (or pre-declares) the **final `path_or_url`** the publication will occupy. The staged note's `casts` metadata is final before the scan (§ Cast metadata), so a URL learnable only at publish time would force either a speculative entry or a post-scan edit — both forbidden. A producer that cannot predetermine it cannot participate |
 
-**If a producer cannot do both, the medium is unavailable for this batch — do not invoke it.** Report it the
+**If a producer cannot do all three, the medium is unavailable for this batch — do not invoke it.** Report it the
 same way as an absent renderer (§ above): an explicitly named medium is an error, `auto` never selects it.
 
 **A `render-to-staging` call still transmits data — scan the payload *before* making it.** "No external side
@@ -498,6 +518,9 @@ Two shapes, one invariant:
 |---|---|---|
 | full run (0→8) | the **staged** note's `casts` frontmatter | end of phase 7, while the note is still in staging |
 | cast-only (0·1·7·8) | a **staged sidecar register** `<note-slug>.casts.yml` — the source note is *never* rewritten | end of phase 7 |
+For an external-class cast, the staged entry's `path_or_url` is the **predetermined identifier** the producer
+returned from `render-to-staging` (§ Two-phase contract, operation 3) — never a speculative URL, never a
+post-scan amendment.
 
 ⛔ **The invariant: every byte that will be committed is in the set that gets scanned.** The note's `casts`
 block and the sidecar are ordinary members of the phase-8 staged set — scanned like any cast. Post-scan
@@ -517,6 +540,13 @@ The *merged* result — not just this run's delta — is what gets staged and sc
 overwrite would silently drop a still-present, still-valid earlier cast from discovery even though the artifact
 itself remains on disk — the exact "phantom vs. missing" asymmetry § Producer availability already forbids in
 the other direction.
+
+**The sidecar carries identity, and the identity is checked before any merge.** A staged sidecar includes
+`session_to_vault: <skill-version>` and the `source_session_id` of the note it belongs to; before merging an
+existing `<note-slug>.casts.yml`, verify both match this run's source note. A mismatch means that deterministic
+path belongs to a *different* record — **refuse and report the conflicting path**; never merge into (or
+rewrite) an unrelated register. The step-5 backup restores a destination only when the run later fails; it is
+not a substitute for knowing *whose* register this is.
 
 ### Cast-only mode
 
@@ -721,4 +751,4 @@ MIT
 
 ---
 
-*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-26T20:31:57Z (last substantive edit — PDCA round 10)*
+*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-27T15:55:00-03:00 (last substantive edit — PDCA round 12)*

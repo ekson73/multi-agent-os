@@ -112,6 +112,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no new engine, no forked producer.
   `dogfood_status: cycle-1-complete` (real activation run — see the skill's own
   `skills/skill-writer` checklist item 10).
+  + PDCA round 12 (2026-08-27, CodeRabbit findings on `9eb56ea`): `diagram` sink
+  class is now resolved per producer (`archify` is not bundled and may be hosted)
+  instead of fixed-local; the two-phase contract gains operation 3
+  (`predetermined-publication-id`) so an external cast's `path_or_url` is final
+  before the scan; staging must live on the destination's filesystem (atomic
+  rename; no cross-FS copy+unlink); collision-derived paths are re-checked through
+  § Note collision before writing; rerun overwrites upsert the existing `casts`
+  block; sidecar registers carry and verify source identity before merging.
 
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 
