@@ -101,6 +101,17 @@ The canonical pause list is `protocols/delegation/delegation-init-prompt.md`
 
 Default band is `L2-bounded`. Operator may override via `/auto-pilot --band=L3`.
 
+## Dual-Impact Merge Gate (DIMG)
+
+`L3-extended` auto-merge decisions follow the DIMG (SSOT: `skills/quiesce`
+§Dual-Impact Merge Gate): (1) compute impact-of-MERGE (6M · Ishikawa · SWOT ·
+blast radius) and (2) impact-of-NOT-merge (stale drift, security debt, review
+fatigue). (3) Cat A routine (docs/deps/non-CI code) → ≥90% certainty (beneficial,
+positive, non-destructive, non-downgrade, non-toxic) ⇒ authorize; Cat B
+(CI/infra) → ≥90% **+ mandatory council**; doubt (<90%) → debate/converge/
+council; doubt persists → HITL fallback. (4) ⛔ calculus never overrides:
+protected branches, secrets, prod/irreversible, HUMAN_DOMAIN.
+
 ## DNA payload v1.1 (additive)
 
 When auto-pilot spawns a child, it appends the **DNA Payload v1.1** block

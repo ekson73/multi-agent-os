@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Dual-Impact Merge Gate (DIMG) on autonomous merge decisions
+
+- Operator directive 2026-08-26: unattended `--auto-merge=authorized` decisions
+  must run the DIMG — impact-of-MERGE (6M/Ishikawa/SWOT/blast-radius) +
+  impact-of-NOT-merge (stale drift/security debt/review fatigue); Cat A (routine)
+  authorizes at ≥90% certainty; Cat B (CI/infra) requires ≥90% + mandatory
+  council; doubt → debate/converge/council → HITL fallback. ⛔ absolutes
+  (protected branches, secrets, prod, HUMAN_DOMAIN) never enter the calculus.
+  Applied to `skills/quiesce` (SSOT) + `skills/auto-pilot` (L3-extended).
+
 ### Docs — skills/README.md full inventory refresh (86 skills + dependency graph)
 
 - `skills/README.md` regenerated from frontmatter `description` of all 86 skills
