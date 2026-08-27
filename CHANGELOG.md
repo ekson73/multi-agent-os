@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `morning-briefing` command card (#403, review-hardened #404)
+
+- `commands/morning-briefing.md` (new) — thin command surface for the existing
+  `skills/morning-briefing` skill, closing the gap where the skill loaded
+  model-side but `/morning-briefing` resolved to nothing (skill ≠ command).
+  Card pattern per `commands/quiesce.md`; flags documented from the skill's own
+  interface (`--mode` · `--scope` verb family + modifiers · `--lang` ·
+  `--clipboard` · `--save [path?]` + `--save-overwrite` + no-save default).
+
 ### Added — DIMG v4 uniform cascade (operator refinement same-day, 5th iteration)
 
 - Cascata uniforme em todos os tiers: dev/hml = barra → GO, senão
