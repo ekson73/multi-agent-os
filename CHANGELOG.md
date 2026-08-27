@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — DIMG confidence floor (operator refinement same-day)
+
+- Confidence ladder completo: <85% → HITL direto (sem council); 85% ≤ conf <
+  tier bar → debate/converge/council (persiste → HITL); ≥ tier bar → authorize
+  (+ gates do tier). Fecha a árvore de decisão do DIMG.
+
 ### Added — DIMG branch-tier ranking (operator refinement same-day)
 
 - Tier bars for unattended merge authorization: dev ≥85% · homolog ≥90% ·

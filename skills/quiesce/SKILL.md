@@ -211,8 +211,12 @@ each candidate PR, before queueing auto-merge:
 
    - **Cat A** (routine: docs/deps/non-CI code, CI green) ⇒ authorize at the tier bar.
    - **Cat B** (CI/workflows/infra files) ⇒ tier bar + **mandatory council**.
-   - **Doubt** (below bar) → debate/converge/council-before-HITL.
-   - **Doubt persists** → FALLBACK to HITL.
+   - **Confidence ladder** (operator 2026-08-26):
+     - `< 85%` → **HITL direto** (sem council — incerteza não se discute, se escala).
+     - `85% ≤ conf < tier bar` → debate/converge/council-before-HITL;
+       council convence → authorize; dúvida persiste → HITL.
+     - `≥ tier bar` → AUTHORIZE (+ gates do tier: pre-prod +council,
+       production +council + independent verifier).
 4. **⛔ The calculus NEVER overrides** (non-merge absolutes): secrets/PII,
    destructive/irreversible NON-merge actions, HUMAN_DOMAIN — always HITL.
    For merges, GitHub branch protections remain the hard floor: native

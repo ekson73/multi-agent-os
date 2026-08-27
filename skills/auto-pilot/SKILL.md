@@ -106,10 +106,11 @@ Default band is `L2-bounded`. Operator may override via `/auto-pilot --band=L3`.
 `L3-extended` auto-merge decisions follow the DIMG (SSOT: `skills/quiesce`
 §Dual-Impact Merge Gate, incl. branch-tier bars): dev ≥85% · homolog ≥90% ·
 pre-prod ≥95% (+council) · production ≥99% (+council + independent verifier —
-99% cannot be self-declared). Cat A routine ⇒ authorize at the tier bar; Cat B
-(CI/infra) ⇒ +mandatory council; doubt → debate/converge/council → HITL.
-⛔ non-merge absolutes (secrets, destructive non-merge, HUMAN_DOMAIN) never
-enter the calculus.
+99% cannot be self-declared). Confidence ladder: <85% → HITL direto;
+85%-barra → debate/converge/council → HITL se persiste; ≥barra → authorize
+(+gates do tier). Cat A routine ⇒ authorize na barra; Cat B (CI/infra) ⇒
++mandatory council; ⛔ non-merge absolutes (secrets, destrutivo-não-merge,
+HUMAN_DOMAIN) never enter the calculus.
 
 ## DNA payload v1.1 (additive)
 
