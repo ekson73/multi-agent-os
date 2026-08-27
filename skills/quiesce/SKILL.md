@@ -211,16 +211,18 @@ each candidate PR, before queueing auto-merge:
 
    - **Cat A** (routine: docs/deps/non-CI code, CI green) ⇒ authorize at the tier bar.
    - **Cat B** (CI/workflows/infra files) ⇒ tier bar + **mandatory council**.
-   - **Confidence ladder** (v3, operator 2026-08-26) — global floor + tier cascade:
-     - **Global floor**: conf < 85% → **HITL direto** (sem council — incerteza
-       se escala, não se discute).
-     - **dev** (bar = floor): ≥85% → GO.
-     - **hml**: ≥90% → GO · <90% → debate/converge → persiste? council-before-hitl
-       → persiste? HITL.
-     - **ppe**: debate/converge OBRIGATÓRIO sempre · ≥95% → GO · <95% →
+   - **Confidence ladder** (v4, operator 2026-08-26) — cascata uniforme por tier:
+     - **dev** (bar 85%): ≥85% → GO · <85% → debate/converge → persiste?
        council-before-hitl → persiste? HITL.
-     - **prd**: debate→converge→council OBRIGATÓRIOS sempre + verificador
-       independente · ≥99% → GO · <99% → HITL.
+     - **hml** (bar 90%): ≥90% → GO · <90% → debate/converge → persiste?
+       council-before-hitl → persiste? HITL.
+     - **ppe** (bar 95%): debate/converge OBRIGATÓRIO sempre · ≥95% → GO ·
+       <95% → council-before-hitl → persiste? HITL.
+     - **prd** (bar 99%): debate→converge→council-before-hitl OBRIGATÓRIOS
+       sempre + verificador independente · ≥99% → GO · <99% → HITL.
+     - Cascata com economic stop embutido (debate/council são time-boxed):
+       dúvida profunda cai para HITL sem se arrastar. Verificador independente
+       = evidência do ≥99% (auto-declarar 99% segue proibido).
 4. **⛔ The calculus NEVER overrides** (non-merge absolutes): secrets/PII,
    destructive/irreversible NON-merge actions, HUMAN_DOMAIN — always HITL.
    For merges, GitHub branch protections remain the hard floor: native
