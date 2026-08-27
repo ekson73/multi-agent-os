@@ -11,7 +11,7 @@ why_first: "Por que primeiro"
 effort: "Esforço"
 deps: "Dep"
 none_token: "nenhuma"
-pulse: "Pulse"               # PRESERVE — termo universal/familiar (status-callout)
+pulse: "Pulse"               # mantido — termo universal/familiar
 
 # Pulse callout fields (PRESERVE git terms)
 branch: "Branch"             # PRESERVE — git term
@@ -23,15 +23,15 @@ done_24h: "Concluído 24h"
 in_flight: "Em andamento"
 blockers: "Bloqueios / HITL"
 decisions: "Decisões pendentes"
-risks: "Riscos / atenção"
+risks: "Riscos / heads-up"
 done: "Concluído (últimas 24h)"
 state_detail: "Detalhe de estado"
 narrative: "Narrativa"
 
 # Status descriptors
 mergeable: "pronto-merge"
-review_pending: "revisão pendente"
-checks_pending: "verificações em execução"
+review_pending: "review pendente"
+checks_pending: "checks rodando"
 
 # Header subtitle (v1.0.1 session-name field)
 session_label: "Sessão Claude"
