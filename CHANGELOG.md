@@ -120,6 +120,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rename; no cross-FS copy+unlink); collision-derived paths are re-checked through
   § Note collision before writing; rerun overwrites upsert the existing `casts`
   block; sidecar registers carry and verify source identity before merging.
+  + PDCA round 13 (2026-08-27, Codex P1s on `289c194`): staging parent now holds
+  one private, unpredictable **per-run** subdirectory (concurrent exports to the
+  same vault can no longer prune/replace each other's staged bytes mid-gate);
+  § Note collision gains branch 4 — check+commit is one atomic window (no-replace
+  create, or a destination-scoped `O_EXCL` lock), closing the TOCTOU where two
+  concurrent same-slug exports both passed the existence check and a plain rename
+  silently replaced the first.
 
 ### Added — transmute declared-grammar aliases (operator braindump surface)
 

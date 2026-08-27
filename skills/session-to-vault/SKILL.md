@@ -181,6 +181,12 @@ published, it **cannot be withdrawn at all**. The guarantee has to be establishe
    the destination's filesystem. If same-filesystem staging is genuinely impossible, commit via a temporary
    file **on the destination filesystem** followed by an atomic rename there — never a bare cross-filesystem
    move.
+   **One private, unpredictable staging subdirectory per run.** The same-filesystem staging parent holds a
+   per-run directory (e.g. `<vault-parent>/.session-to-vault.staging/<run-id>/`, `run-id` unique per
+   invocation), and a run prunes **only its own** subdirectory. A fixed shared staging path would let two
+   concurrent exports to the same vault overwrite or prune each other's staged artifacts and scanner reports
+   mid-gate — in the worst ordering, one run replaces a staged file after another run scanned it but before
+   its commit, and that run then commits bytes that never passed its own gate.
 2. **SCAN** — run the scanner over **all** staged artifacts. Any hit, or any artifact whose scan could not run,
    fails the **whole set**.
 3. **COMMIT** — only when the entire set is clean:
@@ -320,6 +326,14 @@ sessions that happen to share a date/topic slug. Phase 6 saying "write idempoten
    identity, extend the hash input with a counter and re-check — the never-clobber guarantee binds every
    candidate path, not only the first. Report both the collision and the disambiguated path chosen, so
    it is discoverable, not silent.
+4. **The check and the commit are one atomic window.** A path that is absent at check time can appear before
+   the commit lands (two concurrent exports sharing a date/topic slug): a plain rename would silently replace
+   the other run's fresh export without ever entering branch 3. So the commit of a supposedly-absent path uses
+   a **no-replace create** (atomic hard-link / `mv -n` where the filesystem supports it); if the create fails
+   because the path now exists, re-run this § Note collision procedure against the now-present file — never
+   replace blindly. Where no-replace create is unavailable, hold a destination-scoped lock (e.g.
+   `<path>.lock` created with `O_EXCL`) around the identity check **and** the commit; the branch-2 overwrite
+   path holds the same lock around its read-verify-replace.
 
 This is the write-side twin of § Note identity's read-side marker check — one gate protects a cast-only *read*
 from a non-artifact file, this one protects a *write* from clobbering a different session's record.
@@ -751,4 +765,4 @@ MIT
 
 ---
 
-*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-27T15:55:00-03:00 (last substantive edit — PDCA round 12)*
+*Session to Vault Skill v0.1.0 (Fonógrafo) | session-lifecycle family | Claude-Orch-Prime-20260821-047a | 2026-08-27T16:20:00-03:00 (last substantive edit — PDCA round 13)*
