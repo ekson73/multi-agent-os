@@ -1,3 +1,7 @@
+---
+description: PR governance unificado [C07+C12] — workflow de PRs e revisão
+---
+
 # PR Governance — Unified Workflow [C07+C12]
 
 <!-- Auto-loaded rule | Version: 1.2.0 | 2026-07-01 -->
