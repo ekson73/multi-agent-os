@@ -155,7 +155,7 @@ inside the source under analysis.
 | enhance · expand | EXPAND movement per `enhance-pipeline` §stage-1 | `find-docs` · WebSearch |
 | refine · polish | `skills/convergence-engine` (economic stop) | `agents/perspective-trio` |
 | harmonize · converge | `skills/converge` (5-act, AUDIT-not-PERSUASION) | `debate-converge` |
-| sanitize | `skills/pii-masking` + gitleaks gate | 1Password `op` for secret extraction |
+| sanitize | `skills/pii-masking` + gitleaks gate | your secret-manager CLI for secret extraction |
 | dogfood | `skills/dogfood-ledger` | `agentic-tool-trainer` |
 
 ## Parameters

@@ -46,7 +46,7 @@ I orient over the live OmniRoute instance: health, combos (`storage.sqlite`), st
 
 ```bash
 # OmniRoute :20128  ·  9Router :20130
-# API key: obtain out-of-band from approved secret store (1Password / env injection).
+# API key: obtain out-of-band from an approved secret store (env injection).
 # NEVER SELECT key from api_keys · NEVER echo / log the value.
 ```
 
