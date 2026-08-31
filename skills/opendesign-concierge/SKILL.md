@@ -72,7 +72,7 @@ Emit one diagnostic per missing surface — never fabricate availability (anti-t
 | Repaginate an **existing repo** to a brand, get a PR | **Tier B** (daemon) | `od plugin apply od-code-migration --input repo=<path> --input brand=<slug>` (Docker) | Heavier; needs Docker + the repo. See runbook §Tier B |
 | Let the host agent call Open Design as a tool | **MCP** | `od mcp install claude` (stdio/local-path, source install) | snippet is Settings-auto-generated; Docker-MCP is a follow-up (flagged) |
 | Author a NEW brand | DESIGN.md | drop a 9-section `DESIGN.md` into `design-systems/<slug>/` | see knowledge-pack §DESIGN.md |
-| Deploy a dev-preview | Cloudflare Pages | `wrangler pages deploy ./src --project-name <name>` | gated: account-owned token (1Password) |
+| Deploy a dev-preview | Cloudflare Pages | `wrangler pages deploy ./src --project-name <name>` | gated: account-owned token (secret manager) |
 | Choose OD vs alternative | landscape | see `AWARENESS-REGISTRY.md` | OD = portable/CLI-native/agent-agnostic/code-migration |
 
 ## Modes

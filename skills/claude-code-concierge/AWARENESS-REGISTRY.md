@@ -114,7 +114,7 @@ direct    (you author/place the file yourself)               ← you own the tru
 - **Source trust-tier** — official > known > individual; trust-tier a marketplace/plugin BEFORE enable.
 - **Official-docs-first** — never answer install/config "how" from memory; hit the CURRENT official docs.
 - **Capability-detect, never fabricate** — every command is verified-present or doc-sourced.
-- **Secrets never inline** — MCP/config secrets to env/1Password, never committed.
+- **Secrets never inline** — MCP/config secrets to env/a secret manager, never committed.
 - **Orient, don't reimplement** — the concierge routes to `claude-code-guide`/`find-docs`/`forge`/lifecycle; it never re-exposes them.
 
 ## What to SKIP (anti-bloat — the concierge tells you what NOT to reach for)
@@ -124,7 +124,7 @@ direct    (you author/place the file yourself)               ← you own the tru
 - Don't enable an unverified marketplace without a provenance/trust-tier check → pin a SHA + operator gate.
 - Don't ask the concierge to *build* a tool → route to `agentic-tool-forge`.
 - Don't ask the concierge a deep "how does feature X work internally" → route to `claude-code-guide`.
-- Don't inline a secret into a committed `.mcp.json`/settings → env/1Password.
+- Don't inline a secret into a committed `.mcp.json`/settings → env/a secret manager.
 
 ## Refs
 

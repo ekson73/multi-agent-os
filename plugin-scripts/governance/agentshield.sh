@@ -105,7 +105,7 @@ if [ "$DECISION" = "block" ]; then
     # Leak-safe block message — classification + signature-id only; never the value.
     case "$CLASSIFICATION" in
         secret)
-            MSG="AgentShield RULE-012: a secret (${SECRET_MATCH}) was detected in the ${CHANNEL} of this ${TOOL_NAME} call — blocked to prevent exfiltration. Remove the credential (use an env var / secret manager / 1Password reference); never embed it in a command or a sub-agent prompt."
+            MSG="AgentShield RULE-012: a secret (${SECRET_MATCH}) was detected in the ${CHANNEL} of this ${TOOL_NAME} call — blocked to prevent exfiltration. Remove the credential (use an env var / secret manager reference); never embed it in a command or a sub-agent prompt."
             SUGGEST="Strip the ${SECRET_MATCH}; reference it via an env var or secret manager, then retry." ;;
         egress)
             MSG="AgentShield RULE-012: this ${TOOL_NAME} call targets an egress host outside the configured allowlist (MAOS_AGENTSHIELD_ALLOWLIST) — blocked."

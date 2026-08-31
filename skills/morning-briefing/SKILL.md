@@ -1045,7 +1045,7 @@ When this skill runs in a non-Claude-Code host (Cursor / Copilot / Aider):
 
 ## Cycle-1 evidence (dogfooding)
 
-This skill was invoked 2026-05-08 (the operator wake-up after Onda 15 PII remediation work). Real briefing produced followed the 7-section structure successfully and surfaced the 1Password-signer HITL block, 33 staged files in feature/onda-15 worktree, 7 open PRs in vek-ai-toolkit, and recommended option A (restart signer) as next action. Cycle-1 validated: deterministic core works, memory awareness works, recommendation framing works.
+This skill was invoked 2026-05-08 (the operator wake-up after Onda 15 PII remediation work). Real briefing produced followed the 7-section structure successfully and surfaced the credential-signer HITL block, 33 staged files in feature/onda-15 worktree, 7 open PRs in vek-ai-toolkit, and recommended option A (restart signer) as next action. Cycle-1 validated: deterministic core works, memory awareness works, recommendation framing works.
 
 ## Changelog
 

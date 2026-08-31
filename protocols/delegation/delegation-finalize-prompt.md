@@ -71,7 +71,7 @@ Before any `git push`:
 git diff | grep -iE "(password|secret|token|api[_-]?key)[[:space:]]*=[[:space:]]*[\"']?[A-Za-z0-9_-]{16,}" && exit 1 || true
 ```
 
-gitleaks runs on pre-commit via GaaS hook. Do not bypass with `--no-verify`. If a real leak is found: purge from working tree, rotate the secret via 1Password (see provider matrix §Secrets), then retry.
+gitleaks runs on pre-commit via GaaS hook. Do not bypass with `--no-verify`. If a real leak is found: purge from working tree, rotate the secret via your secret manager (see provider matrix §Secrets), then retry.
 
 ---
 

@@ -85,7 +85,7 @@ The system SHALL NOT emit secrets/PII (it composes a sanitizing producer for ses
 
 #### Scenario: JSON dump of real data
 - WHEN the graph is emitted as JSON over real data
-- THEN no secret-like token (API key, JWT, PAT, 1Password token) appears in the output.
+- THEN no secret-like token (API key, JWT, PAT, vault/secret-manager token) appears in the output.
 
 ## Validation
 

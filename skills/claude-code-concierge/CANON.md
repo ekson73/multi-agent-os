@@ -27,7 +27,7 @@ Install FROM the highest-trust source available: official (Claude/Anthropic) > k
 
 ## C4 — Secrets never inline
 
-MCP/config secrets (tokens, API keys) go to env vars / 1Password — never committed, never inline in `.mcp.json`/settings that are versioned. Secret handling is HUMAN_DOMAIN (operator ratify).
+MCP/config secrets (tokens, API keys) go to env vars / a secret manager — never committed, never inline in `.mcp.json`/settings that are versioned. Secret handling is HUMAN_DOMAIN (operator ratify).
 
 **Drift flag:** a secret literal in a committed `.mcp.json`/settings file = contradiction (and a leak — escalate immediately).
 

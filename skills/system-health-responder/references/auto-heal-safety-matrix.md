@@ -94,8 +94,8 @@ disable/remove appends its exact restore command to
 `kernel_task launchd WindowServer loginwindow coreaudiod configd hidd powerd bluetoothd cfprefsd mds`
 `mds_stores mdworker syslogd distnoted securityd trustd` — macOS-critical; deprioritizing them harms the UI/OS.
 
-`1password op openclaw omniroute claude` — **sensitive-app guard** (mirrors the operator's absolute denylist:
-never manipulate 1Password / OpenClaw / OmniRoute / the agent runtime itself).
+`1password op openclaw omniroute claude` — **sensitive-app guard** (protects well-known credential-manager
+and agent-runtime processes from any automated action: 1Password, OpenClaw, OmniRoute, the agent runtime itself).
 
 **Matching rule (exact behavior, so the doc matches the code):** the `comm` is first **basename-normalized**
 (lowercased basename — so a PATH comm like `/usr/local/bin/op` is compared as `op`; v1.7.1 per CodeRabbit @145,

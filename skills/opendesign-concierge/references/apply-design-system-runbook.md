@@ -30,9 +30,9 @@ Steps:
 
 ## Deploy a dev-preview (Cloudflare Pages) — gated
 - `wrangler` 4.x ready (`which wrangler`). Deploy: `wrangler pages deploy ./src --project-name <name>`.
-- ⚠️ **Gate**: needs a Cloudflare **account-owned** token (`cfat_`, Super-Admin-created — survives offboarding) stored in 1Password. Token = HUMAN_DOMAIN (operator provides). wrangler is unauthenticated until then.
+- ⚠️ **Gate**: needs a Cloudflare **account-owned** token (`cfat_`, Super-Admin-created — survives offboarding) stored in a secret manager. Token = HUMAN_DOMAIN (operator provides). wrangler is unauthenticated until then.
 
 ## Gates summary (when the real work is blocked)
 - **Existing-repo repagination** → needs the target repo locally (e.g. `vek-list`/poc-reveng vs `vkl-rct-list-web`).
-- **Preview deploy** → account-owned Cloudflare token (1Password).
+- **Preview deploy** → account-owned Cloudflare token (secret manager).
 - **Spec-driven legs** (design→spec→prototype→src) → OpenSpec + Spec-Kit `specify` (already installed). Tracker: VKS-2204.

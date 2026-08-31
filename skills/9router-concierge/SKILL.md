@@ -48,7 +48,7 @@ I am the **concierge of 9Router**. I orient over the live instance: health, comb
 
 ```bash
 export NINEROUTER_URL="http://localhost:20130"   # NOT 20128 (that's OmniRoute here)
-# NINEROUTER_KEY: obtain out-of-band from approved secret store (1Password / env injection).
+# NINEROUTER_KEY: obtain out-of-band from an approved secret store (env injection).
 # NEVER SELECT key from apiKeys · NEVER echo/print/log the token.
 ```
 
