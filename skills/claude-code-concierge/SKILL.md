@@ -110,7 +110,7 @@ Route an intent → best SCOPE + best SOURCE + the exact capability-detected com
 For any agentic-tool/intent: (1) fetch the OFFICIAL + CURRENT **Claude-Code** docs for the relevant mechanism (skill/MCP/plugin/marketplace/hook) — via `WebFetch code.claude.com/docs` + the `claude-code-guide` agent; (2) fetch the **tool's own** official docs — via `find-docs`/Context7/ref-tools/`WebFetch <repo>`; (3) reconcile + recommend **best scope + best source + install/config steps + verification + the exact command**. NEVER answer the "how" from memory — always hit current docs (anti-staleness). Cite every source. This mode is the loop the operator wanted absorbed.
 
 ### `--mode=install` (`--install-mcp` · `--install-plugin` · `--install-marketplace` · **guarded**)
-Guarded install/config flow: Phase-0 detect → `--mode=research` the official way → present the exact capability-detected command + the scope/source rationale + a provenance/trust-tier note → **confirm-gate** → run (only on confirm) → verify (`claude mcp list` / `claude plugin list`) → emit an audit line. NEVER fabricates a command (capability-detected or doc-sourced, else "not found"). Secrets → 1Password/env, never inline (HUMAN_DOMAIN ratify). Marketplaces → trust-tier first (official > known > individual; pin a SHA for untrusted).
+Guarded install/config flow: Phase-0 detect → `--mode=research` the official way → present the exact capability-detected command + the scope/source rationale + a provenance/trust-tier note → **confirm-gate** → run (only on confirm) → verify (`claude mcp list` / `claude plugin list`) → emit an audit line. NEVER fabricates a command (capability-detected or doc-sourced, else "not found"). Secrets → a secret manager/env, never inline (HUMAN_DOMAIN ratify). Marketplaces → trust-tier first (official > known > individual; pin a SHA for untrusted).
 
 ### `--mode=dashboard` (`--dashboard[=sessions|context|memory|status|mcps|plugins|marketplaces|worktrees|tasks]` · `--sessions` · `--context` · `--worktrees` · `--tasks` · `--next-actions`)
 > Note: `n-tree` is an *output format* (`--format=n-tree`), not a dashboard sub-view — sub-views are the panels below; `--format` chooses how any mode renders.
@@ -126,7 +126,7 @@ Surface the canonical Claude-Code platform decisions (from [`CANON.md`](./CANON.
 
 - **Official-docs-first**: I research the CURRENT official docs before recommending a "how" — never answer install/config from memory (anti-staleness).
 - **Scope precedence is law**: enterprise/managed > project > user > defaults. I never advise a scope that hides a tool from those who need it.
-- **Secrets never inline**: MCP/config secrets go to env/1Password, never committed/inline. HUMAN_DOMAIN ratify.
+- **Secrets never inline**: MCP/config secrets go to env/a secret manager, never committed/inline. HUMAN_DOMAIN ratify.
 - **Trust-tier before enable**: a marketplace/plugin from an unverified source → provenance note + (recommend) pin a SHA, operator gate.
 - **Capability-detect, never fabricate**: every command is verified-present or doc-sourced; absent → "not found", documented fallback.
 - **Reference, don't duplicate**: I cross-ref `claude-code-guide`/`find-docs`/`forge`/lifecycle skills; I never re-expose them.

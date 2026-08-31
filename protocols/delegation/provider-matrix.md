@@ -9,7 +9,7 @@ Covers 4 operation axes × 3 provider domains. Agents use this to stop re-decidi
 
 - **Ticket providers**: Jira (`VKS-*`) · Linear (`VKO-*`, `EKO-*`)
 - **VCS providers**: Bitbucket · GitHub · GitLab
-- **Secrets**: 1Password CLI (`op`)
+- **Secrets**: your organization's secret-manager CLI (e.g. 1Password, Vault, AWS Secrets Manager)
 - **Observability**: session audit JSONL + `/agentic-status` + `/audit` skills
 
 Legend: `→` means fallback. Paths are relative to repo root unless noted.
@@ -78,10 +78,10 @@ Not currently active in this ecosystem; placeholder for `rules/agent-scm.md` §G
 
 | Operation | Primary | Fallback 1 |
 |---|---|---|
-| read a single secret | `op item get "<id>" --vault <vault> --fields <field> --reveal` | `~/.env` file (only when `op` is offline and ownership is the user's own repo) |
-| list items | `op item list --vault <vault>` | `op item list --vault <vault> --format json \| jq` |
+| read a single secret | your secret-manager CLI (e.g. `op item get`, `vault kv get`, `aws secretsmanager get-secret-value`) | `~/.env` file (only when the secret manager is offline and ownership is the user's own repo) |
+| list items | your secret-manager CLI's list/search command | pipe its JSON output through `jq` |
 
-Rule: **never** print a secret to stdout in a message that might be logged outside the user's machine. Use env-var passthrough (`TOKEN=$(op ...) cmd`). See `rules/axial-principles.md` §Cerimônia de Fechamento and `feedback_multi_agent_harmony.md` (Credential safety).
+Rule: **never** print a secret to stdout in a message that might be logged outside the user's machine. Use env-var passthrough (`TOKEN=$(<secret-manager-cmd>) cmd`). See `rules/axial-principles.md` §Cerimônia de Fechamento and `feedback_multi_agent_harmony.md` (Credential safety).
 
 ---
 

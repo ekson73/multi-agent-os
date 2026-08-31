@@ -6,9 +6,9 @@
 # rhythm dynamically from context and passes them here as explicit overrides. Presets are TEMPLATES
 # (sensible defaults), never the only path — every knob is overridable.
 #
-# Keys are read from 1Password via the SA-token subshell (op-service-account-tokens) and are
-# NEVER echoed, logged, committed, or placed in argv — secrets go in a chmod-600 curl --config
-# file inside $WORK (trap-cleaned), never on the command line (no `ps`/argv leak).
+# Keys are read from a machine-local env file or the process environment and are NEVER echoed,
+# logged, committed, or placed in argv — secrets go in a chmod-600 curl --config file inside
+# $WORK (trap-cleaned), never on the command line (no `ps`/argv leak).
 #
 # `set -uo pipefail` WITHOUT `-e` is intentional: the fallback chain `run_one a || run_one b`
 # + each engine's `|| return 1` REQUIRES that a failed engine returns non-zero and falls through
@@ -31,30 +31,30 @@ PLAY=0                   # OPT-IN audio: default = render-only, NEVER auto-play 
                          # somewhere sound is unwelcome). Pass --play to afplay immediately.
 TEXT=""
 
-SA_ENV="${OP_SA_ENV:-$HOME/.config/op/service-accounts/eko-demerzel.env}"
-
-# Per-operator 1Password item refs live in a MACHINE-LOCAL config (outside the repo, gitignored
-# by location) so this committed file carries NO operator-specific vault structure. It is
+# Per-operator API keys live in a MACHINE-LOCAL config (outside the repo, gitignored by
+# location) so this committed file carries NO operator-specific credential data. It is
 # allowlist-parsed (only SPEAK_* keys, regex-validated), NEVER blind-`source`d, per script-safety §2.
 # Without it the API engines simply report "key unavailable → next engine" and fall through to
-# Kokoro (local, no key) — the tool still works with zero config. Set the op:// refs there, e.g.:
-#   SPEAK_GEMINI_ITEM="op://<vault>/<item>/credential"
-#   SPEAK_ELEVEN_ITEM="op://<vault>/<item>/credential"
+# Kokoro (local, no key) — the tool still works with zero config. Set the keys there, or export
+# the standard provider env vars directly (which take priority when already set), e.g.:
+#   SPEAK_GEMINI_KEY="<gemini api key>"
+#   SPEAK_ELEVEN_KEY="<elevenlabs api key>"
 SPEAK_LOCAL_ENV="${SPEAK_LOCAL_ENV:-$HOME/.config/eko/speak.env}"
 if [ -f "$SPEAK_LOCAL_ENV" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in SPEAK_*=*) ;; *) continue;; esac
     k="${line%%=*}"; v="${line#*=}"
     printf '%s' "$k" | grep -qE '^SPEAK_[A-Z0-9_]+$' || continue
-    case "$v" in \"*\") v="${v#\"}"; v="${v%\"}";; \'*\') v="${v#\'}"; v="${v%\'}";; esac
-    case "$k" in SPEAK_GEMINI_ITEM|SPEAK_ELEVEN_ITEM|SPEAK_GEMINI_MODEL|SPEAK_ELEVEN_MODEL) export "$k=$v";; esac
+    case "$v" in \"*\") v="${v#\"}"; v="${v%\"}";; \'*\") v="${v#\'}"; v="${v%\'}";; esac
+    case "$k" in SPEAK_GEMINI_KEY|SPEAK_ELEVEN_KEY|SPEAK_GEMINI_MODEL|SPEAK_ELEVEN_MODEL) export "$k=$v";; esac
   done < "$SPEAK_LOCAL_ENV"
 fi
-GEMINI_ITEM="${SPEAK_GEMINI_ITEM:-}"   # empty default → no operator vault data committed
-EL_ITEM="${SPEAK_ELEVEN_ITEM:-}"
+# Standard provider env vars (e.g. exported by a secret manager, CI, or a shell profile) take
+# priority; the SPEAK_* local-file values are the fallback.
+GEMINI_KEY="${GEMINI_API_KEY:-${SPEAK_GEMINI_KEY:-}}"   # empty default → no credential committed
+EL_KEY="${ELEVENLABS_API_KEY:-${SPEAK_ELEVEN_KEY:-}}"
 GEMINI_MODEL="${SPEAK_GEMINI_MODEL:-gemini-3.1-flash-tts-preview}"
 EL_MODEL="${SPEAK_ELEVEN_MODEL:-eleven_v3}"
-
 usage(){ cat <<'U'
 speak.sh — on-demand TTS (Gemini 3.1 → ElevenLabs v3 → Kokoro). Audio is OPT-IN: render-only by default.
 Usage:
@@ -143,16 +143,11 @@ esac
 [ -n "$TAGS" ]      && EPRE="${TAGS} "
 GPROMPT="Leia em ${GLANG}. Estilo: ${GHINT}.${TAGS:+ Tom: ${TAGS}.} Texto: "
 
-# ---------- key reader (subshell; value never printed) ----------
-read_key(){ ( unset OP_DEVICE 2>/dev/null; unset "${!OP_SESSION_@}" 2>/dev/null   # clear ALL OP_SESSION_* generically (no operator-specific name; isolates the SA token)
-              set -a; source "$SA_ENV" 2>/dev/null; set +a
-              op read "$1" 2>/dev/null ); }
-
 # ---------- engines: write $OUT, return 0/1, print nothing to stdout ----------
 # NOTE: $TEXT/$GPROMPT/$GVOICE/$EPRE are passed to python as sys.argv DATA (never interpolated
 # into the -c source), so there is no shell/Python code-injection surface from the narration text.
 gen_gemini(){
-  local K; K="$(read_key "$GEMINI_ITEM")"; [ -z "$K" ] && { echo "speak: gemini key unavailable → next engine" >&2; return 1; }
+  local K="$GEMINI_KEY"; [ -z "$K" ] && { echo "speak: gemini key unavailable → next engine" >&2; return 1; }
   python3 -c "import json,sys;print(json.dumps({'contents':[{'parts':[{'text':sys.argv[1]+sys.argv[2]}]}],'generationConfig':{'responseModalities':['AUDIO'],'speechConfig':{'voiceConfig':{'prebuiltVoiceConfig':{'voiceName':sys.argv[3]}}}}}))" "$GPROMPT" "$TEXT" "$GVOICE" > "$WORK/g.json" || return 1
   # key kept OUT of argv/ps: header lives in a chmod-600 curl config inside $WORK
   ( umask 077; printf 'url = "%s"\nheader = "x-goog-api-key: %s"\nheader = "Content-Type: application/json"\n' \
@@ -165,7 +160,7 @@ gen_gemini(){
   ffmpeg -nostdin -loglevel error -y -f s16le -ar 24000 -ac 1 -i "$WORK/g.pcm" "$OUT" 2>/dev/null || return 1
 }
 gen_elevenlabs(){
-  local K; K="$(read_key "$EL_ITEM")"; [ -z "$K" ] && { echo "speak: elevenlabs key unavailable → next engine" >&2; return 1; }
+  local K="$EL_KEY"; [ -z "$K" ] && { echo "speak: elevenlabs key unavailable → next engine" >&2; return 1; }
   python3 -c "import json,sys;print(json.dumps({'text':sys.argv[1]+sys.argv[2],'model_id':sys.argv[3],'voice_settings':{'stability':float(sys.argv[4]),'similarity_boost':0.9,'style':float(sys.argv[5]),'use_speaker_boost':True}}))" "$EPRE" "$TEXT" "$EL_MODEL" "$ESTAB" "$ESTYLE" > "$WORK/e.json" || return 1
   ( umask 077; printf 'url = "%s"\nheader = "xi-api-key: %s"\nheader = "Content-Type: application/json"\nrequest = "POST"\n' \
       "https://api.elevenlabs.io/v1/text-to-speech/${EVOICE}?output_format=mp3_44100_128" "$K" > "$WORK/e.curl" )

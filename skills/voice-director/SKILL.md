@@ -57,7 +57,7 @@ courtesy, non-negotiable.)
 
 ## §0 — BEING > Rules (foundational)
 Serves the operator's intent. If a phase obstructs delivering value NOW, skip it + log. ⛔ API keys
-are read from 1Password via the SA-token subshell and are NEVER echoed/logged/committed. ⛔ Never
+are read from a local credential store and are NEVER echoed/logged/committed. ⛔ Never
 auto-play audio (opt-in only). **Faithfulness/tone gate** (inherited from `opera-debrief`): voice the
 emotion the CONTENT actually carries — never fabricate drama, never alarm; wit/persona never targets a
 person. A vivid-but-false delivery is worse than a plain one.
@@ -158,16 +158,17 @@ the faithfulness/tone gate, and the deterministic param ranges.
 
 ## Install / setup
 - `brew install espeak-ng` (Kokoro pt-BR g2p) · `uv` (provisions Kokoro+torch on first run) · `ffmpeg` + `afplay`.
-- Keys live in 1Password; read at runtime via the `op` SA-token subshell (`op-service-account-tokens`) — the
+- Keys are read from a machine-local env file (or the process environment) at runtime — the
   actual secret is **never** echoed/logged/committed/placed in argv (it goes in a chmod-600 `curl --config`).
-- **Per-operator item refs are machine-local, NOT committed** (so the repo carries zero operator vault structure).
-  Put your op:// refs in `~/.config/eko/speak.env` (`chmod 600`), which `bin/speak.sh` allowlist-parses
+- **Per-operator keys are machine-local, NOT committed** (so the repo carries zero operator credential data).
+  Put your keys in `~/.config/eko/speak.env` (`chmod 600`), which `bin/speak.sh` allowlist-parses
   (`SPEAK_*` keys only — never blind-sourced, per `script-safety §2`):
   ```sh
-  SPEAK_GEMINI_ITEM="op://<vault>/<item>/credential"
-  SPEAK_ELEVEN_ITEM="op://<vault>/<item>/credential"
+  SPEAK_GEMINI_KEY="<gemini api key>"
+  SPEAK_ELEVEN_KEY="<elevenlabs api key>"
   ```
-  Or export the same vars in your shell. **Without any config** the API engines report
+  Or export the standard provider vars (`GEMINI_API_KEY` / `ELEVENLABS_API_KEY`) in your shell —
+  these take priority when set. **Without any config** the API engines report
   `key unavailable → next engine` and fall through to **Kokoro** (local, no key) — the tool still works with
   zero setup. The committed defaults are empty; gitleaks-clean.
 
