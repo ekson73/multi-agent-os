@@ -195,8 +195,12 @@ PROMPT
 #          behave; make the write impossible and then prove it did not happen.
 sandbox_class() {
   case "$1" in
-    claude|codex|grok) printf 'vendor' ;;   # --allowedTools / --sandbox / --allow-rule
-    *)                 printf 'os'     ;;
+    claude|codex) printf 'vendor' ;;   # --allowedTools / --sandbox read-only — the flag IS passed below
+    # grok exposes --allow-rule but this dispatcher does not pass it, so it is
+    # NOT vendor-enforced here. Claiming `vendor` on an unpassed flag is the
+    # same false-claim class this tool is built to catch. It stays `os` until
+    # the flag is actually passed AND proven in a recorded run.
+    *)            printf 'os'     ;;
   esac
 }
 
@@ -256,7 +260,7 @@ run_reviewer() {
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
       timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
-    grok)     # measured: --allow-rule (alias --allowedTools)
+    grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
       ( cd "$dir" && timeout "$TIMEOUT" grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
@@ -315,6 +319,21 @@ VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -
 
 # ------------------------------------------- Phase E: gate verdict + comment
 # The ONLY honest computation of what this review licenses.
+#
+# ⛔ `absent` may NEVER be concluded from silence on THIS PR — that is the exact
+# misclassification §4.1(a) names ("inferring absence from *silence*"). A fresh
+# PR is silent because the bots have not run yet, not because none is
+# configured. Positive evidence = no known reviewer has spoken anywhere in this
+# repository's recent history. If that probe cannot run, fail CLOSED.
+repo_has_any_configured_reviewer() {   # 0 = yes (a bot has spoken) · 1 = no · 2 = unknown
+  local out
+  out="$(gh api "repos/$REPO/issues/comments?per_page=100" \
+          --jq '[.[] | select(.user.login | test("'"$KNOWN_BOTS"'"; "i")) | .user.login] | unique | length' \
+          2>/dev/null)" || return 2
+  [ -n "$out" ] || return 2
+  [ "$out" -gt 0 ] 2>/dev/null && return 0 || return 1
+}
+
 MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pending_or_unknown"
 if [ "$CHANGES_REQ" = "yes" ]; then
   PRIMARY_STATUS="changes_requested"      # §4.1(e): routing never dismisses this
@@ -322,7 +341,14 @@ elif [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] && [ -n "$CLEARED" ]; th
   PRIMARY_STATUS="all_cleared_for_head"; MAY_COMPLETE_C3="true"
 elif [ -z "$CLEARED" ] && [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] \
   && [ "$(printf '%s' "$PRIMARY_STATE" | jq -r '.bot_comments | length')" = "0" ]; then
-  PRIMARY_STATUS="none_configured_positively_evidenced"; MAY_COMPLETE_C3="true"
+  # This PR is silent. Silence alone proves nothing — probe the repository.
+  repo_has_any_configured_reviewer; probe_rc=$?
+  case "$probe_rc" in
+    0) PRIMARY_STATUS="pending_silent_but_repo_has_reviewers" ;;   # slow/pending, NOT absent
+    1) PRIMARY_STATUS="none_configured_repo_wide_evidence"; MAY_COMPLETE_C3="true" ;;
+    *) PRIMARY_STATUS="absence_unprovable_fail_closed" ;;          # probe failed ⇒ hold
+  esac
+  log "    absence probe: rc=$probe_rc -> $PRIMARY_STATUS"
 fi
 
 log "[E] diversity_limb=satisfied  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
