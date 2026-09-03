@@ -93,40 +93,48 @@ Independence has two axes and both must hold. Only the first is about context.
 independent cycle. Tier-weak is documented here so a future agent does not
 mistake it for tier-strong; it is not what this dispatcher does.
 
-### Axis 2 — read-only enforcement (⚠️ the defect this section exists to close)
+### Axis 2 — write confinement (⚠️ two rounds of review rewrote this section)
 
-**3 of 11 harnesses expose a read-only switch; this dispatcher actually passes
-2 of them.** Asking the other 9 nicely is not enforcement, and a doc that says
-"read-only tools" while running an unflagged CLI in the live worktree is a false
-claim — exactly the class this tool's own reviewer prompt rates *at least major*.
-So enforcement is split by capability, and the classification is allowed to
-depend ONLY on a flag the code genuinely passes:
+**3 of 11 harnesses expose a read-only switch; this dispatcher passes 2 of
+them.** For the rest, confinement is provided from outside the CLI — and the
+strength of that confinement is named honestly, because permissions alone are
+**not** a boundary:
 
-| class | harnesses | mechanism |
+| class | when | guarantee |
 |---|---|---|
-| `vendor` (2) | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`) | the CLI guarantees it; cwd = live repo |
-| `os` (9) | everything else, **including `grok`** | cwd = a **disposable `git archive` export** of the head tree: every path `chmod a-w`, and **no `.git` at all**, so a git mutation is not even expressible |
+| `vendor` | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`) | the CLI confines itself; cwd = live repo, but only after cwd is **proven** to be `HEAD_SHA` and clean |
+| `vendor+os` | vendor CLI, cwd **not** provably `HEAD_SHA` | export built anyway so the `Head reviewed:` stamp stays true |
+| `os-sandboxed` | any other harness, host has `sandbox-exec` | **kernel** `file-write*` deny on the export *and* the repo root, profile **probe-verified before use**, over the disposable `chmod a-w` export |
+| `os-perms-only` | any other harness, **no** kernel boundary on host | writes are **DETECTED, not PREVENTED** — see below |
 
-`grok` exposes `--allow-rule` (alias `--allowedTools`) and is nevertheless `os`:
-**this dispatcher does not pass that flag**, and classifying on an unpassed flag
-is the same false-claim class the tool exists to catch. Promotion to `vendor`
-requires the flag to be passed *and* proven in a recorded run — not merely to
-exist in `--help`.
+⚠️ **`chmod a-w` is not an execution boundary.** A process running as the file
+owner can `chmod u+w` and rewrite. Measured on this host: owner restored the
+permission and wrote through it. Under `sandbox-exec` the identical attack
+returned `Operation not permitted` and the content survived. So `os-perms-only`
+defends against an *incidentally-writing* reviewer, never a determined one, and
+the emitted evidence says exactly that instead of implying a sandbox.
 
-The `os` class is then **proven**, not trusted: a `sha256` manifest is taken
-before locking and recompared after the run. A single byte of drift ⇒ the run
-exits `1` with `isolation_violated`, and **nothing is stamped or reported as a
-valid review**. The enforcement class and the tamper-check result ride in both
-the PR comment and the JSON, so a consumer can audit the isolation claim instead
-of believing it.
+**Two independent tamper checks**, because one could not see far enough:
 
-> **Two defects were caught before this shipped, by two independent verifiers.**
-> (1) An advisory caught the original dispatcher running all unflagged harnesses
-> in `$PWD` while the doc claimed read-only — the doc was ahead of the code.
-> (2) Dogfood cycle 1 (`codex`, isolated) then caught that `grok` was still
-> classified `vendor` on a flag the fixed code never passed — the same defect
-> surviving for one harness, now *asserted* as enforced. Neither was found by
-> the author.
+1. **export manifest** — `sha256` before locking, recompared after; catches
+   writes *inside* the tree the reviewer was given.
+2. **live-repo hash** — `git status --porcelain` digest before/after; catches an
+   *escape*, i.e. a write to the working tree the reviewer was never given. The
+   first check was blind to this by construction.
+
+Either check failing ⇒ exit `1` with `isolation_violated:<which>`, and
+**nothing is stamped or reported as a valid review**. The enforcement class and
+the tamper result ride in both the PR comment and the JSON, so a consumer audits
+the isolation claim instead of believing it.
+
+> **Three independent verifiers, three rounds, all on this artifact:**
+> (1) an advisory caught the original dispatcher running unflagged harnesses in
+> `$PWD` while the doc claimed read-only — the doc was ahead of the code;
+> (2) dogfood cycle 1 (`codex`) caught `grok` still classified `vendor` on a
+> flag the fixed code never passed;
+> (3) `coderabbitai` caught that the `chmod` export was never a boundary at all,
+> and that the manifest could not see an escape outside it.
+> None of the three was found by the author.
 
 ## Reviewer invocation table
 
@@ -213,3 +221,7 @@ lacked an implementation.
 - Not a merge authority. It never sets `--auto-merge` and never clears C2.
 - Not a security scanner. Route `snyk`/`gitleaks` separately.
 - Not a fixer. It reviews; the caller fixes.
+
+---
+
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review` @ `342165e`) | 2026-09-03T15:33:49-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*

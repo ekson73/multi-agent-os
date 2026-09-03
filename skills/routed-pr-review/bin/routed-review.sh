@@ -54,20 +54,35 @@ Usage: routed-review.sh --pr N [options]
 USAGE
 }
 
+# `shift 2` FAILS (returns 1) when only one argument remains, and this script
+# deliberately runs without `set -e` — so a value option passed last left `$#`
+# unchanged and spun the loop forever. Proven: 2000 iterations with `$#` stuck
+# at 1. Every value-bearing option therefore asserts its value exists first.
+need_val() {   # $1=flag $2=candidate-value
+  case "${2-}" in
+    "" ) die "option $1 requires a value" ;;
+    -* ) die "option $1 requires a value (got the flag '$2')" ;;
+  esac
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --pr) PR="${2:-}"; shift 2 ;;
-    --repo) REPO="${2:-}"; shift 2 ;;
-    --reviewer) REVIEWER="${2:-}"; shift 2 ;;
-    --timeout) TIMEOUT="${2:-}"; shift 2 ;;
+    --pr)       need_val "$1" "${2-}"; PR="$2";       shift 2 ;;
+    --repo)     need_val "$1" "${2-}"; REPO="$2";     shift 2 ;;
+    --reviewer) need_val "$1" "${2-}"; REVIEWER="$2"; shift 2 ;;
+    --timeout)  need_val "$1" "${2-}"; TIMEOUT="$2";  shift 2 ;;
+    --max-turns) need_val "$1" "${2-}"; MAX_TURNS="$2"; shift 2 ;;
     --no-primary-configured) NO_PRIMARY_ATTESTED=1; shift ;;
-    --max-turns) MAX_TURNS="${2:-}"; shift 2 ;;
     --post) POST=1; shift ;;
     --json) JSON=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1 (try --help)" ;;
   esac
 done
+
+case "$PR" in ''|*[!0-9]*) die "--pr must be a positive integer (got '$PR')" ;; esac
+case "$TIMEOUT" in ''|*[!0-9]*) die "--timeout must be an integer (got '$TIMEOUT')" ;; esac
+case "$MAX_TURNS" in ''|*[!0-9]*) die "--max-turns must be an integer (got '$MAX_TURNS')" ;; esac
 
 [ -n "$PR" ] || { usage >&2; die "--pr is required"; }
 command -v gh  >/dev/null 2>&1 || die "gh CLI not found — required to read the PR"
@@ -215,12 +230,23 @@ PROMPT
 } > "$PROMPT_F"
 
 # ---- Isolation enforcement ---------------------------------------------------
-# Two enforcement classes. `vendor` = the CLI itself guarantees read-only.
-# `os`   = it does NOT, so we enforce at the filesystem: the reviewer is given a
-#          DISPOSABLE EXPORT of the head tree with every path chmod'd a-w and no
-#          `.git` at all (so no git mutation is even expressible), and we verify
-#          afterwards that nothing was written. Never trust an unflagged CLI to
-#          behave; make the write impossible and then prove it did not happen.
+# THREE enforcement classes, named for what they actually guarantee:
+#
+#   vendor        the CLI itself confines writes (--sandbox read-only /
+#                 --allowedTools). Trust the vendor, not us.
+#   os-sandboxed  a KERNEL boundary (macOS `sandbox-exec`) denies file-write to
+#                 the export AND to the live repository, plus the disposable
+#                 chmod'd export and a post-run manifest check.
+#   os-perms-only NO kernel boundary is available on this host. The export and
+#                 chmod still reduce blast radius and the manifest still DETECTS
+#                 writes — but `chmod a-w` does NOT confine a process running as
+#                 the file owner: it can chmod u+w and rewrite, or write
+#                 anywhere else it likes. This class is honestly weaker and says
+#                 so in the emitted evidence. It defends against an
+#                 INCIDENTALLY-writing reviewer, never a determined one.
+#
+# The distinction exists because an independent review found the original
+# `os` class claiming a boundary that permissions cannot provide.
 sandbox_class() {
   case "$1" in
     claude|codex) printf 'vendor' ;;   # --allowedTools / --sandbox read-only — the flag IS passed below
@@ -259,6 +285,46 @@ build_readonly_export() {
   log "    export: $(wc -l < "$WORK/manifest.before" | tr -d ' ') files, chmod a-w, no .git"
 }
 
+# A real kernel boundary where the host offers one. macOS ships `sandbox-exec`
+# (deprecated but present and effective for file-write denial). The profile is
+# deliberately `allow default` + targeted denies: a blanket write-deny breaks
+# every CLI's own cache/config writes, so we deny exactly the two trees whose
+# integrity we are claiming — the export and the live repository.
+SANDBOX_PROFILE=""
+build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
+  command -v sandbox-exec >/dev/null 2>&1 || return 1
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
+  SANDBOX_PROFILE="$WORK/deny-writes.sb"
+  {
+    printf '(version 1)\n(allow default)\n'
+    printf '(deny file-write* (subpath "%s"))\n' "$(cd "$EXPORT_DIR" && pwd -P)"
+    printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
+  } > "$SANDBOX_PROFILE"
+  # prove the profile actually denies before relying on it
+  if sandbox-exec -f "$SANDBOX_PROFILE" /bin/sh -c \
+       "echo probe > '$EXPORT_DIR/.sandbox-probe' 2>/dev/null" 2>/dev/null; then
+    [ -e "$EXPORT_DIR/.sandbox-probe" ] && { rm -f "$EXPORT_DIR/.sandbox-probe" 2>/dev/null; return 1; }
+  fi
+  [ -e "$EXPORT_DIR/.sandbox-probe" ] && return 1
+  return 0
+}
+
+# The manifest only ever covered the export. A reviewer that writes ELSEWHERE —
+# most importantly into the live repository — was invisible to it. Capture the
+# live tree's state too, so an escape is detected rather than assumed away.
+LIVE_BEFORE=""
+snapshot_live_repo() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+}
+verify_live_repo_untouched() {
+  [ -n "$LIVE_BEFORE" ] || return 0
+  local now; now="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+  [ "$now" = "$LIVE_BEFORE" ] && return 0
+  log "[!] live-repo check FAILED — the reviewer mutated the working tree outside its export"
+  return 1
+}
 verify_export_untouched() {
   [ -n "$EXPORT_DIR" ] || return 0
   chmod -R u+rX "$EXPORT_DIR" 2>/dev/null
@@ -276,7 +342,17 @@ verify_export_untouched() {
 # Invocation table. `evidence` marks how the shape was established:
 #   proven   = executed successfully in a recorded prior run
 #   measured = flag confirmed present in this host's --help this build
-# Every `os`-class entry runs with cwd = the locked export, never the live tree.
+# Every os-class entry runs with cwd = the locked export, never the live tree,
+# and — when a kernel boundary is available — under `sandbox-exec`.
+# `SBX` is the prefix array: empty for vendor-confined CLIs (their own sandbox
+# would conflict), populated for os-class ones.
+declare -a SBX=()
+arm_sandbox_prefix() {
+  SBX=()
+  [ -n "$SANDBOX_PROFILE" ] || return 0
+  SBX=(sandbox-exec -f "$SANDBOX_PROFILE")
+}
+
 run_reviewer() {
   local h="$1" rc=0 dir="$2"
   case "$h" in
@@ -289,16 +365,16 @@ run_reviewer() {
       timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && timeout "$TIMEOUT" grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && timeout "$TIMEOUT" "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     kiro)                          # measured: `chat` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" kiro chat "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" kiro chat "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac
@@ -317,10 +393,20 @@ cwd_is_head() {
   [ -z "$(git status --porcelain 2>/dev/null)" ] || return 1
 }
 
+snapshot_live_repo
+
 if [ "$ENFORCEMENT" = "os" ]; then
-  log "[D] $CHOSEN has no vendor read-only flag -> enforcing at the filesystem"
+  log "[D] $CHOSEN has no vendor read-only flag -> enforcing outside the CLI"
   build_readonly_export
   SAFE_DIR="$EXPORT_DIR"
+  if build_sandbox_profile; then
+    arm_sandbox_prefix
+    ENFORCEMENT="os-sandboxed"
+    log "    kernel boundary ARMED (sandbox-exec: file-write denied on export + repo, probe verified)"
+  else
+    ENFORCEMENT="os-perms-only"
+    log "    [warn] no kernel boundary on this host -> os-perms-only: writes are DETECTED, not PREVENTED"
+  fi
 elif cwd_is_head; then
   SAFE_DIR="$PWD"
   log "[D] cwd proven at $HEAD_SHA and clean -> vendor sandbox over the live tree"
@@ -335,15 +421,25 @@ fi
 
 log "[D] dispatching $CHOSEN (timeout=${TIMEOUT}s, enforcement=$ENFORCEMENT, cwd=$SAFE_DIR)"
 RC=0; run_reviewer "$CHOSEN" "$SAFE_DIR" || RC=$?
+
+# Two independent tamper checks. The export manifest catches writes INSIDE the
+# sandboxed tree; the live-repo hash catches an ESCAPE — a reviewer writing to
+# the working tree it was never given. The second exists because the first,
+# alone, could not see outside its own directory.
 TAMPER="n/a"
-case "$ENFORCEMENT" in *os*)   # matches `os` AND `vendor+os`
-  if verify_export_untouched; then TAMPER="clean"; else
-    TAMPER="violated"
-    log "[D] ABORT: isolation violated — no review will be stamped or reported as valid"
-    [ "$JSON" -eq 1 ] && printf '{"status":"isolation_violated","reviewer":"%s","diversity_limb":"unsatisfied","may_complete_c3":false}\n' "$CHOSEN"
-    exit 1
-  fi
-  ;; esac
+case "$ENFORCEMENT" in
+  *os*)
+    TAMPER="clean"
+    verify_export_untouched   || TAMPER="violated:export"
+    verify_live_repo_untouched || TAMPER="violated:live-repo"
+    ;;
+  *) verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
+esac
+if [ "${TAMPER#violated}" != "$TAMPER" ]; then
+  log "[D] ABORT ($TAMPER): isolation violated — no review will be stamped or reported as valid"
+  [ "$JSON" -eq 1 ] && printf '{"status":"isolation_violated","detail":"%s","reviewer":"%s","diversity_limb":"unsatisfied","may_complete_c3":false}\n' "$TAMPER" "$CHOSEN"
+  exit 1
+fi
 REVIEW_BYTES="$(wc -c < "$OUT_F" 2>/dev/null | tr -d ' ' || echo 0)"
 
 if [ "$REVIEW_BYTES" -lt 40 ]; then
