@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `routed-pr-review` skill · isolated PR review when bots are quota-blocked (#414)
+
+- `skills/routed-pr-review/` (new, soul-name **Euthyna**) — dispatches an
+  independent PR review whose context is isolated from the delegator **by
+  construction**: a fresh OS process in a different vendor family, prompted to
+  REFUTE rather than approve. Closes the rung left open by
+  `ai-code-review-bots-rotation` §5 (a local lint pass is *partial evidence, NOT
+  a review*) and `pr-review-protocol` §4.1 (a bot answering at ~8h): keep
+  **reviewing** while blocked, never **merge** while blocked.
+- **Consumable contract**: `bin/routed-review.sh --pr N [--repo O/R]
+  [--reviewer NAME] [--post] [--json] [--timeout SEC] [--max-turns N]
+  [--no-primary-configured]`. Exit codes are load-bearing — `0` reviewed and may
+  complete C3 · `3` reviewed but a primary is still pending · `2` no reviewer
+  available or empty output · `1` error or isolation violation.
+- **Gate honesty is mechanical** (§4.1(e)): a routed review satisfies the C3
+  *diversity* limb ONLY and never a configured primary's verdict.
+  `may_complete_c3` is computed from a live primary probe; absence of a primary
+  is an **operator attestation**, never an inference.
+- **Read-only enforcement in two classes**: `vendor` (`codex --sandbox
+  read-only`, `claude --allowedTools`) and `os` for the other 9 — a disposable
+  `git archive` export, every path `chmod a-w`, no `.git`, plus a `sha256`
+  manifest tamper-check after the run. Drift ⇒ exit `1` and nothing is stamped.
+- `agents/code-reviewer.md` — additive independence boundary: the in-harness
+  reviewer now declares itself a *correlated* verifier and routes to this skill
+  wherever `verifier != generator` is the actual requirement.
+- **Hardened by two dogfood cycles against its own PR** (reviewer `codex`,
+  isolated): cycle 1 caught a `vendor` classification resting on a flag the code
+  never passed, and an `absent` conclusion drawn from PR silence. Cycle 2 caught
+  five more — unpaginated absence probe, human reviews landing in the
+  bot-cleared set, vendor paths reading a tree not proven to be the stamped SHA,
+  `--reviewer` bypassing the caller-exclusion invariant, and a mandatory secret
+  scan that was silently skipped when `gitleaks` was absent. All fixed in-PR.
+
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
 - `commands/morning-briefing.md` (new) — thin command surface for the existing

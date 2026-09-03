@@ -24,6 +24,7 @@ set -uo pipefail
 
 STATE_FILE="${ROUTED_REVIEW_STATE:-$HOME/.claude/state/ai-review-bots.json}"
 PR=""; REPO=""; REVIEWER="auto"; POST=0; JSON=0; MAX_TURNS=12; TIMEOUT=600
+NO_PRIMARY_ATTESTED=0
 DIFF_CAP="${ROUTED_REVIEW_DIFF_CAP:-120000}"   # bytes of diff handed to the reviewer
 
 die() { printf 'routed-review: %s\n' "$*" >&2; exit 1; }
@@ -42,6 +43,14 @@ Usage: routed-review.sh --pr N [options]
   --timeout SEC       per-reviewer wall clock (default 600; never below 500 —
                       a 280s cap once burned $4.7 for zero output)
   --max-turns N       agentic turn cap (default 12)
+  --no-primary-configured
+                      OPERATOR ATTESTATION that this repository has no configured
+                      primary reviewer. Required before a routed review may
+                      complete convergence on its own. The tool will NEVER infer
+                      this: proving a negative from API silence is exactly the
+                      misclassification §4.1(a) forbids, so it is attested, not
+                      guessed. Without it, a silent PR resolves to
+                      `absence_requires_operator_attestation` and holds.
 USAGE
 }
 
@@ -51,6 +60,7 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:-}"; shift 2 ;;
     --reviewer) REVIEWER="${2:-}"; shift 2 ;;
     --timeout) TIMEOUT="${2:-}"; shift 2 ;;
+    --no-primary-configured) NO_PRIMARY_ATTESTED=1; shift ;;
     --max-turns) MAX_TURNS="${2:-}"; shift 2 ;;
     --post) POST=1; shift ;;
     --json) JSON=1; shift ;;
@@ -79,13 +89,21 @@ PR_URL="$(printf '%s' "$PR_JSON" | jq -r .url)"
 log "    head=$HEAD_SHA  \"$PR_TITLE\""
 
 # ------------------------------------------- Phase B: §4.1(a) primary probe
-# Classify each reviewer that has EVER spoken on this repo. Absence is proven
-# by positive evidence only — never inferred from silence (the §4.1 defect).
+# Classify each CONFIGURED REVIEWER (a known bot) that has spoken on this PR.
+#
+# ⛔ Only KNOWN_BOTS count as primaries. A HUMAN review must never land in
+# CLEARED: a human `APPROVED`/`COMMENTED` would otherwise flip the state to
+# `all_cleared_for_head` while a configured bot is still pending — and on a
+# self-authored PR that is the author clearing their own gate. Humans are
+# reported separately, for information only.
 KNOWN_BOTS='coderabbitai|qodo|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk'
 PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" '
-  ([.latestReviews[]? | {who: .author.login, sha: (.commit.oid // ""), verdict: .state}]) as $rv
+  ([.latestReviews[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i"))
+     | {who: .author.login, sha: (.commit.oid // ""), verdict: .state}]) as $rv
+  | ([.latestReviews[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i") | not)
+     | .author.login]) as $humans
   | ([.comments[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i")) | {who: .author.login, body: (.body[0:400])}]) as $cm
-  | {reviews: $rv, bot_comments: $cm, head: $head}')"
+  | {reviews: $rv, human_reviews: ($humans | unique), bot_comments: $cm, head: $head}')"
 
 # quota / plan signals, per review-bot-quota-recovery taxonomy
 QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r '
@@ -94,9 +112,11 @@ STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r '
   [.reviews[]? | select(.sha != .head and .sha != "") | .who] | unique | join(",")')"
 CLEARED="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
   [.reviews[]? | select(.sha == $head and (.verdict == "APPROVED" or .verdict == "COMMENTED")) | .who] | unique | join(",")')"
+HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
 CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if .reviewDecision == "CHANGES_REQUESTED" then "yes" else "no" end')"
 
-log "[B] primaries — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] changes_requested:$CHANGES_REQ"
+log "[B] primaries(bots only) — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] changes_requested:$CHANGES_REQ"
+log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]"
 
 # ------------------------------------------- Phase C: pick isolated reviewer
 # Cross-family preference: never route to the SAME vendor family as the caller
@@ -119,6 +139,14 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
 pick_reviewer() {
   if [ "$REVIEWER" != "auto" ]; then
     command -v "$REVIEWER" >/dev/null 2>&1 || die "requested reviewer '$REVIEWER' not on PATH"
+    # ⛔ An explicit --reviewer must NOT bypass verifier != generator. Without
+    # this check, `ROUTED_REVIEW_CALLER=codex --reviewer codex` performs the
+    # correlated same-family review the skill forbids, and the emitted comment
+    # would still account it as "C3 diversity satisfied" — fabricated diversity
+    # evidence, the §4.1(e) failure this tool exists to prevent.
+    if [ -n "$CALLER" ] && [ "$REVIEWER" = "$CALLER" ]; then
+      die "refusing --reviewer '$REVIEWER': identical to ROUTED_REVIEW_CALLER — that is a correlated verifier, not an independent one. Pick another family, or unset the caller only if you can justify it."
+    fi
     printf '%s' "$REVIEWER"; return 0
   fi
   local h
@@ -278,25 +306,44 @@ run_reviewer() {
 }
 
 ENFORCEMENT="$(sandbox_class "$CHOSEN")"
+# ⛔ The comment will claim `Head reviewed: $HEAD_SHA`. That claim is only true
+# if the tree the reviewer actually read IS that commit. `--repo` is arbitrary,
+# so `$PWD` may be an unrelated checkout — the reviewer would then inspect other
+# files while the stamp asserts this SHA. Never trust cwd: prove it, else export.
+cwd_is_head() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  [ "$(git rev-parse HEAD 2>/dev/null)" = "$HEAD_SHA" ] || return 1
+  # a dirty tree is not that commit either
+  [ -z "$(git status --porcelain 2>/dev/null)" ] || return 1
+}
+
 if [ "$ENFORCEMENT" = "os" ]; then
-  log "[D] $CHOSEN has NO vendor read-only flag -> enforcing at the filesystem"
+  log "[D] $CHOSEN has no vendor read-only flag -> enforcing at the filesystem"
   build_readonly_export
   SAFE_DIR="$EXPORT_DIR"
-else
+elif cwd_is_head; then
   SAFE_DIR="$PWD"
+  log "[D] cwd proven at $HEAD_SHA and clean -> vendor sandbox over the live tree"
+else
+  # vendor-sandboxed but cwd is NOT the reviewed commit: export anyway so the
+  # `Head reviewed:` stamp stays true. Enforcement is then belt-and-braces.
+  log "[D] cwd is NOT $HEAD_SHA (or is dirty) -> exporting so the head stamp stays true"
+  build_readonly_export
+  SAFE_DIR="$EXPORT_DIR"
+  ENFORCEMENT="vendor+os"
 fi
 
 log "[D] dispatching $CHOSEN (timeout=${TIMEOUT}s, enforcement=$ENFORCEMENT, cwd=$SAFE_DIR)"
 RC=0; run_reviewer "$CHOSEN" "$SAFE_DIR" || RC=$?
 TAMPER="n/a"
-if [ "$ENFORCEMENT" = "os" ]; then
+case "$ENFORCEMENT" in *os*)   # matches `os` AND `vendor+os`
   if verify_export_untouched; then TAMPER="clean"; else
     TAMPER="violated"
     log "[D] ABORT: isolation violated — no review will be stamped or reported as valid"
     [ "$JSON" -eq 1 ] && printf '{"status":"isolation_violated","reviewer":"%s","diversity_limb":"unsatisfied","may_complete_c3":false}\n' "$CHOSEN"
     exit 1
   fi
-fi
+  ;; esac
 REVIEW_BYTES="$(wc -c < "$OUT_F" 2>/dev/null | tr -d ' ' || echo 0)"
 
 if [ "$REVIEW_BYTES" -lt 40 ]; then
@@ -320,16 +367,27 @@ VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -
 # ------------------------------------------- Phase E: gate verdict + comment
 # The ONLY honest computation of what this review licenses.
 #
-# ⛔ `absent` may NEVER be concluded from silence on THIS PR — that is the exact
-# misclassification §4.1(a) names ("inferring absence from *silence*"). A fresh
-# PR is silent because the bots have not run yet, not because none is
-# configured. Positive evidence = no known reviewer has spoken anywhere in this
-# repository's recent history. If that probe cannot run, fail CLOSED.
-repo_has_any_configured_reviewer() {   # 0 = yes (a bot has spoken) · 1 = no · 2 = unknown
+# ⛔ `absent` is NEVER inferred. Two rounds of review killed two successive
+# attempts to infer it:
+#   (1) `bot_comments == 0` on THIS PR — pure silence, the exact
+#       misclassification §4.1(a) names ("inferring absence from *silence*").
+#   (2) a single unpaginated `issues/comments?per_page=100` page — which also
+#       never sees review submissions, so a bot that spoke outside that page is
+#       missed and the conclusion is again unsupported.
+# The lesson is not "paginate harder": proving a NEGATIVE ("no primary is
+# configured anywhere") is not something this tool can establish cheaply or
+# reliably from the API. So it does not try. Absence is an OPERATOR ATTESTATION
+# (`--no-primary-configured`), and without it the tool HOLDS. Fail-closed by
+# construction beats a smarter guess.
+#
+# The repo-wide probe survives only as CORROBORATION: it can CONTRADICT an
+# attestation (a bot demonstrably spoke ⇒ the attestation is wrong, and wrong
+# loudly), but it can never grant one.
+repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none seen · 2 = probe failed
   local out
-  out="$(gh api "repos/$REPO/issues/comments?per_page=100" \
-          --jq '[.[] | select(.user.login | test("'"$KNOWN_BOTS"'"; "i")) | .user.login] | unique | length' \
-          2>/dev/null)" || return 2
+  out="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" \
+          --jq '[.[] | select(.user.login | test("'"$KNOWN_BOTS"'"; "i")) | .user.login]' 2>/dev/null \
+        | jq -s 'add // [] | unique | length' 2>/dev/null)" || return 2
   [ -n "$out" ] || return 2
   [ "$out" -gt 0 ] 2>/dev/null && return 0 || return 1
 }
@@ -338,17 +396,25 @@ MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pending_or_unknown"
 if [ "$CHANGES_REQ" = "yes" ]; then
   PRIMARY_STATUS="changes_requested"      # §4.1(e): routing never dismisses this
 elif [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] && [ -n "$CLEARED" ]; then
+  # CLEARED is bot-only (phase B); a human approval can never land here.
   PRIMARY_STATUS="all_cleared_for_head"; MAY_COMPLETE_C3="true"
 elif [ -z "$CLEARED" ] && [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] \
   && [ "$(printf '%s' "$PRIMARY_STATE" | jq -r '.bot_comments | length')" = "0" ]; then
-  # This PR is silent. Silence alone proves nothing — probe the repository.
-  repo_has_any_configured_reviewer; probe_rc=$?
-  case "$probe_rc" in
-    0) PRIMARY_STATUS="pending_silent_but_repo_has_reviewers" ;;   # slow/pending, NOT absent
-    1) PRIMARY_STATUS="none_configured_repo_wide_evidence"; MAY_COMPLETE_C3="true" ;;
-    *) PRIMARY_STATUS="absence_unprovable_fail_closed" ;;          # probe failed ⇒ hold
-  esac
-  log "    absence probe: rc=$probe_rc -> $PRIMARY_STATUS"
+  if [ "$NO_PRIMARY_ATTESTED" -eq 1 ]; then
+    repo_reviewer_seen; probe_rc=$?
+    if [ "$probe_rc" -eq 0 ]; then
+      # the attestation is contradicted by evidence — refuse it, loudly
+      PRIMARY_STATUS="attestation_contradicted_bot_has_spoken_in_repo"
+      log "[!] --no-primary-configured was passed, but a known reviewer HAS spoken in this repo."
+      log "[!] Refusing the attestation. This PR is PENDING, not absent."
+    else
+      PRIMARY_STATUS="none_configured_operator_attested"; MAY_COMPLETE_C3="true"
+      [ "$probe_rc" -eq 2 ] && log "    note: corroboration probe failed; resting on the attestation alone"
+    fi
+  else
+    PRIMARY_STATUS="absence_requires_operator_attestation"
+    log "    silent PR + no attestation -> holding (pass --no-primary-configured only if true)"
+  fi
 fi
 
 log "[E] diversity_limb=satisfied  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
@@ -379,10 +445,15 @@ COMMENT_F="$WORK/comment.md"
 } > "$COMMENT_F"
 
 if [ "$POST" -eq 1 ]; then
-  if command -v gitleaks >/dev/null 2>&1; then
-    gitleaks detect --no-git --source="$COMMENT_F" --no-banner >/dev/null 2>&1 \
-      || die "gitleaks flagged the review body — comment NOT posted (secrets are absolute)"
-  fi
+  # ⛔ The scan is MANDATORY, not best-effort. The comment embeds the reviewer's
+  # verbatim output, which read a whole repository tree — a plausible secret
+  # carrier. Silently skipping the scan when gitleaks is absent, and posting
+  # anyway, made the documented guarantee false and the leak real. A PR comment
+  # is a paste-anywhere surface; secrets are absolute, so no scanner ⇒ no post.
+  command -v gitleaks >/dev/null 2>&1 \
+    || die "gitleaks not installed — refusing to post (the pre-post secret scan is mandatory, not best-effort). Install gitleaks, or drop --post and inspect the review on stdout."
+  gitleaks detect --no-git --source="$COMMENT_F" --no-banner >/dev/null 2>&1 \
+    || die "gitleaks flagged the review body — comment NOT posted (secrets are absolute)"
   gh pr comment "$PR" --repo "$REPO" --body-file "$COMMENT_F" >/dev/null \
     && log "[E] posted to $PR_URL" || die "failed to post comment"
 fi

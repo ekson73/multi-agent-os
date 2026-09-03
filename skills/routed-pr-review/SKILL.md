@@ -175,16 +175,24 @@ candidates for a later cycle rather than silently duplicated.
 
 ## What was reused rather than built
 
-Strata / DRY — the forge crossed these before creating anything:
+Strata / DRY — the forge crossed these before creating anything.
 
-| capability | source | disposition |
-|---|---|---|
-| review criteria, severity taxonomy | `code-review-excellence`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` + 5 more already installed | **reused** — no new criteria authored |
-| bot-message taxonomy (rate-limit vs plan vs informational) | `review-bot-quota-recovery.md` | **reused** in phase B |
-| rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | **reused** in phase C |
-| gate semantics | `pr-review-protocol.md` §4.1 | **implemented**, not amended |
-| isolation shape | `cross-harness-red-team.md` | **reused** in phase D |
-| in-harness stub | `agents/code-reviewer.md` (17 lines, no isolation) | **left intact**, now points here |
+⚠️ **Where these sources live.** The four `.md` sources below are **NOT in this
+repository** — they are user-scope artifacts on the operator's machine
+(`~/.claude/rules/` and an Obsidian vault). A reader of this repo alone cannot
+open them, and an isolated reviewer correctly reported them as unresolvable.
+They are cited as *provenance*, never as repo paths. The governance semantics
+they carry are restated inline in this file precisely so this skill stands on
+its own.
+
+| capability | source | where it lives | disposition |
+|---|---|---|---|
+| review criteria, severity taxonomy | `code-review-excellence`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` + 5 more | installed skills (host) | **reused** — no new criteria authored |
+| bot-message taxonomy (rate-limit vs plan vs informational) | `review-bot-quota-recovery.md` | vault, external | **reused** in phase B |
+| rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | `~/.claude/rules/`, external | **reused** in phase C |
+| gate semantics | `pr-review-protocol.md` §4.1 | `~/.claude/rules/`, external | **implemented**, not amended; restated inline above |
+| isolation shape | `cross-harness-red-team.md` | vault, external | **reused** in phase D |
+| in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +18 lines appended declaring its correlated-verifier boundary and routing here (17 → 34 lines) |
 
 Net-new is exactly one thing: **an executable dispatcher that makes isolation and
 gate-honesty mechanical instead of remembered.**
