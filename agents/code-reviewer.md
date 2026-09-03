@@ -33,3 +33,6 @@ access, and reports what a routed review does and does not satisfy under
 
 Your review criteria remain the reusable part; the isolation is what you cannot
 provide about yourself.
+---
+
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review` @ `342165e`) | 2026-09-03T15:33:49-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*

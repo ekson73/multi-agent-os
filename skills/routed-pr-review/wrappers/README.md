@@ -55,3 +55,7 @@ mechanism a table cannot satisfy:
 5. Never wrap the script in a retry loop against the *same* reviewer; rotation
    already fall-throughs (`ai-code-review-bots-rotation.md` §3.5: a hot retry on
    the same bot is not a different strategy).
+
+---
+
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review` @ `342165e`) | 2026-09-03T15:33:49-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
