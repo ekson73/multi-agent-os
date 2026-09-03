@@ -95,16 +95,23 @@ mistake it for tier-strong; it is not what this dispatcher does.
 
 ### Axis 2 — read-only enforcement (⚠️ the defect this section exists to close)
 
-**Only 3 of 11 harnesses expose a read-only switch.** Asking the other 8 nicely
-is not enforcement, and a doc that says "read-only tools" while running an
-unflagged CLI in the live worktree is a false claim — exactly the class this
-tool's own reviewer prompt rates *at least major*. So enforcement is split by
-capability and the weaker half is enforced by the operating system instead:
+**3 of 11 harnesses expose a read-only switch; this dispatcher actually passes
+2 of them.** Asking the other 9 nicely is not enforcement, and a doc that says
+"read-only tools" while running an unflagged CLI in the live worktree is a false
+claim — exactly the class this tool's own reviewer prompt rates *at least major*.
+So enforcement is split by capability, and the classification is allowed to
+depend ONLY on a flag the code genuinely passes:
 
 | class | harnesses | mechanism |
 |---|---|---|
-| `vendor` | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`), `grok` (`--allow-rule`) | the CLI guarantees it; cwd = live repo |
-| `os` | the other 8 | cwd = a **disposable `git archive` export** of the head tree: every path `chmod a-w`, and **no `.git` at all**, so a git mutation is not even expressible |
+| `vendor` (2) | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`) | the CLI guarantees it; cwd = live repo |
+| `os` (9) | everything else, **including `grok`** | cwd = a **disposable `git archive` export** of the head tree: every path `chmod a-w`, and **no `.git` at all**, so a git mutation is not even expressible |
+
+`grok` exposes `--allow-rule` (alias `--allowedTools`) and is nevertheless `os`:
+**this dispatcher does not pass that flag**, and classifying on an unpassed flag
+is the same false-claim class the tool exists to catch. Promotion to `vendor`
+requires the flag to be passed *and* proven in a recorded run — not merely to
+exist in `--help`.
 
 The `os` class is then **proven**, not trusted: a `sha256` manifest is taken
 before locking and recompared after the run. A single byte of drift ⇒ the run
@@ -113,10 +120,13 @@ valid review**. The enforcement class and the tamper-check result ride in both
 the PR comment and the JSON, so a consumer can audit the isolation claim instead
 of believing it.
 
-> Caught in build by an independent advisory before first dogfood: the original
-> dispatcher ran all 8 unflagged harnesses in `$PWD`. The mechanism above was
-> designed in the same breath as the doc but had not been written — the doc was
-> ahead of the code, which is the definition of the defect.
+> **Two defects were caught before this shipped, by two independent verifiers.**
+> (1) An advisory caught the original dispatcher running all unflagged harnesses
+> in `$PWD` while the doc claimed read-only — the doc was ahead of the code.
+> (2) Dogfood cycle 1 (`codex`, isolated) then caught that `grok` was still
+> classified `vendor` on a flag the fixed code never passed — the same defect
+> surviving for one harness, now *asserted* as enforced. Neither was found by
+> the author.
 
 ## Reviewer invocation table
 
@@ -128,7 +138,7 @@ of believing it.
 |---|---|---|---|
 | `codex` | `codex exec --sandbox read-only --cd DIR` | `vendor` — sandbox | proven (`--cd` measured) |
 | `claude` | `claude -p … --max-turns N --allowedTools Read Grep Glob --add-dir DIR` | `vendor` — tool allowlist | proven |
-| `grok` | `grok -p` (cwd-scoped) | `vendor` — `--allow-rule` (alias `--allowedTools`) | measured |
+| `grok` | `grok -p` (cwd-scoped) | `os` — locked export (`--allow-rule` exists but is **not passed**) | measured |
 | `gemini` | `gemini -p` (cwd-scoped) | `os` — locked export | measured |
 | `qwen` | `qwen -p` (also native `qwen review run`) | `os` — locked export | measured |
 | `kimi` | `kimi -p --output-format text\|json` | `os` — locked export | measured |
