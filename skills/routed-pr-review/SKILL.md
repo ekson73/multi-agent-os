@@ -6,7 +6,9 @@ description: >
   waiting on them or fabricating a green. Soul-name Euthyna (εὔθυνα, the
   independent end-of-term audit of an Athenian magistrate, conducted by officials
   who were not the magistrate). Isolation is BY CONSTRUCTION: a fresh OS process
-  in a different vendor family, read-only tools, no delegator history, prompted to
+  in a different vendor family, write confinement whose strength is named per
+  harness class (CLI sandbox · kernel `sandbox-exec` · perms-only, which DETECTS
+  rather than PREVENTS), no delegator history, prompted to
   REFUTE rather than approve. Reports a gate verdict that never overstates itself —
   a routed review satisfies the C3 *diversity* limb only and NEVER a configured
   primary's verdict. Use when a PR needs reviewing while blocked, when "all bots
@@ -54,7 +56,7 @@ Five phases:
 | **A** resolve | PR, title, `headRefOid`, diff | `gh` |
 | **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head · stale/earlier-head · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
 | **C** pick reviewer | capability-detect `command -v`, skip bots expired in `~/.claude/state/ai-review-bots.json`, **exclude the caller's own family** | `ai-code-review-bots-rotation.md` §2/§3 |
-| **D** isolated run | fresh OS process, read-only tools, refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
+| **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
 | **E** gate verdict | emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
 
 ## The gate contract — the part that matters most
@@ -195,7 +197,9 @@ its own.
 
 | capability | source | where it lives | disposition |
 |---|---|---|---|
-| review criteria, severity taxonomy | `code-review-excellence`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` + 5 more | installed skills (host) | **reused** — no new criteria authored |
+| review criteria (what to look for) | `code-review-excellence`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` + 5 more | installed skills (host) | **reused** — no new criteria authored |
+| severity ladder `[blocking\|major\|minor\|nit]` in the reviewer prompt | extends `pr-review-protocol.md` (which uses `blocking` + `major`) | `~/.claude/rules/`, external | ⚠️ **partly authored** — `minor`/`nit` are mine. Measured 2026-09-03: the cited rule contains `nit` **zero** times. An earlier revision of this table claimed "no new criteria authored" across both rows; that was a false claim of the same class this tool's own prompt rates *at least major*, self-caught by Socratic Q13 |
+| finding classes `[correctness\|security\|silent-failure\|governance\|test-gap]` | named after the installed skills above | installed skills (host) | **derived** — one class per source skill, not independently invented |
 | bot-message taxonomy (rate-limit vs plan vs informational) | `review-bot-quota-recovery.md` | vault, external | **reused** in phase B |
 | rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | `~/.claude/rules/`, external | **reused** in phase C |
 | gate semantics | `pr-review-protocol.md` §4.1 | `~/.claude/rules/`, external | **implemented**, not amended; restated inline above |
@@ -204,6 +208,46 @@ its own.
 
 Net-new is exactly one thing: **an executable dispatcher that makes isolation and
 gate-honesty mechanical instead of remembered.**
+
+## Q20/Q21 — revert and fallback
+
+**Revert.** The only external side effect is one PR comment (`--post`); without
+that flag nothing leaves the process. To revert: `gh pr comment --delete-last`
+(or delete by id). The dispatcher never pushes, never merges, never edits code,
+and never writes outside `$WORK`/the disposable export — so there is no
+repository state to roll back.
+
+**Fallback ladder** — exit codes read off the code, not intended (an earlier
+draft of this very section mis-stated two of them; corrected before commit):
+
+| # | condition | exit | behaviour |
+|---|---|---|---|
+| 1 | no harness left after family exclusion | `2` | JSON `status:no_reviewer`, `may_complete_c3:false`. **Never** falls back to the caller (verifier ≠ generator) |
+| 2 | reviewer produced <40 bytes | `2` | treated as **no review**; the bot **is** recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it next cycle (§3 never-hot-retry) |
+| 3 | isolation violated (either tamper check) | `1` | no stamp, no comment, `status:isolation_violated` |
+| 4 | `gitleaks` absent while `--post` given | `1` | refuses to post rather than posting an unscanned body |
+| 5 | review ran, gate does not clear C3 | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
+| 6 | review ran, C3 cleared | `0` | — |
+
+Below the ladder, `ai-code-review-bots-rotation` §5 still licenses the
+deterministic local path (`gitleaks`/lint/typecheck/build) as **labelled partial
+evidence** — never as a "review".
+
+## Q29/Q33 — KPIs and cost, measured not projected
+
+| KPI | Definition | First-cycle measurement (2026-09-03, PR #414) |
+|---|---|---|
+| finding precision | findings that survived independent verification ÷ findings raised | **14/14 = 100%** across 3 reviewers |
+| author blind-spot rate | defects found by the routed reviewer that the author's own passes missed | **14/14** — author self-caught **0** after 6 self-review rounds |
+| gate honesty | routed runs that overstated their limb | **0** — `may_complete_c3` never certified a pending primary |
+| cost per cycle | wall-clock + calls | ~4-6 min, 1 dispatch + 1 verification read |
+| false-green risk | reviews stamped without substantive body | **0** — the <40-byte guard fired as designed |
+
+**ROI framing.** The comparison is not "routed review vs. a real bot" — it is
+"routed review vs. **waiting**". Cycle 1 ran while CodeRabbit was quota-blocked
+for 40 minutes and returned two real defects in that window. Re-measure these
+numbers per cycle; a precision figure that drifts below ~70% means the reviewer
+prompt is generating noise and should be tightened, not trusted.
 
 ## Governance note — no rule amendment was needed
 
@@ -224,4 +268,4 @@ lacked an implementation.
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review` @ `342165e`) | 2026-09-03T15:33:49-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, Socratic-Q round) | 2026-09-03T18:31:14-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
