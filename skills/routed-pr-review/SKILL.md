@@ -147,7 +147,7 @@ the isolation claim instead of believing it.
 | harness | invocation | enforcement class | evidence |
 |---|---|---|---|
 | `codex` | `codex exec --sandbox read-only --cd DIR` | `vendor` — sandbox | proven (`--cd` measured) |
-| `claude` | `claude -p … --max-turns N --allowedTools Read Grep Glob --add-dir DIR` | `vendor` — tool allowlist | proven |
+| `claude` | `cd DIR && claude -p … --max-turns N --allowedTools Read Grep Glob --add-dir DIR` | `vendor` — tool allowlist **+ cwd** | proven; the `cd` is load-bearing — `--add-dir` grants access but never moves the working directory, so without it the reviewer read the caller's `$PWD` while the stamp asserted `HEAD_SHA` (found by a routed `kimi` review of this tool on #414) |
 | `grok` | `grok -p` (cwd-scoped) | `os` — locked export (`--allow-rule` exists but is **not passed**) | measured |
 | `gemini` | `gemini -p` (cwd-scoped) | `os` — locked export | measured |
 | `qwen` | `qwen -p` (also native `qwen review run`) | `os` — locked export | measured |
@@ -268,4 +268,4 @@ lacked an implementation.
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, Socratic-Q round) | 2026-09-03T18:31:14-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, routed-kimi findings round) | 2026-09-03T21:37:25-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
