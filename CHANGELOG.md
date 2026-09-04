@@ -947,6 +947,7 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
 
 ### Added
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 8 end-to-end cases run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defect #20 on the first run (a `die` inside a command substitution re-labelled a usage error as `status:no_reviewer`).
 
 - `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
 - `docs/multi-host-packaging.md` install matrix + agent id notes

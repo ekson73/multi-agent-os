@@ -163,19 +163,28 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   [ "$now" -lt "$reset" ]
 }
 
-pick_reviewer() {
-  if [ "$REVIEWER" != "auto" ]; then
-    command -v "$REVIEWER" >/dev/null 2>&1 || die "requested reviewer '$REVIEWER' not on PATH"
-    # ⛔ An explicit --reviewer must NOT bypass verifier != generator. Without
-    # this check, `ROUTED_REVIEW_CALLER=codex --reviewer codex` performs the
-    # correlated same-family review the skill forbids, and the emitted comment
-    # would still account it as "C3 diversity satisfied" — fabricated diversity
-    # evidence, the §4.1(e) failure this tool exists to prevent.
-    if [ -n "$CALLER" ] && [ "$REVIEWER" = "$CALLER" ]; then
-      die "refusing --reviewer '$REVIEWER': identical to ROUTED_REVIEW_CALLER — that is a correlated verifier, not an independent one. Pick another family, or unset the caller only if you can justify it."
-    fi
-    printf '%s' "$REVIEWER"; return 0
+# ⛔ Validate an EXPLICIT --reviewer here, in the main shell — NOT inside
+# pick_reviewer(). pick_reviewer runs in a command substitution, so a `die`
+# there exits only the subshell; the `|| { … exit 2 }` below then swallows it
+# and re-labels a usage error as `status:no_reviewer`. The stderr reason still
+# printed, but a JSON consumer was told the wrong cause. Caught on the FIRST
+# run of tests/contract.sh (case 5) — the composition class that four cycles
+# of line-level checking never surfaced.
+if [ "$REVIEWER" != "auto" ]; then
+  command -v "$REVIEWER" >/dev/null 2>&1 || die "requested reviewer '$REVIEWER' not on PATH"
+  # An explicit --reviewer must NOT bypass verifier != generator. Without this,
+  # `ROUTED_REVIEW_CALLER=codex --reviewer codex` performs the correlated
+  # same-family review the skill forbids, and the emitted comment would still
+  # account it as "C3 diversity satisfied" — fabricated diversity evidence,
+  # the §4.1(e) failure this tool exists to prevent.
+  if [ -n "$CALLER" ] && [ "$REVIEWER" = "$CALLER" ]; then
+    die "refusing --reviewer '$REVIEWER': identical to ROUTED_REVIEW_CALLER — that is a correlated verifier, not an independent one. Pick another family, or unset the caller only if you can justify it."
   fi
+fi
+
+pick_reviewer() {
+  # Explicit reviewer already validated above; just hand it back.
+  if [ "$REVIEWER" != "auto" ]; then printf '%s' "$REVIEWER"; return 0; fi
   local h
   for h in "${FAMILY_ORDER[@]}"; do
     [ "$h" = "$CALLER" ] && continue                      # verifier != generator

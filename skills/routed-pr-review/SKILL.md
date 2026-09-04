@@ -165,6 +165,42 @@ Two native review paths were found during the probe and are **not** wrapped by
 this tool: `qwen review run` and `opencode pr <N>`. They are recorded as
 candidates for a later cycle rather than silently duplicated.
 
+## Contract tests — `tests/contract.sh`
+
+```bash
+bash skills/routed-pr-review/tests/contract.sh    # -v for failing-case detail
+```
+
+**Why they exist.** Four dogfood cycles produced 19 findings and I self-caught
+**zero**. The two worst were *composition* defects — every individual line
+verified correct against the binary while the path through them was dead
+(`exit 0` unreachable via a `.head` scope bug) or wrong (`--add-dir` granting
+access without moving cwd). Line-level checking is structurally blind to both.
+These run the **real script end-to-end** against a stub `PATH`, so they assert
+the path.
+
+No network, no real reviewer, no real `gh`: a temp one-commit git repo supplies
+a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
+stubs answer the four `gh` call shapes plus a fake reviewer whose output each
+case controls by env. Every case is data, not another copy of the invocation.
+
+| # | Contract asserted | Guards against |
+|---|---|---|
+| 1 | `exit 0` is **reachable** when a configured primary cleared *this* head | the `.head` scope bug that made the documented success path dead code |
+| 2 | an approval at an **older** sha does not clear C3 | false-green on a stale verdict |
+| 3 | an active `CHANGES_REQUESTED` is never dismissed | `§4.1(e)` — the whole point of the gate |
+| 4 | under-40-byte output is **not** a review | anti-theater guarantee #1 |
+| 5 | explicit `--reviewer` equal to the caller is refused, **with the reason** | verifier ≠ generator bypass |
+| 6 | silence alone never proves "no primary configured" | `§4.1(a)` absence-from-silence misclassification |
+| 7 | a trailing value-option terminates | the `shift 2` infinite loop |
+
+**They earned their keep on the first run.** Case 5 failed: the refusal fired
+and printed its reason, but `pick_reviewer` runs inside a command substitution,
+so its `die` exited only the subshell and the `|| { … exit 2 }` below re-labelled
+a usage error as `status:no_reviewer` — stderr right, JSON wrong. Validation is
+now hoisted into the main shell. That is defect #20, and the first one a
+*mechanism* caught rather than an external reviewer.
+
 ## Anti-theater guarantees
 
 1. **Empty output is NOT a review.** Under 40 bytes ⇒ exit `2`, the bot is
@@ -268,4 +304,4 @@ lacked an implementation.
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, cycle-4 findings) | 2026-09-03T21:49:27-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, contract-tests) | 2026-09-03T22:00:48-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
