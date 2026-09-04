@@ -87,6 +87,12 @@ case "$MAX_TURNS" in ''|*[!0-9]*) die "--max-turns must be an integer (got '$MAX
 [ -n "$PR" ] || { usage >&2; die "--pr is required"; }
 command -v gh  >/dev/null 2>&1 || die "gh CLI not found — required to read the PR"
 command -v jq  >/dev/null 2>&1 || die "jq not found — required to parse gh JSON"
+# `timeout` is used on every reviewer dispatch (6 call sites) and on the sandbox
+# probes; stock macOS ships without it. Unchecked, its absence surfaced as an
+# opaque per-harness failure instead of a one-line diagnostic. Found by a routed
+# kimi review on #414 (cycle 4) — gh/jq/tar were checked, this one was not.
+command -v timeout >/dev/null 2>&1 \
+  || die "timeout not found — required to bound every reviewer dispatch (brew install coreutils, or alias gtimeout)"
 [ "$TIMEOUT" -ge 500 ] 2>/dev/null || { log "[warn] raising --timeout $TIMEOUT -> 500 (measured floor)"; TIMEOUT=500; }
 
 [ -n "$REPO" ] || REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
@@ -307,12 +313,23 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$EXPORT_DIR" && pwd -P)"
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
   } > "$SANDBOX_PROFILE"
-  # prove the profile actually denies before relying on it
-  if sandbox-exec -f "$SANDBOX_PROFILE" /bin/sh -c \
-       "echo probe > '$EXPORT_DIR/.sandbox-probe' 2>/dev/null" 2>/dev/null; then
-    [ -e "$EXPORT_DIR/.sandbox-probe" ] && { rm -f "$EXPORT_DIR/.sandbox-probe" 2>/dev/null; return 1; }
+  # ⛔ Two-step probe. The single-step version could NOT distinguish "sandbox-exec
+  # ran and denied the write" from "sandbox-exec never ran at all" (invalid
+  # profile, unsupported OS, SIP policy): both leave no probe file, both make the
+  # `if` false, and the old fallthrough then `return 0` = ARMED. Measured:
+  # `sandbox-exec -f /nonexistent.sb /bin/echo x` exits 65, i.e. a failure to
+  # confine was indistinguishable from a successful denial — a fail-OPEN inside
+  # the very control added to close a fail-open. Found by a routed kimi review
+  # of this tool on #414 (cycle 4).
+  # Step 1 — liveness: the profile must be able to run a harmless ALLOWED command.
+  sandbox-exec -f "$SANDBOX_PROFILE" /usr/bin/true >/dev/null 2>&1 || return 1
+  # Step 2 — denial: the write must fail AND leave no file.
+  sandbox-exec -f "$SANDBOX_PROFILE" /bin/sh -c \
+    "echo probe > '$EXPORT_DIR/.sandbox-probe' 2>/dev/null" >/dev/null 2>&1
+  if [ -e "$EXPORT_DIR/.sandbox-probe" ]; then
+    rm -f "$EXPORT_DIR/.sandbox-probe" 2>/dev/null
+    return 1   # the write LANDED => not a boundary
   fi
-  [ -e "$EXPORT_DIR/.sandbox-probe" ] && return 1
   return 0
 }
 
