@@ -947,7 +947,7 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
 
 ### Added
-- `routed-pr-review` contract tests (`tests/contract.sh`) — 8 end-to-end cases run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defect #20 on the first run (a `die` inside a command substitution re-labelled a usage error as `status:no_reviewer`).
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
 
 - `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
 - `docs/multi-host-packaging.md` install matrix + agent id notes

@@ -313,32 +313,40 @@ build_readonly_export() {
 # integrity we are claiming — the export and the live repository.
 SANDBOX_PROFILE=""
 build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
+  # ⛔ Build into a LOCAL, and publish the global only on success. The earlier
+  # version assigned $SANDBOX_PROFILE up-front, so a failing probe returned 1
+  # while LEAVING the global set — and `arm_sandbox_prefix` (which trusts only
+  # non-emptiness) then wrapped every reviewer dispatch in a profile that had
+  # just been PROVEN not to work. The result was an opaque per-harness failure:
+  # the same fail-through class the two-step probe below was added to close,
+  # one level up from it. Caught by tests/contract.sh case 8.
+  SANDBOX_PROFILE=""
   command -v sandbox-exec >/dev/null 2>&1 || return 1
-  local repo_root
+  local repo_root prof
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")"
-  SANDBOX_PROFILE="$WORK/deny-writes.sb"
+  prof="$WORK/deny-writes.sb"
   {
     printf '(version 1)\n(allow default)\n'
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$EXPORT_DIR" && pwd -P)"
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
-  } > "$SANDBOX_PROFILE"
-  # ⛔ Two-step probe. The single-step version could NOT distinguish "sandbox-exec
-  # ran and denied the write" from "sandbox-exec never ran at all" (invalid
-  # profile, unsupported OS, SIP policy): both leave no probe file, both make the
-  # `if` false, and the old fallthrough then `return 0` = ARMED. Measured:
-  # `sandbox-exec -f /nonexistent.sb /bin/echo x` exits 65, i.e. a failure to
-  # confine was indistinguishable from a successful denial — a fail-OPEN inside
-  # the very control added to close a fail-open. Found by a routed kimi review
-  # of this tool on #414 (cycle 4).
-  # Step 1 — liveness: the profile must be able to run a harmless ALLOWED command.
-  sandbox-exec -f "$SANDBOX_PROFILE" /usr/bin/true >/dev/null 2>&1 || return 1
+  } > "$prof" || return 1
+  # Two-step probe. A single step could NOT distinguish "sandbox-exec ran and
+  # denied the write" from "sandbox-exec never ran at all" (invalid profile,
+  # unsupported OS, SIP policy): both leave no probe file, both made the old
+  # `if` false, and the fallthrough then returned 0 = ARMED. Measured:
+  # `sandbox-exec -f /nonexistent.sb /bin/echo x` exits 65 — a failure to
+  # confine was indistinguishable from a successful denial. Found by a routed
+  # kimi review of this tool on #414 (cycle 4).
+  # Step 1 — liveness: the profile must run a harmless ALLOWED command.
+  sandbox-exec -f "$prof" /usr/bin/true >/dev/null 2>&1 || return 1
   # Step 2 — denial: the write must fail AND leave no file.
-  sandbox-exec -f "$SANDBOX_PROFILE" /bin/sh -c \
+  sandbox-exec -f "$prof" /bin/sh -c \
     "echo probe > '$EXPORT_DIR/.sandbox-probe' 2>/dev/null" >/dev/null 2>&1
   if [ -e "$EXPORT_DIR/.sandbox-probe" ]; then
     rm -f "$EXPORT_DIR/.sandbox-probe" 2>/dev/null
     return 1   # the write LANDED => not a boundary
   fi
+  SANDBOX_PROFILE="$prof"   # publish ONLY after both steps proved it
   return 0
 }
 
@@ -379,6 +387,12 @@ verify_export_untouched() {
 # `SBX` is the prefix array: empty for vendor-confined CLIs (their own sandbox
 # would conflict), populated for os-class ones.
 declare -a SBX=()
+# ⛔ Every ${SBX[@]} below uses the ${SBX[@]+"${SBX[@]}"} idiom: under `set -u`
+# bash 3.2 (the macOS default) treats expanding an EMPTY array as an unbound
+# variable and aborts. SBX is empty exactly when no kernel boundary armed —
+# i.e. the whole documented `os-perms-only` fallback class crashed on every
+# dispatch, on every host without a working sandbox-exec (all of Linux). It
+# never showed here because this host arms. Caught by tests/contract.sh case 8.
 arm_sandbox_prefix() {
   SBX=()
   [ -n "$SANDBOX_PROFILE" ] || return 0
@@ -403,16 +417,16 @@ run_reviewer() {
       timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     kiro)                          # measured: `chat` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" "${SBX[@]}" kiro chat "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac

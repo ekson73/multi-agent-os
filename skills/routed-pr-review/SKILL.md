@@ -184,22 +184,47 @@ a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
+**9 cases · 11 assertions** (cases 5 and 9 each assert an exit code *and* that
+the diagnostic names its reason — a silent correct exit is not enough). The run
+prints one line per assertion; that is why the count below is 11, not 9.
+
 | # | Contract asserted | Guards against |
 |---|---|---|
 | 1 | `exit 0` is **reachable** when a configured primary cleared *this* head | the `.head` scope bug that made the documented success path dead code |
 | 2 | an approval at an **older** sha does not clear C3 | false-green on a stale verdict |
 | 3 | an active `CHANGES_REQUESTED` is never dismissed | `§4.1(e)` — the whole point of the gate |
 | 4 | under-40-byte output is **not** a review | anti-theater guarantee #1 |
-| 5 | explicit `--reviewer` equal to the caller is refused, **with the reason** | verifier ≠ generator bypass |
+| 5 | explicit `--reviewer` equal to the caller is refused **+ the reason is named** | verifier ≠ generator bypass *(2 assertions)* |
 | 6 | silence alone never proves "no primary configured" | `§4.1(a)` absence-from-silence misclassification |
 | 7 | a trailing value-option terminates | the `shift 2` infinite loop |
+| 8 | a broken `sandbox-exec` degrades to `os-perms-only`, never claims `os-sandboxed` | cycle-4 fail-open: a failure to confine reported as a successful denial |
+| 9 | absent `timeout` aborts with a diagnostic **naming the remedy** | cycle-4: a hard dependency discovered late as an opaque per-harness failure *(2 assertions)* |
 
-**They earned their keep on the first run.** Case 5 failed: the refusal fired
-and printed its reason, but `pick_reviewer` runs inside a command substitution,
-so its `die` exited only the subshell and the `|| { … exit 2 }` below re-labelled
-a usage error as `status:no_reviewer` — stderr right, JSON wrong. Validation is
-now hoisted into the main shell. That is defect #20, and the first one a
-*mechanism* caught rather than an external reviewer.
+**They earned their keep three times, on two runs.**
+
+- **Run 1, case 5 → defect #20.** The refusal fired and printed its reason, but
+  `pick_reviewer` runs inside a command substitution, so its `die` exited only
+  the subshell and the `|| { … exit 2 }` below re-labelled a usage error as
+  `status:no_reviewer` — stderr right, JSON wrong. Validation hoisted into the
+  main shell.
+- **Run 2, case 8 → defect #21.** `build_sandbox_profile` assigned the global
+  `$SANDBOX_PROFILE` *before* probing, so a failing probe returned `1` while
+  leaving it set — and `arm_sandbox_prefix`, which trusts only non-emptiness,
+  then wrapped every dispatch in a profile just proven not to work. Now built
+  into a local and published only on success.
+- **Run 2, case 8 again → defect #22, the worst of the three.** With the leak
+  fixed, `SBX` is legitimately empty — and under `set -u`, **bash 3.2 (the macOS
+  default) aborts when an empty array is expanded**. The entire documented
+  `os-perms-only` fallback class therefore crashed on every dispatch, on every
+  host without a working `sandbox-exec` — all of Linux. It never surfaced here
+  because this host arms the kernel boundary. Fixed with the
+  `${SBX[@]+"${SBX[@]}"}` idiom at all 4 sites.
+
+Three defects, none found by a human or a reviewer bot, all found by running the
+path. Cases 8 and 9 exist **because an advisory pointed out that the two cycle-4
+boundary fixes had been proven by ad-hoc probes and never encoded** — proof
+without a regression test is exactly the "verified once, shipped, forgotten"
+pattern this harness exists to end.
 
 ## Anti-theater guarantees
 
@@ -304,4 +329,4 @@ lacked an implementation.
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, contract-tests) | 2026-09-03T22:00:48-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, cycle-4 regressions encoded) | 2026-09-03T22:07:45-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
