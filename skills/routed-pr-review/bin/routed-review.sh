@@ -123,8 +123,14 @@ PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" '
 # quota / plan signals, per review-bot-quota-recovery taxonomy
 QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r '
   [.bot_comments[]? | select(.body | test("rate limit|rate-limited|Review limit reached|next review|paused for this user|requires Pro|quota|usage limit"; "i")) | .who] | unique | join(",")')"
-STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r '
-  [.reviews[]? | select(.sha != .head and .sha != "") | .who] | unique | join(",")')"
+# ⛔ `.head` does NOT exist inside a `.reviews[]` element — it is a SIBLING of the
+# array, so `.sha != .head` reduced to `.sha != null` = always true. Every review
+# was classified stale, `STALE_OR_PENDING` never emptied, and the
+# `all_cleared_for_head` branch (the only path to `exit 0`) was dead code.
+# Found by a routed kimi review of this very tool on PR #414; reproduced by
+# executing the shipped expression. Bind the head explicitly, like CLEARED does.
+STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
+  [.reviews[]? | select(.sha != $head and .sha != "") | .who] | unique | join(",")')"
 CLEARED="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
   [.reviews[]? | select(.sha == $head and (.verdict == "APPROVED" or .verdict == "COMMENTED")) | .who] | unique | join(",")')"
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
@@ -357,10 +363,16 @@ run_reviewer() {
   local h="$1" rc=0 dir="$2"
   case "$h" in
     claude)   # proven: cross-harness-red-team (claude-code 2.1.235)
-      timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
+      # ⛔ `--add-dir` GRANTS access to a directory; it does NOT move the working
+      # directory. Without the `cd`, Read/Grep/Glob open the CALLER's $PWD first —
+      # the very checkout that just failed `cwd_is_head` — while the comment stamps
+      # `Head reviewed: $HEAD_SHA`. Both tamper checks stayed clean because nothing
+      # was written, so the wrong-tree read was invisible. This is the exact defect
+      # the codex branch avoids with `--cd`. Found by a routed kimi review on #414.
+      ( cd "$dir" && timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
         --max-turns "$MAX_TURNS" \
         --allowedTools "Read" "Grep" "Glob" \
-        --add-dir "$dir" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
+        --add-dir "$dir" ) > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
       timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
