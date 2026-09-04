@@ -81,9 +81,15 @@ chmod +x "$STUB_BIN/kimi"
 # Run the REAL script against the stub PATH. Per-case fixtures are passed as an
 # env prefix (`T_REVIEWS=… sut`) — bash applies those to the function call, so
 # each case is data rather than another copy of the invocation.
+# `EXTRA_BIN` prepends a per-case stub dir (used to force a broken sandbox).
+# `ONLY_BIN` REPLACES the PATH entirely (used to prove a missing dependency is
+# diagnosed rather than surfacing later as an opaque failure).
 sut() {
+  local p="${STUB_BIN}:${PATH}"
+  [ -n "${EXTRA_BIN:-}" ] && p="${EXTRA_BIN}:${p}"
+  [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
   ( cd "$REPO_DIR" \
-    && PATH="$STUB_BIN:$PATH" T_HEAD="$HEAD_SHA" \
+    && PATH="$p" T_HEAD="$HEAD_SHA" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -163,6 +169,37 @@ else
   FAIL=$((FAIL+1)); FAILED_NAMES+=("arg loop")
   printf '  \033[31mFAIL\033[0m  trailing value-option: exit %s (124 = hung)\n' "$RC"
 fi
+
+# ── 8 ── the sandbox probe must FAIL CLOSED.
+# Cycle-4 regression. The single-step probe could not tell "sandbox-exec ran and
+# denied the write" from "sandbox-exec never ran" — both leave no probe file,
+# and the old fallthrough then reported ARMED. A failure to confine was
+# indistinguishable from a successful denial: a fail-open inside the control
+# added to close a fail-open. A `sandbox-exec` that always fails must therefore
+# degrade the class to `os-perms-only`, never claim `os-sandboxed`.
+BROKEN_SBX="$SANDBOX/broken"; mkdir -p "$BROKEN_SBX"
+printf '#!/usr/bin/env bash\nexit 65\n' > "$BROKEN_SBX/sandbox-exec"
+chmod +x "$BROKEN_SBX/sandbox-exec"
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a broken sandbox-exec degrades to os-perms-only (never claims os-sandboxed)" \
+      3 '.isolation.read_only_enforcement' "os-perms-only"
+
+# ── 9 ── a missing hard dependency is DIAGNOSED, not discovered late.
+# Cycle-4 regression. `timeout` is used at 6 dispatch sites and in both sandbox
+# probes, but was never checked while gh/jq/tar were; on a host without it the
+# absence surfaced as an opaque per-harness failure. The guard sits after the
+# gh + jq checks, so a PATH carrying those two — plus the interpreter itself —
+# reaches it. (First draft of this case omitted `bash` and scored exit 127:
+# the harness was measuring its own missing shell, not the guard. A test that
+# fails for the wrong reason is worse than no test.)
+ONLY="$SANDBOX/only"; mkdir -p "$ONLY"
+cp "$STUB_BIN/gh" "$ONLY/gh"
+ln -sf "$(command -v jq)"   "$ONLY/jq"
+ln -sf "$(command -v bash)" "$ONLY/bash"
+OUT="$(ONLY_BIN="$ONLY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "absent \`timeout\` aborts with a diagnostic instead of failing opaquely later" 1
+ok_grep "the diagnostic names the dependency and the remedy" 'timeout not found'
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
