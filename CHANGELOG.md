@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `wacli-concierge` skill (operational layer for the wacli WhatsApp CLI)
+
+- `skills/wacli-concierge/SKILL.md` (new) — concierge/operator/verifier for `wacli`
+  (single-binary WhatsApp Web linked-device CLI). Complements, not replaces, the
+  upstream `openclaw/openclaw@wacli` skill: capability decomposition measured that
+  skill's coverage of the operational intent at 2/10 leaves (~20%, under the 50%
+  EXTEND threshold), and it ships under `~/.openclaw/extensions/` where local edits
+  are overwritten on update. Carries: named accounts (`--account`, 5-step store
+  precedence) · resilient pairing (QR vs `--phone` code vs `--qr-format text`) ·
+  `--store` documented as a hazard that migrates rather than inspects · honest
+  `doctor` reading (`AUTHENTICATED` vs `CONNECTED` vs `locked_by_other_process`) ·
+  count-vs-listable semantics (tombstones, FTS-content-only) · lock/delegation
+  (follow holds the lock, sends are delegated) · storage caps
+  (`--max-messages`/`--max-db-size` + `WACLI_SYNC_MAX_*`) · degraded app-state
+  (LTHash recovery-once) with the `--refresh-*` workaround. Grounded in all 27
+  wacli.sh doc pages + CHANGELOG; two canonical corrections anchored (tap/repo
+  moved to `openclaw/*`; an MCP server is an explicit upstream non-goal). One
+  observed behavior is filed as an open question, not a finding.
+
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
 - `commands/morning-briefing.md` (new) — thin command surface for the existing
