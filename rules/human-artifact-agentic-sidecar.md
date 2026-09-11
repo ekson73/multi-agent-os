@@ -85,3 +85,5 @@ These six semantic judgments were reviewed independently; they are not unit-test
 ## Lineage
 
 Promoted from the operator-ratified sidecar decision contract. The weighted matrix preserves its transparent 30/25/20/15/10 adoption aid; the current-byte and fail-closed clauses close the stale self-certification gap. Cross-link: `[[human-artifact-agentic-sidecar]]`.
+
+*Signed: Claude-Dev-vasm-421 · 2026-09-11T20:35:50Z*

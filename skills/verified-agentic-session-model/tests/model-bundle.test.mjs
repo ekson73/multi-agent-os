@@ -715,6 +715,14 @@ test("portable distribution rejects private-network and credentialed reference U
   });
 });
 
+test("portable distribution accepts a public urn:embedded-snapshot: reference", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = "urn:embedded-snapshot:test-subject:v1"; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+});
+
 test("derive-child rejects a private-network target repository URI", async () => {
   await temp(async (directory) => {
     const model = await copyModel(directory);
