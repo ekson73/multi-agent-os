@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `verified-agentic-session-model` PR #421 assurance remediation
+
+- Closed six independently reproduced security findings in the v2 CLI, plus
+  two residual bypasses found by two further independent re-verification
+  rounds on the same finding before it was considered closed: masked and
+  reordered sensitive-data preflight ahead of every value-echoing
+  diagnostic, including a transition path that previously ran no scan at
+  all; replaced scheme-only public-reference checks with real URL/host
+  parsing that rejects loopback/RFC1918/`.local`/single-label/credentialed
+  URIs — including IPv4-mapped (`::ffff:0:0/96`) and NAT64 (`64:ff9b::/96`)
+  IPv6 forms embedding a private address, and a link-local `fe80::/10`
+  boundary bug where a literal `fe80:`-prefix match rejected only
+  `fe80::/16` and missed `fe81::`–`febf::` — and restricts `urn:` to an
+  explicit namespace allowlist; **breaking** `derive-child` request
+  contract — inherited `dna`/`template`/`governance` material must now be
+  named explicitly via a new required `inherited_material_ids` field,
+  closing a wholesale-inheritance smuggling path (no collection is
+  inherited by kind or public label alone); malformed existing manifests
+  now fail closed instead of silently reusing a stem; portable render
+  re-hashes both final files against their manifest digests immediately
+  after rename and before writing `VALIDATED`; canonicalization rejects
+  unpaired UTF-16 surrogates per RFC 8785/I-JSON instead of silently
+  accepting them.
+- Tightened `schemas/integrity-manifest.schema.json` to match the CLI's own
+  `manifestSemanticErrors` runtime gate: `derived.status_counts` is now a
+  fixed 11-position tuple in canonical order, and `embedded_blocks` is
+  profile-conditional (`standard` ⇒ empty; `portable_sidecard` ⇒ exactly the
+  two canonical blocks in order).
+- Wired the existing 28-case `tests/model-bundle.test.mjs` suite into CI via
+  a new `test:verified-agentic-session-model` npm script and
+  `.github/workflows/verified-agentic-session-model-tests.yml` (mirrors
+  `lens-dispatch-tests.yml`'s house style; deliberately no `paths:` filter).
+  The suite's pre-existing `standard`-profile Archify integration test still
+  self-skips on a clean CI runner without a local Archify install — that
+  path remains best-effort/skip-on-absence, unchanged from its original
+  design; provisioning Archify inside CI is a separate, not-yet-authorized
+  follow-up. The `portable-sidecard` profile — the one this PR ships — has
+  full CI coverage.
+- Applied the remaining valid CodeRabbit test-quality findings on the same
+  suite (diagnosable JSON-parse failures, missing render-status assertions
+  before dereferencing results, a dead-code test mutation, a fail-closed
+  directory assertion, ordering-key ambiguity, and asserting the exact
+  transition-denial error code); skipped the one finding CodeRabbit itself
+  tagged non-actionable/low-value.
+- Independently re-verified by a fresh security review; wacli Eko Almanac
+  re-rendered at r23 with corrected status once remediation landed.
+
 ### Added — `verified-agentic-session-model` v2 portable AI-first sidecard
 
 - Upgraded the skill, command, two schemas, dependency-free CLI, and neutral fixtures to

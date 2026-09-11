@@ -44,6 +44,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "validate:skills": "bash scripts/validate-skill-frontmatter.sh"
+    "validate:skills": "bash scripts/validate-skill-frontmatter.sh",
+    "test:verified-agentic-session-model": "node --test skills/verified-agentic-session-model/tests/model-bundle.test.mjs"
   }
 }
