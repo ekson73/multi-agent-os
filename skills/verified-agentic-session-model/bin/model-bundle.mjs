@@ -699,7 +699,7 @@ function deriveFacts(model) {
   return { status_counts: STATUS_VALUES.map((status) => ({ status, count: counts[status] })), readiness, critical_path_head: criticalPathHead, next: nextTask(model) };
 }
 
-const PUBLIC_URN_PREFIXES = ["urn:vasm:", "urn:public:", "urn:example:"];
+const PUBLIC_URN_PREFIXES = ["urn:vasm:", "urn:public:", "urn:example:", "urn:embedded-snapshot:"];
 function embeddedIPv4FromMappedHost(inner) {
   const hexPair = /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
   if (!hexPair) return null;
