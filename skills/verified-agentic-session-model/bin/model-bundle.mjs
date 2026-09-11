@@ -129,7 +129,18 @@ function canonicalize(value) {
   return value;
 }
 
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+function assertNoLoneSurrogates(value) {
+  if (typeof value === "string") {
+    if (LONE_SURROGATE.test(value)) throw new AppError("CANONICALIZATION_LONE_SURROGATE", "Canonicalization rejected an unpaired UTF-16 surrogate (masked)");
+  } else if (Array.isArray(value)) {
+    for (const item of value) assertNoLoneSurrogates(item);
+  } else if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) { assertNoLoneSurrogates(key); assertNoLoneSurrogates(value[key]); }
+  }
+}
 function canonicalBytes(value) {
+  assertNoLoneSurrogates(value);
   return Buffer.from(JSON.stringify(canonicalize(value)));
 }
 
@@ -417,7 +428,7 @@ function semanticErrors(model) {
   const gapRiskIds = new Set([...model.analysis.gaps, ...model.analysis.risks].map((item) => item.id));
   const edgePairs = new Set(model.topology.edges.map((edge) => `${edge.from}\u0000${edge.to}`));
   const add = (at, code, message) => errors.push({ path: at || "/", code, message });
-  const requireRef = (set, value, at, code) => { if (!set.has(value)) add(at, code, `unknown reference ${value}`); };
+  const requireRef = (set, value, at, code) => { if (!set.has(value)) add(at, code, "unknown reference (masked)"); };
 
   walk(model, "", (value, at) => {
     if (!Array.isArray(value) && typeof value.id === "string") {
@@ -688,6 +699,54 @@ function deriveFacts(model) {
   return { status_counts: STATUS_VALUES.map((status) => ({ status, count: counts[status] })), readiness, critical_path_head: criticalPathHead, next: nextTask(model) };
 }
 
+const PUBLIC_URN_PREFIXES = ["urn:vasm:", "urn:public:", "urn:example:"];
+function embeddedIPv4FromMappedHost(inner) {
+  const hexPair = /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
+  if (!hexPair) return null;
+  const high = Number.parseInt(hexPair[1], 16);
+  const low = Number.parseInt(hexPair[2], 16);
+  if (!Number.isInteger(high) || !Number.isInteger(low) || high > 0xffff || low > 0xffff) return null;
+  return [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff];
+}
+function isPrivateIPv4Quad(a, b) {
+  return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+}
+function isPrivateOrLoopbackHost(hostname) {
+  const host = hostname.toLowerCase();
+  if (host === "localhost" || host === "0.0.0.0") return true;
+  if (host.endsWith(".local")) return true;
+  if (host.startsWith("[") && host.endsWith("]")) {
+    const inner = host.slice(1, -1);
+    if (inner === "::1" || inner === "::") return true;
+    // fe80::/10 spans first-hextet 0xfe80-0xfebf (10 fixed bits, not nibble-aligned) —
+    // a literal "fe80:" string-prefix match misses fe81::..febf:: entirely.
+    const leadingHextetText = inner.split(":")[0];
+    const leadingHextet = /^[0-9a-f]{1,4}$/u.test(leadingHextetText) ? Number.parseInt(leadingHextetText, 16) : null;
+    if (leadingHextet !== null && leadingHextet >= 0xfe80 && leadingHextet <= 0xfebf) return true;
+    if (/^f[cd][0-9a-f]{2}:/u.test(inner)) return true;
+    // SEC-002 follow-up: an IPv4-mapped (::ffff:0:0/96, RFC 4291 §2.5.5.2) or NAT64
+    // (64:ff9b::/96, RFC 6052) IPv6 literal embeds a real IPv4 address in its last 32
+    // bits; re-run the same dotted-quad private-range check against the embedded bytes
+    // instead of letting WHATWG URL's hex-compressed serialization slip past unchecked.
+    const mapped = embeddedIPv4FromMappedHost(inner);
+    if (mapped) return isPrivateIPv4Quad(mapped[0], mapped[1]);
+    return false;
+  }
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u);
+  if (ipv4) return isPrivateIPv4Quad(Number(ipv4[1]), Number(ipv4[2]));
+  return !host.includes(".");
+}
+function isPublicHttpsUri(uri) {
+  if (typeof uri !== "string" || !uri.startsWith("https://")) return false;
+  let parsed;
+  try { parsed = new URL(uri); } catch { return false; }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password) return false;
+  return !isPrivateOrLoopbackHost(parsed.hostname);
+}
+function isPublicReferenceUri(uri) {
+  return isPublicHttpsUri(uri) || (typeof uri === "string" && PUBLIC_URN_PREFIXES.some((prefix) => uri.startsWith(prefix)));
+}
+
 function validatePortableDistribution(model) {
   const problems = [];
   const add = (pathValue, code, message) => problems.push({ path: pathValue, code, message });
@@ -698,12 +757,12 @@ function validatePortableDistribution(model) {
     add("/metadata/distribution", "PORTABLE_POLICY_REQUIRED", "portable sidecards require sanitized public-only distribution");
   }
   model.references.forEach((reference, index) => {
-    if (reference.distribution !== "public" || !/^(?:https:\/\/|urn:)/u.test(reference.uri)) add(`/references/${index}`, "PRIVATE_REFERENCE", "portable references must be public https or urn values");
+    if (reference.distribution !== "public" || !isPublicReferenceUri(reference.uri)) add(`/references/${index}`, "PRIVATE_REFERENCE", "portable references must be public https or urn values");
   });
   const git = model.traceability.git;
   if (git.repository_visibility !== "public" && [git.repository_uri, git.ref_name, git.commit_sha, git.tree_sha].some((value) => value !== null)) add("/traceability/git", "PRIVATE_GIT_DISCLOSURE", "undisclosed Git metadata must remain null");
   model.organization.contexts.forEach((context, index) => {
-    if (context.repository_uri !== null && !context.repository_uri.startsWith("https://")) add(`/organization/contexts/${index}/repository_uri`, "PRIVATE_REPOSITORY_URI", "portable repository URI must be public https or null");
+    if (context.repository_uri !== null && !isPublicHttpsUri(context.repository_uri)) add(`/organization/contexts/${index}/repository_uri`, "PRIVATE_REPOSITORY_URI", "portable repository URI must be public https or null");
   });
   for (const classification of model.organization.classifications) {
     if (["private", "secrets", "pii", "lgpd", "gdpr"].includes(classification.class) && classification.disposition !== "excluded") add("/organization/classifications", "PRIVATE_CLASSIFICATION_INCLUDED", `${classification.class} must be excluded`);
@@ -1723,8 +1782,8 @@ async function renderPortable(modelFile, options) {
   const outDir = path.resolve(options.out);
   await ensureOwnedDirectory(outDir);
   const { value: model } = await readJson(modelFile, "session model");
-  validateModel(model);
   enforceSensitivePreflight(canonicalBytes(model));
+  validateModel(model);
   const stem = await selectPortableStem(model, outDir);
   const rendered = renderPortableSidecard(model, stem);
   const outputs = {
@@ -1738,15 +1797,18 @@ async function renderPortable(modelFile, options) {
   try {
     if (fs.existsSync(outputs.manifest)) {
       const existing = await readJson(outputs.manifest, "existing manifest");
+      const existingProblems = [...schemaErrors(existing.value, MANIFEST_SCHEMA)];
+      if (!existingProblems.length) existingProblems.push(...manifestSemanticErrors(existing.value));
       if (existing.value.identity_sha256 !== identityDigest(model)) throw new AppError("IDENTITY_HASH_COLLISION", "Existing output carries a different identity digest");
-      const priorSource = existing.value.subjects?.find((item) => item.role === "source");
-      if (priorSource && fs.existsSync(path.join(outDir, priorSource.path))) {
+      const priorSource = existingProblems.length ? undefined : existing.value.subjects.find((item) => item.role === "source");
+      if (!priorSource) throw new AppError("STALE_MANIFEST_UNTRUSTED", "Existing manifest under this identity is malformed or missing a readable source subject; refusing to reuse its stem", 1, existingProblems.length ? existingProblems : undefined);
+      if (fs.existsSync(path.join(outDir, priorSource.path))) {
         const priorBytes = (await readBundleSubject(outDir, await realpath(outDir), priorSource)).bytes;
         let priorModel;
         try { priorModel = JSON.parse(priorBytes.toString("utf8")); } catch { throw new AppError("OUTPUT_COLLISION", "Existing source snapshot is invalid"); }
         if (!canonicalBytes(priorModel.identity).equals(canonicalBytes(model.identity))) throw new AppError("IDENTITY_HASH_COLLISION", "Identity digest collision detected against canonical identity bytes");
       }
-      if (priorSource && priorSource.digest.value !== sha256(rendered.source)) throw new AppError("IDENTITY_REVISION_REQUIRED", "Same identity already exists with different semantic bytes");
+      if (priorSource.digest.value !== sha256(rendered.source)) throw new AppError("IDENTITY_REVISION_REQUIRED", "Same identity already exists with different semantic bytes");
     }
     const runId = randomUUID();
     await writeStaleManifest(outputs.manifest, model, "portable_sidecard", outputs.source, rendered.source, runId);
@@ -1780,6 +1842,11 @@ async function renderPortable(modelFile, options) {
     if (problems.length) throw new AppError("MANIFEST_SCHEMA_INVALID", "Generated portable manifest failed validation", 1, problems);
     await rename(stagedSource, outputs.source);
     await rename(stagedHtml, outputs.sidecard);
+    const finalSourceDigest = sha256(await readBounded(outputs.source, "final rendered source"));
+    const finalSidecardDigest = sha256(await readBounded(outputs.sidecard, "final rendered sidecard"));
+    const sourceSubject = manifest.subjects.find((item) => item.role === "source");
+    const sidecardSubject = manifest.subjects.find((item) => item.role === "sidecard_html");
+    if (finalSourceDigest !== sourceSubject.digest.value || finalSidecardDigest !== sidecardSubject.digest.value) throw new AppError("POST_RENAME_HASH_MISMATCH", "Final renamed bundle subjects no longer match their computed digests");
     await atomicWrite(outputs.manifest, jsonText(manifest));
     return { profile: "portable_sidecard", trust: "CONSISTENT_UNTRUSTED", manifest: outputs.manifest, outputs, derived: rendered.derived, embedded_blocks: rendered.blocks };
   } finally {
@@ -1842,8 +1909,8 @@ async function verifyCommand(manifestFile, options) {
   let model;
   try { model = JSON.parse(subjectFiles.get("source").bytes.toString("utf8")); }
   catch { throw new AppError("JSON_INVALID", "Hashed source subject is invalid JSON"); }
-  validateModel(model);
   enforceSensitivePreflight(canonicalBytes(model));
+  validateModel(model);
   const derived = deriveFacts(model);
   const parity = [];
   if (manifest.artifact_id !== artifactId(model)) parity.push({ view: "manifest", reason: "artifact_id differs" });
@@ -1928,6 +1995,7 @@ function stateFromEvent(previous, event) {
 
 async function transitionCommand(modelFile, options) {
   const { value: model, bytes } = await readJson(modelFile, "session model");
+  enforceSensitivePreflight(canonicalBytes(model));
   validateModel(model);
   assertBaseDigest(bytes, options["expected-digest"]);
   const { value: event } = await readJson(path.resolve(options.event), "transition event");
@@ -1944,6 +2012,7 @@ async function transitionCommand(modelFile, options) {
   model.traceability.updated_at = event.occurred_at;
   model.identity.chronological.as_of = event.occurred_at;
   model.identity.chronological.revision += 1;
+  enforceSensitivePreflight(canonicalBytes(model));
   validateModel(model);
   const output = path.resolve(options.out);
   await ensureOwnedJsonOutput(output);
@@ -1958,7 +2027,7 @@ async function transitionCommand(modelFile, options) {
 }
 
 function validateChildRequest(request) {
-  const required = ["schema_version", "kind", "derivation_plan_id", "target_project_slug", "target_repository_uri", "subject_slug", "purpose_slug", "target_domain_slugs", "as_of", "version", "capability_ceiling"];
+  const required = ["schema_version", "kind", "derivation_plan_id", "target_project_slug", "target_repository_uri", "subject_slug", "purpose_slug", "target_domain_slugs", "as_of", "version", "capability_ceiling", "inherited_material_ids"];
   if (!request || Object.keys(request).sort().join("|") !== [...required].sort().join("|")) throw new AppError("CHILD_REQUEST_INVALID", "Child request fields differ from the closed contract");
   if (request.schema_version !== "1.0.0" || request.kind !== "agentic_session_child_request") throw new AppError("CHILD_REQUEST_INVALID", "Child request identity is invalid");
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(request.derivation_plan_id)) throw new AppError("CHILD_REQUEST_INVALID", "derivation_plan_id must be UUIDv4");
@@ -1966,8 +2035,13 @@ function validateChildRequest(request) {
       || !Array.isArray(request.capability_ceiling) || request.capability_ceiling.length > 7 || new Set(request.capability_ceiling).size !== request.capability_ceiling.length) {
     throw new AppError("CHILD_REQUEST_INVALID", "Child domains or capability ceiling are invalid");
   }
+  if (!Array.isArray(request.inherited_material_ids) || request.inherited_material_ids.length > 300
+      || new Set(request.inherited_material_ids).size !== request.inherited_material_ids.length
+      || request.inherited_material_ids.some((id) => typeof id !== "string" || !/^[A-Za-z][A-Za-z0-9_-]*$/u.test(id))) {
+    throw new AppError("CHILD_REQUEST_INVALID", "Child inherited_material_ids must be a bounded, unique array of valid material ids");
+  }
   for (const slug of [request.target_project_slug, request.subject_slug, request.purpose_slug, ...request.target_domain_slugs]) if (typeof slug !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(slug)) throw new AppError("CHILD_REQUEST_INVALID", "Child slugs are invalid");
-  if (typeof request.target_repository_uri !== "string" || !request.target_repository_uri.startsWith("https://") || !validRfc3339(request.as_of) || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)/u.test(request.version)) throw new AppError("CHILD_REQUEST_INVALID", "Child repository, timestamp, or version is invalid");
+  if (typeof request.target_repository_uri !== "string" || !isPublicHttpsUri(request.target_repository_uri) || !validRfc3339(request.as_of) || !/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)/u.test(request.version)) throw new AppError("CHILD_REQUEST_INVALID", "Child repository, timestamp, or version is invalid");
 }
 
 function plannedState() {
@@ -1989,21 +2063,27 @@ async function deriveChildCommand(modelFile, options) {
   const inheritedReferences = [];
   const referenceIds = new Map();
   const inherited = { seeds: [], dna: [], templates: [], instructions: [], prompts: [], directives: [], governance: [] };
-  for (const collection of ["dna", "templates", "governance"]) {
-    for (const material of parent.inert_material[collection]) {
-      const reference = parentReferences.get(material.source_ref);
-      if (!reference || reference.distribution !== "public" || !/^(?:https:\/\/|urn:)/u.test(reference.uri)) continue;
-      if (!referenceIds.has(reference.id)) {
-        const id = `inherited_ref_${referenceIds.size}`;
-        referenceIds.set(reference.id, id);
-        inheritedReferences.push({ ...reference, id });
-      }
-      inherited[collection].push({
-        ...material,
-        id: `inherited_${collection}_${inherited[collection].length}`,
-        source_ref: referenceIds.get(reference.id)
-      });
+  const inheritableCollections = ["dna", "templates", "governance"];
+  const materialById = new Map();
+  for (const collection of inheritableCollections) {
+    for (const material of parent.inert_material[collection]) materialById.set(material.id, { collection, material });
+  }
+  for (const id of request.inherited_material_ids) {
+    const found = materialById.get(id);
+    if (!found) throw new AppError("INHERITED_MATERIAL_NOT_FOUND", "Requested inherited material id does not resolve to eligible parent dna, template, or governance material (masked)");
+    const { collection, material } = found; // SEC-003: only explicitly requested material ids ever leave the parent, never a wholesale collection spread.
+    const reference = parentReferences.get(material.source_ref);
+    if (!reference || reference.distribution !== "public" || !isPublicReferenceUri(reference.uri)) throw new AppError("INHERITED_MATERIAL_NOT_PUBLIC", "Requested inherited material does not resolve to a public reference", 1, { collection });
+    if (!referenceIds.has(reference.id)) {
+      const refId = `inherited_ref_${referenceIds.size}`;
+      referenceIds.set(reference.id, refId);
+      inheritedReferences.push({ ...reference, id: refId });
     }
+    inherited[collection].push({
+      ...material,
+      id: `inherited_${collection}_${inherited[collection].length}`,
+      source_ref: referenceIds.get(reference.id)
+    });
   }
   const parentDigest = sha256(bytes);
   const lineageReference = {

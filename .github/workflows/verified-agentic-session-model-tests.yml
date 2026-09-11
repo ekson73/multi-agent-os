@@ -1,0 +1,57 @@
+name: verified-agentic-session-model tests
+
+# skills/verified-agentic-session-model/tests/model-bundle.test.mjs asserts the CLI's
+# security-relevant contracts (schema validation, sensitive-data preflight, distribution
+# gating, child-derivation isolation, identity/revision guards, atomic render, canonical
+# byte encoding). An uncited-because-unrun suite is exactly the defect an independent
+# security review flagged on this skill (wacli Eko Almanac r23 audit) — this file wires
+# the existing 22+ tests into CI so a regression on any of those contracts fails the build.
+
+# ⚠️ NO `paths:` filter, deliberately — same rationale as lens-dispatch-tests.yml.
+# A filter listing only skills/verified-agentic-session-model/** would be a BYPASS: the
+# suite exercises schema files, the bin/model-bundle.mjs CLI, and package.json's own
+# script wiring together — filtering to only the skill's own files would let a change to
+# the npm script or package.json engines requirement slip through untested.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel a superseded run when new commits land on the same PR/branch.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verified-agentic-session-model:
+    name: model-bundle test suite + Validate plugin structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # SHA-pinned, matching supply-chain-sentinel.yml ("All third-party actions pinned").
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          # Don't persist the checkout token in .git/config — this job only reads the tree
+          # and runs the test suite; it never pushes.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        # SHA-pinned, matching the checkout pin above. package.json declares engines.node
+        # >=20; pin the newest major that still satisfies it.
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+
+      - name: model-bundle test suite (node --test)
+        run: npm run test:verified-agentic-session-model
+
+      - name: Validate plugin structure (repo MUST rule)
+        # CLAUDE.md § MUST: "Validate plugin structure before committing." Re-asserts the
+        # repo-wide skill-frontmatter check on every PR/push touching this workflow's scope,
+        # mirroring lens-dispatch-tests.yml's final step.
+        run: npm run validate:skills

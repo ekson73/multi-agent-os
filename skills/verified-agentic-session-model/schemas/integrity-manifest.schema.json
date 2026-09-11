@@ -24,15 +24,20 @@
         "type": "array",
         "minItems": 11,
         "maxItems": 11,
-        "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["status", "count"],
-          "properties": {
-            "status": { "$ref": "#/$defs/status" },
-            "count": { "type": "integer", "minimum": 0, "maximum": 100000 }
-          }
-        }
+        "prefixItems": [
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "planned" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "started" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "delegated" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "deferred" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "hitl" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "blocked" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "completed" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "canceled" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "superseded" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "deprecated" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } },
+          { "type": "object", "additionalProperties": false, "required": ["status", "count"], "properties": { "status": { "const": "unknown" }, "count": { "type": "integer", "minimum": 0, "maximum": 100000 } } }
+        ],
+        "items": false
       },
       "readiness": { "enum": ["READY", "NOT_READY"] },
       "critical_path_head": { "type": ["string", "null"], "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
@@ -91,6 +96,25 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "profile": { "const": "standard" } }, "required": ["profile"] },
+      "then": { "properties": { "embedded_blocks": { "type": "array", "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "profile": { "const": "portable_sidecard" } }, "required": ["profile"] },
+      "then": { "properties": { "embedded_blocks": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "prefixItems": [
+          { "allOf": [ { "$ref": "#/$defs/embeddedBlock" }, { "type": "object", "properties": { "id": { "const": "vasm-semantic-source" }, "role": { "const": "semantic_source" } } } ] },
+          { "allOf": [ { "$ref": "#/$defs/embeddedBlock" }, { "type": "object", "properties": { "id": { "const": "vasm-render-receipt" }, "role": { "const": "render_receipt" } } } ] }
+        ],
+        "items": false
+      } } }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },

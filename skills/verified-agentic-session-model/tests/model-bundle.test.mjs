@@ -31,7 +31,10 @@ const ALLOWED = {
 function run(args) {
   return spawnSync(process.execPath, [cli, ...args], { encoding: "utf8" });
 }
-function body(stream) { return JSON.parse(stream.trim()); }
+function body(stream) {
+  try { return JSON.parse(stream.trim()); }
+  catch (error) { throw new Error(`Failed to parse JSON output: ${error.message}\n--- captured output ---\n${stream}`); }
+}
 function sha(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function decodeCapsule(html, id) {
   const match = html.match(new RegExp(`<script id="${id}"[^>]*>([A-Za-z0-9_-]+)<\\/script>`, "u"));
@@ -94,6 +97,17 @@ function eventFor(from, to, digest) {
     reconciliation: reconciliation()
   };
 }
+function childRequest(overrides = {}) {
+  return {
+    schema_version: "1.0.0", kind: "agentic_session_child_request", derivation_plan_id: randomUUID(),
+    target_project_slug: "child-project", target_repository_uri: "https://example.com/public/child-project",
+    subject_slug: "child-session", purpose_slug: "public-coordination", target_domain_slugs: ["delivery"],
+    as_of: "2026-09-13T12:00:00Z", version: "1.0.0",
+    capability_ceiling: ["read_public_evidence", "validate_model", "render_sidecard"],
+    inherited_material_ids: [],
+    ...overrides
+  };
+}
 
 test("v2 fixtures validate and expose the exact lifecycle vocabulary", () => {
   for (const fixture of [activeFixture, readyFixture]) {
@@ -116,7 +130,7 @@ test("legacy state aliases and incomplete lifecycle conditionals fail closed", a
       if (state === "planned") invalid.plan.work_items[0].lifecycle_state.started_at = "2026-09-12T12:00:00Z";
       else if (state === "started") invalid.plan.work_items[0].lifecycle_state.started_at = null;
       else if (state === "delegated") invalid.plan.work_items[0].lifecycle_state.assigned_actor_ref = null;
-      else if (state === "deferred") { invalid.plan.work_items[0].lifecycle_state.resume_after = null; invalid.plan.work_items[0].lifecycle_state.decision_ref = null; }
+      else if (state === "deferred") invalid.plan.work_items[0].lifecycle_state.resume_after = null;
       else if (state === "hitl") invalid.plan.work_items[0].lifecycle_state.decision_ref = null;
       else if (["blocked", "unknown"].includes(state)) invalid.plan.work_items[0].lifecycle_state.reason = null;
       else if (state === "completed") invalid.plan.work_items[0].lifecycle_state.evidence_refs = [];
@@ -223,6 +237,7 @@ test("portable sidecard renders an accessible directed SVG before status nodes w
 test("inspect rejects noncanonical capsule encoding without writing", async () => {
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const file = rendered.resultBody.outputs.sidecard;
     const html = await readFile(file, "utf8");
     const altered = html.replace(/(<script id="vasm-semantic-source"[^>]*>)([A-Za-z0-9_-]+)(<\/script>)/u, "$1$2=$3");
@@ -236,6 +251,7 @@ test("inspect rejects noncanonical capsule encoding without writing", async () =
 test("inspect rejects visible outer-sidecard tampering even when capsules remain intact", async () => {
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const file = rendered.resultBody.outputs.sidecard;
     const altered = (await readFile(file, "utf8")).replace("Nonbinding governance snapshot", "Altered governance snapshot");
     await writeFile(file, altered);
@@ -249,6 +265,7 @@ test("inspect re-runs sensitive scanning on internally rebound capsules", async 
   await temp(async (directory) => {
     const raw = "capsule-owner@private-domain.dev";
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const file = rendered.resultBody.outputs.sidecard;
     let html = await readFile(file, "utf8");
     const model = decodeCapsule(html, "vasm-semantic-source");
@@ -322,7 +339,7 @@ test("encoded-candidate budget fails closed before a later encoded secret can by
     assert.equal(result.status, 1);
     assert.equal(body(result.stderr).error.code, "SENSITIVE_SCAN_BUDGET_EXCEEDED");
     assert.equal(`${result.stdout}${result.stderr}`.includes(raw), false);
-    assert.deepEqual(fs.readdirSync(output), []);
+    assert.deepEqual(fs.existsSync(output) ? fs.readdirSync(output) : [], []);
   });
 });
 
@@ -330,6 +347,7 @@ test("encoded-candidate budget fails closed before a later encoded secret can by
 test("subject and visible-view tampering are detected", async () => {
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const { manifest, outputs } = rendered.resultBody;
     await writeFile(outputs.sidecard, Buffer.concat([await readFile(outputs.sidecard), Buffer.from(" ")]));
     const verify = run(["verify", manifest]);
@@ -338,6 +356,7 @@ test("subject and visible-view tampering are detected", async () => {
   });
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const manifest = JSON.parse(await readFile(rendered.resultBody.manifest, "utf8"));
     const htmlSubject = manifest.subjects.find((item) => item.role === "sidecard_html");
     const htmlFile = rendered.resultBody.outputs.sidecard;
@@ -355,6 +374,7 @@ test("fresh verify re-runs sensitive scanning before parity success", async () =
   await temp(async (directory) => {
     const raw = "verified-owner@private-domain.dev";
     const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const manifest = JSON.parse(await readFile(rendered.resultBody.manifest, "utf8"));
     const sourceSubject = manifest.subjects.find((item) => item.role === "source");
     const sourceFile = path.join(rendered.out, sourceSubject.path);
@@ -431,6 +451,25 @@ test("next selection is dependency-aware and uses stable blocking, priority, cri
     const delegated = await mutateModel(directory, (value) => { value.plan.work_items[0].lifecycle_state = lifecycle("delegated"); });
     assert.deepEqual(body(run(["next", delegated]).stdout).next, { disposition: "DELEGATED", task_ref: "work_review" });
   });
+  await temp(async (directory) => {
+    const item = (overrides) => ({
+      id: overrides.id, title: overrides.id, description: null, task_kind: "delivery",
+      priority: "q1", sequence: overrides.sequence, blocking: true, critical_path_ref: overrides.critical_path_ref,
+      dependencies: [], blocker_refs: [], domain_refs: ["domain_release"], world_refs: ["world_human"],
+      deliverables: ["Outcome"], lifecycle_state: lifecycle("planned")
+    });
+    const model = await mutateModel(directory, (value) => {
+      value.plan.work_items = [
+        item({ id: "work_alpha", sequence: 5, critical_path_ref: "publish" }),
+        item({ id: "work_beta", sequence: 5, critical_path_ref: "compose" }),
+        item({ id: "work_gamma", sequence: 2, critical_path_ref: "compose" }),
+        item({ id: "work_aaa_first", sequence: 2, critical_path_ref: "compose" })
+      ];
+    });
+    const result = run(["next", model]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(body(result.stdout).next, { disposition: "TASK", task_ref: "work_aaa_first" });
+  });
 });
 
 test("transition matrix, expected digest, atomic output and six reconciliations are enforced", async () => {
@@ -443,6 +482,7 @@ test("transition matrix, expected digest, atomic output and six reconciliations 
     const output = path.join(directory, "transitioned.json");
     const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
     assert.equal(result.status === 0, ALLOWED[from].includes(to), `${from} -> ${to}: ${result.stderr}`);
+    if (!ALLOWED[from].includes(to)) assert.equal(body(result.stderr).error.code, "TRANSITION_DENIED", `${from} -> ${to}: ${result.stderr}`);
     assert.equal(fs.existsSync(output), ALLOWED[from].includes(to));
     if (result.status === 0) {
       const changed = JSON.parse(await readFile(output, "utf8"));
@@ -513,13 +553,7 @@ test("one-child derivation assigns new identity, immutable lineage, bounded dept
       value.inert_material.prompts[0].content = sentinel;
     });
     const digest = sha(await readFile(model));
-    const request = {
-      schema_version: "1.0.0", kind: "agentic_session_child_request", derivation_plan_id: randomUUID(),
-      target_project_slug: "child-project", target_repository_uri: "https://example.com/public/child-project",
-      subject_slug: "child-session", purpose_slug: "public-coordination", target_domain_slugs: ["delivery"],
-      as_of: "2026-09-13T12:00:00Z", version: "1.0.0",
-      capability_ceiling: ["read_public_evidence", "validate_model", "render_sidecard"]
-    };
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_template", "material_governance"] });
     const requestFile = path.join(directory, "request.json");
     await writeFile(requestFile, `${JSON.stringify(request, null, 2)}\n`);
     const output = path.join(directory, "child.json");
@@ -528,6 +562,8 @@ test("one-child derivation assigns new identity, immutable lineage, bounded dept
     const child = JSON.parse(await readFile(output, "utf8"));
     assert.notEqual(body(run(["validate", model]).stdout).artifact_id, body(result.stdout).artifact_id);
     assert.equal(child.child_derivation.generation_depth, 1);
+    assert.match(child.child_derivation.parent_lineage.parent_source_sha256, /^[a-f0-9]{64}$/u);
+    assert.match(digest, /^[a-f0-9]{64}$/u);
     assert.equal(child.child_derivation.parent_lineage.parent_source_sha256, digest);
     assert.deepEqual(child.child_derivation.capability_ceiling, request.capability_ceiling);
     assert.equal(body(result.stdout).automatic_recursive_spawn, false);
@@ -572,12 +608,10 @@ test("one-child derivation assigns new identity, immutable lineage, bounded dept
       value.child_derivation.parent_lineage = { parent_artifact_id: `vasm:${"a".repeat(64)}`, parent_source_sha256: "b".repeat(64), derivation_plan_id: randomUUID() };
     });
     const digest = sha(await readFile(model));
-    const request = {
-      schema_version: "1.0.0", kind: "agentic_session_child_request", derivation_plan_id: randomUUID(),
+    const request = childRequest({
       target_project_slug: "third-project", target_repository_uri: "https://example.com/public/third-project",
-      subject_slug: "third-session", purpose_slug: "public-coordination", target_domain_slugs: ["delivery"],
-      as_of: "2026-09-14T12:00:00Z", version: "1.0.0", capability_ceiling: ["read_public_evidence"]
-    };
+      subject_slug: "third-session", as_of: "2026-09-14T12:00:00Z", capability_ceiling: ["read_public_evidence"]
+    });
     const requestFile = path.join(directory, "request.json");
     await writeFile(requestFile, JSON.stringify(request));
     const output = path.join(directory, "child.json");
@@ -593,13 +627,12 @@ test("child derivation scans allowlisted inherited material before any write", a
     const raw = "sensitive-owner@private-domain.dev";
     const model = await mutateModel(directory, (value) => { value.inert_material.dna[0].content = raw; });
     const digest = sha(await readFile(model));
-    const request = {
-      schema_version: "1.0.0", kind: "agentic_session_child_request", derivation_plan_id: randomUUID(),
+    const request = childRequest({
       target_project_slug: "safe-child", target_repository_uri: "https://example.com/public/safe-child",
-      subject_slug: "safe-child-session", purpose_slug: "public-coordination", target_domain_slugs: ["delivery"],
-      as_of: "2026-09-14T12:00:00Z", version: "1.0.0",
-      capability_ceiling: ["read_public_evidence", "validate_model"]
-    };
+      subject_slug: "safe-child-session", as_of: "2026-09-14T12:00:00Z",
+      capability_ceiling: ["read_public_evidence", "validate_model"],
+      inherited_material_ids: ["material_dna"]
+    });
     const requestFile = path.join(directory, "request.json");
     await writeFile(requestFile, JSON.stringify(request));
     const output = path.join(directory, "child.json");
@@ -620,5 +653,151 @@ test("standard profile still renders through trusted stock Archify", async (cont
     assert.equal(body(render.stdout).profile, "standard");
     const verify = run(["verify", body(render.stdout).manifest, "--archify-dir", stockArchify]);
     assert.equal(verify.status, 0, verify.stderr);
+  });
+});
+
+test("transition scans for sensitive data both before and after applying the event", async () => {
+  await temp(async (directory) => {
+    const raw = "transition-base-owner@private-domain.dev";
+    const model = await mutateModel(directory, (value) => { value.metadata.scope = raw; });
+    const digest = sha(await readFile(model));
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify(eventFor("started", "completed", digest)));
+    const output = path.join(directory, "out.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+    assert.equal(`${result.stdout}${result.stderr}`.includes(raw), false);
+    assert.equal(fs.existsSync(output), false);
+  });
+  await temp(async (directory) => {
+    const raw = "transition-event-owner@private-domain.dev";
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const event = eventFor("started", "completed", digest);
+    event.reason = raw;
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, JSON.stringify(event));
+    const output = path.join(directory, "out.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+    assert.equal(`${result.stdout}${result.stderr}`.includes(raw), false);
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("portable distribution rejects private-network and credentialed reference URIs", async () => {
+  const badUris = [
+    "https://10.0.0.5/status",
+    "https://127.0.0.1/status",
+    "https://192.168.1.5/status",
+    "https://internal-host/status",
+    "https://user:pass@example.com/status",
+    "https://[::ffff:127.0.0.1]/status",
+    "https://[::ffff:169.254.169.254]/latest/meta-data/",
+    "https://[::ffff:10.0.0.5]/status",
+    "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/",
+    "https://[fe80::1]/status",
+    "https://[fe90::1]/status",
+    "https://[febf::1]/status"
+  ];
+  for (const uri of badUris) await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = uri; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1, uri);
+    assert.equal(body(result.stderr).error.code, "PORTABLE_DISTRIBUTION_REJECTED", uri);
+  });
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
+  });
+});
+
+test("derive-child rejects a private-network target repository URI", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const request = childRequest({ target_repository_uri: "https://10.0.0.5/child-project" });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "CHILD_REQUEST_INVALID");
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("derive-child only inherits dna, template, and governance material explicitly named in the request", async () => {
+  const marker = "parent-only-project-prose-marker-9f2e";
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.dna[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_template", "material_governance"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(JSON.stringify(child.inert_material.dna).includes(marker), false);
+    assert.equal(child.inert_material.dna[0].id, "default_dna");
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.dna[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_template", "material_governance"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(child.inert_material.dna[0].content, marker);
+  });
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_missing"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "INHERITED_MATERIAL_NOT_FOUND");
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("portable render fails closed when reusing a stem whose existing manifest is malformed", async () => {
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const manifestFile = rendered.resultBody.manifest;
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    manifest.subjects = [];
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const secondModel = await copyModel(directory);
+    const secondResult = run(["render", secondModel, "--profile", "portable-sidecard", "--out", rendered.out]);
+    assert.equal(secondResult.status, 1);
+    assert.equal(body(secondResult.stderr).error.code, "STALE_MANIFEST_UNTRUSTED");
+  });
+});
+
+test("canonicalization rejects an unpaired UTF-16 surrogate instead of silently accepting it", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.metadata.scope = "lone surrogate \uD800 marker"; });
+    const output = path.join(directory, "out");
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "CANONICALIZATION_LONE_SURROGATE");
+    assert.deepEqual(fs.existsSync(output) ? fs.readdirSync(output) : [], []);
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.metadata.scope = "valid emoji \uD83D\uDE00 marker"; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
   });
 });
