@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `verified-agentic-session-model` v2 portable AI-first sidecard
+
+- Upgraded the skill, command, two schemas, dependency-free CLI, and neutral fixtures to
+  v2.0.0. The clean status vocabulary is now `planned`, `started`, `delegated`,
+  `deferred`, `hitl`, `blocked`, `completed`, `canceled`, `superseded`, `deprecated`,
+  and `unknown`; legacy aliases are rejected.
+  The semantic source adds eight-facet identity, sanitized author/harness/model/Git
+  traceability, artifact/target contexts, human/agentic worlds, public distribution
+  classifications, inert generational material, nonbinding authority, lifecycle events,
+  reconciliation, and bounded child lineage.
+- Added explicit render profiles. `standard` preserves the trusted stock-Archify bundle.
+  `portable-sidecard` invokes no renderer dependency and emits a deterministic passive
+  offline `.sidecard.html`, canonical source snapshot, and v2 manifest. The HTML has an
+  exact restrictive CSP, no executable script/browser effects, exactly two base64url
+  canonical-JSON capsules, visible text+glyph+color states, dependency/identity/trace/
+  governance/next views, and honest `NOT LIVE` / `CONSISTENT_UNTRUSTED` labeling.
+- Added read-only `inspect` and `next`, plus direct expected-digest-gated `transition` and
+  `derive-child` writes. Transitions append events with all six reconciliation
+  dispositions and atomically update owned JSON. Child derivation emits one new identity
+  with immutable lineage, strict capability subset, depth at most two, and no recursive
+  spawn or authority transfer. No generic authority planner, PWA, MCP, plugin, hook,
+  second tool, HTML post-processing, or runtime npm dependency was added.
+- The existing `human-artifact-agentic-sidecar` rule remains the cross-cutting adoption
+  gate; v2 sidecards use their canonical model as the sole machine-first semantic source.
+  Package version is intentionally unchanged in this entry.
+
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
 - `commands/morning-briefing.md` (new) — thin command surface for the existing

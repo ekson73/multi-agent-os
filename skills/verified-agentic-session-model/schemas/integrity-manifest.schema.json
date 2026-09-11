@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ekson73/multi-agent-os/skills/verified-agentic-session-model/schemas/integrity-manifest.schema.json",
+  "title": "Agentic Session Bundle Integrity Manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "artifact_id", "identity_sha256", "run_id", "profile", "status", "consistency_claim", "snapshot_as_of", "created_at", "generator", "subjects", "embedded_blocks", "derived", "checks", "sections"],
+  "properties": {
+    "schema_version": { "const": "2.0.0" },
+    "kind": { "const": "agentic_session_integrity_manifest" },
+    "artifact_id": { "type": "string", "maxLength": 128, "pattern": "^vasm:[a-f0-9]{64}$" },
+    "identity_sha256": { "$ref": "#/$defs/sha256" },
+    "run_id": { "$ref": "#/$defs/uuid" },
+    "profile": { "enum": ["standard", "portable_sidecard"] },
+    "status": { "enum": ["STALE", "VALIDATED"] },
+    "consistency_claim": { "const": "SELF_CONSISTENT_ONLY" },
+    "snapshot_as_of": { "$ref": "#/$defs/dateTime" },
+    "created_at": { "$ref": "#/$defs/dateTime" },
+    "generator": { "type": "object", "additionalProperties": false, "required": ["name", "version", "runtime"], "properties": { "name": { "const": "verified-agentic-session-model" }, "version": { "const": "2.0.0" }, "runtime": { "type": "string", "maxLength": 64, "pattern": "^node v[0-9]+\\.[0-9]+\\.[0-9]+" } } },
+    "subjects": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/$defs/subject" } },
+    "embedded_blocks": { "type": "array", "maxItems": 2, "items": { "$ref": "#/$defs/embeddedBlock" } },
+    "derived": { "type": "object", "additionalProperties": false, "required": ["status_counts", "readiness", "critical_path_head", "next"], "properties": {
+      "status_counts": {
+        "type": "array",
+        "minItems": 11,
+        "maxItems": 11,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "count"],
+          "properties": {
+            "status": { "$ref": "#/$defs/status" },
+            "count": { "type": "integer", "minimum": 0, "maximum": 100000 }
+          }
+        }
+      },
+      "readiness": { "enum": ["READY", "NOT_READY"] },
+      "critical_path_head": { "type": ["string", "null"], "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+      "next": { "type": "object", "additionalProperties": false, "required": ["disposition", "task_ref"], "properties": { "disposition": { "enum": ["IN_PROGRESS", "DELEGATED", "TASK", "HITL", "BLOCKED", "QUIESCENT"] }, "task_ref": { "type": ["string", "null"], "maxLength": 128 } } }
+    } },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "status"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "status": { "enum": ["PASS", "FAIL"] },
+          "details": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "source_pointer", "projections"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "source_pointer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^/(?:[^~/]|~0|~1)+(?:/(?:[^~/]|~0|~1)+)*$"
+          },
+          "projections": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["role", "locator", "visible_tokens"],
+              "properties": {
+                "role": { "enum": ["workflow", "diagram_html", "markdown", "sidecard_html"] },
+                "locator": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "visible_tokens": {
+                  "type": "array",
+                  "maxItems": 500,
+                  "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "maxLength": 128, "pattern": "^[A-Za-z][A-Za-z0-9_-]*$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "uuid": { "type": "string", "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"] },
+    "digest": { "type": "object", "additionalProperties": false, "required": ["algorithm", "value"], "properties": { "algorithm": { "const": "sha256" }, "value": { "$ref": "#/$defs/sha256" } } },
+    "subject": { "type": "object", "additionalProperties": false, "required": ["role", "path", "media_type", "digest"], "properties": { "role": { "enum": ["source", "workflow", "diagram_html", "markdown", "sidecard_html"] }, "path": { "type": "string", "minLength": 1, "maxLength": 255, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "media_type": { "enum": ["application/json", "text/html", "text/markdown"] }, "digest": { "$ref": "#/$defs/digest" } } },
+    "embeddedBlock": { "type": "object", "additionalProperties": false, "required": ["id", "role", "encoding", "media_type", "canonicalization", "decoded_bytes", "sha256"], "properties": { "id": { "enum": ["vasm-semantic-source", "vasm-render-receipt"] }, "role": { "enum": ["semantic_source", "render_receipt"] }, "encoding": { "const": "base64url" }, "media_type": { "const": "application/json" }, "canonicalization": { "const": "rfc8785-jcs" }, "decoded_bytes": { "type": "integer", "minimum": 2, "maximum": 2097152 }, "sha256": { "$ref": "#/$defs/sha256" } } }
+  }
+}

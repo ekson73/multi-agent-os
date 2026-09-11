@@ -26,6 +26,10 @@
   "files": [
     "skills/**/SKILL.md",
     "skills/**/*.md",
+    "skills/verified-agentic-session-model/bin/**/*.mjs",
+    "skills/verified-agentic-session-model/schemas/**/*.json",
+    "commands/verified-agentic-session-model.md",
+    "rules/human-artifact-agentic-sidecar.md",
     "packaging/**",
     "README.md",
     "LICENSE",
