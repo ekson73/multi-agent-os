@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed 11-position tuple in canonical order, and `embedded_blocks` is
   profile-conditional (`standard` ⇒ empty; `portable_sidecard` ⇒ exactly the
   two canonical blocks in order).
-- Wired the existing 28-case `tests/model-bundle.test.mjs` suite into CI via
+- Wired the existing 29-case `tests/model-bundle.test.mjs` suite into CI via
   a new `test:verified-agentic-session-model` npm script and
   `.github/workflows/verified-agentic-session-model-tests.yml` (mirrors
   `lens-dispatch-tests.yml`'s house style; deliberately no `paths:` filter).
@@ -79,6 +79,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The existing `human-artifact-agentic-sidecar` rule remains the cross-cutting adoption
   gate; v2 sidecards use their canonical model as the sole machine-first semantic source.
   Package version is intentionally unchanged in this entry.
+
+### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
+
+- `skills/morning-briefing/SKILL.md` — the default `--scope=current` briefing was
+  unconditionally scanning sibling worktrees' content (`git worktree list` +
+  per-worktree `git status --short`), silently exposing another agentic
+  session's/agent's uncommitted work without operator awareness. Phase 1's
+  default now enumerates worktree paths/count only; per-worktree content
+  scanning moved to the explicit `--scope=sideways` case (Phase 2.5), and the
+  Phase 3 `$state_detail` template no longer renders sibling paths under the
+  default scope.
+- Same PR, pre-merge bot-review round: fixed 4 correctness bugs in the new
+  `sideways` scan block (non-portable `head -N`, `--breadth=all` crashing
+  `head`/`gh --limit`, the current worktree not excluded from sideways
+  enumeration, and whitespace-unsafe word-splitting on worktree paths).
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
