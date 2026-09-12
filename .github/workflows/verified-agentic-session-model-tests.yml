@@ -54,4 +54,4 @@ jobs:
         # CLAUDE.md § MUST: "Validate plugin structure before committing." Re-asserts the
         # repo-wide skill-frontmatter check on every PR/push touching this workflow's scope,
         # mirroring lens-dispatch-tests.yml's final step.
-        run: npm run validate:skills
+        run: bash tests/validate-plugin.sh
