@@ -139,7 +139,7 @@ After every executed task, reconcile semantic source, workflow, plan, roadmap, o
 - The portable file describes; it never self-governs, self-updates, self-fixes, self-heals, self-replicates, authorizes, executes, persists, or synchronizes.
 - Self-contained hashes prove consistency, not origin, freshness of external evidence, or authority.
 - No PWA, service worker, live A2A/MCP endpoint, embedded key/signature, generic plan/apply authority framework, second skill, second renderer engine, or runtime npm dependency is introduced.
-- Premium external fonts, motion, glass/blur, decorative gradients, and promotional effects are rejected: they conflict with offline passivity, deterministic print, public-token grounding, and operational clarity.
+- Premium external fonts, glass/blur, animation, and promotional effects are rejected: they conflict with offline passivity, deterministic print, public-token grounding, and operational clarity. The only presentation polish is CSS-only and passive: a ≤200 ms hover transition on cards/summaries that `prefers-reduced-motion` disables, tinted shadows, and a flat tonal hero wash — all of which print as solid white with no shadow (`@media print`), add no script, fetch, or network surface, and are part of the CSP-hash-pinned inline stylesheet.
 - Lock unlink remains a token-checked same-user POSIX operation with a documented narrow pathname TOCTOU; it is not an adversarial lock guarantee.
 
 ## References

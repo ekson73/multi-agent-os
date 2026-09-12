@@ -48,7 +48,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   provisioning in CI (operator-recorded decision), palette-validator gate,
   `<table>` duplicate of the SVG text register, and the keyword passivity gate
   on escaped text (fail-closed by design). Workflow-file change flagged for
-  maintainer ratification at merge. 38/38 tests pass.
+  maintainer ratification at merge.
+- Copilot (same head): a schema-valid SemVer with build metadata
+  (`2.0.0+build.1`) could not render a portable bundle because `portableStem`
+  put the raw `+` into subject filenames that the manifest path pattern
+  rejects — the stem now encodes `+` as `_` (never a SemVer character), with a
+  render+verify regression test; SKILL.md's boundary text said "motion and
+  decorative gradients are rejected" while the shipped `PORTABLE_POLISH_STYLE`
+  intentionally carries a reduced-motion-aware hover transition and a flat hero
+  wash that print as solid — the boundary now states exactly that. Copilot's
+  third point (the workflow's "Validate plugin structure" step runs the
+  frontmatter-only `npm run validate:skills`, not the canonical
+  `bash tests/validate-plugin.sh` that `lens-dispatch-tests.yml` runs) is valid
+  but lives in `.github/workflows/` — proposed on-thread for the maintainer, not
+  applied autonomously. 39/39 tests pass.
 
 ### Fixed — `verified-agentic-session-model` independent DIY review: schema validator ignored `allOf`/`if`/`then`
 

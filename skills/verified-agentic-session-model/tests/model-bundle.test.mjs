@@ -1002,3 +1002,17 @@ test("standard render scans the exact persisted source bytes, so a duplicate-mem
     assert.ok(!fs.existsSync(path.join(output, path.basename(model))));
   });
 });
+
+test("a schema-valid SemVer with build metadata renders, verifies, and yields a filename-safe stem", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.identity.version = "2.0.0+build.7"; value.traceability.semantic_version = "2.0.0+build.7"; });
+    assert.equal(run(["validate", model]).status, 0);
+    const out = path.join(directory, "bundle");
+    const render = run(["render", model, "--profile", "portable-sidecard", "--out", out]);
+    assert.equal(render.status, 0, render.stderr);
+    const manifest = body(render.stdout).manifest;
+    assert.match(path.basename(manifest), /-v2\.0\.0_build\.7--h[a-f0-9]{12}\.manifest\.json$/u);
+    assert.ok(!path.basename(manifest).includes("+"));
+    assert.equal(run(["verify", manifest]).status, 0);
+  });
+});
