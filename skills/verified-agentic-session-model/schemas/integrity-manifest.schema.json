@@ -102,6 +102,10 @@
       "then": { "properties": { "embedded_blocks": { "type": "array", "maxItems": 0 } } }
     },
     {
+      "if": { "properties": { "profile": { "const": "portable_sidecard" }, "status": { "const": "STALE" } }, "required": ["profile", "status"] },
+      "then": { "properties": { "embedded_blocks": { "type": "array", "maxItems": 0 } } }
+    },
+    {
       "if": { "properties": { "profile": { "const": "portable_sidecard" }, "status": { "const": "VALIDATED" } }, "required": ["profile", "status"] },
       "then": { "properties": { "embedded_blocks": {
         "type": "array",
