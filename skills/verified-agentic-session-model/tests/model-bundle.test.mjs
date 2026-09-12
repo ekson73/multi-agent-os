@@ -750,7 +750,7 @@ test("derive-child only inherits dna, template, and governance material explicit
     const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
     assert.equal(result.status, 0, result.stderr);
     const child = JSON.parse(await readFile(output, "utf8"));
-    assert.equal(JSON.stringify(child.inert_material.dna).includes(marker), false);
+    assert.equal(JSON.stringify(child).includes(marker), false);
     assert.equal(child.inert_material.dna[0].id, "default_dna");
   });
   await temp(async (directory) => {
@@ -791,7 +791,7 @@ test("derive-child only inherits template material explicitly named in the reque
     const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
     assert.equal(result.status, 0, result.stderr);
     const child = JSON.parse(await readFile(output, "utf8"));
-    assert.equal(JSON.stringify(child.inert_material.templates).includes(marker), false);
+    assert.equal(JSON.stringify(child).includes(marker), false);
     assert.equal(child.inert_material.templates[0].id, "default_template");
   });
   await temp(async (directory) => {
@@ -820,7 +820,7 @@ test("derive-child only inherits governance material explicitly named in the req
     const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
     assert.equal(result.status, 0, result.stderr);
     const child = JSON.parse(await readFile(output, "utf8"));
-    assert.equal(JSON.stringify(child.inert_material.governance).includes(marker), false);
+    assert.equal(JSON.stringify(child).includes(marker), false);
     assert.equal(child.inert_material.governance[0].id, "default_governance");
   });
   await temp(async (directory) => {
