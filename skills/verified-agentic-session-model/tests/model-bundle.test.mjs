@@ -148,8 +148,12 @@ test("deferred requires reason AND resume_after independently - losing either ru
       assert.equal(run(["validate", valid]).status, 0, `deferred baseline (${field})`);
       const invalid = JSON.parse(await readFile(valid, "utf8"));
       invalid.plan.work_items[0].lifecycle_state[field] = null;
+      // A decision reference must not stand in for the missing field.
+      invalid.plan.work_items[0].lifecycle_state.decision_ref = "ref_policy";
       await writeFile(valid, `${JSON.stringify(invalid, null, 2)}\n`);
-      assert.equal(run(["validate", valid]).status, 1, `deferred with ${field}=null must fail closed`);
+      const result = run(["validate", valid]);
+      assert.equal(result.status, 1, `deferred with ${field}=null must fail closed`);
+      assert.ok(body(result.stderr).error.details.some((item) => item.path.endsWith(`/${field}`) && item.code === "LIFECYCLE_CONDITION"), result.stderr);
     });
   }
 });
@@ -240,8 +244,9 @@ test("portable sidecard renders an accessible directed SVG before status nodes w
     assert.match(html, /role=<code>main<\/code> · variant=<code>emphasis<\/code> · route=<code>drop<\/code>/u);
     assert.ok(html.includes("font:15px/1.55 var(--font-ui)"));
     assert.ok(html.includes("--bg:#0d1117;--panel:#161b22"));
-    assert.ok(html.includes("@media(max-width:1000px){.workflow-svg{min-width:900px}}"));
-    assert.ok(html.includes("@media(max-width:720px){main{padding:16px 14px 48px}.grid{grid-template-columns:minmax(0,1fr)}"));
+    assert.ok(html.includes("@media screen and (max-width:1000px){.workflow-svg{min-width:900px}}"));
+    assert.ok(html.includes("@media screen and (max-width:720px){main{padding:16px 14px 48px}.grid{grid-template-columns:minmax(0,1fr)}"));
+    assert.ok(!/@media\s*\(max-width/u.test(html), "width breakpoints must be screen-qualified so print never inherits mobile layout");
     assert.ok(html.includes("@media print{:root{color-scheme:light"));
     assert.ok(html.includes("details:not([open])>*:not(summary){display:block!important}"));
   });
@@ -528,6 +533,26 @@ test("transition matrix, expected digest, atomic output and six reconciliations 
   });
 });
 
+test("returning to planned after a start clears started_at so the allowed transition passes its own gate", async () => {
+  for (const via of ["deferred", "hitl"]) await temp(async (directory) => {
+    let model = await copyModel(directory);
+    assert.equal(JSON.parse(await readFile(model, "utf8")).plan.work_items.find((item) => item.id === "work_review").lifecycle_state.state, "started");
+    for (const [index, [from, to]] of [["started", via], [via, "planned"]].entries()) {
+      const digest = sha(await readFile(model));
+      const event = { ...eventFor(from, to, digest), event_id: `event_${index}_${from}_${to}`, occurred_at: `2026-09-12T14:0${index}:00Z` };
+      const eventFile = path.join(directory, `event-${index}.json`);
+      await writeFile(eventFile, JSON.stringify(event));
+      const output = path.join(directory, `step-${index}.json`);
+      const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+      assert.equal(result.status, 0, `${from} -> ${to} via ${via}: ${result.stderr}`);
+      model = output;
+    }
+    const state = JSON.parse(await readFile(model, "utf8")).plan.work_items.find((item) => item.id === "work_review").lifecycle_state;
+    assert.equal(state.state, "planned");
+    assert.equal(state.started_at, null);
+  });
+});
+
 test("lifecycle history rejects discontinuity, replay, time regression, stale latest pointer and final-state mismatch", async () => {
   const cases = [
     ["HISTORY_STATE_DISCONTINUITY", (model) => { model.lifecycle.events[1].from_state = "planned"; }],
@@ -713,13 +738,35 @@ test("portable distribution rejects private-network and credentialed reference U
     "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/",
     "https://[fe80::1]/status",
     "https://[fe90::1]/status",
-    "https://[febf::1]/status"
+    "https://[febf::1]/status",
+    "https://100.64.0.1/internal",
+    "https://100.127.255.254/internal",
+    "https://[::ffff:100.64.0.1]/internal",
+    "https://192.0.0.8/status",
+    "https://198.18.0.1/status",
+    "https://198.51.100.7/status",
+    "https://203.0.113.9/status",
+    "https://224.0.0.1/status",
+    "https://240.0.0.1/status"
   ];
   for (const uri of badUris) await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = uri; });
     const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
     assert.equal(result.status, 1, uri);
     assert.equal(body(result.stderr).error.code, "PORTABLE_DISTRIBUTION_REJECTED", uri);
+  });
+  const publicGit = { repository_visibility: "public", tracking_state: "tracked_clean", ref_name: "main", commit_sha: "a".repeat(40), tree_sha: "b".repeat(40) };
+  for (const uri of ["https://localhost/private.git", "https://10.0.0.5/private.git", "https://100.64.0.1/private.git"]) await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.traceability.git = { ...value.traceability.git, ...publicGit, repository_uri: uri }; });
+    assert.equal(run(["validate", model]).status, 0, `validate accepts public visibility with ${uri}`);
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1, uri);
+    assert.ok(body(result.stderr).error.details.some((item) => item.path === "/traceability/git/repository_uri" && item.code === "PRIVATE_REPOSITORY_URI"), result.stderr);
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.traceability.git = { ...value.traceability.git, ...publicGit, repository_uri: "https://example.com/public/project.git" }; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
   });
   await temp(async (directory) => {
     const model = await copyModel(directory);
@@ -896,5 +943,62 @@ test("canonicalization rejects an unpaired UTF-16 surrogate instead of silently 
     const model = await mutateModel(directory, (value) => { value.metadata.scope = "valid emoji \uD83D\uDE00 marker"; });
     const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
     assert.equal(result.status, 0, result.stderr);
+  });
+});
+
+test("string length limits count Unicode code points, not UTF-16 units", async () => {
+  for (const [count, expected] of [[4096, 0], [4097, 1]]) await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.metadata.scope = "\u{1F600}".repeat(count); });
+    const result = run(["validate", model]);
+    assert.equal(result.status, expected, `${count} astral characters: ${result.stderr}`);
+    if (expected) assert.ok(body(result.stderr).error.details.some((item) => item.path === "/metadata/scope" && item.keyword === "maxLength"), result.stderr);
+  });
+});
+
+test("timestamps are UTC Z-terminated in both the public schema contract and the CLI", async () => {
+  const schema = JSON.parse(await readFile(path.join(root, "schemas", "session-model.schema.json"), "utf8"));
+  const manifestSchema = JSON.parse(await readFile(path.join(root, "schemas", "integrity-manifest.schema.json"), "utf8"));
+  for (const definition of [schema.$defs.dateTime, schema.$defs.nullableDateTime, manifestSchema.$defs.dateTime]) {
+    const pattern = new RegExp(definition.pattern, "u");
+    assert.ok(pattern.test("2026-09-12T14:00:00Z") && pattern.test("2026-09-12T14:00:00.250Z"));
+    assert.ok(!pattern.test("2026-09-12T14:00:00+02:00") && !pattern.test("2026-09-12T14:00:00-03:00") && !pattern.test("2026-09-12T14:00:00"));
+  }
+  for (const [value, expected] of [["2026-09-12T14:00:00Z", 0], ["2026-09-12T14:00:00+02:00", 1], ["2026-09-12T14:00:00-03:00", 1], ["2026-02-30T14:00:00Z", 1]]) await temp(async (directory) => {
+    const model = await mutateModel(directory, (item) => { item.traceability.updated_at = value; });
+    const result = run(["validate", model]);
+    assert.equal(result.status, expected, `${value}: ${result.stderr}`);
+  });
+});
+
+test("verify scans the manifest's own bytes for sensitive data before accepting a bundle", async () => {
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const manifestFile = rendered.resultBody.manifest;
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    manifest.checks[0].details = "password=abcdefghijklmnop";
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const verify = run(["verify", manifestFile]);
+    assert.equal(verify.status, 1);
+    assert.equal(body(verify.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+    assert.ok(!verify.stderr.includes("abcdefghijklmnop"), "verify must not echo the detected value");
+  });
+});
+
+test("standard render scans the exact persisted source bytes, so a duplicate-member smuggle fails closed", async () => {
+  await temp(async (directory) => {
+    const raw = "duplicate-key-owner@private-domain.dev";
+    const model = await copyModel(directory, readyFixture);
+    const text = await readFile(model, "utf8");
+    const smuggled = text.replace(/^(\s*)"scope": /mu, `$1"scope": ${JSON.stringify(raw)},\n$1"scope": `);
+    assert.notEqual(smuggled, text);
+    assert.ok(!JSON.stringify(JSON.parse(smuggled)).includes(raw), "JSON.parse must have discarded the first occurrence");
+    await writeFile(model, smuggled);
+    const output = path.join(directory, "bundle");
+    const result = run(["render", model, "--profile", "standard", "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+    assert.ok(!result.stderr.includes(raw));
+    assert.ok(!fs.existsSync(path.join(output, path.basename(model))));
   });
 });

@@ -362,8 +362,10 @@ function schemaErrors(instance, schemaFile) {
     if (value === null) return;
 
     if (typeof value === "string") {
-      if (schema.minLength !== undefined && value.length < schema.minLength) add(sink, at, "minLength", `must contain at least ${schema.minLength} character(s)`);
-      if (schema.maxLength !== undefined && value.length > schema.maxLength) add(sink, at, "maxLength", `must contain no more than ${schema.maxLength} character(s)`);
+      // JSON Schema minLength/maxLength count Unicode code points, not UTF-16 units.
+      const codePoints = Array.from(value).length;
+      if (schema.minLength !== undefined && codePoints < schema.minLength) add(sink, at, "minLength", `must contain at least ${schema.minLength} character(s)`);
+      if (schema.maxLength !== undefined && codePoints > schema.maxLength) add(sink, at, "maxLength", `must contain no more than ${schema.maxLength} character(s)`);
       if (schema.pattern && !(new RegExp(schema.pattern, "u")).test(value)) add(sink, at, "pattern", `must match ${schema.pattern}`);
       if (schema.format === "date-time" && !validRfc3339(value)) add(sink, at, "format", "must be a real RFC 3339 UTC date-time");
     }
@@ -467,7 +469,7 @@ function semanticErrors(model) {
     if (state.state === "delegated") requireField("assigned_actor_ref", state.assigned_actor_ref !== null, "delegated requires assigned_actor_ref");
     if (state.state === "deferred") {
       requireField("reason", typeof state.reason === "string" && state.reason.trim(), "deferred requires reason");
-      requireField("resume_after", state.resume_after !== null || state.decision_ref !== null, "deferred requires resume_after or decision_ref");
+      requireField("resume_after", state.resume_after !== null, "deferred requires resume_after");
     }
     if (state.state === "hitl") {
       requireField("reason", typeof state.reason === "string" && state.reason.trim(), "hitl requires reason");
@@ -720,8 +722,14 @@ function embeddedIPv4FromMappedHost(inner) {
   if (!Number.isInteger(high) || !Number.isInteger(low) || high > 0xffff || low > 0xffff) return null;
   return [(high >> 8) & 0xff, high & 0xff, (low >> 8) & 0xff, low & 0xff];
 }
-function isPrivateIPv4Quad(a, b) {
-  return a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+// Non-global IPv4 space (IANA special-purpose registry): loopback, "this" network, RFC 1918,
+// link-local, shared CGNAT 100.64/10 (RFC 6598), IETF protocol 192.0.0/24, benchmark
+// 198.18/15, the three TEST-NET documentation blocks, multicast, reserved, and broadcast.
+function isPrivateIPv4Quad(a, b, c) {
+  return a === 127 || a === 10 || a === 0 || a >= 224
+    || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+    || (a === 100 && b >= 64 && b <= 127) || (a === 192 && b === 0 && (c === 0 || c === 2))
+    || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113);
 }
 function isPrivateOrLoopbackHost(hostname) {
   const host = hostname.toLowerCase();
@@ -741,11 +749,11 @@ function isPrivateOrLoopbackHost(hostname) {
     // bits; re-run the same dotted-quad private-range check against the embedded bytes
     // instead of letting WHATWG URL's hex-compressed serialization slip past unchecked.
     const mapped = embeddedIPv4FromMappedHost(inner);
-    if (mapped) return isPrivateIPv4Quad(mapped[0], mapped[1]);
+    if (mapped) return isPrivateIPv4Quad(mapped[0], mapped[1], mapped[2]);
     return false;
   }
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u);
-  if (ipv4) return isPrivateIPv4Quad(Number(ipv4[1]), Number(ipv4[2]));
+  if (ipv4) return isPrivateIPv4Quad(Number(ipv4[1]), Number(ipv4[2]), Number(ipv4[3]));
   return !host.includes(".");
 }
 function isPublicHttpsUri(uri) {
@@ -773,6 +781,7 @@ function validatePortableDistribution(model) {
   });
   const git = model.traceability.git;
   if (git.repository_visibility !== "public" && [git.repository_uri, git.ref_name, git.commit_sha, git.tree_sha].some((value) => value !== null)) add("/traceability/git", "PRIVATE_GIT_DISCLOSURE", "undisclosed Git metadata must remain null");
+  if (git.repository_visibility === "public" && !isPublicHttpsUri(git.repository_uri)) add("/traceability/git/repository_uri", "PRIVATE_REPOSITORY_URI", "portable public Git repository URI must be a public https host");
   model.organization.contexts.forEach((context, index) => {
     if (context.repository_uri !== null && !isPublicHttpsUri(context.repository_uri)) add(`/organization/contexts/${index}/repository_uri`, "PRIVATE_REPOSITORY_URI", "portable repository URI must be public https or null");
   });
@@ -845,8 +854,8 @@ const STATUS_PRESENTATION = {
 const PORTABLE_STYLE = `:root{color-scheme:light dark;--bg:#f8fafc;--panel:#fff;--text:#172033;--muted:#526079;--line:#cbd5e1;--accent:#1d4ed8}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}main{max-width:1180px;margin:auto;padding:28px}.hero,.panel{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:18px;margin:0 0 16px}.hero h1{margin:4px 0}.eyebrow{color:var(--accent);font-weight:700}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.wide{grid-column:1/-1}h2,h3{margin:0 0 10px}dl{display:grid;grid-template-columns:minmax(110px,.45fr) 1fr;gap:6px 12px;margin:0}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}ul{margin:0;padding-left:20px}.status{display:inline-flex;gap:7px;align-items:center;border-radius:999px;padding:2px 9px;font-weight:700;border:1px solid currentColor}.status[data-state=planned],.status[data-state=canceled],.status[data-state=deprecated],.status[data-state=unknown]{color:#334155;background:#f1f5f9}.status[data-state=started]{color:#1e40af;background:#dbeafe}.status[data-state=delegated],.status[data-state=superseded]{color:#5b21b6;background:#ede9fe}.status[data-state=deferred]{color:#78350f;background:#fef3c7}.status[data-state=hitl]{color:#9a3412;background:#ffedd5}.status[data-state=blocked]{color:#991b1b;background:#fee2e2}.status[data-state=completed]{color:#166534;background:#dcfce7}.node{border-left:4px solid var(--accent);padding:9px 11px;margin:8px 0;background:color-mix(in srgb,var(--panel) 90%,var(--accent))}.edge{padding:4px 0}.warning{border-color:#b45309}.mono{overflow-wrap:anywhere}@media(prefers-color-scheme:dark){:root{--bg:#0f172a;--panel:#172033;--text:#e5edf8;--muted:#aab7ca;--line:#475569;--accent:#93c5fd}.status[data-state=planned],.status[data-state=canceled],.status[data-state=deprecated],.status[data-state=unknown]{color:#e2e8f0;background:#1e293b}.status[data-state=started]{color:#bfdbfe;background:#1e3a8a}.status[data-state=delegated],.status[data-state=superseded]{color:#ddd6fe;background:#4c1d95}.status[data-state=deferred]{color:#fde68a;background:#78350f}.status[data-state=hitl]{color:#fed7aa;background:#7c2d12}.status[data-state=blocked]{color:#fecaca;background:#7f1d1d}.status[data-state=completed]{color:#bbf7d0;background:#14532d}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}@media print{body{background:#fff;color:#111}.panel,.hero{break-inside:avoid}}`;
 const PORTABLE_GRAPH_STYLE = `.workflow-svg{display:block;width:100%;height:auto;margin:12px 0 18px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}.lane-band{fill:var(--panel);stroke:var(--line)}.lane-title,.svg-edge-label{fill:var(--muted);font-size:11px}.svg-edge{stroke:var(--muted);stroke-width:1.6;fill:none}.svg-node{stroke-width:2}.svg-node-label{fill:var(--text);font-size:12px;font-weight:700}.svg-node-state{font-size:10px;font-weight:700}.state-planned{--state-fg:#334155;--state-bg:#f1f5f9}.state-started{--state-fg:#1e40af;--state-bg:#dbeafe}.state-delegated,.state-superseded{--state-fg:#5b21b6;--state-bg:#ede9fe}.state-deferred{--state-fg:#78350f;--state-bg:#fef3c7}.state-hitl{--state-fg:#9a3412;--state-bg:#ffedd5}.state-blocked{--state-fg:#991b1b;--state-bg:#fee2e2}.state-completed{--state-fg:#166534;--state-bg:#dcfce7}.state-canceled,.state-deprecated,.state-unknown{--state-fg:#334155;--state-bg:#e2e8f0}.svg-item .svg-node{fill:var(--state-bg);stroke:var(--state-fg)}.svg-item .svg-node-state{fill:var(--state-fg)}.node[data-state]{border-left-color:var(--state-fg);background:var(--state-bg);color:var(--state-fg)}@media(prefers-color-scheme:dark){.state-planned,.state-canceled,.state-deprecated,.state-unknown{--state-fg:#e2e8f0;--state-bg:#1e293b}.state-started{--state-fg:#bfdbfe;--state-bg:#1e3a8a}.state-delegated,.state-superseded{--state-fg:#ddd6fe;--state-bg:#4c1d95}.state-deferred{--state-fg:#fde68a;--state-bg:#78350f}.state-hitl{--state-fg:#fed7aa;--state-bg:#7c2d12}.state-blocked{--state-fg:#fecaca;--state-bg:#7f1d1d}.state-completed{--state-fg:#bbf7d0;--state-bg:#14532d}}`;
 const PORTABLE_ROW_STYLE = `.state-row{border-left:4px solid var(--state-fg);background:var(--state-bg);color:var(--state-fg);padding:6px 9px;margin:5px 0;border-radius:5px}.state-row strong{color:inherit}`;
-const PORTABLE_LAYOUT_STYLE = `main{max-width:980px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{min-width:0}dl{grid-template-columns:minmax(150px,.55fr) minmax(0,1fr)}dt{min-width:0}dd{min-width:0;overflow-wrap:break-word;word-break:normal}.mono,code{max-width:100%;overflow-wrap:anywhere;word-break:break-word}@media(max-width:720px){main{padding:14px}.grid{grid-template-columns:minmax(0,1fr)}dl{grid-template-columns:minmax(0,1fr);gap:2px}dt{margin-top:8px}dd{margin-bottom:4px}}`;
-const PORTABLE_ALMANAC_STYLE = `:root{color-scheme:light dark;--bg:#f6f8fa;--panel:#ffffff;--panel-subtle:#f0f3f6;--text:#172033;--muted:#475569;--line:#cbd5e1;--line-strong:#64748b;--accent:#1e40af;--danger:#b42318;--focus:#1d4ed8;--font-ui:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--font-data:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}body{font:15px/1.55 var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility}main{max-width:1120px;padding:32px 20px 64px}.hero,.panel{min-width:0;border:1px solid var(--line);padding:20px 22px;margin:0 0 16px}h1,h2,h3{text-wrap:balance}h1{font-size:32px;line-height:1.2;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:18px;line-height:1.3;margin:0 0 16px}h3{font-size:15px;line-height:1.35;margin:24px 0 8px}.subtitle{max-width:72ch;margin:0 0 16px;color:var(--muted);font-size:16px;line-height:1.6}.goal{max-width:75ch;margin:16px 0}.meta{margin:12px 0 0;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}.artifact-id,.hero .meta{min-width:0;overflow-wrap:anywhere;word-break:break-word}.snapshot-strip{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 0;border-block:1px solid var(--line);font-size:13px}.trust{font-weight:700}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.wide{grid-column:1/-1}.priority{border-color:var(--line-strong)}dl{grid-template-columns:minmax(124px,.38fr) minmax(0,1fr);gap:8px 16px}dt{min-width:0;color:var(--muted);font-size:13px;font-weight:650}dd{min-width:0;overflow-wrap:anywhere;word-break:normal}.mono,code,.artifact-id{font-family:var(--font-data);font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere;word-break:break-word}.node,.state-row{border:1px solid var(--state-fg);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--state-bg);color:var(--state-fg)}.node[data-state] .muted{color:inherit;font-size:13px;margin-top:4px}.workflow-figure{margin:12px 0 20px}.workflow-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-color:var(--line-strong) var(--panel-subtle)}.workflow-scroll:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.workflow-svg{width:100%;margin:0;border-color:var(--line-strong)}.lane-title,.svg-edge-label{fill:var(--muted);font:12px var(--font-ui)}.svg-node-label{fill:var(--text);font:700 15px var(--font-ui)}.svg-node-state{font:700 11px var(--font-ui)}.svg-edge-label{paint-order:stroke;stroke:var(--bg);stroke-width:5px;stroke-linejoin:round}.edge-group{--edge-color:var(--muted)}.edge-group .svg-edge{stroke:var(--edge-color);stroke-width:1.6;fill:none}.edge-group .svg-edge-arrow{fill:var(--edge-color)}.edge-variant-emphasis{--edge-color:var(--accent)}.edge-variant-emphasis .svg-edge,.edge-variant-security .svg-edge{stroke-width:2.4}.edge-variant-security{--edge-color:var(--danger)}.edge-role-branch .svg-edge,.edge-variant-dashed .svg-edge{stroke-dasharray:8 5}.edge-role-return .svg-edge{stroke-dasharray:2 4}.diagram-key,.legend-list{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}.legend-list{list-style:none;padding:0}.register{margin-top:20px}.register summary{cursor:pointer;color:var(--text);font-weight:700;padding:8px 0}.workflow-figure figcaption{margin-top:8px;color:var(--muted);font-size:13px}.evidence-row{margin:8px 0;padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#161b22;--panel-subtle:#21262d;--text:#e6edf3;--muted:#9da7b3;--line:#30363d;--line-strong:#6e7681;--accent:#79c0ff;--danger:#f85149;--focus:#79c0ff}}@media(max-width:1000px){.workflow-svg{min-width:900px}}@media(max-width:720px){main{padding:16px 14px 48px}.grid{grid-template-columns:minmax(0,1fr)}.hero,.panel{padding:16px 14px}h1{font-size:28px}dl{grid-template-columns:minmax(0,1fr);gap:2px}dt{margin-top:10px}dd{margin-bottom:4px}}@media print{:root{color-scheme:light;--bg:#fff;--panel:#fff;--panel-subtle:#fff;--text:#111827;--muted:#334155;--line:#94a3b8;--line-strong:#64748b;--accent:#1e40af;--danger:#991b1b;--focus:#1e40af}body{font-size:10pt;background:#fff;color:var(--text);print-color-adjust:exact;-webkit-print-color-adjust:exact}main{max-width:none;padding:0}.grid{display:block}.hero,.panel{padding:12pt;margin:0 0 10pt;background:#fff;break-inside:auto}.hero,#identity,#traceability,#contexts,#domains,#lineage,#materials{break-inside:avoid}h2,h3,summary{break-after:avoid}.node,.state-row,li{break-inside:avoid}.workflow-scroll{overflow:visible}.workflow-svg{min-width:0}details:not([open])>*:not(summary){display:block!important}.state-planned,.state-started,.state-delegated,.state-deferred,.state-hitl,.state-blocked,.state-completed,.state-canceled,.state-superseded,.state-deprecated,.state-unknown{--state-fg:#111827;--state-bg:#fff}}`;
+const PORTABLE_LAYOUT_STYLE = `main{max-width:980px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{min-width:0}dl{grid-template-columns:minmax(150px,.55fr) minmax(0,1fr)}dt{min-width:0}dd{min-width:0;overflow-wrap:break-word;word-break:normal}.mono,code{max-width:100%;overflow-wrap:anywhere;word-break:break-word}@media screen and (max-width:720px){main{padding:14px}.grid{grid-template-columns:minmax(0,1fr)}dl{grid-template-columns:minmax(0,1fr);gap:2px}dt{margin-top:8px}dd{margin-bottom:4px}}`;
+const PORTABLE_ALMANAC_STYLE = `:root{color-scheme:light dark;--bg:#f6f8fa;--panel:#ffffff;--panel-subtle:#f0f3f6;--text:#172033;--muted:#475569;--line:#cbd5e1;--line-strong:#64748b;--accent:#1e40af;--danger:#b42318;--focus:#1d4ed8;--font-ui:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--font-data:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}body{font:15px/1.55 var(--font-ui);font-synthesis:none;text-rendering:optimizeLegibility}main{max-width:1120px;padding:32px 20px 64px}.hero,.panel{min-width:0;border:1px solid var(--line);padding:20px 22px;margin:0 0 16px}h1,h2,h3{text-wrap:balance}h1{font-size:32px;line-height:1.2;letter-spacing:-.02em;margin:0 0 8px}h2{font-size:18px;line-height:1.3;margin:0 0 16px}h3{font-size:15px;line-height:1.35;margin:24px 0 8px}.subtitle{max-width:72ch;margin:0 0 16px;color:var(--muted);font-size:16px;line-height:1.6}.goal{max-width:75ch;margin:16px 0}.meta{margin:12px 0 0;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}.artifact-id,.hero .meta{min-width:0;overflow-wrap:anywhere;word-break:break-word}.snapshot-strip{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 0;border-block:1px solid var(--line);font-size:13px}.trust{font-weight:700}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}.wide{grid-column:1/-1}.priority{border-color:var(--line-strong)}dl{grid-template-columns:minmax(124px,.38fr) minmax(0,1fr);gap:8px 16px}dt{min-width:0;color:var(--muted);font-size:13px;font-weight:650}dd{min-width:0;overflow-wrap:anywhere;word-break:normal}.mono,code,.artifact-id{font-family:var(--font-data);font-variant-numeric:tabular-nums;max-width:100%;overflow-wrap:anywhere;word-break:break-word}.node,.state-row{border:1px solid var(--state-fg);border-radius:8px;padding:10px 12px;margin:8px 0;background:var(--state-bg);color:var(--state-fg)}.node[data-state] .muted{color:inherit;font-size:13px;margin-top:4px}.workflow-figure{margin:12px 0 20px}.workflow-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-color:var(--line-strong) var(--panel-subtle)}.workflow-scroll:focus-visible,summary:focus-visible{outline:3px solid var(--focus);outline-offset:3px}.workflow-svg{width:100%;margin:0;border-color:var(--line-strong)}.lane-title,.svg-edge-label{fill:var(--muted);font:12px var(--font-ui)}.svg-node-label{fill:var(--text);font:700 15px var(--font-ui)}.svg-node-state{font:700 11px var(--font-ui)}.svg-edge-label{paint-order:stroke;stroke:var(--bg);stroke-width:5px;stroke-linejoin:round}.edge-group{--edge-color:var(--muted)}.edge-group .svg-edge{stroke:var(--edge-color);stroke-width:1.6;fill:none}.edge-group .svg-edge-arrow{fill:var(--edge-color)}.edge-variant-emphasis{--edge-color:var(--accent)}.edge-variant-emphasis .svg-edge,.edge-variant-security .svg-edge{stroke-width:2.4}.edge-variant-security{--edge-color:var(--danger)}.edge-role-branch .svg-edge,.edge-variant-dashed .svg-edge{stroke-dasharray:8 5}.edge-role-return .svg-edge{stroke-dasharray:2 4}.diagram-key,.legend-list{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}.legend-list{list-style:none;padding:0}.register{margin-top:20px}.register summary{cursor:pointer;color:var(--text);font-weight:700;padding:8px 0}.workflow-figure figcaption{margin-top:8px;color:var(--muted);font-size:13px}.evidence-row{margin:8px 0;padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}@media(prefers-color-scheme:dark){:root{--bg:#0d1117;--panel:#161b22;--panel-subtle:#21262d;--text:#e6edf3;--muted:#9da7b3;--line:#30363d;--line-strong:#6e7681;--accent:#79c0ff;--danger:#f85149;--focus:#79c0ff}}@media screen and (max-width:1000px){.workflow-svg{min-width:900px}}@media screen and (max-width:720px){main{padding:16px 14px 48px}.grid{grid-template-columns:minmax(0,1fr)}.hero,.panel{padding:16px 14px}h1{font-size:28px}dl{grid-template-columns:minmax(0,1fr);gap:2px}dt{margin-top:10px}dd{margin-bottom:4px}}@media print{:root{color-scheme:light;--bg:#fff;--panel:#fff;--panel-subtle:#fff;--text:#111827;--muted:#334155;--line:#94a3b8;--line-strong:#64748b;--accent:#1e40af;--danger:#991b1b;--focus:#1e40af}body{font-size:10pt;background:#fff;color:var(--text);print-color-adjust:exact;-webkit-print-color-adjust:exact}main{max-width:none;padding:0}.grid{display:block}.hero,.panel{padding:12pt;margin:0 0 10pt;background:#fff;break-inside:auto}.hero,#identity,#traceability,#contexts,#domains,#lineage,#materials{break-inside:avoid}h2,h3,summary{break-after:avoid}.node,.state-row,li{break-inside:avoid}.workflow-scroll{overflow:visible}.workflow-svg{min-width:0}details:not([open])>*:not(summary){display:block!important}.state-planned,.state-started,.state-delegated,.state-deferred,.state-hitl,.state-blocked,.state-completed,.state-canceled,.state-superseded,.state-deprecated,.state-unknown{--state-fg:#111827;--state-bg:#fff}}`;
 const PORTABLE_POLISH_STYLE = `.hero,.panel{box-shadow:0 1px 2px color-mix(in srgb,var(--text) 6%,transparent),0 8px 24px -12px color-mix(in srgb,var(--accent) 18%,transparent);transition:box-shadow .2s ease,transform .2s ease}.hero{border-top:3px solid var(--accent);background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 4%,var(--panel)),var(--panel) 60%)}.panel:hover{box-shadow:0 2px 4px color-mix(in srgb,var(--text) 8%,transparent),0 14px 32px -14px color-mix(in srgb,var(--accent) 26%,transparent);transform:translateY(-1px)}h2{font-weight:650;letter-spacing:-.005em}.trust{padding:2px 9px;border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent)}summary{border-radius:6px;transition:background-color .15s ease}summary:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}@media(prefers-reduced-motion:reduce){.hero,.panel,summary{transition:none}}@media print{.hero,.panel{box-shadow:none}}`;
 const PORTABLE_CSS = `${PORTABLE_STYLE}${PORTABLE_GRAPH_STYLE}${PORTABLE_ROW_STYLE}${PORTABLE_LAYOUT_STYLE}${PORTABLE_ALMANAC_STYLE}${PORTABLE_POLISH_STYLE}`;
 
@@ -1734,6 +1743,10 @@ async function renderStandard(modelFile, options) {
   let stageDir;
   try {
     const { value: model, bytes: sourceBytes } = await readJson(modelFile, "session model");
+    // The standard bundle persists the caller's exact bytes as its source subject, so the
+    // preflight must cover those bytes too: JSON.parse collapses duplicate members and a
+    // canonical-only scan would miss a discarded earlier occurrence that still ships.
+    enforceSensitivePreflight(sourceBytes);
     enforceSensitivePreflight(canonicalBytes(model));
     validateModel(model);
     const runId = randomUUID();
@@ -1783,7 +1796,8 @@ async function renderStandard(modelFile, options) {
     const problems = [...schemaErrors(manifest, MANIFEST_SCHEMA), ...manifestSemanticErrors(manifest)];
     if (problems.length) throw new AppError("MANIFEST_SCHEMA_INVALID", "Generated manifest failed validation", 1, problems);
     for (const role of ["source", "workflow", "html", "markdown"]) await rename(staged[role], outputs[role]);
-    await atomicWrite(outputs.manifest, jsonText(manifest));
+    await assertPromotedSubjects(manifest, { source: outputs.source, workflow: outputs.workflow, diagram_html: outputs.html, markdown: outputs.markdown });
+    await writeValidatedManifest(outputs.manifest, manifest);
     return { profile: "standard", manifest: outputs.manifest, outputs, derived, archify: { path: archify.root, version: archify.version } };
   } finally {
     if (stageDir) await rm(stageDir, { recursive: true, force: true }).catch(() => {});
@@ -1855,17 +1869,32 @@ async function renderPortable(modelFile, options) {
     if (problems.length) throw new AppError("MANIFEST_SCHEMA_INVALID", "Generated portable manifest failed validation", 1, problems);
     await rename(stagedSource, outputs.source);
     await rename(stagedHtml, outputs.sidecard);
-    const finalSourceDigest = sha256(await readBounded(outputs.source, "final rendered source"));
-    const finalSidecardDigest = sha256(await readBounded(outputs.sidecard, "final rendered sidecard"));
-    const sourceSubject = manifest.subjects.find((item) => item.role === "source");
-    const sidecardSubject = manifest.subjects.find((item) => item.role === "sidecard_html");
-    if (finalSourceDigest !== sourceSubject.digest.value || finalSidecardDigest !== sidecardSubject.digest.value) throw new AppError("POST_RENAME_HASH_MISMATCH", "Final renamed bundle subjects no longer match their computed digests");
-    await atomicWrite(outputs.manifest, jsonText(manifest));
+    await assertPromotedSubjects(manifest, { source: outputs.source, sidecard_html: outputs.sidecard });
+    await writeValidatedManifest(outputs.manifest, manifest);
     return { profile: "portable_sidecard", trust: "CONSISTENT_UNTRUSTED", manifest: outputs.manifest, outputs, derived: rendered.derived, embedded_blocks: rendered.blocks };
   } finally {
     if (stageDir) await rm(stageDir, { recursive: true, force: true }).catch(() => {});
     await release();
   }
+}
+
+// Both profiles promote staged subjects by same-filesystem rename, then re-read every final
+// path and compare it to the digest computed from the staged bytes before VALIDATED is
+// written; a concurrent same-user replacement in that window fails closed instead of
+// shipping a manifest whose digests no longer describe the bundle.
+async function assertPromotedSubjects(manifest, filesByRole) {
+  for (const subject of manifest.subjects) {
+    const finalDigest = sha256(await readBounded(filesByRole[subject.role], `final rendered ${subject.role}`));
+    if (finalDigest !== subject.digest.value) throw new AppError("POST_RENAME_HASH_MISMATCH", "Final renamed bundle subjects no longer match their computed digests");
+  }
+}
+
+// The manifest ships with the bundle and is not covered by any subject digest, so its own
+// bytes pass the same sensitive-data preflight the source did (mirrored in verifyCommand).
+async function writeValidatedManifest(file, manifest) {
+  const text = jsonText(manifest);
+  enforceSensitivePreflight(Buffer.from(text));
+  await atomicWrite(file, text);
 }
 
 async function renderCommand(modelFile, options) {
@@ -1909,6 +1938,7 @@ async function verifyCommand(manifestFile, options) {
   if (!manifestProblems.length) manifestProblems.push(...manifestSemanticErrors(manifest));
   if (manifestProblems.length) throw new AppError("MANIFEST_SCHEMA_INVALID", "Integrity manifest failed validation", 1, manifestProblems);
   if (manifest.status !== "VALIDATED") throw new AppError("FRESHNESS_FAILURE", "Manifest does not record a completed generation");
+  enforceSensitivePreflight(manifestBytes);
   const manifestDir = path.dirname(manifestFile);
   const canonicalDir = await realpath(manifestDir);
   const subjectFiles = new Map();
@@ -1922,6 +1952,7 @@ async function verifyCommand(manifestFile, options) {
   let model;
   try { model = JSON.parse(subjectFiles.get("source").bytes.toString("utf8")); }
   catch { throw new AppError("JSON_INVALID", "Hashed source subject is invalid JSON"); }
+  enforceSensitivePreflight(subjectFiles.get("source").bytes);
   enforceSensitivePreflight(canonicalBytes(model));
   validateModel(model);
   const derived = deriveFacts(model);
@@ -1997,7 +2028,9 @@ function stateFromEvent(previous, event) {
     state: event.to_state,
     reason: ["deferred", "hitl", "blocked", "canceled", "superseded", "deprecated", "unknown"].includes(event.to_state) ? event.reason : null,
     assigned_actor_ref: event.assigned_actor_ref,
-    started_at: event.to_state === "started" ? event.occurred_at : previous.started_at,
+    // planned requires started_at=null (checkLifecycle); a deferred/hitl/unknown -> planned
+    // return must not carry the earlier start forward or the transition fails its own gate.
+    started_at: event.to_state === "started" ? event.occurred_at : event.to_state === "planned" ? null : previous.started_at,
     ended_at: terminal ? event.occurred_at : null,
     resume_after: event.to_state === "deferred" ? event.resume_after : null,
     decision_ref: ["deferred", "hitl"].includes(event.to_state) ? event.decision_ref : null,
