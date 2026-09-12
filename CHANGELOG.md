@@ -29,6 +29,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
   activation cases. The count-with-empty-list observation remains explicitly unresolved.
 
+### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
+
+- `skills/morning-briefing/SKILL.md` — the default `--scope=current` briefing was
+  unconditionally scanning sibling worktrees' content (`git worktree list` +
+  per-worktree `git status --short`), silently exposing another agentic
+  session's/agent's uncommitted work without operator awareness. Phase 1's
+  default now enumerates worktree paths/count only; per-worktree content
+  scanning moved to the explicit `--scope=sideways` case (Phase 2.5), and the
+  Phase 3 `$state_detail` template no longer renders sibling paths under the
+  default scope.
+- Same PR, pre-merge bot-review round: fixed 4 correctness bugs in the new
+  `sideways` scan block (non-portable `head -N`, `--breadth=all` crashing
+  `head`/`gh --limit`, the current worktree not excluded from sideways
+  enumeration, and whitespace-unsafe word-splitting on worktree paths).
+
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
 - `commands/morning-briefing.md` (new) — thin command surface for the existing
