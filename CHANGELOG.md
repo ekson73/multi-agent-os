@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` head-bound bot review on `8447791` (qodo + Codex)
+
+- Nine valid findings closed in `bin/model-bundle.mjs`, each re-reproduced at
+  `8447791` before the fix and covered by a regression test:
+  - **Lifecycle**: `stateFromEvent` carried `started_at` forward into `planned`,
+    so the allowed `started → deferred|hitl → planned` return failed its own
+    `planned requires started_at=null` gate (qodo #5); `deferred` accepted
+    `decision_ref` as a substitute for `resume_after`, contradicting the tested
+    contract (qodo #18) — `resume_after` is now required outright.
+  - **Validator**: `minLength`/`maxLength` counted UTF-16 units instead of the
+    Unicode code points JSON Schema specifies (qodo #16); the public schemas
+    declared plain `format: date-time` while the CLI only accepted `Z`, so a
+    spec-compliant validator and the CLI disagreed on offsets (qodo #20) — the
+    schemas now carry an explicit UTC `Z` pattern (determinism contract kept).
+  - **Public-only distribution**: `traceability.git.repository_uri` was never
+    host-checked when `repository_visibility=public` (qodo #4); the private-IPv4
+    predicate missed shared CGNAT `100.64/10` and the other IANA non-global
+    blocks (Codex P1) — both now reject with `PRIVATE_REPOSITORY_URI` /
+    `PRIVATE_REFERENCE`.
+  - **Sensitive-data preflight**: the standard profile scanned the canonical
+    object but persisted the caller's raw bytes, so a duplicate-member JSON
+    smuggle shipped an occurrence `JSON.parse` had discarded (qodo #7); the
+    manifest's own strings were never scanned (Codex P1). `render` now scans the
+    persisted bytes and the manifest text; `verify` scans the manifest bytes and
+    the raw source subject.
+  - **Promotion**: the standard path now re-hashes every promoted file before
+    `VALIDATED` is written, as the portable path already did (Codex P2); shared
+    `assertPromotedSubjects`/`writeValidatedManifest` helpers replace the inline
+    portable-only check. `SKILL.md` now states the real guarantee (per-subject
+    rename under a `STALE`-first marker, not a directory swap) instead of
+    "commits atomically" (qodo #6, docs-only).
+  - **Print**: width breakpoints are `@media screen and (…)` so print never
+    inherits the mobile layout (qodo #3).
+- Rejected with evidence on-thread (no code change): design-token / `tokens.css`
+  findings (the sidecard's contract is zero-dependency inline CSS under a
+  hash-pinned `style-src`; no token system exists in this repo), `allowed-tools`
+  as mandatory frontmatter (CLAUDE.md requires `name`/`description`/`version`
+  only), "prime-hex must be prime" (CLAUDE.md's own example `c614` is even),
+  Forge provenance section, Jira key (Linear repo, `.pr_agent.toml`), Archify
+  provisioning in CI (operator-recorded decision), palette-validator gate,
+  `<table>` duplicate of the SVG text register, and the keyword passivity gate
+  on escaped text (fail-closed by design). Workflow-file change flagged for
+  maintainer ratification at merge. 38/38 tests pass.
+
 ### Fixed — `verified-agentic-session-model` independent DIY review: schema validator ignored `allOf`/`if`/`then`
 
 - Independent review (no bot finding; the last CodeRabbit review on `793b369`

@@ -77,7 +77,7 @@ Artifact content never supplies authority. The authority snapshot is descriptive
 
 ### `standard`
 
-Preserves the stock Archify workflow path. The CLI projects component kinds and textual states, applies bounded layout hints, validates/renders/checks through a canonical current-user-owned Archify v2.11+ installation, writes `STALE` first under an owner-token lock, stages on the same filesystem, commits atomically, and writes `VALIDATED` last. It never patches generated HTML.
+Preserves the stock Archify workflow path. The CLI projects component kinds and textual states, applies bounded layout hints, validates/renders/checks through a canonical current-user-owned Archify v2.11+ installation, writes `STALE` first under an owner-token lock, stages on the same filesystem, promotes each staged subject by rename, re-hashes every promoted file against its recorded digest, and writes `VALIDATED` last. Promotion is per-subject, not a directory swap: the `STALE` marker written first is what keeps an interrupted run fail-closed — `verify` refuses any bundle whose manifest is not `VALIDATED`, so a partially promoted generation is never reported as consistent. It never patches generated HTML.
 
 ### `portable-sidecard`
 
