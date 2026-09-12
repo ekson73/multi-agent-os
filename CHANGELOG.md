@@ -7,24 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added — `wacli-concierge` skill (operational layer for the wacli WhatsApp CLI)
+### Added — `wacli-operations` concierge + delegated helper (#419)
 
-- `skills/wacli-concierge/SKILL.md` (new) — concierge/operator/verifier for `wacli`
-  (single-binary WhatsApp Web linked-device CLI). Complements, not replaces, the
-  upstream `openclaw/openclaw@wacli` skill: capability decomposition measured that
-  skill's coverage of the operational intent at 2/10 leaves (~20%, under the 50%
-  EXTEND threshold), and it ships under `~/.openclaw/extensions/` where local edits
-  are overwritten on update. Carries: named accounts (`--account`, 5-step store
-  precedence) · resilient pairing (QR vs `--phone` code vs `--qr-format text`) ·
-  `--store` documented as a hazard that migrates rather than inspects · honest
-  `doctor` reading (`AUTHENTICATED` vs `CONNECTED` vs `locked_by_other_process`) ·
-  count-vs-listable semantics (tombstones, FTS-content-only) · lock/delegation
-  (follow holds the lock, sends are delegated) · storage caps
-  (`--max-messages`/`--max-db-size` + `WACLI_SYNC_MAX_*`) · degraded app-state
-  (LTHash recovery-once) with the `--refresh-*` workaround. Grounded in all 27
-  wacli.sh doc pages + CHANGELOG; two canonical corrections anchored (tap/repo
-  moved to `openclaw/*`; an MCP server is an explicit upstream non-goal). One
-  observed behavior is filed as an open question, not a finding.
+- `skills/wacli-concierge/SKILL.md` v0.2.0 — model-triggered operational knowledge for
+  named accounts, resilient pairing, bounded sync, state-based diagnosis, store hazards,
+  locks, count-vs-listable behavior, app-state degradation, and consent-gated mutations.
+  Detailed operations and the Forge/33Q/type/naming decision move behind progressive-
+  disclosure references, keeping the loaded skill below the strict size ceiling.
+- `agents/wacli-delegate.md` v0.1.0 (soul-name **Iris**) — context-isolated helper for
+  any capability-detected wacli operation on one named linked account. Research/search is one
+  function among diagnosis, sync/export, interactive pairing coordination, and approval-gated
+  outward/destructive operations. Exact operator approval binds account, action, targets, and
+  payload digest to one non-retried attempt. This is behavioral policy, not a global exactly-once
+  guarantee without an external nonce ledger. Returns one compact, redacted JSON envelope; raw
+  wacli payloads and personal content stay outside the parent context.
+- Architecture: skill + subagent wins. An inline command provides no context boundary; a
+  bespoke MCP server is deferred until a real multi-client, protocol, subscription, or native-
+  upstream need exists. The existing plugin remains the distribution container.
+- Corrections from review: cross-platform install fallback; separate `accounts add` and
+  `--no-auth`; explicit local versus live `doctor` semantics; read-only SQLite requirement;
+  narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
+  activation cases. The count-with-empty-list observation remains explicitly unresolved.
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
