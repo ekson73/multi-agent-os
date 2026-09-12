@@ -14,6 +14,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 CONTRACT="$HERE/agents/wacli-delegate.md"
 STUB="$HERE/agents/fixtures/fake-wacli-stub.sh"
+EVAL_REPORT="$HERE/agents/WACLI-DELEGATE-EVAL-REPORT.md"
 fail=0
 ok() { printf '  ok   %s\n' "$1"; }
 no() { printf '  FAIL %s\n' "$1"; fail=1; }
@@ -27,6 +28,7 @@ echo "test-wacli-delegate-contract:"
 
 [ -f "$CONTRACT" ] || { echo "  FAIL contract file not found: $CONTRACT"; exit 2; }
 [ -x "$STUB" ] || { echo "  FAIL fake stub not found/executable: $STUB"; exit 2; }
+[ -f "$EVAL_REPORT" ] || { echo "  FAIL eval report referenced by this script's own header not found: $EVAL_REPORT"; exit 2; }
 
 # ---- 1. plan_digest golden vector reproduces from the contract's own documented bytes --------
 GOLDEN_LINE="$(grep -n '^{"account"' "$CONTRACT" | head -1 | cut -d: -f1)"
@@ -89,6 +91,33 @@ else
   grep -q REFUSED_BY_FAKE_STUB /tmp/stub_send_$$ && ok "stub send path always refuses (exercises UPSTREAM_ERROR handling)" || no "stub send refused for the wrong reason"
 fi
 rm -f /tmp/stub_send_$$
+
+READONLY_SEARCH_OUT="$("$STUB" --account acct-test --read-only messages search)"
+echo "$READONLY_SEARCH_OUT" | grep -q '"count":2' && ok "stub parses the documented '--account ACCOUNT --read-only ...' global-flag order before CMD" || no "stub misclassified --read-only as CMD instead of a global flag"
+
+JSON_READONLY_SEARCH_OUT="$("$STUB" --account acct-test --read-only --json messages search --query hi)"
+echo "$JSON_READONLY_SEARCH_OUT" | grep -q '"count":2' && ok "stub parses '--read-only --json' together before CMD" || no "stub misclassified --read-only/--json global-flag combination"
+
+if "$STUB" --account acct-test auth logout >/dev/null 2>/tmp/stub_auth_$$; then
+  no "stub silently allowed an unhandled auth subcommand instead of failing"
+else
+  grep -q UNKNOWN_FAKE_SUBCOMMAND /tmp/stub_auth_$$ && ok "stub fails nonzero on an unsupported auth subcommand" || no "stub failed for the wrong reason on auth logout"
+fi
+rm -f /tmp/stub_auth_$$
+
+if "$STUB" --account acct-test messages list >/dev/null 2>/tmp/stub_msg_$$; then
+  no "stub silently allowed 'messages list' (only 'search' is supported) instead of failing"
+else
+  grep -q UNKNOWN_FAKE_SUBCOMMAND /tmp/stub_msg_$$ && ok "stub fails nonzero on an unsupported messages subcommand" || no "stub failed for the wrong reason on messages list"
+fi
+rm -f /tmp/stub_msg_$$
+
+if "$STUB" --account acct-test messages search --bogus-flag >/dev/null 2>/tmp/stub_flag_$$; then
+  no "stub silently ignored an unsupported messages search flag instead of failing"
+else
+  grep -q UNSUPPORTED_FLAG /tmp/stub_flag_$$ && ok "stub fails nonzero on an unsupported messages search flag" || no "stub failed for the wrong reason on an unsupported flag"
+fi
+rm -f /tmp/stub_flag_$$
 
 echo
 if [ "$fail" -eq 0 ]; then

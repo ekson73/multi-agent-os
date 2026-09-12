@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--no-auth`; explicit local versus live `doctor` semantics; read-only SQLite requirement;
   narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
   activation cases. The count-with-empty-list observation remains explicitly unresolved.
+- Second review round (DIY code review, PR #418): `agents/fixtures/fake-wacli-stub.sh` now parses
+  the documented `--account ACCOUNT --read-only --json ...` global-flag order before selecting
+  `CMD` (previously misclassified `--read-only`/`--json` as an unknown command), and fails nonzero
+  instead of silently exiting 0 on an unsupported `auth`/`messages` subcommand or an unrecognized
+  `messages search` flag. `tests/test-wacli-delegate-contract.sh` gained an existence assertion for
+  `agents/WACLI-DELEGATE-EVAL-REPORT.md` (referenced by its own header) plus the new negative-path
+  and global-flag-order stub assertions. `agents/WACLI-DELEGATE-EVAL-REPORT.md` case 6's label and
+  its Strengths section no longer claim Gate 3 authority provenance or an expired-plan refusal path
+  were verified when neither was.
 
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 
