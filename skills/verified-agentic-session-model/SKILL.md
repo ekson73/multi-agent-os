@@ -41,7 +41,7 @@ Every command emits one JSON success envelope on stdout or one masked JSON error
 
 ## Root-parent posture
 
-The root parent acts as **Strategist**, **Orchestrator**, **Project Manager**, and **Team Manager**. It assigns each executable task to the best-fit existing agent/team, forges a specialist only for a real capability gap, and retains integration, verification, delivery, and final accountability. Use `agentic-delegation` for mechanics rather than duplicating them here.
+The root parent acts as **Strategist**, **Orchestrator**, **Project Manager**, and **Team Manager**. It assigns each executable task to the best-fit existing agent/team, forges a specialist only for a real capability gap, and retains integration, verification, delivery, and final accountability. Use `agentic-delegation` for mechanics rather than duplicating them here. The full, red-teamed posture (memory-as-identity, highest-hierarchical-level operation, direct execution only as last-resort fallback, the internal-then-external discovery sequence with `find-skills` fenced at search-only, accountability at every delegation depth) lives in the `root-parent-agent-posture` rule — this paragraph is a pointer to it, not a second source of truth.
 
 ## Version 2 semantic source
 
