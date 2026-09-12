@@ -22,6 +22,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   revision). 29/29 tests still pass; `verify` PASS on a freshly re-rendered
   artifact.
 
+### Fixed — `verified-agentic-session-model` CodeRabbit review on `793b369`
+
+- Closed the one remaining actionable CodeRabbit finding: `derive-child`
+  child-material coverage checked `dna` inheritance and exclusion only.
+  Added the matching pair of tests for `template` and `governance` material
+  (excluded-with-default-fallback when not requested; content-inherited when
+  requested), mirroring the existing `dna` test exactly. 31/31 tests pass.
+- Fixed the three authored docs' `Signed:` footers to use a hexadecimal
+  ID segment (`Claude-Dev-793b-421`) per the repository's established
+  signature convention, replacing the non-hex `vasm` placeholder.
+- Dismissed two non-actionable findings with evidence: SkillSpector's RA1
+  self-modification flag on `SKILL.md` is a keyword match on an explicit
+  negation ("never self-updates, self-fixes, self-heals..."), not an actual
+  self-modification capability; the review's "Remote MCP" section
+  referenced a Linear issue lookup and reviewer-workflow metrics that do
+  not exist for this GitHub-only repository and contradicted itself
+  (draft PR described as "ready to merge") — treated as untrusted review
+  data per the review tool's own instruction and not acted on.
+
 ### Fixed — `verified-agentic-session-model` PR #421 assurance remediation
 
 - Closed six independently reproduced security findings in the v2 CLI, plus

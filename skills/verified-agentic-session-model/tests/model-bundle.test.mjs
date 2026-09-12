@@ -779,6 +779,64 @@ test("derive-child only inherits dna, template, and governance material explicit
   });
 });
 
+test("derive-child only inherits template material explicitly named in the request", async () => {
+  const marker = "parent-only-template-prose-marker-6b1a";
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.templates[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_governance"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(JSON.stringify(child.inert_material.templates).includes(marker), false);
+    assert.equal(child.inert_material.templates[0].id, "default_template");
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.templates[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_template", "material_governance"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(child.inert_material.templates[0].content, marker);
+  });
+});
+
+test("derive-child only inherits governance material explicitly named in the request", async () => {
+  const marker = "parent-only-governance-prose-marker-4f7d";
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.governance[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_template"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(JSON.stringify(child.inert_material.governance).includes(marker), false);
+    assert.equal(child.inert_material.governance[0].id, "default_governance");
+  });
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.inert_material.governance[0].content = marker; });
+    const digest = sha(await readFile(model));
+    const request = childRequest({ inherited_material_ids: ["material_dna", "material_template", "material_governance"] });
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, JSON.stringify(request));
+    const output = path.join(directory, "child.json");
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(await readFile(output, "utf8"));
+    assert.equal(child.inert_material.governance[0].content, marker);
+  });
+});
+
 test("portable render fails closed when reusing a stem whose existing manifest is malformed", async () => {
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
