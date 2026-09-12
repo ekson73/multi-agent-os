@@ -141,6 +141,19 @@ test("legacy state aliases and incomplete lifecycle conditionals fail closed", a
   }
 });
 
+test("deferred requires reason AND resume_after independently - losing either rule is caught", async () => {
+  for (const field of ["reason", "resume_after"]) {
+    await temp(async (directory) => {
+      const valid = await mutateModel(directory, (model) => { model.plan.work_items[0].lifecycle_state = lifecycle("deferred"); });
+      assert.equal(run(["validate", valid]).status, 0, `deferred baseline (${field})`);
+      const invalid = JSON.parse(await readFile(valid, "utf8"));
+      invalid.plan.work_items[0].lifecycle_state[field] = null;
+      await writeFile(valid, `${JSON.stringify(invalid, null, 2)}\n`);
+      assert.equal(run(["validate", valid]).status, 1, `deferred with ${field}=null must fail closed`);
+    });
+  }
+});
+
 test("return edges preserve feedback loops without weakening dependency-cycle rejection", async () => {
   await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => {
