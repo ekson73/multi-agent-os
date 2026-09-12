@@ -865,7 +865,7 @@ function portableWorkflowSvg(model) {
     ...node,
     x: 70 + node.column * 175,
     y: 36 + laneIndex.get(node.lane) * laneHeight,
-    width: 145,
+    width: 165,
     height: 58
   }]));
   const lanes = model.topology.lanes.map((lane, index) => {
@@ -901,7 +901,7 @@ function portableWorkflowSvg(model) {
   const nodes = [...positioned.values()].map((node) => {
     const [glyph, stateLabel] = STATUS_PRESENTATION[node.status];
     const cx = node.x + node.width / 2;
-    return `<g class=\"svg-item state-${node.status}\" data-node-id=\"${escapeHtml(node.id)}\" data-state=\"${node.status}\"><title>${escapeHtml(node.label)} — ${escapeHtml(stateLabel)}</title><rect class=\"svg-node\" x=\"${node.x}\" y=\"${node.y}\" width=\"${node.width}\" height=\"${node.height}\" rx=\"8\"/><text class=\"svg-node-label\" x=\"${cx}\" y=\"${node.y + 24}\" text-anchor=\"middle\">${escapeHtml(truncateToUnits(node.label, 18))}</text><text class=\"svg-node-state\" x=\"${cx}\" y=\"${node.y + 43}\" text-anchor=\"middle\">${glyph} ${escapeHtml(stateLabel)}</text></g>`;
+    return `<g class=\"svg-item state-${node.status}\" data-node-id=\"${escapeHtml(node.id)}\" data-state=\"${node.status}\"><title>${escapeHtml(node.label)} — ${escapeHtml(stateLabel)}</title><rect class=\"svg-node\" x=\"${node.x}\" y=\"${node.y}\" width=\"${node.width}\" height=\"${node.height}\" rx=\"8\"/><text class=\"svg-node-label\" x=\"${cx}\" y=\"${node.y + 24}\" text-anchor=\"middle\">${escapeHtml(truncateToUnits(node.label, 21))}</text><text class=\"svg-node-state\" x=\"${cx}\" y=\"${node.y + 43}\" text-anchor=\"middle\">${glyph} ${escapeHtml(stateLabel)}</text></g>`;
   }).join("");
   return `<svg id=\"dependency-graph\" class=\"workflow-svg\" viewBox=\"0 0 ${width} ${height}\" role=\"img\" aria-labelledby=\"dependency-graph-title dependency-graph-desc\"><title id=\"dependency-graph-title\">Agentic session dependency workflow</title><desc id=\"dependency-graph-desc\">Directed dependencies grouped by lane. Node fill, outline, glyph, and text encode delivery state.</desc>${lanes}<g aria-label=\"Directed edges\">${edges}</g><g aria-label=\"Status nodes\">${nodes}</g></svg>`;
 }
