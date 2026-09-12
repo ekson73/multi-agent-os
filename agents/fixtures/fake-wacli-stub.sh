@@ -3,6 +3,15 @@
 # NEVER touches a real account, real store, or real network. Synthetic content only.
 # Install on PATH ahead of a real `wacli` (if any) when running contract-behavior tests:
 #   PATH="$(dirname "$0"):$PATH" wacli --account acct-test doctor
+#
+# Function     : stand in for the real `wacli` binary with fixed, synthetic answers so the
+#                wacli-delegate contract can be exercised without any account, store, or network.
+# Spec         : agents/wacli-delegate.md (admission/classification/execute gates) ·
+#                tests/test-wacli-delegate-contract.sh (mechanical assertions over this stub).
+# Idempotent   : yes — pure function of argv; writes nothing, exit code + stdout/stderr only.
+# Portability  : Bash 3.2+ (no associative arrays / mapfile); no external tools required.
+# Layer purity : community-clean — one synthetic account (`acct-test`), fake JIDs redacted,
+#                no org-specific names, numbers, or credentials.
 set -euo pipefail
 
 if [[ "${1:-}" == "--version" ]]; then
@@ -25,8 +34,15 @@ fi
 # and the actual command (see agents/wacli-delegate.md's
 # `wacli --account ACCOUNT --read-only --json ...` invocation form) — they must be consumed
 # before CMD is determined, or a correctly-formed call misclassifies as UNKNOWN_FAKE_COMMAND.
+# json_str: minimal JSON string escaping for values interpolated into error envelopes
+# (backslash, double quote, tab, newline) so a hostile/odd argument cannot break the JSON.
+json_str() {
+  local s="$1"
+  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\t'/\\t}"; s="${s//$'\n'/\\n}"
+  printf '%s' "$s"
+}
 fail() {
-  echo '{"error":"'"$1"'","detail":"'"${2:-}"'"}' >&2
+  echo '{"error":"'"$(json_str "$1")"'","detail":"'"$(json_str "${2:-}")"'"}' >&2
   exit 1
 }
 
@@ -34,7 +50,7 @@ if [[ "${1:-}" == "--account" ]]; then
   ACCOUNT="${2:-}"; shift 2 || true
 
   if [[ "$ACCOUNT" != "acct-test" ]]; then
-    echo '{"error":"ACCOUNT_NOT_FOUND","account":"'"$ACCOUNT"'"}' >&2
+    echo '{"error":"ACCOUNT_NOT_FOUND","account":"'"$(json_str "$ACCOUNT")"'"}' >&2
     exit 1
   fi
 
@@ -50,8 +66,9 @@ if [[ "${1:-}" == "--account" ]]; then
         echo "wacli doctor --help (fake): reports AUTHENTICATED/CONNECTED/LOCKED/CONNECTION_STATE/MESSAGES/LAST_SYNC. Flags: --connect."
         exit 0
       fi
-      if [[ -n "${1:-}" && "${1:-}" != "--connect" ]]; then
-        fail "UNSUPPORTED_FLAG" "doctor ${1:-}"
+      if [[ "${1:-}" == "--connect" ]]; then shift; fi
+      if [[ $# -gt 0 ]]; then
+        fail "UNSUPPORTED_FLAG" "doctor $1"
       fi
       echo '{"AUTHENTICATED":true,"CONNECTED":false,"LOCKED":false,"CONNECTION_STATE":"local_only","MESSAGES":42,"LAST_SYNC":"2026-09-01T12:00:00Z"}'
       ;;
@@ -62,6 +79,10 @@ if [[ "${1:-}" == "--account" ]]; then
       fi
       case "${1:-}" in
         status)
+          shift
+          if [[ $# -gt 0 ]]; then
+            fail "UNSUPPORTED_FLAG" "auth status $1"
+          fi
           echo '{"authenticated":true,"jid":"[REDACTED-FAKE]"}'
           ;;
         *)
@@ -109,7 +130,7 @@ if [[ "${1:-}" == "--account" ]]; then
       exit 1
       ;;
     *)
-      echo '{"error":"UNKNOWN_FAKE_COMMAND","cmd":"'"$CMD"'"}' >&2
+      echo '{"error":"UNKNOWN_FAKE_COMMAND","cmd":"'"$(json_str "$CMD")"'"}' >&2
       exit 1
       ;;
   esac

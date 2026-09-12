@@ -1,6 +1,6 @@
 ---
 name: wacli-concierge
-version: "0.2.0"
+version: "0.2.1"
 description: |
   Operational knowledge and safety router for **wacli**, the linked-device WhatsApp CLI with a
   local SQLite/FTS5 mirror. Use for installation, named accounts, QR or phone-code pairing,
@@ -55,7 +55,7 @@ Apply the repository's HUMAN_DOMAIN and delegation policies. This table maps the
 |---|---|---|
 | Local read/search | `doctor`, `auth status`, list/search/show, `history coverage`, `store stats` | execute with one named `--account`; minimize returned content |
 | Remote signal/mutation | every `send`, poll vote, message forward/edit/delete/revoke, presence, chat-state, profile, group, channel, or `contacts check` write | exact plan → operator approves exact account/target/payload → execute that plan once → verify |
-| Destructive local mutation | cleanup/prune/purge/import-clear | dry-run → operator reviews exact scope → execute once with confirmation → verify |
+| Destructive local mutation | cleanup/prune/purge/import-clear, `accounts remove` (drops the config entry; store dir stays) | dry-run where supported (else say so in the plan) → operator reviews exact scope → execute once with confirmation → verify (`accounts list`/`show`) |
 | Pairing/logout | `accounts add`, `auth`, `auth logout` | interactive operator action or exact operator approval; never infer identity |
 
 PII includes JIDs, phone numbers, display names, bodies, captions, media names, and local media
@@ -132,6 +132,15 @@ Verify pairing with `AUTHENTICATED true` plus `auth status`; verify live connect
 
 ## Delegation contract
 
+Dispatching `wacli-delegate` is a sub-agent spawn: apply the repository's canonical delegation
+governance (`delegate-governance` skill / `plugin-scripts/gaac/delegate.sh init|dna|finalize`,
+per `AGENTS.md`) around it. The JSON below is the delegation *payload*, not a substitute for that
+governance. Without the companion agent (portable hosts installed via `npx skills`, or a Claude
+host where `Agent(wacli-delegate)` is unavailable): the knowledge sections above still apply, but
+there is no context isolation — keep to bounded reads with `--json` output limits, never run an
+outward/destructive action without the exact-plan operator approval described here, and say
+explicitly that raw output stayed in the parent context.
+
 Dispatch one JSON request to `wacli-delegate`. Minimum research request:
 
 ```json
@@ -190,5 +199,6 @@ or repeated false diagnoses invalidate the model. Cross-link: `[[wacli-concierge
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2.1 | 2026-09-12 | Review round (PR #418): `accounts remove` classified as a destructive local mutation; delegation routed through the canonical `delegate-governance` entry point; explicit degraded mode for hosts without the companion agent. Companion contract `wacli-delegate` is now v0.2.0 (Execute gate 6, parameter binding). |
 | 0.2.0 | 2026-09-10 | Adds the `wacli-operations` duet and `wacli-delegate` contract; splits detail into references; covers all capability-detected wacli operations with consent, isolation, and behavioral eval gates. |
 | 0.1.0 | 2026-09-10 | Initial operational concierge, named by Anima and grounded in all 27 wacli.sh pages plus the upstream changelog. |

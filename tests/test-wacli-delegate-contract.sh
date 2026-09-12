@@ -7,10 +7,24 @@
 # no-whitespace rule, not a general RFC 8785/JCS conformance claim - see the contract's own
 # "Plan digest canonicalization" section). It also self-tests agents/fixtures/fake-wacli-stub.sh,
 # the synthetic fixture used for LLM-driven contract-behavior evals (see
-# agents/WACLI-DELEGATE-EVAL-REPORT.md for that run's results). Portable (bash 3.2 + python3 +
-# shasum/sha256sum, whichever is present). Wired into CI by
+# agents/WACLI-DELEGATE-EVAL-REPORT.md for that run's results). Wired into CI by
 # .github/workflows/wacli-delegate-contract-tests.yml.
+#
+# Function     : pin the deterministic parts of the wacli-delegate contract (plan_digest canonical
+#                bytes, target/payload digest recomputation rule) and the fake stub's behaviour.
+# Spec         : agents/wacli-delegate.md §"Plan digest canonicalization" + §"Execute" ·
+#                agents/fixtures/fake-wacli-stub.sh header · agents/WACLI-DELEGATE-EVAL-REPORT.md
+# Idempotent   : yes — read-only over the tree; the only writes are mktemp files removed on EXIT.
+# Portability  : Bash 3.2+ · python3 · shasum|sha256sum · mktemp. No org-specific content.
+# Layer purity : community-clean — synthetic account/target/payload values only.
+#
+# NOT `set -e`: this is an assertion harness — every check records its own outcome via ok/no and
+# the script must keep going past a failing assertion to report the full picture (same pattern as
+# tests/governance/test-postflight-active-world.sh and tests/converge/run.sh). Every command whose
+# failure matters feeds an assertion; nothing can fail silently and still reach the PASS line.
 set -uo pipefail
+TMPD="$(mktemp -d 2>/dev/null || mktemp -d -t 'wacli-contract')"
+trap 'rm -rf "$TMPD"' EXIT
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 CONTRACT="$HERE/agents/wacli-delegate.md"
 STUB="$HERE/agents/fixtures/fake-wacli-stub.sh"
@@ -71,6 +85,30 @@ else
   no "canonicalization is NOT idempotent - independent re-serialization produced different bytes"
 fi
 
+# ---- 3b. Execute gate 6 (parameter binding): target_digest / payload_digest in the golden plan
+#          MUST equal plain SHA-256 of the raw unmasked values the contract documents for the
+#          vector. This pins the recomputation rule an executor applies to the ACTUAL parameters
+#          before the command: a request that keeps the approved plan but swaps the recipient or
+#          text must fail this exact comparison (PLAN_MISMATCH).
+RAW_TARGET="$(grep -o 'target_digest = sha256("[^"]*")' "$CONTRACT" | head -1 | sed 's/.*sha256("\(.*\)")/\1/')"
+RAW_PAYLOAD="$(grep -o 'payload_digest = sha256("[^"]*")' "$CONTRACT" | head -1 | sed 's/.*sha256("\(.*\)")/\1/')"
+PLAN_TARGET_DIGEST="$(printf '%s' "$GOLDEN_JSON" | grep -o '"target_digest":"[0-9a-f]\{64\}"' | grep -o '[0-9a-f]\{64\}')"
+PLAN_PAYLOAD_DIGEST="$(printf '%s' "$GOLDEN_JSON" | grep -o '"payload_digest":"[0-9a-f]\{64\}"' | grep -o '[0-9a-f]\{64\}')"
+if [ -z "$RAW_TARGET" ] || [ -z "$RAW_PAYLOAD" ]; then
+  no "contract no longer documents the golden vector's raw target/payload (sha256(\"...\") lines)"
+else
+  [ "$(printf '%s' "$RAW_TARGET" | sha256_of)" = "$PLAN_TARGET_DIGEST" ] \
+    && ok "golden target_digest recomputes from the raw unmasked target (parameter-binding rule)" \
+    || no "golden target_digest does NOT recompute from the documented raw target"
+  [ "$(printf '%s' "$RAW_PAYLOAD" | sha256_of)" = "$PLAN_PAYLOAD_DIGEST" ] \
+    && ok "golden payload_digest recomputes from the raw payload text (parameter-binding rule)" \
+    || no "golden payload_digest does NOT recompute from the documented raw payload"
+  # negative: a swapped recipient with the plan left intact must NOT match
+  [ "$(printf '%s' "${RAW_TARGET}-swapped" | sha256_of)" != "$PLAN_TARGET_DIGEST" ] \
+    && ok "a swapped target no longer matches the approved target_digest" \
+    || no "digest collision on swapped target (impossible unless sha256_of is broken)"
+fi
+
 # ---- 4. fake stub: deterministic, synthetic-only, refuses unknown accounts -------------------
 VERSION_OUT="$("$STUB" --version)"
 [ "$VERSION_OUT" = "wacli 0.18.1-fake-test-stub" ] && ok "stub --version deterministic" || no "stub --version drifted: $VERSION_OUT"
@@ -78,19 +116,17 @@ VERSION_OUT="$("$STUB" --version)"
 DOCTOR_OUT="$("$STUB" --account acct-test doctor)"
 echo "$DOCTOR_OUT" | grep -q '"AUTHENTICATED":true' && ok "stub doctor returns fixed AUTHENTICATED state" || no "stub doctor output drifted"
 
-if "$STUB" --account some-real-sounding-alias doctor >/dev/null 2>/tmp/stub_err_$$; then
+if "$STUB" --account some-real-sounding-alias doctor >/dev/null 2>"$TMPD/stub_err"; then
   no "stub accepted an unknown account instead of refusing"
 else
-  grep -q ACCOUNT_NOT_FOUND /tmp/stub_err_$$ && ok "stub refuses any account name other than acct-test" || no "stub refused for the wrong reason"
+  grep -q ACCOUNT_NOT_FOUND "$TMPD/stub_err" && ok "stub refuses any account name other than acct-test" || no "stub refused for the wrong reason"
 fi
-rm -f /tmp/stub_err_$$
 
-if "$STUB" --account acct-test send text --to x --text y >/dev/null 2>/tmp/stub_send_$$; then
+if "$STUB" --account acct-test send text --to x --text y >/dev/null 2>"$TMPD/stub_send"; then
   no "stub allowed a send to succeed (must always refuse in this fixture)"
 else
-  grep -q REFUSED_BY_FAKE_STUB /tmp/stub_send_$$ && ok "stub send path always refuses (exercises UPSTREAM_ERROR handling)" || no "stub send refused for the wrong reason"
+  grep -q REFUSED_BY_FAKE_STUB "$TMPD/stub_send" && ok "stub send path always refuses (exercises UPSTREAM_ERROR handling)" || no "stub send refused for the wrong reason"
 fi
-rm -f /tmp/stub_send_$$
 
 READONLY_SEARCH_OUT="$("$STUB" --account acct-test --read-only messages search)"
 echo "$READONLY_SEARCH_OUT" | grep -q '"count":2' && ok "stub parses the documented '--account ACCOUNT --read-only ...' global-flag order before CMD" || no "stub misclassified --read-only as CMD instead of a global flag"
@@ -98,26 +134,42 @@ echo "$READONLY_SEARCH_OUT" | grep -q '"count":2' && ok "stub parses the documen
 JSON_READONLY_SEARCH_OUT="$("$STUB" --account acct-test --read-only --json messages search --query hi)"
 echo "$JSON_READONLY_SEARCH_OUT" | grep -q '"count":2' && ok "stub parses '--read-only --json' together before CMD" || no "stub misclassified --read-only/--json global-flag combination"
 
-if "$STUB" --account acct-test auth logout >/dev/null 2>/tmp/stub_auth_$$; then
+if "$STUB" --account acct-test auth logout >/dev/null 2>"$TMPD/stub_auth"; then
   no "stub silently allowed an unhandled auth subcommand instead of failing"
 else
-  grep -q UNKNOWN_FAKE_SUBCOMMAND /tmp/stub_auth_$$ && ok "stub fails nonzero on an unsupported auth subcommand" || no "stub failed for the wrong reason on auth logout"
+  grep -q UNKNOWN_FAKE_SUBCOMMAND "$TMPD/stub_auth" && ok "stub fails nonzero on an unsupported auth subcommand" || no "stub failed for the wrong reason on auth logout"
 fi
-rm -f /tmp/stub_auth_$$
 
-if "$STUB" --account acct-test messages list >/dev/null 2>/tmp/stub_msg_$$; then
+if "$STUB" --account acct-test messages list >/dev/null 2>"$TMPD/stub_msg"; then
   no "stub silently allowed 'messages list' (only 'search' is supported) instead of failing"
 else
-  grep -q UNKNOWN_FAKE_SUBCOMMAND /tmp/stub_msg_$$ && ok "stub fails nonzero on an unsupported messages subcommand" || no "stub failed for the wrong reason on messages list"
+  grep -q UNKNOWN_FAKE_SUBCOMMAND "$TMPD/stub_msg" && ok "stub fails nonzero on an unsupported messages subcommand" || no "stub failed for the wrong reason on messages list"
 fi
-rm -f /tmp/stub_msg_$$
 
-if "$STUB" --account acct-test messages search --bogus-flag >/dev/null 2>/tmp/stub_flag_$$; then
+if "$STUB" --account acct-test messages search --bogus-flag >/dev/null 2>"$TMPD/stub_flag"; then
   no "stub silently ignored an unsupported messages search flag instead of failing"
 else
-  grep -q UNSUPPORTED_FLAG /tmp/stub_flag_$$ && ok "stub fails nonzero on an unsupported messages search flag" || no "stub failed for the wrong reason on an unsupported flag"
+  grep -q UNSUPPORTED_FLAG "$TMPD/stub_flag" && ok "stub fails nonzero on an unsupported messages search flag" || no "stub failed for the wrong reason on an unsupported flag"
 fi
-rm -f /tmp/stub_flag_$$
+
+if "$STUB" --account acct-test doctor --connect --bogus >/dev/null 2>"$TMPD/stub_doc"; then
+  no "stub accepted surplus arguments after 'doctor --connect' instead of failing"
+else
+  grep -q UNSUPPORTED_FLAG "$TMPD/stub_doc" && ok "stub rejects surplus arguments after 'doctor --connect'" || no "stub failed for the wrong reason on 'doctor --connect --bogus'"
+fi
+
+if "$STUB" --account acct-test auth status --bogus >/dev/null 2>"$TMPD/stub_auth2"; then
+  no "stub accepted surplus arguments after 'auth status' instead of failing"
+else
+  grep -q UNSUPPORTED_FLAG "$TMPD/stub_auth2" && ok "stub rejects surplus arguments after 'auth status'" || no "stub failed for the wrong reason on 'auth status --bogus'"
+fi
+
+# The fail() payload must stay valid JSON even when the offending argument carries a double quote
+# (the stub interpolates the argument into its error envelope).
+"$STUB" --account acct-test messages search '--bo"gus' >/dev/null 2>"$TMPD/stub_quote" || true
+python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$TMPD/stub_quote" 2>/dev/null \
+  && ok "stub error envelope stays valid JSON when the bad argument contains a double quote" \
+  || no "stub error envelope is not valid JSON for an argument containing a double quote"
 
 echo
 if [ "$fail" -eq 0 ]; then

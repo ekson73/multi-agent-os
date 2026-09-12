@@ -55,12 +55,34 @@ of duplicating the tool's own repo location.
 
 ## Verification
 
+**Prerequisite for the full check**: `skills/verified-agentic-session-model/bin/model-bundle.mjs`
+is *not* in this branch — it ships with PR #421 (branch `verified-agentic-session-model`). Run the
+`model-bundle.mjs verify` line from a checkout that contains that skill (that branch, or `main`
+once #421 has merged); on this branch alone it fails with a missing-file error, by design.
+
 ```bash
 gitleaks dir agents/fixtures/wacli-eko-almanac --no-banner   # clean, 2026-09-12
+# Full verification — requires the #421 skill (see prerequisite above):
 node skills/verified-agentic-session-model/bin/model-bundle.mjs verify \
   "agents/fixtures/wacli-eko-almanac/wacli-sidecard-agentic-artifact-ai-first-wacli-eko-almanac-verified-deli--20260912T130945Z-r44-v2.0.0--hf4e1f7fa6b6c.manifest.json"
 # → {"ok":true,"effective_status":"VALIDATED"}
 ```
 
+**Checkout-local fallback (works on this branch, no extra tooling)** — recompute the manifest's
+subject digests against the sibling files; both must print `True`:
+
+```bash
+cd agents/fixtures/wacli-eko-almanac && python3 -c '
+import json, hashlib
+m = json.load(open("wacli-sidecard-agentic-artifact-ai-first-wacli-eko-almanac-verified-deli--20260912T130945Z-r44-v2.0.0--hf4e1f7fa6b6c.manifest.json"))
+for s in m["subjects"]:
+    print(s["role"], hashlib.sha256(open(s["path"], "rb").read()).hexdigest() == s["digest"]["value"])
+'
+# → source True / sidecard_html True   (re-run 2026-09-12, this branch)
+```
+
+This fallback proves file integrity only (the subjects are the bytes the manifest signed); the
+CSP-hash, embedded-block, and status-derivation checks need the full verifier.
+
 ---
-Signed-by: Claude (agent) · 2026-09-12T13:35:00Z
+Signed-by: Claude-Dogfood-418a-001 · 2026-09-12T13:35:00Z
