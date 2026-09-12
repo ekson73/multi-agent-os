@@ -319,80 +319,92 @@ function schemaErrors(instance, schemaFile) {
   const errors = [];
   const rootFile = path.resolve(schemaFile);
 
-  function add(at, keyword, message) {
-    errors.push({ path: at || "/", keyword, message });
+  function add(sink, at, keyword, message) {
+    sink.push({ path: at || "/", keyword, message });
   }
 
-  function check(value, schema, at, documentFile) {
+  function check(value, schema, at, documentFile, sink = errors) {
     if (schema === true) return;
     if (schema === false) {
-      add(at, "falseSchema", "value is not allowed");
+      add(sink, at, "falseSchema", "value is not allowed");
       return;
     }
     if (schema.$ref) {
       const resolved = resolveSchemaRef(schema.$ref, documentFile);
-      check(value, resolved.schema, at, resolved.documentFile);
+      check(value, resolved.schema, at, resolved.documentFile, sink);
       return;
     }
     if (Object.hasOwn(schema, "const") && !deepEqual(value, schema.const)) {
-      add(at, "const", `must equal ${JSON.stringify(schema.const)}`);
+      add(sink, at, "const", `must equal ${JSON.stringify(schema.const)}`);
     }
     if (schema.enum && !schema.enum.some((candidate) => deepEqual(value, candidate))) {
-      add(at, "enum", `must be one of ${schema.enum.map((item) => JSON.stringify(item)).join(", ")}`);
+      add(sink, at, "enum", `must be one of ${schema.enum.map((item) => JSON.stringify(item)).join(", ")}`);
     }
     if (schema.type) {
       const types = Array.isArray(schema.type) ? schema.type : [schema.type];
       if (!types.some((type) => typeMatches(value, type))) {
-        add(at, "type", `must be ${types.join(" or ")}`);
+        add(sink, at, "type", `must be ${types.join(" or ")}`);
         return;
+      }
+    }
+    if (schema.allOf) {
+      for (const sub of schema.allOf) check(value, sub, at, documentFile, sink);
+    }
+    if (schema.if) {
+      const trial = [];
+      check(value, schema.if, at, documentFile, trial);
+      if (trial.length === 0) {
+        if (schema.then) check(value, schema.then, at, documentFile, sink);
+      } else if (schema.else) {
+        check(value, schema.else, at, documentFile, sink);
       }
     }
     if (value === null) return;
 
     if (typeof value === "string") {
-      if (schema.minLength !== undefined && value.length < schema.minLength) add(at, "minLength", `must contain at least ${schema.minLength} character(s)`);
-      if (schema.maxLength !== undefined && value.length > schema.maxLength) add(at, "maxLength", `must contain no more than ${schema.maxLength} character(s)`);
-      if (schema.pattern && !(new RegExp(schema.pattern, "u")).test(value)) add(at, "pattern", `must match ${schema.pattern}`);
-      if (schema.format === "date-time" && !validRfc3339(value)) add(at, "format", "must be a real RFC 3339 UTC date-time");
+      if (schema.minLength !== undefined && value.length < schema.minLength) add(sink, at, "minLength", `must contain at least ${schema.minLength} character(s)`);
+      if (schema.maxLength !== undefined && value.length > schema.maxLength) add(sink, at, "maxLength", `must contain no more than ${schema.maxLength} character(s)`);
+      if (schema.pattern && !(new RegExp(schema.pattern, "u")).test(value)) add(sink, at, "pattern", `must match ${schema.pattern}`);
+      if (schema.format === "date-time" && !validRfc3339(value)) add(sink, at, "format", "must be a real RFC 3339 UTC date-time");
     }
 
     if (typeof value === "number") {
-      if (schema.minimum !== undefined && value < schema.minimum) add(at, "minimum", `must be >= ${schema.minimum}`);
-      if (schema.maximum !== undefined && value > schema.maximum) add(at, "maximum", `must be <= ${schema.maximum}`);
+      if (schema.minimum !== undefined && value < schema.minimum) add(sink, at, "minimum", `must be >= ${schema.minimum}`);
+      if (schema.maximum !== undefined && value > schema.maximum) add(sink, at, "maximum", `must be <= ${schema.maximum}`);
     }
 
     if (Array.isArray(value)) {
-      if (schema.minItems !== undefined && value.length < schema.minItems) add(at, "minItems", `must contain at least ${schema.minItems} item(s)`);
-      if (schema.maxItems !== undefined && value.length > schema.maxItems) add(at, "maxItems", `must contain no more than ${schema.maxItems} item(s)`);
+      if (schema.minItems !== undefined && value.length < schema.minItems) add(sink, at, "minItems", `must contain at least ${schema.minItems} item(s)`);
+      if (schema.maxItems !== undefined && value.length > schema.maxItems) add(sink, at, "maxItems", `must contain no more than ${schema.maxItems} item(s)`);
       if (schema.uniqueItems) {
         const seen = new Set();
         value.forEach((item, index) => {
           const encoded = JSON.stringify(item);
-          if (seen.has(encoded)) add(`${at}/${index}`, "uniqueItems", "must not duplicate another item");
+          if (seen.has(encoded)) add(sink, `${at}/${index}`, "uniqueItems", "must not duplicate another item");
           seen.add(encoded);
         });
       }
       if (schema.prefixItems) {
         schema.prefixItems.forEach((itemSchema, index) => {
-          if (index < value.length) check(value[index], itemSchema, `${at}/${index}`, documentFile);
+          if (index < value.length) check(value[index], itemSchema, `${at}/${index}`, documentFile, sink);
         });
       }
       if (schema.items === false && schema.prefixItems && value.length > schema.prefixItems.length) {
-        add(at, "items", "contains an item beyond the allowed tuple length");
+        add(sink, at, "items", "contains an item beyond the allowed tuple length");
       } else if (schema.items && schema.items !== true) {
-        value.forEach((item, index) => check(item, schema.items, `${at}/${index}`, documentFile));
+        value.forEach((item, index) => check(item, schema.items, `${at}/${index}`, documentFile, sink));
       }
     }
 
     if (value && typeof value === "object" && !Array.isArray(value)) {
       for (const required of schema.required || []) {
-        if (!Object.hasOwn(value, required)) add(at, "required", `must contain property ${required}`);
+        if (!Object.hasOwn(value, required)) add(sink, at, "required", `must contain property ${required}`);
       }
       const properties = schema.properties || {};
       for (const [key, child] of Object.entries(value)) {
-        if (Object.hasOwn(properties, key)) check(child, properties[key], `${at}/${pointerEscape(key)}`, documentFile);
-        else if (schema.additionalProperties === false) add(`${at}/${pointerEscape(key)}`, "additionalProperties", "property is not allowed");
-        else if (schema.additionalProperties && typeof schema.additionalProperties === "object") check(child, schema.additionalProperties, `${at}/${pointerEscape(key)}`, documentFile);
+        if (Object.hasOwn(properties, key)) check(child, properties[key], `${at}/${pointerEscape(key)}`, documentFile, sink);
+        else if (schema.additionalProperties === false) add(sink, `${at}/${pointerEscape(key)}`, "additionalProperties", "property is not allowed");
+        else if (schema.additionalProperties && typeof schema.additionalProperties === "object") check(child, schema.additionalProperties, `${at}/${pointerEscape(key)}`, documentFile, sink);
       }
     }
   }

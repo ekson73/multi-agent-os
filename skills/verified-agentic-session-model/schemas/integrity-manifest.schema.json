@@ -102,7 +102,7 @@
       "then": { "properties": { "embedded_blocks": { "type": "array", "maxItems": 0 } } }
     },
     {
-      "if": { "properties": { "profile": { "const": "portable_sidecard" } }, "required": ["profile"] },
+      "if": { "properties": { "profile": { "const": "portable_sidecard" }, "status": { "const": "VALIDATED" } }, "required": ["profile", "status"] },
       "then": { "properties": { "embedded_blocks": {
         "type": "array",
         "minItems": 2,
