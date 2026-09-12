@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` CodeRabbit re-review on `8c1db95`
+
+- Closed the real, recurring finding from CodeRabbit's updated review
+  (comment `5638767652`, updated 2026-09-12T01:43:13Z): the `dna`,
+  `template`, and `governance` exclusion assertions in
+  `derive-child only inherits ... material explicitly named in the
+  request` each checked only their own sub-collection
+  (`child.inert_material.dna` / `.templates` / `.governance`) for the
+  excluded marker, so a defect leaking the marker into a *different*
+  child field would have passed undetected. Broadened all three
+  assertions to `JSON.stringify(child).includes(marker)` — scanning the
+  complete serialized child — closing the same unresolved concern
+  CodeRabbit had already flagged on the prior review. 31/31 tests pass.
 
 ### Added — `verified-agentic-session-model` portable-sidecard visual polish
 
