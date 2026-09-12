@@ -852,6 +852,24 @@ test("portable render fails closed when reusing a stem whose existing manifest i
   });
 });
 
+test("verify rejects a VALIDATED manifest whose embedded_blocks count violates its profile's schema contract", async () => {
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const manifestFile = rendered.resultBody.manifest;
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    assert.equal(manifest.status, "VALIDATED");
+    assert.equal(manifest.embedded_blocks.length, 2);
+    manifest.embedded_blocks = manifest.embedded_blocks.slice(0, 1);
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const verify = run(["verify", manifestFile]);
+    assert.equal(verify.status, 1);
+    const error = body(verify.stderr).error;
+    assert.equal(error.code, "MANIFEST_SCHEMA_INVALID");
+    assert.ok(error.details.some((item) => item.path === "/embedded_blocks"), JSON.stringify(error.details));
+  });
+});
+
 test("canonicalization rejects an unpaired UTF-16 surrogate instead of silently accepting it", async () => {
   await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => { value.metadata.scope = "lone surrogate \uD800 marker"; });

@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` independent DIY review: schema validator ignored `allOf`/`if`/`then`
+
+- Independent review (no bot finding; the last CodeRabbit review on `793b369`
+  was stale by two commits) found that the CLI's own minimal JSON Schema
+  validator (`schemaErrors`) silently ignored the `allOf`/`if`/`then`
+  composition keywords entirely — it recognized `$ref`, `const`, `enum`,
+  `type`, and the plain string/number/array/object constraints, but any
+  schema using `allOf`/`if`/`then` validated as if those keywords were
+  absent. `schemas/integrity-manifest.schema.json` (added by this PR) uses
+  exactly this construct to make `embedded_blocks` profile-conditional, so
+  the schema's own declared contract was not actually enforced by the
+  validator that is supposed to check it; the runtime gate happened to be
+  covered redundantly by `manifestSemanticErrors`, but a real external
+  consumer validating the published schema file (it ships in `package.json`
+  `files` and is the `human-artifact-agentic-sidecar` machine-first source)
+  with a spec-compliant validator would see the same rule enforced, while
+  this repo's own validator silently passed anything violating it. Added
+  `allOf`/`if`/`then`/`else` support to `check()` (single-purpose helper:
+  evaluate `if` into a scratch sink, apply `then`/`else` into the real one
+  on match/no-match; recurse each `allOf` member into the same sink).
+- Fixing the validator surfaced a second, real bug the redundant semantic
+  check had been masking: the manifest schema's `portable_sidecard` branch
+  required the canonical two-block set unconditionally on `profile`, with
+  no `status` gate — but `writeStaleManifest` intentionally commits an
+  interim `STALE` placeholder with `embedded_blocks: []` before the real
+  render completes (fail-closed-if-crashed design). Once the validator
+  actually enforced the schema, every `portable-sidecard` render started
+  failing at the STALE-write step. Fixed by scoping the `portable_sidecard`
+  conditional to `status: VALIDATED` (mirroring how `manifestSemanticErrors`
+  already gates its own `checks`-set assertion), so the interim placeholder
+  validates and the completed bundle is still held to the exact two-block
+  contract. Added a regression test (`verify rejects a VALIDATED manifest
+  whose embedded_blocks count violates its profile's schema contract`)
+  exercising the schema-level catch end-to-end via the CLI. 32/32 tests
+  pass; `gitleaks dir . --no-banner` and `tests/validate-plugin.sh` clean.
+
 ### Fixed — `verified-agentic-session-model` CodeRabbit re-review on `8c1db95`
 
 - Closed the real, recurring finding from CodeRabbit's updated review
