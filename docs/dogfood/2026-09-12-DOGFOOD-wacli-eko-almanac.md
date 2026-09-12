@@ -39,11 +39,19 @@ the dogfood record survives past this session and is reviewable in the PR.
 
 The reusable **template/SSOT** (schema, renderer, tests) for
 `verified-agentic-session-model` lives in `skills/verified-agentic-session-model/`
-on `feat/verified-agentic-session-model` (PR #421) — that is the correct home
-for the tool itself. This specific **Almanac instance** (the wacli session's
-own data) is delivery evidence for the `wacli-concierge`/`wacli-delegate`
-feature, so it lands here on `feat/wacli-concierge` (PR #418) instead of
-duplicating the tool's own repo location.
+on the `verified-agentic-session-model` feature branch (PR #421) — that is the
+correct home for the tool itself. This specific **Almanac instance** (the
+wacli session's own data) is delivery evidence for the `wacli-concierge`/
+`wacli-delegate` feature, so it lands here on this PR's branch (#418) instead
+of duplicating the tool's own repo location.
+
+> **Branch-naming note**: `CLAUDE.md`'s `{type}/{scope}-{agent-hex}` convention
+> (types: `feature`/`bugfix`/`hotfix`/`docs`/`refactor`/`chore`) predates and is
+> not satisfied by either PR's existing branch name (`feat/...`, no agent-hex
+> suffix). Both branches were created before this doc existed; renaming a live
+> branch under open review is out of proportion to a docs/fixture addition and
+> risks breaking the open PRs' remote tracking. Flagged, not silently fixed by
+> renaming — a branch-rename is a separate, explicit action for the PR owner.
 
 ## Verification
 
@@ -53,3 +61,6 @@ node skills/verified-agentic-session-model/bin/model-bundle.mjs verify \
   "agents/fixtures/wacli-eko-almanac/wacli-sidecard-agentic-artifact-ai-first-wacli-eko-almanac-verified-deli--20260912T130945Z-r44-v2.0.0--hf4e1f7fa6b6c.manifest.json"
 # → {"ok":true,"effective_status":"VALIDATED"}
 ```
+
+---
+Signed-by: Claude (agent) · 2026-09-12T13:35:00Z
