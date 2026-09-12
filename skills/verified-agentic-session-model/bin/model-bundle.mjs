@@ -818,7 +818,10 @@ function portableStem(model, digestLength = 12) {
     identity.semantic.subject,
     identity.semantic.purpose
   ].join("-").slice(0, 72).replace(/-+$/u, "");
-  return `${prefix}--${date}-r${identity.chronological.revision}-v${identity.version}--h${identityDigest(model).slice(0, digestLength)}`;
+  // SemVer build metadata uses "+", which the manifest subject-path pattern (and many
+  // filesystems/URLs) reject; "_" never occurs in SemVer, so the mapping is unambiguous.
+  const version = identity.version.replace(/\+/gu, "_");
+  return `${prefix}--${date}-r${identity.chronological.revision}-v${version}--h${identityDigest(model).slice(0, digestLength)}`;
 }
 
 function portableStemMatches(model, stem) {
