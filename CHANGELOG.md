@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `verified-agentic-session-model` portable-sidecard visual polish
+
+- Added an additive `PORTABLE_POLISH_STYLE` CSS layer (tinted depth shadows,
+  a hero accent top-border, panel hover elevation, refined heading weight)
+  to the `portable-sidecard` profile. Purely a new CSS block appended to the
+  existing `PORTABLE_CSS` chain — no existing selector, class, or HTML
+  structure changed, no schema change, no new script or network surface.
+  CSP hash and `template_sha256` are both computed dynamically from the
+  current `PORTABLE_CSS`, so freshly rendered artifacts remain internally
+  self-consistent; historical sidecards rendered under the prior CSS are
+  unaffected snapshots and are not expected to re-verify byte-for-byte
+  against the new template (same class of change as any other template
+  revision). 29/29 tests still pass; `verify` PASS on a freshly re-rendered
+  artifact.
+
 ### Fixed — `verified-agentic-session-model` PR #421 assurance remediation
 
 - Closed six independently reproduced security findings in the v2 CLI, plus
