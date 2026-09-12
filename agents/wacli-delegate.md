@@ -116,6 +116,12 @@ not guessed.
    commands on admission (one action-specific `--help`, one state probe) plus however many counted
    commands the actual action needs, against the default `commands 4/max10` budget in the Fields
    table — e.g. one state probe + one action-specific help + one real search call = 3 of 4, never 0.
+   **New-account exception**: for `accounts add` (interactive class) the named account does not
+   exist yet, so the per-account probe (`--account NAME doctor` / `auth status`) would fail with
+   `ACCOUNT_NOT_FOUND` and block pairing. There the counted state probe is `wacli accounts list`
+   (the alias must be absent, or present only as a `--no-auth` entry awaiting pairing); the
+   per-account `AUTHENTICATED` + `auth status` verification runs after the human pairing step, as
+   §Interactive requires. No other action gets this exception.
 4. Classify the action using the table above and the preloaded skill. If classification affects
    consent and is uncertain, return `needs_hitl`; do not choose the lower-risk class.
 5. Construct commands only from the admitted action plus typed, separately quoted arguments.

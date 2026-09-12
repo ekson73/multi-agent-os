@@ -113,8 +113,10 @@ Selection precedence: `--store` → `--account` → `WACLI_STORE_DIR` → defaul
 single-store default. `--store` and `--account` are mutually exclusive.
 
 `--store` can initialize/migrate schema. Routine work uses `--account`. Never point `--store` at
-another tool's state. Before using it on any existing owned directory: verify the target, confirm a
-restorable backup, and obtain explicit operator approval. "Just inspect" is not safe.
+another tool's state. **`--store` is operator-only**: neither this skill's inline path nor
+`wacli-delegate` (which refuses it at admission) ever runs it. When a migration/debug case needs it,
+prepare the exact command for the operator, who first verifies the target, confirms a restorable
+backup, and runs it themselves. "Just inspect" is not safe.
 
 ## State-based diagnosis
 

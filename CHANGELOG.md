@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   script headers, `mktemp` + `trap … EXIT` temp files (explicitly not `set -e` — assertion harness
   precedent); fake stub escapes interpolated error values and rejects surplus arguments after
   `doctor --connect` / `auth status`.
+  Copilot round on the same head: `--store` and any companion SQLite query are operator-only
+  (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
+  exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
 
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 

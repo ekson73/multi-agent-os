@@ -12,11 +12,15 @@ Windows; XDG state on Linux, with an existing Linux `~/.wacli` retained. Directo
 
 - Never read, copy, merge, or write `session.db` outside wacli.
 - Never write `wacli.db` outside wacli.
-- Any exceptional companion SQLite query opens `wacli.db` with `sqlite3 --readonly` or a
-  `file:...?mode=ro` URI, after capability-detecting that form. Prefer wacli's own JSON commands.
-- `--store DIR` is a migration/debug escape hatch, not an inspection mode. It may initialize or
-  migrate schema in the target. Existing directory requires verified target, restorable backup,
-  and explicit approval; a foreign tool's state directory is prohibited.
+- No agent path opens `wacli.db` directly: the concierge's Bash allowance is `wacli:*` only and
+  `wacli-delegate` refuses direct SQLite at admission. Use wacli's own JSON commands. If an
+  **operator** chooses to run a companion query by hand (e.g. a count-vs-listable investigation), it
+  must be read-only — `sqlite3 --readonly` or a `file:...?mode=ro` URI, capability-detected first —
+  and its output stays with the operator.
+- `--store DIR` is a migration/debug escape hatch, not an inspection mode, and **operator-only**
+  (never run by the concierge or the delegate). It may initialize or migrate schema in the target.
+  Existing directory requires verified target, restorable backup, and explicit operator execution;
+  a foreign tool's state directory is prohibited.
 
 ## Account commands
 
