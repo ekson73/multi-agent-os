@@ -1,0 +1,44 @@
+name: wacli-delegate contract tests
+
+# tests/test-wacli-delegate-contract.sh's own header claims it is "wired into CI"; this file is
+# that promise kept. Without it the plan_digest golden-vector check and the fake-stub determinism
+# check would only ever run by hand — exactly the class of uncited-because-unrun test claim the
+# repo has already been burned by once (see lens-dispatch-tests.yml's own comment for that
+# precedent). No `paths:` filter: agents/wacli-delegate.md and agents/fixtures/fake-wacli-stub.sh
+# are the two things this test protects, but a change anywhere in agents/** or tests/** could
+# plausibly interact with either (e.g. a shared frontmatter/validator convention), so the filter
+# stays broad rather than becoming another "remember to update this list" obligation.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wacli-delegate-contract:
+    name: plan_digest golden vector + fake-stub determinism
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Assert python3 and shasum/sha256sum are present
+        run: |
+          python3 --version
+          command -v shasum >/dev/null 2>&1 || command -v sha256sum >/dev/null 2>&1
+
+      - name: Contract mechanical tests (plan_digest canonicalization + fake stub)
+        run: bash tests/test-wacli-delegate-contract.sh
+
+      - name: Validate plugin structure (repo MUST rule)
+        run: bash tests/validate-plugin.sh

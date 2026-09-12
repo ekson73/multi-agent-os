@@ -3,10 +3,13 @@
 # ----------------------------------------------------------------------------
 # wacli-delegate is a behavioral (Markdown) spec, not executable code, so this script does not
 # "run the agent". It durably tests the ONE part of the contract that is deterministic and
-# reproducible without an LLM: plan_digest canonicalization (RFC-8785-style canonical JSON ->
-# SHA-256). It also self-tests agents/fixtures/fake-wacli-stub.sh, the synthetic fixture used for
-# LLM-driven contract-behavior evals (see agents/wacli-delegate.EVAL-REPORT.md for that run's
-# results). Portable (bash 3.2 + python3 + shasum/sha256sum, whichever is present).
+# reproducible without an LLM: plan_digest canonicalization (a self-contained sorted-key/UTF-8/
+# no-whitespace rule, not a general RFC 8785/JCS conformance claim - see the contract's own
+# "Plan digest canonicalization" section). It also self-tests agents/fixtures/fake-wacli-stub.sh,
+# the synthetic fixture used for LLM-driven contract-behavior evals (see
+# agents/WACLI-DELEGATE-EVAL-REPORT.md for that run's results). Portable (bash 3.2 + python3 +
+# shasum/sha256sum, whichever is present). Wired into CI by
+# .github/workflows/wacli-delegate-contract-tests.yml.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 CONTRACT="$HERE/agents/wacli-delegate.md"
