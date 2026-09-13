@@ -252,6 +252,46 @@ test("portable sidecard renders an accessible directed SVG before status nodes w
   });
 });
 
+test("portable sidecard is served with a UTF-8 BOM so file:// charset-sniffing cannot mangle it", async () => {
+  // Regression test for a real incident: Chromium's local-file loader overrode an explicit
+  // <meta charset="utf-8"> and rendered every state glyph as mojibake. A prior fix for this
+  // was claimed in a commit message but never actually landed (a script crashed before its
+  // write() call) and the 39-test suite at the time stayed green throughout - this asserts
+  // the actual bytes, not a changelog claim, so that exact failure class cannot recur silently.
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const bytes = await readFile(rendered.resultBody.outputs.sidecard);
+    assert.deepEqual(bytes.subarray(0, 3), Buffer.from([0xef, 0xbb, 0xbf]), "sidecard must start with a UTF-8 BOM");
+    const html = bytes.toString("utf8");
+    assert.ok(html.startsWith("\ufeff<!doctype html>"), "BOM must precede the doctype, not corrupt it");
+  });
+});
+
+test("workflow diagram has an always-visible edge-fade cue (painted above SVG content) and honors reduced motion", async () => {
+  // Regression test, round 2: a first "position-aware" attempt (paired background-
+  // attachment:local/scroll gradients on .workflow-scroll) was claimed fixed twice before
+  // it actually shipped, and even once it did ship, an independent council re-check proved
+  // it was imperceptible in practice - opaque <rect> lane-band fills inside the child SVG
+  // paint on top of a parent's background regardless of the SVG's own background being
+  // transparent, so the "fix" was real in computed style but invisible on screen. Replaced
+  // with a static ::before/::after overlay on the non-scrolling .workflow-figure wrapper,
+  // which paints ON TOP of the SVG (pseudo-elements are the last child in local paint
+  // order) - guaranteed visible, at the cost of not being scroll-position-aware. This test
+  // asserts the CSS that makes it actually visible (z-index + no scroll-following
+  // background-attachment), not just "a gradient exists somewhere".
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const html = await readFile(rendered.resultBody.outputs.sidecard, "utf8");
+    assert.ok(html.includes(".workflow-figure::before,.workflow-figure::after"), "edge-fade must be a pseudo-element pair on the non-scrolling wrapper, not a scrolling background layer");
+    assert.ok(html.includes("z-index:1"), "edge-fade must be explicitly stacked above the SVG's own paint order");
+    assert.ok(html.includes("pointer-events:none"), "edge-fade must not intercept scroll/drag interaction");
+    assert.equal((html.match(/linear-gradient\(-?90deg,var\(--bg\),transparent 85%\)/gu) || []).length, 2, "edge-fade requires exactly one gradient layer per side");
+    assert.match(html, /@media\s*\(prefers-reduced-motion:\s*reduce\)\{[^}]*\.edge-role-main \.svg-edge,\.svg-item \.svg-node\{animation:none!important/u);
+  });
+});
+
 test("inspect rejects noncanonical capsule encoding without writing", async () => {
   await temp(async (directory) => {
     const rendered = await renderPortable(directory);
@@ -307,7 +347,7 @@ test("portable sidecard has the exact CSP and no browser effect surfaces", async
     const rendered = await renderPortable(directory);
     assert.equal(rendered.result.status, 0, rendered.result.stderr);
     const html = await readFile(rendered.resultBody.outputs.sidecard, "utf8");
-    assert.match(html, /default-src &#39;none&#39;; base-uri &#39;none&#39;; connect-src &#39;none&#39;; img-src data:; style-src &#39;sha256-/u);
+    assert.match(html, /default-src &#39;none&#39;; base-uri &#39;none&#39;; connect-src &#39;none&#39;; img-src &#39;none&#39;; style-src &#39;sha256-/u);
     assert.doesNotMatch(html, /<(?:a|form|iframe|object|embed|link|base|img|audio|video|source)\b/iu);
     assert.doesNotMatch(html, /(?:fetch\s*\(|XMLHttpRequest|sendBeacon|localStorage|sessionStorage|indexedDB|serviceWorker|clipboard|download\s*=|window\.open)/iu);
   });
