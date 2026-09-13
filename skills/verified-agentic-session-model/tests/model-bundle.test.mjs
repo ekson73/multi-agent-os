@@ -374,6 +374,7 @@ test("portable privacy scan blocks direct and encoded sensitive/private material
   const values = [
     "person@private-domain.dev",
     "/Users/private-user/project",
+    "~/private-user/project",
     "raw transcript follows",
     Buffer.from("person@private-domain.dev").toString("base64url")
   ];
