@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Critical**: `validatePortableDistribution`'s `PRIVATE_PATH` check only matched
   absolute `/Users/`, `/home/`, and Windows `C:\Users\` paths — a workstation-local
-  `~/`-relative path (e.g. `~/.claude/rules/...`, `~/eko-engram/.worktrees/...`) passed
-  every render/verify/inspect gate undetected. Found in a live portable sidecard: a
-  `next_action.where` field and three rule citations all embedded a `~/`-relative path
-  in a `portable_sanitized` artifact. The regex now also matches `~[/\\]` followed by a
-  path segment; regression case added to the existing private-material value table.
+  `~/`-relative path (e.g. `~/.claude/rules/...`, or a private repo's own worktree path
+  such as `~/<repo>/.worktrees/...`) passed every render/verify/inspect gate undetected.
+  Found in a live portable sidecard: a `next_action.where` field and three rule citations
+  all embedded a `~/`-relative path in a `portable_sanitized` artifact. The regex now
+  matches any `~/` or `~\` — including a bare home-root reference with nothing after the
+  slash, which the first fix still missed — not just one followed by a path segment;
+  regression cases for both shapes added to the existing private-material value table.
 ### Fixed — `verified-agentic-session-model` v2.1.0: council-driven portable-sidecard fixes
 
 - **Critical**: a UTF-8 BOM is now prepended to the rendered `*.sidecard.html` bytes.

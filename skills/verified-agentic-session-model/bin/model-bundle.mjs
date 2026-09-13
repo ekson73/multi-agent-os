@@ -791,7 +791,7 @@ function validatePortableDistribution(model) {
   const canonical = canonicalBytes(model).toString("utf8");
   const texts = [canonical, ...decodedPayloads(canonical)];
   for (const [code, pattern] of [
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\|~[\/\\][\w.-])/u],
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\|~[\/\\])/u],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
