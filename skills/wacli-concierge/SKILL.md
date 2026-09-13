@@ -9,7 +9,7 @@ description: |
   `wacli-delegate` so raw results stay outside the parent context. Capability-detects first,
   requires exact human approval for remote/destructive mutations, and verifies state rather than
   log text. Modes: explain · pair · operate · diagnose · audit · delegate.
-allowed-tools: Agent(wacli-delegate), Bash(wacli:*)
+allowed-tools: Agent(wacli-delegate), Bash(wacli:*), Skill
 metadata:
   scope: AAIF cross-vendor
   family: wacli-operations
