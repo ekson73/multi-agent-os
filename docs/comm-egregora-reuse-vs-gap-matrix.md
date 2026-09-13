@@ -7,7 +7,7 @@ owner: operator (ekson73)
 last_updated: 2026-09-13T15:35Z
 related:
   - eko-engram/designs/comm-egregora-chassis.md (v0.3.0-draft)
-  - ~/.claude/docs/decisions/ADR-comm-egregora-program-2026-09-12.md (v1.0.0)
+  - the ADR-comm-egregora-program v1.0.0 (operator-internal decision log) (v1.0.0)
   - WA-Reuse-Research FINDINGS.md (branch research/whatsapp-reuse-research, commit 987e1a9)
   - Email-Reuse-Research FINDINGS.md (branch research/email-reuse, commit 083011a)
   - SDT-Reuse-Research FINDINGS.md (branch research/sdt-reuse)
