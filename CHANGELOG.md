@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.1: portable-distribution private-path detection gap
+
+- **Critical**: `validatePortableDistribution`'s `PRIVATE_PATH` check only matched
+  absolute `/Users/`, `/home/`, and Windows `C:\Users\` paths — a workstation-local
+  `~/`-relative path (e.g. `~/.claude/rules/...`, `~/eko-engram/.worktrees/...`) passed
+  every render/verify/inspect gate undetected. Found in a live portable sidecard: a
+  `next_action.where` field and three rule citations all embedded a `~/`-relative path
+  in a `portable_sanitized` artifact. The regex now also matches `~[/\\]` followed by a
+  path segment; regression case added to the existing private-material value table.
 ### Fixed — `verified-agentic-session-model` v2.1.0: council-driven portable-sidecard fixes
 
 - **Critical**: a UTF-8 BOM is now prepended to the rendered `*.sidecard.html` bytes.
@@ -17,12 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified the workflow diagram's two animated-edge classes to the same apparent
   flow rate (dash-length ÷ duration); they previously differed by ~2x, reading as an
   unintentional glitch rather than a deliberate accent.
-- Added a CSS-only, position-aware horizontal-scroll affordance on the workflow
-  diagram (paired `background-attachment:local/scroll` gradients — zero script, CSP-
-  compliant). Required two attempts: the first script crashed on an unrelated assert
-  before its `write()` call, so nothing shipped; a narrower follow-up removed the
-  stale cue without adding the new one (net regression). Caught by an independent
-  council re-check via `grep`/`getComputedStyle` rather than trusting the changelog.
+- Added an always-visible edge-fade cue on the workflow diagram: a static
+  `::before`/`::after` overlay pair on the non-scrolling `.workflow-figure` wrapper,
+  explicitly stacked (`z-index:1`, `pointer-events:none`) above the SVG's own paint
+  order. A first attempt (paired `background-attachment:local/scroll` gradients on the
+  scrolling container) shipped a fix that was real in computed style but invisible on
+  screen — the child SVG's opaque lane-band `<rect>` fills paint on top of the parent's
+  background regardless of the SVG's own background, a structural stacking-order defect
+  independent council pixel-sampling caught twice (round 1 and round 2) before this
+  overlay-on-top-of-everything approach proved genuinely visible at all scroll positions.
 - Bumped lane-band fill and lane-title weight so lane grouping is legible against
   saturated state-node colors.
 - `intent.motivations` (stored but never rendered) is now visible via a collapsed

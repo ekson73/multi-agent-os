@@ -20,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TOOL = "verified-agentic-session-model";
-const VERSION = "2.1.0";
+const VERSION = "2.1.1";
 const STATUS_VALUES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const REASON_REQUIRED = new Set(["deferred", "hitl", "blocked", "canceled", "superseded", "deprecated", "unknown"]);
 const TERMINAL_STATES = new Set(["completed", "canceled", "superseded", "deprecated"]);
@@ -791,7 +791,7 @@ function validatePortableDistribution(model) {
   const canonical = canonicalBytes(model).toString("utf8");
   const texts = [canonical, ...decodedPayloads(canonical)];
   for (const [code, pattern] of [
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\)/u],
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\|~[\/\\][\w.-])/u],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
