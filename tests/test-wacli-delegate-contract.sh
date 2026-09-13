@@ -51,7 +51,7 @@ if [ -z "$GOLDEN_LINE" ]; then
 else
   GOLDEN_JSON="$(sed -n "${GOLDEN_LINE}p" "$CONTRACT")"
   GOLDEN_DIGEST="$(printf '%s' "$GOLDEN_JSON" | sha256_of)"
-  EXPECTED_DIGEST="$(grep -o '[0-9a-f]\{64\}' "$CONTRACT" | tail -1)"
+  EXPECTED_DIGEST="$(sed -n "$((GOLDEN_LINE + 1)),$((GOLDEN_LINE + 6))p" "$CONTRACT" | grep -o '[0-9a-f]\{64\}' | sed -n '1p')"
   if [ "$GOLDEN_DIGEST" = "$EXPECTED_DIGEST" ]; then
     ok "plan_digest golden vector reproduces: $GOLDEN_DIGEST"
   else
@@ -107,6 +107,19 @@ else
   [ "$(printf '%s' "${RAW_TARGET}-swapped" | sha256_of)" != "$PLAN_TARGET_DIGEST" ] \
     && ok "a swapped target no longer matches the approved target_digest" \
     || no "digest collision on swapped target (impossible unless sha256_of is broken)"
+fi
+
+# ---- 3c. Non-target parameter binding: cleanup cutoff + boolean controls ---------------------
+CLEANUP_PARAMETERS='{"cutoff":"2026-09-01T00:00:00Z","dry_run":false,"purge":true}'
+CLEANUP_PARAMETERS_DIGEST='9c241bd07c518cb2e983b6a22ec13565d7a88cc85684ee2d161400b72f1a0442'
+if ! grep -Fq "$CLEANUP_PARAMETERS_DIGEST" "$CONTRACT"; then
+  no "contract no longer documents the non-target parameter golden digest"
+elif [ "$(printf '%s' "$CLEANUP_PARAMETERS" | sha256_of)" != "$CLEANUP_PARAMETERS_DIGEST" ]; then
+  no "non-target parameter golden digest does not reproduce"
+elif [ "$(printf '%s' '{"cutoff":"2026-09-01T00:00:00Z","dry_run":false,"purge":false}' | sha256_of)" = "$CLEANUP_PARAMETERS_DIGEST" ]; then
+  no "changed cleanup purge boolean unexpectedly matches the approved parameters_digest"
+else
+  ok "changed non-target cleanup parameter diverges from the approved parameters_digest (PLAN_MISMATCH)"
 fi
 
 # ---- 4. fake stub: deterministic, synthetic-only, refuses unknown accounts -------------------

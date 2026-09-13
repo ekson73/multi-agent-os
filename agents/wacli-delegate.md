@@ -218,6 +218,12 @@ the SHA-256 of the complete typed `parameters` object after the same canonicaliz
 vector the raw values are synthetic and public so the rule is mechanically checkable:
 `target_digest = sha256("fake-contact")`, `payload_digest = sha256("Confirmed for 3pm")`, and
 `parameters_digest = sha256({"text":"Confirmed for 3pm","to":"fake-contact"})`.
+
+Non-target parameter vector (proves that cleanup controls are bound independently of target and
+payload): `parameters = {"cutoff":"2026-09-01T00:00:00Z","dry_run":false,"purge":true}`;
+`parameters_digest = sha256({"cutoff":"2026-09-01T00:00:00Z","dry_run":false,"purge":true})`
+is `9c241bd07c518cb2e983b6a22ec13565d7a88cc85684ee2d161400b72f1a0442`. Changing only
+`purge` to `false` must yield a different digest and is `PLAN_MISMATCH` under gate 6.
 (Pinned by `tests/test-wacli-delegate-contract.sh` §3b.)
 
 ### Execute
