@@ -36,7 +36,7 @@ slug: comm-egregora-reuse-vs-gap-matrix
 | **Email — outlook.com personal via Graph API** | **GAP-WRAPPER (deferred)** | — | Email bundle §3.4: himalaya msgraph is M365/Enterprise-only; outlook.com personal requires a separate path |
 | **Email — multi-vendor OAuth vault in one binary** | **GAP-WRAPPER (deferred)** | — | Email bundle §3.4: cc-gmail currently Setup-needed for Vek account; cross-client threading same |
 | **Slack** | **REUSE** | `AceDataCloud/Skills@slack` (bot-API, Apache-2.0, AAIF frontmatter tested) | SDT bundle §5 reuse-seed: Apache-2.0; bot-API scope (matches operator's bot use case); full frontmatter read |
-| **Discord** | **REUSE-WITH-BLOCKER** | `letta-ai/skills@discord` (stdlib-only Python, bot-API, spec-compatible) | SDT bundle §5 reuse-seed — **BLOCKED**: plaintext Discord bot token at `~/.openclaw/openclaw.json:520` must be revoked + replaced with op:// reference before any openclaw/discord reuse path is wired |
+| **Discord** | **REUSE-WITH-BLOCKER** | `letta-ai/skills@discord` (stdlib-only Python, bot-API, spec-compatible) | SDT bundle §5 reuse-seed — **BLOCKED**: plaintext Discord bot token at `<config-file:redacted>` must be revoked + replaced with op:// reference before any openclaw/discord reuse path is wired |
 | **Telegram** | **REUSE** | `sanjay3290/ai-skills@telegram` (bash+curl+jq, Apache-2.0, AAIF frontmatter tested) | SDT bundle §5 reuse-seed: pure bash + curl + jq — no install beyond a bot token; AAIF-tested frontmatter; secondary investigation target `himself65/finance-skills@telegram-reader` (1.6K installs, highest signal) pending |
 
 ## 2. Anti-theater audit — what we did NOT claim
@@ -44,7 +44,7 @@ slug: comm-egregora-reuse-vs-gap-matrix
 - **0 `tested` claims**: zero skills installed/executed on any host. Every "AAIF spec-compatible" is from reading the raw SKILL.md frontmatter, not from a runtime invoke.
 - **33 candidates probed** for the SDT bundle (not just the top-3 the operator's lens mentioned); 19 SKILL.md files flagged `unknown` and listed as next-pass work, not silently treated as spec-compatible.
 - **License risks** for 4 candidates (membranedev, blink-new, boomsystel-code, tiangong staging) — flagged with SPDX + raw LICENSE check, not just inferred from repo description.
-- **Discord token** verified by literal `grep -nE` regex match on `~/.openclaw/openclaw.json:520` — not an inference.
+- **Discord token** verified by literal `grep -nE` regex match on `<config-file:redacted>` — not an inference.
 - **Operator-account / token / JID leak**: zero in any of the 3 bundles. PII gate held.
 
 ## 3. Operator ratification items (HUMAN_DOMAIN gate)
@@ -58,7 +58,7 @@ These items touch vendor trust boundaries, license unknowns, or standing-policy 
 5. **Treat `sickn33/agentic-awesome-skills/skills/outlook-automation` as a non-candidate** (Rube MCP / Composio route bypasses native himalaya for no operator benefit — Email bundle §6.5).
 6. **Defer the 3 GAP items** (Outlook.com personal via Graph, cross-client threading, multi-vendor OAuth vault in one binary) to a follow-up sprint — no candidate covers them today, and forking now without a real prototype is YAGNI (Email bundle §6.6).
 7. **License review before any fork lands**: BeautyFree (GPL-3.0 — copyleft, do not mix with multi-agent-os MIT/Apache), refly-ai (license null — request clarification), skillhq (license null — request clarification) — SDT bundle §6.5.
-8. **Discord bot token revocation** at `~/.openclaw/openclaw.json:520` is the **only real blocker** preventing any Discord reuse path; until then Discord routes stay DOWNGRADED to HITL.
+8. **Discord bot token revocation** at `<config-file:redacted>` is the **only real blocker** preventing any Discord reuse path; until then Discord routes stay DOWNGRADED to HITL.
 
 ## 4. Cost–benefit (honest, observed vs estimated)
 
