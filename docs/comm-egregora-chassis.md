@@ -18,7 +18,7 @@ related_program: comm-egregoræ (session 2026-09-10 wacli-initiative continuatio
 
 | Canal | Superfície viva | Papel |
 |---|---|---|
-| WhatsApp | `wacli` (pessoal, whatsmeow/linked-devices, sync+search local) · `waba` (Cloud API oficial, 102 ops, tokens no keyring — business) · Hermes `whatsapp_cloud` (adapter agêntico) · openclaw channel `whatsapp` (Baileys, contas eqm/eko) | sync/search=wаcli · envio oficial/business=waba+Hermes |
+| WhatsApp | `wacli` (pessoal, whatsmeow/linked-devices, sync+search local) · `waba` (Cloud API oficial, 102 ops, tokens no keyring — business) · Hermes `whatsapp_cloud` (adapter agêntico) · openclaw channel `whatsapp` (Baileys, contas `<pessoal>`/`<business>`) | sync/search=wаcli · envio oficial/business=waba+Hermes |
 | Email | `spark` CLI (Google pessoal+work via Spark Desktop; access-levels read/triage/send) · `cc-gmail` (wrapper cc-director, a caracterizar) · skill `use-spark` + `mail-triage-loop` v1.0.2 (SSOTs existentes) | triage/bridge já forjado |
 | Discord | openclaw channel `discord` (token exposto no json — **blocker de revogação**) | transporte pronto, credencial suja |
 | Slack | — (net-new: nenhuma CLI/MCP/canal) | a definir |
@@ -133,10 +133,10 @@ ack.
 **R6 — Telemarketing/clientes via unofficial (HIGH, ban + jurídico).**
 WhatsApp business (Meta ToS) proíbe uso comercial em unofficial clients.
 Mitigação: business outbound → exclusivamente `waba`/Hermes Cloud API;
-essa regra já está no §5 mas agora tem red-team: account-id-aliasing
-("parece que é do business `eko` mas o canal é openclaw whatsapp") é bypass
-TENTADO por agentes e prompt-injection — guard é por construção (skill
-exclui OpenClaw de business-write ANTES de `live-ok`).
+  essa regra já está no §5 mas agora tem red-team: account-id-aliasing
+  ("parece que é do business `<business>` mas o canal é openclaw whatsapp") é bypass
+  TENTADO por agentes e prompt-injection — guard é por construção (skill
+  exclui OpenClaw de business-write ANTES de `live-ok`).
 
 ### Decision matrix para forjar proxy
 
