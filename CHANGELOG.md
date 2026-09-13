@@ -6,6 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.0: council-driven portable-sidecard fixes
+
+- **Critical**: a UTF-8 BOM is now prepended to the rendered `*.sidecard.html` bytes.
+  Opening the artifact via `file://` (its own stated primary distribution mode) let
+  Chromium's local-file charset sniffer override an explicit `<meta charset="utf-8">`,
+  resolving `document.characterSet` to `windows-1252` and turning every state glyph
+  into mojibake — found and reproduced independently by three council reviewers before
+  the fix, re-verified live in a browser after it.
+- Unified the workflow diagram's two animated-edge classes to the same apparent
+  flow rate (dash-length ÷ duration); they previously differed by ~2x, reading as an
+  unintentional glitch rather than a deliberate accent.
+- Added a CSS-only, position-aware horizontal-scroll affordance on the workflow
+  diagram (paired `background-attachment:local/scroll` gradients — zero script, CSP-
+  compliant). Required two attempts: the first script crashed on an unrelated assert
+  before its `write()` call, so nothing shipped; a narrower follow-up removed the
+  stale cue without adding the new one (net regression). Caught by an independent
+  council re-check via `grep`/`getComputedStyle` rather than trusting the changelog.
+- Bumped lane-band fill and lane-title weight so lane grouping is legible against
+  saturated state-node colors.
+- `intent.motivations` (stored but never rendered) is now visible via a collapsed
+  `<details>` inside the existing priority panel — not a new equal-weight panel.
+- Added a bilingual (English-then-Portuguese) "10-second read" TL;DR to the hero,
+  using a new word-boundary-safe `truncateAtWord()` helper, scoped to a single,
+  explicitly-labeled `plan.work_items` count (was an unlabeled cross-registry tally
+  mixing nodes/criteria/risks/work-items with no stated population).
+- Added a human-readable gloss next to the `Portable trust: CONSISTENT_UNTRUSTED`
+  badge clarifying it is a standing classification, not an active-incident report,
+  without touching the machine-facing trust string other tooling parses verbatim.
+- Generator `VERSION` bumped `2.0.0` → `2.1.0` (the HTML output contract changed);
+  `integrity-manifest.schema.json`'s `generator.version` const and `SKILL.md`'s
+  frontmatter version updated to match, so a manifest correctly fails closed if
+  produced by a stale or divergent copy of the tool.
+- Known, deliberately deferred (filed as non-blocking, not silently dropped): CSS has
+  genuine top-level (non-`@media`-scoped) selector duplication at 2-3x for several
+  selectors from layered "polish" passes; no executive-jargon-free summary panel; no
+  `generator.source_sha256`/commit-clean gate in the manifest for third-party
+  reproducibility (all raised by council review, filed for a future round).
 ### Fixed — `verified-agentic-session-model` head-bound bot review on `8447791` (qodo + Codex)
 
 - Nine valid findings closed in `bin/model-bundle.mjs`, each re-reproduced at
