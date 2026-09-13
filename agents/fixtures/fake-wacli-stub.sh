@@ -34,11 +34,20 @@ fi
 # and the actual command (see agents/wacli-delegate.md's
 # `wacli --account ACCOUNT --read-only --json ...` invocation form) — they must be consumed
 # before CMD is determined, or a correctly-formed call misclassifies as UNKNOWN_FAKE_COMMAND.
-# json_str: minimal JSON string escaping for values interpolated into error envelopes
-# (backslash, double quote, tab, newline) so a hostile/odd argument cannot break the JSON.
+# json_str: JSON-string escaping for values interpolated into error envelopes. Bash arguments cannot
+# carry NUL, but every other C0 control is escaped; backslash and quote are escaped first so generated
+# escape sequences remain literal JSON syntax.
 json_str() {
-  local s="$1"
-  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\t'/\\t}"; s="${s//$'\n'/\\n}"
+  local s="$1" control_code control_char escape_code
+  s="${s//\\/\\\\}"; s="${s//\"/\\\"}"
+  s="${s//$'\b'/\\b}"; s="${s//$'\f'/\\f}"; s="${s//$'\t'/\\t}"
+  s="${s//$'\n'/\\n}"; s="${s//$'\r'/\\r}"
+  for control_code in {1..31}; do
+    case "$control_code" in 8|9|10|12|13) continue ;; esac
+    printf -v escape_code '\\u%04x' "$control_code"
+    printf -v control_char "\\$(printf '%03o' "$control_code")"
+    s="${s//$control_char/$escape_code}"
+  done
   printf '%s' "$s"
 }
 fail() {

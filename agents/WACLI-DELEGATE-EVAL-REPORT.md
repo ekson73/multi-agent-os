@@ -1,3 +1,8 @@
+---
+name: wacli-delegate-eval-report
+description: Behavioral evaluation evidence for the wacli-delegate agent contract.
+---
+
 # EVAL-REPORT — wacli-delegate (agent, soul-name Iris) — 2026-09-12
 
 - Baseline: none (first eval)   Golden cases: 6 (smoke-set, hand-built from the contract's own

@@ -90,8 +90,8 @@ fi
 #          vector. This pins the recomputation rule an executor applies to the ACTUAL parameters
 #          before the command: a request that keeps the approved plan but swaps the recipient or
 #          text must fail this exact comparison (PLAN_MISMATCH).
-RAW_TARGET="$(grep -o 'target_digest = sha256("[^"]*")' "$CONTRACT" | head -1 | sed 's/.*sha256("\(.*\)")/\1/')"
-RAW_PAYLOAD="$(grep -o 'payload_digest = sha256("[^"]*")' "$CONTRACT" | head -1 | sed 's/.*sha256("\(.*\)")/\1/')"
+RAW_TARGET="$(grep -o 'target_digest = sha256("[^"]*")' "$CONTRACT" | tail -1 | sed 's/.*sha256("\(.*\)")/\1/')"
+RAW_PAYLOAD="$(grep -o 'payload_digest = sha256("[^"]*")' "$CONTRACT" | tail -1 | sed 's/.*sha256("\(.*\)")/\1/')"
 PLAN_TARGET_DIGEST="$(printf '%s' "$GOLDEN_JSON" | grep -o '"target_digest":"[0-9a-f]\{64\}"' | grep -o '[0-9a-f]\{64\}')"
 PLAN_PAYLOAD_DIGEST="$(printf '%s' "$GOLDEN_JSON" | grep -o '"payload_digest":"[0-9a-f]\{64\}"' | grep -o '[0-9a-f]\{64\}')"
 if [ -z "$RAW_TARGET" ] || [ -z "$RAW_PAYLOAD" ]; then
@@ -164,12 +164,25 @@ else
   grep -q UNSUPPORTED_FLAG "$TMPD/stub_auth2" && ok "stub rejects surplus arguments after 'auth status'" || no "stub failed for the wrong reason on 'auth status --bogus'"
 fi
 
-# The fail() payload must stay valid JSON even when the offending argument carries a double quote
-# (the stub interpolates the argument into its error envelope).
-"$STUB" --account acct-test messages search '--bo"gus' >/dev/null 2>"$TMPD/stub_quote" || true
-python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$TMPD/stub_quote" 2>/dev/null \
-  && ok "stub error envelope stays valid JSON when the bad argument contains a double quote" \
-  || no "stub error envelope is not valid JSON for an argument containing a double quote"
+# The fail() payload must stay valid JSON when an offending argument carries a carriage return.
+# This verifies that CR is encoded as JSON's `\\r`, rather than emitted as a literal control byte.
+CR_FLAG=$'--bad\rflag'
+"$STUB" --account acct-test messages search "$CR_FLAG" >/dev/null 2>"$TMPD/stub_cr" || true
+python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["detail"] == "messages search " + sys.argv[2]' "$TMPD/stub_cr" "$CR_FLAG" 2>/dev/null \
+  && ok "stub error envelope stays valid JSON for a carriage-return argument" \
+  || no "stub error envelope is not valid JSON for a carriage-return argument"
+
+# Bash argv cannot carry NUL. Exercise every other C0 byte in one hostile argument and require the
+# decoded JSON value to round-trip exactly; CR remains covered independently above for legibility.
+C0_CONTROLS=""
+for C0_CODE in {1..31}; do
+  printf -v C0_CHAR "\\$(printf '%03o' "$C0_CODE")"
+  C0_CONTROLS+="$C0_CHAR"
+done
+"$STUB" --account acct-test messages search "$C0_CONTROLS" >/dev/null 2>"$TMPD/stub_c0" || true
+python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["detail"] == "messages search " + sys.argv[2]' "$TMPD/stub_c0" "$C0_CONTROLS" 2>/dev/null \
+  && ok "stub error envelope stays valid JSON for every argv-representable C0 control" \
+  || no "stub error envelope is not valid JSON for an argv-representable C0 control"
 
 echo
 if [ "$fail" -eq 0 ]; then

@@ -162,8 +162,26 @@ exact unmasked target identifier — `target_summary` alone is masked and cannot
 bind the real recipient), payload digest plus masked preview, a `parameters_digest` (SHA-256 of
 the complete canonical typed execution-parameters map), risk class, exact command class, dry-run
 evidence where supported, human steps, verification method, `issued_at` (when this plan was
-minted), `expiry`, `max_attempts` (always exactly `1`), and SHA-256 `plan_digest`. Planning never
-performs the side effect.
+minted), `expiry`, `max_attempts` (always exactly `1`), and SHA-256 `plan_digest`. Where the
+help-verified action grammar has no target or payload, use the canonical absence representation
+below instead of omitting its plan fields. Planning never performs the side effect.
+
+### Absent target and payload
+
+Every plan carries both digest fields, including actions such as logout that have neither a target
+nor a payload. Classify each slot from the installed action-specific `--help`: a target is the
+admitted identifier that selects the action's object/recipient, excluding `account.name`; a payload
+is the admitted content value sent or applied by the action. If that classification is uncertain,
+return `needs_hitl` rather than mint a plan. For each absent slot, use exactly this representation:
+
+| Slot | Canonical plan representation |
+|---|---|
+| no target | `target_summary` is `{"count":0,"masked_target":null}` and `target_digest = sha256("wacli-delegate/absent-target/v1")` over those ASCII bytes, without quotes |
+| no payload | `payload_masked_preview` is `null` and `payload_digest = sha256("wacli-delegate/absent-payload/v1")` over those ASCII bytes, without quotes |
+
+The sentinel preimages represent absence only; they are never command arguments and `account.name`
+is never substituted for a missing target. A present target or payload retains the exact raw-value
+digest rule below.
 
 ### Plan digest canonicalization
 
@@ -222,10 +240,13 @@ Attempt an outward/destructive plan only when ALL of the following hold:
 6. **parameter binding** — the plan carries only digests, never unmasked execution values. Immediately
    before the command, require every execution-parameter value to be admitted by §"Plan digest
    canonicalization", then canonicalize the complete typed `parameters` map by that rule and require
-   its SHA-256 to equal `plan.parameters_digest`; otherwise refuse as `PLAN_MISMATCH`. From the exact
-   values that will be passed to the command, also recompute `sha256(<unmasked target identifier>)`
-   and `sha256(<raw payload text>)` and require them to equal `plan.target_digest` and
-   `plan.payload_digest`; require the request's `account.name` and admitted `action` to equal
+   its SHA-256 to equal `plan.parameters_digest`; otherwise refuse as `PLAN_MISMATCH`. Classify target
+   and payload presence again from the help-verified action grammar. For each present slot, recompute
+   `sha256(<unmasked target identifier>)` or `sha256(<raw payload text>)` from the exact value about
+   to be passed and require it to equal `plan.target_digest` or `plan.payload_digest`. For each absent
+   slot, require that no admitted execution parameter occupies that role and require its plan field to
+   equal the corresponding §"Absent target and payload" sentinel representation; otherwise refuse as
+   `PLAN_MISMATCH`. Require the request's `account.name` and admitted `action` to equal
    `plan.account.name` and `plan.action`. Any difference is `PLAN_MISMATCH` — an intact, approved
    plan never authorizes a swapped recipient, payload, or execution parameter. Gates 1–5 authenticate
    the plan; this gate binds the command to it.
