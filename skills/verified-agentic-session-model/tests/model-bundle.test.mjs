@@ -375,6 +375,7 @@ test("portable privacy scan blocks direct and encoded sensitive/private material
     "person@private-domain.dev",
     "/Users/private-user/project",
     "/root/private-user/project",
+    "C:\\Users\\Alice\\secret.txt",
     "~/private-user/project",
     "~/",
     "raw transcript follows",
@@ -792,10 +793,17 @@ test("portable distribution rejects private-network and credentialed reference U
     "https://224.0.0.1/status",
     "https://240.0.0.1/status",
     "https://localhost./status",
+    "https://localhost../status",
+    "https://localhost.../status",
     "https://service.local./status",
     "https://api.localhost/status",
     "https://[2001:db8::1]/status",
-    "https://[ff02::1]/status"
+    "https://[ff02::1]/status",
+    "https://[::127.0.0.1]/status",
+    "https://[::10.0.0.5]/status",
+    "https://[::169.254.169.254]/status",
+    "https://[2002:7f00:1::1]/status",
+    "https://[2002:a9fe:a9fe::1]/status"
   ];
   for (const uri of badUris) await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = uri; });
@@ -1232,5 +1240,38 @@ test("derive-child rejects --out aliasing the parent model file", async () => {
     assert.equal(result.status, 1);
     assert.equal(body(result.stderr).error.code, "CHILD_OUTPUT_ALIASES_PARENT");
     assert.deepEqual(await readFile(model), bytes);
+  });
+});
+
+test("sensitive scan catches a base64-encoded secret even when the clean decode is shorter than the printable-run floor", async () => {
+  await temp(async (directory) => {
+    const raw = "a@a.co";
+    const cleanShortBase64 = Buffer.concat([Buffer.from(raw), Buffer.alloc(6)]).toString("base64url");
+    assert.equal(cleanShortBase64.length, 16, "candidate must clear the 16-char base64 regex floor");
+    const model = await mutateModel(directory, (item) => { item.metadata.scope = cleanShortBase64; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+  });
+});
+
+test("verify rejects a source subject containing malformed UTF-8 bytes, matching validate's ENCODING_INVALID guarantee", async (context) => {
+  if (!stockArchify) { context.skip("stock Archify unavailable"); return; }
+  await temp(async (directory) => {
+    const model = await copyModel(directory, readyFixture);
+    const render = run(["render", model, "--profile", "standard", "--out", path.join(directory, "bundle"), "--archify-dir", stockArchify]);
+    assert.equal(render.status, 0, render.stderr);
+    const manifestFile = body(render.stdout).manifest;
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    const sourceSubject = manifest.subjects.find((item) => item.role === "source");
+    const sourceFile = path.join(path.dirname(manifestFile), sourceSubject.path);
+    const sourceBytes = await readFile(sourceFile);
+    const corrupted = Buffer.concat([sourceBytes.subarray(0, 200), Buffer.from([0xff]), sourceBytes.subarray(200)]);
+    await writeFile(sourceFile, corrupted);
+    sourceSubject.digest.value = sha(corrupted);
+    await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
+    assert.equal(verify.status, 1, verify.stdout);
+    assert.equal(body(verify.stderr).error.code, "ENCODING_INVALID");
   });
 });

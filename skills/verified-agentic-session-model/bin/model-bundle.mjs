@@ -257,13 +257,17 @@ function decodedPayloads(text) {
     try {
       const bytes = Buffer.from(match[0], match[0].includes("+") || match[0].includes("/") ? "base64" : "base64url");
       const value = bytes.toString("utf8");
+      const cleanlyDecoded = value.length && !value.includes("\uFFFD");
       // A base64 candidate whose decode is entirely binary noise (hex digests, raw hashes,
       // etc.) is not a text payload; skip it. But do not drop the WHOLE candidate just
       // because it embeds a single invalid byte (U+FFFD) somewhere -- a secret prefix
       // followed by one corrupt trailing byte must still be scanned. Every pattern this
-      // scanner looks for (AKIA…, sk-…, ghp_…, CPF/email/phone digits) is ASCII, so gate on
-      // "contains a long enough printable-ASCII run" instead of "decoded perfectly clean".
-      if (/[\x20-\x7e]{8,}/u.test(value)) {
+      // scanner looks for (AKIA…, sk-…, ghp_…, CPF/email/phone digits) is ASCII, so gate a
+      // corrupted decode on "contains a long enough printable-ASCII run" instead of
+      // "decoded perfectly clean" -- but a decode with NO corruption at all is accepted
+      // regardless of length, so a short but cleanly-decoded secret (e.g. a minimal
+      // "a@b.co"-shaped email) is never silently dropped by an unrelated length floor.
+      if (cleanlyDecoded || /[\x20-\x7e]{8,}/u.test(value)) {
         if (decoded.length >= 200) throw new AppError("SENSITIVE_SCAN_BUDGET_EXCEEDED", "Sensitive-data scan exceeded its bounded encoded-candidate budget");
         decoded.push(value);
       }
@@ -734,7 +738,16 @@ function deriveFacts(model) {
 
 const PUBLIC_URN_PREFIXES = ["urn:vasm:", "urn:public:", "urn:example:", "urn:embedded-snapshot:"];
 function embeddedIPv4FromMappedHost(inner) {
-  const hexPair = /^(?:::ffff:|64:ff9b::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
+  // ::ffff:HHHH:HHHH (RFC 4291 §2.5.5.2 IPv4-mapped) and 64:ff9b::HHHH:HHHH (RFC 6052
+  // NAT64) both end in two hex groups holding the embedded IPv4. A bare "::HHHH:HHHH"
+  // with no prefix is RFC 4291 §2.5.5.1's deprecated "IPv4-compatible" form -- WHATWG
+  // URL's hex-compressed serializer produces exactly that shape for e.g. ::127.0.0.1.
+  const trailingPair = /^(?:::ffff:|64:ff9b::|::)([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(inner);
+  // 6to4 (RFC 3056, 2002::/16) embeds the IPv4 in the two hex groups immediately after
+  // the 2002 prefix, e.g. 2002:7f00:1::1 for 127.0.0.1 -- a structurally different
+  // position (mid-address, not a trailing pair) so it needs its own anchor.
+  const sixToFour = trailingPair ? null : /^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4})(?::|$)/u.exec(inner);
+  const hexPair = trailingPair || sixToFour;
   if (!hexPair) return null;
   const high = Number.parseInt(hexPair[1], 16);
   const low = Number.parseInt(hexPair[2], 16);
@@ -751,7 +764,7 @@ function isPrivateIPv4Quad(a, b, c) {
     || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113);
 }
 function isPrivateOrLoopbackHost(hostname) {
-  const host = hostname.toLowerCase().replace(/\.$/u, "");
+  const host = hostname.toLowerCase().replace(/\.+$/u, "");
   if (host === "localhost" || host === "0.0.0.0") return true;
   if (host.endsWith(".local") || host.endsWith(".localhost")) return true;
   if (host.startsWith("[") && host.endsWith("]")) {
@@ -817,7 +830,10 @@ function validatePortableDistribution(model) {
   const canonical = canonicalBytes(model).toString("utf8");
   const texts = [canonical, ...decodedPayloads(canonical)];
   for (const [code, pattern] of [
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\Users\\|~[\/\\])/u],
+    // canonicalBytes scans JSON.stringify output, which doubles every literal backslash
+    // in an embedded string -- match one-or-more backslashes so the pattern still fires
+    // against the doubled form a real Windows path takes once JSON-serialized.
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\+Users\\+|~[\/\\])/u],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
@@ -1905,6 +1921,7 @@ async function renderPortable(modelFile, options) {
       if (fs.existsSync(path.join(outDir, priorSource.path))) {
         const priorBytes = (await readBundleSubject(outDir, await realpath(outDir), priorSource)).bytes;
         let priorModel;
+        if (!isUtf8(priorBytes)) throw new AppError("OUTPUT_COLLISION", "Existing source snapshot is not valid UTF-8");
         try { priorModel = JSON.parse(priorBytes.toString("utf8")); } catch { throw new AppError("OUTPUT_COLLISION", "Existing source snapshot is invalid"); }
         if (!canonicalBytes(priorModel.identity).equals(canonicalBytes(model.identity))) throw new AppError("IDENTITY_HASH_COLLISION", "Identity digest collision detected against canonical identity bytes");
       }
@@ -2023,6 +2040,7 @@ async function verifyCommand(manifestFile, options) {
   }
   if (mismatches.length) throw new AppError("HASH_MISMATCH", "One or more bundle subjects differ from recorded bytes", 1, mismatches);
   let model;
+  if (!isUtf8(subjectFiles.get("source").bytes)) throw new AppError("ENCODING_INVALID", "Hashed source subject is not valid UTF-8");
   try { model = JSON.parse(subjectFiles.get("source").bytes.toString("utf8")); }
   catch { throw new AppError("JSON_INVALID", "Hashed source subject is invalid JSON"); }
   enforceSensitivePreflight(subjectFiles.get("source").bytes);
@@ -2037,6 +2055,7 @@ async function verifyCommand(manifestFile, options) {
   let archifyResult;
   if (manifest.profile === "standard") {
     let workflow;
+    if (!isUtf8(subjectFiles.get("workflow").bytes)) throw new AppError("ENCODING_INVALID", "Hashed workflow subject is not valid UTF-8");
     try { workflow = JSON.parse(subjectFiles.get("workflow").bytes.toString("utf8")); }
     catch { throw new AppError("JSON_INVALID", "Hashed workflow subject is invalid JSON"); }
     const diagram = subjectFiles.get("diagram_html");
