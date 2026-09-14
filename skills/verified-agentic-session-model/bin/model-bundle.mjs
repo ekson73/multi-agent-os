@@ -21,7 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TOOL = "verified-agentic-session-model";
-const VERSION = "2.1.2";
+const VERSION = "2.1.3";
 const STATUS_VALUES = ["planned", "started", "delegated", "deferred", "hitl", "blocked", "completed", "canceled", "superseded", "deprecated", "unknown"];
 const REASON_REQUIRED = new Set(["deferred", "hitl", "blocked", "canceled", "superseded", "deprecated", "unknown"]);
 const TERMINAL_STATES = new Set(["completed", "canceled", "superseded", "deprecated"]);
@@ -518,7 +518,10 @@ function semanticErrors(model) {
     }
     if (state.started_at && state.ended_at && new Date(state.started_at) > new Date(state.ended_at)) add(at, "LIFECYCLE_TIME_ORDER", "started_at must not exceed ended_at");
   }
-  work.forEach((item, index) => checkLifecycle(item.lifecycle_state, `/plan/${model.plan.waves.includes(item) ? "waves" : "work_items"}/${index}`, item.id));
+  work.forEach((item, index) => {
+    const isWave = index < model.plan.waves.length;
+    checkLifecycle(item.lifecycle_state, `/plan/${isWave ? "waves" : "work_items"}/${isWave ? index : index - model.plan.waves.length}`, item.id);
+  });
 
   if (model.traceability.semantic_version !== model.identity.version) add("/traceability/semantic_version", "VERSION_MISMATCH", "semantic_version must equal identity.version");
   if (new Date(model.traceability.updated_at) < new Date(model.traceability.created_at)) add("/traceability/updated_at", "TIME_ORDER", "updated_at must not precede created_at");
@@ -612,11 +615,13 @@ function semanticErrors(model) {
   });
   model.metadata.created_from.forEach((ref, index) => requireRef(referenceIds, ref, `/metadata/created_from/${index}`, "DANGLING_SOURCE_REF"));
   work.forEach((item, index) => {
-    item.dependencies.forEach((ref, refIndex) => requireRef(workIds, ref, `/plan/work/${index}/dependencies/${refIndex}`, "DANGLING_DEPENDENCY_REF"));
-    item.blocker_refs.forEach((ref, refIndex) => { if (!workIds.has(ref) && !gapRiskIds.has(ref)) add(`/plan/work/${index}/blocker_refs/${refIndex}`, "DANGLING_BLOCKER_REF", "unknown blocker"); });
-    item.domain_refs.forEach((ref, refIndex) => requireRef(domainIds, ref, `/plan/work/${index}/domain_refs/${refIndex}`, "DANGLING_DOMAIN_REF"));
-    item.world_refs.forEach((ref, refIndex) => requireRef(worldIds, ref, `/plan/work/${index}/world_refs/${refIndex}`, "DANGLING_WORLD_REF"));
-    if (item.critical_path_ref !== null) requireRef(nodeIds, item.critical_path_ref, `/plan/work/${index}/critical_path_ref`, "DANGLING_CRITICAL_PATH_REF");
+    const isWave = index < model.plan.waves.length;
+    const at = `/plan/${isWave ? "waves" : "work_items"}/${isWave ? index : index - model.plan.waves.length}`;
+    item.dependencies.forEach((ref, refIndex) => requireRef(workIds, ref, `${at}/dependencies/${refIndex}`, "DANGLING_DEPENDENCY_REF"));
+    item.blocker_refs.forEach((ref, refIndex) => { if (!workIds.has(ref) && !gapRiskIds.has(ref)) add(`${at}/blocker_refs/${refIndex}`, "DANGLING_BLOCKER_REF", "unknown blocker"); });
+    item.domain_refs.forEach((ref, refIndex) => requireRef(domainIds, ref, `${at}/domain_refs/${refIndex}`, "DANGLING_DOMAIN_REF"));
+    item.world_refs.forEach((ref, refIndex) => requireRef(worldIds, ref, `${at}/world_refs/${refIndex}`, "DANGLING_WORLD_REF"));
+    if (item.critical_path_ref !== null) requireRef(nodeIds, item.critical_path_ref, `${at}/critical_path_ref`, "DANGLING_CRITICAL_PATH_REF");
   });
   const visiting = new Set();
   const visited = new Set();

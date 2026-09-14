@@ -6,14 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Fixed — `verified-agentic-session-model` v2.1.2: council Wave 1 (UX/UI/Design) found 3 real defects on r80
+### Fixed — `verified-agentic-session-model` v2.1.3: misleading JSON Pointer paths in two validator checks
 
-- Council Wave 1 (UX, UI, Design) independently re-verified the almanac sidecard (r80)
-  against the live artifact rather than trusting the artifact's own "council does not
-  need to re-review" self-claim, and surfaced 3 real, previously-unflagged defects — all
-  traced to World 1 (the generic renderer), none in World 2 (the eko-engram instance).
-  Council Waves 2 (CEO/CTO/PM) and 3 (PO/DevSecOps/AI-eng), plus a final full 9-persona
-  re-check against the resulting artifact, are tracked as follow-up work, not yet run.
+- `semanticErrors()` scans a single combined `work = [...waves, ...work_items]` array for
+  both the lifecycle-condition checks and the dependency/blocker/domain/world/critical-path
+  reference checks, but reported errors under a path built from the *combined scan
+  position* — claiming `/plan/work_items/<n>` (or a nonexistent `/plan/work/<n>` for the
+  reference checks) using an index that actually spans both arrays. With any waves present,
+  every reported `work_items` index was off by the wave count, pointing a reader at the
+  wrong element or an out-of-range index (e.g. one `waves` entry ahead of a genuinely-empty
+  `waves` list makes the very first `work_items` violation misreport as index `1`). Found
+  live while regenerating a real artifact against a private operational instance: a data
+  bug (a `started` item incorrectly carrying a `successor_ref`, a field reserved for
+  `superseded`) was reported under a `work_items` index that pointed at the wrong element
+  once the plan's leading waves were counted in — the misleading path made the real bug
+  harder to locate than it needed to be. Both call sites now subtract the wave count once
+  an item is confirmed to be in `work_items`; a regression test asserts the exact JSON
+  Pointer for both a `waves[0]` and a `work_items[0]` violation, and that no path uses the
+  nonexistent `/plan/work/` segment.
+
+### Fixed — `verified-agentic-session-model` v2.1.2: council Wave 1 (UX/UI/Design) found 3 real defects
+
+- Council Wave 1 (UX, UI, Design) independently re-verified a private operational sidecard
+  artifact against its live render rather than trusting the artifact's own "council does
+  not need to re-review" self-claim, and surfaced 3 real, previously-unflagged defects —
+  all traced to World 1 (the generic renderer), none in World 2 (the private operational
+  instance). Council Waves 2 (CEO/CTO/PM) and 3 (PO/DevSecOps/AI-eng), plus a final full
+  9-persona re-check against the resulting artifact, are tracked as follow-up work, not
+  yet run.
 - **UI, blocking**: the workflow diagram's edge-role/variant legend rendered 9 of 15
   encoded dimensions as bare, unstyled `<code>` text — a reader could decode node-state
   colors from the key but not edge color/dash meaning, the majority of the diagram's
