@@ -1,7 +1,7 @@
 ---
 name: verified-agentic-session-model
 description: Build, render, inspect, advance, and independently verify a typed agentic-session model. Produces either the stock Archify standard bundle or a passive public-only AI-first portable sidecard with inert canonical capsules. Use for verified visual session models, portable agentic organization snapshots, dependency-aware next-task selection, governed lifecycle transitions, or one-child derivation. Do not use for live tracing, generic diagrams, or effectful browser apps.
-version: "2.1.2"
+version: "2.1.3"
 metadata:
   family: session-lifecycle
   runtime: Node.js >=20

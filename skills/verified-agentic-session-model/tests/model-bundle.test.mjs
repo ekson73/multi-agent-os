@@ -158,6 +158,38 @@ test("deferred requires reason AND resume_after independently - losing either ru
   }
 });
 
+test("lifecycle and dependency-graph error paths use each item's own array index, not the internal waves+work_items scan position", async () => {
+  // Regression: semanticErrors() walks a single combined `work = [...waves, ...work_items]`
+  // array for both the lifecycle-condition checks and the dependency/blocker/domain/world/
+  // critical-path reference checks, but originally reported the *combined scan position*
+  // under a path claiming to be "/plan/work_items/<n>" (or a nonexistent "/plan/work/<n>"
+  // for the reference checks) -- so with >=1 wave present, every reported work_items index
+  // was off by the wave count, pointing a reader at the wrong element or an out-of-range
+  // index entirely (e.g. one wave ahead of an otherwise-empty waves array makes the very
+  // first work_items violation misreport as index 1). Found live against a private
+  // operational instance, where the misleading path made a real data bug harder to
+  // locate than it needed to be.
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      // waves[0] is "started" in the fixture; decision_ref is reserved for deferred/hitl.
+      value.plan.waves[0].lifecycle_state.decision_ref = "ref_policy";
+      // work_items[0] is also "started"; resume_after is reserved for deferred.
+      value.plan.work_items[0].lifecycle_state.resume_after = "2026-09-12T13:00:00Z";
+      // Exercise the reference-check block (line ~613) too, on work_items[0].
+      value.plan.work_items[0].domain_refs = ["domain_does_not_exist"];
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    const paths = body(result.stderr).error.details.map((item) => item.path);
+    assert.ok(paths.includes("/plan/waves/0/decision_ref"), `expected /plan/waves/0/decision_ref, got: ${paths.join(", ")}`);
+    assert.ok(paths.includes("/plan/work_items/0/resume_after"), `expected /plan/work_items/0/resume_after, got: ${paths.join(", ")}`);
+    assert.ok(paths.includes("/plan/work_items/0/domain_refs/0"), `expected /plan/work_items/0/domain_refs/0, got: ${paths.join(", ")}`);
+    // None of these must be misreported under a combined-scan index or the old, nonexistent "/plan/work/" segment.
+    assert.ok(!paths.some((p) => p.startsWith("/plan/work/")), `no path may use the nonexistent "/plan/work/" segment, got: ${paths.join(", ")}`);
+    assert.ok(!paths.includes("/plan/work_items/1/resume_after"), "work_items[0]'s own violation must not be misattributed to index 1 by a combined-scan offset");
+  });
+});
+
 test("return edges preserve feedback loops without weakening dependency-cycle rejection", async () => {
   await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => {
