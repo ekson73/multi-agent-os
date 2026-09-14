@@ -14,6 +14,7 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | consolidator | `consolidator.md` | Output synthesis |
 | legacy-archaeologist | `legacy-archaeologist.md` | Legacy codebase reverse-engineering |
 | memory-curator | `memory-curator.md` | Knowledge/memory hygiene and curation |
+| wacli-delegate | `wacli-delegate.md` | Context-isolated delegate for any capability-detected wacli operation |
 | founder-coach | `founder-coach.md` | AI-native startup lifecycle coach (stage diagnosis + exit gates) |
 | angular-frontend-engineer | `angular-frontend-engineer.md` | Angular SPA frontend (signals, RxJS, Material/Tailwind) |
 | react-frontend-engineer | `react-frontend-engineer.md` | React frontend (hooks, Vite/Next, PWA, TanStack Query) |
@@ -42,6 +43,9 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 
 ### Knowledge Management
 - `memory-curator` — Audit and maintain persistent memory/knowledge quality
+
+### Messaging Operations
+- `wacli-delegate` — applies the preloaded concierge knowledge to bounded wacli operations
 
 ### Startup Coaching
 

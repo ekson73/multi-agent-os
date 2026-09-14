@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `wacli-operations` concierge + delegated helper (#419)
+
+- `skills/wacli-concierge/SKILL.md` v0.2.1 — model-triggered operational knowledge for
+  named accounts, resilient pairing, bounded sync, state-based diagnosis, store hazards,
+  locks, count-vs-listable behavior, app-state degradation, and consent-gated mutations.
+  Detailed operations and the Forge/33Q/type/naming decision move behind progressive-
+  disclosure references, keeping the loaded skill below the strict size ceiling.
+- `agents/wacli-delegate.md` v0.2.0 (soul-name **Iris**) — context-isolated helper for
+  any capability-detected wacli operation on one named linked account. Research/search is one
+  function among diagnosis, sync/export, interactive pairing coordination, and approval-gated
+  outward/destructive operations. Exact operator approval binds account, action, targets, and
+  payload digest to one non-retried attempt. This is behavioral policy, not a global exactly-once
+  guarantee without an external nonce ledger. Returns one compact, redacted JSON envelope; raw
+  wacli payloads and personal content stay outside the parent context.
+- Architecture: skill + subagent wins. An inline command provides no context boundary; a
+  bespoke MCP server is deferred until a real multi-client, protocol, subscription, or native-
+  upstream need exists. The existing plugin remains the distribution container.
+- Corrections from review: cross-platform install fallback; separate `accounts add` and
+  `--no-auth`; explicit local versus live `doctor` semantics; read-only SQLite requirement;
+  narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
+  activation cases. The count-with-empty-list observation remains explicitly unresolved.
+- Second review round (DIY code review, PR #418): `agents/fixtures/fake-wacli-stub.sh` now parses
+  the documented `--account ACCOUNT --read-only --json ...` global-flag order before selecting
+  `CMD` (previously misclassified `--read-only`/`--json` as an unknown command), and fails nonzero
+  instead of silently exiting 0 on an unsupported `auth`/`messages` subcommand or an unrecognized
+  `messages search` flag. `tests/test-wacli-delegate-contract.sh` gained an existence assertion for
+  `agents/WACLI-DELEGATE-EVAL-REPORT.md` (referenced by its own header) plus the new negative-path
+  and global-flag-order stub assertions. `agents/WACLI-DELEGATE-EVAL-REPORT.md` case 6's label and
+  its Strengths section no longer claim Gate 3 authority provenance or an expired-plan refusal path
+  were verified when neither was.
+- Third review round (bot findings on PR #418, head `684f4e6`): `agents/wacli-delegate.md` v0.2.0
+  adds Execute **gate 6 (parameter binding)** — before the command, the delegate recomputes
+  `sha256(<unmasked target>)`/`sha256(<raw payload>)` from the actual `parameters` and refuses
+  (`PLAN_MISMATCH`) unless they equal the approved plan's `target_digest`/`payload_digest`; an
+  intact, approved plan no longer authorizes a swapped recipient or payload. The golden vector now
+  documents its raw synthetic target/payload and `tests/test-wacli-delegate-contract.sh` §3b pins the
+  recomputation rule. `accounts remove` is classified as a destructive local mutation (skill
+  v0.2.1 + delegate); the skill routes delegation through the canonical `delegate-governance`
+  entry point and states its degraded mode on hosts without the companion agent. Test harness: 5-field
+  script headers, `mktemp` + `trap … EXIT` temp files (explicitly not `set -e` — assertion harness
+  precedent); fake stub escapes interpolated error values and rejects surplus arguments after
+  `doctor --connect` / `auth status`.
+  Copilot round on the same head: `--store` and any companion SQLite query are operator-only
+  (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
+  exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
+
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 
 - `skills/morning-briefing/SKILL.md` — the default `--scope=current` briefing was
