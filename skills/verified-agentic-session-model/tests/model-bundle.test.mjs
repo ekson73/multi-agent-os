@@ -392,6 +392,7 @@ test("portable privacy scan blocks direct and encoded sensitive/private material
     "/Users/private-user/project",
     "/root/private-user/project",
     "C:\\Users\\Alice\\secret.txt",
+    "C:\\users\\alice\\.ssh\\id_rsa",
     "~/private-user/project",
     "~/",
     "raw transcript follows",
@@ -1289,5 +1290,50 @@ test("verify rejects a source subject containing malformed UTF-8 bytes, matching
     const verify = run(["verify", manifestFile, "--archify-dir", stockArchify]);
     assert.equal(verify.status, 1, verify.stdout);
     assert.equal(body(verify.stderr).error.code, "ENCODING_INVALID");
+  });
+});
+
+test("validate does not leak the offending JSON source through JSON.parse's own error message", async () => {
+  await temp(async (directory) => {
+    const file = path.join(directory, "model.session-model.json");
+    const secret = "alice.smith@acme.com";
+    await writeFile(file, `{"scope": ${secret}}`);
+    const result = run(["validate", file]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "JSON_INVALID");
+    assert.equal(`${result.stdout}${result.stderr}`.includes(secret), false, "parser diagnostics must not echo the offending source");
+  });
+});
+
+test("readiness treats a blocking planned wave as not-ready, not just blocking work_items", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.waves = [{
+        id: "wave_gate", title: "Gate wave", description: null, task_kind: "reconciliation",
+        priority: "q1", sequence: 0, blocking: true, critical_path_ref: "inspect",
+        dependencies: [], blocker_refs: [], domain_refs: ["domain_release"], world_refs: ["world_human", "world_agentic"],
+        deliverables: ["Gate cleared"], lifecycle_state: lifecycle("planned")
+      }];
+      value.analysis.gaps[0].status = "completed"; value.analysis.gaps[0].reason = null; value.analysis.gaps[0].evidence_refs = ["ref_review"];
+      value.plan.work_items[0].lifecycle_state = lifecycle("completed");
+      value.plan.work_items[1].lifecycle_state = lifecycle("completed");
+      value.plan.work_items[1].blocker_refs = [];
+      value.intent.definition_of_done.forEach((item) => { item.status = "completed"; item.reason = null; item.evidence_refs = ["ref_review"]; });
+      value.governance.acceptance_criteria.forEach((item) => { item.status = "completed"; item.reason = null; item.evidence_refs = ["ref_review"]; });
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(body(result.stdout).derived.readiness, "NOT_READY");
+  });
+});
+
+test("semanticErrors rejects a domain whose world_refs is not reciprocated by the world's domain_refs", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.organization.worlds.find((world) => world.id === "world_human").domain_refs = [];
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    assert.ok(body(result.stderr).error.details.some((item) => item.code === "DOMAIN_WORLD_RECIPROCITY"), result.stderr);
   });
 });

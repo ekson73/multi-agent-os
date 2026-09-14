@@ -188,8 +188,8 @@ async function readJson(file, label) {
   if (!isUtf8(bytes)) throw new AppError("ENCODING_INVALID", `${label} is not valid UTF-8`);
   try {
     return { value: JSON.parse(bytes.toString("utf8")), bytes };
-  } catch (error) {
-    throw new AppError("JSON_INVALID", `${label} is not valid JSON: ${error.message}`);
+  } catch {
+    throw new AppError("JSON_INVALID", `${label} is not valid JSON`);
   }
 }
 function validRfc3339(value) {
@@ -548,7 +548,11 @@ function semanticErrors(model) {
     if (owningWorld && !owningWorld.actor_refs.includes(actor.id)) add(`/organization/actors/${index}/world_ref`, "ACTOR_WORLD_RECIPROCITY", "actor.world_ref must be reciprocated by the world's actor_refs");
   });
   model.organization.domains.forEach((domain, index) => {
-    domain.world_refs.forEach((ref, refIndex) => requireRef(worldIds, ref, `/organization/domains/${index}/world_refs/${refIndex}`, "DANGLING_WORLD_REF"));
+    domain.world_refs.forEach((ref, refIndex) => {
+      requireRef(worldIds, ref, `/organization/domains/${index}/world_refs/${refIndex}`, "DANGLING_WORLD_REF");
+      const owningWorld = worldById.get(ref);
+      if (owningWorld && !owningWorld.domain_refs.includes(domain.id)) add(`/organization/domains/${index}/world_refs/${refIndex}`, "DOMAIN_WORLD_RECIPROCITY", "domain.world_refs must be reciprocated by the world's domain_refs");
+    });
     domain.component_refs.forEach((ref, refIndex) => requireRef(nodeIds, ref, `/organization/domains/${index}/component_refs/${refIndex}`, "DANGLING_COMPONENT_REF"));
     requireRef(actorIds, domain.owner_actor_ref, `/organization/domains/${index}/owner_actor_ref`, "DANGLING_ACTOR_REF");
   });
@@ -730,7 +734,8 @@ function deriveFacts(model) {
   const criteria = [...model.intent.definition_of_done, ...model.governance.acceptance_criteria];
   const blockingDomain = [...model.analysis.gaps, ...model.analysis.risks]
     .some((item) => item.blocking && !["completed", "superseded"].includes(item.status));
-  const blockingWork = model.plan.work_items.some((item) => item.blocking && !dependencySucceeded(item.id, new Map(model.plan.work_items.map((work) => [work.id, work]))));
+  const workAndWaves = [...model.plan.waves, ...model.plan.work_items];
+  const blockingWork = workAndWaves.some((item) => item.blocking && !dependencySucceeded(item.id, new Map(workAndWaves.map((work) => [work.id, work]))));
   const criticalBad = pathNodes.some((node) => ["unknown", "hitl", "blocked"].includes(node.status));
   const readiness = criteria.every((item) => item.status === "completed") && !blockingDomain && !blockingWork && !criticalBad ? "READY" : "NOT_READY";
   return { status_counts: STATUS_VALUES.map((status) => ({ status, count: counts[status] })), readiness, critical_path_head: criticalPathHead, next: nextTask(model) };
@@ -833,7 +838,10 @@ function validatePortableDistribution(model) {
     // canonicalBytes scans JSON.stringify output, which doubles every literal backslash
     // in an embedded string -- match one-or-more backslashes so the pattern still fires
     // against the doubled form a real Windows path takes once JSON-serialized.
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\+Users\\+|~[\/\\])/u],
+    // Windows filesystem paths are case-insensitive (C:\users\... is the same path as
+    // C:\Users\...); the whole pattern is case-insensitive since over-matching here is
+    // the safe direction for a privacy gate.
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\+Users\\+|~[\/\\])/iu],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
