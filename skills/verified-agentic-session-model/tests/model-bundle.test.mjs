@@ -242,6 +242,17 @@ test("portable sidecard renders an accessible directed SVG before status nodes w
     assert.match(html, /Geometry is schematic; node colour, glyph, and label encode state\./u);
     assert.match(html, /<summary>Text Register · 4 Nodes · 3 Directed Edges<\/summary>/u);
     assert.match(html, /role=<code>main<\/code> · variant=<code>emphasis<\/code> · route=<code>drop<\/code>/u);
+    // UI-persona council finding (r80): the Diagram Key rendered 9 of 15 edge role/variant
+    // combinations as bare, unstyled <code> text -- a reader could decode node-state colors
+    // from the key but not edge color/dash meaning (the majority of the diagram's visual
+    // grammar). Fixed by giving each legend entry a small SVG swatch that reuses the exact
+    // edge-role-*/edge-variant-* classes the real diagram uses, so the key's rendered color
+    // and dash pattern are structurally guaranteed to match the diagram, not hand-copied.
+    const diagramKeyHtml = html.slice(html.indexOf("<h3>Diagram Key</h3>"), html.indexOf("Text Register"));
+    assert.match(diagramKeyHtml, /<svg class="legend-edge-swatch" width="28" height="12" aria-hidden="true"><g class="edge-group edge-role-main edge-variant-emphasis">/u, "legend must render a swatch reusing the diagram's own edge-role/variant classes, not bare text");
+    assert.match(diagramKeyHtml, /<line class="svg-edge"/u, "legend swatch must use the same .svg-edge line the diagram draws, so CSS colors/dashes it identically");
+    assert.match(diagramKeyHtml, /<code>main \/ emphasis<\/code>/u, "legend entry must still show the human-readable role / variant label alongside the swatch");
+    assert.equal((html.match(/class="edge-group edge-role-main edge-variant-emphasis"/gu) || []).length, 2, "the exact same role/variant class combo must appear once in the diagram and once in its legend swatch");
     assert.ok(html.includes("font:15px/1.55 var(--font-ui)"));
     assert.ok(html.includes("--bg:#0d1117;--panel:#161b22"));
     assert.ok(html.includes("@media screen and (max-width:1000px){.workflow-svg{min-width:900px}}"));
@@ -287,7 +298,12 @@ test("workflow diagram has an always-visible edge-fade cue (painted above SVG co
     assert.ok(html.includes(".workflow-figure::before,.workflow-figure::after"), "edge-fade must be a pseudo-element pair on the non-scrolling wrapper, not a scrolling background layer");
     assert.ok(html.includes("z-index:1"), "edge-fade must be explicitly stacked above the SVG's own paint order");
     assert.ok(html.includes("pointer-events:none"), "edge-fade must not intercept scroll/drag interaction");
-    assert.equal((html.match(/linear-gradient\(-?90deg,var\(--bg\),transparent 85%\)/gu) || []).length, 2, "edge-fade requires exactly one gradient layer per side");
+    // UI-persona council re-check (r80) found the gradient painted var(--bg) -- the PAGE
+    // background -- while .workflow-figure actually sits inside a .panel, whose own
+    // background is var(--panel). In dark mode these differ (#0d1117 vs #161b22), so the
+    // "fade" was a visible mismatched-color seam, not a clean fade-to-nothing. Fixed to
+    // reference the same variable .panel itself uses, so it always matches its own backdrop.
+    assert.equal((html.match(/linear-gradient\(-?90deg,var\(--panel\),transparent 85%\)/gu) || []).length, 2, "edge-fade requires exactly one gradient layer per side, matching the .panel backdrop it actually paints over");
     assert.match(html, /@media\s*\(prefers-reduced-motion:\s*reduce\)\{[^}]*\.edge-role-main \.svg-edge,\.svg-item \.svg-node\{animation:none!important/u);
   });
 });

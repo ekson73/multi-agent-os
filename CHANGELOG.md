@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.2: council Wave 1 (UX/UI/Design) found 3 real defects on r80
+
+- Council Wave 1 (UX, UI, Design) independently re-verified the almanac sidecard (r80)
+  against the live artifact rather than trusting the artifact's own "council does not
+  need to re-review" self-claim, and surfaced 3 real, previously-unflagged defects — all
+  traced to World 1 (the generic renderer), none in World 2 (the eko-engram instance).
+  Council Waves 2 (CEO/CTO/PM) and 3 (PO/DevSecOps/AI-eng), plus a final full 9-persona
+  re-check against the resulting artifact, are tracked as follow-up work, not yet run.
+- **UI, blocking**: the workflow diagram's edge-role/variant legend rendered 9 of 15
+  encoded dimensions as bare, unstyled `<code>` text — a reader could decode node-state
+  colors from the key but not edge color/dash meaning, the majority of the diagram's
+  visual grammar. Fixed by rendering a small SVG swatch per legend entry (one new
+  `.legend-edge-swatch` CSS rule, purely layout/alignment) that reuses the diagram's own
+  `edge-role-*`/`edge-variant-*` classes for color and dash pattern, so the key's colors
+  are structurally guaranteed to match the diagram rather than hand-copied.
+- **UI, blocking**: the workflow diagram's scroll-fade cue painted `var(--bg)` (the page
+  background) while `.workflow-figure` actually sits inside a `.panel`, whose own
+  background is `var(--panel)`. In dark mode these differ (`#0d1117` vs `#161b22`),
+  producing a visible mismatched-color seam — the same "painted over/wrong layer"
+  failure family that took 4 prior attempts to fix, recurring in a new form (right
+  layer, wrong color variable). Fixed to reference the same variable `.panel` itself
+  uses.
+- **Design, blocking**: the renderer concatenates 6 CSS constants
+  (`PORTABLE_STYLE`/`GRAPH`/`ROW`/`LAYOUT`/`ALMANAC`/`POLISH`) with no dedup pass,
+  producing selectors redefined 2-3× with literally conflicting values, including two
+  different dark-mode `--bg` colors for the same page (`#0f172a` vs `#0d1117`) that
+  nobody had caught. Removed 10 confirmed-100%-dead declarations by hand (each verified
+  as either fully superseded or an exact-duplicate restatement before deletion) — this
+  is a partial pass covering the clearest, lowest-risk cases, not an exhaustive dedup of
+  every conflict Design's review found (e.g. the duplicate 720px/print media blocks and
+  a few properties with only-partial overlap are left as-is; tracked as follow-up, not
+  silently dropped). Done by hand rather than via automated CSS-merge tooling: a first
+  attempt round-tripped the whole stylesheet through a real browser's CSSOM for safety,
+  but that pipeline itself silently corrupted `animation:none!important` into
+  `animation:auto !important` on serialization — caught by re-running the existing test
+  suite, not assumed safe. That approach was reverted entirely; every removal shipped
+  here is a single, hand-verified, exact-string deletion of code already proven fully
+  inert under normal CSS cascade.
+- Both blocking UI findings are visually confirmed against the real generated sidecard.
+  A new regression test locks the legend-swatch fix in place; the existing fade-cue test
+  is updated to assert the corrected `--panel` color source. `VERSION` (JS constant),
+  `SKILL.md` frontmatter, and the integrity-manifest schema's `generator.version` const
+  are bumped together to `2.1.2` (all three must agree or every render fails schema
+  validation — caught by the full test suite, not assumed).
+
 ### Fixed — `verified-agentic-session-model` v2.1.1: portable-distribution private-path detection gap
 
 - **Critical**: `validatePortableDistribution`'s `PRIVATE_PATH` check only matched
