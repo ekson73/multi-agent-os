@@ -1,0 +1,471 @@
+{
+  "schema_version": "2.0.0",
+  "kind": "agentic_session_model",
+  "identity": {
+    "taxonomic": {
+      "family": "agentic-session",
+      "artifact_class": "sidecard",
+      "subtype": "catalog"
+    },
+    "semantic": {
+      "subject": "catalog-refresh",
+      "purpose": "verified-record"
+    },
+    "ontological": {
+      "entity_kind": "session-model",
+      "world_model": "human-agentic"
+    },
+    "epistemological": {
+      "claim_mode": "verified_snapshot",
+      "evidence_class": "public_evidence"
+    },
+    "etymological": {
+      "root": "catalog",
+      "language": "en"
+    },
+    "semiotic": {
+      "signifier": "catalog-map",
+      "audience": "dual_audience"
+    },
+    "chronological": {
+      "as_of": "2026-09-12T13:00:00Z",
+      "revision": 1
+    },
+    "version": "2.0.0"
+  },
+  "traceability": {
+    "author": {
+      "kind": "sanitized_user",
+      "public_id": "catalog-steward",
+      "attribution": "role_only"
+    },
+    "ai_harness": {
+      "name": "portable-harness",
+      "version": "2.4.0"
+    },
+    "ai_llm": {
+      "provider": "model-provider",
+      "model": "reasoning-model",
+      "revision": null
+    },
+    "created_at": "2026-09-12T13:00:00Z",
+    "updated_at": "2026-09-12T13:00:00Z",
+    "semantic_version": "2.0.0",
+    "git": {
+      "client_version": "git 2.51.0",
+      "tracking_state": "not_applicable",
+      "repository_visibility": "not_applicable",
+      "repository_uri": null,
+      "ref_name": null,
+      "commit_sha": null,
+      "tree_sha": null
+    }
+  },
+  "metadata": {
+    "title": "Catalog Refresh Session",
+    "scope": "Public catalog maintenance",
+    "language": "en",
+    "distribution": {
+      "classification": "portable_sanitized",
+      "references_policy": "public_only",
+      "content_policy": "sanitized_public_only"
+    },
+    "created_from": [
+      "ref_catalog"
+    ]
+  },
+  "intent": {
+    "motivations": [
+      "Keep the public catalog accurate."
+    ],
+    "goal": "Refresh and verify the catalog entry.",
+    "definition_of_ready": [
+      {
+        "id": "dor_input",
+        "text": "Current source is available",
+        "status": "completed",
+        "reason": null,
+        "evidence_refs": [
+          "ref_catalog"
+        ]
+      }
+    ],
+    "definition_of_done": [
+      {
+        "id": "dod_catalog",
+        "text": "Catalog entry is verified",
+        "status": "completed",
+        "reason": null,
+        "evidence_refs": [
+          "ref_catalog"
+        ]
+      }
+    ],
+    "objectives": {
+      "originating": [],
+      "primary": [
+        {
+          "id": "obj_refresh",
+          "title": "Refresh catalog entry",
+          "status": "completed",
+          "reason": null,
+          "evidence_refs": [
+            "ref_catalog"
+          ]
+        }
+      ],
+      "secondary": [],
+      "auxiliary": []
+    }
+  },
+  "organization": {
+    "contexts": [
+      {
+        "id": "ctx_artifact",
+        "kind": "artifact_world",
+        "label": "Portable artifact",
+        "project_slug": null,
+        "repository_uri": null
+      },
+      {
+        "id": "ctx_target",
+        "kind": "target_project_world",
+        "label": "Catalog project",
+        "project_slug": "catalog-project",
+        "repository_uri": "https://example.com/public/catalog"
+      }
+    ],
+    "worlds": [
+      {
+        "id": "world_human",
+        "kind": "human",
+        "label": "Human world",
+        "actor_refs": [
+          "actor_catalog"
+        ],
+        "domain_refs": [
+          "domain_catalog"
+        ]
+      },
+      {
+        "id": "world_agentic",
+        "kind": "agentic",
+        "label": "Agentic world",
+        "actor_refs": [
+          "actor_renderer"
+        ],
+        "domain_refs": [
+          "domain_catalog"
+        ]
+      }
+    ],
+    "domains": [
+      {
+        "id": "domain_catalog",
+        "label": "Catalog maintenance",
+        "purpose": "Maintain public catalog entries",
+        "world_refs": [
+          "world_human",
+          "world_agentic"
+        ],
+        "component_refs": [
+          "read_entry",
+          "write_entry"
+        ],
+        "owner_actor_ref": "actor_catalog"
+      }
+    ],
+    "actors": [
+      {
+        "id": "actor_catalog",
+        "label": "Catalog steward",
+        "kind": "human",
+        "world_ref": "world_human",
+        "capabilities": [
+          "approve-entry"
+        ],
+        "responsibility_refs": [
+          "resp_catalog"
+        ]
+      },
+      {
+        "id": "actor_renderer",
+        "label": "Artifact renderer",
+        "kind": "ai_agent",
+        "world_ref": "world_agentic",
+        "capabilities": [
+          "render-sidecard"
+        ],
+        "responsibility_refs": []
+      }
+    ],
+    "classifications": [
+      {
+        "class": "personal",
+        "disposition": "excluded"
+      },
+      {
+        "class": "work",
+        "disposition": "included"
+      },
+      {
+        "class": "org",
+        "disposition": "included"
+      },
+      {
+        "class": "gov",
+        "disposition": "not_applicable"
+      },
+      {
+        "class": "community",
+        "disposition": "included"
+      },
+      {
+        "class": "opensource",
+        "disposition": "included"
+      },
+      {
+        "class": "private",
+        "disposition": "excluded"
+      },
+      {
+        "class": "secrets",
+        "disposition": "excluded"
+      },
+      {
+        "class": "pii",
+        "disposition": "excluded"
+      },
+      {
+        "class": "lgpd",
+        "disposition": "excluded"
+      },
+      {
+        "class": "gdpr",
+        "disposition": "excluded"
+      }
+    ]
+  },
+  "topology": {
+    "lanes": [
+      {
+        "id": "catalog",
+        "label": "Catalog"
+      }
+    ],
+    "phases": [],
+    "groups": [],
+    "nodes": [
+      {
+        "id": "read_entry",
+        "label": "Read",
+        "description": "Read current public entry",
+        "lane": "catalog",
+        "column": 1,
+        "component_kind": "external",
+        "world_ref": "world_human",
+        "domain_refs": [
+          "domain_catalog"
+        ],
+        "owner_actor_ref": "actor_catalog",
+        "status": "completed",
+        "reason": null,
+        "evidence_refs": [
+          "ref_catalog"
+        ]
+      },
+      {
+        "id": "write_entry",
+        "label": "Write",
+        "description": "Write verified public entry",
+        "lane": "catalog",
+        "column": 3,
+        "component_kind": "backend",
+        "world_ref": "world_agentic",
+        "domain_refs": [
+          "domain_catalog"
+        ],
+        "owner_actor_ref": "actor_renderer",
+        "status": "completed",
+        "reason": null,
+        "evidence_refs": [
+          "ref_catalog"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_refresh",
+        "from": "read_entry",
+        "to": "write_entry",
+        "role": "main"
+      }
+    ],
+    "critical_path": [
+      "read_entry",
+      "write_entry"
+    ]
+  },
+  "governance": {
+    "binding": false,
+    "responsibilities": [
+      {
+        "id": "resp_catalog",
+        "subject_ref": "write_entry",
+        "role": "A",
+        "actor_ref": "actor_catalog",
+        "detail": null
+      }
+    ],
+    "authority_constraints": [],
+    "authority_snapshot": {
+      "binding": false,
+      "portable": false,
+      "transferable": false,
+      "status": "descriptive_only",
+      "sanitized_scope": "Public catalog maintenance only",
+      "observed_at": "2026-09-12T13:00:00Z"
+    },
+    "policy_snapshots": [],
+    "acceptance_criteria": [
+      {
+        "id": "accept_catalog",
+        "text": "Published entry matches current source",
+        "status": "completed",
+        "reason": null,
+        "evidence_refs": [
+          "ref_catalog"
+        ]
+      }
+    ]
+  },
+  "inert_material": {
+    "seeds": [],
+    "dna": [],
+    "templates": [],
+    "instructions": [],
+    "prompts": [],
+    "directives": [],
+    "governance": []
+  },
+  "analysis": {
+    "root_causes": [],
+    "gaps": [],
+    "failures": [],
+    "risks": []
+  },
+  "plan": {
+    "next_action": {
+      "what": "Archive the completed run",
+      "why": "Preserve public evidence",
+      "where": "Session archive",
+      "when": "Now",
+      "who": "Catalog steward",
+      "how": "Store the verified manifest",
+      "cost": null
+    },
+    "waves": [],
+    "work_items": [
+      {
+        "id": "work_archive",
+        "title": "Archive run",
+        "description": null,
+        "task_kind": "maintenance",
+        "priority": "q4",
+        "sequence": 0,
+        "blocking": false,
+        "dependencies": [],
+        "blocker_refs": [],
+        "domain_refs": [
+          "domain_catalog"
+        ],
+        "world_refs": [
+          "world_human"
+        ],
+        "deliverables": [
+          "Archived record"
+        ],
+        "lifecycle_state": {
+          "state": "completed",
+          "reason": null,
+          "assigned_actor_ref": null,
+          "started_at": "2026-09-12T13:00:00Z",
+          "ended_at": "2026-09-12T13:05:00Z",
+          "resume_after": null,
+          "decision_ref": null,
+          "successor_ref": null,
+          "evidence_refs": [
+            "ref_catalog"
+          ]
+        },
+        "critical_path_ref": null
+      }
+    ]
+  },
+  "lifecycle": {
+    "transition_policy_version": "1.0.0",
+    "events": [],
+    "latest_event_ref": null
+  },
+  "child_derivation": {
+    "generation_depth": 0,
+    "max_generation_depth": 2,
+    "allowed_parameter_keys": [
+      "target_project_slug",
+      "target_repository_uri",
+      "subject_slug",
+      "purpose_slug",
+      "target_domain_slugs",
+      "as_of",
+      "version"
+    ],
+    "required_input_keys": [
+      "target_project_slug",
+      "target_repository_uri",
+      "subject_slug",
+      "purpose_slug",
+      "target_domain_slugs",
+      "as_of",
+      "version"
+    ],
+    "capability_ceiling": [
+      "read_public_evidence",
+      "propose_model",
+      "validate_model",
+      "render_sidecard",
+      "verify_bundle",
+      "write_owned_bundle",
+      "sync_parent_model"
+    ],
+    "default_denies": [
+      "network_access_from_html",
+      "authority_transfer",
+      "policy_override",
+      "secret_access",
+      "personal_data_export",
+      "arbitrary_command_execution",
+      "automatic_recursive_spawn"
+    ],
+    "no_authority_transfer": true,
+    "identity_rule_version": "1.0.0",
+    "parent_lineage": {
+      "parent_artifact_id": null,
+      "parent_source_sha256": null,
+      "derivation_plan_id": null
+    }
+  },
+  "references": [
+    {
+      "id": "ref_catalog",
+      "uri": "https://example.com/public/catalog-source",
+      "role": "artifact",
+      "distribution": "public",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "as_of": "2026-09-12T13:00:00Z",
+      "confidence": 1
+    }
+  ]
+}

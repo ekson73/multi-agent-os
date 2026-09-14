@@ -26,6 +26,10 @@
   "files": [
     "skills/**/SKILL.md",
     "skills/**/*.md",
+    "skills/verified-agentic-session-model/bin/**/*.mjs",
+    "skills/verified-agentic-session-model/schemas/**/*.json",
+    "commands/verified-agentic-session-model.md",
+    "rules/human-artifact-agentic-sidecar.md",
     "packaging/**",
     "README.md",
     "LICENSE",
@@ -40,6 +44,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "validate:skills": "bash scripts/validate-skill-frontmatter.sh"
+    "validate:skills": "bash scripts/validate-skill-frontmatter.sh",
+    "test:verified-agentic-session-model": "node --test skills/verified-agentic-session-model/tests/model-bundle.test.mjs"
   }
 }

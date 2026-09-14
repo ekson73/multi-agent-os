@@ -6,6 +6,335 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `verified-agentic-session-model` v2.1.3: misleading JSON Pointer paths in two validator checks
+
+- `semanticErrors()` scans a single combined `work = [...waves, ...work_items]` array for
+  both the lifecycle-condition checks and the dependency/blocker/domain/world/critical-path
+  reference checks, but reported errors under a path built from the *combined scan
+  position* — claiming `/plan/work_items/<n>` (or a nonexistent `/plan/work/<n>` for the
+  reference checks) using an index that actually spans both arrays. With any waves present,
+  every reported `work_items` index was off by the wave count, pointing a reader at the
+  wrong element or an out-of-range index (e.g. one `waves` entry ahead of a genuinely-empty
+  `waves` list makes the very first `work_items` violation misreport as index `1`). Found
+  live while regenerating a real artifact against a private operational instance: a data
+  bug (a `started` item incorrectly carrying a `successor_ref`, a field reserved for
+  `superseded`) was reported under a `work_items` index that pointed at the wrong element
+  once the plan's leading waves were counted in — the misleading path made the real bug
+  harder to locate than it needed to be. Both call sites now subtract the wave count once
+  an item is confirmed to be in `work_items`; a regression test asserts the exact JSON
+  Pointer for both a `waves[0]` and a `work_items[0]` violation, and that no path uses the
+  nonexistent `/plan/work/` segment.
+
+### Fixed — `verified-agentic-session-model` v2.1.2: council Wave 1 (UX/UI/Design) found 3 real defects
+
+- Council Wave 1 (UX, UI, Design) independently re-verified a private operational sidecard
+  artifact against its live render rather than trusting the artifact's own "council does
+  not need to re-review" self-claim, and surfaced 3 real, previously-unflagged defects —
+  all traced to World 1 (the generic renderer), none in World 2 (the private operational
+  instance). Council Waves 2 (CEO/CTO/PM) and 3 (PO/DevSecOps/AI-eng), plus a final full
+  9-persona re-check against the resulting artifact, are tracked as follow-up work, not
+  yet run.
+- **UI, blocking**: the workflow diagram's edge-role/variant legend rendered 9 of 15
+  encoded dimensions as bare, unstyled `<code>` text — a reader could decode node-state
+  colors from the key but not edge color/dash meaning, the majority of the diagram's
+  visual grammar. Fixed by rendering a small SVG swatch per legend entry (one new
+  `.legend-edge-swatch` CSS rule, purely layout/alignment) that reuses the diagram's own
+  `edge-role-*`/`edge-variant-*` classes for color and dash pattern, so the key's colors
+  are structurally guaranteed to match the diagram rather than hand-copied.
+- **UI, blocking**: the workflow diagram's scroll-fade cue painted `var(--bg)` (the page
+  background) while `.workflow-figure` actually sits inside a `.panel`, whose own
+  background is `var(--panel)`. In dark mode these differ (`#0d1117` vs `#161b22`),
+  producing a visible mismatched-color seam — the same "painted over/wrong layer"
+  failure family that took 4 prior attempts to fix, recurring in a new form (right
+  layer, wrong color variable). Fixed to reference the same variable `.panel` itself
+  uses.
+- **Design, blocking**: the renderer concatenates 6 CSS constants
+  (`PORTABLE_STYLE`/`GRAPH`/`ROW`/`LAYOUT`/`ALMANAC`/`POLISH`) with no dedup pass,
+  producing selectors redefined 2-3× with literally conflicting values, including two
+  different dark-mode `--bg` colors for the same page (`#0f172a` vs `#0d1117`) that
+  nobody had caught. Removed 10 confirmed-100%-dead declarations by hand (each verified
+  as either fully superseded or an exact-duplicate restatement before deletion) — this
+  is a partial pass covering the clearest, lowest-risk cases, not an exhaustive dedup of
+  every conflict Design's review found (e.g. the duplicate 720px/print media blocks and
+  a few properties with only-partial overlap are left as-is; tracked as follow-up, not
+  silently dropped). Done by hand rather than via automated CSS-merge tooling: a first
+  attempt round-tripped the whole stylesheet through a real browser's CSSOM for safety,
+  but that pipeline itself silently corrupted `animation:none!important` into
+  `animation:auto !important` on serialization — caught by re-running the existing test
+  suite, not assumed safe. That approach was reverted entirely; every removal shipped
+  here is a single, hand-verified, exact-string deletion of code already proven fully
+  inert under normal CSS cascade.
+- Both blocking UI findings are visually confirmed against the real generated sidecard.
+  A new regression test locks the legend-swatch fix in place; the existing fade-cue test
+  is updated to assert the corrected `--panel` color source. `VERSION` (JS constant),
+  `SKILL.md` frontmatter, and the integrity-manifest schema's `generator.version` const
+  are bumped together to `2.1.2` (all three must agree or every render fails schema
+  validation — caught by the full test suite, not assumed).
+
+### Fixed — `verified-agentic-session-model` v2.1.1: portable-distribution private-path detection gap
+
+- **Critical**: `validatePortableDistribution`'s `PRIVATE_PATH` check only matched
+  absolute `/Users/`, `/home/`, and Windows `C:\Users\` paths — a workstation-local
+  `~/`-relative path (e.g. `~/.claude/rules/...`, or a private repo's own worktree path
+  such as `~/<repo>/.worktrees/...`) passed every render/verify/inspect gate undetected.
+  Found in a live portable sidecard: a `next_action.where` field and three rule citations
+  all embedded a `~/`-relative path in a `portable_sanitized` artifact. The regex now
+  matches any `~/` or `~\` — including a bare home-root reference with nothing after the
+  slash, which the first fix still missed — not just one followed by a path segment;
+  regression cases for both shapes added to the existing private-material value table.
+### Fixed — `verified-agentic-session-model` v2.1.0: council-driven portable-sidecard fixes
+
+- **Critical**: a UTF-8 BOM is now prepended to the rendered `*.sidecard.html` bytes.
+  Opening the artifact via `file://` (its own stated primary distribution mode) let
+  Chromium's local-file charset sniffer override an explicit `<meta charset="utf-8">`,
+  resolving `document.characterSet` to `windows-1252` and turning every state glyph
+  into mojibake — found and reproduced independently by three council reviewers before
+  the fix, re-verified live in a browser after it.
+- Unified the workflow diagram's two animated-edge classes to the same apparent
+  flow rate (dash-length ÷ duration); they previously differed by ~2x, reading as an
+  unintentional glitch rather than a deliberate accent.
+- Added an always-visible edge-fade cue on the workflow diagram: a static
+  `::before`/`::after` overlay pair on the non-scrolling `.workflow-figure` wrapper,
+  explicitly stacked (`z-index:1`, `pointer-events:none`) above the SVG's own paint
+  order. A first attempt (paired `background-attachment:local/scroll` gradients on the
+  scrolling container) shipped a fix that was real in computed style but invisible on
+  screen — the child SVG's opaque lane-band `<rect>` fills paint on top of the parent's
+  background regardless of the SVG's own background, a structural stacking-order defect
+  independent council pixel-sampling caught twice (round 1 and round 2) before this
+  overlay-on-top-of-everything approach proved genuinely visible at all scroll positions.
+- Bumped lane-band fill and lane-title weight so lane grouping is legible against
+  saturated state-node colors.
+- `intent.motivations` (stored but never rendered) is now visible via a collapsed
+  `<details>` inside the existing priority panel — not a new equal-weight panel.
+- Added a bilingual (English-then-Portuguese) "10-second read" TL;DR to the hero,
+  using a new word-boundary-safe `truncateAtWord()` helper, scoped to a single,
+  explicitly-labeled `plan.work_items` count (was an unlabeled cross-registry tally
+  mixing nodes/criteria/risks/work-items with no stated population).
+- Added a human-readable gloss next to the `Portable trust: CONSISTENT_UNTRUSTED`
+  badge clarifying it is a standing classification, not an active-incident report,
+  without touching the machine-facing trust string other tooling parses verbatim.
+- Generator `VERSION` bumped `2.0.0` → `2.1.0` (the HTML output contract changed);
+  `integrity-manifest.schema.json`'s `generator.version` const and `SKILL.md`'s
+  frontmatter version updated to match, so a manifest correctly fails closed if
+  produced by a stale or divergent copy of the tool.
+- Known, deliberately deferred (filed as non-blocking, not silently dropped): CSS has
+  genuine top-level (non-`@media`-scoped) selector duplication at 2-3x for several
+  selectors from layered "polish" passes; no executive-jargon-free summary panel; no
+  `generator.source_sha256`/commit-clean gate in the manifest for third-party
+  reproducibility (all raised by council review, filed for a future round).
+### Fixed — `verified-agentic-session-model` head-bound bot review on `8447791` (qodo + Codex)
+
+- Nine valid findings closed in `bin/model-bundle.mjs`, each re-reproduced at
+  `8447791` before the fix and covered by a regression test:
+  - **Lifecycle**: `stateFromEvent` carried `started_at` forward into `planned`,
+    so the allowed `started → deferred|hitl → planned` return failed its own
+    `planned requires started_at=null` gate (qodo #5); `deferred` accepted
+    `decision_ref` as a substitute for `resume_after`, contradicting the tested
+    contract (qodo #18) — `resume_after` is now required outright.
+  - **Validator**: `minLength`/`maxLength` counted UTF-16 units instead of the
+    Unicode code points JSON Schema specifies (qodo #16); the public schemas
+    declared plain `format: date-time` while the CLI only accepted `Z`, so a
+    spec-compliant validator and the CLI disagreed on offsets (qodo #20) — the
+    schemas now carry an explicit UTC `Z` pattern (determinism contract kept).
+  - **Public-only distribution**: `traceability.git.repository_uri` was never
+    host-checked when `repository_visibility=public` (qodo #4); the private-IPv4
+    predicate missed shared CGNAT `100.64/10` and the other IANA non-global
+    blocks (Codex P1) — both now reject with `PRIVATE_REPOSITORY_URI` /
+    `PRIVATE_REFERENCE`.
+  - **Sensitive-data preflight**: the standard profile scanned the canonical
+    object but persisted the caller's raw bytes, so a duplicate-member JSON
+    smuggle shipped an occurrence `JSON.parse` had discarded (qodo #7); the
+    manifest's own strings were never scanned (Codex P1). `render` now scans the
+    persisted bytes and the manifest text; `verify` scans the manifest bytes and
+    the raw source subject.
+  - **Promotion**: the standard path now re-hashes every promoted file before
+    `VALIDATED` is written, as the portable path already did (Codex P2); shared
+    `assertPromotedSubjects`/`writeValidatedManifest` helpers replace the inline
+    portable-only check. `SKILL.md` now states the real guarantee (per-subject
+    rename under a `STALE`-first marker, not a directory swap) instead of
+    "commits atomically" (qodo #6, docs-only).
+  - **Print**: width breakpoints are `@media screen and (…)` so print never
+    inherits the mobile layout (qodo #3).
+- Rejected with evidence on-thread (no code change): design-token / `tokens.css`
+  findings (the sidecard's contract is zero-dependency inline CSS under a
+  hash-pinned `style-src`; no token system exists in this repo), `allowed-tools`
+  as mandatory frontmatter (CLAUDE.md requires `name`/`description`/`version`
+  only), "prime-hex must be prime" (CLAUDE.md's own example `c614` is even),
+  Forge provenance section, Jira key (Linear repo, `.pr_agent.toml`), Archify
+  provisioning in CI (operator-recorded decision), palette-validator gate,
+  `<table>` duplicate of the SVG text register, and the keyword passivity gate
+  on escaped text (fail-closed by design). Workflow-file change flagged for
+  maintainer ratification at merge.
+- Copilot (same head): a schema-valid SemVer with build metadata
+  (`2.0.0+build.1`) could not render a portable bundle because `portableStem`
+  put the raw `+` into subject filenames that the manifest path pattern
+  rejects — the stem now encodes `+` as `_` (never a SemVer character), with a
+  render+verify regression test; SKILL.md's boundary text said "motion and
+  decorative gradients are rejected" while the shipped `PORTABLE_POLISH_STYLE`
+  intentionally carries a reduced-motion-aware hover transition and a flat hero
+  wash that print as solid — the boundary now states exactly that. Copilot's
+  third point (the workflow's "Validate plugin structure" step runs the
+  frontmatter-only `npm run validate:skills`, not the canonical
+  `bash tests/validate-plugin.sh` that `lens-dispatch-tests.yml` runs) is valid
+  but lives in `.github/workflows/` — proposed on-thread for the maintainer, not
+  applied autonomously. 39/39 tests pass.
+
+### Fixed — `verified-agentic-session-model` independent DIY review: schema validator ignored `allOf`/`if`/`then`
+
+- Independent review (no bot finding; the last CodeRabbit review on `793b369`
+  was stale by two commits) found that the CLI's own minimal JSON Schema
+  validator (`schemaErrors`) silently ignored the `allOf`/`if`/`then`
+  composition keywords entirely — it recognized `$ref`, `const`, `enum`,
+  `type`, and the plain string/number/array/object constraints, but any
+  schema using `allOf`/`if`/`then` validated as if those keywords were
+  absent. `schemas/integrity-manifest.schema.json` (added by this PR) uses
+  exactly this construct to make `embedded_blocks` profile-conditional, so
+  the schema's own declared contract was not actually enforced by the
+  validator that is supposed to check it; the runtime gate happened to be
+  covered redundantly by `manifestSemanticErrors`, but a real external
+  consumer validating the published schema file (it ships in `package.json`
+  `files` and is the `human-artifact-agentic-sidecar` machine-first source)
+  with a spec-compliant validator would see the same rule enforced, while
+  this repo's own validator silently passed anything violating it. Added
+  `allOf`/`if`/`then`/`else` support to `check()` (single-purpose helper:
+  evaluate `if` into a scratch sink, apply `then`/`else` into the real one
+  on match/no-match; recurse each `allOf` member into the same sink).
+- Fixing the validator surfaced a second, real bug the redundant semantic
+  check had been masking: the manifest schema's `portable_sidecard` branch
+  required the canonical two-block set unconditionally on `profile`, with
+  no `status` gate — but `writeStaleManifest` intentionally commits an
+  interim `STALE` placeholder with `embedded_blocks: []` before the real
+  render completes (fail-closed-if-crashed design). Once the validator
+  actually enforced the schema, every `portable-sidecard` render started
+  failing at the STALE-write step. Fixed by scoping the `portable_sidecard`
+  conditional to `status: VALIDATED` (mirroring how `manifestSemanticErrors`
+  already gates its own `checks`-set assertion), so the interim placeholder
+  validates and the completed bundle is still held to the exact two-block
+  contract. Added a regression test (`verify rejects a VALIDATED manifest
+  whose embedded_blocks count violates its profile's schema contract`)
+  exercising the schema-level catch end-to-end via the CLI. 32/32 tests
+  pass; `gitleaks dir . --no-banner` and `tests/validate-plugin.sh` clean.
+
+### Fixed — `verified-agentic-session-model` CodeRabbit re-review on `8c1db95`
+
+- Closed the real, recurring finding from CodeRabbit's updated review
+  (comment `5638767652`, updated 2026-09-12T01:43:13Z): the `dna`,
+  `template`, and `governance` exclusion assertions in
+  `derive-child only inherits ... material explicitly named in the
+  request` each checked only their own sub-collection
+  (`child.inert_material.dna` / `.templates` / `.governance`) for the
+  excluded marker, so a defect leaking the marker into a *different*
+  child field would have passed undetected. Broadened all three
+  assertions to `JSON.stringify(child).includes(marker)` — scanning the
+  complete serialized child — closing the same unresolved concern
+  CodeRabbit had already flagged on the prior review. 31/31 tests pass.
+
+### Added — `verified-agentic-session-model` portable-sidecard visual polish
+
+- Added an additive `PORTABLE_POLISH_STYLE` CSS layer (tinted depth shadows,
+  a hero accent top-border, panel hover elevation, refined heading weight)
+  to the `portable-sidecard` profile. Purely a new CSS block appended to the
+  existing `PORTABLE_CSS` chain — no existing selector, class, or HTML
+  structure changed, no schema change, no new script or network surface.
+  CSP hash and `template_sha256` are both computed dynamically from the
+  current `PORTABLE_CSS`, so freshly rendered artifacts remain internally
+  self-consistent; historical sidecards rendered under the prior CSS are
+  unaffected snapshots and are not expected to re-verify byte-for-byte
+  against the new template (same class of change as any other template
+  revision). 29/29 tests still pass; `verify` PASS on a freshly re-rendered
+  artifact.
+
+### Fixed — `verified-agentic-session-model` CodeRabbit review on `793b369`
+
+- Closed the one remaining actionable CodeRabbit finding: `derive-child`
+  child-material coverage checked `dna` inheritance and exclusion only.
+  Added the matching pair of tests for `template` and `governance` material
+  (excluded-with-default-fallback when not requested; content-inherited when
+  requested), mirroring the existing `dna` test exactly. 31/31 tests pass.
+- Fixed the three authored docs' `Signed:` footers to use a hexadecimal
+  ID segment (`Claude-Dev-793b-421`) per the repository's established
+  signature convention, replacing the non-hex `vasm` placeholder.
+- Dismissed two non-actionable findings with evidence: SkillSpector's RA1
+  self-modification flag on `SKILL.md` is a keyword match on an explicit
+  negation ("never self-updates, self-fixes, self-heals..."), not an actual
+  self-modification capability; the review's "Remote MCP" section
+  referenced a Linear issue lookup and reviewer-workflow metrics that do
+  not exist for this GitHub-only repository and contradicted itself
+  (draft PR described as "ready to merge") — treated as untrusted review
+  data per the review tool's own instruction and not acted on.
+
+### Fixed — `verified-agentic-session-model` PR #421 assurance remediation
+
+- Closed six independently reproduced security findings in the v2 CLI, plus
+  two residual bypasses found by two further independent re-verification
+  rounds on the same finding before it was considered closed: masked and
+  reordered sensitive-data preflight ahead of every value-echoing
+  diagnostic, including a transition path that previously ran no scan at
+  all; replaced scheme-only public-reference checks with real URL/host
+  parsing that rejects loopback/RFC1918/`.local`/single-label/credentialed
+  URIs — including IPv4-mapped (`::ffff:0:0/96`) and NAT64 (`64:ff9b::/96`)
+  IPv6 forms embedding a private address, and a link-local `fe80::/10`
+  boundary bug where a literal `fe80:`-prefix match rejected only
+  `fe80::/16` and missed `fe81::`–`febf::` — and restricts `urn:` to an
+  explicit namespace allowlist; **breaking** `derive-child` request
+  contract — inherited `dna`/`template`/`governance` material must now be
+  named explicitly via a new required `inherited_material_ids` field,
+  closing a wholesale-inheritance smuggling path (no collection is
+  inherited by kind or public label alone); malformed existing manifests
+  now fail closed instead of silently reusing a stem; portable render
+  re-hashes both final files against their manifest digests immediately
+  after rename and before writing `VALIDATED`; canonicalization rejects
+  unpaired UTF-16 surrogates per RFC 8785/I-JSON instead of silently
+  accepting them.
+- Tightened `schemas/integrity-manifest.schema.json` to match the CLI's own
+  `manifestSemanticErrors` runtime gate: `derived.status_counts` is now a
+  fixed 11-position tuple in canonical order, and `embedded_blocks` is
+  profile-conditional (`standard` ⇒ empty; `portable_sidecard` ⇒ exactly the
+  two canonical blocks in order).
+- Wired the existing 29-case `tests/model-bundle.test.mjs` suite into CI via
+  a new `test:verified-agentic-session-model` npm script and
+  `.github/workflows/verified-agentic-session-model-tests.yml` (mirrors
+  `lens-dispatch-tests.yml`'s house style; deliberately no `paths:` filter).
+  The suite's pre-existing `standard`-profile Archify integration test still
+  self-skips on a clean CI runner without a local Archify install — that
+  path remains best-effort/skip-on-absence, unchanged from its original
+  design; provisioning Archify inside CI is a separate, not-yet-authorized
+  follow-up. The `portable-sidecard` profile — the one this PR ships — has
+  full CI coverage.
+- Applied the remaining valid CodeRabbit test-quality findings on the same
+  suite (diagnosable JSON-parse failures, missing render-status assertions
+  before dereferencing results, a dead-code test mutation, a fail-closed
+  directory assertion, ordering-key ambiguity, and asserting the exact
+  transition-denial error code); skipped the one finding CodeRabbit itself
+  tagged non-actionable/low-value.
+- Independently re-verified by a fresh security review; wacli Eko Almanac
+  re-rendered at r23 with corrected status once remediation landed.
+
+### Added — `verified-agentic-session-model` v2 portable AI-first sidecard
+
+- Upgraded the skill, command, two schemas, dependency-free CLI, and neutral fixtures to
+  v2.0.0. The clean status vocabulary is now `planned`, `started`, `delegated`,
+  `deferred`, `hitl`, `blocked`, `completed`, `canceled`, `superseded`, `deprecated`,
+  and `unknown`; legacy aliases are rejected.
+  The semantic source adds eight-facet identity, sanitized author/harness/model/Git
+  traceability, artifact/target contexts, human/agentic worlds, public distribution
+  classifications, inert generational material, nonbinding authority, lifecycle events,
+  reconciliation, and bounded child lineage.
+- Added explicit render profiles. `standard` preserves the trusted stock-Archify bundle.
+  `portable-sidecard` invokes no renderer dependency and emits a deterministic passive
+  offline `.sidecard.html`, canonical source snapshot, and v2 manifest. The HTML has an
+  exact restrictive CSP, no executable script/browser effects, exactly two base64url
+  canonical-JSON capsules, visible text+glyph+color states, dependency/identity/trace/
+  governance/next views, and honest `NOT LIVE` / `CONSISTENT_UNTRUSTED` labeling.
+- Added read-only `inspect` and `next`, plus direct expected-digest-gated `transition` and
+  `derive-child` writes. Transitions append events with all six reconciliation
+  dispositions and atomically update owned JSON. Child derivation emits one new identity
+  with immutable lineage, strict capability subset, depth at most two, and no recursive
+  spawn or authority transfer. No generic authority planner, PWA, MCP, plugin, hook,
+  second tool, HTML post-processing, or runtime npm dependency was added.
+- The existing `human-artifact-agentic-sidecar` rule remains the cross-cutting adoption
+  gate; v2 sidecards use their canonical model as the sole machine-first semantic source.
+  Package version is intentionally unchanged in this entry.
 
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 
