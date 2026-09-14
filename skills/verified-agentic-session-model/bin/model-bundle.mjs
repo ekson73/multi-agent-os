@@ -269,7 +269,11 @@ function decodedPayloads(text) {
       // "a@b.co"-shaped email) is never silently dropped by an unrelated length floor.
       if (cleanlyDecoded || /[\x20-\x7e]{8,}/u.test(value)) {
         if (decoded.length >= 200) throw new AppError("SENSITIVE_SCAN_BUDGET_EXCEEDED", "Sensitive-data scan exceeded its bounded encoded-candidate budget");
-        decoded.push(value);
+        // Strip replacement characters before scanning: scanSensitive's token patterns
+        // (sk-…, AKIA…, ghp_…) require a CONTIGUOUS run of valid characters, so a corrupt
+        // byte landing in the MIDDLE of a real secret -- not just trailing it -- would
+        // otherwise split one match into two runs, neither long enough to match alone.
+        decoded.push(value.replace(/\uFFFD/gu, ""));
       }
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -1157,8 +1161,9 @@ function displayUnits(value) {
 // amputates a word reads as broken, not concise.
 function truncateAtWord(value, maximum) {
   const text = String(value).replace(/\s+/gu, " ").trim();
-  if (text.length <= maximum) return text;
-  const slice = Array.from(text).slice(0, maximum).join("");
+  const codePoints = Array.from(text);
+  if (codePoints.length <= maximum) return text;
+  const slice = codePoints.slice(0, maximum).join("");
   const lastSpace = slice.lastIndexOf(" ");
   return `${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trimEnd()}…`;
 }
