@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { isUtf8 } from "node:buffer";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import {
@@ -184,6 +185,7 @@ async function readBounded(file, label) {
 
 async function readJson(file, label) {
   const bytes = await readBounded(file, label);
+  if (!isUtf8(bytes)) throw new AppError("ENCODING_INVALID", `${label} is not valid UTF-8`);
   try {
     return { value: JSON.parse(bytes.toString("utf8")), bytes };
   } catch (error) {
@@ -255,7 +257,13 @@ function decodedPayloads(text) {
     try {
       const bytes = Buffer.from(match[0], match[0].includes("+") || match[0].includes("/") ? "base64" : "base64url");
       const value = bytes.toString("utf8");
-      if (value.length && !value.includes("\uFFFD")) {
+      // A base64 candidate whose decode is entirely binary noise (hex digests, raw hashes,
+      // etc.) is not a text payload; skip it. But do not drop the WHOLE candidate just
+      // because it embeds a single invalid byte (U+FFFD) somewhere -- a secret prefix
+      // followed by one corrupt trailing byte must still be scanned. Every pattern this
+      // scanner looks for (AKIA…, sk-…, ghp_…, CPF/email/phone digits) is ASCII, so gate on
+      // "contains a long enough printable-ASCII run" instead of "decoded perfectly clean".
+      if (/[\x20-\x7e]{8,}/u.test(value)) {
         if (decoded.length >= 200) throw new AppError("SENSITIVE_SCAN_BUDGET_EXCEEDED", "Sensitive-data scan exceeded its bounded encoded-candidate budget");
         decoded.push(value);
       }
@@ -489,6 +497,15 @@ function semanticErrors(model) {
       requireField("ended_at", state.ended_at !== null, "superseded requires ended_at");
       requireField("successor_ref", state.successor_ref !== null, "superseded requires successor_ref");
     }
+    // Reciprocal to the per-state requireField calls above: a field owned by one state
+    // must be null for every state that does not own it, mirroring stateFromEvent's own
+    // construction (ended_at only for terminal states; resume_after only for deferred;
+    // decision_ref only for deferred/hitl; successor_ref only for superseded).
+    const terminal = TERMINAL_STATES.has(state.state);
+    if (!terminal) requireField("ended_at", state.ended_at === null, `${state.state} requires ended_at=null`);
+    if (state.state !== "deferred") requireField("resume_after", state.resume_after === null, `${state.state} requires resume_after=null`);
+    if (!["deferred", "hitl"].includes(state.state)) requireField("decision_ref", state.decision_ref === null, `${state.state} requires decision_ref=null`);
+    if (state.state !== "superseded") requireField("successor_ref", state.successor_ref === null, `${state.state} requires successor_ref=null`);
     if (state.assigned_actor_ref !== null) requireRef(actorIds, state.assigned_actor_ref, `${at}/assigned_actor_ref`, "DANGLING_ACTOR_REF");
     if (state.decision_ref !== null) requireRef(referenceIds, state.decision_ref, `${at}/decision_ref`, "DANGLING_DECISION_REF");
     if (state.successor_ref !== null) {
@@ -522,7 +539,9 @@ function semanticErrors(model) {
     requireRef(worldIds, actor.world_ref, `/organization/actors/${index}/world_ref`, "DANGLING_WORLD_REF");
     actor.responsibility_refs.forEach((ref, refIndex) => requireRef(responsibilityIds, ref, `/organization/actors/${index}/responsibility_refs/${refIndex}`, "DANGLING_RESPONSIBILITY_REF"));
     const expectedKind = ["human", "human_team"].includes(actor.kind) ? "human" : "agentic";
-    if (worldById.get(actor.world_ref)?.kind !== expectedKind) add(`/organization/actors/${index}/world_ref`, "ACTOR_WORLD_MISMATCH", `${actor.kind} requires ${expectedKind} world`);
+    const owningWorld = worldById.get(actor.world_ref);
+    if (owningWorld?.kind !== expectedKind) add(`/organization/actors/${index}/world_ref`, "ACTOR_WORLD_MISMATCH", `${actor.kind} requires ${expectedKind} world`);
+    if (owningWorld && !owningWorld.actor_refs.includes(actor.id)) add(`/organization/actors/${index}/world_ref`, "ACTOR_WORLD_RECIPROCITY", "actor.world_ref must be reciprocated by the world's actor_refs");
   });
   model.organization.domains.forEach((domain, index) => {
     domain.world_refs.forEach((ref, refIndex) => requireRef(worldIds, ref, `/organization/domains/${index}/world_refs/${refIndex}`, "DANGLING_WORLD_REF"));
@@ -664,7 +683,7 @@ function dependencySucceeded(id, items, seen = new Set()) {
 }
 
 function nextTask(model) {
-  const items = new Map(model.plan.work_items.map((item) => [item.id, item]));
+  const items = new Map([...model.plan.waves, ...model.plan.work_items].map((item) => [item.id, item]));
   const blockers = new Map([...model.analysis.gaps, ...model.analysis.risks].map((item) => [item.id, item]));
   const criticalIndex = new Map(model.topology.critical_path.map((id, index) => [id, index]));
   const criticalRank = (item) => item.critical_path_ref === null ? Number.MAX_SAFE_INTEGER : (criticalIndex.get(item.critical_path_ref) ?? Number.MAX_SAFE_INTEGER);
@@ -674,7 +693,7 @@ function nextTask(model) {
     return item.blocker_refs.every((id) => {
       if (items.has(id)) return dependencySucceeded(id, items);
       const blocker = blockers.get(id);
-      return blocker && (!blocker.blocking || blocker.status === "completed");
+      return blocker && (!blocker.blocking || ["completed", "superseded"].includes(blocker.status));
     });
   });
   const priority = { q1: 0, q2: 1, q3: 2, q4: 3 };
@@ -732,9 +751,9 @@ function isPrivateIPv4Quad(a, b, c) {
     || (a === 198 && (b === 18 || b === 19)) || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113);
 }
 function isPrivateOrLoopbackHost(hostname) {
-  const host = hostname.toLowerCase();
+  const host = hostname.toLowerCase().replace(/\.$/u, "");
   if (host === "localhost" || host === "0.0.0.0") return true;
-  if (host.endsWith(".local")) return true;
+  if (host.endsWith(".local") || host.endsWith(".localhost")) return true;
   if (host.startsWith("[") && host.endsWith("]")) {
     const inner = host.slice(1, -1);
     if (inner === "::1" || inner === "::") return true;
@@ -750,6 +769,13 @@ function isPrivateOrLoopbackHost(hostname) {
     // instead of letting WHATWG URL's hex-compressed serialization slip past unchecked.
     const mapped = embeddedIPv4FromMappedHost(inner);
     if (mapped) return isPrivateIPv4Quad(mapped[0], mapped[1], mapped[2]);
+    // Non-global ranges beyond loopback/link-local/ULA/mapped: multicast (ff00::/8) and
+    // the RFC 3849 documentation block (2001:db8::/32), mirroring the IPv4 sibling's
+    // explicit exclusion of its own documentation and multicast ranges.
+    if (leadingHextet !== null && (leadingHextet & 0xff00) === 0xff00) return true;
+    const secondHextetText = inner.split(":")[1];
+    const secondHextet = secondHextetText !== undefined && /^[0-9a-f]{1,4}$/u.test(secondHextetText) ? Number.parseInt(secondHextetText, 16) : null;
+    if (leadingHextet === 0x2001 && secondHextet === 0x0db8) return true;
     return false;
   }
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u);
@@ -791,7 +817,7 @@ function validatePortableDistribution(model) {
   const canonical = canonicalBytes(model).toString("utf8");
   const texts = [canonical, ...decodedPayloads(canonical)];
   for (const [code, pattern] of [
-    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|[A-Za-z]:\\Users\\|~[\/\\])/u],
+    ["PRIVATE_PATH", /(?:\/Users\/|\/home\/|\/root\/|[A-Za-z]:\\Users\\|~[\/\\])/u],
     ["LOCAL_IDENTIFIER", /(?:account|store)[_-]?id\s*[:=]/iu],
     ["RAW_TRANSCRIPT", /(?:raw|full|verbatim)[ _-]?transcript/iu],
     ["HIDDEN_PROMPT", /(?:system|developer)[ _-]?prompt/iu],
@@ -988,9 +1014,13 @@ function renderPortableSidecard(model, stemOverride = undefined) {
   // "Criteria and risks" panel.
   const blockedCriteriaCount = [...model.intent.definition_of_done, ...model.governance.acceptance_criteria]
     .filter((c) => c.status === "blocked").length;
+  const hitlWorkItemsCount = model.plan.work_items.filter((w) => w.lifecycle_state.state === "hitl").length;
   const execStatusWord = derived.readiness === "READY" ? "On track" : workItemsBlocked > 0 ? "Blocked" : "At risk";
-  const decisionNeeded = blockedCriteriaCount > 0
-    ? `${blockedCriteriaCount} blocked criteria await resolution (see Criteria and risks); no committed ETA in this model`
+  const decisionParts = [];
+  if (blockedCriteriaCount > 0) decisionParts.push(`${blockedCriteriaCount} blocked criteria`);
+  if (hitlWorkItemsCount > 0) decisionParts.push(`${hitlWorkItemsCount} HITL work item(s)`);
+  const decisionNeeded = decisionParts.length
+    ? `${decisionParts.join(" and ")} await resolution (see Criteria and risks); no committed ETA in this model`
     : "none";
   const nextAction = model.plan.next_action;
   const html = `<!doctype html>
@@ -1099,7 +1129,7 @@ function displayUnits(value) {
 function truncateAtWord(value, maximum) {
   const text = String(value).replace(/\s+/gu, " ").trim();
   if (text.length <= maximum) return text;
-  const slice = text.slice(0, maximum);
+  const slice = Array.from(text).slice(0, maximum).join("");
   const lastSpace = slice.lastIndexOf(" ");
   return `${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trimEnd()}…`;
 }
@@ -1514,18 +1544,18 @@ function manifestSemanticErrors(manifest) {
     if (ROLE_MEDIA[subject.role] !== subject.media_type) errors.push({ path: `/subjects/${index}/media_type`, code: "SUBJECT_MEDIA_MISMATCH", message: `${subject.role} requires ${ROLE_MEDIA[subject.role]}` });
     if (subject.path !== path.basename(subject.path) || subject.path === "." || subject.path === ".." || subject.path.includes("/") || subject.path.includes("\\")) errors.push({ path: `/subjects/${index}/path`, code: "SUBJECT_PATH_REJECTED", message: "subject paths must be bundle-local basenames" });
   });
-  const requiredRoles = manifest.profile === "standard"
-    ? ["source", "workflow", "diagram_html", "markdown"]
-    : ["source", "sidecard_html"];
-  if (!deepEqual([...roles].sort(), [...requiredRoles].sort())) errors.push({ path: "/subjects", code: "SUBJECT_ROLE_SET_INVALID", message: `profile ${manifest.profile} requires its canonical subject roles` });
   if (manifest.status === "VALIDATED") {
+    const requiredRoles = manifest.profile === "standard"
+      ? ["source", "workflow", "diagram_html", "markdown"]
+      : ["source", "sidecard_html"];
+    if (!deepEqual([...roles].sort(), [...requiredRoles].sort())) errors.push({ path: "/subjects", code: "SUBJECT_ROLE_SET_INVALID", message: `profile ${manifest.profile} requires its canonical subject roles` });
     if (manifest.checks.some((check) => check.status !== "PASS")) errors.push({ path: "/checks", code: "VALIDATED_CHECK_FAILED", message: "VALIDATED manifest cannot contain a failed check" });
     if (!deepEqual(manifest.checks.map((check) => check.name), CHECKS_BY_PROFILE[manifest.profile])) errors.push({ path: "/checks", code: "CHECK_SET_INVALID", message: "manifest check set differs from profile contract" });
-  }
-  if (manifest.profile === "standard" && manifest.embedded_blocks.length !== 0) errors.push({ path: "/embedded_blocks", code: "BLOCK_SET_INVALID", message: "standard profile has no embedded blocks" });
-  if (manifest.profile === "portable_sidecard") {
-    const blockPairs = manifest.embedded_blocks.map((block) => `${block.id}:${block.role}`);
-    if (!deepEqual(blockPairs, ["vasm-semantic-source:semantic_source", "vasm-render-receipt:render_receipt"])) errors.push({ path: "/embedded_blocks", code: "BLOCK_SET_INVALID", message: "portable profile requires the canonical two blocks" });
+    if (manifest.profile === "standard" && manifest.embedded_blocks.length !== 0) errors.push({ path: "/embedded_blocks", code: "BLOCK_SET_INVALID", message: "standard profile has no embedded blocks" });
+    if (manifest.profile === "portable_sidecard") {
+      const blockPairs = manifest.embedded_blocks.map((block) => `${block.id}:${block.role}`);
+      if (!deepEqual(blockPairs, ["vasm-semantic-source:semantic_source", "vasm-render-receipt:render_receipt"])) errors.push({ path: "/embedded_blocks", code: "BLOCK_SET_INVALID", message: "portable profile requires the canonical two blocks" });
+    }
   }
   if (!deepEqual(manifest.derived.status_counts.map((entry) => entry.status), STATUS_VALUES)) errors.push({ path: "/derived/status_counts", code: "STATUS_COUNTS_ORDER", message: "status counts must contain the canonical eleven states in order" });
   return errors;
@@ -2095,6 +2125,9 @@ async function transitionCommand(modelFile, options) {
   if (!TRANSITIONS[event.from_state]?.includes(event.to_state)) throw new AppError("TRANSITION_DENIED", "Lifecycle transition is not allowed");
   const surfaces = event.reconciliation?.map((item) => item.surface).sort();
   if (!deepEqual(surfaces, ["knowledge_base", "organization_model", "plan", "roadmap", "semantic_source", "workflow"])) throw new AppError("RECONCILIATION_INCOMPLETE", "Transition requires all six reconciliation surfaces exactly once");
+  if (new Date(event.occurred_at) < new Date(model.traceability.updated_at) || new Date(event.occurred_at) < new Date(model.identity.chronological.as_of)) {
+    throw new AppError("EVENT_TIME_REGRESSION", "Transition event.occurred_at must not precede the model's current updated_at/as_of");
+  }
   task.lifecycle_state = stateFromEvent(task.lifecycle_state, event);
   model.lifecycle.events.push(event);
   model.lifecycle.latest_event_ref = event.event_id;
@@ -2321,6 +2354,7 @@ async function deriveChildCommand(modelFile, options) {
   validatePortableDistribution(child);
   enforceSensitivePreflight(canonicalBytes(child));
   const output = path.resolve(options.out);
+  if (output === path.resolve(modelFile)) throw new AppError("CHILD_OUTPUT_ALIASES_PARENT", "Child --out must not be the same path as the parent model file");
   await ensureOwnedJsonOutput(output);
   const release = await acquireLock(path.join(path.dirname(output), `.${path.basename(output)}.lock`));
   try {
