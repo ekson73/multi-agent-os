@@ -1369,3 +1369,27 @@ test("semanticErrors rejects a domain whose world_refs is not reciprocated by th
     assert.ok(body(result.stderr).error.details.some((item) => item.code === "DOMAIN_WORLD_RECIPROCITY"), result.stderr);
   });
 });
+
+test("sensitive scan catches a secret split by one corrupt byte in the MIDDLE of the token, not just trailing it", async () => {
+  await temp(async (directory) => {
+    const secretBytes = Buffer.concat([Buffer.from("sk-AAAAAAAAAA"), Buffer.from([0xff]), Buffer.from("AAAAAAAAAA")]);
+    const dirtyBase64 = secretBytes.toString("base64url");
+    const model = await mutateModel(directory, (item) => { item.metadata.scope = dirtyBase64; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+  });
+});
+
+test("truncateAtWord does not append an ellipsis for a string under the code-point limit but over the UTF-16 unit limit", async () => {
+  await temp(async (directory) => {
+    const emoji = "\u{1F600}".repeat(60);
+    assert.equal(emoji.length, 120, "60 astral emoji occupy 120 UTF-16 units");
+    assert.equal([...emoji].length, 60, "but only 60 code points");
+    const model = await mutateModel(directory, (value) => { value.plan.next_action.what = emoji; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
+    const html = await readFile(body(result.stdout).outputs.sidecard, "utf8");
+    assert.equal(html.includes(`${emoji}…`), false, "a string under the code-point maximum must not gain a spurious ellipsis");
+  });
+});
