@@ -374,6 +374,7 @@ test("portable privacy scan blocks direct and encoded sensitive/private material
   const values = [
     "person@private-domain.dev",
     "/Users/private-user/project",
+    "/root/private-user/project",
     "~/private-user/project",
     "~/",
     "raw transcript follows",
@@ -789,7 +790,12 @@ test("portable distribution rejects private-network and credentialed reference U
     "https://198.51.100.7/status",
     "https://203.0.113.9/status",
     "https://224.0.0.1/status",
-    "https://240.0.0.1/status"
+    "https://240.0.0.1/status",
+    "https://localhost./status",
+    "https://service.local./status",
+    "https://api.localhost/status",
+    "https://[2001:db8::1]/status",
+    "https://[ff02::1]/status"
   ];
   for (const uri of badUris) await temp(async (directory) => {
     const model = await mutateModel(directory, (value) => { value.references.find((item) => item.id === "ref_scope").uri = uri; });
@@ -1056,5 +1062,175 @@ test("a schema-valid SemVer with build metadata renders, verifies, and yields a 
     assert.match(path.basename(manifest), /-v2\.0\.0_build\.7--h[a-f0-9]{12}\.manifest\.json$/u);
     assert.ok(!path.basename(manifest).includes("+"));
     assert.equal(run(["verify", manifest]).status, 0);
+  });
+});
+
+test("validate rejects a model file containing malformed UTF-8 bytes instead of silently repairing them via lossy decode", async () => {
+  await temp(async (directory) => {
+    const file = path.join(directory, "model.session-model.json");
+    const goodBytes = await readFile(activeFixture);
+    // 0xff is never a valid UTF-8 byte in any position; splice one into otherwise-valid JSON bytes.
+    const corrupted = Buffer.concat([goodBytes.subarray(0, 40), Buffer.from([0xff]), goodBytes.subarray(40)]);
+    await writeFile(file, corrupted);
+    const result = run(["validate", file]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "ENCODING_INVALID");
+  });
+});
+
+test("sensitive scan catches a base64-encoded secret even when followed by one non-UTF-8 byte", async () => {
+  await temp(async (directory) => {
+    const raw = "corrupt-tail@private-domain.dev";
+    const dirtyBase64 = Buffer.concat([Buffer.from(raw), Buffer.from([0xff])]).toString("base64url");
+    const model = await mutateModel(directory, (item) => { item.metadata.scope = dirtyBase64; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "SENSITIVE_DATA_DETECTED");
+    assert.equal(`${result.stdout}${result.stderr}`.includes(raw), false);
+  });
+});
+
+test("truncateAtWord does not split a surrogate pair when the truncation boundary lands inside one", async () => {
+  await temp(async (directory) => {
+    const prefix = "a".repeat(89);
+    const longWord = `${prefix}\u{1D54F}${"b".repeat(20)}`;
+    const model = await mutateModel(directory, (value) => { value.plan.next_action.what = longWord; });
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", path.join(directory, "out")]);
+    assert.equal(result.status, 0, result.stderr);
+    const html = await readFile(body(result.stdout).outputs.sidecard, "utf8");
+    assert.equal(html.includes("\uFFFD"), false, "rendered sidecard must not contain a literal replacement character from a split surrogate pair");
+    assert.ok(html.includes(`${prefix}\u{1D54F}`), "truncation must preserve the complete astral character up to the boundary");
+  });
+});
+
+test("portable render recovers a STALE manifest left by an interrupted run instead of permanently blocking the identity", async () => {
+  await temp(async (directory) => {
+    const rendered = await renderPortable(directory);
+    assert.equal(rendered.result.status, 0, rendered.result.stderr);
+    const manifestFile = rendered.resultBody.manifest;
+    const manifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    const sourceSubject = manifest.subjects.find((item) => item.role === "source");
+    const staleManifest = {
+      ...manifest,
+      status: "STALE",
+      consistency_claim: "SELF_CONSISTENT_ONLY",
+      subjects: [sourceSubject],
+      embedded_blocks: [],
+      checks: [{ name: "bundle_freshness", status: "FAIL", details: "render in progress or incomplete" }],
+      derived: { status_counts: manifest.derived.status_counts.map((entry) => ({ ...entry, count: 0 })), readiness: "NOT_READY", critical_path_head: null, next: { disposition: "BLOCKED", task_ref: null } }
+    };
+    await writeFile(manifestFile, `${JSON.stringify(staleManifest, null, 2)}\n`);
+    const secondModel = await copyModel(directory);
+    const secondResult = run(["render", secondModel, "--profile", "portable-sidecard", "--out", rendered.out]);
+    assert.equal(secondResult.status, 0, secondResult.stderr);
+    const finalManifest = JSON.parse(await readFile(manifestFile, "utf8"));
+    assert.equal(finalManifest.status, "VALIDATED");
+  });
+});
+
+test("next resolves dependencies against waves, not just work_items", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.waves = [{
+        id: "wave_gate", title: "Gate wave", description: null, task_kind: "reconciliation",
+        priority: "q1", sequence: 0, blocking: true, critical_path_ref: "inspect",
+        dependencies: [], blocker_refs: [], domain_refs: ["domain_release"], world_refs: ["world_human", "world_agentic"],
+        deliverables: ["Gate cleared"], lifecycle_state: lifecycle("completed")
+      }];
+      value.plan.work_items = [{
+        id: "work_after_gate", title: "After gate", description: null, task_kind: "delivery",
+        priority: "q1", sequence: 0, blocking: true, critical_path_ref: "inspect",
+        dependencies: ["wave_gate"], blocker_refs: [], domain_refs: ["domain_release"], world_refs: ["world_human"],
+        deliverables: ["Outcome"], lifecycle_state: lifecycle("planned")
+      }];
+    });
+    const result = run(["next", model]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(body(result.stdout).next, { disposition: "TASK", task_ref: "work_after_gate" });
+  });
+});
+
+test("next accepts a superseded blocker as resolved, matching deriveFacts readiness", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.work_items[0].lifecycle_state = lifecycle("completed");
+      value.analysis.gaps[0].status = "superseded";
+      value.analysis.gaps[0].reason = "Superseded by a later gap";
+      value.analysis.gaps[0].evidence_refs = [];
+    });
+    const result = run(["next", model]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(body(result.stdout).next, { disposition: "TASK", task_ref: "work_publish" });
+  });
+});
+
+test("transition rejects an event whose occurred_at precedes the model's current updated_at/as_of, even for the very first lifecycle event", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const bytes = await readFile(model);
+    const digest = sha(bytes);
+    const event = eventFor("started", "blocked", digest);
+    event.occurred_at = "2026-09-12T10:00:00Z";
+    const eventFile = path.join(directory, "event.json");
+    await writeFile(eventFile, `${JSON.stringify(event, null, 2)}\n`);
+    const output = path.join(directory, "out.json");
+    const result = run(["transition", model, "--event", eventFile, "--expected-digest", digest, "--out", output]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "EVENT_TIME_REGRESSION");
+    assert.equal(fs.existsSync(output), false);
+  });
+});
+
+test("checkLifecycle rejects fields owned by another state, not just missing fields for the current state", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.plan.work_items[0].lifecycle_state = {
+        state: "started", reason: null, assigned_actor_ref: null,
+        started_at: "2026-09-12T12:00:00Z", ended_at: null,
+        resume_after: "2026-09-13T12:00:00Z", decision_ref: "ref_policy", successor_ref: "work_publish",
+        evidence_refs: []
+      };
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    const codes = body(result.stderr).error.details.map((item) => item.code);
+    assert.ok(codes.includes("LIFECYCLE_CONDITION"), result.stderr);
+  });
+});
+
+test("portable sidecard decision-needed count includes hitl work items, not just blocked criteria", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => { value.plan.work_items[0].lifecycle_state = lifecycle("hitl"); });
+    const output = path.join(directory, "out");
+    const result = run(["render", model, "--profile", "portable-sidecard", "--out", output]);
+    assert.equal(result.status, 0, result.stderr);
+    const html = await readFile(body(result.stdout).outputs.sidecard, "utf8");
+    assert.doesNotMatch(html, /decision needed[^<]*none/iu);
+    assert.match(html, /HITL work item/iu);
+  });
+});
+
+test("semanticErrors rejects an actor whose world_ref is not reciprocated by the world's actor_refs", async () => {
+  await temp(async (directory) => {
+    const model = await mutateModel(directory, (value) => {
+      value.organization.worlds.find((world) => world.id === "world_human").actor_refs = ["actor_steward"];
+    });
+    const result = run(["validate", model]);
+    assert.equal(result.status, 1);
+    assert.ok(body(result.stderr).error.details.some((item) => item.code === "ACTOR_WORLD_RECIPROCITY"), result.stderr);
+  });
+});
+
+test("derive-child rejects --out aliasing the parent model file", async () => {
+  await temp(async (directory) => {
+    const model = await copyModel(directory);
+    const bytes = await readFile(model);
+    const digest = sha(bytes);
+    const requestFile = path.join(directory, "request.json");
+    await writeFile(requestFile, `${JSON.stringify(childRequest(), null, 2)}\n`);
+    const result = run(["derive-child", model, "--request", requestFile, "--expected-digest", digest, "--out", model]);
+    assert.equal(result.status, 1);
+    assert.equal(body(result.stderr).error.code, "CHILD_OUTPUT_ALIASES_PARENT");
+    assert.deepEqual(await readFile(model), bytes);
   });
 });
