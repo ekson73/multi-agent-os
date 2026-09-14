@@ -1157,6 +1157,12 @@ test("truncateAtWord does not split a surrogate pair when the truncation boundar
     const html = await readFile(body(result.stdout).outputs.sidecard, "utf8");
     assert.equal(html.includes("\uFFFD"), false, "rendered sidecard must not contain a literal replacement character from a split surrogate pair");
     assert.ok(html.includes(`${prefix}\u{1D54F}`), "truncation must preserve the complete astral character up to the boundary");
+    // The full value also legitimately appears verbatim in the untruncated "Next Action"
+    // detail panel elsewhere on the page, so scope the truncation assertion to the
+    // truncated tldr summary segment specifically, not global page absence of the tail.
+    const tldrSegment = html.match(/next: ([^<]*)<\/p>/u)?.[1];
+    assert.ok(tldrSegment, "expected a tldr 'next:' summary segment");
+    assert.equal(tldrSegment.includes("b".repeat(20)), false, "content after the truncation boundary must be removed from the truncated summary");
   });
 });
 
