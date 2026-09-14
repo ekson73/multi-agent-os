@@ -139,9 +139,12 @@ governance (`delegate-governance` skill / `plugin-scripts/gaac/delegate.sh init|
 per `AGENTS.md`) around it. The JSON below is the delegation *payload*, not a substitute for that
 governance. Without the companion agent (portable hosts installed via `npx skills`, or a Claude
 host where `Agent(wacli-delegate)` is unavailable): the knowledge sections above still apply, but
-there is no context isolation — keep to bounded reads with `--json` output limits, never run an
-outward/destructive action without the exact-plan operator approval described here, and say
-explicitly that raw output stayed in the parent context.
+there is no context isolation, and the plan-digest/approval-gate protocol below lives only in
+`wacli-delegate.md`, which the portable install does not carry. In this degraded mode, run bounded
+reads/diagnostics only (`--json` output limits still apply) and **refuse every outward, destructive,
+or interactive action outright** — never attempt to replicate the approval gate inline. Say
+explicitly that raw output stayed in the parent context, and that the full contract requires the
+companion agent.
 
 Dispatch one JSON request to `wacli-delegate`. Minimum research request:
 
