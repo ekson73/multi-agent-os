@@ -86,16 +86,19 @@ dispatch_ai_harness() {
   local pf="$1"
   local order="${MAOS_AI_HARNESS:-$AI_HARNESS_ORDER_DEFAULT}"
   local tried=() h
+  set -f
   for h in $order; do
     harness_available "$h" || continue
     tried+=("$h")
     echo "    trying harness: $h" >&2
     if run_harness "$h" "$pf"; then
       echo "    ✓ repair dispatched via: $h" >&2
+      set +f
       return 0
     fi
     echo "    ✗ $h did not complete; falling back…" >&2
   done
+  set +f
   if ((${#tried[@]}==0)); then
     echo "    no known AI harness found on PATH (tried order: $order)" >&2
   fi
@@ -120,7 +123,9 @@ self_heal() {
     exit "$ec"
   fi
   local _order="${MAOS_AI_HARNESS:-$AI_HARNESS_ORDER_DEFAULT}" _h _found=0
+  set -f
   for _h in $_order; do harness_available "$_h" && { _found=1; break; }; done
+  set +f
   if (( ! _found )); then
     echo "  No AI harness found on PATH (order: $_order) — cannot self-heal." >&2
     echo "  Log kept at: $RUNLOG" >&2

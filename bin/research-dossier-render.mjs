@@ -88,7 +88,7 @@ const AI_HARNESS_ORDER_DEFAULT = 'kiro-cli claude codex opencode gemini crush am
 function harnessAvailable(name) {
   // `command -v` via the shell is portable enough for a presence check; a missing
   // binary yields a non-zero status which we read as "absent".
-  const r = spawnSync('sh', ['-c', `command -v ${name}`], { stdio: 'ignore' });
+  const r = spawnSync('sh', ['-c', 'command -v "$1"', 'sh', name], { stdio: 'ignore' });
   return r.status === 0;
 }
 
