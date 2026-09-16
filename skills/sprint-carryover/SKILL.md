@@ -3,29 +3,29 @@ name: sprint-carryover
 version: "0.1.0"
 description: |
   RELOCATE stranded open backlog from past/closed sprints INTO the active sprint. Given the
-  operator's IDENTITY (login/email), their ai-bot-agents, and/or their department, DISCOVER every
-  open item still associated with a past sprint and owned by any of those owner-sets, PRESENT the
-  candidate move-set as a table, and — only on explicit operator GO — MOVE each item to the current
-  active sprint, then REPORT what migrated. dry-run is the DEFAULT: a bare invocation discovers and
-  renders the move table and writes NOTHING. Level-triggered by design: every pass RE-DERIVES the
-  candidate set from the tracker (the source of truth) instead of replaying a stored queue, so a
-  mid-run interruption resumes correctly and a re-run after a partial move is a no-op on already-moved
-  items. Thin conductor: COMPOSES work-compass for discovery + identity/owner-matching + sprint
-  enumeration — it reimplements no tracker access.
+  operator's IDENTITY, their ai-bot-agents, and/or their department, DISCOVER open items still on a
+  past sprint owned by any of those owner-sets, PRESENT the candidate move-set as a table, and — only
+  on explicit operator GO — MOVE each to the active sprint, then REPORT what migrated. dry-run is the
+  DEFAULT: a bare invocation discovers, renders the table, and writes NOTHING. Level-triggered: each
+  pass re-derives the candidate set from the tracker, so a re-run after a partial move is a no-op.
+  Thin conductor: COMPOSES work-compass for the discovery fan-out + the operator's own open items;
+  sprint/owner enrichment beyond that seed is this skill's own tracker-native query.
   Triggers: "sprint-carryover", "carry over the backlog", "roll over stranded tickets", "move
-  unfinished items to the current sprint", "carry unfinished work into this sprint", "sprint rollover",
-  "carregar o backlog", "levar pendências para o sprint atual", "mover tickets não concluídos para o
-  sprint ativo", "rollover de sprint", "arrastar pendências do sprint anterior".
+  unfinished items to the current sprint", "sprint rollover", "carregar o backlog", "levar pendências
+  para o sprint atual", "rollover de sprint".
 allowed-tools: Task, Read, Bash, Grep, Glob, AskUserQuestion
 ---
 
 # sprint-carryover
 
 > Relocate stranded open backlog from past sprints INTO the active sprint — migrate, then report.
-> **Composes** `work-compass` for discovery/identity heuristics; it reimplements **none** of the
-> tracker access. Distinct from its siblings: it neither merely *surfaces* scattered work
-> (`work-compass`, read-only) nor *executes* the work item-by-item (`work-drain`, Antlia) — it
-> **relocates** open items across sprint boundaries and reports the migration.
+> **Composes** `work-compass` for the discovery **fan-out** and the operator's own open items
+> (identity seed). Sprint-field enrichment, other-owner/department/label/component matching, and
+> pagination beyond the collector's limit are **this skill's own** responsibility — layered on top
+> via a tracker-native query (it does not reimplement `work-compass`'s fan-out, but it does add the
+> sprint-aware clauses `work-compass` does not return). Distinct from its siblings: it neither merely
+> *surfaces* scattered work (`work-compass`, read-only) nor *executes* the work item-by-item
+> (`work-drain`, Antlia) — it **relocates** open items across sprint boundaries and reports the migration.
 > **Cross-link slug**: `[[sprint-carryover]]`
 
 ## §0 — BEING > Rules (Foundational Compliance)
@@ -69,6 +69,7 @@ those resolve at run time. All params are overridable:
 |---|---|---|
 | `--identity` | `auto` | operator login/email/displayName; `auto` = tracker `myself` / `git config user.email` / env |
 | `--agents` | `auto` | comma-list of the operator's ai-bot-agent accounts (bot logins); `auto` = a config/registry or `--agents-file` |
+| `--agents-file` | — | path to a file listing bot logins (one per line); takes precedence over `--agents` when both are supplied |
 | `--department` | — | area label(s): `devops` · `dev-fe` · `dev-be` · `ba` · `sa` (maps to tracker component/team/label — tracker-specific) |
 | `--project` | `auto` | tracker project key/board; `auto` = infer from repo remote or a single accessible project, else HITL |
 | `--active-sprint` | `auto` | the current/active sprint; `auto` = the tracker's `state=active` sprint on the board; ambiguous ⇒ HITL |
@@ -78,6 +79,11 @@ those resolve at run time. All params are overridable:
 
 > If identity / project / active-sprint cannot be resolved after probing → **declare the assumption
 > and DEFER-HITL with the best-computed candidates**. Do not silently guess; do not move anything.
+
+> **Scope rule (no magic):** supplying `--department`/`--agents` WITHOUT naming that set in `--scope`
+> is a **no-op for that set** — the pipeline only includes owner-sets named in `--scope` (default
+> `identity`). To act on a department, name it: `--department dev-be --scope department` (or
+> `--scope identity,department`). Same for `--agents` (`--scope agents`).
 
 ## Level-triggered by design (the load-bearing invariant)
 
@@ -109,32 +115,45 @@ this directly, exactly as `work-drain` does:
 1. DETECT   capability-detect the tracker surface — MCP first (atlassian/jira/linear/gh-issues),
             then CLI (`gh`, `acli`, `jira`). Probe, never fabricate; cite what was found.
             none available -> HITL, STOP.
-2. DISCOVER (compose work-compass) enumerate PAST/CLOSED sprints on the board; for each, list OPEN
-            items (status != done/closed/resolved); filter owner in union(scope):
-              identity (name/login/email) U agents (bot logins) U department (component/team/label).
+2. DISCOVER (compose work-compass) use work-compass for the discovery FAN-OUT + the operator's own
+            open items (identity seed). work-compass returns only the operator's own open items with
+            key/summary/updated — NO sprint field, no other-owner/department/label/component, and its
+            gh collector caps at a fixed limit. So THIS skill then runs a tracker-native sprint-aware
+            query on top: enumerate PAST/CLOSED sprints; for each, list OPEN items (status !=
+            done/closed/resolved); filter owner in union(scope) via tracker clauses (JQL
+            sprint/assignee/component; `gh` label/assignee filters) — and PAGINATE past the collector
+            limit or explicitly report truncation (never silently cap).
             level-triggered: re-derived from the tracker each run — no stored queue.
 3. BUILD    the candidate move-set; de-dupe; EXCLUDE anything already in the active sprint or out
             of scope. confirm each item's real state via a direct `get` (the index lags).
 4. PRESENT  the table (ticket-id | Title/Description-slug | Old Sprint | New Sprint=active) + count.
             --dry-run  ==>  STOP HERE (nothing written).
 5. GATE     operator confirmation (or a standing GO). ONLY THEN MOVE each item to the active sprint
-            via the detected surface. Idempotent: re-run after a partial move = no-op on the moved.
+            via the detected surface. Re-confirm each item's current sprint/status via a direct `get`
+            immediately before its move — the phase-3 pre-presentation check may be stale after the
+            approval pause (a ticket may have completed/reassigned during a long review); skip+report
+            any that no longer qualify. Idempotent: re-run after a partial move = no-op on the moved.
 6. REPORT   the final migration table (ONLY items actually moved) + skipped/failed with reasons.
 ```
 
 Phase 4→5 is the whole safety design: the move-set is seen and approved before any write.
 
-## Composition (what it delegates — it reimplements none of these)
+## Composition (what it delegates — and what it does NOT)
 
 | Concern | Delegated to |
 |---|---|
-| Tracker access, sprint enumeration, owner/identity + orphan matching (discovery) | `skills/work-compass` |
+| Discovery **fan-out** + the operator's own open items (identity seed) | `skills/work-compass` |
 | Workspace isolation / worktree + PR governance (if the run opens one) | `skills/worktree-policy` · `skills/hierarchical-merge` |
 | Adversarial verification on a hard-trigger (bulk shared-tracker mutation) | `skills/red-team` |
 | Independent decision when an assumption is short of confident | `skills/council-gate` → HITL residue only |
 
-If a phase here starts to grow its own tracker client, sprint parser, or owner-matcher — that is the
-signal it has drifted from conducting into reimplementing `work-compass`. Cut it back.
+**NOT delegated (this skill's own tracker-native query, layered on top):** `work-compass`'s Jira
+collector returns only the operator's own open items (`assignee=currentUser() AND
+statusCategory!=Done`) with key/summary/updated — **no sprint field, no other-owner/department/label/
+component**, and its `gh` collector uses a fixed limit with no pagination signal. So sprint
+enumeration, owner/department/label/component matching, and pagination past that limit are added HERE
+via tracker-native clauses. This skill still does **not** rebuild `work-compass`'s fan-out or its
+tracker-access plumbing — it layers the sprint-aware clauses on top of that fan-out.
 
 ## Report format (verbatim contract)
 
@@ -153,9 +172,19 @@ ticket-id | Title/Description-slug | Old Sprint | New Sprint
 ```json
 {"identity":"<…>","scope":["identity","agents","department"],"project":"<…>","active_sprint":"<…>",
  "verdict":"MIGRATED|DRY_RUN|DEFER_HITL|NO_CANDIDATES","dry_run":true,
+ "proposed":[{"ticket":"<ID>","slug":"<…>","old_sprint":"<…>","new_sprint":"<active>"}],
  "migrated":[{"ticket":"<ID>","slug":"<…>","old_sprint":"<…>","new_sprint":"<active>"}],
- "skipped":[{"ticket":"<ID>","reason":"<…>"}],"human_domain":false,"_agent_feedback":"<hints>"}
+ "skipped":[{"ticket":"<ID>","reason":"<…>"}],
+ "failed":[{"ticket":"<ID>","error":"<…>"}],
+ "human_domain":true,"_agent_feedback":"<hints>"}
 ```
+
+- `proposed` vs `migrated`: **DRY_RUN** → the candidate move-set lives in `proposed` and `migrated`
+  stays empty; **MIGRATED** → items actually written live in `migrated`. `migrated` NEVER carries a
+  dry-run candidate (that would lie).
+- `skipped` (out-of-scope / no-op / already in active sprint) vs `failed` (write attempted, errored —
+  `{ticket,error}`) are distinct sets.
+- `human_domain` is **always `true`** for this tool: every MOVE is a bulk mutation of a shared tracker.
 
 Exit codes: `0` migrated / dry-run-ok · `1` error · `2` DEFER-HITL.
 
@@ -171,6 +200,17 @@ fabricated, never a silent block.
 control: same instrument, same query shape, something you know exists. A silent empty result from an
 under-reaching instrument looks identical to a genuinely empty backlog — and the two demand opposite
 actions.
+
+⛔ **A work-compass result lacking sprint/owner fields is an UNDER-REACH, not a true empty.** Because
+work-compass returns only the operator's own open items with no sprint/other-owner/department field, a
+"no candidates" from it alone is a positive-control failure, NOT evidence the backlog is empty. When
+that happens the skill MUST fall back to the direct sprint-aware tracker query (JQL sprint/assignee/
+component clauses; `gh` label/assignee filters), or DEFER-HITL — it must **never** report "no
+candidates" on the strength of the under-reaching seed.
+
+⛔ **Pagination overflow is never a silent cap.** work-compass's `gh` collector caps at a fixed limit
+with no overflow signal. The run MUST paginate past that limit or explicitly report truncation in the
+report/`_agent_feedback` — consistent with the "no silent truncation" anti-theater rule.
 
 ## Autonomy posture (bulk mutation of a shared tracker = HUMAN_DOMAIN)
 
@@ -244,11 +284,11 @@ retraction (E4) · ≥3 false-positive owner-match contexts (E5 → refine the o
 ## Examples
 
 ```text
-/sprint-carryover                                             # dry-run: my stranded items -> proposed table
-/sprint-carryover --scope identity,agents                     # include my bot-agents' stranded items
-/sprint-carryover --department dev-be --project VKS            # a department's backlog on a named board
-/sprint-carryover --active-sprint "Sprint 42" --dry-run=off    # GATED move into a named active sprint (needs GO)
-/sprint-carryover --json                                       # machine envelope for agent-to-agent
+/sprint-carryover                                                    # dry-run: my stranded items -> proposed table
+/sprint-carryover --scope identity,agents                            # include my bot-agents' stranded items
+/sprint-carryover --department dev-be --scope department --project VKS  # a department's backlog on a named board
+/sprint-carryover --active-sprint "Sprint 42" --dry-run=off          # GATED move into a named active sprint (needs GO)
+/sprint-carryover --json                                             # machine envelope for agent-to-agent
 ```
 
 ## §Changelog

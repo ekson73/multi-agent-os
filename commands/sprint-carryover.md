@@ -14,7 +14,7 @@ the move-set is presented for confirmation BEFORE any write.
 
 ## Usage
 
-```
+```text
 /sprint-carryover [--scope identity,agents,department] [--department X] [--project KEY] [--active-sprint S] [--dry-run=off] [--json]
 ```
 
@@ -24,6 +24,7 @@ the move-set is presented for confirmation BEFORE any write.
 |-------|---------|--------|
 | `--identity` | `auto` | operator login/email/displayName; `auto` = tracker `myself` / `git config user.email` / env |
 | `--agents` | `auto` | comma-list of the operator's ai-bot-agent logins; `auto` = config/registry or `--agents-file` |
+| `--agents-file` | — | path to a file listing bot logins (one per line); takes precedence over `--agents` when both are supplied |
 | `--department` | — | area label(s): `devops` · `dev-fe` · `dev-be` · `ba` · `sa` (tracker component/team/label) |
 | `--project` | `auto` | tracker project key/board; `auto` = infer from remote or a single accessible project, else HITL |
 | `--active-sprint` | `auto` | the current active sprint; `auto` = the board's `state=active` sprint; ambiguous ⇒ HITL |
@@ -33,10 +34,10 @@ the move-set is presented for confirmation BEFORE any write.
 
 ## Examples
 
-```
+```text
 /sprint-carryover                                          # dry-run: my stranded items -> proposed table
 /sprint-carryover --scope identity,agents                   # include my bot-agents' stranded items
-/sprint-carryover --department dev-be --project VKS          # a department's backlog on a named board
+/sprint-carryover --department dev-be --scope department --project VKS  # a department's backlog on a named board
 /sprint-carryover --active-sprint "Sprint 42" --dry-run=off  # GATED move into a named active sprint (needs GO)
 /sprint-carryover --json                                     # machine envelope
 ```
