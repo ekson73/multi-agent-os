@@ -15,7 +15,7 @@ the move-set is presented for confirmation BEFORE any write.
 ## Usage
 
 ```text
-/sprint-carryover [--scope identity,agents,department] [--department X] [--project KEY] [--active-sprint S] [--apply] [--json]
+/sprint-carryover [--identity ID] [--agents a,b] [--agents-file PATH] [--scope identity,agents,department] [--department X] [--project KEY] [--active-sprint S] [--apply] [--json]
 ```
 
 ## Parameters

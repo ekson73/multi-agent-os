@@ -234,7 +234,8 @@ ticket-id | Title/Description-slug | Old Sprint | New Sprint
   dry-run candidate (that would lie).
 - `dry_run` is `true` when NOTHING was written (verdict **DRY_RUN** / **DEFER_HITL** / **NO_CANDIDATES**)
   and `false` when a real move was applied (verdict **MIGRATED** via `--apply` or an interactive YES) —
-  an applied migration is never a dry run.
+  an applied migration is never a dry run; and if an apply is ATTEMPTED but produces zero successful moves
+  (every requested move failed), the verdict is still **MIGRATED** with `dry_run:false` (a write WAS attempted, so it is not a dry run) and the failures are reported in `failed[]`.
 - `skipped` (out-of-scope / no-op / already in active sprint) vs `failed` (write attempted, errored —
   `{ticket,error}`) are distinct sets.
 - `human_domain` is **always `true`** for this tool: every MOVE is a bulk mutation of a shared tracker.
