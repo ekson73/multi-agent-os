@@ -51,7 +51,7 @@ the move-set is presented for confirmation BEFORE any write.
   where a capability is absent today. No tracker-access plumbing is rebuilt here.
 - **Capability-detected**: probes the tracker surface (MCP: atlassian/jira/linear/gh-issues; then CLI:
   `gh`, `acli`, `jira`) — never fabricated; a missing surface degrades to `unavailable`, never blocks.
-- **dry-run default / gated MOVE**: a bare invocation proposes the move-set, then ASKS "apply for real? [y/N]"; nothing is written on NO / no answer. `--apply` moves directly (skips the prompt, keeps the per-item re-check). HUMAN_DOMAIN bulk mutation of a shared tracker.
+- **dry-run default / gated MOVE**: a bare interactive invocation (human at a TTY, no `--json`) proposes the move-set, then ASKS "apply for real? [y/N]"; nothing is written on NO / no answer. A non-interactive or `--json` run does NOT prompt — it stops read-only at the proposed move-set (verdict DRY_RUN); it writes ONLY with an explicit `--apply`. `--apply` moves directly (skips the prompt, keeps the per-item re-check). HUMAN_DOMAIN bulk mutation of a shared tracker.
 - **Level-triggered / idempotent**: re-derives the candidate set from the tracker each pass; a re-run
   after a partial move is a no-op on already-moved items.
 - **Report contract**: table with columns exactly `ticket-id | Title/Description-slug | Old Sprint | New Sprint`.

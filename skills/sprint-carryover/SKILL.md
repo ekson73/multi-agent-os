@@ -134,9 +134,12 @@ this directly, exactly as `work-drain` does:
             in a provider-terminal state (done/closed/resolved/canceled/merged/… per that provider's
             taxonomy), or out of scope. confirm each item's real state via a direct `get` (the index lags).
 4. PRESENT  the table (ticket-id | Title/Description-slug | Old Sprint | New Sprint=active) + count.
-            NO --apply (default dry-run)  ==>  render table, then ASK the operator "apply these N
-            moves to the active sprint for real? [y/N]" via AskUserQuestion. NO / no answer => STOP
-            (nothing written), verdict DRY_RUN. YES => proceed to phase 5.
+            NO --apply, INTERACTIVE (human at a TTY, no --json)  ==>  render table, then ASK the
+            operator "apply these N moves to the active sprint for real? [y/N]" via AskUserQuestion.
+            NO / no answer => STOP (nothing written), verdict DRY_RUN. YES => proceed to phase 5.
+            NO --apply, NON-INTERACTIVE or --json  ==>  do NOT open AskUserQuestion (no operator at a
+            TTY would hang forever). STOP read-only: emit the proposed move-set (table / `proposed[]`
+            in JSON), verdict DRY_RUN. A non-interactive run writes ONLY with an explicit --apply.
             --apply given  ==>  skip the prompt, proceed directly to phase 5 (per-item re-check still runs).
 5. GATE     operator GO — either the interactive "apply? [y/N]" YES from phase 4, or an explicit
             `--apply`. ONLY THEN MOVE each item to the active sprint
@@ -218,7 +221,7 @@ ticket-id | Title/Description-slug | Old Sprint | New Sprint
 
 ```json
 {"identity":"<…>","scope":["identity","agents","department"],"project":"<…>","active_sprint":"<…>",
- "verdict":"MIGRATED|DRY_RUN|DEFER_HITL|NO_CANDIDATES","dry_run":true,
+ "verdict":"MIGRATED|DRY_RUN|DEFER_HITL|NO_CANDIDATES","dry_run":true|false,
  "proposed":[{"ticket":"<ID>","slug":"<…>","old_sprint":"<…>","new_sprint":"<active>"}],
  "migrated":[{"ticket":"<ID>","slug":"<…>","old_sprint":"<…>","new_sprint":"<active>"}],
  "skipped":[{"ticket":"<ID>","reason":"<…>"}],
@@ -229,6 +232,9 @@ ticket-id | Title/Description-slug | Old Sprint | New Sprint
 - `proposed` vs `migrated`: **DRY_RUN** → the candidate move-set lives in `proposed` and `migrated`
   stays empty; **MIGRATED** → items actually written live in `migrated`. `migrated` NEVER carries a
   dry-run candidate (that would lie).
+- `dry_run` is `true` when NOTHING was written (verdict **DRY_RUN** / **DEFER_HITL** / **NO_CANDIDATES**)
+  and `false` when a real move was applied (verdict **MIGRATED** via `--apply` or an interactive YES) —
+  an applied migration is never a dry run.
 - `skipped` (out-of-scope / no-op / already in active sprint) vs `failed` (write attempted, errored —
   `{ticket,error}`) are distinct sets.
 - `human_domain` is **always `true`** for this tool: every MOVE is a bulk mutation of a shared tracker.
