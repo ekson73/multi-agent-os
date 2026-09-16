@@ -19,13 +19,14 @@ allowed-tools: Task, Read, Bash, Grep, Glob, AskUserQuestion
 # sprint-carryover
 
 > Relocate stranded open backlog from past sprints INTO the active sprint — migrate, then report.
-> **Composes** `work-compass` for the discovery **fan-out** and the operator's own open items
-> (identity seed). Sprint-field enrichment, other-owner/department/label/component matching, and
-> pagination beyond the collector's limit are **this skill's own** responsibility — layered on top
-> via a tracker-native query (it does not reimplement `work-compass`'s fan-out, but it does add the
-> sprint-aware clauses `work-compass` does not return). Distinct from its siblings: it neither merely
-> *surfaces* scattered work (`work-compass`, read-only) nor *executes* the work item-by-item
-> (`work-drain`, Antlia) — it **relocates** open items across sprint boundaries and reports the migration.
+> **Composes** `work-compass` as the deterministic **fast-path** for the discovery **fan-out** +
+> identity seed **when its fields are present** — its collector output is a *starting point*, not a
+> ceiling. Sprint-field enrichment, other-owner/department/label/component matching, and pagination
+> are layered on top via a tracker-native query, and the skill **extends/escalates** wherever
+> work-compass does not reach (see `## Hybrid execution & forward-compatibility`). Distinct from its
+> siblings: it neither merely *surfaces* scattered work (`work-compass`, read-only) nor *executes* the
+> work item-by-item (`work-drain`, Antlia) — it **relocates** open items across sprint boundaries and
+> reports the migration.
 > **Cross-link slug**: `[[sprint-carryover]]`
 
 ## §0 — BEING > Rules (Foundational Compliance)
@@ -115,28 +116,66 @@ this directly, exactly as `work-drain` does:
 1. DETECT   capability-detect the tracker surface — MCP first (atlassian/jira/linear/gh-issues),
             then CLI (`gh`, `acli`, `jira`). Probe, never fabricate; cite what was found.
             none available -> HITL, STOP.
-2. DISCOVER (compose work-compass) use work-compass for the discovery FAN-OUT + the operator's own
-            open items (identity seed). work-compass returns only the operator's own open items with
-            key/summary/updated — NO sprint field, no other-owner/department/label/component, and its
-            gh collector caps at a fixed limit. So THIS skill then runs a tracker-native sprint-aware
-            query on top: enumerate PAST/CLOSED sprints; for each, list OPEN items (status !=
-            done/closed/resolved); filter owner in union(scope) via tracker clauses (JQL
-            sprint/assignee/component; `gh` label/assignee filters) — and PAGINATE past the collector
-            limit or explicitly report truncation (never silently cap).
+2. DISCOVER (compose work-compass) use work-compass as the deterministic fast-path for the discovery
+            FAN-OUT + the operator's own open items (identity seed) WHEN its fields are present. Its
+            collector output is a STARTING POINT, not a ceiling: where a needed field is absent today
+            (sprint, other-owner/department/label/component) or where a collector caps its result set,
+            THIS skill enriches on top with a tracker-native sprint-aware query — enumerate
+            PAST/CLOSED sprints; for each, list items in an ACTIONABLE (non-terminal) state for THAT
+            provider (Jira statusCategory != Done; GitHub open/not-closed; Linear state.type in
+            {backlog,unstarted,started} i.e. exclude both completed AND canceled) — i.e. exclude EVERY
+            provider-terminal state (done/closed/resolved/canceled/merged/…) via the provider's own
+            state taxonomy, extensible to new providers/states; filter owner in union(scope) via
+            tracker clauses (JQL sprint/assignee/component; `gh` label/assignee filters) — and
+            PAGINATE past any collector limit or explicitly report truncation (never silently cap).
+            capability-detect at run time: a new provider/field/MCP endpoint is ABSORBED, not rejected.
             level-triggered: re-derived from the tracker each run — no stored queue.
-3. BUILD    the candidate move-set; de-dupe; EXCLUDE anything already in the active sprint or out
-            of scope. confirm each item's real state via a direct `get` (the index lags).
+3. BUILD    the candidate move-set; de-dupe; EXCLUDE anything already in the active sprint, any item
+            in a provider-terminal state (done/closed/resolved/canceled/merged/… per that provider's
+            taxonomy), or out of scope. confirm each item's real state via a direct `get` (the index lags).
 4. PRESENT  the table (ticket-id | Title/Description-slug | Old Sprint | New Sprint=active) + count.
             --dry-run  ==>  STOP HERE (nothing written).
 5. GATE     operator confirmation (or a standing GO). ONLY THEN MOVE each item to the active sprint
-            via the detected surface. Re-confirm each item's current sprint/status via a direct `get`
-            immediately before its move — the phase-3 pre-presentation check may be stale after the
-            approval pause (a ticket may have completed/reassigned during a long review); skip+report
-            any that no longer qualify. Idempotent: re-run after a partial move = no-op on the moved.
+            via the detected surface. Immediately before EACH move, a direct `get` MUST re-evaluate
+            the FULL candidate predicate (owner in union(scope) · department · labels · components ·
+            still on its OLD/past sprint · actionable non-terminal status, canceled/terminal excluded)
+            AND verify the destination is still the resolved active sprint — the phase-3 check may be
+            stale after the approval pause (a ticket may have completed, been canceled, reassigned, or
+            lost its department/label/component during a long review). Any candidate that no longer
+            satisfies EVERY predicate, or whose destination changed, is skipped + reported, never moved.
+            Idempotent: re-run after a partial move = no-op on the moved.
 6. REPORT   the final migration table (ONLY items actually moved) + skipped/failed with reasons.
 ```
 
 Phase 4→5 is the whole safety design: the move-set is seen and approved before any write.
+
+## Hybrid execution & forward-compatibility
+
+This tool is a **hybrid orchestrator** — deterministic (capability probes, tracker-native queries,
+level-triggered re-derivation), probabilistic (owner-set / department resolution, ambiguity handling),
+and non-deterministic/adaptive (an AI agent reading whatever surface is live at run time). Its reach
+is defined by **what is available now**, not fixed at authoring time:
+
+- **Capability-detected, not hardcoded.** The skill uses whatever capability is present — `work-compass`
+  fields, tracker-native JQL / `gh` clauses, MCP tools, and **providers/fields/endpoints that do not
+  exist yet**. A new provider, a new sprint/owner/label/component field, or a new MCP endpoint is
+  ABSORBED via run-time capability-detection, not rejected because it was not configured when the skill
+  was written.
+- **Graceful escalation when a capability is absent today.** A needed capability that is missing now is
+  handled by a fixed ladder — **enrich via a native query → provision/adapt the query shape →
+  DEFER-HITL** — rather than refusing the work or hard-capping the tool to today's surface. `work-compass`
+  is the deterministic fast-path where its fields reach; the skill layers its own enrichment where they
+  do not, and will prefer a native field the moment a provider begins exposing it.
+- **Anti-theater is preserved, and is the exact boundary.** Declaring a TARGET capability with graceful
+  degradation ("*when* the tracker exposes sprint/owner, use it; if not, enrich/paginate/provision/
+  DEFER-HITL") is honest and non-capping. Asserting a capability as a PRESENT FACT that is not verified
+  ("this moves tickets now" / "this field exists here") is theater and is forbidden. A missing
+  capability is always **detected + reported + routed**, NEVER fabricated, and no field/move is ever
+  claimed to have happened that did not.
+
+Net: the skill uses `work-compass` where it reaches and transparently extends/escalates where it does
+not — **forward-compatible with capabilities not yet present**, while never claiming a present-tense
+capability it cannot verify.
 
 ## Composition (what it delegates — and what it does NOT)
 
@@ -147,13 +186,17 @@ Phase 4→5 is the whole safety design: the move-set is seen and approved before
 | Adversarial verification on a hard-trigger (bulk shared-tracker mutation) | `skills/red-team` |
 | Independent decision when an assumption is short of confident | `skills/council-gate` → HITL residue only |
 
-**NOT delegated (this skill's own tracker-native query, layered on top):** `work-compass`'s Jira
-collector returns only the operator's own open items (`assignee=currentUser() AND
-statusCategory!=Done`) with key/summary/updated — **no sprint field, no other-owner/department/label/
-component**, and its `gh` collector uses a fixed limit with no pagination signal. So sprint
-enumeration, owner/department/label/component matching, and pagination past that limit are added HERE
-via tracker-native clauses. This skill still does **not** rebuild `work-compass`'s fan-out or its
-tracker-access plumbing — it layers the sprint-aware clauses on top of that fan-out.
+**NOT delegated (this skill's own tracker-native query, layered on top):** where `work-compass`'s
+collector reaches — the operator's own open items via the discovery fan-out — it is the deterministic
+fast-path. Where it does not reach TODAY (no sprint field, no other-owner/department/label/component
+in its Jira collector's `assignee=currentUser() AND statusCategory!=Done` seed; a `gh` collector with
+a fixed limit and no overflow signal), this skill enriches on top: sprint enumeration,
+owner/department/label/component matching, actionable-state filtering, and pagination via
+tracker-native clauses. This skill still does **not** rebuild `work-compass`'s fan-out or its
+tracker-access plumbing — it layers the sprint-aware clauses on top and is forward-compatible: if
+`work-compass` (or a future provider) later exposes those fields natively, the skill uses them via
+capability-detection rather than duplicating the enrichment (see `## Hybrid execution &
+forward-compatibility`).
 
 ## Report format (verbatim contract)
 
@@ -201,15 +244,15 @@ control: same instrument, same query shape, something you know exists. A silent 
 under-reaching instrument looks identical to a genuinely empty backlog — and the two demand opposite
 actions.
 
-⛔ **A work-compass result lacking sprint/owner fields is an UNDER-REACH, not a true empty.** Because
+⛔ **A work-compass result lacking sprint/owner fields is an UNDER-REACH, not a true empty.** When
 work-compass returns only the operator's own open items with no sprint/other-owner/department field, a
-"no candidates" from it alone is a positive-control failure, NOT evidence the backlog is empty. When
-that happens the skill MUST fall back to the direct sprint-aware tracker query (JQL sprint/assignee/
-component clauses; `gh` label/assignee filters), or DEFER-HITL — it must **never** report "no
-candidates" on the strength of the under-reaching seed.
+"no candidates" from it alone is a positive-control failure, NOT evidence the backlog is empty. The
+skill MUST then escalate — enrich via the direct sprint-aware tracker query (JQL sprint/assignee/
+component clauses; `gh` label/assignee filters), or DEFER-HITL. This is capability-detection, not a
+cap: the seed's reach today is a floor to build on, never a ceiling on what the skill can find.
 
-⛔ **Pagination overflow is never a silent cap.** work-compass's `gh` collector caps at a fixed limit
-with no overflow signal. The run MUST paginate past that limit or explicitly report truncation in the
+⛔ **Pagination overflow is never a silent cap.** When a collector caps its result set with no
+overflow signal, the run MUST paginate past that limit or explicitly report truncation in the
 report/`_agent_feedback` — consistent with the "no silent truncation" anti-theater rule.
 
 ## Autonomy posture (bulk mutation of a shared tracker = HUMAN_DOMAIN)
@@ -266,7 +309,7 @@ retraction (E4) · ≥3 false-positive owner-match contexts (E5 → refine the o
 
 ## §Refs
 
-- `skills/work-compass/SKILL.md` (discovery / identity / sprint-enumeration — **composed**, not reimplemented)
+- `skills/work-compass/SKILL.md` (fast-path discovery fan-out + identity seed — **composed** where its fields reach, not reimplemented; sprint enumeration is this skill's own layer on top)
 - `skills/work-drain/SKILL.md` (sibling — *drains* to DONE; the level-triggered pattern is inherited from here)
 - `skills/worktree-policy/SKILL.md` · `skills/hierarchical-merge/SKILL.md` (workspace/PR governance, reused)
 - `skills/anima/SKILL.md` (named this skill: system-name `sprint-carryover`; rejected runner-up `backlog-rollover`)
@@ -295,7 +338,7 @@ retraction (E4) · ≥3 false-positive owner-match contexts (E5 → refine the o
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-09-16 | **Bootstrap.** Genesis artifacts (skill + `/sprint-carryover` command wrapper) forged via the `agentic-tool-forge` methodology. Named by the `anima` methodology: system-name **`sprint-carryover`** (no soul-name); rejected runner-up **`backlog-rollover`**. **Composes `work-compass`** for discovery/identity/sprint-enumeration (DRY, the same way `work-drain`/Antlia composes it) — reimplements no tracker access. Fills the DRY gap vs siblings: `work-compass` *detects* (read-only), `work-drain` *drains* to DONE (executes), `sprint-carryover` **relocates** open backlog from past sprints into the active sprint (migrates + reports). dry-run default ON; MOVE is HITL-confirm-gated (HUMAN_DOMAIN bulk mutation); level-triggered/idempotent; report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family envelope; EN+PT triggers; cross-vendor AAIF, capability-detected, stdlib-friendly. |
+| 0.1.0 | 2026-09-16 | **Bootstrap.** Genesis artifacts (skill + `/sprint-carryover` command wrapper) forged via the `agentic-tool-forge` methodology. Named by the `anima` methodology: system-name **`sprint-carryover`** (no soul-name); rejected runner-up **`backlog-rollover`**. **Composes `work-compass`** as the fast-path discovery fan-out + identity seed (DRY, the same way `work-drain`/Antlia composes it); sprint/owner/department enrichment + pagination are this skill's own tracker-native query layered on top (hybrid, forward-compatible) — reimplements no tracker access. Fills the DRY gap vs siblings: `work-compass` *detects* (read-only), `work-drain` *drains* to DONE (executes), `sprint-carryover` **relocates** open backlog from past sprints into the active sprint (migrates + reports). dry-run default ON; MOVE is HITL-confirm-gated (HUMAN_DOMAIN bulk mutation); level-triggered/idempotent; report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family envelope; EN+PT triggers; cross-vendor AAIF, capability-detected, stdlib-friendly. |
 
 ## License
 

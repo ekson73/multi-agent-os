@@ -44,8 +44,11 @@ the move-set is presented for confirmation BEFORE any write.
 
 ## Behavior
 
-- **Composes, never reimplements**: discovery, identity/owner-matching, and sprint enumeration are
-  delegated to `work-compass` (the same way `work-drain` composes it) — no tracker access is rebuilt here.
+- **Composes as fast-path, extends where needed**: `work-compass` is the deterministic fast-path for
+  the discovery **fan-out + identity seed** (the same way `work-drain` composes it). Sprint enumeration,
+  other-owner/department/label/component matching, and pagination are the skill's **own tracker-native
+  query** layered on top — with hybrid/forward-compatible escalation (enrich → provision → DEFER-HITL)
+  where a capability is absent today. No tracker-access plumbing is rebuilt here.
 - **Capability-detected**: probes the tracker surface (MCP: atlassian/jira/linear/gh-issues; then CLI:
   `gh`, `acli`, `jira`) — never fabricated; a missing surface degrades to `unavailable`, never blocks.
 - **dry-run default / gated MOVE**: the move-set is shown for confirmation first; nothing is written
@@ -58,7 +61,7 @@ the move-set is presented for confirmation BEFORE any write.
 ## Integration
 
 - Skill: [`skills/sprint-carryover/SKILL.md`](../skills/sprint-carryover/SKILL.md) (orchestrator).
-- Composes: [`skills/work-compass`](../skills/work-compass/SKILL.md) (discovery/identity/sprint enumeration).
+- Composes: [`skills/work-compass`](../skills/work-compass/SKILL.md) (fast-path discovery fan-out + identity seed).
 - Distinct from: [`work-compass`](../skills/work-compass/SKILL.md) (detect, read-only) ·
   [`work-drain`](../skills/work-drain/SKILL.md) (drain to DONE, executes) — this one **relocates** across sprints.
 - Governance: `skills/worktree-policy`, `skills/hierarchical-merge` (reused, not re-authored).
