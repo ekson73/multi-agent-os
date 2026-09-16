@@ -15,7 +15,7 @@ the move-set is presented for confirmation BEFORE any write.
 ## Usage
 
 ```text
-/sprint-carryover [--scope identity,agents,department] [--department X] [--project KEY] [--active-sprint S] [--dry-run=off] [--json]
+/sprint-carryover [--scope identity,agents,department] [--department X] [--project KEY] [--active-sprint S] [--apply] [--json]
 ```
 
 ## Parameters
@@ -29,16 +29,16 @@ the move-set is presented for confirmation BEFORE any write.
 | `--project` | `auto` | tracker project key/board; `auto` = infer from remote or a single accessible project, else HITL |
 | `--active-sprint` | `auto` | the current active sprint; `auto` = the board's `state=active` sprint; ambiguous ⇒ HITL |
 | `--scope` | `identity` | owner-sets to include (union): any combination of `identity`,`agents`,`department` |
-| `--dry-run` | **on** | discover + render the move table; NO write. Forced off only with explicit operator GO |
+| `--apply` | **off** | WRITE the moves. Absent = dry-run (the default): discover + render the move table, write NOTHING. With `--apply`, skip the interactive confirm and move directly (still subject to the per-item phase-5 re-check). |
 | `--json` | off | machine envelope (agent-to-agent) |
 
 ## Examples
 
 ```text
-/sprint-carryover                                          # dry-run: my stranded items -> proposed table
+/sprint-carryover                                          # dry-run: propose table, then ASK "apply for real?"
 /sprint-carryover --scope identity,agents                   # include my bot-agents' stranded items
 /sprint-carryover --department dev-be --scope department --project VKS  # a department's backlog on a named board
-/sprint-carryover --active-sprint "Sprint 42" --dry-run=off  # GATED move into a named active sprint (needs GO)
+/sprint-carryover --active-sprint "Sprint 42" --apply        # GATED move into a named active sprint (needs the per-item re-check)
 /sprint-carryover --json                                     # machine envelope
 ```
 
@@ -51,8 +51,7 @@ the move-set is presented for confirmation BEFORE any write.
   where a capability is absent today. No tracker-access plumbing is rebuilt here.
 - **Capability-detected**: probes the tracker surface (MCP: atlassian/jira/linear/gh-issues; then CLI:
   `gh`, `acli`, `jira`) — never fabricated; a missing surface degrades to `unavailable`, never blocks.
-- **dry-run default / gated MOVE**: the move-set is shown for confirmation first; nothing is written
-  without an explicit operator GO. HUMAN_DOMAIN bulk mutation of a shared tracker.
+- **dry-run default / gated MOVE**: a bare invocation proposes the move-set, then ASKS "apply for real? [y/N]"; nothing is written on NO / no answer. `--apply` moves directly (skips the prompt, keeps the per-item re-check). HUMAN_DOMAIN bulk mutation of a shared tracker.
 - **Level-triggered / idempotent**: re-derives the candidate set from the tracker each pass; a re-run
   after a partial move is a no-op on already-moved items.
 - **Report contract**: table with columns exactly `ticket-id | Title/Description-slug | Old Sprint | New Sprint`.

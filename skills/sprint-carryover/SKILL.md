@@ -75,7 +75,7 @@ those resolve at run time. All params are overridable:
 | `--project` | `auto` | tracker project key/board; `auto` = infer from repo remote or a single accessible project, else HITL |
 | `--active-sprint` | `auto` | the current/active sprint; `auto` = the tracker's `state=active` sprint on the board; ambiguous ⇒ HITL |
 | `--scope` | `identity` | which owner-sets to include (union): any combination of `identity`,`agents`,`department` |
-| `--dry-run` | **on** | discover + render the move table; NO write. Forced OFF only with explicit operator GO. |
+| `--apply` | **off** | WRITE the moves. Absent = dry-run (the default): discover + render the move table, write NOTHING. With `--apply`, skip the interactive confirm and move directly (still subject to the per-item phase-5 re-check). |
 | `--json` | off | machine envelope (see below). |
 
 > If identity / project / active-sprint cannot be resolved after probing → **declare the assumption
@@ -134,8 +134,12 @@ this directly, exactly as `work-drain` does:
             in a provider-terminal state (done/closed/resolved/canceled/merged/… per that provider's
             taxonomy), or out of scope. confirm each item's real state via a direct `get` (the index lags).
 4. PRESENT  the table (ticket-id | Title/Description-slug | Old Sprint | New Sprint=active) + count.
-            --dry-run  ==>  STOP HERE (nothing written).
-5. GATE     operator confirmation (or a standing GO). ONLY THEN MOVE each item to the active sprint
+            NO --apply (default dry-run)  ==>  render table, then ASK the operator "apply these N
+            moves to the active sprint for real? [y/N]" via AskUserQuestion. NO / no answer => STOP
+            (nothing written), verdict DRY_RUN. YES => proceed to phase 5.
+            --apply given  ==>  skip the prompt, proceed directly to phase 5 (per-item re-check still runs).
+5. GATE     operator GO — either the interactive "apply? [y/N]" YES from phase 4, or an explicit
+            `--apply`. ONLY THEN MOVE each item to the active sprint
             via the detected surface. Immediately before EACH move, a direct `get` MUST re-evaluate
             the FULL candidate predicate (owner in union(scope) · department · labels · components ·
             still on its OLD/past sprint · actionable non-terminal status, canceled/terminal excluded)
@@ -206,7 +210,7 @@ The human-facing report MUST be a table with columns exactly:
 ticket-id | Title/Description-slug | Old Sprint | New Sprint
 ```
 
-- In `--dry-run`: the table is the **proposed** move-set (New Sprint = the active sprint), plus a count.
+- In dry-run (the default, no `--apply`): the table is the **proposed** move-set (New Sprint = the active sprint), plus a count.
 - After a gated move: the table lists **only items actually moved**, plus a skipped/failed section with
   a reason per row. Nothing the run declined to touch is absent from the report (no silent truncation).
 
@@ -286,7 +290,7 @@ its verb is **relocation**, not detection or execution.
 **6/6 self-validity (must all pass before returning):**
 1. Frontmatter parses as YAML; `name` + `description` present; subdirectory `SKILL.md` format.
 2. Command wrapper exists and its filename = the `/entry` (`commands/sprint-carryover.md`).
-3. `--dry-run` (default) writes nothing and renders the exact-column report table.
+3. dry-run (default, no `--apply`) writes nothing and renders the exact-column report table.
 4. `--json` emits the envelope shape above; exit codes match (`0`/`1`/`2`).
 5. Level-triggered: re-run after a partial move is a no-op on already-moved items.
 6. `bash tests/validate-plugin.sh` passes (0 new errors).
@@ -327,10 +331,10 @@ retraction (E4) · ≥3 false-positive owner-match contexts (E5 → refine the o
 ## Examples
 
 ```text
-/sprint-carryover                                                    # dry-run: my stranded items -> proposed table
+/sprint-carryover                                                    # dry-run: propose table, then ASK "apply for real?"
 /sprint-carryover --scope identity,agents                            # include my bot-agents' stranded items
 /sprint-carryover --department dev-be --scope department --project VKS  # a department's backlog on a named board
-/sprint-carryover --active-sprint "Sprint 42" --dry-run=off          # GATED move into a named active sprint (needs GO)
+/sprint-carryover --active-sprint "Sprint 42" --apply                # GATED move into a named active sprint (needs the per-item re-check)
 /sprint-carryover --json                                             # machine envelope for agent-to-agent
 ```
 
@@ -338,7 +342,7 @@ retraction (E4) · ≥3 false-positive owner-match contexts (E5 → refine the o
 
 | Version | Date | Change |
 |---|---|---|
-| 0.1.0 | 2026-09-16 | **Bootstrap.** Genesis artifacts (skill + `/sprint-carryover` command wrapper) forged via the `agentic-tool-forge` methodology. Named by the `anima` methodology: system-name **`sprint-carryover`** (no soul-name); rejected runner-up **`backlog-rollover`**. **Composes `work-compass`** as the fast-path discovery fan-out + identity seed (DRY, the same way `work-drain`/Antlia composes it); sprint/owner/department enrichment + pagination are this skill's own tracker-native query layered on top (hybrid, forward-compatible) — reimplements no tracker access. Fills the DRY gap vs siblings: `work-compass` *detects* (read-only), `work-drain` *drains* to DONE (executes), `sprint-carryover` **relocates** open backlog from past sprints into the active sprint (migrates + reports). dry-run default ON; MOVE is HITL-confirm-gated (HUMAN_DOMAIN bulk mutation); level-triggered/idempotent; report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family envelope; EN+PT triggers; cross-vendor AAIF, capability-detected, stdlib-friendly. |
+| 0.1.0 | 2026-09-16 | **Bootstrap.** Genesis artifacts (skill + `/sprint-carryover` command wrapper) forged via the `agentic-tool-forge` methodology. Named by the `anima` methodology: system-name **`sprint-carryover`** (no soul-name); rejected runner-up **`backlog-rollover`**. **Composes `work-compass`** as the fast-path discovery fan-out + identity seed (DRY, the same way `work-drain`/Antlia composes it); sprint/owner/department enrichment + pagination are this skill's own tracker-native query layered on top (hybrid, forward-compatible) — reimplements no tracker access. Fills the DRY gap vs siblings: `work-compass` *detects* (read-only), `work-drain` *drains* to DONE (executes), `sprint-carryover` **relocates** open backlog from past sprints into the active sprint (migrates + reports). dry-run default ON; MOVE is HITL-confirm-gated (HUMAN_DOMAIN bulk mutation); level-triggered/idempotent; report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family envelope; EN+PT triggers; cross-vendor AAIF, capability-detected, stdlib-friendly. **(n++3)** Renamed the write-toggle to `--apply` (Anima; plan->apply industry pattern; replaces `--dry-run=off`); dry-run is now the implicit default (absence of `--apply`). Bare invocation now ENDS by asking the operator "apply for real? [y/N]" (AskUserQuestion); `--apply` skips the prompt and moves directly. Per-item phase-5 re-check unchanged (the real safety). |
 
 ## License
 
