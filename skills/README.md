@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (86 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
 
-## Available Skills (86)
+## Available Skills (87)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -85,6 +85,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `signoff` | `signoff/SKILL.md` | The operator's END-OF-SESSION SIGN-OFF (encerramento) verb — invoked when you are DONE and want the session closed out AND its pending work left disco |
 | `skill-writer` | `skill-writer/SKILL.md` | Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). |
 | `slm-routing` | `slm-routing/SKILL.md` | Declarative decision rubric for routing AI work between a small local language model (SLM) and a remote frontier LLM. |
+| `sprint-carryover` | `sprint-carryover/SKILL.md` | Relocate stranded open backlog from past/closed sprints INTO the active sprint (dry-run default; MOVE is operator-gated; discovery composes work-compass). |
 | `status-map` | `status-map/SKILL.md` | Generate human-readable ASCII status visualizations for agent sessions |
 | `sync-to-git` | `sync-to-git/SKILL.md` | Git synchronization automation for AI agents with GitHub/Bitbucket support |
 | `system-health-responder` | `system-health-responder/SKILL.md` | End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (auto |
