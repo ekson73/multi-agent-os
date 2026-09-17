@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Kiro install path + co-habitation/compatibility doc
+
+- `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
+  (`kiro-cli`, Kiro IDE, Kiro Crew) **alongside** Claude Code on the same machine,
+  and an honest account of what ports and what does not (verified on
+  `kiro-cli 2.22.0`). Every change is ADDITIVE — nothing under `~/.claude/**` or any
+  other harness path is removed, renamed or degraded. Documents Kiro's TWO
+  independent skill loaders (`~/.kiro/skills` for kiro-cli + IDE default agent;
+  `skills.extra_paths` for Kiro Crew), the single valid agent id `kiro-cli` (`kiro`
+  /`kiro-ide`/`kiro-crew` are invalid and write zero files), governance-hook porting
+  (**6 of 8 MAOS hook classes port**; only context-compaction governance
+  `PreCompact`/`PostCompact` is genuinely lost — Kiro 2.22.0 has no compaction event),
+  Kiro's stronger `permissions.yaml` deny layer, and the first-writer-wins name-masking
+  hazard. Powers is noted as an unverified target-only distribution surface, not a
+  shipped one.
+- `README.md` — new **Installation → Kiro (kiro-cli + Kiro IDE + Kiro Crew)**
+  subsection: the two-step install (`npx skills add … -a kiro-cli`, then
+  `kirocrew config set skills.extra_paths '["~/.kiro/skills"]'`), why two steps (two
+  loaders, skills CLI reaches only one), one copy on disk / no clone, and a pointer to
+  `docs/kiro-cohabitation.md`. `AGENTS.md` stays the vendor-neutral SSOT (no `KIRO.md`).
+
 ### Added — `self-heal-relay` pattern across 3 cross-language scripts + pattern doc
 
 - `docs/self-heal-relay.md` (new) — pattern doc (NOT a skill) for the Anima-named

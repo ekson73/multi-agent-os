@@ -88,6 +88,23 @@ curl -fsSL -o ~/.config/opencode/plugins/maos.js \
 Full skills: `npx skills add ekson73/multi-agent-os -g -a opencode`. Details: [packaging/opencode-maos](./packaging/opencode-maos/).
 
 
+### Kiro (kiro-cli + Kiro IDE + Kiro Crew)
+
+Kiro has **two independent skill loaders**, and the `skills` CLI reaches only one — so a complete install is **two steps**. This is additive: it installs alongside Claude Code, removing nothing.
+
+```bash
+# 1 — kiro-cli AND the Kiro IDE default agent. Skills auto-become /slash commands.
+npx skills add ekson73/multi-agent-os -g -a kiro-cli
+# 2 — Kiro Crew: a separate loader the skills CLI can't reach.
+#     Point it at what step 1 already wrote (one copy on disk, no clone, no repo path).
+kirocrew config set skills.extra_paths '["~/.kiro/skills"]'
+```
+
+Verify: `kirocrew config get skills.extra_paths`. `extra_paths` is watched, so step 2 needs **no restart**.
+
+The agent id is **`kiro-cli`** — `kiro`, `kiro-ide` and `kiro-crew` are **not** valid ids and silently write zero files (`Invalid agents:`). MAOS commands need no separate porting step: a skill in `~/.kiro/skills` is automatically a `/slash` command. What ports, what does not (governance hooks: 6 of 8 classes; only context-compaction governance is lost), and the name-masking co-habitation hazard are documented in [docs/kiro-cohabitation.md](./docs/kiro-cohabitation.md). Kiro reads [AGENTS.md](./AGENTS.md) as the vendor-neutral contract — there is no `KIRO.md`.
+
+
 ### From source (local dev / self-use)
 
 ```bash
