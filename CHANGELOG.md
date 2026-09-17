@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `self-heal-relay` pattern across 3 cross-language scripts + pattern doc
+
+- `docs/self-heal-relay.md` (new) — pattern doc (NOT a skill) for the Anima-named
+  `self-heal-relay` (soul-name "Phoenix"): on an UNEXPECTED fault a script captures a
+  run log + an UNTRUSTED-labelled prompt, then relays the error to a harness-agnostic
+  AI fallback chain (`kiro-cli → claude → codex → opencode → gemini → crush → amp`,
+  most-qualified-first, each with its own headless syntax + a SCOPED never-trust-all
+  tool set) for auto-repair. Cites `~/.kiro/steering/eko-executable-scripts.md` §prop-6
+  as the upstream standard; reference impl `bin/kirocrew-extras`.
+- `plugin-scripts/governance/worktree-gate.sh` — ported the pattern as a
+  `trap self_heal ERR` handler. Fires ONLY on an unexpected fault (unbound var,
+  `require_jq` fail, `source` fail); the intentional `exit 2` BLOCK verdict is never
+  intercepted (ERR does not trip on a plain `exit 2`, plus a defensive re-exit-2
+  guard). The runlog tee goes to STDERR only — the hook's JSON-RPC verdict is left
+  uncorrupted.
+- `bin/work-compass-aggregate.py` — `__main__` wrapped in `try/except` that RE-RAISES
+  `SystemExit` (preserves the clean exit 0, argparse's exit-2 usage, and the exit-1
+  route-miss) and relays ONLY on an uncaught `Exception`. Stdlib only
+  (`subprocess`/`tempfile`).
+- `bin/research-dossier-render.mjs` — `process.on('uncaughtException'/'unhandledRejection')`
+  + a `main()` wrapper that relays the exit-2 IO/usage class; the exit-1 GATE-FAILURE
+  verdict is guarded and NEVER relayed. Zero-dependency (Node builtins only).
+- All three honour opt-out `MAOS_SELFHEAL=0` and order override `MAOS_AI_HARNESS`,
+  and embed the run log as UNTRUSTED-labelled prompt data. Existing behavior, exit-code
+  semantics, and stdout contracts preserved (`bin/tests/research-dossier.test.sh`:
+  90 passed; `tests/validate-plugin.sh`: 0 errors / 0 warnings).
+
 ### Added — `sprint-carryover` skill + command (#429)
 
 - `skills/sprint-carryover/SKILL.md` + `commands/sprint-carryover.md` (new) — relocate stranded open
