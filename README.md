@@ -102,7 +102,7 @@ kirocrew config set skills.extra_paths '["~/.kiro/skills"]'
 
 Verify: `kirocrew config get skills.extra_paths`. `extra_paths` is watched, so step 2 needs **no restart**.
 
-The agent id is **`kiro-cli`** — `kiro`, `kiro-ide` and `kiro-crew` are **not** valid ids and silently write zero files (`Invalid agents:`). MAOS commands need no separate porting step: a skill in `~/.kiro/skills` is automatically a `/slash` command. What ports, what does not (governance hooks: 6 of 8 classes; only context-compaction governance is lost), and the name-masking co-habitation hazard are documented in [docs/kiro-cohabitation.md](./docs/kiro-cohabitation.md). Kiro reads [AGENTS.md](./AGENTS.md) as the vendor-neutral contract — there is no `KIRO.md`.
+The agent id is **`kiro-cli`** — `kiro`, `kiro-ide` and `kiro-crew` are **not** valid ids and silently write zero files (`Invalid agents:`). MAOS commands need no separate porting step: a skill in `~/.kiro/skills` is automatically a `/slash` command. What ports, what does not (governance hooks: **6 of 8 classes on `kiro-cli` 2.22.0**, the version probed — only context-compaction governance is lost), and the name-masking co-habitation hazard are documented in [docs/kiro-cohabitation.md](./docs/kiro-cohabitation.md). Kiro reads [AGENTS.md](./AGENTS.md) as the vendor-neutral contract — there is no `KIRO.md`.
 
 
 ### From source (local dev / self-use)

@@ -41,7 +41,9 @@ MAOS's `commands/*.md` slash commands are a Claude-Code plugin surface. On Kiro 
 
 ### 3.3 Agents
 
-Agent persona definitions in `agents/` are markdown with YAML frontmatter and remain readable/usable; delegation guidance is unchanged.
+Agent persona definitions in `agents/` are **repository-only source** — the skills CLI installs skills, not agents, so **step 1 installs none of them** and there is no `agents/` install step to run. They stay readable/usable as source (markdown + YAML frontmatter) and delegation guidance is unchanged.
+
+Kiro's own custom-agent surface is a **different format in a different place**: JSON files under `~/.kiro/agents/` (project-scoped: `.kiro/agents/`), where an agent grants itself skills via `"resources": ["skill://.kiro/skills/**/SKILL.md"]`. So porting a MAOS persona to a first-class Kiro agent means **authoring a Kiro agent JSON that points at the installed skills** — a deliberate conversion, not a copy. Until someone does that, the personas are consumed as source/context by whichever agent reads them, which is why step 1 alone already delivers the delegation capability.
 
 ## 4. Governance hooks — 6 of 8 classes port
 
@@ -51,13 +53,13 @@ MAOS ships governance via `hooks/hooks.json` (Claude Code hook classes). Probed 
 
 **Kiro 2.22.0 REJECTS**: the 3.0-capitalised `PreToolUse` etc., plus `preCompact`, `postCompact`, `preTaskExec`, `postTaskExec`, `postFileCreate|Save|Delete`, `sessionStart`, `sessionEnd`, `manual`.
 
-Tool names translate: `Bash` → `execute_bash`; `Edit|Write|MultiEdit` → `fs_write`.
+Tool names translate: `Bash` → `execute_bash`; `Edit|Write|MultiEdit` → `fs_write`; `Task` → `use_subagent`. Verify the current set against your own build (`kiro-cli` reports its callable tool identifiers) rather than assuming — the identifier is `use_subagent`, not `invoke_subagent`/`spawn_subagent`.
 
 | MAOS hook class | Kiro 2.22.0 mapping | Verdict |
 |---|---|---|
 | `SessionStart` (session-start, auto-name, preflight, reload, single-conductor-scan, session-tip) | `agentSpawn` | **ports** |
 | `PreToolUse[Bash]` (worktree-gate, agentshield) | `preToolUse` matcher `execute_bash` | **ports — truly blocks** |
-| `PreToolUse[Task]` (pre-delegate, token-budget-gate, agentshield) | `preToolUse` on the spawn tool | **ports** |
+| `PreToolUse[Task]` (pre-delegate, token-budget-gate, agentshield) | `preToolUse` matcher `use_subagent` | **ports** |
 | `PreToolUse[Edit\|Write\|MultiEdit]` (preflight-edit-gate) | `preToolUse` matcher `fs_write` | **ports** |
 | `PostToolUse[Task]` (post-delegate) | `postToolUse` | **ports** |
 | `Stop` (session-end) | `stop` | **ports** |
@@ -68,9 +70,11 @@ Tool names translate: `Bash` → `execute_bash`; `Edit|Write|MultiEdit` → `fs_
 
 > Note: this repo does not ship a pre-built Kiro `hooks` config; the mapping above is the **porting guide** for a user who wants MAOS governance under Kiro. The verified-accepted event set is the authoritative surface to target.
 
-## 5. `permissions.yaml` — a stronger deny layer Kiro adds
+## 5. `permissions.yaml` — a stronger deny layer Kiro adds (IDE + CLI surfaces only)
 
 Independently of hooks, Kiro has `permissions.yaml`: **capability + match/exclude globs + effect**, with **deny-overrides across all scopes**, compound commands split on `;` `&&` `||` `|`, and — in headless turns — **every `ask` becomes `deny`**. This is a **stronger deterministic deny layer** than Claude Code's, on a different axis from the hook classes above. A fleet operator hardening MAOS on Kiro should express blunt deny rules here rather than only in hooks.
+
+**Scope this precisely — it is not one deny layer across all of Kiro.** `permissions.yaml` governs the **Kiro IDE and `kiro-cli` surfaces**. **Kiro Crew (the gateway) does not read it**: Crew is governed by its own trust root — `security_policy.json`, `profiles/`, `admission_policy.json` and `denied_commands.json` under Crew's data home, plus a self-protection floor — which is deliberately unreachable from inside a tool call (that unreachability is what makes it un-disableable, not a misconfiguration). Consequence for a fleet operator: hardening `permissions.yaml` **does not harden Crew**, and the two must be configured separately. Writing a deny rule in one and assuming coverage of the other is the mistake to avoid.
 
 ## 6. Co-habitation hazard: name masking (first-writer-wins)
 

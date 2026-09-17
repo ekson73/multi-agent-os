@@ -19,9 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   /`kiro-ide`/`kiro-crew` are invalid and write zero files), governance-hook porting
   (**6 of 8 MAOS hook classes port**; only context-compaction governance
   `PreCompact`/`PostCompact` is genuinely lost — Kiro 2.22.0 has no compaction event),
-  Kiro's stronger `permissions.yaml` deny layer, and the first-writer-wins name-masking
-  hazard. Powers is noted as an unverified target-only distribution surface, not a
-  shipped one.
+  Kiro's stronger `permissions.yaml` deny layer — scoped to the **IDE + `kiro-cli`
+  surfaces**, since Kiro Crew is governed by its own separate trust root and hardening
+  `permissions.yaml` does **not** harden Crew — and the first-writer-wins name-masking
+  hazard. `agents/` is stated as repository-only source (the skills CLI installs skills,
+  not agents; Kiro's own custom-agent surface is JSON under `~/.kiro/agents/`). Powers is
+  noted as an unverified target-only distribution surface, not a shipped one.
 - `README.md` — new **Installation → Kiro (kiro-cli + Kiro IDE + Kiro Crew)**
   subsection: the two-step install (`npx skills add … -a kiro-cli`, then
   `kirocrew config set skills.extra_paths '["~/.kiro/skills"]'`), why two steps (two
