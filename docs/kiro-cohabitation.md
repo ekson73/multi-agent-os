@@ -8,7 +8,7 @@
 
 - MAOS's skills install on Kiro with **`npx skills add ekson73/multi-agent-os -g -a kiro-cli`**, plus **one** extra config line for Kiro Crew (which the skills CLI cannot reach). See [Installation → Kiro](../README.md#kiro-cli--kiro-ide--kiro-crew).
 - Every change for Kiro is **ADDITIVE**. Nothing under `~/.claude/**` or any other harness path is removed, renamed, reordered or degraded. You can run Kiro and Claude Code simultaneously on the same host.
-- Skills, commands and agents port as-is (skills are the Agent Skills open standard; Kiro reads them). Invocation changes; capability does not.
+- **Skills** install and carry the capability; **commands** and **agents** do not port as files. Skills are the Agent Skills open standard and Kiro reads them — and Kiro exposes each installed skill as its own `/slash` command, so MAOS's `commands/*.md` need no porting step (**invocation changes, capability does not**). MAOS's `agents/*.md` are **repository source only**: the skills CLI installs skills, not agents, so nothing installs them and a first-class Kiro agent requires a deliberate conversion to Kiro's own agent JSON (§3.3).
 - Governance hooks: **6 of the 8 MAOS hook classes port** to Kiro's hook system. The **only** genuine loss is context-compaction governance (`PreCompact`/`PostCompact`) — Kiro 2.22.0 has no compaction hook event. Kiro's `permissions.yaml` is a **stronger** deterministic deny layer than Claude Code's and covers a different axis.
 - No `KIRO.md`. `AGENTS.md` is the vendor-neutral SSOT and Kiro reads it. Kiro is wired through the skill loaders + `AGENTS.md`, not a second context file.
 
@@ -43,7 +43,18 @@ MAOS's `commands/*.md` slash commands are a Claude-Code plugin surface. On Kiro 
 
 Agent persona definitions in `agents/` are **repository-only source** — the skills CLI installs skills, not agents, so **step 1 installs none of them** and there is no `agents/` install step to run. They stay readable/usable as source (markdown + YAML frontmatter) and delegation guidance is unchanged.
 
-Kiro's own custom-agent surface is a **different format in a different place**: JSON files under `~/.kiro/agents/` (project-scoped: `.kiro/agents/`), where an agent grants itself skills via `"resources": ["skill://.kiro/skills/**/SKILL.md"]`. So porting a MAOS persona to a first-class Kiro agent means **authoring a Kiro agent JSON that points at the installed skills** — a deliberate conversion, not a copy. Until someone does that, the personas are consumed as source/context by whichever agent reads them, which is why step 1 alone already delivers the delegation capability.
+Kiro's own custom-agent surface is a **different format in a different place**: JSON files under `~/.kiro/agents/` (project-scoped: `.kiro/agents/`), where an agent grants itself context through a `resources` glob list. Point it at **wherever step 1 actually installed the skills** — the global root **and** the project root, since a converted agent that lists only one will silently fail to resolve the other:
+
+```json
+"resources": [
+  "file://~/.kiro/skills/**/SKILL.md",
+  "file://.kiro/skills/**/SKILL.md"
+]
+```
+
+Use the `file://` scheme — that is the form every agent config shipped on a Kiro install uses, including Kiro's own `agent_config.json.example`. Confirm the accepted scheme and glob syntax against your own build before relying on anything else.
+
+So porting a MAOS persona to a first-class Kiro agent means **authoring a Kiro agent JSON that points at the installed skills** — a deliberate conversion, not a copy. Until someone does that, the personas are consumed as source/context by whichever agent reads them, which is why step 1 alone already delivers the delegation capability.
 
 ## 4. Governance hooks — 6 of 8 classes port
 
