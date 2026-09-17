@@ -272,6 +272,7 @@ The plugin automatically hooks into Claude Code lifecycle:
 | Document | Description |
 |----------|-------------|
 | [Worktrees Guide](docs/worktrees-guide.md) | Multi-agent worktree coordination |
+| [Kiro Co-habitation](docs/kiro-cohabitation.md) | Install on the Kiro family alongside Claude Code (additive); hook porting & name-masking |
 | [Hierarchical Merge Protocol](protocols/hierarchical-merge-protocol.md) | Branch convergence rules |
 | [Framework Consumption](docs/framework-consumption.md) | Consumer project integration |
 | [Agent Format](docs/agent-format.md) | YAML frontmatter specification for agents |
