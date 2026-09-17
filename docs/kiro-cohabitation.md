@@ -72,7 +72,7 @@ Tool names translate: `Bash` → `execute_bash`; `Edit|Write|MultiEdit` → `fs_
 | `PreToolUse[Bash]` (worktree-gate, agentshield) | `preToolUse` matcher `execute_bash` | **ports — truly blocks** |
 | `PreToolUse[Task]` (pre-delegate, token-budget-gate, agentshield) | `preToolUse` matcher `use_subagent` | **ports** |
 | `PreToolUse[Edit\|Write\|MultiEdit]` (preflight-edit-gate) | `preToolUse` matcher `fs_write` | **ports** |
-| `PostToolUse[Task]` (post-delegate) | `postToolUse` | **ports** |
+| `PostToolUse[Task]` (post-delegate) | `postToolUse` matcher `use_subagent` | **ports** |
 | `Stop` (session-end) | `stop` | **ports** |
 | `PreCompact` (postflight-precompact) | — no compaction event | **LOST** |
 | `PostCompact` (postflight-postcompact) | — no compaction event | **LOST** |
@@ -81,9 +81,9 @@ Tool names translate: `Bash` → `execute_bash`; `Edit|Write|MultiEdit` → `fs_
 
 > Note: this repo does not ship a pre-built Kiro `hooks` config; the mapping above is the **porting guide** for a user who wants MAOS governance under Kiro. The verified-accepted event set is the authoritative surface to target.
 
-## 5. `permissions.yaml` — a stronger deny layer Kiro adds (IDE + CLI surfaces only)
+## 5. `permissions.yaml` — a stronger deny layer Kiro adds (IDE + CLI surfaces only, `kiro-cli` 2.22.0)
 
-Independently of hooks, Kiro has `permissions.yaml`: **capability + match/exclude globs + effect**, with **deny-overrides across all scopes**, compound commands split on `;` `&&` `||` `|`, and — in headless turns — **every `ask` becomes `deny`**. This is a **stronger deterministic deny layer** than Claude Code's, on a different axis from the hook classes above. A fleet operator hardening MAOS on Kiro should express blunt deny rules here rather than only in hooks.
+Independently of hooks, Kiro has `permissions.yaml`. On the build probed here (**`kiro-cli` 2.22.0** — re-verify against your own): **capability + match/exclude globs + effect**, with **deny-overrides across all scopes**, compound commands split on `;` `&&` `||` `|`, and — in headless turns — **every `ask` becomes `deny`**. This is a **stronger deterministic deny layer** than Claude Code's, on a different axis from the hook classes above. A fleet operator hardening MAOS on Kiro should express blunt deny rules here rather than only in hooks. Treat every semantic in this section as version-scoped, not permanent: it is a probe result, and a later Kiro may change the precedence or the headless downgrade.
 
 **Scope this precisely — it is not one deny layer across all of Kiro.** `permissions.yaml` governs the **Kiro IDE and `kiro-cli` surfaces**. **Kiro Crew (the gateway) does not read it**: Crew is governed by its own trust root — `security_policy.json`, `profiles/`, `admission_policy.json` and `denied_commands.json` under Crew's data home, plus a self-protection floor — which is deliberately unreachable from inside a tool call (that unreachability is what makes it un-disableable, not a misconfiguration). Consequence for a fleet operator: hardening `permissions.yaml` **does not harden Crew**, and the two must be configured separately. Writing a deny rule in one and assuming coverage of the other is the mistake to avoid.
 
