@@ -38,9 +38,27 @@ npx skills add ekson73/multi-agent-os -g -a opencode
 npx skills add ekson73/multi-agent-os -g -a claude-code
 npx skills add ekson73/multi-agent-os -g -a gemini-cli
 npx skills add ekson73/multi-agent-os -g -a github-copilot
-npx skills add ekson73/multi-agent-os -g -a kiro
+npx skills add ekson73/multi-agent-os -g -a kiro-cli
 ```
 If an id is rejected by your `skills` CLI version, use `-a '*'`.
+
+> The Kiro id is `kiro-cli`, **not** `kiro`. `-a kiro` is rejected
+> (`Invalid agents: kiro`) and writes **zero** files — a silent no-op. `-a kiro-cli`
+> reaches kiro-cli **and** the Kiro IDE default agent, writing real copies to
+> `~/.kiro/skills/`.
+
+Kiro has a **second, independent** skill loader — **Kiro Crew** — that
+`-a kiro-cli` does **not** reach. Point it at what step 1 already wrote (one copy
+on disk, no clone, no restart — `extra_paths` is watched):
+
+```bash
+kirocrew config set skills.extra_paths '["~/.kiro/skills"]'
+kirocrew config get skills.extra_paths   # verify
+```
+
+For the full Kiro-on-a-Claude-Code-machine walkthrough (both loaders, hook
+migration, `permissions.yaml`, and co-habitation hazards), see
+[docs/kiro-cohabitation.md](./kiro-cohabitation.md).
 
 ## Not in this repo’s job
 - Publishing ChatGPT store / VS Code VSIX / Open VSX / Grok packs as MAOS core
