@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `kirocrew config set skills.extra_paths '["~/.kiro/skills"]'`), why two steps (two
   loaders, skills CLI reaches only one), one copy on disk / no clone, and a pointer to
   `docs/kiro-cohabitation.md`. `AGENTS.md` stays the vendor-neutral SSOT (no `KIRO.md`).
+- `docs/multi-host-packaging.md` — the published `skills` agent id for Kiro was `-a kiro`,
+  which the CLI **rejects** (`Invalid agents: kiro`) while writing **zero** files, so anyone
+  following that line got a silent no-op. Corrected to `-a kiro-cli`, with the Kiro Crew
+  second-loader step (`skills.extra_paths`) alongside it and a pointer to
+  `docs/kiro-cohabitation.md`.
 
 ### Added — `self-heal-relay` pattern across 3 cross-language scripts + pattern doc
 
