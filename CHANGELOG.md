@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `sprint-carryover` skill + command (#429)
+
+- `skills/sprint-carryover/SKILL.md` + `commands/sprint-carryover.md` (new) — relocate stranded open
+  backlog from past/closed sprints into the active sprint: discover → present → (operator-gated) move
+  → report. dry-run default ON; the MOVE is a HUMAN_DOMAIN bulk mutation of a shared tracker and is
+  confirm-gated. Level-triggered/idempotent (re-derives from the tracker each pass, no stored queue);
+  report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family
+  envelope with `proposed`/`migrated`/`skipped`/`failed`. Composes `work-compass` for the discovery
+  fan-out + identity seed; sprint/owner enrichment and pagination are the skill's own tracker-native
+  query. EN+PT triggers; capability-detected (MCP first, then `gh`/`acli`/`jira` CLI).
+
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 
 - `skills/morning-briefing/SKILL.md` — the default `--scope=current` briefing was
