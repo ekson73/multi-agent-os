@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Kiro install path + co-habitation/compatibility doc
+
+- `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
+  (`kiro-cli`, Kiro IDE, Kiro Crew) **alongside** Claude Code on the same machine,
+  and an honest account of what ports and what does not (verified on
+  `kiro-cli 2.22.0`, 2026-09-17). Every change is ADDITIVE — nothing under
+  `~/.claude/**` or any other harness path is removed, renamed or degraded.
+  Documents the TWO independent skill loaders (`~/.kiro/skills` for kiro-cli + the
+  Kiro IDE default agent; `skills.extra_paths` for Kiro Crew only), the two-step
+  install with verify command, the single valid agent id `kiro-cli`
+  (`kiro`/`kiro-ide`/`kiro-crew` are invalid and write zero files), governance-hook
+  porting (**6 of 8 MAOS hook classes port**; `preToolUse` truly blocks;
+  `Bash`→`execute_bash` and `Edit|Write|MultiEdit`→`fs_write`; only
+  `PreCompact`/`PostCompact` are lost — Kiro 2.22.0 has no compaction event),
+  Kiro's stronger `permissions.yaml` deny layer, and the first-writer-wins
+  name-masking co-habitation hazard. Powers is noted as an unverified target-only
+  distribution surface, not a shipped one.
+- `docs/multi-host-packaging.md` — the published `skills` agent id for Kiro was
+  `-a kiro`, which the CLI **rejects** (`Invalid agents: kiro`) while writing
+  **zero** files, so anyone following that line got a silent no-op. Corrected to
+  `-a kiro-cli`, with the Kiro Crew second-loader step
+  (`kirocrew config set skills.extra_paths '["~/.kiro/skills"]'`) called out as a
+  separate loader, plus a pointer to `docs/kiro-cohabitation.md`.
+- `README.md` — added a **Kiro Co-habitation** row to the Documentation index
+  pointing at `docs/kiro-cohabitation.md`.
+
 ### Added — `self-heal-relay` pattern across 3 cross-language scripts + pattern doc
 
 - `docs/self-heal-relay.md` (new) — pattern doc (NOT a skill) for the Anima-named
