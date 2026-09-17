@@ -140,3 +140,39 @@ extra_instructions = """
 Prioritize suggestions that close silent-failure modes or harden governance
 hooks. Avoid cosmetic nitpicks unless they reduce confusion.
 """
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [review_agent] — CITATIONS required by the Bot-Config Correction Discipline
+#
+# (1) MECHANISM (official vendor docs):
+#     https://qodo-merge-docs.qodo.ai/tools/review/ (review_agent settings)
+#     https://docs.qodo.ai/qodo-documentation/qodo-merge/configuration/configuration-file/configuration-options
+#     `enable_skills_agent` (default false) and `enable_cross_repo_agent`
+#     (default true) control whether the reviewer cites repo-local SKILL.md
+#     "skill insights" and whether it auto-discovers/cites relationships to
+#     other repos connected to the same org's Qodo installation. Repo-root
+#     `.pr_agent.toml` overrides org/portal-level settings (documented
+#     precedence: Repository Wiki > Repository Root .pr_agent.toml >
+#     Org/Project settings repo > Portal).
+#
+# (2) GOVERNANCE ANCHOR: this repo is community/opensource-tier and must
+#     never have content from a private downstream repository cited inside
+#     it, regardless of who/what (human, agent, or an integrated automated
+#     reviewer) introduces the citation.
+#
+# (3) VERIFIER > GENERATOR — the bot-wrong verdict rests on direct, repeated
+#     observation, not a single self-asserted claim: 4 review comments on
+#     this repo (PRs #424, #186, #418, #421) cited "Skill insight" findings
+#     whose evidence links pointed at file paths inside a private downstream
+#     repository, confirmed by directly fetching each comment's body via the
+#     GitHub API. Since no [review_agent] section existed here before this
+#     edit and `enable_skills_agent` defaults to false, the citations could
+#     only have fired via an org/portal-level override — this repo-local
+#     override closes that regardless of the org-level setting's state.
+#
+# Containment while the org/portal-level source is investigated and
+# corrected; intended to be re-enabled once that root cause is confirmed
+# fixed, not a permanent disable — re-review this section when that happens.
+[review_agent]
+enable_skills_agent = false
+enable_cross_repo_agent = false
