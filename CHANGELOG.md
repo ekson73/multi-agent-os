@@ -56,6 +56,44 @@ Cada correcao abaixo tem contraprova executada.
   torna os fallbacks inalcancaveis; `cmd; RC=$?` aborta no status legitimo 2; e
   `read ... <<<"$(cmd)"` mascara a falha do comando com campos vazios.
 
+### Fixed — `.gitleaks.toml` false-positive gate on `main` (v1.0.0 → v1.1.0)
+
+- The **scheduled** `Supply-Chain Sentinel` gitleaks job had been failing on `main`
+  every day (3 of 3 `schedule` runs: 2026-09-16/17/18) while **all 22** `push` /
+  `pull_request` runs passed. Cause: the scheduled scan walks full history
+  (`git log -p -U0 --full-history --all`, 601 commits) and so reaches commit
+  `20df6d93` (2026-02-23), which a push-scoped incremental scan never sees. The 2
+  findings were **documentation placeholders**, not secrets — the literal value
+  `your_app_password` in `mcp-tools/maos-mcp-hub/.env.example:13` and
+  `mcp-tools/maos-mcp-hub/README.md:94`, matched by rule `vek-bitbucket-app-password`
+  (whose regex accepts any 8+ non-`$` characters). A red gate that cannot be fixed by
+  any commit trains contributors to ignore the one secret-scanning gate the repo has.
+- Fix: a **narrow placeholder allowlist** on the global `[allowlist]`, matching only
+  the exact documented Bitbucket app-password placeholder lines whose value is literally
+  `your_app_password` / `your_app_password_here` — the two proven false positives.
+  Chosen over a `.gitleaksignore` fingerprint because a fingerprint ignores a specific
+  *location* (`file:rule:startLine`), so it says nothing about the value and would keep
+  suppressing that line even if a real secret later replaced the placeholder there;
+  this allowlist instead keys on the placeholder *value*, so the exemption evaporates
+  the moment the value stops being the documented placeholder. Deliberately NOT
+  broadened to arbitrary value shapes (`<…>`, `{{…}}`, `changeme`, `x{8,}`): those occur
+  in real weak credentials, and a global exemption for them would silently hide an
+  actual leak.
+- The allowlist uses `regexTarget = "line"` and is anchored to the whole source
+  line (`^…$`), so it exempts only the exact documented Bitbucket app-password
+  placeholder lines (bare `KEY=value`, JSON `"KEY": "value",`, and commented
+  `# KEY=value_here`) whose value is literally `your_app_password` /
+  `your_app_password_here`. Line-anchoring (rather than anchoring the rule
+  *match*) is deliberate: a rule match can truncate at a quote, so a
+  `$`-anchored match target would still fire on `=your_app_password'REALSECRET'`
+  and hide the trailing secret. Testing the entire line means any extra content
+  breaks the anchor and the credential stays detectable — verified by control
+  tests: a real `BITBUCKET_APP_PASSWORD` value, a value glued/quoted after the
+  placeholder, and `changeme` on a Spring or Quarkus datasource password key are
+  all still detected, while the finding set is **identical with the allowlist
+  present vs. removed** for every real value (the exemption adds no suppression
+  beyond the documented placeholder lines).
+
 ### Added — Kiro install path + co-habitation/compatibility doc
 
 - `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
