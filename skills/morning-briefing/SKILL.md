@@ -210,31 +210,45 @@ LANG_CODE=$(detect_lang_code)
 
 # ─── i18n: Bundle load (Phase 0b) ───────────────────────────────────────────
 # Loads translations/<lang>.yml into $LABELS (associative-array-like via temp file).
-# Fallback chain: <lang> → en-us → pure-D LLM-only mode (no bundle).
+# Fallback chain: en-us (canonical base) ← overlaid by <lang> → pure-D LLM-only mode.
+# PER-KEY fallback: en-us is loaded FIRST as the base, then the selected <lang> is
+# overlaid on top, so a key MISSING from a partial or third-party <lang> bundle keeps
+# its canonical en-us value (never renders unset / a literal `unknown` — anti-pattern
+# #12). A whole-file-absent <lang> degrades to en-us only; en-us absent → pure-D.
 SKILL_DIR="$HOME/.claude/skills/morning-briefing"
 LABELS_TMP="$(mktemp -t mb-labels.XXXXXX 2>/dev/null || echo /tmp/mb-labels-$$)"
-load_bundle() {
-  local lang="$1"
-  local bundle="$SKILL_DIR/translations/${lang}.yml"
-  if [ ! -f "$bundle" ]; then
-    [ "$lang" != "en-us" ] && echo "[i18n] bundle '$lang' absent → fallback en-us" >&2
-    bundle="$SKILL_DIR/translations/en-us.yml"
-  fi
-  if [ ! -f "$bundle" ]; then
-    echo "[i18n] no bundles found → pure-D LLM-only mode" >&2
-    : > "$LABELS_TMP"  # empty file
-    return
-  fi
-  # Parse YAML → KEY=VALUE for downstream sourcing (yq preferred, awk fallback)
+_parse_bundle_into() {  # $1=bundle file, $2=dest tmp (appended → later keys win on source)
+  local bundle="$1" dest="$2"
   if [ "$HAS_YQ" = "yes" ]; then
-    yq -r 'to_entries | .[] | "\(.key)=\(.value | @sh)"' "$bundle" 2>/dev/null > "$LABELS_TMP"
+    yq -r 'to_entries | .[] | "\(.key)=\(.value | @sh)"' "$bundle" 2>/dev/null >> "$dest"
   else
     # awk fallback: parse flat 'key: "value"' YAML (no nesting supported)
     awk -F': *' '/^[a-z_]+:/ {
       key=$1; val=$2; sub(/^"/, "", val); sub(/"[ \t]*(#.*)?$/, "", val);
       gsub(/'\''/, "'\''\\\\'\'''\''", val);  # shell-escape single quotes
       printf "%s='\''%s'\''\n", key, val
-    }' "$bundle" > "$LABELS_TMP"
+    }' "$bundle" >> "$dest"
+  fi
+}
+load_bundle() {
+  local lang="$1"
+  local en="$SKILL_DIR/translations/en-us.yml"
+  local sel="$SKILL_DIR/translations/${lang}.yml"
+  : > "$LABELS_TMP"
+  if [ ! -f "$en" ] && [ ! -f "$sel" ]; then
+    echo "[i18n] no bundles found → pure-D LLM-only mode" >&2
+    return
+  fi
+  # Base = en-us (canonical key set). Sourcing this file assigns every canonical key.
+  [ -f "$en" ] && _parse_bundle_into "$en" "$LABELS_TMP"
+  # Overlay the selected language: its lines come AFTER en-us, so on `source` its keys
+  # win, while any key it omits retains the en-us value already assigned above.
+  if [ "$lang" != "en-us" ]; then
+    if [ -f "$sel" ]; then
+      _parse_bundle_into "$sel" "$LABELS_TMP"
+    else
+      echo "[i18n] bundle '$lang' absent → en-us canonical only" >&2
+    fi
   fi
 }
 load_bundle "$LANG_CODE"
@@ -699,7 +713,10 @@ A1. <process discipline aplicado> ✅/🟡
        <label> <TOKEN> <pct>% (<n>/<total>)
      e.g.  % PRs Green  GREEN 92% (11/12)   with the bar inside a fence when rendering in md.
      The `<bar>` value (already delimited by [ ] from the lookup) is decorative
-     (anti-pattern #31): dropping it loses NO information.
+     (anti-pattern #31): dropping it loses NO information. The `<bar>` token in this
+     table cell is a POINTER to the value, NOT the rendered md bar — per Phase 3b.6 the
+     actual md bars render STACKED inside a fenced code block (see the specimen there) so
+     they align in monospace; the inline-code cell here only marks which rows carry a bar.
      Rendering rules, the 12-row lookup, state cutoffs, --format=json shape and the omit-on-hole
      degradation are specified below in "Phase 3b.6 — $execution_metrics progress-bar". -->
 
@@ -834,6 +851,8 @@ pct    lookup
 
 Equivalent rule (documentation of the table, NOT a second code path): `filled = 0` if `pct == 0`, else `filled = max(1, floor(pct / 10))` — the floor never fills the last cell until `pct == 100` (rounding 95%→10/10 would lie about "complete"); the `max(1, …)` floor keeps `0 < pct < 10` from drawing an empty bar visually identical to `pct == 0`. Glyphs are literal and PRESERVE-class: fill `#` (U+0023) · empty `-` (U+002D) · delimiters `[` `]`. **No** partial-cell glyph, **no** Unicode block (`█`/`░` desalign in the dashboard's proportional font — violates the skill's own "render identically" invariant, changelog v1.1.0), **no** emoji.
 
+**`pct` normalization (one rule, used by BOTH the displayed `<pct>%` and the state/bar lookup).** `<pct>` is a single **integer** materialized once by R3 as `pct = round(numerator * 100 / denominator)` with **round-half-up** (e.g. `5/6 = 83.33 → 83`, `2/3 = 66.67 → 67`, `17/20 = 85.0 → 85`, a boundary `89.5 → 90`). The displayed percentage, the state token cutoffs, and the lookup-table row ALL read that same normalized integer — there is no second rounding and no fractional `pct` anywhere, so the integer rows are exhaustive by construction (no `66.7`/`89.5` can reach the lookup). Because rounding happens BEFORE the cutoffs, a value that rounds up to `90` is legitimately `GREEN`, and the `md` row, the `state`, and the `bar` cannot disagree.
+
 **State token (by lookup, PRESERVE-class — never localized):** `pct >= 90 → GREEN` · `60 <= pct < 90 → WARN` · `pct < 60 → RED`. The token is the load-bearing signal (anti-pattern #14); color, where present, is redundant, never sole.
 
 **The human line (`md`/`console`) ALWAYS carries, in this order:** `<label> <TOKEN> <pct>% (<n>/<total>)`. The `[<bar>]` is decorative — a screen reader or monochrome terminal reads `PRs Green WARN 83 percent 5 of 6` and loses nothing (anti-pattern #31). In `md` the bar sits **inside a fenced code block** so stacked bars align in monospace. `--no-llm` renders the bar identically (it is deterministic; `--no-llm` only drops narrative). `--quick` never reaches it (recap-mode ignores `--quick`, and the bar is recap-only).
@@ -846,7 +865,7 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
 % PR Agentic Convergence [##########]  GREEN 100% (4/4)
 ```
 
-**`--format=json`** carries the metrics inside the recap's **single top-level JSON object** as an `execution_metrics` array — NOT as a standalone document that replaces the rest of the recap. The whole `--format=json` output is still one valid JSON document (`jq`/`JSON.parse` parse it in one pass); the fix that mattered is that the metrics are an **array under one key**, never two consecutive top-level objects. `--save --format=json` keeps its Phase-5 top-level `_meta`, and `--audience agent` still receives the full recap (objectives, gaps, pendings, risks, handoff, …) alongside `execution_metrics`. Each metric object keeps `state` first-class and `bar` as convenience, never source-of-truth; keys are en-US, versioned via the recap's `prompt_version`:
+**`--format=json`** carries the metrics inside the recap's **single top-level JSON object** as an `execution_metrics` array — NOT as a standalone document that replaces the rest of the recap. The whole `--format=json` output is still one valid JSON document (`jq`/`JSON.parse` parse it in one pass); the fix that mattered is that the metrics are an **array under one key**, never two consecutive top-level objects. `--save --format=json` keeps its Phase-5 top-level `_meta`, and `--audience agent` still receives the full recap (objectives, gaps, pendings, risks, handoff, …) alongside `execution_metrics`. Each metric object keeps `state` first-class and `bar` as convenience, never source-of-truth; keys are en-US, versioned via the recap's `prompt_version`. **`execution_metrics` contains EXACTLY the two probe-measured metrics** — `prs_green` and `pr_agentic_convergence` — and no others: the `LLM-estimated` rows (`% Plan execution`, `% Principais completos`) are **human-only** and never enter this array (they have no probe denominator and no JSON contract of their own, per DDR Q1), so a consumer reads the array as those two ids, distinguishing an absent id from a measured hole (below) by `state`:
 ```json
 {
   "prompt_version": "1.9.0",
@@ -868,7 +887,7 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
   ]
 }
 ```
-`--format=json` NEVER emits: an ANSI escape; emoji as a semantic field; a state that exists only inside the `bar` string; a localized label as a key; two consecutive top-level objects (the metrics are always an `execution_metrics` array under the single recap object, never a second root). `md` is **not** a machine contract (line-wrapping, i18n and the fence can break any regex) — `--format=json` is. `--audience agent` already routes to `--format=json` (v1.7.0 D1); it does not add a second bar mode.
+`--format=json` NEVER emits: an ANSI escape; emoji as a semantic field; a state that exists only inside the `bar` string; a localized label as a key; two consecutive top-level objects (the metrics are always an `execution_metrics` array under the single recap object, never a second root). The `bar` field, when present, is a **decorative** string only — `state` plus the numeric fields (`pct`, `numerator`, `denominator`) are authoritative; a consumer MUST read `state`, never derive it from the `bar` glyph (anti-pattern #31), and may ignore `bar` entirely. `md` is **not** a machine contract (line-wrapping, i18n and the fence can break any regex) — `--format=json` is. `--audience agent` already routes to `--format=json` (v1.7.0 D1); it does not add a second bar mode.
 
 #### Degradation / diagnostic (the honest analogue of self-heal — N/A por artefato)
 
@@ -885,7 +904,9 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
 
 **The only legitimate `0%`:** denominator known and `> 0` with numerator `0` — e.g. 3 PRs in scope, none green yet → `0/3 = 0%`, an honest empty bar `[----------]` RED.
 
-**Privacy (recap-mode, unchanged guards apply):** the bar shows only the aggregate (`3/7`), **never** the list of repos composing the denominator (that decomposition needs explicit `--scope=down`; `--scope=current` default does not scan siblings — anti-pattern #29). `--format=json` emits the number, never the glyph as data. When a recap is routed to `--save`/`--clipboard`, the existing `gitleaks` guard remains the LAST step over the fully assembled artifact — a bar added upstream is inside that scan, not after it.
+**Complete `md`/`console` row for a degraded metric (so the "human line always carries `<pct>% (<n>/<total>)`" rule and the omit-the-bar rule do not conflict).** A hole means the metric is NOT fully measured, so the normal `<label> <TOKEN> <pct>% (<n>/<total>)` line does not apply — there is no honest `pct`/`state` to print. The degraded row is: **`<label>` + `$bar_na` in the bar cell + the case-specific `Valor`-cell text from the table above** (e.g. `n/a — 0 PRs no escopo` for `denominator == 0`, `<n>/<parcial>? (probe incompleto)` for a partial probe), and **no `TOKEN`, no `<pct>%`** (printing `RED 0%` would be the fabricated-measurement anti-pattern #30). The label stays; only the measured trio (`TOKEN`, `pct`, bar) is what a hole legitimately drops. This mirrors the JSON side, where the object stays present with `state:"UNKNOWN"`, `bar:null`, `null` numerics.
+
+**Privacy (recap-mode, unchanged guards apply):** the bar shows only the aggregate (`3/7`), **never** the list of repos composing the denominator (that decomposition needs explicit `--scope=down`; `--scope=current` default does not scan siblings — anti-pattern #29). `--format=json` emits the numeric fields + `state` as the data; the `bar` glyph, when present, is decorative and is **never the state signal a consumer parses** (read `state`, not the glyph — anti-pattern #31). When a recap is routed to `--save`/`--clipboard`, the existing `gitleaks` guard remains the LAST step over the fully assembled artifact — a bar added upstream is inside that scan, not after it.
 
 ## Phase 4 — Narrative polish (optional, LLM-augmented)
 
