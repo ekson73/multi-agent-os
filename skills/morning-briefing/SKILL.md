@@ -235,17 +235,29 @@ load_bundle() {
   local en="$SKILL_DIR/translations/en-us.yml"
   local sel="$SKILL_DIR/translations/${lang}.yml"
   : > "$LABELS_TMP"
-  if [ ! -f "$en" ] && [ ! -f "$sel" ]; then
-    echo "[i18n] no bundles found → pure-D LLM-only mode" >&2
+  # en-us is the canonical key set and the fallback base. If it is absent we CANNOT
+  # guarantee any key, so we enter pure-D LLM-only mode even when a selected bundle
+  # exists (loading a lang bundle without the canonical base would give an unknowable,
+  # possibly-partial key set — the documented `en-us absent → pure-D` contract).
+  if [ ! -f "$en" ]; then
+    echo "[i18n] canonical en-us bundle absent → pure-D LLM-only mode" >&2
     return
   fi
-  # Base = en-us (canonical key set). Sourcing this file assigns every canonical key.
-  [ -f "$en" ] && _parse_bundle_into "$en" "$LABELS_TMP"
+  # Base = en-us (every canonical key assigned).
+  _parse_bundle_into "$en" "$LABELS_TMP"
   # Overlay the selected language: its lines come AFTER en-us, so on `source` its keys
   # win, while any key it omits retains the en-us value already assigned above.
   if [ "$lang" != "en-us" ]; then
     if [ -f "$sel" ]; then
       _parse_bundle_into "$sel" "$LABELS_TMP"
+      # Per-key fallback diagnostic: report each canonical key the selected bundle omits
+      # (it will render in en-us → mixed-language output, which the operator should see).
+      local en_keys sel_keys k
+      en_keys="$(grep -oE '^[a-z_]+:' "$en" | tr -d ':' | sort -u)"
+      sel_keys="$(grep -oE '^[a-z_]+:' "$sel" | tr -d ':' | sort -u)"
+      for k in $(comm -23 <(printf '%s\n' "$en_keys") <(printf '%s\n' "$sel_keys")); do
+        echo "[i18n] label key '$k' missing in bundle '$lang', fell back to en-us" >&2
+      done
     else
       echo "[i18n] bundle '$lang' absent → en-us canonical only" >&2
     fi
@@ -695,12 +707,22 @@ A1. <process discipline aplicado> ✅/🟡
 |---|---|---|
 | PRs criados | <n> | — |
 | PRs merged | <n> | — |
-| % $metric_prs_green | <n>/<total> = <pct>% | `<bar>` (per §4-bar lookup; `$bar_na` + diagnose if unmeasured) |
-| % $metric_pr_agentic_convergence | <n>/<total> = <pct>% | `<bar>` (per §4-bar lookup; `$bar_na` + diagnose if unmeasured) |
+| % $metric_prs_green | <TOKEN> <pct>% (<n>/<total>) | see fenced bars below (or `$bar_na` if unmeasured) |
+| % $metric_pr_agentic_convergence | <TOKEN> <pct>% (<n>/<total>) | see fenced bars below (or `$bar_na` if unmeasured) |
 | % Plan execution ($llm_estimated) | <n>/<total> = <pct>% | — ($llm_estimated — NO bar per anti-pattern #30) |
 | % Principais completos ($llm_estimated) | <n>/<total> = <pct>% | — ($llm_estimated — NO bar per anti-pattern #30) |
 | Wall-clock engagement | <hours>h | — |
 | Worktrees vivos | <n> (target: 0 post-merge) | — |
+
+<!-- MEASURED-metric bars render STACKED in this fenced block (md/console), per Phase 3b.6,
+     so they align in monospace. This block IS part of the template — emit it verbatim with
+     the row filled from the lookup. Each line: `<label> <bar> <TOKEN> <pct>% (<n>/<total>)`.
+     Omit a line and print `$bar_na` in its Valor cell instead when that metric is a hole
+     (see the degradation table). Drop the whole block only when BOTH metrics are holes. -->
+\`\`\`
+% $metric_prs_green              <bar>  <TOKEN> <pct>% (<n>/<total>)
+% $metric_pr_agentic_convergence <bar>  <TOKEN> <pct>% (<n>/<total>)
+\`\`\`
 
 <!-- i18n: the §4 column header and the two bar-metric row labels are localizable and
      resolve through the loaded bundle — $bar_col, $bar_na, $llm_estimated,
@@ -709,14 +731,13 @@ A1. <process discipline aplicado> ✅/🟡
      therefore NOT placeholders here: state tokens GREEN/WARN/RED, the json keys, the metric
      ids prs_green / pr_agentic_convergence, and the glyphs # - [ ] — those stay en-US in
      every bundle.
-     The human line for a measured metric ALWAYS reads:
-       <label> <TOKEN> <pct>% (<n>/<total>)
-     e.g.  % PRs Green  GREEN 92% (11/12)   with the bar inside a fence when rendering in md.
-     The `<bar>` value (already delimited by [ ] from the lookup) is decorative
-     (anti-pattern #31): dropping it loses NO information. The `<bar>` token in this
-     table cell is a POINTER to the value, NOT the rendered md bar — per Phase 3b.6 the
-     actual md bars render STACKED inside a fenced code block (see the specimen there) so
-     they align in monospace; the inline-code cell here only marks which rows carry a bar.
+     The human line for a measured metric ALWAYS reads (both in the table Valor cell as
+     `<TOKEN> <pct>% (<n>/<total>)` AND in the fenced block above with the bar prepended):
+       <label> <bar> <TOKEN> <pct>% (<n>/<total>)
+     e.g.  % PRs Green  [#########-] GREEN 92% (11/12).
+     The `<bar>` glyph is decorative (anti-pattern #31): dropping it loses NO information —
+     the TOKEN + pct + ratio in the Valor cell carry the full signal. The fenced block is
+     where the md bars live (monospace alignment); the table Valor cell carries the token.
      Rendering rules, the 12-row lookup, state cutoffs, --format=json shape and the omit-on-hole
      degradation are specified below in "Phase 3b.6 — $execution_metrics progress-bar". -->
 
@@ -893,14 +914,16 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
 
 > This skill ships **no executable** (Q6: the deterministic layer is a lookup table in the template, not a `bin/*.sh`), so the `eko-executable-scripts` self-heal M.O. (`trap self_heal ERR`, `exec > >(tee …)`, dispatch a repair harness) has **no file to live in** — declaring "self-heal adopted" would be theater. A declarative skill is executed **by** a harness by definition; the harness that would "fix" it is already in the loop. The legitimate analogue is a **degradation path** for the bar's NEW dependencies: detect the hole → one stderr diagnostic line → degrade gracefully. The bar is a privilege of a **measured, stable, present** denominator; on any hole, **omit the bar** and diagnose — **NEVER** draw `0%` as if measured (`0/0` is undefined, not `0%`; a partial probe merely *looks* total). In `md`/`console` the omitted bar shows `$bar_na`; in `--format=json` the metric object is still emitted inside `execution_metrics` but carries `state:"UNKNOWN"`, `bar:null` and `null` numerics (see the `--format=json` degraded-metric contract above) — so a machine consumer tells a measured hole apart from a metric absent this recap.
 
-| Hole | Decision | stderr diagnostic |
+Every degraded case keeps the metric's LABEL and its table ROW (never silently dropped), drops the `<bar>`, and drops the measured trio `<TOKEN>`/`<pct>%` (printing `RED 0%` on a hole is the fabricated-measurement anti-pattern #30). The `Valor` cell carries the case text below; the `$bar_col` cell shows `$bar_na`. The fenced bars block omits that metric's line (and is dropped entirely only when BOTH metrics are holes).
+
+| Hole | Complete `md`/`console` row (row kept, `<bar>`+TOKEN+pct dropped) | stderr diagnostic |
 |---|---|---|
-| `denominator == 0` (no PR in scope) | omit bar; text `n/a — 0 PRs no escopo` (`0/0` is undefined, not `0%`) | `[morning-briefing] metric '<name>': denominator=0, bar omitted (n/a)` |
-| denominator unmeasured | omit bar | `[morning-briefing] metric '<name>': denominator unmeasured, bar omitted` |
-| partial probe (`gh` resolved some PRs, timed out on others) | omit bar + text `<n>/<parcial>? (probe incompleto)` — half-measured is worse than unmeasured (it *looks* total) | `[morning-briefing] metric '<name>': partial probe (<k>/<N> PRs resolved), bar omitted` |
-| `gh` absent (`HAS_GH=no`) | omit **both** bars (both are PR-based); the rest of the recap renders | `[morning-briefing] gh absent → PR-based bars skipped` |
-| cold-start (no measured objectives) | omit both bars | `[morning-briefing] cold-start: no measured objectives, bars omitted` |
-| i18n label key missing in a bundle | bar still renders (its data is not from the bundle); the label falls back to the canonical en-US key — **never** a literal `unknown` (anti-pattern #12) | `[morning-briefing] i18n: label key '<key>' missing in bundle '<lang>', fell back to en-us` |
+| `denominator == 0` (no PR in scope) | `% <label>` · Valor `n/a — 0 PRs no escopo` (`0/0` is undefined, not `0%`) · bar cell `$bar_na` | `[morning-briefing] metric '<name>': denominator=0, bar omitted (n/a)` |
+| denominator unmeasured | `% <label>` · Valor `n/a — não medido` · bar cell `$bar_na` | `[morning-briefing] metric '<name>': denominator unmeasured, bar omitted` |
+| partial probe (`gh` resolved some PRs, timed out on others) | `% <label>` · Valor `<n>/<parcial>? (probe incompleto)` (half-measured *looks* total, so no TOKEN/pct) · bar cell `$bar_na` | `[morning-briefing] metric '<name>': partial probe (<k>/<N> PRs resolved), bar omitted` |
+| `gh` absent (`HAS_GH=no`) | **both** metric rows kept · Valor `n/a — gh indisponível` · bar cell `$bar_na` (both are PR-based); the rest of the recap renders | `[morning-briefing] gh absent → PR-based bars skipped` |
+| cold-start (no measured objectives) | **both** metric rows kept · Valor `n/a — cold start` · bar cell `$bar_na` | `[morning-briefing] cold-start: no measured objectives, bars omitted` |
+| i18n label key missing in a bundle | row renders normally (the bar's data is not from the bundle); only the LABEL falls back to the canonical en-US key — **never** a literal `unknown` (anti-pattern #12) | `[morning-briefing] i18n: label key '<key>' missing in bundle '<lang>', fell back to en-us` |
 
 **The only legitimate `0%`:** denominator known and `> 0` with numerator `0` — e.g. 3 PRs in scope, none green yet → `0/3 = 0%`, an honest empty bar `[----------]` RED.
 
