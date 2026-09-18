@@ -1,6 +1,6 @@
 # .gitleaks.toml -- Gitleaks configuration for VEK repositories
 # Canonical source: multi-agent-os/.gitleaks.toml
-# Version: 1.0.0
+# Version: 1.1.0
 
 title = "VEK Secret Scanning Rules"
 
@@ -41,6 +41,28 @@ keywords = ["bitbucket", "BB_AUTH"]
 
 [allowlist]
 description = "VEK global allowlist"
+
+# Documentation placeholders are not credentials.
+#
+# WHY regexTarget = "match" and not the default: every VEK rule above captures
+# the *variable name* in group 1, so gitleaks reports `Secret` as the NAME
+# (e.g. `BITBUCKET_APP_PASSWORD`), never the value. Allowlisting against the
+# default target would therefore suppress the rule for that variable
+# everywhere — including a real leak. Matching the whole `NAME=value` match
+# lets us allowlist the *value shape* and keep the rule armed.
+#
+# Each pattern below is a self-describing stand-in that no real credential
+# would ever equal. A genuine secret assigned to the same variable still fails.
+regexTarget = "match"
+regexes = [
+    # your_app_password · your-token · YOUR_API_KEY
+    '''[:=]\s*['"]?(?i:your[._-][a-z0-9._-]*)['"]?\s*$''',
+    # <your-password> · <REDACTED> · {{password}}
+    '''[:=]\s*['"]?(?:<[^>]{1,64}>|\{\{[^}]{1,64}\}\})['"]?\s*$''',
+    # changeme · change-me · placeholder · example · redacted · xxxxxxxx
+    '''[:=]\s*['"]?(?i:change[._-]?me|placeholder|example|redacted|x{8,})['"]?\s*$''',
+]
+
 paths = [
     '''target/''',
     '''dist/''',

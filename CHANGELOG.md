@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `.gitleaks.toml` false-positive gate on `main` (v1.0.0 → v1.1.0)
+
+- The **scheduled** `Supply-Chain Sentinel` gitleaks job had been failing on `main`
+  every day (3 of 3 `schedule` runs: 2026-09-16/17/18) while **all 22** `push` /
+  `pull_request` runs passed. Cause: the scheduled scan walks full history
+  (`git log -p -U0 --full-history --all`, 601 commits) and so reaches commit
+  `20df6d93` (2026-02-23), which a push-scoped incremental scan never sees. The 2
+  findings were **documentation placeholders**, not secrets — the literal value
+  `your_app_password` in `mcp-tools/maos-mcp-hub/.env.example:13` and
+  `mcp-tools/maos-mcp-hub/README.md:94`, matched by rule `vek-bitbucket-app-password`
+  (whose regex accepts any 8+ non-`$` characters). A red gate that cannot be fixed by
+  any commit trains contributors to ignore the one secret-scanning gate the repo has.
+- Fix: a **placeholder allowlist** on the global `[allowlist]`, covering three
+  self-describing value shapes (`your_*`, `<…>`/`{{…}}`, and
+  `changeme`/`placeholder`/`example`/`redacted`/`x{8,}`). Chosen over
+  `.gitleaksignore` fingerprints because a fingerprint pins a commit SHA — re-committing
+  the same placeholder line produces a new fingerprint and the gate re-fails.
+- The allowlist uses `regexTarget = "match"` deliberately: every `vek-*` rule captures
+  the **variable name** in group 1, so gitleaks reports `Secret` as the NAME
+  (`BITBUCKET_APP_PASSWORD`), never the value. A default-target allowlist would have
+  suppressed the rule for that variable everywhere, including a real leak. Matching the
+  whole `NAME=value` match allowlists the *value shape* and leaves the rule armed —
+  verified by control test: a real-looking `BITBUCKET_APP_PASSWORD=ATBB…` is still
+  detected, with **identical** findings before and after this change.
+
 ### Added — Kiro install path + co-habitation/compatibility doc
 
 - `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
