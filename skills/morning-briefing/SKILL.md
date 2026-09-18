@@ -717,8 +717,10 @@ A1. <process discipline aplicado> ✅/🟡
 <!-- MEASURED-metric bars render STACKED in this fenced block (md/console), per Phase 3b.6,
      so they align in monospace. This block IS part of the template — emit it verbatim with
      the row filled from the lookup. Each line: `<label> <bar> <TOKEN> <pct>% (<n>/<total>)`.
-     Omit a line and print `$bar_na` in its Valor cell instead when that metric is a hole
-     (see the degradation table). Drop the whole block only when BOTH metrics are holes. -->
+     Omit a metric's line from this fenced block when that metric is a hole; in the §4
+     table its `$bar_col` cell then shows `$bar_na` and its `Valor` cell shows the
+     case text (see the degradation table). Drop the whole block only when BOTH metrics
+     are holes. -->
 \`\`\`
 % $metric_prs_green              <bar>  <TOKEN> <pct>% (<n>/<total>)
 % $metric_pr_agentic_convergence <bar>  <TOKEN> <pct>% (<n>/<total>)
