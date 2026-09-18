@@ -35,3 +35,14 @@ checks_pending: "checks rodando"
 
 # Header subtitle (v1.0.1 session-name field)
 session_label: "Sessão Claude"
+
+# Recap $execution_metrics progress-bar (v1.9.0) — localizable labels only.
+# PRESERVE (NOT here, hardcoded in template): state tokens GREEN/WARN/RED,
+# json keys {metric,numerator,denominator,pct,state,bar}, metric ids
+# prs_green / pr_agentic_convergence, glyphs # - [ ]. Those stay en-US in ALL bundles.
+bar_col: "Barra"                     # §4 column header
+bar_na: "n/a"                        # exibido quando a barra é omitida (buraco)
+llm_estimated: "estimado-LLM"        # tag nas duas linhas de métrica sem barra
+risks_section: "Riscos"              # cabeçalho da seção dedicada recap §12
+metric_prs_green: "PRs Green (CI all-pass)"           # PRESERVE — termo git/CI
+metric_pr_agentic_convergence: "PR Agentic Convergence"  # PRESERVE — termo git/CI

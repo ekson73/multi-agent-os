@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
+
+- `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —
+  adds an always-on ASCII progress bar to recap-mode `## 4. $execution_metrics` for
+  the two probe-measured metrics `prs_green` and `pr_agentic_convergence` only
+  (`% Plan execution` / `% Principais completos` stay text, labelled `(LLM-estimated)`,
+  no bar — a bar is a measured-denominator privilege, per new anti-pattern #30). Bar
+  spec: `[####------]` 10 cells, glyphs `#`/`-`/`[`/`]`,
+  `filled = 0 if pct==0 else max(1, floor(pct/10))`, state `GREEN ≥90 / WARN 60-89 /
+  RED <60`, no emoji, no Unicode block, ANSI only in `console` under `[ -t 1 ]`, in `md`
+  inside a fence. The human line always carries `<label> <TOKEN> <pct>% (<n>/<total>)`;
+  `--format=json` emits `{metric,numerator,denominator,pct,state,bar}` as the machine
+  contract. Deterministic layer = an 11-row literal lookup table in the template (the
+  LLM copies a row, never computes — `pct` is already materialized by R3), so same-state
+  reruns are byte-reproducible; no bundled script. Adds a dedicated recap `$risks` section
+  (§12; old §12-16 renumbered to §13-17), a Phase 3b.6 bar spec + degradation/diagnostic
+  block, anti-patterns #30/#31, 7 edge cases, and new localizable bundle keys in
+  `translations/en-us.yml` + `translations/pt-br.yml` (state tokens / json keys / metric
+  ids / glyphs stay en-US PRESERVE-class). recap-only; no new flag; `triggers`/`evals`
+  unchanged. Self-heal M.O. is **N/A por artefato** (declarative skill, no `scripts/` dir).
+  Per the council-of-MoE Design Decision Record. `cycles_completed:0` +
+  `promotion_eligible:false` kept (ADR-017 R1 reset is a no-op).
+
 ### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
 
 - `skills/openrig-concierge/` (new; soul-name Navarch) — the front desk and guarded operator for
