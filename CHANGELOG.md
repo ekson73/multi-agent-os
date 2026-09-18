@@ -18,7 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `filled = 0 if pct==0 else max(1, floor(pct/10))`, state `GREEN ≥90 / WARN 60-89 /
   RED <60`, no emoji, no Unicode block, ANSI only in `console` under `[ -t 1 ]`, in `md`
   inside a fence. The human line always carries `<label> <TOKEN> <pct>% (<n>/<total>)`;
-  `--format=json` emits one valid document `{prompt_version, metrics:[{metric,numerator,denominator,pct,state,bar}]}` (a hole keeps its metric object with `state:"UNKNOWN"`, `bar:null`, `null` numerics — never a faked `0`) as the machine
+  `--format=json` carries the metrics as an `execution_metrics` array inside the single
+  recap object (not a standalone document — the rest of the recap and Phase-5 `_meta` are
+  preserved), each `{metric,numerator,denominator,pct,state,bar}` (a hole keeps its metric
+  object with `state:"UNKNOWN"`, `bar:null`, `null` numerics — never a faked `0`) as the machine
   contract. Deterministic layer = a 12-row literal lookup table in the template (the
   LLM copies a row, never computes — `pct` is already materialized by R3), so same-state
   reruns are byte-reproducible; no bundled script. Adds a dedicated recap `$risks` section
