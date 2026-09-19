@@ -29,7 +29,7 @@ DECISION:
   8.ANALYZE -> MERGE | FIX+PUSH (loop 7-8) | PARTIAL+PUSH | ESCALATE
 
 POST-MERGE:
-  9.MERGE -> 10.PULL MAIN -> 11.AUDIT+ARCHIVE EMAILS -> 12.CLEANUP WORKTREE
+  9.MERGE (método resolvido) -> 10.SYNC BASE BRANCH -> 11.AUDIT+ARCHIVE EMAILS -> 12.CLEANUP WORKTREE
 ```
 
 ---
@@ -39,9 +39,30 @@ POST-MERGE:
 NEVER modify files without worktree sandbox. NEVER `git checkout`/`switch` in main repo.
 
 ```bash
-# Create + enter
-git worktree add .worktrees/{session-id}-{feature} -b {type}/{feature}
+# 1a. DECIDA A BASE ANTES DE CRIAR O WORKTREE.
+#     Default do repo, OU uma base empilhada/não-default quando for a intenção.
+#     `main` NUNCA é assumido: no inventário de 2026-09-17, `develop` é o default
+#     em vários repos.
+BASE_REF="${BASE_REF:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
+  echo "⛔ fail-closed: base '$BASE_REF' não existe em origin" >&2; exit 1; }
+
+# 1b. Crie o worktree A PARTIR da base decidida (não do HEAD corrente)
+git fetch -q origin "$BASE_REF"
+git worktree add .worktrees/{session-id}-{feature} -b {type}/{feature} "origin/$BASE_REF"
 cd .worktrees/{session-id}-{feature}
+
+# 1c. PERSISTA a base no worktree — variável de shell NÃO sobrevive entre steps,
+#     sessões ou agentes. Em worktree `.git` é ARQUIVO, não diretório: resolva o
+#     git-dir real. O arquivo é local ao worktree e não versionado.
+printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
+```
+
+Steps posteriores releem a base assim — nunca reassumem `main`:
+
+```bash
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || {
+  echo "⛔ fail-closed: BASE_REF não persistida — recrie o worktree pelo Step 1" >&2; exit 1; }
 ```
 
 Exceptions (ALL require documentation in commit/PR body):
@@ -74,14 +95,65 @@ git commit -m "{type}({scope}): {description}"
 
 ## Step 3: Local CLI Review (MANDATORY before push)
 
+⚠️ **A base NUNCA é fixa.** `main` não é o default de todo repo — no inventário de 2026-09-17,
+`develop` é o default em vários.
+
+⚠️ **Este step roda ANTES do push/PR**, então `gh pr view` ainda **não tem PR para consultar**.
+A base é um **parâmetro do worktree**, estabelecido no Step 1 e validado aqui — nunca deduzido
+de um PR inexistente.
+
 ```bash
-# PRIMARY: CodeRabbit CLI (~30s, rate-limited ~1/25min free plan)
-coderabbit review --plain --base main --config CLAUDE.md
+# Resolva a base SEM reassumir `main` e SEM confiar em variável de shell (ela não
+# sobrevive entre steps, sessões ou agentes).
+#
+# ⚠️ ADOÇÃO EM WORKTREE PRÉ-EXISTENTE: worktrees criados antes desta regra não têm o
+#    arquivo do Step 1c. NUNCA force recriar um worktree com WIP — adote-o pela ordem
+#    abaixo e persista a base depois de validada.
+GITDIR=$(git rev-parse --git-dir)
 
-# FALLBACK: Qodo CLI (if CodeRabbit rate-limited)
-qodo --ci -y "Review the git diff between this branch and main. Focus on correctness, consistency, and compliance."
+# 1º) arquivo persistido pelo Step 1c
+BASE_REF=$(cat "$GITDIR/BASE_REF" 2>/dev/null)
 
-# If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
+# 2º) BASE_REF explícito do chamador (adoção manual de worktree legado)
+[ -z "$BASE_REF" ] && BASE_REF="${BASE_REF_OVERRIDE:-}"
+
+# 3º) base do PR, quando já existe PR para esta branch
+[ -z "$BASE_REF" ] && BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null)
+
+# 4º) nenhuma fonte → fail-closed. NÃO caia no default: um PR empilhado seria
+#     revisado contra a base errada em silêncio.
+[ -n "$BASE_REF" ] || {
+  echo "⛔ fail-closed: base indeterminada. Passe BASE_REF_OVERRIDE=<branch> ou abra o PR" >&2
+  exit 1; }
+
+# Valide contra o remoto e persista para os próximos steps
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
+  echo "⛔ fail-closed: base '$BASE_REF' não existe em origin" >&2; exit 1; }
+printf '%s\n' "$BASE_REF" > "$GITDIR/BASE_REF"
+
+# PRIMARY: CodeRabbit CLI (~30s-5min; rate-limited ~1/25min free plan)
+# ⚠️ `--plain` FOI REMOVIDO (verificado 2026-09-17 na 0.7.8; a CLI auto-atualiza em
+#    background, então a flag pode sumir sem aviso). Texto plano já é o modo default.
+#    Para saída estruturada consumível por agente use `--agent`.
+coderabbit review --base "$BASE_REF" --config CLAUDE.md
+
+# FALLBACK: Qodo CLI — `qodo review [pathspec...]`
+# ⚠️ `qodo --ci -y "<prompt>"` NÃO EXISTE MAIS (verificado 2026-09-17: "error: unknown
+#    option '--ci'"). A CLI passou a expor o subcomando `review`.
+# ⚠️ Exige o repo CONECTADO ao workspace Qodo; senão falha com `repo_not_connected`.
+qodo review                      # ou: qodo review <caminho> para limitar o escopo
+
+# Se AMBOS indisponíveis (rate-limit, timeout, repo não conectado): execute a passagem
+# DIY de review e DIVULGUE no corpo do PR qual primário faltou e por quê — os bots do
+# GitHub revisam no PR, e o passe DIY NUNCA substitui o veredito de um primário exigido.
+```
+
+**Após abrir o PR (Step 6+), afirme que a base revisada é a base real:**
+
+```bash
+PR_BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
+[ "$PR_BASE" = "$BASE_REF" ] || {
+  echo "⛔ revisão feita contra '$BASE_REF' mas o PR aponta '$PR_BASE' — re-revise"; exit 1; }
 ```
 
 ### Review Classification
@@ -146,15 +218,87 @@ Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (
 
 ## Step 9: Merge
 
+⚠️ **NUNCA use `--merge` incondicionalmente.** O método é **resolvido a partir da autoridade
+local do repositório**. Ratificado pelo operador em 2026-09-17, após inventário read-only dos
+46 repositórios ativos (`vek-im` + `ekson73`).
+
+**Eixo 1 — política declarada** (o que o repo *diz*). Procure cláusula normativa em
+`docs/adrs/*`, `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md`.
+
+- ⛔ **Leia a cláusula, não conte a palavra.** `squash` aparece tanto em *"use squash-merge"*
+  quanto em *"por que merge commit, **não** squash"*. Contagem de ocorrências classifica ao
+  contrário — defeito real, medido em `vks-jss-sales-api`.
+- No inventário, **5 de 46** repos tinham declaração explícita e **41 não tinham nenhuma**.
+  Snapshot é ponto de partida, **não** substituto da verificação: **sempre reconfira o repo
+  em que você está operando.**
+
+**Eixo 2 — capacidade habilitada** (o que o repo *permite*): `allow_merge_commit`,
+`allow_squash_merge` **e `allow_rebase_merge`** + rulesets. Habilitar vários métodos é
+capacidade legítima, **não** é declaração de política. `rules/agent-scm.md` modela os
+**três** métodos — a resolução aqui cobre os três, não dois.
+
 ```bash
-gh pr merge <N> --merge
+CAP=$(gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed)
 ```
 
-## Step 10: Pull Main
+**Resolução:**
+
+| Situação | Ação |
+|---|---|
+| Declaração explícita existe **e** o método está habilitado | use o método **declarado** |
+| Método declarado está **desabilitado** no repo | ⛔ fail-closed: não mergeie, escale |
+| **Nenhuma** declaração **e** `merge` habilitado | `--merge` (preserva ancestralidade) |
+| **Nenhuma** declaração **e** `merge` **desabilitado** | ⛔ **fail-closed** — NÃO caia em outro método por conta própria: a ausência de política não autoriza escolher squash/rebase. Escale |
+| **Fontes divergem** entre si | protocolo de conflito abaixo |
+
+⚠️ O default **nunca** dispensa a verificação de capacidade. Um repo squash-only rejeitaria
+`--merge`, e prescrever um comando que falha é pior que escalar.
+
+**Protocolo de conflito entre fontes** (ratificado pelo operador; substitui hierarquia fixa):
+
+1. **Recon + OODA**: compare **todas** as versões divergentes, citando arquivo e linha.
+2. Existe regra de escopo mais amplo que regule o caso (**global → específico**, **top → down**)?
+   → ela decide; corrija as fontes divergentes para refletir o resultado.
+3. A divergência é **claramente** drift (uma fonte ficou para trás) **e** você tem segurança
+   para corrigir sozinho? → corrija **todos** os arquivos em conflito — inclusive outras regras
+   auto-carregadas que complementem esta (ex. `rules/operational-workflow.md`) — e registre.
+4. Caso contrário → **HITL**. Não mergeie sob conflito não resolvido.
 
 ```bash
-cd /path/to/repo   # back to main repo root
-git pull origin main
+# Um comando por método resolvido. Os TRÊS são suportados.
+gh pr merge <N> --merge     # resolução produziu "merge"
+gh pr merge <N> --squash    # resolução produziu "squash"
+gh pr merge <N> --rebase    # resolução produziu "rebase"
+```
+
+## Step 10: Sync the base branch
+
+⚠️ **Sincronize a branch em que o PR foi mergeado, não `main` por reflexo.** Mergear em
+`develop` e depois puxar `main` deixa o estado local na branch errada.
+
+⛔ **NUNCA use `git checkout`/`git switch` no repo principal** — o Step 1 proíbe, e esta regra
+não se excetua. Sincronize **dentro do worktree** que já acompanha a base.
+
+```bash
+BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
+
+# Localize o worktree que acompanha $BASE (nunca troque de branch na raiz).
+# `$2` truncaria caminho com espaço: `git worktree list --porcelain` emite o
+# caminho INTEIRO após "worktree ". Use substr, não campo.
+WT=$(git worktree list --porcelain \
+     | awk -v b="refs/heads/$BASE" '
+         /^worktree /{p=substr($0,10)}
+         /^branch /{if(substr($0,8)==b) print p}')
+
+if [ -z "$WT" ]; then
+  echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar" >&2
+  exit 1
+elif [ -n "$(git -C "$WT" status --porcelain)" ]; then
+  echo "⛔ fail-closed: worktree de $BASE está sujo — não sincronize por cima" >&2
+  exit 1
+else
+  git -C "$WT" pull --ff-only origin "$BASE"
+fi
 ```
 
 ## Step 11: Audit Reviews + Archive Emails
