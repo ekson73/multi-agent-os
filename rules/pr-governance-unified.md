@@ -150,13 +150,23 @@ fi
 # ⚠️ `qodo --ci -y "<prompt>"` NÃO EXISTE MAIS (verificado 2026-09-17: "error: unknown
 #    option '--ci'"). A CLI passou a expor o subcomando `review`.
 # ⚠️ Exige o repo CONECTADO ao workspace Qodo; senão falha com `repo_not_connected`.
+REVIEW_OK=$PRIMARY_OK
 if [ "$PRIMARY_OK" -eq 0 ]; then
-  qodo review || echo "⚠️  Qodo também indisponível" >&2   # ou: qodo review <caminho>
+  if qodo review; then REVIEW_OK=1; else REVIEW_OK=0; fi   # ou: qodo review <caminho>
 fi
 
-# Se AMBOS indisponíveis (rate-limit, timeout, repo não conectado): execute a passagem
-# DIY de review e DIVULGUE no corpo do PR qual primário faltou e por quê — os bots do
-# GitHub revisam no PR, e o passe DIY NUNCA substitui o veredito de um primário exigido.
+# ⛔ AMBOS indisponíveis não é "siga em frente": é ESTADO BLOQUEANTE. Registrar o
+# erro e prosseguir é o fail-open que a política DIY-review existe para impedir.
+# Só `DIY_REVIEW_DONE=1` — passagem DIY EXECUTADA **e** divulgada no corpo do PR
+# (qual primário faltou e por quê) — libera os steps seguintes.
+if [ "$REVIEW_OK" -eq 0 ]; then
+  [ "${DIY_REVIEW_DONE:-0}" -eq 1 ] || {
+    echo "⛔ fail-closed: nenhum reviewer local disponível e a passagem DIY não foi" >&2
+    echo "   executada/divulgada. Execute-a e exporte DIY_REVIEW_DONE=1." >&2
+    exit 1; }
+  echo "ℹ️  prosseguindo sob revisão DIY — divulgação obrigatória no corpo do PR" >&2
+fi
+# O passe DIY NUNCA substitui o veredito de um primário exigido pelo repo.
 ```
 
 **Após abrir o PR (Step 6+), afirme que a base revisada é a base real:**
@@ -273,14 +283,25 @@ BASE_REF=$(gh pr view <N> --json baseRefName -q .baseRefName) || {
 CAP=$(gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed) || {
   echo "⛔ fail-closed: não consegui ler as capacidades do repo" >&2; exit 1; }
 
+# ⚠️ Codifique a base como UM parâmetro de path. Uma base com barra
+#    (`release/1.0`) interpolada crua vira `/branches/release/1.0` e a API
+#    devolve `[]` com exit 0 — medido. Isso é FALHA ABERTA: "nenhuma regra"
+#    autorizaria `--merge`. Não é fail-closed; é o pior caso.
+BR_ENC=$(printf '%s' "$BASE_REF" | jq -sRr @uri)
+
 # (a) Rulesets que incidem sobre a BASE (não sobre o repo inteiro).
-RULES=$(gh api "repos/{owner}/{repo}/rules/branches/$BASE_REF") || {
+#     ⚠️ O endpoint pagina em 30. `--paginate` sozinho emite UM array POR PÁGINA,
+#     incompatível com o `jq` escalar abaixo; `--slurp` não convive com `--jq`
+#     ("not supported", medido) — então agregue com `add` num pipe separado.
+#     Sem isso, um `required_linear_history` na 2ª página passa despercebido.
+RULES=$(gh api "repos/{owner}/{repo}/rules/branches/$BR_ENC" --paginate --slurp) || {
   echo "⛔ fail-closed: inspeção de rulesets falhou — não presuma ausência" >&2; exit 1; }
-RLIN=$(printf '%s' "$RULES" | jq '[.[]|select(.type=="required_linear_history")]|length')
+RLIN=$(printf '%s' "$RULES" | jq '[add[]?|select(.type=="required_linear_history")]|length') || {
+  echo "⛔ fail-closed: agregação das páginas de rulesets falhou" >&2; exit 1; }
 
 # (b) Branch protection CLÁSSICA. "Branch not protected" é ausência legítima (404);
 #     qualquer outra falha é fail-closed.
-if PROT=$(gh api "repos/{owner}/{repo}/branches/$BASE_REF/protection" 2>/dev/null); then
+if PROT=$(gh api "repos/{owner}/{repo}/branches/$BR_ENC/protection" 2>/dev/null); then
   PLIN=$(printf '%s' "$PROT" | jq -r '.required_linear_history.enabled // false')
 elif printf '%s' "$PROT" | grep -q '"Branch not protected"'; then
   PLIN=false
@@ -426,10 +447,19 @@ trabalho válido: se a remoção vier antes da checagem de merge, ele é destru�
 # `--show-toplevel` devolveria a raiz do PRÓPRIO worktree. A primeira entrada de
 # `worktree list --porcelain` é sempre o worktree PRINCIPAL. `substr` preserva espaços.
 ROOT=$(git worktree list --porcelain | awk 'NR==1{print substr($0,10)}')
-BRANCH={type}/{feature}
-
-# ── GUARDA 1: o PR precisa estar MERGED. Ancestralidade não serve para squash/rebase.
-STATE=$(gh pr view <N> --json state -q .state) || exit 1
+# ── GUARDA 1: o PR precisa estar MERGED, e a branch vem do PRÓPRIO PR.
+#    Um template `{type}/{feature}` reproduz aqui o defeito que a guarda 2
+#    corrigiu no path: as três convenções deste repo não casariam.
+#    ⚠️ Separe a busca do `read`: em `read … <<<"$(cmd)"` o `||` mede o READ, não
+#    o comando — um `gh` que falha ainda entrega here-string vazia e o `read`
+#    "passa" com campos vazios (medido). Capture antes, valide depois.
+META=$(gh pr view <N> --json state,headRefName,baseRefName,headRefOid \
+  -q '[.state,.headRefName,.baseRefName,.headRefOid]|@tsv') || {
+    echo "⛔ fail-closed: não consegui ler os metadados do PR" >&2; exit 1; }
+IFS=$'\t' read -r STATE BRANCH BASE_REF MERGED_OID <<<"$META"
+for v in STATE BRANCH BASE_REF MERGED_OID; do
+  [ -n "${!v}" ] || { echo "⛔ fail-closed: metadado '$v' vazio" >&2; exit 1; }
+done
 [ "$STATE" = "MERGED" ] || {
   echo "⛔ fail-closed: PR não está MERGED (state=$STATE) — não remova nada" >&2; exit 1; }
 
@@ -445,12 +475,29 @@ WT_REAL=$(git worktree list --porcelain | awk -v b="refs/heads/$BRANCH" '
 [ -n "$WT_REAL" ] || {
   echo "⛔ fail-closed: nenhum worktree registrado acompanha '$BRANCH'" >&2; exit 1; }
 
-# ── GUARDA 3: WIP não commitado (seu ou de outra sessão) bloqueia a remoção.
-#    Sem `2>/dev/null`: um erro real precisa aparecer, não ser silenciado.
-DIRTY=$(git -C "$WT_REAL" status --porcelain) || {
+# ── GUARDA 3: WIP não commitado bloqueia a remoção.
+#    ⚠️ `--porcelain` sozinho OMITE arquivos ignorados: um `.env` de outra sessão
+#    fica invisível (medido: vazio vs `!! segredo.env`) e o `worktree remove`,
+#    que usa a mesma checagem, o apagaria sem pedir `--force`.
+DIRTY=$(git -C "$WT_REAL" status --porcelain --untracked-files=all --ignored) || {
   echo "⛔ fail-closed: não consegui inspecionar '$WT_REAL'" >&2; exit 1; }
 [ -z "$DIRTY" ] || {
-  echo "⛔ fail-closed: '$WT_REAL' tem mudanças não commitadas — preserve e escale" >&2
+  echo "⛔ fail-closed: '$WT_REAL' tem conteúdo não commitado/ignorado — preserve" >&2
+  exit 1; }
+
+# ── GUARDA 4: commits que chegaram DEPOIS do merge. `status` está limpo, mas
+#    outra sessão pode ter commitado na branch no intervalo; `branch -D` os
+#    descartaria em silêncio.
+#    ⚠️ NÃO use ancestralidade (`origin/$BASE_REF..$BRANCH`): após squash ela
+#    conta TODOS os commits originais do PR (medido: 2) e reprovaria todo
+#    cleanup legítimo — é o mesmo critério que a guarda 1 rejeita.
+#    Compare a ponta atual com o `headRefOid` que o PR registrou ao mergear:
+#    igual ⇒ nada novo; diferente ⇒ alguém commitou depois (medido nos 2 casos).
+CUR_OID=$(git -C "$WT_REAL" rev-parse "$BRANCH") || {
+  echo "⛔ fail-closed: não consegui ler a ponta de '$BRANCH'" >&2; exit 1; }
+[ "$CUR_OID" = "$MERGED_OID" ] || {
+  echo "⛔ fail-closed: '$BRANCH' avançou após o merge" >&2
+  echo "   mergeado=${MERGED_OID:0:8} atual=${CUR_OID:0:8} — revise antes de apagar" >&2
   exit 1; }
 
 # ── Só agora destrói.
