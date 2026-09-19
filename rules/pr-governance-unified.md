@@ -75,20 +75,41 @@ git commit -m "{type}({scope}): {description}"
 ## Step 3: Local CLI Review (MANDATORY before push)
 
 ⚠️ **A base NUNCA é fixa.** `main` não é o default de todo repo — no inventário de 2026-09-17,
-`develop` é o default em vários. Resolva a base do alvo real antes de revisar.
+`develop` é o default em vários.
+
+⚠️ **Este step roda ANTES do push/PR**, então `gh pr view` ainda **não tem PR para consultar**.
+A base é um **parâmetro do worktree**, estabelecido no Step 1 e validado aqui — nunca deduzido
+de um PR inexistente.
 
 ```bash
-# Resolva a base: do PR quando existir, senão o default do repo
-BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null \
-       || gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+# BASE_REF vem do Step 1 (criação do worktree). Só caia no default do repo quando
+# NENHUMA base empilhada/não-default for pretendida.
+BASE_REF="${BASE_REF:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
+
+# Valide que a base existe no remoto antes de revisar contra ela
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
+  echo "⛔ fail-closed: base '$BASE_REF' não existe em origin"; exit 1; }
 
 # PRIMARY: CodeRabbit CLI (~30s, rate-limited ~1/25min free plan)
-coderabbit review --plain --base "$BASE" --config CLAUDE.md
+coderabbit review --plain --base "$BASE_REF" --config CLAUDE.md
 
-# FALLBACK: Qodo CLI (if CodeRabbit rate-limited)
-qodo --ci -y "Review the git diff between this branch and $BASE. Focus on correctness, consistency, and compliance."
+# FALLBACK: Qodo CLI — `qodo review [pathspec...]`
+# ⚠️ `qodo --ci -y "<prompt>"` NÃO EXISTE MAIS (verificado 2026-09-17: "error: unknown
+#    option '--ci'"). A CLI passou a expor o subcomando `review`.
+# ⚠️ Exige o repo CONECTADO ao workspace Qodo; senão falha com `repo_not_connected`.
+qodo review                      # ou: qodo review <caminho> para limitar o escopo
 
-# If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
+# Se AMBOS indisponíveis (rate-limit, timeout, repo não conectado): execute a passagem
+# DIY de review e DIVULGUE no corpo do PR qual primário faltou e por quê — os bots do
+# GitHub revisam no PR, e o passe DIY NUNCA substitui o veredito de um primário exigido.
+```
+
+**Após abrir o PR (Step 6+), afirme que a base revisada é a base real:**
+
+```bash
+PR_BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
+[ "$PR_BASE" = "$BASE_REF" ] || {
+  echo "⛔ revisão feita contra '$BASE_REF' mas o PR aponta '$PR_BASE' — re-revise"; exit 1; }
 ```
 
 ### Review Classification
@@ -210,9 +231,11 @@ WT=$(git worktree list --porcelain \
      | awk -v b="refs/heads/$BASE" '/^worktree /{p=$2} /^branch /{if($2==b) print p}')
 
 if [ -z "$WT" ]; then
-  echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar"
+  echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar" >&2
+  exit 1
 elif [ -n "$(git -C "$WT" status --porcelain)" ]; then
-  echo "⛔ fail-closed: worktree de $BASE está sujo — não sincronize por cima"
+  echo "⛔ fail-closed: worktree de $BASE está sujo — não sincronize por cima" >&2
+  exit 1
 else
   git -C "$WT" pull --ff-only origin "$BASE"
 fi
