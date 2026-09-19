@@ -91,39 +91,28 @@ Use `protocols/delegation/provider-matrix.md` rows for the active `TICKET_PROVID
 
 ### 7.3 PR merge decision
 
-Consult `feedback_autonomous_merge.md` (user-scope memory). If all 6 criteria are met →
-merge autonomously; otherwise pause and request delegator confirmation with the criteria
-table.
+Consult `feedback_autonomous_merge.md`. All 6 criteria met → merge autonomously; else
+pause and request confirmation with the criteria table.
 
-The **merge method is never a literal**: resolve it through `rules/pr-governance-unified.md`
-Step 9 (declared local policy ∧ effective capability of the base — repo flags, rulesets
-and classic protection). REST is still preferred over `gh pr merge` to avoid local
-checkout side-effects in multi-worktree setups, but it **must carry the resolved method**:
-
-```bash
-gh api -X PUT "/repos/{owner}/{repo}/pulls/{n}/merge" \
-  -f merge_method="$MERGE_METHOD"   # merge | squash | rebase, from Step 9
-```
-
-Omitting `merge_method` makes REST fall back to a merge commit — silently contradicting
-every repo that declares squash, and failing outright on a squash-only repo.
+**Execute the merge through canonical Step 9** (`rules/pr-governance-unified.md`) — do
+not inline the command here. A second executable copy is exactly the drift this protocol
+suffered: it merged over REST without `merge_method`, silently falling back to a merge
+commit on repos that declare squash. Step 9 resolves the method from declared policy ∧
+effective capability (repo flags, rulesets, classic protection) and fails closed.
 
 ### 7.4 Post-merge cleanup
 
-⛔ **Do not delete the remote ref over REST.** The delete-ref endpoint accepts **no
-expected-OID parameter**, so it cannot be made atomic: a push landing between your check
-and the call is destroyed with no way to detect it. Use the lease instead — verified: a
-stale OID yields `! [rejected] (delete) … (stale info)` and the branch survives.
+**Delegate to canonical Steps 10 and 12** — no cleanup commands belong in this file.
 
-```bash
-git push --force-with-lease="refs/heads/$BRANCH:$MERGED_OID" origin --delete "$BRANCH"
-```
+- **Step 10** syncs the branch the PR merged **into**, resolved from the PR — never
+  `origin/main` by reflex.
+- **Step 12** removes the worktree and refs under its 4 gates, deleting local and remote
+  refs **atomically** (expected-OID / lease).
 
-- **Sync**: the branch the PR merged **into**, resolved from `gh pr view --json baseRefName`
-  — never `--ff-only origin/main` by reflex (merging into `develop` and pulling `main`
-  leaves the local state on the wrong branch). See Step 10.
-- **Worktree**: remove only through the guarded Step 12 (4 gates). `git worktree prune`
-  alone skips every gate.
+⛔ Two forms are **never** acceptable, whatever the caller: deleting the remote ref over
+REST (that endpoint has **no expected-OID parameter**, so it cannot be atomic — a push
+landing mid-call is destroyed undetectably) and bare `git worktree prune` as cleanup
+(skips every gate).
 
 ---
 

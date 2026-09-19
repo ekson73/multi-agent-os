@@ -589,7 +589,7 @@ IGN=$(git -C .worktrees/{orphan-name} status --porcelain --ignored \
       | awk '/^!! /{print substr($0,4)}')
 if [ -n "$IGN" ]; then
   echo "conteudo ignorado presente -- NAO sera resgatado por 'add -A':" >&2
-  printf '  %s\n' $IGN >&2
+  printf '  %s\n' "$IGN" >&2
   echo "copie-os para fora do worktree antes de remover" >&2
   exit 1
 fi

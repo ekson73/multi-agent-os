@@ -550,7 +550,30 @@ CUR_OID=$(git -C "$WT_REAL" rev-parse "$BRANCH") || {
   echo "   mergeado=${MERGED_OID:0:8} atual=${CUR_OID:0:8} — revise antes de apagar" >&2
   exit 1; }
 
-# ── Só agora destrói.
+# ── GUARDA 5: inspecione o REMOTO **antes** de destruir qualquer coisa local.
+#    A guarda 4 só olhou a ponta LOCAL; a remota pode ter avançado por push de
+#    outra sessão. Inspecionar só depois produz CLEANUP PARCIAL: worktree e ref
+#    local já destruídos, e então o remoto reprova — estado pior que o inicial.
+#    `ls-remote` distingue pelo exit code (medido):
+#    0 = existe · 2 = não há match (removida no merge) · 128 = erro real.
+# ⚠️ Sob `set -e`, `cmd; LS=$?` ABORTA no status 2 e o `case` nunca roda (medido:
+#    o caminho legítimo "branch já removida" morria aqui). A OR-list preserva o status.
+LS=0
+REMOTE_LINE=$(git ls-remote --exit-code --heads origin "$BRANCH" 2>/dev/null) || LS=$?
+case "$LS" in
+  0) REMOTE_OID=${REMOTE_LINE%%[[:space:]]*}
+     [ "$REMOTE_OID" = "$MERGED_OID" ] || {
+       echo "⛔ fail-closed: a ponta REMOTA de '$BRANCH' difere do que foi mergeado" >&2
+       echo "   mergeado=${MERGED_OID:0:8} remoto=${REMOTE_OID:0:8} — nada foi removido" >&2
+       exit 1; } ;;
+  2) ;;   # já removida no merge — segue; nada a apagar no remoto
+  *) echo "⛔ fail-closed: ls-remote falhou (exit=$LS) — estado remoto indeterminado" >&2
+     echo "   nada foi removido; resolva o acesso e repita" >&2
+     exit 1 ;;
+esac
+
+# ── Todas as 5 guardas passaram. Só agora destrói, na ordem: worktree → ref
+#    local → ref remota. Cada passo é atômico ou fail-closed.
 cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
 git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o critério
 
@@ -559,43 +582,25 @@ git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o c
 #    `update-ref -d <ref> <old>` é ATÔMICO: só remove se a ref ainda valer o
 #    esperado. Verificado — OID correto ⇒ removida; OID vencido ⇒
 #    "cannot lock ref … is at X but expected Y" e a branch PERMANECE.
-#    (`-D` também é necessário conceitualmente aqui: após squash/rebase a ponta
-#     não é ancestral da base, mas quem autoriza é a guarda 1, não a ancestralidade.)
 git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID" || {
   echo "⛔ fail-closed: a branch local avançou durante a limpeza — preservada" >&2
   exit 1; }
 
-# ── Remota: capture a PONTA, não só a existência. A guarda 4 comparou a ponta
-#    LOCAL; a remota pode ter avançado por push de outra sessão, e um delete
-#    "porque existe" descartaria esses commits.
-#    `ls-remote` distingue os casos pelo exit code (medido):
-#    0 = existe · 2 = não há match (removida no merge) · 128 = erro real.
-# ⚠️ Sob `set -e`, `cmd; LS=$?` ABORTA no status 2 e o `case` nunca roda (medido:
-#    o caminho legítimo "branch já removida" morria aqui). A OR-list preserva o status.
-LS=0
-REMOTE_LINE=$(git ls-remote --exit-code --heads origin "$BRANCH" 2>/dev/null) || LS=$?
-case "$LS" in
-  0)
-    REMOTE_OID=${REMOTE_LINE%%[[:space:]]*}
-    [ "$REMOTE_OID" = "$MERGED_OID" ] || {
-      echo "⛔ fail-closed: a ponta REMOTA de '$BRANCH' difere do que foi mergeado" >&2
-      echo "   mergeado=${MERGED_OID:0:8} remoto=${REMOTE_OID:0:8} — não apague" >&2
-      exit 1; }
-    # ⚠️ TOCTOU: entre o `ls-remote` acima e o delete, outra sessão pode ter
-    #    feito push. Um `--delete` simples apagaria esse commit. O lease torna
-    #    a remoção ATÔMICA: o servidor só aceita se a ponta ainda for a esperada.
-    #    Verificado (git 2.50.1): OID correto ⇒ `[deleted]`; OID vencido ⇒
-    #    `! [rejected] (delete) … (stale info)` e a branch PERMANECE.
-    git push --force-with-lease="refs/heads/$BRANCH:$MERGED_OID" \
-             origin --delete "$BRANCH" || {
-      echo "⛔ fail-closed: lease recusado — a branch remota avançou durante a" >&2
-      echo "   limpeza, ou o push falhou. Não force; revise o estado remoto." >&2
-      exit 1; }
-    ;;
-  2) echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)" ;;
-  *) echo "⛔ fail-closed: ls-remote falhou (exit=$LS) — estado remoto indeterminado" >&2
-     exit 1 ;;
-esac
+# ── Remota, quando ainda existe. ⚠️ TOCTOU: entre a guarda 5 e o delete outra
+#    sessão pode ter feito push. Um `--delete` simples apagaria esse commit; o
+#    lease torna a remoção ATÔMICA — o servidor só aceita se a ponta ainda for
+#    a esperada. Verificado (git 2.50.1): OID correto ⇒ `[deleted]`;
+#    OID vencido ⇒ `! [rejected] (delete) … (stale info)` e a branch PERMANECE.
+if [ "$LS" -eq 0 ]; then
+  git push --force-with-lease="refs/heads/$BRANCH:$MERGED_OID" \
+           origin --delete "$BRANCH" || {
+    echo "⛔ lease recusado — a branch remota avançou durante a limpeza." >&2
+    echo "   O worktree e a ref local já foram removidos; a remota PERMANECE." >&2
+    echo "   Não force: revise o que chegou nela antes de apagar." >&2
+    exit 1; }
+else
+  echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)"
+fi
 ```
 
 ---
