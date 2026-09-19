@@ -569,16 +569,29 @@ cat .worktrees/sessions.json | jq '.orphaned_sessions'
 #    `--porcelain` puro omite (um `.env` ficaria invisivel).
 git -C .worktrees/{orphan-name} status --porcelain --untracked-files=all --ignored
 
-# 2. Se ha trabalho importante, criar branch de resgate
+# 2. Se ha trabalho importante, criar branch de resgate.
+#    ⚠️ `git add -A` NAO resgata arquivos IGNORADOS (medido: 0 staged com um
+#    `seg.env` presente). Eles precisam ser copiados a mao antes de remover.
 git -C .worktrees/{orphan-name} checkout -b rescue/orphan-work
 git -C .worktrees/{orphan-name} add -A
 git -C .worktrees/{orphan-name} commit -m "rescue: work from orphaned worktree"
 
-# 3. Remover. NUNCA `rm -rf`: ele nao checa nada e apagaria o que o resgate
-#    deixou para tras. O `worktree remove` RECUSA se ainda houver conteudo --
-#    essa recusa e justamente o sinal de que o resgate ficou incompleto.
+# 3. Arquivos IGNORADOS: o `worktree remove` NAO recusa por causa deles --
+#    medido: com `seg.env` ignorado presente o comando teve SUCESSO e o
+#    arquivo foi DESTRUIDO. Confiar na recusa do git aqui e fail-open.
+#    Verifique explicitamente e salve-os fora do worktree.
+IGN=$(git -C .worktrees/{orphan-name} status --porcelain --ignored \
+      | awk '/^!! /{print substr($0,4)}')
+if [ -n "$IGN" ]; then
+  echo "conteudo ignorado presente -- NAO sera resgatado por 'add -A':" >&2
+  printf '  %s\n' $IGN >&2
+  echo "copie-os para fora do worktree antes de remover" >&2
+  exit 1
+fi
+
+# 4. So entao remover. NUNCA `rm -rf` nem `--force`.
 git worktree remove .worktrees/{orphan-name} || {
-  echo "resgate incompleto: ainda ha conteudo nao commitado/ignorado" >&2
+  echo "resgate incompleto: ainda ha conteudo nao commitado" >&2
   echo "salve-o antes de remover -- NAO use --force nem rm -rf" >&2
   exit 1; }
 ```

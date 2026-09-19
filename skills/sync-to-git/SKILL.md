@@ -183,8 +183,16 @@ EOF
 ```bash
 # Create PR
 BRANCH=$(git branch --show-current)
-BASE="${2:-main}"
 TITLE="$1"
+
+# Base: argumento explicito > base PERSISTIDA pelo worktree > fail-closed.
+# `${2:-main}` era um default fixo -- num repo cuja default e `develop`, ou
+# num PR empilhado, o PR seria aberto contra a branch errada.
+BASE_REF="${2:-}"
+[ -n "$BASE_REF" ] || BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32018,"message":"Base indeterminate","data":{"instructions":"Pass the base explicitly or recreate the worktree via worktree-policy (which persists BASE_REF)"}}}' >&2
+  exit 1; }
 
 # Ensure branch is pushed
 git push -u origin $BRANCH 2>/dev/null
@@ -202,7 +210,7 @@ gh pr create --base "$BASE_REF" --title "$TITLE" --body "$(cat <<EOF
 ---
 Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>
 EOF
-)" --base "$BASE"
+)"
 
 # Get PR URL
 PR_URL=$(gh pr view --json url -q '.url')
@@ -265,10 +273,22 @@ if [ "${FAILED:-1}" -ne 0 ]; then
   exit 1
 fi
 
-# Merge -- metodo resolvido por autoridade LOCAL do repo.
-# Ver rules/pr-governance-unified.md Step 9. `--merge` incondicional contraria
-# os repos que declaram squash e e REJEITADO por repo squash-only.
-gh pr merge --"$MERGE_METHOD"   # merge | squash | rebase, conforme a resolucao
+# Merge -- metodo resolvido por autoridade LOCAL do repo (Step 9 de
+# rules/pr-governance-unified.md). `--merge` incondicional contraria os repos
+# que declaram squash e e REJEITADO por repo squash-only.
+# ⚠️ A variavel precisa ser DEFINIDA aqui: usa-la sem origem apenas move o
+# problema, porque um valor vazio produz `gh pr merge --` e um valor arbitrario
+# nao foi validado contra a capacidade efetiva da base.
+MERGE_METHOD="${MERGE_METHOD:-}"
+[ -n "$MERGE_METHOD" ] || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Merge method unresolved","data":{"instructions":"Run Step 9 resolution (declared policy + effective capability) and export MERGE_METHOD=merge|squash|rebase"}}}' >&2
+  exit 1; }
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Invalid merge method","data":{"instructions":"MERGE_METHOD must be exactly merge, squash or rebase"}}}' >&2
+     exit 1;;
+esac
+gh pr merge --"$MERGE_METHOD"
 ```
 
 ## Safety Gates
