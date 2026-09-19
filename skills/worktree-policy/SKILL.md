@@ -73,9 +73,16 @@ resolvido pelo REGISTRO (nunca por template) · `status --porcelain
 
 ```bash
 # Procedimento canonico e completo: rules/pr-governance-unified.md Step 12.
-# Resumo seguro (apos as 4 guardas):
+# Resumo seguro, DEPOIS das 4 guardas:
 git worktree remove "$WT_REAL"   # sem --force; worktree sujo e fail-closed
-git branch -D "$BRANCH"          # -D: a ponta nao e ancestral apos squash
+
+# ⚠️ A delecao precisa ser ATOMICA. Num run multi-agente outra sessao pode
+# avancar `refs/heads/$BRANCH` DEPOIS das guardas (que nao sao atomicas), e
+# `git branch -D` apagaria esse commit. `update-ref -d <ref> <old>` so remove
+# se a ref ainda valer o esperado; caso contrario recusa e preserva.
+git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID" || {
+  echo "fail-closed: '$BRANCH' avancou durante a limpeza — preservada" >&2
+  exit 1; }
 ```
 
 ## Naming Standards

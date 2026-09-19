@@ -262,7 +262,12 @@ gh pr comment <numero> --body "## Análise da Revisão
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
+# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
+case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
 #### 6b. Aplicar Correção (Loop)
@@ -373,7 +378,12 @@ gh pr comment <numero> --body "## ⚠️ Status: Requer Assistência Humana
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
+# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
+case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+gh pr merge <numero> --"$MERGE_METHOD"
 
 # Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
 # NUNCA `rm -rf` (ignora as 4 guardas e apaga WIP nao commitado sem aviso).
@@ -567,7 +577,12 @@ gh pr comment <numero> --body "## ⚠️ Bypass de Revisão Autorizado
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
+# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
+case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
 ### 6.2 Hotfix Crítico
@@ -594,7 +609,12 @@ Revisão post-mortem agendada para {data}.
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
+# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
+case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
 ---
