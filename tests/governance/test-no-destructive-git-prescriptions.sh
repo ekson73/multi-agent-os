@@ -80,9 +80,13 @@ strip_noncode() {
           -e 's/[[:space:]]#.*$//'
 }
 
+# Padroes como REGEX: a forma literal `worktree remove --force` NAO casa a
+# forma comum `git worktree remove "$W" --force` (caminho no meio). Medido: a
+# fixture com essa forma nao era detectada. `--force` pode vir antes ou depois
+# do caminho, entao ambas as ordens precisam casar.
 declare -a PATTERNS=(
-  'rm -rf .worktrees'
-  'worktree remove --force'
+  'rm -rf [^ ]*\.worktrees'
+  'worktree remove ([^#]*--force|--force)'
   'git branch -d '
   'git pull origin main'
 )
@@ -96,11 +100,11 @@ for pat in "${PATTERNS[@]}"; do
     file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
     # Fora de comentario e fora de crases o padrao sobrevive? Senao, e prosa.
     code=$(strip_noncode "$line")
-    case "$code" in *"$pat"*) ;; *) continue;; esac
+    printf '%s' "$code" | grep -qE -- "$pat" || continue
     is_allowed "$file" "$line" && continue
     fail "prescricao destrutiva: $file -> $(printf '%s' "$line" | cut -c1-72)"
     hits=$((hits + 1))
-  done < <(grep -rn -- "$pat" "${SURFACES[@]}" 2>/dev/null)
+  done < <(grep -rnE -- "$pat" "${SURFACES[@]}" 2>/dev/null)
   [ "$hits" -eq 0 ] && pass "nenhuma prescricao de '$pat'"
 done
 
@@ -134,13 +138,18 @@ git worktree remove "$W" --force   # nunca faca isso
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
 FIX
-  neg=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1 | grep -c 'FAIL')
-  # 3 comandos executaveis com comentario anexado devem ser reprovados;
-  # a prosa entre crases e o comentario puro NAO devem contar.
+  # ⚠️ Conte APENAS linhas de achado. `grep -c FAIL` contaria tambem o
+  #    `Status: FAILED` do sumario -- foi assim que 2 achados + 1 status
+  #    bateram os "3" esperados e mascararam um padrao que nao casava.
+  out=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1)
+  neg=$(printf '%s\n' "$out" | grep -cE 'prescricao destrutiva|metodo de merge fixo')
+  # As 3 linhas executaveis da fixture devem ser reprovadas; a prosa entre
+  # crases e o comentario puro NAO devem contar.
   if [ "${neg:-0}" -eq 3 ]; then
-    pass "fixtures negativas: 3 reprovadas, prosa/comentario isentos"
+    pass "fixtures negativas: 3 achados, prosa/comentario isentos"
   else
-    fail "fixtures negativas: esperado 3 reprovacoes, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 3 achados, obtido ${neg:-0} — filtro furado"
+    printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
 
