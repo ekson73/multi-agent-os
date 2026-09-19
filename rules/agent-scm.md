@@ -298,12 +298,21 @@ ANTI-PATTERNS:
 ```
 INPUT:
   - pr_number: integer
-  - merge_strategy: merge|squash|rebase (default: merge)
+  - merge_strategy: merge|squash|rebase
+    (SEM default: resolvido por autoridade LOCAL -- ver
+     pr-governance-unified.md Step 9. Um default `merge` contraria os 4 repos
+     do inventario que declaram squash e e REJEITADO por repo squash-only.)
 
 EXECUCAO:
-  1. gh pr merge {pr_number} --{merge_strategy}
-  2. cd {main_repo_path}
-  3. git pull origin main
+  1. Resolver {merge_strategy} pelo Step 9 (declaracao explicita > default),
+     validando a capacidade EFETIVA (flag do repo E ausencia de
+     required_linear_history em ruleset E branch protection classica).
+     Metodo declarado porem desabilitado => fail-closed, nao mergeie.
+  2. gh pr merge {pr_number} --{merge_strategy}
+  3. Sincronizar a BASE do PR, dentro do worktree que a acompanha (Step 10).
+     NUNCA `git pull origin main` por reflexo -- mergear em `develop` e puxar
+     `main` deixa o estado local na branch errada. E NUNCA `git checkout` no
+     repo principal: o Step 1 proibe.
 
 OUTPUT:
   - merge_commit: string

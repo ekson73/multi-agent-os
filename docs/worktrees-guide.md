@@ -223,17 +223,24 @@ git worktree list
 
 ### Remover Worktree
 
+⛔ `rm -rf` **nao e remocao de worktree**: ignora toda checagem do git e apaga
+WIP nao commitado (inclusive de outra sessao) sem aviso.
+
 ```bash
-# Remover diretorio e limpar referencias
-rm -rf .worktrees/{agent}-{feature}
-git worktree prune
+# Procedimento guardado completo: rules/pr-governance-unified.md Step 12
+# (4 guardas: PR MERGED · worktree pelo REGISTRO · status -uall --ignored
+#  vazio · ponta == headRefOid). Resumo seguro, apos as guardas:
+git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```
 
 ### Atualizar Worktree
 
 ```bash
 cd .worktrees/{agent}-{feature}
-git pull origin main
+# A base NAO e `main` por reflexo -- resolva a BASE do PR (Steps 3/10).
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName)
+git pull --ff-only origin "$BASE_REF"
 ```
 
 ---

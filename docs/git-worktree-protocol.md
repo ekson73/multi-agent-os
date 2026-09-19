@@ -192,17 +192,24 @@ git worktree list
 
 ### Remover Worktree
 
+⛔ `rm -rf` **nao e remocao de worktree**: ignora toda checagem do git e apaga
+WIP nao commitado (inclusive de outra sessao) sem aviso.
+
 ```bash
-# Remover diretório e limpar referências
-rm -rf .worktrees/{agent}-{feature}
-git worktree prune
+# Procedimento guardado completo: rules/pr-governance-unified.md Step 12
+# (4 guardas: PR MERGED · worktree pelo REGISTRO · status -uall --ignored
+#  vazio · ponta == headRefOid). Resumo seguro, apos as guardas:
+git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```
 
 ### Atualizar Worktree
 
 ```bash
 cd .worktrees/{agent}-{feature}
-git pull origin main
+# A base NAO e `main` por reflexo -- resolva a BASE do PR (Steps 3/10).
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName)
+git pull --ff-only origin "$BASE_REF"
 ```
 
 ---
@@ -261,9 +268,11 @@ git merge feature/child-branch --no-edit
 # SE PAI ≠ MAIN → Continuar subindo a hierarquia
 git push origin <parent-branch>
 
-# 5. CLEANUP
-git worktree remove .worktrees/prime-feature --force
-git branch -d feature/child-branch
+# 5. CLEANUP — ver rules/pr-governance-unified.md Step 12 (4 guardas).
+#    NUNCA `--force` (apaga WIP nao commitado sem aviso) e NUNCA `branch -d`
+#    (RECUSA apos squash/rebase). Apos as guardas:
+git worktree remove .worktrees/prime-feature
+git branch -D feature/child-branch
 ```
 
 ---
@@ -552,17 +561,26 @@ cat .worktrees/sessions.json | jq '.orphaned_sessions'
 
 **Resolução**:
 ```bash
-# 1. Verificar se há trabalho não commitado
-git -C .worktrees/{orphan-name} status
+# Caso DISTINTO: worktree orfao nao tem PR, entao as guardas do Step 12
+# (PR MERGED, headRefOid) nao se aplicam. A protecao aqui e outra: so remova
+# depois que o `worktree remove` CONFIRMAR que nada restou por salvar.
 
-# 2. Se há trabalho importante, criar branch de resgate
+# 1. Verificar trabalho nao commitado -- incluindo IGNORADOS, que o
+#    `--porcelain` puro omite (um `.env` ficaria invisivel).
+git -C .worktrees/{orphan-name} status --porcelain --untracked-files=all --ignored
+
+# 2. Se ha trabalho importante, criar branch de resgate
 git -C .worktrees/{orphan-name} checkout -b rescue/orphan-work
 git -C .worktrees/{orphan-name} add -A
 git -C .worktrees/{orphan-name} commit -m "rescue: work from orphaned worktree"
 
-# 3. Remover worktree
-rm -rf .worktrees/{orphan-name}
-git worktree prune
+# 3. Remover. NUNCA `rm -rf`: ele nao checa nada e apagaria o que o resgate
+#    deixou para tras. O `worktree remove` RECUSA se ainda houver conteudo --
+#    essa recusa e justamente o sinal de que o resgate ficou incompleto.
+git worktree remove .worktrees/{orphan-name} || {
+  echo "resgate incompleto: ainda ha conteudo nao commitado/ignorado" >&2
+  echo "salve-o antes de remover -- NAO use --force nem rm -rf" >&2
+  exit 1; }
 ```
 
 ### Cenário 4: Merge Hierárquico com Conflitos

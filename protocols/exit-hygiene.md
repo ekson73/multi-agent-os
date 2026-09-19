@@ -66,10 +66,13 @@ X  "Fix next session" for known inconsistencies
    → Fix NOW. It takes <5 min. Leaving it guarantees confusion.
 
 X  Stale local branch from already-merged PR
-   → git branch -d {branch} before closing session
+   → Use the guarded Step 12 (rules/pr-governance-unified.md). `git branch -d`
+     REFUSES after a squash/rebase merge ("not fully merged") because the tip
+     is no longer an ancestor: gate on PR `state == MERGED`, then `-D`.
 
 X  Worktree not removed
-   → git worktree remove + git worktree prune
+   → `git worktree remove` under Step 12's 4 gates. NEVER `--force` and NEVER
+     `rm -rf`: both destroy another session's uncommitted WIP with no warning.
 
 X  Optimistic documentation ("all ok") when there's a known inconsistency
    → Document the REAL state, even if it's bad
@@ -77,8 +80,10 @@ X  Optimistic documentation ("all ok") when there's a known inconsistency
 X  Commit "fix: address review findings" without checking what was fixed
    → Read the diff before committing
 
-X  PR merged without pull origin main
-   → Always git pull after merge
+X  PR merged without syncing the base
+   → Sync the branch the PR merged INTO, resolved from `gh pr view --json
+     baseRefName` — never `git pull origin main` by reflex. Merging into
+     `develop` and pulling `main` leaves the local state on the wrong branch.
 
 X  "I'll do the cleanup later"
    → There is no later. Do it now.

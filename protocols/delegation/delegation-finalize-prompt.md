@@ -34,7 +34,7 @@ If dirty → either commit (atomic, with `Agent: {session-id}` sign-off line), s
 
 Per `skills/worktree-policy/SKILL.md` + `skills/hierarchical-merge/SKILL.md`:
 
-- **Merged**: delete the worktree after PR merge — `git worktree remove .worktrees/{agent-hex}-{feature} --force` + `git branch -D {branch}`.
+- **Merged**: delete the worktree after PR merge — **only** through the guarded procedure in `rules/pr-governance-unified.md` Step 12 (4 gates: PR `MERGED` · worktree resolved from the **registry** via `headRefName` · `status --porcelain --untracked-files=all --ignored` empty · tip == `headRefOid`). Then `git worktree remove <path>` + `git branch -D {branch}`. **NEVER `--force`** — it deletes another session's uncommitted WIP with no warning; a dirty worktree is fail-closed, not an obstacle to override.
 - **WIP** (must persist): keep the worktree AND write `<worktree>/RESUME.md` with a 5-line handoff (context, last step, next step, blockers, ETA).
 - **Abandoned**: remove worktree + document reason in `dna_delegation_learnings.md` (user-scope memory) so future sessions don't re-attempt blindly.
 
