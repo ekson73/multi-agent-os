@@ -426,7 +426,6 @@ trabalho válido: se a remoção vier antes da checagem de merge, ele é destru�
 # `--show-toplevel` devolveria a raiz do PRÓPRIO worktree. A primeira entrada de
 # `worktree list --porcelain` é sempre o worktree PRINCIPAL. `substr` preserva espaços.
 ROOT=$(git worktree list --porcelain | awk 'NR==1{print substr($0,10)}')
-WT="$ROOT/.worktrees/{session-id}-{feature}"
 BRANCH={type}/{feature}
 
 # ── GUARDA 1: o PR precisa estar MERGED. Ancestralidade não serve para squash/rebase.
@@ -434,17 +433,17 @@ STATE=$(gh pr view <N> --json state -q .state) || exit 1
 [ "$STATE" = "MERGED" ] || {
   echo "⛔ fail-closed: PR não está MERGED (state=$STATE) — não remova nada" >&2; exit 1; }
 
-# ── GUARDA 2: o worktree precisa EXISTIR e estar REGISTRADO neste repo. Sem ela,
-#    `git -C` num caminho inexistente sai 128 com stdout VAZIO (medido) e a guarda
-#    de WIP abaixo passaria — fail-open que autoriza remover o alvo errado.
-#    ⚠️ Compare caminhos FÍSICOS: o git registra o path resolvido, e em macOS
-#    `/tmp` → `/private/tmp`. Comparação literal reprova um worktree válido
-#    (medido) — seguro, porém inutilizável.
-WT_REAL=$(cd "$WT" 2>/dev/null && pwd -P) || {
-  echo "⛔ fail-closed: '$WT' não existe" >&2; exit 1; }
-git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' \
-  | grep -qxF "$WT_REAL" || {
-    echo "⛔ fail-closed: '$WT_REAL' não é um worktree registrado deste repo" >&2; exit 1; }
+# ── GUARDA 2: resolva o worktree pelo REGISTRO, nunca reconstruindo o path por
+#    template. As regras deste repo usam TRÊS convenções — `{feature_name}`
+#    (agent-scm), `{feature}` (operational-workflow) e `{session-id}-{feature}`
+#    (aqui): fixar uma reprova os worktrees criados pelas outras duas.
+#    O registro também devolve o caminho FÍSICO já resolvido, o que dispensa
+#    normalizar `/tmp` → `/private/tmp` (macOS) na comparação.
+WT_REAL=$(git worktree list --porcelain | awk -v b="refs/heads/$BRANCH" '
+/^worktree /{p=substr($0,10)}
+/^branch /{if(substr($0,8)==b) print p}')
+[ -n "$WT_REAL" ] || {
+  echo "⛔ fail-closed: nenhum worktree registrado acompanha '$BRANCH'" >&2; exit 1; }
 
 # ── GUARDA 3: WIP não commitado (seu ou de outra sessão) bloqueia a remoção.
 #    Sem `2>/dev/null`: um erro real precisa aparecer, não ser silenciado.

@@ -439,7 +439,8 @@ Fluxo pode ser invocado parcialmente:
 
 ```bash
 # Review local primario -- `--plain` FOI REMOVIDO (0.7.x): texto plano ja e o default.
-cr review --base main --config CLAUDE.md
+# A base NUNCA e `main` por reflexo: use a BASE_REF resolvida/persistida no Step 1.
+cr review --base "$BASE_REF" --config CLAUDE.md
 # Apenas mudancas nao commitadas (a flag e `--uncommitted`, NAO `--type uncommitted`)
 cr review --uncommitted
 # Base por commit
