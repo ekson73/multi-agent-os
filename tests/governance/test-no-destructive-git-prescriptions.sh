@@ -63,21 +63,21 @@ is_allowed() {
   return 1
 }
 
-# Linhas que APENAS proibem/descrevem o comando nao sao prescricoes.
-# Comparacao em MINUSCULAS: `never`/`nunca` aparecem nos dois casings, e
-# casar so a forma maiuscula gerava falso positivo (medido).
-is_prohibition() {
-  local l; l=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
-  case "$l" in
-    *nunca*|*never*|*proibido*|*recusa*|*"nao e remocao"*|*"sem aviso"*|\
-    *"não use"*|*"nao use"*|*ignora*|*destroi*|*destrói*|*apaga*|*removido*|\
-    *"conforme a resolucao"*|*"por reflexo"*|*"nao apague"*) return 0;;
-  esac
-  # Item de anti-pattern ("X  ..." na coluna 1) descreve o que NAO fazer.
-  case "$1" in "X  "*) return 0;; esac
-  # Linha comentada em bloco bash tambem nao e comando executavel.
-  case "$1" in [[:space:]]*"#"*|"#"*) return 0;; esac
-  return 1
+# Uma linha so conta se o comando aparece em posicao EXECUTAVEL.
+#
+# Filtrar por vocabulario ("nunca", "apaga", "conforme a resolucao") era um
+# buraco: bastava anexar um comentario para escapar --
+#   `gh pr merge 1 --merge   # conforme a resolucao`  passava.
+# O discriminador correto e ESTRUTURAL, nao lexical:
+#   1. o que vem depois de ` #` e comentario -> nao executa;
+#   2. o que esta entre crases e citacao em prosa -> nao executa.
+# Removidas as duas camadas, se o padrao SOBREVIVE ele esta em posicao de
+# comando. Nenhuma palavra isenta uma linha executavel.
+strip_noncode() {
+  printf '%s' "$1" \
+    | sed -e 's/`[^`]*`/`` /g' \
+          -e 's/^[[:space:]]*#.*$//' \
+          -e 's/[[:space:]]#.*$//'
 }
 
 declare -a PATTERNS=(
@@ -94,7 +94,9 @@ for pat in "${PATTERNS[@]}"; do
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-    is_prohibition "$line" && continue
+    # Fora de comentario e fora de crases o padrao sobrevive? Senao, e prosa.
+    code=$(strip_noncode "$line")
+    case "$code" in *"$pat"*) ;; *) continue;; esac
     is_allowed "$file" "$line" && continue
     fail "prescricao destrutiva: $file -> $(printf '%s' "$line" | cut -c1-72)"
     hits=$((hits + 1))
@@ -107,23 +109,55 @@ hits=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-  is_prohibition "$line" && continue
+  code=$(strip_noncode "$line")
+  printf '%s' "$code" | grep -qE 'gh pr merge[^|]*--(merge|squash|rebase)\b' || continue
   is_allowed "$file" "$line" && continue
   fail "metodo de merge fixo: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
 done < <(grep -rnE 'gh pr merge[^|]*--(merge|squash|rebase)\b' "${SURFACES[@]}" 2>/dev/null)
 [ "$hits" -eq 0 ] && pass "nenhum 'gh pr merge' com metodo fixo"
 
-# Allowlist obsoleta e buraco silencioso: exija que cada isencao ainda case.
-for entry in "${ALLOWLIST[@]}"; do
-  af="${entry%%|*}"; at="${entry#*|}"
-  if [ ! -f "$af" ]; then
-    fail "isencao aponta arquivo inexistente: $af"
-  elif ! grep -qF -- "$at" "$af" 2>/dev/null; then
-    fail "isencao obsoleta (nao casa mais): $af -> $at"
+# ── Fixtures NEGATIVAS: o teste precisa REPROVAR comando mau comentado.
+#    Sem isto, um filtro furado passa despercebido -- foi exatamente o buraco
+#    da versao anterior (`... --merge   # conforme a resolucao` escapava).
+#    A execucao aninhada precisa da guarda DGP_NESTED: sem ela ela rodaria as
+#    proprias fixtures e o teste recursaria sem fim.
+if [ "${DGP_NESTED:-0}" != "1" ]; then
+  FIXT=$(mktemp -d); trap 'rm -rf "$FIXT"' EXIT
+  mkdir -p "$FIXT/rules"
+  cat > "$FIXT/rules/fixture.md" <<'FIX'
+```bash
+gh pr merge 1 --merge   # conforme a resolucao
+rm -rf .worktrees/x   # apaga WIP
+git worktree remove "$W" --force   # nunca faca isso
+```
+Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
+# comentario puro sobre rm -rf .worktrees/x
+FIX
+  neg=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1 | grep -c 'FAIL')
+  # 3 comandos executaveis com comentario anexado devem ser reprovados;
+  # a prosa entre crases e o comentario puro NAO devem contar.
+  if [ "${neg:-0}" -eq 3 ]; then
+    pass "fixtures negativas: 3 reprovadas, prosa/comentario isentos"
+  else
+    fail "fixtures negativas: esperado 3 reprovacoes, obtido ${neg:-0} — filtro furado"
   fi
-done
-[ "$FAILED" -eq 0 ] && pass "todas as isencoes ainda casam"
+fi
+
+# Allowlist obsoleta e buraco silencioso: exija que cada isencao ainda case.
+# No run ANINHADO (fixtures) o root e um tmpdir: os arquivos reais nao existem
+# la, e checar isencoes inflaria a contagem de FAIL que a fixture mede.
+if [ "${DGP_NESTED:-0}" != "1" ]; then
+  for entry in "${ALLOWLIST[@]}"; do
+    af="${entry%%|*}"; at="${entry#*|}"
+    if [ ! -f "$af" ]; then
+      fail "isencao aponta arquivo inexistente: $af"
+    elif ! grep -qF -- "$at" "$af" 2>/dev/null; then
+      fail "isencao obsoleta (nao casa mais): $af -> $at"
+    fi
+  done
+  [ "$FAILED" -eq 0 ] && pass "todas as isencoes ainda casam"
+fi
 
 if [ "$FAILED" -eq 0 ]; then
   echo "  Status: PASSED"

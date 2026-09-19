@@ -120,8 +120,9 @@ EOF
 
 ```bash
 # Metodo resolvido por autoridade local do repo -- ver pr-governance-unified Step 9
-gh pr merge <N> --merge    # ou --squash / --rebase, conforme a resolucao
-
+# MERGE_METHOD vem da resolucao do Step 9 (autoridade local + capacidade
+# efetiva da base). Um literal aqui seria o default que este PR remove.
+gh pr merge <N> --"$MERGE_METHOD"
 # Sincronize a BASE do PR, dentro do worktree que a acompanha -- ver Step 10
 # (NUNCA `git checkout` no repo principal: o Step 1 proibe)
 ```
