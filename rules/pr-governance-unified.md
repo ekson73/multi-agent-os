@@ -399,7 +399,16 @@ gh pr merge <N> --rebase    # resolução produziu "rebase"
 não se excetua. Sincronize **dentro do worktree** que já acompanha a base.
 
 ```bash
-BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
+# ⚠️ O Step 10 é PÓS-merge: sincronizar a base de um PR aberto (ou fechado sem
+#    merge) puxa commits que o PR ainda não contribuiu e deixa o fluxo seguir
+#    para auditoria/cleanup com semântica de mergeado. Leia estado e base
+#    JUNTOS e falhe fechado.
+META=$(gh pr view <N> --json state,baseRefName -q '[.state,.baseRefName]|@tsv') || {
+  echo "⛔ fail-closed: não consegui ler os metadados do PR" >&2; exit 1; }
+IFS=$'\t' read -r STATE BASE <<<"$META"
+[ "$STATE" = "MERGED" ] || {
+  echo "⛔ fail-closed: PR não está MERGED (state=$STATE) — não sincronize" >&2; exit 1; }
+[ -n "$BASE" ] || { echo "⛔ fail-closed: base vazia" >&2; exit 1; }
 
 # Localize o worktree que acompanha $BASE (nunca troque de branch na raiz).
 # `$2` truncaria caminho com espaço: `git worktree list --porcelain` emite o

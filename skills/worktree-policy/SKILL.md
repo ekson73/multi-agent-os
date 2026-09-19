@@ -67,13 +67,14 @@ git worktree list
 WIP nao commitado (inclusive de outra sessao) sem aviso. Numa politica cujo
 proposito e isolar agentes concorrentes, e a contradicao direta.
 
-A remocao segura exige 4 guardas ANTES de destruir: PR `MERGED` · worktree
+A remocao segura exige TODAS as guardas do Step 12 ANTES de destruir -- entre
+elas: PR `MERGED` · worktree
 resolvido pelo REGISTRO (nunca por template) · `status --porcelain
 --untracked-files=all --ignored` vazio · ponta == `headRefOid` do PR.
 
 ```bash
 # Procedimento canonico e completo: rules/pr-governance-unified.md Step 12.
-# Resumo seguro, DEPOIS das 4 guardas:
+# Resumo seguro, DEPOIS de todas as guardas do Step 12:
 git worktree remove "$WT_REAL"   # sem --force; worktree sujo e fail-closed
 
 # ⚠️ A delecao precisa ser ATOMICA. Num run multi-agente outra sessao pode
@@ -117,7 +118,7 @@ CREATE → WORK → VALIDATE QA → MERGE → CLEANUP
 ⛔ **Tempo decorrido NAO autoriza remocao.** Um worktree antigo pode conter trabalho
 nao commitado ou ignorado de outra sessao; apaga-lo por prazo e perda de dados
 disfarcada de higiene. Os prazos abaixo disparam REVISAO, nunca destruicao
-automatica -- a remocao continua condicionada as 4 guardas do Step 12.
+automatica -- a remocao continua condicionada as guardas do Step 12.
 
 | Evento | Acao | Prazo |
 |--------|------|-------|

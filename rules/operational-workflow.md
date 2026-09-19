@@ -151,7 +151,7 @@ gog gmail search '{repo}' -a user@acme-corp.example.com -p
 ⛔ **A remocao ingenua (`worktree remove` + `branch -d`) foi REMOVIDA daqui.**
 `git branch -d` RECUSA apos squash/rebase ("not fully merged") -- e este workflow
 agora permite os tres metodos. E `worktree remove` sem guardas destroi WIP nao
-commitado de outra sessao. So execute sob as 4 guardas do procedimento canonico.
+commitado de outra sessao. So execute sob TODAS as guardas do procedimento canonico (Step 12).
 
 ```bash
 # REFERENCIA: pr-governance-unified.md Step 12 (procedimento completo e guardado).

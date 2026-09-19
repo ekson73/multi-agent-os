@@ -197,7 +197,7 @@ WIP nao commitado (inclusive de outra sessao) sem aviso.
 
 ```bash
 # Procedimento guardado completo: rules/pr-governance-unified.md Step 12
-# (4 guardas: PR MERGED · worktree pelo REGISTRO · status -uall --ignored
+# (todas as guardas: PR MERGED · worktree pelo REGISTRO · status -uall --ignored
 #  vazio · ponta == headRefOid). Resumo seguro, apos as guardas:
 git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```

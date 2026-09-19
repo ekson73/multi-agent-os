@@ -71,7 +71,7 @@ X  Stale local branch from already-merged PR
      is no longer an ancestor: gate on PR `state == MERGED`, then `-D`.
 
 X  Worktree not removed
-   → `git worktree remove` under Step 12's 4 gates. NEVER `--force` and NEVER
+   → `git worktree remove` under all of Step 12's gates. NEVER `--force` and NEVER
      `rm -rf`: both destroy another session's uncommitted WIP with no warning.
 
 X  Optimistic documentation ("all ok") when there's a known inconsistency

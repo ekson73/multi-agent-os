@@ -386,7 +386,7 @@ case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
 gh pr merge <numero> --"$MERGE_METHOD"
 
 # Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
-# NUNCA `rm -rf` (ignora as 4 guardas e apaga WIP nao commitado sem aviso).
+# NUNCA `rm -rf` (ignora TODAS as guardas e apaga WIP nao commitado sem aviso).
 cd /path/to/repo
 git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```
