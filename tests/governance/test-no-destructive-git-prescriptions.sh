@@ -146,6 +146,55 @@ while IFS= read -r hit; do
 done < <(grep -rn 'git branch -D' "${SURFACES[@]}" 2>/dev/null)
 [ "$hits" -eq 0 ] && pass "nenhum 'git branch -D' fora do contexto atomico"
 
+# Um comando shell pode quebrar em varias linhas com `\`. Um scan por LINHA
+# veria `gh api ... /merge \` sem o `-f merge_method=` que vem na seguinte, e
+# acusaria falso positivo (medido no proprio arquivo canonico). Junte as
+# continuacoes ANTES de casar, preservando o numero da primeira linha.
+join_continuations() {
+  local f
+  for f in $(grep -rlE 'pulls/[^ ]*/merge' "${SURFACES[@]}" 2>/dev/null); do
+    awk -v F="$f" '
+      { line = $0
+        if (buf == "") { start = FNR }
+        sub(/\\[[:space:]]*$/, "", line)
+        buf = buf line
+        if ($0 ~ /\\[[:space:]]*$/) { next }
+        print F ":" start ":" buf
+        buf = "" }
+      END { if (buf != "") print F ":" start ":" buf }' "$f"
+  done
+}
+
+# Merge via REST SEM `merge_method`: o endpoint cai em merge commit por default,
+# contradizendo em silencio todo repo que declara squash. O vetor REST nao era
+# coberto pelas regras acima -- `gh pr merge` era, `gh api .../merge` nao.
+hits=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
+  code=$(strip_noncode "$line")
+  printf '%s' "$code" | grep -qE 'pulls/[^ ]*/merge' || continue
+  printf '%s' "$code" | grep -q 'merge_method' && continue
+  is_allowed "$file" "$line" && continue
+  fail "merge REST sem merge_method: $file -> $(printf '%s' "$line" | cut -c1-72)"
+  hits=$((hits + 1))
+done < <(join_continuations | grep -E ':[0-9]+:.*pulls/[^ ]*/merge')
+[ "$hits" -eq 0 ] && pass "nenhum merge REST sem merge_method"
+
+# Delecao de ref via REST: o endpoint delete-ref NAO tem parametro de
+# expected-OID, entao NAO PODE ser atomico. A forma segura e o lease no push.
+hits=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
+  code=$(strip_noncode "$line")
+  printf '%s' "$code" | grep -qE '\-X DELETE.*git/refs/heads' || continue
+  is_allowed "$file" "$line" && continue
+  fail "delete-ref via REST (nao atomizavel): $file -> $(printf '%s' "$line" | cut -c1-72)"
+  hits=$((hits + 1))
+done < <(grep -rnE '\-X DELETE.*git/refs/heads' "${SURFACES[@]}" 2>/dev/null)
+[ "$hits" -eq 0 ] && pass "nenhum delete-ref via REST"
+
 # ── Fixtures NEGATIVAS: o teste precisa REPROVAR comando mau comentado.
 #    Sem isto, um filtro furado passa despercebido -- foi exatamente o buraco
 #    da versao anterior (`... --merge   # conforme a resolucao` escapava).
@@ -162,6 +211,9 @@ git worktree remove "$W" --force   # nunca faca isso
 git branch -D feat/solta   # sem expected-OID: descarta commit concorrente
 git branch -D "$B"   # MERGED_OID no comentario NAO torna o -D atomico
 git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"   # atomico: NAO deve contar
+gh api -X PUT /repos/o/r/pulls/1/merge   # sem merge_method: cai em merge commit
+gh api -X DELETE /repos/o/r/git/refs/heads/feat   # delete-ref nao e atomizavel
+gh api -X PUT /repos/o/r/pulls/1/merge -f merge_method="$M"   # correto: NAO conta
 ```
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
@@ -171,13 +223,13 @@ FIX
   #    bateram os "3" esperados e mascararam um padrao que nao casava.
   out=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1)
   neg=$(printf '%s\n' "$out" \
-    | grep -cE 'prescricao destrutiva|metodo de merge fixo|branch -D sem expected-OID')
-  # 5 linhas executaveis devem ser reprovadas. NAO devem contar: a prosa entre
+    | grep -cE 'prescricao destrutiva|metodo de merge fixo|branch -D sem expected-OID|merge REST sem|delete-ref via REST')
+  # 7 linhas executaveis devem ser reprovadas. NAO devem contar: a prosa entre
   # crases, o comentario puro, e o `update-ref` atomico (que e a forma CERTA).
-  if [ "${neg:-0}" -eq 5 ]; then
-    pass "fixtures negativas: 5 achados; prosa/comentario/update-ref isentos"
+  if [ "${neg:-0}" -eq 7 ]; then
+    pass "fixtures negativas: 7 achados; prosa/comentario/formas-corretas isentos"
   else
-    fail "fixtures negativas: esperado 5 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 7 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
