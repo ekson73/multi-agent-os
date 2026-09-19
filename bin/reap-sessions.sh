@@ -62,14 +62,21 @@ emit_wt() {
   [ -n "$p" ] || return 0
   [ "$p" = "$MAIN_TOP" ] && return 0          # NEVER the main worktree
   [ -d "$p" ] || return 0                      # admin-stale entry → handled by `worktree prune`
-  local ts age elig=0 reason=""
+  local ts age elig=0 reason="" wt_state=""
   ts="$(git -C "$p" log -1 --format=%ct 2>/dev/null || echo 0)"
   age=$(( (NOW - ts) / 86400 ))
   [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
   if [ "$det" -eq 1 ] || [ -z "$b" ]; then elig=1; reason="orphan-detached"; fi
   if [ "$age" -gt "$STALE_DAYS" ]; then elig=1; reason="${reason:+$reason,}stale-${age}d"; fi
   [ "$elig" -eq 1 ] || return 0
-  if [ -n "$(git -C "$p" status --porcelain 2>/dev/null)" ]; then   # WIP guard — never reap dirty
+  # WIP guard — never reap dirty.
+  # `--porcelain` alone OMITS ignored files: a worktree holding only an ignored
+  # `.env` reads as clean, and `worktree remove` then SUCCEEDS and deletes it
+  # (measured — the remove does NOT refuse for ignored paths). `-uall --ignored`
+  # closes that. Inspection failure is fail-closed: skip, never reap blind.
+  wt_state="$(git -C "$p" status --porcelain --untracked-files=all --ignored 2>/dev/null)" \
+    || { skipped_wip+=("$p"); return 0; }
+  if [ -n "$wt_state" ]; then
     skipped_wip+=("$p"); return 0
   fi
   if [ "$APPLY" -eq 0 ]; then would_wt+=("$p ($reason)"); return 0; fi
