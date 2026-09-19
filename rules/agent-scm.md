@@ -423,7 +423,7 @@ EXECUCAO:
     4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
 
   PROIBIDO:
-    - `rm -rf {worktree_path}`      (ignora as 4 guardas; destroi WIP alheio)
+    - `rm -rf {worktree_path}`      (ignora TODAS as guardas; destroi WIP alheio)
     - `git worktree remove --force` (apaga arquivo nao rastreado sem aviso)
     - `git branch -d`               (RECUSA apos squash/rebase; use -D sob a
                                      guarda 1, nunca por ancestralidade)

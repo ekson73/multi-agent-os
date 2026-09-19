@@ -80,7 +80,7 @@
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │ STEP 6 — HITL merge gate per [C07] v2.1.0 (operator-only).        │
-│          Cleanup post-merge: Step 12 guardado (4 guardas + update-ref).    │
+│          Cleanup post-merge: Step 12 guardado (guardas + update-ref).     │
 └─────────────────────────────┬────────────────────────────────────┘
                               ▼
 ┌──────────────────────────────────────────────────────────────────┐

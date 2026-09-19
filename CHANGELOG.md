@@ -31,7 +31,7 @@ Cada correcao abaixo tem contraprova executada.
   consulta rulesets **e** branch protection classica, pagina o endpoint
   (`--paginate --slurp` + `add`) e codifica bases com barra (`release/1.0` cru
   devolvia `[]` com exit 0 — falha ABERTA).
-- **Step 12 — 4 guardas antes de qualquer remocao.** PR `MERGED`; worktree
+- **Step 12 — todas as guardas antes de qualquer remocao.** PR `MERGED`; worktree
   resolvido pelo REGISTRO a partir de `headRefName` (havia TRES convencoes de
   path incompativeis); `status -uall --ignored` (o `--porcelain` puro omite
   ignorados, e o remove apagaria um `.env` de outra sessao); e ponta atual ==
