@@ -215,6 +215,15 @@ git push -u origin {branch-name}
 ## Step 6: Create PR
 
 ```bash
+# ⚠️ Recarregue ANTES de usar: o Step 6 costuma rodar em shell NOVO, onde
+#    `$BASE_REF` esta vazio. Passar vazio faz `--base ""` — ou, pior, o gh
+#    cai na branch default e o PR nasce contra a base errada.
+GITDIR=$(git rev-parse --git-dir)
+BASE_REF=$(cat "$GITDIR/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || {
+  echo "⛔ fail-closed: BASE_REF não persistida — recrie o worktree pelo Step 1" >&2
+  exit 1; }
+
 # --base OBRIGATORIO: sem ele o gh usa a branch DEFAULT do repo, e um PR
 # empilhado (base != default) seria aberto contra a base errada, invalidando
 # a revisao do Step 3 que usou $BASE_REF.
@@ -403,12 +412,19 @@ WT=$(git worktree list --porcelain \
 if [ -z "$WT" ]; then
   echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar" >&2
   exit 1
-elif [ -n "$(git -C "$WT" status --porcelain)" ]; then
-  echo "⛔ fail-closed: worktree de $BASE está sujo — não sincronize por cima" >&2
-  exit 1
-else
-  git -C "$WT" pull --ff-only origin "$BASE"
 fi
+
+# ⚠️ `--porcelain` sozinho OMITE ignorados. Se um commit que chega passar a
+#    rastrear um caminho hoje ignorado, o `pull --ff-only` SOBRESCREVE a versão
+#    local sem aviso — e a árvore parecia limpa.
+DIRTY=$(git -C "$WT" status --porcelain --untracked-files=all --ignored) || {
+  echo "⛔ fail-closed: não consegui inspecionar o worktree de $BASE" >&2; exit 1; }
+[ -z "$DIRTY" ] || {
+  echo "⛔ fail-closed: worktree de $BASE tem conteúdo não commitado/ignorado" >&2
+  echo "   preserve-o antes de sincronizar por cima" >&2
+  exit 1; }
+
+git -C "$WT" pull --ff-only origin "$BASE"
 ```
 
 ## Step 11: Audit Reviews + Archive Emails
