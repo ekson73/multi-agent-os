@@ -434,23 +434,44 @@ STATE=$(gh pr view <N> --json state -q .state) || exit 1
 [ "$STATE" = "MERGED" ] || {
   echo "⛔ fail-closed: PR não está MERGED (state=$STATE) — não remova nada" >&2; exit 1; }
 
-# ── GUARDA 2: WIP não commitado (seu ou de outra sessão) bloqueia a remoção.
-[ -z "$(git -C "$WT" status --porcelain 2>/dev/null)" ] || {
-  echo "⛔ fail-closed: '$WT' tem mudanças não commitadas — preserve e escale" >&2; exit 1; }
+# ── GUARDA 2: o worktree precisa EXISTIR e estar REGISTRADO neste repo. Sem ela,
+#    `git -C` num caminho inexistente sai 128 com stdout VAZIO (medido) e a guarda
+#    de WIP abaixo passaria — fail-open que autoriza remover o alvo errado.
+#    ⚠️ Compare caminhos FÍSICOS: o git registra o path resolvido, e em macOS
+#    `/tmp` → `/private/tmp`. Comparação literal reprova um worktree válido
+#    (medido) — seguro, porém inutilizável.
+WT_REAL=$(cd "$WT" 2>/dev/null && pwd -P) || {
+  echo "⛔ fail-closed: '$WT' não existe" >&2; exit 1; }
+git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' \
+  | grep -qxF "$WT_REAL" || {
+    echo "⛔ fail-closed: '$WT_REAL' não é um worktree registrado deste repo" >&2; exit 1; }
+
+# ── GUARDA 3: WIP não commitado (seu ou de outra sessão) bloqueia a remoção.
+#    Sem `2>/dev/null`: um erro real precisa aparecer, não ser silenciado.
+DIRTY=$(git -C "$WT_REAL" status --porcelain) || {
+  echo "⛔ fail-closed: não consegui inspecionar '$WT_REAL'" >&2; exit 1; }
+[ -z "$DIRTY" ] || {
+  echo "⛔ fail-closed: '$WT_REAL' tem mudanças não commitadas — preserve e escale" >&2
+  exit 1; }
 
 # ── Só agora destrói.
 cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
-git worktree remove "$WT"               # sem --force: as guardas acima são o critério
+git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o critério
 git branch -D "$BRANCH"                 # -D: a ponta não é ancestral após squash/rebase
 
-# ── Remota: distinga "já removida" de "falhou". `||` sozinho mapearia erro de
-# auth/rede para sucesso silencioso.
-if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
-  git push origin --delete "$BRANCH" || {
-    echo "⛔ a branch remota existe mas o delete falhou (auth/rede?)" >&2; exit 1; }
-else
-  echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)"
-fi
+# ── Remota: `ls-remote` distingue os casos pelo exit code (medido):
+#    0 = existe · 2 = não há match (removida no merge) · 128 = erro real (auth/rede).
+#    Tratar 128 como "já removida" mascararia falha de infraestrutura.
+# ⚠️ Sob `set -e`, `cmd; LS=$?` ABORTA no status 2 e o `case` nunca roda (medido:
+#    o caminho legítimo "branch já removida" morria aqui). A OR-list preserva o status.
+LS=0; git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 || LS=$?
+case "$LS" in
+  0) git push origin --delete "$BRANCH" || {
+       echo "⛔ a branch remota existe mas o delete falhou" >&2; exit 1; } ;;
+  2) echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)" ;;
+  *) echo "⛔ fail-closed: ls-remote falhou (exit=$LS) — estado remoto indeterminado" >&2
+     exit 1 ;;
+esac
 ```
 
 ---
@@ -468,7 +489,9 @@ fi
 ### CLI Gotchas
 
 - **CodeRabbit**: plano free ~1 review/25min, limite de 150 arquivos/PR. `--plain` foi
-  **REMOVIDO** na 0.7.x — use `--prompt-only`. Em 0.5.2 houve timeout a 180 s.
+  **REMOVIDO** na 0.7.x — **não** existe flag substituta: *"Plain text is the default
+  review mode"* (`coderabbit review --help`, 0.7.8). Basta **omitir** a flag. Para saída
+  estruturada consumível por agente use `--agent`. Em 0.5.2 houve timeout a 180 s.
 - **Qodo**: `qodo --ci -y "prompt"` **NÃO EXISTE MAIS** (`error: unknown option '--ci'`,
   verificado 2026-09-17). O subcomando atual é `qodo review [pathspec...]`.
 - **Qodo**: `review` exige o repo conectado à plataforma; sem isso falha com
