@@ -114,12 +114,22 @@ CREATE → WORK → VALIDATE QA → MERGE → CLEANUP
 
 ## Retention Policy
 
-| Event | Action | Deadline |
-|-------|--------|----------|
-| PR merged | Delete worktree | 24h |
-| Task completed | Delete worktree | 72h |
-| Worktree stale | Evaluate and clean | Immediate |
-| Maximum absolute | Force cleanup | 7 days |
+⛔ **Tempo decorrido NAO autoriza remocao.** Um worktree antigo pode conter trabalho
+nao commitado ou ignorado de outra sessao; apaga-lo por prazo e perda de dados
+disfarcada de higiene. Os prazos abaixo disparam REVISAO, nunca destruicao
+automatica -- a remocao continua condicionada as 4 guardas do Step 12.
+
+| Evento | Acao | Prazo |
+|--------|------|-------|
+| PR merged | Elegivel a cleanup guardado (Step 12) | 24h |
+| Tarefa concluida | Elegivel a cleanup guardado (Step 12) | 72h |
+| Worktree parece stale | REVISAR: de quem e? ha WIP/ignorados? | imediato |
+| Maximo absoluto | ESCALAR ao dono, com inventario do conteudo | 7 dias |
+
+No maximo absoluto a acao e **escalar**, nao forcar: liste o que ha dentro
+(`status --porcelain --untracked-files=all --ignored`) e devolva a decisao a quem
+criou o worktree. Se o dono nao responder, o conteudo e preservado -- nunca
+descartado por prazo.
 
 ## Enforcement
 
