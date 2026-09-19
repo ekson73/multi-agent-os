@@ -37,22 +37,28 @@ git commit -m "{type}({scope}): {description}"
 ## 3. Local Review (MANDATORY before push)
 
 ```bash
-# PRIMARY: CodeRabbit CLI
-cr review --plain --base main --config CLAUDE.md
+# Base NUNCA fixa: resolva conforme pr-governance-unified Step 1/3
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) \
+  || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) \
+  || { echo "fail-closed: base indeterminada" >&2; exit 1; }
 
-# FALLBACK: Qodo CLI (if CodeRabbit rate-limited)
-qodo --ci -y "Review the git diff between this branch and main. Focus on correctness, consistency, and compliance."
+# PRIMARY: CodeRabbit CLI (`--plain` foi REMOVIDO na 0.7.8; texto plano e o default)
+cr review --base "$BASE_REF" --config CLAUDE.md
+
+# FALLBACK: Qodo CLI (`qodo --ci -y` NAO EXISTE MAIS; use o subcomando review)
+qodo review
 
 # If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
 ```
 
 ### CodeRabbit CLI aliases
 - `cr` or `coderabbit` — same binary
-- `cr review --plain --base main` — minimal output, compare against main
+- `cr review --base "$BASE_REF"` — compara contra a base RESOLVIDA (nunca `main` fixo)
 - Rate limit: ~1 review/25min on free plan, 150 files/PR max
 
 ### Qodo CLI notes
-- `qodo --ci -y "prompt"` — non-interactive mode (no agent.toml needed)
+- `qodo review [pathspec...]` — subcomando atual (⚠️ `qodo --ci -y "prompt"` foi REMOVIDO:
+  retorna `error: unknown option '--ci'`). Exige o repo conectado ao workspace Qodo.
 - AVOID `qodo self-review` without agent.toml (opens browser)
 - AVOID `-q` flag (suppresses output)
 
@@ -82,9 +88,11 @@ EOF
 ## 6. Merge + Pull
 
 ```bash
-gh pr merge <N> --merge
-cd /path/to/main-repo
-git pull origin main
+# Metodo resolvido por autoridade local do repo -- ver pr-governance-unified Step 9
+gh pr merge <N> --merge    # ou --squash / --rebase, conforme a resolucao
+
+# Sincronize a BASE do PR, dentro do worktree que a acompanha -- ver Step 10
+# (NUNCA `git checkout` no repo principal: o Step 1 proibe)
 ```
 
 ## 7. Audit Reviews (gh api)

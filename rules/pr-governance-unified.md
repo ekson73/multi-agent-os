@@ -29,7 +29,7 @@ DECISION:
   8.ANALYZE -> MERGE | FIX+PUSH (loop 7-8) | PARTIAL+PUSH | ESCALATE
 
 POST-MERGE:
-  9.MERGE -> 10.PULL MAIN -> 11.AUDIT+ARCHIVE EMAILS -> 12.CLEANUP WORKTREE
+  9.MERGE (método resolvido) -> 10.SYNC BASE BRANCH -> 11.AUDIT+ARCHIVE EMAILS -> 12.CLEANUP WORKTREE
 ```
 
 ---
@@ -232,18 +232,27 @@ local do repositório**. Ratificado pelo operador em 2026-09-17, após inventár
   Snapshot é ponto de partida, **não** substituto da verificação: **sempre reconfira o repo
   em que você está operando.**
 
-**Eixo 2 — capacidade habilitada** (o que o repo *permite*): `allow_merge_commit` /
-`allow_squash_merge` + rulesets. Habilitar vários métodos é capacidade legítima, **não** é
-declaração de política.
+**Eixo 2 — capacidade habilitada** (o que o repo *permite*): `allow_merge_commit`,
+`allow_squash_merge` **e `allow_rebase_merge`** + rulesets. Habilitar vários métodos é
+capacidade legítima, **não** é declaração de política. `rules/agent-scm.md` modela os
+**três** métodos — a resolução aqui cobre os três, não dois.
+
+```bash
+CAP=$(gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed)
+```
 
 **Resolução:**
 
 | Situação | Ação |
 |---|---|
 | Declaração explícita existe **e** o método está habilitado | use o método **declarado** |
-| **Nenhuma** declaração | **default `--merge`** — preserva ancestralidade |
 | Método declarado está **desabilitado** no repo | ⛔ fail-closed: não mergeie, escale |
+| **Nenhuma** declaração **e** `merge` habilitado | `--merge` (preserva ancestralidade) |
+| **Nenhuma** declaração **e** `merge` **desabilitado** | ⛔ **fail-closed** — NÃO caia em outro método por conta própria: a ausência de política não autoriza escolher squash/rebase. Escale |
 | **Fontes divergem** entre si | protocolo de conflito abaixo |
+
+⚠️ O default **nunca** dispensa a verificação de capacidade. Um repo squash-only rejeitaria
+`--merge`, e prescrever um comando que falha é pior que escalar.
 
 **Protocolo de conflito entre fontes** (ratificado pelo operador; substitui hierarquia fixa):
 
@@ -251,12 +260,15 @@ declaração de política.
 2. Existe regra de escopo mais amplo que regule o caso (**global → específico**, **top → down**)?
    → ela decide; corrija as fontes divergentes para refletir o resultado.
 3. A divergência é **claramente** drift (uma fonte ficou para trás) **e** você tem segurança
-   para corrigir sozinho? → corrija todos os arquivos em conflito e registre a correção.
+   para corrigir sozinho? → corrija **todos** os arquivos em conflito — inclusive outras regras
+   auto-carregadas que complementem esta (ex. `rules/operational-workflow.md`) — e registre.
 4. Caso contrário → **HITL**. Não mergeie sob conflito não resolvido.
 
 ```bash
-gh pr merge <N> --merge    # SOMENTE se a resolução produziu "merge"
-gh pr merge <N> --squash   # SOMENTE se a resolução produziu "squash"
+# Um comando por método resolvido. Os TRÊS são suportados.
+gh pr merge <N> --merge     # resolução produziu "merge"
+gh pr merge <N> --squash    # resolução produziu "squash"
+gh pr merge <N> --rebase    # resolução produziu "rebase"
 ```
 
 ## Step 10: Sync the base branch
@@ -270,9 +282,13 @@ não se excetua. Sincronize **dentro do worktree** que já acompanha a base.
 ```bash
 BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
 
-# Localize o worktree que já acompanha $BASE (nunca troque de branch na raiz)
+# Localize o worktree que acompanha $BASE (nunca troque de branch na raiz).
+# `$2` truncaria caminho com espaço: `git worktree list --porcelain` emite o
+# caminho INTEIRO após "worktree ". Use substr, não campo.
 WT=$(git worktree list --porcelain \
-     | awk -v b="refs/heads/$BASE" '/^worktree /{p=$2} /^branch /{if($2==b) print p}')
+     | awk -v b="refs/heads/$BASE" '
+         /^worktree /{p=substr($0,10)}
+         /^branch /{if(substr($0,8)==b) print p}')
 
 if [ -z "$WT" ]; then
   echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar" >&2
