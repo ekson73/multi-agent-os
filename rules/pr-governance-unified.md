@@ -111,14 +111,18 @@ de um PR inexistente.
 #    abaixo e persista a base depois de validada.
 GITDIR=$(git rev-parse --git-dir)
 
+# ⚠️ Sob `set -e`, uma atribuição por substituição de comando herda o status do comando:
+#    `V=$(cat inexistente)` ABORTA o script e torna os fallbacks inalcançáveis
+#    (verificado: exit=1, o eco seguinte nunca executa). Guarde TODA etapa com `|| …`.
+
 # 1º) arquivo persistido pelo Step 1c
-BASE_REF=$(cat "$GITDIR/BASE_REF" 2>/dev/null)
+BASE_REF=$(cat "$GITDIR/BASE_REF" 2>/dev/null) || BASE_REF=""
 
 # 2º) BASE_REF explícito do chamador (adoção manual de worktree legado)
-[ -z "$BASE_REF" ] && BASE_REF="${BASE_REF_OVERRIDE:-}"
+[ -n "$BASE_REF" ] || BASE_REF="${BASE_REF_OVERRIDE:-}"
 
 # 3º) base do PR, quando já existe PR para esta branch
-[ -z "$BASE_REF" ] && BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null)
+[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) || BASE_REF=""
 
 # 4º) nenhuma fonte → fail-closed. NÃO caia no default: um PR empilhado seria
 #     revisado contra a base errada em silêncio.
@@ -135,13 +139,20 @@ printf '%s\n' "$BASE_REF" > "$GITDIR/BASE_REF"
 # ⚠️ `--plain` FOI REMOVIDO (verificado 2026-09-17 na 0.7.8; a CLI auto-atualiza em
 #    background, então a flag pode sumir sem aviso). Texto plano já é o modo default.
 #    Para saída estruturada consumível por agente use `--agent`.
-coderabbit review --base "$BASE_REF" --config CLAUDE.md
+if coderabbit review --base "$BASE_REF" --config CLAUDE.md; then
+  PRIMARY_OK=1
+else
+  PRIMARY_OK=0; echo "⚠️  CodeRabbit falhou — caindo para o fallback" >&2
+fi
 
-# FALLBACK: Qodo CLI — `qodo review [pathspec...]`
+# FALLBACK: Qodo CLI — SÓ quando o primário falha. Rodá-lo em sequência incondicional
+# faz um review bem-sucedido do CodeRabbit ser derrubado por `repo_not_connected`.
 # ⚠️ `qodo --ci -y "<prompt>"` NÃO EXISTE MAIS (verificado 2026-09-17: "error: unknown
 #    option '--ci'"). A CLI passou a expor o subcomando `review`.
 # ⚠️ Exige o repo CONECTADO ao workspace Qodo; senão falha com `repo_not_connected`.
-qodo review                      # ou: qodo review <caminho> para limitar o escopo
+if [ "$PRIMARY_OK" -eq 0 ]; then
+  qodo review || echo "⚠️  Qodo também indisponível" >&2   # ou: qodo review <caminho>
+fi
 
 # Se AMBOS indisponíveis (rate-limit, timeout, repo não conectado): execute a passagem
 # DIY de review e DIVULGUE no corpo do PR qual primário faltou e por quê — os bots do
@@ -151,9 +162,16 @@ qodo review                      # ou: qodo review <caminho> para limitar o esco
 **Após abrir o PR (Step 6+), afirme que a base revisada é a base real:**
 
 ```bash
+# ⚠️ Step 6+ costuma rodar em shell NOVO: `BASE_REF` não sobrevive entre steps (Step 3).
+# Recarregue da persistência ANTES de comparar, senão a asserção rejeita todo PR válido.
+GITDIR=$(git rev-parse --git-dir)
+BASE_REF=$(cat "$GITDIR/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || {
+  echo "⛔ fail-closed: BASE_REF não persistida — recrie o worktree pelo Step 1" >&2; exit 1; }
+
 PR_BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
 [ "$PR_BASE" = "$BASE_REF" ] || {
-  echo "⛔ revisão feita contra '$BASE_REF' mas o PR aponta '$PR_BASE' — re-revise"; exit 1; }
+  echo "⛔ revisão feita contra '$BASE_REF' mas o PR aponta '$PR_BASE' — re-revise" >&2; exit 1; }
 ```
 
 ### Review Classification
@@ -237,8 +255,45 @@ local do repositório**. Ratificado pelo operador em 2026-09-17, após inventár
 capacidade legítima, **não** é declaração de política. `rules/agent-scm.md` modela os
 **três** métodos — a resolução aqui cobre os três, não dois.
 
+⚠️ **Flag do repo não basta: a proteção da branch-alvo pode invalidá-la.** Com
+`required_linear_history` na base, o GitHub **rejeita merge commit** ainda que
+`allow_merge_commit=true`. E há **dois sistemas coexistentes** — *rulesets* e *branch
+protection clássica*: inspecionar só um deixa o outro passar. Capacidade efetiva =
+flag do repo **∧** ausência de linear-history em **ambos**.
+
+⛔ **Falha de inspeção é fail-closed, nunca "não há restrição".** Mapear erro de
+auth/rede/endpoint para zero recria o fail-open que este gate existe para eliminar.
+Medido: ambos endpoints devolvem **exit=1** e escrevem o **JSON de erro em stdout**.
+
 ```bash
-CAP=$(gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed)
+# Base FRESCA: o Step 9 pode rodar em shell novo, onde $BASE_REF não existe.
+BASE_REF=$(gh pr view <N> --json baseRefName -q .baseRefName) || {
+  echo "⛔ fail-closed: não consegui resolver a base do PR" >&2; exit 1; }
+
+CAP=$(gh repo view --json mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed) || {
+  echo "⛔ fail-closed: não consegui ler as capacidades do repo" >&2; exit 1; }
+
+# (a) Rulesets que incidem sobre a BASE (não sobre o repo inteiro).
+RULES=$(gh api "repos/{owner}/{repo}/rules/branches/$BASE_REF") || {
+  echo "⛔ fail-closed: inspeção de rulesets falhou — não presuma ausência" >&2; exit 1; }
+RLIN=$(printf '%s' "$RULES" | jq '[.[]|select(.type=="required_linear_history")]|length')
+
+# (b) Branch protection CLÁSSICA. "Branch not protected" é ausência legítima (404);
+#     qualquer outra falha é fail-closed.
+if PROT=$(gh api "repos/{owner}/{repo}/branches/$BASE_REF/protection" 2>/dev/null); then
+  PLIN=$(printf '%s' "$PROT" | jq -r '.required_linear_history.enabled // false')
+elif printf '%s' "$PROT" | grep -q '"Branch not protected"'; then
+  PLIN=false
+else
+  echo "⛔ fail-closed: inspeção de branch protection falhou em '$BASE_REF'" >&2; exit 1
+fi
+
+# Capacidade EFETIVA de merge commit.
+MERGE_OK=$(printf '%s' "$CAP" | jq -r '.mergeCommitAllowed')
+if [ "$RLIN" -gt 0 ] || [ "$PLIN" = true ]; then
+  MERGE_OK=false
+  echo "ℹ️  linear-history exigida em '$BASE_REF': merge commit indisponível" >&2
+fi
 ```
 
 **Resolução:**
@@ -347,16 +402,55 @@ gog gmail thread modify {threadId} --remove INBOX -a your-personal-email@example
 
 ## Step 12: Cleanup Worktree
 
+⚠️ **Saia do worktree antes de removê-lo.** O Step 1 entra no worktree da feature e o Step 10
+usa `git -C` (que **não** muda o diretório do chamador). Remover o worktree que contém o `cwd`
+falha, e os comandos seguintes herdam um `cwd` inválido.
+
+⚠️ **Remova o worktree ANTES de apagar a branch.** Com o worktree ainda registrado, `git branch`
+falha com *"cannot delete branch used by worktree"* — erro que **mascara** o problema real
+abaixo.
+
+⚠️ **`git branch -d` recusa após squash/rebase.** Esses métodos reescrevem os commits, então a
+ponta da feature **não** é ancestral da base — o git a considera *"not fully merged"*. A remoção
+só é segura porque o PR **está mergeado**: confirme isso pela API, não pela ancestralidade.
+
+⛔ **NUNCA use `git worktree remove --force`.** Ele apaga WIP não commitado **sem aviso**
+(verificado: um arquivo não rastreado foi destruído silenciosamente). Num ambiente multi-agente
+isso descarta trabalho de outra sessão. Worktree sujo é **fail-closed**, não obstáculo a forçar.
+
+⚠️ **Todas as guardas ANTES de qualquer remoção.** Um worktree limpo porém **não mergeado** é
+trabalho válido: se a remoção vier antes da checagem de merge, ele é destruído e só a branch
+é poupada. Verifique primeiro, destrua depois.
+
 ```bash
-# Remove worktree
-git worktree remove .worktrees/{session-id}-{feature}
-# Or: rm -rf .worktrees/{session-id}-{feature} && git worktree prune
+# `--show-toplevel` devolveria a raiz do PRÓPRIO worktree. A primeira entrada de
+# `worktree list --porcelain` é sempre o worktree PRINCIPAL. `substr` preserva espaços.
+ROOT=$(git worktree list --porcelain | awk 'NR==1{print substr($0,10)}')
+WT="$ROOT/.worktrees/{session-id}-{feature}"
+BRANCH={type}/{feature}
 
-# Delete local branch
-git branch -d {type}/{feature}
+# ── GUARDA 1: o PR precisa estar MERGED. Ancestralidade não serve para squash/rebase.
+STATE=$(gh pr view <N> --json state -q .state) || exit 1
+[ "$STATE" = "MERGED" ] || {
+  echo "⛔ fail-closed: PR não está MERGED (state=$STATE) — não remova nada" >&2; exit 1; }
 
-# Delete remote branch
-git push origin --delete {type}/{feature}
+# ── GUARDA 2: WIP não commitado (seu ou de outra sessão) bloqueia a remoção.
+[ -z "$(git -C "$WT" status --porcelain 2>/dev/null)" ] || {
+  echo "⛔ fail-closed: '$WT' tem mudanças não commitadas — preserve e escale" >&2; exit 1; }
+
+# ── Só agora destrói.
+cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
+git worktree remove "$WT"               # sem --force: as guardas acima são o critério
+git branch -D "$BRANCH"                 # -D: a ponta não é ancestral após squash/rebase
+
+# ── Remota: distinga "já removida" de "falhou". `||` sozinho mapearia erro de
+# auth/rede para sucesso silencioso.
+if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+  git push origin --delete "$BRANCH" || {
+    echo "⛔ a branch remota existe mas o delete falhou (auth/rede?)" >&2; exit 1; }
+else
+  echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)"
+fi
 ```
 
 ---
@@ -373,9 +467,13 @@ git push origin --delete {type}/{feature}
 
 ### CLI Gotchas
 
-- **CodeRabbit**: Free plan ~1 review/25min, 150 files/PR limit
-- **Qodo**: `self-review` requires `agent.toml` and opens web UI — use `qodo --ci -y "prompt"` for CLI
-- **Qodo**: Avoid `-q` (silent) — suppresses review output. Use `--ci -y` for non-interactive
+- **CodeRabbit**: plano free ~1 review/25min, limite de 150 arquivos/PR. `--plain` foi
+  **REMOVIDO** na 0.7.x — use `--prompt-only`. Em 0.5.2 houve timeout a 180 s.
+- **Qodo**: `qodo --ci -y "prompt"` **NÃO EXISTE MAIS** (`error: unknown option '--ci'`,
+  verificado 2026-09-17). O subcomando atual é `qodo review [pathspec...]`.
+- **Qodo**: `review` exige o repo conectado à plataforma; sem isso falha com
+  `repo_not_connected`. Por isso é **fallback** — execute-o só quando o CodeRabbit falhar,
+  nunca em sequência incondicional.
 - **gog**: Uses `thread` (singular), not `threads` for subcommand
 - **Gmail MCP**: Only @gmail.com (OAuth). Cannot access @acme-corp.example.com
 
@@ -433,7 +531,10 @@ X  Merge without any review
 X  Archiving emails before auditing reviews (audit FIRST)
 X  Using email to extract review content (use gh api)
 X  Using Gmail MCP for @acme-corp.example.com (not connected)
-X  Using qodo self-review without agent.toml (use qodo --ci -y "prompt" instead)
+X  Using `qodo --ci -y "prompt"` (REMOVIDO da CLI — use `qodo review [pathspec...]`)
+X  Running Qodo unconditionally after CodeRabbit (é FALLBACK: só quando o primário falha)
+X  Hard-coding `main` as merge base or sync target (resolva a base; veja Steps 3 e 10)
+X  `git worktree remove --force` (destrói WIP não commitado de outras sessões, sem aviso)
 X  Rationalizing protocol bypass: "user said 'resolve gaps' so I can edit in main repo"
    → Task instructions ("fix", "resolve", "implement") are NOT protocol overrides.
    → Only EXPLICIT bypass language counts ("skip worktree", "edit directly").

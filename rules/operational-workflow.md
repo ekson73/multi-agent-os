@@ -11,15 +11,23 @@ description: Workflow operacional — PR governance + git worktrees + email clea
 ## Quick Reference: Complete PR Lifecycle
 
 ```
-WORKTREE → CODE → LOCAL REVIEW → FIX LOOP → PUSH → PR → [BOT REVIEW] → MERGE → PULL → AUDIT → ARCHIVE EMAILS → CLEANUP
+WORKTREE → CODE → LOCAL REVIEW → FIX LOOP → PUSH → PR → [BOT REVIEW] → MERGE → SYNC BASE → AUDIT → ARCHIVE EMAILS → CLEANUP
 ```
 
 ## 1. Worktree Creation (MANDATORY)
 
 ```bash
-# Create worktree with session-prefixed branch
-git worktree add .worktrees/{feature} -b {type}/{feature}
+# A base NUNCA é `main` por reflexo: resolva e PERSISTA para os steps seguintes.
+BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
+  echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
+git fetch -q origin "$BASE_REF"
+
+git worktree add .worktrees/{feature} -b {type}/{feature} "origin/$BASE_REF"
 cd .worktrees/{feature}
+
+# Persista: variaveis de shell NAO sobrevivem entre steps. Sem isto o Step 3 falha.
+printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
 ```
 
 Types: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`
@@ -37,18 +45,26 @@ git commit -m "{type}({scope}): {description}"
 ## 3. Local Review (MANDATORY before push)
 
 ```bash
-# Base NUNCA fixa: resolva conforme pr-governance-unified Step 1/3
-BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) \
-  || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) \
-  || { echo "fail-closed: base indeterminada" >&2; exit 1; }
+# Base NUNCA fixa: mesma precedencia do pr-governance-unified Step 3.
+# Sob `set -e` a atribuicao herda o status do comando: guarde CADA etapa com `|| ...`.
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || BASE_REF="${BASE_REF_OVERRIDE:-}"
+[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || { echo "fail-closed: base indeterminada" >&2; exit 1; }
 
 # PRIMARY: CodeRabbit CLI (`--plain` foi REMOVIDO na 0.7.8; texto plano e o default)
-cr review --base "$BASE_REF" --config CLAUDE.md
+if cr review --base "$BASE_REF" --config CLAUDE.md; then
+  PRIMARY_OK=1
+else
+  PRIMARY_OK=0
+fi
 
-# FALLBACK: Qodo CLI (`qodo --ci -y` NAO EXISTE MAIS; use o subcomando review)
-qodo review
+# FALLBACK: so quando o primario falha (`qodo --ci -y` NAO EXISTE MAIS; use `review`).
+# Rodar incondicionalmente derruba um review bom com `repo_not_connected`.
+[ "$PRIMARY_OK" -eq 1 ] || qodo review || PRIMARY_OK=0
 
-# If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
+# Se AMBOS indisponiveis: NAO pule a revisao. Execute a passagem DIY e DIVULGUE no
+# corpo do PR qual primario faltou e por que. Bot do GitHub nao substitui review local.
 ```
 
 ### CodeRabbit CLI aliases
