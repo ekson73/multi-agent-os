@@ -371,17 +371,32 @@ INPUT:
   - branch_name: string (de OP-1)
 
 EXECUCAO:
-  1. cd {main_repo_path}
-  2. git worktree remove {worktree_path}
-     (ou: rm -rf {worktree_path} && git worktree prune)
-  3. git branch -d {branch_name}
-  4. git push origin --delete {branch_name}
+  DELEGA ao procedimento canonico: pr-governance-unified.md Step 12.
+  NAO reimplemente a remocao aqui -- esta era a TERCEIRA copia divergente,
+  e a unica que ainda oferecia `rm -rf`, que ignora TODAS as guardas.
 
-CHECKLIST DE SAIDA (C13):
+  Pre-condicoes obrigatorias, nesta ordem, ANTES de remover qualquer coisa:
+    1. PR state == MERGED (ancestralidade nao serve para squash/rebase)
+    2. worktree resolvido pelo REGISTRO a partir de headRefName do PR
+       (NUNCA reconstruido por template: ha tres convencoes de path)
+    3. `git -C <wt> status --porcelain --untracked-files=all --ignored` vazio
+       (o `--porcelain` puro OMITE ignorados; `rm -rf` nao checa nada)
+    4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
+
+  PROIBIDO:
+    - `rm -rf {worktree_path}`      (ignora as 4 guardas; destroi WIP alheio)
+    - `git worktree remove --force` (apaga arquivo nao rastreado sem aviso)
+    - `git branch -d`               (RECUSA apos squash/rebase; use -D sob a
+                                     guarda 1, nunca por ancestralidade)
+
+CHECKLIST DE SAIDA (C13) -- escopo: SOMENTE os artefatos DESTA tarefa.
+  Em ambiente multi-sessao, outros agentes mantem worktrees e branches
+  legitimos em andamento: exigir estado global limpo mandaria apaga-los.
   - [ ] git status limpo no main repo
-  - [ ] git worktree list mostra apenas main
-  - [ ] Nenhum branch local stale
-  - [ ] Nenhum branch remoto stale
+  - [ ] o worktree DESTA tarefa nao aparece mais em `git worktree list`
+        (worktrees de outras sessoes PERMANECEM -- fora de escopo)
+  - [ ] a branch local DESTA tarefa foi removida
+  - [ ] a branch remota DESTA tarefa foi removida (ou ja o fora no merge)
   - [ ] prs_merged incrementado onde aplicavel
   - [ ] Emails auditados e arquivados (ambas contas)
   - [ ] MEMORY.md atualizado se necessario
