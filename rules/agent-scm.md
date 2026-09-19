@@ -155,12 +155,21 @@ INPUT (obrigatorio):
 
 INPUT (opcional):
   - config_file: string (default: CLAUDE.md)
-  - skip_if_rate_limited: boolean (default: true)
+  - on_all_reviewers_unavailable: enum (default: "diy_review_and_disclose")
+    ("skip" NAO e valor valido: indisponibilidade de CLI nao dispensa revisao)
 
 EXECUCAO:
-  1. PRIMARIO: cr review --plain --base {base_branch} --config {config_file}
-  2. Se rate-limited: FALLBACK qodo --ci -y "Review the git diff..."
-  3. Se ambos rate-limited: DOCUMENTAR e prosseguir (bots reviewers no PR)
+  1. PRIMARIO: cr review --base {base_branch} --config {config_file}
+     (`--plain` foi REMOVIDO na 0.7.x; texto plano ja e o modo default.
+      Para saida estruturada por agente use `--agent`.)
+  2. Se o PRIMARIO falhar: FALLBACK `qodo review [pathspec...]`
+     (`qodo --ci -y "prompt"` NAO EXISTE MAIS: "unknown option '--ci'".
+      Exige repo conectado; senao falha com `repo_not_connected`.
+      Rode SOMENTE quando o primario falhar -- em sequencia incondicional
+      um review bom do CodeRabbit e derrubado pelo erro do Qodo.)
+  3. Se ambos indisponiveis: NAO pule a revisao. Execute a passagem DIY e
+     DIVULGUE no corpo do PR qual primario faltou e por que. Bot reviewer
+     no PR NAO substitui a revisao local exigida.
 
 CLASSIFICACAO DE FINDINGS:
   | Categoria | Prioridade | Acao |
@@ -429,35 +438,40 @@ Fluxo pode ser invocado parcialmente:
 ### CodeRabbit CLI (`coderabbit` / `cr`)
 
 ```bash
-# Primary local review
-cr review --plain --base main --config CLAUDE.md
-# Review uncommitted changes
-cr review --plain --type uncommitted
-# Review specific base
-cr review --plain --base-commit abc123
+# Review local primario -- `--plain` FOI REMOVIDO (0.7.x): texto plano ja e o default.
+cr review --base main --config CLAUDE.md
+# Apenas mudancas nao commitadas (a flag e `--uncommitted`, NAO `--type uncommitted`)
+cr review --uncommitted
+# Base por commit
+cr review --base-commit abc123
+# Saida estruturada para consumo por agente
+cr review --agent
 ```
 
 Gotchas:
-- Free plan: ~1 review/25min, 150 files/PR limit
-- `--type all` = committed + uncommitted (most comprehensive)
-- Portuguese accent suggestions are false positives (ASCII-safe convention) — DISMISS
-- Output includes "Prompt for AI Agent" — useful for automated fixes
+- Free plan: ~1 review/25min, limite de 150 arquivos/PR
+- `--type` NAO EXISTE (verificado no --help da 0.7.8). Use `--committed`,
+  `--uncommitted` e/ou `--include-untracked`
+- Sugestoes de acento em portugues sao falso-positivo (convencao ASCII-safe) -- DISMISS
+- A saida traz "Prompt for AI Agent" -- util para correcoes automatizadas
 
 ### Qodo CLI (`qodo`)
 
 ```bash
-# CLI review (preferred non-interactive mode)
-qodo --ci -y "Review the git diff between this branch and main."
-# With model selection (default may fail)
-qodo --ci -y "prompt" -m claude-sonnet-4-6
+# `qodo --ci -y "prompt"` NAO EXISTE MAIS ("unknown option '--ci'").
+# O subcomando atual e `review`:
+qodo review                      # escopo completo
+qodo review <caminho>            # limita o escopo
+qodo review --base <ref>         # diff contra uma ref
 ```
 
 Gotchas:
-- `self-review` requires `agent.toml` — use `qodo --ci -y "prompt"` instead
-- `-q` suppresses output — NEVER use for reviews
-- `--ci` = non-interactive, `-y` = auto-confirm
-- `--permissions=r` for read-only (safe for review)
-- Default model `claude-4.5-sonnet` may be INVALID — always specify `-m`
+- E FALLBACK: rode SOMENTE quando o primario falhar. Em sequencia incondicional
+  um review bom do CodeRabbit e derrubado por erro do Qodo.
+- Exige o repo CONECTADO a plataforma; senao falha com `repo_not_connected`
+- `--ci`, `-y` e `self-review` pertencem a CLI ANTIGA -- nao existem mais
+- Flags reais do subcomando: `--base`, `--repo`, `--ticket`, `--context-file`,
+  `--full`, `--deep`, `--fast`
 
 ### gog CLI (email)
 
@@ -494,7 +508,8 @@ acli jira issue create --project VKS --type Task --summary "..."
 
 ```
 1. NUNCA git checkout/switch no main repo (usar worktree)
-2. NUNCA push sem local review (exceto se ambos CLIs rate-limited)
+2. NUNCA push sem local review (CLI indisponivel -> passagem DIY + divulgacao
+   no corpo do PR; rate-limit NAO e dispensa de revisao)
 3. NUNCA merge sem nenhum review (local OU bot)
 4. NUNCA force-push sem autorizacao LITERAL do user
 5. NUNCA --no-verify (investigar hook failure)
