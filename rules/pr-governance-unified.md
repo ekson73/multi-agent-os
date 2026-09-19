@@ -74,12 +74,19 @@ git commit -m "{type}({scope}): {description}"
 
 ## Step 3: Local CLI Review (MANDATORY before push)
 
+⚠️ **A base NUNCA é fixa.** `main` não é o default de todo repo — no inventário de 2026-09-17,
+`develop` é o default em vários. Resolva a base do alvo real antes de revisar.
+
 ```bash
+# Resolva a base: do PR quando existir, senão o default do repo
+BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null \
+       || gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+
 # PRIMARY: CodeRabbit CLI (~30s, rate-limited ~1/25min free plan)
-coderabbit review --plain --base main --config CLAUDE.md
+coderabbit review --plain --base "$BASE" --config CLAUDE.md
 
 # FALLBACK: Qodo CLI (if CodeRabbit rate-limited)
-qodo --ci -y "Review the git diff between this branch and main. Focus on correctness, consistency, and compliance."
+qodo --ci -y "Review the git diff between this branch and $BASE. Focus on correctness, consistency, and compliance."
 
 # If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
 ```
@@ -146,15 +153,69 @@ Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (
 
 ## Step 9: Merge
 
+⚠️ **NUNCA use `--merge` incondicionalmente.** O método é **resolvido a partir da autoridade
+local do repositório**. Ratificado pelo operador em 2026-09-17, após inventário read-only dos
+46 repositórios ativos (`vek-im` + `ekson73`).
+
+**Eixo 1 — política declarada** (o que o repo *diz*). Procure cláusula normativa em
+`docs/adrs/*`, `CONTRIBUTING.md`, `AGENTS.md`, `CLAUDE.md`.
+
+- ⛔ **Leia a cláusula, não conte a palavra.** `squash` aparece tanto em *"use squash-merge"*
+  quanto em *"por que merge commit, **não** squash"*. Contagem de ocorrências classifica ao
+  contrário — defeito real, medido em `vks-jss-sales-api`.
+- No inventário, **5 de 46** repos tinham declaração explícita e **41 não tinham nenhuma**.
+  Snapshot é ponto de partida, **não** substituto da verificação: **sempre reconfira o repo
+  em que você está operando.**
+
+**Eixo 2 — capacidade habilitada** (o que o repo *permite*): `allow_merge_commit` /
+`allow_squash_merge` + rulesets. Habilitar vários métodos é capacidade legítima, **não** é
+declaração de política.
+
+**Resolução:**
+
+| Situação | Ação |
+|---|---|
+| Declaração explícita existe **e** o método está habilitado | use o método **declarado** |
+| **Nenhuma** declaração | **default `--merge`** — preserva ancestralidade |
+| Método declarado está **desabilitado** no repo | ⛔ fail-closed: não mergeie, escale |
+| **Fontes divergem** entre si | protocolo de conflito abaixo |
+
+**Protocolo de conflito entre fontes** (ratificado pelo operador; substitui hierarquia fixa):
+
+1. **Recon + OODA**: compare **todas** as versões divergentes, citando arquivo e linha.
+2. Existe regra de escopo mais amplo que regule o caso (**global → específico**, **top → down**)?
+   → ela decide; corrija as fontes divergentes para refletir o resultado.
+3. A divergência é **claramente** drift (uma fonte ficou para trás) **e** você tem segurança
+   para corrigir sozinho? → corrija todos os arquivos em conflito e registre a correção.
+4. Caso contrário → **HITL**. Não mergeie sob conflito não resolvido.
+
 ```bash
-gh pr merge <N> --merge
+gh pr merge <N> --merge    # SOMENTE se a resolução produziu "merge"
+gh pr merge <N> --squash   # SOMENTE se a resolução produziu "squash"
 ```
 
-## Step 10: Pull Main
+## Step 10: Sync the base branch
+
+⚠️ **Sincronize a branch em que o PR foi mergeado, não `main` por reflexo.** Mergear em
+`develop` e depois puxar `main` deixa o estado local na branch errada.
+
+⛔ **NUNCA use `git checkout`/`git switch` no repo principal** — o Step 1 proíbe, e esta regra
+não se excetua. Sincronize **dentro do worktree** que já acompanha a base.
 
 ```bash
-cd /path/to/repo   # back to main repo root
-git pull origin main
+BASE=$(gh pr view <N> --json baseRefName -q .baseRefName)
+
+# Localize o worktree que já acompanha $BASE (nunca troque de branch na raiz)
+WT=$(git worktree list --porcelain \
+     | awk -v b="refs/heads/$BASE" '/^worktree /{p=$2} /^branch /{if($2==b) print p}')
+
+if [ -z "$WT" ]; then
+  echo "⛔ fail-closed: nenhum worktree acompanha $BASE — crie um antes de sincronizar"
+elif [ -n "$(git -C "$WT" status --porcelain)" ]; then
+  echo "⛔ fail-closed: worktree de $BASE está sujo — não sincronize por cima"
+else
+  git -C "$WT" pull --ff-only origin "$BASE"
+fi
 ```
 
 ## Step 11: Audit Reviews + Archive Emails
