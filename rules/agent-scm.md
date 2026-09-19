@@ -78,14 +78,29 @@ INPUT (obrigatorio):
   - type: feat|fix|chore|docs|refactor|test
 
 INPUT (opcional):
-  - base_branch: string (default: main)
+  - base_branch: string
+    (SEM default `main`: um PR empilhado ou um repo cuja default e `develop`
+     seria criado a partir da base errada. Resolucao: BASE_REF_OVERRIDE do
+     chamador > branch default REAL do repo, consultada via API.)
   - session_id: string (auto-generated if omitted)
 
 EXECUCAO:
   1. Verificar git status do main repo (deve estar limpo)
-  2. git worktree add .worktrees/{feature_name} -b {type}/{feature_name}
-  3. cd .worktrees/{feature_name}
-  4. Confirmar: branch criada, worktree ativo
+  2. Resolver e VALIDAR a base antes de criar:
+       BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef \
+         -q .defaultBranchRef.name)}"
+       git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
+         || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
+       git fetch -q origin "$BASE_REF"
+  3. git worktree add .worktrees/{feature_name} -b {type}/{feature_name} \
+       "origin/$BASE_REF"
+     (criar a partir do HEAD atual herdaria commits alheios da branch em que
+      o repo principal por acaso estiver)
+  4. cd .worktrees/{feature_name}
+  5. PERSISTIR a base: variavel de shell NAO sobrevive entre operacoes, e o
+     OP-3 (review) e o OP-7 (PR) dependem dela.
+       printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
+  6. Confirmar: branch criada, worktree ativo, BASE_REF persistida
 
 OUTPUT:
   - worktree_path: string
@@ -228,7 +243,10 @@ INPUT (opcional):
 
 EXECUCAO:
   1. git push -u origin {branch_name}
-  2. gh pr create --title "{pr_title}" --body "$(cat <<'EOF' ... EOF)"
+  2. gh pr create --base "$BASE_REF" --title "{pr_title}" \
+       --body "$(cat <<'EOF' ... EOF)"
+     (--base OBRIGATORIO: sem ele o gh usa a branch DEFAULT do repo e um PR
+      empilhado seria aberto contra a base errada.)
 
 TEMPLATE PR BODY:
   ## Summary
@@ -316,7 +334,7 @@ EXECUCAO:
 
 OUTPUT:
   - merge_commit: string
-  - main_updated: boolean
+  - base_synced: boolean   # a BASE do PR, nao `main` por reflexo
 ```
 
 ### OP-9: Post-Merge Audit

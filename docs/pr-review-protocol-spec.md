@@ -262,7 +262,7 @@ gh pr comment <numero> --body "## Análise da Revisão
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
+gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
 ```
 
 #### 6b. Aplicar Correção (Loop)
@@ -373,7 +373,7 @@ gh pr comment <numero> --body "## ⚠️ Status: Requer Assistência Humana
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
+gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
 
 # Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
 # NUNCA `rm -rf` (ignora as 4 guardas e apaga WIP nao commitado sem aviso).
@@ -567,7 +567,7 @@ gh pr comment <numero> --body "## ⚠️ Bypass de Revisão Autorizado
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
+gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
 ```
 
 ### 6.2 Hotfix Crítico
@@ -594,7 +594,7 @@ Revisão post-mortem agendada para {data}.
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
+gh pr merge <numero> --"$MERGE_METHOD"   # merge | squash | rebase
 ```
 
 ---

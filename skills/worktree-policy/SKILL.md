@@ -41,11 +41,19 @@ Overhead: ~3 seconds | Benefit: Complete isolation
 
 ### Create Worktree
 ```bash
-git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name}
+# A base e RESOLVIDA e VALIDADA -- criar do HEAD atual herdaria commits
+# alheios da branch em que o repo principal por acaso estiver.
+BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
+  || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
+git fetch -q origin "$BASE_REF"
+
+git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name} "origin/$BASE_REF"
 cd .worktrees/{agent-hex}-{feature}
 
-# Example:
-git worktree add .worktrees/c614-policy -b docs/policy-c614
+# PERSISTIR: variavel de shell nao sobrevive entre steps; a revisao local e a
+# criacao do PR dependem desta base.
+printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
 ```
 
 ### List Worktrees
