@@ -315,25 +315,40 @@ else
   echo "⛔ fail-closed: inspeção de branch protection falhou em '$BASE_REF'" >&2; exit 1
 fi
 
-# (c) Ruleset `pull_request` pode RESTRINGIR os metodos permitidos na base via
-#     `allowed_merge_methods`, independentemente das flags do repo. Vazio/ausente
-#     = sem restricao; presente = lista branca que o metodo precisa integrar.
+# (c) Rulesets `pull_request` podem RESTRINGIR os metodos permitidos na base via
+#     `allowed_merge_methods`, independentemente das flags do repo.
+#     ⚠️ Varias regras podem incidir ao mesmo tempo. A permissao efetiva e a
+#     INTERSECAO de todas as listas: `add` (uniao) deixaria um metodo passar
+#     porque ALGUM ruleset o permite, mesmo que outro o proiba. Ausencia de
+#     lista = sem restricao; entao parta de "tudo" e va intersectando.
 ALLOWED=$(printf '%s' "$RULES" | jq -r '
-  [add[]?|select(.type=="pull_request")
-   |.parameters.allowed_merge_methods // empty]|add // empty|join(",")') || {
+  ( [ add[]? | select(.type=="pull_request")
+      | .parameters.allowed_merge_methods // empty ] ) as $lists
+  | if ($lists|length) == 0 then "merge,squash,rebase"
+    else ( $lists | map(map(ascii_downcase))
+           | reduce .[] as $l (["merge","squash","rebase"]; . - (. - $l)) )
+         | join(",")
+    end') || {
   echo "⛔ fail-closed: leitura de allowed_merge_methods falhou" >&2; exit 1; }
 
-# Capacidade EFETIVA de merge commit: flag do repo ∧ sem linear-history ∧
-# (sem lista branca OU "merge" na lista branca).
-MERGE_OK=$(printf '%s' "$CAP" | jq -r '.mergeCommitAllowed')
+# Capacidade EFETIVA por metodo = flag do repo ∧ lista branca efetiva
+#                                 (∧ ausencia de linear-history, so p/ merge).
+allowed_has() { printf '%s' ",$ALLOWED," | grep -q ",$1,"; }
+MERGE_OK=$(printf '%s' "$CAP"  | jq -r '.mergeCommitAllowed')
+SQUASH_OK=$(printf '%s' "$CAP" | jq -r '.squashMergeAllowed')
+REBASE_OK=$(printf '%s' "$CAP" | jq -r '.rebaseMergeAllowed')
+
 if [ "$RLIN" -gt 0 ] || [ "$PLIN" = true ]; then
   MERGE_OK=false
   echo "ℹ️  linear-history exigida em '$BASE_REF': merge commit indisponível" >&2
 fi
-if [ -n "$ALLOWED" ] && ! printf '%s' ",$ALLOWED," | grep -q ',merge,'; then
-  MERGE_OK=false
-  echo "ℹ️  ruleset de '$BASE_REF' permite apenas: $ALLOWED" >&2
-fi
+allowed_has merge  || MERGE_OK=false
+allowed_has squash || SQUASH_OK=false
+allowed_has rebase || REBASE_OK=false
+echo "ℹ️  capacidade efetiva em '$BASE_REF': merge=$MERGE_OK squash=$SQUASH_OK rebase=$REBASE_OK" >&2
+
+# A tabela de resolucao abaixo consulta a flag EFETIVA do metodo escolhido
+# (MERGE_OK/SQUASH_OK/REBASE_OK), nunca a flag crua do repo.
 ```
 
 **Resolução:**
@@ -522,7 +537,17 @@ CUR_OID=$(git -C "$WT_REAL" rev-parse "$BRANCH") || {
 # ── Só agora destrói.
 cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
 git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o critério
-git branch -D "$BRANCH"                 # -D: a ponta não é ancestral após squash/rebase
+
+# ⚠️ TOCTOU local: entre a guarda 4 e a remoção, outra sessão pode commitar na
+#    branch. `git branch -D` apaga incondicionalmente e descartaria esse commit.
+#    `update-ref -d <ref> <old>` é ATÔMICO: só remove se a ref ainda valer o
+#    esperado. Verificado — OID correto ⇒ removida; OID vencido ⇒
+#    "cannot lock ref … is at X but expected Y" e a branch PERMANECE.
+#    (`-D` também é necessário conceitualmente aqui: após squash/rebase a ponta
+#     não é ancestral da base, mas quem autoriza é a guarda 1, não a ancestralidade.)
+git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID" || {
+  echo "⛔ fail-closed: a branch local avançou durante a limpeza — preservada" >&2
+  exit 1; }
 
 # ── Remota: capture a PONTA, não só a existência. A guarda 4 comparou a ponta
 #    LOCAL; a remota pode ter avançado por push de outra sessão, e um delete
@@ -540,8 +565,17 @@ case "$LS" in
       echo "⛔ fail-closed: a ponta REMOTA de '$BRANCH' difere do que foi mergeado" >&2
       echo "   mergeado=${MERGED_OID:0:8} remoto=${REMOTE_OID:0:8} — não apague" >&2
       exit 1; }
-    git push origin --delete "$BRANCH" || {
-      echo "⛔ a branch remota existe mas o delete falhou" >&2; exit 1; } ;;
+    # ⚠️ TOCTOU: entre o `ls-remote` acima e o delete, outra sessão pode ter
+    #    feito push. Um `--delete` simples apagaria esse commit. O lease torna
+    #    a remoção ATÔMICA: o servidor só aceita se a ponta ainda for a esperada.
+    #    Verificado (git 2.50.1): OID correto ⇒ `[deleted]`; OID vencido ⇒
+    #    `! [rejected] (delete) … (stale info)` e a branch PERMANECE.
+    git push --force-with-lease="refs/heads/$BRANCH:$MERGED_OID" \
+             origin --delete "$BRANCH" || {
+      echo "⛔ fail-closed: lease recusado — a branch remota avançou durante a" >&2
+      echo "   limpeza, ou o push falhou. Não force; revise o estado remoto." >&2
+      exit 1; }
+    ;;
   2) echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)" ;;
   *) echo "⛔ fail-closed: ls-remote falhou (exit=$LS) — estado remoto indeterminado" >&2
      exit 1 ;;
