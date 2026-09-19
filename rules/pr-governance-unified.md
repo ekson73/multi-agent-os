@@ -152,7 +152,9 @@ fi
 # ⚠️ Exige o repo CONECTADO ao workspace Qodo; senão falha com `repo_not_connected`.
 REVIEW_OK=$PRIMARY_OK
 if [ "$PRIMARY_OK" -eq 0 ]; then
-  if qodo review; then REVIEW_OK=1; else REVIEW_OK=0; fi   # ou: qodo review <caminho>
+  # --base tambem aqui: sem ele o Qodo compara contra a default do repo,
+  # e um PR empilhado seria revisado contra a base errada.
+  if qodo review --base "$BASE_REF"; then REVIEW_OK=1; else REVIEW_OK=0; fi
 fi
 
 # ⛔ AMBOS indisponíveis não é "siga em frente": é ESTADO BLOQUEANTE. Registrar o
@@ -213,7 +215,11 @@ git push -u origin {branch-name}
 ## Step 6: Create PR
 
 ```bash
-gh pr create --title "{type}({scope}): {description}" --body "..."
+# --base OBRIGATORIO: sem ele o gh usa a branch DEFAULT do repo, e um PR
+# empilhado (base != default) seria aberto contra a base errada, invalidando
+# a revisao do Step 3 que usou $BASE_REF.
+gh pr create --base "$BASE_REF" \
+  --title "{type}({scope}): {description}" --body "..."
 ```
 
 NEVER merge directly. Always via PR.
@@ -309,11 +315,24 @@ else
   echo "⛔ fail-closed: inspeção de branch protection falhou em '$BASE_REF'" >&2; exit 1
 fi
 
-# Capacidade EFETIVA de merge commit.
+# (c) Ruleset `pull_request` pode RESTRINGIR os metodos permitidos na base via
+#     `allowed_merge_methods`, independentemente das flags do repo. Vazio/ausente
+#     = sem restricao; presente = lista branca que o metodo precisa integrar.
+ALLOWED=$(printf '%s' "$RULES" | jq -r '
+  [add[]?|select(.type=="pull_request")
+   |.parameters.allowed_merge_methods // empty]|add // empty|join(",")') || {
+  echo "⛔ fail-closed: leitura de allowed_merge_methods falhou" >&2; exit 1; }
+
+# Capacidade EFETIVA de merge commit: flag do repo ∧ sem linear-history ∧
+# (sem lista branca OU "merge" na lista branca).
 MERGE_OK=$(printf '%s' "$CAP" | jq -r '.mergeCommitAllowed')
 if [ "$RLIN" -gt 0 ] || [ "$PLIN" = true ]; then
   MERGE_OK=false
   echo "ℹ️  linear-history exigida em '$BASE_REF': merge commit indisponível" >&2
+fi
+if [ -n "$ALLOWED" ] && ! printf '%s' ",$ALLOWED," | grep -q ',merge,'; then
+  MERGE_OK=false
+  echo "ℹ️  ruleset de '$BASE_REF' permite apenas: $ALLOWED" >&2
 fi
 ```
 
@@ -505,15 +524,24 @@ cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
 git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o critério
 git branch -D "$BRANCH"                 # -D: a ponta não é ancestral após squash/rebase
 
-# ── Remota: `ls-remote` distingue os casos pelo exit code (medido):
-#    0 = existe · 2 = não há match (removida no merge) · 128 = erro real (auth/rede).
-#    Tratar 128 como "já removida" mascararia falha de infraestrutura.
+# ── Remota: capture a PONTA, não só a existência. A guarda 4 comparou a ponta
+#    LOCAL; a remota pode ter avançado por push de outra sessão, e um delete
+#    "porque existe" descartaria esses commits.
+#    `ls-remote` distingue os casos pelo exit code (medido):
+#    0 = existe · 2 = não há match (removida no merge) · 128 = erro real.
 # ⚠️ Sob `set -e`, `cmd; LS=$?` ABORTA no status 2 e o `case` nunca roda (medido:
 #    o caminho legítimo "branch já removida" morria aqui). A OR-list preserva o status.
-LS=0; git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 || LS=$?
+LS=0
+REMOTE_LINE=$(git ls-remote --exit-code --heads origin "$BRANCH" 2>/dev/null) || LS=$?
 case "$LS" in
-  0) git push origin --delete "$BRANCH" || {
-       echo "⛔ a branch remota existe mas o delete falhou" >&2; exit 1; } ;;
+  0)
+    REMOTE_OID=${REMOTE_LINE%%[[:space:]]*}
+    [ "$REMOTE_OID" = "$MERGED_OID" ] || {
+      echo "⛔ fail-closed: a ponta REMOTA de '$BRANCH' difere do que foi mergeado" >&2
+      echo "   mergeado=${MERGED_OID:0:8} remoto=${REMOTE_OID:0:8} — não apague" >&2
+      exit 1; }
+    git push origin --delete "$BRANCH" || {
+      echo "⛔ a branch remota existe mas o delete falhou" >&2; exit 1; } ;;
   2) echo "ℹ️  branch remota já removida no merge (delete_branch_on_merge)" ;;
   *) echo "⛔ fail-closed: ls-remote falhou (exit=$LS) — estado remoto indeterminado" >&2
      exit 1 ;;

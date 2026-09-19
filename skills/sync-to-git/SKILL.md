@@ -190,7 +190,8 @@ TITLE="$1"
 git push -u origin $BRANCH 2>/dev/null
 
 # Create PR using gh CLI
-gh pr create --title "$TITLE" --body "$(cat <<EOF
+# --base OBRIGATORIO: sem ele o gh assume a branch default do repo.
+gh pr create --base "$BASE_REF" --title "$TITLE" --body "$(cat <<EOF
 ## Summary
 [Description of changes]
 
@@ -225,10 +226,15 @@ if [ "$PR_STATE" != "OPEN" ]; then
   echo "PR is not open"
   exit 1
 fi
-
-# Check reviews
+# Check reviews -- CONTAR nao basta: `reviews|length > 0` aceita um
+# CHANGES_REQUESTED como se fosse aprovacao. Avalie o VEREDITO.
+DECISION=$(gh pr view --json reviewDecision -q '.reviewDecision // ""')
+if [ "$DECISION" = "CHANGES_REQUESTED" ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32017,"message":"Changes requested","data":{"instructions":"Address the findings, then request re-review"}}}' >&2
+  exit 1
+fi
 REVIEWS=$(gh pr view --json reviews -q '.reviews | length')
-if [ "$REVIEWS" -eq 0 ]; then
+if [ "${REVIEWS:-0}" -eq 0 ]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32015,"message":"Review pending","data":{"instructions":"Wait for review or delegate to code-reviewer agent"}}}' >&2
   exit 1
 fi
@@ -236,9 +242,24 @@ fi
 # Check CI -- TODOS os contexts, nao so o primeiro.
 # `statusCheckRollup[0]` e fail-open: o check[0] verde autorizava o merge
 # ainda que qualquer outro estivesse vermelho.
-FAILED=$(gh pr view --json statusCheckRollup \
-  -q '[.statusCheckRollup[]?|select((.conclusion//.state) as $s
-       | $s != "SUCCESS" and $s != "NEUTRAL" and $s != "SKIPPED")]|length')
+ROLLUP=$(gh pr view --json statusCheckRollup -q '.statusCheckRollup') || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI state unreadable"}}' >&2
+  exit 1; }
+TOTAL=$(printf '%s' "$ROLLUP" | jq 'length')
+PENDING=$(printf '%s' "$ROLLUP" | jq '[.[]?|select((.conclusion//.state)|IN("PENDING","QUEUED","IN_PROGRESS","EXPECTED"))]|length')
+FAILED=$(printf '%s' "$ROLLUP" | jq '[.[]?|select((.conclusion//.state) as $s
+  | ($s|IN("SUCCESS","NEUTRAL","SKIPPED","PENDING","QUEUED","IN_PROGRESS","EXPECTED"))|not)]|length')
+
+# ZERO checks nao e "CI verde": e ausencia de sinal. O contador de falhas
+# daria 0 e liberaria o merge sem nenhuma verificacao ter rodado.
+if [ "${TOTAL:-0}" -eq 0 ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"No CI checks reported","data":{"instructions":"Confirm CI is configured and has reported, or merge explicitly out-of-band"}}}' >&2
+  exit 1
+fi
+if [ "${PENDING:-1}" -ne 0 ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI still running","data":{"instructions":"Wait for all checks to report"}}}' >&2
+  exit 1
+fi
 if [ "${FAILED:-1}" -ne 0 ]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI failed","data":{"instructions":"Fix CI failures before merge"}}}' >&2
   exit 1

@@ -63,7 +63,8 @@ fi
 # Rodar incondicionalmente derruba um review bom com `repo_not_connected`.
 REVIEW_OK=$PRIMARY_OK
 if [ "$PRIMARY_OK" -eq 0 ]; then
-  if qodo review; then REVIEW_OK=1; else REVIEW_OK=0; fi
+  # --base tambem aqui: sem ele o Qodo usa a default do repo.
+  if qodo review --base "$BASE_REF"; then REVIEW_OK=1; else REVIEW_OK=0; fi
 fi
 
 # AMBOS indisponiveis e ESTADO BLOQUEANTE, nao aviso: so a passagem DIY
@@ -102,7 +103,10 @@ git commit -m "fix: address review findings"
 
 ```bash
 git push -u origin {branch-name}
-gh pr create --title "{type}({scope}): {description}" --body "$(cat <<'EOF'
+# --base OBRIGATORIO: sem ele o gh assume a branch DEFAULT do repo, e um PR
+# empilhado seria aberto contra a base errada.
+gh pr create --base "$BASE_REF" \
+  --title "{type}({scope}): {description}" --body "$(cat <<'EOF'
 ## Summary
 - ...
 
