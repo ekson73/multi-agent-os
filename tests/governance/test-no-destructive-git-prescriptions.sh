@@ -45,6 +45,10 @@ ALLOWLIST=(
   "protocols/hierarchical-merge-protocol.md|git branch -d feature/task-A"
   # Puxa o `main` do PROPRIO framework, que e de fato sua branch default.
   "docs/framework-consumption.md|git pull origin main"
+  # Fluxo LOCAL com `git merge` (nao PR): a ancestralidade E preservada, entao
+  # `-d` e a verificacao CORRETA -- a recusa prova que a filha foi integrada.
+  # Trocar por `-D` aqui enfraqueceria a seguranca.
+  "docs/git-worktree-protocol.md|git branch -d feature/child-branch"
   # Tabela canonica do Step 9: mostra os TRES comandos lado a lado como
   # resultado possivel da resolucao, nao como default. Os tres sao isentos --
   # isentar so `--merge` reprovaria as outras duas linhas da MESMA tabela.

@@ -268,11 +268,16 @@ git merge feature/child-branch --no-edit
 # SE PAI ≠ MAIN → Continuar subindo a hierarquia
 git push origin <parent-branch>
 
-# 5. CLEANUP — ver rules/pr-governance-unified.md Step 12 (4 guardas).
-#    NUNCA `--force` (apaga WIP nao commitado sem aviso) e NUNCA `branch -d`
-#    (RECUSA apos squash/rebase). Apos as guardas:
+# 5. CLEANUP deste fluxo LOCAL.
+#    ⚠️ Aqui o merge foi `git merge` local, que PRESERVA ancestralidade --
+#    entao `-d` e o comando CERTO: ele so apaga se a filha estiver realmente
+#    integrada, e essa recusa e uma verificacao util. Trocar por `-D` aqui
+#    ENFRAQUECERIA a seguranca. O `-D` do Step 12 existe para outro caso: PR
+#    com squash/rebase, onde a ponta deixa de ser ancestral e a autorizacao
+#    vem do estado MERGED do PR, nao da ancestralidade.
+#    NUNCA `--force` no worktree: apaga WIP nao commitado sem aviso.
 git worktree remove .worktrees/prime-feature
-git branch -D feature/child-branch
+git branch -d feature/child-branch
 ```
 
 ---
