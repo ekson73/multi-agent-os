@@ -81,8 +81,8 @@ X  Commit "fix: address review findings" without checking what was fixed
    → Read the diff before committing
 
 X  PR merged without syncing the base
-   → Sync the branch the PR merged INTO, resolved from `gh pr view --json
-     baseRefName` — never `git pull origin main` by reflex. Merging into
+   → Sync the branch the PR merged INTO. Resolve it from the PR metadata
+     (`baseRefName`), never by reflex to the default branch. Merging into
      `develop` and pulling `main` leaves the local state on the wrong branch.
 
 X  "I'll do the cleanup later"
