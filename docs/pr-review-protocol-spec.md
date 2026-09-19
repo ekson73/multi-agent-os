@@ -259,7 +259,10 @@ gh pr comment <numero> --body "## Análise da Revisão
 - {link para spec/requisito que suporta a decisão}"
 
 # Merge
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
 ```
 
 #### 6b. Aplicar Correção (Loop)
@@ -367,12 +370,15 @@ gh pr comment <numero> --body "## ⚠️ Status: Requer Assistência Humana
 - [ ] CI/CD checks passando (se configurado)
 
 ```bash
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
 
-# Cleanup
+# Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
+# NUNCA `rm -rf` (ignora as 4 guardas e apaga WIP nao commitado sem aviso).
 cd /path/to/repo
-rm -rf .worktrees/{session-id}-{feature}
-git worktree prune
+git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```
 
 ---
@@ -558,7 +564,10 @@ gh pr comment <numero> --body "## ⚠️ Bypass de Revisão Autorizado
 **Risco assumido**: Sim"
 
 # Merge imediato
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
 ```
 
 ### 6.2 Hotfix Crítico
@@ -582,7 +591,10 @@ gh pr create --title "HOTFIX: {descrição}" --body "
 Revisão post-mortem agendada para {data}.
 "
 
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+gh pr merge <numero> --merge   # ou --squash / --rebase, conforme a resolucao
 ```
 
 ---

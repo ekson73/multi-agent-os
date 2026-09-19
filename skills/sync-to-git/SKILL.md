@@ -233,15 +233,21 @@ if [ "$REVIEWS" -eq 0 ]; then
   exit 1
 fi
 
-# Check CI
-CI_STATUS=$(gh pr view --json statusCheckRollup -q '.statusCheckRollup[0].conclusion')
-if [ "$CI_STATUS" != "SUCCESS" ]; then
+# Check CI -- TODOS os contexts, nao so o primeiro.
+# `statusCheckRollup[0]` e fail-open: o check[0] verde autorizava o merge
+# ainda que qualquer outro estivesse vermelho.
+FAILED=$(gh pr view --json statusCheckRollup \
+  -q '[.statusCheckRollup[]?|select((.conclusion//.state) as $s
+       | $s != "SUCCESS" and $s != "NEUTRAL" and $s != "SKIPPED")]|length')
+if [ "${FAILED:-1}" -ne 0 ]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI failed","data":{"instructions":"Fix CI failures before merge"}}}' >&2
   exit 1
 fi
 
-# Merge
-gh pr merge --merge
+# Merge -- metodo resolvido por autoridade LOCAL do repo.
+# Ver rules/pr-governance-unified.md Step 9. `--merge` incondicional contraria
+# os repos que declaram squash e e REJEITADO por repo squash-only.
+gh pr merge --"$MERGE_METHOD"   # merge | squash | rebase, conforme a resolucao
 ```
 
 ## Safety Gates
