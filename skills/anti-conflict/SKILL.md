@@ -34,7 +34,10 @@ git log --oneline -3           # Verify expected state
 
 ### Phase 1.2: Worktree Creation (Mandatory)
 ```bash
-git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name}
+# Criacao delegada ao procedimento canonico: skills/worktree-policy/SKILL.md
+# (resolve+valida a base, cria de origin/$BASE_REF e PERSISTE a base).
+# Criar do HEAD atual herdaria commits alheios da branch em que o repo estiver.
+git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name} "origin/$BASE_REF"
 cd .worktrees/{agent-hex}-{feature}
 ```
 

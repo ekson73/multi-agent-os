@@ -166,7 +166,9 @@ ANTI-PATTERNS:
 
 ```
 INPUT (obrigatorio):
-  - base_branch: string (default: main)
+  - base_branch: NAO informe: recarregue a base PERSISTIDA pelo OP-1
+    (`cat "$(git rev-parse --git-dir)/BASE_REF"`). Um default `main` faria a
+    revisao comparar contra branch diferente da do PR.
 
 INPUT (opcional):
   - config_file: string (default: CLAUDE.md)
@@ -174,7 +176,11 @@ INPUT (opcional):
     ("skip" NAO e valor valido: indisponibilidade de CLI nao dispensa revisao)
 
 EXECUCAO:
-  1. PRIMARIO: cr review --base {base_branch} --config {config_file}
+  0. RECARREGAR a base persistida (fail-closed): variavel de shell NAO
+     sobrevive entre operacoes, entao leia do arquivo do OP-1.
+       BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+       [ -n "$BASE_REF" ] || { echo "fail-closed: BASE_REF nao persistida -- recrie pelo OP-1" >&2; exit 1; }
+  1. PRIMARIO: cr review --base "$BASE_REF" --config {config_file}
      (`--plain` foi REMOVIDO na 0.7.x; texto plano ja e o modo default.
       Para saida estruturada por agente use `--agent`.)
   2. Se o PRIMARIO falhar: FALLBACK `qodo review [pathspec...]`
@@ -239,9 +245,15 @@ INPUT (opcional):
   - reviewers: list[string]
   - labels: list[string]
   - draft: boolean (default: false)
-  - base: string (default: main)
+  - base: NAO informe: use a MESMA base persistida que o OP-3 revisou, via
+    `--base "$BASE_REF"`. Sem isso, revisao e PR podem mirar branches
+    diferentes -- e sem `--base` o gh assume a default do repo.
 
 EXECUCAO:
+  0. RECARREGAR a base persistida (fail-closed) -- mesma do OP-3, senao
+     revisao e PR miram branches diferentes.
+       BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+       [ -n "$BASE_REF" ] || { echo "fail-closed: BASE_REF nao persistida" >&2; exit 1; }
   1. git push -u origin {branch_name}
   2. gh pr create --base "$BASE_REF" --title "{pr_title}" \
        --body "$(cat <<'EOF' ... EOF)"
