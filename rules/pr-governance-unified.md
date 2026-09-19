@@ -250,11 +250,19 @@ gh pr view <N> --json comments,reviews,statusCheckRollup
 
 # (b) CORPO COMPLETO de TODA revisão — inclusive vereditos OBSOLETOS, cujos
 #     achados continuam válidos até serem endereçados ou refutados.
-gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --jq '.[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
+#     ⚠️ O endpoint pagina em 30: sem `--paginate --slurp` + `add`, as revisões
+#     da 2ª página somem em silêncio — justamente num PR longo, onde mais importa.
+#     `--slurp` não convive com `--jq`, então agregue num pipe separado.
+REVIEWS=$(gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --paginate --slurp) || {
+  echo "⛔ fail-closed: não consegui ler as revisões" >&2; exit 1; }
+printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
 
 # (c) Conferência: o corpo declara quantos achados acionáveis? Bate com o que
 #     você dispôs? Divergência = auditoria incompleta, não ruído.
-gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --jq '.[].body' | grep -iE 'actionable comments|outside diff'
+#     ⚠️ `|| true`: sem match o grep sai 1 e, sob `set -e`, abortaria o passo
+#     num conjunto de revisões LIMPO — o caso bom viraria falha.
+printf '%s' "$REVIEWS" | jq -r 'add[].body' \
+  | grep -iE 'actionable comments|outside diff' || true
 ```
 
 Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (AI)

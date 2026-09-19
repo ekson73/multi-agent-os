@@ -125,11 +125,15 @@ auditoria dos corpos revelou 4 -- um deles perda de dados em codigo executavel).
 
 ```bash
 # Corpo completo de TODA revisao, inclusive vereditos OBSOLETOS.
-gh api "repos/{owner}/{repo}/pulls/{N}/reviews" \
-  --jq '.[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
+# O endpoint pagina em 30: sem `--paginate --slurp` as revisoes da 2a pagina
+# somem em silencio. `--slurp` nao convive com `--jq`: agregue em pipe separado.
+REVIEWS=$(gh api "repos/{owner}/{repo}/pulls/{N}/reviews" --paginate --slurp) || {
+  echo "fail-closed: nao consegui ler as revisoes" >&2; exit 1; }
+printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
 # Quantos acionaveis o corpo declara? Bate com o que voce dispos?
-gh api "repos/{owner}/{repo}/pulls/{N}/reviews" --jq '.[].body' \
-  | grep -iE 'actionable comments|outside diff'
+# `|| true`: sem match o grep sai 1 e abortaria o passo sob `set -e`.
+printf '%s' "$REVIEWS" | jq -r 'add[].body' \
+  | grep -iE 'actionable comments|outside diff' || true
 ```
 
 Achado do corpo sem disposicao ⇒ NAO mergeie. A secao 7 audita de novo, mas DEPOIS do
