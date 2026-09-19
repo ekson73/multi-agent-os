@@ -33,6 +33,16 @@ mkwt stale-wip    "$OLD"                 # eligible (old) + dirty      → SKIP 
 echo dirty > "$R/.worktrees/stale-wip/wip-uncommitted"   # make it dirty
 mkwt fresh-clean  "$(date +%Y-%m-%dT%H:%M:%S)"           # recent + clean → UNTOUCHED (age guard)
 
+# eligible (old) + "clean" por `--porcelain` puro, MAS com um arquivo IGNORADO.
+# Medido: `worktree remove` NAO recusa por ignorados -- ele teria SUCESSO e
+# destruiria o `.env`. A guarda precisa de `-uall --ignored` para ver isso.
+mkwt stale-ignored "$OLD"
+printf 'secret.env\n' > "$R/.worktrees/stale-ignored/.gitignore"
+git -C "$R/.worktrees/stale-ignored" add .gitignore
+GIT_AUTHOR_DATE="$OLD" GIT_COMMITTER_DATE="$OLD" \
+  git -C "$R/.worktrees/stale-ignored" commit -qm ignore-rule
+printf 'TOKEN=nao-perder\n' > "$R/.worktrees/stale-ignored/secret.env"
+
 # a merged orphan branch (no worktree) → safe -d ; and an UNMERGED branch → must survive
 git -C "$R" branch merged-orphan main
 git -C "$R" branch -q unmerged-keep main
@@ -55,6 +65,10 @@ APP="$("$REAPER" --repo-dir "$R" --stale-days 7 --apply --json)"
 chk "apply: stale-clean worktree removed"           "[ ! -e '$R/.worktrees/stale-clean' ]"
 chk "apply: stale-wip PRESERVED (WIP never reaped)" "[ -e '$R/.worktrees/stale-wip/wip-uncommitted' ]"
 chk "apply: fresh-clean PRESERVED (age guard)"      "[ -e '$R/.worktrees/fresh-clean/x' ]"
+chk "apply: stale-ignored PRESERVADO (ignorado conta como WIP)" \
+  "[ -e '$R/.worktrees/stale-ignored/secret.env' ]"
+chk "apply: conteudo do ignorado intacto" \
+  "grep -q nao-perder '$R/.worktrees/stale-ignored/secret.env'"
 chk "apply: merged-orphan branch deleted"           "! git -C '$R' branch --list merged-orphan | grep -q ."
 chk "apply: unmerged-keep branch SURVIVES"          "git -C '$R' branch --list unmerged-keep | grep -q ."
 chk "apply: main worktree untouched"                "[ -e '$R/f' ]"
