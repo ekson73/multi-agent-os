@@ -61,10 +61,21 @@ fi
 
 # FALLBACK: so quando o primario falha (`qodo --ci -y` NAO EXISTE MAIS; use `review`).
 # Rodar incondicionalmente derruba um review bom com `repo_not_connected`.
-[ "$PRIMARY_OK" -eq 1 ] || qodo review || PRIMARY_OK=0
+REVIEW_OK=$PRIMARY_OK
+if [ "$PRIMARY_OK" -eq 0 ]; then
+  if qodo review; then REVIEW_OK=1; else REVIEW_OK=0; fi
+fi
 
-# Se AMBOS indisponiveis: NAO pule a revisao. Execute a passagem DIY e DIVULGUE no
-# corpo do PR qual primario faltou e por que. Bot do GitHub nao substitui review local.
+# AMBOS indisponiveis e ESTADO BLOQUEANTE, nao aviso: so a passagem DIY
+# EXECUTADA e DIVULGADA no corpo do PR (qual primario faltou e por que)
+# libera o push. Registrar o erro e seguir seria o fail-open que a politica
+# DIY-review existe para impedir.
+if [ "$REVIEW_OK" -eq 0 ]; then
+  [ "${DIY_REVIEW_DONE:-0}" -eq 1 ] || {
+    echo "fail-closed: sem reviewer local e sem passagem DIY executada/divulgada" >&2
+    echo "  execute a revisao DIY e exporte DIY_REVIEW_DONE=1" >&2
+    exit 1; }
+fi
 ```
 
 ### CodeRabbit CLI aliases
@@ -132,11 +143,21 @@ gog gmail search '{repo}' -a user@acme-corp.example.com -p
 
 ## 9. Cleanup Worktree
 
+⛔ **A remocao ingenua (`worktree remove` + `branch -d`) foi REMOVIDA daqui.**
+`git branch -d` RECUSA apos squash/rebase ("not fully merged") -- e este workflow
+agora permite os tres metodos. E `worktree remove` sem guardas destroi WIP nao
+commitado de outra sessao. So execute sob as 4 guardas do procedimento canonico.
+
 ```bash
-cd /path/to/main-repo
-git worktree remove .worktrees/{feature}
-git branch -d {type}/{feature}
-git push origin --delete {type}/{feature}
+# REFERENCIA: pr-governance-unified.md Step 12 (procedimento completo e guardado).
+# Resumo das guardas, nesta ordem, ANTES de qualquer remocao:
+#   1. PR state == MERGED  (ancestralidade nao serve para squash/rebase)
+#   2. worktree resolvido pelo REGISTRO a partir de headRefName (nunca template)
+#   3. `status --porcelain -uall --ignored` vazio (o `--porcelain` puro OMITE
+#      arquivos ignorados, e o remove apagaria um `.env` de outra sessao)
+#   4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
+# Só entao: cd <raiz>; git worktree remove <path>; git branch -D <branch>
+# Remota: `ls-remote` distingue 0=existe · 2=ja removida · 128=erro (fail-closed)
 ```
 
 ## Tool Availability Matrix

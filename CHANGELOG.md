@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
+
+Tres regras auto-carregadas (`rules/pr-governance-unified.md`,
+`rules/operational-workflow.md`, `rules/agent-scm.md`) prescreviam comandos que
+falham ou destroem trabalho. Cada correcao abaixo tem contraprova executada.
+
+- **Step 9 — metodo de merge resolvido, nao fixo.** O `--merge` incondicional
+  contrariava os 4 repos do inventario que declaram squash. Agora resolve por
+  autoridade LOCAL do repo (declaracao explicita > default), cobre os TRES
+  metodos e e **fail-closed** quando o metodo declarado esta desabilitado.
+- **Capacidade efetiva, nao so a flag do repo.** `required_linear_history` faz o
+  GitHub rejeitar merge commit mesmo com `allow_merge_commit=true`. O gate agora
+  consulta rulesets **e** branch protection classica, pagina o endpoint
+  (`--paginate --slurp` + `add`) e codifica bases com barra (`release/1.0` cru
+  devolvia `[]` com exit 0 — falha ABERTA).
+- **Step 12 — 4 guardas antes de qualquer remocao.** PR `MERGED`; worktree
+  resolvido pelo REGISTRO a partir de `headRefName` (havia TRES convencoes de
+  path incompativeis); `status -uall --ignored` (o `--porcelain` puro omite
+  ignorados, e o remove apagaria um `.env` de outra sessao); e ponta atual ==
+  `headRefOid` (ancestralidade contaria os commits originais apos squash e
+  reprovaria todo cleanup legitimo).
+- **`git worktree remove --force` proibido** — destroi WIP nao commitado sem
+  aviso. Worktree sujo e fail-closed, nao obstaculo a forcar.
+- **`git branch -d` -> `-D`** condicionado a `state == MERGED`: apos squash/rebase
+  a ponta nao e ancestral da base.
+- **Base nunca fixa em `main`**: Steps 3/6/10 resolvem e persistem `BASE_REF`
+  (variavel de shell nao sobrevive entre steps).
+- **Reviewer indisponivel deixa de ser dispensa de revisao.** Qodo virou fallback
+  de verdade (so quando o primario falha) e "ambos indisponiveis" e ESTADO
+  BLOQUEANTE ate a passagem DIY ser executada e divulgada no corpo do PR.
+- **Comandos de CLI inexistentes removidos** das tres regras: `cr review --plain`,
+  `--type uncommitted|all` e `qodo --ci -y` nao existem mais (verificado no
+  `--help`); substituidos pelas flags reais.
+- **Fail-opens de shell** fechados: sob `set -e`, `V=$(cat inexistente)` aborta e
+  torna os fallbacks inalcancaveis; `cmd; RC=$?` aborta no status legitimo 2; e
+  `read ... <<<"$(cmd)"` mascara a falha do comando com campos vazios.
+
 ### Added — Kiro install path + co-habitation/compatibility doc
 
 - `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
