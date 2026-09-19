@@ -54,9 +54,20 @@ git worktree list
 ```
 
 ### Remove Worktree
+
+⛔ **`rm -rf` NAO e remocao de worktree** — ignora toda checagem do git e apaga
+WIP nao commitado (inclusive de outra sessao) sem aviso. Numa politica cujo
+proposito e isolar agentes concorrentes, e a contradicao direta.
+
+A remocao segura exige 4 guardas ANTES de destruir: PR `MERGED` · worktree
+resolvido pelo REGISTRO (nunca por template) · `status --porcelain
+--untracked-files=all --ignored` vazio · ponta == `headRefOid` do PR.
+
 ```bash
-rm -rf .worktrees/{agent}-{feature}
-git worktree prune
+# Procedimento canonico e completo: rules/pr-governance-unified.md Step 12.
+# Resumo seguro (apos as 4 guardas):
+git worktree remove "$WT_REAL"   # sem --force; worktree sujo e fail-closed
+git branch -D "$BRANCH"          # -D: a ponta nao e ancestral apos squash
 ```
 
 ## Naming Standards

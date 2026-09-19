@@ -10,8 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
 Tres regras auto-carregadas (`rules/pr-governance-unified.md`,
-`rules/operational-workflow.md`, `rules/agent-scm.md`) prescreviam comandos que
-falham ou destroem trabalho. Cada correcao abaixo tem contraprova executada.
+`rules/operational-workflow.md`, `rules/agent-scm.md`) e a skill
+`worktree-policy` prescreviam comandos que falham ou destroem trabalho.
+Havia **QUATRO** implementacoes divergentes do mesmo cleanup — a do
+`agent-scm` OP-11 e a da skill ainda ofereciam `rm -rf`, que ignora toda
+checagem do git. Agora existe UM procedimento guardado e as outras tres
+delegam a ele. Cada correcao abaixo tem contraprova executada.
 
 - **Step 9 — metodo de merge resolvido, nao fixo.** O `--merge` incondicional
   contrariava os 4 repos do inventario que declaram squash. Agora resolve por
