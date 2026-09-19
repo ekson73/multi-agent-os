@@ -161,7 +161,11 @@ commitado de outra sessao. So execute sob as 4 guardas do procedimento canonico.
 #   3. `status --porcelain -uall --ignored` vazio (o `--porcelain` puro OMITE
 #      arquivos ignorados, e o remove apagaria um `.env` de outra sessao)
 #   4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
-# Só entao: cd <raiz>; git worktree remove <path>; git branch -D <branch>
+# So entao: cd <raiz>; git worktree remove <path>
+# 5. A delecao da branch e ATOMICA (expected-OID), nunca `branch -D` solto:
+#    entre as guardas e a remocao outra sessao pode avancar a ref, e o `-D`
+#    incondicional descartaria esse commit.
+#      git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"  # recusa se avancou
 # Remota: `ls-remote` distingue 0=existe · 2=ja removida · 128=erro (fail-closed)
 ```
 

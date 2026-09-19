@@ -125,6 +125,27 @@ while IFS= read -r hit; do
 done < <(grep -rnE 'gh pr merge[^|]*--(merge|squash|rebase)\b' "${SURFACES[@]}" 2>/dev/null)
 [ "$hits" -eq 0 ] && pass "nenhum 'gh pr merge' com metodo fixo"
 
+# `git branch -D` executavel FORA do contexto guardado. O canonico usa
+# `update-ref -d <ref> <expected-OID>`, que e ATOMICO: entre as guardas e a
+# remocao outra sessao pode avancar a ref, e um `-D` solto descarta esse
+# commit. Uma linha so escapa se ela mesma carregar o expected-OID.
+hits=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
+  code=$(strip_noncode "$line")
+  printf '%s' "$code" | grep -qE 'git branch -D' || continue
+  # NAO ha isencao por conteudo da linha: `git branch -D` nao aceita
+  # expected-OID, entao NENHUMA forma same-line dele e atomica. Mencionar
+  # `MERGED_OID` num comentario ao lado nao torna o comando condicional --
+  # isentar por isso seria recriar o buraco. A forma correta e outra COMANDO:
+  # `git update-ref -d <ref> <expected>`.
+  is_allowed "$file" "$line" && continue
+  fail "branch -D sem expected-OID: $file -> $(printf '%s' "$line" | cut -c1-72)"
+  hits=$((hits + 1))
+done < <(grep -rn 'git branch -D' "${SURFACES[@]}" 2>/dev/null)
+[ "$hits" -eq 0 ] && pass "nenhum 'git branch -D' fora do contexto atomico"
+
 # ── Fixtures NEGATIVAS: o teste precisa REPROVAR comando mau comentado.
 #    Sem isto, um filtro furado passa despercebido -- foi exatamente o buraco
 #    da versao anterior (`... --merge   # conforme a resolucao` escapava).
@@ -138,6 +159,9 @@ if [ "${DGP_NESTED:-0}" != "1" ]; then
 gh pr merge 1 --merge   # conforme a resolucao
 rm -rf .worktrees/x   # apaga WIP
 git worktree remove "$W" --force   # nunca faca isso
+git branch -D feat/solta   # sem expected-OID: descarta commit concorrente
+git branch -D "$B"   # MERGED_OID no comentario NAO torna o -D atomico
+git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"   # atomico: NAO deve contar
 ```
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
@@ -146,13 +170,14 @@ FIX
   #    `Status: FAILED` do sumario -- foi assim que 2 achados + 1 status
   #    bateram os "3" esperados e mascararam um padrao que nao casava.
   out=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1)
-  neg=$(printf '%s\n' "$out" | grep -cE 'prescricao destrutiva|metodo de merge fixo')
-  # As 3 linhas executaveis da fixture devem ser reprovadas; a prosa entre
-  # crases e o comentario puro NAO devem contar.
-  if [ "${neg:-0}" -eq 3 ]; then
-    pass "fixtures negativas: 3 achados, prosa/comentario isentos"
+  neg=$(printf '%s\n' "$out" \
+    | grep -cE 'prescricao destrutiva|metodo de merge fixo|branch -D sem expected-OID')
+  # 5 linhas executaveis devem ser reprovadas. NAO devem contar: a prosa entre
+  # crases, o comentario puro, e o `update-ref` atomico (que e a forma CERTA).
+  if [ "${neg:-0}" -eq 5 ]; then
+    pass "fixtures negativas: 5 achados; prosa/comentario/update-ref isentos"
   else
-    fail "fixtures negativas: esperado 3 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 5 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
