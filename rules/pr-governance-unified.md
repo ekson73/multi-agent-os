@@ -237,13 +237,33 @@ NEVER merge directly. Always via PR.
 
 TTL: 30 minutes. Optional if local review was executed.
 
+⛔ **Contar threads NÃO é auditar a revisão.** Um achado *outside diff range* — quando o
+reviewer aponta um arquivo/linha fora do diff — **não cria thread inline**. `0 threads
+abertas` é então perfeitamente compatível com achados válidos e não endereçados.
+Medido neste repositório: um veredito anunciava *"Actionable comments posted: 2"* e a
+contagem de threads era zero; auditando os corpos apareceram **4** achados reais, entre
+eles uma perda de dados silenciosa em código executável.
+
 ```bash
+# (a) Threads inline — necessário, NÃO suficiente.
 gh pr view <N> --json comments,reviews,statusCheckRollup
+
+# (b) CORPO COMPLETO de TODA revisão — inclusive vereditos OBSOLETOS, cujos
+#     achados continuam válidos até serem endereçados ou refutados.
+gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --jq '.[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
+
+# (c) Conferência: o corpo declara quantos achados acionáveis? Bate com o que
+#     você dispôs? Divergência = auditoria incompleta, não ruído.
+gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --jq '.[].body' | grep -iE 'actionable comments|outside diff'
 ```
 
 Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (AI)
 
 ## Step 8: Analyze Review + Decide
+
+**Entrada obrigatória: o resultado de 7(b), não só as threads.** Dispor de cada achado do
+corpo é pré-condição do merge — o Step 11 audita de novo, mas **depois** do merge; confiar
+só nele deixa o defeito entrar.
 
 | Classification | Action |
 |----------------|--------|
@@ -252,6 +272,7 @@ Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (
 | Partially valid | Apply valid items, document rejected with justification, push, loop |
 | Disagree (justified) | Merge + document justification via `gh pr comment` |
 | Inconclusive | Escalate to human (do NOT merge) |
+| **Achado do corpo não disposto** | ⛔ **NÃO mergeie** — audite 7(b) antes de qualquer decisão |
 
 > **Per-finding arbitration (bot findings)**: when the review feedback is a reviewer-BOT finding
 > (Copilot / Qodo / CodeRabbit / Amazon Q / gitleaks / Snyk / Semgrep / Trivy), route EACH finding to
@@ -438,7 +459,11 @@ git -C "$WT" pull --ff-only origin "$BASE"
 
 ## Step 11: Audit Reviews + Archive Emails
 
-### 11a. Audit PR reviews (PRIMARY: gh api)
+### 11a. SEGUNDA auditoria das revisões (a primeira é o Step 7b, PRÉ-merge)
+
+⚠️ Esta passagem é **rede de segurança, não a primeira leitura**. Se um achado do corpo
+aparecer aqui pela primeira vez, o Step 7b falhou e o defeito já entrou no `main` —
+registre o escape e corrija o processo, não só o achado.
 
 ```bash
 # Read inline comments

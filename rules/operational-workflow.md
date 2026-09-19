@@ -118,6 +118,23 @@ EOF
 
 ## 6. Merge + Pull
 
+⛔ **PRE-CONDICAO: auditar o CORPO de toda revisao, nao so as threads.** Um achado
+*outside diff range* NAO cria thread inline, entao "0 threads" convive com achados
+validos nao endereçados (medido: um veredito anunciava 2 acionaveis, threads = 0, e a
+auditoria dos corpos revelou 4 -- um deles perda de dados em codigo executavel).
+
+```bash
+# Corpo completo de TODA revisao, inclusive vereditos OBSOLETOS.
+gh api "repos/{owner}/{repo}/pulls/{N}/reviews" \
+  --jq '.[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
+# Quantos acionaveis o corpo declara? Bate com o que voce dispos?
+gh api "repos/{owner}/{repo}/pulls/{N}/reviews" --jq '.[].body' \
+  | grep -iE 'actionable comments|outside diff'
+```
+
+Achado do corpo sem disposicao ⇒ NAO mergeie. A secao 7 audita de novo, mas DEPOIS do
+merge -- confiar so nela deixa o defeito entrar.
+
 ```bash
 # Metodo resolvido por autoridade local do repo -- ver pr-governance-unified Step 9
 # MERGE_METHOD vem da resolucao do Step 9 (autoridade local + capacidade
