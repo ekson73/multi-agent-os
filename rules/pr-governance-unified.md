@@ -428,11 +428,13 @@ echo "ℹ️  capacidade efetiva em '$BASE_REF': merge=$MERGE_OK squash=$SQUASH_
 **Protocolo de conflito entre fontes** (ratificado pelo operador; substitui hierarquia fixa):
 
 1. **Recon + OODA**: compare **todas** as versões divergentes, citando arquivo e linha.
-2. Vale a política **mais específica aplicável** (`AGENTS.md` aninhado / ADR de diretório →
-   repo → global). ⚠️ **Não reescreva a fonte mais ampla por reflexo**: uma política
-   escopada pode ser uma **exceção deliberada** (um subdiretório que exige `squash` não
-   implica que o repo inteiro deva). Só propague quando a divergência for drift
-   comprovado (passo 3); caso contrário, registre a exceção e deixe as duas coexistirem.
+2. **Para o alvo atual**, vale a política **mais específica aplicável** (`AGENTS.md`
+   aninhado / ADR de diretório → repo → global). Ela governa **este** merge e nada mais.
+   ⛔ **Não corrija nenhuma outra fonte por conta disso.** Uma política global geral e
+   uma exceção de subdiretório **não são divergência** — são escopos diferentes, ambos
+   corretos, e reescrever qualquer um dos lados apaga a intenção. Só há o que corrigir
+   quando duas fontes **do mesmo escopo** discordam (passo 3, drift real). Caso
+   contrário, preserve as duas.
    ⚠️ A formulação anterior ("o escopo mais amplo decide") **invertia** a precedência de
    instrução escopada: um `AGENTS.md` de subdiretório exigindo `squash` seria sobrescrito
    por um default global permissivo, e a fonte específica ainda seria reescrita. Empate
