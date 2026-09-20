@@ -124,12 +124,23 @@ strip_stream() {
       # fixture ativa e o teste reportava PASSED. Normaliza-las aqui, na UNICA
       # representacao, conserta todos os scans de uma vez -- em vez de inchar
       # cada regex com uma alternancia propria.
-      # Valores CITADOS podem conter espaco: `git -C "my path" branch -D x`.
-      # Um `[^ ]+` pararia na primeira lacuna e a opcao global sobreviveria,
-      # quebrando a adjacencia de novo. As alternativas de aspas vem ANTES da
-      # forma sem aspas para casarem primeiro.
-      while (match(body, /git +(-C +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+)|-c +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+)|--git-dir=("[^"]*"|[^ ]+)|--work-tree=("[^"]*"|[^ ]+)|--namespace=("[^"]*"|[^ ]+)|--exec-path=("[^"]*"|[^ ]+)|--no-pager|--paginate|-P|--bare|--literal-pathspecs) +/))
-        body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
+      # Opcoes GLOBAIS do git entre `git` e o subcomando quebram todo padrao
+      # que exige adjacencia. ENUMERAR uma a uma e caca a toupeiras: medido,
+      # depois de cobrir 11 ainda passavam `--config-env=`, `--no-replace-objects`,
+      # `--exec-path`, `-p`, `--info-path`, `--no-optional-locks`, `--attr-source=`.
+      # Generalizado pela FORMA: qualquer token iniciado por `-` logo apos `git`
+      # e opcao global. `-C` e `-c` consomem TAMBEM o token seguinte (o valor,
+      # que pode vir citado e conter espaco). Para no primeiro token que nao
+      # comeca com `-` -- o subcomando.
+      do {
+        n0 = length(body)
+        # (i) opcao com valor separado
+        if (match(body, /git +(-C|-c) +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+) +/))
+          body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
+        # (ii) opcao auto-contida: --longa, --longa=valor, ou -x
+        else if (match(body, /git +(--[a-zA-Z][a-zA-Z0-9-]*(=("[^"]*"|[^ ]+))?|-[a-zA-Z]) +/))
+          body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
+      } while (length(body) < n0)
       sub(/^[[:space:]]*#.*$/, "", body)          # linha so de comentario
       sub(/[[:space:]]#.*$/, "", body)            # comentario ao final
       print pre body
@@ -148,7 +159,7 @@ declare -a PATTERNS=(
   # `rm -h` define -r/-R/--recursive como equivalentes, e a ordem das flags e
   # livre: `rm -fr`, `rm -Rf`, `rm -f -r` sao o MESMO comando. Medido: so
   # `rm -rf` era detectado; as outras tres formas passavam.
-  'rm +(-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*|--recursive +--force|--force +--recursive|-[rRf] +-[rRf]) +[^ ]*\.worktrees'
+  'rm +(-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*|--recursive +--force|--force +--recursive|-[rR] +-f|-f +-[rR]) +[^ ]*\.worktrees'
   'worktree remove ([^#]*(--force|-f)\b|(--force|-f)\b)'
   'git branch (-d|--delete)([^-]|$)'
   'git pull origin main'
@@ -351,7 +362,19 @@ git -C "my path" branch -D feat/citado
 rm -fr .worktrees/variante-fr
 rm -Rf .worktrees/variante-Rf
 rm -f -r .worktrees/variante-separada
+git --config-env=X=Y branch -D feat/env
+git --no-optional-locks branch -D feat/locks
+git -C "my path" -c user.x=1 --no-pager branch -D feat/combinada
 ```
+
+NAO destrutivos -- pares de flag SEM `-r`+`-f` juntos nao sao `rm -rf` e devem
+continuar isentos:
+
+```bash
+rm -r -r /tmp/so-recursivo
+rm -f -f /tmp/so-forcado
+```
+
 
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
@@ -367,10 +390,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 25 ]; then
-    pass "fixtures negativas: 25 (linha + continuacao + alias/ws + cerca + git-opts + rm-variantes)"
+  if [ "${neg:-0}" -eq 28 ]; then
+    pass "fixtures negativas: 28 (linha+continuacao+alias/ws+cerca+git-opts+rm); pares rm sem -r+-f isentos"
   else
-    fail "fixtures negativas: esperado 25 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 28 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
