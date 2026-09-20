@@ -58,8 +58,14 @@ reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=(); held_stale
 
 # Slug para consultar PRs. Falha silenciosa e aceitavel: sem slug, `gh` nao
 # confirma merge e a via por idade cai no ramo "apenas relatado" -- fail-closed.
+# `|| true` OBRIGATORIO: sob `set -euo pipefail` um repo SEM `origin` faz o
+# `remote get-url` falhar, o pipefail propaga, e o script inteiro ABORTA.
+# Medido: `tests/test-reap-sessions.sh` saia 2 sem imprimir uma linha sequer.
+# (E meu teste manual "passou" porque li `$?` DEPOIS de um pipe -- o exit era
+#  o do `sed`, nao o do subshell. Mesma armadilha que ja registrei antes.)
 REPO_SLUG="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null \
-  | sed -E 's#(git@|https://)[^:/]+[:/]##; s#\.git$##')"
+  | sed -E 's#(git@|https://)[^:/]+[:/]##; s#\.git$##')" || true
+[ -n "${REPO_SLUG:-}" ] || REPO_SLUG=""
 
 # ── worktrees: eligible = (detached/orphan) OR (last-commit age > stale-days); reaped only if CLEAN ──
 emit_wt() {
@@ -71,6 +77,20 @@ emit_wt() {
   ts="$(git -C "$p" log -1 --format=%ct 2>/dev/null || echo 0)"
   age=$(( (NOW - ts) / 86400 ))
   [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
+  # WIP guard PRIMEIRO. Sujo e o sinal mais forte e mais especifico: um
+  # worktree com trabalho nao commitado e WIP, nao "stale sem prova". Deixar
+  # a prova-de-termino antes disto classificaria um WIP sujo como `held`,
+  # escondendo a informacao que o operador realmente precisa ver.
+  # `--porcelain` sozinho OMITE ignorados: um worktree so com um `.env`
+  # ignorado le como limpo, e o `worktree remove` entao TEM SUCESSO e o apaga
+  # (medido -- o remove NAO recusa por ignorados). `-uall --ignored` fecha
+  # isso. Falha de inspecao e fail-closed: pula, nunca remove as cegas.
+  wt_state="$(git -C "$p" status --porcelain --untracked-files=all --ignored 2>/dev/null)" \
+    || { skipped_wip+=("$p"); return 0; }
+  if [ -n "$wt_state" ]; then
+    skipped_wip+=("$p"); return 0
+  fi
+
   # Detached NAO significa abandonado, e o registro do worktree E a fronteira
   # de ownership multi-sessao. Pior: um HEAD detached pode conter commits
   # alcancaveis SO por ele. Medido em repo descartavel -- `worktree remove`
@@ -99,6 +119,18 @@ emit_wt() {
       merged="$(gh pr list -R "$REPO_SLUG" --head "$b" --state merged \
                   --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)"
     fi
+    # O PR mergeado precisa corresponder a PONTA ATUAL. Uma branch reusada, ou
+    # que recebeu commits DEPOIS do merge, ainda casa o PR historico -- e isso
+    # seria lido como prova de abandono de um trabalho que esta em curso.
+    local pr_oid="" tip_oid=""
+    if [ -n "$merged" ]; then
+      pr_oid="$(gh pr view "$merged" -R "$REPO_SLUG" --json headRefOid \
+                  --jq .headRefOid 2>/dev/null || true)"
+      tip_oid="$(git -C "$p" rev-parse HEAD 2>/dev/null || true)"
+      [ -n "$pr_oid" ] && [ "$pr_oid" = "$tip_oid" ] || {
+        held_stale+=("$p (pr#${merged} mergeado, mas a ponta AVANCOU desde entao)")
+        return 0; }
+    fi
     if [ -n "$merged" ]; then
       elig=1; reason="${reason:+$reason,}stale-${age}d+pr#${merged}-merged"
     else
@@ -108,16 +140,6 @@ emit_wt() {
     fi
   fi
   [ "$elig" -eq 1 ] || return 0
-  # WIP guard — never reap dirty.
-  # `--porcelain` alone OMITS ignored files: a worktree holding only an ignored
-  # `.env` reads as clean, and `worktree remove` then SUCCEEDS and deletes it
-  # (measured — the remove does NOT refuse for ignored paths). `-uall --ignored`
-  # closes that. Inspection failure is fail-closed: skip, never reap blind.
-  wt_state="$(git -C "$p" status --porcelain --untracked-files=all --ignored 2>/dev/null)" \
-    || { skipped_wip+=("$p"); return 0; }
-  if [ -n "$wt_state" ]; then
-    skipped_wip+=("$p"); return 0
-  fi
   if [ "$APPLY" -eq 0 ]; then would_wt+=("$p ($reason)"); return 0; fi
   if git -C "$REPO_DIR" worktree remove "$p" >/dev/null 2>&1; then   # NO --force (belt-and-suspenders)
     reaped_wt+=("$p")

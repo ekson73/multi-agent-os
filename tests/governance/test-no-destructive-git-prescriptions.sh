@@ -119,6 +119,13 @@ strip_stream() {
         print pre body; next
       }
       body = strip(body)
+      # Opcoes GLOBAIS do git entre `git` e o subcomando quebram todo padrao
+      # que exige adjacencia. Medido: `git -C "$ROOT" branch -D feat/lost` numa
+      # fixture ativa e o teste reportava PASSED. Normaliza-las aqui, na UNICA
+      # representacao, conserta todos os scans de uma vez -- em vez de inchar
+      # cada regex com uma alternancia propria.
+      while (match(body, /git +(-C +[^ ]+|-c +[^ ]+|--git-dir=[^ ]+|--work-tree=[^ ]+|--namespace=[^ ]+|--exec-path=[^ ]+|--no-pager|--paginate|-P|--bare|--literal-pathspecs) +/))
+        body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
       sub(/^[[:space:]]*#.*$/, "", body)          # linha so de comentario
       sub(/[[:space:]]#.*$/, "", body)            # comentario ao final
       print pre body
@@ -327,6 +334,14 @@ echo `git branch -D feat/eco`
 Prosa com crase FORA de cerca, que NAO deve contar: `rm -rf .worktrees/x` e
 `git branch -D feat/prosa`.
 
+Opcoes GLOBAIS do git entre `git` e o subcomando -- quebram qualquer padrao que
+exija adjacencia literal.
+
+```bash
+git -C "$ROOT" branch -D feat/globalopt
+git --no-pager -C /x worktree remove -f "$W"
+```
+
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
 FIX
@@ -341,10 +356,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 19 ]; then
-    pass "fixtures negativas: 19 (linha + continuacao + alias/ws + 3 em cerca)"
+  if [ "${neg:-0}" -eq 21 ]; then
+    pass "fixtures negativas: 21 (linha + continuacao + alias/ws + cerca + git-opts)"
   else
-    fail "fixtures negativas: esperado 19 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 21 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
