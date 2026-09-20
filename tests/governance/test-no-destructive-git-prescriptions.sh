@@ -206,7 +206,7 @@ while IFS= read -r hit; do
   is_allowed "$file" "$line" && continue
   fail "delete-ref via REST (nao atomizavel): $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(grep -rnE '\-X DELETE.*git/refs/heads' "${SURFACES[@]}" 2>/dev/null)
+done < <(join_continuations | grep -E ':[0-9]+:.*\-X DELETE.*git/refs/heads')
 [ "$hits" -eq 0 ] && pass "nenhum delete-ref via REST"
 
 # ── Fixtures NEGATIVAS: o teste precisa REPROVAR comando mau comentado.
@@ -229,6 +229,27 @@ gh api -X PUT /repos/o/r/pulls/1/merge   # sem merge_method: cai em merge commit
 gh api -X DELETE /repos/o/r/git/refs/heads/feat   # delete-ref nao e atomizavel
 gh api -X PUT /repos/o/r/pulls/1/merge -f merge_method="$M"   # correto: NAO conta
 ```
+
+Formas QUEBRADAS por continuacao de shell. Sem normalizar o `\` final, o scan
+orientado a linha nao ve nenhum comando completo e reporta PASSED -- bypass
+puramente sintatico, reproduzido antes da correcao.
+
+```bash
+git worktree remove \
+  "$W" --force
+rm -rf \
+  .worktrees/y
+gh pr merge 2 \
+  --squash
+git branch -D \
+  feat/quebrada
+gh api -X PUT \
+  /repos/o/r/pulls/2/merge
+gh api -X DELETE \
+  /repos/o/r/git/refs/heads/outra
+git update-ref -d \
+  "refs/heads/$B" "$MERGED_OID"
+```
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
 FIX
@@ -238,12 +259,15 @@ FIX
   out=$(DGP_NESTED=1 bash "$0" "$FIXT" 2>&1)
   neg=$(printf '%s\n' "$out" \
     | grep -cE 'prescricao destrutiva|metodo de merge fixo|branch -D sem expected-OID|merge REST sem|delete-ref via REST')
-  # 7 linhas executaveis devem ser reprovadas. NAO devem contar: a prosa entre
-  # crases, o comentario puro, e o `update-ref` atomico (que e a forma CERTA).
-  if [ "${neg:-0}" -eq 7 ]; then
-    pass "fixtures negativas: 7 achados; prosa/comentario/formas-corretas isentos"
+  # 13 achados: 7 em linha unica + 6 quebrados por continuacao. NAO devem contar:
+  # a prosa entre crases, o comentario puro, e as DUAS formas de `update-ref`
+  # atomico (em linha e quebrada) -- que sao a forma CERTA.
+  # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
+  # temporaria prova a correcao uma vez, nao impede a regressao.
+  if [ "${neg:-0}" -eq 13 ]; then
+    pass "fixtures negativas: 13 achados (7 em linha + 6 quebradas por continuacao)"
   else
-    fail "fixtures negativas: esperado 7 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 13 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
