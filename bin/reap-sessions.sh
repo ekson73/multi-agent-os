@@ -54,7 +54,12 @@ if [ -z "$DEFAULT_BRANCH" ]; then   # no origin/HEAD → prefer a REAL default; 
 fi
 [ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)"   # last resort
 
-reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=()
+reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=(); held_stale=()
+
+# Slug para consultar PRs. Falha silenciosa e aceitavel: sem slug, `gh` nao
+# confirma merge e a via por idade cai no ramo "apenas relatado" -- fail-closed.
+REPO_SLUG="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null \
+  | sed -E 's#(git@|https://)[^:/]+[:/]##; s#\.git$##')"
 
 # ── worktrees: eligible = (detached/orphan) OR (last-commit age > stale-days); reaped only if CLEAN ──
 emit_wt() {
@@ -67,7 +72,25 @@ emit_wt() {
   age=$(( (NOW - ts) / 86400 ))
   [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
   if [ "$det" -eq 1 ] || [ -z "$b" ]; then elig=1; reason="orphan-detached"; fi
-  if [ "$age" -gt "$STALE_DAYS" ]; then elig=1; reason="${reason:+$reason,}stale-${age}d"; fi
+  # Idade SOZINHA nao autoriza remocao. Um worktree limpo e ATIVO -- alguem
+  # explorando, com tudo commitado, parado alguns dias -- some so por ser
+  # antigo, e o `--apply` executa sem checar PR mergeado nem dono. Idade e
+  # sinal de ABANDONO, nao prova dele: a prova e o PR da branch ter sido
+  # mergeado. Sem `gh`, ou sem PR mergeado, o item e apenas RELATADO.
+  if [ "$age" -gt "$STALE_DAYS" ] && [ -n "$b" ]; then
+    local merged=""
+    if command -v gh >/dev/null 2>&1; then
+      merged="$(gh pr list -R "$REPO_SLUG" --head "$b" --state merged \
+                  --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)"
+    fi
+    if [ -n "$merged" ]; then
+      elig=1; reason="${reason:+$reason,}stale-${age}d+pr#${merged}-merged"
+    else
+      # Relatado, NUNCA removido: nao ha evidencia de que o trabalho acabou.
+      held_stale+=("$p (stale-${age}d, sem PR mergeado)")
+      return 0
+    fi
+  fi
   [ "$elig" -eq 1 ] || return 0
   # WIP guard — never reap dirty.
   # `--porcelain` alone OMITS ignored files: a worktree holding only an ignored
@@ -130,6 +153,7 @@ else
   echo "reap-sessions ($([ "$APPLY" -eq 0 ] && echo DRY-RUN || echo APPLY)) repo=$MAIN_TOP stale>${STALE_DAYS}d"
   if [ "$APPLY" -eq 0 ]; then
     printf '  would reap worktrees: %s\n' "${would_wt[*]:-(none)}"
+    printf '  held (stale, unproven): %s\n' "${held_stale[*]:-(none)}"
     printf '  would reap branches : %s\n' "${would_br[*]:-(none)}"
     printf '  skip (WIP)          : %s\n' "${skipped_wip[*]:-(none)}"
     echo   "  → re-run with --apply to execute (WIP + main always preserved)"

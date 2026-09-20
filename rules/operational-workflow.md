@@ -110,6 +110,11 @@ git commit -m "fix: address review findings"
 
 ```bash
 git push -u origin {branch-name}
+# RECARREGUE a base: este passo pode rodar em shell NOVO, onde $BASE_REF do
+# passo 3 nao existe -- esta propria regra afirma que variavel nao sobrevive
+# entre passos. Sem isso o `gh pr create` recebe `--base ""` e aborta.
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || { echo "fail-closed: base nao persistida -- rode o passo 3" >&2; exit 1; }
 # --base OBRIGATORIO: sem ele o gh assume a branch DEFAULT do repo, e um PR
 # empilhado seria aberto contra a base errada.
 gh pr create --base "$BASE_REF" \
