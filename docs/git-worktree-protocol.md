@@ -204,12 +204,18 @@ git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 
 ### Atualizar Worktree
 
-```bash
-cd .worktrees/{agent}-{feature}
-# A base NAO e `main` por reflexo -- resolva a BASE do PR (Steps 3/10).
-BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
-[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName)
-git pull --ff-only origin "$BASE_REF"
+⛔ **Sem copia executavel aqui.** Este bloco duplicava a sincronizacao e o
+`git pull --ff-only` ficava SEM guarda: `--ff-only` RECUSA quando a base
+divergiu e, num shell sem `errexit`, o fluxo seguiria como se tivesse
+sincronizado. Duas copias do mesmo procedimento tambem voltam a divergir --
+foi exatamente o que aconteceu com o gate de auditoria e com o merge nesta
+mesma revisao.
+
+```text
+Sincronizacao da base -> rules/pr-governance-unified.md, Step 10
+                         (resolve a base persistida, sincroniza DENTRO do
+                          worktree que a acompanha, e aborta fail-closed
+                          quando o fast-forward e recusado)
 ```
 
 ---
