@@ -87,8 +87,12 @@ INPUT (opcional):
 EXECUCAO:
   1. Verificar git status do main repo (deve estar limpo)
   2. Resolver e VALIDAR a base antes de criar:
-       BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef \
-         -q .defaultBranchRef.name)}"
+       # Precedencia: BASE_REF_OVERRIDE > input base_branch > default do repo.
+       # Omitir `base_branch` aqui faria o input DOCUMENTADO ser silenciosamente
+       # ignorado -- o worktree nasceria do default e a base errada seria
+       # persistida para review e PR.
+       BASE_REF="${BASE_REF_OVERRIDE:-${base_branch:-$(gh repo view --json defaultBranchRef \
+         -q .defaultBranchRef.name)}}"
        git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
          || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
        git fetch -q origin "$BASE_REF"
@@ -183,7 +187,10 @@ EXECUCAO:
   1. PRIMARIO: cr review --base "$BASE_REF" --config {config_file}
      (`--plain` foi REMOVIDO na 0.7.x; texto plano ja e o modo default.
       Para saida estruturada por agente use `--agent`.)
-  2. Se o PRIMARIO falhar: FALLBACK `qodo review [pathspec...]`
+  2. Se o PRIMARIO falhar: FALLBACK `qodo review --base "$BASE_REF" [pathspec...]`
+     (SEM `--base` o Qodo diffa contra o default do repo: numa mudanca empilhada
+      ou de base nao-default ele revisaria OUTRO diff e ainda assim liberaria o
+      push. Ver a referencia de CLI deste arquivo.)
      (`qodo --ci -y "prompt"` NAO EXISTE MAIS: "unknown option '--ci'".
       Exige repo conectado; senao falha com `repo_not_connected`.
       Rode SOMENTE quando o primario falhar -- em sequencia incondicional
@@ -425,8 +432,16 @@ EXECUCAO:
   PROIBIDO:
     - `rm -rf {worktree_path}`      (ignora TODAS as guardas; destroi WIP alheio)
     - `git worktree remove --force` (apaga arquivo nao rastreado sem aviso)
-    - `git branch -d`               (RECUSA apos squash/rebase; use -D sob a
-                                     guarda 1, nunca por ancestralidade)
+    - `git branch -d`               (RECUSA apos squash/rebase)
+    - `git branch -D`               (apaga MESMO nao-mesclada: entre a guarda 4
+                                     e a execucao outra sessao pode avancar a
+                                     branch, e o commit novo some em silencio)
+
+  DELECAO DA BRANCH LOCAL: nao prescreva `branch -D` aqui. Delegue ao Step 12
+  do `pr-governance-unified`, que fecha essa corrida de forma CONDICIONAL:
+      git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"
+  (o ref so cai se a ponta AINDA for o OID mesclado; se outra sessao avancou,
+   o comando FALHA em vez de destruir o trabalho dela)
 
 CHECKLIST DE SAIDA (C13) -- escopo: SOMENTE os artefatos DESTA tarefa.
   Em ambiente multi-sessao, outros agentes mantem worktrees e branches

@@ -139,13 +139,19 @@ printf '%s' "$REVIEWS" | jq -r 'add[].body' \
 Achado do corpo sem disposicao ⇒ NAO mergeie. A secao 7 audita de novo, mas DEPOIS do
 merge -- confiar so nela deixa o defeito entrar.
 
-```bash
-# Metodo resolvido por autoridade local do repo -- ver pr-governance-unified Step 9
-# MERGE_METHOD vem da resolucao do Step 9 (autoridade local + capacidade
-# efetiva da base). Um literal aqui seria o default que este PR remove.
-gh pr merge <N> --"$MERGE_METHOD"
-# Sincronize a BASE do PR, dentro do worktree que a acompanha -- ver Step 10
-# (NUNCA `git checkout` no repo principal: o Step 1 proibe)
+⛔ **O merge em si NAO se executa aqui.** Esta regra e um RESUMO; a resolucao do
+metodo e a invocacao vivem no `pr-governance-unified` Step 9, que ja termina em
+`gh pr merge`. Repetir o comando aqui criaria um SEGUNDO merge e tornaria o fluxo
+impossivel: para chegar nele seria preciso interromper o Step 9 no meio.
+
+```text
+Resolucao do metodo + merge  -> pr-governance-unified, Step 9 (fonte unica)
+Sincronizacao da base do PR  -> pr-governance-unified, Step 10
+                                (dentro do worktree que acompanha a base;
+                                 NUNCA `git checkout` no repo principal --
+                                 o Step 1 proibe)
+Delecao da branch local      -> pr-governance-unified, Step 12
+                                (`update-ref -d <ref> "$MERGED_OID"`, atomica)
 ```
 
 ## 7. Audit Reviews (gh api)

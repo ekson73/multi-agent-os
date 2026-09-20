@@ -52,9 +52,10 @@ ALLOWLIST=(
   # Tabela canonica do Step 9: mostra os TRES comandos lado a lado como
   # resultado possivel da resolucao, nao como default. Os tres sao isentos --
   # isentar so `--merge` reprovaria as outras duas linhas da MESMA tabela.
-  "rules/pr-governance-unified.md|gh pr merge <N> --merge     # resolução produziu"
-  "rules/pr-governance-unified.md|gh pr merge <N> --squash    # resolução produziu"
-  "rules/pr-governance-unified.md|gh pr merge <N> --rebase    # resolução produziu"
+  # Os tres exemplos literais do Step 9 foram SUBSTITUIDOS por um unico
+  # `gh pr merge <N> --"$MERGE_METHOD"` com enum-validacao, entao nao ha mais
+  # metodo fixo a isentar aqui. As isencoes ficaram obsoletas e o proprio teste
+  # as reprovou -- que e o comportamento projetado.
 )
 
 is_allowed() {
