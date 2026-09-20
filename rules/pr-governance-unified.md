@@ -56,8 +56,14 @@ git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
 git fetch -q origin "$BASE_REF" || {
   echo "⛔ fail-closed: fetch de '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2
   exit 1; }
-git worktree add .worktrees/{session-id}-{feature} -b {type}/{feature} "origin/$BASE_REF"
-cd .worktrees/{session-id}-{feature}
+# ⚠️ Encadeie com `&&`. Se o `worktree add` falhar, o `cd` tambem falha e o
+#    `git rev-parse --git-dir` abaixo resolve para o REPO PRINCIPAL — gravando
+#    a base ali. Medido: `.git/BASE_REF` criado na raiz com valor errado,
+#    contaminando toda sessao subsequente que leia a base persistida.
+git worktree add .worktrees/{session-id}-{feature} -b {type}/{feature} "origin/$BASE_REF" \
+  || { echo "⛔ fail-closed: worktree add falhou" >&2; exit 1; }
+cd .worktrees/{session-id}-{feature} \
+  || { echo "⛔ fail-closed: cd para o worktree falhou" >&2; exit 1; }
 
 # 1c. PERSISTA a base no worktree — variável de shell NÃO sobrevive entre steps,
 #     sessões ou agentes. Em worktree `.git` é ARQUIVO, não diretório: resolva o
@@ -262,7 +268,7 @@ gh pr view <N> --json comments,reviews,statusCheckRollup
 #     `--slurp` não convive com `--jq`, então agregue num pipe separado.
 REVIEWS=$(gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --paginate --slurp) || {
   echo "⛔ fail-closed: não consegui ler as revisões" >&2; exit 1; }
-printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
+printf '%s' "$REVIEWS" | jq -r '(add // [])[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
 
 # (c) COMENTÁRIOS INLINE — endpoint SEPARADO. `/reviews` devolve os registros de
 #     revisão; um achado postado inline SEM repetição no corpo não aparece ali.
@@ -272,13 +278,13 @@ printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit
 #     threads inline abertas de outro revisor — 9 achados únicos, 6 deles P1.
 COMMENTS=$(gh api "repos/{owner}/{repo}/pulls/<N>/comments" --paginate --slurp) || {
   echo "⛔ fail-closed: não consegui ler os comentários inline" >&2; exit 1; }
-printf '%s' "$COMMENTS" | jq -r 'add[]|"\n--- \(.path):\(.line // .original_line) @\(.user.login)\n\(.body)"'
+printf '%s' "$COMMENTS" | jq -r '(add // [])[]|"\n--- \(.path):\(.line // .original_line) @\(.user.login)\n\(.body)"'
 
 # (d) Conferência: o corpo declara quantos achados acionáveis? Bate com o que
 #     você dispôs? Divergência = auditoria incompleta, não ruído.
 #     ⚠️ `|| true`: sem match o grep sai 1 e, sob `set -e`, abortaria o passo
 #     num conjunto de revisões LIMPO — o caso bom viraria falha.
-printf '%s' "$REVIEWS" | jq -r 'add[].body' \
+printf '%s' "$REVIEWS" | jq -r '(add // [])[].body' \
   | grep -iE 'actionable comments|outside diff' || true
 ```
 
@@ -423,7 +429,10 @@ echo "ℹ️  capacidade efetiva em '$BASE_REF': merge=$MERGE_OK squash=$SQUASH_
 
 1. **Recon + OODA**: compare **todas** as versões divergentes, citando arquivo e linha.
 2. Vale a política **mais específica aplicável** (`AGENTS.md` aninhado / ADR de diretório →
-   repo → global) — corrija as fontes **menos** específicas para refletir o resultado.
+   repo → global). ⚠️ **Não reescreva a fonte mais ampla por reflexo**: uma política
+   escopada pode ser uma **exceção deliberada** (um subdiretório que exige `squash` não
+   implica que o repo inteiro deva). Só propague quando a divergência for drift
+   comprovado (passo 3); caso contrário, registre a exceção e deixe as duas coexistirem.
    ⚠️ A formulação anterior ("o escopo mais amplo decide") **invertia** a precedência de
    instrução escopada: um `AGENTS.md` de subdiretório exigindo `squash` seria sobrescrito
    por um default global permissivo, e a fonte específica ainda seria reescrita. Empate
