@@ -125,26 +125,25 @@ EOF
 
 ## 6. Merge + Pull
 
-⛔ **PRE-CONDICAO: auditar o CORPO de toda revisao, nao so as threads.** Um achado
-*outside diff range* NAO cria thread inline, entao "0 threads" convive com achados
-validos nao endereçados (medido: um veredito anunciava 2 acionaveis, threads = 0, e a
-auditoria dos corpos revelou 4 -- um deles perda de dados em codigo executavel).
+⛔ **PRE-CONDICAO: auditar a revisao pelos DOIS endpoints, nao so as threads.**
+Um achado *outside diff range* NAO cria thread inline, e um achado inline sem
+repeticao no corpo nao aparece em `/reviews`. Medido: um veredito anunciava 2
+acionaveis com ZERO threads (4 achados reais nos corpos), e depois 12 threads
+inline de outro revisor enquanto a auditoria de corpos reportava tudo disposto.
 
-```bash
-# Corpo completo de TODA revisao, inclusive vereditos OBSOLETOS.
-# O endpoint pagina em 30: sem `--paginate --slurp` as revisoes da 2a pagina
-# somem em silencio. `--slurp` nao convive com `--jq`: agregue em pipe separado.
-REVIEWS=$(gh api "repos/{owner}/{repo}/pulls/{N}/reviews" --paginate --slurp) || {
-  echo "fail-closed: nao consegui ler as revisoes" >&2; exit 1; }
-printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
-# Quantos acionaveis o corpo declara? Bate com o que voce dispos?
-# `|| true`: sem match o grep sai 1 e abortaria o passo sob `set -e`.
-printf '%s' "$REVIEWS" | jq -r 'add[].body' \
-  | grep -iE 'actionable comments|outside diff' || true
+⛔ **Nao ha copia executavel aqui.** Esta regra e um RESUMO. Replicar o gate
+significaria manter dois conjuntos de comandos em sincronia -- e foi exatamente
+o que falhou: a copia daqui lia so `/reviews` e ficou defasada no instante em
+que o canonico passou a exigir tambem `/pulls/{N}/comments`. Mesmo principio ja
+aplicado ao merge logo abaixo.
+
+```text
+Auditoria pre-merge (corpos 7b + inline 7c, paginados) -> pr-governance-unified, Step 7
+Decisao por achado, com os dois endpoints como entrada -> pr-governance-unified, Step 8
 ```
 
-Achado do corpo sem disposicao ⇒ NAO mergeie. A secao 7 audita de novo, mas DEPOIS do
-merge -- confiar so nela deixa o defeito entrar.
+Achado de qualquer um dos dois endpoints sem disposicao => NAO mergeie. A secao
+7 audita de novo, mas DEPOIS do merge -- confiar so nela deixa o defeito entrar.
 
 ⛔ **O merge em si NAO se executa aqui.** Esta regra e um RESUMO; a resolucao do
 metodo e a invocacao vivem no `pr-governance-unified` Step 9, que ja termina em
