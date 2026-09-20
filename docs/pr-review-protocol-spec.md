@@ -273,7 +273,12 @@ case "$MERGE_METHOD" in
   merge|squash|rebase) ;;
   *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
 esac
-gh pr merge <numero> --"$MERGE_METHOD"
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 #### 6b. Aplicar Correção (Loop)
@@ -395,12 +400,20 @@ case "$MERGE_METHOD" in
   merge|squash|rebase) ;;
   *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
 esac
-gh pr merge <numero> --"$MERGE_METHOD"
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 
-# Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
-# NUNCA `rm -rf` (ignora TODAS as guardas e apaga WIP nao commitado sem aviso).
-cd /path/to/repo
-git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
+# Cleanup: DELEGADO, sem copia executavel. Um `worktree remove` solto aqui
+# perde as guardas do Step 12 (PR MERGED; worktree resolvido pelo REGISTRO via
+# headRefName; `status --porcelain -uall --ignored` vazio; ponta == headRefOid)
+# e o fail-closed que impede seguir para as delecoes de ref quando o remove
+# falha. Uma copia parcial com uma guarda so e pior que nenhuma: parece segura.
+#
+#   Cleanup completo -> rules/pr-governance-unified.md, Step 12
 ```
 
 ---
@@ -600,7 +613,12 @@ case "$MERGE_METHOD" in
   merge|squash|rebase) ;;
   *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
 esac
-gh pr merge <numero> --"$MERGE_METHOD"
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ### 6.2 Hotfix Crítico
@@ -638,7 +656,12 @@ case "$MERGE_METHOD" in
   merge|squash|rebase) ;;
   *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
 esac
-gh pr merge <numero> --"$MERGE_METHOD"
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ---
