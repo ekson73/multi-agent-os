@@ -142,6 +142,25 @@ if [ -f "$QBG_TEST" ]; then
 else
     fail "tests/governance/test-question-batch-gate.sh missing"
 fi
+
+# Regressao de governanca: prescricoes git destrutivas em superficies ativas.
+# Existe porque QUATRO varreduras manuais sucessivas deixaram copias para tras
+# no PR #436 (4 implementacoes divergentes do cleanup, 6 do merge fixo).
+DGP_TEST="$PLUGIN_ROOT/tests/governance/test-no-destructive-git-prescriptions.sh"
+if [ -f "$DGP_TEST" ]; then
+    if [ -x "$DGP_TEST" ]; then
+        pass "tests/governance/test-no-destructive-git-prescriptions.sh is executable"
+    else
+        fail "tests/governance/test-no-destructive-git-prescriptions.sh is not executable"
+    fi
+    if bash "$DGP_TEST" "$PLUGIN_ROOT" >/dev/null 2>&1; then
+        pass "tests/governance/test-no-destructive-git-prescriptions.sh passes"
+    else
+        fail "tests/governance/test-no-destructive-git-prescriptions.sh FAILED (run 'bash tests/governance/test-no-destructive-git-prescriptions.sh' for details)"
+    fi
+else
+    fail "tests/governance/test-no-destructive-git-prescriptions.sh missing"
+fi
 echo ""
 
 # Every artifact the loops below actually visit is recorded here (repo-relative) so the
