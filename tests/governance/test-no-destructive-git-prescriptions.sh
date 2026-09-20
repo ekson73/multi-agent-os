@@ -132,8 +132,13 @@ strip_stream() {
       # e opcao global. `-C` e `-c` consomem TAMBEM o token seguinte (o valor,
       # que pode vir citado e conter espaco). Para no primeiro token que nao
       # comeca com `-` -- o subcomando.
+      # Opcao TERMINAL nao executa subcomando nenhum: `git --version branch -D x`
+      # imprime a versao e ignora o resto. Normalizar `--version` faria a linha
+      # virar `git branch -D x` e produziria um falso positivo. Nao normaliza.
+      if (body ~ /git +(--help|-h|--version) /) { termino = 1 } else { termino = 0 }
       do {
         n0 = length(body)
+        if (termino) break
         # (i) opcao com valor separado
         if (match(body, /git +(-C|-c) +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+) +/))
           body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
@@ -374,6 +379,14 @@ continuar isentos:
 rm -r -r /tmp/so-recursivo
 rm -f -f /tmp/so-forcado
 ```
+
+Opcoes TERMINAIS -- imprimem e saem, o subcomando nunca roda:
+
+```bash
+git --version branch -D feat/naoexecuta
+git --help branch -D feat/naoexecuta
+```
+
 
 
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
