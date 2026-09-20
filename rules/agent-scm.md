@@ -95,12 +95,17 @@ EXECUCAO:
          -q .defaultBranchRef.name)}}"
        git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
          || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
-       git fetch -q origin "$BASE_REF"
+       git fetch -q origin "$BASE_REF" || { echo "fail-closed: fetch de \
+         '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2; exit 1; }
   3. git worktree add .worktrees/{feature_name} -b {type}/{feature_name} \
-       "origin/$BASE_REF"
+       "origin/$BASE_REF" \
+       || { echo "fail-closed: worktree add falhou" >&2; exit 1; }
      (criar a partir do HEAD atual herdaria commits alheios da branch em que
       o repo principal por acaso estiver)
-  4. cd .worktrees/{feature_name}
+  4. cd .worktrees/{feature_name} \
+       || { echo "fail-closed: cd para o worktree falhou" >&2; exit 1; }
+     (sem esta guarda o PERSIST abaixo resolve o git-dir do REPO PRINCIPAL e
+      grava a base errada la -- medido)
   5. PERSISTIR a base: variavel de shell NAO sobrevive entre operacoes, e o
      OP-3 (review) e o OP-7 (PR) dependem dela.
        printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"

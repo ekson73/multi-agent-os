@@ -46,10 +46,21 @@ Overhead: ~3 seconds | Benefit: Complete isolation
 BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
 git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
   || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
-git fetch -q origin "$BASE_REF"
+# Fail-closed. Se o remoto cair ou a base sumir DEPOIS do ls-remote, um fetch
+# desprotegido falha mas o shell sem errexit segue; havendo `origin/$BASE_REF`
+# obsoleto em cache, o `worktree add` sucede do commit velho e a base ERRADA e
+# persistida e usada na revisao.
+git fetch -q origin "$BASE_REF" || {
+  echo "fail-closed: fetch de '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2
+  exit 1; }
 
-git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name} "origin/$BASE_REF"
-cd .worktrees/{agent-hex}-{feature}
+# Encadeie com `||`: se o worktree add falhar, o cd tambem falha e o
+# `git rev-parse --git-dir` do PERSIST resolve para o REPO PRINCIPAL, gravando
+# a base la. Medido: `.git/BASE_REF` criado na raiz com valor errado.
+git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name} "origin/$BASE_REF" \
+  || { echo "fail-closed: worktree add falhou" >&2; exit 1; }
+cd .worktrees/{agent-hex}-{feature} \
+  || { echo "fail-closed: cd para o worktree falhou" >&2; exit 1; }
 
 # PERSISTIR: variavel de shell nao sobrevive entre steps; a revisao local e a
 # criacao do PR dependem desta base.
