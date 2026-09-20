@@ -433,9 +433,17 @@ echo "ℹ️  capacidade efetiva em '$BASE_REF': merge=$MERGE_OK squash=$SQUASH_
    auto-carregadas que complementem esta (ex. `rules/operational-workflow.md`) — e registre.
 4. Caso contrário → **HITL**. Não mergeie sob conflito não resolvido.
 
+### Step 9a — Resolver: materialize e PERSISTA o método (não mergeia)
+
+Este sub-passo é a **fonte única** da resolução. Todo caller que precisa mergear por
+conta própria (`skills/sync-to-git`, `docs/pr-review-protocol-spec`, provider-matrix
+via REST) executa **9a** e depois carrega o resultado — nunca "roda o Step 9 inteiro
+e exporta", porque exportar não atravessa shell e o Step 9 completo já mergearia,
+produzindo um **segundo** merge.
+
 ```bash
-# A tabela acima RESOLVE o método; materialize essa resolução numa variável —
-# um exemplo que só mostra três comandos não atribui nada, e quem referenciar
+# A tabela acima RESOLVE o método; materialize a resolução numa variável — um
+# exemplo que só mostra três comandos não atribui nada, e quem referenciar
 # `$MERGE_METHOD` depois aborta sob `set -u` (medido).
 # ⚠️ NÃO escreva um valor executável aqui. `MERGE_METHOD=merge` seria exatamente o
 #    default incondicional que este passo existe para remover: quem copiasse o bloco
@@ -451,10 +459,23 @@ case "$MERGE_METHOD" in
   *) echo "fail-closed: MERGE_METHOD invalido: '${MERGE_METHOD:-<vazio>}'" >&2; exit 1 ;;
 esac
 
-# PERSISTA: variável de shell não sobrevive entre passos, e o Step 12 / a regra
-# companheira rodam em shell NOVO.
+# PERSISTA: variável de shell não sobrevive entre passos, sessões ou agentes.
 printf '%s\n' "$MERGE_METHOD" > "$(git rev-parse --git-dir)/MERGE_METHOD"
+```
 
+**Contrato de leitura** — todo caller usa exatamente esta forma:
+
+```bash
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+```
+
+### Step 9b — Merge
+
+```bash
 gh pr merge <N> --"$MERGE_METHOD"
 ```
 

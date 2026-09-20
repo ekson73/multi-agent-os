@@ -279,9 +279,11 @@ fi
 # ⚠️ A variavel precisa ser DEFINIDA aqui: usa-la sem origem apenas move o
 # problema, porque um valor vazio produz `gh pr merge --` e um valor arbitrario
 # nao foi validado contra a capacidade efetiva da base.
-MERGE_METHOD="${MERGE_METHOD:-}"
+# Carregado do Step 9a (resolve+persiste). Nao "rode o Step 9 e exporte": export
+# nao atravessa shell, e o Step 9 completo ja mergeia -- seria um segundo merge.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
 [ -n "$MERGE_METHOD" ] || {
-  echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Merge method unresolved","data":{"instructions":"Run Step 9 resolution (declared policy + effective capability) and export MERGE_METHOD=merge|squash|rebase"}}}' >&2
+  echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Merge method unresolved","data":{"instructions":"Run Step 9a (resolve + persist) in pr-governance-unified; it writes $(git rev-parse --git-dir)/MERGE_METHOD"}}}' >&2
   exit 1; }
 case "$MERGE_METHOD" in
   merge|squash|rebase) ;;
