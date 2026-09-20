@@ -710,3 +710,8 @@ git merge sprint/wave-3
 *Integração com C07 (PR Review Protocol) adicionada*
 *REGRA 7 (Nunca trocar branch) com enforcement via hook*
 *Adaptado de vks-docs-mvp-approval/.worktrees/README.md v1.6*
+
+<!-- Smoke docs-only POS-aplicacao do rollout T1 (2026-09-20).
+     O ADR exige abrir um PR docs-only DEPOIS de tornar contextos obrigatorios,
+     para provar que nenhum deles deixa de reportar. Um PR historico nao serve:
+     ele rodou sob a protecao ANTIGA. -->
