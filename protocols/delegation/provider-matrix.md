@@ -49,7 +49,21 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 | read / list branches & PRs | `gh pr list`, `gh pr view`, `gh api /repos/{owner}/{repo}/...` | `git ls-remote` | GitHub REST via `curl -H "Authorization: Bearer $GITHUB_TOKEN"` |
 | branch create / commit / push | `git` (local) + `env -u GITHUB_TOKEN git push` | `gh api -X POST /repos/.../git/refs` | — |
 | PR create / review | `gh pr create`, `gh pr comment`, `gh pr review` | `gh api -X POST /repos/.../pulls` | REST via `curl` |
-| merge | `gh api -X PUT /repos/.../pulls/{n}/merge -f merge_method="$MERGE_METHOD"` (REST — avoids local-checkout side effects; **`merge_method` is mandatory**, resolved and persisted by Step 9a: omitting it silently falls back to a merge commit) | `gh pr merge --"$MERGE_METHOD"` | REST via `curl`, same mandatory field |
+| merge | `gh api -X PUT /repos/.../pulls/{n}/merge -f merge_method="$MERGE_METHOD"` (REST — avoids local-checkout side effects; **`merge_method` is mandatory**: omitting it silently falls back to a merge commit) | `gh pr merge --"$MERGE_METHOD"` | REST via `curl`, same mandatory field |
+
+⚠️ **`$MERGE_METHOD` NÃO está no ambiente de uma chamada de provider.** O Step 9a
+persiste em arquivo; uma shell nova não restaura nada. Sem recarregar, a via REST
+manda o campo **vazio** (e o endpoint cai em merge commit por default) e a via
+`gh pr merge` vira `--`. Recarregue com o contrato de leitura do Step 9a **antes**
+de qualquer um dos dois:
+
+```bash
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+```
 
 **Auth pattern** (per `feedback_autonomous_merge.md` + this session): run `gh` commands with `env -u GITHUB_TOKEN` when a stale `GITHUB_TOKEN` env var is present; this forces `gh` to use the keyring auth. See also `rules/agent-scm.md` §GitHub.
 

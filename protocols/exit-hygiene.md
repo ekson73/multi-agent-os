@@ -68,7 +68,13 @@ X  "Fix next session" for known inconsistencies
 X  Stale local branch from already-merged PR
    → Use the guarded Step 12 (rules/pr-governance-unified.md). `git branch -d`
      REFUSES after a squash/rebase merge ("not fully merged") because the tip
-     is no longer an ancestor: gate on PR `state == MERGED`, then `-D`.
+     is no longer an ancestor. But `-D` is NOT the answer either: between the
+     MERGED check and the deletion another session can advance the branch, and
+     `git branch -h` defines `-D` as deleting even when unmerged — that commit
+     is gone with no warning. Step 12 closes the race atomically:
+       git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"
+     The ref drops ONLY if the tip is still the merged OID; if another session
+     moved it, the command FAILS instead of destroying their work.
 
 X  Worktree not removed
    → `git worktree remove` under all of Step 12's gates. NEVER `--force` and NEVER

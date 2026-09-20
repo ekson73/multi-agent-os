@@ -487,7 +487,12 @@ esac
 ### Step 9b — Merge
 
 ```bash
-gh pr merge <N> --"$MERGE_METHOD"
+# PIN do head auditado. Se outra sessao empurrar entre o Step 7 e aqui, este
+# comando mergearia um commit que NUNCA foi revisado. `gh pr merge --help`
+# define `--match-head-commit SHA` como "Commit SHA that the pull request head
+# must match to allow merge" -- o merge FALHA em vez de aceitar o head novo.
+REVIEWED_OID=$(gh pr view <N> --json headRefOid --jq .headRefOid)   # LER no Step 7
+gh pr merge <N> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ## Step 10: Sync the base branch
@@ -688,7 +693,13 @@ esac
 # ── Todas as 5 guardas passaram. Só agora destrói, na ordem: worktree → ref
 #    local → ref remota. Cada passo é atômico ou fail-closed.
 cd "$ROOT" || exit 1                    # sai do worktree ANTES de removê-lo
-git worktree remove "$WT_REAL"          # sem --force: as guardas acima são o critério
+# Fail-closed: se outra sessao sujar ou travar o worktree DEPOIS da guarda 3,
+# este comando retorna != 0 — e num shell sem `errexit` a execucao seguiria
+# para as delecoes de ref abaixo, destruindo a branch de um worktree que
+# continua existindo e sujo.
+git worktree remove "$WT_REAL" || {   # sem --force: as guardas acima são o critério
+  echo "⛔ fail-closed: worktree remove falhou — NAO prossiga para as refs" >&2
+  exit 1; }
 
 # ⚠️ TOCTOU local: entre a guarda 4 e a remoção, outra sessão pode commitar na
 #    branch. `git branch -D` apaga incondicionalmente e descartaria esse commit.

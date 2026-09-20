@@ -34,9 +34,9 @@ If dirty → either commit (atomic, with `Agent: {session-id}` sign-off line), s
 
 Per `skills/worktree-policy/SKILL.md` + `skills/hierarchical-merge/SKILL.md`:
 
-- **Merged**: delete the worktree after PR merge — **only** through the guarded procedure in `rules/pr-governance-unified.md` Step 12 (all its gates — among them: PR `MERGED`; worktree resolved from the **registry** via `headRefName`; `status --porcelain --untracked-files=all --ignored` empty; local **and remote** tips == `headRefOid`, both checked before anything is destroyed). Then `git worktree remove <path>` followed by the **atomic** ref deletion `git update-ref -d "refs/heads/{branch}" "$MERGED_OID"` — never a bare `git branch -D`, which would discard a commit another session pushed between the gates and the deletion. **NEVER `--force`** — it deletes another session's uncommitted WIP with no warning; a dirty worktree is fail-closed, not an obstacle to override.
+- **Merged**: delete the worktree after PR merge — **only** through the guarded procedure in `rules/pr-governance-unified.md` Step 12 (gates: PR `MERGED`; worktree from the **registry** via `headRefName`; `status --porcelain --untracked-files=all --ignored` empty; local tip == `headRefOid`; remote tip == `headRefOid` **or absent** — automation may have deleted it; rejected is a remote tip that exists and differs). Then `git worktree remove <path>` + the **atomic** `git update-ref -d "refs/heads/{branch}" "$MERGED_OID"` — never bare `git branch -D`, which discards a commit pushed between the gates and the deletion. **NEVER `--force`** — it deletes another session's uncommitted WIP with no warning; a dirty worktree is fail-closed, not an obstacle to override.
 - **WIP** (must persist): keep the worktree AND write `<worktree>/RESUME.md` with a 5-line handoff (context, last step, next step, blockers, ETA).
-- **Abandoned**: remove worktree + document reason in `dna_delegation_learnings.md` (user-scope memory) so future sessions don't re-attempt blindly.
+- **Abandoned**: remove worktree + log the reason in `dna_delegation_learnings.md` so future sessions don't re-attempt blindly.
 
 Branches merge to **parent**, not directly to main (Hierarchical Merge Protocol). Exceptions: `bugfix/`, `hotfix/`, `emergency/` prefixes.
 
