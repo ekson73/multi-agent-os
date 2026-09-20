@@ -341,12 +341,15 @@ INPUT:
      do inventario que declaram squash e e REJEITADO por repo squash-only.)
 
 EXECUCAO:
-  1. Resolver {merge_strategy} pelo Step 9 (declaracao explicita > default),
+  1. Resolver e PERSISTIR o metodo pelo Step 9a (declaracao explicita > default),
      validando a capacidade EFETIVA (flag do repo E ausencia de
      required_linear_history em ruleset E branch protection classica).
      Metodo declarado porem desabilitado => fail-closed, nao mergeie.
-  2. gh pr merge {pr_number} --{merge_strategy}
-  3. Sincronizar a BASE do PR, dentro do worktree que a acompanha (Step 10).
+  2. Carregar o metodo persistido e enum-validar antes de invocar -- ver o
+     "Contrato de leitura" do Step 9a. NAO exporte a variavel de um passo para
+     outro: export nao atravessa shell.
+  3. gh pr merge {pr_number} --"$MERGE_METHOD"   (Step 9b)
+  4. Sincronizar a BASE do PR, dentro do worktree que a acompanha (Step 10).
      NUNCA `git pull origin main` por reflexo -- mergear em `develop` e puxar
      `main` deixa o estado local na branch errada. E NUNCA `git checkout` no
      repo principal: o Step 1 proibe.

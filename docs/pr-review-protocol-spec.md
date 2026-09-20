@@ -262,11 +262,17 @@ gh pr comment <numero> --body "## Análise da Revisão
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
 # capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
 # vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
-: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
-case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
 gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
@@ -378,11 +384,17 @@ gh pr comment <numero> --body "## ⚠️ Status: Requer Assistência Humana
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
 # capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
 # vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
-: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
-case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
 gh pr merge <numero> --"$MERGE_METHOD"
 
 # Cleanup -- procedimento guardado: rules/pr-governance-unified.md Step 12.
@@ -577,11 +589,17 @@ gh pr comment <numero> --body "## ⚠️ Bypass de Revisão Autorizado
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
 # capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
 # vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
-: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
-case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
 gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
@@ -609,11 +627,17 @@ Revisão post-mortem agendada para {data}.
 # Metodo resolvido por autoridade LOCAL do repo -- ver
 # rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
 # 4 repos do inventario declaram squash e um repo squash-only rejeita.
-# MERGE_METHOD vem da resolucao do Step 9 (autoridade local do repo +
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
 # capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
 # vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
-: "${MERGE_METHOD:?rode a resolucao do Step 9 e exporte merge|squash|rebase}"
-case "$MERGE_METHOD" in merge|squash|rebase) ;; *) exit 1;; esac
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
 gh pr merge <numero> --"$MERGE_METHOD"
 ```
 
