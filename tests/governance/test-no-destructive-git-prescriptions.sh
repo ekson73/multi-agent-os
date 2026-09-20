@@ -124,7 +124,11 @@ strip_stream() {
       # fixture ativa e o teste reportava PASSED. Normaliza-las aqui, na UNICA
       # representacao, conserta todos os scans de uma vez -- em vez de inchar
       # cada regex com uma alternancia propria.
-      while (match(body, /git +(-C +[^ ]+|-c +[^ ]+|--git-dir=[^ ]+|--work-tree=[^ ]+|--namespace=[^ ]+|--exec-path=[^ ]+|--no-pager|--paginate|-P|--bare|--literal-pathspecs) +/))
+      # Valores CITADOS podem conter espaco: `git -C "my path" branch -D x`.
+      # Um `[^ ]+` pararia na primeira lacuna e a opcao global sobreviveria,
+      # quebrando a adjacencia de novo. As alternativas de aspas vem ANTES da
+      # forma sem aspas para casarem primeiro.
+      while (match(body, /git +(-C +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+)|-c +("[^"]*"|'"'"'[^'"'"']*'"'"'|[^ ]+)|--git-dir=("[^"]*"|[^ ]+)|--work-tree=("[^"]*"|[^ ]+)|--namespace=("[^"]*"|[^ ]+)|--exec-path=("[^"]*"|[^ ]+)|--no-pager|--paginate|-P|--bare|--literal-pathspecs) +/))
         body = substr(body,1,RSTART-1) "git " substr(body, RSTART+RLENGTH)
       sub(/^[[:space:]]*#.*$/, "", body)          # linha so de comentario
       sub(/[[:space:]]#.*$/, "", body)            # comentario ao final
@@ -340,6 +344,7 @@ exija adjacencia literal.
 ```bash
 git -C "$ROOT" branch -D feat/globalopt
 git --no-pager -C /x worktree remove -f "$W"
+git -C "my path" branch -D feat/citado
 ```
 
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
@@ -356,10 +361,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 21 ]; then
-    pass "fixtures negativas: 21 (linha + continuacao + alias/ws + cerca + git-opts)"
+  if [ "${neg:-0}" -eq 22 ]; then
+    pass "fixtures negativas: 22 (linha + continuacao + alias/ws + cerca + git-opts)"
   else
-    fail "fixtures negativas: esperado 21 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 22 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi

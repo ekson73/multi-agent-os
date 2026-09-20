@@ -507,6 +507,14 @@ esac
 # comando mergearia um commit que NUNCA foi revisado. `gh pr merge --help`
 # define `--match-head-commit SHA` como "Commit SHA that the pull request head
 # must match to allow merge" -- o merge FALHA em vez de aceitar o head novo.
+# CARREGUE o metodo resolvido: o Step 9b pode rodar em shell NOVO, e o 9a
+# apenas PERSISTIU -- nao exportou (export nao atravessa shell).
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+
 # CARREGUE o OID auditado -- nao consulte de novo. Um `gh pr view` AQUI leria o
 # head ATUAL, que e exatamente o que o pin deveria rejeitar: se outra sessao
 # empurrou, o comando passaria a "prender" o commit novo e o pin viraria enfeite.
@@ -561,7 +569,12 @@ DIRTY=$(git -C "$WT" status --porcelain --untracked-files=all --ignored) || {
   echo "   preserve-o antes de sincronizar por cima" >&2
   exit 1; }
 
-git -C "$WT" pull --ff-only origin "$BASE"
+# Fail-closed: `--ff-only` RECUSA quando a base divergiu, e num shell sem
+# `errexit` o fluxo seguiria como se tivesse sincronizado -- os passos
+# seguintes operariam sobre uma base desatualizada.
+git -C "$WT" pull --ff-only origin "$BASE" || {
+  echo "⛔ fail-closed: sincronizacao de '$BASE' falhou (divergencia?)" >&2
+  exit 1; }
 ```
 
 ## Step 11: Audit Reviews + Archive Emails

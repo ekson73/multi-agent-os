@@ -290,7 +290,15 @@ case "$MERGE_METHOD" in
   *) echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Invalid merge method","data":{"instructions":"MERGE_METHOD must be exactly merge, squash or rebase"}}}' >&2
      exit 1;;
 esac
-gh pr merge --"$MERGE_METHOD"
+# PIN do head auditado: sem ele este merge aceita um push chegado DEPOIS da
+# checagem, e o commit mergeado nunca passou pelos checks que autorizaram.
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo '{"jsonrpc":"2.0","error":{"code":-32020,"message":"Audited head OID missing","data":{"instructions":"Run Step 7 in pr-governance-unified; it writes $(git rev-parse --git-dir)/REVIEWED_OID"}}}' >&2
+     exit 1 ;;
+esac
+gh pr merge --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ## Safety Gates
