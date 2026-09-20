@@ -39,8 +39,11 @@ Cada correcao abaixo tem contraprova executada.
   reprovaria todo cleanup legitimo).
 - **`git worktree remove --force` proibido** — destroi WIP nao commitado sem
   aviso. Worktree sujo e fail-closed, nao obstaculo a forcar.
-- **`git branch -d` -> `-D`** condicionado a `state == MERGED`: apos squash/rebase
-  a ponta nao e ancestral da base.
+- **Delecao da branch local vira ATOMICA** — `git update-ref -d "refs/heads/$B"
+  "$MERGED_OID"`. `git branch -d` RECUSA apos squash/rebase (a ponta deixa de ser
+  ancestral da base), mas `-D` tambem nao serve: entre a checagem `MERGED` e a
+  execucao outra sessao pode avancar a branch, e `-D` apaga mesmo nao-mesclada.
+  A forma com expected-OID FALHA em vez de destruir o commit alheio.
 - **Base nunca fixa em `main`**: Steps 3/6/10 resolvem e persistem `BASE_REF`
   (variavel de shell nao sobrevive entre steps).
 - **Reviewer indisponivel deixa de ser dispensa de revisao.** Qodo virou fallback
