@@ -258,6 +258,12 @@ contagem de threads era zero; auditando os corpos apareceram **4** achados reais
 eles uma perda de dados silenciosa em código executável.
 
 ```bash
+# (a0) CAPTURE o head ANTES de ler qualquer coisa. Tudo abaixo audita ESTE
+#      commit; persistir depois da leitura gravaria um head que chegou DURANTE
+#      a auditoria e nunca foi olhado.
+HEAD_AT_START=$(gh pr view <N> --json headRefOid --jq .headRefOid) || {
+  echo "⛔ fail-closed: não consegui ler o head" >&2; exit 1; }
+
 # (a) Threads inline — necessário, NÃO suficiente.
 gh pr view <N> --json comments,reviews,statusCheckRollup
 
@@ -286,6 +292,16 @@ printf '%s' "$COMMENTS" | jq -r '(add // [])[]|"\n--- \(.path):\(.line // .origi
 #     num conjunto de revisões LIMPO — o caso bom viraria falha.
 printf '%s' "$REVIEWS" | jq -r '(add // [])[].body' \
   | grep -iE 'actionable comments|outside diff' || true
+
+# (e) RECONFIRA e só então persista. Se o head mudou entre (a0) e aqui, houve
+#     push DURANTE a auditoria: o que você leu não descreve o commit atual, e o
+#     commit atual não foi auditado. Não há pin correto a gravar — volte ao 7.
+HEAD_NOW=$(gh pr view <N> --json headRefOid --jq .headRefOid) || {
+  echo "⛔ fail-closed: não consegui reconferir o head" >&2; exit 1; }
+[ "$HEAD_NOW" = "$HEAD_AT_START" ] || {
+  echo "⛔ head mudou durante a auditoria ($HEAD_AT_START -> $HEAD_NOW): refaça o Step 7" >&2
+  exit 1; }
+printf '%s\n' "$HEAD_AT_START" > "$(git rev-parse --git-dir)/REVIEWED_OID"
 ```
 
 Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (AI)
@@ -491,7 +507,14 @@ esac
 # comando mergearia um commit que NUNCA foi revisado. `gh pr merge --help`
 # define `--match-head-commit SHA` como "Commit SHA that the pull request head
 # must match to allow merge" -- o merge FALHA em vez de aceitar o head novo.
-REVIEWED_OID=$(gh pr view <N> --json headRefOid --jq .headRefOid)   # LER no Step 7
+# CARREGUE o OID auditado -- nao consulte de novo. Um `gh pr view` AQUI leria o
+# head ATUAL, que e exatamente o que o pin deveria rejeitar: se outra sessao
+# empurrou, o comando passaria a "prender" o commit novo e o pin viraria enfeite.
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
 gh pr merge <N> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 

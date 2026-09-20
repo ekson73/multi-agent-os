@@ -71,7 +71,23 @@ emit_wt() {
   ts="$(git -C "$p" log -1 --format=%ct 2>/dev/null || echo 0)"
   age=$(( (NOW - ts) / 86400 ))
   [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
-  if [ "$det" -eq 1 ] || [ -z "$b" ]; then elig=1; reason="orphan-detached"; fi
+  # Detached NAO significa abandonado, e o registro do worktree E a fronteira
+  # de ownership multi-sessao. Pior: um HEAD detached pode conter commits
+  # alcancaveis SO por ele. Medido em repo descartavel -- `worktree remove`
+  # apagou sem reclamar um detached com commit fora de toda branch; o objeto
+  # sobrevive apenas ate o `gc`. So e seguro remover se NADA se perde, isto e,
+  # se o HEAD ja esta contido em alguma branch.
+  if [ "$det" -eq 1 ] || [ -z "$b" ]; then
+    local head_oid contained=""
+    head_oid="$(git -C "$p" rev-parse HEAD 2>/dev/null || true)"
+    [ -n "$head_oid" ] && contained="$(git -C "$REPO_DIR" branch -a --contains "$head_oid" 2>/dev/null | head -1)"
+    if [ -n "$contained" ]; then
+      elig=1; reason="orphan-detached(head ja em branch)"
+    else
+      held_stale+=("$p (detached com commit FORA de toda branch — remover perderia trabalho)")
+      return 0
+    fi
+  fi
   # Idade SOZINHA nao autoriza remocao. Um worktree limpo e ATIVO -- alguem
   # explorando, com tudo commitado, parado alguns dias -- some so por ser
   # antigo, e o `--apply` executa sem checar PR mergeado nem dono. Idade e
