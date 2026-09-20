@@ -35,6 +35,12 @@ mkwt() { # name  date  -> worktree at $R/.worktrees/<name> on branch wt/<name>
 mkwt stale-clean  "$OLD"                 # old + clean + PR MERGEADO   → REAP
 mkwt stale-wip    "$OLD"                 # old + dirty                 → SKIP (WIP)
 mkwt stale-nopr   "$OLD"                 # old + clean SEM PR mergeado → HELD
+# Branch REUSADA: existe PR mergeado, mas a ponta AVANCOU depois dele. O PR
+# historico nao prova que o trabalho atual acabou -> HELD, nunca reap.
+mkwt stale-reused "$OLD"
+REUSED_OLD_OID="$(git -C "$R/.worktrees/stale-reused" rev-parse HEAD)"
+GIT_AUTHOR_DATE="$OLD" GIT_COMMITTER_DATE="$OLD" \
+  git -C "$R/.worktrees/stale-reused" commit -q --allow-empty -m "commit APOS o merge"
 
 STUB="$(mktemp -d)"
 cat > "$STUB/gh" <<GH
@@ -48,8 +54,15 @@ sub="\$1\$2"
 head=""; prev=""
 for a in "\$@"; do [ "\$prev" = "--head" ] && head="\$a"; prev="\$a"; done
 case "\$sub" in
-  prlist) case "\$head" in wt/stale-clean) echo 4242 ;; *) : ;; esac ;;
-  prview) [ "\$3" = "4242" ] && git -C "$R/.worktrees/stale-clean" rev-parse HEAD ;;
+  prlist) case "\$head" in
+            wt/stale-clean)  echo 4242 ;;
+            wt/stale-reused) echo 7777 ;;
+            *) : ;;
+          esac ;;
+  prview) case "\$3" in
+            4242) git -C "$R/.worktrees/stale-clean" rev-parse HEAD ;;
+            7777) echo "$REUSED_OLD_OID" ;;   # OID ANTIGO: a ponta ja avancou
+          esac ;;
 esac
 GH
 chmod +x "$STUB/gh"
@@ -98,6 +111,8 @@ chk "apply: merged-orphan branch deleted"           "! git -C '$R' branch --list
 chk "apply: unmerged-keep branch SURVIVES"          "git -C '$R' branch --list unmerged-keep | grep -q ."
 chk "apply: main worktree untouched"                "[ -e '$R/f' ]"
 chk "held: stale SEM PR mergeado nao e removido"     "[ -e '$R/.worktrees/stale-nopr/x' ]"
+chk "held: branch REUSADA (PR antigo) nao e removida" "[ -e '$R/.worktrees/stale-reused/x' ]"
+chk "held: JSON expoe held_stale com o motivo"       "echo '$APP' | grep -q '\"held_stale\"[^]]*stale-reused'"
 chk "held: aparece na lista held, nao em reaped"     "echo '$APP' | grep -qv '\"reaped_worktrees\"[^]]*stale-nopr'"
 chk "apply: JSON reports dry_run=false"             "echo '$APP' | grep -q '\"dry_run\"[: ]*false'"
 chk "apply: JSON reaped_worktrees lists stale-clean" "echo '$APP' | grep -q '\"reaped_worktrees\"[^]]*stale-clean'"

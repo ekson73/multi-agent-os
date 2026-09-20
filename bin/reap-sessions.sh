@@ -180,10 +180,14 @@ jarr() {  # bash-3.2-safe JSON array from "$@" (escapes \ then " → valid JSON 
   printf '[%s]' "${out%,}"
 }
 if [ "$JSON" -eq 1 ]; then
-  printf '{"dry_run":%s,"repo":"%s","stale_days":%s,"reaped_worktrees":%s,"skipped_wip":%s,"would_reap_worktrees":%s,"reaped_branches":%s,"would_reap_branches":%s}\n' \
+  # `held_stale` TAMBEM no JSON: um consumidor automatico que so ve
+  # `skipped_wip` e `would_reap_*` nao tem como saber POR QUE um worktree foi
+  # preservado -- ele simplesmente some de todas as listas.
+  printf '{"dry_run":%s,"repo":"%s","stale_days":%s,"reaped_worktrees":%s,"skipped_wip":%s,"held_stale":%s,"would_reap_worktrees":%s,"reaped_branches":%s,"would_reap_branches":%s}\n' \
     "$([ "$APPLY" -eq 0 ] && echo true || echo false)" "$MAIN_TOP" "$STALE_DAYS" \
     "$(jarr "${reaped_wt[@]+"${reaped_wt[@]}"}")" \
     "$(jarr "${skipped_wip[@]+"${skipped_wip[@]}"}")" \
+    "$(jarr "${held_stale[@]+"${held_stale[@]}"}")" \
     "$(jarr "${would_wt[@]+"${would_wt[@]}"}")" \
     "$(jarr "${reaped_br[@]+"${reaped_br[@]}"}")" \
     "$(jarr "${would_br[@]+"${would_br[@]}"}")"
@@ -199,5 +203,6 @@ else
     printf '  reaped worktrees: %s\n' "${reaped_wt[*]:-(none)}"
     printf '  reaped branches : %s\n' "${reaped_br[*]:-(none)}"
     printf '  skip (WIP)      : %s\n' "${skipped_wip[*]:-(none)}"
+    printf '  held (unproven) : %s\n' "${held_stale[*]:-(none)}"
   fi
 fi
