@@ -96,6 +96,33 @@ declare -a PATTERNS=(
   'git pull origin main'
 )
 
+# Junta continuacoes de shell (`\` no fim da linha) ANTES de qualquer varredura.
+# Sem isto o scan e orientado a linha e `git worktree remove \` + `"$W" --force`
+# passa batido -- bypass reproduzido: as tres formas destrutivas quebradas em duas
+# linhas num arquivo ATIVO de rules/ e o teste retornava PASSED.
+# Sem pre-filtro: filtrar arquivos pelo MESMO padrao seria circular -- o padrao
+# nao casa nenhuma linha isolada justamente quando o comando esta quebrado, e o
+# arquivo nunca seria selecionado. Medido: com pre-filtro, `git worktree remove \`
+# + `"$W" --force` continuava passando. Varre tudo e deixa o filtro para depois.
+join_continuations() {
+  local f
+  for f in $(grep -rl '' "${SURFACES[@]}" 2>/dev/null); do
+    awk -v F="$f" '
+      { line = $0
+        if (buf == "") { start = FNR; joined = 0 }
+        else { sub(/^[[:space:]]+/, " ", line); joined = 1 }
+        sub(/\\[[:space:]]*$/, "", line)
+        buf = buf line
+        if ($0 ~ /\\[[:space:]]*$/) { next }
+        # So a linha JUNTADA e normalizada. Colapsar todas quebraria o
+        # casamento da allowlist, que compara conteudo literal.
+        if (joined) { gsub(/[[:space:]]+/, " ", buf) }
+        print F ":" start ":" buf
+        buf = "" }
+      END { if (buf != "") { if (joined) gsub(/[[:space:]]+/, " ", buf); print F ":" start ":" buf } }' "$f"
+  done
+}
+
 echo "Governance regression: destructive git prescriptions"
 
 for pat in "${PATTERNS[@]}"; do
@@ -109,7 +136,7 @@ for pat in "${PATTERNS[@]}"; do
     is_allowed "$file" "$line" && continue
     fail "prescricao destrutiva: $file -> $(printf '%s' "$line" | cut -c1-72)"
     hits=$((hits + 1))
-  done < <(grep -rnE -- "$pat" "${SURFACES[@]}" 2>/dev/null)
+  done < <(join_continuations | grep -E -- ":[0-9]+:.*$pat")
   [ "$hits" -eq 0 ] && pass "nenhuma prescricao de '$pat'"
 done
 
@@ -123,7 +150,7 @@ while IFS= read -r hit; do
   is_allowed "$file" "$line" && continue
   fail "metodo de merge fixo: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(grep -rnE 'gh pr merge[^|]*--(merge|squash|rebase)\b' "${SURFACES[@]}" 2>/dev/null)
+done < <(join_continuations | grep -E ':[0-9]+:.*gh pr merge[^|]*--(merge|squash|rebase)\b')
 [ "$hits" -eq 0 ] && pass "nenhum 'gh pr merge' com metodo fixo"
 
 # `git branch -D` executavel FORA do contexto guardado. O canonico usa
@@ -144,27 +171,13 @@ while IFS= read -r hit; do
   is_allowed "$file" "$line" && continue
   fail "branch -D sem expected-OID: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(grep -rn 'git branch -D' "${SURFACES[@]}" 2>/dev/null)
+done < <(join_continuations | grep -E ':[0-9]+:.*git branch -D')
 [ "$hits" -eq 0 ] && pass "nenhum 'git branch -D' fora do contexto atomico"
 
 # Um comando shell pode quebrar em varias linhas com `\`. Um scan por LINHA
 # veria `gh api ... /merge \` sem o `-f merge_method=` que vem na seguinte, e
 # acusaria falso positivo (medido no proprio arquivo canonico). Junte as
 # continuacoes ANTES de casar, preservando o numero da primeira linha.
-join_continuations() {
-  local f
-  for f in $(grep -rlE 'pulls/[^ ]*/merge' "${SURFACES[@]}" 2>/dev/null); do
-    awk -v F="$f" '
-      { line = $0
-        if (buf == "") { start = FNR }
-        sub(/\\[[:space:]]*$/, "", line)
-        buf = buf line
-        if ($0 ~ /\\[[:space:]]*$/) { next }
-        print F ":" start ":" buf
-        buf = "" }
-      END { if (buf != "") print F ":" start ":" buf }' "$f"
-  done
-}
 
 # Merge via REST SEM `merge_method`: o endpoint cai em merge commit por default,
 # contradizendo em silencio todo repo que declara squash. O vetor REST nao era

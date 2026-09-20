@@ -21,10 +21,17 @@ WORKTREE → CODE → LOCAL REVIEW → FIX LOOP → PUSH → PR → [BOT REVIEW]
 BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
 git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
   echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
-git fetch -q origin "$BASE_REF"
+git fetch -q origin "$BASE_REF" || {
+  echo "fail-closed: fetch de '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2
+  exit 1; }
 
-git worktree add .worktrees/{feature} -b {type}/{feature} "origin/$BASE_REF"
-cd .worktrees/{feature}
+# Encadeie com `||`: se o worktree add falhar, o cd tambem falha e o
+# `git rev-parse --git-dir` do PERSIST resolve para o REPO PRINCIPAL, gravando
+# a base la. Medido: `.git/BASE_REF` criado na raiz com valor errado.
+git worktree add .worktrees/{feature} -b {type}/{feature} "origin/$BASE_REF" \
+  || { echo "fail-closed: worktree add falhou" >&2; exit 1; }
+cd .worktrees/{feature} \
+  || { echo "fail-closed: cd para o worktree falhou" >&2; exit 1; }
 
 # Persista: variaveis de shell NAO sobrevivem entre steps. Sem isto o Step 3 falha.
 printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
