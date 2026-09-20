@@ -63,8 +63,14 @@ reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=(); held_stale
 # Medido: `tests/test-reap-sessions.sh` saia 2 sem imprimir uma linha sequer.
 # (E meu teste manual "passou" porque li `$?` DEPOIS de um pipe -- o exit era
 #  o do `sed`, nao o do subshell. Mesma armadilha que ja registrei antes.)
+# Normaliza as TRES formas validas de URL. Sem cobrir `ssh://`, o slug sai
+# como `ssh://org/repo` e toda consulta ao `gh` falha -- silenciosamente, pois
+# a falha vira "sem PR mergeado" e o worktree so fica `held`. Medido:
+#   git@github.com:org/repo.git        -> org/repo
+#   https://github.com/org/repo.git    -> org/repo
+#   ssh://git@github.com/org/repo.git  -> ssh://org/repo   (ERRADO, antes)
 REPO_SLUG="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null \
-  | sed -E 's#(git@|https://)[^:/]+[:/]##; s#\.git$##')" || true
+  | sed -E 's#^ssh://##; s#(git@|https://)[^:/]+[:/]##; s#\.git$##')" || true
 [ -n "${REPO_SLUG:-}" ] || REPO_SLUG=""
 
 # ── worktrees: eligible = (detached/orphan) OR (last-commit age > stale-days); reaped only if CLEAN ──
