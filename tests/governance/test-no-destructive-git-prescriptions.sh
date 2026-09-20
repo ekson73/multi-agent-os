@@ -145,7 +145,10 @@ strip_stream() {
 # define `-f` como sinonimo de `--force`, e `git branch -h` define
 # `--delete --force` como equivalente a `-D`.
 declare -a PATTERNS=(
-  'rm -rf [^ ]*\.worktrees'
+  # `rm -h` define -r/-R/--recursive como equivalentes, e a ordem das flags e
+  # livre: `rm -fr`, `rm -Rf`, `rm -f -r` sao o MESMO comando. Medido: so
+  # `rm -rf` era detectado; as outras tres formas passavam.
+  'rm +(-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*|-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*|--recursive +--force|--force +--recursive|-[rRf] +-[rRf]) +[^ ]*\.worktrees'
   'worktree remove ([^#]*(--force|-f)\b|(--force|-f)\b)'
   'git branch (-d|--delete)([^-]|$)'
   'git pull origin main'
@@ -345,6 +348,9 @@ exija adjacencia literal.
 git -C "$ROOT" branch -D feat/globalopt
 git --no-pager -C /x worktree remove -f "$W"
 git -C "my path" branch -D feat/citado
+rm -fr .worktrees/variante-fr
+rm -Rf .worktrees/variante-Rf
+rm -f -r .worktrees/variante-separada
 ```
 
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
@@ -361,10 +367,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 22 ]; then
-    pass "fixtures negativas: 22 (linha + continuacao + alias/ws + cerca + git-opts)"
+  if [ "${neg:-0}" -eq 25 ]; then
+    pass "fixtures negativas: 25 (linha + continuacao + alias/ws + cerca + git-opts + rm-variantes)"
   else
-    fail "fixtures negativas: esperado 22 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 25 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
