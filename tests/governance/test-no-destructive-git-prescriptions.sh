@@ -79,20 +79,34 @@ is_allowed() {
 # Removidas as duas camadas, se o padrao SOBREVIVE ele esta em posicao de
 # comando. Nenhuma palavra isenta uma linha executavel.
 strip_noncode() {
+  # ⚠️ Crases delimitam prosa em Markdown MAS tambem substituicao de comando em
+  #    shell legado. Apagar o conteudo cegamente esconde `result=`git branch -D x``
+  #    -- a shell EXECUTA aquilo. Medido: fixture ativa com essa forma passava.
+  #    Preserva-se o miolo quando ha `=` imediatamente antes da crase de abertura
+  #    ou quando a crase abre inicio de comando (`\`cmd\`` isolado).
   printf '%s' "$1" \
-    | sed -e 's/`[^`]*`/`` /g' \
+    | sed -e 's/\([=(]\)`\([^`]*\)`/\1 \2 /g' \
+          -e 's/`[^`]*`/`` /g' \
           -e 's/^[[:space:]]*#.*$//' \
-          -e 's/[[:space:]]#.*$//'
+          -e 's/[[:space:]]#.*$//' \
+    | tr '\t' ' ' \
+    | sed -e 's/  */ /g'
+  # tr+squeeze: os padroes exigem espaco simples. `rm  -rf\t.worktrees` e valido
+  # em shell e passava batido -- normalizar aqui cobre TODO scan de uma vez.
 }
 
 # Padroes como REGEX: a forma literal `worktree remove --force` NAO casa a
 # forma comum `git worktree remove "$W" --force` (caminho no meio). Medido: a
 # fixture com essa forma nao era detectada. `--force` pode vir antes ou depois
 # do caminho, entao ambas as ordens precisam casar.
+# Aliases contam. Medido: `git worktree remove -f "$W"` e
+# `git branch --delete --force feat/x` passavam -- `git worktree remove -h`
+# define `-f` como sinonimo de `--force`, e `git branch -h` define
+# `--delete --force` como equivalente a `-D`.
 declare -a PATTERNS=(
   'rm -rf [^ ]*\.worktrees'
-  'worktree remove ([^#]*--force|--force)'
-  'git branch -d '
+  'worktree remove ([^#]*(--force|-f)\b|(--force|-f)\b)'
+  'git branch (-d|--delete)([^-]|$)'
   'git pull origin main'
 )
 
@@ -106,7 +120,9 @@ declare -a PATTERNS=(
 # + `"$W" --force` continuava passando. Varre tudo e deixa o filtro para depois.
 join_continuations() {
   local f
-  for f in $(grep -rl '' "${SURFACES[@]}" 2>/dev/null); do
+  # -print0/read -d '': `for f in $(...)` quebra nomes com espaco. Medido:
+  # `rules/zz espaco.md` com `rm -rf .worktrees/a` nao gerava violacao.
+  while IFS= read -r -d '' f; do
     awk -v F="$f" '
       { line = $0
         if (buf == "") { start = FNR; joined = 0 }
@@ -114,13 +130,19 @@ join_continuations() {
         sub(/\\[[:space:]]*$/, "", line)
         buf = buf line
         if ($0 ~ /\\[[:space:]]*$/) { next }
-        # So a linha JUNTADA e normalizada. Colapsar todas quebraria o
-        # casamento da allowlist, que compara conteudo literal.
-        if (joined) { gsub(/[[:space:]]+/, " ", buf) }
+        # Normaliza TODA linha, nao so a juntada. O pre-filtro `grep` roda
+        # ANTES do strip_noncode, entao normalizar la dentro chega tarde:
+        # `rm  -rf<TAB>.worktrees/b` era descartado pelo filtro e nunca
+        # alcancava a normalizacao -- medido. Verificado que nenhuma ancora da
+        # ALLOWLIST usa espaco multiplo ou tab, entao colapsar aqui e seguro.
+        gsub(/[[:space:]]+/, " ", buf)
+        sub(/^ /, "", buf)
         print F ":" start ":" buf
         buf = "" }
-      END { if (buf != "") { if (joined) gsub(/[[:space:]]+/, " ", buf); print F ":" start ":" buf } }' "$f"
-  done
+      END { if (buf != "") { gsub(/[[:space:]]+/, " ", buf); sub(/^ /, "", buf); print F ":" start ":" buf } }' "$f"
+    # `find -print0`, nao `grep -rlZ ''`: com padrao VAZIO o grep fica
+    # aguardando stdin dentro de process substitution -- medido, travou.
+  done < <(find "${SURFACES[@]}" -type f -print0 2>/dev/null)
 }
 
 echo "Governance regression: destructive git prescriptions"
@@ -250,6 +272,21 @@ gh api -X DELETE \
 git update-ref -d \
   "refs/heads/$B" "$MERGED_OID"
 ```
+
+Formas ALIAS, espaco alternativo e substituicao de comando. Todas executaveis,
+todas passavam antes: `-f` e sinonimo de `--force`; `--delete --force` equivale
+a `-D`; tab/espaco-duplo sao validos em shell; e crase pode ser substituicao de
+comando, nao prosa Markdown.
+
+```bash
+git worktree remove -f "$W"
+git branch --delete --force feat/alias
+rm  -rf	.worktrees/tab
+```
+
+Substituicao de comando executavel (nao e prosa):
+`result=\`git branch -D feat/subst\``
+
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
 FIX
@@ -264,10 +301,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 13 ]; then
-    pass "fixtures negativas: 13 achados (7 em linha + 6 quebradas por continuacao)"
+  if [ "${neg:-0}" -eq 17 ]; then
+    pass "fixtures negativas: 17 (7 em linha + 6 continuacao + 4 alias/ws/subst)"
   else
-    fail "fixtures negativas: esperado 13 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 17 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
