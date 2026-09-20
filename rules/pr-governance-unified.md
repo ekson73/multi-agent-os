@@ -47,8 +47,15 @@ BASE_REF="${BASE_REF:-$(gh repo view --json defaultBranchRef -q .defaultBranchRe
 git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
   echo "⛔ fail-closed: base '$BASE_REF' não existe em origin" >&2; exit 1; }
 
-# 1b. Crie o worktree A PARTIR da base decidida (não do HEAD corrente)
-git fetch -q origin "$BASE_REF"
+# 1b. Crie o worktree A PARTIR da base decidida (não do HEAD corrente).
+#     ⚠️ O fetch é fail-closed. Se o remoto cair ou a base for apagada DEPOIS do
+#     `ls-remote` acima, um fetch desprotegido falha mas o shell sem `errexit`
+#     segue; havendo um `origin/$BASE_REF` ANTIGO em cache, o `worktree add`
+#     sucede a partir do commit obsoleto e a revisão local obrigatória inspeciona
+#     o diff errado. Aborte ANTES de criar o worktree.
+git fetch -q origin "$BASE_REF" || {
+  echo "⛔ fail-closed: fetch de '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2
+  exit 1; }
 git worktree add .worktrees/{session-id}-{feature} -b {type}/{feature} "origin/$BASE_REF"
 cd .worktrees/{session-id}-{feature}
 
@@ -257,7 +264,17 @@ REVIEWS=$(gh api "repos/{owner}/{repo}/pulls/<N>/reviews" --paginate --slurp) ||
   echo "⛔ fail-closed: não consegui ler as revisões" >&2; exit 1; }
 printf '%s' "$REVIEWS" | jq -r 'add[]|"\n=== \(.state) @\(.user.login) \(.commit_id[0:8])\n\(.body)"'
 
-# (c) Conferência: o corpo declara quantos achados acionáveis? Bate com o que
+# (c) COMENTÁRIOS INLINE — endpoint SEPARADO. `/reviews` devolve os registros de
+#     revisão; um achado postado inline SEM repetição no corpo não aparece ali.
+#     Este mesmo workflow já usava `/pulls/{N}/comments`, mas só no Step 11, DEPOIS
+#     do merge. Medido nesta própria sessão: a auditoria de corpos reportou os
+#     achados do CodeRabbit e a contagem dizia ZERO threads, enquanto havia 12
+#     threads inline abertas de outro revisor — 9 achados únicos, 6 deles P1.
+COMMENTS=$(gh api "repos/{owner}/{repo}/pulls/<N>/comments" --paginate --slurp) || {
+  echo "⛔ fail-closed: não consegui ler os comentários inline" >&2; exit 1; }
+printf '%s' "$COMMENTS" | jq -r 'add[]|"\n--- \(.path):\(.line // .original_line) @\(.user.login)\n\(.body)"'
+
+# (d) Conferência: o corpo declara quantos achados acionáveis? Bate com o que
 #     você dispôs? Divergência = auditoria incompleta, não ruído.
 #     ⚠️ `|| true`: sem match o grep sai 1 e, sob `set -e`, abortaria o passo
 #     num conjunto de revisões LIMPO — o caso bom viraria falha.
@@ -269,7 +286,7 @@ Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (
 
 ## Step 8: Analyze Review + Decide
 
-**Entrada obrigatória: o resultado de 7(b), não só as threads.** Dispor de cada achado do
+**Entrada obrigatória: 7(b) corpos E 7(c) inline — os dois endpoints.** Dispor de cada achado do
 corpo é pré-condição do merge — o Step 11 audita de novo, mas **depois** do merge; confiar
 só nele deixa o defeito entrar.
 
@@ -280,7 +297,7 @@ só nele deixa o defeito entrar.
 | Partially valid | Apply valid items, document rejected with justification, push, loop |
 | Disagree (justified) | Merge + document justification via `gh pr comment` |
 | Inconclusive | Escalate to human (do NOT merge) |
-| **Achado do corpo não disposto** | ⛔ **NÃO mergeie** — audite 7(b) antes de qualquer decisão |
+| **Achado de corpo (7b) ou inline (7c) não disposto** | ⛔ **NÃO mergeie** — audite os dois endpoints antes de qualquer decisão |
 
 > **Per-finding arbitration (bot findings)**: when the review feedback is a reviewer-BOT finding
 > (Copilot / Qodo / CodeRabbit / Amazon Q / gitleaks / Snyk / Semgrep / Trivy), route EACH finding to
@@ -405,18 +422,40 @@ echo "ℹ️  capacidade efetiva em '$BASE_REF': merge=$MERGE_OK squash=$SQUASH_
 **Protocolo de conflito entre fontes** (ratificado pelo operador; substitui hierarquia fixa):
 
 1. **Recon + OODA**: compare **todas** as versões divergentes, citando arquivo e linha.
-2. Existe regra de escopo mais amplo que regule o caso (**global → específico**, **top → down**)?
-   → ela decide; corrija as fontes divergentes para refletir o resultado.
+2. Vale a política **mais específica aplicável** (`AGENTS.md` aninhado / ADR de diretório →
+   repo → global) — corrija as fontes **menos** específicas para refletir o resultado.
+   ⚠️ A formulação anterior ("o escopo mais amplo decide") **invertia** a precedência de
+   instrução escopada: um `AGENTS.md` de subdiretório exigindo `squash` seria sobrescrito
+   por um default global permissivo, e a fonte específica ainda seria reescrita. Empate
+   **no mesmo escopo** não se resolve por amplitude → HITL (passo 4).
 3. A divergência é **claramente** drift (uma fonte ficou para trás) **e** você tem segurança
    para corrigir sozinho? → corrija **todos** os arquivos em conflito — inclusive outras regras
    auto-carregadas que complementem esta (ex. `rules/operational-workflow.md`) — e registre.
 4. Caso contrário → **HITL**. Não mergeie sob conflito não resolvido.
 
 ```bash
-# Um comando por método resolvido. Os TRÊS são suportados.
-gh pr merge <N> --merge     # resolução produziu "merge"
-gh pr merge <N> --squash    # resolução produziu "squash"
-gh pr merge <N> --rebase    # resolução produziu "rebase"
+# A tabela acima RESOLVE o método; materialize essa resolução numa variável —
+# um exemplo que só mostra três comandos não atribui nada, e quem referenciar
+# `$MERGE_METHOD` depois aborta sob `set -u` (medido).
+# ⚠️ NÃO escreva um valor executável aqui. `MERGE_METHOD=merge` seria exatamente o
+#    default incondicional que este passo existe para remover: quem copiasse o bloco
+#    mergearia com `merge` mesmo onde a resolução produziu squash/rebase.
+#    O placeholder abaixo é REJEITADO pela enum — preencha com a resolução da tabela.
+MERGE_METHOD="<merge|squash|rebase conforme a tabela de resolução acima>"
+
+# Enum-valide ANTES de usar. `gh pr merge` aceita exatamente estes três flags de
+# estratégia; um valor vazio vira `gh pr merge <N> --`, que apenas encerra o
+# parsing de opções e NÃO seleciona estratégia alguma (medido).
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: MERGE_METHOD invalido: '${MERGE_METHOD:-<vazio>}'" >&2; exit 1 ;;
+esac
+
+# PERSISTA: variável de shell não sobrevive entre passos, e o Step 12 / a regra
+# companheira rodam em shell NOVO.
+printf '%s\n' "$MERGE_METHOD" > "$(git rev-parse --git-dir)/MERGE_METHOD"
+
+gh pr merge <N> --"$MERGE_METHOD"
 ```
 
 ## Step 10: Sync the base branch
