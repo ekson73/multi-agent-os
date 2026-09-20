@@ -78,21 +78,51 @@ is_allowed() {
 #   2. o que esta entre crases e citacao em prosa -> nao executa.
 # Removidas as duas camadas, se o padrao SOBREVIVE ele esta em posicao de
 # comando. Nenhuma palavra isenta uma linha executavel.
-strip_noncode() {
-  # ⚠️ Crases delimitam prosa em Markdown MAS tambem substituicao de comando em
-  #    shell legado. Apagar o conteudo cegamente esconde `result=`git branch -D x``
-  #    -- a shell EXECUTA aquilo. Medido: fixture ativa com essa forma passava.
-  #    Preserva-se o miolo quando ha `=` imediatamente antes da crase de abertura
-  #    ou quando a crase abre inicio de comando (`\`cmd\`` isolado).
-  printf '%s' "$1" \
-    | sed -e 's/\([=(]\)`\([^`]*\)`/\1 \2 /g' \
-          -e 's/`[^`]*`/`` /g' \
-          -e 's/^[[:space:]]*#.*$//' \
-          -e 's/[[:space:]]#.*$//' \
-    | tr '\t' ' ' \
-    | sed -e 's/  */ /g'
-  # tr+squeeze: os padroes exigem espaco simples. `rm  -rf\t.worktrees` e valido
-  # em shell e passava batido -- normalizar aqui cobre TODO scan de uma vez.
+# Aplica-se ao FLUXO INTEIRO, uma vez -- nao por linha. Subshell por linha
+# custava ~15s/2000 linhas (69k linhas x 5 scans ~ 44 min), o que FORCAVA um
+# pre-`grep` cru ANTES da normalizacao -- e esse pre-filtro era o vetor de
+# bypass circular: descartava a linha antes de normaliza-la. Com um unico
+# passe sobre o fluxo ha UMA representacao, ja normalizada, e o filtro vem
+# DEPOIS dela.
+#
+# CRASES: dentro de uma cerca ```bash/```sh a crase e SUBSTITUICAO DE COMANDO
+# (executavel); fora dela e codigo inline do Markdown (prosa). A heuristica
+# anterior -- preservar so quando precedida de `=` ou `(` -- deixava passar
+# `echo \`git branch -D x\`` e a forma nua \`rm -rf .worktrees/x\`, ambas
+# medidas escapando. O criterio correto e o ESTADO DE CERCA, entao o
+# normalizador rastreia a abertura/fechamento e so apaga crases FORA de cerca
+# executavel.
+strip_stream() {
+  awk -F: '
+    function strip(t) {
+      if (in_sh) {                       # dentro de cerca executavel:
+        gsub(/`/, " ", t)                # crase e delimitador de substituicao
+        return t                         # -- o conteudo E comando, preserva
+      }
+      # Acumula em `out` em vez de reescanear `t`: substituir por "`` " e
+      # continuar o match sobre o texto JA substituido e laco infinito -- as
+      # duas crases inseridas casam de novo, indefinidamente. Medido: 2028
+      # linhas nao terminavam em 40s. `sed s///g` nao reescaneia; awk sim.
+      out = ""
+      while (match(t, /`[^`]*`/)) {
+        out = out substr(t, 1, RSTART-1) "`` "
+        t = substr(t, RSTART+RLENGTH)
+      }
+      return out t
+    }
+    {
+      pre = $1 ":" $2 ":"
+      body = substr($0, length(pre)+1)
+      if (body ~ /^[[:space:]]*```/) {           # a propria linha de cerca
+        if (in_fence) { in_fence=0; in_sh=0 }
+        else { in_fence=1; in_sh = (body ~ /```[[:space:]]*(bash|sh|shell|zsh)/) }
+        print pre body; next
+      }
+      body = strip(body)
+      sub(/^[[:space:]]*#.*$/, "", body)          # linha so de comentario
+      sub(/[[:space:]]#.*$/, "", body)            # comentario ao final
+      print pre body
+    }'
 }
 
 # Padroes como REGEX: a forma literal `worktree remove --force` NAO casa a
@@ -131,7 +161,7 @@ join_continuations() {
         buf = buf line
         if ($0 ~ /\\[[:space:]]*$/) { next }
         # Normaliza TODA linha, nao so a juntada. O pre-filtro `grep` roda
-        # ANTES do strip_noncode, entao normalizar la dentro chega tarde:
+        # ANTES da normalizacao, entao normalizar so depois chega tarde:
         # `rm  -rf<TAB>.worktrees/b` era descartado pelo filtro e nunca
         # alcancava a normalizacao -- medido. Verificado que nenhuma ancora da
         # ALLOWLIST usa espaco multiplo ou tab, entao colapsar aqui e seguro.
@@ -153,12 +183,12 @@ for pat in "${PATTERNS[@]}"; do
     [ -n "$hit" ] || continue
     file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
     # Fora de comentario e fora de crases o padrao sobrevive? Senao, e prosa.
-    code=$(strip_noncode "$line")
+    code="$line"   # ja normalizado por strip_stream
     printf '%s' "$code" | grep -qE -- "$pat" || continue
     is_allowed "$file" "$line" && continue
     fail "prescricao destrutiva: $file -> $(printf '%s' "$line" | cut -c1-72)"
     hits=$((hits + 1))
-  done < <(join_continuations | grep -E -- ":[0-9]+:.*$pat")
+  done < <(join_continuations | strip_stream | grep -E -- ":[0-9]+:.*$pat")
   [ "$hits" -eq 0 ] && pass "nenhuma prescricao de '$pat'"
 done
 
@@ -167,12 +197,12 @@ hits=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-  code=$(strip_noncode "$line")
+  code="$line"   # ja normalizado por strip_stream
   printf '%s' "$code" | grep -qE 'gh pr merge[^|]*--(merge|squash|rebase)\b' || continue
   is_allowed "$file" "$line" && continue
   fail "metodo de merge fixo: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(join_continuations | grep -E ':[0-9]+:.*gh pr merge[^|]*--(merge|squash|rebase)\b')
+done < <(join_continuations | strip_stream | grep -E -- ':[0-9]+:.*gh pr merge[^|]*--(merge|squash|rebase)\b')
 [ "$hits" -eq 0 ] && pass "nenhum 'gh pr merge' com metodo fixo"
 
 # `git branch -D` executavel FORA do contexto guardado. O canonico usa
@@ -183,7 +213,7 @@ hits=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-  code=$(strip_noncode "$line")
+  code="$line"   # ja normalizado por strip_stream
   printf '%s' "$code" | grep -qE 'git branch -D' || continue
   # NAO ha isencao por conteudo da linha: `git branch -D` nao aceita
   # expected-OID, entao NENHUMA forma same-line dele e atomica. Mencionar
@@ -193,7 +223,7 @@ while IFS= read -r hit; do
   is_allowed "$file" "$line" && continue
   fail "branch -D sem expected-OID: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(join_continuations | grep -E ':[0-9]+:.*git branch -D')
+done < <(join_continuations | strip_stream | grep -E -- ':[0-9]+:.*git branch -D')
 [ "$hits" -eq 0 ] && pass "nenhum 'git branch -D' fora do contexto atomico"
 
 # Um comando shell pode quebrar em varias linhas com `\`. Um scan por LINHA
@@ -208,13 +238,13 @@ hits=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-  code=$(strip_noncode "$line")
+  code="$line"   # ja normalizado por strip_stream
   printf '%s' "$code" | grep -qE 'pulls/[^ ]*/merge' || continue
   printf '%s' "$code" | grep -q 'merge_method' && continue
   is_allowed "$file" "$line" && continue
   fail "merge REST sem merge_method: $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(join_continuations | grep -E ':[0-9]+:.*pulls/[^ ]*/merge')
+done < <(join_continuations | strip_stream | grep -E -- ':[0-9]+:.*pulls/[^ ]*/merge')
 [ "$hits" -eq 0 ] && pass "nenhum merge REST sem merge_method"
 
 # Delecao de ref via REST: o endpoint delete-ref NAO tem parametro de
@@ -223,12 +253,12 @@ hits=0
 while IFS= read -r hit; do
   [ -n "$hit" ] || continue
   file="${hit%%:*}"; rest="${hit#*:}"; line="${rest#*:}"
-  code=$(strip_noncode "$line")
+  code="$line"   # ja normalizado por strip_stream
   printf '%s' "$code" | grep -qE '\-X DELETE.*git/refs/heads' || continue
   is_allowed "$file" "$line" && continue
   fail "delete-ref via REST (nao atomizavel): $file -> $(printf '%s' "$line" | cut -c1-72)"
   hits=$((hits + 1))
-done < <(join_continuations | grep -E ':[0-9]+:.*\-X DELETE.*git/refs/heads')
+done < <(join_continuations | strip_stream | grep -E -- ':[0-9]+:.*\-X DELETE.*git/refs/heads')
 [ "$hits" -eq 0 ] && pass "nenhum delete-ref via REST"
 
 # ── Fixtures NEGATIVAS: o teste precisa REPROVAR comando mau comentado.
@@ -284,8 +314,18 @@ git branch --delete --force feat/alias
 rm  -rf	.worktrees/tab
 ```
 
-Substituicao de comando executavel (nao e prosa):
-`result=\`git branch -D feat/subst\``
+Substituicao de comando DENTRO de cerca executavel -- as tres formas. Fora de
+cerca, crase e codigo inline do Markdown (prosa) e deve continuar isenta; a
+distincao e o ESTADO DE CERCA, nao um caractere vizinho.
+
+```bash
+result=`git branch -D feat/subst`
+echo `git branch -D feat/eco`
+`rm -rf .worktrees/nua`
+```
+
+Prosa com crase FORA de cerca, que NAO deve contar: `rm -rf .worktrees/x` e
+`git branch -D feat/prosa`.
 
 Prosa citando `rm -rf .worktrees/x` e `gh pr merge 1 --merge` nao e prescricao.
 # comentario puro sobre rm -rf .worktrees/x
@@ -301,10 +341,10 @@ FIX
   # atomico (em linha e quebrada) -- que sao a forma CERTA.
   # As fixtures quebradas sao PERSISTENTES de proposito: verificar so com fixture
   # temporaria prova a correcao uma vez, nao impede a regressao.
-  if [ "${neg:-0}" -eq 17 ]; then
-    pass "fixtures negativas: 17 (7 em linha + 6 continuacao + 4 alias/ws/subst)"
+  if [ "${neg:-0}" -eq 19 ]; then
+    pass "fixtures negativas: 19 (linha + continuacao + alias/ws + 3 em cerca)"
   else
-    fail "fixtures negativas: esperado 17 achados, obtido ${neg:-0} — filtro furado"
+    fail "fixtures negativas: esperado 19 achados, obtido ${neg:-0} — filtro furado"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 fi
