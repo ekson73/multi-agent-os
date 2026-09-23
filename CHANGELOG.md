@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — roadmap-tree-projector (durable roadmap N-Tree from a graph SSOT)
+
+Jira/ADR/OpenSpec/Linear store the roadmap NODES (content) but nothing stored the
+dependency EDGES between them, the computed graph STATUS, or the analysis LENSES
+(SWOT/RACI/Eisenhower/DoR/DoD) — so every recap re-drew them in prose that dies on
+context compaction. This adds the missing SSOT + its projector, forged via
+`agentic-tool-forge` (type=skill+command):
+
+- `orchestration/roadmap.yaml` — durable, versioned graph SSOT. Nodes carry
+  POINTERS (`ref:` — Jira key · PR# · session-key), never copied content (DRY).
+  Seed ships GENERIC/REDACTED examples (public repo — privacy guard).
+- `skills/roadmap-tree-projector/` — HYBRID skill: a deterministic
+  `scripts/project_roadmap.py` (self-locate → validate → cycle-detect → topo-sort
+  → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
+  (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
+  node's ticket-manager/home by its world; never writes orchestration into a
+  client repo. Follows `eko-executable-scripts`. 24 tests green
+  (`scripts/test_project_roadmap.py`).
+
+### Fixed — roadmap-tree-projector review round (PR #439)
+
+Addresses coderabbit/copilot/codex threads before merge. P1 (silent-wrong):
+validate `parents` so a typo'd parent errors instead of silently dropping the
+node; fold measured status into the `--json` envelope (`effective_status`);
+non-zero exit on unknown `--lens`/bad parent so CI cannot read success on a
+broken projection; correct the parse contract (PyYAML required, no faked
+fallback — anti-theater); route the status probe by `ref.manager` with the
+node's world as the default. P2: reject duplicate YAML keys (PyYAML last-wins
+→ hard stop); require node `title`; list `roadmap-tree-projector` in
+`skills/README.md`. Tests 11 → 24.
+- `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
+
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
 Superficies prescritivas em `rules/`, `skills/`, `protocols/` e `docs/`

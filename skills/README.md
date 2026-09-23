@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (88 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
 
-## Available Skills (87)
+## Available Skills (88)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -79,6 +79,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `research-dossier` | `research-dossier/SKILL.md` | Turn finished research into a decision-ready visual dossier — html, md, json, and hand-offs to pdf/pptx/xlsx — routed through an intermediate represen |
 | `response-compression` | `response-compression/SKILL.md` | Controls output verbosity. |
 | `reveng` | `reveng/SKILL.md` | Use to REVERSE-ENGINEER source code into an OpenSpec SPEC model (the as-built behavioral contract) — e.g. |
+| `roadmap-tree-projector` | `roadmap-tree-projector/SKILL.md` | Use when you need to SEE the whole roadmap as a dependency graph — projects the N-Tree from a durable versioned SSOT (dependency EDGES + analysis LENSES) with status MEASURED at the source; hybrid + world-aware. |
 | `rule-quality-tests` | `rule-quality-tests/SKILL.md` | Use when creating new rules, modifying existing rules at MAJOR/MINOR version bump, OR when operator says "audit this rule" / "check rule quality" / "v |
 | `session-fission` | `session-fission/SKILL.md` | On-demand splitter for a tangled Claude session. |
 | `session-reentry` | `session-reentry/SKILL.md` | Cold/foreign-thread RE-ENTRY orchestrator (soul-name Anamnesis). |
