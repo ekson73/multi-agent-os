@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — roadmap-tree-projector (durable roadmap N-Tree from a graph SSOT)
+
+Jira/ADR/OpenSpec/Linear store the roadmap NODES (content) but nothing stored the
+dependency EDGES between them, the computed graph STATUS, or the analysis LENSES
+(SWOT/RACI/Eisenhower/DoR/DoD) — so every recap re-drew them in prose that dies on
+context compaction. This adds the missing SSOT + its projector, forged via
+`agentic-tool-forge` (type=skill+command):
+
+- `orchestration/roadmap.yaml` — durable, versioned graph SSOT. Nodes carry
+  POINTERS (`ref:` — Jira key · PR# · session-key), never copied content (DRY).
+  Seed ships GENERIC/REDACTED examples (public repo — privacy guard).
+- `skills/roadmap-tree-projector/` — HYBRID skill: a deterministic
+  `scripts/project_roadmap.py` (self-locate → validate → cycle-detect → topo-sort
+  → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
+  (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
+  node's ticket-manager/home by its world; never writes orchestration into a
+  client repo. Follows `eko-executable-scripts`. 11 tests green
+  (`scripts/test_project_roadmap.py`).
+- `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
+
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
 Superficies prescritivas em `rules/`, `skills/`, `protocols/` e `docs/`
