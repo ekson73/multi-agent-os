@@ -3,8 +3,8 @@
 
 The HYBRID split (see skills/roadmap-tree-projector/SKILL.md):
   · DETERMINISTIC (this script): locate the SSOT, parse it, validate the graph
-    (cycle detection), topo-sort, fold in measured statuses, render the N-Tree
-    and the requested lens. Pure, testable, no LLM.
+    (nodes, edges, parents, cycles), topo-sort, fold in measured statuses,
+    render the N-Tree and the requested lens. Pure, testable, no LLM.
   · COGNITIVE (the skill body): classify ambiguous status, suggest MISSING
     edges, resolve which ticket-manager/probe to call per world. Deferred to the
     agent because it is judgement, not computation.
@@ -14,10 +14,14 @@ eko-executable-scripts compliance (~/.kiro/steering/eko-executable-scripts.md):
      absolute path.
   2. Live-pinned — reads the SSOT at runtime; carries no copied constant.
   3. One idempotent run — verify -> parse -> validate -> render -> PASS/FAIL,
-     non-zero exit on any FAIL so CI/cron can gate.
-  4. Native prereqs — PyYAML if present; else a tiny built-in fallback parser so
-     the tool runs on a bare interpreter (degrade, never crash).
-  5. Flags — --check / --help / --lens / --json / --roadmap.
+     non-zero exit on ANY FAIL (invalid schema, cycle, unknown parent, unknown
+     lens) so CI/cron can gate a broken projection.
+  4. Native prereq — PyYAML is REQUIRED. There is no built-in YAML fallback: the
+     seed uses nested maps and flow scalars a hand-rolled parser would misread,
+     and a silent misparse is worse than a loud stop (anti-theater — we do not
+     claim a fallback we do not have). Absent PyYAML => fail loud with the exact
+     `pip install` remedy.
+  5. Flags — --check / --help / --lens / --json / --roadmap / --status-file.
   6. Self-heal — the SKILL body dispatches the AI harness on failure; this
      script stays a pure computation (a trap ERR belongs in the bash wrapper the
      skill emits, not in a library the tests import).
@@ -26,6 +30,7 @@ eko-executable-scripts compliance (~/.kiro/steering/eko-executable-scripts.md):
 Status probing (gh/acli/linear) is intentionally NOT run here: it is a network
 side-effect that belongs to the cognitive layer, which passes measured statuses
 in via --status-file (id=status pairs). This keeps the script pure + testable.
+The MEASURED status is folded into BOTH the tree render and the --json envelope.
 """
 from __future__ import annotations
 
@@ -39,6 +44,8 @@ from collections import defaultdict, deque
 SCHEMA_VERSION = 1
 KINDS = {"goal", "objective", "epic", "item", "task", "pr", "session", "dor", "dod"}
 EDGE_TYPES = {"depends-on", "blocks", "informs", "realizes"}
+# ticket-manager a world declares -> the probe the cognitive layer should call.
+WORLD_MANAGER = {"personal": "linear", "client-alpha": "jira", "integrator-beta": "github"}
 
 
 # ── property 1: self-locating ────────────────────────────────────────────────
@@ -59,22 +66,43 @@ def locate_roadmap(explicit: str | None) -> str:
     raise FileNotFoundError("could not locate orchestration/roadmap.yaml (self-locating glob failed)")
 
 
-# ── property 4: parse with graceful degradation ──────────────────────────────
+# ── property 4: parse (PyYAML required, duplicate-key-safe, no silent misparse)
+class _DupKeyError(ValueError):
+    """Raised when a YAML mapping has a duplicate key (PyYAML would overwrite)."""
+
+
 def load_yaml(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         text = fh.read()
     try:
         import yaml  # type: ignore
-
-        return yaml.safe_load(text) or {}
     except ImportError:
-        # Bare-interpreter fallback: we do not reimplement YAML, we require it
-        # for anything non-trivial. Fail LOUD with the exact remedy rather than
-        # silently misparsing (anti-theater: no fake capability).
+        # No built-in fallback by design (see module docstring). Fail LOUD with
+        # the exact remedy rather than silently misparse.
         raise SystemExit(
-            "PyYAML not installed and the built-in fallback cannot parse this "
-            "roadmap safely. Install it: pip install pyyaml"
+            "PyYAML is required to parse the roadmap and is not installed. "
+            "Install it: pip install pyyaml"
         )
+
+    class _NoDupLoader(yaml.SafeLoader):
+        pass
+
+    def _no_dup_mapping(loader: yaml.SafeLoader, node, deep=False):  # type: ignore
+        mapping: dict = {}
+        for key_node, value_node in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            if key in mapping:
+                raise _DupKeyError(f"duplicate YAML key {key!r} (PyYAML would overwrite it silently)")
+            mapping[key] = loader.construct_object(value_node, deep=deep)
+        return mapping
+
+    _NoDupLoader.add_constructor(  # reject dup keys instead of last-wins
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dup_mapping
+    )
+    try:
+        return yaml.load(text, Loader=_NoDupLoader) or {}
+    except _DupKeyError as e:
+        raise SystemExit(f"roadmap invalid: {e}")
 
 
 def validate(doc: dict) -> list[str]:
@@ -93,6 +121,18 @@ def validate(doc: dict) -> list[str]:
         ids.add(nid)
         if n.get("kind") not in KINDS:
             errs.append(f"node {nid}: unknown kind {n.get('kind')!r}")
+        # required title — a titleless node renders as a blank branch (silent-wrong)
+        if not n.get("title"):
+            errs.append(f"node {nid}: missing required 'title'")
+    # parents must reference existing nodes — a typo'd parent silently drops the
+    # node out of render_tree (it becomes an orphan under a non-existent root).
+    for n in nodes:
+        nid = n.get("id")
+        if not nid:
+            continue
+        for p in n.get("parents") or []:
+            if p not in ids:
+                errs.append(f"node {nid}: parent references unknown node {p!r}")
     for e in doc.get("edges") or []:
         if e.get("type") not in EDGE_TYPES:
             errs.append(f"edge {e!r}: unknown type {e.get('type')!r}")
@@ -100,6 +140,21 @@ def validate(doc: dict) -> list[str]:
             if e.get(endpoint) not in ids:
                 errs.append(f"edge {e!r}: {endpoint} references unknown node {e.get(endpoint)!r}")
     return errs
+
+
+def resolve_probe_manager(node: dict) -> str | None:
+    """Which ticket-manager to probe this node's status against.
+
+    ROUTING CONTRACT (coderabbit/copilot/codex converged): the node's own
+    `ref.manager` is authoritative — a node can live in a Jira world yet point
+    at a GitHub PR (e.g. a client item delivered by a PR on GitHub). The world's
+    declared ticket-manager is only the DEFAULT when the ref carries no manager.
+    """
+    ref = node.get("ref")
+    if isinstance(ref, dict) and ref.get("manager"):
+        return str(ref["manager"])
+    world = node.get("world")
+    return WORLD_MANAGER.get(world) if world else None
 
 
 def _dep_graph(doc: dict) -> dict[str, set[str]]:
@@ -193,6 +248,11 @@ def _ref_str(node: dict) -> str:
     return str(ref)
 
 
+def effective_status(node: dict, statuses: dict[str, str]) -> str:
+    """MEASURED status wins; else the node's declared status; else '?'."""
+    return statuses.get(node.get("id"), node.get("status", "?"))
+
+
 def render_tree(doc: dict, statuses: dict[str, str]) -> str:
     nodes = {n["id"]: n for n in doc.get("nodes") or [] if n.get("id")}
     children: dict[str, list[str]] = defaultdict(list)
@@ -207,7 +267,7 @@ def render_tree(doc: dict, statuses: dict[str, str]) -> str:
     def emit(nid: str, prefix: str, last: bool) -> None:
         n = nodes[nid]
         branch = "└─ " if last else "├─ "
-        st = statuses.get(nid, n.get("status", "?"))
+        st = effective_status(n, statuses)
         ref = _ref_str(n)
         ref_s = f"  <{ref}>" if ref else ""
         lines.append(f"{prefix}{branch}[{n['kind']}] {nid}: {n['title']} — {st}{ref_s}")
@@ -223,8 +283,6 @@ def render_tree(doc: dict, statuses: dict[str, str]) -> str:
 
 def render_lens(doc: dict, lens: str) -> str:
     lenses = doc.get("lenses") or {}
-    if lens not in lenses:
-        return f"(lens '{lens}' not defined in this roadmap; available: {', '.join(sorted(lenses)) or 'none'})"
     return json.dumps({lens: lenses[lens]}, indent=2, ensure_ascii=False)
 
 
@@ -258,6 +316,19 @@ def main(argv: list[str]) -> int:
                 print(f"  · {e}", file=sys.stderr)
         return 1
 
+    # An unknown --lens is a broken projection: fail loud + non-zero so CI does
+    # not read exit 0 on a lens that renders nothing meaningful.
+    if args.lens:
+        lenses = doc.get("lenses") or {}
+        if args.lens not in lenses:
+            avail = ", ".join(sorted(lenses)) or "none"
+            msg = f"unknown lens {args.lens!r}; available: {avail}"
+            if args.json:
+                print(json.dumps({"ok": False, "errors": [msg]}, ensure_ascii=False))
+            else:
+                print(f"FAIL — {msg}", file=sys.stderr)
+            return 1
+
     if args.check:
         msg = f"PASS — {len(doc.get('nodes') or [])} nodes, {len(doc.get('edges') or [])} edges, acyclic"
         print(json.dumps({"ok": True, "summary": msg}) if args.json else msg)
@@ -267,13 +338,25 @@ def main(argv: list[str]) -> int:
     order = topo_order(doc)
 
     if args.json:
-        print(json.dumps({
+        # Fold the MEASURED status into each node so the JSON branch is not a raw
+        # dump that drops what --status-file measured (silent-wrong for consumers).
+        enriched = []
+        for n in doc.get("nodes") or []:
+            m = dict(n)
+            if n.get("id"):
+                m["effective_status"] = effective_status(n, statuses)
+                m["probe_manager"] = resolve_probe_manager(n)
+            enriched.append(m)
+        env = {
             "ok": True,
             "topo_order": order,
-            "nodes": doc.get("nodes"),
+            "nodes": enriched,
             "edges": doc.get("edges"),
             "lenses": list((doc.get("lenses") or {})),
-        }, ensure_ascii=False, indent=2))
+        }
+        if args.lens:
+            env["lens"] = {args.lens: (doc.get("lenses") or {})[args.lens]}
+        print(json.dumps(env, ensure_ascii=False, indent=2))
         return 0
 
     print("ROADMAP N-TREE (parents -> children; status measured or declared)\n")

@@ -5,6 +5,7 @@ Run: python3 skills/roadmap-tree-projector/scripts/test_project_roadmap.py
 Exit 0 = all pass, non-zero = a failure (CI-gateable).
 Pure stdlib (unittest) — no third-party test runner needed.
 """
+import json
 import os
 import sys
 import unittest
@@ -115,6 +116,144 @@ class TestStatusFile(unittest.TestCase):
             self.assertEqual(got, {"A": "green", "B": "red"})
         finally:
             os.unlink(name)
+
+
+class TestParentsValidation(unittest.TestCase):
+    # Finding #1 (P1 silent-wrong): a typo'd parent must be an ERROR, not a
+    # silently-dropped node.
+    def test_unknown_parent_flagged(self):
+        doc = _doc(
+            [
+                {"id": "A", "kind": "goal", "title": "a"},
+                {"id": "B", "kind": "item", "title": "b", "parents": ["GHOST"]},
+            ],
+            [],
+        )
+        self.assertTrue(any("parent references unknown node" in e for e in pr.validate(doc)))
+
+    def test_valid_parent_ok(self):
+        doc = _doc(
+            [
+                {"id": "A", "kind": "goal", "title": "a"},
+                {"id": "B", "kind": "item", "title": "b", "parents": ["A"]},
+            ],
+            [],
+        )
+        self.assertEqual(pr.validate(doc), [])
+
+
+class TestTitleRequired(unittest.TestCase):
+    # Finding #7 (P2): a titleless node renders a blank branch.
+    def test_missing_title_flagged(self):
+        doc = _doc([{"id": "A", "kind": "goal"}], [])
+        self.assertTrue(any("missing required 'title'" in e for e in pr.validate(doc)))
+
+
+class TestEffectiveStatusInJson(unittest.TestCase):
+    # Finding #2 (P1 silent-wrong): measured status must survive into --json.
+    def test_effective_status_prefers_measured(self):
+        node = {"id": "A", "kind": "goal", "title": "a", "status": "declared"}
+        self.assertEqual(pr.effective_status(node, {"A": "green"}), "green")
+
+    def test_effective_status_falls_back_to_declared(self):
+        node = {"id": "A", "kind": "goal", "title": "a", "status": "declared"}
+        self.assertEqual(pr.effective_status(node, {}), "declared")
+
+    def test_json_branch_includes_measured_status(self):
+        import io
+        import tempfile
+        from contextlib import redirect_stdout
+
+        roadmap = _doc([{"id": "A", "kind": "goal", "title": "a"}], [])
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as rf:
+            import yaml
+
+            rf.write(yaml.safe_dump(roadmap))
+            rname = rf.name
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as sf:
+            sf.write("A=measured-green\n")
+            sname = sf.name
+        try:
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = pr.main(["--roadmap", rname, "--status-file", sname, "--json"])
+            self.assertEqual(rc, 0)
+            env = json.loads(buf.getvalue())
+            a = next(n for n in env["nodes"] if n["id"] == "A")
+            self.assertEqual(a["effective_status"], "measured-green")
+        finally:
+            os.unlink(rname)
+            os.unlink(sname)
+
+
+class TestExitCodes(unittest.TestCase):
+    # Finding #3 (P1): unknown lens / bad parent must exit non-zero, not 0.
+    def _write_roadmap(self, doc):
+        import tempfile
+
+        import yaml
+
+        f = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
+        f.write(yaml.safe_dump(doc))
+        f.close()
+        return f.name
+
+    def test_unknown_lens_exits_nonzero(self):
+        name = self._write_roadmap(_doc([{"id": "A", "kind": "goal", "title": "a"}], []))
+        try:
+            self.assertEqual(pr.main(["--roadmap", name, "--lens", "nope"]), 1)
+        finally:
+            os.unlink(name)
+
+    def test_known_lens_exits_zero(self):
+        doc = _doc([{"id": "A", "kind": "goal", "title": "a"}], [])
+        doc["lenses"] = {"swot": {"strengths": ["x"]}}
+        name = self._write_roadmap(doc)
+        try:
+            self.assertEqual(pr.main(["--roadmap", name, "--lens", "swot"]), 0)
+        finally:
+            os.unlink(name)
+
+    def test_bad_parent_exits_nonzero(self):
+        doc = _doc(
+            [{"id": "A", "kind": "goal", "title": "a", "parents": ["GHOST"]}], []
+        )
+        name = self._write_roadmap(doc)
+        try:
+            self.assertEqual(pr.main(["--roadmap", name]), 1)
+        finally:
+            os.unlink(name)
+
+
+class TestWorldRouting(unittest.TestCase):
+    # Finding #5: probe routes by ref.manager, world is only the default.
+    def test_ref_manager_wins_over_world(self):
+        node = {"id": "PR1", "kind": "pr", "world": "client-alpha",
+                "ref": {"manager": "github", "repo": "org/x", "pr": 1}}
+        self.assertEqual(pr.resolve_probe_manager(node), "github")
+
+    def test_world_default_when_ref_has_no_manager(self):
+        node = {"id": "T1", "kind": "item", "world": "client-alpha"}
+        self.assertEqual(pr.resolve_probe_manager(node), "jira")
+
+    def test_personal_world_defaults_to_linear(self):
+        node = {"id": "G1", "kind": "goal", "world": "personal"}
+        self.assertEqual(pr.resolve_probe_manager(node), "linear")
+
+
+class TestDuplicateYamlKeys(unittest.TestCase):
+    # Finding #6 (P2): PyYAML overwrites dup keys silently; we must reject.
+    def test_duplicate_key_rejected(self):
+        import tempfile
+
+        f = tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False)
+        f.write("version: 1\nversion: 2\nnodes: []\nedges: []\n")
+        f.close()
+        try:
+            with self.assertRaises(SystemExit):
+                pr.load_yaml(f.name)
+        finally:
+            os.unlink(f.name)
 
 
 if __name__ == "__main__":

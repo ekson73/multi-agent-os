@@ -23,8 +23,20 @@ context compaction. This adds the missing SSOT + its projector, forged via
   → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
   (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
   node's ticket-manager/home by its world; never writes orchestration into a
-  client repo. Follows `eko-executable-scripts`. 11 tests green
+  client repo. Follows `eko-executable-scripts`. 24 tests green
   (`scripts/test_project_roadmap.py`).
+
+### Fixed — roadmap-tree-projector review round (PR #439)
+
+Addresses coderabbit/copilot/codex threads before merge. P1 (silent-wrong):
+validate `parents` so a typo'd parent errors instead of silently dropping the
+node; fold measured status into the `--json` envelope (`effective_status`);
+non-zero exit on unknown `--lens`/bad parent so CI cannot read success on a
+broken projection; correct the parse contract (PyYAML required, no faked
+fallback — anti-theater); route the status probe by `ref.manager` with the
+node's world as the default. P2: reject duplicate YAML keys (PyYAML last-wins
+→ hard stop); require node `title`; list `roadmap-tree-projector` in
+`skills/README.md`. Tests 11 → 24.
 - `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
