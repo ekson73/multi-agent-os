@@ -48,6 +48,36 @@ Os 4 adotantes existentes continuam no bloco v1 (follow-up gated).
   start it instantiates a concrete agent ID instead of echoing the ID template.
 - `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
 
+### Fixed — `openrig-concierge`: hard STOP for external crews, plus verified OpenRig facts
+
+The first real run of the skill and the `openrig-fleet-engineer` agent built a Claude crew on a private target
+repo under `rig` 0.5.14 (cc75efdd). Review of the resulting guidance showed that no crew recipe for a target
+repository (writing, reviewing or research) could yet be backed by evidence. This entry therefore carries one
+hard stop plus only verified OpenRig facts; the isolation design is tracked in #453.
+
+- **Stop: external crews are not supported.** External crews on a target repository (any seat, any role,
+  attended or unattended) are not supported by this skill until the isolation design (#453) is validated: do
+  not launch them. An already-running external-target crew is diagnosis-only; the one permitted action is
+  containment teardown (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig
+  the delegation names. The crew recipe is removed; `external-crew.md` is now the STOP with its reasons plus facts
+  (`SKILL.md` §0 items 7–8 and its operate/heal modes, `CANON.md` C6, `external-crew.md` §0, the agent's prohibitions, `tiers.md` rule 4).
+- **Retraction: never point a seat's `cwd` at a repository checkout.** OpenRig 0.5.14 unconditionally
+  guidance-merges a managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file
+  (`external-crew.md` §3, `CANON.md` C6, `SKILL.md` §0 item 5, the agent).
+- **Culture delivery:** `culture_file` also resolves to a guidance merge; `startup.files` with
+  `delivery_hint: send_text` delivers a culture without writing into the cwd (`external-crew.md` §4).
+- **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;
+  `rig restore status` needs `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside a seat,
+  `rig queue create` needs an honest external `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`,
+  with the evidence reference inside it; outside-seat `rig send` carries no sender identity, so sign the body;
+  `--wait-for-idle --verify` is not a turn boundary (`tiers.md`, `external-crew.md` §8 and §9, `CANON.md` C7).
+- **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
+  with a stopped rig's name creates a second same-name rig. Relaunch under a new name and address rigs by ID
+  (`external-crew.md` §6).
+- **Readiness under a nesting terminal wrapper**: a seat is ready only when `startupStatus=ready`, `rig capture`
+  shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` activity is live (`external-crew.md` §7,
+  `trust-gates.md` §1, the agent).
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
