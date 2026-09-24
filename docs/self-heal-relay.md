@@ -121,6 +121,9 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- The Bash block tees stderr through a process substitution. Bash does not `wait` for it, so under a container PID 1 that never
+  reaps orphans (no `--init`/`tini`), a very frequently invoked script leaves one defunct `tee` per run. That is an environment
+  fault, not a script one: run such containers with an init. The Windows `.cmd`/`.bat` harness launcher (node) is untested.
 - A proposal is text; nothing is applied without a human (or an explicit `apply` opt-in).
 
 ## Adopting scripts
