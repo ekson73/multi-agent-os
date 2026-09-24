@@ -113,6 +113,10 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
 ## Honest limitations
 
 - `set -u` aborts and a bare `exit N` do not trip ERR; use `SHR_TRAP_EXIT=1` to relay on EXIT.
+- On macOS `/bin/bash` 3.2 a `set -u` abort reports status **0** to the EXIT trap, so it is undetectable there even with
+  `SHR_TRAP_EXIT=1` (bash >= 4 reports the real status). A bare `exit N` is detected on both.
+- On timeout the harness' whole process tree is killed (POSIX: process group / depth-first tree; Windows: `taskkill /T` —
+  best-effort, not covered by the suite).
 - ERR-trap behaviour differs between bash 3.2 (macOS `/bin/bash`) and 5.x — the conformance
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
