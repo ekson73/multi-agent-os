@@ -20,9 +20,9 @@ agent proposes the repair, a human reviews the diff.
 
 1. Classifies the target (language, who runs it, secrets, stdout contract).
 2. Enumerates the **intentional** non-zero exits — these are never relayed.
-3. Stamps the canonical block with `bin/self-heal-relay-render` (single-source harness table)
+3. Stamps the canonical block with `skills/instrument-self-heal-relay/bin/self-heal-relay-render` (single-source harness table)
    or ports the ten-invariant contract to a language without a template.
-4. Verifies: `bin/self-heal-relay-render --verify <file>` + `bash tests/test-self-heal-relay.sh`.
+4. Verifies: `skills/instrument-self-heal-relay/bin/self-heal-relay-render --verify <file>` + `bash tests/test-self-heal-relay.sh`.
 
 Use `--mode seed` for hooks, cron and CI (non-blocking `NEEDS-AGENT` hand-off).
 

@@ -24,6 +24,8 @@ triggers:
 
 # instrument-self-heal-relay (soul-name *Iatros* — the physician)
 
+> Paths below are relative to this skill's own directory (`bin/`, `templates/`, `harnesses.json`) so the skill works from a checkout and from a portable `npx skills add` install.
+
 > Anima decision (2026-09-23): system-name `self-heal-relay` · **type** = *supervised
 > self-healing / out-of-process exception-escalation handler* (MAPE-K: the script is the
 > Monitor, the harness pool the Analyze+Plan, the human the Execute gate). Not a retry loop,

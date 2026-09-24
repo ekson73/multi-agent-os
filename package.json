@@ -29,7 +29,6 @@
     "skills/*/scripts/**",
     "skills/*/bin/**",
     "skills/agentic-session-harness/hooks/lib.sh",
-    "bin/self-heal-relay-render",
     "skills/instrument-self-heal-relay/harnesses.json",
     "skills/instrument-self-heal-relay/templates/*.tmpl",
     "skills/decompose-abstract-to-measurable/examples/*.json",

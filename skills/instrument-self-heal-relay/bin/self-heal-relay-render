@@ -22,8 +22,8 @@ import shlex
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-SKILL = ROOT / "skills" / "instrument-self-heal-relay"
+SKILL = Path(__file__).resolve().parent.parent   # the skill dir itself: works from a checkout AND from a portable skill install
+ROOT = SKILL.parent.parent
 TABLE = SKILL / "harnesses.json"
 TEMPLATES = SKILL / "templates"
 LANGS = {"bash": ("bash.tmpl", "#"), "python": ("python.tmpl", "#"), "node": ("node.tmpl", "//")}
@@ -94,7 +94,7 @@ def render(lang: str) -> str:
                 .replace("@@VERIFIED_ON@@", t["verified_on"]))
     body = body.strip("\n")
     digest = hashlib.sha256(body.encode()).hexdigest()[:12]
-    head = f"{cmt} {BEGIN} {t['relay_version']} ({lang}) sha256:{digest} — stamped by bin/self-heal-relay-render; DO NOT hand-edit; verify with --verify"
+    head = f"{cmt} {BEGIN} {t['relay_version']} ({lang}) sha256:{digest} — stamped by self-heal-relay-render; DO NOT hand-edit; verify with --verify"
     foot = f"{cmt} {END} ({lang})"
     return f"{head}\n{body}\n{foot}\n"
 

@@ -67,7 +67,7 @@ must never self-edit). Consume a seed by moving it to `consumed/`.
 ## Harness-agnostic chain — verified vs opt-in
 
 The single source of truth is [`harnesses.json`](../skills/instrument-self-heal-relay/harnesses.json);
-`bin/self-heal-relay-render` stamps it into every language block (`--list` prints it,
+`skills/instrument-self-heal-relay/bin/self-heal-relay-render` stamps it into every language block (`--list` prints it,
 `--verify <file>` detects drift). A harness is `verified` only if its flags exist in the CLI's own
 `--help` **and** a live headless round-trip through that exact argv + prompt delivery was
 observed. **Only verified harnesses are in the default chain**; the rest run only when named in
@@ -138,6 +138,6 @@ independent red-team, `SHR_TIER_LOCK=propose`), so it is not batch-edited here.
 
 ## Instrumenting a new script
 
-Run `/instrument-self-heal-relay <path>` (or `bin/self-heal-relay-render --lang <bash|python|node>`
+Run `/instrument-self-heal-relay <path>` (or `skills/instrument-self-heal-relay/bin/self-heal-relay-render --lang <bash|python|node>`
 and insert the block). For a language with no template, port the ten invariants listed in the
 skill and add a fixture to `tests/test-self-heal-relay.sh` before shipping.
