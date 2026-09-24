@@ -316,6 +316,9 @@ if command -v python3 >/dev/null 2>&1; then
   if [ "$T1" -lt 30 ]; then ok "python: a harness flooding stdout is killed at the disk cap, not at the 60s timeout (${T1}s)"; else bad "python: runaway harness output was not bounded on disk" "took ${T1}s"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import signal\nprint("SIGDFL" if signal.getsignal(signal.SIGTERM) == signal.SIG_DFL else "SIGCHANGED")\n'; } > "$SANDBOX/p24.py"
   check "python: MAOS_SELFHEAL=0 leaves the adopter's SIGTERM disposition untouched" "$(MAOS_SELFHEAL=0 python3 "$SANDBOX/p24.py" 2>&1)" "SIGDFL"
+  reset_stubs; GCS="$SANDBOX/gcs.pid"; rm -f "$GCS"; printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) >/dev/null 2>&1 &\nsleep 1\necho PROPOSAL-OK\n' "$GCS" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p25.py"
+  MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p25.py" >/dev/null 2>&1; sleep 1
+  if gc_alive "$GCS"; then bad "python: a background child left by a harness that exited 0 survived"; kill -9 "$(cat "$GCS")" 2>/dev/null; else ok "python: descendants of a harness that exits cleanly are reaped"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(TMPDIR=/nonexistent/shr-dir python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"

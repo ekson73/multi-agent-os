@@ -121,6 +121,9 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- After a harness exits **cleanly**, python and node kill its whole process group, so a background child it left behind is reaped. The
+  bash block cannot: once the harness process is gone its descendants are reparented and no longer discoverable without a process group
+  (`set -m` would risk SIGTTIN on an inherited tty stdin). Timeouts and cancellation (TERM/HUP) do reap the full tree in bash.
 - The captured run log (`run.log`) grows for as long as the instrumented program runs and writes to stderr; only the *read-back* is capped
   (256 KiB). For a long-lived or very noisy process, rotate its output externally or set `MAOS_SELFHEAL=0`; the relay is meant for
   short-lived scripts and jobs.
