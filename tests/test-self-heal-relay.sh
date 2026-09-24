@@ -167,6 +167,11 @@ echo after'
   mk_bash "$SANDBOX/t4n.sh" "" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 "$B" "$SANDBOX/t4n.sh" >/dev/null 2>&1 & BP=$!
   for _ in $(seq 1 40); do [ -s "$GCT" ] && break; sleep 0.25; done; kill -TERM "$BP" 2>/dev/null; sleep 3
   if gc_alive "$GCT"; then bad "bash: harness survived SIGTERM sent to the script"; kill -9 "$(cat "$GCT")" 2>/dev/null; else ok "bash: SIGTERM to the script kills the whole harness tree"; fi; kill -9 "$BP" 2>/dev/null; wait "$BP" 2>/dev/null; restore_stubs; reset_stubs
+  reset_stubs; GCU="$SANDBOX/gcu.pid"; MARK="$SANDBOX/term.mark"; rm -f "$GCU" "$MARK"; gc_stub "$GCU"
+  mk_bash "$SANDBOX/t4o.sh" "" "trap 'echo cleaned > \"$MARK\"; exit 42' TERM; false"; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 "$B" "$SANDBOX/t4o.sh" >/dev/null 2>&1 & BQ=$!
+  for _ in $(seq 1 40); do [ -s "$GCU" ] && break; sleep 0.25; done; kill -TERM "$BQ" 2>/dev/null; wait "$BQ" 2>/dev/null; rc=$?; sleep 1
+  check "bash: the adopter's own TERM handler still runs (exit 42 preserved)" "$rc" "42"; check "bash: adopter TERM handler wrote its cleanup marker" "$([ -s "$MARK" ] && echo y)" "y"
+  if gc_alive "$GCU"; then bad "bash: harness survived while the adopter had its own TERM trap"; kill -9 "$(cat "$GCU")" 2>/dev/null; else ok "bash: harness also killed when the adopter has its own TERM trap"; fi; restore_stubs; reset_stubs
 
   echo "-- 4i. same-second seeds never collide"
   reset_stubs; mk_bash "$SANDBOX/t4i.sh" "" 'false'
@@ -289,6 +294,10 @@ if command -v python3 >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p16.py" >/dev/null 2>&1 & PYQ=$!
   for _ in $(seq 1 40); do [ -s "$GCQ" ] && break; sleep 0.25; done; kill -TERM "$PYQ" 2>/dev/null; sleep 2
   if gc_alive "$GCQ"; then bad "python: harness survived SIGTERM sent to the script"; kill -9 "$(cat "$GCQ")" 2>/dev/null; else ok "python: SIGTERM to the script kills the whole harness group"; fi; kill -9 "$PYQ" 2>/dev/null; wait "$PYQ" 2>/dev/null; restore_stubs
+  reset_stubs; GCW="$SANDBOX/gcw.pid"; rm -f "$GCW"; gc_stub "$GCW"; { "$RENDER" --lang python; printf 'import threading\nt = threading.Thread(target=lambda: 1/0); t.start(); t.join()\n'; } > "$SANDBOX/p20.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p20.py" >/dev/null 2>&1 & PYW=$!
+  for _ in $(seq 1 40); do [ -s "$GCW" ] && break; sleep 0.25; done; kill -TERM "$PYW" 2>/dev/null; sleep 2
+  if gc_alive "$GCW"; then bad "python: harness started from a worker thread survived SIGTERM"; kill -9 "$(cat "$GCW")" 2>/dev/null; else ok "python: SIGTERM also kills a harness relayed from a worker thread"; fi; kill -9 "$PYW" 2>/dev/null; wait "$PYW" 2>/dev/null; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "python: PEM cut from its header by the 200-line cap leaked" "python: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\n" + "A" * 70000 + "\\nEXCBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p18.py"; python3 "$SANDBOX/p18.py" >/dev/null 2>&1
