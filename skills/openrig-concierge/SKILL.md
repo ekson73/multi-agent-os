@@ -81,8 +81,8 @@ those packs and does not copy them (C2). It **owns** only the rest:
 | Owned layer | File |
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
-| startup trust gates: diagnose, decide, clear, pre-configure | `references/trust-gates.md` |
-| external crew: agent_ref from outside, per-seat worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| startup trust gates: diagnose, decide, clear, pre-configure, and the user-scope check every seat inherits | `references/trust-gates.md` |
+| external crew: agent_ref from outside, per-seat desks (never a repo worktree as cwd) and worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -240,6 +240,9 @@ Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openr
 - 2026-09-23 — v0.1.0 — Bootstrap (issue #441). Forged with agentic-tool-forge and named with anima. The
   skill routes to first-party packs and owns tiers, trust gates (operator guardrails 1–4), the external-crew
   recipe and sources. Verified against `rig` 0.5.14. Dogfood crew pending.
+- 2026-09-24 — v0.1.0, no version change — Field corrections from the first external-crew dogfood on `rig`
+  0.5.14: desk cwds replace worktree cwds (C6), culture via `send_text`, the user-scope check, rig-ID
+  command shapes, stopped-rig relaunch and nesting-wrapper caveats, unattended-posture practice.
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · reference-table pointers: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`

@@ -31,6 +31,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start it instantiates a concrete agent ID instead of echoing the ID template.
 - `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
 
+### Fixed — `openrig-concierge`: field corrections from the first external-crew dogfood
+
+The first real run of the skill and the `openrig-fleet-engineer` agent built a three-seat Claude crew on a
+private target repo under `rig` 0.5.14 (cc75efdd). It showed that several instructions above were wrong on
+that version. Every correction below was observed there.
+
+- **Seat `cwd` is a desk, never a repo worktree (retraction).** The recipe said to point each member's `cwd`
+  at its worktree. OpenRig 0.5.14 unconditionally merges a managed block (the default culture plus the start
+  overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now: an empty 0700 desk per seat
+  outside every repo, the worktree reached through the harness's additional-directories permission, one unit
+  worktree per writer created by the seat under the project's policy, and a tracked-status check after
+  launch (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
+- **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
+  guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
+- **User-scope check.** Every seat inherits the operator's harness user scope (settings `env`, hooks,
+  plugins, user MCP config, home-level guidance), and a shell-side scrub cannot remove env the harness
+  applies later. New recipe: list secret-like names only, override them per desk with empty values, verify
+  `SCRUBBED` in each live seat, stop on `NOT-SCRUBBED`, re-render on user-settings changes, reset desks after
+  posture changes. Notes the cross-domain data flow of global memory-capture hooks
+  (`trust-gates.md` §4, `external-crew.md` step 9).
+- **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
+  with a stopped rig's name creates a second same-name rig with the same tmux session names. Relaunch under a
+  new name, address rigs by ID; `rig down --delete` stays T3 (step 10).
+- **Nesting terminal wrappers.** Readiness can fail with "returned to shell" and `clear-attention` stays
+  blocked (`pane_identity`); judge by `startupStatus=ready` and `rig capture`, heal with a snapshot then
+  `rig seat launch --fresh` (step 11, `trust-gates.md` §1).
+- **Command shapes.** `rig snapshot` / `snapshot list` / `launch` need the rig ID; `rig restore status` needs
+  `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside-seat `rig queue create` needs an
+  honest `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`; outside-seat `rig send` carries no
+  sender identity; pre-trust residue for the cwd and its git root is operator cleanup (`tiers.md`, steps 12
+  and 14, `CANON.md` C7).
+- **Unattended posture.** A `PermissionRequest` hook answering `deny`, prefix denies as a speed bump next to
+  structural controls, single simple commands, `--no-gpg-sign` only where branch protection does not require
+  signatures, and names-only `!` probes (step 6, `tiers.md` rule 4). Step 1 now budgets per-seat boot
+  context, paid again on every relaunch.
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure

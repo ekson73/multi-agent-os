@@ -24,7 +24,8 @@
    credential, the project's own just-in-time secret procedure performs the authenticated operation
    **outside the seat**, run by whoever that procedure names, and hands back only non-secret results. Back
    this with a harness `deny` on the secret CLI (for example `Bash(op:*)`). That deny is best-effort; the
-   real control is that no secret value is ever placed where a seat can read it.
+   real control is that no secret value is ever placed where a seat can read it. That includes env the
+   harness injects from the operator's user settings, which no shell-side scrub removes (§4, user-scope check).
 4. **Never trust an MCP server, hook or operation because of its name, path or owner alone.** Names are free
    to choose, and a file in `~/.codex/` or a repo's `.codex/` could have been written by anything. Read what
    it executes.
@@ -39,12 +40,13 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
+| `rig up` / `rig ps --nodes` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. Judge by `startupStatus` and `rig capture`; heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
 | Class | Prompt text (as observed) | Where it comes from |
 |---|---|---|
-| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. Accepting it enables the project's own configuration: its hooks, permission rules, MCP servers and instructions. **OpenRig 0.5.14 auto-accepts it for managed seats.** It pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). That is trust keyed by path with no review (guardrail 4). Flag it, and do the review yourself **before** launch (section 2). The dialog itself shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
+| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. Accepting it enables the project's own configuration: its hooks, permission rules, MCP servers and instructions. **OpenRig 0.5.14 auto-accepts it for managed seats.** It pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` for the cwd **and its git root** and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). That is trust keyed by path with no review (guardrail 4). Flag it, and do the review yourself **before** launch (section 2). The dialog itself shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
 | **B. Claude project MCP approval** | `New MCP server found in this project: <name>` → *Use this MCP server* / *Use this and all future MCP servers in this project* / *Continue without using this MCP server* | a `.mcp.json` in the seat's cwd. Claude asks before it uses any project-scoped server ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)). |
 | **C. Codex hook review** | `Hooks need review` · `N hooks are new or changed.` · `Hooks can run outside the sandbox after you trust them.` → *Review hooks* / *Trust all and continue* / *Continue without trusting (hooks won't run)* | any non-managed hook that is new or changed. Codex records trust against each hook's current hash ([Codex hooks docs](https://developers.openai.com/codex/hooks)). |
 | other | update prompts, provider login | not a trust gate. Route: `rig context get skills/core/rig-lifecycle` (failure mode "provider auth treated as impl work"). |
@@ -62,7 +64,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. With a desk as the cwd ([`external-crew.md`](./external-crew.md) step 5) the review is that the desk is empty apart from the crew's own settings file, plus the worktrees the seat can reach. Then run the user-scope check (§4): the seat inherits that too. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -99,30 +101,83 @@ rig green while the cause is still there. A seat that goes back to `att` means t
 
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
-- **Claude MCP approvals: scope each one to the reviewed worktree. Never approve by name at user scope.**
+- **Claude MCP approvals: scope each one to the reviewed cwd. Never approve by name at user scope.**
   Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
   `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
   binds the same name to a different command. That is trust by name alone (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
-    `enabledMcpjsonServers` of the **worktree's untracked** `.claude/settings.local.json`. It applies only to
-    that folder, and only once the folder is trusted. Re-review whenever that `.mcp.json` changes.
-    Otherwise, the operator approves interactively in the pane.
+    `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json` (the desk's, for a
+    crew). It applies only to that folder, and only once the folder is trusted. Re-review whenever that
+    `.mcp.json` changes. Otherwise, the operator approves interactively in the pane.
   - *deny*: `disabledMcpjsonServers` may live at user scope. A deny by name fails closed.
   - Never set `enableAllProjectMcpServers: true`. A committed `.claude/settings.json` cannot approve its own
     repo's servers ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
   - `claude mcp list` shows a server still waiting as `⏸ Pending approval`. `claude mcp reset-project-choices`
     resets the choices.
-- **Codex hooks.** Keep the per-worktree hook set small and stable. Reuse crew worktrees across runs rather
-  than creating new ones, because trust is keyed by path. Review once per new worktree through the native
+- **Codex hooks.** Keep the per-cwd hook set small and stable. Reuse crew desks and worktrees across runs rather
+  than creating new ones, because trust is keyed by path. Review once per new path through the native
   flow (guardrail 1). Organization-managed hooks (`requirements.toml`, MDM) are trusted by policy. That is an
   administrator's decision, not a seat's.
 - **Unattended seats.** Use `deny` rules, not `ask` (guardrail 2). Translate the policy with
   `rig context get skills/applying-a-permission-policy`.
-- **Workspace trust (class A).** Review every new worktree's checkout and project configuration before its
-  first `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate.
+- **Workspace trust (class A).** Review every desk and every worktree a seat can reach before its first
+  `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate. It also pre-trusts the cwd's git
+  root, and those entries outlive teardown ([`external-crew.md`](./external-crew.md) step 14).
 - **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results
   (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
+
+### User-scope check (every seat inherits it) [T3]
+
+Every seat runs as the operator, so the harness loads the operator's user scope into it: the user settings
+`env` block, hooks, plugins, user MCP config and home-level agent guidance. A RigSpec cannot scope any of it.
+A scrub in the shell's startup files does not reach the settings `env` block either, because the harness
+applies it after the shell starts. Observed on OpenRig 0.5.14 with Claude Code 2.1.281: the shell-side scrub
+removed the secrets exported by the shell and the tmux server, while a secret in the user settings `env`
+still reached every seat's tool env. Recipe for Claude Code seats:
+
+1. **List names, never values [T0].** `jq -r '.env // {} | keys[]' ~/.claude/settings.json`. Mark every
+   secret-like name.
+2. **Override per desk [T3, show the diff].** Render an `env` object that sets each marked name to the empty
+   string, and merge it into the desk's own `.claude/settings.local.json` (mode 0600, the file that also
+   carries the seat's posture) before launch. The filter below prints names only; add any secret it misses
+   from the list in step 1:
+
+   ```bash
+   jq '{env: (.env // {} | keys
+        | map(select(test("TOKEN|KEY|SECRET|PASSWORD|AUTH"; "i")) | {(.): ""}) | add // {})}' \
+     ~/.claude/settings.json
+   ```
+
+   It works because local settings override user settings for the same key, and OpenRig deep-merges its own
+   fragment into that file and keeps `env` (observed on 0.5.14).
+3. **Verify in each LIVE seat [T1], never by reading the file.** Send a no-value probe and read the pane:
+
+   ```bash
+   rig send <session> '![[ -z ${NAME_A:-} && -z ${NAME_B:-} ]] && echo SCRUBBED || echo NOT-SCRUBBED' --raw
+   rig capture <session> --lines 15
+   ```
+
+   Use `${VAR:-}`, which treats set-but-empty as scrubbed. The probe prints no value, but it starts a model
+   turn ([`external-crew.md`](./external-crew.md) step 6). A send to a busy pane waits until the pane idles.
+4. **Stop rule.** `NOT-SCRUBBED` in any seat means no work: take the rig down with a snapshot, fix the
+   override, and relaunch under a new rig name.
+5. **Re-render** the override whenever the user settings `env` changes. It covers only the names present when
+   it was written.
+6. **Reset desks after posture changes.** OpenRig's merge unions arrays, so a rule you removed from your
+   template survives in a reused desk's settings file. Recreate the desk's settings file instead of merging
+   again.
+
+The override removes the value from the seat's tool env, not from the harness process that parsed the user
+settings. The durable fix is the operator's: keep secrets out of the user settings `env` and behind the
+project's just-in-time procedure.
+
+Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
+into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
+seat shows which session hooks fired. Disable user MCP servers a seat does not need with
+`disabledMcpjsonServers` in the desk settings. Isolating hooks and plugins needs a seat-scoped harness config
+directory (for Claude Code, `CLAUDE_CONFIG_DIR`), which needs its own login: a human step. Until then, list
+the flow in the handoff.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 
@@ -141,4 +196,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · user-scope check: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.

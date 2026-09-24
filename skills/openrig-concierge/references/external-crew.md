@@ -4,11 +4,13 @@
 > Load it for any authoring detail: `rig context get skills/core/openrig-architect`. The schema lives in
 > `~/.openrig/reference/rig-spec.md` and `agent-spec.md` (the installed reference docs; default
 > `OPENRIG_HOME`). This page covers only what those sources leave to the operator: reusing builtin agents
-> from outside the install tree, per-seat worktrees, taking in the host project's governance, checkout
-> hygiene, and the conduct loop run from outside the rig.
+> from outside the install tree, per-seat desks and worktrees, taking in the host project's governance,
+> checkout hygiene, the user scope every seat inherits, and the conduct loop run from outside the rig.
 > **Checked against:** `rig` 0.5.14 (cc75efdd). Steps 4 and 8 were validated on that version with a
 > throwaway crew outside the install dir (`rig spec validate`, `rig spec preflight --rig-root .`,
-> `rig agent validate`, `rig up --plan`; all passed).
+> `rig agent validate`, `rig up --plan`; all passed). Steps 1, 5, 6, 9, 10, 11, 12 and 14 carry field
+> corrections from the first real external-crew run on the same version (2026-09-24 UTC): three Claude
+> seats on a private target repo, launched, verified, conducted and torn down from outside the rig.
 
 Legend: **[T0]** read-only · **[T1]** reversible · **[T2]** disruptive · **[T3]** security gate ([`tiers.md`](./tiers.md)).
 
@@ -24,6 +26,11 @@ Legend: **[T0]** read-only · **[T1]** reversible · **[T2]** disruptive · **[T
 Write one bounded outcome with its acceptance evidence (a test, a PR, a report), a stop condition, the
 human gates it touches, and a budget. Start with the smallest crew that can produce the evidence. Token cost
 is the most common complaint about large fleets, so two seats are a better start than seven.
+
+**Boot cost is per seat and per launch.** A fresh Claude Code seat boots with the operator's whole user scope
+(home-level guidance, rules, skill and plugin listings; see step 9). In the field run that was several
+hundred thousand tokens of context per seat before any work, and every fresh launch or relaunch pays it
+again. Prefer fewer seats, relaunch sparingly, and budget `seats × launches` of boot cost.
 
 ## 2. Choose a starter [T0]
 
@@ -67,42 +74,93 @@ To find the install's `specs/agents/` directory, run `rig specs ls --kind rig`. 
 path of a builtin `rig.yaml`, and the `agents/` tree sits under the same `specs/` parent. Validate every
 agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 
-## 5. Worktrees and `cwd` — one writing seat, one worktree
+## 5. Desks, worktrees and `cwd` — one writing seat, one worktree
 
 - Keep the crew directory (`rig.yaml`, `agents/`, `CULTURE.md`) **outside** the target repo, on a "shelf".
   First-party guidance: "the spec root controls file resolution; the runtime cwd controls trust, project
   guidance, permissions, and repo context" (`openrig-architect`).
-- Give **every writing seat its own git worktree** of the target repo, made the way the target project's own
-  worktree policy says (MAOS default: [`worktree-policy`](../../worktree-policy/SKILL.md)). Point the
-  member's `cwd` at that worktree. Absolute paths and paths relative to the rig root both validate on 0.5.14.
-- **Never use `rig up --cwd` for a crew with several worktrees.** It overrides the working directory "for
-  all members for this run" (`rig up --help`), so every seat would land in the same tree.
-- The project's root checkout stays on its default branch. Reviewers read a worktree checked out at the
-  commit they review.
-- Every new worktree path is a new trust key for Claude and for Codex. Plan for step 9.
+- **Retracted: do not point a member's `cwd` at a repo worktree.** An earlier revision of this page said to.
+  On 0.5.14 OpenRig unconditionally `guidance_merge`s a managed block (the default culture plus the start
+  overlay) into `<cwd>/CLAUDE.md` at launch, whatever the spec says. In a repo that tracks `CLAUDE.md`, a
+  seat whose cwd is a worktree therefore modifies a tracked file the moment it launches (observed as
+  ` M CLAUDE.md`, a block of about 200 lines).
+- **Each seat's `cwd` is a desk:** an empty per-seat directory outside every git repository, mode 0700
+  (`mkdir -m 0700 <crew-home>/desks/<seat>`; `git -C <desk> rev-parse --git-dir` must fail). The managed
+  block, projected skills and settings fragments then land in the desk. Absolute paths and paths relative
+  to the rig root both validate on 0.5.14.
+- **The seat reaches its worktree through the harness's additional-directories permission**, never through
+  its cwd. For Claude Code that is `permissions.additionalDirectories` in the desk's own
+  `.claude/settings.local.json`, naming the directory that holds the project's worktrees. OpenRig
+  deep-merges its own fragment into that file and keeps your keys.
+- **One unit worktree per writer.** Each writing seat creates the worktree for its unit of work itself,
+  the way the target project's own worktree policy says (MAOS default:
+  [`worktree-policy`](../../worktree-policy/SKILL.md)). Two writers never share a worktree. Reviewers read a
+  worktree checked out at the commit they review.
+- **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this
+  run" (`rig up --help`), so every seat would share one cwd.
+- The project's root checkout stays on its default branch.
+- **Verify after launch [T0]:** `git -C <path> status --porcelain --untracked-files=no` prints nothing for the
+  root checkout and for every worktree a seat can reach. A ` M CLAUDE.md` line means a seat's cwd is inside
+  the repo.
+- Each desk path is a new trust key: OpenRig pre-trusts it (step 9, step 14). Plan for step 9.
 
 ## 6. Culture file and posture: the crew adds orchestration, never authority
 
-- `culture_file` must be a safe relative path (rule 14), so it lives in the crew directory. Its content:
-  1. "The target project's AGENTS.md, runbooks and human gates outrank this file." Each seat's runtime
-     already loads the project's AGENTS.md / CLAUDE.md from its cwd.
+- **Deliver the culture as a startup file, not through `culture_file`.** On 0.5.14 `culture_file` (hint
+  `auto`, a `.md` file) also resolves to `guidance_merge`, so it writes a managed block into
+  `<cwd>/CLAUDE.md` like the default culture does (step 5). Put it in the rig-level startup block instead.
+  It arrives as each seat's first message once the harness is ready:
+
+  ```yaml
+  startup:
+    files:
+      - path: CULTURE.md          # safe relative path (rig-spec rules 14, 21)
+        delivery_hint: send_text
+        required: true
+    actions: []
+  ```
+
+  `rig spec audit` then reports that no `culture_file` is set. That advisory is expected and deliberate.
+  Confirm delivery per seat with `rig transcript <session> --grep "<culture title>"` [T0].
+- The culture's content:
+  1. "The target project's AGENTS.md, runbooks and human gates outrank this file." A desk is outside the
+     repo, so no seat loads the project's AGENTS.md / CLAUDE.md on its own. Tell each seat to read them
+     from its worktree before any work.
   2. The project's human gates, listed **by reference** (push, PR, merge, publish, production, secrets).
      Seats stop at them and escalate.
   3. The **name** of the project's just-in-time secret procedure. It runs outside the seats and returns only
      non-secret results. No secret value ever goes into this file, a prompt or the queue
      ([`trust-gates.md`](./trust-gates.md) guardrail 3).
   4. What evidence the crew must produce, and where it goes (the queue, or files).
+  5. "Issue single simple commands." See the unattended posture below.
 - Examples to read: the shipped `first-project/CULTURE.md` ("Keep local edits and commits within the
   assigned change. Publishing, pushes… need their own authorization") and `factory-rsi/CULTURE.md`.
 - **Permission posture.** `rig spec preflight` warns `permission_policy absent; launch_posture=floor` when
   none is set. Record one with `rig policy apply <name>` [T2]. Translating it into live harness config goes
   through `rig context get skills/applying-a-permission-policy`. OpenRig records posture and the harness
   enforces it (CANON C4). Unattended seats get `deny`, not `ask` ([`tiers.md`](./tiers.md) rule 4).
+- **Unattended posture, as run in the field on Claude Code seats:**
+  - A positive allowlist per seat, plus a `PermissionRequest` hook in the desk settings that answers every
+    remaining permission prompt `deny`, with a message telling the seat to park the item. No `ask` rule
+    survives, so no pane freezes.
+  - Prefix and wildcard `deny` rules are a speed bump, not a boundary. They fail open for `git -C <dir> …`,
+    for flag-last forms and for chained commands. The structural controls are the desk (step 5), one
+    worktree per writer, the target repo's branch protection, and no credentials in any seat (step 9).
+  - Compound shell commands are checked sub-command by sub-command, so one unlisted piece (`printf`, a
+    pipe, a `cd`) denies the whole line. Teach seats to issue single simple commands.
+  - Commit signing that goes through an interactive agent (a desktop password manager, a hardware key)
+    fails unattended. Use `git commit --no-gpg-sign` **only** where the target branch does not require
+    signatures, verified read-only first (for GitHub: `gh api repos/<owner>/<repo>/branches/<branch>/protection`
+    and `gh api repos/<owner>/<repo>/rules/branches/<branch>`, looking for `required_signatures`).
+  - `rig send <session> '!<cmd>' --raw` [T1] runs a permission-free shell probe in the seat's real tool env,
+    which you read back with `rig capture`. The runtime then answers the output with a model turn. Keep
+    probes to names or flags, never values, and prefer disposable seats.
 
 ## 7. Checkout hygiene
 
 Launching projects runtime files into each seat's cwd (Runtime Config Disclosure in `agent-startup-guide.md`;
-delivery hints in `agent-spec.md`):
+delivery hints in `agent-spec.md`). With desks (step 5) they land in the desk, not in a worktree. The rules
+below still hold, because a seat can copy or recreate them inside a worktree:
 
 - `.claude/skills/<skill>/`, `.agents/skills/<skill>/`, `.claude/settings.local.json`, `.mcp.json`, `.openrig/`
 - managed blocks inside `CLAUDE.md` / `AGENTS.md`, delimited by
@@ -129,24 +187,59 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 
 ## 9. Pre-clear trust gates [T3]
 
-Before the first launch in any new worktree, follow [`trust-gates.md`](./trust-gates.md) §2 and §4. Review the
-worktree before it gets a seat, because OpenRig auto-accepts Claude workspace trust. Then: exact MCP approvals
-scoped to the worktree, native Codex hook review, deny rules, no secret values anywhere a seat can read.
+Before the first launch, follow [`trust-gates.md`](./trust-gates.md) §2 and §4. OpenRig auto-accepts Claude
+workspace trust for each seat's cwd, so review every desk (empty, apart from the crew's own settings file)
+and every worktree a seat can reach before it gets a seat. Then: exact MCP approvals scoped to where they
+apply, native Codex hook review, deny rules, no secret values anywhere a seat can read.
+
+**User scope.** Every seat also inherits the operator's harness user scope: the user settings `env` block,
+hooks, plugins, user MCP config and home-level agent guidance. A shell-side scrub cannot remove env that the
+harness applies after the shell starts. Run the user-scope check in [`trust-gates.md`](./trust-gates.md) §4
+before the launch and again in each live seat. `NOT-SCRUBBED` in any seat is a stop rule: take the rig down
+(snapshot first) and fix the override before any work.
 
 ## 10. Launch [T1]
 
 `rig up rig.yaml`. A name that is already running is refused with a `409 rig_name_running` guard (since
-0.5.4): pick a new name. To bring a stopped rig back by name, use `rig up <name> --existing`.
+0.5.4). Note the rig ID from the output or from `rig ps --json` (`rigId`): several verbs take only the ID
+(step 12).
+
+**Bringing a stopped rig back is unreliable on 0.5.14.** Observed in the field run:
+
+- `rig up <name> --existing` can fail with "restore snapshots name an older occupant" once any seat of that
+  rig was fresh-launched (`rig seat launch --fresh`), even though `rig down` prints "To restore: rig up <name>".
+- `rig up <spec>` with the name of a **stopped** rig creates a **second** rig with the same name. Both
+  project the same tmux session names, so the stopped rig's seat can show `activity: running` from the new
+  rig's pane, and any seat state read by name is ambiguous.
+
+So: relaunch under a **new rig name**. Address rigs by ID wherever a verb takes one, and for `rig ps`, which
+filters by name, read `rig ps --nodes -A --json` and select by `rigId`. Never infer seat state from a name
+that two rigs share. Removing the old record with `rig down --delete` is T3 (operator).
 
 ## 11. Verify [T0]
 
 ```bash
-rig ps --nodes --rig <rig>                  # every seat LIFECYCLE run, none att
+rig ps --nodes --rig <rig>                  # every seat LIFECYCLE run, none att (see the wrapper caveat)
+rig ps --nodes -A --json                    # per seat: rigId, startupStatus, agentActivity
 rig capture --rig <rig> --lines 30          # panes at a ready prompt, no trust dialog
 rig restore-check --rig <rig>               # restorable before any real work starts
 ```
 
-Any seat at `att` → [`trust-gates.md`](./trust-gates.md).
+Any seat at `att` → [`trust-gates.md`](./trust-gates.md), after this caveat.
+
+**Nesting terminal wrappers.** Where the operator's login shell runs inside a terminal wrapper that nests
+it, tmux's `pane_current_command` reads the shell, not the runtime. Observed on 0.5.14:
+
+- the readiness probe fails fast with "the probe pane returned to a shell" when the launch keystrokes race
+  the wrapper, so `rig up` reports `Status: partial` and the pane shows the launch command echoed above a bare
+  prompt (an empty seat);
+- `rig seat clear-attention` stays blocked (class `pane_identity`: "foreground command '<shell>' contradicts
+  runtime"), with or without `--reason`, so LIFECYCLE stays `att` for a healthy seat.
+
+There, judge readiness by `startupStatus=ready` plus `rig capture` (the runtime's TUI at a prompt) plus
+activity. Heal an empty seat with `rig snapshot <rigId>` first, then
+`rig seat launch <session> --fresh --stop --reason "<capture evidence>"` [T2], and re-check `startupStatus`
+after about a minute: the CLI can report the same pane-identity warning while the seat comes up ready.
 
 ## 12. Conduct from outside the rig [T0 loop]
 
@@ -167,6 +260,20 @@ rig heartbeat --rig <rig>                   # only for rigs with a shared-docs q
 - **Intervene** by the smallest step that works: a `rig send` nudge [T1] → refocus → escalate. The ladder is
   first-party: `rig context get skills/pods/oversight-team` and `rig context get skills/core/watchdog`.
 - **Human-gate questions** from a seat go to the operator. The crew never answers as the human.
+- **Command shapes outside a seat (0.5.14):**
+  - `rig snapshot`, `rig snapshot list` and `rig launch` take the rig **ID**; a name fails with "not found".
+    `rig down` accepts either. `rig restore status <attemptId>` needs `--rig <rigId>`.
+  - `rig launch <rigId> <node> --plan` is rejected for a single node; `--plan` applies only to a multi-seat
+    `--seats` launch.
+  - `rig queue create` fails with "--source is required when OPENRIG_SESSION_NAME is not set", although its
+    help calls `--source` deprecated and ignored, and passing it does not help. Set the variable for that one
+    command to an honest external label, for example `OPENRIG_SESSION_NAME=<your-agent-id>@<rig> rig queue create …`.
+    Never borrow a seat's name.
+  - `rig queue handoff` without `--body` produced a new item with an empty body, and its `--evidence-ref` was
+    not kept, although its help says the source body is kept. Always pass `--body` (or `--body-file`) and
+    check the new item with `rig queue show <id>`.
+  - Every outside-seat `rig send` is delivered "without sender identity". Sign the message body with your
+    agent ID.
 
 ## 13. Harvest
 
@@ -177,14 +284,20 @@ into the crew's `CULTURE.md` or into this skill.
 ## 14. Teardown
 
 ```bash
-rig snapshot <rig>                          # T1: crash-insurance floor
+rig snapshot <rigId>                        # T1: crash-insurance floor (the name fails: step 12)
 rig down <rig> --snapshot                   # T2: stops sessions, keeps records
 rig archive <rig>                           # T1: hides it; `rig unarchive` reverses
 ```
 
 Never pass `--delete` by default (T3). Afterwards, restore any managed-block hunks in the worktrees and
 remove the crew-owned worktrees through the project's worktree procedure, only once each one is clean and its
-work is merged or recorded.
+work is merged or recorded. Desks are crew-owned: remove them once the rig is down.
+
+**Residue outside the crew's reach** (T3, the operator's cleanup): OpenRig pre-trusts each seat's cwd **and**
+its git root in the harness's user trust store (for Claude Code, the `projects` map in `~/.claude.json`), and
+those entries stay after teardown, pointing at deleted desks. The runtimes' own session transcripts, and
+anything a user-scope hook recorded (step 9), stay too. List them in the handoff; do not edit global stores
+from a crew.
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/external-crew.md` · validated on `rig` 0.5.14 (cc75efdd).
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · field corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/external-crew.md` · validated on `rig` 0.5.14 (cc75efdd).
