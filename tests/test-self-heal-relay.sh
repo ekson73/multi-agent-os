@@ -207,6 +207,9 @@ false"
   reset_stubs; mk_bash "$SANDBOX/t5g.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 260); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; false"
   "$B" "$SANDBOX/t5g.sh" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "bash: PEM cut from its header by the 200-line cap (log < 256KB) leaked" "bash: PEM cut from its header by the line cap is dropped"
+  reset_stubs; mk_bash "$SANDBOX/t5i.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 260); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; echo 'SHORTTAILzz1' >&2; false"
+  "$B" "$SANDBOX/t5i.sh" >/dev/null 2>&1
+  noleak "SHORTTAILzz1" "bash: short final PEM fragment (<16 chars) leaked" "bash: short final PEM fragment is dropped"
   reset_stubs; mk_bash "$SANDBOX/t5h.sh" "" 'false'
   OUT="$(MAOS_SELFHEAL_TIMEOUT=0 "$B" "$SANDBOX/t5h.sh" 2>&1 >/dev/null)"
   case "$OUT" in *"answered ->"*) ok "bash: TIMEOUT=0 falls back to 300 (harness is not killed at once)" ;; *) bad "bash: TIMEOUT=0 killed the harness: $OUT" ;; esac

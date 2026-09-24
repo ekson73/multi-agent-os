@@ -117,7 +117,9 @@ def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `c
         lines = f.read().decode("utf-8", "replace").splitlines(True)
     if start > 0: lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
     lines = lines[-n:]  # the line cap comes BEFORE the key scan: it can cut a PEM from its header too
-    while lines and _re.fullmatch(r"[A-Za-z0-9+/=]{16,}\s*", lines[0]): lines = lines[1:]  # the body of a PEM whose BEGIN fell before the cut
+    dropped = False
+    while lines and _re.fullmatch(r"[A-Za-z0-9+/=]+\s*", lines[0]) and (dropped or len(lines[0].strip()) >= 16):
+        lines = lines[1:]; dropped = True  # the body of a PEM whose BEGIN fell before the cut
     out, inkey = [], False
     for l in lines:  # a private-key body whose BEGIN header fell before the cut would escape redaction: drop through its END
         if not inkey and "PRIVATE KEY-----" in l and "-----END" in l: out = []; continue

@@ -50,7 +50,8 @@ function shrTail(path) {
   _shr.fs.readSync(fd, buf, 0, cap, sz - cap); _shr.fs.closeSync(fd);
   let lines = buf.toString("utf8").split("\n"); if (sz > cap) lines = lines.slice(1);
   lines = lines.slice(-200); // the line cap comes BEFORE the key scan: it can cut a PEM from its header too
-  while (lines.length && /^[A-Za-z0-9+/=]{16,}\s*$/.test(lines[0])) lines.shift(); // the base64 body of a PEM whose BEGIN fell before the cut
+  let dropped = false;
+  while (lines.length && /^[A-Za-z0-9+/=]+\s*$/.test(lines[0]) && (dropped || lines[0].trim().length >= 16)) { lines.shift(); dropped = true; } // the base64 body of a PEM whose BEGIN fell before the cut
   let out = [], inkey = false;
   for (const l of lines) {
     if (!inkey && /-----END [A-Z ]*PRIVATE KEY-----/.test(l)) { out = []; continue; }
