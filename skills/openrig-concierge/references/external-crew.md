@@ -376,6 +376,13 @@ Findings reach the target project **only through its own channels** (its PR flow
 evidence refs. Use `rig transcript <session> --grep "<pattern>"` [T0] to recover decisions. Feed lessons back
 into the crew's `CULTURE.md` or into this skill.
 
+**Before any crew branch reaches the forge (a launch stop):** crew-authored code runs in the forge's CI once
+pushed, outside any seat boundary. Verify read-only that workflows triggered by a push or pull request from a
+crew branch expose no repository or environment secret and no write-scoped token to it (secrets only in
+environments with required human reviewers, deploy workflows only on protected branches after merge,
+read-only `permissions:` for pull-request events). If that cannot be verified, do not push. The publisher's path
+gate and SHA binding are in [`sandboxed-seats.md`](./sandboxed-seats.md) §4.
+
 ## 14. Teardown
 
 ```bash
