@@ -23,9 +23,9 @@ SHR_DEFAULT_CHAIN="@@DEFAULT_CHAIN@@"
 shr_run() {
   local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc
   "$@" <&0 & pid=$!
-  ( sleep "$t"; kill "$pid" 2>/dev/null ) >/dev/null 2>&1 & w=$!
+  ( sleep "$t"; kill "$pid" 2>/dev/null; sleep 3; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & w=$!   # TERM, then KILL after a 3s grace: a harness that ignores TERM cannot hang the caller
   wait "$pid" 2>/dev/null; rc=$?
-  kill "$w" 2>/dev/null; wait "$w" 2>/dev/null || :
+  kill "$w" 2>/dev/null; wait "$w" 2>/dev/null || :   # (a still-sleeping watchdog is reaped here)
   return "$rc"
 }
 
@@ -101,7 +101,7 @@ shr_seed() {  # async hand-off for hooks / cron / CI: write a seed, return immed
   local d="${MAOS_SELFHEAL_SEED_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/maos/self-heal-seeds}" f
   mkdir -p "$d" 2>/dev/null && chmod 700 "$d" 2>/dev/null || :
   f="$d/NEEDS-AGENT-$(date -u +%Y%m%dT%H%M%S)-$SHR_NAME.md"
-  { printf '<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n'; cat "$SHR_PROMPT"; } > "$f"
+  ( umask 077; { printf '<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n'; cat "$SHR_PROMPT"; } > "$f" )   # 0600: the prompt may hold residue
   printf 'self-heal-relay: seed written -> %s\n' "$f" >&2
 }
 

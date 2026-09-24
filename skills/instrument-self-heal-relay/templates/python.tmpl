@@ -52,6 +52,7 @@ class _ShrTee:
 
 
 _shr_dir = _shr_log = None
+_shr_relayed = False
 
 
 def shr_build_prompt(exc_text, tier, log_tail):
@@ -76,8 +77,19 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     return p.returncode, p.stdout
 
 
+def _shr_relayed_set():
+    global _shr_relayed
+    _shr_relayed = True
+
+
+def _shr_cleanup():  # a clean / intentional exit leaves nothing behind; a relayed fault keeps its artifacts for review
+    if not _shr_relayed and _shr_dir and _os.path.basename(_shr_dir).startswith("shr."):
+        _shutil.rmtree(_shr_dir, ignore_errors=True)
+
+
 def shr_relay(exc_text):
     global _SHR_HARNESSES_ENTRY
+    _shr_relayed_set()
     tier = SHR_TIER_LOCK or _os.environ.get("MAOS_SELFHEAL_TIER", "propose")
     tier = "apply" if tier == "apply" else "propose"
     try: _time.sleep(0.05); log_tail = "".join(open(_shr_log, encoding="utf-8", errors="replace").readlines()[-200:])
@@ -91,7 +103,8 @@ def shr_relay(exc_text):
         d = _os.environ.get("MAOS_SELFHEAL_SEED_DIR") or _os.path.join(_os.environ.get("XDG_STATE_HOME", _os.path.expanduser("~/.local/state")), "maos", "self-heal-seeds")
         _os.makedirs(d, mode=0o700, exist_ok=True)
         seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{SHR_NAME}.md")
-        with open(seed, "w", encoding="utf-8") as f: f.write("<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt)
+        fd = _os.open(seed, _os.O_WRONLY | _os.O_CREAT | _os.O_TRUNC, 0o600)  # the prompt may hold residue: never world-readable
+        with _os.fdopen(fd, "w", encoding="utf-8") as f: f.write("<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt)
         print(f"self-heal-relay: seed written -> {seed}", file=_sys.__stderr__)
         return
     explicit = bool(_os.environ.get("MAOS_AI_HARNESS"))
@@ -125,3 +138,4 @@ if SHR_ON:
             try: shr_relay("".join(_tb.format_exception(et, ev, tb)))
             except Exception: pass
     _sys.excepthook = _shr_hook
+    _atexit.register(_shr_cleanup)

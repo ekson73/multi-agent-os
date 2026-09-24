@@ -29,10 +29,13 @@ triggers:
 > Monitor, the harness pool the Analyze+Plan, the human the Execute gate). Not a retry loop,
 > not autonomous repair. Spec: [`docs/self-heal-relay.md`](../../docs/self-heal-relay.md).
 
-## §0 — BEING > Rules
-Serve the operator's intent: if a gate below obstructs delivering a working, safe relay
-NOW, skip it, log `Skipped <gate> — BEING > Rules`, and proceed. HUMAN_DOMAIN (secrets,
-production, irreversible) is never relayed or auto-applied.
+## §0 — BEING > Rules (with non-skippable safety gates)
+Serve the operator's intent; skip ceremony (registry lines, README rows) if it obstructs
+delivery — log `Skipped <step> — BEING > Rules`. **The safety gates are NOT skippable**:
+contract-code enumeration (step 2), redaction, the UNTRUSTED fence, the propose tier / tier
+lock for gates, and the re-entrancy guard. If a safe relay cannot be produced, **stop and
+escalate — never ship a weaker one**. HUMAN_DOMAIN (secrets, production, irreversible) is never
+relayed or auto-applied.
 
 ## When to use / not use
 - **Use**: a script/hook/cron/CI job should escalate unexpected crashes to an AI harness;

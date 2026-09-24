@@ -88,13 +88,14 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   `user:pass@` URLs, `Bearer`/`Basic` credentials and `key=value` pairs whose key names a
   secret are scrubbed before the prompt exists. It **cannot** be exhaustive — a script that
   handles secrets should default `MAOS_SELFHEAL=0` and treat the relay as opt-in.
-- **UNTRUSTED fence with a nonce.** The log sits between `<<<UNTRUSTED-LOG-<nonce>` and
-  `UNTRUSTED-LOG-<nonce>>>>`; the nonce is generated at fault time, so a log line cannot forge
+- **UNTRUSTED fence with a nonce.** The log sits between `<<<UNTRUSTED-LOG-{nonce}` and
+  `UNTRUSTED-LOG-{nonce}>>>` (exactly three `>`); the nonce is generated at fault time, so a log line cannot forge
   the closing delimiter. The harness is told the block is data, not instructions.
 - **Contract to preserve.** The prompt states the invariant the repair must keep (e.g. "do not
   weaken the gate's block semantics") via `SHR_CONTRACT_NOTE`.
-- **Private temp.** The run directory is `mktemp -d` (mode 0700) and is removed on a clean run;
-  it is kept only when a relay happened, so a human can read the prompt and proposal.
+- **Private temp.** The run directory is `mktemp -d` (mode 0700), prompts and seeds are written mode 0600,
+  and it is removed on a clean or intentional exit (bash, python and node alike); it is kept only
+  when a relay happened, so a human can read the prompt and proposal.
 
 ## Env reference
 
