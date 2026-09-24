@@ -96,8 +96,9 @@ def _shr_install_signals():
         except (ValueError, OSError): pass
 
 
-_shr_install_signals()
-_atexit.register(_shr_kill_live)  # normal interpreter shutdown does not wait for daemon threads: a relay running in one must not leave its harness orphaned
+if SHR_ON:  # MAOS_SELFHEAL=0 (kill switch) and the re-entrant harness run must leave the adopter's signal behaviour untouched
+    _shr_install_signals()
+    _atexit.register(_shr_kill_live)  # normal interpreter shutdown does not wait for daemon threads: a relay running in one must not leave its harness orphaned
 
 
 def _shr_watch_size(p, f, cap=4194304):
@@ -107,7 +108,7 @@ def _shr_watch_size(p, f, cap=4194304):
             if _os.fstat(f.fileno()).st_size > cap:
                 _shr_kill_live(); return
         except Exception: return
-        _time.sleep(0.2)
+        _time.sleep(0.05)
 
 
 def _shr_run(bin_, argv, prompt_text, prompt_path):
@@ -127,12 +128,14 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
     try:
         p.communicate(input=stdin, timeout=_timeout)
-        _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.close()
+        _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.truncate(0); _outf.close()  # nothing of the raw capture is retained on disk
     except BaseException as e:  # timeout OR Ctrl-C/interrupt: the isolated harness must never outlive its caller
         if not isinstance(e, _sp.TimeoutExpired):
             try:
                 if _os.name == "posix": _os.killpg(p.pid, 9)
                 else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+            except Exception: pass
+            try: _outf.truncate(0)
             except Exception: pass
             _outf.close()
             raise
@@ -143,6 +146,8 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         try: p.kill()
         except Exception: pass
         p.communicate()
+        try: _outf.truncate(0)
+        except Exception: pass
         _outf.close()
         return 124, ""
     finally:
@@ -234,7 +239,11 @@ def shr_relay(exc_text):
 
 
 if SHR_ON:
-    _shr_dir = _tf.mkdtemp(prefix="shr.")  # mode 0700
+    try: _shr_dir = _tf.mkdtemp(prefix="shr.")  # mode 0700
+    except OSError as _e:  # an unusable TMPDIR must never turn a healthy program into a failing one: run uninstrumented
+        print(f"self-heal-relay: no usable temp dir ({_e}); relay disabled for this run", file=_sys.__stderr__)
+        SHR_ON = False
+if SHR_ON:
     _shr_log = _os.path.join(_shr_dir, "run.log")
     _sys.stderr = _ShrTee(_sys.stderr, _shr_log)
     _shr_prev_hook = _sys.excepthook

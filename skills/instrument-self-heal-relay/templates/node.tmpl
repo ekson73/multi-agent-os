@@ -12,7 +12,7 @@ const SHR_CONTRACT_NOTE = globalThis.SHR_CONTRACT_NOTE || "Preserve this script'
 const SHR_TIER_LOCK = globalThis.SHR_TIER_LOCK || "";
 const SHR_DEFAULT_CHAIN = "@@DEFAULT_CHAIN@@".split(" ");
 const SHR_NAME = _shr.path.basename(process.argv[1] || "script");
-const SHR_ON = process.env.MAOS_SELFHEAL !== "0" && process.env.MAOS_SELFHEAL_ACTIVE !== "1";
+let SHR_ON = process.env.MAOS_SELFHEAL !== "0" && process.env.MAOS_SELFHEAL_ACTIVE !== "1";
 
 @@HARNESS_TABLE@@
 
@@ -124,7 +124,13 @@ function shrRelay(excText) {
 }
 
 if (SHR_ON) {
-  _shrDir = _shr.fs.mkdtempSync(_shr.path.join(_shr.os.tmpdir(), "shr.")); // mode 0700
+  try { _shrDir = _shr.fs.mkdtempSync(_shr.path.join(_shr.os.tmpdir(), "shr.")); } // mode 0700
+  catch (e) { // an unusable TMPDIR must never turn a healthy program into a failing one: run uninstrumented
+    process.stderr.write(`self-heal-relay: no usable temp dir (${e.code || e.message}); relay disabled for this run\n`);
+    SHR_ON = false;
+  }
+}
+if (SHR_ON) {
   _shrLog = _shr.path.join(_shrDir, "run.log");
   const _w = process.stderr.write.bind(process.stderr);
   process.stderr.write = (c, ...a) => { try { _shr.fs.appendFileSync(_shrLog, c); } catch (_) {} return _w(c, ...a); };

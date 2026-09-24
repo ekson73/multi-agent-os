@@ -77,10 +77,14 @@ shr_is_contract() { case "$SHR_CONTRACT_CODES" in *" $1 "*) return 0 ;; esac; re
 
 if [ "$SHR_ON" = 1 ]; then
   _shr_t="${TMPDIR:-/tmp}"; _shr_t="${_shr_t%/}"
-  SHR_RUNDIR="$(mktemp -d "$_shr_t/shr.XXXXXX" 2>/dev/null || mktemp -d)"   # mode 0700: the prompt may hold sensitive residue
-  SHR_LOG="$SHR_RUNDIR/run.log"; SHR_PROMPT="$SHR_RUNDIR/prompt.md"; SHR_PROPOSAL="$SHR_RUNDIR/proposal.md"
-  exec 2> >(tee -a "$SHR_LOG" >&2)
-  if [ "$SHR_CAPTURE_STDOUT" = 1 ]; then exec > >(tee -a "$SHR_LOG"); fi
+  SHR_RUNDIR="$(mktemp -d "$_shr_t/shr.XXXXXX" 2>/dev/null || mktemp -d 2>/dev/null || true)"   # mode 0700: the prompt may hold sensitive residue
+  if [ -z "$SHR_RUNDIR" ] || [ ! -d "$SHR_RUNDIR" ]; then   # an unusable TMPDIR must never turn a healthy script into a failing one: run uninstrumented
+    echo "self-heal-relay: no usable temp dir; relay disabled for this run" >&2; SHR_ON=0
+  else
+    SHR_LOG="$SHR_RUNDIR/run.log"; SHR_PROMPT="$SHR_RUNDIR/prompt.md"; SHR_PROPOSAL="$SHR_RUNDIR/proposal.md"
+    exec 2> >(tee -a "$SHR_LOG" >&2)
+    if [ "$SHR_CAPTURE_STDOUT" = 1 ]; then exec > >(tee -a "$SHR_LOG"); fi
+  fi
 fi
 
 # Log tail: at most the last 256KB (a single huge line cannot blow the prompt up), then the last N lines. A line cut by the byte cap is
@@ -174,9 +178,11 @@ shr_relay() {  # $1=rc $2=line $3=cmd — never exits; the caller preserves the 
 shr_on_err() {  # relays only; it does not exit: under `set -e` the shell exits with the original status once the trap returns,
   local rc="$1"   # so an adopter ERR trap that itself exits (chained AFTER this) can no longer pre-empt the relay
   if shr_is_contract "$rc"; then return 0; fi
-  local _e=0; case "$-" in *e*) _e=1 ;; esac   # shr_relay runs with errexit off; put it back so the script still ends after the trap
+  # a command substitution inherits ERR (set -E) but NOT errexit: a failure there does not end the script, so it is not a fault here
+  # (an unexpected failure of the substitution is re-caught by ERR in the parent, which does run under -e)
+  case "$-" in *e*) ;; *) return 0 ;; esac
   shr_relay "$rc" "$2" "$3"
-  if [ "$_e" = 1 ]; then set -e; fi
+  set -e   # shr_relay runs with errexit off; put it back so the script still ends after the trap
 }
 
 shr_on_exit() {  # $1 = the script's exit status; does NOT exit itself, so a chained adopter trap still runs
