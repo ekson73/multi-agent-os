@@ -156,6 +156,20 @@ STUB
   reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; mk_bash "$SANDBOX/t4e7.sh" "" 'false'
   out="$("$B" "$SANDBOX/t4e7.sh" 2>&1)"
   case "$out" in *"kiro-cli answered"*) bad "bash: an oversized answer from a fast harness was accepted" ;; *) ok "bash: an oversized answer from a fast harness is rejected" ;; esac; restore_stubs
+  echo "-- 4e8. a TERM handled (not fatal) by the adopter does not let the next harness start"
+  reset_stubs; MARK="$SANDBOX/cancel.mark"; rm -f "$MARK"
+  printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  mk_bash "$SANDBOX/t4e8.sh" "trap 'echo handled >> \"$MARK\"' TERM" 'false'
+  "$B" "$SANDBOX/t4e8.sh" >/dev/null 2>&1 & CP=$!
+  for _ in $(seq 1 40); do [ -s "$STUB_LOG" ] && break; sleep 0.25; done
+  kill -TERM "$CP" 2>/dev/null; for _ in $(seq 1 40); do kill -0 "$CP" 2>/dev/null || break; sleep 0.25; done
+  kill -9 "$CP" 2>/dev/null; wait "$CP" 2>/dev/null
+  check "bash: the adopter's TERM handler ran" "$(grep -c handled "$MARK" 2>/dev/null)" "1"
+  check "bash: no further harness was started after the cancellation" "$(calls)" "1"; restore_stubs
+  echo "-- 4e9. a reply made only of ANSI sequences is not an answer (bash/python/node)"
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nprintf "\\033[0m\\n"\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; mk_bash "$SANDBOX/t4e9.sh" "" 'false'
+  out="$("$B" "$SANDBOX/t4e9.sh" 2>&1)"
+  case "$out" in *"kiro-cli answered"*) bad "bash: an ANSI-only reply was accepted as an answer" ;; *) ok "bash: an ANSI-only reply falls through to the next harness" ;; esac; restore_stubs
   echo "-- 4e5. an unset HOME does not abort the seed fallback under set -u"
   reset_stubs; mk_bash "$SANDBOX/t4e5.sh" "" 'false'
   out="$(env -u HOME -u XDG_STATE_HOME -u MAOS_SELFHEAL_SEED_DIR MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4e5.sh" 2>&1)"; rc=$?
@@ -348,6 +362,12 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf '_shr_watch_size = lambda *a, **k: None  # disable the polling watcher: this test targets the post-run check, not the watcher\nraise RuntimeError("x")\n'; } > "$SANDBOX/p26.py"
   out="$(MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p26.py" 2>&1)"
   case "$out" in *"kiro-cli answered"*) bad "python: an oversized answer from a fast harness was accepted" ;; *) ok "python: an oversized answer from a fast harness is rejected" ;; esac; restore_stubs
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nprintf "\\033[0m\\n"\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p27.py"
+  out="$(MAOS_AI_HARNESS="kiro-cli" python3 "$SANDBOX/p27.py" 2>&1)"
+  case "$out" in *"kiro-cli answered"*) bad "python: an ANSI-only reply was accepted as an answer" ;; *) ok "python: an ANSI-only reply is not an answer" ;; esac; restore_stubs
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 2097152 /dev/zero | tr "\\000" o\necho ENDMARK\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p28.py"
+  MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p28.py" >/dev/null 2>&1
+  case "$(tail -c 20 "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)" in *ENDMARK*) ok "python: a 2 MiB answer is kept complete, not cut at 1 MiB" ;; *) bad "python: a 2 MiB answer was truncated" ;; esac; restore_stubs
   # python's tempfile falls back to /tmp when TMPDIR is bad, so a bad TMPDIR cannot force the failure: make mkdtemp itself raise
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
@@ -403,6 +423,9 @@ if command -v node >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli node "$SANDBOX/n21.js" "$SANDBOX/n21.mark" >/dev/null 2>&1; rc=$?
   check "node: a listener registered after the relay still runs before the process exits" "$(cat "$SANDBOX/n21.mark" 2>/dev/null)" "later-listener-ran"
   check "node: the process still ends with exit code 1" "$rc" "1"
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nprintf "\\033[0m\\n"\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n22.js"
+  out="$(MAOS_AI_HARNESS="kiro-cli" node "$SANDBOX/n22.js" 2>&1)"
+  case "$out" in *"kiro-cli answered"*) bad "node: an ANSI-only reply was accepted as an answer" ;; *) ok "node: an ANSI-only reply is not an answer" ;; esac; restore_stubs
   reset_stubs; { "$RENDER" --lang node; printf 'console.log("ALIVE");\n'; } > "$SANDBOX/n20.js"
   out="$(TMPDIR=/nonexistent/shr-dir node "$SANDBOX/n20.js" 2>&1)"; rc=$?
   check "node: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
