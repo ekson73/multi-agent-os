@@ -68,6 +68,7 @@ def shr_build_prompt(exc_text, tier, log_tail):
 
 
 _shr_live = set()  # process-group ids of harnesses currently running
+_shr_cancel = [False]  # set by the TERM/HUP handler BEFORE the adopter's own handler runs: if that handler RETURNS, the fallback chain must not start the next harness
 
 
 def _shr_kill_live():
@@ -89,6 +90,7 @@ def _shr_install_signals():
         try:
             _prev = _signal.getsignal(_s)
             def _h(sig, frm, _prev=_prev):
+                _shr_cancel[0] = True
                 _shr_kill_live()
                 if callable(_prev): return _prev(sig, frm)
                 if _prev == _signal.SIG_IGN: return
@@ -228,6 +230,7 @@ def shr_relay(exc_text):
         return
     explicit = bool(_os.environ.get("MAOS_AI_HARNESS"))
     for name in (_os.environ.get("MAOS_AI_HARNESS") or " ".join(SHR_DEFAULT_CHAIN)).split():
+        if _shr_cancel[0]: return
         h = _SHR_HARNESSES.get(name)
         if not h: print(f'self-heal-relay: unknown harness "{name}" (skipped)', file=_sys.__stderr__); continue
         if not _shutil.which(h["bin"]) or (not h["verified"] and not explicit): continue
@@ -235,6 +238,7 @@ def shr_relay(exc_text):
         print(f"self-heal-relay: dispatching to {name} (tier={tier})", file=_sys.__stderr__)
         try: rc, out = _shr_run(h["bin"], h["argv"][tier], prompt, ppath)
         except Exception as e: rc, out = 1, ""; print(f"self-heal-relay: {name} failed: {e}", file=_sys.__stderr__)
+        if _shr_cancel[0]: return
         if rc == 0 and out.strip():
             out = _re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", out)  # strip ANSI
             if out.strip():  # a reply that was ONLY control sequences is empty once stripped: not an answer

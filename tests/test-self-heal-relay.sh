@@ -369,6 +369,12 @@ if command -v python3 >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p28.py" >/dev/null 2>&1
   case "$(tail -c 20 "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)" in *ENDMARK*) ok "python: a 2 MiB answer is kept complete, not cut at 1 MiB" ;; *) bad "python: a 2 MiB answer was truncated" ;; esac; restore_stubs
   # python's tempfile falls back to /tmp when TMPDIR is bad, so a bad TMPDIR cannot force the failure: make mkdtemp itself raise
+  reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  { printf 'import signal\nsignal.signal(signal.SIGTERM, lambda s, f: None)  # the adopter handler RETURNS\n'; "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p29.py"
+  python3 "$SANDBOX/p29.py" >/dev/null 2>&1 & PYC=$!
+  for _ in $(seq 1 40); do [ -s "$STUB_LOG" ] && break; sleep 0.25; done
+  kill -TERM "$PYC" 2>/dev/null; sleep 3; kill -9 "$PYC" 2>/dev/null; wait "$PYC" 2>/dev/null
+  check "python: no further harness is started after a handled (returning) TERM" "$(calls)" "1"; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
@@ -385,6 +391,11 @@ if command -v node >/dev/null 2>&1; then
   reset_stubs; GCN="$SANDBOX/gcn.pid"; rm -f "$GCN"; gc_stub "$GCN"; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n6.js"
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 node "$SANDBOX/n6.js" >/dev/null 2>&1; sleep 1
   if gc_alive "$GCN"; then bad "node: grandchild survived the timeout"; kill -9 "$(cat "$GCN")" 2>/dev/null; else ok "node: no grandchild survives a harness timeout"; fi; restore_stubs
+  reset_stubs; GCK="$SANDBOX/gck.pid"; rm -f "$GCK"; gc_stub "$GCK"; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n23.js"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 node "$SANDBOX/n23.js" >/dev/null 2>&1 & NDK=$!
+  for _ in $(seq 1 40); do [ -s "$GCK" ] && break; sleep 0.25; done
+  kill -9 "$NDK" 2>/dev/null; wait "$NDK" 2>/dev/null; sleep 3
+  if gc_alive "$GCK"; then bad "node: harness survived the death of the script (spawnSync blocks JS signal handlers)"; kill -9 "$(cat "$GCK")" 2>/dev/null; else ok "node: killing the script also kills the detached harness tree"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("boom %s");\n' "$FAKE_GH"; } > "$SANDBOX/n1.js"
   node "$SANDBOX/n1.js" >/dev/null 2>&1; rc=$?
   check "node: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "node: relayed once" "$(calls)" "1"
