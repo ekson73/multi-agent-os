@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # Test: skills/session-catalog/scripts/session_catalog.py — read-only multi-harness session catalog.
-# Every fixture is SYNTHETIC: invented text that only mimics each store's on-disk format.
-# Secret-shaped strings are assembled at runtime so no literal credential lives in this file.
+# Every fixture is GENERATED at runtime under a fresh temp dir: invented text that only mimics each
+# store's on-disk format. No real session store, transcript or credential is ever read or written.
+# Secret-shaped canaries are recognizably fake and assembled from fragments at runtime, so this file
+# holds no scanner-matching literal (and no gitleaks allowlist/baseline entry is needed).
 # Exit 0 = all pass; 1 = a failure.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export SC="$HERE/skills/session-catalog/scripts/session_catalog.py"
 export FIX="$(mktemp -d 2>/dev/null || mktemp -d -t sessioncatalog)"
-trap 'chmod -R u+w "$FIX" 2>/dev/null; rm -rf "$FIX"' EXIT
+trap 'chmod -R u+rwx "$FIX" 2>/dev/null; rm -rf "$FIX"' EXIT
 echo "test-session-catalog:"
 python3 - <<'PY'
-import hashlib, json, os, stat, subprocess, sys, time, zipfile
+import builtins, hashlib, io, json, math, os, re, shutil, stat, subprocess, sys, threading, time, zipfile
 
 sys.dont_write_bytecode = True  # importing the reader must leave no __pycache__ in the skill dir
 
 SC, FIX = os.environ["SC"], os.environ["FIX"]
 HOME = os.path.join(FIX, "home")
+OLD = time.time() - 3 * 86400          # fixture mtime: older than the default 24 h live horizon
 fails = []
 
 
@@ -25,20 +28,22 @@ def ok(cond, name):
         fails.append(name)
 
 
-def put(rel, lines=None, raw=None, mtime=None):
-    p = os.path.join(HOME, rel)
+def put(rel, lines=None, raw=None, mtime=OLD, home=HOME):
+    p = os.path.join(home, rel)
     os.makedirs(os.path.dirname(p), exist_ok=True)
     with open(p, "wb") as fh:
         fh.write(raw if raw is not None else ("\n".join(json.dumps(x) for x in lines) + "\n").encode())
-    if mtime:
-        os.utime(p, (mtime, mtime))
+    os.utime(p, (mtime, mtime))
     return p
 
 
-def run(*args, stdin=None):
-    env = dict(os.environ, HOME=HOME, XDG_DATA_HOME=os.path.join(FIX, "xdg-data"),
-               XDG_CONFIG_HOME=os.path.join(FIX, "xdg-config"), XDG_STATE_HOME=os.path.join(FIX, "xdg-state"))
-    r = subprocess.run([sys.executable, SC, "--home", HOME] + list(args), capture_output=True, text=True, env=env)
+ENV = dict(os.environ, HOME=HOME, XDG_DATA_HOME=os.path.join(FIX, "xdg-data"),
+           XDG_CONFIG_HOME=os.path.join(FIX, "xdg-config"), XDG_STATE_HOME=os.path.join(FIX, "xdg-state"))
+
+
+def run(*args, home=HOME, env=None):
+    r = subprocess.run([sys.executable, SC, "--home", home] + list(args), capture_output=True, text=True,
+                       env=dict(ENV, **(env or {})))
     last = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "{}"
     try:
         receipt = json.loads(last)
@@ -47,13 +52,30 @@ def run(*args, stdin=None):
     return r.returncode, r.stdout, r.stderr, receipt
 
 
-# secret-shaped values, built at runtime (never literal in this file)
+def jl(path):
+    with open(path) as fh:
+        return [json.loads(l) for l in fh if l.strip()]
+
+
+def zip_of(path, members):
+    with zipfile.ZipFile(path, "w") as z:
+        for name, data in members:
+            z.writestr(name, data)
+    return path
+
+
+# secret-shaped canaries: fake by construction, assembled at runtime (never literal in this file)
 GH = "gh" + "p_" + "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv1Wx2"
 AWS = "AK" + "IA" + "ABCDEFGHIJKLMNOP"
 PEM = "-----BEGIN " + "RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX\n6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\n-----END " + "RSA PRIVATE KEY-----"
 BLOB = "QmFzZTY0QmxvYlRoYXRMb29rc1NlY3JldA" + "Zm9yVGVzdGluZ09ubHkxMjM0NTY3ODk"
 PW = "hunter" + "2hunter2"
 MAIL = "someone" + "@" + "example.org"
+GH_SPLIT = "gh" + "p_" + "Zz9Yy8Xx7Ww6Vv5Uu4Tt3Ss2Rr1Qq0Pp9Oo8"     # split across two text fields
+AWS_SPLIT = "AK" + "IA" + "ZYXWVUTSRQPONMLK"                          # split across two messages
+QPW = "correct " + "horse battery staple"                             # quoted secret with spaces
+GH_TYPE = "gh" + "p_" + "Type0Type1Type2Type3Type4Type5Type6"         # token-shaped record type
+GH_TOOL = "gh" + "p_" + "Tool0Tool1Tool2Tool3Tool4Tool5Tool6"         # token-shaped tool name
 MARK = {"thinking": "HIDDEN-THOUGHT-7Q", "skill": "SKILLBODY-7Q", "args": "TOOLARG-7Q", "envelope": "ENVELOPE-7Q",
         "reasoning": "REASONING-7Q", "developer": "DEVPROMPT-7Q", "custom": "INJECTED-7Q"}
 PROJ = os.path.join(HOME, "work", "demo-atlas")
@@ -61,6 +83,16 @@ OTHER = os.path.join(HOME, "work", "elsewhere")
 T0 = "2026-01-02T10:00:0%dZ"
 U1, U2, U3 = "11111111-2222-4333-8444-555555555555", "66666666-7777-4888-9999-aaaaaaaaaaaa", \
     "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"
+U4, U5 = "44444444-5555-4666-8777-888888888888", "55555555-6666-4777-8888-999999999999"
+
+
+def cl(t, content, **kw):
+    """A Claude Code record in the project with a verified 2.x version."""
+    rec = {"type": t, "sessionId": kw.pop("sid", U4), "cwd": kw.pop("cwd", PROJ), "version": "2.1.0",
+           "timestamp": kw.pop("ts", T0 % 1), "message": {"role": t, "content": content}}
+    rec.update(kw)
+    return rec
+
 
 # ── Claude Code: envelopes, thinking, tool args, skill body, attachment, cwd change, adversarial text ──
 claude = put(".claude/projects/-work-demo-atlas/%s.jsonl" % U1, [
@@ -89,26 +121,47 @@ claude = put(".claude/projects/-work-demo-atlas/%s.jsonl" % U1, [
 ])
 with open(claude, "a") as fh:
     fh.write("{not json\n")
+os.utime(claude, (OLD, OLD))
 put(".claude/projects/-work-demo-atlas/%s/subagents/agent-a1.jsonl" % U1, [
     {"type": "user", "sessionId": U1, "cwd": PROJ, "version": "2.1.0", "timestamp": T0 % 7,
      "message": {"role": "user", "content": "Subagent brief about demo-atlas."}}])
 put(".claude/projects/-work-demo-atlas/%s.jsonl-wal" % U2, raw=b"ignored")
 put(".claude/projects/-work-demo-atlas/%s.jsonl" % U2, raw=b"\x00\x01\x02" * 400)            # binary
 put(".claude/projects/-work-big/%s.jsonl" % U3, raw=(json.dumps(
-    {"type": "user", "sessionId": U3, "message": {"content": "x" * 9000}}) + "\n").encode())    # oversized record
+    {"type": "user", "sessionId": U3, "version": "2.1.0", "message": {"content": "x" * 9000}}) + "\n").encode())
 outside = os.path.join(FIX, "outside.jsonl")
 with open(outside, "w") as fh:
-    fh.write(json.dumps({"type": "user", "sessionId": "zz", "message": {"content": "escaped"}}) + "\n")
+    fh.write(json.dumps({"type": "user", "sessionId": "zz", "version": "2.1.0", "message": {"content": "escaped"}}) + "\n")
 os.makedirs(os.path.join(HOME, ".claude/projects/-link"), exist_ok=True)
 os.symlink(outside, os.path.join(HOME, ".claude/projects/-link/%s.jsonl" % "cccccccc-cccc-4ccc-8ccc-cccccccccccc"))
 os.symlink(os.path.dirname(outside), os.path.join(HOME, ".claude/projects/-dirlink"))
 
-# ── Codex rollouts: developer prompt, reasoning, per-turn cwd, imported duplicate ──
-R1, R2 = "aaaaaaaa-0000-4000-8000-000000000001", "aaaaaaaa-0000-4000-8000-000000000002"
-for rid, prompt in ((R1, "Codex: demo-atlas decision to stream JSONL."), (R2, "Imported copy of a Claude session.")):
+# review regressions (Claude): split-field / split-message secrets, quoted secret, hostile type and tool
+# name, a record without a version, and an idle transcript still inside the live horizon
+put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
+    cl("user", [{"type": "text", "text": "demo-atlas split canary " + GH_SPLIT[:16]},
+                {"type": "text", "text": GH_SPLIT[16:] + " tail"}]),
+    cl("assistant", [{"type": "text", "text": "demo-atlas key part " + AWS_SPLIT[:10]},
+                     {"type": "text", "text": AWS_SPLIT[10:] + " done"},
+                     {"type": "tool_use", "name": GH_TOOL, "input": {}}], ts=T0 % 2),
+    cl("user", "demo-atlas config password=\"%s\"" % QPW, ts=T0 % 3),
+    {"type": GH_TYPE, "sessionId": U4},
+    {"type": "user", "sessionId": U4, "cwd": PROJ, "timestamp": T0 % 4,
+     "message": {"role": "user", "content": "demo-atlas NOVERSION-7Q"}},
+])
+put(".claude/projects/-work-demo-atlas/%s.jsonl" % U5, [cl("user", "demo-atlas IDLEWRITER-7Q", sid=U5)],
+    mtime=time.time() - 120)
+
+# ── Codex rollouts: developer prompt, reasoning, per-turn cwd, imported duplicate, missing version ──
+R1, R2, R3 = ("aaaaaaaa-0000-4000-8000-00000000000%d" % i for i in (1, 2, 3))
+for rid, prompt, ver in ((R1, "Codex: demo-atlas decision to stream JSONL.", "0.146.0"),
+                         (R2, "Imported copy of a Claude session.", "0.146.0"),
+                         (R3, "demo-atlas CODEXNOVER-7Q", None)):
+    meta = {"id": rid, "cwd": OTHER, "originator": "codex-tui"}
+    if ver:
+        meta["cli_version"] = ver
     put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % rid, [
-        {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": rid, "cwd": OTHER, "originator": "codex-tui",
-                                                                  "cli_version": "0.146.0"}},
+        {"type": "session_meta", "timestamp": T0 % 1, "payload": meta},
         {"type": "turn_context", "timestamp": T0 % 2, "payload": {"cwd": PROJ}},
         {"type": "response_item", "timestamp": T0 % 2, "payload": {"type": "message", "role": "developer",
                                                                    "content": [{"type": "input_text", "text": MARK["developer"]}]}},
@@ -162,12 +215,8 @@ conv = [{"id": "cg-1", "title": "t", "current_node": "b", "mapping": {
     "a": {"message": {"author": {"role": "user"}, "create_time": 1767348000, "content": {"content_type": "text", "parts": ["chatgpt: demo-atlas idea"]}}, "parent": None},
     "b": {"message": {"author": {"role": "assistant"}, "create_time": 1767348001, "content": {"content_type": "text", "parts": ["reply"]},
                       "metadata": {"attachments": [{"name": "secret-name.pdf", "mimeType": "application/pdf"}]}}, "parent": "a"}}}]
-good_zip, bad_zip = os.path.join(FIX, "export.zip"), os.path.join(FIX, "hostile.zip")
-with zipfile.ZipFile(good_zip, "w") as z:
-    z.writestr("conversations.json", json.dumps(conv))
-with zipfile.ZipFile(bad_zip, "w") as z:
-    z.writestr("../evil.json", "{}")
-    z.writestr("conversations.json", json.dumps(conv))
+good_zip = zip_of(os.path.join(FIX, "export.zip"), [("conversations.json", json.dumps(conv))])
+bad_zip = zip_of(os.path.join(FIX, "hostile.zip"), [("../evil.json", "{}"), ("conversations.json", json.dumps(conv))])
 
 
 def tree_hash(root, skip="catalog-out"):
@@ -184,6 +233,11 @@ def tree_hash(root, skip="catalog-out"):
     return h.hexdigest()
 
 
+def fixture_version():
+    doc = open(os.path.join(os.path.dirname(os.path.dirname(SC)), "SKILL.md")).read()
+    return re.search(r"^version: (\S+)$", doc, re.M).group(1)
+
+
 before = tree_hash(HOME)
 OUT = os.path.join(FIX, "private-out")
 
@@ -193,26 +247,50 @@ ok(code == 0 and "dry run" in out, "bare invocation is a metadata-only dry run (
 ok(not os.path.exists(OUT), "dry run writes no output")
 ok("claude-code/projects" in out and "supported" in out, "stores lists a supported Claude Code store")
 
-# 2. usage errors: extract needs --out and a scope
+# 2. usage errors: extract needs --out and a scope; limits must be positive; the git override is gone
 ok(run("extract", "--project", PROJ)[0] == 2, "extract without --out exits 2 (usage)")
 ok(run("--out", OUT, "extract")[0] == 2, "extract without --project/--mention exits 2 (usage)")
+for flag, val in (("--max-record-bytes", "-2"), ("--max-records", "0"), ("--max-files", "-1"), ("--max-file-bytes", "0")):
+    code, _, _, rc = run("--out", OUT, flag, val, "index", "--project", PROJ)
+    ok(code == 2 and rc.get("status") == "usage", "non-positive %s %s is refused (exit 2, usage)" % (flag, val))
+ok(run("--out", os.path.join(FIX, "x"), "--allow-git-output", "index", "--project", PROJ)[0] == 2,
+   "the --allow-git-output override no longer exists (exit 2)")
+ok(not os.path.exists(OUT), "refused runs wrote nothing")
 
-# 3. output inside a git work tree is blocked
+# 3. output policy: canonical ancestors, temp roots, the findings path
 repo = os.path.join(FIX, "repo")
 os.makedirs(os.path.join(repo, ".git"))
-code, _, err, rc = run("--out", os.path.join(repo, "out"), "index")
+os.makedirs(os.path.join(repo, "nested"))
+code, _, err, rc = run("--out", os.path.join(repo, "out"), "index", "--project", PROJ)
 ok(code == 5 and rc.get("status") == "blocked", "output inside a git work tree is refused (exit 5, blocked)")
+alias = os.path.join(FIX, "alias")
+os.symlink(os.path.join(repo, "nested"), alias)
+code, _, _, rc = run("--out", os.path.join(alias, "catalog"), "index", "--project", PROJ)
+ok(code == 5 and not os.path.exists(os.path.join(repo, "nested", "catalog")),
+   "an ancestor symlink aliasing into a git work tree is refused and nothing is written there")
+tmproot = os.path.join(FIX, "tmproot")
+os.makedirs(tmproot)
+code, _, _, rc = run("--out", tmproot, "index", "--project", PROJ, env={"TMPDIR": tmproot})
+ok(code == 5 and os.listdir(tmproot) == [], "output directly in the temporary root is refused")
+code, _, _, rc = run("--out", os.path.join(FIX, "out-f1"), "--security-findings", os.path.join(alias, "f.jsonl"),
+                     "index", "--project", PROJ)
+ok(code == 5 and not os.path.exists(os.path.join(repo, "nested", "f.jsonl")),
+   "a --security-findings path resolving into a git work tree is refused")
+home_findings = os.path.join(HOME, "findings.jsonl")
+code, _, _, rc = run("--out", os.path.join(FIX, "out-f2"), "--security-findings", home_findings, "index", "--project", PROJ)
+mf2 = json.load(open(os.path.join(FIX, "out-f2", "run-manifest.json")))
+ok(code == 3 and os.path.isfile(home_findings) and stat.S_IMODE(os.stat(home_findings).st_mode) == 0o600
+   and mf2["receipt"]["claude-code/projects"]["status"] == "supported",
+   "findings under the scanned home exclude only that file, not the whole home (0600)")
+os.unlink(home_findings)
 
-code, _, err, rc = run("--out", os.path.join(repo, "out"), "--allow-git-output", "index", "--project", PROJ)
-ok(code in (0, 3) and "--allow-git-output" in err and "never commit" in err,
-   "explicit --allow-git-output override proceeds but warns")
 # 4. pass 1 index
 code, out, err, rc = run("--out", OUT, "--max-record-bytes", "4096", "--export", "chatgpt=" + good_zip,
                          "index", "--project", PROJ, "--mention", "demo-atlas")
 ok(code == 3 and rc.get("status") == "partial", "run with quarantine/skipped stores exits 3 and reports partial")
 man = json.load(open(os.path.join(OUT, "run-manifest.json")))
-rows = [json.loads(l) for l in open(os.path.join(OUT, "sessions.jsonl"))]
-q = [json.loads(l) for l in open(os.path.join(OUT, "quarantine.jsonl"))]
+rows = jl(os.path.join(OUT, "sessions.jsonl"))
+q = jl(os.path.join(OUT, "quarantine.jsonl"))
 surfaces = {r["surface"] for r in rows}
 for sfc in ("anthropic.claude-code", "openai.codex-cli", "omp.cli", "primeintellect.prime-agent", "google.gemini-cli",
             "google.antigravity-cli", "google.antigravity", "openai.chatgpt-export"):
@@ -220,23 +298,35 @@ for sfc in ("anthropic.claude-code", "openai.codex-cli", "omp.cli", "primeintell
 reasons = {x["reason"] for x in q}
 for rsn in ("binary-content", "record-over-size-cap", "malformed-json", "unverified-format-version"):
     ok(rsn in reasons, "quarantined: %s" % rsn)
-ok(any(r.startswith("unknown-record-type:") for r in reasons), "unknown record type is quarantined, not guessed")
+ok("unknown-record-type" in reasons and all(x.get("type_ref", "t-").startswith("t-") for x in q),
+   "unknown record type is quarantined as a fixed class + opaque digest")
 rcp = man["receipt"]["claude-code/projects"]
-ok(rcp.get("files_refused_outside_root", 0) >= 1, "symlinked file escaping the root is refused")
-ok(rcp.get("dir_symlinks_refused", 0) >= 1, "directory symlinks are not followed")
+ok(rcp.get("symlinks_refused", 0) >= 2, "file and directory symlinks inside a root are never followed")
 ok(man["receipt"]["omp/sessions"].get("files_deferred_live_or_unstable", 0) >= 1, "file newer than high-water is deferred")
+ok(rcp.get("files_deferred_live_or_unstable", 0) >= 1, "an idle transcript inside the 24 h horizon is deferred")
+ok(man["high_water"] <= time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 23 * 3600))
+   and "NOT detected" in man["live_detection"], "default high-water sits a safety horizon back; limitation stated")
 ok(man["receipt"]["codex/sessions"].get("sessions_skipped_imported_duplicate", 0) == 1, "imported duplicate skipped")
 ok(any(s["store"] == "antigravity-backup" for s in man["stores_skipped"]), "backup copy is not traversed")
 ok("do not claim" in man["claim"], "manifest refuses to claim 'all sessions' when stores were skipped")
 ok(all("session_id_private" in r and r["session_ref"].startswith("s-") for r in rows), "rows carry opaque session refs")
 ok(any(r["attachments_by_type"].get("image") for r in rows), "attachments counted by type only")
+tool = man.get("tool", {})
+ok(tool.get("version") == fixture_version() and tool.get("schema") == "session-catalog/v1" == man["schema"],
+   "receipt records the tool version (== SKILL.md) and schema")
+git_info = tool.get("git")
+ok(git_info is None or (re.fullmatch(r"[0-9a-f]{40,64}", git_info["commit"]) and isinstance(git_info["dirty"], bool)
+                        and git_info["reproducible"] == (not git_info["dirty"])),
+   "receipt records commit + dirty state when run from a git checkout (%s)" % ("git" if git_info else "no git"))
+ok(rc.get("version") == fixture_version() and rc.get("schema") == "session-catalog/v1", "stderr receipt carries version/schema")
 blob = open(os.path.join(OUT, "sessions.jsonl")).read() + open(os.path.join(OUT, "quarantine.jsonl")).read()
 ok("secret-name.pdf" not in blob and GH not in blob, "index holds no attachment names or secrets")
-mode = lambda p: stat.S_IMODE(os.stat(p).st_mode)
+ok(GH_TYPE not in blob, "a token-shaped record type never reaches quarantine metadata")
+mode = lambda p: stat.S_IMODE(os.stat(p).st_mode)  # noqa: E731
 ok(mode(OUT) == 0o700 and all(mode(os.path.join(OUT, f)) == 0o600 for f in os.listdir(OUT)
                               if os.path.isfile(os.path.join(OUT, f))), "private outputs are 0700/0600")
-findings = [json.loads(l) for l in open(os.path.join(OUT, "security-findings.jsonl"))]
-kinds = {f["credential_type"] for f in findings}
+findings = jl(os.path.join(OUT, "security-findings.jsonl"))
+kinds = {f["finding_type"] for f in findings}
 ok({"github-token", "private-key", "aws-key"} <= kinds and all("rotation" in f["recommendation"] for f in findings),
    "credential findings recorded by type, rotation recommended")
 ok(GH not in open(os.path.join(OUT, "security-findings.jsonl")).read(), "findings never hold the value")
@@ -251,8 +341,16 @@ ok(code == 3 and msgs, "extract streams messages and exits partial")
 for label, needle in MARK.items():
     ok(needle not in out, "extract excludes %s" % label)
 for label, secret in (("github token", GH), ("aws key", AWS), ("password", PW), ("blob", BLOB), ("email", MAIL),
-                      ("pem body", "MIIBOgIBAAJBAKj34")):
+                      ("pem body", "MIIBOgIBAAJBAKj34"), ("quoted secret with spaces", QPW)):
     ok(secret not in out and secret not in err, "redacted %s (stdout+stderr)" % label)
+for label, frag in (("head of a token split across fields", GH_SPLIT[:16]), ("tail of it", GH_SPLIT[16:]),
+                    ("head of a key split across messages", AWS_SPLIT[:10]), ("tail of it", AWS_SPLIT[10:])):
+    ok(frag not in out and frag not in err, "redacted %s" % label)
+ok("split canary [REDACTED:github-token]" in text, "the split token is masked where it starts")
+ok(GH_TOOL not in out and any((m["tool"] or "").startswith("tool-") for m in msgs),
+   "a token-shaped tool name is replaced by an opaque digest")
+ok("NOVERSION-7Q" not in out and "CODEXNOVER-7Q" not in out, "Claude/Codex records without a version are not emitted")
+ok("IDLEWRITER-7Q" not in out, "a recently modified (possibly still open) transcript is not emitted")
 ok("[REDACTED:auth-header]" in text and "access_token=[REDACTED:secret]" in text, "auth header and URL param redacted")
 ok("\x1b" not in out and "\u202e" not in out, "ANSI/OSC and bidi controls stripped")
 ok("Unrelated work in another repo." not in text, "messages written from another cwd are excluded")
@@ -262,6 +360,22 @@ ok("tool_call" in roles and "assistant" in roles and "user" in roles, "roles sta
 ok(all(m["text"] == "" for m in msgs if m["role"] == "tool_call"), "tool calls carry no arguments")
 ok(all(m["provenance"].startswith("observed in ") for m in msgs), "every item is labelled as an observation")
 ok(not any(f.startswith("messages") for f in os.listdir(OUT)), "extract persists no message text")
+
+# 5b. defense in depth: a gitleaks-style generic-api-key scan finds nothing in any output
+GL = re.compile(r"""(?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)"""
+                r"""(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}"""
+                r"""([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)""")
+
+
+def shannon(s):
+    return -sum(c / len(s) * math.log2(c / len(s)) for c in __import__("collections").Counter(s).values())
+
+
+scanned = {f: open(os.path.join(OUT, f), errors="replace").read() for f in os.listdir(OUT)
+           if os.path.isfile(os.path.join(OUT, f))}
+scanned["<extract stdout>"] = out
+hits = [(f, m.group(1)) for f, body in scanned.items() for m in GL.finditer(body) if shannon(m.group(1)) > 3.5]
+ok(not hits, "gitleaks-style generic-api-key scan over %d outputs finds nothing %s" % (len(scanned), hits[:3]))
 
 # 6. own output beneath a scanned root is never re-ingested
 nested = os.path.join(HOME, ".omp/agent/sessions/-work-demo-atlas/catalog-out")
@@ -274,11 +388,38 @@ m2 = json.load(open(os.path.join(nested, "run-manifest.json")))
 ok(m2["receipt"]["omp/sessions"].get("dirs_excluded", 0) >= 1, "output root under a scanned root is excluded")
 ok(not any("catalog-out" in v for v in m2["sources_private"].values()), "nothing is ingested from the output root")
 
-# 7. hostile export archive is rejected before any member is read
+# 7. export archives: hostile, invalid UTF-8, record cap, repeated exports, placeholder suppression
 code, _, _, _ = run("--out", OUT, "--export", "chatgpt=" + bad_zip, "index", "--surface", "openai.chatgpt-export",
                     "--mention", "demo")
-qb = [json.loads(l) for l in open(os.path.join(OUT, "quarantine.jsonl"))]
-ok(any(x["reason"] == "archive-path-traversal" for x in qb), "zip with a traversal member is rejected")
+ok(any(x["reason"] == "archive-path-traversal" for x in jl(os.path.join(OUT, "quarantine.jsonl"))),
+   "zip with a traversal member is rejected")
+utf_conv = json.dumps([dict(conv[0], mapping={"a": dict(conv[0]["mapping"]["a"], message=dict(
+    conv[0]["mapping"]["a"]["message"], content={"content_type": "text", "parts": ["demo-atlas UTFBAD"]}))})])
+utf_zip = zip_of(os.path.join(FIX, "utf.zip"), [("conversations.json", utf_conv.encode().replace(b"UTFBAD", b"UTF\xffBAD"))])
+out_u = os.path.join(FIX, "out-utf")
+code, out, _, _ = run("--out", out_u, "--export", "chatgpt=" + utf_zip, "extract", "--surface", "openai.chatgpt-export",
+                      "--mention", "demo-atlas")
+ok(any(x["reason"] == "invalid-utf8" for x in jl(os.path.join(out_u, "quarantine.jsonl")))
+   and "\ufffd" not in out and "\\ufffd" not in out, "invalid UTF-8 in an export member is quarantined, never replaced")
+three = [dict(conv[0], id="cg-%d" % i) for i in range(3)]
+zip3 = zip_of(os.path.join(FIX, "three.zip"), [("conversations.json", json.dumps(three))])
+empty_home = os.path.join(FIX, "home-empty")
+os.makedirs(empty_home)
+out_c = os.path.join(FIX, "out-cap")
+code, out, _, _ = run("--out", out_c, "--max-records", "1", "--export", "chatgpt=" + zip3, "extract", "--mention",
+                      "demo-atlas", home=empty_home)
+refs = {json.loads(l)["session_ref"] for l in out.splitlines()}
+ok(any(x["reason"] == "run-record-cap" for x in jl(os.path.join(out_c, "quarantine.jsonl"))) and len(refs) <= 1,
+   "--max-records caps export arrays too (%d session(s) emitted)" % len(refs))
+zip_b = zip_of(os.path.join(FIX, "export-b.zip"), [("conversations.json", json.dumps(conv))])
+out_e = os.path.join(FIX, "out-exports")
+code, _, _, _ = run("--out", out_e, "--export", "chatgpt=" + good_zip, "--export", "chatgpt=" + zip_b, "index",
+                    "--surface", "openai.chatgpt-export", "--mention", "demo-atlas")
+r7 = jl(os.path.join(out_e, "sessions.jsonl"))
+ok(len(r7) == 2 and len({r["partition"] for r in r7}) == 2 and len({r["session_ref"] for r in r7}) == 2,
+   "two exports with the same conversation id keep distinct identities and refs")
+m7 = json.load(open(os.path.join(out_e, "run-manifest.json")))
+ok(code == 0, "a quarantine-free export run is complete, no 'not requested' placeholder in scope (%s)" % m7["claim"])
 
 # 8. concurrency: a live lock blocks a second run
 with open(os.path.join(OUT, ".lock"), "w") as fh:
@@ -291,26 +432,280 @@ with open(os.path.join(OUT, ".lock"), "w") as fh:
 code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
 ok(code in (0, 3), "a stale lock (pid gone) is reclaimed")
 
-# 12. isolation guard: every adapter root resolves inside the synthetic tree (never the real home)
+# 9. receipts survive a consumer that closes stdout (`extract | head`)
+out_p = os.path.join(FIX, "out-pipe")
+p = subprocess.Popen([sys.executable, SC, "--home", HOME, "--out", out_p, "extract", "--project", PROJ, "--mention",
+                      "demo-atlas"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
+p.stdout.close()
+perr = p.stderr.read().decode()
+p.wait()
+mp = json.load(open(os.path.join(out_p, "run-manifest.json"))) if os.path.exists(os.path.join(out_p, "run-manifest.json")) else {}
+ok(p.returncode == 3 and mp.get("totals", {}).get("stdout_closed") is True and "Traceback" not in perr
+   and os.path.exists(os.path.join(out_p, "quarantine.jsonl")),
+   "a closed stdout ends extract as partial with manifest + quarantine written")
+
+# 10. containment: a store root, or a component of it, that is a symlink is refused; one unreadable
+# opaque-store file only marks that store unverified
+adv = os.path.join(FIX, "home-adv")
+put("-x/%s.jsonl" % U4, [cl("user", "demo-atlas OUTSIDE-ROOT-7Q")], home=os.path.join(FIX, "outside-store"))
+put("sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % R1, [
+    {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": R1, "cwd": PROJ, "cli_version": "0.146.0"}},
+    {"type": "response_item", "timestamp": T0 % 3, "payload": {"type": "message", "role": "user", "content": [
+        {"type": "input_text", "text": "demo-atlas OUTSIDE-CODEX-7Q"}]}}], home=os.path.join(FIX, "outside-codex"))
+os.makedirs(os.path.join(adv, ".claude"))
+os.symlink(os.path.join(FIX, "outside-store"), os.path.join(adv, ".claude", "projects"))   # the root itself
+os.symlink(os.path.join(FIX, "outside-codex"), os.path.join(adv, ".codex"))               # a component of the root
+pb = put(".gemini/antigravity/conversations/a.pb", raw=bytes(range(256)) * 8, home=adv)
+os.chmod(pb, 0)
+code, out, _, _ = run("stores", "--json", home=adv)
+st = {r["store"]: r for r in json.loads(out)["stores"]} if code == 0 else {}
+for sid in ("claude-code/projects", "codex/sessions"):
+    ok(st.get(sid, {}).get("status") == "unavailable" and "symlink" in st.get(sid, {}).get("reason", ""),
+       "%s: a symlinked store root (or root component) is refused" % sid)
+if os.geteuid() != 0:
+    ok(code == 0 and st.get("antigravity/conversations", {}).get("status") == "unverified",
+       "an unreadable opaque-store file marks only that store unverified (exit %d)" % code)
+code, out, _, _ = run("--out", os.path.join(FIX, "out-adv"), "extract", "--project", PROJ, "--mention", "OUTSIDE",
+                      home=adv)
+ok(code == 4 and "OUTSIDE-ROOT-7Q" not in out and "OUTSIDE-CODEX-7Q" not in out,
+   "nothing behind a symlinked root is emitted (exit %d: no importable store, not a crash)" % code)
+
+# 11. open-time binding: sources swapped AFTER the walk are refused at open (race regression)
 import importlib.util as _iu
-_spec = _iu.spec_from_file_location("sc_guard", SC)
-_m = _iu.module_from_spec(_spec)
-_spec.loader.exec_module(_m)
-_ctx = _m.Ctx(HOME, time.time(), dict(_m.LIMITS), [], b"k" * 32)
-_roots = [s.root for s in _m.build_stores(_ctx, [("chatgpt", good_zip)])]
+_spec = _iu.spec_from_file_location("sc", SC)
+mod = _iu.module_from_spec(_spec)
+_spec.loader.exec_module(mod)
+race = os.path.join(FIX, "home-race")
+RU = "dddddddd-eeee-4fff-8000-111111111111"
+race_file = put(".claude/projects/-race/%s.jsonl" % RU, [cl("user", "demo-atlas RACE-INSIDE-7Q", sid=RU)], home=race)
+out_dir = os.path.join(FIX, "race-outside")
+out_file = put("%s.jsonl" % RU, [cl("user", "demo-atlas RACE-OUTSIDE-7Q", sid=RU)], home=out_dir)
+
+
+def race_units():
+    rctx = mod.Ctx(race, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+    s = next(x for x in mod.build_stores(rctx, []) if x.id == "claude-code/projects")
+    return rctx, s.units()
+
+
+def loaded(rctx, unit):
+    meta, msgs = unit.load()
+    return meta, " ".join(m["text"] for m in msgs), {x["reason"] for x in rctx.quarantine}
+
+
+rctx, units = race_units()
+meta, txt, _ = loaded(rctx, units[0])
+ok(meta is not None and "RACE-INSIDE-7Q" in txt, "race control: the walked file loads normally")
+os.rename(race_file, race_file + ".orig")
+os.symlink(out_file, race_file)
+meta, txt, rs = loaded(rctx, units[0])
+ok(meta is None and "symlink-refused" in rs and "RACE-OUTSIDE" not in txt, "file swapped for a symlink after the walk is refused")
+os.unlink(race_file)
+shutil.copy2(out_file, race_file)
+meta, txt, rs = loaded(rctx, units[0])
+ok(meta is None and "identity-changed" in rs and "RACE-OUTSIDE" not in txt,
+   "file replaced by another inode after the walk is refused (identity binding)")
+os.unlink(race_file)
+os.rename(race_file + ".orig", race_file)
+rctx.close()
+rctx, units = race_units()
+slug = os.path.dirname(race_file)
+os.rename(slug, slug + ".orig")
+os.symlink(out_dir, slug)
+meta, txt, rs = loaded(rctx, units[0])
+ok(meta is None and "symlink-refused" in rs and "RACE-OUTSIDE" not in txt,
+   "parent directory swapped for a symlink after the walk is refused")
+os.unlink(slug)
+os.rename(slug + ".orig", slug)
+rctx.close()
+hl = os.path.join(race, ".claude/projects/-hard/%s.jsonl" % RU)
+os.makedirs(os.path.dirname(hl))
+os.link(out_file, hl)
+rctx, units = race_units()
+hard = [u for u in units if u.path == hl]
+meta, txt, rs = loaded(rctx, hard[0]) if hard else (None, "", set())
+ok(hard and meta is None and "hardlink-refused" in rs, "a hard-linked source (alias of an outside file) is refused")
+rctx.close()
+
+# 12. isolation guard: every adapter root resolves inside the synthetic tree (never the real home)
+_ctx = mod.Ctx(HOME, time.time(), dict(mod.LIMITS), [], b"k" * 32)
+_roots = [s.root for s in mod.build_stores(_ctx, [("chatgpt", good_zip)])]
+_ctx.close()
 ok(all(r == "cloud" or os.path.realpath(r).startswith(os.path.realpath(FIX)) for r in _roots),
    "every adapter root resolves inside the synthetic test tree (%d roots)" % len(_roots))
 
-# 10. documented exit-code contract == CLI contract
-import importlib.util, re as _re
-spec = importlib.util.spec_from_file_location("sc", SC)
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+# 13. documented exit-code contract == CLI contract
 doc = open(os.path.join(os.path.dirname(os.path.dirname(SC)), "SKILL.md")).read()
-documented = {m.group(2): int(m.group(1)) for m in _re.finditer(r"^\| (\d) \| `(\w+)` \|", doc, _re.M)}
+documented = {m.group(2): int(m.group(1)) for m in re.finditer(r"^\| (\d) \| `(\w+)` \|", doc, re.M)}
 ok(documented == mod.EXIT, "SKILL.md exit-code table matches the CLI (%s)" % sorted(documented.items()))
+ok(mod.VERSION == fixture_version(), "reader VERSION matches SKILL.md version")
 
-# 11. passes 1 and 2 never touch the network: any socket creation raises
+# 14. every path the reader touches stays inside the declared fixture roots and the output dir
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+
+def fd_path(fd):
+    if fcntl is not None and hasattr(fcntl, "F_GETPATH"):
+        return fcntl.fcntl(fd, fcntl.F_GETPATH, bytes(1024)).split(b"\0", 1)[0].decode()
+    return os.readlink("/proc/self/fd/%d" % fd)
+
+
+def forms(p):
+    return {os.path.abspath(p), os.path.realpath(p)}
+
+
+EXP_I = os.path.join(FIX, "exports-i", "export.zip")
+os.makedirs(os.path.dirname(EXP_I))
+shutil.copy2(good_zip, EXP_I)
+OUT_I = os.path.join(FIX, "instr-out")
+READ_ROOTS = forms(HOME) | forms(OUT_I) | forms(EXP_I)
+WRITE_ROOTS = forms(OUT_I)
+ANCESTORS = set()
+for r in READ_ROOTS:
+    p = r
+    while os.path.dirname(p) != p:
+        p = os.path.dirname(p)
+        ANCESTORS.add(p)
+TEMPS = mod.temp_roots()
+CODE_DIRS = forms(sys.prefix) | forms(sys.base_prefix) | forms(sys.exec_prefix)
+events, active, guard = [], [False], threading.local()
+
+
+def _record(op, kind, path, dir_fd=None, flags=None):
+    if not active[0] or getattr(guard, "on", False):
+        return
+    guard.on = True
+    try:
+        if isinstance(path, int):
+            p = fd_path(path)
+        else:
+            p = os.fsdecode(path)
+            p = os.path.join(fd_path(dir_fd), p) if dir_fd is not None and not os.path.isabs(p) else os.path.abspath(p)
+        events.append((op, kind, os.path.normpath(p), flags, dir_fd is not None))
+    finally:
+        guard.on = False
+
+
+_orig = {n: getattr(os, n) for n in ("open", "stat", "lstat", "scandir", "listdir", "mkdir", "rename", "replace",
+                                     "unlink", "rmdir")}
+_orig_open = builtins.open
+WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT
+
+
+def p_open(path, flags, mode=0o777, *, dir_fd=None):
+    _record("os.open", "write" if flags & WRITE_FLAGS else "content", path, dir_fd, flags)
+    return _orig["open"](path, flags, mode, dir_fd=dir_fd)
+
+
+def p_stat(path, *, dir_fd=None, follow_symlinks=True):
+    if not isinstance(path, int):
+        _record("os.stat", "meta", path, dir_fd)
+    return _orig["stat"](path, dir_fd=dir_fd, follow_symlinks=follow_symlinks)
+
+
+def p_lstat(path, *, dir_fd=None):
+    _record("os.lstat", "meta", path, dir_fd)
+    return _orig["lstat"](path, dir_fd=dir_fd)
+
+
+def p_scandir(path="."):
+    _record("os.scandir", "content", path)
+    return _orig["scandir"](path)
+
+
+def p_listdir(path="."):
+    _record("os.listdir", "content", path)
+    return _orig["listdir"](path)
+
+
+def p_mkdir(path, mode=0o777, *, dir_fd=None):
+    _record("os.mkdir", "write", path, dir_fd)
+    return _orig["mkdir"](path, mode, dir_fd=dir_fd)
+
+
+def _two(name):
+    def fn(src, dst, *, src_dir_fd=None, dst_dir_fd=None):
+        _record(name, "write", src, src_dir_fd)
+        _record(name, "write", dst, dst_dir_fd)
+        return _orig[name](src, dst, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+    return fn
+
+
+def _one(name):
+    def fn(path, *, dir_fd=None):
+        _record(name, "write", path, dir_fd)
+        return _orig[name](path, dir_fd=dir_fd)
+    return fn
+
+
+def p_bopen(file, mode="r", *a, **k):
+    if not isinstance(file, int):
+        _record("open", "write" if any(c in mode for c in "wax+") else "content", file)
+    return _orig_open(file, mode, *a, **k)
+
+
+def audit(event, args):
+    if event == "open" and args and isinstance(args[0], (str, bytes)) and os.path.isabs(os.fsdecode(args[0])):
+        mode = args[1] if len(args) > 1 and isinstance(args[1], str) else "r"
+        _record("audit:open", "write" if any(c in mode for c in "wax+") else "content", args[0])
+
+
+sys.addaudithook(audit)
+patched = {"open": p_open, "stat": p_stat, "lstat": p_lstat, "scandir": p_scandir, "listdir": p_listdir,
+           "mkdir": p_mkdir, "rename": _two("rename"), "replace": _two("replace"), "unlink": _one("unlink"),
+           "rmdir": _one("rmdir")}
+runs = [["--home", HOME, "stores", "--json"],
+        ["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + EXP_I, "index", "--project", PROJ, "--mention", "demo-atlas"],
+        ["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + EXP_I, "extract", "--project", PROJ, "--mention", "demo-atlas"]]
+codes = []
+import contextlib
+for argv in runs:
+    for n, fn in patched.items():
+        setattr(os, n, fn)
+    builtins.open = io.open = p_bopen
+    active[0] = True
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            codes.append(mod.main(argv))
+    except SystemExit as exc:
+        codes.append(exc.code)
+    finally:
+        active[0] = False
+        for n, fn in _orig.items():
+            setattr(os, n, fn)
+        builtins.open = io.open = _orig_open
+
+
+def inside(p, roots):
+    return any(p == r or p.startswith(r + os.sep) for r in roots)
+
+
+STDLIB_SUFFIXES = (".py", ".pyc", ".so", ".mo")
+bad, stdlib = [], []
+for op, kind, p, flags, rel_fd in events:
+    if kind == "write":
+        good = inside(p, WRITE_ROOTS)
+    elif kind == "content":
+        good = inside(p, READ_ROOTS) or (op == "audit:open" and inside(p, CODE_DIRS) and p.endswith(STDLIB_SUFFIXES))
+    else:
+        good = inside(p, READ_ROOTS) or p in ANCESTORS or os.path.dirname(p) in ANCESTORS or p in TEMPS
+    if not good and inside(p, CODE_DIRS) and p.endswith(STDLIB_SUFFIXES):
+        stdlib.append(p)  # interpreter-internal: module code, gettext catalogs (argparse) — never user data
+    elif not good:
+        bad.append((op, kind, p))
+home_opens = [e for e in events if e[0] == "os.open" and inside(e[2], forms(HOME))]
+ok(codes[0] == 0 and all(c in (0, 3) for c in codes[1:]), "instrumented stores/index/extract runs complete (%s)" % codes)
+ok(len(home_opens) > 20 and any(e[4] for e in home_opens), "instrumentation is not vacuous (%d source opens, dir-fd relative)"
+   % len(home_opens))
+ok(not bad, "every touched path stays inside the fixture roots and the output dir (%d events; %d interpreter-"
+   "internal stdlib lookups) %s" % (len(events), len(stdlib), bad[:3]))
+ok(all(e[3] & os.O_NOFOLLOW for e in events if e[0] == "os.open" and inside(e[2], READ_ROOTS)),
+   "every os.open under the fixture roots uses O_NOFOLLOW")
+
+# 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket
 
@@ -325,8 +720,7 @@ try:
     for argv in (["--home", HOME, "--out", os.path.join(FIX, "nonet"), "index", "--project", PROJ],
                  ["--home", HOME, "--out", os.path.join(FIX, "nonet"), "extract", "--project", PROJ]):
         try:
-            import contextlib, io as _io
-            with contextlib.redirect_stdout(_io.StringIO()), contextlib.redirect_stderr(_io.StringIO()):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 rc = mod.main(argv)
         except SystemExit as exc:
             rc = exc.code
@@ -336,7 +730,7 @@ try:
 finally:
     _socket.socket = _orig_socket
 
-# 9. sources were never modified (content and mtime)
+# 16. sources were never modified (content and mtime)
 ok(tree_hash(HOME) == before, "every source file is byte- and mtime-identical after all runs")
 
 print("%d failure(s)" % len(fails))
