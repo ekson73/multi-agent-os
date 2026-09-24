@@ -104,8 +104,14 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   [`worktree-policy`](../../worktree-policy/SKILL.md)), for example `<repo>/.worktrees/<crew>-<seat>/`, and
   grant each seat only its own parent. The seat then creates each unit worktree under that parent
   (`<repo>/.worktrees/<crew>-<seat>/<unit>`), the way the project's policy says. Two writers never share a
-  worktree or a parent. A reviewer gets only the worktree checked out at the commit it reviews, read-only:
-  grant that one directory and deny `Edit` and `Write` on it. **Sandboxed seats differ:** under the bash
+  worktree or a parent. A reviewer gets only the worktree checked out at the commit it reviews: grant that one
+  directory and deny `Edit` and `Write` on it. **That is not a read-only boundary:** the denies bind the file
+  tools, not Bash, so a reviewer allowed shell commands (and, under the sandbox, its own units) can still
+  change the checkout. Reviewer read-only is not enforced at the shell boundary and is unverified (tracked in
+  [#451](https://github.com/ekson73/multi-agent-os/issues/451)). Review integrity is bound to the commit
+  instead: the reviewer's verdict must cite the exact commit SHA it reviewed, and the publisher pushes or
+  merges only that SHA (for GitHub, `gh pr merge --match-head-commit <sha>`); any other SHA needs a new
+  review. **If that SHA binding is not implemented, do not launch.** **Sandboxed seats differ:** under the bash
   sandbox's home-wide read block, git fails in an additional directory, so their unit worktrees must live
   under the desk (`<desk>/units/<seat>-<unit>`). Where the project's worktree location is binding, the operator
   decides; the crew cannot ([`sandboxed-seats.md`](./sandboxed-seats.md) §3).

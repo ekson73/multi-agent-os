@@ -93,13 +93,19 @@ running crew-authored code outside a sandbox:
 2. `git -c fetch.fsckObjects=true fetch <seat-repo> refs/heads/<exact-branch>`. The candidate is never checked out.
 3. A path gate: a candidate that changes hook, CI, git-attribute, submodule or LFS config files, or any file the
    trusted hooks or CI execute, is **parked** for a human instead of pushed.
-4. Push by exact SHA: `git push origin <sha>:refs/heads/<branch>`. The trusted clone's own hooks run.
-   Never `core.hooksPath=/dev/null` and never `--no-verify`.
+4. Push by exact SHA, and only the SHA the reviewer's verdict cites: `git push origin <sha>:refs/heads/<branch>`.
+   Merge it the same way (for GitHub, `gh pr merge --match-head-commit <sha>`). Any other SHA needs a new
+   review. The trusted clone's own hooks run. Never `core.hooksPath=/dev/null` and never `--no-verify`.
 5. Verification of record after merge is the forge's CI on the merge commit plus an ancestry check
    (`git merge-base --is-ancestor <merge> origin/<default>`), not a local build of candidate code.
 
 In the preflight a seat-authored candidate that changed a tracked hook was parked, its hook never ran, and
 origin received only the clean candidate.
+
+Reviewer read-only is **not** enforced by this sandbox: the reviewer's own units are sandbox-writable, and its
+Edit/Write denies do not bind Bash. That is unverified and tracked in
+[#451](https://github.com/ekson73/multi-agent-os/issues/451). Review integrity rests on the SHA binding in
+step 4 instead. Without it, do not launch ([`external-crew.md`](./external-crew.md) step 5).
 
 ---
 Signed: Claude-RigOps-8f02-001 (sub-agent of the orchestrating session) · first authored 2026-09-24 (UTC) from a synthetic sandboxed-seat preflight (sentinel files only) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/sandboxed-seats.md` · checked against Claude Code 2.1.281 + `rig` 0.5.14 (cc75efdd) on macOS.
