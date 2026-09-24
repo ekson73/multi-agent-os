@@ -1,6 +1,6 @@
 # .gitleaks.toml -- Gitleaks configuration for VEK repositories
 # Canonical source: multi-agent-os/.gitleaks.toml
-# Version: 1.1.0
+# Version: 1.2.0
 
 title = "VEK Secret Scanning Rules"
 
@@ -10,9 +10,42 @@ title = "VEK Secret Scanning Rules"
 [[rules]]
 id = "vek-db-password"
 description = "Hardcoded database password"
-regex = '''(?i)(password|passwd|pwd)\s*[:=]\s*['"]?[^\s'"]{8,}['"]?'''
+# secretGroup = 1 points entropy + the reported Secret at the VALUE (capture
+# group 1), not the whole `name=value` match. entropy = 2.0 is a low floor that
+# drops only pure-repeat junk (xxxxxxxx = 0.0) while KEEPING weak human
+# passwords (changeme/Passw0rd = 2.750). The old `entropy = 3.5` on the whole
+# match silently skipped every weak credential — see tests/test-gitleaks-config.sh
+# (RECALL cases) and the Approach C-hardened decision record.
+#
+# The value char class excludes shell/template/code punctuation ($ { } ( ) , .)
+# so the rule matches a literal `KEY=secret` but NOT code references it used to
+# false-positive on: os.getenv(, os.getcwd(), ${DB_PASS}, $deploy_password.
+# Excluding '.' drops dotted-identifier code calls (os.getenv) at the cost of
+# not matching a password that itself contains a dot — an accepted trade: the
+# rule still catches dot-free weak creds, and every code-reference FP vanishes.
+regex = '''(?i)(?:password|passwd|pwd)\s*[:=]\s*['"]?([^\s'"$\{\}(),.]{8,})['"]?'''
 keywords = ["password", "passwd", "pwd"]
-entropy = 3.5
+secretGroup = 1
+entropy = 2.0
+
+# Rule-scoped false-positive exemptions (NOT global — must never weaken other
+# rules). Each is form- or path-anchored and deliberately narrow. NOTE: we do
+# NOT path-allowlist docs/insights/ broadly — secret-management-strategy.md
+# holds a REAL credential that MUST keep firing until it is rotated.
+[rules.allowlist]
+description = "vek-db-password documented non-credential references"
+# regexTarget=match: the captured VALUE is an AWS Secrets Manager REFERENCE URI
+# (the pointer, not the secret) — e.g. aws:///vek-sales/env/hml#VEK_DB_PASSWORD.
+regexTarget = "match"
+regexes = [
+    '''aws:///[^\s'"]+#[A-Z0-9_]+''',
+]
+# Path exemptions: a CI build-log capture and a test fixture — neither is a
+# credential store. Scoped to the exact files, not their directories.
+paths = [
+    '''mcp-tools/maos-mcp-hub/step1010_logs\.txt''',
+    '''skills/verified-agentic-session-model/tests/model-bundle\.test\.mjs''',
+]
 
 [[rules]]
 id = "vek-quarkus-datasource-password"
@@ -29,9 +62,14 @@ keywords = ["spring.datasource.password"]
 [[rules]]
 id = "vek-jwt-secret"
 description = "JWT secret or signing key"
-regex = '''(?i)(jwt[._-]?secret|signing[._-]?key)\s*[:=]\s*['"]?[^\s'"$\{]{16,}['"]?'''
+# secretGroup = 1 → entropy is evaluated against the VALUE, not the match.
+# entropy = 2.0 keeps weak/repeated secrets (changemechangeme = 2.75) while
+# dropping only zero-entropy junk. Old `entropy = 3.0` on the whole match
+# under-detected. See tests/test-gitleaks-config.sh.
+regex = '''(?i)(?:jwt[._-]?secret|signing[._-]?key)\s*[:=]\s*['"]?([^\s'"$\{]{16,})['"]?'''
 keywords = ["jwt", "signing"]
-entropy = 3.0
+secretGroup = 1
+entropy = 2.0
 
 [[rules]]
 id = "vek-bitbucket-app-password"
@@ -75,4 +113,8 @@ paths = [
     '''\.sessions/''',
     '''tmux-server-.*\.log''',
     '''\.qoder/''',
+    # The gitleaks config's OWN test harness — intentional credential-shaped
+    # fixtures (changeme, Passw0rd, your_app_password) that exercise the rules.
+    # Scoped to the exact file, not tests/ broadly.
+    '''tests/test-gitleaks-config\.sh''',
 ]
