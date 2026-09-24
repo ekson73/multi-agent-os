@@ -59,11 +59,13 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
 
 1. **Capability-detect, never fabricate.** Cite or run a command only if the installed `rig <cmd> --help`
    shows it. Otherwise say "not found". On a version other than 0.5.14, run the Phase 0 version gate first (C1).
-2. **Tier and ownership.** T2 needs a snapshot or rollback path first. T3 needs a recorded `--reason`, the
-   evidence behind it, and the least-privilege option. Rigs you did not create get T0 only, unless the
+2. **Tier and ownership.** T2 needs a snapshot or rollback path first. T3 needs a recorded rationale with its
+   evidence and the least-privilege option: pass it as `--reason` only where the installed `--help` exposes
+   that flag, and otherwise record it in the handoff. Rigs you did not create get T0 only, unless the
    delegation names them (C3, C8).
 3. **Trust gates** (C5): hooks are trusted only through Codex's native review, and `trusted_hash` is never
-   hand-written. Unattended seats get `deny`, not `ask`. Seats never touch a secret manager. Nothing is
+   hand-written. Unattended seats get `deny`, not `ask`. Secret values never enter a seat. Claude workspace trust is
+   reviewed before launch because OpenRig auto-accepts it. Nothing is
    trusted by name, path or owner alone. Attention is cleared only after its cause is resolved and verified.
 4. **Project governance outranks the crew** (C9). A crew adds orchestration, never authority.
 5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6).
@@ -152,7 +154,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 | Mode | Routes to | Owns |
 |---|---|---|
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
-| `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify with a T0 read afterwards, not with an exit code. |
+| `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify each mutation through its own T0 read surface (`tiers.md` rule 1), not with an exit code. |
 | `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. |
 | `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, cwd and worktrees, culture file carrying the project's governance, checkout hygiene |
 | `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
@@ -166,7 +168,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 | **T0** read-only | `rig ps`, `rig capture`, `rig queue list`, `rig parked`, `rig spec validate`, `rig up --plan`, `rig context get` | none |
 | **T1** reversible | `rig send`, queue writes, `rig up` of a new rig, `rig snapshot`, `rig archive`, `rig specs add` | delegation names the rig |
 | **T2** disruptive | `rig down --snapshot`, `rig restore`, `rig release`, `rig seat stop`, `rig policy apply`, `rig daemon stop` | T1 plus a snapshot or rollback first |
-| **T3** security or irreversible | `rig send --dangerously-interact --reason`, trusting hooks or MCP servers, `rig seat clear-attention --reason`, auth switching, `--delete`, `rig destroy`, public push | reason, evidence, least privilege. Operator for irreversible actions. |
+| **T3** security or irreversible | `rig send --dangerously-interact --reason`, trusting hooks or MCP servers, `rig seat clear-attention --reason`, auth switching, `--delete`, `rig destroy`, public push | recorded rationale and evidence (`--reason` only where the command has it), least privilege. Operator for irreversible actions. |
 
 ## Governance
 

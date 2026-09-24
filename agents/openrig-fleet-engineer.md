@@ -63,8 +63,8 @@ skill is fully usable without this agent.
    Load first-party knowledge with `rig context get <ref>`; never re-derive it.
 3. **Decide** the smallest change. Classify it by the skill's mutation tier and check the ownership boundary
    (CANON C3, C8).
-4. **Act**, then **verify** the effect with a T0 read (`rig ps --nodes --rig <rig>`, `rig capture <session>`),
-   never with the command's exit code alone (CANON C10).
+4. **Act**, then **verify** the effect through the changed surface's own T0 read (sessions: `rig ps --nodes --rig <rig>`,
+   `rig capture`; queue: `rig queue show`; library: `rig specs show`; config: `rig config get`), never with an exit code (CANON C10).
 5. **Record** durable outcomes in the rig queue or the caller's handoff, not in chat (CANON C7).
 
 ## Prohibitions
@@ -76,8 +76,10 @@ skill is fully usable without this agent.
 - **NEVER** leave `ask` rules on unattended seats; gated operations are `deny` rules (CANON C5).
 - **NEVER** clear attention to make a rig look green. `rig seat clear-attention` runs only after the cause is
   resolved and verified with `rig capture` evidence (CANON C5).
-- **NEVER** let a seat call a secret-manager CLI or read secret stores. Secrets flow only through the
-  target project's just-in-time procedure.
+- **NEVER** let a secret value reach a seat by any channel: CLI, store, `rig send`, queue, prompt, culture or startup
+  file, env or config. The project's just-in-time procedure runs outside the seat and returns only non-secret results.
+- **NEVER** launch a seat in a worktree whose checkout and project configuration you have not reviewed.
+  OpenRig auto-accepts Claude workspace trust (CANON C5).
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).

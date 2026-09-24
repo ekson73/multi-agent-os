@@ -18,10 +18,13 @@
 2. **Unattended seats use `deny` rules, not `ask` prompts.** A prompt blocks the pane. The seat can then no
    longer park its own queue item, and the rig stalls without saying why. Encode every gated operation as a
    harness `deny` (fail-closed). See [`tiers.md`](./tiers.md) rule 4 for how far a prefix deny can be trusted.
-3. **Seats never call a secret-manager CLI (for example `op`) or read secret stores directly.** Secrets reach
-   a seat only through the project's own just-in-time secret procedure, run by whoever that procedure names.
-   Back this with a harness `deny` on the secret CLI (for example `Bash(op:*)`). That deny is best-effort, so
-   the real control is that the seat never holds the credential.
+3. **Secret values never enter a seat.** A seat does not call a secret-manager CLI (for example `op`), read a
+   secret store, or receive a secret by any channel: not through `rig send`, queue items, prompts, startup
+   files, culture files, or seat-readable environment variables, config or files. When work needs a
+   credential, the project's own just-in-time secret procedure performs the authenticated operation
+   **outside the seat**, run by whoever that procedure names, and hands back only non-secret results. Back
+   this with a harness `deny` on the secret CLI (for example `Bash(op:*)`). That deny is best-effort; the
+   real control is that no secret value is ever placed where a seat can read it.
 4. **Never trust an MCP server, hook or operation because of its name, path or owner alone.** Names are free
    to choose, and a file in `~/.codex/` or a repo's `.codex/` could have been written by anything. Read what
    it executes.
@@ -41,7 +44,7 @@ Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt
 
 | Class | Prompt text (as observed) | Where it comes from |
 |---|---|---|
-| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. OpenRig answers this one itself for managed seats: it pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). It usually shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
+| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. Accepting it enables the project's own configuration: its hooks, permission rules, MCP servers and instructions. **OpenRig 0.5.14 auto-accepts it for managed seats.** It pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). That is trust keyed by path with no review (guardrail 4). Flag it, and do the review yourself **before** launch (section 2). The dialog itself shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
 | **B. Claude project MCP approval** | `New MCP server found in this project: <name>` → *Use this MCP server* / *Use this and all future MCP servers in this project* / *Continue without using this MCP server* | a `.mcp.json` in the seat's cwd. Claude asks before it uses any project-scoped server ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)). |
 | **C. Codex hook review** | `Hooks need review` · `N hooks are new or changed.` · `Hooks can run outside the sandbox after you trust them.` → *Review hooks* / *Trust all and continue* / *Continue without trusting (hooks won't run)* | any non-managed hook that is new or changed. Codex records trust against each hook's current hash ([Codex hooks docs](https://developers.openai.com/codex/hooks)). |
 | other | update prompts, provider login | not a trust gate. Route: `rig context get skills/core/rig-lifecycle` (failure mode "provider auth treated as impl work"). |
@@ -59,7 +62,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | let OpenRig handle it. If it recurs, check that daemon HOME equals seat HOME. | n/a |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -115,8 +118,11 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
   administrator's decision, not a seat's.
 - **Unattended seats.** Use `deny` rules, not `ask` (guardrail 2). Translate the policy with
   `rig context get skills/applying-a-permission-policy`.
-- **Secrets.** Deny the secret-manager CLI in the seat's harness config, and document the project's
-  just-in-time procedure in the crew's culture file (guardrail 3).
+- **Workspace trust (class A).** Review every new worktree's checkout and project configuration before its
+  first `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate.
+- **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
+  project's just-in-time procedure, which runs outside the seat and returns only non-secret results
+  (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 

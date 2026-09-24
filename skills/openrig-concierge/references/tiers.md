@@ -16,9 +16,9 @@ names **the asset it protects**. A tier that cannot name its asset should be del
 | Tier | Protected asset | Gate before acting | Verify after acting |
 |---|---|---|---|
 | **T0 read-only** | none (observation only) | none. Runs freely, including on rigs you do not own. | n/a |
-| **T1 reversible** | the rig's coordination state (queue, library, one message in a pane) | an active delegation that names the rig (or you created the rig) | a T0 read that shows the effect |
-| **T2 disruptive** | live seat sessions and their un-snapshotted context, the daemon, config/posture | T1 gate **plus** a snapshot or explicit rollback path taken first | a T0 read, plus `rig restore-check --rig <rig>` when sessions were touched |
-| **T3 security gate / irreversible** | what code runs outside the sandbox, credentials, canonical state | recorded `--reason`, the evidence behind it, the least-privilege option. Rigs you do not own: escalate. | a T0 read plus an audit line naming the decision |
+| **T1 reversible** | the rig's coordination state (queue, library, one message in a pane) | an active delegation that names the rig (or you created the rig) | the T0 read surface of the thing you changed (rule 1) |
+| **T2 disruptive** | live seat sessions and their un-snapshotted context, the daemon, config/posture | T1 gate **plus** a snapshot or explicit rollback path taken first | the changed surface's T0 read, plus `rig restore-check --rig <rig>` when sessions were touched |
+| **T3 security gate / irreversible** | what code runs outside the sandbox, credentials, canonical state | a **recorded rationale** with the evidence behind it and the least-privilege option. Pass it as `--reason` where the installed `--help` exposes that flag; otherwise record it in the handoff or audit note. Never invent a flag. Rigs you do not own: escalate. | the changed surface's T0 read, plus the recorded rationale |
 
 ## Classification
 
@@ -28,7 +28,7 @@ names **the asset it protects**. A tier that cannot name its asset should be del
 `rig preflight` · `rig crash-cart` · `rig ps` (all flags) · `rig capture` · `rig transcript` · `rig whoami` ·
 `rig seat status` · `rig parked` · `rig health` (list and `explain`) · `rig health diagnose` (preview; without `--apply`) ·
 `rig restore-check` · `rig restore status <attemptId>` · `rig snapshot list <rig>` · `rig queue list|show|transitions|overdue|undelivered` ·
-`rig view list|show` · `rig heartbeat` (without `--nudge`) · `rig spec validate|preflight|audit|show` · `rig agent validate` ·
+`rig view list|show` · `rig heartbeat` (without `--nudge`) · `rig spec validate|preflight|audit <file>` · `rig spec show <rig-id>` (running rigs only) · `rig agent validate` ·
 `rig specs ls|show|preview` · `rig context list|show|preview|get` · `rig policy list|show|current` ·
 `rig mode show|effective|cite|defaults` · `rig discover` · `rig up <src> --plan` · `rig launch <rig> --plan` ·
 `rig seat handover <seat> --dry-run` · `rig config` / `rig config get <key>` · `rig tui` (viewing).
@@ -48,7 +48,7 @@ Caveats observed on 0.5.14:
 `rig queue create|claim|unclaim|update|block|resolve|handoff|handoff-and-complete|fallback|inbox-*|outbox-record` ·
 `rig heartbeat --nudge` · `rig up <new-rig>` (a rig name that is not running; reversible via `rig down`) ·
 `rig snapshot <rig>` · `rig archive` / `rig unarchive` · `rig specs add|remove|rename|sync` ·
-`rig context add|rm|sync` · `rig launch <rig> <seat>` (relaunch a stopped seat) · `rig seat launch` ·
+`rig context add|rm|sync` · `rig launch <rig> <seat>` (only for a seat that `rig ps --nodes` shows stopped; relaunching a live seat is T2) ·
 `rig reconcile-session <session>` (adopts a live session; never launches, kills or types) ·
 `rig seat clear-attention <session>` **without** `--reason` (the daemon runs its own evidence gate; only after the cause is resolved) ·
 `rig health diagnose --apply` · `rig mode set <mode>` without `--confirm` (it only restates, exit 2) ·
@@ -57,6 +57,7 @@ Caveats observed on 0.5.14:
 ### T2 — disruptive (snapshot or rollback first)
 
 `rig down <rig>` (always `--snapshot`) · `rig release <rig>` · `rig unclaim <session>` · `rig seat stop` ·
+`rig seat launch <seat> --fresh` (a blank occupant with no continuity source; `--stop` replaces a live one. Snapshot first, as for `rig seat stop`) ·
 `rig seat clean` · `rig remove <rig> <node>` · `rig shrink <rig> <pod>` · `rig up --fresh <seats>` ·
 `rig launch --seats …` with holds · `rig seat handover <seat>` (run `--dry-run` first) ·
 `rig restore <snapshotId> --rig <rig>` · `rig start` (restores rigs) · `rig daemon start|stop` ·
@@ -76,9 +77,13 @@ Caveats observed on 0.5.14:
 
 ## Rules that apply across tiers
 
-1. **Verify with a T0 read, never with an exit code.** `rig send` can report success while the text sits
-   undelivered in the pane (upstream [#14](https://github.com/mvschwarz/openrig/issues/14), open as of 0.5.14; re-check it). Confirm with
-   `rig capture <session>`.
+1. **Verify each mutation through its own T0 read surface, never through an exit code.** Session and
+   topology effects: `rig ps --nodes --rig <rig>` and `rig capture <session>`. `rig send` can report success
+   while the text sits undelivered in the pane (upstream [#14](https://github.com/mvschwarz/openrig/issues/14),
+   open as of 0.5.14; re-check it). Queue items: `rig queue show <id>`. Library: `rig specs show <name> --kind <kind>`.
+   Config: `rig config get <key>`. Archive state: `rig ps --include-archived`. Snapshots: `rig snapshot list <rig>`.
+   Recorded policy: `rig policy current --spec <path>`. Mode: `rig mode effective`. A healthy pane does not
+   prove that some other mutation landed.
 2. **Ownership.** Rigs you did not create get T0 only, unless the delegation names them (CANON C8).
 3. **OpenRig records posture; the harness enforces it** (CANON C4). A tier is a decision discipline for the
    operating agent. It is not a sandbox.

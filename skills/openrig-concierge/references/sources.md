@@ -73,7 +73,7 @@ skill is original distilled text. No OpenRig skill or doc is copied. Load those 
 | Trap | Reality |
 |---|---|
 | node vs seat | the CLI and docs use both. `rig ps --nodes` lists what the skills call seats. The canonical session name is `<pod>-<member>@<rig>`. |
-| `rig spec` vs `rig specs` | `rig spec validate|preflight|audit|show` works on a file or a running rig. `rig specs ls|show|preview|add|sync|remove|rename` manages the library. |
+| `rig spec` vs `rig specs` | `rig spec validate|preflight|audit <file>` takes a spec file. `rig spec show <rig-id>` works only on a running rig. `rig specs ls|show|preview|add|sync|remove|rename` manages the library. |
 | `rig policy` vs `rig mode` | `rig policy` records the permission posture into a RigSpec. The context-mode verb that used to live there is now `rig mode`. |
 | `rig attach` | attaches the *current shell* into a rig node (`--self`). It is not a pane viewer. |
 | `rig upgrade` | no such command. Route: `rig context get skills/core/openrig-upgrade`. |

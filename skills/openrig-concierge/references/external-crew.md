@@ -27,7 +27,7 @@ is the most common complaint about large fleets, so two seats are a better start
 
 ## 2. Choose a starter [T0]
 
-Builtin starters (`rig specs ls --kind rig`; inspect one with `rig specs preview <name>`):
+Builtin starters (`rig specs ls --kind rig`; inspect one with `rig specs preview <name> --kind rig`. `--kind` is required when a rig and a workflow share the name, as `conveyor` does on 0.5.14):
 
 | Starter | Seats (runtime) | Good for |
 |---|---|---|
@@ -39,7 +39,7 @@ Builtin starters (`rig specs ls --kind rig`; inspect one with `rig specs preview
 | `product-team` (preview) | 7 seats across orch1 / dev1 / rev1 | a full product loop; expensive |
 
 Runtimes were read from the shipped `rig.yaml` files of 0.5.14. Starter contents change between releases,
-so always `rig specs preview` before you rely on one.
+so always `rig specs preview <name> --kind rig` before you rely on one.
 
 ## 3. Shape the topology
 
@@ -88,7 +88,8 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
      already loads the project's AGENTS.md / CLAUDE.md from its cwd.
   2. The project's human gates, listed **by reference** (push, PR, merge, publish, production, secrets).
      Seats stop at them and escalate.
-  3. The project's just-in-time secret procedure. Seats never call a secret manager themselves
+  3. The **name** of the project's just-in-time secret procedure. It runs outside the seats and returns only
+     non-secret results. No secret value ever goes into this file, a prompt or the queue
      ([`trust-gates.md`](./trust-gates.md) guardrail 3).
   4. What evidence the crew must produce, and where it goes (the queue, or files).
 - Examples to read: the shipped `first-project/CULTURE.md` ("Keep local edits and commits within the
@@ -128,8 +129,9 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 
 ## 9. Pre-clear trust gates [T3]
 
-Before the first launch in any new worktree, follow [`trust-gates.md`](./trust-gates.md) §4: exact MCP
-approvals, native Codex hook review, deny rules, no secrets.
+Before the first launch in any new worktree, follow [`trust-gates.md`](./trust-gates.md) §2 and §4. Review the
+worktree before it gets a seat, because OpenRig auto-accepts Claude workspace trust. Then: exact MCP approvals
+scoped to the worktree, native Codex hook review, deny rules, no secret values anywhere a seat can read.
 
 ## 10. Launch [T1]
 
