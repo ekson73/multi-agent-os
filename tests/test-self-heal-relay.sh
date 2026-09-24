@@ -375,6 +375,10 @@ if command -v python3 >/dev/null 2>&1; then
   for _ in $(seq 1 40); do [ -s "$STUB_LOG" ] && break; sleep 0.25; done
   kill -TERM "$PYC" 2>/dev/null; sleep 3; kill -9 "$PYC" 2>/dev/null; wait "$PYC" 2>/dev/null
   check "python: no further harness is started after a handled (returning) TERM" "$(calls)" "1"; restore_stubs
+  reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  { printf 'import atexit, time, threading\natexit.register(lambda: time.sleep(2))  # the adopter callback registered BEFORE the block runs AFTER the relay cleanup (LIFO)\n'; "$RENDER" --lang python; printf 'import shutil\n_real_which = shutil.which\nshutil.which = lambda *a, **k: (time.sleep(1), _real_which(*a, **k))[1]  # hold the daemon relay in harness lookup while main exits\nthreading.Thread(target=lambda: 1/0, daemon=True).start()\ntime.sleep(0.3)  # let the relay reach the held lookup, then main exits\n'; } > "$SANDBOX/p30.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p30.py" >/dev/null 2>&1; sleep 1
+  check "python: a daemon relay that races the atexit cleanup starts no harness" "$(calls)" "0"; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"

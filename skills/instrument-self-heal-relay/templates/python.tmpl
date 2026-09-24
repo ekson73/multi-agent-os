@@ -99,9 +99,16 @@ def _shr_install_signals():
         except (ValueError, OSError): pass
 
 
+def _shr_atexit():
+    """Mark shutdown BEFORE the cleanup pass: atexit is LIFO, so an adopter callback registered earlier runs after this one, and a daemon-thread relay that is
+    still between its checks and Popen must neither start a harness nor leave one alive (see the flag checks in _shr_run)."""
+    _shr_cancel[0] = True
+    _shr_kill_live()
+
+
 if SHR_ON:  # MAOS_SELFHEAL=0 (kill switch) and the re-entrant harness run must leave the adopter's signal behaviour untouched
     _shr_install_signals()
-    _atexit.register(_shr_kill_live)  # normal interpreter shutdown does not wait for daemon threads: a relay running in one must not leave its harness orphaned
+    _atexit.register(_shr_atexit)  # normal interpreter shutdown does not wait for daemon threads: a relay running in one must not leave its harness orphaned
 
 
 def _shr_watch_size(p, f, cap=4194304):
@@ -124,11 +131,13 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         stdin = prompt_text
     # own session/process group: on timeout the WHOLE group (the harness' subprocesses too) is killed, not just the leader
     # stdout goes to a file (never a PIPE + communicate(): that buffers an unbounded reply in this failing process' memory); only the first 1MB is read back
+    if _shr_cancel[0]: return 1, ""  # shutting down or cancelled: never start a harness
     _outp = _os.path.join(_shr_dir, "harness.out")
     _outf = open(_outp, "w+b")
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
     _threading.Thread(target=_shr_watch_size, args=(p, _outf), daemon=True).start()
     _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
+    if _shr_cancel[0]: _shr_kill_live()  # cancellation raced with the spawn: either the kill pass saw this pid or this check sees the flag
     try:
         p.communicate(input=stdin, timeout=_timeout)
         if _os.fstat(_outf.fileno()).st_size > 4194304:  # a harness that flooded and exited before the watcher's first poll: reject, never keep a truncated answer
