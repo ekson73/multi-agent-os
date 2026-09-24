@@ -12,6 +12,7 @@ mcp:
   config_paths:
   - path: ~/Library/Application Support/V3Code/User/mcp.json
     scope: user
+    platform: darwin   # other-OS path not documented here yet
   - path: ./.vscode/mcp.json
     scope: workspace
   format: jsonc

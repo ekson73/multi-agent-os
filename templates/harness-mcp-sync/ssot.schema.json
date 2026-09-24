@@ -32,7 +32,7 @@
         "enabled": { "type": "boolean", "default": true },
         "replaces": {
           "type": "array", "items": { "type": "string" },
-          "description": "Legacy entry names this server supersedes; removed from harness configs even if not owned."
+          "description": "Legacy entry names this server supersedes; removed from a harness config only when this server's replacement entry is written or already identical there. An entry this tool does not own needs --adopt <legacy-name>."
         },
         "harnesses": {
           "type": "object",

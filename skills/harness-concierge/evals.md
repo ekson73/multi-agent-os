@@ -14,10 +14,10 @@
 | D | 2nd apply = empty plan | PASS | all servers `unchanged`, `apply: nothing-to-do`, `backup_ts: -`; `verify: clean`. |
 | E | Malformed TOML aborts pre-write | PASS | `error malformed toml config (TOMLDecodeError)`, rc=1, file sha unchanged, no backup taken. |
 | F | No-header harness + remote w/ headers | PASS | jcode: `skip remote-x — warn: harness lacks header support…`; stdio server still added. |
-| G | Zero secrets in output | PASS | fake secret grepped across plan/apply/verify/explain/inventory/doctor/update (text + `--json`) and error paths → 0 hits; values shown as `«secret sha256:…»`; secret present only in the (mode 600) config files. |
+| G | Zero secrets in output | PASS | fake secret grepped across plan/apply/verify/explain/inventory/doctor/update (text + `--json`) and error paths → 0 hits; values shown as the opaque `«secret»` (no digest); secret present only in the (mode 600) config files. |
 | H | Hand-written keys preserved | PASS | TOML: top-level key, comment, `[projects]` and `[mcp_servers.handwritten]` byte-for-byte; JSON: `handwritten` entry + `otherKey` kept. |
 
-Repo suite `bash bin/tests/harness-mcp-sync.test.sh`: **86 passed, 0 failed**.
+Repo suite `bash bin/tests/harness-mcp-sync.test.sh`: **86 passed, 0 failed** at eval time (pre red-team fixes). The suite grew with the red-team fixes; the current tally is recorded in the PR description for the head commit.
 
 ## Rubric (0–5)
 
@@ -32,6 +32,6 @@ Repo suite `bash bin/tests/harness-mcp-sync.test.sh`: **86 passed, 0 failed**.
 
 ## Top improvements (→ agentic-tool-trainer)
 
-1. Unknown-harness error should name the next step (`add harnesses/<id>.yaml with confidence: low after research`) so the executor output mirrors Protocol §1.
-2. Tighten the description: say "non-Claude-Code harnesses' skills/plugin surfaces" to reduce collision with claude-code-concierge on marketplace/plugin queries; add a `/harness-concierge` command wrapper if human slash invocation is intended.
-3. Run a true with/without sub-agent trigger eval (case A was static), and add explicit test cases for `--adopt` conflict and `restore` round-trip to the fixture set.
+1. ✅ DONE (red-team round) — Unknown-harness error should name the next step (`add harnesses/<id>.yaml with confidence: low after research`) so the executor output mirrors Protocol §1.
+2. ✅ description tightened (slash wrapper deferred — skills are invocable directly) — Tighten the description: say "non-Claude-Code harnesses' skills/plugin surfaces" to reduce collision with claude-code-concierge on marketplace/plugin queries; add a `/harness-concierge` command wrapper if human slash invocation is intended.
+3. PARTIAL — `--adopt` conflict and `restore` round-trip tests now exist; still open: run a true with/without sub-agent trigger eval (case A was static), and add explicit test cases for `--adopt` conflict and `restore` round-trip to the fixture set.

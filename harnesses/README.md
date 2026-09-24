@@ -5,7 +5,7 @@ code: the executor (`bin/harness-mcp-sync`) and the knowledge skill read it to l
 each harness keeps its MCP configuration, what shape that configuration has, and which
 CLI commands manage it. Adding a harness = adding one file. No secrets ever live here.
 
-> **Limit:** secret-carrying detection in git-tracked files is heuristic for positional args and literal header values (flags like `--api-key`, high-entropy tokens); short or low-entropy literal secrets are undetectable — keep secrets in placeholders (`${VAR}`, `op://…`).
+> **Limit:** secret detection is heuristic — see "Known limitations" in `skills/harness-concierge/SKILL.md` (SSOT).
 
 ## Contract (schema v1)
 
@@ -23,6 +23,11 @@ mcp:
   config_paths:               # candidate files, first existing wins; user scope first
     - path: "~/.codex/config.toml"
       scope: user             # user | project | workspace
+      # platform: linux       # OPTIONAL: darwin | linux | win32 (or a list). Omitted = every OS.
+                              # The executor picks the first user-scope entry whose platform
+                              # matches sys.platform (override: HARNESS_MCP_SYNC_PLATFORM).
+                              # A path known for one OS only is tagged with that OS — never
+                              # guessed for the others.
   format: toml                # json | jsonc | toml | yaml
   key_path: [mcp_servers]     # path to the server MAP inside the file (list of keys)
   entry_style: codex          # which entry shape to render (see "Entry styles")

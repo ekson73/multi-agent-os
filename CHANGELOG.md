@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore · update. Dry-run by default, timestamped backups, atomic write + chmod 600, parse-back
   validation with auto-restore, idempotent, ownership manifest in the state dir (no marker keys in
   harness files), conflict on unmanaged same-name entries (`--adopt`), legacy removal only via
-  SSOT `replaces`, surgical TOML edits, refusal on git-tracked/unignored files and on comment-bearing
-  JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
+  SSOT `replaces`, surgical TOML edits, refusal of secret-carrying servers for git-tracked /
+  untracked-unignored files, refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
 - `templates/harness-mcp-sync/ssot.schema.json` + `ssot.example.json` (placeholders only).
 - `bin/tests/harness-mcp-sync.test.sh`: temp-HOME fixtures; never touches real configs.
 - `skills/harness-concierge/` (new; soul-name Dragoman, named by `anima`): knowledge + routing skill

@@ -16,7 +16,10 @@ has()  { case "$2" in *"$1"*) ok "$3" ;; *) no "$3" "$2" ;; esac; }
 hasnt(){ case "$2" in *"$1"*) no "$3" "$2" ;; *) ok "$3" ;; esac; }
 eq()   { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
 sum()  { if [ -e "$1" ]; then shasum -a 256 "$1" | cut -d' ' -f1; else echo ABSENT; fi; }
-mode() { stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"; }
+# GNU stat's -f means --file-system (it succeeds with a multi-line report), so pick the flavour
+# explicitly instead of relying on the BSD form failing.
+if stat --version 2>/dev/null | grep -q GNU; then mode() { stat -c '%a' "$1"; }
+else mode() { stat -f '%Lp' "$1"; }; fi
 
 printf 'harness-mcp-sync.test.sh\n'
 
@@ -24,6 +27,8 @@ REAL_HOME="$HOME"
 T="$(mktemp -d 2>/dev/null || mktemp -d -t hms)"
 trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME"
+export TMPDIR="$T/tmp"; mkdir -p "$TMPDIR"   # self-heal run logs land inside the temp root
+export MAOS_SELFHEAL=0                       # never dispatch a real AI harness from the suite
 unset XDG_STATE_HOME
 SD="$T/state"; REG="$T/reg"; mkdir -p "$REG"
 ALLOUT="$T/all-output.log"; : > "$ALLOUT"
@@ -538,6 +543,186 @@ hasnt "$LITS" "$o" 'F2a: lint warning never prints the value'
 run apply --ssot "$T/ssot-lint.json" --harness hjson --json
 has 'lit-pos' "$(cat "$HOME/.hjson/mcp.json")" 'F2a: non-git target applied (warn-only)'
 hasnt "$LITS" "$o" 'F2a: literal secret masked in apply JSON preview'
+
+# ---------------------------------------------------------------- PR #455 PDCA regressions
+# 4096370537: _entropy("") must not divide by zero
+EZ="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+print(m._entropy(""), m._secretish_segment(""), m.literal_secretish(""))
+PY
+)"
+eq "0.0 False False" "$EZ" '#4096370537: _entropy("") returns 0.0 (no ZeroDivisionError)'
+
+# 4096445150: `replaces` never drops a legacy entry when the replacement is NOT written
+cat > "$HOME/.hnohdr/mcp.json" <<'EOF'
+{"mcpServers": {"legacy-a": {"command": "old-a"}, "legacy-b": {"command": "old-b"}}}
+EOF
+cat > "$T/ssot-rep.json" <<'EOF'
+{"schema":1,"servers":{
+ "new-remote":{"transport":"streamable-http","url":"https://n.example.test/mcp",
+   "headers":{"X":"${OTHERVAL}"},"replaces":["legacy-a"]},
+ "new-off":{"transport":"stdio","command":"tool","enabled":false,"replaces":["legacy-b"]}}}
+EOF
+run apply --ssot "$T/ssot-rep.json" --harness hnohdr --adopt legacy-a --adopt legacy-b --json
+RP="$(python3 -c 'import json,sys; print(" ".join(sorted(json.load(open(sys.argv[1]))["mcpServers"])))' "$HOME/.hnohdr/mcp.json")"
+eq "legacy-a legacy-b" "$RP" '#4096445150: skipped (no header support) + omitted (disabled) replacements keep their legacy entries'
+hasnt '"action": "remove"' "$o" '#4096445150: no remove action scheduled for an unwritten replacement'
+
+# 4096445189: bundled schema enforced at load (unknown fields, types) — names fields, never values
+printf '{"schema":1,"servers":{"s":{"transport":"streamable-http","url":"https://s.test","header":{"A":"${FIXSECRET}"}}}}\n' > "$T/ssot-bad1.json"
+run plan --ssot "$T/ssot-bad1.json" --harness hjson
+eq 2 "$rc" '#4096445189: unknown field `header` rejected (exit 2)'
+has 'unknown field(s): header' "$o" '#4096445189: error names the field'
+printf '{"schema":1,"servers":{"s":{"transport":"stdio","command":"t","replaces":"legacy"}}}\n' > "$T/ssot-bad2.json"
+run plan --ssot "$T/ssot-bad2.json" --harness hjson
+eq 2 "$rc" '#4096445189: string `replaces` rejected (exit 2)'
+has 'replaces must be a list of strings' "$o" '#4096445189: type error names the field'
+printf '{"schema":1,"servers":{},"extra":1}\n' > "$T/ssot-bad3.json"
+run plan --ssot "$T/ssot-bad3.json" --harness hjson; eq 2 "$rc" '#4096445189: unknown top-level field rejected'
+printf '{"schema":1,"servers":{"s":{"transport":"stdio","command":"t","args":"-v"}}}\n' > "$T/ssot-bad4.json"
+run plan --ssot "$T/ssot-bad4.json" --harness hjson; eq 2 "$rc" '#4096445189: string `args` rejected'
+printf '{"schema":1,"servers":{"s":{"transport":"stdio","command":"t","harnesses":{"only":["x"]}}}}\n' > "$T/ssot-bad5.json"
+run plan --ssot "$T/ssot-bad5.json" --harness hjson; eq 2 "$rc" '#4096445189: malformed `harnesses` selector rejected'
+run plan --ssot "$SSOT" --harness hjson; eq 0 "$rc" '#4096445189: the valid fixture SSOT still loads'
+EXS="$DIR/../../templates/harness-mcp-sync/ssot.example.json"
+python3 - "$BIN" "$EXS" <<'PY' && ok '#4096445189: shipped ssot.example.json passes the validator' || no '#4096445189: shipped ssot.example.json passes the validator' "validator rejected it"
+import importlib.machinery, importlib.util, json, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+m.validate_ssot(json.load(open(sys.argv[2])))
+PY
+
+# 4096473638: jsonc trailing-comma removal is string-aware ("x,}" survives)
+cat > "$HOME/.hjsonc/mcp.json" <<'EOF'
+{
+  // user comment
+  "pattern": "x,}",
+  "list": ["a, ]", "b",],
+  "servers": {},
+}
+EOF
+run apply --ssot "$SSOT" --harness hjsonc --allow-comment-loss --json
+eq 0 "$rc" '#4096473638: jsonc with trailing commas + comma-brace strings applies'
+JV="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["pattern"]+"|"+"|".join(d["list"]))' "$HOME/.hjsonc/mcp.json")"
+eq 'x,}|a, ]|b' "$JV" '#4096473638: string values "x,}" and "a, ]" preserved byte-for-byte'
+
+# 4096473648: TOCTOU — config rewritten between plan-read and write -> refused, file keeps the new bytes
+mk htoc json mcpServers mcpservers-json "~/.htoc/mcp.json" true null null high
+echo '{"mcpServers":{}}' > "$HOME/.htoc/mcp.json"
+TOCRES="$T/toc-resolver.sh"
+cat > "$TOCRES" <<'EOF'
+#!/bin/sh
+printf '{"mcpServers":{},"harness":"rewrote-me"}' > "$HOME/.htoc/mcp.json"
+printf '%s' "$FIXSECRET"
+EOF
+chmod +x "$TOCRES"
+printf '{"schema":1,"servers":{"v":{"transport":"streamable-http","url":"https://v.test","headers":{"A":"op://vault/item/f"}}}}\n' > "$T/ssot-toc.json"
+run apply --ssot "$T/ssot-toc.json" --harness htoc --resolver "$TOCRES" --json
+eq 1 "$rc" '#4096473648: config changed after plan-read: apply exits 1'
+has 'config changed since plan; re-run apply' "$o" '#4096473648: refusal reason'
+has 'rewrote-me' "$(cat "$HOME/.htoc/mcp.json")" '#4096473648: concurrent rewrite preserved (not clobbered)'
+hasnt '"v"' "$(cat "$HOME/.htoc/mcp.json")" '#4096473648: no managed entry written over the changed file'
+rm -f "$HOME/.htoc/mcp.json"
+TOCRES2="$T/toc-resolver2.sh"
+printf '#!/bin/sh\necho "{}" > "$HOME/.htoc/mcp.json"\nprintf "%%s" "$FIXSECRET"\n' > "$TOCRES2"; chmod +x "$TOCRES2"
+run apply --ssot "$T/ssot-toc.json" --harness htoc --resolver "$TOCRES2" --json
+eq 1 "$rc" '#4096473648: file created after plan (existence changed): refused'
+eq '{}' "$(cat "$HOME/.htoc/mcp.json")" '#4096473648: newly created file untouched'
+
+# 4096445171: platform-specific config paths (real vscode / vscode-insiders registry files)
+cp "$DIR/../../harnesses/vscode.yaml" "$DIR/../../harnesses/vscode-insiders.yaml" "$REG/"
+PL="$(HARNESS_MCP_SYNC_PLATFORM=linux "$BIN" explain --harness vscode,vscode-insiders --registry "$REG" --state-dir "$SD" --json 2>&1)"
+printf '%s\n' "$PL" >> "$ALLOUT"
+has "$HOME/.config/Code/User/mcp.json" "$PL" '#4096445171: linux -> ~/.config/Code/User/mcp.json'
+has "$HOME/.config/Code - Insiders/User/mcp.json" "$PL" '#4096445171: linux Insiders -> ~/.config/Code - Insiders/User/mcp.json'
+hasnt 'Library/Application Support' "$PL" '#4096445171: no macOS path selected on linux'
+PD="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"
+has 'Library/Application Support/Code/User/mcp.json' "$PD" '#4096445171: darwin -> ~/Library/.../Code/User/mcp.json'
+PW="$(HARNESS_MCP_SYNC_PLATFORM=win32 "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"
+has 'no user-scope config path in registry for platform win32' "$PW" '#4096445171: undocumented OS -> skipped, never a guessed path'
+DOPL="$(python3 - "$DIR/../../harnesses" <<'PY'
+import glob, sys, yaml
+bad = []
+for f in sorted(glob.glob(sys.argv[1] + "/*.yaml")):
+    for cp in (yaml.safe_load(open(f)).get("mcp") or {}).get("config_paths") or []:
+        if "Library/Application Support" in cp.get("path", "") and cp.get("platform") != "darwin":
+            bad.append(f.rsplit("/", 1)[1])
+print(" ".join(bad))
+PY
+)"
+eq "" "$DOPL" '#4096445171: every ~/Library path in the registry is tagged platform: darwin'
+rm -f "$REG/vscode.yaml" "$REG/vscode-insiders.yaml"
+
+# 4096473693: crush stdio entries carry an explicit type (config.go requires it)
+cp "$DIR/../../harnesses/crush.yaml" "$REG/"; mkdir -p "$HOME/.config/crush"
+run apply --ssot "$SSOT" --harness crush --json
+CT="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]))["mcp"]; print(d["local-tool"].get("type"), d["cf-remote"].get("type"))' "$HOME/.config/crush/crush.json")"
+eq "stdio http" "$CT" '#4096473693: crush stdio -> type stdio; streamable-http -> type http'
+rm -f "$REG/crush.yaml"
+
+# 4096445162: unexpected faults relay (self-heal-relay); intentional exits never do
+SDX="$T/state-fault"; mkdir -p "$SDX"; chmod 700 "$SDX"
+printf '{"schema":1,"files":[]}\n' > "$SDX/manifest.json"   # wrong shape -> AttributeError deep in build_plan
+xrun() { o="$("$BIN" "$@" --registry "$REG" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+xrun plan --ssot "$SSOT" --harness hjson --state-dir "$SDX"
+eq 1 "$rc" '#4096445162: unexpected fault -> exit 1'
+has 'internal error: AttributeError' "$o" '#4096445162: class name reported'
+has 'run log' "$o" '#4096445162: run log captured'
+has 'MAOS_SELFHEAL=0' "$o" '#4096445162: fallback hint printed when dispatch disabled'
+RL="$(printf '%s\n' "$o" | sed -n 's/.*run log \([^ ]*\) ;.*/\1/p')"
+PF="$(printf '%s\n' "$o" | sed -n 's/.*repair prompt \([^ ]*\)$/\1/p')"
+has 'build_plan' "$(cat "$RL" 2>/dev/null)" '#4096445162: run log carries the failing stack frame'
+hasnt "$FIXSECRET" "$(cat "$RL" "$PF" 2>/dev/null)" '#4096445162: run log + prompt carry no secret'
+has 'UNTRUSTED DATA' "$(cat "$PF" 2>/dev/null)" '#4096445162: prompt labels the log UNTRUSTED'
+case "$RL" in "$TMPDIR"/*) ok '#4096445162: run log written under TMPDIR (temp root)' ;; *) no '#4096445162: run log written under TMPDIR (temp root)' "$RL" ;; esac
+STUB="$T/stubbin"; mkdir -p "$STUB"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/stub-args"\n' "$T" > "$STUB/claude"; chmod +x "$STUB/claude"
+o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+has 'repair dispatched via claude' "$o" '#4096445162: relay dispatched to the first available harness'
+has 'UNTRUSTED DATA' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness received the repair prompt'
+has 'Read,Edit,Write,Bash' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness invoked with a scoped tool set'
+hasnt "$FIXSECRET" "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: dispatched prompt carries no secret'
+rm -f "$T/stub-args"
+o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness nope --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+eq 2 "$rc" '#4096445162: usage error keeps exit 2'
+hasnt 'run log' "$o" '#4096445162: usage error does not relay'
+printf '// comment\n{"servers": {}}\n' > "$HOME/.hjsonc/mcp.json"
+o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" apply --ssot "$SSOT" --harness hjsonc --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+eq 1 "$rc" '#4096445162: refused/drift keeps exit 1'
+hasnt 'run log' "$o" '#4096445162: refusal does not relay'
+[ -e "$T/stub-args" ] && no '#4096445162: stub never invoked for intentional exits' "invoked" || ok '#4096445162: stub never invoked for intentional exits'
+
+# Copilot overview (state-directory symlinks): state dir / backups dir may not be a symlink
+REDIR="$T/elsewhere"; mkdir -p "$REDIR"; ln -s "$REDIR" "$T/state-link"
+o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$T/state-link" 2>&1)"; rc=$?
+eq 2 "$rc" 'Copilot/state-dir: symlinked state dir refused (exit 2)'
+has 'a symlink' "$o" 'Copilot/state-dir: refusal names the reason'
+eq "" "$(ls -A "$REDIR")" 'Copilot/state-dir: nothing written through the link'
+SDB="$T/state-b"; mkdir -p "$SDB"; chmod 700 "$SDB"; ln -s "$REDIR" "$SDB/backups"
+cat > "$HOME/.hjson/mcp.json" <<'EOF'
+{"mcpServers": {}}
+EOF
+o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDB" 2>&1)"; rc=$?
+eq 2 "$rc" 'Copilot/state-dir: symlinked backups dir refused (exit 2)'
+eq "" "$(ls -A "$REDIR")" 'Copilot/state-dir: no backup written through the link'
+eq '{"mcpServers": {}}' "$(cat "$HOME/.hjson/mcp.json")" 'Copilot/state-dir: config untouched when backups cannot be written safely'
+
+# Copilot overview (no-op/adopt-only plans rewrite files): adopt of an identical entry = manifest only
+mk hadopt json mcpServers mcpservers-json "~/.hadopt/mcp.json" true null null high
+printf '{"mcpServers":{"local-tool":{"command":"npx","args":["-y","pkg"],"env":{"K":"plain-env-value-42"}}},"z":1}' > "$HOME/.hadopt/mcp.json"
+A0="$(sum "$HOME/.hadopt/mcp.json")"
+cat > "$T/ssot-adopt.json" <<'EOF'
+{"schema":1,"servers":{"local-tool":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${OTHERVAL}"}}}}
+EOF
+run apply --ssot "$T/ssot-adopt.json" --harness hadopt --adopt local-tool --json
+eq 0 "$rc" 'adopt-only: exit 0'
+has 'manifest only; file untouched' "$o" 'adopt-only: reported as manifest-only'
+eq "$A0" "$(sum "$HOME/.hadopt/mcp.json")" 'adopt-only: file bytes unchanged (no reformat)'
+run plan --ssot "$T/ssot-adopt.json" --harness hadopt --json
+hasnt 'conflict' "$o" 'adopt-only: entry now owned (no conflict on re-plan)'
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

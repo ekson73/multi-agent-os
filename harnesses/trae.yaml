@@ -14,6 +14,7 @@ mcp:
   config_paths:
   - path: ~/Library/Application Support/Trae/User/mcp.json
     scope: user
+    platform: darwin   # other-OS path not documented here yet
   format: json
   key_path:
   - mcpServers

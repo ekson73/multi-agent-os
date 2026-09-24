@@ -12,6 +12,7 @@ mcp:
   config_paths:
   - path: ~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json
     scope: user
+    platform: darwin   # other-OS path not documented here yet
   - path: ./.roo/mcp.json
     scope: project
   format: json

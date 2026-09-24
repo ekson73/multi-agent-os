@@ -20,6 +20,9 @@ mcp:
   key_path:
   - mcp
   entry_style: mcpservers-json
+  entry_overrides:
+    type_values:            # crush requires `type` on EVERY entry, stdio included (config.go MCPConfig.Type)
+      stdio: stdio
   transports:
   - stdio
   - http

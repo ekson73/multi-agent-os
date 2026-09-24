@@ -73,7 +73,7 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
    read-only; they list server NAMES, never values.
 3. **Plan (T0, autonomous).** `bin/harness-mcp-sync plan --ssot <file> [--harness a,b]` shows a
    per-harness diff (add · update · remove(replaced-by) · conflict:unmanaged · skip(reason)), with
-   secrets masked as `«secret sha256:xxxxxxxx»`.
+   secrets masked as the opaque `«secret»` (no digest — a hash of a short secret is a brute-force oracle).
 4. **Apply (T1, only after the plan was shown).** `bin/harness-mcp-sync apply ...` — scoped with
    `--harness`, writes only non-empty diffs, timestamped backup first, atomic write, chmod 600,
    parse-back validation with automatic restore on failure. A second `apply` must be an empty plan.

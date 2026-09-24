@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills; `openrig-concierge` added by hand 2026-09-23). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills; `openrig-concierge` added by hand 2026-09-23; `harness-concierge` added by hand 2026-09-24). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
 
-## Available Skills (88)
+## Available Skills (89)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -28,7 +28,6 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `bot-finding-arbiter` | `bot-finding-arbiter/SKILL.md` | Soul-name **Praetor**. |
 | `chief-of-staff` | `chief-of-staff/SKILL.md` | Operator-facing work-focus conductor — the human twin of the agent-facing reactivate/Entelecheia. |
 | `claude-code-concierge` | `claude-code-concierge/SKILL.md` | Concierge / onboarding / router / docs-researcher / guarded-operator for the CLAUDE-CODE PLATFORM ITSELF — installing, configuring, using the CLI, man |
-| `harness-concierge` | `harness-concierge/SKILL.md` | Researched expert on ~40 AI-coding harnesses (MCP config paths/formats/CLIs); drives `bin/harness-mcp-sync` to plan/apply/verify one MCP SSOT across all of them. Soul-name Dragoman |
 | `content-recast` | `content-recast/SKILL.md` | Use when you need to RE-TARGET a piece of your own technical content for a DIFFERENT audience, abstraction level, intent, or language — then optionall |
 | `context-prep` | `context-prep/SKILL.md` | Prepare optimal context package before delegating tasks to sub-agents |
 | `converge` | `converge/SKILL.md` | Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol (steelman → critique → compare → synthesize → reject-log). |
@@ -52,6 +51,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `founder-stage-scale` | `founder-stage-scale/SKILL.md` | Scale-stage discipline for an AI-native startup: build systematic, mature-org growth and a defensible moat while keeping the lean AI-centered structur |
 | `gap-loop` | `gap-loop/SKILL.md` | Harness-agnostic, self-driven, self-scored condition-loop that drives a GAP-REGISTER (G1..Gn) to convergence — loops until [every gap dispositioned (f |
 | `goal-recovery` | `goal-recovery/SKILL.md` | Recover a work session's real INTENT from its own live/context state — motivations, DoR, context, scope, and the objective tree {originating, primary, |
+| `harness-concierge` | `harness-concierge/SKILL.md` | Researched expert on ~40 AI-coding harnesses (MCP config paths/formats/CLIs); drives `bin/harness-mcp-sync` to plan/apply/verify one MCP SSOT across all of them. Soul-name Dragoman |
 | `hierarchical-merge` | `hierarchical-merge/SKILL.md` | Enforce hierarchical merge protocol - branches merge to parent, not directly to main |
 | `ichnos` | `ichnos/SKILL.md` | Use to apply Google-Analytics-style usage analytics to our OWN agentic-tools corpus — attribution (how was a skill actually reached: a direct /command |
 | `lens-dispatch` | `lens-dispatch/SKILL.md` | Deterministic dispatcher of cognitive lens-stacks per work-graph node. |
