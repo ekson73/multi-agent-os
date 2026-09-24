@@ -93,6 +93,28 @@ f'
   PR="$(cat "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)"
   case "$PR" in *$'\033'*) bad "proposal.md still contains ESC" ;; *PROPOSAL*) ok "proposal.md is ANSI-free and non-empty" ;; *) bad "no proposal written" ;; esac
 
+  echo "-- 4d. a harness that ignores SIGTERM cannot hang the caller (TERM then KILL)"
+  reset_stubs; mk_bash "$SANDBOX/t4d.sh" "" 'false'
+  printf '#!/bin/sh\ntrap "" TERM\ncat >/dev/null\nwhile :; do sleep 1; done\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  T0=$(date +%s); MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=1 "$B" "$SANDBOX/t4d.sh" >/dev/null 2>&1; T1=$(date +%s)
+  if [ $((T1-T0)) -le 12 ]; then ok "TERM-ignoring harness bounded ($((T1-T0))s)"; else bad "hung for $((T1-T0))s"; fi
+  cat > "$STUBS/kiro-cli" <<'STUB'
+#!/bin/sh
+n=$(( $(wc -l < "$STUB_LOG" 2>/dev/null || echo 0) + 1 ))
+echo "$(basename "$0") $*" >> "$STUB_LOG"
+echo "ACTIVE=${MAOS_SELFHEAL_ACTIVE:-unset}" >> "$STUB_LOG.env"
+cat > "$STUB_LOG.stdin.$n"
+[ -n "${STUB_REENTER:-}" ] && "$STUB_REENTER" >/dev/null 2>&1
+[ "${STUB_RC:-0}" = 0 ] && printf '%s\n' "${STUB_OUT:-PROPOSAL: fix the thing}"
+exit "${STUB_RC:-0}"
+STUB
+  chmod +x "$STUBS/kiro-cli"; pkill -f "sleep 1" 2>/dev/null || true
+
+  echo "-- 4e. clean run leaves no run directory behind"
+  reset_stubs; mk_bash "$SANDBOX/t4e.sh" "" 'true'
+  "$B" "$SANDBOX/t4e.sh" >/dev/null 2>&1
+  check "no shr.* dir after a clean run" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
+
   echo "-- 5. redaction: no secret reaches argv, stdin or the kept prompt"
   reset_stubs; mk_bash "$SANDBOX/t5.sh" "" "echo \"boot key=$FAKE_AWS gh=$FAKE_GH\" >&2
 echo \"password=$FAKE_PW\" >&2
@@ -114,6 +136,8 @@ false"
   MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t7.sh" >/dev/null 2>&1; rc=$?
   check "rc preserved in seed mode" "$rc" "1"; check "seed mode dispatches nothing" "$(calls)" "0"
   n="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | wc -l | tr -d ' ')"; check "one NEEDS-AGENT seed written" "$n" "1"
+  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"
+  check "seed file is mode 0600 (not world-readable)" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
 done
 
 echo; echo "== ports: python + node (uncaught fault relays; intentional exit never does) =="
@@ -122,6 +146,10 @@ if command -v python3 >/dev/null 2>&1; then
   python3 "$SANDBOX/p1.py" >/dev/null 2>&1; rc=$?
   check "python: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "python: relayed once" "$(calls)" "1"
   case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_GH"*) bad "python: secret leaked to harness" ;; *) ok "python: secret redacted" ;; esac
+  reset_stubs; { "$RENDER" --lang python; printf 'print("fine")\n'; } > "$SANDBOX/p3.py"; python3 "$SANDBOX/p3.py" >/dev/null 2>&1
+  check "python: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p4.py"; MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p4.py" >/dev/null 2>&1
+  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "python: seed is mode 0600" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
   reset_stubs; { printf 'import sys\n'; "$RENDER" --lang python; printf 'sys.exit(2)\n'; } > "$SANDBOX/p2.py"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi
@@ -130,6 +158,10 @@ if command -v node >/dev/null 2>&1; then
   node "$SANDBOX/n1.js" >/dev/null 2>&1; rc=$?
   check "node: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "node: relayed once" "$(calls)" "1"
   case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_GH"*) bad "node: secret leaked to harness" ;; *) ok "node: secret redacted" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'console.log("fine");\n'; } > "$SANDBOX/n3.js"; node "$SANDBOX/n3.js" >/dev/null 2>&1
+  check "node: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n4.js"; MAOS_SELFHEAL_MODE=seed node "$SANDBOX/n4.js" >/dev/null 2>&1
+  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "node: seed is mode 0600" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
   reset_stubs; { "$RENDER" --lang node; printf 'process.exit(2);\n'; } > "$SANDBOX/n2.js"
   node "$SANDBOX/n2.js" >/dev/null 2>&1; rc=$?; check "node: process.exit(2) preserved" "$rc" "2"; check "node: process.exit → zero dispatches" "$(calls)" "0"
 else bad "node missing"; fi
