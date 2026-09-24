@@ -89,9 +89,13 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   additional-directories permission (for Claude Code, `permissions.additionalDirectories` in the desk's
   `.claude/settings.local.json`); never grant the shared parent of all worktrees. That grant scopes the
   harness's file tools only. It is not isolation: code the seat runs executes as the operator.
-- Because the desk is outside the repo, the harness does not load the target's project-scoped config (its
-  `.claude/` settings, hooks, MCP servers, rules, skills). Seats read the project's AGENTS.md / CLAUDE.md from
-  their worktree (step 6); a project that relies on deterministic project hooks is not covered by this layout.
+- Because the desk is outside the repo, the harness does not load the target's project-scoped config: its
+  `.claude/` settings and permissions, hooks, MCP servers, rules (including path-scoped ones, whose `paths:`
+  would resolve against the desk) and skills. Seats read the project's AGENTS.md / CLAUDE.md from their
+  worktree (step 6). **Launch stop:** if the target relies on **any** mandatory project-scoped config of that
+  kind, do not use the desk layout. Projecting it into a desk is not covered by this skill yet
+  ([#452](https://github.com/ekson73/multi-agent-os/issues/452),
+  [#453](https://github.com/ekson73/multi-agent-os/issues/453)).
 - Give **every writing seat its own git worktree** of the target repo, made the way the target project's own
   worktree policy says (MAOS default: [`worktree-policy`](../../worktree-policy/SKILL.md)).
 - **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this

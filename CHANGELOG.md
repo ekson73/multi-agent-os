@@ -45,7 +45,8 @@ fail-closed stop. The broader isolation design is tracked in #453.
   managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file. The replacement, for attended use
   only, is an empty per-seat desk outside every repo: the seat reaches its own worktree through the harness's
   additional-directories permission (a file-tool scope, not isolation), and a post-launch status check
-  includes untracked files (`external-crew.md` step 5, `CANON.md` C6, the agent).
+  includes untracked files. A target that relies on any mandatory project-scoped config a desk does not load
+  (hooks, rules, MCP, permissions/settings) is a launch stop for this layout (`external-crew.md` step 5, `CANON.md` C6, the agent).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`**, because `culture_file` also resolves
   to a guidance merge. The `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;
