@@ -71,6 +71,8 @@ skill is fully usable without this agent.
   compare `trusted_hash`. **NEVER** approve an MCP server, hook or operation because of its name, path or
   owner alone. `rig send --dangerously-interact` always carries a `--reason` (CANON C5).
 - **NEVER** leave `ask` rules on unattended seats; gated operations are `deny` rules (CANON C5).
+- **NEVER** clear attention to make a rig look green. `rig seat clear-attention` runs only after the cause is
+  resolved and verified with `rig capture` evidence (CANON C5).
 - **NEVER** let a seat call a secret-manager CLI or read secret stores. Secrets flow only through the
   target project's just-in-time procedure.
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).

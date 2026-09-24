@@ -25,6 +25,8 @@
 4. **Never trust an MCP server, hook or operation because of its name, path or owner alone.** Names are free
    to choose, and a file in `~/.codex/` or a repo's `.codex/` could have been written by anything. Read what
    it executes.
+5. **Attention is diagnostic state.** Clear it only after its cause is resolved and verified (§3). Never
+   clear it to make a rig look green.
 
 ## 1. Symptom → diagnosis
 
@@ -83,6 +85,12 @@ rig seat clear-attention <session>              # T1: the daemon runs its own ev
 rig seat clear-attention <session> --reason "…" # T3: your attestation, only after rig capture shows a ready prompt
 rig ps --nodes --rig <rig>                      # verify: LIFECYCLE run
 ```
+
+**Attention is diagnostic state, not a dashboard color.** Clear it only **after** the underlying cause is
+resolved and verified. For example: the native trust review is done, and `rig capture` shows the seat at an
+interactive prompt again. `--reason` is an attestation of that evidence, so quote it in the reason (what you
+resolved, what the capture showed). Never run `clear-attention`, with or without `--reason`, to turn a
+rig green while the cause is still there. A seat that goes back to `att` means the cause was not resolved.
 
 ## 4. Pre-configure so the next launch does not block
 

@@ -50,7 +50,7 @@ Caveats observed on 0.5.14:
 `rig snapshot <rig>` · `rig archive` / `rig unarchive` · `rig specs add|remove|rename|sync` ·
 `rig context add|rm|sync` · `rig launch <rig> <seat>` (relaunch a stopped seat) · `rig seat launch` ·
 `rig reconcile-session <session>` (adopts a live session; never launches, kills or types) ·
-`rig seat clear-attention <session>` **without** `--reason` (the daemon runs its own evidence gate) ·
+`rig seat clear-attention <session>` **without** `--reason` (the daemon runs its own evidence gate; only after the cause is resolved) ·
 `rig health diagnose --apply` · `rig mode set <mode>` without `--confirm` (it only restates, exit 2) ·
 `rig bind` / `rig adopt` · `rig attach --self`.
 
@@ -69,7 +69,7 @@ Caveats observed on 0.5.14:
 |---|---|
 | `rig send <session> <keys> --dangerously-interact --reason "<why>"` | drives another agent's prompt. It is the only override of the prompt guard and it is audit-logged. |
 | trusting Codex hooks, approving a Claude MCP server, pre-trusting a workspace | changes what runs outside the sandbox. Procedure: [`trust-gates.md`](./trust-gates.md). |
-| `rig seat clear-attention <session> --reason "<attestation>"` | skips the daemon's evidence gate on your word. Attest only what you verified yourself with `rig capture`. |
+| `rig seat clear-attention <session> --reason "<attestation>"` | skips the daemon's evidence gate on your word. Use it only **after** the cause is resolved and verified with `rig capture`, and quote that evidence in the reason. Attention is diagnostic state: never clear it to turn a rig green. |
 | `rig auth save|switch` · `rig provider` account switching · `rig seat set-resume-token` | credentials and identity |
 | `rig down --delete` · `rig release --delete` · `rig destroy` | delete canonical records. `rig destroy` requires `--confirm destroy-openrig-state`. **Operator only.** |
 | public push, PR, merge, publish, release | the boundary OpenRig itself keeps (`openrig-user`, §Coordination trust boundary), and the one the project's own governance owns |

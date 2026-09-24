@@ -62,7 +62,7 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
    delegation names them (C3, C8).
 3. **Trust gates** (C5): hooks are trusted only through Codex's native review, and `trusted_hash` is never
    hand-written. Unattended seats get `deny`, not `ask`. Seats never touch a secret manager. Nothing is
-   trusted by name, path or owner alone.
+   trusted by name, path or owner alone. Attention is cleared only after its cause is resolved and verified.
 4. **Project governance outranks the crew** (C9). A crew adds orchestration, never authority.
 5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6).
 6. **HUMAN_DOMAIN goes to the operator:** secrets, credential or account switching, public push/PR/merge/publish,
@@ -151,7 +151,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 |---|---|---|
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
 | `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify with a T0 read afterwards, not with an exit code. |
-| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. |
+| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. |
 | `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, cwd and worktrees, culture file carrying the project's governance, checkout hygiene |
 | `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
 | `audit` (read-only) | `rig doctor [--spec]`, `rig spec audit`, `rig spec preflight`, `rig restore-check`, `rig health`, `rig policy current` | overlay checks. Projected files or OpenRig managed blocks committed? `enableAllProjectMcpServers` or blanket hook trust? `ask` rules on unattended seats? Two writing seats in one worktree? Root checkout off its default branch? A culture file that ignores the project's governance? A seat with secret access? Each finding carries evidence, a criterion and a fix. The audit proposes and never mutates. |
