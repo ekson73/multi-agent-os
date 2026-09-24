@@ -898,8 +898,8 @@ def load_claude(ctx: Ctx, store: "Store", path: str, fh, default_client: str) ->
             ctx.quarantine_(store.id, path, "unverified-format-version", ln)
             continue
         meta["session_id"] = meta["session_id"] or r.get("sessionId")
-        meta["cwd"] = meta["cwd"] or r.get("cwd")
-        e.cwd = r.get("cwd") or e.cwd
+        meta["cwd"] = meta["cwd"] or _s(r.get("cwd"))  # transcript cwd: a string, or ignored
+        e.cwd = _s(r.get("cwd")) or e.cwd
         if meta["client"] is None and r.get("entrypoint"):
             ep = str(r["entrypoint"])
             meta["client"] = {"cli": "anthropic.claude-code", "claude-desktop": "anthropic.claude-desktop"}.get(
@@ -955,8 +955,8 @@ def load_codex(ctx: Ctx, store: "Store", path: str, fh, imported: Dict[str, str]
                 return None, []
             verified = True
             meta["session_id"] = meta["session_id"] or p.get("id")
-            meta["cwd"] = meta["cwd"] or p.get("cwd")
-            e.cwd = p.get("cwd") or e.cwd
+            meta["cwd"] = meta["cwd"] or _s(p.get("cwd"))
+            e.cwd = _s(p.get("cwd")) or e.cwd
             orig = str(p.get("originator") or "")
             meta["client"] = CODEX_CLIENTS.get(orig, "openai.codex-other")
             if isinstance(p.get("source"), dict) and "subagent" in p["source"]:
@@ -965,7 +965,7 @@ def load_codex(ctx: Ctx, store: "Store", path: str, fh, imported: Dict[str, str]
         if not verified:  # content before a versioned session_meta header
             ctx.quarantine_(store.id, path, "missing-format-version", ln)
             return None, []
-        if t == "turn_context" and p.get("cwd"):
+        if t == "turn_context" and _s(p.get("cwd")):
             e.cwd = p["cwd"]  # the working directory can change per turn
         if t != "response_item":
             continue  # event_msg duplicates response_item dialogue; the rest is harness state
@@ -1011,8 +1011,8 @@ def load_pi(ctx: Ctx, store: "Store", path: str, fh, client: str, subagent: bool
                 return None, []
             verified = True
             meta["session_id"] = meta["session_id"] or r.get("id")
-            meta["cwd"] = meta["cwd"] or r.get("cwd")
-            e.cwd = r.get("cwd") or e.cwd
+            meta["cwd"] = meta["cwd"] or _s(r.get("cwd"))
+            e.cwd = _s(r.get("cwd")) or e.cwd
             continue
         if not verified:  # content before the versioned session header
             ctx.quarantine_(store.id, path, "missing-format-version", ln)
@@ -1759,7 +1759,11 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
             loader = load_chatgpt_conv if kind == "chatgpt" else load_claude_ai_conv
             with h:
                 for idx, conv in export_conversations(ctx, s, p, h.fh):
-                    meta, msgs = loader(ctx, s, p, idx, conv)
+                    try:
+                        meta, msgs = loader(ctx, s, p, idx, conv)
+                    except Exception as exc:  # one malformed conversation never ends the export
+                        ctx.quarantine_(s.id, p, "adapter-error:" + type(exc).__name__, idx)
+                        continue
                     if meta:
                         yield Unit(p, lambda r=(meta, msgs): r)  # one conversation, dropped once consumed
                 if not ctx.unchanged(s.id, h):

@@ -621,6 +621,30 @@ shapes = [x for x in jl(os.path.join(out_ch, "quarantine.jsonl")) if x["reason"]
 ok(len(shapes) == 3 and not any(m in out for m in ("SELFCYCLE7Q", "TWOCYCLE7Q", "DANGLING7Q"))
    and "ROOTED7Q-a" in out and "ROOTED7Q-b" in out,
    "self-cycle, 2-cycle and dangling-parent branches are quarantined; a branch that reaches the root is read")
+bad_cwd_home = os.path.join(FIX, "home-badcwd")
+put(".claude/projects/-work-demo-atlas/%s.jsonl" % U1, [
+    cl("user", "demo-atlas BADCWD-7Q", sid=U1, cwd={"not": "a path"}),
+    cl("user", "demo-atlas GOODAFTER-7Q", sid=U1, ts=T0 % 2)], home=bad_cwd_home)
+put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % R1, [
+    {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": R1, "cwd": ["x"], "cli_version": "0.146.0"}},
+    {"type": "turn_context", "timestamp": T0 % 2, "payload": {"cwd": {"a": 1}}},
+    {"type": "response_item", "timestamp": T0 % 3, "payload": {"type": "message", "role": "user", "content": [
+        {"type": "input_text", "text": "demo-atlas CODEXCWD-7Q"}]}}], home=bad_cwd_home)
+code, out, err, _ = run("--out", os.path.join(FIX, "out-badcwd"), "extract", "--project", PROJ, "--mention", "demo-atlas",
+                        home=bad_cwd_home)
+ok(code in (0, 3) and "GOODAFTER-7Q" in out and "CODEXCWD-7Q" in out and "internal error" not in err,
+   "non-string transcript cwd values are ignored, never crash the run (exit %d)" % code)
+claude_ai = [{"uuid": "ca-bad", "chat_messages": [{"sender": "human", "text": "demo-atlas CABAD-7Q",
+                                                  "created_at": T0 % 1, "attachments": {"x": 1}, "files": []}]},
+             {"uuid": "ca-good", "chat_messages": [{"sender": "human", "text": "demo-atlas CAGOOD-7Q",
+                                                   "created_at": T0 % 2}]}]
+ca_zip = zip_of(os.path.join(FIX, "claude-ai.zip"), [("conversations.json", json.dumps(claude_ai))])
+out_ca = os.path.join(FIX, "out-claudeai")
+code, out, _, _ = run("--out", out_ca, "--export", "claude-ai=" + ca_zip, "extract", "--surface",
+                      "anthropic.claude-ai-export", "--mention", "demo-atlas")
+ok("CAGOOD-7Q" in out and "CABAD-7Q" not in out
+   and any(x["reason"].startswith("adapter-error:") and x["line"] == 1 for x in jl(os.path.join(out_ca, "quarantine.jsonl"))),
+   "a conversation whose loader fails is quarantined alone; the rest of the export is still read")
 out_cap = os.path.join(FIX, "out-filecap")
 code, _, _, _ = run("--out", out_cap, "--max-files", "3", "index", "--project", PROJ)
 mcap = json.load(open(os.path.join(out_cap, "run-manifest.json")))

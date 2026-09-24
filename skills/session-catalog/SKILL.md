@@ -150,7 +150,9 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   session id is never invented from a filename. `index` streams its rows to the
   private file instead of holding them. A store stays `supported` only
   while its recent samples actually parse, and a failure inside one store (an unreadable
-  file, an adapter error) marks only that store `unverified`.
+  file, an adapter error) marks only that store `unverified`. Inside an export, a
+  conversation whose loader fails is quarantined alone (`adapter-error:<Type>`), and a
+  transcript `cwd` that is not a string is ignored.
 - **What may leave the private index.** Extracted content may enter a project repository
   only as **sanitized, project-owned facts** written in your own words, and those facts
   carry opaque ids, never paths or content hashes. Never copy raw transcripts,
