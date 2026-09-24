@@ -18,7 +18,7 @@ evals:
   should_trigger:
     - "My OpenRig kernel shows 3 seats need attention, what do I do?"
     - "A Codex seat is stuck at 'Hooks need review' after rig up"
-    - "Design an OpenRig crew to work on this external repo with a builder and an independent reviewer"
+    - "Can I run an OpenRig crew on this external repo? (answer: the STOP until #453)"
     - "How do I reuse OpenRig's builtin agents from my own rig.yaml outside the install dir?"
     - "Which rig commands are safe to run on a rig I don't own?"
     - "Monitor my running rig and tell me which seats are parked or owe work"
