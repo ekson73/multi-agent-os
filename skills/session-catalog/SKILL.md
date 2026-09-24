@@ -78,7 +78,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   Slack, Google, 1Password), JWTs, auth headers, bearer tokens, credentials in URLs,
   secret query parameters, `key=value` secrets (a quoted value is consumed through its
   closing quote, spaces included), opaque base64 blobs, emails, phone numbers, CPF numbers
-  and home-directory paths. The token-shaped patterns also run across **field and message
+  and home paths (`/Users/*`, `/home/*`, `/root`, and the configured `--home` in lexical and
+  canonical form). The token-shaped patterns also run across **field and message
   boundaries**: a secret split over two content blocks or two consecutive messages is
   masked in both pieces. The tool also normalizes to NFC and strips ANSI/OSC escapes,
   control characters and bidi overrides. A **probable** credential (not a placeholder
@@ -108,9 +109,11 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   rename-replaced). An output root without the marker that already holds a file named like
   an output is refused too. Every write goes through the held directory descriptor:
   directories 0700, files 0600 from the first byte (`O_EXCL|O_NOFOLLOW` temp file, fsync,
-  rename). The tool drops a marker file so it never re-ingests its own output, and holds a
-  per-root lock that records pid, process start time and host. A lock whose pid is gone
-  (checked with signal 0) or reused, or an empty lock older than 60 s, is reclaimed.
+  rename). The tool drops a marker file so it never re-ingests its own output. One run per
+  output root is enforced with an exclusive, non-blocking `flock` on `<out>/.lock`. The
+  kernel releases it when the holder exits or dies, so a leftover lock file never blocks
+  and no stale-lock reclaim is needed. The file records the holder's pid and host for the
+  "locked by" message.
 - **Read-only discovery.** The tool walks only each adapter's allowlisted root, and a
   store whose root is, or passes through, a symlink is refused (`unavailable`). It prunes
   git repos, cloud-sync folders and backups, and skips WAL, SHM, lock, tmp and partial
@@ -131,7 +134,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   UTF-8, and each element is held to `--max-record-bytes`. Such records are
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
-  export conversations too) are quarantined the same way. A store stays `supported` only
+  export conversations and whole-document recordings too) are quarantined the same way. `index` streams its rows to the
+  private file instead of holding them. A store stays `supported` only
   while its recent samples actually parse, and a failure inside one store (an unreadable
   file, an adapter error) marks only that store `unverified`.
 - **What may leave the private index.** Extracted content may enter a project repository
@@ -194,7 +198,8 @@ Residual limitations, stated plainly:
   store from changing a file's contents between two sessions of the harness.
 - **Anchor and ancestors.** Links in the path *above* `--home`, and in the export path you
   pass, are resolved as given. Bind mounts and filesystems without stable inode numbers
-  are outside this model.
+  are outside this model, and so are network filesystems where `flock` is not enforced
+  (the one-run-per-output-root lock relies on it).
 - **Linux untested; Windows unsupported** (see *Platforms* below).
 - **Exports stream.** A supplied export is processed one conversation at a time, so a
   change to the export file during the run is detected only at its end. The file is then

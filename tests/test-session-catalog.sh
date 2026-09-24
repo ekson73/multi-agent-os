@@ -179,6 +179,8 @@ put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
     {"type": GH_TYPE, "sessionId": U4},
     {"type": "user", "sessionId": U4, "cwd": PROJ, "timestamp": T0 % 4,
      "message": {"role": "user", "content": "demo-atlas NOVERSION-7Q"}},
+    cl("user", "demo-atlas paths /root/.ssh/id_x %s/notes-7Q.txt %s/real-7Q.txt" % (HOME, os.path.realpath(HOME)),
+       ts=T0 % 5),
 ])
 put(".claude/projects/-work-demo-atlas/%s.jsonl" % U5, [cl("user", "demo-atlas RECENT-7Q", sid=U5)],
     mtime=time.time() - 120)
@@ -436,6 +438,8 @@ ok(GH_TOOL not in out and any((m["tool"] or "").startswith("tool-") for m in msg
    "a token-shaped tool name is replaced by an opaque digest")
 ok("NOVERSION-7Q" not in out and "CODEXNOVER-7Q" not in out, "Claude/Codex records without a version are not emitted")
 ok("RECENT-7Q" not in out, "a transcript modified within the horizon is not a past session: not emitted")
+ok("/root/" not in out and HOME not in text and os.path.realpath(HOME) not in text and "~/notes-7Q.txt" in text,
+   "home paths are redacted: /root and the configured --home, lexical and canonical")
 src6 = [k for k, v in man["sources_private"].items() if v.endswith(U6 + ".jsonl")]
 ok("OPENWRITER-7Q" in text and "TRUNCATED-7Q" not in out
    and any(x["source_id"] in src6 and x["reason"] == "malformed-json" and x["line"] == 2 for x in q),
@@ -528,23 +532,33 @@ code, out, _, _ = run("--out", out_b, "--max-record-bytes", "2048", "--export", 
 ok("BIGREC-7Q" not in out and "chatgpt: demo-atlas idea" in out
    and any(x["reason"] == "record-over-size-cap" for x in jl(os.path.join(out_b, "quarantine.jsonl"))),
    "an export element over --max-record-bytes is quarantined even when it decodes in one chunk")
+gem_home = os.path.join(FIX, "home-gemini")
+for i in (1, 2):
+    put(".gemini/tmp/demo/chats/session-%d.json" % i, raw=json.dumps({"sessionId": "gcap-%d" % i, "messages": [
+        {"id": "1", "type": "user", "timestamp": T0 % 1, "content": "demo-atlas GEMCAP-7Q"}]}).encode(), home=gem_home)
+out_g = os.path.join(FIX, "out-gemcap")
+code, out, _, _ = run("--out", out_g, "--max-records", "1", "extract", "--mention", "demo-atlas", home=gem_home)
+refs = {json.loads(l)["session_ref"] for l in out.splitlines()}
+ok(any(x["reason"] == "run-record-cap" for x in jl(os.path.join(out_g, "quarantine.jsonl"))) and len(refs) == 1,
+   "whole-document Gemini recordings count against --max-records too")
 
-# 8. concurrency: a live lock blocks a second run
-with open(os.path.join(OUT, ".lock"), "w") as fh:
-    ps = subprocess.run(["ps", "-o", "lstart=", "-p", str(os.getpid())], capture_output=True, text=True).stdout.strip()
-    fh.write(json.dumps({"pid": os.getpid(), "start": ps, "host": os.uname().nodename}))
-code, _, _, rc = run("--out", OUT, "index", "--project", PROJ)
-ok(code == 5 and rc.get("status") == "blocked", "a live lock blocks a second run (exit 5)")
-with open(os.path.join(OUT, ".lock"), "w") as fh:
-    fh.write(json.dumps({"pid": 999999, "start": "never", "host": os.uname().nodename}))
+# 8. concurrency: the lock is a kernel flock, so only a LIVE holder blocks; a leftover file never does
+holder = subprocess.Popen([sys.executable, "-c", "import fcntl, os, sys; fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600); "
+                           "fcntl.flock(fd, fcntl.LOCK_EX); os.ftruncate(fd, 0); os.write(fd, b'{\"pid\": %d, \"host\": \"h\"}' % os.getpid()); "
+                           "print('held', flush=True); sys.stdin.read()", os.path.join(OUT, ".lock")],
+                          stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+assert holder.stdout.readline().strip() == b"held"
+code, _, err, rc = run("--out", OUT, "index", "--project", PROJ)
+ok(code == 5 and rc.get("status") == "blocked" and "pid %d" % holder.pid in rc.get("error", ""),
+   "a run holding the lock blocks a second run (exit 5, holder pid reported)")
+holder.stdin.close()
+holder.wait()
 code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
-ok(code in (0, 3), "a stale lock (pid gone) is reclaimed")
-open(os.path.join(OUT, ".lock"), "w").close()                         # empty: a run died mid-write
-code, _, _, rc = run("--out", OUT, "index", "--project", PROJ)
-ok(code == 5, "a fresh empty lock still blocks (another run may be writing it)")
-os.utime(os.path.join(OUT, ".lock"), (time.time() - 300, time.time() - 300))
+ok(code in (0, 3), "the lock is free as soon as its holder exits (no stale-lock state)")
+with open(os.path.join(OUT, ".lock"), "w") as fh:
+    fh.write(json.dumps({"pid": 999999, "host": os.uname().nodename}))
 code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
-ok(code in (0, 3), "an empty lock older than 60 s is reclaimed")
+ok(code in (0, 3), "a leftover lock file from a dead run (any content) never blocks")
 
 # 9. receipts survive a consumer that closes stdout (`extract | head`)
 out_p = os.path.join(FIX, "out-pipe")
