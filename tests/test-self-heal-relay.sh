@@ -402,6 +402,14 @@ if command -v python3 >/dev/null 2>&1; then
   { printf 'import signal, os\nsignal.signal(signal.SIGTERM, lambda s, f: None)  # the adopter handles TERM and keeps running (a reload, say)\n'; "$RENDER" --lang python; printf 'os.kill(os.getpid(), signal.SIGTERM)  # idle: no relay is running\nraise RuntimeError("x")\n'; } > "$SANDBOX/p33.py"
   MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p33.py" >/dev/null 2>&1
   check "python: a handled TERM while idle does not disable the later relay" "$(calls)" "1"; restore_stubs
+  reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  { printf 'import signal, os, threading, time\nsignal.signal(signal.SIGTERM, lambda s, f: None)\n'; "$RENDER" --lang python; printf 'def _second():\n    time.sleep(0.8); shr_relay("second"); os.kill(os.getpid(), signal.SIGTERM)  # a losing concurrent relay call, then a handled TERM\nthreading.Thread(target=_second, daemon=True).start()\nraise RuntimeError("x")\n'; } > "$SANDBOX/p34.py"
+  python3 "$SANDBOX/p34.py" >/dev/null 2>&1
+  check "python: a concurrent losing shr_relay call does not clear the active relay's cancellation state" "$(calls)" "1"; restore_stubs
+  reset_stubs; XH="$SANDBOX/xdg-home"; rm -rf "$XH" "$SANDBOX/xdg-cwd"; mkdir -p "$XH" "$SANDBOX/xdg-cwd"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p35.py"
+  ( cd "$SANDBOX/xdg-cwd" && env -u MAOS_SELFHEAL_SEED_DIR HOME="$XH" XDG_STATE_HOME="" MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p35.py" >/dev/null 2>&1 )
+  check "python: an EMPTY XDG_STATE_HOME falls back to ~/.local/state (no relative seed path)" "$(ls "$XH/.local/state/maos/self-heal-seeds" 2>/dev/null | grep -c NEEDS-AGENT)" "1"
+  check "python: ...and nothing lands in the current directory" "$(find "$SANDBOX/xdg-cwd" -type f | wc -l | tr -d ' ')" "0"; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"

@@ -223,16 +223,17 @@ def _shr_timeout():  # validated BEFORE the harness is spawned: a bad value must
 
 
 def shr_relay(exc_text):
-    _shr_active[0] = True  # cancellation is only meaningful DURING a relay: a handled SIGHUP/SIGTERM while idle must not disable every later relay
+    global _shr_relayed
+    with _shr_lock:  # one atomic check-and-set: concurrent worker hooks + a later main-thread fault dispatch exactly once
+        if _shr_relayed: return
+        _shr_relayed = True
+    _shr_active[0] = True  # owned by the call that won the dispatch (a losing concurrent call returned above and never touches it): cancellation only means something DURING that relay
     try: _shr_relay_impl(exc_text)
     finally: _shr_active[0] = False
 
 
 def _shr_relay_impl(exc_text):
-    global _SHR_HARNESSES_ENTRY, _shr_relayed
-    with _shr_lock:  # one atomic check-and-set: concurrent worker hooks + a later main-thread fault dispatch exactly once
-        if _shr_relayed: return
-        _shr_relayed = True
+    global _SHR_HARNESSES_ENTRY
     tier = SHR_TIER_LOCK or _os.environ.get("MAOS_SELFHEAL_TIER", "propose")
     tier = "apply" if tier == "apply" else "propose"
     try: _time.sleep(0.05); log_tail = _shr_tail(_shr_log)
@@ -243,7 +244,7 @@ def _shr_relay_impl(exc_text):
     with _os.fdopen(fd, "w", encoding="utf-8") as f: f.write(prompt)
     _os.environ["MAOS_SELFHEAL_ACTIVE"] = "1"
     if _os.environ.get("MAOS_SELFHEAL_MODE", "relay") == "seed":
-        d = _os.environ.get("MAOS_SELFHEAL_SEED_DIR") or _os.path.join(_os.environ.get("XDG_STATE_HOME", _os.path.expanduser("~/.local/state")), "maos", "self-heal-seeds")
+        d = _os.environ.get("MAOS_SELFHEAL_SEED_DIR") or _os.path.join(_os.environ.get("XDG_STATE_HOME") or _os.path.expanduser("~/.local/state"), "maos", "self-heal-seeds")
         try:
             _os.makedirs(d, mode=0o700, exist_ok=True)
             seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{_os.getpid()}-{_os.urandom(3).hex()}-{SHR_NAME}.md")
