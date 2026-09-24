@@ -91,7 +91,11 @@ function shrRelay(excText) {
   _shr.fs.writeFileSync(ppath, prompt, { mode: 0o600 });
   process.env.MAOS_SELFHEAL_ACTIVE = "1";
   const err = (m) => _shr.fs.writeSync(2, m + "\n");
-  if ((process.env.MAOS_SELFHEAL_MODE || "relay") === "seed") {
+  // spawnSync blocks the event loop, so an adopter SIGTERM/SIGINT/SIGHUP LISTENER could not run until the harness returns (up to the timeout) and an `apply`
+  // harness could keep editing after a cancellation. With such a listener present, hand off as a seed instead of blocking.
+  const _shrListeners = ["SIGTERM", "SIGINT", "SIGHUP"].some((sg) => process.listenerCount(sg) > 0);
+  if (_shrListeners && (process.env.MAOS_SELFHEAL_MODE || "relay") !== "seed") err("self-heal-relay: the script handles termination signals, which a blocking harness would delay; writing a seed instead of dispatching");
+  if (_shrListeners || (process.env.MAOS_SELFHEAL_MODE || "relay") === "seed") {
     const d = process.env.MAOS_SELFHEAL_SEED_DIR || _shr.path.join(process.env.XDG_STATE_HOME || _shr.path.join(_shr.os.homedir(), ".local/state"), "maos", "self-heal-seeds");
     try {
       _shr.fs.mkdirSync(d, { recursive: true, mode: 0o700 });
