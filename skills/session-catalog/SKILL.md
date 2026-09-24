@@ -107,8 +107,9 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   is excluded from discovery. **Outputs never land on inputs:** an output root that is,
   lies inside, or contains a store root, a harness metadata file or a supplied export is
   refused, and so is a `--security-findings` file that is or lies inside one (it would be
-  rename-replaced) or that names one of the output root's own control files (receipt,
-  index, quarantine, key, marker, lock). An output root without the marker that already holds a file named like
+  rename-replaced), that names one of the output root's own control files (receipt,
+  index, quarantine, key, marker, lock; compared case- and normalization-insensitively and
+  by file identity), or that already exists as anything but this user's own regular file. An output root without the marker that already holds a file named like
   an output is refused too. Every output or control file the run modifies or replaces
   (lock, receipt, index, quarantine, key, marker, findings) must be a regular, singly-linked
   file owned by the current user; a hard link is refused. Every write goes through the held
@@ -236,7 +237,8 @@ Useful flags: `--surface openai.codex-cli,anthropic.` (prefix filter) · `--sinc
 for traversal, symlink, size and compression bombs, and streamed without extraction) ·
 `--max-file-bytes/--max-record-bytes/--max-files/--max-records` · `--security-findings PATH`.
 Topic and project scoping are always runtime flags, and both `index` and `extract` require
-`--project` and/or `--mention` (there is no unscoped inventory). Nothing about your domains is
+`--project` and/or `--mention` (there is no unscoped inventory). A relative `--project` is
+resolved against the working directory. Nothing about your domains is
 built in.
 
 **If `scripts/session_catalog.py` is absent** (for example in a markdown-only install), do
@@ -293,7 +295,8 @@ opens, so the reader refuses to run there (exit 4) instead of reading without th
   `counts` by role/kind, `attachments_by_type`, `mention_hits`, `in_project_messages`,
   `selected_by`, `imported_from` (a harness's own import of another harness's session is
   skipped as a duplicate by default), `lines`, and the private-only fields
-  `session_id_private`, `cwd_private` and `content_sha256_private`.
+  `session_id_private` (an opaque `sid-…` digest when the transcript's id is not id-shaped or
+  looks like secret material), `cwd_private` (redacted) and `content_sha256_private`.
 - **Extract message** (stdout): `surface`, `session_ref`, `source_id`, `pointer.line`,
   `seq`, `ts`, `role` (user · assistant · tool_call · tool_result; system, developer and
   provider_event are dropped), `kind` (text · artifact · tool_call), `tool` (name only; an
