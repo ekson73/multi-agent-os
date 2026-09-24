@@ -54,7 +54,7 @@ that version. Every correction below was observed there.
   project config (both `.claude/settings.json` and `.claude/settings.local.json`, `.mcp.json`, and `.claude/`
   rules, skills, commands and agents) and give each item a disposition: reviewed hooks, permissions and
   plugin enables projected into each desk; MCP definitions copied into the desk's `.mcp.json` with exact
-  per-server approval; rules, skills, commands and agents copied into the desk or read from the worktree. A
+  per-server approval; rules without `paths:` frontmatter, skills, commands and agents copied into the desk or read from the worktree; a mandatory path-scoped rule that cannot be translated to the worktree layout and shown to activate there is a launch stop (#452). A
   deterministic gate that cannot be projected makes the recipe unusable for that repo: stop and escalate
   (CANON C9) (step 6).
 - **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
@@ -63,7 +63,7 @@ that version. Every correction below was observed there.
   every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
   acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
   `Read` denies on the user settings and credential directories are a speed bump only.
-  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env` is a launch stop, since no desk override can blank it. User-scope and
+  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env` is a launch stop, since no desk override can blank it; so is any credential-bearing key (counted, never listed) in the git config the seat can read, unless seats use a sanitized seat-specific git config. User-scope and
   plugin MCP servers with filesystem, credential or network capability block the launch unless disabled at
   their actual scope or the seat config is isolated. Secondary control: inventory secret-like names from
   every channel with value-free forms, scrub
