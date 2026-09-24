@@ -13,6 +13,7 @@
 : "${SHR_CONTRACT_CODES:= }"; : "${SHR_TIER_LOCK:=}"; : "${SHR_TRAP_EXIT:=0}"; : "${SHR_CAPTURE_STDOUT:=0}"
 : "${SHR_CONTRACT_NOTE:=Preserve the documented behaviour and exit-code contract of this script; never weaken a guard, validation or security check.}"
 SHR_NAME="$(basename "${BASH_SOURCE[0]:-$0}")"
+SHR_PATH="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd -P)/$SHR_NAME"   # absolute path: the harness may run from another cwd
 SHR_ON=1; SHR_RELAYED=0
 if [ "${MAOS_SELFHEAL:-1}" = 0 ] || [ "${MAOS_SELFHEAL_ACTIVE:-0}" = 1 ]; then SHR_ON=0; fi
 
@@ -23,7 +24,7 @@ SHR_DEFAULT_CHAIN="@@DEFAULT_CHAIN@@"
 shr_run() {
   local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc
   "$@" <&0 & pid=$!
-  ( sleep "$t"; kill "$pid" 2>/dev/null; sleep 3; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & w=$!   # TERM, then KILL after a 3s grace: a harness that ignores TERM cannot hang the caller
+  ( sleep "$t"; pkill -TERM -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; sleep 3; pkill -KILL -P "$pid" 2>/dev/null; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & w=$!   # TERM then KILL after a 3s grace, children (the harness' own subprocesses) included: nothing keeps editing after the relay returns
   wait "$pid" 2>/dev/null; rc=$?
   kill "$w" 2>/dev/null; wait "$w" 2>/dev/null || :   # (a still-sleeping watchdog is reaped here)
   return "$rc"
@@ -62,7 +63,7 @@ fi
 shr_build_prompt() {  # $1=rc $2=line $3=cmd $4=tier
   local nonce; nonce="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n')"; nonce="${nonce:-$$-$(date +%s)}"
   {
-    printf '# self-heal-relay: unexpected fault in %s\n\n' "$SHR_NAME"
+    printf '# self-heal-relay: unexpected fault in %s\n\nScript: %s\n\n' "$SHR_NAME" "$SHR_PATH"
     printf 'exit code: %s | line: %s | failed command: (inside the UNTRUSTED block below)\n\n' "$1" "$2"
     printf '## Contract to preserve (do not weaken)\n%s\n\n' "$SHR_CONTRACT_NOTE"
     printf '## Task\nDiagnose the ROOT CAUSE of this fault (not the symptom). '
@@ -139,10 +140,13 @@ shr_on_exit() {  # $1 = the script's exit status; does NOT exit itself, so a cha
 
 if [ "$SHR_ON" = 1 ]; then
   set -E   # errtrace: the ERR trap MUST be inherited by functions and subshells, else a failure inside one is silent
-  trap 'shr_on_err "$?" "$LINENO" "$BASH_COMMAND"' ERR
-  # Install the EXIT handler AND keep an EXIT trap the adopter already set (a later `trap … EXIT` by the adopter replaces
-  # this one: install the block AFTER the script's own traps, or chain shr_on_exit "$?" from them).
-  _shr_prev="$(trap -p EXIT)"
-  if [ -n "$_shr_prev" ]; then eval "set -- $_shr_prev"; _shr_prev="${3:-}"; fi
-  trap 'shr_on_exit "$?"; '"$_shr_prev" EXIT
+  # Capture (never `set --`, which would clobber the adopter's $@) any trap the adopter already installed, and chain it.
+  _shr_unq() { sed -e "s/^trap -- '//" -e "s/' $1\$//" -e "s/'\\\\''/'/g"; }
+  _shr_pe="$(trap -p ERR)"; _shr_pe="$(printf '%s\n' "$_shr_pe" | _shr_unq ERR)"   # (trap -p must run in the command substitution itself: a pipeline subshell resets traps)
+  _shr_px="$(trap -p EXIT)"; _shr_px="$(printf '%s\n' "$_shr_px" | _shr_unq EXIT)"
+  # The relay's own ERR trap fires ON every failing simple command; without errexit that would also end a script that
+  # handles failures by hand. So it is armed only when the adopter runs under `set -e`; EXIT (SHR_TRAP_EXIT=1) needs no -e.
+  # `if (exit N); then X; else X; fi` runs X with $? == N and cannot trip errexit (a bare `(exit N)` would).
+  case "$-" in *e*) trap '_shr_rc=$? _shr_ln=$LINENO _shr_cmd=$BASH_COMMAND; if (exit "$_shr_rc"); then '"${_shr_pe:-:}"'; else '"${_shr_pe:-:}"'; fi; shr_on_err "$_shr_rc" "$_shr_ln" "$_shr_cmd"' ERR ;; esac
+  trap '_shr_rc=$?; shr_on_exit "$_shr_rc"; if (exit "$_shr_rc"); then '"${_shr_px:-:}"'; else '"${_shr_px:-:}"'; fi' EXIT   # the adopter's EXIT trap still sees the ORIGINAL status
 fi

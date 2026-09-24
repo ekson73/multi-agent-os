@@ -33,6 +33,7 @@ STUB
 done
 export PATH="$STUBS:$PATH"
 reset_stubs() { rm -f "$STUB_LOG" "$STUB_LOG".stdin.* "$STUB_LOG.env"; : > "$STUB_LOG"; rm -rf "$MAOS_SELFHEAL_SEED_DIR" "$SANDBOX"/tmp/*; unset STUB_RC STUB_OUT STUB_REENTER MAOS_AI_HARNESS MAOS_SELFHEAL_MODE MAOS_SELFHEAL_TIER MAOS_SELFHEAL_ACTIVE MAOS_SELFHEAL; }
+fmode() { if stat -c %a "$1" >/dev/null 2>&1; then stat -c %a "$1"; else stat -f %Lp "$1"; fi; }   # GNU first, BSD fallback (GNU `stat -f` is a filesystem report)
 calls() { wc -l < "$STUB_LOG" | tr -d ' '; }
 
 # Secrets are assembled at runtime so no scanner sees a literal credential in this file.
@@ -108,7 +109,7 @@ cat > "$STUB_LOG.stdin.$n"
 [ "${STUB_RC:-0}" = 0 ] && printf '%s\n' "${STUB_OUT:-PROPOSAL: fix the thing}"
 exit "${STUB_RC:-0}"
 STUB
-  chmod +x "$STUBS/kiro-cli"; pkill -f "sleep 1" 2>/dev/null || true
+  chmod +x "$STUBS/kiro-cli"   # the watchdog kills the harness subprocess tree itself; no host-wide pkill
 
   echo "-- 4e. clean run leaves no run directory behind"
   reset_stubs; mk_bash "$SANDBOX/t4e.sh" "" 'true'
@@ -132,6 +133,18 @@ echo after'
   "$B" "$SANDBOX/t4h.sh" >/dev/null 2>&1; rc=$?
   check "bare exit 5 relayed once (SHR_TRAP_EXIT)" "$(calls)" "1"; check "adopter EXIT trap still ran" "$(grep -c ADOPTER-EXIT "$SANDBOX/marker" 2>/dev/null)" "1"
   check "original non-zero rc preserved" "$([ "$rc" -ne 0 ] && echo y)" "y"
+
+  echo "-- 4j. adopter state survives the block: \$@, EXIT status, ERR trap, prompt script path"
+  reset_stubs; { printf '#!/usr/bin/env bash\nset -euo pipefail\ntrap "echo EXITSEEN=\\$? >> %s/m2" EXIT\ntrap "echo ERRSEEN >> %s/m2" ERR\n' "$SANDBOX" "$SANDBOX"; "$RENDER" --lang bash; printf 'echo "ARGS=$*" >> "%s/m2"\nfalse\n' "$SANDBOX"; } > "$SANDBOX/t4j.sh"; rm -f "$SANDBOX/m2"
+  "$B" "$SANDBOX/t4j.sh" alpha beta >/dev/null 2>&1
+  check "adopter \$@ untouched by the block" "$(grep -c 'ARGS=alpha beta' "$SANDBOX/m2" 2>/dev/null)" "1"
+  check "adopter ERR trap chained" "$(grep -c ERRSEEN "$SANDBOX/m2" 2>/dev/null)" "1"
+  check "adopter EXIT trap saw the original status (1)" "$(grep -c 'EXITSEEN=1' "$SANDBOX/m2" 2>/dev/null)" "1"
+  check "prompt carries the absolute script path" "$(grep -cE '^Script: /.*/t4j\.sh$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"
+
+  echo "-- 4k. without set -e the ERR relay is not armed (a benign failure must not end the script)"
+  reset_stubs; { printf '#!/usr/bin/env bash\n'; "$RENDER" --lang bash; printf 'grep -q nomatch /dev/null\necho STILL-RUNNING\n'; } > "$SANDBOX/t4k.sh"
+  check "script without errexit continues past a failing command" "$("$B" "$SANDBOX/t4k.sh" 2>/dev/null)" "STILL-RUNNING"; check "and did not relay" "$(calls)" "0"
 
   echo "-- 4i. same-second seeds never collide"
   reset_stubs; mk_bash "$SANDBOX/t4i.sh" "" 'false'
@@ -160,7 +173,7 @@ false"
   check "rc preserved in seed mode" "$rc" "1"; check "seed mode dispatches nothing" "$(calls)" "0"
   n="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | wc -l | tr -d ' ')"; check "one NEEDS-AGENT seed written" "$n" "1"
   SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"
-  check "seed file is mode 0600 (not world-readable)" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
+  check "seed file is mode 0600 (not world-readable)" "$(fmode "$SF")" "600"
 done
 
 echo; echo "== ports: python + node (uncaught fault relays; intentional exit never does) =="
@@ -172,8 +185,9 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang python; printf 'print("fine")\n'; } > "$SANDBOX/p3.py"; python3 "$SANDBOX/p3.py" >/dev/null 2>&1
   check "python: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p4.py"; MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p4.py" >/dev/null 2>&1
-  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "python: seed is mode 0600" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
+  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "python: seed is mode 0600" "$(fmode "$SF")" "600"
   reset_stubs; { printf 'import sys\n'; "$RENDER" --lang python; printf 'sys.exit(2)\n'; } > "$SANDBOX/p2.py"
+  reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi
 if command -v node >/dev/null 2>&1; then
@@ -184,7 +198,7 @@ if command -v node >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang node; printf 'console.log("fine");\n'; } > "$SANDBOX/n3.js"; node "$SANDBOX/n3.js" >/dev/null 2>&1
   check "node: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n4.js"; MAOS_SELFHEAL_MODE=seed node "$SANDBOX/n4.js" >/dev/null 2>&1
-  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "node: seed is mode 0600" "$(stat -f %Lp "$SF" 2>/dev/null || stat -c %a "$SF")" "600"
+  SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "node: seed is mode 0600" "$(fmode "$SF")" "600"
   reset_stubs; { "$RENDER" --lang node; printf 'process.exit(2);\n'; } > "$SANDBOX/n2.js"
   node "$SANDBOX/n2.js" >/dev/null 2>&1; rc=$?; check "node: process.exit(2) preserved" "$rc" "2"; check "node: process.exit → zero dispatches" "$(calls)" "0"
 else bad "node missing"; fi
