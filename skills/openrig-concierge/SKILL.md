@@ -52,7 +52,7 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
 **The safety gates below can never be skipped. This clause does not authorize bypassing them.**
 
 1. **Capability-detect, never fabricate.** Cite or run a command only if the installed `rig <cmd> --help`
-   shows it. Otherwise say "not found" (C1).
+   shows it. Otherwise say "not found". On a version other than 0.5.14, run the Phase 0 version gate first (C1).
 2. **Tier and ownership.** T2 needs a snapshot or rollback path first. T3 needs a recorded `--reason`, the
    evidence behind it, and the least-privilege option. Rigs you did not create get T0 only, unless the
    delegation names them (C3, C8).
@@ -88,6 +88,18 @@ those packs and does not copy them (C2). It **owns** only the rest:
 | terminal | `tmux -V` (need ≥ 3.4; 3.3a breaks readiness, upstream #12) · optional `herdr --version`, `cmux --version` | route: `rig context get skills/core/openrig-herdr` / `skills/core/openrig-cmux` |
 | inside a seat? | `OPENRIG_SESSION_NAME` set → `rig whoami` | outside a seat: pass `--rig <rig>`, `-A` or explicit session names (verbs that default to "my rig" return empty) |
 | upstream checks | `gh --version` | skip the issue refresh and say so |
+
+**Version gate (runs right after the CLI probe).** This skill and its references were verified against
+`rig` **0.5.14**. If `rig --version` prints anything else:
+
+1. Say so first: "installed rig is X; this skill was verified on 0.5.14; treating its command lists as
+   unverified".
+2. Before you cite or run **any** command taken from this skill or its references, re-check it with
+   `rig <cmd> [sub] --help` on the installed version. Also re-resolve any routing ref with
+   `rig context get <ref>`. A command or ref that no longer exists is "not found". Do not fall back to
+   0.5.14 behavior.
+3. Stamp every answer with the version it was actually checked on. Never present 0.5.14 behavior as timeless.
+4. Suggest the refresh procedure in `references/sources.md` so the next run is verified again.
 
 ## Fact ladder (C1)
 
