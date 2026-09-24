@@ -4,11 +4,12 @@ description: |
   Catalog/import my Claude Code, Codex, Gemini, omp, Antigravity or prime-agent sessions; "what did we
   already do about <project> across my AI sessions"; "recover unfinished work and decisions from past
   AI sessions"; "find the session where we decided X"; "which AI tools keep session history on this
-  machine". Read-only catalog of PAST AI-harness sessions (plus ChatGPT/claude.ai data exports) into
-  one normalized private index, with topic-scoped, redacted extraction for continuity ledgers. NOT for
-  ordinary use of a harness (asking Codex/Claude/ChatGPT to do something), splitting, vaulting or
-  re-entering ONE session (session-fission / session-to-vault / session-reentry), and never to attach
-  to, resume or drive a live session. Fail-closed per store; secrets redacted; private output only.
+  machine". Read-only catalog of PAST AI-harness sessions (past = unchanged for 24 h; open files are
+  not inspected) plus ChatGPT/claude.ai data exports, into one normalized private index, with
+  topic-scoped, redacted extraction for continuity ledgers. NOT for ordinary use of a harness (asking
+  Codex/Claude/ChatGPT to do something), splitting, vaulting or re-entering ONE session
+  (session-fission / session-to-vault / session-reentry), and it never attaches to, resumes or drives
+  a session (it only reads transcripts). Fail-closed on unknown formats; secrets redacted; private output.
 version: 0.2.0
 prompt_version: "0.1.0"
 evals:
@@ -95,8 +96,9 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   `index`/`extract` never read stores outside the scope.
 - **Private outputs.** `index`/`extract` require an explicit `--out`. The output root is
   canonicalized (every existing ancestor resolved) and refused, on both the requested and
-  the canonical path, when it is a symlink, `/`, `$HOME`, a shared temporary root
-  (`$TMPDIR`, `/tmp`, `/var/tmp`), inside the skill's own directory, inside a git work
+  the canonical path, when it is a symlink, `/`, `$HOME`, at or below a temporary root
+  (`$TMPDIR`, `$TMP`, `$TEMP`, `/tmp`, `/var/tmp`, `/var/folders`, `/dev/shm`, and their
+  canonical forms such as `/private/tmp`), inside the skill's own directory, inside a git work
   tree, or not owned by the current user. There is no override. The same policy applies
   to the directory of `--security-findings` (which may be `$HOME`), and only that one file
   is excluded from discovery. Every write goes through the held directory descriptor:
@@ -107,13 +109,15 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   store whose root is, or passes through, a symlink is refused (`unavailable`). It prunes
   git repos, cloud-sync folders and backups, and skips WAL, SHM, lock, tmp and partial
   files. See *Security guarantees* for how containment is bound to the opened file.
-- **Live sessions.** A file is read only if it was last modified before the
-  **high-water mark**, and a session only if its last message is older too. The default
-  high-water is run start minus a **24 h safety horizon**; `--high-water ISO` overrides it
-  (never later than now). Files that change during the read are deferred too, and every
-  case is counted. The tool cannot see whether a harness still holds an older transcript
-  open: exclude a long-idle live session with `--exclude-path`, or pick an earlier
-  `--high-water`. User-supplied exports are static files and are exempt from the horizon.
+- **Past sessions: the contract.** "Past" means that no source file changed and no
+  message was written after the **high-water mark**. The default mark is run start minus a
+  **24 h horizon**, and `--high-water ISO` moves it (never later than now). Newer files
+  and sessions, and files that change during the read, are deferred and counted. Open
+  file handles are **not** inspected. A transcript that an idle process still holds open
+  is therefore read up to its last complete record, and a truncated trailing record is
+  quarantined. Exclude a session you know is still open with `--exclude-path`, or pick an
+  earlier `--high-water`. User-supplied exports are static files and are exempt from the
+  horizon.
 - **Fail-closed per record and per store.** The tool never guesses at a record whose
   type, version or shape it does not know. A Claude record without a `2.x` `version`, a
   Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
@@ -155,12 +159,23 @@ rely only on POSIX primitives (`O_NOFOLLOW`, `O_DIRECTORY`, `openat`-style `dir_
    descriptor (see *Private outputs*).
 5. **Fail closed.** A platform without these primitives exits 4 without reading anything.
    A failure inside one store only marks that store.
+6. **"Past session" is a definition, not a detector.** A session counts as past when no
+   source file changed and no message was written after the high-water mark (default:
+   run start minus 24 h; `--high-water` sets it, never later than now). Files and
+   sessions inside the horizon are deferred (`files_deferred_recent_or_unstable`,
+   `sessions_deferred_recent`). The tool does **not** look at open file handles, so it
+   does not promise to skip a transcript that some process still has open. Every receipt
+   states this in `past_session_contract`, and `tests/test-session-catalog.sh` pins the
+   behavior: a transcript held open by an idle writer is read up to its last complete
+   record, and its truncated tail is quarantined.
 
 Residual limitations, stated plainly:
 
-- **Idle live sessions.** Liveness is judged from mtimes and message timestamps (the 24 h
-  horizon by default). A harness process that holds an older transcript open without
-  writing to it is not detected.
+- **Open files are not inspected** (the contract in item 6). A harness process that
+  holds an older transcript open without writing to it past the horizon is not detected,
+  and that transcript is read up to its last complete record. A truncated trailing record
+  is quarantined as `malformed-json`. Exclude such a session with `--exclude-path`, or
+  pick an earlier `--high-water`.
 - **Redaction is pattern-based.** Formats that are not listed, and secrets split into
   pieces that no longer match any pattern, can survive. Boundary scanning masks
   token-shaped matches only; line-shaped ones (PEM blocks, auth headers) are handled per
@@ -193,7 +208,7 @@ python3 "$S" --out ~/.local/share/session-catalog extract --project ~/code/demo 
 ```
 
 Useful flags: `--surface openai.codex-cli,anthropic.` (prefix filter) · `--since/--until` ·
-`--high-water ISO` · `--exclude-path GLOB` (for example your own live session) ·
+`--high-water ISO` · `--exclude-path GLOB` (for example a session that is still open) ·
 `--export chatgpt=PATH|claude-ai=PATH` (an already-downloaded export zip or JSON, vetted
 for traversal, symlink, size and compression bombs, and streamed without extraction) ·
 `--max-file-bytes/--max-record-bytes/--max-files/--max-records` · `--security-findings PATH`.
@@ -212,7 +227,7 @@ stop. The guardrails above cannot be met by ad-hoc reading.
 | 2 | `usage` | bad flags: missing `--out`, missing scope, invalid date, a non-positive `--max-*` limit |
 | 3 | `partial` | some stores skipped (encrypted, cloud, unverified, symlinked root) or items quarantined, or the output consumer closed stdout. **Never read this as "all sessions".** |
 | 4 | `unsupported` | no in-scope store is importable, or the platform lacks the no-follow / dir-fd primitives |
-| 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, temp root, skill dir, git work tree, not owned) |
+| 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, at/below a temp root, skill dir, git work tree, not owned) |
 
 A failing adapter never aborts the run: its store or file is skipped or quarantined, and
 the run ends `partial`.
@@ -264,7 +279,7 @@ opens, so the reader refuses to run there (exit 4) instead of reading without th
   conversation ids in two archives stay distinct.
 - **Run receipt** (`run-manifest.json`, private): `schema`, `tool` (name, version, and,
   when run from a git checkout, `commit`, `dirty` and `reproducible`; a dirty source is
-  flagged "not reproducible"), `status`, `high_water`, `live_detection` (the stated limit),
+  flagged "not reproducible"), `status`, `high_water`, `past_session_contract` (the definition above),
   `filters`, `limits`, a per-store `receipt` (files seen, refused, excluded, deferred,
   quarantined, records parsed, sessions selected), `identities` (local cache vs export vs
   cloud/not-requested), `stores_skipped` with reasons, `totals` (including

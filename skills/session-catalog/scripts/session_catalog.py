@@ -56,14 +56,18 @@ SAMPLE_UNITS = 3
 ENCRYPTED_ENTROPY = 7.5              # bits/byte; JSON/markdown sit well below 6
 LIMITS = {"max_file_bytes": 512 << 20, "max_record_bytes": 16 << 20, "max_files": 50000,
           "max_records": 20_000_000}
-LIVE_HORIZON = 24 * 3600             # default high-water = run start minus this safety horizon
+PAST_HORIZON = 24 * 3600             # default high-water = run start minus this horizon (see the contract)
 MAX_DEPTH = 32                       # directory nesting walked below a store root
 IGNORED_SUFFIXES = ("-wal", "-shm", "-journal", ".lock", ".tmp", ".partial", ".part", ".swp", "~")
 _PRUNE_DIRS = re.compile(r"(?i)^(?:\.git|node_modules|Mobile Documents|CloudStorage|Dropbox|Google Drive|OneDrive|"
                          r"iCloud Drive|Backups\.backupdb|\.Trash|.*\.backup|.*-backup|Time Machine.*)$")
-LIVE_NOTE = ("mtime/timestamp horizon only: source files modified, and sessions active, after high_water are "
-             "deferred; an idle process still holding an older transcript open is NOT detected — exclude such "
-             "sessions with --exclude-path or pick an earlier --high-water")
+# The contract for "past session" (it is a definition, not a detector): no source change and no message
+# after high_water. Open file handles are deliberately not inspected.
+PAST_SESSION_CONTRACT = (
+    "past session = no source-file change and no message after high_water (default: run start minus 24 h); "
+    "open file handles are NOT inspected: a transcript an idle process still holds open is read up to its "
+    "last complete record, and a truncated trailing record is quarantined as malformed-json; exclude such a "
+    "session with --exclude-path or pick an earlier --high-water")
 
 # ── platform primitives (fail closed where missing) ────────────────────────
 
@@ -666,7 +670,7 @@ class Ctx:
         h, ok = Opened(fd, st), False
         try:
             if path not in self.explicit and st.st_mtime >= self.high_water:
-                rc["files_deferred_live_or_unstable"] += 1
+                rc["files_deferred_recent_or_unstable"] += 1
                 return None
             cap = self.limits["max_record_bytes"] if whole_record else self.limits["max_file_bytes"]
             if st.st_size > cap:
@@ -690,7 +694,7 @@ class Ctx:
     def unchanged(self, store: str, h: Opened) -> bool:
         now = os.fstat(h.fh.fileno())
         if (now.st_size, now.st_mtime_ns) != (h.st.st_size, h.st.st_mtime_ns):
-            self.receipt[store]["files_deferred_live_or_unstable"] += 1
+            self.receipt[store]["files_deferred_recent_or_unstable"] += 1
             return False
         return True
 
@@ -1716,10 +1720,16 @@ def in_git_worktree(path: str) -> Optional[str]:
         p = parent
 
 
+TEMP_ROOTS = ("/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", "/usr/tmp", "/var/folders",
+              "/private/var/folders", "/dev/shm")
+
+
 def temp_roots() -> set:
-    """Shared temporary roots, lexical and canonical: writing directly into one is refused."""
+    """Temporary roots, lexical and canonical ($TMPDIR/$TEMP/$TMP plus the fixed POSIX/macOS
+    locations). An output or findings directory that is one of them, or lies anywhere below
+    one, is refused."""
     out = set()
-    for c in [os.environ.get(k) for k in ("TMPDIR", "TEMP", "TMP")] + ["/tmp", "/var/tmp", "/usr/tmp"]:
+    for c in [os.environ.get(k) for k in ("TMPDIR", "TEMP", "TMP")] + list(TEMP_ROOTS):
         if c:
             a = os.path.abspath(c)
             out |= {a, os.path.realpath(a)}
@@ -1740,8 +1750,9 @@ def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, in
     if any(p in forbidden for p in both):
         die("refusing %s %s: / or the home directory" % (what, shown), "blocked")
     temps = temp_roots()
-    if any(p in temps for p in both):
-        die("refusing %s %s: a shared temporary root (use a private subdirectory)" % (what, shown), "blocked")
+    if any(p == t or p.startswith(t.rstrip(os.sep) + os.sep) for p in both for t in temps):
+        die("refusing %s %s: inside a temporary root (session data must not land in temp storage)"
+            % (what, shown), "blocked")
     skill = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if any(p == skill or p.startswith(skill + os.sep) for p in both):
         die("refusing %s %s: inside the session-catalog skill directory" % (what, shown), "blocked")
@@ -1969,7 +1980,7 @@ def select(ctx: Ctx, args, stores: List[Store]):
             stamps = [m["ts"] for m in msgs if m["ts"]]
             meta["started_at"], meta["ended_at"] = (min(stamps), max(stamps)) if stamps else (None, None)
             if s.kind != "export" and meta["ended_at"] and meta["ended_at"] >= hw_iso:
-                rc["sessions_deferred_live"] += 1
+                rc["sessions_deferred_recent"] += 1
                 continue
             if meta.get("imported_from") and not args.include_imported:
                 rc["sessions_skipped_imported_duplicate"] += 1
@@ -2117,7 +2128,8 @@ def finish(ctx: Ctx, args, stores: List[Store], command: str, totals: dict) -> i
                  % (status, len(skipped), len(ctx.quarantine)))
     manifest = {
         "schema": SCHEMA, "tool": provenance(), "command": command, "status": status,
-        "generated_at": iso(time.time()), "high_water": iso(ctx.high_water), "live_detection": LIVE_NOTE,
+        "generated_at": iso(time.time()), "high_water": iso(ctx.high_water),
+        "past_session_contract": PAST_SESSION_CONTRACT,
         "filters": {"project": [rel(ctx.home, norm_path(p)) for p in args.project or []], "mention": args.mention,
                     "since": args.since, "until": args.until, "surface": getattr(args, "surface", None),
                     "include_imported": args.include_imported, "exclude_path_globs": len(ctx.exclude_globs)},
@@ -2142,7 +2154,7 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--export", action="append", default=[], metavar="KIND=PATH",
                     help="an already-downloaded data export: chatgpt=PATH or claude-ai=PATH (json or zip)")
     ap.add_argument("--high-water", help="ISO timestamp; only files/sessions older than this are read "
-                                         "(default: run start minus a 24 h safety horizon; never later than now)")
+                                         "(default: run start minus the 24 h past-session horizon; never later than now)")
     ap.add_argument("--exclude-path", action="append", default=[], help="glob of source paths to skip (repeatable)")
     for k, v in LIMITS.items():
         ap.add_argument("--" + k.replace("_", "-"), type=int, default=v, help="positive integer (default %d)" % v)
@@ -2201,7 +2213,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             die("invalid --high-water", "usage")
         high_water = min(now, datetime.fromisoformat(hw.replace("Z", "+00:00")).timestamp())
     else:
-        high_water = now - LIVE_HORIZON
+        high_water = now - PAST_HORIZON
     home = os.path.abspath(os.path.expanduser(args.home))
     ctx = Ctx(home, high_water, {k: getattr(args, k) for k in LIMITS}, args.exclude_path, secrets.token_bytes(32))
     try:
@@ -2224,7 +2236,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         ctx.close()
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    """Process entry point: every exit carries a JSON receipt as the last stderr line."""
     try:
         sys.exit(main())
     except KeyboardInterrupt:
@@ -2240,3 +2253,7 @@ if __name__ == "__main__":
         sys.stderr.write(json.dumps({"status": "error", "error": "internal error: " + type(exc).__name__,
                                      "schema": SCHEMA, "version": VERSION}) + "\n")
         sys.exit(EXIT["error"])
+
+
+if __name__ == "__main__":
+    cli()
