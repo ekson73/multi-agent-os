@@ -20,11 +20,19 @@ if [ "${MAOS_SELFHEAL:-1}" = 0 ] || [ "${MAOS_SELFHEAL_ACTIVE:-0}" = 1 ]; then S
 @@HARNESS_TABLE@@
 SHR_DEFAULT_CHAIN="@@DEFAULT_CHAIN@@"
 
+# Signal a process AND all its descendants (depth-first: children are collected BEFORE the parent dies, so an orphaned
+# grandchild is never re-parented out of reach).
+shr_killtree() {
+  local c
+  for c in $(pgrep -P "$2" 2>/dev/null); do shr_killtree "$1" "$c"; done
+  kill "-$1" "$2" 2>/dev/null || :
+}
+
 # Portable bounded run: stdin/stdout/stderr are inherited; the child is killed after MAOS_SELFHEAL_TIMEOUT s.
 shr_run() {
   local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc
   "$@" <&0 & pid=$!
-  ( sleep "$t"; pkill -TERM -P "$pid" 2>/dev/null; kill "$pid" 2>/dev/null; sleep 3; pkill -KILL -P "$pid" 2>/dev/null; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 & w=$!   # TERM then KILL after a 3s grace, children (the harness' own subprocesses) included: nothing keeps editing after the relay returns
+  ( sleep "$t"; shr_killtree TERM "$pid"; sleep 3; shr_killtree KILL "$pid" ) >/dev/null 2>&1 & w=$!   # TERM then KILL after a 3s grace, children (the harness' own subprocesses) included: nothing keeps editing after the relay returns
   wait "$pid" 2>/dev/null; rc=$?
   kill "$w" 2>/dev/null; wait "$w" 2>/dev/null || :   # (a still-sleeping watchdog is reaped here)
   return "$rc"
@@ -121,10 +129,12 @@ shr_relay() {  # $1=rc $2=line $3=cmd — never exits; the caller preserves the 
   else shr_dispatch "$tier" || printf 'self-heal-relay: no eligible harness; prompt kept at %s\n' "$SHR_PROMPT" >&2; fi
 }
 
-shr_on_err() {
-  local rc="$1"; trap - ERR
-  if shr_is_contract "$rc"; then exit "$rc"; fi
-  shr_relay "$rc" "$2" "$3"; exit "$rc"
+shr_on_err() {  # relays only; it does not exit: under `set -e` the shell exits with the original status once the trap returns,
+  local rc="$1"   # so an adopter ERR trap that itself exits (chained AFTER this) can no longer pre-empt the relay
+  if shr_is_contract "$rc"; then return 0; fi
+  local _e=0; case "$-" in *e*) _e=1 ;; esac   # shr_relay runs with errexit off; put it back so the script still ends after the trap
+  shr_relay "$rc" "$2" "$3"
+  if [ "$_e" = 1 ]; then set -e; fi
 }
 
 shr_on_exit() {  # $1 = the script's exit status; does NOT exit itself, so a chained adopter trap still runs
@@ -147,6 +157,6 @@ if [ "$SHR_ON" = 1 ]; then
   # The relay's own ERR trap fires ON every failing simple command; without errexit that would also end a script that
   # handles failures by hand. So it is armed only when the adopter runs under `set -e`; EXIT (SHR_TRAP_EXIT=1) needs no -e.
   # `if (exit N); then X; else X; fi` runs X with $? == N and cannot trip errexit (a bare `(exit N)` would).
-  case "$-" in *e*) trap '_shr_rc=$? _shr_ln=$LINENO _shr_cmd=$BASH_COMMAND; if (exit "$_shr_rc"); then '"${_shr_pe:-:}"'; else '"${_shr_pe:-:}"'; fi; shr_on_err "$_shr_rc" "$_shr_ln" "$_shr_cmd"' ERR ;; esac
+  case "$-" in *e*) trap '_shr_rc=$? _shr_ln=$LINENO _shr_cmd=$BASH_COMMAND; shr_on_err "$_shr_rc" "$_shr_ln" "$_shr_cmd"; if (exit "$_shr_rc"); then '"${_shr_pe:-:}"'; else '"${_shr_pe:-:}"'; fi' ERR ;; esac
   trap '_shr_rc=$?; shr_on_exit "$_shr_rc"; if (exit "$_shr_rc"); then '"${_shr_px:-:}"'; else '"${_shr_px:-:}"'; fi' EXIT   # the adopter's EXIT trap still sees the ORIGINAL status
 fi

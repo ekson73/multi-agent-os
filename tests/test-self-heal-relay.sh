@@ -146,6 +146,15 @@ echo after'
   reset_stubs; { printf '#!/usr/bin/env bash\n'; "$RENDER" --lang bash; printf 'grep -q nomatch /dev/null\necho STILL-RUNNING\n'; } > "$SANDBOX/t4k.sh"
   check "script without errexit continues past a failing command" "$("$B" "$SANDBOX/t4k.sh" 2>/dev/null)" "STILL-RUNNING"; check "and did not relay" "$(calls)" "0"
 
+  echo "-- 4l. an adopter ERR trap that itself exits cannot pre-empt the relay; a timed-out harness leaves no grandchildren"
+  reset_stubs; { printf '#!/usr/bin/env bash\nset -euo pipefail\ntrap "echo adopter-failed >&2; exit 7" ERR\n'; "$RENDER" --lang bash; printf 'false\n'; } > "$SANDBOX/t4l.sh"
+  "$B" "$SANDBOX/t4l.sh" >/dev/null 2>&1; rc=$?; check "relay ran before the adopter's exiting ERR trap" "$(calls)" "1"; check "adopter exit code (7) wins" "$rc" "7"
+  reset_stubs; GC="$SANDBOX/gc.pid"; rm -f "$GC"
+  printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) &\ntrap "" TERM\nsleep 60\n' "$GC" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  mk_bash "$SANDBOX/t4m.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4m.sh" >/dev/null 2>&1; sleep 1
+  if [ -s "$GC" ] && kill -0 "$(cat "$GC")" 2>/dev/null; then bad "grandchild of the timed-out harness survived"; kill -9 "$(cat "$GC")" 2>/dev/null; else ok "no grandchild survives a harness timeout"; fi
+  reset_stubs; for h in kiro-cli claude codex; do printf '#!/bin/sh\necho "$(basename "$0") $*" >> "$STUB_LOG"\necho "ACTIVE=${MAOS_SELFHEAL_ACTIVE:-unset}" >> "$STUB_LOG.env"\nn=$(( $(wc -l < "$STUB_LOG") ))\ncat > "$STUB_LOG.stdin.$n"\n[ -n "${STUB_REENTER:-}" ] && "$STUB_REENTER" >/dev/null 2>&1\n[ "${STUB_RC:-0}" = 0 ] && printf "%%s\\n" "${STUB_OUT:-PROPOSAL: fix the thing}"\nexit "${STUB_RC:-0}"\n' > "$STUBS/$h"; chmod +x "$STUBS/$h"; done
+
   echo "-- 4i. same-second seeds never collide"
   reset_stubs; mk_bash "$SANDBOX/t4i.sh" "" 'false'
   MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4i.sh" >/dev/null 2>&1; MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4i.sh" >/dev/null 2>&1
