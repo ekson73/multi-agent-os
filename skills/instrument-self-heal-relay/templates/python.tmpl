@@ -151,6 +151,10 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         _outf.close()
         return 124, ""
     finally:
+        try:  # a harness that exits cleanly may still have left background children: reap the whole group before forgetting it
+            if _os.name == "posix": _os.killpg(p.pid, 9)
+            else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+        except Exception: pass
         _shr_live.discard(p.pid)
     return p.returncode, out
 

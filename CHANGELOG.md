@@ -21,7 +21,7 @@ engolido; (D4) log sem redacao enviado a terceiro e via argv; (D5) despacho sinc
 bloqueia hooks/cron; (D6) abort por `set -u` nunca dispara ERR (a doc antiga afirmava o
 contrario). Inclui tabela unica de harness (`harnesses.json`, so verificados na cadeia
 padrao), renderer `skills/instrument-self-heal-relay/bin/self-heal-relay-render` (`--verify` detecta drift), modos
-relay/seed, tier propose/apply e 184 assercoes hermeticas (bash 3.2 + moderno, python, node).
+relay/seed, tier propose/apply e 185 assercoes hermeticas (bash 3.2 + moderno, python, node).
 Os 4 adotantes existentes continuam no bloco v1 (follow-up gated).
 
 ### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
