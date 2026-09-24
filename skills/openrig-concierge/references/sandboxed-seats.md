@@ -68,14 +68,19 @@ from the desk. This list is an enumeration: re-check it whenever OpenRig, the ha
 the desk.
 
 **Every hook runs outside the sandbox, with the harness environment.** That covers projected project hooks,
-OpenRig's own hooks and status line, and user-scope or plugin hooks. On the sandbox path a credential is still
-seat-readable at its source, so a hook that executes a file the seat can write is a bypass. Before launch,
-review every hook command in the desk settings, the user settings and enabled plugins:
+OpenRig's own hooks and status line, user-scope and plugin hooks, and **managed** hooks. On the sandbox path a
+credential is still seat-readable at its source, so a hook that executes a file the seat can write is a
+bypass. Before launch, review every hook command in the desk settings, the user settings, enabled plugins and
+every active managed source: `managed-settings.json` and its `managed-settings.d/` drop-ins, an MDM profile,
+or server-managed settings. `/status` in the operator's own session names the managed sources in force.
 
 - each command may execute only files in locations the seat cannot write: desk control files covered by the
   Edit and sandbox write denies above, or system and tool install directories;
-- a hook that runs a script in a worktree, a unit, or any other seat-writable path is a **launch stop**;
-- a user-scope or plugin hook whose command has not been reviewed is a **launch stop**.
+- a hook, managed ones included, that runs a script in a worktree, a unit, or any other seat-writable path is
+  a **launch stop**;
+- a user-scope or plugin hook whose command has not been reviewed is a **launch stop**;
+- an active managed source whose hooks cannot be inspected or attested (for example server-managed settings
+  the operator cannot read) is a **launch stop**.
 
 ## 3. What did not work, and what it costs
 

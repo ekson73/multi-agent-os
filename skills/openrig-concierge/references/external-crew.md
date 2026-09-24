@@ -263,8 +263,9 @@ seat. Review each desk against its **exact expected contents**, and nothing else
 
 - before launch, only what the crew put there: `.claude/settings.local.json` (posture plus the step 6
   projections), the projected `.mcp.json`, the projected `.claude/rules/`, `.claude/skills/`,
-  `.claude/commands/` and `.claude/agents/` copies, any startup files the crew placed there, and for sandboxed
-  seats `units/` ([`sandboxed-seats.md`](./sandboxed-seats.md));
+  `.claude/commands/` and `.claude/agents/` copies, `.agents/skills/` if seats get projected canonical
+  skills, any startup files the crew placed there, and for sandboxed seats `units/`
+  ([`sandboxed-seats.md`](./sandboxed-seats.md));
 - after launch, additionally what OpenRig projects: `.openrig/`, the managed block in `CLAUDE.md`, and its
   merged hook and status-line entries in `.claude/settings.local.json`.
 

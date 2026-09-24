@@ -267,7 +267,7 @@ human step).
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
 seat shows which session hooks fired. Isolating hooks and plugins also needs the seat-scoped config
-directory. Until then, list the flow in the handoff. On the sandbox path, every hook command is also subject to the launch stop in [`sandboxed-seats.md`](./sandboxed-seats.md) §2: it may execute only files the seat cannot write, and an unreviewed user-scope hook stops the launch.
+directory. Until then, list the flow in the handoff. On the sandbox path, every hook command is also subject to the launch stop in [`sandboxed-seats.md`](./sandboxed-seats.md) §2: it may execute only files the seat cannot write. That review covers user-scope, plugin and active managed hooks (the managed file and its drop-ins, MDM, server-managed; `/status` names the sources). An unreviewed user-scope or plugin hook, a managed hook that executes a seat-writable file, or a managed source whose hooks cannot be inspected or attested stops the launch.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 
