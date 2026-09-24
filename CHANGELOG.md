@@ -63,7 +63,7 @@ that version. Every correction below was observed there.
   every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
   acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
   `Read` denies on the user settings and credential directories are a speed bump only.
-  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`). User-scope and
+  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env` is a launch stop, since no desk override can blank it. User-scope and
   plugin MCP servers with filesystem, credential or network capability block the launch unless disabled at
   their actual scope or the seat config is isolated. Secondary control: inventory secret-like names from
   every channel with value-free forms, scrub
