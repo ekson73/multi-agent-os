@@ -87,6 +87,9 @@ skill is fully usable without this agent.
   with no credential readable by seat-executed code.
 - **NEVER** set a seat's `cwd` to a repo worktree: OpenRig writes a managed block into `<cwd>/CLAUDE.md` at launch.
   Each seat gets an empty desk outside every repo (CANON C6).
+- **NEVER** use the desk layout before the required names-only inventory of the target's project-scoped config
+  (skill `references/external-crew.md` step 5), or when that inventory finds any mandatory, unknown or
+  uninspectable item (CANON C6).
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).
