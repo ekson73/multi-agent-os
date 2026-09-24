@@ -65,7 +65,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. With a desk as the cwd ([`external-crew.md`](./external-crew.md) step 5) the review is that the desk is empty apart from the crew's own settings file, plus the worktrees the seat can reach. Then run the user-scope check (§4): the seat inherits that too. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. With a desk as the cwd ([`external-crew.md`](./external-crew.md) step 5) the review is that the desk holds exactly its expected contents and nothing else ([`external-crew.md`](./external-crew.md) step 9), plus the worktrees the seat can reach. Then run the user-scope check (§4): the seat inherits that too. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -267,7 +267,7 @@ human step).
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
 seat shows which session hooks fired. Isolating hooks and plugins also needs the seat-scoped config
-directory. Until then, list the flow in the handoff.
+directory. Until then, list the flow in the handoff. On the sandbox path, every hook command is also subject to the launch stop in [`sandboxed-seats.md`](./sandboxed-seats.md) §2: it may execute only files the seat cannot write, and an unreviewed user-scope hook stops the launch.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 

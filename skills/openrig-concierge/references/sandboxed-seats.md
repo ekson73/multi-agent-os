@@ -67,6 +67,16 @@ a real sandbox escape. Add Edit denies (which also become sandbox write denies) 
 from the desk. This list is an enumeration: re-check it whenever OpenRig, the harness or a plugin adds a file to
 the desk.
 
+**Every hook runs outside the sandbox, with the harness environment.** That covers projected project hooks,
+OpenRig's own hooks and status line, and user-scope or plugin hooks. On the sandbox path a credential is still
+seat-readable at its source, so a hook that executes a file the seat can write is a bypass. Before launch,
+review every hook command in the desk settings, the user settings and enabled plugins:
+
+- each command may execute only files in locations the seat cannot write: desk control files covered by the
+  Edit and sandbox write denies above, or system and tool install directories;
+- a hook that runs a script in a worktree, a unit, or any other seat-writable path is a **launch stop**;
+- a user-scope or plugin hook whose command has not been reviewed is a **launch stop**.
+
 ## 3. What did not work, and what it costs
 
 | # | Observed | Consequence |
@@ -81,8 +91,8 @@ the desk.
 
 Residual risks that stay after all of the above: the allowed registry host is a narrow exfiltration channel
 (domain fronting, no TLS inspection); the harness injects a few names of its own (sandbox proxy and git
-plumbing) that are visible to seat code; the harness process itself still holds its parsed user settings; and
-hooks run outside the sandbox with the harness environment. Record each one in the handoff.
+plumbing) that are visible to seat code; and the harness process itself still holds its parsed user
+settings. Record each one in the handoff. Hooks are not a residual risk: they are the stop rule in §2.
 
 ## 4. Trusted publisher: how sandboxed work leaves the crew
 

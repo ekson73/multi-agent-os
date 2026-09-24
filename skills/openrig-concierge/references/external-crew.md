@@ -258,9 +258,18 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 ## 9. Pre-clear trust gates [T3]
 
 Before the first launch, follow [`trust-gates.md`](./trust-gates.md) §2 and §4. OpenRig auto-accepts Claude
-workspace trust for each seat's cwd, so review every desk (empty, apart from the crew's own settings file)
-and every worktree a seat can reach before it gets a seat. Then: exact MCP approvals scoped to where they
-apply, native Codex hook review, deny rules, no secret values anywhere a seat can read.
+workspace trust for each seat's cwd, so review every desk and every worktree a seat can reach before it gets a
+seat. Review each desk against its **exact expected contents**, and nothing else:
+
+- before launch, only what the crew put there: `.claude/settings.local.json` (posture plus the step 6
+  projections), the projected `.mcp.json`, the projected `.claude/rules/`, `.claude/skills/`,
+  `.claude/commands/` and `.claude/agents/` copies, any startup files the crew placed there, and for sandboxed
+  seats `units/` ([`sandboxed-seats.md`](./sandboxed-seats.md));
+- after launch, additionally what OpenRig projects: `.openrig/`, the managed block in `CLAUDE.md`, and its
+  merged hook and status-line entries in `.claude/settings.local.json`.
+
+Anything else in a desk is a stop until it is identified and reviewed. Then: exact MCP approvals scoped to
+where they apply, native Codex hook review, deny rules, no secret values anywhere a seat can read.
 
 **User scope and environment.** Every seat also inherits the operator's harness user scope (the user settings
 `env` block, hooks, plugins, user MCP config, home-level agent guidance) and the environment of the tmux
