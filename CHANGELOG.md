@@ -46,12 +46,22 @@ it can stream topic-scoped, redacted text.
   stdout ends `extract` as `partial` with its receipt, one unreadable
   store file marks only that store, and the receipt records the tool version, schema and
   commit/dirty state.
+- **Outputs never land on inputs; scope is mandatory and minimal (bot round).** An output
+  root that overlaps a store root, a harness metadata file or a supplied export is
+  refused, and so is a `--security-findings` file that is or lies inside one; before this,
+  either would have been rename-replaced. An unmarked output root that already holds
+  output-named files is refused. `index` now requires `--project`/`--mention` like
+  `extract`. With `--surface`, stores outside the scope are never built, so their account
+  metadata is never read. Exports must be one top-level JSON array, and every decoded
+  element is held to `--max-record-bytes`. A lock whose pid is gone (signal 0), or an
+  empty lock older than 60 s, is reclaimed.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
-  hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals, oversized,
-  binary and invalid-UTF-8 input, a hostile zip, caps, lock, closed-pipe and no-socket
-  checks, a pinned past-session contract (an idle writer holding an old transcript open),
-  and a gitleaks-style scan of every output. An instrumentation pass records
+  hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
+  outputs landing on inputs, oversized, binary, invalid-UTF-8 and non-array exports, a
+  hostile zip, caps, lock reclaim, closed-pipe and no-socket checks, a pinned past-session
+  contract (an idle writer holding an old transcript open), and a gitleaks-style scan of
+  every output. An instrumentation pass records
   every path the reader opens, stats or writes during stores/index/extract, and asserts
   that each stays inside the fixture roots and the output dir, with every source open
   `O_NOFOLLOW`. Doc-vs-CLI exit-code/version checks and source immutability are also

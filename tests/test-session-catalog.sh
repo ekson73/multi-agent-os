@@ -11,7 +11,9 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 export SC="$HERE/skills/session-catalog/scripts/session_catalog.py"
-export FIX="$(mktemp -d 2>/dev/null || mktemp -d -t sessioncatalog)"
+FIX="$(mktemp -d 2>/dev/null || mktemp -d -t sessioncatalog)"
+[ -n "$FIX" ] && [ -d "$FIX" ] || { echo "test-session-catalog: mktemp failed" >&2; exit 1; }
+export FIX
 trap 'chmod -R u+rwx "$FIX" 2>/dev/null; rm -rf "$FIX"' EXIT
 echo "test-session-catalog:"
 python3 - <<'PY'
@@ -288,6 +290,7 @@ ok("claude-code/projects" in out and "supported" in out, "stores lists a support
 # 2. usage errors: extract needs --out and a scope; limits must be positive; the git override is gone
 ok(run("extract", "--project", PROJ)[0] == 2, "extract without --out exits 2 (usage)")
 ok(run("--out", OUT, "extract")[0] == 2, "extract without --project/--mention exits 2 (usage)")
+ok(run("--out", OUT, "index")[0] == 2, "index without --project/--mention exits 2 (usage): no unscoped inventory")
 for flag, val in (("--max-record-bytes", "-2"), ("--max-records", "0"), ("--max-files", "-1"), ("--max-file-bytes", "0")):
     code, _, _, rc = run("--out", OUT, flag, val, "index", "--project", PROJ)
     ok(code == 2 and rc.get("status") == "usage", "non-positive %s %s is refused (exit 2, usage)" % (flag, val))
@@ -335,6 +338,35 @@ ok(code == 3 and os.path.isfile(home_findings) and stat.S_IMODE(os.stat(home_fin
    and mf2["receipt"]["claude-code/projects"]["status"] == "supported",
    "findings under the scanned home exclude only that file, not the whole home (0600)")
 os.unlink(home_findings)
+# an output or findings path must never land on an input (it would be rename-replaced)
+def digest(p):
+    return hashlib.sha256(open(p, "rb").read()).hexdigest()
+
+
+zip_before, claude_before = digest(good_zip), digest(claude)
+code, _, _, _ = run("--out", os.path.join(FIX, "out-f4"), "--export", "chatgpt=" + good_zip,
+                    "--security-findings", good_zip, "index", "--project", PROJ)
+ok(code == 5 and digest(good_zip) == zip_before, "--security-findings naming a supplied export is refused, export intact")
+code, _, _, _ = run("--out", os.path.join(FIX, "out-f5"), "--security-findings", claude, "index", "--project", PROJ)
+ok(code == 5 and digest(claude) == claude_before, "--security-findings naming a store transcript is refused, source intact")
+prime_root = os.path.join(HOME, ".prime/agent/sessions")
+prime_before = tree_hash(prime_root)
+code, _, _, _ = run("--out", prime_root, "index", "--project", PROJ)
+ok(code == 5 and tree_hash(prime_root) == prime_before, "an output root equal to a store root is refused, store intact")
+exp_dir = os.path.join(FIX, "exp-dir")
+os.makedirs(exp_dir)
+exp_inside = zip_of(os.path.join(exp_dir, "export.zip"), [("conversations.json", json.dumps(conv))])
+exp_before = digest(exp_inside)
+code, _, _, _ = run("--out", exp_dir, "--export", "chatgpt=" + exp_inside, "index", "--project", PROJ)
+ok(code == 5 and digest(exp_inside) == exp_before and os.listdir(exp_dir) == ["export.zip"],
+   "an output root containing a supplied export is refused, nothing written")
+foreign = os.path.join(FIX, "foreign-out")
+os.makedirs(foreign)
+with open(os.path.join(foreign, "sessions.jsonl"), "w") as fh:
+    fh.write("not ours\n")
+code, _, _, _ = run("--out", foreign, "index", "--project", PROJ)
+ok(code == 5 and open(os.path.join(foreign, "sessions.jsonl")).read() == "not ours\n",
+   "an unmarked output root holding a file named like an output is refused, file intact")
 
 # 4. pass 1 index
 code, out, err, rc = run("--out", OUT, "--max-record-bytes", "4096", "--export", "chatgpt=" + good_zip,
@@ -435,16 +467,19 @@ scanned["<extract stdout>"] = out
 hits = [(f, m.group(1)) for f, body in scanned.items() for m in GL.finditer(body) if shannon(m.group(1)) > 3.5]
 ok(not hits, "gitleaks-style generic-api-key scan over %d outputs finds nothing %s" % (len(scanned), hits[:3]))
 
-# 6. own output beneath a scanned root is never re-ingested
+# 6. an output root inside a store root is refused; a marked directory under a root is never walked
 nested = os.path.join(HOME, ".omp/agent/sessions/-work-demo-atlas/catalog-out")
-code, _, _, _ = run("--out", nested, "index", "--project", PROJ)
-os.makedirs(os.path.join(nested, "2026-01-05T10-00-00-000Z_0009"), exist_ok=True)
-with open(os.path.join(nested, "2026-01-05T10-00-00-000Z_0009", "Echo.jsonl"), "w") as fh:
-    fh.write(json.dumps(PI[0]) + "\n")
-code, _, _, _ = run("--out", nested, "index", "--project", PROJ)
-m2 = json.load(open(os.path.join(nested, "run-manifest.json")))
-ok(m2["receipt"]["omp/sessions"].get("dirs_excluded", 0) >= 1, "output root under a scanned root is excluded")
-ok(not any("catalog-out" in v for v in m2["sources_private"].values()), "nothing is ingested from the output root")
+code, _, _, rc = run("--out", nested, "index", "--project", PROJ)
+ok(code == 5 and not os.path.exists(nested), "an output root inside a store root is refused (exit 5)")
+legacy = os.path.join(HOME, ".omp/agent/sessions/-legacy-out")        # e.g. left by an older version
+put(os.path.join(os.path.relpath(legacy, HOME), ".session-catalog-output"), raw=b"marker\n")
+put(os.path.join(os.path.relpath(legacy, HOME), "2026-01-05T10-00-00-000Z_0009.jsonl"), [PI[0]])
+code, _, _, _ = run("--out", os.path.join(FIX, "out-legacy"), "index", "--project", PROJ)
+m2 = json.load(open(os.path.join(FIX, "out-legacy", "run-manifest.json")))
+ok(m2["receipt"]["omp/sessions"].get("dirs_excluded", 0) >= 1
+   and not any("-legacy-out" in v for v in m2["sources_private"].values()),
+   "a directory carrying the output marker is never walked or ingested")
+shutil.rmtree(legacy)  # keep the source-immutability check below about the original fixtures
 
 # 7. export archives: hostile, invalid UTF-8, record cap, repeated exports, placeholder suppression
 code, _, _, _ = run("--out", OUT, "--export", "chatgpt=" + bad_zip, "index", "--surface", "openai.chatgpt-export",
@@ -478,6 +513,21 @@ ok(len(r7) == 2 and len({r["partition"] for r in r7}) == 2 and len({r["session_r
    "two exports with the same conversation id keep distinct identities and refs")
 m7 = json.load(open(os.path.join(out_e, "run-manifest.json")))
 ok(code == 0, "a quarantine-free export run is complete, no 'not requested' placeholder in scope (%s)" % m7["claim"])
+one_obj = zip_of(os.path.join(FIX, "one-object.zip"), [("conversations.json", json.dumps(conv[0]))])
+out_o = os.path.join(FIX, "out-object")
+code, out, _, _ = run("--out", out_o, "--export", "chatgpt=" + one_obj, "extract", "--surface",
+                      "openai.chatgpt-export", "--mention", "demo-atlas")
+ok(code == 4 and not out.strip() and any(x["reason"] == "not-a-json-array" for x in jl(os.path.join(out_o, "quarantine.jsonl"))),
+   "an export that is a single object, not an array, is quarantined and nothing is emitted")
+big = dict(conv[0], id="cg-big", mapping={"a": dict(conv[0]["mapping"]["a"], message=dict(
+    conv[0]["mapping"]["a"]["message"], content={"content_type": "text", "parts": ["demo-atlas BIGREC-7Q " + "x" * 5000]}))})
+capped = zip_of(os.path.join(FIX, "capped.zip"), [("conversations.json", json.dumps([big, dict(conv[0], id="cg-small")]))])
+out_b = os.path.join(FIX, "out-bigrec")
+code, out, _, _ = run("--out", out_b, "--max-record-bytes", "2048", "--export", "chatgpt=" + capped, "extract",
+                      "--surface", "openai.chatgpt-export", "--mention", "demo-atlas")
+ok("BIGREC-7Q" not in out and "chatgpt: demo-atlas idea" in out
+   and any(x["reason"] == "record-over-size-cap" for x in jl(os.path.join(out_b, "quarantine.jsonl"))),
+   "an export element over --max-record-bytes is quarantined even when it decodes in one chunk")
 
 # 8. concurrency: a live lock blocks a second run
 with open(os.path.join(OUT, ".lock"), "w") as fh:
@@ -489,6 +539,12 @@ with open(os.path.join(OUT, ".lock"), "w") as fh:
     fh.write(json.dumps({"pid": 999999, "start": "never", "host": os.uname().nodename}))
 code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
 ok(code in (0, 3), "a stale lock (pid gone) is reclaimed")
+open(os.path.join(OUT, ".lock"), "w").close()                         # empty: a run died mid-write
+code, _, _, rc = run("--out", OUT, "index", "--project", PROJ)
+ok(code == 5, "a fresh empty lock still blocks (another run may be writing it)")
+os.utime(os.path.join(OUT, ".lock"), (time.time() - 300, time.time() - 300))
+code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
+ok(code in (0, 3), "an empty lock older than 60 s is reclaimed")
 
 # 9. receipts survive a consumer that closes stdout (`extract | head`)
 out_p = os.path.join(FIX, "out-pipe")
@@ -587,10 +643,15 @@ rctx.close()
 
 # 12. isolation guard: every adapter root resolves inside the synthetic tree (never the real home)
 _ctx = mod.Ctx(HOME, time.time(), dict(mod.LIMITS), [], b"k" * 32)
-_roots = [s.root for s in mod.build_stores(_ctx, [("chatgpt", good_zip)])]
+_stores = mod.build_stores(_ctx, [("chatgpt", good_zip)])
+_roots = [s.root for s in _stores]
 _ctx.close()
 ok(all(r == "cloud" or os.path.realpath(r).startswith(os.path.realpath(FIX)) for r in _roots),
    "every adapter root resolves inside the synthetic test tree (%d roots)" % len(_roots))
+_inputs = [os.path.join(HOME, p) for p in mod.INPUT_PATHS]
+ok(all(any(r == i or r.startswith(i + os.sep) for i in _inputs) for s, r in zip(_stores, _roots)
+       if r != "cloud" and s.kind != "export"),
+   "INPUT_PATHS (the output-overlap guard) covers every store root")
 
 # 13. documented exit-code contract == CLI contract
 doc = open(os.path.join(os.path.dirname(os.path.dirname(SC)), "SKILL.md")).read()
@@ -721,21 +782,27 @@ runs = [["--home", HOME, "stores", "--json"],
 codes = []
 import contextlib
 mod.temp_roots = fixture_temp_roots(mod.temp_roots)  # see LAUNCHER; TEMPS above was taken from the real policy
-for argv in runs:
+
+
+def instrumented(argv):
     for n, fn in patched.items():
         setattr(os, n, fn)
     builtins.open = io.open = p_bopen
     active[0] = True
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            codes.append(mod.main(argv))
+            return mod.main(argv)
     except SystemExit as exc:
-        codes.append(exc.code)
+        return exc.code
     finally:
         active[0] = False
         for n, fn in _orig.items():
             setattr(os, n, fn)
         builtins.open = io.open = _orig_open
+
+
+for argv in runs:
+    codes.append(instrumented(argv))
 
 
 def inside(p, roots):
@@ -763,6 +830,14 @@ ok(not bad, "every touched path stays inside the fixture roots and the output di
    "internal stdlib lookups) %s" % (len(events), len(stdlib), bad[:3]))
 ok(all(e[3] & os.O_NOFOLLOW for e in events if e[0] == "os.open" and inside(e[2], READ_ROOTS)),
    "every os.open under the fixture roots uses O_NOFOLLOW")
+
+# 14b. data minimization: with --surface, stores outside the scope are never built, so never touched
+events.clear()
+scoped = instrumented(["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + EXP_I, "index",
+                       "--surface", "openai.chatgpt-export", "--mention", "demo-atlas"])
+touched = sorted({e[2] for e in events if inside(e[2], forms(HOME)) and e[2] not in forms(HOME)})
+ok(scoped == 0 and not touched and any(inside(e[2], forms(EXP_I)) for e in events),
+   "--surface openai.chatgpt-export touches no path under the home, only the export (%s)" % touched[:3])
 
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
