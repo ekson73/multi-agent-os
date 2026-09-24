@@ -444,6 +444,7 @@ class Ctx:
         self.files_admitted = 0
         self.records_total = 0
         self.stdout_closed = False
+        self.out = ""                                     # canonical output root (once prepared)
         self.out_fd: Optional[int] = None
         self.findings_at: Optional[Tuple[int, str]] = None
         self._home_fd: Optional[int] = None
@@ -1310,7 +1311,10 @@ def load_chatgpt_conv(ctx: Ctx, store: "Store", path: str, idx: int, conv: dict)
         seen.add(node)
         chain.append(mapping[node])
         node = mapping[node].get("parent")
-    for n in reversed(chain or [v for v in mapping.values() if isinstance(v, dict)]):
+    if not chain:  # no valid current branch: dict order is neither a branch nor chronological
+        ctx.quarantine_(store.id, path, "unknown-document-shape", idx)
+        return None, []
+    for n in reversed(chain):
         m = n.get("message") or {}
         if not isinstance(m, dict) or not m:
             continue
@@ -2026,6 +2030,12 @@ def findings_target(ctx: Ctx, spec: Optional[str]) -> Tuple[int, str]:
         os.close(fd)
         die("refusing --security-findings %s: it is, or lies inside, an input (a store root, a harness metadata "
             "file or a supplied export) and would be replaced" % rel(ctx.home, path), "blocked")
+    control = {os.path.join(ctx.out, n) for n in RESERVED_OUTPUTS + (MARKER, OutputLock.NAME)} - \
+        {os.path.join(ctx.out, "security-findings.jsonl")}
+    if target in control:
+        os.close(fd)
+        die("refusing --security-findings %s: it would replace one of this run's own control or output files"
+            % rel(ctx.home, path), "blocked")
     ctx.excluded_files.add(target)
     return fd, name
 
@@ -2345,6 +2355,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         die("%s needs an explicit --out <private dir>" % args.cmd, "usage")
     if args.cmd in ("index", "extract") and not (args.project or args.mention):
         die("%s needs --project and/or --mention (topic scoping is mandatory)" % args.cmd, "usage")
+    for key in ("mention", "grep"):  # user regexes fail as usage errors, before anything is read or written
+        v = getattr(args, key, None)
+        if v:
+            try:
+                re.compile(v, re.I)
+            except re.error:
+                die("invalid --%s regular expression" % key, "usage")
     exports = []
     for e in args.export:
         kind, _, path = e.partition("=")
@@ -2367,6 +2384,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "stores":
             return cmd_stores(ctx, args, [assess(ctx, s) for s in build_stores(ctx, exports)])
         out, ctx.out_fd = open_private_dir(ctx, args.out, "output root", own=True)
+        ctx.out = out
         if not _exists_at(ctx.out_fd, MARKER) and any(_exists_at(ctx.out_fd, n) for n in RESERVED_OUTPUTS):
             die("refusing output root %s: it already holds files named like catalog outputs that this tool did "
                 "not write (no marker)" % rel(ctx.home, out), "blocked")
