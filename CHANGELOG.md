@@ -48,8 +48,10 @@ that version. Every correction below was observed there.
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
   guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Project-scoped config does not follow a desk seat.** New mandatory pre-launch step: inventory the target's
-  project config, project reviewed hooks, permissions and plugin enables into each desk, make project skills
-  reachable, and skip the recipe (or record an accepted risk) where a gate cannot be projected (step 6).
+  project config and give each item a disposition: reviewed hooks, permissions and plugin enables projected
+  into each desk; MCP definitions copied into the desk's `.mcp.json` with exact per-server approval; skills,
+  commands and agents copied into the desk or read from the worktree. A deterministic gate that cannot be
+  projected makes the recipe unusable for that repo: stop and escalate (CANON C9) (step 6).
 - **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
   `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
   OpenRig daemon and the login shell. Prerequisite: remove or isolate each credential at its source, or have
