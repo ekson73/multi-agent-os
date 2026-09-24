@@ -53,6 +53,7 @@ class _ShrTee:
 
 
 _shr_dir = _shr_log = None
+_shr_owner = None  # pid that created _shr_dir: a forked child inherits the atexit callbacks and must not delete the parent's relay state
 _shr_relayed = False
 
 
@@ -191,6 +192,7 @@ def _shr_relayed_set():
 def _shr_cleanup():  # a clean / intentional exit leaves nothing behind; a relayed fault keeps its artifacts for review
     try: _sys.stderr.f.close()  # release the run-log handle BEFORE deleting its directory (Windows refuses to remove an open file)
     except Exception: pass
+    if _os.getpid() != _shr_owner: return  # forked child: the directory is the parent's
     if not _shr_relayed and _shr_dir and _os.path.basename(_shr_dir).startswith("shr."):
         _shutil.rmtree(_shr_dir, ignore_errors=True)
 
@@ -226,8 +228,8 @@ def shr_relay(exc_text):
     global _shr_relayed
     with _shr_lock:  # one atomic check-and-set: concurrent worker hooks + a later main-thread fault dispatch exactly once
         if _shr_relayed: return
+        _shr_active[0] = True  # set BEFORE _shr_relayed and inside the lock: only the winning call reaches here (a loser returned above), and a signal in the gap must already count as cancelling this relay
         _shr_relayed = True
-    _shr_active[0] = True  # owned by the call that won the dispatch (a losing concurrent call returned above and never touches it): cancellation only means something DURING that relay
     try: _shr_relay_impl(exc_text)
     finally: _shr_active[0] = False
 
@@ -281,6 +283,7 @@ if SHR_ON:
     except OSError as _e:  # an unusable TMPDIR must never turn a healthy program into a failing one: run uninstrumented
         print(f"self-heal-relay: no usable temp dir ({_e}); relay disabled for this run", file=_sys.__stderr__)
         SHR_ON = False
+    if SHR_ON: _shr_owner = _os.getpid()
 if SHR_ON:
     _shr_log = _os.path.join(_shr_dir, "run.log")
     _sys.stderr = _ShrTee(_sys.stderr, _shr_log)

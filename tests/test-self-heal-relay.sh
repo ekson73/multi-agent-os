@@ -218,6 +218,14 @@ echo after'
   mk_bash "$SANDBOX/t4p.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4p.sh" >/dev/null 2>&1; sleep 1
   if gc_alive "$HP"; then bad "bash: a helper spawned by the harness while handling TERM survived the KILL pass"; kill -9 "$(cat "$HP")" 2>/dev/null; else ok "bash: helpers created during the TERM grace period are killed too"; fi
   restore_stubs; reset_stubs
+  reset_stubs; { "$RENDER" --lang python; printf 'import os, sys\npid = os.fork()\nif pid == 0: sys.exit(0)\nos.waitpid(pid, 0)\nraise RuntimeError("x")\n'; } > "$SANDBOX/p36.py"
+  python3 "$SANDBOX/p36.py" >/dev/null 2>&1
+  check "python: a forked child exiting cleanly does not delete the parent's relay state (parent fault still dispatches)" "$(calls)" "1"; restore_stubs
+  reset_stubs; HR="$SANDBOX/helperr.pid"; rm -f "$HR"
+  printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s" )\necho "proposal text"\n' "$HR" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  mk_bash "$SANDBOX/t4r.sh" "" 'false'; MAOS_AI_HARNESS=kiro-cli "$B" "$SANDBOX/t4r.sh" >/dev/null 2>&1; sleep 1
+  if gc_alive "$HR"; then bad "bash: a helper left behind by a harness that exited on its own survived"; kill -9 "$(cat "$HR")" 2>/dev/null; else ok "bash: helpers left by a harness that exits by itself are reaped via its process group"; fi
+  restore_stubs; reset_stubs
   reset_stubs; HQ="$SANDBOX/helperq.pid"; rm -f "$HQ"
   printf '#!/bin/sh\ncat >/dev/null\ntrap '"'"'sleep 60 & echo $! > "%s"; exit 0'"'"' TERM\nwhile :; do sleep 1; done\n' "$HQ" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
   mk_bash "$SANDBOX/t4q.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4q.sh" >/dev/null 2>&1; sleep 1
