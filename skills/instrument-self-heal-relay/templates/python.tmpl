@@ -73,8 +73,16 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         a.append(f"Read the file {prompt_path} and follow its instructions.")
     else:
         stdin = prompt_text
-    p = _sp.run([bin_] + a, input=stdin, capture_output=True, text=True, timeout=int(_os.environ.get("MAOS_SELFHEAL_TIMEOUT", "300")))
-    return p.returncode, p.stdout
+    # own session/process group: on timeout the WHOLE group (the harness' subprocesses too) is killed, not just the leader
+    p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_sp.PIPE, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+    try:
+        out, _ = p.communicate(input=stdin, timeout=int(_os.environ.get("MAOS_SELFHEAL_TIMEOUT", "300")))
+    except _sp.TimeoutExpired:
+        try: _os.killpg(p.pid, 9) if _os.name == "posix" else p.kill()
+        except Exception: pass
+        p.communicate()
+        return 124, ""
+    return p.returncode, out
 
 
 def _shr_relayed_set():

@@ -20,21 +20,21 @@ if [ "${MAOS_SELFHEAL:-1}" = 0 ] || [ "${MAOS_SELFHEAL_ACTIVE:-0}" = 1 ]; then S
 @@HARNESS_TABLE@@
 SHR_DEFAULT_CHAIN="@@DEFAULT_CHAIN@@"
 
-# Signal a process AND all its descendants (depth-first: children are collected BEFORE the parent dies, so an orphaned
-# grandchild is never re-parented out of reach).
-shr_killtree() {
-  local c
-  for c in $(pgrep -P "$2" 2>/dev/null); do shr_killtree "$1" "$c"; done
-  kill "-$1" "$2" 2>/dev/null || :
-}
+# Direct children of a pid: pgrep when present, else a POSIX `ps` scan (minimal containers have no pgrep).
+shr_children() { if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1" 2>/dev/null; else ps -A -o pid= -o ppid= 2>/dev/null | awk -v p="$1" '$2 == p { print $1 }'; fi; }
+# A process AND all its descendants, depth-first (children are listed BEFORE their parent dies, so an orphan is never lost).
+shr_tree() { local c; for c in $(shr_children "$1"); do shr_tree "$c"; done; printf '%s\n' "$1"; }
 
-# Portable bounded run: stdin/stdout/stderr are inherited; the child is killed after MAOS_SELFHEAL_TIMEOUT s.
+# Portable bounded run: stdin/stdout/stderr are inherited; after MAOS_SELFHEAL_TIMEOUT s the harness AND its whole descendant tree
+# get TERM, then KILL after a 3s grace. The watchdog outlives the harness when it fired, so a TERM-ignoring grandchild still
+# receives the KILL.
 shr_run() {
-  local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc
+  local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc mark="$SHR_RUNDIR/.wd.$$.$RANDOM"
   "$@" <&0 & pid=$!
-  ( sleep "$t"; shr_killtree TERM "$pid"; sleep 3; shr_killtree KILL "$pid" ) >/dev/null 2>&1 & w=$!   # TERM then KILL after a 3s grace, children (the harness' own subprocesses) included: nothing keeps editing after the relay returns
+  ( sleep "$t"; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; sleep 3; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!
   wait "$pid" 2>/dev/null; rc=$?
-  kill "$w" 2>/dev/null; wait "$w" 2>/dev/null || :   # (a still-sleeping watchdog is reaped here)
+  if [ -e "$mark" ]; then wait "$w" 2>/dev/null || :; else for _p in $(shr_tree "$w"); do kill -KILL "$_p" 2>/dev/null || :; done; wait "$w" 2>/dev/null || :; fi
+  rm -f "$mark"
   return "$rc"
 }
 
