@@ -26,10 +26,13 @@ outside the desk (for Codex, `--add-dir`) are **not covered**. Do not use this r
 is validated for that runtime.
 
 The bash sandbox does not cover MCP servers: every MCP server, whether user-scope, plugin-provided or projected
-from the target's `.mcp.json`, runs outside it with the operator's credentials. Under the sandbox path, a
-server with filesystem, credential or network capability, or whose executable or dependencies sit in a
-seat-writable location, is a **launch stop** unless the credential has been removed at its source
-([`trust-gates.md`](./trust-gates.md) §4, MCP servers).
+from the target's `.mcp.json`, runs outside it with the operator's credentials. Two separate stops apply
+([`trust-gates.md`](./trust-gates.md) §4, MCP servers):
+
+- a server whose executable or dependencies sit in a seat-writable location is an **unconditional launch
+  stop**: removing a credential does not make mutable code that runs outside the sandbox safe;
+- on the sandbox path, a server with filesystem, credential or network capability is a **launch stop** unless
+  the credential has been removed at its source.
 
 ## 1. The boundary: settings that held [T3, show the diff]
 
