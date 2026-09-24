@@ -75,6 +75,11 @@ it can stream topic-scoped, redacted text.
   session, and after a malformed Codex `turn_context` later items belong to no project.
   An absent `cwd` behaves as before, and a
   conversation whose loader fails is quarantined alone while the rest of its export is read.
+  An assignment-shaped tool name (`password=…`) is screened before its delimiters are
+  stripped and becomes an opaque digest. An `--export` outside `--surface` is refused
+  (exit 2) before its path is stat'ed, and opaque-store samples (`.pb`/`.data`) changed
+  after the high-water mark are deferred instead of opened. The suite's touched-path check
+  accepts the ancestor probes of a temp root that does not exist (Linux).
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,

@@ -107,6 +107,7 @@ AWS_SPLIT = "AK" + "IA" + "ZYXWVUTSRQPONMLK"                          # split ac
 QPW = "correct " + "horse battery staple"                             # quoted secret with spaces
 GH_TYPE = "gh" + "p_" + "Type0Type1Type2Type3Type4Type5Type6"         # token-shaped record type
 GH_TOOL = "gh" + "p_" + "Tool0Tool1Tool2Tool3Tool4Tool5Tool6"         # token-shaped tool name
+ASSIGN_TOOL = "pass" + "word=" + "correct" + "horse9"                  # assignment-shaped tool name
 GH_SID = "gh" + "p_" + "Sid00Sid01Sid02Sid03Sid04Sid05Sid06"         # token-shaped session id
 MARK = {"thinking": "HIDDEN-THOUGHT-7Q", "skill": "SKILLBODY-7Q", "args": "TOOLARG-7Q", "envelope": "ENVELOPE-7Q",
         "reasoning": "REASONING-7Q", "developer": "DEVPROMPT-7Q", "custom": "INJECTED-7Q"}
@@ -175,7 +176,8 @@ put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
                 {"type": "text", "text": GH_SPLIT[16:] + " tail"}]),
     cl("assistant", [{"type": "text", "text": "demo-atlas key part " + AWS_SPLIT[:10]},
                      {"type": "text", "text": AWS_SPLIT[10:] + " done"},
-                     {"type": "tool_use", "name": GH_TOOL, "input": {}}], ts=T0 % 2),
+                     {"type": "tool_use", "name": GH_TOOL, "input": {}},
+                     {"type": "tool_use", "name": ASSIGN_TOOL, "input": {}}], ts=T0 % 2),
     cl("user", "demo-atlas config password=\"%s\"" % QPW, ts=T0 % 3),
     {"type": GH_TYPE, "sessionId": U4},
     {"type": "user", "sessionId": U4, "cwd": PROJ, "timestamp": T0 % 4,
@@ -479,6 +481,9 @@ for label, frag in (("head of a token split across fields", GH_SPLIT[:16]), ("ta
 ok("split canary [REDACTED:github-token]" in text, "the split token is masked where it starts")
 ok(GH_TOOL not in out and any((m["tool"] or "").startswith("tool-") for m in msgs),
    "a token-shaped tool name is replaced by an opaque digest")
+ok(ASSIGN_TOOL.split("=")[1] not in out and ASSIGN_TOOL.replace("=", "") not in out and
+   len({m["tool"] for m in msgs if (m["tool"] or "").startswith("tool-")}) >= 2,
+   "an assignment-shaped tool name is screened before its delimiters are stripped: opaque digest")
 ok("NOVERSION-7Q" not in out and "CODEXNOVER-7Q" not in out, "Claude/Codex records without a version are not emitted")
 ok("RECENT-7Q" not in out, "a transcript modified within the horizon is not a past session: not emitted")
 ok("GEMNOHEADER-7Q" not in out and any(x["reason"] == "missing-format-version" and x["source_id"] in
@@ -830,7 +835,15 @@ for r in READ_ROOTS:
     while os.path.dirname(p) != p:
         p = os.path.dirname(p)
         ANCESTORS.add(p)
+# A configured temp root that does not exist here (as /private/var/folders on Linux): resolving it
+# probes every ancestor component, which the policy below must classify as a permitted meta probe.
+mod.TEMP_ROOTS = mod.TEMP_ROOTS + ("/sc-absent-%d/var/folders" % os.getpid(),)
 TEMPS = mod.temp_roots()
+TEMP_PROBES = set()  # each temp root and every ancestor that resolving it may lstat
+for t in TEMPS:
+    while os.path.dirname(t) != t:
+        TEMP_PROBES.add(t)
+        t = os.path.dirname(t)
 CODE_DIRS = forms(sys.prefix) | forms(sys.base_prefix) | forms(sys.exec_prefix)
 events, active, guard = [], [False], threading.local()
 
@@ -959,7 +972,7 @@ for op, kind, p, flags, rel_fd in events:
     elif kind == "content":
         good = inside(p, READ_ROOTS) or (op == "audit:open" and inside(p, CODE_DIRS) and p.endswith(STDLIB_SUFFIXES))
     else:
-        good = inside(p, READ_ROOTS) or p in ANCESTORS or os.path.dirname(p) in ANCESTORS or p in TEMPS
+        good = inside(p, READ_ROOTS) or p in ANCESTORS or os.path.dirname(p) in ANCESTORS or p in TEMP_PROBES
     if not good and inside(p, CODE_DIRS) and p.endswith(STDLIB_SUFFIXES):
         stdlib.append(p)  # interpreter-internal: module code, gettext catalogs (argparse) — never user data
     elif not good:
@@ -980,6 +993,26 @@ scoped = instrumented(["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + 
 touched = sorted({e[2] for e in events if inside(e[2], forms(HOME)) and e[2] not in forms(HOME)})
 ok(scoped == 0 and not touched and any(inside(e[2], forms(EXP_I)) for e in events),
    "--surface openai.chatgpt-export touches no path under the home, only the export (%s)" % touched[:3])
+events.clear()
+excluded = instrumented(["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + EXP_I, "index",
+                         "--surface", "openai.codex-cli", "--mention", "demo-atlas"])
+ok(excluded == 2 and not any(inside(e[2], forms(EXP_I)) for e in events),
+   "an --export outside --surface is refused (usage, exit %s) before its path is stat'ed or resolved" % excluded)
+
+# 14b'. the past-session contract covers opaque-store samples: a file changed after high_water is not opened
+opq = os.path.join(FIX, "home-opaque")
+old_pb = put(".gemini/antigravity/conversations/old.pb", raw=bytes(range(256)) * 32, home=opq)
+new_pb = put(".gemini/antigravity/conversations/new.pb", raw=bytes(range(256)) * 32, mtime=time.time() - 120, home=opq)
+events.clear()
+instrumented(["--home", opq, "stores", "--json"])
+opened = {e[2] for e in events if e[0] == "os.open" and e[1] == "content"}
+ok(not forms(new_pb) & opened and forms(old_pb) & opened,
+   "an opaque-store file modified within the horizon is deferred, never sampled (the past one is)")
+os.unlink(old_pb)
+code, out, _, _ = run("stores", "--json", home=opq)
+ag = {r["store"]: r for r in json.loads(out)["stores"]}.get("antigravity/conversations", {}) if code == 0 else {}
+ok(ag.get("status") == "unverified" and "deferred" in ag.get("reason", ""),
+   "an opaque store holding only recent files is unverified (deferred, not sampled): %s" % ag.get("reason"))
 
 # 14c. one huge directory is never materialized: each listing is read up to a bound, then discovery stops
 big_home = os.path.join(FIX, "home-bigdir")

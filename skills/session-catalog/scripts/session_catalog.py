@@ -832,10 +832,14 @@ class Emit:
 
     def _tool(self, name) -> str:
         """Tool names are transcript-controlled: one that looks like secret material is replaced
-        by an opaque digest."""
-        t = ident(name) if name else "unknown"
-        if t != "unknown" and (redact(t)[1] or _blob_like(t)):
-            return self.ctx.opaque("tool-", t)
+        by an opaque digest. The credential checks run on the cleaned RAW name first, because
+        reducing it to an identifier strips delimiters (`password=x` -> `passwordx`)."""
+        if not name:
+            return "unknown"
+        raw = clean(str(name))
+        t = ident(raw)
+        if t != "unknown" and (redact(raw)[1] or redact(t)[1] or _blob_like(t)):
+            return self.ctx.opaque("tool-", raw)
         return t
 
     def tool_call(self, ts, line: int, name, status: Optional[str] = None):
@@ -1556,10 +1560,14 @@ def _file_unit(ctx: Ctx, store: Store, path: str, loader: Callable[[object], tup
     return Unit(path, load, ctx.mtime(path))
 
 
+EXPORT_SURFACES = {"chatgpt": "openai.chatgpt-export", "claude-ai": "anthropic.claude-ai-export"}
+
+
 def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[str]] = None) -> List[Store]:
     """The store list. Building it reads nothing: account ids, alternative roots and import maps
     are read on first use, and stores outside `scope` (a --surface filter) are dropped here, so
-    an out-of-scope store is never touched."""
+    an out-of-scope store is never touched. Every export here is in scope: main() refuses an
+    export outside --surface before its path is stat'ed or resolved."""
     home = ctx.home
     J = lambda *p: os.path.join(home, *p)  # noqa: E731
     app = J("Library", "Application Support")
@@ -1761,9 +1769,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[
     seen_exports: set = set()
     for n, (kind, path) in enumerate(exports, 1):
         vendor = {"chatgpt": "openai", "claude-ai": "anthropic"}[kind]
-        surface = {"chatgpt": "openai.chatgpt-export", "claude-ai": "anthropic.claude-ai-export"}[kind]
-        if scope and not any(surface.startswith(f) for f in scope):
-            continue  # an out-of-scope export is not even stat'ed
+        surface = EXPORT_SURFACES[kind]
         p = os.path.realpath(os.path.expanduser(path))  # the user named this file: resolved once, here
         if p in seen_exports:
             continue
@@ -1836,17 +1842,28 @@ def _assess(ctx: Ctx, store: Store) -> Store:
         if not files:
             store.status, store.reason = "unavailable", "no local store"
             return store
+        # the past-session contract applies to samples too: a file changed after high_water is
+        # deferred by its walked mtime, never opened (and re-checked on the opened descriptor)
+        rc = ctx.receipt[store.id]
+        past = [f for f in files if ctx.mtime(f) < ctx.high_water]
+        rc["files_deferred_recent_or_unstable"] += len(files) - len(past)
         heads = []
-        for f in files[:5]:
+        for f in past[:5]:
             try:
-                fd, _st = ctx.open_source(f, ctx.walked.get(f))
+                fd, st = ctx.open_source(f, ctx.walked.get(f))
             except OSError:  # unreadable/refused sample: counted, the store stays isolated
-                ctx.receipt[store.id]["files_unreadable"] += 1
+                rc["files_unreadable"] += 1
                 continue
             with os.fdopen(fd, "rb") as fh:
+                if st.st_mtime >= ctx.high_water:  # changed since the walk
+                    rc["files_deferred_recent_or_unstable"] += 1
+                    continue
                 heads.append(fh.read(8192))
         if not heads:
-            store.status, store.reason = "unverified", "sample files unreadable; not assessed"
+            store.evidence.update(files=len(files))
+            store.status, store.reason = "unverified", (
+                "sample files unreadable; not assessed" if rc["files_unreadable"] else
+                "every file changed after high_water (past-session contract): deferred, not sampled")
             return store
         ent = sum(entropy(h) for h in heads) / len(heads)
         store.evidence.update(files=len(files), sample_entropy=round(ent, 2))
@@ -2517,10 +2534,15 @@ def main(argv: Optional[List[str]] = None) -> int:
                 re.compile(v, re.I)
             except re.error:
                 die("invalid --%s regular expression" % key, "usage")
-    exports = []
+    exports, scope = [], surface_filter(args)
     for e in args.export:
         kind, _, path = e.partition("=")
-        if kind not in ("chatgpt", "claude-ai") or not os.path.isfile(os.path.expanduser(path)):
+        if kind not in EXPORT_SURFACES:
+            die("--export expects chatgpt=PATH or claude-ai=PATH to an existing file", "usage")
+        if scope and not any(EXPORT_SURFACES[kind].startswith(f) for f in scope):
+            # decided before the path is stat'ed or resolved: an excluded export is never touched
+            die("--export %s is outside --surface: drop it or widen the filter" % kind, "usage")
+        if not os.path.isfile(os.path.expanduser(path)):
             die("--export expects chatgpt=PATH or claude-ai=PATH to an existing file", "usage")
         exports.append((kind, path))
     now = time.time()
@@ -2533,7 +2555,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         high_water = now - PAST_HORIZON
     home = os.path.abspath(os.path.expanduser(args.home))
     ctx = Ctx(home, high_water, {k: getattr(args, k) for k in LIMITS}, args.exclude_path, secrets.token_bytes(32))
-    ctx.export_paths = {os.path.realpath(os.path.expanduser(p)) for _, p in exports}  # every one, in scope or not
+    ctx.export_paths = {os.path.realpath(os.path.expanduser(p)) for _, p in exports}  # every export (all in scope)
     configure_home_redaction(ctx.home, ctx.home_real)  # the configured home is redacted wherever it lives
     try:
         if args.cmd == "stores":
