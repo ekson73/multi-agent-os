@@ -34,6 +34,8 @@ done
 export PATH="$STUBS:$PATH"
 reset_stubs() { rm -f "$STUB_LOG" "$STUB_LOG".stdin.* "$STUB_LOG.env"; : > "$STUB_LOG"; rm -rf "$MAOS_SELFHEAL_SEED_DIR" "$SANDBOX"/tmp/*; unset STUB_RC STUB_OUT STUB_REENTER MAOS_AI_HARNESS MAOS_SELFHEAL_MODE MAOS_SELFHEAL_TIER MAOS_SELFHEAL_ACTIVE MAOS_SELFHEAL; }
 fmode() { if stat -c %a "$1" >/dev/null 2>&1; then stat -c %a "$1"; else stat -f %Lp "$1"; fi; }   # GNU first, BSD fallback (GNU `stat -f` is a filesystem report)
+gc_alive() { [ -s "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null && [ "$(ps -o stat= -p "$(cat "$1")" 2>/dev/null | cut -c1)" != Z ]; }
+gc_stub() { printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) &\ntrap "" TERM\nsleep 60\n' "$1" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; }
 calls() { wc -l < "$STUB_LOG" | tr -d ' '; }
 
 # Secrets are assembled at runtime so no scanner sees a literal credential in this file.
@@ -152,7 +154,7 @@ echo after'
   reset_stubs; GC="$SANDBOX/gc.pid"; rm -f "$GC"
   printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) &\ntrap "" TERM\nsleep 60\n' "$GC" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
   mk_bash "$SANDBOX/t4m.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4m.sh" >/dev/null 2>&1; sleep 1
-  if [ -s "$GC" ] && kill -0 "$(cat "$GC")" 2>/dev/null; then bad "grandchild of the timed-out harness survived"; kill -9 "$(cat "$GC")" 2>/dev/null; else ok "no grandchild survives a harness timeout"; fi
+  if [ -s "$GC" ] && kill -0 "$(cat "$GC")" 2>/dev/null && [ "$(ps -o stat= -p "$(cat "$GC")" 2>/dev/null | cut -c1)" != Z ]; then bad "grandchild of the timed-out harness survived"; kill -9 "$(cat "$GC")" 2>/dev/null; else ok "no grandchild survives a harness timeout"; fi
   reset_stubs; for h in kiro-cli claude codex; do printf '#!/bin/sh\necho "$(basename "$0") $*" >> "$STUB_LOG"\necho "ACTIVE=${MAOS_SELFHEAL_ACTIVE:-unset}" >> "$STUB_LOG.env"\nn=$(( $(wc -l < "$STUB_LOG") ))\ncat > "$STUB_LOG.stdin.$n"\n[ -n "${STUB_REENTER:-}" ] && "$STUB_REENTER" >/dev/null 2>&1\n[ "${STUB_RC:-0}" = 0 ] && printf "%%s\\n" "${STUB_OUT:-PROPOSAL: fix the thing}"\nexit "${STUB_RC:-0}"\n' > "$STUBS/$h"; chmod +x "$STUBS/$h"; done
 
   echo "-- 4i. same-second seeds never collide"
@@ -196,10 +198,16 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p4.py"; MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p4.py" >/dev/null 2>&1
   SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "python: seed is mode 0600" "$(fmode "$SF")" "600"
   reset_stubs; { printf 'import sys\n'; "$RENDER" --lang python; printf 'sys.exit(2)\n'; } > "$SANDBOX/p2.py"
+  reset_stubs; GCP="$SANDBOX/gcp.pid"; rm -f "$GCP"; gc_stub "$GCP"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p6.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 python3 "$SANDBOX/p6.py" >/dev/null 2>&1; sleep 1
+  if gc_alive "$GCP"; then bad "python: grandchild survived the timeout"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: no grandchild survives a harness timeout"; fi
   reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi
 if command -v node >/dev/null 2>&1; then
+  reset_stubs; GCN="$SANDBOX/gcn.pid"; rm -f "$GCN"; gc_stub "$GCN"; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n6.js"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 node "$SANDBOX/n6.js" >/dev/null 2>&1; sleep 1
+  if gc_alive "$GCN"; then bad "node: grandchild survived the timeout"; kill -9 "$(cat "$GCN")" 2>/dev/null; else ok "node: no grandchild survives a harness timeout"; fi
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("boom %s");\n' "$FAKE_GH"; } > "$SANDBOX/n1.js"
   node "$SANDBOX/n1.js" >/dev/null 2>&1; rc=$?
   check "node: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "node: relayed once" "$(calls)" "1"
