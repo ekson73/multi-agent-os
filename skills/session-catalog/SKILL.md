@@ -9,7 +9,7 @@ description: |
   ordinary use of a harness (asking Codex/Claude/ChatGPT to do something), splitting, vaulting or
   re-entering ONE session (session-fission / session-to-vault / session-reentry), and never to attach
   to, resume or drive a live session. Fail-closed per store; secrets redacted; private output only.
-version: 0.1.0
+version: 0.2.0
 prompt_version: "0.1.0"
 evals:
   should_trigger:
@@ -75,38 +75,109 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
 - **Redaction happens at ingestion**, before text can reach any output, log, error or
   prompt. It covers private keys, provider tokens (GitHub, OpenAI/Anthropic-style, AWS,
   Slack, Google, 1Password), JWTs, auth headers, bearer tokens, credentials in URLs,
-  secret query parameters, `key=value` secrets, opaque base64 blobs, emails, phone numbers,
-  CPF numbers and home-directory paths. It also normalizes to NFC and strips ANSI/OSC
-  escapes, control characters and bidi overrides. A **probable** credential (not a
-  placeholder like `${VAR}` or `<token>`) is recorded as a *security finding*: type,
+  secret query parameters, `key=value` secrets (a quoted value is consumed through its
+  closing quote, spaces included), opaque base64 blobs, emails, phone numbers, CPF numbers
+  and home-directory paths. The token-shaped patterns also run across **field and message
+  boundaries**: a secret split over two content blocks or two consecutive messages is
+  masked in both pieces. The tool also normalizes to NFC and strips ANSI/OSC escapes,
+  control characters and bidi overrides. A **probable** credential (not a placeholder
+  like `${VAR}` or `<token>`) is recorded as a *security finding*: `finding_type`,
   opaque source id and "rotation recommended". The value is never recorded. Errors print
   paths and ids only.
+- **Transcript-controlled labels never leave raw.** An unknown record type becomes the
+  fixed class `unknown-record-type` plus an opaque `type_ref` digest. A tool name that
+  looks like secret material becomes an opaque `tool-…` digest. Attachment kinds come
+  from a fixed vocabulary (image, audio, video, document, file, inline-data).
 - **Data minimization.** The index stores pointers and metadata: surface, identity, session
   ref, source id, line pointers, timestamps, counts and private hashes. It never stores
   message text. `extract` streams redacted text to **stdout only**. Attachments (images,
-  files, uploads) are counted by type, never imported or named.
-- **Private outputs.** `index`/`extract` require an explicit `--out`. They refuse an
-  output root inside a git work tree, a symlink root, `/` or `$HOME`. The tool creates
-  directories 0700 and files 0600 from the first byte (temp file, fsync, rename). It drops
-  a marker file so it never re-ingests its own output, and holds a per-root lock that
-  records pid, process start time and host.
-- **Read-only discovery.** The tool walks only each adapter's allowlisted root. It never
-  follows directory symlinks, refuses files whose realpath escapes the root, prunes git
-  repos, cloud-sync folders and backups, and skips WAL, SHM, lock, tmp and partial files.
-  A file is read only if it is older than the **high-water mark** (default: run start), so
-  live sessions are deferred. Files that change during the read are deferred too, and
-  every case is counted.
+  files, uploads) are counted by type, never imported or named. With `--surface`,
+  `index`/`extract` never read stores outside the scope.
+- **Private outputs.** `index`/`extract` require an explicit `--out`. The output root is
+  canonicalized (every existing ancestor resolved) and refused, on both the requested and
+  the canonical path, when it is a symlink, `/`, `$HOME`, a shared temporary root
+  (`$TMPDIR`, `/tmp`, `/var/tmp`), inside the skill's own directory, inside a git work
+  tree, or not owned by the current user. There is no override. The same policy applies
+  to the directory of `--security-findings` (which may be `$HOME`), and only that one file
+  is excluded from discovery. Every write goes through the held directory descriptor:
+  directories 0700, files 0600 from the first byte (`O_EXCL|O_NOFOLLOW` temp file, fsync,
+  rename). The tool drops a marker file so it never re-ingests its own output, and holds a
+  per-root lock that records pid, process start time and host.
+- **Read-only discovery.** The tool walks only each adapter's allowlisted root, and a
+  store whose root is, or passes through, a symlink is refused (`unavailable`). It prunes
+  git repos, cloud-sync folders and backups, and skips WAL, SHM, lock, tmp and partial
+  files. See *Security guarantees* for how containment is bound to the opened file.
+- **Live sessions.** A file is read only if it was last modified before the
+  **high-water mark**, and a session only if its last message is older too. The default
+  high-water is run start minus a **24 h safety horizon**; `--high-water ISO` overrides it
+  (never later than now). Files that change during the read are deferred too, and every
+  case is counted. The tool cannot see whether a harness still holds an older transcript
+  open: exclude a long-idle live session with `--exclude-path`, or pick an earlier
+  `--high-water`. User-supplied exports are static files and are exempt from the horizon.
 - **Fail-closed per record and per store.** The tool never guesses at a record whose
-  type, version or shape it does not know. Such records are quarantined as metadata only
-  (store, source id, line, reason). Oversized records and files, binary content and run
-  caps are quarantined the same way. A store stays `supported` only while its recent
-  samples actually parse.
+  type, version or shape it does not know. A Claude record without a `2.x` `version`, a
+  Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
+  quarantined, not defaulted. Export members must be strict UTF-8. Such records are
+  quarantined as metadata only (store, source id, line, reason). Oversized records and
+  files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
+  export conversations too) are quarantined the same way. A store stays `supported` only
+  while its recent samples actually parse, and a failure inside one store (an unreadable
+  file, an adapter error) marks only that store `unverified`.
 - **What may leave the private index.** Extracted content may enter a project repository
   only as **sanitized, project-owned facts** written in your own words, and those facts
   carry opaque ids, never paths or content hashes. Never copy raw transcripts,
   third-party or employer content, personal memories or credentials, and follow the
   destination repo's own sharing rules. Unattended runs never trigger logins, app sync or
   cloud export requests.
+
+## Security guarantees (as implemented)
+
+These hold on macOS, where they are exercised by `tests/test-session-catalog.sh`. They
+rely only on POSIX primitives (`O_NOFOLLOW`, `O_DIRECTORY`, `openat`-style `dir_fd`,
+`fstat`), so Linux is expected to behave the same, but that is untested.
+
+1. **No link is followed below the trust anchor.** The anchor is the declared `--home`,
+   resolved once at startup (links above it are the operator's choice). Every directory
+   from the anchor down to a source, including each store root, is opened `O_NOFOLLOW`
+   relative to its parent's descriptor, and so is the source file itself. A link anywhere
+   on that path is refused. A store root that is, or passes through, a link is
+   `unavailable`. File and directory links inside a root are counted and skipped.
+2. **Containment is bound to the opened object.** The walk records each file's
+   `(device, inode)` from its listing. The open must reach a regular file with that
+   same identity and a link count of 1, or the file is quarantined (`symlink-refused`,
+   `identity-changed`, `hardlink-refused`, `not-a-regular-file`). Each directory is
+   identity-checked against its listing the same way. Content is read only through that
+   descriptor, never reopened by path, and a file whose size or mtime changes while it is
+   read is discarded.
+3. **Explicit exports** (`--export`) are resolved once, because the operator named them.
+   They are then opened `O_NOFOLLOW` and must keep the identity seen at startup.
+4. **Outputs** are written only through a held, canonicalized, policy-checked directory
+   descriptor (see *Private outputs*).
+5. **Fail closed.** A platform without these primitives exits 4 without reading anything.
+   A failure inside one store only marks that store.
+
+Residual limitations, stated plainly:
+
+- **Idle live sessions.** Liveness is judged from mtimes and message timestamps (the 24 h
+  horizon by default). A harness process that holds an older transcript open without
+  writing to it is not detected.
+- **Redaction is pattern-based.** Formats that are not listed, and secrets split into
+  pieces that no longer match any pattern, can survive. Boundary scanning masks
+  token-shaped matches only; line-shaped ones (PEM blocks, auth headers) are handled per
+  field. Over-redaction next to a boundary is possible and accepted.
+- **Tool names** are screened by the same patterns plus a density check, so a secret that
+  matches neither can still appear as a tool name.
+- **Race window.** Identity binding stops a swapped file or directory from being read in
+  place of the listed one. It cannot stop an attacker who can already write inside the
+  store from changing a file's contents between two sessions of the harness.
+- **Anchor and ancestors.** Links in the path *above* `--home`, and in the export path you
+  pass, are resolved as given. Bind mounts and filesystems without stable inode numbers
+  are outside this model.
+- **Linux untested; Windows unsupported** (see *Platforms* below).
+- **Exports stream.** A supplied export is processed one conversation at a time, so a
+  change to the export file during the run is detected only at its end. The file is then
+  quarantined (`file-changed-during-read`) and the run ends `partial`, but conversations
+  already streamed are not recalled.
 
 ## Quick start
 
@@ -117,6 +188,7 @@ python3 "$S" stores --json                               # same, machine-readabl
 # pass 1: metadata/pointer inventory, no text (a private dir OUTSIDE any git repo)
 python3 "$S" --out ~/.local/share/session-catalog index --project ~/code/demo --mention 'demo|DEMO-[0-9]+'
 # pass 2: stream redacted, topic-scoped messages to stdout; persists only the receipt
+# (a consumer that stops early, like `head`, ends the run `partial` with the receipt written)
 python3 "$S" --out ~/.local/share/session-catalog extract --project ~/code/demo --mention demo | head
 ```
 
@@ -137,10 +209,10 @@ stop. The guardrails above cannot be met by ad-hoc reading.
 |---|---|---|
 | 0 | `complete` | every in-scope store was read, nothing quarantined (`stores` also exits 0) |
 | 1 | `error` | internal failure (type name only, never content) |
-| 2 | `usage` | bad flags: missing `--out`, missing scope, invalid date |
-| 3 | `partial` | some stores skipped (encrypted, cloud, unverified) or items quarantined. **Never read this as "all sessions".** |
-| 4 | `unsupported` | no in-scope store is importable |
-| 5 | `blocked` | lock held by a live run, or a policy refusal (output in a git repo, symlink or home root) |
+| 2 | `usage` | bad flags: missing `--out`, missing scope, invalid date, a non-positive `--max-*` limit |
+| 3 | `partial` | some stores skipped (encrypted, cloud, unverified, symlinked root) or items quarantined, or the output consumer closed stdout. **Never read this as "all sessions".** |
+| 4 | `unsupported` | no in-scope store is importable, or the platform lacks the no-follow / dir-fd primitives |
+| 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, temp root, skill dir, git work tree, not owned) |
 
 A failing adapter never aborts the run: its store or file is skipped or quarantined, and
 the run ends `partial`.
@@ -166,10 +238,12 @@ covered by `tests/test-session-catalog.sh`.
 | `google.antigravity-cli` trajectories | `.gemini/antigravity-cli/conversations/*.db` | protobuf in SQLite | yes | no (no public schema) | no | not implemented (unknown) | discovery only | no |
 | `google.antigravity` (IDE) | `.gemini/antigravity{,-ide}/brain/<id>/*.md` artifacts; `conversations/*.pb` | markdown artifacts; `.pb` encrypted | yes | artifacts only | artifacts only | not implemented (unknown) | yes | yes |
 
-Platforms: **macOS exercised**. Linux is expected to work but is **untested**, and so are
-the XDG paths for Claude Desktop. **Windows is unsupported/untested.** Run `stores` for
-the live matrix on your machine: status (`supported` / `unavailable` / `unverified`),
-reason, account fingerprint, receipts.
+Platforms: **macOS exercised** (Python 3.12). Linux is expected to work, because it
+provides the same POSIX primitives, but it is **untested**, and so are the XDG paths for
+Claude Desktop. **Windows is unsupported**: it lacks `O_NOFOLLOW` and directory-fd
+opens, so the reader refuses to run there (exit 4) instead of reading without them. Run
+`stores` for the live matrix on your machine: status (`supported` / `unavailable` /
+`unverified`), reason, account fingerprint, receipts.
 
 ## Normalized schema (`session-catalog/v1`)
 
@@ -182,16 +256,22 @@ reason, account fingerprint, receipts.
   `session_id_private`, `cwd_private` and `content_sha256_private`.
 - **Extract message** (stdout): `surface`, `session_ref`, `source_id`, `pointer.line`,
   `seq`, `ts`, `role` (user · assistant · tool_call · tool_result; system, developer and
-  provider_event are dropped), `kind` (text · artifact · tool_call), `tool` (name only),
-  `text` (redacted, truncated), `redactions`, `selected_by`, `provenance`. Project
-  attribution is **per message**: the cwd in effect when the message was written, not the
-  session's first cwd.
-- **Run receipt** (`run-manifest.json`, private): `status`, `high_water`, `filters`,
-  `limits`, a per-store `receipt` (files seen, refused, excluded, deferred, quarantined,
-  records parsed, sessions selected), `identities` (local cache vs export vs
-  cloud/not-requested), `stores_skipped` with reasons, `claim`, and `sources_private`,
-  which alone maps opaque ids to paths. The run also writes `quarantine.jsonl`, and the
-  security findings go to 0600 files.
+  provider_event are dropped), `kind` (text · artifact · tool_call), `tool` (name only; an
+  opaque `tool-…` digest when the name looks like secret material), `text` (redacted,
+  truncated), `redactions`, `selected_by`, `provenance`. Project attribution is **per
+  message**: the cwd in effect when the message was written, not the session's first cwd.
+  Sessions from a supplied export carry that export's own opaque identity, so equal
+  conversation ids in two archives stay distinct.
+- **Run receipt** (`run-manifest.json`, private): `schema`, `tool` (name, version, and,
+  when run from a git checkout, `commit`, `dirty` and `reproducible`; a dirty source is
+  flagged "not reproducible"), `status`, `high_water`, `live_detection` (the stated limit),
+  `filters`, `limits`, a per-store `receipt` (files seen, refused, excluded, deferred,
+  quarantined, records parsed, sessions selected), `identities` (local cache vs export vs
+  cloud/not-requested), `stores_skipped` with reasons, `totals` (including
+  `stdout_closed`), `claim`, and `sources_private`, which alone maps opaque ids to paths.
+  The run also writes `quarantine.jsonl` (store, source id, line, fixed reason, and a
+  `type_ref` digest for unknown types), and the security findings go to 0600 files. The
+  last stderr line repeats `status`, `schema` and `version`.
 
 ## Adapter contract (adding a harness)
 
@@ -225,7 +305,9 @@ Each adapter must meet this contract:
 8. Tag evidence `verified` (checked against a tool result or repo state) or
    `claim-unverified` (an assistant statement only).
 9. Write the ledger as canonical JSONL. Render any Markdown view from the sanitized fields
-   with the source text escaped.
+   with the source text escaped. Name opaque id fields `*_ref` (lowercase hex behind a
+   prefix, as the reader does), never `*_key`, `*_token` or `*_secret`: a key-named field
+   holding a high-entropy id is a secret-scanner false positive by construction.
 10. The ledger authorizes nothing.
 
 Default model assistance: none beyond the in-harness agent. Never send content to external
