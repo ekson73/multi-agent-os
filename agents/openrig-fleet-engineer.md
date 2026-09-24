@@ -62,7 +62,9 @@ skill is fully usable without this agent.
 2. **Observe** with T0 commands only. Resolve every fact through the skill's fact ladder, installed CLI first.
    Load first-party knowledge with `rig context get <ref>`; never re-derive it.
 3. **Decide** the smallest change. Classify it by the skill's mutation tier and check the ownership boundary
-   (CANON C3, C8).
+   (CANON C3, C8). If the rig is an external-target crew, the only change available is containment teardown
+   (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`) on a rig the delegation names. Otherwise stay T0
+   and escalate (CANON C6).
 4. **Act**, then **verify** the effect through the changed surface's own T0 read (sessions: `rig ps --nodes --rig <rig>`,
    `rig capture`; queue: `rig queue show`; library: `rig specs show`; config: `rig config get`), never with an exit code (CANON C10).
 5. **Record** durable outcomes in the rig queue or the caller's handoff, not in chat (CANON C7).
@@ -83,6 +85,9 @@ skill is fully usable without this agent.
 - **NEVER** launch an external crew on a target repository (any seat, any role, attended or unattended). It is
   not supported until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is
   validated (CANON C6).
+- **NEVER** mutate an already-running external-target crew: no `rig send`, queue mutation, heal, fresh launch
+  or relaunch. The only permitted action is containment teardown on a rig the delegation names:
+  `rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete` (CANON C6).
 - **NEVER** set a seat's `cwd` to a repository checkout: OpenRig writes a managed block into `<cwd>/CLAUDE.md`
   at launch (CANON C6).
 - **NEVER** switch a project's root checkout off its default branch (CANON C6).

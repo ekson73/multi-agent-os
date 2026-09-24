@@ -102,7 +102,10 @@ evidence reference inside it) ·
    best-effort: a `deny` on `Bash(rm -rf:*)` misses `rm <target> -rf`. A deny is therefore a speed bump,
    not proof of prevention. Where the stakes are real, do not give the seat the capability at all: no
    push credentials, Codex `workspace-write` sandbox, no secret access. External crews on a target repository
-   are not supported by this skill at all for now ([`external-crew.md`](./external-crew.md) §0).
+   are not supported by this skill at all for now ([`external-crew.md`](./external-crew.md) §0). An
+   already-running external-target crew is T0 only, apart from one exception: containment teardown
+   (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig the delegation
+   names. No `rig send`, queue writes, heals, fresh launches or relaunches on it.
 
 ---
 Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · command-shape corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/tiers.md` · verified against `rig` 0.5.14 (cc75efdd).

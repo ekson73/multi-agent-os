@@ -15,6 +15,17 @@ Legend: **[T0]** read-only · **[T1]** reversible · **[T2]** disruptive · **[T
 reviewing or research), attended or unattended. This stays in force until the isolation design in
 [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated.
 
+**Already-running external-target crews are T0 / diagnosis-only.** Do not send to them, mutate their queue,
+heal, fresh-launch or relaunch their seats. The only permitted action is containment teardown, and only where
+the delegation names the rig (CANON C8):
+
+```bash
+rig snapshot <rigId>                        # T1: capture state first
+rig down <rigId> --snapshot                 # T2: stop the sessions; never --delete
+```
+
+On a rig you may not mutate, observe (T0) and escalate to the operator.
+
 Why, briefly (details in #453):
 
 - every seat runs as the operator's OS user, so code a seat executes (tests, package scripts, hooks) is not

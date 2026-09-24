@@ -40,7 +40,9 @@ hard stop plus only verified OpenRig facts; the isolation design is tracked in #
 
 - **Stop: external crews are not supported.** External crews on a target repository (any seat, any role,
   attended or unattended) are not supported by this skill until the isolation design (#453) is validated: do
-  not launch them. The crew recipe is removed; `external-crew.md` is now the STOP with its reasons plus facts
+  not launch them. An already-running external-target crew is diagnosis-only; the one permitted action is
+  containment teardown (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig
+  the delegation names. The crew recipe is removed; `external-crew.md` is now the STOP with its reasons plus facts
   (`SKILL.md` §0 item 7, `CANON.md` C6, `external-crew.md` §0, the agent's prohibitions, `tiers.md` rule 4).
 - **Retraction: never point a seat's `cwd` at a repository checkout.** OpenRig 0.5.14 unconditionally
   guidance-merges a managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file
