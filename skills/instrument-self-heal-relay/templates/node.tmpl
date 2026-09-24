@@ -48,7 +48,7 @@ const shrResolve = (bin) => shrWhich(bin) || bin;
 function shrTail(path) {
   const fd = _shr.fs.openSync(path, "r"); const sz = _shr.fs.fstatSync(fd).size, cap = Math.min(sz, 262144), buf = Buffer.alloc(cap);
   _shr.fs.readSync(fd, buf, 0, cap, sz - cap); _shr.fs.closeSync(fd);
-  let lines = buf.toString("utf8").split("\n"); if (sz > cap) lines = lines.slice(1);
+  let lines = buf.toString("utf8").split("\n"); if (sz > cap) { lines = lines.slice(1); while (lines.length && /^[A-Za-z0-9+/=]{16,}\s*$/.test(lines[0])) lines.shift(); } // + the base64 body of a PEM whose BEGIN fell before the cut
   let out = [], inkey = false;
   for (const l of lines) {
     if (!inkey && /-----END [A-Z ]*PRIVATE KEY-----/.test(l)) { out = []; continue; }

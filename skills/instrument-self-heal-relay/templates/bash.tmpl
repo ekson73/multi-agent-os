@@ -70,9 +70,13 @@ fi
 # Log tail: at most the last 256KB (a single huge line cannot blow the prompt up), then the last N lines. A line cut by the byte cap is
 # dropped whole, and a private-key body whose BEGIN header fell before the cut is dropped through its END — neither may reach the redactor half-formed.
 shr_tail() {
-  local cap=262144 sz; sz="$(wc -c < "$SHR_LOG" 2>/dev/null | tr -d ' ')"; sz="${sz:-0}"
-  { if [ "$sz" -gt "$cap" ]; then tail -c "$cap" "$SHR_LOG" | tail -n +2; else cat "$SHR_LOG"; fi; } 2>/dev/null |
-    awk '{ if (!b && /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; next }
+  local cap=262144 sz cut=0; sz="$(wc -c < "$SHR_LOG" 2>/dev/null | tr -d ' ')"; sz="${sz:-0}"
+  if [ "$sz" -gt "$cap" ]; then cut=1; fi
+  { if [ "$cut" = 1 ]; then tail -c "$cap" "$SHR_LOG" | tail -n +2; else cat "$SHR_LOG"; fi; } 2>/dev/null |
+    awk -v cut="$cut" 'BEGIN { lead = cut }
+         lead && length($0) >= 16 && $0 ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/ { next }   # base64 body of a PEM whose BEGIN fell before the cut
+         { lead = 0 }
+         { if (!b && /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; next }
            if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/) b = 1
            if (/-----END [A-Z ]*PRIVATE KEY-----/) b = 0
            buf[n++] = $0 }

@@ -195,6 +195,10 @@ false"
   "$B" "$SANDBOX/t5e.sh" >/dev/null 2>&1
   case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "bash: unterminated private key leaked" ;; *) ok "bash: unterminated private-key block is redacted" ;; esac
 
+  reset_stubs; mk_bash "$SANDBOX/t5f.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 5000); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; false"
+  "$B" "$SANDBOX/t5f.sh" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *SECRETBODYzzzz*) bad "bash: PEM body whose header precedes the byte window leaked" ;; *) ok "bash: PEM body cut off from its header is dropped" ;; esac
+
   echo "-- 6. tier lock: a gate script can never reach the apply tier"
   reset_stubs; mk_bash "$SANDBOX/t6.sh" 'SHR_TIER_LOCK=propose' 'false'
   MAOS_SELFHEAL_TIER=apply "$B" "$SANDBOX/t6.sh" >/dev/null 2>&1
@@ -250,6 +254,15 @@ if command -v python3 >/dev/null 2>&1; then
   case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "node: unterminated private key leaked" ;; *) ok "node: unterminated private-key block is redacted" ;; esac
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("E".repeat(3000000));\n'; } > "$SANDBOX/n14.js"; node "$SANDBOX/n14.js" >/dev/null 2>&1
   PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "node: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
+  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(5000): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p15.py"; python3 "$SANDBOX/p15.py" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *SECRETBODYzzzz*) bad "python: PEM body cut off from its header leaked" ;; *) ok "python: PEM body cut off from its header is dropped" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 5000; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n15.js"; node "$SANDBOX/n15.js" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *SECRETBODYzzzz*) bad "node: PEM body cut off from its header leaked" ;; *) ok "node: PEM body cut off from its header is dropped" ;; esac
+  reset_stubs; GCP="$SANDBOX/gci.pid"; rm -f "$GCP"; gc_stub "$GCP"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p16.py"
+  # a background job in a non-interactive shell inherits SIGINT=ignored: re-arm the handler inside the process under test
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 -c 'import signal,runpy,sys; signal.signal(signal.SIGINT, signal.default_int_handler); runpy.run_path(sys.argv[1], run_name="__main__")' "$SANDBOX/p16.py" >/dev/null 2>&1 & PYP=$!
+  for _ in $(seq 1 40); do [ -s "$GCP" ] && break; sleep 0.25; done; kill -INT "$PYP" 2>/dev/null; sleep 2
+  if gc_alive "$GCP"; then bad "python: harness survived Ctrl-C"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: Ctrl-C during the harness kills the whole harness group"; fi; kill -9 "$PYP" 2>/dev/null; wait "$PYP" 2>/dev/null; restore_stubs
   reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
   OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"

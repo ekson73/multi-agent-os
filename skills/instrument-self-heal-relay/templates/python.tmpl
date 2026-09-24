@@ -78,7 +78,13 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_sp.PIPE, stderr=None, text=True, start_new_session=(_os.name == "posix"))
     try:
         out, _ = p.communicate(input=stdin, timeout=_timeout)
-    except _sp.TimeoutExpired:
+    except BaseException as e:  # timeout OR Ctrl-C/interrupt: the isolated harness must never outlive its caller
+        if not isinstance(e, _sp.TimeoutExpired):
+            try:
+                if _os.name == "posix": _os.killpg(p.pid, 9)
+                else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+            except Exception: pass
+            raise
         try:
             if _os.name == "posix": _os.killpg(p.pid, 9)
             else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)  # Windows: kill the whole tree
@@ -109,7 +115,9 @@ def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `c
     with open(path, "rb") as f:
         f.seek(0, 2); size = f.tell(); start = max(0, size - cap); f.seek(start)
         lines = f.read().decode("utf-8", "replace").splitlines(True)
-    if start > 0: lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
+    if start > 0:
+        lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
+        while lines and _re.fullmatch(r"[A-Za-z0-9+/=]{16,}\s*", lines[0]): lines = lines[1:]  # the body of a PEM whose BEGIN fell before the cut
     out, inkey = [], False
     for l in lines:  # a private-key body whose BEGIN header fell before the cut would escape redaction: drop through its END
         if not inkey and "PRIVATE KEY-----" in l and "-----END" in l: out = []; continue
