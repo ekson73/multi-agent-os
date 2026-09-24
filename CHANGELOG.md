@@ -32,22 +32,26 @@ it can stream topic-scoped, redacted text.
   opening every component `O_NOFOLLOW`. A store root that is, or passes through, a
   symlink is refused. Each open is checked with `fstat` against the `(device, inode)`
   recorded while listing, and hard-linked sources are refused. Output roots and the
-  findings path are canonicalized: a git work tree reached through an ancestor alias, a
-  temp root or the skill directory is refused, and the `--allow-git-output` override is
+  findings path are canonicalized: a git work tree reached through an ancestor alias,
+  anything at or below a temp root, or the skill directory is refused, and the `--allow-git-output` override is
   removed. Redaction now also masks token-shaped secrets split across fields or messages
   and quoted secrets with spaces. Record types and suspicious tool names leave only as
   digests. Claude/Codex/pi records without a verified version, and invalid UTF-8 in
   exports, are quarantined. `--max-*` limits must be positive, and `--max-records` covers
   exports. Exports stream one conversation at a time, each export gets its own opaque
-  identity, and the default high-water sits 24 h back (idle open writers remain a stated
-  limit). A closed stdout ends `extract` as `partial` with its receipt, one unreadable
+  identity. "Past session" is now an explicit contract: no change within the horizon
+  (24 h by default). Open file handles are not inspected, so a transcript an idle process
+  still holds open is read up to its last complete record, and a truncated tail is
+  quarantined. SKILL.md and every receipt (`past_session_contract`) state this. A closed
+  stdout ends `extract` as `partial` with its receipt, one unreadable
   store file marks only that store, and the receipt records the tool version, schema and
   commit/dirty state.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals, oversized,
   binary and invalid-UTF-8 input, a hostile zip, caps, lock, closed-pipe and no-socket
-  checks, and a gitleaks-style scan of every output. An instrumentation pass records
+  checks, a pinned past-session contract (an idle writer holding an old transcript open),
+  and a gitleaks-style scan of every output. An instrumentation pass records
   every path the reader opens, stats or writes during stores/index/extract, and asserts
   that each stays inside the fixture roots and the output dir, with every source open
   `O_NOFOLLOW`. Doc-vs-CLI exit-code/version checks and source immutability are also

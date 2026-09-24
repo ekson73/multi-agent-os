@@ -4,6 +4,9 @@
 # store's on-disk format. No real session store, transcript or credential is ever read or written.
 # Secret-shaped canaries are recognizably fake and assembled from fragments at runtime, so this file
 # holds no scanner-matching literal (and no gitleaks allowlist/baseline entry is needed).
+# The reader refuses any output under a temp root, and this tree lives under one, so most runs go through
+# a generated launcher that exempts ONLY the temp roots containing the fixture tree; the temp-root policy
+# itself is also exercised against the unmodified script (see §3).
 # Exit 0 = all pass; 1 = a failure.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,7 +21,7 @@ sys.dont_write_bytecode = True  # importing the reader must leave no __pycache__
 
 SC, FIX = os.environ["SC"], os.environ["FIX"]
 HOME = os.path.join(FIX, "home")
-OLD = time.time() - 3 * 86400          # fixture mtime: older than the default 24 h live horizon
+OLD = time.time() - 3 * 86400          # fixture mtime: older than the default 24 h past-session horizon
 fails = []
 
 
@@ -38,11 +41,37 @@ def put(rel, lines=None, raw=None, mtime=OLD, home=HOME):
 
 
 ENV = dict(os.environ, HOME=HOME, XDG_DATA_HOME=os.path.join(FIX, "xdg-data"),
-           XDG_CONFIG_HOME=os.path.join(FIX, "xdg-config"), XDG_STATE_HOME=os.path.join(FIX, "xdg-state"))
+           XDG_CONFIG_HOME=os.path.join(FIX, "xdg-config"), XDG_STATE_HOME=os.path.join(FIX, "xdg-state"),
+           SC_FIXTURE_ROOT=FIX)
 
 
-def run(*args, home=HOME, env=None):
-    r = subprocess.run([sys.executable, SC, "--home", home] + list(args), capture_output=True, text=True,
+def fixture_temp_roots(real):
+    """The reader refuses any output under a temp root, but this synthetic tree itself lives under
+    the OS temp root. Test harness only: drop the temp roots that CONTAIN the tree; every other
+    temp root (e.g. a synthetic $TMPDIR inside it) still applies. The reader has no such switch."""
+    fx = {os.path.abspath(FIX), os.path.realpath(FIX)}
+    return lambda: {t for t in real() if not any(f == t or f.startswith(t.rstrip(os.sep) + os.sep) for f in fx)}
+
+
+LAUNCHER = os.path.join(FIX, "run_catalog.py")  # runs the real CLI with only fixture_temp_roots applied
+with open(LAUNCHER, "w") as fh:
+    fh.write("import importlib.util, os, sys\n"
+             "sys.dont_write_bytecode = True\n"
+             "spec = importlib.util.spec_from_file_location('session_catalog', sys.argv[1])\n"
+             "mod = importlib.util.module_from_spec(spec)\n"
+             "spec.loader.exec_module(mod)\n"
+             "fx = {os.path.abspath(os.environ['SC_FIXTURE_ROOT']), os.path.realpath(os.environ['SC_FIXTURE_ROOT'])}\n"
+             "real = mod.temp_roots\n"
+             "mod.temp_roots = lambda: {t for t in real() if not any(f == t or f.startswith(t.rstrip(os.sep) + os.sep)"
+             " for f in fx)}\n"
+             "sys.argv = sys.argv[1:]\n"
+             "mod.cli()\n")
+
+
+def run(*args, home=HOME, env=None, real=False):
+    """`real=True` runs the unmodified script; otherwise the LAUNCHER (fixture temp exemption only)."""
+    cmd = [sys.executable, SC] if real else [sys.executable, LAUNCHER, SC]
+    r = subprocess.run(cmd + ["--home", home] + list(args), capture_output=True, text=True,
                        env=dict(ENV, **(env or {})))
     last = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "{}"
     try:
@@ -137,7 +166,7 @@ os.symlink(outside, os.path.join(HOME, ".claude/projects/-link/%s.jsonl" % "cccc
 os.symlink(os.path.dirname(outside), os.path.join(HOME, ".claude/projects/-dirlink"))
 
 # review regressions (Claude): split-field / split-message secrets, quoted secret, hostile type and tool
-# name, a record without a version, and an idle transcript still inside the live horizon
+# name, a record without a version, and a transcript modified inside the past-session horizon
 put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
     cl("user", [{"type": "text", "text": "demo-atlas split canary " + GH_SPLIT[:16]},
                 {"type": "text", "text": GH_SPLIT[16:] + " tail"}]),
@@ -149,8 +178,17 @@ put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
     {"type": "user", "sessionId": U4, "cwd": PROJ, "timestamp": T0 % 4,
      "message": {"role": "user", "content": "demo-atlas NOVERSION-7Q"}},
 ])
-put(".claude/projects/-work-demo-atlas/%s.jsonl" % U5, [cl("user", "demo-atlas IDLEWRITER-7Q", sid=U5)],
+put(".claude/projects/-work-demo-atlas/%s.jsonl" % U5, [cl("user", "demo-atlas RECENT-7Q", sid=U5)],
     mtime=time.time() - 120)
+# the past-session contract, pinned: another process holds this OLD transcript open (idle writer). Open
+# handles are not inspected, so it is read up to its last complete record; the torn tail is quarantined.
+U6 = "77777777-8888-4999-8aaa-bbbbbbbbbbbb"
+open_writer = put(".claude/projects/-work-demo-atlas/%s.jsonl" % U6, raw=(
+    json.dumps(cl("user", "demo-atlas OPENWRITER-7Q", sid=U6)) + "\n"
+    + '{"type": "user", "sessionId": "%s", "version": "2.1.0", "message": {"content": "demo-atlas TRUNCATED-7Q' % U6).encode())
+writer = subprocess.Popen([sys.executable, "-c", "import sys; f = open(sys.argv[1], 'ab'); print('open', flush=True); "
+                           "sys.stdin.read()", open_writer], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+assert writer.stdout.readline().strip() == b"open"
 
 # ── Codex rollouts: developer prompt, reasoning, per-turn cwd, imported duplicate, missing version ──
 R1, R2, R3 = ("aaaaaaaa-0000-4000-8000-00000000000%d" % i for i in (1, 2, 3))
@@ -272,6 +310,20 @@ tmproot = os.path.join(FIX, "tmproot")
 os.makedirs(tmproot)
 code, _, _, rc = run("--out", tmproot, "index", "--project", PROJ, env={"TMPDIR": tmproot})
 ok(code == 5 and os.listdir(tmproot) == [], "output directly in the temporary root is refused")
+tmp2 = os.path.join(FIX, "tmproot2")
+os.makedirs(tmp2)
+child = os.path.join(tmp2, "private-child")
+code, _, _, rc = run("--out", child, "index", "--project", PROJ, env={"TMPDIR": tmp2})
+ok(code == 5 and rc.get("status") == "blocked" and not os.path.exists(child),
+   "an output root BELOW a (synthetic) $TMPDIR is refused and nothing is written")
+code, _, _, rc = run("--out", os.path.join(FIX, "out-f3"), "--security-findings", os.path.join(tmp2, "f.jsonl"),
+                     "index", "--project", PROJ, env={"TMPDIR": tmp2})
+ok(code == 5 and not os.path.exists(os.path.join(tmp2, "f.jsonl")), "a --security-findings file below a temp root is refused")
+for base in ((os.environ.get("TMPDIR") or "/tmp"), "/tmp"):  # the unmodified CLI, against the real temp roots
+    probe = os.path.join(base, "session-catalog-refusal-%d" % os.getpid())
+    code, _, _, rc = run("--out", os.path.join(probe, "catalog"), "index", "--project", PROJ, real=True)
+    ok(code == 5 and rc.get("status") == "blocked" and not os.path.exists(probe),
+       "unmodified CLI: an output root below the real %s is refused and nothing is written" % base.rstrip("/"))
 code, _, _, rc = run("--out", os.path.join(FIX, "out-f1"), "--security-findings", os.path.join(alias, "f.jsonl"),
                      "index", "--project", PROJ)
 ok(code == 5 and not os.path.exists(os.path.join(repo, "nested", "f.jsonl")),
@@ -302,10 +354,11 @@ ok("unknown-record-type" in reasons and all(x.get("type_ref", "t-").startswith("
    "unknown record type is quarantined as a fixed class + opaque digest")
 rcp = man["receipt"]["claude-code/projects"]
 ok(rcp.get("symlinks_refused", 0) >= 2, "file and directory symlinks inside a root are never followed")
-ok(man["receipt"]["omp/sessions"].get("files_deferred_live_or_unstable", 0) >= 1, "file newer than high-water is deferred")
-ok(rcp.get("files_deferred_live_or_unstable", 0) >= 1, "an idle transcript inside the 24 h horizon is deferred")
+ok(man["receipt"]["omp/sessions"].get("files_deferred_recent_or_unstable", 0) >= 1, "file newer than high-water is deferred")
+ok(rcp.get("files_deferred_recent_or_unstable", 0) >= 1, "a transcript modified inside the 24 h horizon is deferred")
 ok(man["high_water"] <= time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 23 * 3600))
-   and "NOT detected" in man["live_detection"], "default high-water sits a safety horizon back; limitation stated")
+   and "open file handles are NOT inspected" in man["past_session_contract"],
+   "default high-water sits 24 h back and the receipt states the past-session contract")
 ok(man["receipt"]["codex/sessions"].get("sessions_skipped_imported_duplicate", 0) == 1, "imported duplicate skipped")
 ok(any(s["store"] == "antigravity-backup" for s in man["stores_skipped"]), "backup copy is not traversed")
 ok("do not claim" in man["claim"], "manifest refuses to claim 'all sessions' when stores were skipped")
@@ -350,7 +403,12 @@ ok("split canary [REDACTED:github-token]" in text, "the split token is masked wh
 ok(GH_TOOL not in out and any((m["tool"] or "").startswith("tool-") for m in msgs),
    "a token-shaped tool name is replaced by an opaque digest")
 ok("NOVERSION-7Q" not in out and "CODEXNOVER-7Q" not in out, "Claude/Codex records without a version are not emitted")
-ok("IDLEWRITER-7Q" not in out, "a recently modified (possibly still open) transcript is not emitted")
+ok("RECENT-7Q" not in out, "a transcript modified within the horizon is not a past session: not emitted")
+src6 = [k for k, v in man["sources_private"].items() if v.endswith(U6 + ".jsonl")]
+ok("OPENWRITER-7Q" in text and "TRUNCATED-7Q" not in out
+   and any(x["source_id"] in src6 and x["reason"] == "malformed-json" and x["line"] == 2 for x in q),
+   "contract pinned: a transcript an idle writer still holds open is read up to its last complete record; "
+   "the truncated tail is quarantined")
 ok("[REDACTED:auth-header]" in text and "access_token=[REDACTED:secret]" in text, "auth header and URL param redacted")
 ok("\x1b" not in out and "\u202e" not in out, "ANSI/OSC and bidi controls stripped")
 ok("Unrelated work in another repo." not in text, "messages written from another cwd are excluded")
@@ -434,7 +492,7 @@ ok(code in (0, 3), "a stale lock (pid gone) is reclaimed")
 
 # 9. receipts survive a consumer that closes stdout (`extract | head`)
 out_p = os.path.join(FIX, "out-pipe")
-p = subprocess.Popen([sys.executable, SC, "--home", HOME, "--out", out_p, "extract", "--project", PROJ, "--mention",
+p = subprocess.Popen([sys.executable, LAUNCHER, SC, "--home", HOME, "--out", out_p, "extract", "--project", PROJ, "--mention",
                       "demo-atlas"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
 p.stdout.close()
 perr = p.stderr.read().decode()
@@ -662,6 +720,7 @@ runs = [["--home", HOME, "stores", "--json"],
         ["--home", HOME, "--out", OUT_I, "--export", "chatgpt=" + EXP_I, "extract", "--project", PROJ, "--mention", "demo-atlas"]]
 codes = []
 import contextlib
+mod.temp_roots = fixture_temp_roots(mod.temp_roots)  # see LAUNCHER; TEMPS above was taken from the real policy
 for argv in runs:
     for n, fn in patched.items():
         setattr(os, n, fn)
@@ -731,6 +790,8 @@ finally:
     _socket.socket = _orig_socket
 
 # 16. sources were never modified (content and mtime)
+writer.stdin.close()
+writer.wait()
 ok(tree_hash(HOME) == before, "every source file is byte- and mtime-identical after all runs")
 
 print("%d failure(s)" % len(fails))
