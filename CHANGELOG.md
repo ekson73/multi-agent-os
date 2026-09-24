@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `session-catalog`: read-only catalog of past AI-harness sessions
+
+New skill `skills/session-catalog/` with a stdlib-only reader
+(`scripts/session_catalog.py`). It builds one normalized, private index of historical
+sessions from Claude Code (CLI, Desktop, Cowork), Codex (CLI and app), omp, prime-agent,
+Gemini CLI, Antigravity and agy, and from ChatGPT/claude.ai data exports. From that index
+it can stream topic-scoped, redacted text.
+
+- **Two capabilities, one ships.** Read-only catalog/import ships. Live
+  attach/adopt/resume of a running session is documented as a future, separately gated
+  capability and is not implemented.
+- **Fail-closed matrix per store.** Each store gets a status (`supported` /
+  `unavailable` / `unverified`) with its reason, an account fingerprint and a receipt.
+  Unknown record types or versions are quarantined as metadata, never guessed. Exit
+  codes separate `complete` (0), `partial` (3), `unsupported` (4) and `blocked` (5).
+- **Privacy at ingestion.** It strips control envelopes, hidden reasoning, tool
+  arguments and attachments, and redacts secrets and PII before text reaches any output.
+  Probable credentials become value-free security findings. The index holds pointers and
+  opaque HMAC ids, never message text. Output goes to 0700/0600 files outside any git
+  repo, under a per-root lock. The reader makes no network calls and never opens SQLite.
+- **Proof.** `tests/test-session-catalog.sh` builds synthetic fixtures for every adapter
+  and adds adversarial redaction cases, a symlink escape, oversized and binary input, a
+  hostile zip, lock and no-socket checks, a doc-vs-CLI exit-code check and source
+  immutability. It is macOS-exercised; Linux is expected to work but untested.
+
 ### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
 
 - `skills/openrig-concierge/` (new; soul-name Navarch) — the front desk and guarded operator for
