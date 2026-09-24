@@ -125,6 +125,16 @@ STUB
   "$B" "$SANDBOX/t4e.sh" >/dev/null 2>&1
   check "no shr.* dir after a clean run" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
 
+  echo "-- 4e2. an unusable TMPDIR never turns a healthy script into a failing one"
+  reset_stubs; mk_bash "$SANDBOX/t4e2.sh" "" 'echo ALIVE'
+  out="$(TMPDIR=/nonexistent/shr-dir "$B" "$SANDBOX/t4e2.sh" 2>&1)"; rc=$?
+  check "bash: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
+  case "$out" in *ALIVE*) ok "bash: adopter code still ran with an unusable TMPDIR" ;; *) bad "bash: adopter did not run with an unusable TMPDIR" "$out" ;; esac
+  echo "-- 4e3. a failure inside a command substitution (errexit off there) is not a fault"
+  reset_stubs; mk_bash "$SANDBOX/t4e3.sh" "" 'v=$(false; echo done); echo "V=$v"'
+  out="$("$B" "$SANDBOX/t4e3.sh" 2>&1)"; rc=$?
+  check "bash: script with a failing command substitution exits 0" "$rc" "0"
+  check "bash: nothing relayed for a failure inside a command substitution" "$(calls)" "0"
   echo "-- 4f. ERR inherited by a subshell dispatches ONCE and keeps its artifacts"
   reset_stubs; mk_bash "$SANDBOX/t4f.sh" "" '( false )
 echo after'
@@ -243,13 +253,13 @@ false"
   n="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | wc -l | tr -d ' ')"; check "one NEEDS-AGENT seed written" "$n" "1"
   SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"
   check "seed file is mode 0600 (not world-readable)" "$(fmode "$SF")" "600"
-done
 
   echo "-- 7b. seed mode reports failure instead of claiming a seed that was not written"
   reset_stubs; mk_bash "$SANDBOX/t7b.sh" "" 'false'; : > "$SANDBOX/notadir"
   OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir/sub" "$B" "$SANDBOX/t7b.sh" 2>&1 >/dev/null)"
   case "$OUT" in *"seed NOT written"*) ok "unwritable seed dir is reported" ;; *) bad "seed failure not reported: $OUT" ;; esac
   case "$OUT" in *"seed written ->"*) bad "claimed a seed that was not written" ;; *) ok "no false 'seed written'" ;; esac
+done
 
 echo; echo "== ports: python + node (uncaught fault relays; intentional exit never does) =="
 if command -v python3 >/dev/null 2>&1; then
@@ -304,6 +314,12 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p22.py"
   T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p22.py" >/dev/null 2>&1; T1=$((SECONDS-T0))
   if [ "$T1" -lt 30 ]; then ok "python: a harness flooding stdout is killed at the disk cap, not at the 60s timeout (${T1}s)"; else bad "python: runaway harness output was not bounded on disk" "took ${T1}s"; fi; restore_stubs
+  reset_stubs; { "$RENDER" --lang python; printf 'import signal\nprint("SIGDFL" if signal.getsignal(signal.SIGTERM) == signal.SIG_DFL else "SIGCHANGED")\n'; } > "$SANDBOX/p24.py"
+  check "python: MAOS_SELFHEAL=0 leaves the adopter's SIGTERM disposition untouched" "$(MAOS_SELFHEAL=0 python3 "$SANDBOX/p24.py" 2>&1)" "SIGDFL"
+  reset_stubs; { "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
+  out="$(TMPDIR=/nonexistent/shr-dir python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
+  check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
+  case "$out" in *ALIVE*) ok "python: adopter code still ran with an unusable TMPDIR" ;; *) bad "python: adopter did not run with an unusable TMPDIR" "$out" ;; esac
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "python: PEM cut from its header by the 200-line cap leaked" "python: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\n" + "A" * 70000 + "\\nEXCBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p18.py"; python3 "$SANDBOX/p18.py" >/dev/null 2>&1
@@ -350,6 +366,10 @@ if command -v node >/dev/null 2>&1; then
   mkdir -p "$SANDBOX/winbin" && printf '#!/bin/sh\n' > "$SANDBOX/winbin/fakeh.cmd" && chmod +x "$SANDBOX/winbin/fakeh.cmd"
   { "$RENDER" --lang node; printf 'Object.defineProperty(process, "platform", { value: "win32" });\nconst r = shrSpawnArgs("fakeh", ["-p", "--allowedTools=Read,Grep,Glob"]); const k = shrSpawnArgs("fakeh", ["chat", "--trust-tools=fs_read,fs_write"]); const bad = shrSpawnArgs("fakeh", ["a&b"]);\nconsole.log(r && k && bad === null ? "SHIMOK" : "SHIMBAD");\n'; } > "$SANDBOX/n19.js"
   check "node: Windows .cmd shim accepts the canonical = and , flags and still refuses metacharacters" "$(PATH="$SANDBOX/winbin:$PATH" node "$SANDBOX/n19.js" 2>&1 | grep -c SHIMOK)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'console.log("ALIVE");\n'; } > "$SANDBOX/n20.js"
+  out="$(TMPDIR=/nonexistent/shr-dir node "$SANDBOX/n20.js" 2>&1)"; rc=$?
+  check "node: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
+  case "$out" in *ALIVE*) ok "node: adopter code still ran with an unusable TMPDIR" ;; *) bad "node: adopter did not run with an unusable TMPDIR" "$out" ;; esac
 else bad "node missing"; fi
 
 echo; printf 'self-heal-relay: %d passed, %d failed\n' "$PASS" "$FAIL"
