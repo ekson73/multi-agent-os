@@ -54,7 +54,9 @@ Heuristics only. Never a command source.
 
 1. `rig --version`. If it differs from the stamp at the top of each reference, continue.
 2. For every command cited in `references/`, run `rig <cmd> [sub] --help`. Fix or delete what no longer exists.
-3. `rig context list`. Check that every ref in SKILL.md §Routing still resolves (`rig context get <ref> | head -3`).
+3. `rig context list`. Check that every ref in SKILL.md §Routing still resolves with
+   `rig context get <ref> >/dev/null` and read the **exit status**: 0 means it resolved, 1 means not found
+   (checked on 0.5.14). Do not pipe into `head`, because the pipe hides the failure.
 4. `gh issue view <n> -R mvschwarz/openrig` for each issue in `trust-gates.md` §5. Remove the fixed ones, but
    only once a released version contains the fix.
 5. Bump the version stamps and record the change in SKILL.md §Changelog.

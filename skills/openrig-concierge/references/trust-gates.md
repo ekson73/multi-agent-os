@@ -88,13 +88,19 @@ rig ps --nodes --rig <rig>                      # verify: LIFECYCLE run
 
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
-- **Claude MCP approvals.** Name servers exactly: `enabledMcpjsonServers` for the ones a role needs,
-  `disabledMcpjsonServers` for the rest. Approvals in user `~/.claude/settings.json` apply even in untrusted
-  folders. Approvals in an untracked `.claude/settings.local.json` apply only after the folder is trusted, and
-  a committed `.claude/settings.json` cannot approve its own repo's servers
-  ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
-  Never set `enableAllProjectMcpServers: true`. `claude mcp list` shows a server still waiting as
-  `⏸ Pending approval`. `claude mcp reset-project-choices` resets the choices.
+- **Claude MCP approvals: scope each one to the reviewed worktree. Never approve by name at user scope.**
+  Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
+  `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
+  binds the same name to a different command. That is trust by name alone (guardrail 4). So:
+  - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
+    `enabledMcpjsonServers` of the **worktree's untracked** `.claude/settings.local.json`. It applies only to
+    that folder, and only once the folder is trusted. Re-review whenever that `.mcp.json` changes.
+    Otherwise, the operator approves interactively in the pane.
+  - *deny*: `disabledMcpjsonServers` may live at user scope. A deny by name fails closed.
+  - Never set `enableAllProjectMcpServers: true`. A committed `.claude/settings.json` cannot approve its own
+    repo's servers ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
+  - `claude mcp list` shows a server still waiting as `⏸ Pending approval`. `claude mcp reset-project-choices`
+    resets the choices.
 - **Codex hooks.** Keep the per-worktree hook set small and stable. Reuse crew worktrees across runs rather
   than creating new ones, because trust is keyed by path. Review once per new worktree through the native
   flow (guardrail 1). Organization-managed hooks (`requirements.toml`, MDM) are trusted by policy. That is an

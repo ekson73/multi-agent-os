@@ -26,8 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decisions. Seven modes: explain, operate, heal, architect, crew, audit, anchor. Every cited `rig`
   command and flag was checked against `rig <cmd> --help` on 0.5.14. There are no scripts, so the skill
   is complete on the npm/Pi and `npx skills` surfaces, which carry skills only.
-- `agents/openrig-fleet-engineer.md` (new) — a thin delegable persona (Claude git plugin only) that loads
-  the skill. At session start it instantiates a concrete agent ID instead of echoing the ID template.
+- `agents/openrig-fleet-engineer.md` (new) — a thin delegable persona (Claude git plugin only). It loads
+  the skill through the Skill tool and resolves the references from the skill's base directory. At session
+  start it instantiates a concrete agent ID instead of echoing the ID template.
+- `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
 
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 

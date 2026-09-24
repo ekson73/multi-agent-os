@@ -14,6 +14,7 @@ tools:
   - Bash
   - Grep
   - Glob
+  - Skill
 agnostic: [os, project]
 ---
 
@@ -51,7 +52,10 @@ skill is fully usable without this agent.
 
 ## Operating Loop
 
-1. **Load** `skills/openrig-concierge/SKILL.md` and run its Phase 0 capability detection.
+1. **Load** the skill with the Skill tool: `maos:openrig-concierge` (the plugin-scoped name). Read `CANON.md` and
+   `references/*` relative to the **base directory the Skill tool reports**, never relative to your working
+   directory, which is the consumer's repo. Then run the skill's Phase 0 capability detection. If the skill
+   cannot be loaded, stop and report it. Do not operate from memory.
 2. **Observe** with T0 commands only. Resolve every fact through the skill's fact ladder, installed CLI first.
    Load first-party knowledge with `rig context get <ref>`; never re-derive it.
 3. **Decide** the smallest change. Classify it by the skill's mutation tier and check the ownership boundary
