@@ -6,7 +6,7 @@
 #   bash tests/test-self-heal-relay.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RENDER="$ROOT/bin/self-heal-relay-render"
+RENDER="$ROOT/skills/instrument-self-heal-relay/bin/self-heal-relay-render"
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); printf '  ✅ %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  ❌ %s\n' "$1"; [ -n "${2:-}" ] && printf '       %s\n' "$2"; }
@@ -203,6 +203,7 @@ if command -v python3 >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 python3 "$SANDBOX/p6.py" >/dev/null 2>&1; sleep 1
   if gc_alive "$GCP"; then bad "python: grandchild survived the timeout"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: no grandchild survives a harness timeout"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import threading\nt = threading.Thread(target=lambda: 1/0); t.start(); t.join()\n'; } > "$SANDBOX/p7.py"; python3 "$SANDBOX/p7.py" >/dev/null 2>&1; check "python: uncaught worker-thread exception relays once" "$(calls)" "1"
+  check "python: prompt carries the absolute script path" "$(grep -cE '^Script: /.*/p7\.py$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi

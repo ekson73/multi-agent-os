@@ -44,7 +44,7 @@ without ever "healing" a verdict the program was *designed* to return. Owns the
 ## When Invoked
 
 - "make this script throw errors to an AI agent" / "add self-heal to X" / "port self-heal to Go".
-- An adopter's stamped block reports drift (`bin/self-heal-relay-render --verify` rc 1).
+- An adopter's stamped block reports drift (`skills/instrument-self-heal-relay/bin/self-heal-relay-render --verify` rc 1).
 - A new harness CLI must be added to `harnesses.json` (requires live headless verification).
 
 ## Operating rules
