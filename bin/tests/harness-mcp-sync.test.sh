@@ -670,7 +670,7 @@ xrun plan --ssot "$SSOT" --harness hjson --state-dir "$SDX"
 eq 1 "$rc" '#4096445162: unexpected fault -> exit 1'
 has 'internal error: AttributeError' "$o" '#4096445162: class name reported'
 has 'run log' "$o" '#4096445162: run log captured'
-has 'MAOS_SELFHEAL=0' "$o" '#4096445162: fallback hint printed when dispatch disabled'
+has 'opt-in' "$o" '#4096445162: fallback hint printed when dispatch not opted in'
 RL="$(printf '%s\n' "$o" | sed -n 's/.*run log \([^ ]*\) ;.*/\1/p')"
 PF="$(printf '%s\n' "$o" | sed -n 's/.*repair prompt \([^ ]*\)$/\1/p')"
 has 'build_plan' "$(cat "$RL" 2>/dev/null)" '#4096445162: run log carries the failing stack frame'
@@ -681,9 +681,9 @@ STUB="$T/stubbin"; mkdir -p "$STUB"
 printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/stub-args"\n' "$T" > "$STUB/claude"; chmod +x "$STUB/claude"
 o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
 printf '%s\n' "$o" >> "$ALLOUT"
-has 'repair dispatched via claude' "$o" '#4096445162: relay dispatched to the first available harness'
+has 'diagnosis dispatched via claude' "$o" '#4096445162: relay dispatched to the first available harness'
 has 'UNTRUSTED DATA' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness received the repair prompt'
-has 'Read,Edit,Write,Bash' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness invoked with a scoped tool set'
+has 'Read,Grep,Glob' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness invoked with a read-only tool set'
 hasnt "$FIXSECRET" "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: dispatched prompt carries no secret'
 rm -f "$T/stub-args"
 o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness nope --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
@@ -723,6 +723,75 @@ has 'manifest only; file untouched' "$o" 'adopt-only: reported as manifest-only'
 eq "$A0" "$(sum "$HOME/.hadopt/mcp.json")" 'adopt-only: file bytes unchanged (no reformat)'
 run plan --ssot "$T/ssot-adopt.json" --harness hadopt --json
 hasnt 'conflict' "$o" 'adopt-only: entry now owned (no conflict on re-plan)'
+
+# ---------------------------------------------------------------- delta red-team on 65b60c3 (S1 opt-in self-heal, S2 malformed entries)
+PYDIR="$(dirname "$(command -v python3)")"
+SH="$T/stub-all"; mkdir -p "$SH"; SHLOG="$T/stub-invocations"; : > "$SHLOG"
+for n in kiro-cli claude codex opencode gemini crush amp; do
+  printf '#!/bin/sh\necho "%s" >> "%s"\nenv > "%s/stub-env-%s"\nprintf "%%s\\n" "$@" > "%s/stub-argv-%s"\nexit 0\n' \
+    "$n" "$SHLOG" "$T" "$n" "$T" "$n" > "$SH/$n"; chmod +x "$SH/$n"
+done
+SPATH="$SH:$PYDIR:/usr/bin:/bin"
+export DUMMYTOK="dummytok-4Qz9Lx7Rv2Wn8Kp3Ys6T"
+export OP_SERVICE_ACCOUNT_TOKEN="ops_dummy-8Hc2Vn5Rq9Lm4Tx7Wb1Z"
+# red-team exact repro: stub crush first on PATH + DUMMYTOK + string-valued entry + --adopt
+mk hmal json mcpServers mcpservers-json "~/.hmal/mcp.json" true null null high
+printf '{"mcpServers":{"local-tool":"oops-%s"}}' "$DUMMYTOK" > "$HOME/.hmal/mcp.json"
+M0="$(sum "$HOME/.hmal/mcp.json")"
+o="$(env -u MAOS_SELFHEAL PATH="$SPATH" "$BIN" apply --ssot "$T/ssot-adopt.json" --harness hmal --adopt local-tool --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 1 "$rc" 'S2: string-valued entry + --adopt -> exit 1 (refused, no exception)'
+has 'malformed entry local-tool' "$o" 'S2: message names the server'
+has 'mcpServers' "$o" 'S2: message names the field path'
+hasnt 'Traceback' "$o" 'S2: no traceback'
+hasnt 'internal error' "$o" 'S2: not an unexpected fault'
+hasnt 'oops' "$o" 'S2: entry value never printed'
+eq "$M0" "$(sum "$HOME/.hmal/mcp.json")" 'S2: malformed config left untouched'
+eq "" "$(cat "$SHLOG")" 'S1: exact repro -> 0 AI-harness dispatches by default'
+run plan --ssot "$T/ssot-adopt.json" --harness hmal --json
+eq 1 "$rc" 'S2: plan on malformed entry -> exit 1'
+has 'malformed entry local-tool' "$o" 'S2: plan reports the malformed entry'
+printf '{"mcpServers":"not-a-map"}' > "$HOME/.hmal/mcp.json"
+run apply --ssot "$T/ssot-adopt.json" --harness hmal --json
+eq 1 "$rc" 'S2: non-mapping key_path refused (exit 1)'
+has 'malformed mcpServers' "$o" 'S2: non-mapping key_path named'
+eq '{"mcpServers":"not-a-map"}' "$(cat "$HOME/.hmal/mcp.json")" 'S2: non-mapping key_path not overwritten'
+# S1: unexpected fault, default (MAOS_SELFHEAL unset) -> log only, no dispatch
+: > "$SHLOG"
+o="$(env -u MAOS_SELFHEAL PATH="$SPATH" "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 1 "$rc" 'S1: injected fault -> exit 1'
+has 'run log' "$o" 'S1: default still writes the redacted run log'
+has 'opt-in' "$o" 'S1: default prints the opt-in fallback hint'
+eq "" "$(cat "$SHLOG")" 'S1: default never dispatches (stubs untouched)'
+# S1: opted in -> child env is the allow-list only, tools are read-only
+: > "$SHLOG"; rm -f "$T"/stub-env-* "$T"/stub-argv-*
+o="$(PATH="$SPATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS="crush claude" LC_ALL=C "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+has 'skip crush' "$o" 'S1: unrestrictable harness (crush) skipped'
+eq "claude" "$(cat "$SHLOG")" 'S1: only the read-only-capable harness dispatched'
+CE="$(cat "$T/stub-env-claude" 2>/dev/null)"
+hasnt 'DUMMYTOK' "$CE" 'S1: child env has no DUMMYTOK'
+hasnt "$DUMMYTOK" "$CE" 'S1: child env has no DUMMYTOK value'
+hasnt 'OP_' "$CE" 'S1: child env has no OP_* var'
+hasnt 'FIXSECRET' "$CE" 'S1: child env has no resolved SSOT secret var'
+hasnt 'LC_ALL' "$CE" 'S1: LC_* not on the allow-list'
+has 'PATH=' "$CE" 'S1: child env keeps PATH'
+BADKEYS="$(sed 's/=.*//' "$T/stub-env-claude" 2>/dev/null | grep -vxE 'PATH|HOME|TMPDIR|LANG|TERM|PWD|SHLVL|_|OLDPWD' | tr '\n' ' ')"
+eq "" "$BADKEYS" 'S1: child env keys are exactly the allow-list (+ shell-set PWD/SHLVL/_)'
+CA="$(cat "$T/stub-argv-claude" 2>/dev/null)"
+has 'Read,Grep,Glob' "$CA" 'S1: claude invoked with read-only allowedTools'
+ALLOWED="$(printf '%s\n' "$CA" | grep -A1 -x -- '--allowedTools' | tail -1)"
+eq "Read,Grep,Glob" "$ALLOWED" 'S1: allowedTools has no Bash/Edit/Write/execute/fs_write'
+# S2: verify on an owned entry that became non-mapping -> reported, no crash
+printf '{"mcpServers":{"local-tool":"oops-hand"},"z":1}' > "$HOME/.hadopt/mcp.json"
+run verify --harness hadopt
+eq 1 "$rc" 'S2: verify on malformed owned entry -> exit 1'
+has 'malformed entry local-tool' "$o" 'S2: verify names the malformed entry'
+hasnt 'Traceback' "$o" 'S2: verify does not crash'
+hasnt 'oops' "$o" 'S2: verify never prints the value'
+unset DUMMYTOK OP_SERVICE_ACCOUNT_TOKEN
+rm -f "$REG/hmal.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

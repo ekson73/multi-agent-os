@@ -112,6 +112,10 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 - **Restore trusts the local state dir.** Restore targets are limited to the harness's registered
   config paths (realpath, inside HOME), but backups and the manifest share one state directory; an
   attacker with write access to it can still swap backup *contents*. Keep the state dir at 0700.
+- **Self-heal is opt-in because this executor holds secrets** (deviation from
+  `docs/self-heal-relay.md`). By default a crash only writes a redacted run log + repair prompt;
+  `MAOS_SELFHEAL=1` relays it to a read-only harness (kiro-cli / claude / codex) with an env
+  allow-list of `PATH HOME TMPDIR LANG TERM` — never resolved secrets or `OP_*` vars.
 - JSON/YAML files are re-serialized (content preserved, formatting may change); only TOML is
   edited byte-for-byte outside managed tables.
 - The npm/Pi package ships `skills/**` only; the executor and registry are used from a repo checkout.
