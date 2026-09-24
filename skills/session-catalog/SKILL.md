@@ -143,8 +143,10 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
   export conversations and whole-document recordings too; `--max-files` also stops
-  discovery itself, marking the store with `run-file-cap-during-discovery`) are quarantined
-  the same way. A Gemini JSONL recording must start with its `{sessionId, kind}` header; a
+  discovery itself, marking the store with `run-file-cap-during-discovery`, and each
+  directory listing is read only up to the remaining budget plus a small slack, never more
+  than 100 000 entries, so a larger directory stops discovery with `directory-entry-cap`)
+  are quarantined the same way. A Gemini JSONL recording must start with its `{sessionId, kind}` header; a
   session id is never invented from a filename. `index` streams its rows to the
   private file instead of holding them. A store stays `supported` only
   while its recent samples actually parse, and a failure inside one store (an unreadable

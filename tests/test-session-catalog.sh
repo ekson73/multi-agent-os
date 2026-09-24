@@ -941,6 +941,54 @@ touched = sorted({e[2] for e in events if inside(e[2], forms(HOME)) and e[2] not
 ok(scoped == 0 and not touched and any(inside(e[2], forms(EXP_I)) for e in events),
    "--surface openai.chatgpt-export touches no path under the home, only the export (%s)" % touched[:3])
 
+# 14c. one huge directory is never materialized: each listing is read up to a bound, then discovery stops
+big_home = os.path.join(FIX, "home-bigdir")
+big_dir = os.path.join(big_home, ".claude", "projects", "-huge")
+os.makedirs(big_dir)
+for i in range(3000):
+    open(os.path.join(big_dir, "n%05d.txt" % i), "w").close()
+listings, _real_scandir = [], os.scandir
+
+
+class _CountingListing:
+    """Wraps one scandir iterator and counts the entries actually pulled from it."""
+
+    def __init__(self, it):
+        self.it, self.n = it, 0
+        listings.append(self)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        e = next(self.it)
+        self.n += 1
+        return e
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.it.close()
+
+
+os.scandir = lambda path=".": _CountingListing(_real_scandir(path))
+try:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        try:
+            big_code = mod.main(["--home", big_home, "--out", os.path.join(FIX, "out-bigdir"), "--max-files", "1",
+                                 "index", "--project", PROJ])
+        except SystemExit as exc:
+            big_code = exc.code
+finally:
+    os.scandir = _real_scandir
+bound = 1 + mod.DIR_ENTRY_SLACK
+big_q = jl(os.path.join(FIX, "out-bigdir", "quarantine.jsonl"))
+ok(big_code in (3, 4) and listings and max(x.n for x in listings) <= bound + 1
+   and any(x["reason"] == "directory-entry-cap" for x in big_q),
+   "a 3000-entry directory with --max-files 1 is read only %d entries deep, then quarantined directory-entry-cap"
+   % max([x.n for x in listings] or [0]))
+
 # 15. passes 1 and 2 never touch the network: any socket creation raises
 import socket as _socket
 _orig_socket = _socket.socket
