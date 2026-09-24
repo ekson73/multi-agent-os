@@ -398,6 +398,10 @@ if command -v python3 >/dev/null 2>&1; then
   { "$RENDER" --lang python; printf 'import threading, time\n_ts = threading.Thread.start\nthreading.Thread.start = lambda self: (_ts(self), time.sleep(2))[1]  # the watcher runs (and may kill) before start() returns\nraise RuntimeError("x")\n'; } > "$SANDBOX/p32.py"
   T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p32.py" >/dev/null 2>&1; T1=$((SECONDS-T0))
   if [ "$T1" -lt 30 ]; then ok "python: the size watcher kills a flooding harness even when it runs before start() returns"; else bad "python: a flooding harness outlived the watcher (took ${T1}s)"; fi; restore_stubs
+  reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\necho PROPOSAL-OK\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  { printf 'import signal, os\nsignal.signal(signal.SIGTERM, lambda s, f: None)  # the adopter handles TERM and keeps running (a reload, say)\n'; "$RENDER" --lang python; printf 'os.kill(os.getpid(), signal.SIGTERM)  # idle: no relay is running\nraise RuntimeError("x")\n'; } > "$SANDBOX/p33.py"
+  MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p33.py" >/dev/null 2>&1
+  check "python: a handled TERM while idle does not disable the later relay" "$(calls)" "1"; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"

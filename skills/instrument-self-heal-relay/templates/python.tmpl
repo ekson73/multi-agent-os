@@ -70,6 +70,7 @@ def shr_build_prompt(exc_text, tier, log_tail):
 _shr_live = set()  # process-group ids of harnesses currently running
 _shr_spawning = [False]  # True between Popen and the pid registration: a signal arriving then is deferred, the handler cannot see the child yet
 _shr_pending = []  # signals deferred during that window, re-sent to ourselves right after the registration
+_shr_active = [False]  # a relay is in progress (only then can a signal cancel it)
 _shr_cancel = [False]  # set by the TERM/HUP handler BEFORE the adopter's own handler runs: if that handler RETURNS, the fallback chain must not start the next harness
 
 
@@ -93,7 +94,7 @@ def _shr_install_signals():
             _prev = _signal.getsignal(_s)
             def _h(sig, frm, _prev=_prev):
                 if _shr_spawning[0]: _shr_pending.append(sig); return
-                _shr_cancel[0] = True
+                if _shr_active[0]: _shr_cancel[0] = True
                 _shr_kill_live()
                 if callable(_prev): return _prev(sig, frm)
                 if _prev == _signal.SIG_IGN: return
@@ -222,6 +223,12 @@ def _shr_timeout():  # validated BEFORE the harness is spawned: a bad value must
 
 
 def shr_relay(exc_text):
+    _shr_active[0] = True  # cancellation is only meaningful DURING a relay: a handled SIGHUP/SIGTERM while idle must not disable every later relay
+    try: _shr_relay_impl(exc_text)
+    finally: _shr_active[0] = False
+
+
+def _shr_relay_impl(exc_text):
     global _SHR_HARNESSES_ENTRY, _shr_relayed
     with _shr_lock:  # one atomic check-and-set: concurrent worker hooks + a later main-thread fault dispatch exactly once
         if _shr_relayed: return
