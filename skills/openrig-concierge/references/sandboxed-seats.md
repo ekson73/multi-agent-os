@@ -110,12 +110,21 @@ settings. Record each one in the handoff. Hooks are not a residual risk: they ar
 ## 4. Trusted publisher: how sandboxed work leaves the crew
 
 Seats hold no push credential. A publisher **outside** the crew moves reviewed work to the forge without ever
-running crew-authored code outside a sandbox:
+running crew-authored code outside a sandbox.
+
+**Prerequisite (a launch stop): the forge's CI must not hand crew branches any secret.** Once pushed,
+seat-authored code runs in the forge's CI, outside this sandbox. Before any crew branch is pushed, verify
+read-only that the target's workflows triggered by a push or pull request from a crew branch expose **no**
+repository or environment secret and no write-scoped token to it. For example: secrets live only in
+environments with required human reviewers, deploy workflows run only on protected branches after merge, and
+`permissions:` is read-only for pull-request events. If this cannot be verified, stop and do not push.
 
 1. A publisher-owned clean clone at the default branch, with its own trusted hooks from that branch.
 2. `git -c fetch.fsckObjects=true fetch <seat-repo> refs/heads/<exact-branch>`. The candidate is never checked out.
-3. A path gate: a candidate that changes hook, CI, git-attribute, submodule or LFS config files, or any file the
-   trusted hooks or CI execute, is **parked** for a human instead of pushed.
+3. A path gate: a candidate that changes a hook or CI **definition** file (hook dirs, workflow files), git
+   attributes, submodule or LFS config, or a script that the trusted hooks or CI invoke **directly by path**, is
+   **parked** for a human instead of pushed. Ordinary source that CI builds and tests is not parked; the
+   prerequisite above covers it.
 4. Push by exact SHA, and only the SHA the reviewer's verdict cites: `git push origin <sha>:refs/heads/<branch>`.
    Merge it the same way (for GitHub,
    `gh pr merge <number|url> --<merge|squash|rebase per the target repo's policy> --match-head-commit <sha>`).
