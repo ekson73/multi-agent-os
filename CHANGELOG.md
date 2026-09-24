@@ -67,7 +67,9 @@ it can stream topic-scoped, redacted text.
   header is quarantined instead of being named after the file. A findings path that aliases
   a control file by case or identity, or names an existing directory, is refused before
   anything is read. Credential-shaped session ids are stored as opaque digests. A relative
-  `--project` resolves against the working directory.
+  `--project` resolves against the working directory. Each directory listing is read only
+  up to a bound derived from the remaining `--max-files` budget (ceiling 100 000), so one
+  huge directory is never materialized; exceeding it quarantines `directory-entry-cap`.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,

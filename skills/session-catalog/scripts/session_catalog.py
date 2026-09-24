@@ -33,6 +33,7 @@ import getpass
 import hashlib
 import hmac
 import io
+import itertools
 import json
 import math
 import os
@@ -63,6 +64,8 @@ LIMITS = {"max_file_bytes": 512 << 20, "max_record_bytes": 16 << 20, "max_files"
           "max_records": 20_000_000}
 PAST_HORIZON = 24 * 3600             # default high-water = run start minus this horizon (see the contract)
 MAX_DEPTH = 32                       # directory nesting walked below a store root
+DIR_ENTRY_CEILING = 100_000          # entries read from any one directory listing, at most
+DIR_ENTRY_SLACK = 64                 # listing bound above the remaining --max-files budget
 IGNORED_SUFFIXES = ("-wal", "-shm", "-journal", ".lock", ".tmp", ".partial", ".part", ".swp", "~")
 _PRUNE_DIRS = re.compile(r"(?i)^(?:\.git|node_modules|Mobile Documents|CloudStorage|Dropbox|Google Drive|OneDrive|"
                          r"iCloud Drive|Backups\.backupdb|\.Trash|.*\.backup|.*-backup|Time Machine.*)$")
@@ -105,7 +108,12 @@ class SourceRefused(OSError):
 
 
 class _DiscoveryCapped(Exception):
-    """--max-files reached while listing: the walk stops instead of retaining more paths."""
+    """A discovery bound (--max-files, or one directory's entry bound) was reached: the walk
+    stops instead of retaining more; `reason` is the quarantine label."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
 
 
 def _is_link_at(dfd: Optional[int], name: str) -> bool:
@@ -630,8 +638,8 @@ class Ctx:
             return out
         try:
             self._walk_fd(store, fd, root, "", keep, out, 0)
-        except _DiscoveryCapped:  # --max-files reached while listing: keep what was found, say so
-            self.quarantine_(store, root, "run-file-cap-during-discovery")
+        except _DiscoveryCapped as cap:  # a discovery bound was reached: keep what was found, say so
+            self.quarantine_(store, root, cap.reason)
         finally:
             os.close(fd)
         return sorted(out)
@@ -639,8 +647,15 @@ class Ctx:
     def _walk_fd(self, store: str, dfd: int, dpath: str, relp: str, keep: Callable[[str, str], bool],
                  out: List[str], depth: int) -> None:
         rc = self.receipt[store]
+        # A listing is read only up to a bound (the remaining --max-files budget plus a small slack
+        # for directories and non-matching names, never above a fixed ceiling), so one huge
+        # directory cannot be materialized; exceeding it stops discovery instead of truncating.
+        bound = min(DIR_ENTRY_CEILING, max(0, self.limits["max_files"] - self.files_discovered) + DIR_ENTRY_SLACK)
         with os.scandir(dfd) as it:
-            entries = sorted(it, key=lambda e: e.name)
+            entries = list(itertools.islice(it, bound + 1))
+        if len(entries) > bound:
+            raise _DiscoveryCapped("directory-entry-cap")
+        entries.sort(key=lambda e: e.name)
         for e in entries:
             full = os.path.join(dpath, e.name)
             rp = os.path.join(relp, e.name) if relp else e.name
@@ -683,7 +698,7 @@ class Ctx:
                 rc["files_refused_not_regular"] += 1
             else:
                 if self.files_discovered >= self.limits["max_files"]:
-                    raise _DiscoveryCapped()
+                    raise _DiscoveryCapped("run-file-cap-during-discovery")
                 self.files_discovered += 1
                 self.walked[full] = st
                 out.append(full)
