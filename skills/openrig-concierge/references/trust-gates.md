@@ -39,6 +39,7 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
+| `rig up` / `rig ps --nodes --rig <rig>` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper (observed on 0.5.14). A seat is ready only when `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) §7. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
@@ -99,12 +100,12 @@ rig green while the cause is still there. A seat that goes back to `att` means t
 
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
-- **Claude MCP approvals: scope each one to the reviewed worktree. Never approve by name at user scope.**
+- **Claude MCP approvals: scope each one to the seat's reviewed cwd. Never approve by name at user scope.**
   Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
   `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
   binds the same name to a different command. That is trust by name alone (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
-    `enabledMcpjsonServers` of the **worktree's untracked** `.claude/settings.local.json`. It applies only to
+    `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json`. It applies only to
     that folder, and only once the folder is trusted. Re-review whenever that `.mcp.json` changes.
     Otherwise, the operator approves interactively in the pane.
   - *deny*: `disabledMcpjsonServers` may live at user scope. A deny by name fails closed.
@@ -112,14 +113,15 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
     repo's servers ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
   - `claude mcp list` shows a server still waiting as `⏸ Pending approval`. `claude mcp reset-project-choices`
     resets the choices.
-- **Codex hooks.** Keep the per-worktree hook set small and stable. Reuse crew worktrees across runs rather
-  than creating new ones, because trust is keyed by path. Review once per new worktree through the native
+- **Codex hooks.** Keep the per-cwd hook set small and stable. Reuse cwds across runs rather
+  than creating new ones, because trust is keyed by path. Review once per new path through the native
   flow (guardrail 1). Organization-managed hooks (`requirements.toml`, MDM) are trusted by policy. That is an
   administrator's decision, not a seat's.
 - **Unattended seats.** Use `deny` rules, not `ask` (guardrail 2). Translate the policy with
   `rig context get skills/applying-a-permission-policy`.
-- **Workspace trust (class A).** Review every new worktree's checkout and project configuration before its
-  first `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate.
+- **Workspace trust (class A).** Trust is keyed to the seat's cwd. Review every new cwd before its first
+  `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate. Crews on external target
+  repositories are not supported ([`external-crew.md`](./external-crew.md) §0).
 - **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results
   (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
@@ -141,4 +143,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · wrapper-readiness row: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
