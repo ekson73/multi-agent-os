@@ -8,7 +8,7 @@
 # Runtime env: MAOS_SELFHEAL=0 (off) · MAOS_SELFHEAL_MODE=relay|seed · MAOS_SELFHEAL_TIER=propose|apply
 #   MAOS_AI_HARNESS="claude codex" (explicit chain — the ONLY way to use an unverified harness)
 #   MAOS_SELFHEAL_TIMEOUT=300 · MAOS_SELFHEAL_SEED_DIR=<dir> · MAOS_SELFHEAL_ACTIVE=1 (set by the relay: re-entrancy guard)
-import os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
+import atexit as _atexit, os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
 
 SHR_CONTRACT_NOTE = globals().get("SHR_CONTRACT_NOTE", "Preserve this script's documented behaviour and exit-code contract; never weaken a guard, validation or security check.")
 SHR_TIER_LOCK = globals().get("SHR_TIER_LOCK", "")
@@ -41,6 +41,7 @@ def shr_redact(text):
 class _ShrTee:
     def __init__(self, real, path):
         self.real, self.f = real, open(path, "a", encoding="utf-8", errors="replace")
+        _atexit.register(self.f.close)  # released at interpreter exit, never leaked
     def write(self, s):
         self.real.write(s)
         try: self.f.write(s); self.f.flush()
