@@ -187,7 +187,7 @@ echo \"https://onlytoken$LONGPW@host/y\" >&2
 false"
   "$B" "$SANDBOX/t5b.sh" >/dev/null 2>&1
   noleak "$LONGPW" "over-long URL credential leaked" "over-long URL credentials are redacted"
-  reset_stubs; mk_bash "$SANDBOX/t5c.sh" "" 'head -c 3000000 /dev/zero | tr "\\0" x >&2; echo >&2; echo TAILMARK >&2; false'
+  reset_stubs; mk_bash "$SANDBOX/t5c.sh" "" 'head -c 3000000 /dev/zero | tr "\\0" x >&2; echo >&2; echo \"TAILMARK: end\" >&2; false'
   "$B" "$SANDBOX/t5c.sh" >/dev/null 2>&1
   PSZ="$(wc -c < "$(ls -t "$SANDBOX"/tmp/shr.*/prompt.md | head -1)" | tr -d ' ')"
   check "3MB single-line log → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
@@ -210,6 +210,9 @@ false"
   reset_stubs; mk_bash "$SANDBOX/t5i.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 260); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; echo 'SHORTTAILzz1' >&2; false"
   "$B" "$SANDBOX/t5i.sh" >/dev/null 2>&1
   noleak "SHORTTAILzz1" "bash: short final PEM fragment (<16 chars) leaked" "bash: short final PEM fragment is dropped"
+  reset_stubs; mk_bash "$SANDBOX/t5j.sh" "" "printf '%s\\n' '$PEMB' >&2; head -c 300000 /dev/zero | tr '\\000' A >&2; echo >&2; echo 'SHORTTAILz2' >&2; false"
+  "$B" "$SANDBOX/t5j.sh" >/dev/null 2>&1
+  noleak "SHORTTAILz2" "bash: short PEM fragment after a byte-cut long line leaked" "bash: short PEM fragment after a byte-cut long line is dropped"
   reset_stubs; mk_bash "$SANDBOX/t5h.sh" "" 'false'
   OUT="$(MAOS_SELFHEAL_TIMEOUT=0 "$B" "$SANDBOX/t5h.sh" 2>&1 >/dev/null)"
   case "$OUT" in *"answered ->"*) ok "bash: TIMEOUT=0 falls back to 300 (harness is not killed at once)" ;; *) bad "bash: TIMEOUT=0 killed the harness: $OUT" ;; esac
@@ -253,7 +256,7 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang python; printf 'import threading\nt = threading.Thread(target=lambda: 1/0); t.start(); t.join()\n'; } > "$SANDBOX/p7.py"; python3 "$SANDBOX/p7.py" >/dev/null 2>&1; check "python: uncaught worker-thread exception relays once" "$(calls)" "1"
   check "python: prompt carries the absolute script path" "$(grep -cE '^Script: /.*/p7\.py$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'import threading\ndef w(): 1/0\nt = threading.Thread(target=w); t.start(); t.join()\nraise RuntimeError("main")\n'; } > "$SANDBOX/p8.py"; python3 "$SANDBOX/p8.py" >/dev/null 2>&1; check "python: worker fault + later main fault dispatch exactly once" "$(calls)" "1"
-  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("x" * 3000000 + "\\nTAILMARK\\n")\nraise RuntimeError("big log")\n'; } > "$SANDBOX/p9.py"; python3 "$SANDBOX/p9.py" >/dev/null 2>&1; check "python: 3MB log still relays with a bounded tail" "$(grep -c TAILMARK "$STUB_LOG".stdin.1 2>/dev/null)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("x" * 3000000 + "\\nTAILMARK: end\\n")\nraise RuntimeError("big log")\n'; } > "$SANDBOX/p9.py"; python3 "$SANDBOX/p9.py" >/dev/null 2>&1; check "python: 3MB log still relays with a bounded tail" "$(grep -c TAILMARK "$STUB_LOG".stdin.1 2>/dev/null)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p10.py"; : > "$SANDBOX/notadir2"
   OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" python3 "$SANDBOX/p10.py" 2>&1 >/dev/null)"
   case "$OUT" in *"seed NOT written"*) ok "python: unwritable seed dir is reported" ;; *) bad "python: seed failure not reported" ;; esac
@@ -266,6 +269,7 @@ if command -v python3 >/dev/null 2>&1; then
   noleak "OPENKEYBODYzzzz1234567890" "python: unterminated private key leaked" "python: unterminated private-key block is redacted"
   reset_stubs; MAOS_SELFHEAL_TIMEOUT=1e100 python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: absurd timeout (1e100) is clamped, dispatches once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("E" * 3000000)\n'; } > "$SANDBOX/p14.py"; python3 "$SANDBOX/p14.py" >/dev/null 2>&1
+  check "python: oversized exception dispatches once" "$(calls)" "1"
   PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "python: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(5000): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p15.py"; python3 "$SANDBOX/p15.py" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "python: PEM body cut off from its header leaked" "python: PEM body cut off from its header is dropped"
@@ -300,16 +304,19 @@ if command -v node >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\nOPENKEYBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n13.js"; node "$SANDBOX/n13.js" >/dev/null 2>&1
   noleak "OPENKEYBODYzzzz1234567890" "node: unterminated private key leaked" "node: unterminated private-key block is redacted"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("E".repeat(3000000));\n'; } > "$SANDBOX/n14.js"; node "$SANDBOX/n14.js" >/dev/null 2>&1
+  check "node: oversized exception dispatches once" "$(calls)" "1"
+  check "node: oversized exception captures a prompt" "$([ -s "$STUB_LOG".stdin.1 ] && echo y)" "y"
   PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "node: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
   reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 5000; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n15.js"; node "$SANDBOX/n15.js" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "node: PEM body cut off from its header leaked" "node: PEM body cut off from its header is dropped"
-  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK: end\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
   OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"
   case "$OUT" in *"seed NOT written"*) ok "node: unwritable seed dir is reported" ;; *) bad "node: seed failure not reported" ;; esac
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("https://u:%s@h/");\n' "$LONGPW"; } > "$SANDBOX/n11.js"; node "$SANDBOX/n11.js" >/dev/null 2>&1
   noleak "$LONGPW" "node: over-long URL credential leaked" "node: over-long URL credentials are redacted"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n12.js"; MAOS_SELFHEAL_TIMEOUT=bogus node "$SANDBOX/n12.js" >/dev/null 2>&1; check "node: malformed timeout still dispatches once" "$(calls)" "1"
+  reset_stubs; MAOS_SELFHEAL_TIMEOUT=1.2345 node "$SANDBOX/n12.js" >/dev/null 2>&1; check "node: fractional timeout (1.2345s) still dispatches once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 260; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n17.js"; node "$SANDBOX/n17.js" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "node: PEM cut from its header by the 200-line cap leaked" "node: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\n" + "A".repeat(70000) + "\\nEXCBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n18.js"; node "$SANDBOX/n18.js" >/dev/null 2>&1

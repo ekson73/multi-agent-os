@@ -75,15 +75,20 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     else:
         stdin = prompt_text
     # own session/process group: on timeout the WHOLE group (the harness' subprocesses too) is killed, not just the leader
-    p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_sp.PIPE, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+    # stdout goes to a file (never a PIPE + communicate(): that buffers an unbounded reply in this failing process' memory); only the first 1MB is read back
+    _outp = _os.path.join(_shr_dir, "harness.out")
+    _outf = open(_outp, "w+b")
+    p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
     try:
-        out, _ = p.communicate(input=stdin, timeout=_timeout)
+        p.communicate(input=stdin, timeout=_timeout)
+        _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.close()
     except BaseException as e:  # timeout OR Ctrl-C/interrupt: the isolated harness must never outlive its caller
         if not isinstance(e, _sp.TimeoutExpired):
             try:
                 if _os.name == "posix": _os.killpg(p.pid, 9)
                 else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
             except Exception: pass
+            _outf.close()
             raise
         try:
             if _os.name == "posix": _os.killpg(p.pid, 9)
@@ -92,6 +97,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         try: p.kill()
         except Exception: pass
         p.communicate()
+        _outf.close()
         return 124, ""
     return p.returncode, out
 
@@ -116,10 +122,10 @@ def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `c
         f.seek(0, 2); size = f.tell(); start = max(0, size - cap); f.seek(start)
         lines = f.read().decode("utf-8", "replace").splitlines(True)
     if start > 0: lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
+    trunc = start > 0 or len(lines) > n  # the window does not start at the file start
     lines = lines[-n:]  # the line cap comes BEFORE the key scan: it can cut a PEM from its header too
-    dropped = False
-    while lines and _re.fullmatch(r"[A-Za-z0-9+/=]+\s*", lines[0]) and (dropped or len(lines[0].strip()) >= 16):
-        lines = lines[1:]; dropped = True  # the body of a PEM whose BEGIN fell before the cut
+    while trunc and lines and _re.fullmatch(r"[A-Za-z0-9+/=]+\s*", lines[0]):
+        lines = lines[1:]  # any leading base64-looking line, of ANY length, may be the tail of a PEM body whose BEGIN was cut away
     out, inkey = [], False
     for l in lines:  # a private-key body whose BEGIN header fell before the cut would escape redaction: drop through its END
         if not inkey and "PRIVATE KEY-----" in l and "-----END" in l: out = []; continue

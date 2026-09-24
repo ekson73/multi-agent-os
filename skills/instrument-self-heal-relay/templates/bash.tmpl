@@ -72,18 +72,22 @@ fi
 # Log tail: at most the last 256KB (a single huge line cannot blow the prompt up), then the last N lines. A line cut by the byte cap is
 # dropped whole, and a private-key body whose BEGIN header fell before the cut is dropped through its END — neither may reach the redactor half-formed.
 shr_tail() {
-  local cap=262144 sz cut=0; sz="$(wc -c < "$SHR_LOG" 2>/dev/null | tr -d ' ')"; sz="${sz:-0}"
+  local cap=262144 sz cut=0 max="${SHR_MAX_LOG_LINES:-200}"; sz="$(wc -c < "$SHR_LOG" 2>/dev/null | tr -d ' ')"; sz="${sz:-0}"
   if [ "$sz" -gt "$cap" ]; then cut=1; fi
   { if [ "$cut" = 1 ]; then tail -c "$cap" "$SHR_LOG" | tail -n +2; else cat "$SHR_LOG"; fi; } 2>/dev/null |
-    tail -n "${SHR_MAX_LOG_LINES:-200}" |
-    awk 'BEGIN { lead = 1; dropped = 0 }
-         lead && $0 ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/ && (dropped || length($0) >= 16) { dropped = 1; next }   # base64 body of a PEM whose BEGIN fell before the cut
-         { lead = 0 }
-         { if (!b && /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; next }
-           if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/) b = 1
-           if (/-----END [A-Z ]*PRIVATE KEY-----/) b = 0
-           buf[n++] = $0 }
-         END { for (i = 0; i < n; i++) print buf[i] }'
+    tail -n "$((max + 1))" |
+    awk -v cut="$cut" -v max="$max" '{ raw[NR] = $0 }
+         END { s = 1; trunc = cut; if (NR > max) { trunc = 1; s = 2 }   # the +1 line is the extra one the line cap cuts off
+               lead = 1
+               for (i = s; i <= NR; i++) { l = raw[i]
+                 # the window does not start at the file start (byte or line cap): any leading base64-looking line, of ANY length, can be the tail of a PEM body whose BEGIN was cut away
+                 if (lead && trunc && l ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/) continue
+                 lead = 0
+                 if (!b && l ~ /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; continue }
+                 if (l ~ /-----BEGIN [A-Z ]*PRIVATE KEY-----/) b = 1
+                 if (l ~ /-----END [A-Z ]*PRIVATE KEY-----/) b = 0
+                 buf[n++] = l }
+               for (i = 0; i < n; i++) print buf[i] }'
 }
 
 # Build the prompt: contract + task + the UNTRUSTED run log inside a NONCE-delimited block (a log line cannot forge the
