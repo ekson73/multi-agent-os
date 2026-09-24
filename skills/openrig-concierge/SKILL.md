@@ -81,7 +81,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 | Owned layer | File |
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
-| startup trust gates: diagnose, decide, clear, pre-configure, and the user-scope check every seat inherits | `references/trust-gates.md` |
+| startup trust gates: diagnose, decide, clear, pre-configure, and the user-scope and environment check every seat inherits | `references/trust-gates.md` |
 | external crew: agent_ref from outside, per-seat desks (never a repo worktree as cwd) and worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 

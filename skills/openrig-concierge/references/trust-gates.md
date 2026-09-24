@@ -25,7 +25,8 @@
    **outside the seat**, run by whoever that procedure names, and hands back only non-secret results. Back
    this with a harness `deny` on the secret CLI (for example `Bash(op:*)`). That deny is best-effort; the
    real control is that no secret value is ever placed where a seat can read it. That includes env the
-   harness injects from the operator's user settings, which no shell-side scrub removes (§4, user-scope check).
+   harness injects from the operator's user settings, which no shell-side scrub removes, and env the tmux
+   server, the daemon or the login shell carries (§4, user-scope and environment check).
 4. **Never trust an MCP server, hook or operation because of its name, path or owner alone.** Names are free
    to choose, and a file in `~/.codex/` or a repo's `.codex/` could have been written by anything. Read what
    it executes.
@@ -40,7 +41,7 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
-| `rig up` / `rig ps --nodes` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. Judge by `startupStatus` and `rig capture`; heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
+| `rig up` / `rig ps --nodes` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. A seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
@@ -127,21 +128,35 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results
   (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
 
-### User-scope check (every seat inherits it) [T3]
+### User-scope and environment check (every seat inherits both) [T3]
 
 Every seat runs as the operator, so the harness loads the operator's user scope into it: the user settings
-`env` block, hooks, plugins, user MCP config and home-level agent guidance. A RigSpec cannot scope any of it.
-A scrub in the shell's startup files does not reach the settings `env` block either, because the harness
-applies it after the shell starts. Observed on OpenRig 0.5.14 with Claude Code 2.1.281: the shell-side scrub
-removed the secrets exported by the shell and the tmux server, while a secret in the user settings `env`
-still reached every seat's tool env. Recipe for Claude Code seats:
+`env` block, hooks, plugins, user MCP config and home-level agent guidance. A RigSpec cannot scope any of it,
+and it has no `env` field. A seat's environment arrives through several channels, and each needs its own
+scrub:
 
-1. **List names, never values [T0].** `jq -r '.env // {} | keys[]' ~/.claude/settings.json`. Mark every
-   secret-like name.
-2. **Override per desk [T3, show the diff].** Render an `env` object that sets each marked name to the empty
-   string, and merge it into the desk's own `.claude/settings.local.json` (mode 0600, the file that also
-   carries the seat's posture) before launch. The filter below prints names only; add any secret it misses
-   from the list in step 1:
+| Channel | How it reaches the seat | Scrub |
+|---|---|---|
+| **(a)** harness user settings `env` | the harness applies it to its tool env **after** the shell starts | desk override (step 3) |
+| **(b)** the tmux server's global environment | copied from whatever process started the tmux server, then into every new pane | shell-side, at the desk (step 4) |
+| **(c)** the OpenRig daemon's environment | inherited by the tmux server when the daemon starts it, so it surfaces through (b) | shell-side, at the desk (step 4) |
+| **(d)** the login shell's own startup files (secret loaders, exports) | run in every pane | shell-side, placed after the loaders (step 4) |
+
+Observed on OpenRig 0.5.14 with Claude Code 2.1.281: a shell-side scrub removed the secrets from (b) and (d),
+while a secret in (a) still reached every seat's tool env. Recipe for Claude Code seats:
+
+1. **Inventory names, never values, from every channel [T0].** Mark every secret-like name.
+   - (a) `jq -r '.env // {} | keys[]' ~/.claude/settings.json`
+   - (b) `tmux show-environment -g | cut -d= -f1`
+   - (c) `rig daemon status` prints the daemon's pid. On Linux: `tr '\0' '\n' </proc/<pid>/environ | cut -d= -f1`.
+     On macOS no names-only read exists (`ps` prints the environment with its values), so do not read it;
+     rely on (b), which the daemon's environment feeds, and on the live name probe in step 5.
+   - (d) read the shell startup files for exports and loaders; record the names.
+2. **Keep one names list** (the union of step 1), with no values. Every later step uses it.
+3. **Desk override for (a) [T3, show the diff].** Render an `env` object that sets each channel-(a) name to the
+   empty string, and merge it into the desk's own `.claude/settings.local.json` (mode 0600, the file that
+   also carries the seat's posture) before launch. The filter below prints names only; add any secret it
+   misses from the list:
 
    ```bash
    jq '{env: (.env // {} | keys
@@ -151,20 +166,36 @@ still reached every seat's tool env. Recipe for Claude Code seats:
 
    It works because local settings override user settings for the same key, and OpenRig deep-merges its own
    fragment into that file and keeps `env` (observed on 0.5.14).
-3. **Verify in each LIVE seat [T1], never by reading the file.** Send a no-value probe and read the pane:
+4. **Shell-side scrub for (b), (c) and (d) [T3, the operator's shell config].** At the **end** of the login
+   shell's startup file, after every secret loader, unset the names from the list, scoped to the desk path
+   so no other shell changes, and set a marker the probe can test:
 
    ```bash
-   rig send <session> '![[ -z ${NAME_A:-} && -z ${NAME_B:-} ]] && echo SCRUBBED || echo NOT-SCRUBBED' --raw
-   rig capture <session> --lines 15
+   case "$PWD" in
+     <crew-home>/desks/*) unset NAME_B NAME_C NAME_D; export CREW_DESK_SCRUB=1 ;;
+   esac
    ```
 
-   Use `${VAR:-}`, which treats set-but-empty as scrubbed. The probe prints no value, but it starts a model
-   turn ([`external-crew.md`](./external-crew.md) step 6). A send to a busy pane waits until the pane idles.
-4. **Stop rule.** `NOT-SCRUBBED` in any seat means no work: take the rig down with a snapshot, fix the
-   override, and relaunch under a new rig name.
-5. **Re-render** the override whenever the user settings `env` changes. It covers only the names present when
-   it was written.
-6. **Reset desks after posture changes.** OpenRig's merge unions arrays, so a rule you removed from your
+   The harness is a child of that shell, so it starts without them.
+5. **Verify in each LIVE seat [T1], never by reading a file.** First a names-only probe for anything the list
+   missed, then a no-value probe over **every** name on the list:
+
+   ```bash
+   rig send <session> '!env | cut -d= -f1 | grep -E "TOKEN|KEY|SECRET|PASSWORD|AUTH"' --raw
+   rig send <session> '![[ -z ${NAME_A:-} && -z ${NAME_B:-} && -z ${NAME_C:-} && -z ${NAME_D:-} && -n ${CREW_DESK_SCRUB:-} ]] && echo SCRUBBED || echo NOT-SCRUBBED' --raw
+   rig capture <session> --lines 20
+   ```
+
+   `SCRUBBED` counts only when every inventoried name is empty and the marker is set. Use `${VAR:-}`, which
+   treats set-but-empty as scrubbed. The first probe also lists names whose values are empty: judge each name it
+   prints. A new secret name goes on the list; an innocuous one (a flag, a path, an id the harness itself sets)
+   is recorded as such. The probes print no values, but each starts a model turn
+   ([`external-crew.md`](./external-crew.md) step 6). A send to a busy pane waits until the pane idles.
+6. **Stop rule.** `NOT-SCRUBBED`, or an unlisted secret name, in any seat means no work: take the rig down
+   with a snapshot, fix the scrub, and relaunch under a new rig name.
+7. **Re-render** the override and the unset list whenever any channel changes. Each covers only the names
+   present when it was written.
+8. **Reset desks after posture changes.** OpenRig's merge unions arrays, so a rule you removed from your
    template survives in a reused desk's settings file. Recreate the desk's settings file instead of merging
    again.
 
@@ -196,4 +227,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · user-scope check: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · user-scope and environment check: Claude-RigOps-8f02-001, 2026-09-24 (UTC), revised 2026-09-24 (UTC) after review · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
