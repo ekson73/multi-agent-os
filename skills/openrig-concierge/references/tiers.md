@@ -77,7 +77,7 @@ Caveats observed on 0.5.14:
 ## Rules that apply across tiers
 
 1. **Verify with a T0 read, never with an exit code.** `rig send` can report success while the text sits
-   undelivered in the pane (upstream [#14](https://github.com/mvschwarz/openrig/issues/14)). Confirm with
+   undelivered in the pane (upstream [#14](https://github.com/mvschwarz/openrig/issues/14), open as of 0.5.14; re-check it). Confirm with
    `rig capture <session>`.
 2. **Ownership.** Rigs you did not create get T0 only, unless the delegation names them (CANON C8).
 3. **OpenRig records posture; the harness enforces it** (CANON C4). A tier is a decision discipline for the

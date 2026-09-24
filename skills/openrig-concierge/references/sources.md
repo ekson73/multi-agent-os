@@ -25,7 +25,11 @@ beats doctrine: if a doc says a seat should be ready and `rig ps` says `att`, th
 | Docs index for agents | https://www.openrig.dev/llms.txt | some listed `.md` URLs returned 404 when checked (2026-09-23); fall back to the HTML page |
 | Source, releases, issues | https://github.com/mvschwarz/openrig (Apache-2.0) | release notes = version deltas; open issues = known bugs (see `trust-gates.md` §5). `gh issue view <n> -R mvschwarz/openrig`. |
 
-## Rung 3 — derived, optional, user-built (never shipped by MAOS)
+## Rung 3 — optional research aids (never required, never invoked automatically, never shipped by MAOS)
+
+The skill is **fully functional with Rungs 0–2 alone**: the installed CLI, its first-party context, and the
+official docs and repo. Consult a Rung 3 aid only when a human explicitly asks for it and it already exists.
+Never build one, query one or wait on one as part of a mode.
 
 - **A NotebookLM notebook** built from the Rung 2 URLs. Useful for "why" questions. Its answers are LLM
   syntheses, so check every command it names with `rig <cmd> --help` before use. In the 2026-09-23 research

@@ -33,7 +33,7 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Startup requires attention: …` | the harness is waiting at an interactive prompt |
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
-| any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18)). Read `rig ps --nodes --rig <rig> --json` instead. |
+| any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
@@ -76,7 +76,7 @@ Two paths. Pick the first one that is available:
    `rig capture <session>` must show the prompt gone.
 
 **After the prompt is resolved** the seat may still show `attention_required`, because startup readiness is
-checked only once ([#7](https://github.com/mvschwarz/openrig/issues/7)):
+checked only once ([#7](https://github.com/mvschwarz/openrig/issues/7), open as of 0.5.14; see §5):
 
 ```bash
 rig seat clear-attention <session>              # T1: the daemon runs its own evidence gate
@@ -106,16 +106,19 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 
-| Issue | Effect | Workaround |
-|---|---|---|
-| [#17](https://github.com/mvschwarz/openrig/issues/17) | Codex hook-trust dialog is not auto-cleared (Codex 0.155.1) | native review, section 2 class C |
-| [#7](https://github.com/mvschwarz/openrig/issues/7) | the seat stays `attention_required` after a successful manual fix | `rig seat clear-attention` |
-| [#18](https://github.com/mvschwarz/openrig/issues/18) | `[object Object]` hides the remediation | `rig ps --nodes --rig <rig> --json` + `rig capture` |
-| [#14](https://github.com/mvschwarz/openrig/issues/14) | `rig send` reports success while the text sits undelivered | verify with `rig capture`, never trust the exit code |
-| [#12](https://github.com/mvschwarz/openrig/issues/12) | readiness times out on tmux 3.3a | tmux ≥ 3.4 (`tmux -V`) |
-| [#16](https://github.com/mvschwarz/openrig/pull/16) (PR) | `npm i -g @openrig/cli` fails on Node 26 | Node 20/22/24 |
+Each workaround applies **only to the versions it was observed on**. It is not permanent. Before you apply
+one, re-check the issue (`gh issue view <n> -R mvschwarz/openrig`) and the release notes for your installed
+`rig --version` (https://github.com/mvschwarz/openrig/releases). If the issue is closed or a release says it
+is fixed, drop the workaround and follow the current first-party guidance instead.
 
-Re-check the state of each issue before you cite it: `gh issue view <n> -R mvschwarz/openrig`.
+| Issue (opened) | Effect | Observed on | Workaround (for those versions only) |
+|---|---|---|---|
+| [#17](https://github.com/mvschwarz/openrig/issues/17) (2026-09-23) | Codex hook-trust dialog is not auto-cleared | reported on Codex 0.155.1; seen live on OpenRig 0.5.14 + Codex 0.156.1 | native review, section 2 class C |
+| [#7](https://github.com/mvschwarz/openrig/issues/7) (2026-04-11) | the seat stays `attention_required` after a successful manual fix | reported 2026-04-11, still open when checked against 0.5.14; not reproduced for this page | `rig seat clear-attention` |
+| [#18](https://github.com/mvschwarz/openrig/issues/18) (2026-09-23) | `[object Object]` hides the remediation | reported against 0.5.14; fix PR #22 still open when checked | `rig ps --nodes --rig <rig> --json` + `rig capture` |
+| [#14](https://github.com/mvschwarz/openrig/issues/14) (2026-06-28) | `rig send` reports success while the text sits undelivered | reported 2026-06-28, still open when checked against 0.5.14; fix PR #15 still open | verify with `rig capture`, never trust the exit code |
+| [#12](https://github.com/mvschwarz/openrig/issues/12) (2026-04-20) | readiness times out on tmux 3.3a | reported on tmux 3.3a; not seen on tmux 3.4+ | tmux ≥ 3.4 (`tmux -V`) |
+| [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
 Signed: Claude-RigOps-5a1e-002 · 2026-09-23T22:55:00-03:00 · prompt texts observed live with `rig capture` on the versions above.

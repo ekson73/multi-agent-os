@@ -85,7 +85,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 | daemon | `rig daemon status` | down: `rig crash-cart` (read-only verdict). Recovery with `rig start` is T2. |
 | install health | `rig doctor` · `rig preflight` | report each failing check |
 | runtimes | `claude --version` · `codex --version` | never design a seat on a missing runtime |
-| terminal | `tmux -V` (need ≥ 3.4; 3.3a breaks readiness, upstream #12) · optional `herdr --version`, `cmux --version` | route: `rig context get skills/core/openrig-herdr` / `skills/core/openrig-cmux` |
+| terminal | `tmux -V` (3.3a broke readiness as of 0.5.14, upstream #12; re-check the issue) · optional `herdr --version`, `cmux --version` | route: `rig context get skills/core/openrig-herdr` / `skills/core/openrig-cmux` |
 | inside a seat? | `OPENRIG_SESSION_NAME` set → `rig whoami` | outside a seat: pass `--rig <rig>`, `-A` or explicit session names (verbs that default to "my rig" return empty) |
 | upstream checks | `gh --version` | skip the issue refresh and say so |
 
@@ -104,9 +104,10 @@ those packs and does not copy them (C2). It **owns** only the rest:
 ## Fact ladder (C1)
 
 Rung 0 live state (`rig ps`, `rig capture`) → Rung 1 installed CLI (`--help`, `rig context get`,
-`~/.openrig/reference/*.md`) → Rung 2 openrig.dev and github.com/mvschwarz/openrig → Rung 3 optional derived
-KBs (NotebookLM, generated) → Rung 4 this skill's references → Rung 5 memory. A lower rung never overrules a
-higher one. Stamp every answer with the version it was checked on. Details: `references/sources.md`.
+`~/.openrig/reference/*.md`) → Rung 2 openrig.dev and github.com/mvschwarz/openrig → Rung 3 optional research
+aids (NotebookLM, a generated KB; never required, never invoked automatically) → Rung 4 this skill's references → Rung 5 memory. A lower rung never overrules a
+higher one. The skill is fully functional with Rungs 0–2 alone. Stamp every answer with the version it was
+checked on. Details: `references/sources.md`.
 
 ## Routing — intent → first-party ref
 
