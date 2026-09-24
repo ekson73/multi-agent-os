@@ -135,6 +135,15 @@ STUB
   out="$("$B" "$SANDBOX/t4e3.sh" 2>&1)"; rc=$?
   check "bash: script with a failing command substitution exits 0" "$rc" "0"
   check "bash: nothing relayed for a failure inside a command substitution" "$(calls)" "0"
+  echo "-- 4e4. a harness flooding stdout is ended at the disk cap, not at the timeout"
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; mk_bash "$SANDBOX/t4e4.sh" "" 'false'
+  T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=120 "$B" "$SANDBOX/t4e4.sh" >/dev/null 2>&1; T1=$((SECONDS-T0))
+  if [ "$T1" -lt 40 ]; then ok "bash: runaway harness output ends the run at the cap (${T1}s)"; else bad "bash: runaway harness output was not bounded on disk" "took ${T1}s"; fi; restore_stubs
+  echo "-- 4e5. an unset HOME does not abort the seed fallback under set -u"
+  reset_stubs; mk_bash "$SANDBOX/t4e5.sh" "" 'false'
+  out="$(env -u HOME -u XDG_STATE_HOME -u MAOS_SELFHEAL_SEED_DIR MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4e5.sh" 2>&1)"; rc=$?
+  check "bash: original exit code preserved with HOME unset" "$rc" "1"
+  case "$out" in *"unbound variable"*) bad "bash: unset HOME hit a nounset abort" "$out" ;; *) ok "bash: no nounset abort with HOME unset" ;; esac
   echo "-- 4f. ERR inherited by a subshell dispatches ONCE and keeps its artifacts"
   reset_stubs; mk_bash "$SANDBOX/t4f.sh" "" '( false )
 echo after'
