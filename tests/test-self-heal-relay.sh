@@ -87,6 +87,12 @@ f'
   grep -q '^gemini' "$STUB_LOG" && ok "explicit MAOS_AI_HARNESS opts an unverified harness in" || bad "explicit opt-in should reach gemini"
   rm -f "$STUBS/gemini"
 
+  echo "-- 4c. harness output is stripped of ANSI colour codes"
+  reset_stubs; mk_bash "$SANDBOX/t4c.sh" "" 'false'
+  STUB_OUT="$(printf '\033[38;5;141mPROPOSAL\033[0m colour')" "$B" "$SANDBOX/t4c.sh" >/dev/null 2>&1
+  PR="$(cat "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)"
+  case "$PR" in *$'\033'*) bad "proposal.md still contains ESC" ;; *PROPOSAL*) ok "proposal.md is ANSI-free and non-empty" ;; *) bad "no proposal written" ;; esac
+
   echo "-- 5. redaction: no secret reaches argv, stdin or the kept prompt"
   reset_stubs; mk_bash "$SANDBOX/t5.sh" "" "echo \"boot key=$FAKE_AWS gh=$FAKE_GH\" >&2
 echo \"password=$FAKE_PW\" >&2

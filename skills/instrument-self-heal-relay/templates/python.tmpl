@@ -103,6 +103,7 @@ def shr_relay(exc_text):
         try: rc, out = _shr_run(h["bin"], h["argv"][tier], prompt, ppath)
         except Exception as e: rc, out = 1, ""; print(f"self-heal-relay: {name} failed: {e}", file=_sys.__stderr__)
         if rc == 0 and out.strip():
+            out = _re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", out)  # strip ANSI
             out_path = _os.path.join(_shr_dir, "proposal.md")
             with open(out_path, "w", encoding="utf-8") as f: f.write(out)
             print(f"self-heal-relay: {name} answered -> {out_path} (a human must REVIEW before anything is applied)", file=_sys.__stderr__)
