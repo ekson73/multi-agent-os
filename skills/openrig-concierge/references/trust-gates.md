@@ -143,7 +143,20 @@ scrub:
 | **(d)** the login shell's own startup files (secret loaders, exports) | run in every pane | shell-side, placed after the loaders (step 4) |
 
 Observed on OpenRig 0.5.14 with Claude Code 2.1.281: a shell-side scrub removed the secrets from (b) and (d),
-while a secret in (a) still reached every seat's tool env. Recipe for Claude Code seats:
+while a secret in (a) still reached every seat's tool env.
+
+**Prerequisite: remove or isolate each credential at its source.** An empty tool env does not protect the
+file the value came from. A seat runs code as the operator user (a builder can edit package scripts), so
+the user settings file, shell startup files and credential directories stay readable whatever the probe
+says. Before launch, move each secret out of the user settings `env` and out of the shell's default
+environment, behind the project's just-in-time procedure (guardrail 3). If a source cannot be changed, the
+operator records an explicit risk acceptance (which secret, which seats, why) before launch. Also deny `Read`
+of the harness user settings file and of credential directories in each desk's settings. That deny is a speed
+bump: it does not close the code-execution path.
+
+The recipe below is a **secondary control** on top of that prerequisite. It keeps the values out of each seat's
+tool env and proves it per seat, which limits accidental exposure (logs, transcripts, tool output). Recipe
+for Claude Code seats:
 
 1. **Inventory names, never values, from every channel [T0].** A pipeline that splits on newlines is not
    names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
@@ -218,9 +231,8 @@ while a secret in (a) still reached every seat's tool env. Recipe for Claude Cod
    template survives in a reused desk's settings file. Recreate the desk's settings file instead of merging
    again.
 
-The override removes the value from the seat's tool env, not from the harness process that parsed the user
-settings. The durable fix is the operator's: keep secrets out of the user settings `env` and behind the
-project's just-in-time procedure.
+The override removes the value from the seat's tool env, not from its source file or from the harness process
+that parsed the user settings. That residual risk is why removal at the source is the prerequisite above.
 
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh

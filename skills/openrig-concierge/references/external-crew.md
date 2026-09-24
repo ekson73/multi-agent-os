@@ -100,6 +100,11 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   (`<repo>/.worktrees/<crew>-<seat>/<unit>`), the way the project's policy says. Two writers never share a
   worktree or a parent. A reviewer gets only the worktree checked out at the commit it reviews, read-only:
   grant that one directory and deny `Edit` and `Write` on it.
+- **Unit worktrees come only from reviewed refs.** Under a desk cwd the harness loads no project config
+  from a worktree, so a unit worktree needs no review gate of its own as long as the seat creates it from the
+  reviewed remote default branch or from the seat's own branch. What still runs is code the seat executes
+  (package scripts and the like), which the no-credentials rule (step 9) covers. Seats never create a
+  worktree from another ref (a contributor's branch, a PR head, a tag); that needs a review first.
 - `additionalDirectories` scopes the harness's file tools. Shell commands are bounded only by the seat's
   allowlist, so keep path-taking allow rules exact (and remember that `git` in any worktree writes the shared
   repository metadata).
@@ -131,6 +136,18 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 
   `rig spec audit` then reports that no `culture_file` is set. That advisory is expected and deliberate.
   Confirm delivery per seat with `rig transcript <session> --grep "<culture title>"` [T0].
+- **Project-scoped config does not follow a desk seat (mandatory pre-launch step).** With the cwd outside the
+  repo, the harness does not load the target's project-scoped config: `.claude/settings.json` (hooks,
+  permissions, enabled plugins), `.mcp.json`, `.claude/` skills, commands and agents, or the Codex
+  equivalents. Before launch, inventory that config in the reviewed checkout, then:
+  1. project the reviewed hooks, permission rules and plugin enables into each desk's
+     `.claude/settings.local.json` (show the diff; project MCP servers follow [`trust-gates.md`](./trust-gates.md) §4);
+  2. make the project's skills reachable, either by telling seats to read them from their worktree (for
+     example the project's canonical `.agents/skills/<name>/SKILL.md`) or by copying reviewed skill
+     directories into the desk;
+  3. if a deterministic gate cannot be projected (for example a hook that resolves paths relative to the
+     project root), do not use this recipe for that repo, or record the gap as an explicit risk the operator
+     accepts before launch.
 - The culture's content:
   1. "The target project's AGENTS.md, runbooks and human gates outrank this file." A desk is outside the
      repo, so no seat loads the project's AGENTS.md / CLAUDE.md on its own. Tell each seat to read them
@@ -159,8 +176,21 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
     pipe, a `cd`) denies the whole line. Teach seats to issue single simple commands.
   - Commit signing that goes through an interactive agent (a desktop password manager, a hardware key)
     fails unattended. Use `git commit --no-gpg-sign` **only** where the target branch does not require
-    signatures, verified read-only first (for GitHub: `gh api repos/<owner>/<repo>/branches/<branch>/protection`
-    and `gh api repos/<owner>/<repo>/rules/branches/<branch>`, looking for `required_signatures`).
+    signatures, verified read-only first. Encode the branch as one path segment: a raw `release/1.0`
+    changes the API path and the rules call can come back empty, which would read as "no requirement".
+    For GitHub:
+
+    ```bash
+    ENC=$(jq -rn --arg b "$BRANCH" '$b|@uri')
+    gh api "repos/<owner>/<repo>/branches/$ENC" -q .name        # must print the branch name
+    gh api "repos/<owner>/<repo>/rules/branches/$ENC" --paginate --slurp \
+      | jq '[add[]? | select(.type=="required_signatures")] | length'   # must print 0
+    gh api "repos/<owner>/<repo>/branches/$ENC/protection" -q '.required_signatures.enabled'   # must print false
+    ```
+
+    Only "Branch not protected" (HTTP 404) on the last call counts as no classic protection. Any other
+    failure, an empty response, or a missing branch is **INCONCLUSIVE**: signing stays required and
+    `--no-gpg-sign` is not allowed.
   - `rig send <session> '!<cmd>' --raw` [T1] runs a permission-free shell probe in the seat's real tool env,
     which you read back with `rig capture`. The runtime then answers the output with a model turn. Keep
     probes to names or flags, never values, and prefer disposable seats. List names with the shell's
@@ -205,11 +235,12 @@ apply, native Codex hook review, deny rules, no secret values anywhere a seat ca
 
 **User scope and environment.** Every seat also inherits the operator's harness user scope (the user settings
 `env` block, hooks, plugins, user MCP config, home-level agent guidance) and the environment of the tmux
-server, the OpenRig daemon and the login shell. A shell-side scrub cannot remove env that the harness applies
-after the shell starts, and the settings override cannot remove env the shell already carries: each channel
-needs its own scrub. Run the check in [`trust-gates.md`](./trust-gates.md) §4 before the launch and again in
-each live seat. `NOT-SCRUBBED` in any seat is a stop rule: take the rig down (snapshot first) and fix the
-scrub before any work.
+server, the OpenRig daemon and the login shell. A seat runs code as the operator user, so any credential
+stored in a file it can read is reachable however empty its env is. The prerequisite is therefore to remove
+or isolate each credential **at its source** (user settings, shell startup files) before launch, or to have
+the operator record an explicit risk acceptance. Run the check in [`trust-gates.md`](./trust-gates.md) §4,
+whose per-channel scrubs and live `SCRUBBED` probe are a secondary control on top of that. `NOT-SCRUBBED` in
+any seat is a stop rule: take the rig down (snapshot first) and fix it before any work.
 
 ## 10. Launch [T1]
 
@@ -284,7 +315,9 @@ rig heartbeat --rig <rig>                   # only for rigs with a shared-docs q
     Never borrow a seat's name.
   - `rig queue handoff` without `--body` produced a new item with an empty body, and its `--evidence-ref` was
     not kept, although its help says the source body is kept. Always pass `--body` (or `--body-file`) and
-    check the new item with `rig queue show <id>`.
+    write the evidence reference **inside the body** (for example a final line `evidence: <path or URL>`).
+    Before treating the handoff as durable, check with `rig queue show <id>` that the new item's body
+    carries that reference.
   - Every outside-seat `rig send` is delivered "without sender identity". Sign the message body with your
     agent ID.
   - `rig send --wait-for-idle <s> --verify` is not a turn-boundary guarantee. A send that lands during a turn

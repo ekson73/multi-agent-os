@@ -42,14 +42,19 @@ that version. Every correction below was observed there.
   overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now: an empty 0700 desk per seat
   outside every repo; each seat granted only its own worktree parent through the harness's
   additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
-  under that parent per the project's policy; a read-only review worktree for the reviewer; and a
-  post-launch status check that includes untracked files and the projected paths
-  (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
+  under that parent per the project's policy, created only from the reviewed default branch or the seat's own
+  branch; a read-only review worktree for the reviewer; and a post-launch status check that includes
+  untracked files and the projected paths (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
   guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
+- **Project-scoped config does not follow a desk seat.** New mandatory pre-launch step: inventory the target's
+  project config, project reviewed hooks, permissions and plugin enables into each desk, make project skills
+  reachable, and skip the recipe (or record an accepted risk) where a gate cannot be projected (step 6).
 - **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
   `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
-  OpenRig daemon and the login shell. New recipe: inventory secret-like names only from every channel, scrub
+  OpenRig daemon and the login shell. Prerequisite: remove or isolate each credential at its source, or have
+  the operator record a risk acceptance, and deny `Read` of the user settings and credential directories.
+  Secondary control: inventory secret-like names from every channel with value-free forms, scrub
   each channel at the seat boundary (a desk settings override for the harness `env`, a desk-scoped shell
   unset for the rest), verify in each live seat that every inventoried name is empty, stop on
   `NOT-SCRUBBED`, re-render when a channel changes, reset desks after posture changes. Notes the
@@ -63,13 +68,15 @@ that version. Every correction below was observed there.
   `rig seat launch --fresh` (step 11, `trust-gates.md` §1).
 - **Command shapes.** `rig snapshot` / `snapshot list` / `launch` need the rig ID; `rig restore status` needs
   `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside-seat `rig queue create` needs an
-  honest `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`; outside-seat `rig send` carries no
+  honest `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body` with the evidence reference inside
+  it, because `--evidence-ref` was not kept; outside-seat `rig send` carries no
   sender identity, and `--wait-for-idle --verify` is no proof the seat took the text; pre-trust residue for the
   cwd and its git root is operator cleanup (`tiers.md`, steps 12
   and 14, `CANON.md` C7).
 - **Unattended posture.** A `PermissionRequest` hook answering `deny`, prefix denies as a speed bump next to
   structural controls, single simple commands, `--no-gpg-sign` only where branch protection does not require
-  signatures, and names-only `!` probes (step 6, `tiers.md` rule 4). Step 1 now budgets per-seat boot
+  signatures (branch URL-encoded; any API failure is inconclusive and keeps signing required), and
+  names-only `!` probes (step 6, `tiers.md` rule 4). Step 1 now budgets per-seat boot
   context, paid again on every relaunch.
 
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets

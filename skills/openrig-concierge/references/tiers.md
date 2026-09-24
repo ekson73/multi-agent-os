@@ -55,7 +55,8 @@ Caveats observed on 0.5.14:
 `rig queue create|claim|unclaim|update|block|resolve|handoff|handoff-and-complete|fallback|inbox-*|outbox-record`
 (outside a seat, `queue create` needs an `OPENRIG_SESSION_NAME` label even though its `--source` flag is
 documented as deprecated: set it for that one command to an honest external label, never a seat's name.
-`queue handoff` without `--body` produced an empty body on 0.5.14: always pass `--body`) ·
+`queue handoff` without `--body` produced an empty body on 0.5.14, and `--evidence-ref` was not kept: always
+pass `--body` with the evidence reference inside it) ·
 `rig heartbeat --nudge` · `rig up <new-rig>` (a rig name that is not running; reversible via `rig down`) ·
 `rig snapshot <rigId>` · `rig archive` / `rig unarchive` · `rig specs add|remove|rename|sync` ·
 `rig context add|rm|sync` · `rig launch <rigId> <seat>` (only for a seat that `rig ps --nodes` shows stopped; relaunching a live seat is T2) ·
