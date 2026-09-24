@@ -343,7 +343,7 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; GCS="$SANDBOX/gcs.pid"; rm -f "$GCS"; printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) >/dev/null 2>&1 &\nsleep 1\necho PROPOSAL-OK\n' "$GCS" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p25.py"
   MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p25.py" >/dev/null 2>&1; sleep 1
   if gc_alive "$GCS"; then bad "python: a background child left by a harness that exited 0 survived"; kill -9 "$(cat "$GCS")" 2>/dev/null; else ok "python: descendants of a harness that exits cleanly are reaped"; fi; restore_stubs
-  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p26.py"
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf '_shr_watch_size = lambda *a, **k: None  # disable the polling watcher: this test targets the post-run check, not the watcher\nraise RuntimeError("x")\n'; } > "$SANDBOX/p26.py"
   out="$(MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p26.py" 2>&1)"
   case "$out" in *"kiro-cli answered"*) bad "python: an oversized answer from a fast harness was accepted" ;; *) ok "python: an oversized answer from a fast harness is rejected" ;; esac; restore_stubs
   # python's tempfile falls back to /tmp when TMPDIR is bad, so a bad TMPDIR cannot force the failure: make mkdtemp itself raise
