@@ -78,7 +78,11 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     try:
         out, _ = p.communicate(input=stdin, timeout=int(_os.environ.get("MAOS_SELFHEAL_TIMEOUT", "300")))
     except _sp.TimeoutExpired:
-        try: _os.killpg(p.pid, 9) if _os.name == "posix" else p.kill()
+        try:
+            if _os.name == "posix": _os.killpg(p.pid, 9)
+            else: _sp.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)  # Windows: kill the whole tree
+        except Exception: pass
+        try: p.kill()
         except Exception: pass
         p.communicate()
         return 124, ""
@@ -149,4 +153,15 @@ if SHR_ON:
             try: shr_relay("".join(_tb.format_exception(et, ev, tb)))
             except Exception: pass
     _sys.excepthook = _shr_hook
+    try:  # an uncaught exception in a worker thread goes to threading.excepthook, not sys.excepthook
+        import threading as _th
+        _shr_prev_th = _th.excepthook
+        def _shr_th_hook(a):
+            try: _shr_prev_th(a)
+            finally:
+                if a.exc_type is not None and not issubclass(a.exc_type, (KeyboardInterrupt, SystemExit)) and not _shr_relayed:
+                    try: shr_relay("".join(_tb.format_exception(a.exc_type, a.exc_value, a.exc_traceback)))
+                    except Exception: pass
+        _th.excepthook = _shr_th_hook
+    except Exception: pass
     _atexit.register(_shr_cleanup)
