@@ -88,20 +88,29 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   (`mkdir -m 0700 <crew-home>/desks/<seat>`; `git -C <desk> rev-parse --git-dir` must fail). The managed
   block, projected skills and settings fragments then land in the desk. Absolute paths and paths relative
   to the rig root both validate on 0.5.14.
-- **The seat reaches its worktree through the harness's additional-directories permission**, never through
-  its cwd. For Claude Code that is `permissions.additionalDirectories` in the desk's own
-  `.claude/settings.local.json`, naming the directory that holds the project's worktrees. OpenRig
-  deep-merges its own fragment into that file and keeps your keys.
-- **One unit worktree per writer.** Each writing seat creates the worktree for its unit of work itself,
-  the way the target project's own worktree policy says (MAOS default:
-  [`worktree-policy`](../../worktree-policy/SKILL.md)). Two writers never share a worktree. Reviewers read a
-  worktree checked out at the commit they review.
+- **The seat reaches its worktrees through the harness's additional-directories permission**, never through
+  its cwd, and **only its own**. For Claude Code that is `permissions.additionalDirectories` in the desk's own
+  `.claude/settings.local.json`. OpenRig deep-merges its own fragment into that file and keeps your keys.
+  Never grant the shared parent of all the project's worktrees: that gives every seat write reach into its
+  siblings' and into any ambient worktrees, and a `deny` rule there is only a speed bump (step 6).
+- **One per-seat parent, one unit worktree per writer.** Before launch, create an empty parent per writing
+  seat inside the location the target project's worktree policy names (MAOS default:
+  [`worktree-policy`](../../worktree-policy/SKILL.md)), for example `<repo>/.worktrees/<crew>-<seat>/`, and
+  grant each seat only its own parent. The seat then creates each unit worktree under that parent
+  (`<repo>/.worktrees/<crew>-<seat>/<unit>`), the way the project's policy says. Two writers never share a
+  worktree or a parent. A reviewer gets only the worktree checked out at the commit it reviews, read-only:
+  grant that one directory and deny `Edit` and `Write` on it.
+- `additionalDirectories` scopes the harness's file tools. Shell commands are bounded only by the seat's
+  allowlist, so keep path-taking allow rules exact (and remember that `git` in any worktree writes the shared
+  repository metadata).
 - **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this
   run" (`rig up --help`), so every seat would share one cwd.
 - The project's root checkout stays on its default branch.
-- **Verify after launch [T0]:** `git -C <path> status --porcelain --untracked-files=no` prints nothing for the
-  root checkout and for every worktree a seat can reach. A ` M CLAUDE.md` line means a seat's cwd is inside
-  the repo.
+- **Verify after launch [T0]:** `git -C <path> status --porcelain` (untracked files included) prints the same
+  lines as the pre-launch baseline for the root checkout and for every worktree a seat can reach. Also check
+  the projected paths directly: no new `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.agents/`, `.mcp.json` or
+  `.openrig/` in any of them. A ` M CLAUDE.md` line, or a new untracked `CLAUDE.md` in a repo that does not
+  track one, means a seat's cwd is inside the repo.
 - Each desk path is a new trust key: OpenRig pre-trusts it (step 9, step 14). Plan for step 9.
 
 ## 6. Culture file and posture: the crew adds orchestration, never authority
@@ -192,11 +201,13 @@ workspace trust for each seat's cwd, so review every desk (empty, apart from the
 and every worktree a seat can reach before it gets a seat. Then: exact MCP approvals scoped to where they
 apply, native Codex hook review, deny rules, no secret values anywhere a seat can read.
 
-**User scope.** Every seat also inherits the operator's harness user scope: the user settings `env` block,
-hooks, plugins, user MCP config and home-level agent guidance. A shell-side scrub cannot remove env that the
-harness applies after the shell starts. Run the user-scope check in [`trust-gates.md`](./trust-gates.md) §4
-before the launch and again in each live seat. `NOT-SCRUBBED` in any seat is a stop rule: take the rig down
-(snapshot first) and fix the override before any work.
+**User scope and environment.** Every seat also inherits the operator's harness user scope (the user settings
+`env` block, hooks, plugins, user MCP config, home-level agent guidance) and the environment of the tmux
+server, the OpenRig daemon and the login shell. A shell-side scrub cannot remove env that the harness applies
+after the shell starts, and the settings override cannot remove env the shell already carries: each channel
+needs its own scrub. Run the check in [`trust-gates.md`](./trust-gates.md) §4 before the launch and again in
+each live seat. `NOT-SCRUBBED` in any seat is a stop rule: take the rig down (snapshot first) and fix the
+scrub before any work.
 
 ## 10. Launch [T1]
 
@@ -236,8 +247,8 @@ it, tmux's `pane_current_command` reads the shell, not the runtime. Observed on 
 - `rig seat clear-attention` stays blocked (class `pane_identity`: "foreground command '<shell>' contradicts
   runtime"), with or without `--reason`, so LIFECYCLE stays `att` for a healthy seat.
 
-There, judge readiness by `startupStatus=ready` plus `rig capture` (the runtime's TUI at a prompt) plus
-activity. Heal an empty seat with `rig snapshot <rigId>` first, then
+There, a seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI
+at a prompt, and `rig ps --nodes` ACTIVITY is live. Heal an empty seat with `rig snapshot <rigId>` first, then
 `rig seat launch <session> --fresh --stop --reason "<capture evidence>"` [T2], and re-check `startupStatus`
 after about a minute: the CLI can report the same pane-identity warning while the seat comes up ready.
 
@@ -274,6 +285,10 @@ rig heartbeat --rig <rig>                   # only for rigs with a shared-docs q
     check the new item with `rig queue show <id>`.
   - Every outside-seat `rig send` is delivered "without sender identity". Sign the message body with your
     agent ID.
+  - `rig send --wait-for-idle <s> --verify` is not a turn-boundary guarantee. A send that lands during a turn
+    can come back `rendered-unconfirmed` with the text still staged in the seat's input box. Judge delivery by
+    what the seat did (the queue item's transitions with `rig queue show <id>`, or
+    `rig transcript <session> --grep "<phrase>"`), never by the send result.
 
 ## 13. Harvest
 

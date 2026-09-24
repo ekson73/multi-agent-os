@@ -40,27 +40,32 @@ that version. Every correction below was observed there.
 - **Seat `cwd` is a desk, never a repo worktree (retraction).** The recipe said to point each member's `cwd`
   at its worktree. OpenRig 0.5.14 unconditionally merges a managed block (the default culture plus the start
   overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now: an empty 0700 desk per seat
-  outside every repo, the worktree reached through the harness's additional-directories permission, one unit
-  worktree per writer created by the seat under the project's policy, and a tracked-status check after
-  launch (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
+  outside every repo; each seat granted only its own worktree parent through the harness's
+  additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
+  under that parent per the project's policy; a read-only review worktree for the reviewer; and a
+  post-launch status check that includes untracked files and the projected paths
+  (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
   guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
-- **User-scope check.** Every seat inherits the operator's harness user scope (settings `env`, hooks,
-  plugins, user MCP config, home-level guidance), and a shell-side scrub cannot remove env the harness
-  applies later. New recipe: list secret-like names only, override them per desk with empty values, verify
-  `SCRUBBED` in each live seat, stop on `NOT-SCRUBBED`, re-render on user-settings changes, reset desks after
-  posture changes. Notes the cross-domain data flow of global memory-capture hooks
-  (`trust-gates.md` §4, `external-crew.md` step 9).
+- **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
+  `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
+  OpenRig daemon and the login shell. New recipe: inventory secret-like names only from every channel, scrub
+  each channel at the seat boundary (a desk settings override for the harness `env`, a desk-scoped shell
+  unset for the rest), verify in each live seat that every inventoried name is empty, stop on
+  `NOT-SCRUBBED`, re-render when a channel changes, reset desks after posture changes. Notes the
+  cross-domain data flow of global memory-capture hooks (`trust-gates.md` §4, `external-crew.md` step 9).
 - **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
   with a stopped rig's name creates a second same-name rig with the same tmux session names. Relaunch under a
   new name, address rigs by ID; `rig down --delete` stays T3 (step 10).
 - **Nesting terminal wrappers.** Readiness can fail with "returned to shell" and `clear-attention` stays
-  blocked (`pane_identity`); judge by `startupStatus=ready` and `rig capture`, heal with a snapshot then
+  blocked (`pane_identity`); a seat is ready only with `startupStatus=ready`, a ready `rig capture` and live
+  activity; heal with a snapshot then
   `rig seat launch --fresh` (step 11, `trust-gates.md` §1).
 - **Command shapes.** `rig snapshot` / `snapshot list` / `launch` need the rig ID; `rig restore status` needs
   `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside-seat `rig queue create` needs an
   honest `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`; outside-seat `rig send` carries no
-  sender identity; pre-trust residue for the cwd and its git root is operator cleanup (`tiers.md`, steps 12
+  sender identity, and `--wait-for-idle --verify` is no proof the seat took the text; pre-trust residue for the
+  cwd and its git root is operator cleanup (`tiers.md`, steps 12
   and 14, `CANON.md` C7).
 - **Unattended posture.** A `PermissionRequest` hook answering `deny`, prefix denies as a speed bump next to
   structural controls, single simple commands, `--no-gpg-sign` only where branch protection does not require
