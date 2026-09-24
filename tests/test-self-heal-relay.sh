@@ -218,6 +218,11 @@ echo after'
   mk_bash "$SANDBOX/t4p.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4p.sh" >/dev/null 2>&1; sleep 1
   if gc_alive "$HP"; then bad "bash: a helper spawned by the harness while handling TERM survived the KILL pass"; kill -9 "$(cat "$HP")" 2>/dev/null; else ok "bash: helpers created during the TERM grace period are killed too"; fi
   restore_stubs; reset_stubs
+  reset_stubs; HQ="$SANDBOX/helperq.pid"; rm -f "$HQ"
+  printf '#!/bin/sh\ncat >/dev/null\ntrap '"'"'sleep 60 & echo $! > "%s"; exit 0'"'"' TERM\nwhile :; do sleep 1; done\n' "$HQ" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  mk_bash "$SANDBOX/t4q.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4q.sh" >/dev/null 2>&1; sleep 1
+  if gc_alive "$HQ"; then bad "bash: a helper reparented after its parent exited in the TERM trap survived"; kill -9 "$(cat "$HQ")" 2>/dev/null; else ok "bash: a helper orphaned by the harness' own TERM handler is killed via the process group"; fi
+  restore_stubs; reset_stubs
   reset_stubs; GCT="$SANDBOX/gct.pid"; rm -f "$GCT"; gc_stub "$GCT"
   mk_bash "$SANDBOX/t4n.sh" "" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 "$B" "$SANDBOX/t4n.sh" >/dev/null 2>&1 & BP=$!
   for _ in $(seq 1 40); do [ -s "$GCT" ] && break; sleep 0.25; done; kill -TERM "$BP" 2>/dev/null; sleep 3

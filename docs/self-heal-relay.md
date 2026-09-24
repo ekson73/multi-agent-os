@@ -128,6 +128,9 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
 - The bash harness-output cap (4 MiB per capture file) is enforced by 1-second polling in the watchdog, so a producer that writes more than
   the free space of the temp filesystem within a single second can overshoot it. Bounding the stream itself would need a bounded copier
   in the pipeline (`| head -c`), which changes the exit-status and SIGPIPE semantics the relay depends on; python (50 ms polling) is tighter.
+- Bash: with `perl` or `python3` available the harness runs in its own session/process group, so a helper reparented after its parent exits (for example one started
+  by a TERM trap) is still killed on timeout or cancellation; without either, only a process-tree snapshot (refreshed during the grace period) is available and a
+  helper orphaned before the next snapshot can survive. Descendants left behind by a harness that exits cleanly are still not reaped.
 - Node: `spawnSync` blocks the event loop, so JS cannot handle SIGTERM/SIGINT while a harness runs. A small `/bin/sh` guard in the harness' process
   group polls (1 s) for the death of the script and then kills the whole group; the harness is therefore reaped within about a second even on SIGKILL of the
   script, but not instantly. Windows relies on the timeout only.
