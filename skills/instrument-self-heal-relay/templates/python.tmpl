@@ -102,7 +102,7 @@ def shr_relay(exc_text):
     if _os.environ.get("MAOS_SELFHEAL_MODE", "relay") == "seed":
         d = _os.environ.get("MAOS_SELFHEAL_SEED_DIR") or _os.path.join(_os.environ.get("XDG_STATE_HOME", _os.path.expanduser("~/.local/state")), "maos", "self-heal-seeds")
         _os.makedirs(d, mode=0o700, exist_ok=True)
-        seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{SHR_NAME}.md")
+        seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{_os.getpid()}-{_os.urandom(3).hex()}-{SHR_NAME}.md")
         fd = _os.open(seed, _os.O_WRONLY | _os.O_CREAT | _os.O_TRUNC, 0o600)  # the prompt may hold residue: never world-readable
         with _os.fdopen(fd, "w", encoding="utf-8") as f: f.write("<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt)
         print(f"self-heal-relay: seed written -> {seed}", file=_sys.__stderr__)

@@ -54,7 +54,7 @@ function shrRelay(excText) {
   if ((process.env.MAOS_SELFHEAL_MODE || "relay") === "seed") {
     const d = process.env.MAOS_SELFHEAL_SEED_DIR || _shr.path.join(process.env.XDG_STATE_HOME || _shr.path.join(_shr.os.homedir(), ".local/state"), "maos", "self-heal-seeds");
     _shr.fs.mkdirSync(d, { recursive: true, mode: 0o700 });
-    const seed = _shr.path.join(d, `NEEDS-AGENT-${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}-${SHR_NAME}.md`);
+    const seed = _shr.path.join(d, `NEEDS-AGENT-${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}-${process.pid}-${_shr.crypto.randomBytes(3).toString("hex")}-${SHR_NAME}.md`);
     _shr.fs.writeFileSync(seed, "<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt, { mode: 0o600 }); // never world-readable
     err(`self-heal-relay: seed written -> ${seed}`); return;
   }
