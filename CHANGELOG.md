@@ -54,13 +54,27 @@ that version. Every correction below was observed there.
   projected makes the recipe unusable for that repo: stop and escalate (CANON C9) (step 6).
 - **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
   `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
-  OpenRig daemon and the login shell. Prerequisite: remove or isolate each credential at its source, or have
-  the operator record a risk acceptance, and deny `Read` of the user settings and credential directories.
+  OpenRig daemon and the login shell. Launch rule: when seats run project code as the operator's OS user,
+  every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
+  acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
+  `Read` denies on the user settings and credential directories are a speed bump only.
   Secondary control: inventory secret-like names from every channel with value-free forms, scrub
   each channel at the seat boundary (a desk settings override for the harness `env`, a desk-scoped shell
   unset for the rest), verify in each live seat that every inventoried name is empty, stop on
   `NOT-SCRUBBED`, re-render when a channel changes, reset desks after posture changes. Notes the
   cross-domain data flow of global memory-capture hooks (`trust-gates.md` §4, `external-crew.md` step 9).
+- **New `references/sandboxed-seats.md`** (checked against Claude Code 2.1.281 + `rig` 0.5.14 on macOS, in a
+  synthetic preflight with sentinel files only). It documents the harness bash sandbox as that boundary: the
+  settings that held (strict, fail-if-unavailable, no unsandboxed retry, credential file and env denies, a
+  home-wide read block with a narrow `allowRead`, git hook/config/default-ref write denies, a registry-only
+  network allowlist, hot reload), the desk control files that must be edit-denied because OpenRig runs them
+  unsandboxed, and what did not work, with the consequence of each: `blockReadsOutsideWorkingDirectories`
+  drops the sandbox allow lists; units must live under the desk; network prompts bypass
+  `PermissionRequest` hooks until the user-scope `strictAllowlist` is set; the shared `.git` stays writable
+  across worktrees; the queue needs a clerk outside the crew; OpenRig forces `acceptEdits`. It also covers the
+  trusted-publisher pattern (fsck fetch of the exact branch, path gate, push by exact SHA, CI on the merge
+  commit as verification of record). Linked from `trust-gates.md` §4, `external-crew.md` steps 5, 6 and 9,
+  `CANON.md` C2, `SKILL.md` and the agent.
 - **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
   with a stopped rig's name creates a second same-name rig with the same tmux session names. Relaunch under a
   new name, address rigs by ID; `rig down --delete` stays T3 (step 10).

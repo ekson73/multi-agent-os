@@ -83,6 +83,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
 | startup trust gates: diagnose, decide, clear, pre-configure, and the user-scope and environment check every seat inherits | `references/trust-gates.md` |
 | external crew: agent_ref from outside, per-seat desks (never a repo worktree as cwd) and worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| sandboxed seats: the OS-enforced boundary for seat-executed code, its limits, and the trusted publisher | `references/sandboxed-seats.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -208,7 +209,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
    not enforcement. Its one divergence (`deny` over `ask` for unattended seats) is stated with its reason.
    It does not restate `worktree-policy` or the sibling concierges.
 3. **Survival.** Applied to itself, it would route instead of re-teaching, and it does. The owned layer is
-   four references.
+   five references.
 4. **Bounded-Responsibility.** Seven modes; the owned layer lists exactly what first-party lacks; T2/T3 are
    gated; DUED sunset below.
 5. **Explicit-Exception.** §0 covers non-safety steps. The operator can widen a tier explicitly (C3).

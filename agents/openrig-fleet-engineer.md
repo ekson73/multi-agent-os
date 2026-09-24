@@ -82,9 +82,11 @@ skill is fully usable without this agent.
   launch. Each seat gets an empty desk outside every repo and reaches only its own worktree parent through the
   harness's additional-directories permission, never the shared parent of all worktrees (CANON C6).
 - **NEVER** launch a seat in a desk, or give it a worktree, that you have not reviewed. OpenRig auto-accepts
-  Claude workspace trust, and every seat inherits the operator's user scope and environment: credentials are
-  removed at their source first (or the operator records a risk acceptance), then the skill's user-scope and
-  environment check runs over every channel, and `NOT-SCRUBBED` in a live seat is a stop (CANON C5).
+  Claude workspace trust, and every seat inherits the operator's user scope and environment: run the skill's
+  user-scope and environment check over every channel, and `NOT-SCRUBBED` in a live seat is a stop (CANON C5).
+- **NEVER** launch seats that run project code while a credential stays seat-readable, unless seat code runs
+  inside the OS-enforced sandbox boundary in the skill's `references/sandboxed-seats.md`. Risk acceptance never
+  substitutes; if neither holds, stop and escalate.
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).
