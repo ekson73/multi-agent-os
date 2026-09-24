@@ -68,6 +68,8 @@ def shr_build_prompt(exc_text, tier, log_tail):
 
 
 _shr_live = set()  # process-group ids of harnesses currently running
+_shr_spawning = [False]  # True between Popen and the pid registration: a signal arriving then is deferred, the handler cannot see the child yet
+_shr_pending = []  # signals deferred during that window, re-sent to ourselves right after the registration
 _shr_cancel = [False]  # set by the TERM/HUP handler BEFORE the adopter's own handler runs: if that handler RETURNS, the fallback chain must not start the next harness
 
 
@@ -90,6 +92,7 @@ def _shr_install_signals():
         try:
             _prev = _signal.getsignal(_s)
             def _h(sig, frm, _prev=_prev):
+                if _shr_spawning[0]: _shr_pending.append(sig); return
                 _shr_cancel[0] = True
                 _shr_kill_live()
                 if callable(_prev): return _prev(sig, frm)
@@ -134,9 +137,15 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     if _shr_cancel[0]: return 1, ""  # shutting down or cancelled: never start a harness
     _outp = _os.path.join(_shr_dir, "harness.out")
     _outf = open(_outp, "w+b")
-    p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+    _shr_spawning[0] = True  # a TERM/HUP arriving until the pid is registered is deferred by the handler and re-sent below (it could not kill a child it cannot see yet)
+    try:
+        p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+        _shr_live.add(p.pid)  # registered BEFORE the size watcher starts (it kills through this set) and before any deferred signal is replayed
+    finally:
+        _shr_spawning[0] = False
+        _pend = list(_shr_pending); _shr_pending.clear()
+        for _sg in _pend: _os.kill(_os.getpid(), _sg)  # the installed handler now sees the registered harness (or the failed spawn) and runs its normal path
     _threading.Thread(target=_shr_watch_size, args=(p, _outf), daemon=True).start()
-    _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
     if _shr_cancel[0]: _shr_kill_live()  # cancellation raced with the spawn: either the kill pass saw this pid or this check sees the flag
     try:
         p.communicate(input=stdin, timeout=_timeout)

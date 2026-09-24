@@ -131,6 +131,8 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
 - Node: `spawnSync` blocks the event loop, so JS cannot handle SIGTERM/SIGINT while a harness runs. A small `/bin/sh` guard in the harness' process
   group polls (1 s) for the death of the script and then kills the whole group; the harness is therefore reaped within about a second even on SIGKILL of the
   script, but not instantly. Windows relies on the timeout only.
+  If the script has its OWN SIGTERM/SIGINT/SIGHUP listener, the relay does not block at all: it writes a seed (a listener could not run while `spawnSync`
+  blocks, and an `apply` harness could keep editing after a cancellation).
 - Bash: the block chains an `ERR` trap the adopter installed **before** it, but a `trap … ERR` installed **after** the block replaces the
   relay handler. Insert the block after your own trap declarations.
 - After a harness exits **cleanly**, python and node kill its whole process group, so a background child it left behind is reaped. The

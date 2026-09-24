@@ -379,6 +379,14 @@ if command -v python3 >/dev/null 2>&1; then
   { printf 'import atexit, time, threading\natexit.register(lambda: time.sleep(2))  # the adopter callback registered BEFORE the block runs AFTER the relay cleanup (LIFO)\n'; "$RENDER" --lang python; printf 'import shutil\n_real_which = shutil.which\nshutil.which = lambda *a, **k: (time.sleep(1), _real_which(*a, **k))[1]  # hold the daemon relay in harness lookup while main exits\nthreading.Thread(target=lambda: 1/0, daemon=True).start()\ntime.sleep(0.3)  # let the relay reach the held lookup, then main exits\n'; } > "$SANDBOX/p30.py"
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p30.py" >/dev/null 2>&1; sleep 1
   check "python: a daemon relay that races the atexit cleanup starts no harness" "$(calls)" "0"; restore_stubs
+  reset_stubs; GCX="$SANDBOX/gcx.pid"; rm -f "$GCX"; gc_stub "$GCX"
+  { "$RENDER" --lang python; printf 'import os, signal\n_orig_popen = _sp.Popen\ndef _P(*a, **k):\n    p = _orig_popen(*a, **k)\n    os.kill(os.getpid(), signal.SIGTERM)  # TERM lands between Popen and the pid registration\n    return p\n_sp.Popen = _P\nraise RuntimeError("x")\n'; } > "$SANDBOX/p31.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p31.py" >/dev/null 2>&1; sleep 2
+  if gc_alive "$GCX"; then bad "python: harness survived a TERM that arrived between Popen and registration"; kill -9 "$(cat "$GCX")" 2>/dev/null; else ok "python: a TERM in the spawn-to-registration window still reaps the harness"; fi; restore_stubs
+  reset_stubs; printf '#!/bin/sh\npython3 -c "import sys; sys.stdout.write(\\"o\\" * 5242880)"  # floods at once, without waiting for stdin (the prompt is sent only after start() returns)\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  { "$RENDER" --lang python; printf 'import threading, time\n_ts = threading.Thread.start\nthreading.Thread.start = lambda self: (_ts(self), time.sleep(2))[1]  # the watcher runs (and may kill) before start() returns\nraise RuntimeError("x")\n'; } > "$SANDBOX/p32.py"
+  T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p32.py" >/dev/null 2>&1; T1=$((SECONDS-T0))
+  if [ "$T1" -lt 30 ]; then ok "python: the size watcher kills a flooding harness even when it runs before start() returns"; else bad "python: a flooding harness outlived the watcher (took ${T1}s)"; fi; restore_stubs
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
@@ -400,6 +408,11 @@ if command -v node >/dev/null 2>&1; then
   for _ in $(seq 1 40); do [ -s "$GCK" ] && break; sleep 0.25; done
   kill -9 "$NDK" 2>/dev/null; wait "$NDK" 2>/dev/null; sleep 3
   if gc_alive "$GCK"; then bad "node: harness survived the death of the script (spawnSync blocks JS signal handlers)"; kill -9 "$(cat "$GCK")" 2>/dev/null; else ok "node: killing the script also kills the detached harness tree"; fi; restore_stubs
+  reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; SD24="$SANDBOX/seed24"; rm -rf "$SD24"
+  { printf 'process.on("SIGTERM", () => {});  // the adopter handles termination itself\n'; "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n24.js"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 MAOS_SELFHEAL_SEED_DIR="$SD24" node "$SANDBOX/n24.js" >/dev/null 2>&1
+  check "node: with an adopter termination listener no blocking harness is started" "$(calls)" "0"
+  check "node: ...and a seed is written instead" "$(ls "$SD24" 2>/dev/null | grep -c NEEDS-AGENT)" "1"; restore_stubs
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("boom %s");\n' "$FAKE_GH"; } > "$SANDBOX/n1.js"
   node "$SANDBOX/n1.js" >/dev/null 2>&1; rc=$?
   check "node: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "node: relayed once" "$(calls)" "1"
