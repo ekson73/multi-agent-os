@@ -22,7 +22,7 @@ agent proposes the repair, a human reviews the diff.
 2. Enumerates the **intentional** non-zero exits — these are never relayed.
 3. Stamps the canonical block with `skills/instrument-self-heal-relay/bin/self-heal-relay-render` (single-source harness table)
    or ports the ten-invariant contract to a language without a template.
-4. Verifies: bash/python/node → `skills/instrument-self-heal-relay/bin/self-heal-relay-render --verify <file>` + `bash tests/test-self-heal-relay.sh`; other-language port → its own fixture (invariants 1-4 and 6) instead of `--verify`.
+4. Verifies: bash/python/node → `skills/instrument-self-heal-relay/bin/self-heal-relay-render --verify <file>` (+ `bash tests/test-self-heal-relay.sh` when inside a checkout of this repo; a portable install relies on `--verify` plus its own fixture); other-language port → its own fixture (invariants 1-4 and 6) instead of `--verify`.
 
 Use `--mode seed` for hooks, cron and CI (non-blocking `NEEDS-AGENT` hand-off).
 

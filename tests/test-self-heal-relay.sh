@@ -38,6 +38,11 @@ fmode() { if stat -c %a "$1" >/dev/null 2>&1; then stat -c %a "$1"; else stat -f
 gc_alive() { [ -s "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null && [ "$(ps -o stat= -p "$(cat "$1")" 2>/dev/null | cut -c1)" != Z ]; }
 gc_stub() { printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) &\ntrap "" TERM\nsleep 60\n' "$1" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; }
 calls() { wc -l < "$STUB_LOG" | tr -d ' '; }
+noleak() {  # $1=needle $2=fail msg $3=ok label — passes ONLY if the relay ran (a prompt/stdin exists) and the needle is absent
+  local all; all="$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)"
+  if [ -z "$all" ]; then bad "$2 (no relay ran: check is vacuous)"; return; fi
+  case "$all" in *"$1"*) bad "$2" ;; *) ok "$3" ;; esac
+}
 
 # Secrets are assembled at runtime so no scanner sees a literal credential in this file.
 FAKE_AWS="AKIA$(printf 'IOSFODNN7EXAMPLE')"
@@ -130,7 +135,7 @@ echo after'
   echo "-- 4g. a credential inside the failing COMMAND is redacted and fenced"
   reset_stubs; mk_bash "$SANDBOX/t4g.sh" "" "eval 'false \"password=$FAKE_PW\"'"
   "$B" "$SANDBOX/t4g.sh" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_PW"*) bad "credential in failed command reached the harness" ;; *) ok "failed-command text is redacted" ;; esac
+  noleak "$FAKE_PW" "credential in failed command reached the harness" "failed-command text is redacted"
 
   echo "-- 4h. an adopter's own EXIT trap is preserved (and SHR_TRAP_EXIT relays a bare exit N; bash 3.2 reports rc 0 for a set -u abort, so that case is not asserted)"
   reset_stubs; { printf '#!/usr/bin/env bash\nset -euo pipefail\ntrap "echo ADOPTER-EXIT >> %s/marker" EXIT\nSHR_TRAP_EXIT=1\n' "$SANDBOX"; "$RENDER" --lang bash; printf 'exit 5\n'; } > "$SANDBOX/t4h.sh"; rm -f "$SANDBOX/marker"
@@ -181,23 +186,32 @@ false"
 echo \"https://onlytoken$LONGPW@host/y\" >&2
 false"
   "$B" "$SANDBOX/t5b.sh" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *"$LONGPW"*) bad "over-long URL credential leaked" ;; *) ok "over-long URL credentials are redacted" ;; esac
+  noleak "$LONGPW" "over-long URL credential leaked" "over-long URL credentials are redacted"
   reset_stubs; mk_bash "$SANDBOX/t5c.sh" "" 'head -c 3000000 /dev/zero | tr "\\0" x >&2; echo >&2; echo TAILMARK >&2; false'
   "$B" "$SANDBOX/t5c.sh" >/dev/null 2>&1
   PSZ="$(wc -c < "$(ls -t "$SANDBOX"/tmp/shr.*/prompt.md | head -1)" | tr -d ' ')"
   check "3MB single-line log → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
   reset_stubs; mk_bash "$SANDBOX/t5d.sh" "" 'head -c 300000 /dev/zero | tr "\\0" y >&2; echo >&2; printf "%s\\n" "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC" "-----END PRIVATE KEY-----" "after" >&2; false'
   "$B" "$SANDBOX/t5d.sh" >/dev/null 2>&1
-  case "$(cat "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "dangling private-key body leaked" ;; *) ok "private-key body cut by the byte cap is dropped" ;; esac
+  noleak "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC" "dangling private-key body leaked" "private-key body cut by the byte cap is dropped"
 
   PEMB="-----BEGIN ""PRIVATE KEY-----"  # split literal: keeps secret scanners from flagging the fixture
   reset_stubs; mk_bash "$SANDBOX/t5e.sh" "" "printf '%s\\n' '$PEMB' 'OPENKEYBODYzzzz1234567890' >&2; false"
   "$B" "$SANDBOX/t5e.sh" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "bash: unterminated private key leaked" ;; *) ok "bash: unterminated private-key block is redacted" ;; esac
+  noleak "OPENKEYBODYzzzz1234567890" "bash: unterminated private key leaked" "bash: unterminated private-key block is redacted"
 
   reset_stubs; mk_bash "$SANDBOX/t5f.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 5000); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; false"
   "$B" "$SANDBOX/t5f.sh" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *SECRETBODYzzzz*) bad "bash: PEM body whose header precedes the byte window leaked" ;; *) ok "bash: PEM body cut off from its header is dropped" ;; esac
+  noleak "SECRETBODYzzzz" "bash: PEM body whose header precedes the byte window leaked" "bash: PEM body cut off from its header is dropped"
+
+  reset_stubs; mk_bash "$SANDBOX/t5g.sh" "" "printf '%s\\n' '$PEMB' >&2; for i in \$(seq 1 260); do echo 'SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; false"
+  "$B" "$SANDBOX/t5g.sh" >/dev/null 2>&1
+  noleak "SECRETBODYzzzz" "bash: PEM cut from its header by the 200-line cap (log < 256KB) leaked" "bash: PEM cut from its header by the line cap is dropped"
+  reset_stubs; mk_bash "$SANDBOX/t5h.sh" "" 'false'
+  OUT="$(MAOS_SELFHEAL_TIMEOUT=0 "$B" "$SANDBOX/t5h.sh" 2>&1 >/dev/null)"
+  case "$OUT" in *"answered ->"*) ok "bash: TIMEOUT=0 falls back to 300 (harness is not killed at once)" ;; *) bad "bash: TIMEOUT=0 killed the harness: $OUT" ;; esac
+  reset_stubs; OUT="$(MAOS_SELFHEAL_TIMEOUT=99999999999999999999 "$B" "$SANDBOX/t5h.sh" 2>&1 >/dev/null)"
+  case "$OUT" in *"answered ->"*) ok "bash: absurd TIMEOUT is clamped, harness still runs" ;; *) bad "bash: absurd TIMEOUT broke the relay: $OUT" ;; esac
 
   echo "-- 6. tier lock: a gate script can never reach the apply tier"
   reset_stubs; mk_bash "$SANDBOX/t6.sh" 'SHR_TIER_LOCK=propose' 'false'
@@ -224,7 +238,7 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; { printf 'import sys\n'; "$RENDER" --lang python; printf 'raise RuntimeError("boom %s")\n' "$FAKE_GH"; } > "$SANDBOX/p1.py"
   python3 "$SANDBOX/p1.py" >/dev/null 2>&1; rc=$?
   check "python: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "python: relayed once" "$(calls)" "1"
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_GH"*) bad "python: secret leaked to harness" ;; *) ok "python: secret redacted" ;; esac
+  noleak "$FAKE_GH" "python: secret leaked to harness" "python: secret redacted"
   reset_stubs; { "$RENDER" --lang python; printf 'print("fine")\n'; } > "$SANDBOX/p3.py"; python3 "$SANDBOX/p3.py" >/dev/null 2>&1
   check "python: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p4.py"; MAOS_SELFHEAL_MODE=seed python3 "$SANDBOX/p4.py" >/dev/null 2>&1
@@ -242,34 +256,26 @@ if command -v python3 >/dev/null 2>&1; then
   case "$OUT" in *"seed NOT written"*) ok "python: unwritable seed dir is reported" ;; *) bad "python: seed failure not reported" ;; esac
   reset_stubs; MAOS_SELFHEAL_TIMEOUT=bogus python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: malformed timeout still dispatches once, leaves no child" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("y" * 300000 + "\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\\n-----END PRIVATE KEY-----\\n")\nraise RuntimeError("k")\n'; } > "$SANDBOX/p11.py"; python3 "$SANDBOX/p11.py" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "python: dangling key body leaked" ;; *) ok "python: private-key body cut by the byte cap is dropped" ;; esac
+  noleak "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC" "python: dangling key body leaked" "python: private-key body cut by the byte cap is dropped"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("https://u:%s@h/")\n' "$LONGPW"; } > "$SANDBOX/p12.py"; python3 "$SANDBOX/p12.py" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$LONGPW"*) bad "python: over-long URL credential leaked" ;; *) ok "python: over-long URL credentials are redacted" ;; esac
+  noleak "$LONGPW" "python: over-long URL credential leaked" "python: over-long URL credentials are redacted"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\nOPENKEYBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p13.py"; python3 "$SANDBOX/p13.py" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "python: unterminated private key leaked" ;; *) ok "python: unterminated private-key block is redacted" ;; esac
+  noleak "OPENKEYBODYzzzz1234567890" "python: unterminated private key leaked" "python: unterminated private-key block is redacted"
   reset_stubs; MAOS_SELFHEAL_TIMEOUT=1e100 python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: absurd timeout (1e100) is clamped, dispatches once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("E" * 3000000)\n'; } > "$SANDBOX/p14.py"; python3 "$SANDBOX/p14.py" >/dev/null 2>&1
   PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "python: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
-  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\nOPENKEYBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n13.js"; node "$SANDBOX/n13.js" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "node: unterminated private key leaked" ;; *) ok "node: unterminated private-key block is redacted" ;; esac
-  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("E".repeat(3000000));\n'; } > "$SANDBOX/n14.js"; node "$SANDBOX/n14.js" >/dev/null 2>&1
-  PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "node: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(5000): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p15.py"; python3 "$SANDBOX/p15.py" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *SECRETBODYzzzz*) bad "python: PEM body cut off from its header leaked" ;; *) ok "python: PEM body cut off from its header is dropped" ;; esac
-  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 5000; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n15.js"; node "$SANDBOX/n15.js" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *SECRETBODYzzzz*) bad "node: PEM body cut off from its header leaked" ;; *) ok "node: PEM body cut off from its header is dropped" ;; esac
+  noleak "SECRETBODYzzzz" "python: PEM body cut off from its header leaked" "python: PEM body cut off from its header is dropped"
   reset_stubs; GCP="$SANDBOX/gci.pid"; rm -f "$GCP"; gc_stub "$GCP"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p16.py"
   # a background job in a non-interactive shell inherits SIGINT=ignored: re-arm the handler inside the process under test
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 -c 'import signal,runpy,sys; signal.signal(signal.SIGINT, signal.default_int_handler); runpy.run_path(sys.argv[1], run_name="__main__")' "$SANDBOX/p16.py" >/dev/null 2>&1 & PYP=$!
   for _ in $(seq 1 40); do [ -s "$GCP" ] && break; sleep 0.25; done; kill -INT "$PYP" 2>/dev/null; sleep 2
   if gc_alive "$GCP"; then bad "python: harness survived Ctrl-C"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: Ctrl-C during the harness kills the whole harness group"; fi; kill -9 "$PYP" 2>/dev/null; wait "$PYP" 2>/dev/null; restore_stubs
-  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
-  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
-  OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"
-  case "$OUT" in *"seed NOT written"*) ok "node: unwritable seed dir is reported" ;; *) bad "node: seed failure not reported" ;; esac
-  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("https://u:%s@h/");\n' "$LONGPW"; } > "$SANDBOX/n11.js"; node "$SANDBOX/n11.js" >/dev/null 2>&1
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$LONGPW"*) bad "node: over-long URL credential leaked" ;; *) ok "node: over-long URL credentials are redacted" ;; esac
-  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n12.js"; MAOS_SELFHEAL_TIMEOUT=bogus node "$SANDBOX/n12.js" >/dev/null 2>&1; check "node: malformed timeout still dispatches once" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
+  noleak "SECRETBODYzzzz" "python: PEM cut from its header by the 200-line cap leaked" "python: PEM cut from its header by the line cap is dropped"
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\n" + "A" * 70000 + "\\nEXCBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p18.py"; python3 "$SANDBOX/p18.py" >/dev/null 2>&1
+  noleak "EXCBODYzzzz1234567890" "python: PEM in exception text cut from its header by the 64KB slice leaked" "python: exception text is redacted before the 64KB slice"
+  reset_stubs; MAOS_SELFHEAL_TIMEOUT=inf python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: TIMEOUT=inf/1e400 falls back, dispatches once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi
@@ -280,13 +286,31 @@ if command -v node >/dev/null 2>&1; then
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("boom %s");\n' "$FAKE_GH"; } > "$SANDBOX/n1.js"
   node "$SANDBOX/n1.js" >/dev/null 2>&1; rc=$?
   check "node: uncaught exception → non-zero" "$([ "$rc" -ne 0 ] && echo y)" "y"; check "node: relayed once" "$(calls)" "1"
-  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_GH"*) bad "node: secret leaked to harness" ;; *) ok "node: secret redacted" ;; esac
+  noleak "$FAKE_GH" "node: secret leaked to harness" "node: secret redacted"
   reset_stubs; { "$RENDER" --lang node; printf 'console.log("fine");\n'; } > "$SANDBOX/n3.js"; node "$SANDBOX/n3.js" >/dev/null 2>&1
   check "node: clean run leaves no run directory" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n4.js"; MAOS_SELFHEAL_MODE=seed node "$SANDBOX/n4.js" >/dev/null 2>&1
   SF="$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | head -1)"; check "node: seed is mode 0600" "$(fmode "$SF")" "600"
   reset_stubs; { "$RENDER" --lang node; printf 'process.exit(2);\n'; } > "$SANDBOX/n2.js"
   node "$SANDBOX/n2.js" >/dev/null 2>&1; rc=$?; check "node: process.exit(2) preserved" "$rc" "2"; check "node: process.exit → zero dispatches" "$(calls)" "0"
+  : > "$SANDBOX/notadir2"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\nOPENKEYBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n13.js"; node "$SANDBOX/n13.js" >/dev/null 2>&1
+  noleak "OPENKEYBODYzzzz1234567890" "node: unterminated private key leaked" "node: unterminated private-key block is redacted"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("E".repeat(3000000));\n'; } > "$SANDBOX/n14.js"; node "$SANDBOX/n14.js" >/dev/null 2>&1
+  PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "node: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 5000; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n15.js"; node "$SANDBOX/n15.js" >/dev/null 2>&1
+  noleak "SECRETBODYzzzz" "node: PEM body cut off from its header leaked" "node: PEM body cut off from its header is dropped"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
+  OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"
+  case "$OUT" in *"seed NOT written"*) ok "node: unwritable seed dir is reported" ;; *) bad "node: seed failure not reported" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("https://u:%s@h/");\n' "$LONGPW"; } > "$SANDBOX/n11.js"; node "$SANDBOX/n11.js" >/dev/null 2>&1
+  noleak "$LONGPW" "node: over-long URL credential leaked" "node: over-long URL credentials are redacted"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n12.js"; MAOS_SELFHEAL_TIMEOUT=bogus node "$SANDBOX/n12.js" >/dev/null 2>&1; check "node: malformed timeout still dispatches once" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("%s\\n"); for (let i = 0; i < 260; i++) process.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n"); throw new Error("k");\n' "$PEMB"; } > "$SANDBOX/n17.js"; node "$SANDBOX/n17.js" >/dev/null 2>&1
+  noleak "SECRETBODYzzzz" "node: PEM cut from its header by the 200-line cap leaked" "node: PEM cut from its header by the line cap is dropped"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\n" + "A".repeat(70000) + "\\nEXCBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n18.js"; node "$SANDBOX/n18.js" >/dev/null 2>&1
+  noleak "EXCBODYzzzz1234567890" "node: PEM in exception text cut from its header by the 64KB slice leaked" "node: exception text is redacted before the 64KB slice"
 else bad "node missing"; fi
 
 echo; printf 'self-heal-relay: %d passed, %d failed\n' "$PASS" "$FAIL"

@@ -121,6 +121,9 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- Node: `spawnSync` blocks the event loop, so a `SIGTERM`/`SIGINT` delivered to the script *while* it waits on the harness is only
+  handled after the call returns (bounded by `MAOS_SELFHEAL_TIMEOUT`); the harness is already in the watchdog's process tree.
+  A hard `SIGKILL` of the script cannot be trapped in any language and can leave the harness running until its timeout.
 - The Bash block tees stderr through a process substitution. Bash does not `wait` for it, so under a container PID 1 that never
   reaps orphans (no `--init`/`tini`), a very frequently invoked script leaves one defunct `tee` per run. That is an environment
   fault, not a script one: run such containers with an init. The Windows `.cmd`/`.bat` harness launcher (node) is untested.
