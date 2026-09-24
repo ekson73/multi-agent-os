@@ -74,14 +74,14 @@ n = 0
 for r in sys.stdin.buffer.read().split(b"\0"):
     k, _, v = r.partition(b"\n")
     k = k.lower()
-    if r and (re.search(rb"^http\..*\.extraheader$|^credential\.|\.token$", k)
+    if r and (re.search(rb"^http(\..*)?\.extraheader$|^credential\.|\.token$", k)
               or re.search(rb"://[^/@\s]+@", k) or re.search(rb"://[^/@\s]+@", v)):
         n += 1
 print(n)'); rc=$?
 [ "$rc" -eq 0 ] && [ "$n" = "0" ] && echo PASS || echo STOP
 ```
 
-It flags an auth header, a credential helper or stored credential, a token key, and any key or value with URL
+It flags an auth header (global `http.extraheader` or URL-scoped `http.<url>.extraheader`), any `credential.*` key (global or URL-scoped), any `*.token` key, and any key or value with URL
 userinfo (`remote.*.url`, `insteadOf` rewrites, `http.proxy` / `https.proxy`). The check fails closed: only a
 successful scan (exit status 0) that prints exactly `0` passes. A git error (an unreadable or malformed
 include, a path that is not a repository), a parse error, or empty or non-integer output is a stop. Git

@@ -202,7 +202,7 @@ small script instead. Recipe for Claude Code seats:
      rely on (b), which the daemon's environment feeds, and on the live probe in step 5.
    - (e) git's **effective** config as seen from inside each seat's worktree (system, global, local, worktree
      and includes): scan keys **and** values of `git -C <seat-worktree> config -z --list --includes`, split on
-     NUL in-process, and print only a count. Flag credential-bearing keys (`http.*.extraheader`,
+     NUL in-process, and print only a count. Flag credential-bearing keys (`http.extraheader` and `http.<url>.extraheader`,
      `credential.*`, `*.token`) and any key or value holding URL userinfo (`://…@`: `remote.*.url`,
      `insteadOf` rewrites, `http.proxy` / `https.proxy`). The scan fails closed: only a successful git exit
      plus a literal `0` passes; any git error, parse error, or empty or non-integer output is a stop, and so is
