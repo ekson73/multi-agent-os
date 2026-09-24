@@ -171,8 +171,15 @@ small script instead. Recipe for Claude Code seats:
    names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
    passes every continuation line of a multiline value through intact. Use only forms that never emit a
    value, and mark every secret-like name:
-   - (a) keys only, from the **active** config root and any managed settings file the harness loads:
+   - (a) keys only, from the **active** user config root:
      `jq -r '.env // {} | keys[]' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"`
+   - (a′) keys only, from the **managed** settings: `managed-settings.json` and every `managed-settings.d/*.json`
+     in the platform's system directory (`/Library/Application Support/ClaudeCode/` on macOS,
+     `/etc/claude-code/` on Linux and WSL, `C:\Program Files\ClaudeCode\` on Windows), each read with
+     `jq -r '.env // {} | keys[]' <file>`. `/status` in the operator's own session names the managed source in
+     force (file, MDM profile or server-managed); inventory that source too. Managed settings outrank the
+     desk's local settings, so an empty override there cannot blank a managed name. **Any secret-like name in
+     a managed `env` is a launch stop**; the fix belongs to the administrator or operator, at the source.
    - (b) and (d) together, from **inside** a pane of the same tmux server whose cwd is a desk, with the login
      shell's own names-only builtin. That lists exactly what tmux and the shell's startup files exported,
      without touching a value. Run it before you add the scrub (step 4) to build the list, and again after it

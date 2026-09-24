@@ -94,7 +94,8 @@ running crew-authored code outside a sandbox:
 3. A path gate: a candidate that changes hook, CI, git-attribute, submodule or LFS config files, or any file the
    trusted hooks or CI execute, is **parked** for a human instead of pushed.
 4. Push by exact SHA, and only the SHA the reviewer's verdict cites: `git push origin <sha>:refs/heads/<branch>`.
-   Merge it the same way (for GitHub, `gh pr merge --match-head-commit <sha>`). Any other SHA needs a new
+   Merge it the same way (for GitHub, `gh pr merge <number|url> --squash --match-head-commit <sha>`, with the
+   merge method the target repository requires). Any other SHA needs a new
    review. The trusted clone's own hooks run. Never `core.hooksPath=/dev/null` and never `--no-verify`.
 5. Verification of record after merge is the forge's CI on the merge commit plus an ancestry check
    (`git merge-base --is-ancestor <merge> origin/<default>`), not a local build of candidate code.
