@@ -80,8 +80,8 @@ shr_tail() {
          END { s = 1; trunc = cut; if (NR > max) { trunc = 1; s = 2 }   # the +1 line is the extra one the line cap cuts off
                lead = 1
                for (i = s; i <= NR; i++) { l = raw[i]
-                 # the window does not start at the file start (byte or line cap): any leading base64-looking line, of ANY length, can be the tail of a PEM body whose BEGIN was cut away
-                 if (lead && trunc && l ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/) continue
+                 # the window does not start at the file start (byte or line cap): any leading base64-looking / blank / Proc-Type / DEK-Info line can belong to a PEM whose BEGIN was cut away
+                 if (lead && trunc && (l ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/ || l ~ /^[ \t\r]*$/ || l ~ /^(Proc-Type|DEK-Info):/)) continue
                  lead = 0
                  if (!b && l ~ /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; continue }
                  if (l ~ /-----BEGIN [A-Z ]*PRIVATE KEY-----/) b = 1
