@@ -43,7 +43,7 @@ hard stop plus only verified OpenRig facts; the isolation design is tracked in #
   not launch them. An already-running external-target crew is diagnosis-only; the one permitted action is
   containment teardown (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig
   the delegation names. The crew recipe is removed; `external-crew.md` is now the STOP with its reasons plus facts
-  (`SKILL.md` §0 item 7, `CANON.md` C6, `external-crew.md` §0, the agent's prohibitions, `tiers.md` rule 4).
+  (`SKILL.md` §0 items 7–8 and its operate/heal modes, `CANON.md` C6, `external-crew.md` §0, the agent's prohibitions, `tiers.md` rule 4).
 - **Retraction: never point a seat's `cwd` at a repository checkout.** OpenRig 0.5.14 unconditionally
   guidance-merges a managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file
   (`external-crew.md` §3, `CANON.md` C6, `SKILL.md` §0 item 5, the agent).
