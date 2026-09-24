@@ -83,6 +83,8 @@ def _shr_relayed_set():
 
 
 def _shr_cleanup():  # a clean / intentional exit leaves nothing behind; a relayed fault keeps its artifacts for review
+    try: _sys.stderr.f.close()  # release the run-log handle BEFORE deleting its directory (Windows refuses to remove an open file)
+    except Exception: pass
     if not _shr_relayed and _shr_dir and _os.path.basename(_shr_dir).startswith("shr."):
         _shutil.rmtree(_shr_dir, ignore_errors=True)
 
