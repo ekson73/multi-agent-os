@@ -148,6 +148,9 @@ shr_dispatch() {  # $1=tier — exactly ONE invocation per harness; a failure mo
     : > "$SHR_CAP2"   # each attempt starts with an empty stderr capture: a previous harness' oversized file must not trip THIS harness' watchdog
     rc=0; shr_call "$h" "$tier" < "$SHR_PROMPT" > "$SHR_PROPOSAL" 2>> "$SHR_RUNDIR/harness.err" || rc=$?
     SHR_CAP1=""; SHR_CAP2=""
+    # a harness that exits before the watchdog's first poll can still leave an oversized capture: enforce the cap here too, and never keep it
+    if [ "$(wc -c < "$SHR_PROPOSAL" 2>/dev/null | tr -d ' ')" -gt 4194304 ] 2>/dev/null; then : > "$SHR_PROPOSAL"; rc=1; fi
+    if [ "$(wc -c < "$SHR_RUNDIR/harness.err" 2>/dev/null | tr -d ' ')" -gt 4194304 ] 2>/dev/null; then : > "$SHR_RUNDIR/harness.err"; fi
     if [ "$rc" = 0 ] && [ -s "$SHR_PROPOSAL" ]; then
       LC_ALL=C sed -e $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' "$SHR_PROPOSAL" > "$SHR_PROPOSAL.clean" && mv "$SHR_PROPOSAL.clean" "$SHR_PROPOSAL"   # strip ANSI (kiro-cli colours its output)
       printf 'self-heal-relay: %s answered -> %s (a human must REVIEW before anything is applied)\n' "$h" "$SHR_PROPOSAL" >&2

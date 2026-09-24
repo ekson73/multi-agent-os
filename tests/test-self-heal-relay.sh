@@ -12,8 +12,9 @@ ok()   { PASS=$((PASS+1)); printf '  ✅ %s\n' "$1"; }
 bad()  { FAIL=$((FAIL+1)); printf '  ❌ %s\n' "$1"; [ -n "${2:-}" ] && printf '       %s\n' "$2"; }
 check(){ if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected [$3] got [$2]"; fi; }
 
-SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/shr-test.XXXXXX")"
-trap 'case "$SANDBOX" in "${TMPDIR:-/tmp}"/shr-test.*) rm -rf -- "$SANDBOX" ;; esac' EXIT
+TMPROOT="${TMPDIR:-/tmp}"; TMPROOT="${TMPROOT%/}"   # captured BEFORE TMPDIR is redirected into the sandbox, so the cleanup guard below still matches
+SANDBOX="$(mktemp -d "$TMPROOT/shr-test.XXXXXX")"
+trap 'case "$SANDBOX" in "$TMPROOT"/shr-test.*) rm -rf -- "$SANDBOX" ;; esac' EXIT
 STUBS="$SANDBOX/stubs"; mkdir -p "$STUBS" "$SANDBOX/tmp"
 export TMPDIR="$SANDBOX/tmp" STUB_LOG="$SANDBOX/calls.log" MAOS_SELFHEAL_SEED_DIR="$SANDBOX/seeds"
 
@@ -56,6 +57,8 @@ mk_bash() {  # $1=path $2=knobs $3=body
 echo "== 1. renderer: stamp is current, drift is detected =="
 for L in bash python node; do "$RENDER" --lang "$L" > "$SANDBOX/blk.$L" || bad "render $L"; done
 if "$RENDER" --verify "$SANDBOX/blk.bash" >/dev/null 2>&1; then ok "fresh bash block verifies (rc 0)"; else bad "fresh bash block should verify"; fi
+{ cat "$SANDBOX/blk.bash"; echo '# note: this script mentions >>> self-heal-relay and <<< self-heal-relay in a comment'; } > "$SANDBOX/mention.bash"
+"$RENDER" --verify "$SANDBOX/mention.bash" >/dev/null 2>&1; check "a comment that merely mentions the marker phrase does not break verification (rc 0)" "$?" "0"
 sed 's/SHR_MAX_LOG_LINES:-200/SHR_MAX_LOG_LINES:-201/' "$SANDBOX/blk.bash" > "$SANDBOX/drift.bash"
 "$RENDER" --verify "$SANDBOX/drift.bash" >/dev/null 2>&1; check "hand-edited block is DRIFT (rc 1)" "$?" "1"
 printf 'echo hi\n' > "$SANDBOX/none.sh"; "$RENDER" --verify "$SANDBOX/none.sh" >/dev/null 2>&1; check "file without a block is rc 2" "$?" "2"
@@ -145,6 +148,10 @@ STUB
   printf '#!/bin/sh\ncat >/dev/null\nsleep 2\necho SECONDANSWER\n' > "$STUBS/claude"; chmod +x "$STUBS/kiro-cli" "$STUBS/claude"
   mk_bash "$SANDBOX/t4e6.sh" "" 'false'; "$B" "$SANDBOX/t4e6.sh" >/dev/null 2>&1
   case "$(cat "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)" in *SECONDANSWER*) ok "bash: the second harness answered after the first one was capped" ;; *) bad "bash: the flooded first harness disabled the fallback chain" ;; esac; restore_stubs
+  echo "-- 4e7. an oversized answer from a harness that exits at once is rejected, not kept"
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; mk_bash "$SANDBOX/t4e7.sh" "" 'false'
+  out="$("$B" "$SANDBOX/t4e7.sh" 2>&1)"
+  case "$out" in *"kiro-cli answered"*) bad "bash: an oversized answer from a fast harness was accepted" ;; *) ok "bash: an oversized answer from a fast harness is rejected" ;; esac; restore_stubs
   echo "-- 4e5. an unset HOME does not abort the seed fallback under set -u"
   reset_stubs; mk_bash "$SANDBOX/t4e5.sh" "" 'false'
   out="$(env -u HOME -u XDG_STATE_HOME -u MAOS_SELFHEAL_SEED_DIR MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4e5.sh" 2>&1)"; rc=$?
@@ -334,8 +341,9 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; GCS="$SANDBOX/gcs.pid"; rm -f "$GCS"; printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) >/dev/null 2>&1 &\nsleep 1\necho PROPOSAL-OK\n' "$GCS" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p25.py"
   MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p25.py" >/dev/null 2>&1; sleep 1
   if gc_alive "$GCS"; then bad "python: a background child left by a harness that exited 0 survived"; kill -9 "$(cat "$GCS")" 2>/dev/null; else ok "python: descendants of a harness that exits cleanly are reaped"; fi; restore_stubs
-  reset_stubs; { "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
-  out="$(TMPDIR=/nonexistent/shr-dir python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
+  # python's tempfile falls back to /tmp when TMPDIR is bad, so a bad TMPDIR cannot force the failure: make mkdtemp itself raise
+  reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
+  out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
   check "python: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"
   case "$out" in *ALIVE*) ok "python: adopter code still ran with an unusable TMPDIR" ;; *) bad "python: adopter did not run with an unusable TMPDIR" "$out" ;; esac
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
@@ -384,6 +392,10 @@ if command -v node >/dev/null 2>&1; then
   mkdir -p "$SANDBOX/winbin" && printf '#!/bin/sh\n' > "$SANDBOX/winbin/fakeh.cmd" && chmod +x "$SANDBOX/winbin/fakeh.cmd"
   { "$RENDER" --lang node; printf 'Object.defineProperty(process, "platform", { value: "win32" });\nconst r = shrSpawnArgs("fakeh", ["-p", "--allowedTools=Read,Grep,Glob"]); const k = shrSpawnArgs("fakeh", ["chat", "--trust-tools=fs_read,fs_write"]); const bad = shrSpawnArgs("fakeh", ["a&b"]);\nconsole.log(r && k && bad === null ? "SHIMOK" : "SHIMBAD");\n'; } > "$SANDBOX/n19.js"
   check "node: Windows .cmd shim accepts the canonical = and , flags and still refuses metacharacters" "$(PATH="$SANDBOX/winbin:$PATH" node "$SANDBOX/n19.js" 2>&1 | grep -c SHIMOK)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.on("uncaughtException", () => { _shr.fs.writeFileSync(process.argv[2], "later-listener-ran"); });\nsetTimeout(() => { throw new Error("x"); }, 10);\n'; } > "$SANDBOX/n21.js"
+  MAOS_AI_HARNESS=kiro-cli node "$SANDBOX/n21.js" "$SANDBOX/n21.mark" >/dev/null 2>&1; rc=$?
+  check "node: a listener registered after the relay still runs before the process exits" "$(cat "$SANDBOX/n21.mark" 2>/dev/null)" "later-listener-ran"
+  check "node: the process still ends with exit code 1" "$rc" "1"
   reset_stubs; { "$RENDER" --lang node; printf 'console.log("ALIVE");\n'; } > "$SANDBOX/n20.js"
   out="$(TMPDIR=/nonexistent/shr-dir node "$SANDBOX/n20.js" 2>&1)"; rc=$?
   check "node: unusable TMPDIR runs the script uninstrumented (rc)" "$rc" "0"

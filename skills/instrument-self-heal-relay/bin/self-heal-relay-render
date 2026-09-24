@@ -101,14 +101,20 @@ def render(lang: str) -> str:
 
 # --- verification --------------------------------------------------------------------------------
 
+def _is_marker(line: str, marker: str) -> bool:
+    """A real generated marker line only (`# >>> self-heal-relay …` / `// <<< self-heal-relay …`): the phrase merely mentioned in a comment or a string is not one."""
+    t = line.lstrip()
+    return any(t.startswith(f"{c} {marker}") for c in ("#", "//"))
+
+
 def extract(text: str) -> tuple[str, str] | None:
     lines = text.splitlines(keepends=True)
-    if sum(BEGIN in l for l in lines) > 1 or sum(END in l for l in lines) > 1:
+    if sum(_is_marker(l, BEGIN) for l in lines) > 1 or sum(_is_marker(l, END) for l in lines) > 1:
         return None   # two blocks = two sets of traps/hooks installed: never "current"
-    start = next((i for i, l in enumerate(lines) if BEGIN in l), None)
+    start = next((i for i, l in enumerate(lines) if _is_marker(l, BEGIN)), None)
     if start is None:
         return None
-    end = next((i for i in range(start + 1, len(lines)) if END in lines[i]), None)
+    end = next((i for i in range(start + 1, len(lines)) if _is_marker(lines[i], END)), None)
     if end is None:
         return None
     header = lines[start]
