@@ -64,7 +64,10 @@ it can stream topic-scoped, redacted text.
   quarantine, key, marker, findings) must be regular, singly-linked and owned by the user,
   so a hard-linked `.lock` can no longer be truncated. The process home is refused like
   `--home`. `--max-files` stops discovery itself, and a Gemini JSONL recording without its
-  header is quarantined instead of being named after the file.
+  header is quarantined instead of being named after the file. A findings path that aliases
+  a control file by case or identity, or names an existing directory, is refused before
+  anything is read. Credential-shaped session ids are stored as opaque digests. A relative
+  `--project` resolves against the working directory.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,

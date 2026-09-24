@@ -70,11 +70,11 @@ with open(LAUNCHER, "w") as fh:
              "mod.cli()\n")
 
 
-def run(*args, home=HOME, env=None, real=False):
+def run(*args, home=HOME, env=None, real=False, cwd=None):
     """`real=True` runs the unmodified script; otherwise the LAUNCHER (fixture temp exemption only)."""
     cmd = [sys.executable, SC] if real else [sys.executable, LAUNCHER, SC]
     r = subprocess.run(cmd + ["--home", home] + list(args), capture_output=True, text=True,
-                       env=dict(ENV, **(env or {})))
+                       env=dict(ENV, **(env or {})), cwd=cwd)
     last = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "{}"
     try:
         receipt = json.loads(last)
@@ -107,6 +107,7 @@ AWS_SPLIT = "AK" + "IA" + "ZYXWVUTSRQPONMLK"                          # split ac
 QPW = "correct " + "horse battery staple"                             # quoted secret with spaces
 GH_TYPE = "gh" + "p_" + "Type0Type1Type2Type3Type4Type5Type6"         # token-shaped record type
 GH_TOOL = "gh" + "p_" + "Tool0Tool1Tool2Tool3Tool4Tool5Tool6"         # token-shaped tool name
+GH_SID = "gh" + "p_" + "Sid00Sid01Sid02Sid03Sid04Sid05Sid06"         # token-shaped session id
 MARK = {"thinking": "HIDDEN-THOUGHT-7Q", "skill": "SKILLBODY-7Q", "args": "TOOLARG-7Q", "envelope": "ENVELOPE-7Q",
         "reasoning": "REASONING-7Q", "developer": "DEVPROMPT-7Q", "custom": "INJECTED-7Q"}
 PROJ = os.path.join(HOME, "work", "demo-atlas")
@@ -184,6 +185,8 @@ put(".claude/projects/-work-demo-atlas/%s.jsonl" % U4, [
 ])
 put(".claude/projects/-work-demo-atlas/%s.jsonl" % U5, [cl("user", "demo-atlas RECENT-7Q", sid=U5)],
     mtime=time.time() - 120)
+U7 = "99999999-aaaa-4bbb-8ccc-dddddddddddd"
+put(".claude/projects/-work-demo-atlas/%s.jsonl" % U7, [cl("user", "demo-atlas SIDTOKEN-7Q", sid=GH_SID)])
 # the past-session contract, pinned: another process holds this OLD transcript open (idle writer). Open
 # handles are not inspected, so it is read up to its last complete record; the torn tail is quarantined.
 U6 = "77777777-8888-4999-8aaa-bbbbbbbbbbbb"
@@ -382,6 +385,15 @@ for control in ("run-manifest.json", ".catalog-key", "sessions.jsonl", ".lock"):
     ok(code == 5, "--security-findings naming the output root's own %s is refused" % control)
 ok(digest(os.path.join(out_ctl, ".catalog-key")) == key_before
    and digest(os.path.join(out_ctl, "run-manifest.json")) == man_before, "...and the key and receipt are intact")
+for alias in ("Run-Manifest.json", ".Catalog-Key"):
+    code, _, _, _ = run("--out", out_ctl, "--security-findings", os.path.join(out_ctl, alias), "index", "--project", PROJ)
+    ok(code == 5, "--security-findings naming a case variant (%s) of a control file is refused" % alias)
+ok(digest(os.path.join(out_ctl, ".catalog-key")) == key_before, "...and the key is intact")
+dir_target = os.path.join(FIX, "findings-dir")
+os.makedirs(dir_target)
+code, _, _, _ = run("--out", os.path.join(FIX, "out-dirtarget"), "--security-findings", dir_target, "index", "--project", PROJ)
+ok(code == 5 and not os.path.exists(os.path.join(FIX, "out-dirtarget", "run-manifest.json")),
+   "a --security-findings path naming a directory is refused before any store is read")
 precious = os.path.join(FIX, "precious.txt")
 with open(precious, "w") as fh:
     fh.write("data outside the catalog\n")
@@ -438,6 +450,8 @@ ok(rc.get("version") == fixture_version() and rc.get("schema") == "session-catal
 blob = open(os.path.join(OUT, "sessions.jsonl")).read() + open(os.path.join(OUT, "quarantine.jsonl")).read()
 ok("secret-name.pdf" not in blob and GH not in blob, "index holds no attachment names or secrets")
 ok(GH_TYPE not in blob, "a token-shaped record type never reaches quarantine metadata")
+rows_sid = [r for r in rows if r["session_id_private"].startswith("sid-")]
+ok(GH_SID not in blob and rows_sid, "a credential-shaped session id is stored as an opaque sid- digest")
 mode = lambda p: stat.S_IMODE(os.stat(p).st_mode)  # noqa: E731
 ok(mode(OUT) == 0o700 and all(mode(os.path.join(OUT, f)) == 0o600 for f in os.listdir(OUT)
                               if os.path.isfile(os.path.join(OUT, f))), "private outputs are 0700/0600")
@@ -482,6 +496,10 @@ ok("[REDACTED:auth-header]" in text and "access_token=[REDACTED:secret]" in text
 ok("\x1b" not in out and "\u202e" not in out, "ANSI/OSC and bidi controls stripped")
 ok("Unrelated work in another repo." not in text, "messages written from another cwd are excluded")
 ok("Plan the demo-atlas importer" in text, "in-project user prose survives")
+os.makedirs(PROJ, exist_ok=True)  # a real working directory to resolve `demo-atlas` against
+code, rel_out, _, _ = run("--out", os.path.join(FIX, "out-relproj"), "extract", "--project", "demo-atlas",
+                          cwd=os.path.dirname(PROJ), env={"PWD": os.path.dirname(PROJ)})  # as a shell sets it
+ok("Plan the demo-atlas importer" in rel_out, "a relative --project resolves against the working directory")
 roles = {m["role"] for m in msgs}
 ok("tool_call" in roles and "assistant" in roles and "user" in roles, "roles stay distinct (tool_call separate)")
 ok(all(m["text"] == "" for m in msgs if m["role"] == "tool_call"), "tool calls carry no arguments")

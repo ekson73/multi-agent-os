@@ -2082,14 +2082,35 @@ def findings_target(ctx: Ctx, spec: Optional[str]) -> Tuple[int, str]:
         os.close(fd)
         die("refusing --security-findings %s: it is, or lies inside, an input (a store root, a harness metadata "
             "file or a supplied export) and would be replaced" % rel(ctx.home, path), "blocked")
-    control = {os.path.join(ctx.out, n) for n in RESERVED_OUTPUTS + (MARKER, OutputLock.NAME)} - \
-        {os.path.join(ctx.out, "security-findings.jsonl")}
-    if target in control:
+    fold = lambda n: unicodedata.normalize("NFC", n).casefold()  # noqa: E731 - case/normalization-insensitive FS
+    reserved = {fold(n) for n in RESERVED_OUTPUTS + (MARKER, OutputLock.NAME)} - {fold("security-findings.jsonl")}
+    pst, ost = os.fstat(fd), os.fstat(ctx.out_fd)
+    same_dir = (pst.st_dev, pst.st_ino) == (ost.st_dev, ost.st_ino)
+    try:
+        existing = os.stat(name, dir_fd=fd, follow_symlinks=False)
+    except FileNotFoundError:
+        existing = None
+    aliases_control = existing is not None and any(
+        _same_file(existing, n, ctx.out_fd) for n in RESERVED_OUTPUTS + (MARKER, OutputLock.NAME)
+        if n != "security-findings.jsonl")
+    if (same_dir and fold(name) in reserved) or aliases_control:
         os.close(fd)
         die("refusing --security-findings %s: it would replace one of this run's own control or output files"
             % rel(ctx.home, path), "blocked")
+    if existing is not None and not _own_plain_file(existing):
+        os.close(fd)
+        die("refusing --security-findings %s: it exists and is not a regular, singly-linked file owned by this "
+            "user" % rel(ctx.home, path), "blocked")
     ctx.excluded_files.add(target)
     return fd, name
+
+
+def _same_file(st: os.stat_result, name: str, dfd: int) -> bool:
+    try:
+        other = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    except OSError:
+        return False
+    return (st.st_dev, st.st_ino) == (other.st_dev, other.st_ino)
 
 
 def provenance() -> dict:
@@ -2131,6 +2152,39 @@ def norm_path(p: Optional[str]) -> Optional[str]:
     return os.path.normpath(os.path.expanduser(re.sub(r"^file://", "", p))) if p else None
 
 
+def project_path(p: str) -> str:
+    """A user-supplied --project: `~` expanded and made absolute against the working directory
+    (the shell's logical $PWD when it names the same directory), because recorded session cwds
+    are absolute."""
+    p = os.path.expanduser(p)
+    if os.path.isabs(p):
+        return os.path.normpath(p)
+    cwd, pwd = os.getcwd(), os.environ.get("PWD", "")
+    base = pwd if os.path.isabs(pwd) and os.path.realpath(pwd) == os.path.realpath(cwd) else cwd
+    return os.path.normpath(os.path.join(base, p))
+
+
+def project_paths(ps: Optional[List[str]]) -> List[str]:
+    """Every --project in lexical and canonical form: harnesses record the cwd either way."""
+    out: List[str] = []
+    for p in ps or []:
+        a = project_path(p)
+        out += [a] if os.path.realpath(a) == a else [a, os.path.realpath(a)]
+    return out
+
+
+_SESSION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
+
+
+def safe_session_id(ctx: Ctx, sid: str) -> str:
+    """Session ids are transcript metadata, so untrusted: keep one only when it is id-shaped and
+    clean under the redaction patterns; otherwise record an opaque digest instead."""
+    s = str(sid)
+    if _SESSION_ID.match(s) and not redact(s)[1] and not _blob_like(s):
+        return s
+    return ctx.opaque("sid-", s)
+
+
 def project_match(cwd: Optional[str], projects: List[str]) -> bool:
     c = norm_path(cwd)
     return bool(c) and any(c == p or c.startswith(p + os.sep) for p in projects)
@@ -2156,7 +2210,7 @@ def session_ref(ctx: Ctx, s: Store, surface: str, sid: str) -> str:
 
 def select(ctx: Ctx, args, stores: List[Store]):
     """Yield (store, unit, meta, msgs, hits) for sessions passing every filter."""
-    projects = [norm_path(p) for p in args.project or []]
+    projects = project_paths(args.project)
     mention = re.compile(args.mention, re.I) if args.mention else None
     surfaces = surface_filter(args)
     hw_iso = iso(ctx.high_water)
@@ -2243,11 +2297,11 @@ def cmd_index(ctx: Ctx, args, stores: List[Store]) -> int:
                 "schema": SCHEMA, "partition": partition(surface, s), "vendor": s.provider, "surface": surface,
                 "identity": s.account, "store": s.id, "source_id": ctx.source_id(u.path),
                 "session_ref": session_ref(ctx, s, surface, meta["session_id"]),
-                "session_id_private": meta["session_id"],
+                "session_id_private": safe_session_id(ctx, meta["session_id"]),
                 "parent_session_ref": session_ref(ctx, s, surface, meta["parent_session_id"])
                 if meta.get("parent_session_id") else None,
                 "kind": meta.get("kind"),
-                "cwd_private": rel(ctx.home, norm_path(meta.get("cwd"))) if meta.get("cwd") else None,
+                "cwd_private": redact(rel(ctx.home, norm_path(meta.get("cwd"))))[0] if meta.get("cwd") else None,
                 "started_at": meta["started_at"], "ended_at": meta["ended_at"], "counts": dict(counts),
                 "attachments_by_type": dict(att), "mention_hits": hits, "selected_by": meta["selected_by"],
                 "imported_from": meta.get("imported_from"), "lines": max([m["line"] for m in msgs] or [0]),
@@ -2260,7 +2314,7 @@ def cmd_index(ctx: Ctx, args, stores: List[Store]) -> int:
 def cmd_extract(ctx: Ctx, args, stores: List[Store]) -> int:
     grep = re.compile(args.grep, re.I) if args.grep else None
     roles = set(args.roles.split(","))
-    projects = [norm_path(p) for p in args.project or []]
+    projects = project_paths(args.project)
     sessions = messages = 0
     w = sys.stdout
     selected = select(ctx, args, stores)
@@ -2337,7 +2391,7 @@ def finish(ctx: Ctx, args, stores: List[Store], command: str, totals: dict) -> i
         "schema": SCHEMA, "tool": provenance(), "command": command, "status": status,
         "generated_at": iso(time.time()), "high_water": iso(ctx.high_water),
         "past_session_contract": PAST_SESSION_CONTRACT,
-        "filters": {"project": [rel(ctx.home, norm_path(p)) for p in args.project or []], "mention": args.mention,
+        "filters": {"project": [rel(ctx.home, project_path(p)) for p in args.project or []], "mention": args.mention,
                     "since": args.since, "until": args.until, "surface": getattr(args, "surface", None),
                     "include_imported": args.include_imported, "exclude_path_globs": len(ctx.exclude_globs)},
         "limits": ctx.limits, "receipt": receipt, "identities": identities,
