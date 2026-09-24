@@ -44,6 +44,11 @@ import sys
 import time
 import unicodedata
 import zipfile
+
+try:
+    import fcntl  # POSIX only; its absence is caught by SAFE_IO (fail closed), not at import
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None
 from bisect import bisect_right
 from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timezone
@@ -84,7 +89,8 @@ def _probe_safe_io() -> bool:
     (probed once, at import)."""
     return bool(_O_NOFOLLOW and _O_DIRECTORY and _O_CLOEXEC) and os.open in os.supports_dir_fd \
         and os.stat in os.supports_dir_fd and os.stat in os.supports_follow_symlinks \
-        and os.scandir in os.supports_fd and os.rename in os.supports_dir_fd and os.unlink in os.supports_dir_fd
+        and os.scandir in os.supports_fd and os.rename in os.supports_dir_fd and os.unlink in os.supports_dir_fd \
+        and fcntl is not None
 
 
 SAFE_IO = _probe_safe_io()
@@ -186,7 +192,22 @@ REDACTIONS: List[Tuple[str, bool, re.Pattern]] = [
     ("cpf", False, re.compile(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b")),
     ("phone", False, re.compile(r"(?<![\w.])\+\d{10,15}\b")),
 ]
-_HOME_PATH = re.compile(r"(?:/Users|/home)/[^/\s'\"`]+")
+_HOME_PATH = re.compile(r"(?:/Users|/home)/[^/\s'\"`]+|/root(?=[/\s'\"`]|$)")
+_EXTRA_HOMES: List[re.Pattern] = []  # the configured --home (lexical + canonical), set by main()
+
+
+def configure_home_redaction(*homes: str) -> None:
+    """Also redact the configured home, wherever it lives (/root, /srv/alice, /var/…)."""
+    names = sorted({h.rstrip(os.sep) for h in homes if h and h.rstrip(os.sep)}, key=len, reverse=True)
+    _EXTRA_HOMES[:] = [re.compile("(?:" + "|".join(map(re.escape, names)) + r")(?=[/\s'\"`]|$)")] if names else []
+
+
+def _home_paths(text: str) -> str:
+    for rx in _EXTRA_HOMES:
+        text = rx.sub("~", text)
+    return _HOME_PATH.sub("~", text)
+
+
 # Token-shaped patterns re-run across field/message boundaries (line/block-shaped ones are
 # excluded: joining fields without a separator would make them swallow the next field).
 _SPLIT_SCAN = [(label, rx) for label, _cred, rx in REDACTIONS if label not in ("private-key", "auth-header")]
@@ -263,7 +284,7 @@ def redact(text: str) -> Tuple[str, Counter, Counter]:
         else:
             fn = sub(label, none, whole, label)
         text = rx.sub(fn, text)
-    return _HOME_PATH.sub("~", text), hits, creds
+    return _home_paths(text), hits, creds
 
 
 def split_spans(parts: List[str]) -> Tuple[List[List[Tuple[int, int, str]]], List[Tuple[int, str, str]]]:
@@ -454,6 +475,14 @@ class Ctx:
         """Record types are transcript-controlled: the receipt keeps a fixed class plus an
         opaque digest (groupable within one output root), never the raw value."""
         self.quarantine_(store, path, "unknown-record-type", lineno, type_ref=self.opaque("t-", repr(rtype)[:256]))
+
+    def take_record(self, store: str, path: str, line: Optional[int]) -> bool:
+        """Count one record against --max-records; False (quarantined) once the cap is reached."""
+        if self.records_total >= self.limits["max_records"]:
+            self.quarantine_(store, path, "run-record-cap", line)
+            return False
+        self.records_total += 1
+        return True
 
     # containment: every source is reached from a trust anchor without following links
     def anchored(self, path: str) -> Optional[List[str]]:
@@ -1028,6 +1057,8 @@ def load_gemini(ctx: Ctx, store: "Store", path: str, fh, cwd: Optional[str]) -> 
         if not isinstance(doc, dict) or not isinstance(doc.get("messages"), list) or "sessionId" not in doc:
             ctx.quarantine_(store.id, path, "unknown-document-shape", 1)
             return None, []
+        if not ctx.take_record(store.id, path, 1):  # a whole-document recording is one record
+            return None, []
         ctx.receipt[store.id]["records_parsed"] += 1
         meta["session_id"] = doc.get("sessionId")
         meta["kind"] = "subagent" if doc.get("kind") == "subagent" else "main"
@@ -1100,6 +1131,8 @@ def load_brain(ctx: Ctx, store: "Store", files: List[str], sid: str) -> tuple:
         except UnicodeDecodeError:
             ctx.quarantine_(store.id, f, "invalid-utf8")
             continue
+        if not ctx.take_record(store.id, f, 1):
+            break
         ctx.receipt[store.id]["records_parsed"] += 1
         e = Emit(ctx, store, f)
         base = os.path.basename(f).lower()
@@ -1897,13 +1930,20 @@ def write_private(dfd: int, name: str, lines) -> int:
         pass
     fd = os.open(tmp, O_NEW, 0o600, dir_fd=dfd)
     n = 0
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        for line in lines:
-            fh.write(line + "\n")
-            n += 1
-        fh.flush()
-        os.fsync(fh.fileno())
-    os.rename(tmp, name, src_dir_fd=dfd, dst_dir_fd=dfd)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            for line in lines:  # may be a generator: rows are streamed, never held
+                fh.write(line + "\n")
+                n += 1
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.rename(tmp, name, src_dir_fd=dfd, dst_dir_fd=dfd)
+    except BaseException:
+        try:
+            os.unlink(tmp, dir_fd=dfd)
+        except OSError:
+            pass
+        raise
     return n
 
 
@@ -1929,83 +1969,46 @@ def load_key(dfd: int) -> bytes:
     return key
 
 
-def _proc_start(pid: int) -> Optional[str]:
-    """Start time of a pid via `ps` (argv list, no shell); None if the pid is gone."""
-    try:
-        r = subprocess.run(["ps", "-o", "lstart=", "-p", str(int(pid))], capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return r.stdout.strip()[:64] or None
-
-
-def _pid_alive(pid: int) -> bool:
-    """Signal 0 checks existence without delivering anything."""
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True  # exists, owned by someone else
-    except (OverflowError, OSError):
-        return False
-    return True
-
-
 class OutputLock:
-    """One run per output root: O_EXCL lock file with pid + process start time + host."""
+    """One run per output root: an exclusive, non-blocking flock on <out>/.lock. The kernel drops
+    it when the holder exits or dies, so there is no stale-lock reclaim, and so no race in one.
+    The file keeps pid + host of the current holder for diagnostics only."""
     NAME = ".lock"
 
     def __init__(self, dfd: int):
         self.dfd = dfd
-        self.held = False
+        self.fd: Optional[int] = None
 
     def acquire(self):
-        me = {"pid": os.getpid(), "start": _proc_start(os.getpid()), "host": os.uname().nodename}
-        for _ in range(2):
+        try:
+            fd = os.open(self.NAME, os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC, 0o600, dir_fd=self.dfd)
+        except OSError:
+            die("refusing the output lock: %s is not a plain file" % self.NAME, "blocked")
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            die("refusing the output lock: %s is not a plain file" % self.NAME, "blocked")
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
             try:
-                fd = os.open(self.NAME, O_NEW, 0o600, dir_fd=self.dfd)
-            except FileExistsError:
-                try:
-                    rfd = os.open(self.NAME, O_FILE, dir_fd=self.dfd)
-                    with os.fdopen(rfd, "rb") as fh:
-                        owner = json.loads(fh.read(4096) or b"{}")
-                except (OSError, ValueError):
-                    owner = {}
-                owner = owner if isinstance(owner, dict) else {}
-                pid = owner.get("pid")
-                if not (isinstance(pid, int) and not isinstance(pid, bool) and pid > 0 and owner.get("host")):
-                    # empty or unreadable: a run that died between creating and writing it, or garbage
-                    try:
-                        age = time.time() - os.stat(self.NAME, dir_fd=self.dfd, follow_symlinks=False).st_mtime
-                    except OSError:
-                        age = 0.0
-                    if age < 60:
-                        die("output root lock is being written by another run", "blocked")
-                    os.unlink(self.NAME, dir_fd=self.dfd)
-                    continue
-                if owner["host"] != me["host"]:
-                    die("output root is locked by a run on another host (%s)" % owner["host"], "blocked")
-                if _pid_alive(pid):
-                    started = _proc_start(pid)  # None when `ps` is unavailable: then trust the pid
-                    if started is None or owner.get("start") is None or started == owner.get("start"):
-                        die("output root is locked by another run (pid %s on %s)" % (pid, owner["host"]), "blocked")
-                os.unlink(self.NAME, dir_fd=self.dfd)  # stale: the pid is gone, or was reused by another process
-                continue
-            with os.fdopen(fd, "w") as fh:
-                fh.write(json.dumps(me))
-                fh.flush()
-                os.fsync(fh.fileno())
-            self.held = True
-            return
-        die("could not acquire the output lock", "blocked")
+                holder = json.loads(os.pread(fd, 4096, 0) or b"{}")
+            except (OSError, ValueError):
+                holder = {}
+            os.close(fd)
+            holder = holder if isinstance(holder, dict) else {}
+            die("output root is locked by another run (pid %s on %s)" % (holder.get("pid"), holder.get("host")),
+                "blocked")
+        os.ftruncate(fd, 0)
+        os.pwrite(fd, json.dumps({"pid": os.getpid(), "host": os.uname().nodename}).encode(), 0)
+        self.fd = fd
 
     def release(self):
-        if self.held:
+        if self.fd is not None:
             try:
-                os.unlink(self.NAME, dir_fd=self.dfd)
-            except OSError:
-                pass
-            self.held = False
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+            finally:
+                os.close(self.fd)
+                self.fd = None
 
 
 def findings_target(ctx: Ctx, spec: Optional[str]) -> Tuple[int, str]:
@@ -2168,26 +2171,27 @@ def cmd_stores(ctx: Ctx, args, stores: List[Store]) -> int:
 
 
 def cmd_index(ctx: Ctx, args, stores: List[Store]) -> int:
-    rows = []
-    for s, u, meta, msgs, hits in select(ctx, args, stores):
-        surface = str(meta.get("client"))
-        counts = Counter(m["role"] if m["kind"] == "text" else m["kind"] for m in msgs)
-        att = Counter(m["tool"] for m in msgs if m["kind"] == "attachment")
-        body = "\x1e".join("%s\x1f%s\x1f%s" % (m["role"], m["kind"], m["text"]) for m in msgs)
-        rows.append(json.dumps({
-            "schema": SCHEMA, "partition": partition(surface, s), "vendor": s.provider, "surface": surface,
-            "identity": s.account, "store": s.id, "source_id": ctx.source_id(u.path),
-            "session_ref": session_ref(ctx, s, surface, meta["session_id"]), "session_id_private": meta["session_id"],
-            "parent_session_ref": session_ref(ctx, s, surface, meta["parent_session_id"])
-            if meta.get("parent_session_id") else None,
-            "kind": meta.get("kind"),
-            "cwd_private": rel(ctx.home, norm_path(meta.get("cwd"))) if meta.get("cwd") else None,
-            "started_at": meta["started_at"], "ended_at": meta["ended_at"], "counts": dict(counts),
-            "attachments_by_type": dict(att), "mention_hits": hits, "selected_by": meta["selected_by"],
-            "imported_from": meta.get("imported_from"), "lines": max([m["line"] for m in msgs] or [0]),
-            "in_project_messages": sum(1 for m in msgs if m.get("in_project")),
-            "content_sha256_private": hashlib.sha256(body.encode()).hexdigest()}, sort_keys=True))
-    n = write_private(ctx.out_fd, "sessions.jsonl", rows)
+    def rows() -> Iterator[str]:  # streamed into the private temp file: no row list is retained
+        for s, u, meta, msgs, hits in select(ctx, args, stores):
+            surface = str(meta.get("client"))
+            counts = Counter(m["role"] if m["kind"] == "text" else m["kind"] for m in msgs)
+            att = Counter(m["tool"] for m in msgs if m["kind"] == "attachment")
+            body = "\x1e".join("%s\x1f%s\x1f%s" % (m["role"], m["kind"], m["text"]) for m in msgs)
+            yield json.dumps({
+                "schema": SCHEMA, "partition": partition(surface, s), "vendor": s.provider, "surface": surface,
+                "identity": s.account, "store": s.id, "source_id": ctx.source_id(u.path),
+                "session_ref": session_ref(ctx, s, surface, meta["session_id"]),
+                "session_id_private": meta["session_id"],
+                "parent_session_ref": session_ref(ctx, s, surface, meta["parent_session_id"])
+                if meta.get("parent_session_id") else None,
+                "kind": meta.get("kind"),
+                "cwd_private": rel(ctx.home, norm_path(meta.get("cwd"))) if meta.get("cwd") else None,
+                "started_at": meta["started_at"], "ended_at": meta["ended_at"], "counts": dict(counts),
+                "attachments_by_type": dict(att), "mention_hits": hits, "selected_by": meta["selected_by"],
+                "imported_from": meta.get("imported_from"), "lines": max([m["line"] for m in msgs] or [0]),
+                "in_project_messages": sum(1 for m in msgs if m.get("in_project")),
+                "content_sha256_private": hashlib.sha256(body.encode()).hexdigest()}, sort_keys=True)
+    n = write_private(ctx.out_fd, "sessions.jsonl", rows())
     return finish(ctx, args, stores, "index", {"sessions": n})
 
 
@@ -2358,6 +2362,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     home = os.path.abspath(os.path.expanduser(args.home))
     ctx = Ctx(home, high_water, {k: getattr(args, k) for k in LIMITS}, args.exclude_path, secrets.token_bytes(32))
     ctx.export_paths = {os.path.realpath(os.path.expanduser(p)) for _, p in exports}  # every one, in scope or not
+    configure_home_redaction(ctx.home, ctx.home_real)  # the configured home is redacted wherever it lives
     try:
         if args.cmd == "stores":
             return cmd_stores(ctx, args, [assess(ctx, s) for s in build_stores(ctx, exports)])

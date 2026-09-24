@@ -53,13 +53,15 @@ it can stream topic-scoped, redacted text.
   output-named files is refused. `index` now requires `--project`/`--mention` like
   `extract`. With `--surface`, stores outside the scope are never built, so their account
   metadata is never read. Exports must be one top-level JSON array, and every decoded
-  element is held to `--max-record-bytes`. A lock whose pid is gone (signal 0), or an
-  empty lock older than 60 s, is reclaimed.
+  element is held to `--max-record-bytes`. Whole-document Gemini recordings count against
+  `--max-records`, and `index` streams its rows instead of holding them. `/root` and the
+  configured `--home` are redacted like `/Users/*` and `/home/*`. The one-run lock is now a
+  kernel `flock`, released when the holder dies, so there is no stale-lock race.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
   outputs landing on inputs, oversized, binary, invalid-UTF-8 and non-array exports, a
-  hostile zip, caps, lock reclaim, closed-pipe and no-socket checks, a pinned past-session
+  hostile zip, caps, the flock lock, closed-pipe and no-socket checks, a pinned past-session
   contract (an idle writer holding an old transcript open), and a gitleaks-style scan of
   every output. An instrumentation pass records
   every path the reader opens, stats or writes during stores/index/extract, and asserts
