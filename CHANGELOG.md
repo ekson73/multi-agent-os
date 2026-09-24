@@ -44,8 +44,10 @@ that version. Every correction below was observed there.
   outside every repo; each seat granted only its own worktree parent through the harness's
   additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
   under that parent per the project's policy, created only from the reviewed, pinned commit SHA or the seat's
-  own branch; a read-only review worktree for the reviewer; and a post-launch status check that includes
-  untracked files and the projected paths (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
+  own branch; review bound to the exact commit SHA the reviewer's verdict cites, with only that SHA published or
+  merged (reviewer read-only is not enforced at the shell boundary; without the SHA binding, no launch); and
+  a post-launch status check that includes untracked files and the projected paths (`external-crew.md` step 5,
+  `CANON.md` C6, the agent's prohibitions).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
   guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Project-scoped config does not follow a desk seat.** New mandatory pre-launch step: inventory the target's
