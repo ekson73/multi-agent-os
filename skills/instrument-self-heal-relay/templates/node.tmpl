@@ -23,7 +23,7 @@ const _SHR_REDACT = [
   [/sk-[A-Za-z0-9_-]{20,}/g, "[REDACTED:api-key]"],
   [/xox[baprs]-[A-Za-z0-9-]{10,}/g, "[REDACTED:slack-token]"],
   [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g, "[REDACTED:jwt]"],
-  [/:\/\/[^/@\s]{1,200}:[^/@\s]{1,200}@/g, "://[REDACTED]@"],
+  [/:\/\/[^/@\s]*@/g, "://[REDACTED]@"],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 [REDACTED]"],
   [/([A-Za-z0-9_.-]{0,64}(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]{0,64})\s*[=:]\s*("[^"]*"|'[^']*'|[^\s"']+)/gi, "$1=[REDACTED]"],
 ];
@@ -34,12 +34,30 @@ let _shrDir = null, _shrLog = null, _shrRelayed = false;
 
 // Platform-independent executable lookup (no `sh` needed, so it also works on Windows).
 function shrWhich(bin) {
-  const exts = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";").concat("") : [""];
+  // Windows: only real executables. npm .cmd/.bat shims cannot be spawned without a shell, so they are deliberately not accepted.
+  const exts = process.platform === "win32" ? [".exe", ".com"] : [""];
   for (const d of (process.env.PATH || "").split(_shr.path.delimiter)) for (const e of exts) {
     try { _shr.fs.accessSync(_shr.path.join(d, bin + e), _shr.fs.constants.X_OK); return true; } catch (_) {}
   }
   return false;
 }
+
+// Last 200 lines of at most the last 256KB (a huge log cannot exhaust memory). A line cut by the byte cap is dropped whole, and a private-key body whose
+// BEGIN header fell before the cut is dropped through its END: neither may reach the redactor half-formed.
+function shrTail(path) {
+  const fd = _shr.fs.openSync(path, "r"); const sz = _shr.fs.fstatSync(fd).size, cap = Math.min(sz, 262144), buf = Buffer.alloc(cap);
+  _shr.fs.readSync(fd, buf, 0, cap, sz - cap); _shr.fs.closeSync(fd);
+  let lines = buf.toString("utf8").split("\n"); if (sz > cap) lines = lines.slice(1);
+  let out = [], inkey = false;
+  for (const l of lines) {
+    if (!inkey && /-----END [A-Z ]*PRIVATE KEY-----/.test(l)) { out = []; continue; }
+    if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(l)) inkey = true;
+    if (/-----END [A-Z ]*PRIVATE KEY-----/.test(l)) inkey = false;
+    out.push(l);
+  }
+  return out.slice(-200).join("\n");
+}
+function shrTimeoutMs() { const t = Number(process.env.MAOS_SELFHEAL_TIMEOUT); return Number.isFinite(t) && t > 0 ? t * 1000 : 300000; }
 
 function shrBuildPrompt(excText, tier, logTail) {
   const nonce = _shr.crypto.randomBytes(8).toString("hex");
@@ -55,7 +73,7 @@ function shrBuildPrompt(excText, tier, logTail) {
 function shrRelay(excText) {
   if (_shrRelayed) return; _shrRelayed = true;
   let tier = SHR_TIER_LOCK || process.env.MAOS_SELFHEAL_TIER || "propose"; tier = tier === "apply" ? "apply" : "propose";
-  let logTail = ""; try { const fd = _shr.fs.openSync(_shrLog, "r"); const sz = _shr.fs.fstatSync(fd).size, cap = Math.min(sz, 262144), buf = Buffer.alloc(cap); _shr.fs.readSync(fd, buf, 0, cap, sz - cap); _shr.fs.closeSync(fd); logTail = buf.toString("utf8").split("\n").slice(-200).join("\n"); } catch (_) {} // bounded tail: a huge log cannot exhaust memory
+  let logTail = ""; try { logTail = shrTail(_shrLog); } catch (_) {}
   const prompt = shrBuildPrompt(excText, tier, logTail);
   const ppath = _shr.path.join(_shrDir, "prompt.md");
   _shr.fs.writeFileSync(ppath, prompt, { mode: 0o600 });
@@ -63,10 +81,13 @@ function shrRelay(excText) {
   const err = (m) => _shr.fs.writeSync(2, m + "\n");
   if ((process.env.MAOS_SELFHEAL_MODE || "relay") === "seed") {
     const d = process.env.MAOS_SELFHEAL_SEED_DIR || _shr.path.join(process.env.XDG_STATE_HOME || _shr.path.join(_shr.os.homedir(), ".local/state"), "maos", "self-heal-seeds");
-    _shr.fs.mkdirSync(d, { recursive: true, mode: 0o700 });
-    const seed = _shr.path.join(d, `NEEDS-AGENT-${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}-${process.pid}-${_shr.crypto.randomBytes(3).toString("hex")}-${SHR_NAME}.md`);
-    _shr.fs.writeFileSync(seed, "<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt, { mode: 0o600 }); // never world-readable
-    err(`self-heal-relay: seed written -> ${seed}`); return;
+    try {
+      _shr.fs.mkdirSync(d, { recursive: true, mode: 0o700 });
+      const seed = _shr.path.join(d, `NEEDS-AGENT-${new Date().toISOString().replace(/[-:]/g, "").slice(0, 15)}-${process.pid}-${_shr.crypto.randomBytes(3).toString("hex")}-${SHR_NAME}.md`);
+      _shr.fs.writeFileSync(seed, "<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt, { mode: 0o600 }); // never world-readable
+      err(`self-heal-relay: seed written -> ${seed}`);
+    } catch (e) { err(`self-heal-relay: seed NOT written (${e.message}); prompt kept at ${ppath}`); }
+    return;
   }
   const explicit = !!process.env.MAOS_AI_HARNESS;
   for (const name of (process.env.MAOS_AI_HARNESS || SHR_DEFAULT_CHAIN.join(" ")).split(/\s+/).filter(Boolean)) {
@@ -77,7 +98,7 @@ function shrRelay(excText) {
     const argv = h.argv[tier].slice(); let input;
     if (h.via === "argv-path") argv.push(`Read the file ${ppath} and follow its instructions.`); else input = prompt;
     // detached => own process group; after spawnSync returns (leader killed on timeout) the whole group is killed too
-    const r = _shr.cp.spawnSync(h.bin, argv, { input, encoding: "utf8", detached: process.platform !== "win32", timeout: 1000 * Number(process.env.MAOS_SELFHEAL_TIMEOUT || 300), killSignal: "SIGKILL" });
+    const r = _shr.cp.spawnSync(h.bin, argv, { input, encoding: "utf8", detached: process.platform !== "win32", timeout: shrTimeoutMs(), killSignal: "SIGKILL" });
     if (r.pid) { try { if (process.platform === "win32") _shr.cp.spawnSync("taskkill", ["/T", "/F", "/PID", String(r.pid)]); else process.kill(-r.pid, "SIGKILL"); } catch (_) {} }
     if (r.status === 0 && (r.stdout || "").trim()) {
       const out = _shr.path.join(_shrDir, "proposal.md"); _shr.fs.writeFileSync(out, r.stdout.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")); // strip ANSI

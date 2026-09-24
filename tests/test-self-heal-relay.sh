@@ -175,6 +175,21 @@ false"
   case "$ALL" in *"REDACTED"*) ok "redaction markers present (relay did run)" ;; *) bad "expected [REDACTED] markers" ;; esac
   case "$ALL" in *"UNTRUSTED-LOG-"*) ok "log is fenced as UNTRUSTED with a nonce" ;; *) bad "missing UNTRUSTED fence" ;; esac
 
+  echo "-- 5b. redaction holds for over-long credentials, byte-capped tails and cut private keys"
+  LONGPW="$(printf 'p%.0s' $(seq 1 400))"
+  reset_stubs; mk_bash "$SANDBOX/t5b.sh" "" "echo \"dial https://bob:$LONGPW@host/x\" >&2
+echo \"https://onlytoken$LONGPW@host/y\" >&2
+false"
+  "$B" "$SANDBOX/t5b.sh" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *"$LONGPW"*) bad "over-long URL credential leaked" ;; *) ok "over-long URL credentials are redacted" ;; esac
+  reset_stubs; mk_bash "$SANDBOX/t5c.sh" "" 'head -c 3000000 /dev/zero | tr "\\0" x >&2; echo >&2; echo TAILMARK >&2; false'
+  "$B" "$SANDBOX/t5c.sh" >/dev/null 2>&1
+  PSZ="$(wc -c < "$(ls -t "$SANDBOX"/tmp/shr.*/prompt.md | head -1)" | tr -d ' ')"
+  check "3MB single-line log → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
+  reset_stubs; mk_bash "$SANDBOX/t5d.sh" "" 'head -c 300000 /dev/zero | tr "\\0" y >&2; echo >&2; printf "%s\\n" "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC" "-----END PRIVATE KEY-----" "after" >&2; false'
+  "$B" "$SANDBOX/t5d.sh" >/dev/null 2>&1
+  case "$(cat "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "dangling private-key body leaked" ;; *) ok "private-key body cut by the byte cap is dropped" ;; esac
+
   echo "-- 6. tier lock: a gate script can never reach the apply tier"
   reset_stubs; mk_bash "$SANDBOX/t6.sh" 'SHR_TIER_LOCK=propose' 'false'
   MAOS_SELFHEAL_TIER=apply "$B" "$SANDBOX/t6.sh" >/dev/null 2>&1
@@ -213,7 +228,21 @@ if command -v python3 >/dev/null 2>&1; then
   check "python: prompt carries the absolute script path" "$(grep -cE '^Script: /.*/p7\.py$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'import threading\ndef w(): 1/0\nt = threading.Thread(target=w); t.start(); t.join()\nraise RuntimeError("main")\n'; } > "$SANDBOX/p8.py"; python3 "$SANDBOX/p8.py" >/dev/null 2>&1; check "python: worker fault + later main fault dispatch exactly once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("x" * 3000000 + "\\nTAILMARK\\n")\nraise RuntimeError("big log")\n'; } > "$SANDBOX/p9.py"; python3 "$SANDBOX/p9.py" >/dev/null 2>&1; check "python: 3MB log still relays with a bounded tail" "$(grep -c TAILMARK "$STUB_LOG".stdin.1 2>/dev/null)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p10.py"; : > "$SANDBOX/notadir2"
+  OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" python3 "$SANDBOX/p10.py" 2>&1 >/dev/null)"
+  case "$OUT" in *"seed NOT written"*) ok "python: unwritable seed dir is reported" ;; *) bad "python: seed failure not reported" ;; esac
+  reset_stubs; MAOS_SELFHEAL_TIMEOUT=bogus python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: malformed timeout still dispatches once, leaves no child" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("y" * 300000 + "\\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\\n-----END PRIVATE KEY-----\\n")\nraise RuntimeError("k")\n'; } > "$SANDBOX/p11.py"; python3 "$SANDBOX/p11.py" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "python: dangling key body leaked" ;; *) ok "python: private-key body cut by the byte cap is dropped" ;; esac
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("https://u:%s@h/")\n' "$LONGPW"; } > "$SANDBOX/p12.py"; python3 "$SANDBOX/p12.py" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$LONGPW"*) bad "python: over-long URL credential leaked" ;; *) ok "python: over-long URL credentials are redacted" ;; esac
   reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
+  OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"
+  case "$OUT" in *"seed NOT written"*) ok "node: unwritable seed dir is reported" ;; *) bad "node: seed failure not reported" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("https://u:%s@h/");\n' "$LONGPW"; } > "$SANDBOX/n11.js"; node "$SANDBOX/n11.js" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$LONGPW"*) bad "node: over-long URL credential leaked" ;; *) ok "node: over-long URL credentials are redacted" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n12.js"; MAOS_SELFHEAL_TIMEOUT=bogus node "$SANDBOX/n12.js" >/dev/null 2>&1; check "node: malformed timeout still dispatches once" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi
