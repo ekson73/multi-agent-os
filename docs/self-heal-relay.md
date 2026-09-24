@@ -121,6 +121,10 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- Python: the block installs SIGTERM/SIGHUP handlers (chaining any handler set *before* it) so a cancelled script does not orphan the harness it
+  started in its own session. A `signal.signal` call made *after* the block replaces that handler, and no in-process mechanism can intercept
+  `SIG_DFL` or `SIGKILL`: stamp the block after your own signal setup. Even then a `SIGKILL` of the script cannot reap the harness (its own
+  timeout is enforced from inside the process); the bash block's external watchdog is more robust here.
 - The bash harness-output cap (4 MiB per capture file) is enforced by 1-second polling in the watchdog, so a producer that writes more than
   the free space of the temp filesystem within a single second can overshoot it. Bounding the stream itself would need a bounded copier
   in the pipeline (`| head -c`), which changes the exit-status and SIGPIPE semantics the relay depends on; python (50 ms polling) is tighter.

@@ -102,7 +102,7 @@ def render(lang: str) -> str:
 
 # --- verification --------------------------------------------------------------------------------
 
-_HEAD_RE = re.compile(r"^\s*(?:#|//) " + re.escape(BEGIN) + r" \S+ \((?:bash|python|node)\) sha256:[0-9a-f]{12} — stamped by ")
+_HEAD_RE = re.compile(r"^\s*(?:#|//) " + re.escape(BEGIN) + r" \S+ \((?:bash|python|node)\) sha256:[0-9a-f]{12} — stamped by self-heal-relay-render; DO NOT hand-edit; verify with --verify\s*$")
 _FOOT_RE = re.compile(r"^\s*(?:#|//) " + re.escape(END) + r" \((?:bash|python|node)\)\s*$")
 
 

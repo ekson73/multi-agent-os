@@ -61,6 +61,8 @@ if "$RENDER" --verify "$SANDBOX/blk.bash" >/dev/null 2>&1; then ok "fresh bash b
 "$RENDER" --verify "$SANDBOX/mention.bash" >/dev/null 2>&1; check "a comment that merely mentions the marker phrase does not break verification (rc 0)" "$?" "0"
 { cat "$SANDBOX/blk.bash"; echo '# >>> self-heal-relay is described in the block above'; echo '# <<< self-heal-relay ends here'; } > "$SANDBOX/prefix.bash"
 "$RENDER" --verify "$SANDBOX/prefix.bash" >/dev/null 2>&1; check "a comment that merely STARTS with the marker phrase does not break verification (rc 0)" "$?" "0"
+{ cat "$SANDBOX/blk.bash"; printf '%s and this trailing commentary makes it a comment, not a marker\n' "$(head -1 "$SANDBOX/blk.bash")"; } > "$SANDBOX/fmt.bash"
+"$RENDER" --verify "$SANDBOX/fmt.bash" >/dev/null 2>&1; check "a comment that repeats the full header text plus trailing words does not break verification (rc 0)" "$?" "0"
 sed 's/SHR_MAX_LOG_LINES:-200/SHR_MAX_LOG_LINES:-201/' "$SANDBOX/blk.bash" > "$SANDBOX/drift.bash"
 "$RENDER" --verify "$SANDBOX/drift.bash" >/dev/null 2>&1; check "hand-edited block is DRIFT (rc 1)" "$?" "1"
 printf 'echo hi\n' > "$SANDBOX/none.sh"; "$RENDER" --verify "$SANDBOX/none.sh" >/dev/null 2>&1; check "file without a block is rc 2" "$?" "2"
