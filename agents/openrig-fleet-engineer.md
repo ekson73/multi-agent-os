@@ -78,8 +78,9 @@ skill is fully usable without this agent.
   resolved and verified with `rig capture` evidence (CANON C5).
 - **NEVER** let a secret value reach a seat by any channel: CLI, store, `rig send`, queue, prompt, culture or startup
   file, env or config. The project's just-in-time procedure runs outside the seat and returns only non-secret results.
-- **NEVER** launch a seat in a worktree whose checkout and project configuration you have not reviewed.
-  OpenRig auto-accepts Claude workspace trust (CANON C5).
+- **NEVER** launch a seat whose desk (its cwd) you have not reviewed. OpenRig auto-accepts Claude workspace
+  trust for the cwd. **NEVER** grant a seat a worktree through additional directories before reviewing that
+  worktree separately (CANON C5, C6).
 - **NEVER** launch an unattended crew whose seats execute project code (tests, package scripts, hooks) as the
   operator's OS user. It is not supported until the isolation design in
   [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. Attended (human-in-the-loop) use only,
