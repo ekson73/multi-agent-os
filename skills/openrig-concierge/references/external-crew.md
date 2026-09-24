@@ -76,6 +76,12 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 
 ## 5. Desks, worktrees and `cwd` — one writing seat, one worktree
 
+> **Runtime scope.** The desk recipe below (steps 5, 6 and 9) and [`sandboxed-seats.md`](./sandboxed-seats.md)
+> are validated **only for Claude Code seats**. For Codex or any other runtime, projecting its project config
+> and hooks (for Codex, `.codex/`) into a desk, and granting writable roots outside the desk (for Codex,
+> `--add-dir`), are **not covered**. Do not use this recipe for those seats until it is validated for that
+> runtime: stop and escalate, or run those seats' work another way.
+
 - Keep the crew directory (`rig.yaml`, `agents/`, `CULTURE.md`) **outside** the target repo, on a "shelf".
   First-party guidance: "the spec root controls file resolution; the runtime cwd controls trust, project
   guidance, permissions, and repo context" (`openrig-architect`).
@@ -103,11 +109,13 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   sandbox's home-wide read block, git fails in an additional directory, so their unit worktrees must live
   under the desk (`<desk>/units/<seat>-<unit>`). Where the project's worktree location is binding, the operator
   decides; the crew cannot ([`sandboxed-seats.md`](./sandboxed-seats.md) §3).
-- **Unit worktrees come only from reviewed refs.** Under a desk cwd the harness loads no project config
-  from a worktree, so a unit worktree needs no review gate of its own as long as the seat creates it from the
-  reviewed remote default branch or from the seat's own branch. What still runs is code the seat executes
-  (package scripts and the like), which the no-credentials rule (step 9) covers. Seats never create a
-  worktree from another ref (a contributor's branch, a PR head, a tag); that needs a review first.
+- **Unit worktrees come only from a reviewed, pinned commit.** Under a desk cwd the harness loads no project
+  config from a worktree, so a unit worktree needs no review gate of its own as long as the seat creates it
+  from the **exact commit SHA** that was reviewed (record it before launch; a moving branch name is not
+  enough, because its tip can advance after the review) or from the seat's own branch. Advancing the pin
+  means reviewing the new commit first. What still runs is code the seat executes (package scripts and the
+  like), which the credential launch rule (step 9) covers. Seats never create a worktree from any other ref (a
+  contributor's branch, a PR head, a tag); that needs a review first.
 - `additionalDirectories` scopes the harness's file tools. Shell commands are bounded only by the seat's
   allowlist, so keep path-taking allow rules exact (and remember that `git` in any worktree writes the shared
   repository metadata).
@@ -140,23 +148,25 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   `rig spec audit` then reports that no `culture_file` is set. That advisory is expected and deliberate.
   Confirm delivery per seat with `rig transcript <session> --grep "<culture title>"` [T0].
 - **Project-scoped config does not follow a desk seat (mandatory pre-launch step).** With the cwd outside the
-  repo, the harness does not load the target's project-scoped config: `.claude/settings.json` (hooks,
-  permissions, enabled plugins), `.mcp.json`, `.claude/` skills, commands and agents, or the Codex
-  equivalents. Before launch, inventory that config in the reviewed checkout, then give every item a
-  disposition (show each diff):
-  1. **Hooks, permission rules, plugin enables:** project the reviewed entries into each desk's
-     `.claude/settings.local.json`.
+  repo, the harness does not load the target's project-scoped config: **both** `.claude/settings.json` and
+  `.claude/settings.local.json` (hooks, permissions, enabled plugins), `.mcp.json`, and `.claude/` rules,
+  skills, commands and agents. Before launch, inventory all of it in the reviewed checkout, then give every
+  item a disposition (show each diff):
+  1. **Hooks, permission rules, plugin enables:** project the reviewed entries from both settings layers into
+     each desk's `.claude/settings.local.json`.
   2. **MCP servers:** project them, do not only approve them. Copy the reviewed server definitions from the
      project's `.mcp.json` into the desk's `.mcp.json` (the desk is the seat's cwd, so that is the file the
      harness reads), and approve each server by exact name in the desk's `enabledMcpjsonServers`
      ([`trust-gates.md`](./trust-gates.md) §4). A server the seat's role does not need is left out.
-  3. **Skills:** make them reachable, either by telling seats to read them from their worktree (for example
+  3. **Rules:** copy the reviewed `.claude/rules/` into the desk's `.claude/rules/`, or declare them
+     unavailable in the culture and tell seats to read them from their worktree before any work.
+  4. **Skills:** make them reachable, either by telling seats to read them from their worktree (for example
      the project's canonical `.agents/skills/<name>/SKILL.md`) or by copying reviewed skill directories into
      the desk.
-  4. **Commands and agents:** copy the reviewed `.claude/commands/` and `.claude/agents/` directories into
+  5. **Commands and agents:** copy the reviewed `.claude/commands/` and `.claude/agents/` directories into
      the desk's `.claude/`, or state in the culture that they are unavailable as commands and agents in that
      seat, and that the seat reads their content from its worktree when a runbook names one.
-  5. **A deterministic gate that cannot be projected** (for example a hook that resolves paths relative to
+  6. **A deterministic gate that cannot be projected** (for example a hook that resolves paths relative to
      the project root) is not a risk anyone may accept: the project's gates outrank the crew (CANON C9). This
      recipe is then unusable for that repo. Stop and escalate to the operator.
 - The culture's content:
@@ -295,7 +305,7 @@ it, tmux's `pane_current_command` reads the shell, not the runtime. Observed on 
   runtime"), with or without `--reason`, so LIFECYCLE stays `att` for a healthy seat.
 
 There, a seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI
-at a prompt, and `rig ps --nodes` ACTIVITY is live. Heal an empty seat with `rig snapshot <rigId>` first, then
+at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live. Heal an empty seat with `rig snapshot <rigId>` first, then
 `rig seat launch <session> --fresh --stop --reason "<capture evidence>"` [T2], and re-check `startupStatus`
 after about a minute: the CLI can report the same pane-identity warning while the seat comes up ready.
 

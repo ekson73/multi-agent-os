@@ -41,7 +41,7 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
-| `rig up` / `rig ps --nodes` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. A seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
+| `rig up` / `rig ps --nodes --rig <rig>` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. A seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
@@ -103,9 +103,10 @@ rig green while the cause is still there. A seat that goes back to `att` means t
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
 - **Claude MCP approvals: scope each one to the reviewed cwd. Never approve by name at user scope.**
-  Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
-  `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
-  binds the same name to a different command. That is trust by name alone (guardrail 4). So:
+  Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in the user
+  settings (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) would approve that name in every repository,
+  including an untrusted one that binds the same name to a different command. That is trust by name alone
+  (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
     `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json` (the desk's, for a
     crew). It applies only to that folder, and only once the folder is trusted. Re-review whenever that
@@ -170,7 +171,8 @@ small script instead. Recipe for Claude Code seats:
    names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
    passes every continuation line of a multiline value through intact. Use only forms that never emit a
    value, and mark every secret-like name:
-   - (a) keys only: `jq -r '.env // {} | keys[]' ~/.claude/settings.json`
+   - (a) keys only, from the **active** config root and any managed settings file the harness loads:
+     `jq -r '.env // {} | keys[]' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"`
    - (b) and (d) together, from **inside** a pane of the same tmux server whose cwd is a desk, with the login
      shell's own names-only builtin. That lists exactly what tmux and the shell's startup files exported,
      without touching a value. Run it before you add the scrub (step 4) to build the list, and again after it
@@ -200,7 +202,7 @@ small script instead. Recipe for Claude Code seats:
    ```bash
    jq '{env: (.env // {} | keys
         | map(select(test("TOKEN|KEY|SECRET|PASSWORD|AUTH"; "i")) | {(.): ""}) | add // {})}' \
-     ~/.claude/settings.json
+     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
    ```
 
    It works because local settings override user settings for the same key, and OpenRig deep-merges its own
@@ -243,12 +245,22 @@ The override removes the value from the seat's tool env, not from its source fil
 that parsed the user settings. That residual risk is why the launch rule above requires source removal or an
 OS-enforced boundary.
 
+**User-scope MCP servers are a launch blocker, not a flow to record.** `disabledMcpjsonServers` rejects only
+servers discovered from a project's `.mcp.json`; it does not disable a server configured at user scope or
+provided by a plugin, and such a server runs outside any bash sandbox with the operator's credentials.
+Inventory them by name only, in the operator's own terminal, never in a seat: the keys of the user-scope MCP
+config (by default the `mcpServers` object in `~/.claude.json`; resolve it under the active config root when
+`CLAUDE_CONFIG_DIR` is set), plus the server names `claude mcp list` shows. That command also prints each
+server's command or URL, which can embed a credential, so record the names only. Any user-scope or plugin
+server with filesystem, credential or network capability blocks the launch unless it is disabled at its
+actual scope (removed from the user config, or its plugin disabled) or the seat runs with an isolated,
+seat-scoped harness config directory (for Claude Code, `CLAUDE_CONFIG_DIR`, which needs its own login: a
+human step).
+
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
-seat shows which session hooks fired. Disable user MCP servers a seat does not need with
-`disabledMcpjsonServers` in the desk settings. Isolating hooks and plugins needs a seat-scoped harness config
-directory (for Claude Code, `CLAUDE_CONFIG_DIR`), which needs its own login: a human step. Until then, list
-the flow in the handoff.
+seat shows which session hooks fired. Isolating hooks and plugins also needs the seat-scoped config
+directory. Until then, list the flow in the handoff.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 
