@@ -31,8 +31,10 @@ from the target's `.mcp.json`, runs outside it with the operator's credentials. 
 
 - a server whose executable or dependencies sit in a seat-writable location is an **unconditional launch
   stop**: removing a credential does not make mutable code that runs outside the sandbox safe;
-- on the sandbox path, a server with filesystem, credential or network capability is a **launch stop** unless
-  the credential has been removed at its source.
+- on the sandbox path, a server with filesystem, network or credential capability is a **launch stop** unless
+  it is disabled for the seat, or it runs under its own verified OS isolation with code the seat cannot
+  modify. Removing one credential is not enough: the seat's model drives the server's tools, so it could
+  still read other user or session data, call operator-authenticated tooling, or exfiltrate.
 
 ## 1. The boundary: settings that held [T3, show the diff]
 

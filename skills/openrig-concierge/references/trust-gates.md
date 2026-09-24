@@ -271,9 +271,11 @@ every MCP server, user-scope, plugin or projected, two separate stops apply:
 - **unconditional:** a server whose executable or dependencies sit in a seat-writable location (a worktree, a
   unit, the desk outside its denied control files) stops the launch. Removing a credential does not make
   mutable code that runs outside the sandbox safe;
-- **conditional, on the sandbox path** (a credential still sits at its source): a projected server with
-  filesystem, credential or network capability stops the launch unless the credential has been removed at
-  its source.
+- **on the sandbox path:** any server, user-scope, plugin or projected, with filesystem, network or credential
+  capability stops the launch unless it is disabled for the seat, or runs under its own verified OS isolation
+  with code the seat cannot modify. Removing one credential is not enough: the seat's model drives the
+  server's tools, so it could still read other user or session data, call operator-authenticated tooling, or
+  exfiltrate.
 
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
