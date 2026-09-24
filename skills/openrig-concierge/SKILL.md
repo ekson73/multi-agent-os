@@ -6,19 +6,19 @@ description: >-
   Codex seats as one rig (the `rig` CLI and `rig mcp serve`). Use when you need to answer an OpenRig
   question, operate a rig from outside its seats, diagnose a stuck rig or seat and route it to the
   right first-party recovery path, get past a seat blocked at a startup trust gate (Claude workspace
-  trust, Claude project-MCP approval, Codex "Hooks need review"), or architect, launch, conduct and
-  tear down a crew on an arbitrary git repository. Remediation is evidence-gated and limited to the
+  trust, Claude project-MCP approval, Codex "Hooks need review"), or ask whether a crew can run on an
+  external git repository (not yet: a hard STOP until #453). Remediation is evidence-gated and limited to the
   failure classes its playbook covers; anything else is routed or escalated. It ROUTES to the
   first-party knowledge OpenRig ships (`rig context get <ref>`, `rig <cmd> --help`) and never
   re-teaches it. It OWNS only the gaps: outside-operator scoping, T0-T3 mutation tiers, the trust-gate
-  playbook, the external-crew recipe and checkout hygiene. Every command is checked against the
+  playbook, and the external-crew STOP with the OpenRig facts behind it. Every command is checked against the
   installed CLI. Soul-name Navarch.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
   should_trigger:
     - "My OpenRig kernel shows 3 seats need attention, what do I do?"
     - "A Codex seat is stuck at 'Hooks need review' after rig up"
-    - "Design an OpenRig crew to work on this external repo with a builder and an independent reviewer"
+    - "Can I run an OpenRig crew on this external repo? (answer: the STOP until #453)"
     - "How do I reuse OpenRig's builtin agents from my own rig.yaml outside the install dir?"
     - "Which rig commands are safe to run on a rig I don't own?"
     - "Monitor my running rig and tell me which seats are parked or owe work"
@@ -68,9 +68,18 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
    reviewed before launch because OpenRig auto-accepts it. Nothing is
    trusted by name, path or owner alone. Attention is cleared only after its cause is resolved and verified.
 4. **Project governance outranks the crew** (C9). A crew adds orchestration, never authority.
-5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6).
+5. **A seat's `cwd` is never a repository checkout; the root checkout stays on its default branch** (C6).
+   OpenRig guidance-merges into `<cwd>/CLAUDE.md` at launch (`references/external-crew.md` §3).
 6. **HUMAN_DOMAIN goes to the operator:** secrets, credential or account switching, public push/PR/merge/publish,
    `rig destroy`, `--delete`.
+7. **STOP: external crews are not supported.** External crews on a target repository (any seat, any role,
+   attended or unattended) are not supported by this skill until the isolation design in
+   [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. Do not launch them
+   (`references/external-crew.md` §0).
+8. **Already-running external-target crews are T0 / diagnosis-only.** No `rig send`, queue mutation, heal,
+   fresh launch or relaunch. The only permitted mutation is containment teardown on a rig the delegation
+   names (C8): `rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`. On any other
+   rig, observe and escalate (C6, `references/external-crew.md` §0).
 
 ## What this skill routes and what it owns
 
@@ -82,7 +91,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
 | startup trust gates: diagnose, decide, clear, pre-configure | `references/trust-gates.md` |
-| external crew: agent_ref from outside, per-seat worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| external crews: the STOP (#453), plus verified OpenRig facts (starters, agent_ref from outside, cwd guidance merge, culture via `send_text`, relaunch and rig identity, wrapper readiness, command shapes, teardown commands) | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -154,10 +163,10 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 | Mode | Routes to | Owns |
 |---|---|---|
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
-| `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify each mutation through its own T0 read surface (`tiers.md` rule 1), not with an exit code. |
-| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. |
-| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, cwd and worktrees, culture file carrying the project's governance, checkout hygiene |
-| `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
+| `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify each mutation through its own T0 read surface (`tiers.md` rule 1), not with an exit code. **Excludes external-target rigs:** those are T0 / diagnosis-only, and containment teardown (`rig snapshot <rigId>` then `rig down <rigId> --snapshot`) is the only mutation (§0 item 8). |
+| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. **Excludes external-target rigs:** no heal, send, fresh launch or relaunch on them; diagnose only, and containment teardown is the only mutation (§0 item 8). |
+| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | rigs in general route to first-party. **External target repositories: STOP** (`external-crew.md` §0); its §1–§5 hold the verified facts (starters, agent_ref from outside, cwd guidance merge, culture via `send_text`, spec validation) |
+| `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | **External target repositories: STOP** (`external-crew.md` §0, #453). For rigs this skill does operate, `external-crew.md` §6–§9 hold the verified launch, readiness, command-shape and teardown facts |
 | `audit` (read-only) | `rig doctor [--spec]`, `rig spec audit`, `rig spec preflight`, `rig restore-check`, `rig health`, `rig policy current` | overlay checks. Projected files or OpenRig managed blocks committed? `enableAllProjectMcpServers` or blanket hook trust? `ask` rules on unattended seats? Two writing seats in one worktree? Root checkout off its default branch? A culture file that ignores the project's governance? A seat with secret access? Each finding carries evidence, a criterion and a fix. The audit proposes and never mutates. |
 | `anchor` | — | surface [`CANON.md`](./CANON.md) decisions and flag drift from them |
 
@@ -240,6 +249,9 @@ Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openr
 - 2026-09-23 — v0.1.0 — Bootstrap (issue #441). Forged with agentic-tool-forge and named with anima. The
   skill routes to first-party packs and owns tiers, trust gates (operator guardrails 1–4), the external-crew
   recipe and sources. Verified against `rig` 0.5.14. Dogfood crew pending.
+- 2026-09-24 — v0.1.0, no version change — After the first external-crew dogfood on `rig` 0.5.14: a hard STOP
+  for all external crews until #453, the retraction of cwd = worktree, and verified facts only (culture via
+  `send_text`, rig-ID command shapes, stopped-rig relaunch, nesting-wrapper readiness).
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · field corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`
