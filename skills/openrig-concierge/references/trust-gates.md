@@ -39,6 +39,7 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
+| `rig up` / `rig ps --nodes --rig <rig>` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper (observed on 0.5.14). A seat is ready only when `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
@@ -141,4 +142,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · wrapper-readiness row: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.

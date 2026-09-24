@@ -68,9 +68,14 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
    reviewed before launch because OpenRig auto-accepts it. Nothing is
    trusted by name, path or owner alone. Attention is cleared only after its cause is resolved and verified.
 4. **Project governance outranks the crew** (C9). A crew adds orchestration, never authority.
-5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6).
+5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6). A seat's `cwd` is a
+   desk outside the repository, never a repo worktree (`references/external-crew.md` step 5).
 6. **HUMAN_DOMAIN goes to the operator:** secrets, credential or account switching, public push/PR/merge/publish,
    `rig destroy`, `--delete`.
+7. **STOP: unattended crews that execute project code are not supported.** An unattended crew whose seats run
+   project code (tests, package scripts, hooks) as the operator's OS user is not supported by this skill
+   until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated.
+   Do not launch one. Attended (human-in-the-loop) use only, with no credential readable by seat-executed code.
 
 ## What this skill routes and what it owns
 
@@ -82,7 +87,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
 | startup trust gates: diagnose, decide, clear, pre-configure | `references/trust-gates.md` |
-| external crew: agent_ref from outside, per-seat worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| external crew: agent_ref from outside, per-seat desks and worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -240,6 +245,9 @@ Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openr
 - 2026-09-23 — v0.1.0 — Bootstrap (issue #441). Forged with agentic-tool-forge and named with anima. The
   skill routes to first-party packs and owns tiers, trust gates (operator guardrails 1–4), the external-crew
   recipe and sources. Verified against `rig` 0.5.14. Dogfood crew pending.
+- 2026-09-24 — v0.1.0, no version change — Field corrections from the first external-crew dogfood on `rig`
+  0.5.14: desk cwds replace worktree cwds, culture via `send_text`, rig-ID command shapes, stopped-rig relaunch
+  and nesting-wrapper readiness, and a fail-closed STOP for unattended crews that execute project code (#453).
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · field corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`

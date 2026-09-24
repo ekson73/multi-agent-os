@@ -80,6 +80,12 @@ skill is fully usable without this agent.
   file, env or config. The project's just-in-time procedure runs outside the seat and returns only non-secret results.
 - **NEVER** launch a seat in a worktree whose checkout and project configuration you have not reviewed.
   OpenRig auto-accepts Claude workspace trust (CANON C5).
+- **NEVER** launch an unattended crew whose seats execute project code (tests, package scripts, hooks) as the
+  operator's OS user. It is not supported until the isolation design in
+  [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. Attended (human-in-the-loop) use only,
+  with no credential readable by seat-executed code.
+- **NEVER** set a seat's `cwd` to a repo worktree: OpenRig writes a managed block into `<cwd>/CLAUDE.md` at launch.
+  Each seat gets an empty desk outside every repo (CANON C6).
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).
@@ -89,6 +95,8 @@ skill is fully usable without this agent.
 - [ ] Every mutation verified by a follow-up T0 read.
 - [ ] Any RigSpec touched passes `rig spec validate` and `rig spec preflight --rig-root <dir>`. A running rig
       passes `rig doctor --spec <path>`.
-- [ ] No seat left at `att` without a recorded disposition (cleared through the trust-gate playbook, or escalated).
+- [ ] No seat left at `att` without a recorded disposition (cleared through the trust-gate playbook; judged ready
+      under a nesting terminal wrapper only when `startupStatus=ready`, `rig capture` shows the runtime at a prompt,
+      and `rig ps --nodes --rig <rig>` ACTIVITY is live; or escalated).
 - [ ] Unresolved items dispositioned: fixed, queued with an owner, or escalated with evidence.
 - [ ] Handoff signed with the concrete agent ID, stating rig name, seats, their state, open queue items and the next action.

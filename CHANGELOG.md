@@ -31,6 +31,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start it instantiates a concrete agent ID instead of echoing the ID template.
 - `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
 
+### Fixed — `openrig-concierge`: field corrections from the first external-crew dogfood, and a fail-closed stop
+
+The first real run of the skill and the `openrig-fleet-engineer` agent built a Claude crew on a private target
+repo under `rig` 0.5.14 (cc75efdd). This entry carries only the verified, low-risk corrections, plus one
+fail-closed stop. The broader isolation design is tracked in #453.
+
+- **Stop: unattended crews that execute project code are not supported.** An unattended crew whose seats run
+  project code (tests, package scripts, hooks) as the operator's OS user is not supported until the isolation
+  design (#453) is validated. Attended use only, with no credential readable by seat-executed code
+  (`SKILL.md` §0, `external-crew.md`, the agent's prohibitions, `tiers.md` rule 4).
+- **Retraction: a seat's `cwd` is never a repo worktree.** OpenRig 0.5.14 unconditionally guidance-merges a
+  managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file. The replacement, for attended use
+  only, is an empty per-seat desk outside every repo: the seat reaches its own worktree through the harness's
+  additional-directories permission (a file-tool scope, not isolation), and a post-launch status check
+  includes untracked files (`external-crew.md` step 5, `CANON.md` C6, the agent).
+- **Culture goes in as `startup.files` with `delivery_hint: send_text`**, because `culture_file` also resolves
+  to a guidance merge. The `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
+- **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;
+  `rig restore status` needs `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside a seat,
+  `rig queue create` needs an honest external `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`,
+  with the evidence reference inside it; outside-seat `rig send` carries no sender identity, so sign the body;
+  `--wait-for-idle --verify` is not a turn boundary (`tiers.md`, `external-crew.md` steps 12 and 14,
+  `CANON.md` C7).
+- **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
+  with a stopped rig's name creates a second same-name rig. Relaunch under a new name and address rigs by ID
+  (step 10).
+- **Readiness under a nesting terminal wrapper**: a seat is ready only when `startupStatus=ready`, `rig capture`
+  shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` activity is live (step 11,
+  `trust-gates.md` §1, the agent).
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
