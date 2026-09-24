@@ -26,7 +26,11 @@ evals:
     - "Change OpenRig's own source code or open a PR on mvschwarz/openrig"
     - "Explain how Claude Code skills or plugins work (route to claude-code-concierge)"
     - "Onboard me to the MAOS framework (route to maos-concierge)"
-    - "Spawn a Task subagent inside this session (route to delegate-governance)"
+    - "Create a git worktree for this feature (route to worktree-policy)"
+    - "Delegate this task to subagents (route to delegate-governance / auto-pilot)"
+    - "Orchestrate agents in this session without OpenRig (route to auto-pilot / orchestrator)"
+    - "Save this session to my vault (route to session-to-vault)"
+    - "Name this new tool (route to anima)"
     - "Set up tmux, herdr or cmux themselves, unrelated to OpenRig"
     - "Forge a new agentic-tool (route to agentic-tool-forge)"
 ---
