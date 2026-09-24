@@ -1,15 +1,14 @@
 ---
 name: session-catalog
 description: |
-  Catalog, import or recover continuity from PAST AI-harness sessions (Claude Code/Desktop/Cowork,
-  Codex CLI/app, omp, prime-agent, Gemini CLI, Antigravity/agy, ChatGPT or claude.ai data exports):
-  a read-only, normalized, private index of pointers + metadata, plus topic-scoped, redacted
-  extraction to recover pending work, decisions and domain knowledge. Use ONLY for intents like
-  "catalog/import my past sessions", "what did we decide about X across old Claude and Codex
-  sessions", "recover unfinished work for project Y from past sessions", "which harnesses keep
-  session history on this machine", or building a continuity ledger. NOT for ordinary use of a
-  harness (asking Codex/Claude/ChatGPT to do something), and never to attach to, resume or drive a
-  live session. Fail-closed per store; secrets redacted at ingestion; private output outside git.
+  Catalog/import my Claude Code, Codex, Gemini, omp, Antigravity or prime-agent sessions; "what did we
+  already do about <project> across my AI sessions"; "recover unfinished work and decisions from past
+  AI sessions"; "find the session where we decided X"; "which AI tools keep session history on this
+  machine". Read-only catalog of PAST AI-harness sessions (plus ChatGPT/claude.ai data exports) into
+  one normalized private index, with topic-scoped, redacted extraction for continuity ledgers. NOT for
+  ordinary use of a harness (asking Codex/Claude/ChatGPT to do something), splitting, vaulting or
+  re-entering ONE session (session-fission / session-to-vault / session-reentry), and never to attach
+  to, resume or drive a live session. Fail-closed per store; secrets redacted; private output only.
 version: 0.1.0
 prompt_version: "0.1.0"
 evals:
