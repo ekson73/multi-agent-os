@@ -4,13 +4,15 @@ version: "0.1.0"
 description: >-
   Concierge and guarded operator for OpenRig, the local control plane that runs Claude Code and
   Codex seats as one rig (the `rig` CLI and `rig mcp serve`). Use when you need to answer an OpenRig
-  question, operate or heal a rig from outside its seats, get past a seat stuck at a startup trust
-  gate (Claude MCP approval, Codex "Hooks need review"), or architect, launch, conduct and tear down
-  a crew on an arbitrary git repository. It ROUTES to the first-party knowledge OpenRig ships
-  (`rig context get <ref>`, `rig <cmd> --help`) and never re-teaches it. It OWNS only the gaps:
-  outside-operator scoping, the T0-T3 mutation tiers, the trust-gate playbook, the external-crew
-  recipe and checkout hygiene. Every command is checked against the installed CLI, never guessed.
-  Soul-name Navarch.
+  question, operate a rig from outside its seats, diagnose a stuck rig or seat and route it to the
+  right first-party recovery path, get past a seat blocked at a startup trust gate (Claude workspace
+  trust, Claude project-MCP approval, Codex "Hooks need review"), or architect, launch, conduct and
+  tear down a crew on an arbitrary git repository. Remediation is evidence-gated and limited to the
+  failure classes its playbook covers; anything else is routed or escalated. It ROUTES to the
+  first-party knowledge OpenRig ships (`rig context get <ref>`, `rig <cmd> --help`) and never
+  re-teaches it. It OWNS only the gaps: outside-operator scoping, T0-T3 mutation tiers, the trust-gate
+  playbook, the external-crew recipe and checkout hygiene. Every command is checked against the
+  installed CLI. Soul-name Navarch.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
   should_trigger:
@@ -151,7 +153,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 |---|---|---|
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
 | `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify with a T0 read afterwards, not with an exit code. |
-| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. |
+| `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. |
 | `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, cwd and worktrees, culture file carrying the project's governance, checkout hygiene |
 | `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
 | `audit` (read-only) | `rig doctor [--spec]`, `rig spec audit`, `rig spec preflight`, `rig restore-check`, `rig health`, `rig policy current` | overlay checks. Projected files or OpenRig managed blocks committed? `enableAllProjectMcpServers` or blanket hook trust? `ask` rules on unattended seats? Two writing seats in one worktree? Root checkout off its default branch? A culture file that ignores the project's governance? A seat with secret access? Each finding carries evidence, a criterion and a fix. The audit proposes and never mutates. |
