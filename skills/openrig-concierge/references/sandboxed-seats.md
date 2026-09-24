@@ -60,6 +60,20 @@ Render it from scratch before every launch; OpenRig then merges its own hooks an
 Also verified: a tracked pre-commit hook ran **inside** the sandbox and could not read a sentinel; allow rules,
 the sandbox filesystem lists and `credentials.envVars` hot-reload without a relaunch.
 
+**The readable git config must hold no credential (a launch stop).** `allowRead` exposes the repository's
+`.git/config`, the global git config and its includes to seat code. Before launch, check each of them without
+printing a key or value: key names can carry credentials too (a `url.<base>.insteadOf` subsection can embed
+userinfo), so count matches instead of listing them:
+
+```bash
+git config --file <config> --includes --name-only --list \
+  | grep -ciE '^http\..*\.extraheader$|^credential\.|\.token$|^url\..*@.*\.insteadof$'
+```
+
+Any count above 0 (an auth header, a credential helper or stored credential, a token key, or a URL rewrite
+with embedded userinfo) is a launch stop, unless seats use a sanitized, seat-specific git config instead,
+for example `GIT_CONFIG_GLOBAL` pointing at a reviewed file in a location the seat cannot write.
+
 Verify in each live seat [T0]: `/sandbox` must show the sandboxed mode, strict overrides, and every deny and
 allow list above. Prove the block with sentinel files that hold no secret (a child process started by a
 package script must get `EPERM` on each), never by reading a real credential. That real paths are blocked is then

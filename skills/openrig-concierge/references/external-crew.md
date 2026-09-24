@@ -169,8 +169,13 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
      with filesystem, network or credential capability is a launch stop unless it is disabled for the seat or
      runs under its own verified OS isolation with seat-immutable code; removing a credential is not enough
      ([`sandboxed-seats.md`](./sandboxed-seats.md) §0).
-  3. **Rules:** copy the reviewed `.claude/rules/` into the desk's `.claude/rules/`, or declare them
-     unavailable in the culture and tell seats to read them from their worktree before any work.
+  3. **Rules:** copy the reviewed `.claude/rules/` without `paths:` frontmatter into the desk's
+     `.claude/rules/`, or declare them unavailable in the culture and tell seats to read them from their
+     worktree before any work. A copied rule **with** `paths:` frontmatter is not projected: its patterns now
+     resolve against the desk, not the worktree the seat edits, so it may never activate. **Launch stop:** if
+     the target has any mandatory path-scoped rule whose patterns cannot be translated to the external
+     worktree layout **and** shown to activate on a governed file in the seat's worktree, do not launch
+     (translation work tracked in [#452](https://github.com/ekson73/multi-agent-os/issues/452)).
   4. **Skills:** make them reachable, either by telling seats to read them from their worktree (for example
      the project's canonical `.agents/skills/<name>/SKILL.md`) or by copying reviewed skill directories into
      the desk.
@@ -267,10 +272,12 @@ workspace trust for each seat's cwd, so review every desk and every worktree a s
 seat. Review each desk against its **exact expected contents**, and nothing else:
 
 - before launch, only what the crew put there: `.claude/settings.local.json` (posture plus the step 6
-  projections), the projected `.mcp.json`, the projected `.claude/rules/`, `.claude/skills/`,
-  `.claude/commands/` and `.claude/agents/` copies, `.agents/skills/` if seats get projected canonical
-  skills, any startup files the crew placed there, and for sandboxed seats `units/`
-  ([`sandboxed-seats.md`](./sandboxed-seats.md));
+  projections), the projected `.mcp.json`, copies of the reviewed `.claude/rules/` without `paths:`
+  frontmatter, `.claude/skills/`, `.claude/commands/` and `.claude/agents/` copies, `.agents/skills/` if seats
+  get projected canonical skills, any startup files the crew placed there, and for sandboxed seats `units/`
+  ([`sandboxed-seats.md`](./sandboxed-seats.md)). A path-scoped rule in the desk is expected only once its
+  translated patterns were shown to activate on a governed file in the seat's worktree (step 6); otherwise it
+  is the step 6 launch stop;
 - after launch, additionally what OpenRig projects: `.openrig/`, the managed block in `CLAUDE.md`, and its
   merged hook and status-line entries in `.claude/settings.local.json`.
 
