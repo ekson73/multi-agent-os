@@ -190,6 +190,11 @@ false"
   "$B" "$SANDBOX/t5d.sh" >/dev/null 2>&1
   case "$(cat "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "dangling private-key body leaked" ;; *) ok "private-key body cut by the byte cap is dropped" ;; esac
 
+  PEMB="-----BEGIN ""PRIVATE KEY-----"  # split literal: keeps secret scanners from flagging the fixture
+  reset_stubs; mk_bash "$SANDBOX/t5e.sh" "" "printf '%s\\n' '$PEMB' 'OPENKEYBODYzzzz1234567890' >&2; false"
+  "$B" "$SANDBOX/t5e.sh" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* "$SANDBOX"/tmp/shr.*/prompt.md 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "bash: unterminated private key leaked" ;; *) ok "bash: unterminated private-key block is redacted" ;; esac
+
   echo "-- 6. tier lock: a gate script can never reach the apply tier"
   reset_stubs; mk_bash "$SANDBOX/t6.sh" 'SHR_TIER_LOCK=propose' 'false'
   MAOS_SELFHEAL_TIER=apply "$B" "$SANDBOX/t6.sh" >/dev/null 2>&1
@@ -236,6 +241,15 @@ if command -v python3 >/dev/null 2>&1; then
   case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *MIIEvQIBADANBgkqhkiG9w0BAQEFAASC*) bad "python: dangling key body leaked" ;; *) ok "python: private-key body cut by the byte cap is dropped" ;; esac
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("https://u:%s@h/")\n' "$LONGPW"; } > "$SANDBOX/p12.py"; python3 "$SANDBOX/p12.py" >/dev/null 2>&1
   case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$LONGPW"*) bad "python: over-long URL credential leaked" ;; *) ok "python: over-long URL credentials are redacted" ;; esac
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\nOPENKEYBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p13.py"; python3 "$SANDBOX/p13.py" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "python: unterminated private key leaked" ;; *) ok "python: unterminated private-key block is redacted" ;; esac
+  reset_stubs; MAOS_SELFHEAL_TIMEOUT=1e100 python3 "$SANDBOX/p1.py" >/dev/null 2>&1; check "python: absurd timeout (1e100) is clamped, dispatches once" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("E" * 3000000)\n'; } > "$SANDBOX/p14.py"; python3 "$SANDBOX/p14.py" >/dev/null 2>&1
+  PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "python: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\nOPENKEYBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n13.js"; node "$SANDBOX/n13.js" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *OPENKEYBODYzzzz1234567890*) bad "node: unterminated private key leaked" ;; *) ok "node: unterminated private-key block is redacted" ;; esac
+  reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("E".repeat(3000000));\n'; } > "$SANDBOX/n14.js"; node "$SANDBOX/n14.js" >/dev/null 2>&1
+  PSZ="$(cat "$STUB_LOG".stdin.1 2>/dev/null | wc -c | tr -d ' ')"; check "node: 3MB exception text → bounded prompt (<400KB)" "$([ "$PSZ" -lt 400000 ] && echo y)" "y"
   reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("x");\n'; } > "$SANDBOX/n10.js"
   OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir2/sub" node "$SANDBOX/n10.js" 2>&1 >/dev/null)"
