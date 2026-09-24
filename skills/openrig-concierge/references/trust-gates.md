@@ -200,11 +200,14 @@ small script instead. Recipe for Claude Code seats:
 
      On macOS no names-only read exists (`ps` prints the environment with its values), so do not read it;
      rely on (b), which the daemon's environment feeds, and on the live probe in step 5.
-   - (e) git config the seat can read (the repository's `.git/config`, the global config and its includes):
-     count, never list, credential-bearing keys, because a key name can itself embed userinfo:
-     `git config --file <config> --includes --name-only --list | grep -ciE '^http\..*\.extraheader$|^credential\.|\.token$|^url\..*@.*\.insteadof$'`.
-     A count above 0 is a launch stop unless seats use a sanitized, seat-specific git config (for example
-     `GIT_CONFIG_GLOBAL` pointing at a reviewed file the seat cannot write). See
+   - (e) git's **effective** config as seen from inside each seat's worktree (system, global, local, worktree
+     and includes): scan keys **and** values of `git -C <seat-worktree> config -z --list --includes`, split on
+     NUL in-process, and print only a count. Flag credential-bearing keys (`http.*.extraheader`,
+     `credential.*`, `*.token`) and any key or value holding URL userinfo (`://…@`: `remote.*.url`,
+     `insteadOf` rewrites, `http.proxy` / `https.proxy`). The scan fails closed: only a successful git exit
+     plus a literal `0` passes; any git error, parse error, or empty or non-integer output is a stop, and so is
+     any count above 0 unless seats use a sanitized, seat-specific git config (for example `GIT_CONFIG_GLOBAL`
+     pointing at a reviewed file the seat cannot write). The exact command is in
      [`sandboxed-seats.md`](./sandboxed-seats.md) §1.
 2. **Keep one names list** (the union of step 1), with no values. Every later step uses it.
 3. **Desk override for (a) [T3, show the diff].** Render an `env` object that sets each channel-(a) name to the
