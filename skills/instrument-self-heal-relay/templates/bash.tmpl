@@ -24,6 +24,8 @@ SHR_DEFAULT_CHAIN="@@DEFAULT_CHAIN@@"
 shr_children() { if command -v pgrep >/dev/null 2>&1; then pgrep -P "$1" 2>/dev/null; else ps -A -o pid= -o ppid= 2>/dev/null | awk -v p="$1" '$2 == p { print $1 }'; fi; }
 # A process AND all its descendants, depth-first (children are listed BEFORE their parent dies, so an orphan is never lost).
 shr_tree() { local c; for c in $(shr_children "$1"); do shr_tree "$c"; done; printf '%s\n' "$1"; }
+# Re-snapshot the tree of every still-alive known pid, so a helper that a harness spawns while handling TERM is killed too (a stale snapshot would miss it).
+shr_expand() { local _p _x=""; for _p in $1; do if kill -0 "$_p" 2>/dev/null; then _x="$_x $(shr_tree "$_p")"; fi; done; printf '%s\n' "$1 $_x" | tr ' ' '\n' | sed '/^$/d' | sort -u; }
 
 # Portable bounded run: stdin/stdout/stderr are inherited; after MAOS_SELFHEAL_TIMEOUT s the harness AND its whole descendant tree
 # get TERM, then KILL after a 3s grace. The watchdog outlives the harness when it fired, so a TERM-ignoring grandchild still
@@ -33,7 +35,7 @@ shr_abort() {  # $1=signal received while shr_run waits
   SHR_CANCELLED=1   # if the adopter's own handler RETURNS instead of exiting, shr_dispatch must not start the next harness after a cancellation
   if [ -n "${SHR_PID:-}" ]; then _l="$(shr_tree "$SHR_PID")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; fi
   if [ -n "${SHR_W:-}" ]; then for _p in $(shr_tree "$SHR_W"); do kill -KILL "$_p" 2>/dev/null || :; done; fi
-  if [ -n "${_l:-}" ]; then sleep 1; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null; fi
+  if [ -n "${_l:-}" ]; then sleep 1; _l="$(shr_expand "$_l")"; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null; fi
   trap - TERM HUP; eval "${SHR_OT:-:}"; eval "${SHR_OH:-:}"   # give the adopter's own handler back BEFORE re-delivering, so its cleanup still runs
   kill -"$1" $$
 }
@@ -55,7 +57,7 @@ shr_run() {
         if [ -n "$_f" ] && [ "$(wc -c < "$_f" 2>/dev/null | tr -d ' ')" -gt 4194304 ] 2>/dev/null; then _big=1; fi
       done
       if [ "$_big" = 1 ]; then break; fi
-    done; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; sleep 3; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!; SHR_W=$w
+    done; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; for _i in 1 2 3 4 5 6 7 8 9 10 11 12; do sleep 0.25 2>/dev/null || sleep 1; _l="$(shr_expand "$_l")"; done; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!; SHR_W=$w
   wait "$pid" 2>/dev/null; rc=$?
   trap - TERM HUP; eval "${SHR_OT:-:}"; eval "${SHR_OH:-:}"
   if [ -e "$mark" ]; then wait "$w" 2>/dev/null || :; else for _p in $(shr_tree "$w"); do kill -KILL "$_p" 2>/dev/null || :; done; wait "$w" 2>/dev/null || :; fi
