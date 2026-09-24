@@ -96,6 +96,17 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   kind, do not use the desk layout. Projecting it into a desk is not covered by this skill yet
   ([#452](https://github.com/ekson73/multi-agent-os/issues/452),
   [#453](https://github.com/ekson73/multi-agent-os/issues/453)).
+- **Required before launch [T0]: inventory the target's project-scoped config.** In the reviewed checkout,
+  list names and paths only, never values: in `.claude/settings.json` and `.claude/settings.local.json`, the
+  hook events, permission rules and `enabledPlugins` entries (for example
+  `jq -r '(.hooks // {} | keys[]), (.permissions // {} | keys[]), (.enabledPlugins // {} | keys[])' <file>`);
+  the server names in `.mcp.json` (`jq -r '.mcpServers // {} | keys[]' .mcp.json`); every file under
+  `.claude/rules/`, flagging each one whose frontmatter has `paths:` (`grep -l '^paths:' -r .claude/rules`);
+  the entries under `.claude/skills/`, `.claude/commands/` and `.claude/agents/`; and the equivalent `.codex/`
+  and `.agents/` directories. Classify each item as mandatory or optional from the project's own governance
+  docs (AGENTS.md, CLAUDE.md, CONTRIBUTING, runbooks). Any item that is mandatory, or whose status is unknown
+  or cannot be inspected, is a stop for the desk layout. Record the inventory and its classification in the
+  handoff.
 - Give **every writing seat its own git worktree** of the target repo, made the way the target project's own
   worktree policy says (MAOS default: [`worktree-policy`](../../worktree-policy/SKILL.md)).
 - **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this
