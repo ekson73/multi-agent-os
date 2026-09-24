@@ -135,4 +135,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-5a1e-002 · 2026-09-23T22:55:00-03:00 · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.

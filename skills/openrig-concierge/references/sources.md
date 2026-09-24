@@ -82,4 +82,4 @@ skill is original distilled text. No OpenRig skill or doc is copied. Load those 
 | `rig heartbeat` | reads queue files from a shared-docs root. Outside a seat it may fail with `cannot resolve shared-docs root`. |
 
 ---
-Signed: Claude-RigOps-5a1e-002 · 2026-09-23T23:05:00-03:00.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/sources.md`

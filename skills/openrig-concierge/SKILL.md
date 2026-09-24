@@ -238,4 +238,4 @@ Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openr
   recipe and sources. Verified against `rig` 0.5.14. Dogfood crew pending.
 
 ---
-Signed: Claude-RigOps-5a1e-002 · 2026-09-23T23:10:00-03:00.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`

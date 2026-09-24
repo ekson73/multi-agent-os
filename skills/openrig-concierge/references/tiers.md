@@ -91,4 +91,4 @@ Caveats observed on 0.5.14:
    push credentials, Codex `workspace-write` sandbox, no secret access.
 
 ---
-Signed: Claude-RigOps-5a1e-002 · 2026-09-23T22:50:00-03:00 · verified against `rig` 0.5.14 (cc75efdd).
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/tiers.md` · verified against `rig` 0.5.14 (cc75efdd).

@@ -18,4 +18,4 @@ names the evidence that would reverse it. Checked against `rig` 0.5.14 (cc75efdd
 | C11 | **Outside-seat scoping is explicit.** With `OPENRIG_SESSION_NAME` unset, pass `--rig <rig>`, `-A` or full session names. Verbs that default to "my rig" return empty, which proves nothing. | Observed on 0.5.14: `rig queue list` prints `[]` outside a seat, and `rig heartbeat` needs a shared-docs root. | OpenRig adds an operator identity for outside sessions. |
 
 ---
-Signed: Claude-Forge-5a1e-001 · 2026-09-23T22:30:00-03:00 · revised Claude-RigOps-5a1e-002 · 2026-09-23T23:15:00-03:00 (later revisions: `git log -- skills/openrig-concierge/CANON.md`).
+Signed: drafted by Claude-Forge-01a0-001 (orchestrator session `01a0`), finalized by Claude-RigOps-01a0-002 · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/CANON.md`.
