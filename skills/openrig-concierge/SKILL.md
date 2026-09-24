@@ -11,7 +11,7 @@ description: >-
   failure classes its playbook covers; anything else is routed or escalated. It ROUTES to the
   first-party knowledge OpenRig ships (`rig context get <ref>`, `rig <cmd> --help`) and never
   re-teaches it. It OWNS only the gaps: outside-operator scoping, T0-T3 mutation tiers, the trust-gate
-  playbook, the external-crew recipe and checkout hygiene. Every command is checked against the
+  playbook, the external-crew recipe and its read-only invariant. Every command is checked against the
   installed CLI. Soul-name Navarch.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
@@ -87,7 +87,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
 | startup trust gates: diagnose, decide, clear, pre-configure | `references/trust-gates.md` |
-| external crew (read-only / research crews only): agent_ref from outside, per-seat desks, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| external crew (read-only / research crews only): agent_ref from outside, per-seat desks with snapshot copies, governance, the read-only invariant, conduct loop, teardown | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -161,7 +161,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
 | `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify each mutation through its own T0 read surface (`tiers.md` rule 1), not with an exit code. |
 | `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. |
-| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, desk cwd (read-only / research crews only), culture file carrying the project's governance, checkout hygiene |
+| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, desk cwd (read-only / research crews only), culture file carrying the project's governance, the read-only invariant for the target checkout |
 | `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
 | `audit` (read-only) | `rig doctor [--spec]`, `rig spec audit`, `rig spec preflight`, `rig restore-check`, `rig health`, `rig policy current` | overlay checks. Projected files or OpenRig managed blocks committed? `enableAllProjectMcpServers` or blanket hook trust? `ask` rules on unattended seats? Two writing seats in one worktree? Root checkout off its default branch? A culture file that ignores the project's governance? A seat with secret access? Each finding carries evidence, a criterion and a fix. The audit proposes and never mutates. |
 | `anchor` | — | surface [`CANON.md`](./CANON.md) decisions and flag drift from them |

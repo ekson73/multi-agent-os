@@ -4,7 +4,7 @@
 > Load it for any authoring detail: `rig context get skills/core/openrig-architect`. The schema lives in
 > `~/.openrig/reference/rig-spec.md` and `agent-spec.md` (the installed reference docs; default
 > `OPENRIG_HOME`). This page covers only what those sources leave to the operator: reusing builtin agents
-> from outside the install tree, per-seat desks, taking in the host project's governance, checkout hygiene,
+> from outside the install tree, per-seat desks, taking in the host project's governance, the read-only invariant for the target checkout,
 > and the conduct loop run from outside the rig.
 > **Checked against:** `rig` 0.5.14 (cc75efdd). Steps 4 and 8 were validated on that version with a
 > throwaway crew outside the install dir (`rig spec validate`, `rig spec preflight --rig-root .`,
@@ -91,10 +91,11 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 - **Read-only / research crews:** each seat's `cwd` is a desk, an empty per-seat directory outside every git
   repository (`mkdir -m 0700 <crew-home>/desks/<seat>`). The managed block and projected files land there,
   not in the target. These seats do not write to the target repository and do not execute its code.
-- A seat that must read the target gets a reviewed checkout through the harness's additional-directories
-  permission (for Claude Code, `permissions.additionalDirectories` in the desk's `.claude/settings.local.json`).
-  That grant scopes file tools; it does not enforce read-only access ([#451](https://github.com/ekson73/multi-agent-os/issues/451)).
-  "Does not write, does not execute project code" is a role rule the operator watches in an attended crew.
+- **Research crews get no access to a live checkout or worktree of the target:** no additional-directories
+  grant to the repository and no git operations on it. They work only on an immutable snapshot copy that the
+  operator or conductor exports into each desk before launch, from a pinned commit
+  (`git -C <repo> archive <pinned-sha> | tar -x -C <desk>/snapshot`), or on read-only remote sources. Any
+  other access to the target is covered by the STOP above.
 - **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this
   run" (`rig up --help`), so every seat would share one cwd.
 - The project's root checkout stays on its default branch.
@@ -133,24 +134,13 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   through `rig context get skills/applying-a-permission-policy`. OpenRig records posture and the harness
   enforces it (CANON C4). Unattended seats get `deny`, not `ask` ([`tiers.md`](./tiers.md) rule 4).
 
-## 7. Checkout hygiene
+## 7. Read-only invariant for the target checkout
 
-Launching projects runtime files into each seat's cwd (Runtime Config Disclosure in `agent-startup-guide.md`;
-delivery hints in `agent-spec.md`):
-
-- `.claude/skills/<skill>/`, `.agents/skills/<skill>/`, `.claude/settings.local.json`, `.mcp.json`, `.openrig/`
-- managed blocks inside `CLAUDE.md` / `AGENTS.md`, delimited by
-  `<!-- BEGIN OpenRig MANAGED BLOCK: <name> -->` … `<!-- END OpenRig MANAGED BLOCK: <name> -->`
-
-Rules:
-
-1. **Never commit projected files or managed blocks.** Stage explicit paths only (no `git add -A`). Before each
-   commit, check `git status --porcelain` and `git diff -- CLAUDE.md AGENTS.md`.
-2. **Never blanket-ignore** `.claude/`, `.agents/` or `.codex/`: the project may commit its own files there.
-   If you need exclusions, add exact paths to the repo-local `.git/info/exclude`, which is never committed.
-   Do not change the project's `.gitignore` unless its governance asks for that.
-3. These rules apply to any checkout a crew touches. Crews with code-writing seats are out of scope (STOP
-   above).
+The crew never stages, commits, or edits ignore or exclude files (`.gitignore`, `.git/info/exclude`) in the
+target repository. Before launch, record `git -C <repo> status --porcelain -uall --ignored` and
+`git -C <repo> rev-parse HEAD` for the target checkout; compare them while the crew runs and after it stops.
+Any change to the checkout's status, HEAD or git metadata while a crew runs is a stop: take the rig down
+(snapshot first) and escalate to the operator.
 
 ## 8. Validate [T0]
 
@@ -166,7 +156,7 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 
 Before the first launch, follow [`trust-gates.md`](./trust-gates.md) §2 and §4, keyed to each seat's
 **actual cwd, the desk**. OpenRig auto-accepts Claude workspace trust for the desk, so review the desk (empty,
-apart from the settings the crew placed there) before it gets a seat. MCP approvals, settings and native Codex
+apart from the settings and snapshot the crew placed there) before it gets a seat. MCP approvals, settings and native Codex
 hook review also apply to the desk. Then: deny rules, and no secret values anywhere a seat can read.
 
 ## 10. Launch [T1]

@@ -51,7 +51,7 @@ skill is fully usable without this agent.
   Route each one to its first-party ref. Remediate only what the skill's playbook covers: seats blocked at
   startup trust gates, and stale attention after a verified fix. Report everything else as unsupported or
   escalate it with evidence.
-- Audit a rig or RigSpec (`rig doctor --spec`, `rig spec audit`, `rig spec preflight`) and a target checkout's hygiene.
+- Audit a rig or RigSpec (`rig doctor --spec`, `rig spec audit`, `rig spec preflight`) and a target checkout's read-only invariant (status and HEAD unchanged by the crew).
 
 ## Operating Loop
 
@@ -84,7 +84,8 @@ skill is fully usable without this agent.
   not supported until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is
   validated. Only read-only / research crews, whose seats neither write to the target nor execute its code.
 - **NEVER** set a seat's `cwd` to a repo worktree: OpenRig writes a managed block into `<cwd>/CLAUDE.md` at launch.
-  Read-only / research seats get an empty desk outside every repo (CANON C6).
+  Read-only / research seats get an empty desk outside every repo, and no live checkout or worktree of the
+  target: only an immutable snapshot copy exported into the desk, or read-only remote sources (CANON C6).
 - **NEVER** switch a project's root checkout off its default branch (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).

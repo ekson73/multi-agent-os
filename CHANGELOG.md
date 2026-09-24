@@ -44,8 +44,14 @@ stop. The isolation design for code-writing seats is tracked in #453.
   prohibitions, `tiers.md` rule 4).
 - **Retraction: a seat's `cwd` is never a repo worktree.** OpenRig 0.5.14 unconditionally guidance-merges a
   managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file. Read-only / research crews give
-  each seat an empty desk outside every repository instead (`external-crew.md` step 5, `CANON.md` C6, the
-  agent). Trust review is keyed to the desk (`external-crew.md` step 9, `trust-gates.md`).
+  each seat an empty desk outside every repository instead, with no access to a live checkout or worktree of
+  the target: only an immutable snapshot copy exported into the desk from a pinned commit, or read-only remote
+  sources (`external-crew.md` step 5, `CANON.md` C6, the agent). Trust review is keyed to the desk
+  (`external-crew.md` step 9, `trust-gates.md`).
+- **Read-only invariant for the target checkout** (replaces the checkout-hygiene step): the crew never stages,
+  commits or edits ignore/exclude files in the target, and any change to the target checkout's status, HEAD or
+  git metadata while a crew runs is a stop (compare `git status --porcelain -uall --ignored` and HEAD before
+  and after; `external-crew.md` step 7, `CANON.md` C6).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`**, because `culture_file` also resolves
   to a guidance merge. The `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;
