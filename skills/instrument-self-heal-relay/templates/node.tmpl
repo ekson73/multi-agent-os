@@ -51,7 +51,7 @@ function shrTail(path) {
   let lines = buf.toString("utf8").split("\n"); if (sz > cap) lines = lines.slice(1);
   const trunc = sz > cap || lines.length > 200; // the window does not start at the file start
   lines = lines.slice(-200); // the line cap comes BEFORE the key scan: it can cut a PEM from its header too
-  while (trunc && lines.length && /^[A-Za-z0-9+/=]+\s*$/.test(lines[0])) lines.shift(); // any leading base64-looking line, of ANY length, may be the tail of a PEM body whose BEGIN was cut away
+  while (trunc && lines.length && /^(?:[A-Za-z0-9+/=]+\s*|\s*|(?:Proc-Type|DEK-Info):.*)$/.test(lines[0])) lines.shift(); // any leading base64-looking line, of ANY length, may be the tail of a PEM body whose BEGIN was cut away
   let out = [], inkey = false;
   for (const l of lines) {
     if (!inkey && /-----END [A-Z ]*PRIVATE KEY-----/.test(l)) { out = []; continue; }
@@ -65,7 +65,7 @@ function shrTail(path) {
 // change their meaning — so the shim is launched ONLY when every argument is made of safe characters; otherwise the harness is refused.
 function shrSpawnArgs(bin, argv) {
   if (process.platform !== "win32" || !/\.(cmd|bat)$/i.test(shrResolve(bin))) return { cmd: bin, args: argv, opts: {} };
-  const safe = /^[A-Za-z0-9_.:\\\/ -]+$/;
+  const safe = /^[A-Za-z0-9_.:\\\/ =,-]+$/; // each argument is double-quoted below, so `=` and `,` (used by the canonical --trust-tools= / --allowedTools= flags) are inert
   if (![shrResolve(bin), ...argv].every((a) => safe.test(a))) return null;
   return { cmd: process.env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", `"${[shrResolve(bin), ...argv].map((a) => `"${a}"`).join(" ")}"`], opts: { windowsVerbatimArguments: true } };
 }

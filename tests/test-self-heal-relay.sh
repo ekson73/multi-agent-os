@@ -213,6 +213,9 @@ false"
   reset_stubs; mk_bash "$SANDBOX/t5j.sh" "" "printf '%s\\n' '$PEMB' >&2; head -c 300000 /dev/zero | tr '\\000' A >&2; echo >&2; echo 'SHORTTAILz2' >&2; false"
   "$B" "$SANDBOX/t5j.sh" >/dev/null 2>&1
   noleak "SHORTTAILz2" "bash: short PEM fragment after a byte-cut long line leaked" "bash: short PEM fragment after a byte-cut long line is dropped"
+  reset_stubs; mk_bash "$SANDBOX/t5k.sh" "" "for i in 1 2 3 4 5; do echo filler >&2; done; printf '%s\\n' 'Proc-Type: 4,ENCRYPTED' 'DEK-Info: AES-128-CBC,ABCDEF0123456789' '' >&2; for i in \$(seq 1 197); do echo 'ENCBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz' >&2; done; false"
+  "$B" "$SANDBOX/t5k.sh" >/dev/null 2>&1
+  noleak "ENCBODYzzzz" "bash: encrypted-PEM metadata + body at a truncated boundary leaked" "bash: encrypted-PEM metadata + body at a truncated boundary is dropped"
   reset_stubs; mk_bash "$SANDBOX/t5h.sh" "" 'false'
   OUT="$(MAOS_SELFHEAL_TIMEOUT=0 "$B" "$SANDBOX/t5h.sh" 2>&1 >/dev/null)"
   case "$OUT" in *"answered ->"*) ok "bash: TIMEOUT=0 falls back to 300 (harness is not killed at once)" ;; *) bad "bash: TIMEOUT=0 killed the harness: $OUT" ;; esac
@@ -321,6 +324,9 @@ if command -v node >/dev/null 2>&1; then
   noleak "SECRETBODYzzzz" "node: PEM cut from its header by the 200-line cap leaked" "node: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang node; printf 'throw new Error("%s\\n" + "A".repeat(70000) + "\\nEXCBODYzzzz1234567890");\n' "$PEMB"; } > "$SANDBOX/n18.js"; node "$SANDBOX/n18.js" >/dev/null 2>&1
   noleak "EXCBODYzzzz1234567890" "node: PEM in exception text cut from its header by the 64KB slice leaked" "node: exception text is redacted before the 64KB slice"
+  mkdir -p "$SANDBOX/winbin" && printf '#!/bin/sh\n' > "$SANDBOX/winbin/fakeh.cmd" && chmod +x "$SANDBOX/winbin/fakeh.cmd"
+  { "$RENDER" --lang node; printf 'Object.defineProperty(process, "platform", { value: "win32" });\nconst r = shrSpawnArgs("fakeh", ["-p", "--allowedTools=Read,Grep,Glob"]); const k = shrSpawnArgs("fakeh", ["chat", "--trust-tools=fs_read,fs_write"]); const bad = shrSpawnArgs("fakeh", ["a&b"]);\nconsole.log(r && k && bad === null ? "SHIMOK" : "SHIMBAD");\n'; } > "$SANDBOX/n19.js"
+  check "node: Windows .cmd shim accepts the canonical = and , flags and still refuses metacharacters" "$(PATH="$SANDBOX/winbin:$PATH" node "$SANDBOX/n19.js" 2>&1 | grep -c SHIMOK)" "1"
 else bad "node missing"; fi
 
 echo; printf 'self-heal-relay: %d passed, %d failed\n' "$PASS" "$FAIL"

@@ -124,7 +124,7 @@ def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `c
     if start > 0: lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
     trunc = start > 0 or len(lines) > n  # the window does not start at the file start
     lines = lines[-n:]  # the line cap comes BEFORE the key scan: it can cut a PEM from its header too
-    while trunc and lines and _re.fullmatch(r"[A-Za-z0-9+/=]+\s*", lines[0]):
+    while trunc and lines and _re.fullmatch(r"[A-Za-z0-9+/=]+\s*|\s*|(?:Proc-Type|DEK-Info):.*", lines[0], _re.S):
         lines = lines[1:]  # any leading base64-looking line, of ANY length, may be the tail of a PEM body whose BEGIN was cut away
     out, inkey = [], False
     for l in lines:  # a private-key body whose BEGIN header fell before the cut would escape redaction: drop through its END
