@@ -74,8 +74,10 @@ relayed or auto-applied.
    `tests/test-self-heal-relay.sh` proving invariants 1-4 and 6 before shipping.
 5. **Verify** — for bash / python / node blocks: `bin/self-heal-relay-render --verify <file>` (rc 0 current · 1 drift · 2 no
    single complete block). For a hand-made `--lang other` port `--verify` does not apply: the completion check is the fixture
-   from step 4 passing (invariants 1-4 and 6). Then `bash tests/test-self-heal-relay.sh` (runs the bash block on macOS `/bin/bash`
-   3.2 *and* a modern bash: ERR-trap semantics differ between them).
+   from step 4 passing (invariants 1-4 and 6). Inside a checkout of this repo, then also run
+   `bash tests/test-self-heal-relay.sh` (runs the bash block on macOS `/bin/bash` 3.2 *and* a modern bash: ERR-trap semantics
+   differ between them). That suite is a checkout-only conformance check, not shipped with the skill: a portable install
+   verifies with `--verify` plus its own fixture.
 6. **Record** — one line in the adopters table of `docs/self-heal-relay.md`; if a NEW artifact
    was created, `artifact-registry record --kind create …` (dedup memory).
 
