@@ -97,8 +97,16 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 - **The seat reaches its worktrees through the harness's additional-directories permission**, never through
   its cwd, and **only its own**. For Claude Code that is `permissions.additionalDirectories` in the desk's own
   `.claude/settings.local.json`. OpenRig deep-merges its own fragment into that file and keeps your keys.
-  Never grant the shared parent of all the project's worktrees: that gives every seat write reach into its
-  siblings' and into any ambient worktrees, and a `deny` rule there is only a speed bump (step 6).
+  Never grant the shared parent of all the project's worktrees: that widens every seat's file tools to its
+  siblings' and any ambient worktrees, and a `deny` rule there is only a speed bump (step 6).
+- **A per-seat grant is not isolation.** It scopes the harness's file tools only. Without the OS sandbox,
+  a writer's child processes (tests, package scripts, hooks it triggers) run as the operator, unconstrained by
+  `additionalDirectories` or the Bash allowlist, and can write any worktree the operator can. So on the
+  non-sandboxed path, writer isolation between worktrees is **not provided**. A crew that needs it (several
+  writers, or a host project that must preserve other worktrees' work in progress) must use the sandbox path
+  ([`sandboxed-seats.md`](./sandboxed-seats.md)) or a separate OS identity per seat, or stop. Even the sandbox
+  path leaves the shared `.git` writable across worktrees ([`sandboxed-seats.md`](./sandboxed-seats.md) §3,
+  row 4), so a project that must preserve other worktrees' git state is a stop either way.
 - **One per-seat parent, one unit worktree per writer.** Before launch, create an empty parent per writing
   seat inside the location the target project's worktree policy names (MAOS default:
   [`worktree-policy`](../../worktree-policy/SKILL.md)), for example `<repo>/.worktrees/<crew>-<seat>/`, and

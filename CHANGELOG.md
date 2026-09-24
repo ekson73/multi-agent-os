@@ -44,7 +44,7 @@ that version. Every correction below was observed there.
   outside every repo; each seat granted only its own worktree parent through the harness's
   additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
   under that parent per the project's policy, created only from the reviewed, pinned commit SHA or the seat's
-  own branch; review bound to the exact commit SHA the reviewer's verdict cites, with only that SHA published or
+  own branch (a file-tool scope only: without the OS sandbox or a separate OS identity, writer isolation between worktrees is not provided, so crews that need it use the sandbox path or stop); review bound to the exact commit SHA the reviewer's verdict cites, with only that SHA published or
   merged (reviewer read-only is not enforced at the shell boundary; without the SHA binding, no launch); and
   a post-launch status check that includes untracked files and the projected paths (`external-crew.md` step 5,
   `CANON.md` C6, the agent's prohibitions).
@@ -63,7 +63,7 @@ that version. Every correction below was observed there.
   every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
   acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
   `Read` denies on the user settings and credential directories are a speed bump only.
-  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env` is a launch stop, since no desk override can blank it; so is any credential-bearing key or URL userinfo in git's effective config seen from the seat's worktree (keys and values scanned, only a count printed, fail-closed on any git error), unless seats use a sanitized seat-specific git config. User-scope and
+  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env`, or an active managed source whose `env` cannot be inspected, is a launch stop, since no desk override can blank it; so is any credential-bearing key or URL userinfo in git's effective config seen from the seat's worktree (keys and values scanned, only a count printed, fail-closed on any git error), unless seats use a sanitized seat-specific git config. User-scope and
   plugin MCP servers with filesystem, credential or network capability block the launch unless disabled at
   their actual scope or the seat config is isolated. Secondary control: inventory secret-like names from
   every channel with value-free forms, scrub
