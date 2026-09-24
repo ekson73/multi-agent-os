@@ -24,7 +24,9 @@
    credential, the project's own just-in-time secret procedure performs the authenticated operation
    **outside the seat**, run by whoever that procedure names, and hands back only non-secret results. Back
    this with a harness `deny` on the secret CLI (for example `Bash(op:*)`). That deny is best-effort; the
-   real control is that no secret value is ever placed where a seat can read it.
+   real control is that no secret value is ever placed where a seat can read it. That includes env the
+   harness injects from the operator's user settings, which no shell-side scrub removes, and env the tmux
+   server, the daemon or the login shell carries (§4, user-scope and environment check).
 4. **Never trust an MCP server, hook or operation because of its name, path or owner alone.** Names are free
    to choose, and a file in `~/.codex/` or a repo's `.codex/` could have been written by anything. Read what
    it executes.
@@ -39,12 +41,13 @@
 | `rig ps --nodes --rig <rig>` | LIFECYCLE `att`, REASON `Readiness timeout after 30s …` | the readiness probe gave up; often a prompt it does not recognize |
 | `rig restore-check --rig <rig>` | class `attention_required` | same condition, seen from the restore side |
 | any `rig` error | `[object Object]` | the CLI lost the daemon's structured remediation ([#18](https://github.com/mvschwarz/openrig/issues/18), as of 0.5.14; see §5). Read `rig ps --nodes --rig <rig> --json` instead. |
+| `rig up` / `rig ps --nodes --rig <rig>` | `probe pane returned to a shell`, or `clear-attention` refused with class `pane_identity` ("foreground command '<shell>' contradicts runtime") | **not a trust gate** when the login shell runs inside a nesting terminal wrapper: the pane's foreground command reads the shell. A seat is ready only when all three hold: `startupStatus=ready`, `rig capture` shows the runtime's TUI at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live. Heal an empty seat as in [`external-crew.md`](./external-crew.md) step 11. |
 
 Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt by its text:
 
 | Class | Prompt text (as observed) | Where it comes from |
 |---|---|---|
-| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. Accepting it enables the project's own configuration: its hooks, permission rules, MCP servers and instructions. **OpenRig 0.5.14 auto-accepts it for managed seats.** It pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). That is trust keyed by path with no review (guardrail 4). Flag it, and do the review yourself **before** launch (section 2). The dialog itself shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
+| **A. Claude workspace trust** | the "trust the files in this folder" dialog | first launch of Claude in a cwd that is not yet trusted. Accepting it enables the project's own configuration: its hooks, permission rules, MCP servers and instructions. **OpenRig 0.5.14 auto-accepts it for managed seats.** It pre-writes `projects["<path>"].hasTrustDialogAccepted` into `~/.claude.json` for the cwd **and its git root** and drives the dialog (Runtime Config Disclosure in `~/.openrig/reference/agent-startup-guide.md`). That is trust keyed by path with no review (guardrail 4). Flag it, and do the review yourself **before** launch (section 2). The dialog itself shows up only when that write missed, for example because the daemon's HOME differs from the seat's. |
 | **B. Claude project MCP approval** | `New MCP server found in this project: <name>` → *Use this MCP server* / *Use this and all future MCP servers in this project* / *Continue without using this MCP server* | a `.mcp.json` in the seat's cwd. Claude asks before it uses any project-scoped server ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)). |
 | **C. Codex hook review** | `Hooks need review` · `N hooks are new or changed.` · `Hooks can run outside the sandbox after you trust them.` → *Review hooks* / *Trust all and continue* / *Continue without trusting (hooks won't run)* | any non-managed hook that is new or changed. Codex records trust against each hook's current hash ([Codex hooks docs](https://developers.openai.com/codex/hooks)). |
 | other | update prompts, provider login | not a trust gate. Route: `rig context get skills/core/rig-lifecycle` (failure mode "provider auth treated as impl work"). |
@@ -62,7 +65,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. With a desk as the cwd ([`external-crew.md`](./external-crew.md) step 5) the review is that the desk holds exactly its expected contents and nothing else ([`external-crew.md`](./external-crew.md) step 9), plus the worktrees the seat can reach. Then run the user-scope check (§4): the seat inherits that too. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -99,30 +102,197 @@ rig green while the cause is still there. A seat that goes back to `att` means t
 
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
-- **Claude MCP approvals: scope each one to the reviewed worktree. Never approve by name at user scope.**
-  Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
-  `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
-  binds the same name to a different command. That is trust by name alone (guardrail 4). So:
+- **Claude MCP approvals: scope each one to the reviewed cwd. Never approve by name at user scope.**
+  Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in the user
+  settings (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) would approve that name in every repository,
+  including an untrusted one that binds the same name to a different command. That is trust by name alone
+  (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
-    `enabledMcpjsonServers` of the **worktree's untracked** `.claude/settings.local.json`. It applies only to
-    that folder, and only once the folder is trusted. Re-review whenever that `.mcp.json` changes.
-    Otherwise, the operator approves interactively in the pane.
+    `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json` (the desk's, for a
+    crew). It applies only to that folder, and only once the folder is trusted. Re-review whenever that
+    `.mcp.json` changes. Otherwise, the operator approves interactively in the pane.
   - *deny*: `disabledMcpjsonServers` may live at user scope. A deny by name fails closed.
   - Never set `enableAllProjectMcpServers: true`. A committed `.claude/settings.json` cannot approve its own
     repo's servers ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
   - `claude mcp list` shows a server still waiting as `⏸ Pending approval`. `claude mcp reset-project-choices`
     resets the choices.
-- **Codex hooks.** Keep the per-worktree hook set small and stable. Reuse crew worktrees across runs rather
-  than creating new ones, because trust is keyed by path. Review once per new worktree through the native
+- **Codex hooks.** Keep the per-cwd hook set small and stable. Reuse crew desks and worktrees across runs rather
+  than creating new ones, because trust is keyed by path. Review once per new path through the native
   flow (guardrail 1). Organization-managed hooks (`requirements.toml`, MDM) are trusted by policy. That is an
   administrator's decision, not a seat's.
 - **Unattended seats.** Use `deny` rules, not `ask` (guardrail 2). Translate the policy with
   `rig context get skills/applying-a-permission-policy`.
-- **Workspace trust (class A).** Review every new worktree's checkout and project configuration before its
-  first `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate.
+- **Workspace trust (class A).** Review every desk and every worktree a seat can reach before its first
+  `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate. It also pre-trusts the cwd's git
+  root, and those entries outlive teardown ([`external-crew.md`](./external-crew.md) step 14).
 - **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results
   (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
+
+### User-scope and environment check (every seat inherits both) [T3]
+
+Every seat runs as the operator, so the harness loads the operator's user scope into it: the user settings
+`env` block, hooks, plugins, user MCP config and home-level agent guidance. A RigSpec cannot scope any of it,
+and it has no `env` field. A seat's environment arrives through several channels, and each needs its own
+scrub:
+
+| Channel | How it reaches the seat | Scrub |
+|---|---|---|
+| **(a)** harness user settings `env` | the harness applies it to its tool env **after** the shell starts | desk override (step 3) |
+| **(b)** the tmux server's global environment | copied from whatever process started the tmux server, then into every new pane | shell-side, at the desk (step 4) |
+| **(c)** the OpenRig daemon's environment | inherited by the tmux server when the daemon starts it, so it surfaces through (b) | shell-side, at the desk (step 4) |
+| **(d)** the login shell's own startup files (secret loaders, exports) | run in every pane | shell-side, placed after the loaders (step 4) |
+
+Observed on OpenRig 0.5.14 with Claude Code 2.1.281: a shell-side scrub removed the secrets from (b) and (d),
+while a secret in (a) still reached every seat's tool env.
+
+**Launch rule: the credential leaves every seat-readable source, or seat code runs inside an OS-enforced
+boundary.** An empty tool env does not protect the file the value came from. When seats execute project code
+(package scripts, hooks) as the operator's OS user, the user settings file, shell startup files and credential
+directories stay readable to that code whatever the probe says. Launch therefore requires **one** of:
+
+1. every credential removed from every seat-readable source (moved out of the user settings `env`, the shell's
+   default environment and seat-readable files, behind the project's just-in-time procedure; guardrail 3); or
+2. an OS-enforced boundary for seat-executed code: the harness bash sandbox in strict, fail-if-unavailable
+   mode, with credential file and env denies, a home-wide read block, narrow git write paths, no credential in
+   any seat, and a publisher outside the crew ([`sandboxed-seats.md`](./sandboxed-seats.md)).
+
+Risk acceptance never substitutes for either. If neither is possible, the external-crew recipe is **not usable
+unattended**: stop and escalate to the operator. `Read` denies on the harness user settings file and on
+credential directories belong in each desk's settings either way, but they are a speed bump that does not
+close the code-execution path.
+
+The recipe below is a **secondary control** on top of that rule. It keeps the values out of each seat's
+tool env and proves it per seat, which limits accidental exposure (logs, transcripts, tool output). In a
+sandboxed seat the hook may deny a shell parameter-expansion probe; run the same names-only enumeration from a
+small script instead. Recipe for Claude Code seats:
+
+1. **Inventory names, never values, from every channel [T0].** A pipeline that splits on newlines is not
+   names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
+   passes every continuation line of a multiline value through intact. Use only forms that never emit a
+   value, and mark every secret-like name:
+   - (a) keys only, from the **active** user config root:
+     `jq -r '.env // {} | keys[]' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"`
+   - (a′) keys only, from the **managed** settings: `managed-settings.json` and every `managed-settings.d/*.json`
+     in the platform's system directory (`/Library/Application Support/ClaudeCode/` on macOS,
+     `/etc/claude-code/` on Linux and WSL, `C:\Program Files\ClaudeCode\` on Windows), each read with
+     `jq -r '.env // {} | keys[]' <file>`. `/status` in the operator's own session names the managed source in
+     force (file, MDM profile or server-managed); inventory that source too. Managed settings outrank the
+     desk's local settings, so an empty override there cannot blank a managed name. **Any secret-like name in
+     a managed `env` is a launch stop**; the fix belongs to the administrator or operator, at the source. **An
+     active managed source whose `env` cannot be inspected** (an MDM profile or server-managed settings the
+     operator cannot read) **is a launch stop by itself**: managed precedence means no desk override can clear
+     names nobody can enumerate.
+   - (b) and (d) together, from **inside** a pane of the same tmux server whose cwd is a desk, with the login
+     shell's own names-only builtin. That lists exactly what tmux and the shell's startup files exported,
+     without touching a value. Run it before you add the scrub (step 4) to build the list, and again after it
+     as a check:
+
+     ```bash
+     compgen -e                                   # bash: exported names only
+     print -rl -- ${(k)parameters[(R)*export*]}   # zsh: exported names only
+     ```
+
+     To find which startup file sets a name without printing its line: `grep -lw -- <NAME> <files>`.
+   - (c) `rig daemon status` prints the daemon's pid. On Linux, split `/proc/<pid>/environ` on NUL inside bash
+     and print only the part before the first `=`:
+
+     ```bash
+     while IFS= read -r -d '' kv; do printf '%s\n' "${kv%%=*}"; done < /proc/<pid>/environ
+     ```
+
+     On macOS no names-only read exists (`ps` prints the environment with its values), so do not read it;
+     rely on (b), which the daemon's environment feeds, and on the live probe in step 5.
+   - (e) git's **effective** config as seen from inside each seat's worktree (system, global, local, worktree
+     and includes): scan keys **and** values of `git -C <seat-worktree> config -z --list --includes`, split on
+     NUL in-process, and print only a count. Flag credential-bearing keys (`http.extraheader` and `http.<url>.extraheader`,
+     `credential.*`, `*.token`) and any key or value holding URL userinfo (`://…@`: `remote.*.url`,
+     `insteadOf` rewrites, `http.proxy` / `https.proxy`). The scan fails closed: only a successful git exit
+     plus a literal `0` passes; any git error, parse error, or empty or non-integer output is a stop, and so is
+     any count above 0 unless seats use a sanitized, seat-specific git config (for example `GIT_CONFIG_GLOBAL`
+     pointing at a reviewed file the seat cannot write). The exact command is in
+     [`sandboxed-seats.md`](./sandboxed-seats.md) §1.
+2. **Keep one names list** (the union of step 1), with no values. Every later step uses it.
+3. **Desk override for (a) [T3, show the diff].** Render an `env` object that sets each channel-(a) name to the
+   empty string, and merge it into the desk's own `.claude/settings.local.json` (mode 0600, the file that
+   also carries the seat's posture) before launch. The filter below prints names only; add any secret it
+   misses from the list:
+
+   ```bash
+   jq '{env: (.env // {} | keys
+        | map(select(test("TOKEN|KEY|SECRET|PASSWORD|AUTH"; "i")) | {(.): ""}) | add // {})}' \
+     "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+   ```
+
+   It works because local settings override user settings for the same key, and OpenRig deep-merges its own
+   fragment into that file and keeps `env` (observed on 0.5.14).
+4. **Shell-side scrub for (b), (c) and (d) [T3, the operator's shell config].** At the **end** of the login
+   shell's startup file, after every secret loader, unset the names from the list, scoped to the desk path
+   so no other shell changes, and set a marker the probe can test:
+
+   ```bash
+   case "$PWD" in
+     <crew-home>/desks/*) unset NAME_B NAME_C NAME_D; export CREW_DESK_SCRUB=1 ;;
+   esac
+   ```
+
+   The harness is a child of that shell, so it starts without them.
+5. **Verify in each LIVE seat [T1], never by reading a file.** First enumerate the exported names in the
+   seat's own tool shell with the same builtin, filtered by the secret-name pattern, for anything the list
+   missed. Then run a value-free test over **every** name on the list:
+
+   ```bash
+   rig send <session> '!compgen -e | grep -E "TOKEN|KEY|SECRET|PASSWORD|AUTH"' --raw     # zsh tool shell: print -rl -- ${(k)parameters[(R)*export*]} | grep -E …
+   rig send <session> '![[ -z ${NAME_A:-} && -z ${NAME_B:-} && -z ${NAME_C:-} && -z ${NAME_D:-} && -n ${CREW_DESK_SCRUB:-} ]] && echo SCRUBBED || echo NOT-SCRUBBED' --raw
+   rig capture <session> --lines 20
+   ```
+
+   `SCRUBBED` counts only when every inventoried name is empty and the marker is set. Use `${VAR:-}`, which
+   treats set-but-empty as scrubbed. The enumeration also lists names whose values are empty: judge each name
+   it prints. A new secret name goes on the list; an innocuous one (a flag, a path, an id the harness itself
+   sets) is recorded as such. Neither probe prints a value, but each starts a model turn
+   ([`external-crew.md`](./external-crew.md) step 6). A send to a busy pane waits until the pane idles.
+6. **Stop rule.** `NOT-SCRUBBED`, or an unlisted secret name, in any seat means no work: take the rig down
+   with a snapshot, fix the scrub, and relaunch under a new rig name.
+7. **Re-render** the override and the unset list whenever any channel changes. Each covers only the names
+   present when it was written.
+8. **Reset desks after posture changes.** OpenRig's merge unions arrays, so a rule you removed from your
+   template survives in a reused desk's settings file. Recreate the desk's settings file instead of merging
+   again.
+
+The override removes the value from the seat's tool env, not from its source file or from the harness process
+that parsed the user settings. That residual risk is why the launch rule above requires source removal or an
+OS-enforced boundary.
+
+**User-scope MCP servers are a launch blocker, not a flow to record.** `disabledMcpjsonServers` rejects only
+servers discovered from a project's `.mcp.json`; it does not disable a server configured at user scope or
+provided by a plugin, and such a server runs outside any bash sandbox with the operator's credentials.
+Inventory them by name only, in the operator's own terminal, never in a seat: the keys of the user-scope MCP
+config (by default the `mcpServers` object in `~/.claude.json`; resolve it under the active config root when
+`CLAUDE_CONFIG_DIR` is set), plus the server names `claude mcp list` shows. That command also prints each
+server's command or URL, which can embed a credential, so record the names only. Any user-scope or plugin
+server with filesystem, credential or network capability blocks the launch unless it is disabled at its
+actual scope (removed from the user config, or its plugin disabled) or the seat runs with an isolated,
+seat-scoped harness config directory (for Claude Code, `CLAUDE_CONFIG_DIR`, which needs its own login: a
+human step).
+
+**Projected project MCP servers run outside the sandbox too.** A server copied from the target's `.mcp.json`
+into a desk ([`external-crew.md`](./external-crew.md) step 6) also runs with the operator's credentials. For
+every MCP server, user-scope, plugin or projected, two separate stops apply:
+
+- **unconditional:** a server whose executable or dependencies sit in a seat-writable location (a worktree, a
+  unit, the desk outside its denied control files) stops the launch. Removing a credential does not make
+  mutable code that runs outside the sandbox safe;
+- **on the sandbox path:** any server, user-scope, plugin or projected, with filesystem, network or credential
+  capability stops the launch unless it is disabled for the seat, or runs under its own verified OS isolation
+  with code the seat cannot modify. Removing one credential is not enough: the seat's model drives the
+  server's tools, so it could still read other user or session data, call operator-authenticated tooling, or
+  exfiltrate.
+
+Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
+into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
+seat shows which session hooks fired. Isolating hooks and plugins also needs the seat-scoped config
+directory. Until then, list the flow in the handoff. On the sandbox path, every hook command is also subject to the launch stop in [`sandboxed-seats.md`](./sandboxed-seats.md) §2: it may execute only files the seat cannot write. That review covers user-scope, plugin and active managed hooks (the managed file and its drop-ins, MDM, server-managed; `/status` names the sources). An unreviewed user-scope or plugin hook, a managed hook that executes a seat-writable file, or a managed source whose hooks cannot be inspected or attested stops the launch.
 
 ## 5. Upstream issues that affect this page (all open when checked on 2026-09-23)
 
@@ -141,4 +311,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · user-scope and environment check: Claude-RigOps-8f02-001, 2026-09-24 (UTC), revised 2026-09-24 (UTC) after review · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.

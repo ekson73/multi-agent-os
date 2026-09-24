@@ -31,6 +31,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start it instantiates a concrete agent ID instead of echoing the ID template.
 - `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
 
+### Fixed — `openrig-concierge`: field corrections from the first external-crew dogfood
+
+The first real run of the skill and the `openrig-fleet-engineer` agent built a three-seat Claude crew on a
+private target repo under `rig` 0.5.14 (cc75efdd). It showed that several instructions above were wrong on
+that version. Every correction below was observed there.
+
+- **Seat `cwd` is a desk, never a repo worktree (retraction).** The recipe said to point each member's `cwd`
+  at its worktree. OpenRig 0.5.14 unconditionally merges a managed block (the default culture plus the start
+  overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now, for Claude Code seats only
+  (Codex and other runtimes are explicitly out of scope until validated): an empty 0700 desk per seat
+  outside every repo; each seat granted only its own worktree parent through the harness's
+  additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
+  under that parent per the project's policy, created only from the reviewed, pinned commit SHA or the seat's
+  own branch (a file-tool scope only: without the OS sandbox or a separate OS identity, writer isolation between worktrees is not provided, so crews that need it use the sandbox path or stop); review bound to the exact commit SHA the reviewer's verdict cites, with only that SHA published or
+  merged (reviewer read-only is not enforced at the shell boundary; without the SHA binding, no launch); and
+  a post-launch status check that includes untracked files and the projected paths (`external-crew.md` step 5,
+  `CANON.md` C6, the agent's prohibitions).
+- **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
+  guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
+- **Project-scoped config does not follow a desk seat.** New mandatory pre-launch step: inventory the target's
+  project config (both `.claude/settings.json` and `.claude/settings.local.json`, `.mcp.json`, and `.claude/`
+  rules, skills, commands and agents) and give each item a disposition: reviewed hooks, permissions and
+  plugin enables projected into each desk; MCP definitions copied into the desk's `.mcp.json` with exact
+  per-server approval; rules without `paths:` frontmatter, skills, commands and agents copied into the desk or read from the worktree; a mandatory path-scoped rule that cannot be translated to the worktree layout and shown to activate there is a launch stop (#452). A
+  deterministic gate that cannot be projected makes the recipe unusable for that repo: stop and escalate
+  (CANON C9) (step 6).
+- **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
+  `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
+  OpenRig daemon and the login shell. Launch rule: when seats run project code as the operator's OS user,
+  every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
+  acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
+  `Read` denies on the user settings and credential directories are a speed bump only.
+  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`); a secret-like name in a managed settings `env`, or an active managed source whose `env` cannot be inspected, is a launch stop, since no desk override can blank it; so is any credential-bearing key or URL userinfo in git's effective config seen from the seat's worktree (keys and values scanned, only a count printed, fail-closed on any git error), unless seats use a sanitized seat-specific git config. User-scope and
+  plugin MCP servers with filesystem, credential or network capability block the launch unless disabled at
+  their actual scope or the seat config is isolated. Secondary control: inventory secret-like names from
+  every channel with value-free forms, scrub
+  each channel at the seat boundary (a desk settings override for the harness `env`, a desk-scoped shell
+  unset for the rest), verify in each live seat that every inventoried name is empty, stop on
+  `NOT-SCRUBBED`, re-render when a channel changes, reset desks after posture changes. Notes the
+  cross-domain data flow of global memory-capture hooks (`trust-gates.md` §4, `external-crew.md` step 9).
+- **New `references/sandboxed-seats.md`** (checked against Claude Code 2.1.281 + `rig` 0.5.14 on macOS, in a
+  synthetic preflight with sentinel files only). It documents the harness bash sandbox as that boundary: the
+  settings that held (strict, fail-if-unavailable, no unsandboxed retry, credential file and env denies, a
+  home-wide read block with a narrow `allowRead`, git hook/config/default-ref write denies, a registry-only
+  network allowlist, hot reload), the desk control files that must be edit-denied because OpenRig runs them
+  unsandboxed, and what did not work, with the consequence of each: `blockReadsOutsideWorkingDirectories`
+  drops the sandbox allow lists; units must live under the desk; network prompts bypass
+  `PermissionRequest` hooks until the user-scope `strictAllowlist` is set; the shared `.git` stays writable
+  across worktrees; the queue needs a clerk outside the crew; OpenRig forces `acceptEdits`. It also covers the
+  trusted-publisher pattern (fsck fetch of the exact branch, path gate, push by exact SHA, CI on the merge
+  commit as verification of record). Linked from `trust-gates.md` §4, `external-crew.md` steps 5, 6 and 9,
+  `CANON.md` C2, `SKILL.md` and the agent.
+- **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
+  with a stopped rig's name creates a second same-name rig with the same tmux session names. Relaunch under a
+  new name, address rigs by ID; `rig down --delete` stays T3 (step 10).
+- **Nesting terminal wrappers.** Readiness can fail with "returned to shell" and `clear-attention` stays
+  blocked (`pane_identity`); a seat is ready only with `startupStatus=ready`, a ready `rig capture` and live
+  activity; heal with a snapshot then
+  `rig seat launch --fresh` (step 11, `trust-gates.md` §1).
+- **Command shapes.** `rig snapshot` / `snapshot list` / `launch` need the rig ID; `rig restore status` needs
+  `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside-seat `rig queue create` needs an
+  honest `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body` with the evidence reference inside
+  it, because `--evidence-ref` was not kept; outside-seat `rig send` carries no
+  sender identity, and `--wait-for-idle --verify` is no proof the seat took the text; pre-trust residue for the
+  cwd and its git root is operator cleanup (`tiers.md`, steps 12
+  and 14, `CANON.md` C7).
+- **Unattended posture.** A `PermissionRequest` hook answering `deny`, prefix denies as a speed bump next to
+  structural controls, single simple commands, `--no-gpg-sign` only where branch protection does not require
+  signatures (branch URL-encoded; any API failure is inconclusive and keeps signing required), and
+  names-only `!` probes (step 6, `tiers.md` rule 4). Step 1 now budgets per-seat boot
+  context, paid again on every relaunch.
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure

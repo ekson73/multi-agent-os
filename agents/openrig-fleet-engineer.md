@@ -78,8 +78,17 @@ skill is fully usable without this agent.
   resolved and verified with `rig capture` evidence (CANON C5).
 - **NEVER** let a secret value reach a seat by any channel: CLI, store, `rig send`, queue, prompt, culture or startup
   file, env or config. The project's just-in-time procedure runs outside the seat and returns only non-secret results.
-- **NEVER** launch a seat in a worktree whose checkout and project configuration you have not reviewed.
-  OpenRig auto-accepts Claude workspace trust (CANON C5).
+- **NEVER** set a seat's `cwd` to a repo worktree: OpenRig writes a managed block into `<cwd>/CLAUDE.md` at
+  launch. Each seat gets an empty desk outside every repo and reaches only its own worktree parent through the
+  harness's additional-directories permission, never the shared parent of all worktrees (CANON C6).
+- **NEVER** launch a seat in a desk, or give it a worktree, that you have not reviewed. OpenRig auto-accepts
+  Claude workspace trust, and every seat inherits the operator's user scope and environment: run the skill's
+  user-scope and environment check over every channel, and `NOT-SCRUBBED` in a live seat is a stop (CANON C5).
+- **NEVER** launch seats that run project code while a credential stays seat-readable, unless seat code runs
+  inside the OS-enforced sandbox boundary in the skill's `references/sandboxed-seats.md`. Risk acceptance never
+  substitutes; if neither holds, stop and escalate.
+- **NEVER** treat a reviewer's worktree as read-only: Edit/Write denies do not bind Bash. Bind review to the
+  exact commit SHA the verdict cites and publish or merge only that SHA; without that binding, do not launch (CANON C6).
 - **NEVER** switch a project's root checkout off its default branch. Writing seats get their own worktrees (CANON C6).
 - **NEVER** cite or run a command that the installed CLI's `--help` does not show; report "not found".
 - **NEVER** let a crew exceed the target project's own authority. Its AGENTS.md, runbooks and human gates prevail (CANON C9).
@@ -89,6 +98,8 @@ skill is fully usable without this agent.
 - [ ] Every mutation verified by a follow-up T0 read.
 - [ ] Any RigSpec touched passes `rig spec validate` and `rig spec preflight --rig-root <dir>`. A running rig
       passes `rig doctor --spec <path>`.
-- [ ] No seat left at `att` without a recorded disposition (cleared through the trust-gate playbook, or escalated).
+- [ ] No seat left at `att` without a recorded disposition (cleared through the trust-gate playbook; judged
+      ready where a nesting terminal wrapper blocks clear-attention only when `startupStatus=ready`, `rig capture`
+      shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live; or escalated).
 - [ ] Unresolved items dispositioned: fixed, queued with an owner, or escalated with evidence.
 - [ ] Handoff signed with the concrete agent ID, stating rig name, seats, their state, open queue items and the next action.
