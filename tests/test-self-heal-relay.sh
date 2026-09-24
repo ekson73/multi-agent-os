@@ -115,6 +115,29 @@ STUB
   "$B" "$SANDBOX/t4e.sh" >/dev/null 2>&1
   check "no shr.* dir after a clean run" "$(ls -d "$SANDBOX"/tmp/shr.* 2>/dev/null | wc -l | tr -d ' ')" "0"
 
+  echo "-- 4f. ERR inherited by a subshell dispatches ONCE and keeps its artifacts"
+  reset_stubs; mk_bash "$SANDBOX/t4f.sh" "" '( false )
+echo after'
+  "$B" "$SANDBOX/t4f.sh" >/dev/null 2>&1
+  check "subshell failure → exactly one dispatch" "$(calls)" "1"
+  check "relay artifacts (proposal.md) survive the parent's exit" "$(ls "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null | wc -l | tr -d ' ')" "1"
+
+  echo "-- 4g. a credential inside the failing COMMAND is redacted and fenced"
+  reset_stubs; mk_bash "$SANDBOX/t4g.sh" "" "eval 'false \"password=$FAKE_PW\"'"
+  "$B" "$SANDBOX/t4g.sh" >/dev/null 2>&1
+  case "$(cat "$STUB_LOG".stdin.* 2>/dev/null)" in *"$FAKE_PW"*) bad "credential in failed command reached the harness" ;; *) ok "failed-command text is redacted" ;; esac
+
+  echo "-- 4h. an adopter's own EXIT trap is preserved (and SHR_TRAP_EXIT relays a bare exit N; bash 3.2 reports rc 0 for a set -u abort, so that case is not asserted)"
+  reset_stubs; { printf '#!/usr/bin/env bash\nset -euo pipefail\ntrap "echo ADOPTER-EXIT >> %s/marker" EXIT\nSHR_TRAP_EXIT=1\n' "$SANDBOX"; "$RENDER" --lang bash; printf 'exit 5\n'; } > "$SANDBOX/t4h.sh"; rm -f "$SANDBOX/marker"
+  "$B" "$SANDBOX/t4h.sh" >/dev/null 2>&1; rc=$?
+  check "bare exit 5 relayed once (SHR_TRAP_EXIT)" "$(calls)" "1"; check "adopter EXIT trap still ran" "$(grep -c ADOPTER-EXIT "$SANDBOX/marker" 2>/dev/null)" "1"
+  check "original non-zero rc preserved" "$([ "$rc" -ne 0 ] && echo y)" "y"
+
+  echo "-- 4i. same-second seeds never collide"
+  reset_stubs; mk_bash "$SANDBOX/t4i.sh" "" 'false'
+  MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4i.sh" >/dev/null 2>&1; MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4i.sh" >/dev/null 2>&1
+  check "two failures in one second → two seeds" "$(ls "$MAOS_SELFHEAL_SEED_DIR"/NEEDS-AGENT-*.md 2>/dev/null | wc -l | tr -d ' ')" "2"
+
   echo "-- 5. redaction: no secret reaches argv, stdin or the kept prompt"
   reset_stubs; mk_bash "$SANDBOX/t5.sh" "" "echo \"boot key=$FAKE_AWS gh=$FAKE_GH\" >&2
 echo \"password=$FAKE_PW\" >&2
