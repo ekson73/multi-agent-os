@@ -68,7 +68,7 @@ function shrRelay(excText) {
     if (h.via === "argv-path") argv.push(`Read the file ${ppath} and follow its instructions.`); else input = prompt;
     const r = _shr.cp.spawnSync(h.bin, argv, { input, encoding: "utf8", timeout: 1000 * Number(process.env.MAOS_SELFHEAL_TIMEOUT || 300) });
     if (r.status === 0 && (r.stdout || "").trim()) {
-      const out = _shr.path.join(_shrDir, "proposal.md"); _shr.fs.writeFileSync(out, r.stdout);
+      const out = _shr.path.join(_shrDir, "proposal.md"); _shr.fs.writeFileSync(out, r.stdout.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")); // strip ANSI
       err(`self-heal-relay: ${name} answered -> ${out} (a human must REVIEW before anything is applied)`); return;
     }
     err(`self-heal-relay: ${name} gave no usable answer (rc=${r.status}), trying the next harness`);
