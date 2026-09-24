@@ -1,5 +1,6 @@
 # Relay ONLY an UNEXPECTED fault to an AI-harness pool. An agent PROPOSES; a human reviews.
-# Insert near the top of the script (after imports). Python >= 3.8, stdlib only.
+# Insert near the top of the script (after imports) BUT AFTER any SIGTERM/SIGHUP handler setup of your own: a `signal.signal` call made LATER replaces the relay's cancellation handler
+# (an earlier one is chained), and a disposition reset to SIG_DFL kills the interpreter before any cleanup can run. Python >= 3.8, stdlib only.
 # A fault = an uncaught exception (sys.excepthook). `sys.exit(n)` / SystemExit NEVER relays: it is intentional.
 #
 # Adopter knobs — set BEFORE this block (module globals):

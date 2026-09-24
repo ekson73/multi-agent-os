@@ -89,7 +89,7 @@ relayed or auto-applied.
 | 2 | Original exit code preserved, always | the caller's contract is not the relay's to change |
 | 3 | Re-entrancy guard (`MAOS_SELFHEAL_ACTIVE=1` exported to the harness) | a harness re-running the failing script must not relay again |
 | 4 | Exactly ONE dispatch per harness; a failure moves to the NEXT harness | no unscoped double-dispatch fallback that swallows stderr |
-| 5 | Error trap inherited into functions/subshells (`set -E` in bash); stamp the block AFTER your own `trap … ERR` | without it a failure inside a function is silent; a later trap replaces the relay handler |
+| 5 | Error trap inherited into functions/subshells (`set -E` in bash); stamp the block AFTER your own `trap … ERR` / `signal.signal` setup | without it a failure inside a function is silent; a later trap replaces the relay handler |
 | 6 | Log redacted BEFORE it leaves the process; prompt delivered by stdin (or file *path*), never log-in-argv | secrets to a third-party model / visible in `ps` |
 | 7 | Log embedded inside a nonce-delimited UNTRUSTED fence + the contract to preserve | prompt-injection hygiene; repair must not weaken a guard |
 | 8 | Bounded wait (watchdog) and non-blocking option (`seed` mode) | a hung harness must not hang a hook |
