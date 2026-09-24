@@ -138,7 +138,8 @@ if (SHR_ON) {
     const txt = e && e.stack ? e.stack : String(e);
     _shr.fs.writeSync(2, txt + "\n");
     try { shrRelay(txt); } catch (_) {}
-    process.exit(1);
+    process.exitCode = 1;
+    setImmediate(() => process.exit(1)); // deferred: listeners the adopter registered AFTER this one still run (locks, temp files) before the process ends
   };
   process.on("exit", () => { if (!_shrRelayed) { try { _shr.fs.rmSync(_shrDir, { recursive: true, force: true }); } catch (_) {} } }); // clean exit leaves nothing behind
   process.on("uncaughtException", _fault);
