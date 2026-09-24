@@ -93,7 +93,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   ref, source id, line pointers, timestamps, counts and private hashes. It never stores
   message text. `extract` streams redacted text to **stdout only**. Attachments (images,
   files, uploads) are counted by type, never imported or named. With `--surface`,
-  `index`/`extract` never read stores outside the scope.
+  `index`/`extract` never build, and so never read, stores outside the scope (not even
+  their account metadata).
 - **Private outputs.** `index`/`extract` require an explicit `--out`. The output root is
   canonicalized (every existing ancestor resolved) and refused, on both the requested and
   the canonical path, when it is a symlink, `/`, `$HOME`, at or below a temporary root
@@ -101,10 +102,15 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   canonical forms such as `/private/tmp`), inside the skill's own directory, inside a git work
   tree, or not owned by the current user. There is no override. The same policy applies
   to the directory of `--security-findings` (which may be `$HOME`), and only that one file
-  is excluded from discovery. Every write goes through the held directory descriptor:
+  is excluded from discovery. **Outputs never land on inputs:** an output root that is,
+  lies inside, or contains a store root, a harness metadata file or a supplied export is
+  refused, and so is a `--security-findings` file that is or lies inside one (it would be
+  rename-replaced). An output root without the marker that already holds a file named like
+  an output is refused too. Every write goes through the held directory descriptor:
   directories 0700, files 0600 from the first byte (`O_EXCL|O_NOFOLLOW` temp file, fsync,
   rename). The tool drops a marker file so it never re-ingests its own output, and holds a
-  per-root lock that records pid, process start time and host.
+  per-root lock that records pid, process start time and host. A lock whose pid is gone
+  (checked with signal 0) or reused, or an empty lock older than 60 s, is reclaimed.
 - **Read-only discovery.** The tool walks only each adapter's allowlisted root, and a
   store whose root is, or passes through, a symlink is refused (`unavailable`). It prunes
   git repos, cloud-sync folders and backups, and skips WAL, SHM, lock, tmp and partial
@@ -121,7 +127,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
 - **Fail-closed per record and per store.** The tool never guesses at a record whose
   type, version or shape it does not know. A Claude record without a `2.x` `version`, a
   Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
-  quarantined, not defaulted. Export members must be strict UTF-8. Such records are
+  quarantined, not defaulted. An export must be exactly one top-level JSON array in strict
+  UTF-8, and each element is held to `--max-record-bytes`. Such records are
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
   export conversations too) are quarantined the same way. A store stays `supported` only
@@ -212,7 +219,9 @@ Useful flags: `--surface openai.codex-cli,anthropic.` (prefix filter) · `--sinc
 `--export chatgpt=PATH|claude-ai=PATH` (an already-downloaded export zip or JSON, vetted
 for traversal, symlink, size and compression bombs, and streamed without extraction) ·
 `--max-file-bytes/--max-record-bytes/--max-files/--max-records` · `--security-findings PATH`.
-Topic and project scoping are always runtime flags. Nothing about your domains is built in.
+Topic and project scoping are always runtime flags, and both `index` and `extract` require
+`--project` and/or `--mention` (there is no unscoped inventory). Nothing about your domains is
+built in.
 
 **If `scripts/session_catalog.py` is absent** (for example in a markdown-only install), do
 not hand-parse transcripts. Report the catalog as *unavailable: helper not installed* and
@@ -224,10 +233,10 @@ stop. The guardrails above cannot be met by ad-hoc reading.
 |---|---|---|
 | 0 | `complete` | every in-scope store was read, nothing quarantined (`stores` also exits 0) |
 | 1 | `error` | internal failure (type name only, never content) |
-| 2 | `usage` | bad flags: missing `--out`, missing scope, invalid date, a non-positive `--max-*` limit |
+| 2 | `usage` | bad flags: missing `--out`, missing scope (`index` and `extract` both need `--project` and/or `--mention`), invalid date, a non-positive `--max-*` limit |
 | 3 | `partial` | some stores skipped (encrypted, cloud, unverified, symlinked root) or items quarantined, or the output consumer closed stdout. **Never read this as "all sessions".** |
 | 4 | `unsupported` | no in-scope store is importable, or the platform lacks the no-follow / dir-fd primitives |
-| 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, at/below a temp root, skill dir, git work tree, not owned) |
+| 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, at/below a temp root, skill dir, git work tree, not owned, overlaps an input, unmarked root holding output-named files) |
 
 A failing adapter never aborts the run: its store or file is skipped or quarantined, and
 the run ends `partial`.

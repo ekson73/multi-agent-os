@@ -413,6 +413,7 @@ class Ctx:
         self.excluded_roots: List[str] = []
         self.excluded_files: set = set()
         self.explicit: set = set()                        # canonical paths of user-supplied exports
+        self.export_paths: set = set()                    # every supplied export (never an output target)
         self.walked: Dict[str, os.stat_result] = {}       # source path -> lstat taken while listing
         self.root_refused: set = set()                    # store ids whose root is/passes through a link
         self.receipt: Dict[str, Counter] = defaultdict(Counter)
@@ -1109,9 +1110,17 @@ def load_brain(ctx: Ctx, store: "Store", files: List[str], sid: str) -> tuple:
     return meta, msgs
 
 
+def _over_cap(span: str, cap: int) -> bool:
+    """A decoded record's UTF-8 size against the byte cap (characters first: cheap and exact
+    when the span is ASCII-sized)."""
+    return len(span) > cap or (len(span) * 4 > cap and len(span.encode("utf-8")) > cap)
+
+
 def iter_json_array(ctx: Ctx, store: str, path: str, fh) -> Iterator[Tuple[int, dict]]:
     """Stream the elements of a top-level JSON array without loading the whole document.
-    Bytes decode strictly: invalid UTF-8 is quarantined, never replaced."""
+    Fail closed: the document must be exactly one array (`[`, elements separated by `,`, `]`,
+    then only whitespace); bytes decode strictly (invalid UTF-8 is quarantined, never
+    replaced); every decoded element is held to the record byte cap."""
     dec, buf, pos, idx, eof = json.JSONDecoder(), "", 0, 0, False
     reader = io.TextIOWrapper(fh, encoding="utf-8", errors="strict")
     cap = ctx.limits["max_record_bytes"]
@@ -1128,42 +1137,76 @@ def iter_json_array(ctx: Ctx, store: str, path: str, fh) -> Iterator[Tuple[int, 
         pos = 0
         return True
 
-    try:
-        if not fill():
-            return
+    def skip_ws() -> bool:
+        """Advance past whitespace (refilling); True when a character or EOF is reached."""
+        nonlocal pos
         while True:
+            while pos < len(buf) and buf[pos] in " \t\r\n":
+                pos += 1
+            if pos < len(buf) or eof:
+                return True
+            if not fill():
+                return False
+
+    try:
+        if not fill() or not skip_ws():
+            return
+        if pos >= len(buf) or buf[pos] != "[":
+            ctx.quarantine_(store, path, "not-a-json-array", 1)
+            return
+        pos += 1
+        if not skip_ws():
+            return
+        if pos < len(buf) and buf[pos] == "]":
+            pos += 1
+        else:
             while True:
-                while pos < len(buf) and buf[pos] in " \t\r\n,[":
+                while True:  # one element, refilling until it decodes
+                    if pos >= len(buf):
+                        ctx.quarantine_(store, path, "malformed-json", idx + 1)
+                        return
+                    try:
+                        obj, end = dec.raw_decode(buf, pos)
+                        break
+                    except ValueError:
+                        if eof:
+                            ctx.quarantine_(store, path, "malformed-json", idx + 1)
+                            return
+                        if len(buf) - pos > cap:
+                            ctx.quarantine_(store, path, "record-over-size-cap", idx + 1)
+                            return
+                        if not fill():
+                            return
+                idx += 1
+                span, pos = buf[pos:end], end
+                if ctx.records_total >= ctx.limits["max_records"]:
+                    ctx.quarantine_(store, path, "run-record-cap", idx)
+                    return
+                ctx.records_total += 1
+                if _over_cap(span, cap):  # decoded in one chunk, but still larger than the cap
+                    ctx.quarantine_(store, path, "record-over-size-cap", idx)
+                elif isinstance(obj, dict):
+                    ctx.receipt[store]["records_parsed"] += 1
+                    yield idx, obj
+                else:
+                    ctx.quarantine_(store, path, "non-object-record", idx)
+                del span, obj
+                if not skip_ws():
+                    return
+                if pos < len(buf) and buf[pos] == ",":
                     pos += 1
-                if pos < len(buf) or eof:
+                    if not skip_ws():
+                        return
+                    continue
+                if pos < len(buf) and buf[pos] == "]":
+                    pos += 1
                     break
-                if not fill():
-                    return
-            if pos >= len(buf) or buf[pos] == "]":
+                ctx.quarantine_(store, path, "malformed-json", idx + 1)
                 return
-            try:
-                obj, end = dec.raw_decode(buf, pos)
-            except ValueError:
-                if eof:
-                    ctx.quarantine_(store, path, "malformed-json", idx + 1)
-                    return
-                if len(buf) - pos > cap:
-                    ctx.quarantine_(store, path, "record-over-size-cap", idx + 1)
-                    return
-                if not fill():
-                    return
-                continue
-            idx += 1
-            pos = end
-            if ctx.records_total >= ctx.limits["max_records"]:
-                ctx.quarantine_(store, path, "run-record-cap", idx)
-                return
-            ctx.records_total += 1
-            if isinstance(obj, dict):
-                ctx.receipt[store]["records_parsed"] += 1
-                yield idx, obj
-            else:
-                ctx.quarantine_(store, path, "non-object-record", idx)
+        if not skip_ws():
+            return
+        if pos < len(buf):
+            ctx.quarantine_(store, path, "trailing-data", idx + 1)
     finally:
         try:
             reader.detach()  # the caller owns the underlying descriptor
@@ -1299,11 +1342,12 @@ class Unit:
 
 
 class Store:
-    def __init__(self, sid: str, provider: str, clients: str, root: str, fmt: str, account: str,
+    def __init__(self, sid: str, provider: str, clients: str, root, fmt: str, account,
                  kind: str = "local-cache", status: Optional[str] = None, reason: str = "",
                  coverage: str = "full", verified: str = ""):
-        self.id, self.provider, self.clients, self.root, self.fmt = sid, provider, clients, root, fmt
-        self.account, self.kind, self.status, self.reason = account, kind, status, reason
+        self.id, self.provider, self.clients, self.fmt = sid, provider, clients, fmt
+        self._root, self._account = root, account      # str, or a thunk resolved on first use
+        self.kind, self.status, self.reason = kind, status, reason
         self.coverage, self.verified = coverage, verified
         self.evidence: Dict[str, object] = {}
         self.enumerate: Optional[Callable[[], object]] = None
@@ -1312,6 +1356,18 @@ class Store:
         self._units: Optional[List[Unit]] = None
         self._stream: Optional[Iterator[Unit]] = None
         self._buffer: List[Unit] = []
+
+    @property
+    def root(self) -> str:
+        if callable(self._root):
+            self._root = self._root()
+        return self._root
+
+    @property
+    def account(self) -> str:
+        if callable(self._account):
+            self._account = self._account()
+        return self._account
 
     def units(self) -> List[Unit]:
         if self._units is None:
@@ -1365,6 +1421,17 @@ def fingerprint(ctx: Ctx, identifier: Optional[str]) -> str:
     return ctx.opaque("acct-", identifier) if identifier else "acct-not-recorded"
 
 
+def _once(fn: Callable[[], object]) -> Callable[[], object]:
+    """A memoized thunk: store metadata is read on first use, never while the list is built."""
+    box: List[object] = []
+
+    def get():
+        if not box:
+            box.append(fn())
+        return box[0]
+    return get
+
+
 def _file_unit(ctx: Ctx, store: Store, path: str, loader: Callable[[object], tuple], whole: bool = False) -> Unit:
     def load():
         h = ctx.admit(store.id, path, whole_record=whole)
@@ -1376,7 +1443,10 @@ def _file_unit(ctx: Ctx, store: Store, path: str, loader: Callable[[object], tup
     return Unit(path, load, ctx.mtime(path))
 
 
-def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
+def build_stores(ctx: Ctx, exports: List[Tuple[str, str]], scope: Optional[List[str]] = None) -> List[Store]:
+    """The store list. Building it reads nothing: account ids, alternative roots and import maps
+    are read on first use, and stores outside `scope` (a --surface filter) are dropped here, so
+    an out-of-scope store is never touched."""
     home = ctx.home
     J = lambda *p: os.path.join(home, *p)  # noqa: E731
     app = J("Library", "Application Support")
@@ -1386,7 +1456,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
     kinds_supplied = {k for k, _ in exports}
     stores: List[Store] = []
 
-    claude_acct = fingerprint(ctx, _json_field(ctx, J(".claude.json"), "oauthAccount", "accountUuid"))
+    claude_acct = _once(lambda: fingerprint(ctx, _json_field(ctx, J(".claude.json"), "oauthAccount", "accountUuid")))
     root = J(".claude", "projects")
     s = Store("claude-code/projects", "anthropic",
               "anthropic.claude-code, anthropic.claude-desktop, anthropic.claude-sdk",
@@ -1397,18 +1467,18 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
         for f in ctx.walk(s.id, root, lambda r, n: bool(claude_main.match(r) or claude_sub.match(r)))]
     stores.append(s)
 
-    cow = next((c for c in (os.path.join(app, "Claude", "local-agent-mode-sessions"),
-                            J(".config", "Claude", "local-agent-mode-sessions")) if ctx.probe_dir(c) == "dir"),
-               os.path.join(app, "Claude", "local-agent-mode-sessions"))
-    s = Store("claude-desktop/cowork", "anthropic", "anthropic.claude-desktop-cowork", cow,
+    cow_candidates = (os.path.join(app, "Claude", "local-agent-mode-sessions"),
+                      J(".config", "Claude", "local-agent-mode-sessions"))
+    s = Store("claude-desktop/cowork", "anthropic", "anthropic.claude-desktop-cowork",
+              _once(lambda: next((c for c in cow_candidates if ctx.probe_dir(c) == "dir"), cow_candidates[0])),
               "jsonl records under <vm>/.claude/projects", claude_acct, verified="record version 2.x")
 
-    def _cow(s=s, cow=cow):
+    def _cow(s=s):
         def keep(r, n):
             part = r.replace(os.sep, "/").split("/.claude/projects/", 1)
             return len(part) == 2 and bool(claude_main.match(part[1]) or claude_sub.match(part[1]))
         return [_file_unit(ctx, s, f, lambda fh, f=f: load_claude(ctx, s, f, fh, "anthropic.claude-desktop-cowork"))
-                for f in ctx.walk(s.id, cow, keep)]
+                for f in ctx.walk(s.id, s.root, keep)]
     s.enumerate = _cow
     stores.append(s)
 
@@ -1421,17 +1491,21 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
 
     codex = J(".codex")
     imported: Dict[str, str] = {}
-    raw = ctx.read_small(os.path.join(codex, "external_agent_session_imports.json"))
-    if raw is not None:
-        try:
-            doc = json.loads(raw)
-            recs = doc.get("records") if isinstance(doc, dict) else None
-            for rec in recs if isinstance(recs, list) else []:
-                if isinstance(rec, dict) and rec.get("imported_thread_id"):
-                    imported[str(rec["imported_thread_id"])] = (
-                        "claude-code" if "/.claude/" in str(rec.get("source_path") or "") else "external")
-        except ValueError:
-            pass
+
+    def _imports() -> int:
+        raw = ctx.read_small(os.path.join(codex, "external_agent_session_imports.json"))
+        if raw is not None:
+            try:
+                doc = json.loads(raw)
+                recs = doc.get("records") if isinstance(doc, dict) else None
+                for rec in recs if isinstance(recs, list) else []:
+                    if isinstance(rec, dict) and rec.get("imported_thread_id"):
+                        imported[str(rec["imported_thread_id"])] = (
+                            "claude-code" if "/.claude/" in str(rec.get("source_path") or "") else "external")
+            except ValueError:
+                pass
+        return len(imported)
+    imports = _once(_imports)
     rollout = re.compile(r"^rollout-[0-9T:.-]+-" + UUID + r"\.jsonl$")
     for sub in ("sessions", "archived_sessions"):
         root = os.path.join(codex, sub)
@@ -1439,10 +1513,12 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
                   "openai.codex-ide, openai.codex-sdk", root,
                   "jsonl rollout (session_meta / response_item / event_msg …)",
                   "acct-not-recorded (auth store holds credentials; not read)", verified="cli_version 0.x")
-        s.enumerate = lambda s=s, root=root: [
-            _file_unit(ctx, s, f, lambda fh, f=f: load_codex(ctx, s, f, fh, imported))
-            for f in ctx.walk(s.id, root, lambda r, n: bool(rollout.match(n)))]
-        s.evidence["imported_duplicates_known"] = len(imported)
+
+        def _codex(s=s, root=root):
+            s.evidence["imported_duplicates_known"] = imports()
+            return [_file_unit(ctx, s, f, lambda fh, f=f: load_codex(ctx, s, f, fh, imported))
+                    for f in ctx.walk(s.id, root, lambda r, n: bool(rollout.match(n)))]
+        s.enumerate = _codex
         stores.append(s)
     stores.append(Store("codex/cloud-tasks", "openai", "openai.codex-cloud", "cloud", "cloud-hosted",
                         "acct-not-recorded", kind="cloud", status="unavailable", coverage="none",
@@ -1465,7 +1541,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
 
     gtmp = J(".gemini", "tmp")
     s = Store("gemini-cli/tmp", "google", "google.gemini-cli", gtmp, "json / jsonl chat recordings (session-*)",
-              fingerprint(ctx, _json_field(ctx, J(".gemini", "google_accounts.json"), "active")),
+              _once(lambda: fingerprint(ctx, _json_field(ctx, J(".gemini", "google_accounts.json"), "active"))),
               verified="json {sessionId,messages}; jsonl header + $set/$rewindTo")
 
     def _gem(s=s, gtmp=gtmp):
@@ -1555,18 +1631,26 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
                             reason="trajectory summaries live in opaque state-DB blobs; not parsed"))
 
     cg = os.path.join(app, "com.openai.chat")
-    conv_dirs = [d for d in ctx.listdir(cg) if d.startswith("conversations-v3-")]
-    acct = fingerprint(ctx, conv_dirs[0][len("conversations-v3-"):]) if conv_dirs else "acct-not-recorded"
-    s = Store("chatgpt/desktop-cache", "openai", "openai.chatgpt-desktop", cg, "encrypted *.data", acct)
-    s.evidence["conversation_dirs"] = len(conv_dirs)
+    s = Store("chatgpt/desktop-cache", "openai", "openai.chatgpt-desktop", cg, "encrypted *.data", None)
+
+    def _cg_acct(s=s, cg=cg):
+        dirs = [d for d in ctx.listdir(cg) if d.startswith("conversations-v3-")]
+        s.evidence["conversation_dirs"] = len(dirs)
+        return fingerprint(ctx, dirs[0][len("conversations-v3-"):]) if dirs else "acct-not-recorded"
+    cg_acct = _once(_cg_acct)
+    s._account = cg_acct
     stores.append(s)
     if "chatgpt" not in kinds_supplied:
         stores.append(Store("chatgpt/export", "openai", "openai.chatgpt-export", "cloud",
-                            "conversations.json (or export .zip)", acct, kind="export", status="unavailable",
+                            "conversations.json (or export .zip)", cg_acct, kind="export", status="unavailable",
                             coverage="none", reason="export-only: not requested"))
 
     seen_exports: set = set()
     for n, (kind, path) in enumerate(exports, 1):
+        vendor = {"chatgpt": "openai", "claude-ai": "anthropic"}[kind]
+        surface = {"chatgpt": "openai.chatgpt-export", "claude-ai": "anthropic.claude-ai-export"}[kind]
+        if scope and not any(surface.startswith(f) for f in scope):
+            continue  # an out-of-scope export is not even stat'ed
         p = os.path.realpath(os.path.expanduser(path))  # the user named this file: resolved once, here
         if p in seen_exports:
             continue
@@ -1578,8 +1662,6 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
         if lst is not None and stat.S_ISREG(lst.st_mode):
             ctx.explicit.add(p)
             ctx.walked[p] = lst  # the later open must reach this same (dev, inode)
-        vendor = {"chatgpt": "openai", "claude-ai": "anthropic"}[kind]
-        surface = {"chatgpt": "openai.chatgpt-export", "claude-ai": "anthropic.claude-ai-export"}[kind]
         # a private per-export identity: equal conversation ids in two archives never collide
         ident_src = "export:%s:%d:%d:%d" % (p, lst.st_dev, lst.st_ino, lst.st_size) if lst else "export:" + p
         s = Store("export/%s/%d" % (kind, n), vendor, surface, os.path.dirname(p),
@@ -1601,7 +1683,7 @@ def build_stores(ctx: Ctx, exports: List[Tuple[str, str]]) -> List[Store]:
                     ctx.quarantine_(s.id, p, "file-changed-during-read")
         s.enumerate = _exp
         stores.append(s)
-    return stores
+    return [s for s in stores if store_in_scope(s, scope)]
 
 
 def assess(ctx: Ctx, store: Store) -> Store:
@@ -1736,6 +1818,32 @@ def temp_roots() -> set:
     return out
 
 
+# Every location a store or its metadata is read from, relative to --home (kept in step with
+# build_stores; the suite checks that every store root lies inside one of these).
+INPUT_PATHS = (os.path.join(".claude", "projects"), ".claude.json",
+               os.path.join("Library", "Application Support", "Claude", "local-agent-mode-sessions"),
+               os.path.join(".config", "Claude", "local-agent-mode-sessions"), ".codex",
+               os.path.join(".omp", "agent", "sessions"), os.path.join(".prime", "agent", "sessions"), ".gemini",
+               os.path.join("Library", "Application Support", "Antigravity"),
+               os.path.join("Library", "Application Support", "Antigravity IDE"),
+               os.path.join("Library", "Application Support", "com.openai.chat"))
+RESERVED_OUTPUTS = ("run-manifest.json", "quarantine.jsonl", "sessions.jsonl", "security-findings.jsonl",
+                    ".catalog-key")
+
+
+def _within(p: str, root: str) -> bool:
+    return p == root or p.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def input_paths(ctx: Ctx) -> set:
+    """Inputs, lexical and canonical: every supplied export and every store location under the
+    home anchor (whose canonical form is fixed by the no-follow policy, so nothing is stat'ed)."""
+    out = set(ctx.export_paths)
+    for relp in INPUT_PATHS:
+        out |= {os.path.join(ctx.home, relp), os.path.join(ctx.home_real, relp)}
+    return out
+
+
 def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, int]:
     """Canonicalize an output directory (every existing ancestor resolved), refuse the policy
     violations on BOTH the requested and the canonical path, create it 0700 and return
@@ -1756,6 +1864,9 @@ def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, in
     skill = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if any(p == skill or p.startswith(skill + os.sep) for p in both):
         die("refusing %s %s: inside the session-catalog skill directory" % (what, shown), "blocked")
+    if own and any(_within(p, i) or _within(i, p) for p in both for i in input_paths(ctx)):
+        die("refusing %s %s: it overlaps an input (a store root, a harness metadata file or a supplied export)"
+            % (what, shown), "blocked")
     repo = in_git_worktree(canon) or in_git_worktree(lexical)
     if repo:
         die("refusing to write inside a git work tree (%s); session data must stay private" % rel(ctx.home, repo),
@@ -1827,6 +1938,19 @@ def _proc_start(pid: int) -> Optional[str]:
     return r.stdout.strip()[:64] or None
 
 
+def _pid_alive(pid: int) -> bool:
+    """Signal 0 checks existence without delivering anything."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    except (OverflowError, OSError):
+        return False
+    return True
+
+
 class OutputLock:
     """One run per output root: O_EXCL lock file with pid + process start time + host."""
     NAME = ".lock"
@@ -1848,12 +1972,24 @@ class OutputLock:
                 except (OSError, ValueError):
                     owner = {}
                 owner = owner if isinstance(owner, dict) else {}
-                same_host = owner.get("host") == me["host"]
-                alive = same_host and owner.get("pid") and _proc_start(owner["pid"]) == owner.get("start")
-                if alive or not same_host or not owner:
-                    die("output root is locked by another run (pid %s on %s)" % (owner.get("pid"), owner.get("host")),
-                        "blocked")
-                os.unlink(self.NAME, dir_fd=self.dfd)  # stale: recorded pid is gone or its start time differs
+                pid = owner.get("pid")
+                if not (isinstance(pid, int) and not isinstance(pid, bool) and pid > 0 and owner.get("host")):
+                    # empty or unreadable: a run that died between creating and writing it, or garbage
+                    try:
+                        age = time.time() - os.stat(self.NAME, dir_fd=self.dfd, follow_symlinks=False).st_mtime
+                    except OSError:
+                        age = 0.0
+                    if age < 60:
+                        die("output root lock is being written by another run", "blocked")
+                    os.unlink(self.NAME, dir_fd=self.dfd)
+                    continue
+                if owner["host"] != me["host"]:
+                    die("output root is locked by a run on another host (%s)" % owner["host"], "blocked")
+                if _pid_alive(pid):
+                    started = _proc_start(pid)  # None when `ps` is unavailable: then trust the pid
+                    if started is None or owner.get("start") is None or started == owner.get("start"):
+                        die("output root is locked by another run (pid %s on %s)" % (pid, owner["host"]), "blocked")
+                os.unlink(self.NAME, dir_fd=self.dfd)  # stale: the pid is gone, or was reused by another process
                 continue
             with os.fdopen(fd, "w") as fh:
                 fh.write(json.dumps(me))
@@ -1882,7 +2018,12 @@ def findings_target(ctx: Ctx, spec: Optional[str]) -> Tuple[int, str]:
     if name in ("", ".", "..") or os.path.islink(path):
         die("refusing --security-findings %s: not a plain file path" % rel(ctx.home, path), "blocked")
     parent, fd = open_private_dir(ctx, os.path.dirname(path), "--security-findings directory", own=False)
-    ctx.excluded_files.add(os.path.join(parent, name))
+    target = os.path.join(parent, name)
+    if any(_within(p, i) for p in (path, target) for i in input_paths(ctx)):
+        os.close(fd)
+        die("refusing --security-findings %s: it is, or lies inside, an input (a store root, a harness metadata "
+            "file or a supplied export) and would be replaced" % rel(ctx.home, path), "blocked")
+    ctx.excluded_files.add(target)
     return fd, name
 
 
@@ -2198,8 +2339,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             setattr(args, key, iso(v if "T" in v else v + "T00:00:00Z") or die("invalid --%s" % key, "usage"))
     if args.cmd != "stores" and not args.out:
         die("%s needs an explicit --out <private dir>" % args.cmd, "usage")
-    if args.cmd == "extract" and not (args.project or args.mention):
-        die("extract needs --project and/or --mention (topic scoping is mandatory)", "usage")
+    if args.cmd in ("index", "extract") and not (args.project or args.mention):
+        die("%s needs --project and/or --mention (topic scoping is mandatory)" % args.cmd, "usage")
     exports = []
     for e in args.export:
         kind, _, path = e.partition("=")
@@ -2216,10 +2357,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         high_water = now - PAST_HORIZON
     home = os.path.abspath(os.path.expanduser(args.home))
     ctx = Ctx(home, high_water, {k: getattr(args, k) for k in LIMITS}, args.exclude_path, secrets.token_bytes(32))
+    ctx.export_paths = {os.path.realpath(os.path.expanduser(p)) for _, p in exports}  # every one, in scope or not
     try:
         if args.cmd == "stores":
             return cmd_stores(ctx, args, [assess(ctx, s) for s in build_stores(ctx, exports)])
         out, ctx.out_fd = open_private_dir(ctx, args.out, "output root", own=True)
+        if not _exists_at(ctx.out_fd, MARKER) and any(_exists_at(ctx.out_fd, n) for n in RESERVED_OUTPUTS):
+            die("refusing output root %s: it already holds files named like catalog outputs that this tool did "
+                "not write (no marker)" % rel(ctx.home, out), "blocked")
         ctx.excluded_roots.append(out)
         ensure_marker(ctx.out_fd)
         lock = OutputLock(ctx.out_fd)
@@ -2227,8 +2372,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         try:
             ctx.key = load_key(ctx.out_fd)
             ctx.findings_at = findings_target(ctx, args.security_findings)
-            scope = surface_filter(args)  # data minimization: out-of-scope stores are never read
-            stores = [assess(ctx, s) if store_in_scope(s, scope) else s for s in build_stores(ctx, exports)]
+            # data minimization: stores outside --surface are never built, so never read
+            stores = [assess(ctx, s) for s in build_stores(ctx, exports, surface_filter(args))]
             return (cmd_index if args.cmd == "index" else cmd_extract)(ctx, args, stores)
         finally:
             lock.release()
