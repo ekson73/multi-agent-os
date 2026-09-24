@@ -163,7 +163,9 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
     and `gh api repos/<owner>/<repo>/rules/branches/<branch>`, looking for `required_signatures`).
   - `rig send <session> '!<cmd>' --raw` [T1] runs a permission-free shell probe in the seat's real tool env,
     which you read back with `rig capture`. The runtime then answers the output with a model turn. Keep
-    probes to names or flags, never values, and prefer disposable seats.
+    probes to names or flags, never values, and prefer disposable seats. List names with the shell's
+    names-only builtin (`compgen -e`, or zsh `${(k)parameters[(R)*export*]}`), never with a newline-splitting
+    pipeline such as `env | cut -d= -f1`, which leaks multiline values ([`trust-gates.md`](./trust-gates.md) §4).
 
 ## 7. Checkout hygiene
 

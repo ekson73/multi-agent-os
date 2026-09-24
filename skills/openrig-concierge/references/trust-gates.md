@@ -145,13 +145,31 @@ scrub:
 Observed on OpenRig 0.5.14 with Claude Code 2.1.281: a shell-side scrub removed the secrets from (b) and (d),
 while a secret in (a) still reached every seat's tool env. Recipe for Claude Code seats:
 
-1. **Inventory names, never values, from every channel [T0].** Mark every secret-like name.
-   - (a) `jq -r '.env // {} | keys[]' ~/.claude/settings.json`
-   - (b) `tmux show-environment -g | cut -d= -f1`
-   - (c) `rig daemon status` prints the daemon's pid. On Linux: `tr '\0' '\n' </proc/<pid>/environ | cut -d= -f1`.
+1. **Inventory names, never values, from every channel [T0].** A pipeline that splits on newlines is not
+   names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
+   passes every continuation line of a multiline value through intact. Use only forms that never emit a
+   value, and mark every secret-like name:
+   - (a) keys only: `jq -r '.env // {} | keys[]' ~/.claude/settings.json`
+   - (b) and (d) together, from **inside** a pane of the same tmux server whose cwd is a desk, with the login
+     shell's own names-only builtin. That lists exactly what tmux and the shell's startup files exported,
+     without touching a value. Run it before you add the scrub (step 4) to build the list, and again after it
+     as a check:
+
+     ```bash
+     compgen -e                                   # bash: exported names only
+     print -rl -- ${(k)parameters[(R)*export*]}   # zsh: exported names only
+     ```
+
+     To find which startup file sets a name without printing its line: `grep -lw -- <NAME> <files>`.
+   - (c) `rig daemon status` prints the daemon's pid. On Linux, split `/proc/<pid>/environ` on NUL inside bash
+     and print only the part before the first `=`:
+
+     ```bash
+     while IFS= read -r -d '' kv; do printf '%s\n' "${kv%%=*}"; done < /proc/<pid>/environ
+     ```
+
      On macOS no names-only read exists (`ps` prints the environment with its values), so do not read it;
-     rely on (b), which the daemon's environment feeds, and on the live name probe in step 5.
-   - (d) read the shell startup files for exports and loaders; record the names.
+     rely on (b), which the daemon's environment feeds, and on the live probe in step 5.
 2. **Keep one names list** (the union of step 1), with no values. Every later step uses it.
 3. **Desk override for (a) [T3, show the diff].** Render an `env` object that sets each channel-(a) name to the
    empty string, and merge it into the desk's own `.claude/settings.local.json` (mode 0600, the file that
@@ -177,19 +195,20 @@ while a secret in (a) still reached every seat's tool env. Recipe for Claude Cod
    ```
 
    The harness is a child of that shell, so it starts without them.
-5. **Verify in each LIVE seat [T1], never by reading a file.** First a names-only probe for anything the list
-   missed, then a no-value probe over **every** name on the list:
+5. **Verify in each LIVE seat [T1], never by reading a file.** First enumerate the exported names in the
+   seat's own tool shell with the same builtin, filtered by the secret-name pattern, for anything the list
+   missed. Then run a value-free test over **every** name on the list:
 
    ```bash
-   rig send <session> '!env | cut -d= -f1 | grep -E "TOKEN|KEY|SECRET|PASSWORD|AUTH"' --raw
+   rig send <session> '!compgen -e | grep -E "TOKEN|KEY|SECRET|PASSWORD|AUTH"' --raw     # zsh tool shell: print -rl -- ${(k)parameters[(R)*export*]} | grep -E …
    rig send <session> '![[ -z ${NAME_A:-} && -z ${NAME_B:-} && -z ${NAME_C:-} && -z ${NAME_D:-} && -n ${CREW_DESK_SCRUB:-} ]] && echo SCRUBBED || echo NOT-SCRUBBED' --raw
    rig capture <session> --lines 20
    ```
 
    `SCRUBBED` counts only when every inventoried name is empty and the marker is set. Use `${VAR:-}`, which
-   treats set-but-empty as scrubbed. The first probe also lists names whose values are empty: judge each name it
-   prints. A new secret name goes on the list; an innocuous one (a flag, a path, an id the harness itself sets)
-   is recorded as such. The probes print no values, but each starts a model turn
+   treats set-but-empty as scrubbed. The enumeration also lists names whose values are empty: judge each name
+   it prints. A new secret name goes on the list; an innocuous one (a flag, a path, an id the harness itself
+   sets) is recorded as such. Neither probe prints a value, but each starts a model turn
    ([`external-crew.md`](./external-crew.md) step 6). A send to a busy pane waits until the pane idles.
 6. **Stop rule.** `NOT-SCRUBBED`, or an unlisted secret name, in any seat means no work: take the rig down
    with a snapshot, fix the scrub, and relaunch under a new rig name.
