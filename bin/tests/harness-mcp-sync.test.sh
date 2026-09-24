@@ -980,6 +980,87 @@ PY2
 eq "False False False True True True True" "$P5U" 'P5: config-derived paths/short words not registered; secret-looking env+header values still registered and masked'
 rm -f "$REG/hmask.yaml"
 
+# ---------------------------------------------------------------- PDCA round 4 (#4097283166 .. #4097283192)
+# 4097283166 (P1): SSOT disables a server on a no-disable harness while an UNMANAGED active entry exists
+SD4="$T/state-r4"
+mk hoff json mcpServers mcpservers-json "~/.hoff/mcp.json" true null null high
+printf '{"mcpServers":{"dsrv":{"command":"hand"},"keep":{"command":"k"}}}' > "$HOME/.hoff/mcp.json"
+cat > "$T/ssot-off.json" <<'EOF'
+{"schema":1,"servers":{"dsrv":{"transport":"stdio","command":"npx","args":["-y","d"],"enabled":false}}}
+EOF
+run_4() { o="$("$BIN" "$@" --harness hoff --registry "$REG" --state-dir "$SD4" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+H0="$(sum "$HOME/.hoff/mcp.json")"
+run_4 plan --ssot "$T/ssot-off.json"
+has 'disabled in SSOT (pass --adopt dsrv to remove it)' "$o" '#4097283166: plan reports the still-active unmanaged entry as a conflict'
+run_4 apply --ssot "$T/ssot-off.json"
+eq 1 "$rc" '#4097283166: apply without --adopt exits 1 (conflict), not a silent success'
+eq "$H0" "$(sum "$HOME/.hoff/mcp.json")" '#4097283166: unmanaged entry NOT silently deleted'
+run_4 apply --ssot "$T/ssot-off.json" --adopt dsrv
+eq 0 "$rc" '#4097283166: apply --adopt dsrv exits 0'
+RO="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hoff/mcp.json")"
+eq "['keep']" "$RO" '#4097283166: --adopt removes only the disabled entry; siblings preserved'
+run_4 plan --ssot "$T/ssot-off.json" --json
+hasnt '"conflict"' "$o" '#4097283166: re-plan after adopt-removal is clean'
+rm -f "$REG/hoff.yaml"
+
+# 4097283179 (P1): a MANAGED server later disabled (no disable flag) -> verify flags it, like plan
+SD5="$T/state-r4v"
+mk hdv json mcpServers mcpservers-json "~/.hdv/mcp.json" true null null high
+cat > "$T/ssot-on.json" <<'EOF'
+{"schema":1,"servers":{"dsrv":{"transport":"stdio","command":"npx","args":["-y","d"]}}}
+EOF
+run_5() { o="$("$BIN" "$@" --harness hdv --registry "$REG" --state-dir "$SD5" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+run_5 apply --ssot "$T/ssot-on.json"; eq 0 "$rc" '#4097283179: setup apply (managed)'
+run_5 verify --ssot "$T/ssot-on.json"; eq 0 "$rc" '#4097283179: verify clean while enabled'
+run_5 verify --ssot "$T/ssot-off.json"
+eq 1 "$rc" '#4097283179: verify exits 1 once the SSOT disables it'
+has 'disabled in SSOT; harness has no disable flag (plan removes it)' "$o" '#4097283179: issue names the disable drift'
+run_5 plan --ssot "$T/ssot-off.json" --json
+has '"action": "remove"' "$o" '#4097283179: plan and verify agree (plan removes it)'
+run_5 apply --ssot "$T/ssot-off.json"
+run_5 verify --ssot "$T/ssot-off.json"
+eq 0 "$rc" '#4097283179: after apply removes it, verify is clean'
+SHARED="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,sys
+m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+h={"mcp":{"transports":["stdio"],"supports":{"disable":False}}}
+cases=[({"transport":"stdio","enabled":False},"omit"),({"transport":"stdio"},"render"),
+       ({"transport":"sse"},"skip"),({"transport":"stdio","harnesses":{"exclude":["x"]}},"not-applicable")]
+print(all(m.desired_disposition(h,"x",r)[0]==k for r,k in cases))
+PY2
+)"
+eq True "$SHARED" '#4097283179: plan and verify share one desired_disposition helper'
+rm -f "$REG/hdv.yaml"
+
+# 4097283192 (P2): native TOML dates/datetimes in UNRELATED settings do not break apply
+SD6="$T/state-r4t"
+mk htd toml mcp_servers codex "~/.htd/config.toml" true enabled enabled-bool high
+printf 'model = "m"\nstamp = 2026-09-24T10:11:12Z\nday = 2026-09-24\nat = 07:30:00\n\n[other]\nwhen = 1979-05-27T07:32:00\n' > "$HOME/.htd/config.toml"
+chmod 600 "$HOME/.htd/config.toml"
+run_6() { o="$("$BIN" "$@" --harness htd --registry "$REG" --state-dir "$SD6" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+run_6 apply --ssot "$T/ssot-on.json"
+eq 0 "$rc" '#4097283192: apply on a TOML config with native date/datetime/time exits 0'
+hasnt 'TypeError' "$o" '#4097283192: no TypeError from JSON-encoding TOML dates'
+TD="$(python3 - "$HOME/.htd/config.toml" <<'PY2'
+import sys,tomllib,datetime as d
+doc=tomllib.load(open(sys.argv[1],"rb"))
+print("dsrv" in doc["mcp_servers"], isinstance(doc["stamp"],d.datetime), isinstance(doc["day"],d.date),
+      isinstance(doc["at"],d.time), doc["other"]["when"]==d.datetime(1979,5,27,7,32))
+PY2
+)"
+eq "True True True True True" "$TD" '#4097283192: entry written; unrelated native date/datetime/time values preserved'
+run_6 apply --ssot "$T/ssot-on.json"
+has 'nothing-to-do' "$o" '#4097283192: re-apply is idempotent'
+CN="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,sys,datetime as d
+m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+print(m.entry_hash({"a":d.date(2026,9,24)})!=m.entry_hash({"a":"2026-09-24"}),
+      m.entry_hash({"a":d.date(2026,9,24)})==m.entry_hash({"a":d.date(2026,9,24)}))
+PY2
+)"
+eq "True True" "$CN" '#4097283192: a native date never hashes equal to its ISO string'
+rm -f "$REG/htd.yaml"
+
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
 OUTSIDE="$(python3 - "$T" "$ALLOUT" <<'PY'

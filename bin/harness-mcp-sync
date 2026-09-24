@@ -221,8 +221,16 @@ def masked_preview(obj, parent=None):
 
 
 # --------------------------------------------------------------------------- small utils
+def _canon_scalar(o):
+    # TOML (tomllib) yields native date/datetime/time; JSON cannot encode them. Tag with the type so
+    # a date and an equal-looking string never compare equal.
+    if isinstance(o, (_dt.datetime, _dt.date, _dt.time)):
+        return {"$toml": type(o).__name__, "v": o.isoformat()}
+    raise TypeError("not canonicalizable: %s" % type(o).__name__)
+
+
 def canon(obj) -> str:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_canon_scalar)
 
 
 def entry_hash(obj) -> str:
@@ -1085,6 +1093,26 @@ def server_applies(hid: str, srv: dict) -> bool:
     return any(fnmatch.fnmatch(hid, p) for p in inc) and not any(fnmatch.fnmatch(hid, p) for p in exc)
 
 
+def desired_disposition(h: dict, hid: str, raw: dict) -> tuple[str, str | None]:
+    """ONE decision of what the SSOT wants for server `raw` on harness `hid`, shared by plan and
+    verify so the two cannot diverge. Returns (kind, reason); kind is one of:
+    "not-applicable" (selector excludes it), "skip" (cannot be rendered here: leave untouched),
+    "omit" (disabled in SSOT, harness has no disable flag: must be absent), "render"."""
+    m = h["mcp"]
+    sup = m.get("supports") or {}
+    if not server_applies(hid, raw):
+        return "not-applicable", "excluded from this harness by its SSOT selector"
+    t = raw["transport"]
+    if not transport_ok(t, m.get("transports")):
+        return "skip", "transport %s unsupported by harness" % t
+    if t != "stdio" and raw.get("headers") and not sup.get("headers"):
+        return "skip", ("warn: harness lacks header support; remote server skipped "
+                        "(a header-less entry would trigger OAuth)")
+    if raw.get("enabled", True) is False and not sup.get("disable"):
+        return "omit", "disabled in SSOT; harness has no disable flag -> not written"
+    return "render", None
+
+
 def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
     results, seen_paths = [], {}
     for hid in ids:
@@ -1142,16 +1170,24 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
         desired_names = set()
         for name, raw in ssot["servers"].items():
             act = {"server": name}
-            if not server_applies(hid, raw):
+            kind, why = desired_disposition(h, hid, raw)
+            if kind == "not-applicable":
                 continue
-            t = raw["transport"]
-            if not transport_ok(t, m.get("transports")):
-                act.update(action="skip", reason="transport %s unsupported by harness" % t)
-            elif t != "stdio" and raw.get("headers") and not sup.get("headers"):
-                act.update(action="skip", reason="warn: harness lacks header support; remote server skipped "
-                                                 "(a header-less entry would trigger OAuth)")
-            elif raw.get("enabled", True) is False and not sup.get("disable"):
-                act.update(action="omit", reason="disabled in SSOT; harness has no disable flag -> not written")
+            if kind in ("skip", "omit"):
+                act.update(action=kind, reason=why)
+                if kind == "omit" and name in existing and name not in owned:
+                    # An unmanaged ACTIVE entry of a server the SSOT disables: never silently kept,
+                    # never silently deleted. Report it; remove only with explicit --adopt.
+                    if name in adopt:
+                        r["actions"].append(act)
+                        act = {"server": name, "action": "remove",
+                               "reason": "disabled in SSOT; adopted unmanaged entry removed"}
+                        r["_drops"].add(name)
+                    else:
+                        r["actions"].append(act)
+                        act = {"server": name, "action": "conflict",
+                               "reason": "conflict:unmanaged entry still active but disabled in SSOT "
+                                         "(pass --adopt %s to remove it)" % name}
             elif in_git and carries_secret(raw):
                 act.update(action="skip", reason="config is %s in a git work tree (could leak via commit); "
                                                  "server carries secret material (headers/env/secret args/URL "
@@ -1559,10 +1595,13 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
                 e["issues"].append("%s: content drift vs manifest" % name)
             if ssot is not None:
                 srv = ssot["servers"].get(name)
+                kind = desired_disposition(h, hid, srv)[0] if srv is not None else None
                 if srv is None:
                     e["issues"].append("%s: not in SSOT" % name)
-                elif not server_applies(hid, srv):
+                elif kind == "not-applicable":
                     e["issues"].append("%s: excluded from this harness by its SSOT selector (plan removes it)" % name)
+                elif kind == "omit":
+                    e["issues"].append("%s: disabled in SSOT; harness has no disable flag (plan removes it)" % name)
                 elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
                     e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)
             for ck, cv in cur.items():
