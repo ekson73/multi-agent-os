@@ -112,7 +112,13 @@ function shrRelay(excText) {
     // detached => own process group; after spawnSync returns (leader killed on timeout) the whole group is killed too
     const sp = shrSpawnArgs(h.bin, argv);
     if (!sp) { err(`self-heal-relay: ${name} skipped (a Windows shim with unsafe characters in its arguments)`); continue; }
-    const r = _shr.cp.spawnSync(sp.cmd, sp.args, { ...sp.opts, input, encoding: "utf8", detached: process.platform !== "win32", timeout: shrTimeoutMs(), killSignal: "SIGKILL" });
+    // POSIX: spawnSync blocks the event loop, so no JS signal handler can run and a SIGTERM/SIGINT/SIGKILL to this process would orphan the detached harness.
+    // A tiny /bin/sh guard shares the harness' process group and kills that whole group as soon as this process disappears (polled once a second).
+    let cmd = sp.cmd, args = sp.args;
+    if (process.platform !== "win32") {
+      args = ["-c", 'P=$1; shift; ( while kill -0 "$P" 2>/dev/null; do sleep 1; done; kill -KILL 0 ) & W=$!; "$@"; rc=$?; kill "$W" 2>/dev/null; exit $rc', "sh", String(process.pid), cmd, ...args]; cmd = "/bin/sh";
+    }
+    const r = _shr.cp.spawnSync(cmd, args, { ...sp.opts, input, encoding: "utf8", detached: process.platform !== "win32", timeout: shrTimeoutMs(), killSignal: "SIGKILL" });
     if (r.pid) { try { if (process.platform === "win32") _shr.cp.spawnSync("taskkill", ["/T", "/F", "/PID", String(r.pid)]); else process.kill(-r.pid, "SIGKILL"); } catch (_) {} }
     if (r.status === 0 && (r.stdout || "").trim()) {
       const clean = r.stdout.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ""); // strip ANSI
