@@ -1,0 +1,1464 @@
+#!/usr/bin/env python3
+# MAOS — harness-mcp-sync · one vendor-neutral SSOT of MCP servers -> every installed AI harness
+# Function: read the harness adapter registry (harnesses/<id>.yaml, data-only) + an SSOT JSON of
+#   MCP server definitions, then explain / inventory / doctor / plan / apply / verify / restore /
+#   update the per-harness MCP config files. `plan` is the default shape of every write path and
+#   never writes; `apply` writes only non-empty plans (backup -> atomic write -> parse-back).
+# Ownership: a manifest in the state dir records which server names this tool owns per config
+#   file (+ content hash). Nothing is ever injected into harness configs (many schemas reject
+#   unknown keys). An existing entry whose name is NOT owned is a conflict unless --adopt NAME.
+# Secrets: `${NAME}` / `op://...` placeholders resolve through a pluggable --resolver executable
+#   (argv[1] = ref, value on stdout). Default resolver = `${NAME}` from the environment only;
+#   `op://` without --resolver is a hard error (never guess). No vault CLI lives here.
+#   Every stdout/stderr byte passes a redactor: resolved values (and header/env values read from
+#   configs) print as «secret sha256:xxxxxxxx» in every mode, including errors.
+#   The same choke point runs mask_url() on every URL: userinfo, secret-named query params and
+#   long high-entropy path segments print as «masked» (scheme + host stay visible). Entry
+#   comparisons use hashes, never raw values.
+# Safety: low confidence / skip_reason => plan-only · no headers support => remote skipped ·
+#   no disable support => disabled servers omitted · config TRACKED or untracked-not-ignored in a
+#   git work tree => no secret literals written (git-ignored files are allowed) · jsonc/yaml with comments => refused without --allow-comment-loss ·
+#   TOML is edited surgically (only managed tables), validated before and after.
+# Portability: Python 3.11+ stdlib + PyYAML. AAIF cross-vendor — no host-specific content.
+# Exit codes ([C06]): 0 ok · 1 drift / validation / refused · 2 usage / setup.
+from __future__ import annotations
+
+import argparse
+import copy
+import datetime as _dt
+import fnmatch
+import hashlib
+import hmac
+import stat
+import io
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    tomllib = None
+try:
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover
+    yaml = None
+
+EXIT_OK, EXIT_DRIFT, EXIT_USAGE = 0, 1, 2
+MODES = ("explain", "inventory", "doctor", "plan", "apply", "verify", "restore", "update")
+TRANSPORTS = ("stdio", "streamable-http", "http", "sse")
+SECRET_CONTAINERS = {"headers", "http_headers", "env", "envs", "environment"}
+PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|(op://[^\s\"'}]+)")
+NAME_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,128}$")
+
+
+class UsageError(Exception):
+    """Setup/usage problem -> exit 2."""
+
+
+class Refused(Exception):
+    """Validation / refusal -> exit 1."""
+
+
+# --------------------------------------------------------------------------- redaction
+def sha8(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:8]
+
+
+SECRET_MASK = "«secret»"
+
+
+def mask(value: str) -> str:
+    """Opaque mask. Deliberately NO hash: a digest of a short / low-entropy secret
+    is a brute-force oracle, and nothing in the output needs to compare values."""
+    return SECRET_MASK
+
+
+URL_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9+.-]*://)([^\s\"'<>«»`]+)")
+SECRET_PARAM_RE = re.compile(r"(?i)^(?:.*[_.-])?(?:key|token|secret|api_?key|auth|sig|signature|password|"
+                             r"passwd|access_token|credential)s?$")
+MASKED = "«masked»"
+
+
+def _entropy(s: str) -> float:
+    import math
+    n = len(s)
+    return -sum((c / n) * math.log2(c / n) for c in (s.count(ch) for ch in set(s)))
+
+
+def _secretish_segment(seg: str) -> bool:
+    """Long, high-entropy path segments (e.g. /s/<token>/mcp) — not ordinary words."""
+    if len(seg) < 20:
+        return False
+    classes = sum(bool(re.search(p, seg)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]"))
+    return classes >= 2 and _entropy(seg) >= 3.5
+
+
+def mask_url(url: str) -> str:
+    """Mask credentials embedded in a URL; scheme + host stay visible."""
+    m = URL_RE.match(url)
+    if not m:
+        return url
+    scheme, rest = m.group(1), m.group(2)
+    trail = ""
+    while rest and rest[-1] in ".,;:)]}":
+        trail, rest = rest[-1] + trail, rest[:-1]
+    frag = ""
+    if "#" in rest:
+        rest, frag = rest.split("#", 1)
+        frag = "#" + (MASKED if frag else "")
+    query = ""
+    if "?" in rest:
+        rest, q = rest.split("?", 1)
+        parts = []
+        for kv in q.split("&"):
+            k, sep, v = kv.partition("=")
+            parts.append(k + sep + (MASKED if sep and v and SECRET_PARAM_RE.match(k) else v))
+        query = "?" + "&".join(parts)
+    auth, slash, path = rest.partition("/")
+    if "@" in auth:
+        auth = MASKED + "@" + auth.rsplit("@", 1)[1]
+    if slash:
+        path = "/".join(MASKED if _secretish_segment(s) else s for s in path.split("/"))
+    return scheme + auth + slash + path + query + frag + trail
+
+
+class Redactor(io.TextIOBase):
+    """Wraps a text stream; replaces every registered secret substring with its mask."""
+
+    secrets: set[str] = set()
+
+    def __init__(self, stream):
+        self._s = stream
+
+    @classmethod
+    def register(cls, value):
+        """Every secret of length >= 1 is registered, plus its JSON-escaped forms
+        (a value with '"', '\\' or control chars serializes differently)."""
+        if not isinstance(value, str) or not value:
+            return
+        cls.secrets.add(value)
+        for esc in (json.dumps(value)[1:-1], json.dumps(value, ensure_ascii=False)[1:-1]):
+            if esc != value:
+                cls.secrets.add(esc)
+
+    @classmethod
+    def scrub(cls, text: str) -> str:
+        """THE single choke point: every emitted string (stream AND value-level) passes here."""
+        for sec in sorted(cls.secrets, key=len, reverse=True):
+            if len(sec) >= 4:
+                if sec in text:
+                    text = text.replace(sec, SECRET_MASK)
+            else:
+                # 1-3 char secrets: mask only as a standalone token, so ordinary words
+                # are not shredded. Over-masking a coincidental token is fail-safe.
+                text = re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(sec), SECRET_MASK, text)
+        return URL_RE.sub(lambda m: mask_url(m.group(0)), text)
+
+    def write(self, s):
+        return self._s.write(self.scrub(s))
+
+    def flush(self):
+        self._s.flush()
+
+
+def register_container_values(obj):
+    """Register header/env values found anywhere in a parsed config as secrets."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in SECRET_CONTAINERS and isinstance(v, dict):
+                for vv in v.values():
+                    Redactor.register(vv if isinstance(vv, str) else None)
+            register_container_values(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            register_container_values(v)
+
+
+def redact_obj(obj):
+    """Value-level redaction BEFORE serialization (keys and values)."""
+    if isinstance(obj, str):
+        return Redactor.scrub(obj)
+    if isinstance(obj, dict):
+        return {redact_obj(k) if isinstance(k, str) else k: redact_obj(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [redact_obj(v) for v in obj]
+    return obj
+
+
+def masked_preview(obj, parent=None):
+    if isinstance(obj, dict):
+        return {k: (mask(v) if parent in SECRET_CONTAINERS and isinstance(v, str) else masked_preview(v, k))
+                for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [masked_preview(v, parent) for v in obj]
+    return obj
+
+
+# --------------------------------------------------------------------------- small utils
+def canon(obj) -> str:
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def entry_hash(obj) -> str:
+    return hashlib.sha256(canon(obj).encode("utf-8")).hexdigest()
+
+
+_SALT: bytes | None = None
+
+
+def load_salt(sd: str, create: bool = False):
+    """Per-install random salt (0600) keying the manifest HMACs; plain hashes of
+    low-entropy secrets would be brute-forceable offline."""
+    global _SALT
+    p = os.path.join(sd, "salt")
+    if os.path.lexists(p):
+        for q, want in ((sd, 0o700), (p, 0o600)):
+            st = os.lstat(q)
+            if stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid():
+                raise UsageError("refusing state %s: not owned by the current user or a symlink" % q)
+            if (st.st_mode & 0o777) != want:
+                try:
+                    os.chmod(q, want)
+                except OSError:
+                    raise UsageError("refusing state %s: mode %s and chmod to %s failed"
+                                     % (q, oct(st.st_mode & 0o777), oct(want)))
+                print("harness-mcp-sync: warn: state %s had mode %s; tightened to %s"
+                      % (q, oct(st.st_mode & 0o777), oct(want)), file=sys.stderr)
+        with open(p, encoding="ascii") as fh:
+            _SALT = bytes.fromhex(fh.read().strip())
+    elif create:
+        mkdir_private(sd)
+        _SALT = os.urandom(32)
+        atomic_write(p, _SALT.hex().encode("ascii"))
+    return _SALT
+
+
+def mf_hash(obj) -> str:
+    if _SALT is None:
+        raise UsageError("state salt missing (manifest present but no <state-dir>/salt)")
+    return hmac.new(_SALT, canon(obj).encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def expand(path: str) -> str:
+    return os.path.abspath(os.path.expanduser(path))
+
+
+def now_ts() -> str:
+    return _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def mkdir_private(path: str):
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    os.chmod(path, 0o700)
+
+
+def atomic_write(path: str, data: bytes, mode: int = 0o600):
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(prefix=".hms-", dir=d)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def _git(d: str, *a) -> int:
+    try:
+        return subprocess.run(["git", "-C", d, *a], capture_output=True, text=True, timeout=10).returncode
+    except (OSError, subprocess.TimeoutExpired):
+        return -1
+
+
+def git_state(path: str):
+    """None (not in a git work tree) | 'tracked' | 'untracked' (not ignored) | 'ignored'.
+    Only 'tracked' / 'untracked' can leak via commit -> secret literals refused there."""
+    d = os.path.dirname(path)
+    while d and not os.path.isdir(d):
+        d = os.path.dirname(d)
+    if not d or shutil.which("git") is None:
+        return None
+    try:
+        r = subprocess.run(["git", "-C", d, "rev-parse", "--is-inside-work-tree"],
+                           capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if r.returncode != 0 or r.stdout.strip() != "true":
+        return None
+    if os.path.exists(path) and _git(d, "ls-files", "--error-unmatch", "--", path) == 0:
+        return "tracked"
+    if _git(d, "check-ignore", "-q", "--", path) == 0:
+        return "ignored"
+    return "untracked"
+
+
+def git_leak_risk(state) -> bool:
+    return state in ("tracked", "untracked")
+
+
+# --------------------------------------------------------------------------- registry
+def load_registry(reg_dir: str) -> dict:
+    if yaml is None:
+        raise UsageError("PyYAML is required (pip install pyyaml)")
+    if not os.path.isdir(reg_dir):
+        raise UsageError("registry dir not found: %s" % reg_dir)
+    reg = {}
+    for fn in sorted(os.listdir(reg_dir)):
+        if not fn.endswith(".yaml"):
+            continue
+        with open(os.path.join(reg_dir, fn), encoding="utf-8") as fh:
+            d = yaml.safe_load(fh) or {}
+        hid = d.get("id")
+        if d.get("schema") != 1 or not hid or hid != fn[:-5]:
+            raise UsageError("registry file %s violates contract v1 (schema/id)" % fn)
+        m = d.get("mcp") or {}
+        if m.get("supported") and m.get("entry_style") in STYLES and not m.get("key_path"):
+            raise UsageError("registry file %s: mcp.key_path must be non-empty for writable style %s"
+                             % (fn, m.get("entry_style")))
+        reg[hid] = d
+    return reg
+
+
+def select_harnesses(reg: dict, spec: str | None) -> list:
+    if not spec:
+        return sorted(reg)
+    ids = [s.strip() for s in spec.split(",") if s.strip()]
+    unknown = [i for i in ids if i not in reg]
+    if unknown:
+        raise UsageError("unknown harness id(s): %s — research it, then add harnesses/<id>.yaml "
+                         "with confidence: low" % ", ".join(unknown))
+    return ids
+
+
+# --------------------------------------------------------------------------- SSOT
+def load_ssot(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            ssot = json.load(fh)
+    except (OSError, json.JSONDecodeError) as e:
+        raise UsageError("cannot read SSOT %s: %s" % (path, e.__class__.__name__))
+    if ssot.get("schema") != 1 or not isinstance(ssot.get("servers"), dict):
+        raise UsageError("SSOT must be {schema: 1, servers: {...}}")
+    for name, s in ssot["servers"].items():
+        if not NAME_RE.match(name):
+            raise UsageError("invalid server name: %r" % name)
+        t = s.get("transport")
+        if t not in TRANSPORTS:
+            raise UsageError("server %s: transport must be one of %s" % (name, TRANSPORTS))
+        if t == "stdio" and not s.get("command"):
+            raise UsageError("server %s: stdio requires command" % name)
+        if t != "stdio" and not s.get("url"):
+            raise UsageError("server %s: remote transport requires url" % name)
+    lint_ssot(ssot)
+    return ssot
+
+
+class Resolver:
+    def __init__(self, exe: str | None):
+        self.exe = exe
+        self.cache: dict[str, str] = {}
+
+    def _resolve_ref(self, ref: str) -> str:
+        if ref in self.cache:
+            return self.cache[ref]
+        if self.exe:
+            try:
+                r = subprocess.run([self.exe, ref], capture_output=True, text=True, timeout=30)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                raise UsageError("resolver failed for %s (%s)" % (ref, e.__class__.__name__))
+            if r.returncode != 0:
+                raise UsageError("resolver exited %d for %s" % (r.returncode, ref))
+            val = r.stdout.rstrip("\r\n")
+        elif ref.startswith("op://"):
+            raise UsageError("%s needs --resolver (op:// refs are never guessed)" % ref)
+        else:
+            name = ref[2:-1]
+            if name not in os.environ:
+                raise UsageError("environment variable %s is not set" % name)
+            val = os.environ[name]
+        if val == "":
+            raise UsageError("empty value resolved for %s" % ref)
+        Redactor.register(val)
+        self.cache[ref] = val
+        return val
+
+    def resolve(self, obj):
+        if isinstance(obj, str):
+            return PLACEHOLDER_RE.sub(lambda m: self._resolve_ref(m.group(0)), obj)
+        if isinstance(obj, dict):
+            return {k: self.resolve(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self.resolve(v) for v in obj]
+        return obj
+
+
+SECRET_ARG_RE = re.compile(r"(?i)^--?[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
+                           r"[a-z0-9_.-]*(=.*)?$|^(sk|pk|rk)-|^gh[pousr]_|^xox[abpr]-|^bearer\s")
+
+
+def literal_secretish(v) -> bool:
+    """A NON-placeholder value that looks like a secret: len>=12, >=3 char classes,
+    Shannon entropy >=3.5 (whole value or any whitespace token). Heuristic: short or
+    low-entropy literals are undetectable — keep secrets in placeholders."""
+    if not isinstance(v, str) or PLACEHOLDER_RE.search(v) or v.startswith("secret:"):
+        return False
+
+    def hit(t):
+        classes = sum(bool(re.search(p, t)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]", r"[^A-Za-z0-9]"))
+        return len(t) >= 12 and classes >= 3 and _entropy(t) >= 3.5
+    return hit(v) or any(hit(t) for t in v.split())
+
+
+def lint_ssot(ssot: dict):
+    """Register literal secret-looking arg/header values (so they are masked) and warn
+    on stderr — the value itself is never printed."""
+    for name, s in ssot["servers"].items():
+        fields = [("args[%d]" % i, a) for i, a in enumerate(s.get("args") or [])]
+        for c in SECRET_CONTAINERS:
+            if isinstance(s.get(c), dict):
+                fields += [("%s.%s" % (c, k), v) for k, v in s[c].items()]
+        for label, v in fields:
+            if literal_secretish(v):
+                Redactor.register(v)
+                for t in v.split():
+                    Redactor.register(t)
+                print("harness-mcp-sync: warn: server %s %s looks like a literal secret (value masked); use a "
+                      "placeholder ${VAR} / op://... — refused for git-visible targets" % (name, label),
+                      file=sys.stderr)
+
+
+def carries_secret(raw: dict) -> bool:
+    """True if a server definition could put a secret into the file — with OR
+    without a placeholder (literal values count)."""
+    if has_placeholder(raw):
+        return True
+    for c in SECRET_CONTAINERS:
+        if isinstance(raw.get(c), dict) and raw[c]:
+            return True
+    for a in raw.get("args") or []:
+        if not isinstance(a, str) or SECRET_ARG_RE.search(a) or _secretish_segment(a) or literal_secretish(a):
+            return True
+    u = raw.get("url")
+    return isinstance(u, str) and mask_url(u) != u
+
+
+def has_placeholder(obj) -> bool:
+    if isinstance(obj, str):
+        return bool(PLACEHOLDER_RE.search(obj))
+    if isinstance(obj, dict):
+        return any(has_placeholder(v) for v in obj.values())
+    if isinstance(obj, list):
+        return any(has_placeholder(v) for v in obj)
+    return False
+
+
+# --------------------------------------------------------------------------- formats
+def strip_jsonc(text: str) -> tuple[str, bool]:
+    """Remove // and /* */ comments (string-aware) and trailing commas. Returns (text, had_comments)."""
+    out, i, n, had = [], 0, len(text), False
+    in_str = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+        elif text.startswith("//", i):
+            had = True
+            while i < n and text[i] != "\n":
+                i += 1
+        elif text.startswith("/*", i):
+            had = True
+            j = text.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        else:
+            out.append(c)
+            i += 1
+    cleaned = re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+    return cleaned, had
+
+
+def yaml_has_comments(text: str) -> bool:
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("#") or re.search(r"\s#", line.split("'")[0].split('"')[0]):
+            return True
+    return False
+
+
+def parse_config(fmt: str, text: str) -> tuple[dict, bool]:
+    """Returns (document, has_comments). Raises Refused on malformed input."""
+    try:
+        if fmt == "json":
+            doc = json.loads(text) if text.strip() else {}
+            return doc, False
+        if fmt == "jsonc":
+            cleaned, had = strip_jsonc(text)
+            return (json.loads(cleaned) if cleaned.strip() else {}), had
+        if fmt == "toml":
+            return tomllib.loads(text), False
+        if fmt == "yaml":
+            return (yaml.safe_load(text) or {}), yaml_has_comments(text)
+    except (ValueError, yaml.YAMLError if yaml else ValueError) as e:
+        raise Refused("malformed %s config (%s)" % (fmt, e.__class__.__name__))
+    raise Refused("unsupported format %r" % fmt)
+
+
+def get_map(doc: dict, key_path: list):
+    cur = doc
+    for k in key_path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(k)
+        if cur is None:
+            return None
+    return cur if isinstance(cur, dict) else None
+
+
+def ensure_map(doc: dict, key_path: list) -> dict:
+    cur = doc
+    for k in key_path:
+        nxt = cur.get(k)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[k] = nxt
+        cur = nxt
+    return cur
+
+
+def detect_json_indent(text: str):
+    for line in text.splitlines()[1:]:
+        m = re.match(r"^([ \t]+)\S", line)
+        if m:
+            return "\t" if "\t" in m.group(1) else len(m.group(1))
+    return 2
+
+
+# ---- TOML (surgical) --------------------------------------------------------
+BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def toml_key(k: str) -> str:
+    return k if BARE_KEY.match(k) else json.dumps(k, ensure_ascii=False)
+
+
+def toml_value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, str):
+        return json.dumps(v, ensure_ascii=False)
+    if isinstance(v, list):
+        return "[" + ", ".join(toml_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        return "{ " + ", ".join("%s = %s" % (toml_key(k), toml_value(x)) for k, x in v.items()) + " }"
+    raise Refused("cannot render %s as TOML" % type(v).__name__)
+
+
+def toml_render_table(prefix: list, entry: dict, subtables: bool) -> str:
+    head = "[" + ".".join(toml_key(k) for k in prefix) + "]"
+    lines, subs = [head], []
+    for k, v in entry.items():
+        if subtables and isinstance(v, dict):
+            subs.append((k, v))
+        else:
+            lines.append("%s = %s" % (toml_key(k), toml_value(v)))
+    for k, v in subs:
+        lines.append("")
+        lines.append("[" + ".".join(toml_key(x) for x in prefix + [k]) + "]")
+        for kk, vv in v.items():
+            lines.append("%s = %s" % (toml_key(kk), toml_value(vv)))
+    return "\n".join(lines) + "\n"
+
+
+def toml_header_path(line: str):
+    m = re.match(r"^\s*\[(?!\[)(.+?)\]\s*(#.*)?$", line)
+    if not m:
+        return None
+    raw, parts, buf, q = m.group(1), [], "", None
+    i = 0
+    while i < len(raw):
+        c = raw[i]
+        if q:
+            if c == "\\" and q == '"' and i + 1 < len(raw):
+                buf += raw[i:i + 2]
+                i += 2
+                continue
+            buf += c
+            if c == q:
+                q = None
+        elif c in "\"'":
+            q = c
+            buf += c
+        elif c == ".":
+            parts.append(buf.strip())
+            buf = ""
+        else:
+            buf += c
+        i += 1
+    parts.append(buf.strip())
+    out = []
+    for p in parts:
+        if len(p) >= 2 and p[0] == p[-1] == '"':
+            out.append(json.loads(p))
+        elif len(p) >= 2 and p[0] == p[-1] == "'":
+            out.append(p[1:-1])
+        else:
+            out.append(p)
+    return out
+
+
+def toml_surgical(text: str, key_path: list, drop: set, add: dict, subtables: bool) -> str:
+    lines = text.splitlines(keepends=True)
+    keep, skipping = [], False
+    kp = list(key_path)
+    for line in lines:
+        is_header = re.match(r"^\s*\[", line) is not None
+        if is_header:
+            path = toml_header_path(line)
+            skipping = bool(path and len(path) > len(kp) and path[:len(kp)] == kp and path[len(kp)] in drop)
+        if not skipping:
+            keep.append(line)
+    new = "".join(keep)
+    if add:
+        if new and not new.endswith("\n"):
+            new += "\n"
+        blocks = [toml_render_table(kp + [name], entry, subtables) for name, entry in add.items()]
+        new += ("\n" if new.strip() else "") + "\n".join(blocks)
+    return new
+
+
+# --------------------------------------------------------------------------- entry styles
+# ONE table: every style the registry may name. `render` maps a resolved vendor-neutral server
+# to the harness-specific entry dict; `toml_subtables` only matters for TOML styles.
+def _mcpservers(srv: dict, ov: dict, defaults: dict) -> dict:
+    t = srv["transport"]
+    tv = dict(defaults.get("type_values", {}))
+    tv.update(ov.get("type_values") or {})
+    type_field = ov.get("type_field", "type")
+    uf = ov.get("url_field", "url")
+    url_field = uf.get(t, "url") if isinstance(uf, dict) else uf
+    e = {}
+    if tv.get(t):
+        e[type_field] = tv[t]
+    if t == "stdio":
+        e["command"] = srv["command"]
+        if srv.get("args"):
+            e["args"] = list(srv["args"])
+        if srv.get("env"):
+            e["env"] = dict(srv["env"])
+    else:
+        e[url_field] = srv["url"]
+        if srv.get("headers"):
+            e["headers"] = dict(srv["headers"])
+    for k, v in (ov.get("extra") or {}).items():
+        e[k] = copy.deepcopy(v)
+    return e
+
+
+def _codex(srv, ov, _d):
+    e = {}
+    if srv["transport"] == "stdio":
+        e["command"] = srv["command"]
+        if srv.get("args"):
+            e["args"] = list(srv["args"])
+        if srv.get("env"):
+            e["env"] = dict(srv["env"])
+    else:
+        e["url"] = srv["url"]
+        if srv.get("headers"):
+            e[ov.get("headers_field", "http_headers")] = dict(srv["headers"])
+    return e
+
+
+def _opencode(srv, _ov, _d):
+    if srv["transport"] == "stdio":
+        e = {"type": "local", "command": [srv["command"]] + list(srv.get("args") or [])}
+        if srv.get("env"):
+            e["environment"] = dict(srv["env"])
+    else:
+        e = {"type": "remote", "url": srv["url"]}
+        if srv.get("headers"):
+            e["headers"] = dict(srv["headers"])
+    return e
+
+
+def _zed(srv, _ov, _d):
+    if srv["transport"] == "stdio":
+        e = {"source": "custom", "command": srv["command"]}
+        if srv.get("args"):
+            e["args"] = list(srv["args"])
+        if srv.get("env"):
+            e["env"] = dict(srv["env"])
+    else:
+        e = {"url": srv["url"]}
+        if srv.get("headers"):
+            e["headers"] = dict(srv["headers"])
+    return e
+
+
+def _goose(srv, _ov, _d):
+    if srv["transport"] == "stdio":
+        e = {"name": srv["_name"], "type": "stdio", "cmd": srv["command"], "args": list(srv.get("args") or [])}
+        if srv.get("env"):
+            e["envs"] = dict(srv["env"])
+    else:
+        e = {"name": srv["_name"], "type": "streamable_http", "uri": srv["url"]}
+        if srv.get("headers"):
+            e["headers"] = dict(srv["headers"])
+    return e
+
+
+def _amp(srv, _ov, _d):
+    return _mcpservers(srv, {}, {"type_values": {}})
+
+
+STYLES = {
+    "mcpservers-json": {"render": _mcpservers, "formats": {"json", "jsonc"},
+                        "defaults": {"type_values": {"stdio": None, "streamable-http": "http",
+                                                     "http": "http", "sse": "sse"}}},
+    "vscode-servers": {"render": _mcpservers, "formats": {"json", "jsonc"},
+                       "defaults": {"type_values": {"stdio": "stdio", "streamable-http": "http",
+                                                    "http": "http", "sse": "sse"}}},
+    "amp-settings": {"render": _amp, "formats": {"json", "jsonc"}, "defaults": {}},
+    "opencode": {"render": _opencode, "formats": {"json", "jsonc"}, "defaults": {}},
+    "zed-context-servers": {"render": _zed, "formats": {"json", "jsonc"}, "defaults": {}},
+    "goose-extensions": {"render": _goose, "formats": {"yaml"}, "defaults": {}},
+    "codex": {"render": _codex, "formats": {"toml"}, "defaults": {}, "toml_subtables": True},
+    "grok-toml": {"render": lambda s, o, d: _codex(s, {**o, "headers_field": "headers"}, d),
+                  "formats": {"toml"}, "defaults": {}, "toml_subtables": False},
+}
+UNSUPPORTED_STYLES = {
+    "reasonix-toml": "MCP table shape in config.toml unknown — use the harness CLI",
+    "unknown": "entry shape unknown",
+}
+
+
+def transport_ok(t: str, harness_transports) -> bool:
+    ht = set(harness_transports or [])
+    if t in ("http", "streamable-http"):
+        return bool(ht & {"http", "streamable-http"})
+    return t in ht
+
+
+def render_entry(h: dict, name: str, srv: dict) -> dict:
+    m = h["mcp"]
+    style = STYLES[m["entry_style"]]
+    s = dict(srv)
+    s["_name"] = name
+    e = style["render"](s, m.get("entry_overrides") or {}, style["defaults"])
+    sup = m.get("supports") or {}
+    enabled = srv.get("enabled", True) is not False
+    if sup.get("disable") and sup.get("disable_field"):
+        if sup.get("disable_semantics") == "enabled-bool":
+            e[sup["disable_field"]] = enabled
+        elif sup.get("disable_semantics") == "disabled-bool" and not enabled:
+            e[sup["disable_field"]] = True
+    return e
+
+
+# --------------------------------------------------------------------------- harness context
+def harness_installed(h: dict) -> bool:
+    det = h.get("detect") or {}
+    if any(shutil.which(c) for c in det.get("commands") or []):
+        return True
+    return any(os.path.exists(expand(p)) for p in det.get("paths") or [])
+
+
+def user_config_path(h: dict):
+    for cp in (h.get("mcp") or {}).get("config_paths") or []:
+        if cp.get("scope") == "user" and cp.get("path"):
+            return expand(cp["path"])
+    return None
+
+
+def target_path(h: dict):
+    """(real path to read/write, refusal reason or None). Symlinks are resolved so a
+    link is written THROUGH (preserved), and git_state sees the real location."""
+    p = user_config_path(h)
+    if not p:
+        return None, None
+    real = os.path.realpath(p)
+    home = os.path.realpath(os.path.expanduser("~"))
+    if not (real == home or real.startswith(home + os.sep)):
+        return real, "refused: config path resolves outside HOME (symlink target outside HOME)"
+    return real, None
+
+
+def static_blocker(h: dict):
+    """Reason this harness can never be written (plan-only or skip), or None."""
+    m = h.get("mcp") or {}
+    if not m.get("supported"):
+        return "skip", "no-mcp: harness has no MCP support"
+    if m.get("entry_style") in UNSUPPORTED_STYLES:
+        return "skip", "unsupported entry_style %s: %s" % (m["entry_style"], UNSUPPORTED_STYLES[m["entry_style"]])
+    if m.get("entry_style") not in STYLES:
+        return "skip", "unknown entry_style %r" % m.get("entry_style")
+    if m.get("format") not in STYLES[m["entry_style"]]["formats"]:
+        return "skip", "format %s incompatible with style %s" % (m.get("format"), m["entry_style"])
+    if not user_config_path(h):
+        return "skip", "no user-scope config path in registry"
+    if h.get("skip_reason"):
+        return "plan-only", "skip_reason: %s" % h["skip_reason"]
+    if h.get("confidence") == "low":
+        return "plan-only", "confidence low (unverified registry facts)"
+    return None
+
+
+def read_config(h: dict, path: str):
+    """Returns dict(exists, text, doc, has_comments, error)."""
+    info = {"exists": os.path.exists(path), "text": "", "doc": {}, "has_comments": False, "error": None}
+    if not info["exists"]:
+        return info
+    try:
+        with open(path, encoding="utf-8") as fh:
+            info["text"] = fh.read()
+        info["doc"], info["has_comments"] = parse_config(h["mcp"]["format"], info["text"])
+        if not isinstance(info["doc"], dict):
+            raise Refused("config root is not a mapping")
+        register_container_values(info["doc"])
+    except (OSError, UnicodeDecodeError) as e:
+        info["error"] = "unreadable (%s)" % e.__class__.__name__
+    except Refused as e:
+        info["error"] = str(e)
+    return info
+
+
+# --------------------------------------------------------------------------- manifest
+def state_dir(args) -> str:
+    base = args.state_dir or os.path.join(os.environ.get("XDG_STATE_HOME") or expand("~/.local/state"),
+                                          "harness-mcp-sync")
+    return expand(base)
+
+
+def load_manifest(sd: str) -> dict:
+    p = os.path.join(sd, "manifest.json")
+    if not os.path.exists(p):
+        return {"schema": 1, "files": {}}
+    try:
+        with open(p, encoding="utf-8") as fh:
+            m = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        raise UsageError("manifest unreadable: %s" % p)
+    m.setdefault("files", {})
+    return m
+
+
+def save_manifest(sd: str, m: dict):
+    mkdir_private(sd)
+    atomic_write(os.path.join(sd, "manifest.json"), (json.dumps(m, indent=2, sort_keys=True) + "\n").encode())
+
+
+# --------------------------------------------------------------------------- plan
+def server_applies(hid: str, srv: dict) -> bool:
+    sel = srv.get("harnesses") or {}
+    inc = sel.get("include") or ["*"]
+    exc = sel.get("exclude") or []
+    return any(fnmatch.fnmatch(hid, p) for p in inc) and not any(fnmatch.fnmatch(hid, p) for p in exc)
+
+
+def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
+    results, seen_paths = [], {}
+    for hid in ids:
+        h = reg[hid]
+        r = {"id": hid, "name": h.get("name"), "status": "ok", "applicable": True, "reason": None,
+             "file": None, "actions": [], "_writes": {}, "_drops": set()}
+        results.append(r)
+        blk = static_blocker(h)
+        if blk and blk[0] == "skip":
+            r.update(status="skip", applicable=False, reason=blk[1])
+            continue
+        path, tp_err = target_path(h)
+        r["file"] = path
+        if tp_err:
+            r.update(status="error", applicable=False, reason=tp_err)
+            continue
+        if path in seen_paths:
+            r.update(status="skip", applicable=False, reason="config file shared with %s" % seen_paths[path])
+            continue
+        seen_paths[path] = hid
+        if not harness_installed(h):
+            r.update(status="not-installed", applicable=False, reason="not detected on this machine")
+            continue
+        if blk:
+            r.update(status="plan-only", applicable=False, reason=blk[1])
+        cfg = read_config(h, path)
+        r["_cfg"] = cfg
+        if cfg["error"]:
+            r.update(status="error", applicable=False, reason=cfg["error"])
+            continue
+        m = h["mcp"]
+        sup = m.get("supports") or {}
+        existing = get_map(cfg["doc"], m["key_path"]) or {}
+        owned_h = (manifest["files"].get(path) or {}).get("servers", {})
+        owned = set(owned_h)
+
+        def modified(n):  # owned entry hand-edited since our last apply?
+            return n in owned and n in existing and mf_hash(existing[n]) != owned_h[n] and n not in adopt
+        gstate = git_state(path)
+        in_git = git_leak_risk(gstate)
+        desired_names = set()
+        for name, raw in ssot["servers"].items():
+            act = {"server": name}
+            if not server_applies(hid, raw):
+                continue
+            t = raw["transport"]
+            if not transport_ok(t, m.get("transports")):
+                act.update(action="skip", reason="transport %s unsupported by harness" % t)
+            elif t != "stdio" and raw.get("headers") and not sup.get("headers"):
+                act.update(action="skip", reason="warn: harness lacks header support; remote server skipped "
+                                                 "(a header-less entry would trigger OAuth)")
+            elif raw.get("enabled", True) is False and not sup.get("disable"):
+                act.update(action="omit", reason="disabled in SSOT; harness has no disable flag -> not written")
+            elif in_git and carries_secret(raw):
+                act.update(action="skip", reason="config is %s in a git work tree (could leak via commit); "
+                                                 "server carries secret material (headers/env/secret args/URL "
+                                                 "credentials, placeholder or literal) — refused" % gstate)
+            else:
+                entry = render_entry(h, name, resolver.resolve(raw))
+                desired_names.add(name)
+                cur = existing.get(name)
+                if cur is None:
+                    act.update(action="add")
+                elif name not in owned and name not in adopt:
+                    act.update(action="conflict", reason="conflict:unmanaged (pass --adopt %s to take ownership)" % name)
+                    desired_names.discard(name)
+                elif entry_hash(cur) == entry_hash(entry):
+                    # adopt flag also refreshes a stale manifest hash (no content change)
+                    act.update(action="unchanged", adopt=name not in owned or mf_hash(cur) != owned_h[name])
+                elif modified(name):
+                    act.update(action="conflict", reason="conflict:modified-since-apply (entry edited after the "
+                                                         "last apply; pass --adopt %s to overwrite)" % name)
+                    desired_names.discard(name)
+                else:
+                    act.update(action="update", fields=sorted(k for k in set(cur) | set(entry)
+                                                              if entry_hash(cur.get(k)) != entry_hash(entry.get(k))))
+                if act["action"] in ("add", "update", "unchanged"):
+                    r["_writes"][name] = entry
+                    act["preview"] = masked_preview(entry)
+            r["actions"].append(act)
+            for legacy in raw.get("replaces") or []:
+                if legacy not in existing or legacy in ssot["servers"] or legacy in r["_drops"] or \
+                        any(a["server"] == legacy for a in r["actions"]):
+                    continue
+                if legacy not in owned and legacy not in adopt:
+                    r["actions"].append({"server": legacy, "action": "conflict",
+                                         "reason": "remove(replaced-by %s, needs --adopt %s): unmanaged entry"
+                                                   % (name, legacy)})
+                elif modified(legacy):
+                    r["actions"].append({"server": legacy, "action": "conflict",
+                                         "reason": "remove(replaced-by %s) blocked: conflict:modified-since-apply "
+                                                   "(pass --adopt %s)" % (name, legacy)})
+                else:
+                    r["actions"].append({"server": legacy, "action": "remove", "reason": "replaced-by %s" % name})
+                    r["_drops"].add(legacy)
+        for name in sorted(owned - desired_names - r["_drops"]):
+            if name in existing and not any(a["server"] == name and a["action"] == "conflict" for a in r["actions"]):
+                if modified(name):
+                    r["actions"].append({"server": name, "action": "conflict",
+                                         "reason": "remove blocked: conflict:modified-since-apply (pass --adopt %s)"
+                                                   % name})
+                    continue
+                r["actions"].append({"server": name, "action": "remove", "reason": "managed; no longer desired"})
+                r["_drops"].add(name)
+        r["git"] = gstate
+    return results
+
+
+def plan_is_empty(r) -> bool:
+    return not any(a["action"] in ("add", "update", "remove") for a in r["actions"]) and \
+        not any(a.get("adopt") for a in r["actions"])
+
+
+# --------------------------------------------------------------------------- apply
+def render_file(h: dict, cfg: dict, writes: dict, drops: set) -> tuple[str, dict]:
+    m = h["mcp"]
+    fmt, kp = m["format"], m["key_path"]
+    doc = copy.deepcopy(cfg["doc"])
+    expected = copy.deepcopy(cfg["doc"])
+    emap = ensure_map(expected, kp)
+    for n in drops:
+        emap.pop(n, None)
+    emap.update(writes)
+    if fmt == "toml":
+        existing = get_map(doc, kp) or {}
+        changed = {n: e for n, e in writes.items() if entry_hash(existing.get(n)) != entry_hash(e)}
+        drop = set(drops) | set(changed)
+        text = toml_surgical(cfg["text"], kp, drop, changed, STYLES[m["entry_style"]].get("toml_subtables", True))
+        # pre-write validation: parses + only the managed map changed
+        try:
+            new_doc = tomllib.loads(text)
+        except ValueError:
+            raise Refused("surgical TOML edit produced invalid TOML; nothing written")
+        for n in drop - set(changed):
+            if n in (get_map(new_doc, kp) or {}):
+                raise Refused("entry %s is defined inline (not as a table); surgical removal impossible" % n)
+        if entry_hash(new_doc) != entry_hash(expected):
+            raise Refused("surgical TOML edit does not match the expected document; nothing written")
+    else:
+        mp = ensure_map(doc, kp)
+        for n in drops:
+            mp.pop(n, None)
+        for n, e in writes.items():
+            mp[n] = e
+        if fmt in ("json", "jsonc"):
+            indent = detect_json_indent(cfg["text"]) if cfg["text"] else 2
+            text = json.dumps(doc, indent=indent, ensure_ascii=False) + "\n"
+        else:
+            text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True, default_flow_style=False)
+    return text, expected
+
+
+def backup_file(sd: str, ts: str, hid: str, path: str):
+    bdir = os.path.join(sd, "backups", ts, hid)
+    mkdir_private(os.path.join(sd, "backups"))
+    mkdir_private(os.path.join(sd, "backups", ts))
+    mkdir_private(bdir)
+    meta = {"path": path, "existed": os.path.exists(path)}
+    if meta["existed"]:
+        with open(path, "rb") as fh:
+            atomic_write(os.path.join(bdir, os.path.basename(path)), fh.read())
+        meta["mode"] = oct(os.stat(path).st_mode & 0o777)
+    atomic_write(os.path.join(bdir, "meta.json"), json.dumps(meta).encode())
+    return bdir, meta
+
+
+def restore_from(bdir: str):
+    with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
+        meta = json.load(fh)
+    path = meta["path"]
+    if meta["existed"]:
+        with open(os.path.join(bdir, os.path.basename(path)), "rb") as fh:
+            atomic_write(path, fh.read(), int(meta.get("mode", "0o600"), 8))
+    elif os.path.exists(path):
+        os.unlink(path)
+    return path
+
+
+def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
+    load_salt(sd, create=True)
+    ts = now_ts()
+    snap_saved = False
+    worst = EXIT_OK
+    for r in results:
+        if not r["applicable"]:
+            if r["status"] in ("error",):
+                worst = EXIT_DRIFT
+            if r["status"] in ("plan-only",) and not plan_is_empty(r):
+                r["apply"] = "not-applied: %s" % r["reason"]
+            continue
+        if any(a["action"] == "conflict" for a in r["actions"]):
+            worst = EXIT_DRIFT
+        if plan_is_empty(r):
+            r["apply"] = "nothing-to-do"
+            continue
+        h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
+        if cfg["has_comments"] and not allow_comment_loss:
+            r["apply"] = "refused: %s file has comments (pass --allow-comment-loss; a backup is always kept)" % \
+                         h["mcp"]["format"]
+            worst = EXIT_DRIFT
+            continue
+        try:
+            text, expected = render_file(h, cfg, r["_writes"], r["_drops"])
+        except Refused as e:
+            r["apply"] = "refused: %s" % e
+            worst = EXIT_DRIFT
+            continue
+        if not snap_saved:
+            mkdir_private(os.path.join(sd, "backups", ts))
+            atomic_write(os.path.join(sd, "backups", ts, "manifest.json"),
+                         json.dumps(manifest, indent=2, sort_keys=True).encode())
+            snap_saved = True
+        bdir, _ = backup_file(sd, ts, r["id"], path)
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        atomic_write(path, text.encode("utf-8"))
+        ok = False
+        try:
+            with open(path, encoding="utf-8") as fh:
+                back, _ = parse_config(h["mcp"]["format"], fh.read())
+            ok = entry_hash(back) == entry_hash(expected)
+        except Refused:
+            ok = False
+        if not ok:
+            restore_from(bdir)
+            r["apply"] = "rolled-back: parse-back validation failed; original restored"
+            worst = EXIT_DRIFT
+            continue
+        entry = manifest["files"].setdefault(path, {"harness": r["id"], "servers": {}})
+        for n in r["_drops"]:
+            entry["servers"].pop(n, None)
+        for n, e in r["_writes"].items():
+            entry["servers"][n] = mf_hash(e)
+        r["apply"] = "applied (backup %s)" % ts
+        r["backup_ts"] = ts
+    save_manifest(sd, manifest)
+    return worst, (ts if snap_saved else None)
+
+
+# --------------------------------------------------------------------------- output
+def public(r: dict) -> dict:
+    return {k: (sorted(v) if isinstance(v, set) else v) for k, v in r.items() if not k.startswith("_")}
+
+
+def emit(args, payload, text_fn):
+    if args.json:
+        print(json.dumps(redact_obj(payload), indent=2, ensure_ascii=False))
+    else:
+        text_fn(payload)
+
+
+def text_plan(results):
+    for r in results:
+        head = "%-16s %-13s" % (r["id"], r["status"])
+        print(head + (" " + r["reason"] if r.get("reason") else ""))
+        if r.get("file"):
+            print("    file: %s" % r["file"])
+        for a in r.get("actions", []):
+            extra = a.get("reason") or (", ".join(a.get("fields", [])) if a.get("fields") else "")
+            print("    %-10s %s%s" % (a["action"] + ("+adopt" if a.get("adopt") else ""), a["server"],
+                                      (" — " + extra) if extra else ""))
+        if r.get("apply"):
+            print("    apply: %s" % r["apply"])
+
+
+# --------------------------------------------------------------------------- modes
+def mode_explain(args, reg, ids):
+    out = []
+    for hid in ids:
+        h = reg[hid]
+        m = h.get("mcp") or {}
+        blk = static_blocker(h)
+        out.append({"id": hid, "name": h.get("name"), "kind": h.get("kind"), "config": user_config_path(h),
+                    "format": m.get("format"), "key_path": m.get("key_path"), "entry_style": m.get("entry_style"),
+                    "style_supported": m.get("entry_style") in STYLES, "transports": m.get("transports"),
+                    "supports": m.get("supports"), "entry_overrides": m.get("entry_overrides"),
+                    "confidence": h.get("confidence"), "skip_reason": h.get("skip_reason"),
+                    "writable_by_tool": blk is None, "blocker": blk[1] if blk else None})
+
+    def txt(p):
+        for e in p:
+            print("%-16s %-20s %-6s conf=%-6s %s" % (e["id"], e["entry_style"], e["format"], e["confidence"],
+                                                     "OK" if e["writable_by_tool"] else "BLOCKED: " + e["blocker"]))
+    emit(args, out, txt)
+    return EXIT_OK
+
+
+def mode_inventory(args, reg, ids, manifest):
+    out = []
+    for hid in ids:
+        h = reg[hid]
+        path, _ = target_path(h)
+        e = {"id": hid, "installed": harness_installed(h), "file": path, "exists": bool(path and os.path.exists(path)),
+             "managed": [], "unmanaged": [], "error": None}
+        if path and e["exists"] and (h.get("mcp") or {}).get("format"):
+            cfg = read_config(h, path)
+            e["error"] = cfg["error"]
+            mp = get_map(cfg["doc"], h["mcp"].get("key_path") or []) or {} if not cfg["error"] else {}
+            owned = set((manifest["files"].get(path) or {}).get("servers", {}))
+            e["managed"] = sorted(n for n in mp if n in owned)
+            e["unmanaged"] = sorted(n for n in mp if n not in owned)
+        out.append(e)
+
+    def txt(p):
+        for e in p:
+            if not e["installed"]:
+                continue
+            print("%-16s %s" % (e["id"], e["file"] if e["exists"] else "(no config file)"))
+            if e["error"]:
+                print("    error: %s" % e["error"])
+            print("    managed:   %s" % (", ".join(e["managed"]) or "-"))
+            print("    unmanaged: %s" % (", ".join(e["unmanaged"]) or "-"))
+    emit(args, out, txt)
+    return EXIT_OK
+
+
+def mode_doctor(args, reg, ids):
+    out, worst = [], EXIT_OK
+    for hid in ids:
+        h = reg[hid]
+        path, tp_err = target_path(h)
+        e = {"id": hid, "installed": harness_installed(h), "config": path, "exists": False, "parses": None,
+             "mode": None, "git": None, "writable": None, "confidence": h.get("confidence"),
+             "skip_reason": h.get("skip_reason"), "status": "ok", "note": None}
+        blk = static_blocker(h)
+        if path:
+            e["exists"] = os.path.exists(path)
+            e["git"] = git_state(path)
+            parent = os.path.dirname(path)
+            e["writable"] = os.access(path, os.W_OK) if e["exists"] else (os.path.isdir(parent) and os.access(parent, os.W_OK))
+            if e["exists"]:
+                e["mode"] = oct(os.stat(path).st_mode & 0o777)
+                if (h.get("mcp") or {}).get("format"):
+                    cfg = read_config(h, path)
+                    e["parses"] = cfg["error"] is None
+                    if cfg["error"]:
+                        e["note"] = cfg["error"]
+        if not e["installed"]:
+            e["status"] = "not-installed"
+        elif blk:
+            e["status"] = blk[0]
+            e["note"] = blk[1]
+        elif tp_err:
+            e["status"] = "error"
+            e["note"] = tp_err
+            worst = EXIT_DRIFT
+        elif e["parses"] is False:
+            e["status"] = "error"
+            worst = EXIT_DRIFT
+        elif git_leak_risk(e["git"]):
+            e["status"] = "warn"
+            e["note"] = "in-git-repo(%s): secret literals refused (could leak via commit)" % e["git"]
+        elif e["git"] == "ignored":
+            e["note"] = "in-git-repo(ignored): ok — git-ignored, secret literals allowed"
+        out.append(e)
+
+    def txt(p):
+        for e in p:
+            print("%-16s %-14s %s" % (e["id"], e["status"], e["note"] or (e["config"] or "")))
+    emit(args, out, txt)
+    return worst
+
+
+def mode_plan(args, reg, ids, ssot, resolver, manifest):
+    results = build_plan(reg, ids, ssot, resolver, manifest, set(args.adopt or []))
+    worst = EXIT_DRIFT if any(r["status"] == "error" for r in results) else EXIT_OK
+    emit(args, [public(r) for r in results], text_plan)
+    return worst
+
+
+def mode_apply(args, reg, ids, ssot, resolver, manifest, sd):
+    results = build_plan(reg, ids, ssot, resolver, manifest, set(args.adopt or []))
+    worst, ts = apply_plan(reg, results, sd, manifest, args.allow_comment_loss)
+    payload = {"backup_ts": ts, "harnesses": [public(r) for r in results]}
+    emit(args, payload, lambda p: (text_plan(results), print("backup_ts: %s" % (ts or "-"))))
+    return worst
+
+
+_EPHEMERAL = os.urandom(32)  # in-process-only key for cross-harness equality; never output
+
+
+def mode_verify(args, reg, ids, ssot, resolver, manifest):
+    by_path = {target_path(reg[i])[0]: i for i in ids if (reg[i].get("mcp") or {}).get("supported")}
+    out, worst, secret_hashes = [], EXIT_OK, {}
+    for path, fe in sorted(manifest["files"].items()):
+        hid = fe.get("harness")
+        if hid not in reg or path not in by_path:
+            continue
+        h = reg[hid]
+        e = {"id": hid, "file": path, "issues": []}
+        out.append(e)
+        if not os.path.exists(path):
+            e["issues"].append("file missing")
+            continue
+        mode = os.stat(path).st_mode & 0o777
+        if mode != 0o600:
+            e["issues"].append("mode %s (want 0o600)" % oct(mode))
+        cfg = read_config(h, path)
+        if cfg["error"]:
+            e["issues"].append(cfg["error"])
+            continue
+        mp = get_map(cfg["doc"], h["mcp"]["key_path"]) or {}
+        for name, want in sorted(fe.get("servers", {}).items()):
+            cur = mp.get(name)
+            if cur is None:
+                e["issues"].append("%s: missing" % name)
+                continue
+            if mf_hash(cur) != want:
+                e["issues"].append("%s: content drift vs manifest" % name)
+            if ssot is not None:
+                srv = ssot["servers"].get(name)
+                if srv is None:
+                    e["issues"].append("%s: not in SSOT" % name)
+                elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
+                    e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)
+            for ck, cv in cur.items():
+                if ck in SECRET_CONTAINERS and isinstance(cv, dict):
+                    for k, v in cv.items():
+                        if isinstance(v, str):
+                            eph = hmac.new(_EPHEMERAL, v.encode("utf-8"), hashlib.sha256).hexdigest()
+                            secret_hashes.setdefault((name, k), {}).setdefault(eph, []).append(hid)
+    for (name, k), hs in sorted(secret_hashes.items()):
+        if len(hs) > 1:
+            out.append({"id": "*", "file": None, "issues": ["%s.%s: differing secret hashes across harnesses %s" %
+                                                            (name, k, sorted({x for v in hs.values() for x in v}))]})
+    if any(e["issues"] for e in out):
+        worst = EXIT_DRIFT
+
+    def txt(p):
+        for e in p:
+            print("%-16s %s" % (e["id"], "OK" if not e["issues"] else "DRIFT"))
+            for i in e["issues"]:
+                print("    - %s" % i)
+        print("verify: %s" % ("clean" if worst == EXIT_OK else "drift detected"))
+    emit(args, out, txt)
+    return worst
+
+
+TS_RE = re.compile(r"^\d{8}T\d{12}Z$")
+
+
+def mode_restore(args, reg, ids, sd, ts):
+    if not ts or not TS_RE.match(ts):
+        raise UsageError("restore needs a backup timestamp like 20260924T135959123456Z (got %r)" % ts)
+    root = os.path.join(sd, "backups", ts)
+    if not os.path.isdir(root):
+        raise UsageError("no backup %r under %s" % (ts, os.path.join(sd, "backups")))
+    only = set(ids) if args.harness else None
+    restored, refused = [], []
+    for hid in sorted(os.listdir(root)):
+        bdir = os.path.join(root, hid)
+        if not os.path.isdir(bdir) or (only is not None and hid not in only):
+            continue
+        if hid not in reg:
+            refused.append({"id": hid, "reason": "refused: not a registry harness id"})
+            continue
+        try:
+            with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
+                mpath = json.load(fh).get("path")
+        except (OSError, json.JSONDecodeError, AttributeError):
+            refused.append({"id": hid, "reason": "refused: unreadable backup meta"})
+            continue
+        home = os.path.realpath(os.path.expanduser("~"))
+        # registry-derived ONLY (every registered config_path, realpath'd): a state-dir write must not grant targets
+        allowed = {os.path.realpath(expand(cp["path"])) for cp in (reg[hid].get("mcp") or {}).get("config_paths") or []
+                   if isinstance(cp, dict) and isinstance(cp.get("path"), str) and cp["path"].startswith(("~", "/"))}
+        if not isinstance(mpath, str) or mpath not in allowed or not mpath.startswith(home + os.sep):
+            refused.append({"id": hid, "reason": "refused: backup targets a path not recorded for this harness"})
+            continue
+        restored.append({"id": hid, "file": restore_from(bdir)})
+    snap = os.path.join(root, "manifest.json")
+    if os.path.exists(snap):
+        with open(snap, encoding="utf-8") as fh:
+            old = json.load(fh)
+        cur = load_manifest(sd)
+        for r in restored:
+            if r["file"] in old.get("files", {}):
+                cur["files"][r["file"]] = old["files"][r["file"]]
+            else:
+                cur["files"].pop(r["file"], None)
+        save_manifest(sd, cur)
+    emit(args, {"backup_ts": ts, "restored": restored, "refused": refused},
+         lambda p: ([print("restored %-16s %s" % (r["id"], r["file"])) for r in p["restored"]],
+                    [print("refused  %-16s %s" % (r["id"], r["reason"])) for r in p["refused"]]))
+    return EXIT_OK if restored and not refused else EXIT_DRIFT
+
+
+def mode_update(args, reg, ids):
+    out = []
+    for hid in ids:
+        h = reg[hid]
+        if not harness_installed(h):
+            continue
+        upd = h.get("update") or {}
+        e = {"id": hid, "version": None, "update_suggestion": upd.get("update_cmd"), "error": None}
+        vc = upd.get("version_cmd")
+        if vc:
+            try:
+                r = subprocess.run(shlex.split(vc), capture_output=True, text=True, timeout=10)
+                lines = (r.stdout or r.stderr).strip().splitlines()
+                e["version"] = lines[0][:120] if lines else None
+                if r.returncode != 0:
+                    e["error"] = "exit %d" % r.returncode
+            except (OSError, subprocess.TimeoutExpired, ValueError) as ex:
+                e["error"] = ex.__class__.__name__
+        out.append(e)
+
+    def txt(p):
+        for e in p:
+            print("%-16s %-40s suggest: %s" % (e["id"], e["version"] or ("?" + (" (%s)" % e["error"] if e["error"] else "")),
+                                               e["update_suggestion"] or "-"))
+        print("(update commands are suggestions only — never executed)")
+    emit(args, out, txt)
+    return EXIT_OK
+
+
+# --------------------------------------------------------------------------- main
+def parse_args(argv):
+    here = os.path.dirname(os.path.realpath(__file__))
+    p = argparse.ArgumentParser(prog="harness-mcp-sync",
+                                description="Sync one vendor-neutral MCP-server SSOT into every installed AI harness.")
+    p.add_argument("mode", choices=MODES)
+    p.add_argument("ts", nargs="?", help="backup timestamp (restore mode)")
+    p.add_argument("--ssot", help="SSOT JSON (see templates/harness-mcp-sync/ssot.example.json)")
+    p.add_argument("--harness", help="comma-separated harness ids (default: all)")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--registry", default=os.path.join(here, "..", "harnesses"))
+    p.add_argument("--state-dir")
+    p.add_argument("--resolver", help="executable: argv[1]=ref, prints value; non-zero = error")
+    p.add_argument("--adopt", action="append", metavar="NAME", help="take ownership of an existing same-name entry")
+    p.add_argument("--allow-comment-loss", action="store_true", help="allow rewriting jsonc/yaml that has comments")
+    return p.parse_args(argv)
+
+
+def run(argv) -> int:
+    try:
+        args = parse_args(argv)
+    except SystemExit as e:
+        return EXIT_OK if e.code == 0 else EXIT_USAGE
+    try:
+        if tomllib is None:
+            raise UsageError("Python 3.11+ required (tomllib)")
+        reg = load_registry(expand(args.registry))
+        ids = select_harnesses(reg, args.harness)
+        sd = state_dir(args)
+        if args.mode == "explain":
+            return mode_explain(args, reg, ids)
+        if args.mode == "update":
+            return mode_update(args, reg, ids)
+        if args.mode == "doctor":
+            return mode_doctor(args, reg, ids)
+        manifest = load_manifest(sd)
+        load_salt(sd)
+        if args.mode == "inventory":
+            return mode_inventory(args, reg, ids, manifest)
+        if args.mode == "restore":
+            return mode_restore(args, reg, ids, sd, args.ts)
+        resolver = Resolver(args.resolver)
+        if args.mode == "verify":
+            ssot = load_ssot(args.ssot) if args.ssot else None
+            return mode_verify(args, reg, ids, ssot, resolver, manifest)
+        if not args.ssot:
+            raise UsageError("--ssot is required for %s" % args.mode)
+        ssot = load_ssot(args.ssot)
+        if args.mode == "plan":
+            return mode_plan(args, reg, ids, ssot, resolver, manifest)
+        return mode_apply(args, reg, ids, ssot, resolver, manifest, sd)
+    except UsageError as e:
+        print("harness-mcp-sync: error: %s" % e, file=sys.stderr)
+        return EXIT_USAGE
+    except Refused as e:
+        print("harness-mcp-sync: refused: %s" % e, file=sys.stderr)
+        return EXIT_DRIFT
+    except Exception as e:  # never leak a traceback (may carry values)
+        print("harness-mcp-sync: internal error: %s" % e.__class__.__name__, file=sys.stderr)
+        return EXIT_DRIFT
+
+
+if __name__ == "__main__":
+    sys.stdout = Redactor(sys.stdout)
+    sys.stderr = Redactor(sys.stderr)
+    code = run(sys.argv[1:])
+    sys.stdout.flush()
+    sys.exit(code)

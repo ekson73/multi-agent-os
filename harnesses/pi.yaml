@@ -1,0 +1,36 @@
+schema: 1
+id: pi
+name: pi coding agent
+vendor: null
+kind: cli
+detect:
+  commands:
+  - pi
+  paths:
+  - ~/.pi
+mcp:
+  supported: false
+  config_paths: []
+  format: null
+  key_path: null
+  entry_style: null
+  transports: []
+  supports:
+    headers: false
+    env: false
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: ~/.pi/agent/skills
+  plugins: pi install <source>
+  marketplace: null
+update:
+  version_cmd: pi --version
+  update_cmd: pi update self
+docs_url: https://github.com/badlogic/pi-mono
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: no native MCP support (extensions model instead)
+notes: 'Design choice upstream: tools via extensions, not MCP. ~/.pi/agent/settings.json has no MCP keys.'

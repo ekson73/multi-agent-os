@@ -1,0 +1,48 @@
+schema: 1
+id: goose
+name: Goose
+vendor: Block
+kind: cli
+detect:
+  commands:
+  - goose
+  paths:
+  - ~/.config/goose
+  - /Applications/Goose.app
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.config/goose/config.yaml
+    scope: user
+  format: yaml
+  key_path:
+  - extensions
+  entry_style: goose-extensions
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli:
+    add: goose configure  (interactive)
+    list: null
+    remove: null
+extensions:
+  skills: ~/.config/goose/skills
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: goose --version
+  update_cmd: goose update
+docs_url: https://block.github.io/goose/docs/getting-started/using-extensions
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Map `extensions`, key == name. Stdio: {type: stdio, name, cmd, args, envs:{...}, env_keys:[...], enabled, timeout,
+  description, bundled}. Remote (docs): {type: streamable_http, name, uri, headers:{...}, enabled, timeout}. Types observed:
+  stdio, builtin, platform (never modify builtin/platform). Note `cmd` not command, `envs` not env, `uri` not url. Desktop
+  app shares this file. `goose mcp` only runs bundled servers.'

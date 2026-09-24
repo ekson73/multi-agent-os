@@ -1,0 +1,51 @@
+schema: 1
+id: cline
+name: Cline CLI
+vendor: Cline
+kind: cli
+detect:
+  commands:
+  - cline
+  paths:
+  - ~/.cline
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.cline/data/settings/cline_mcp_settings.json
+    scope: user
+  - path: ~/.cline/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values: {streamable-http: streamableHttp}
+  transports:
+  - stdio
+  - sse
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli:
+    add: cline mcp add <name> <targetOrCommand...>
+    list: null
+    remove: null
+extensions:
+  skills: ~/.cline/skills
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: cline --version
+  update_cmd: npm i -g cline
+docs_url: https://docs.cline.bot/mcp/configuring-mcp-servers
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: 'ambiguous target: `cline mcp add --help` says it writes cline_mcp_settings.json (not found on disk) while ~/.cline/mcp.json
+  exists with 1 stdio entry — use the CLI until confirmed'
+notes: 'Entry (docs): stdio {command, args, env, disabled, autoApprove:[...]}; remote {type: streamableHttp, url, headers,
+  disabled}. The VS Code Cline extension (saoudrizwan.claude-dev) is NOT installed here; if it were, it uses globalStorage/.../settings/cline_mcp_settings.json.'

@@ -1,0 +1,50 @@
+schema: 1
+id: amp
+name: Amp CLI
+vendor: Sourcegraph
+kind: cli
+detect:
+  commands:
+  - amp
+  paths:
+  - ~/.config/amp
+  - ~/.amp
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.config/amp/settings.json
+    scope: user
+  - path: ./.amp/settings.json
+    scope: workspace
+  format: json
+  key_path:
+  - amp.mcpServers
+  entry_style: amp-settings
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: amp mcp add <name> [--env K=V] -- <command> [args]  |  amp mcp add <name> --header K=V <url>
+    list: amp mcp list
+    remove: amp mcp remove <name>
+extensions:
+  skills: null
+  plugins: ~/.config/amp/plugins
+  marketplace: null
+update:
+  version_cmd: amp --version
+  update_cmd: amp update
+docs_url: https://ampcode.com/manual#mcp
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'key_path is ONE literal key containing a dot: "amp.mcpServers" (flat VS Code-style setting name, not nested). Entry:
+  stdio {command, args, env}; remote {url, headers}. Global settings file does not exist yet (confirmed by `amp mcp add --help`
+  wording).'

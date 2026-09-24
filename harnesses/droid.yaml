@@ -1,0 +1,47 @@
+schema: 1
+id: droid
+name: Factory Droid
+vendor: Factory
+kind: cli
+detect:
+  commands:
+  - droid
+  paths:
+  - ~/.factory
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.factory/mcp.json
+    scope: user
+  - path: ./.factory/mcp.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  - http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli:
+    add: 'droid mcp add <name> <urlOrCommand...> [--type http] [--header ''K: V''] [--env K=V]'
+    list: droid mcp list
+    remove: droid mcp remove <name>
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: droid --version
+  update_cmd: curl -fsSL https://app.factory.ai/cli | sh
+docs_url: https://docs.factory.ai/cli/configuration/mcp
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'File observed but empty (mcpServers: {}), so shape is docs-only: remote {type: http, url, headers, disabled}; stdio
+  {type: stdio, command, args, env, disabled}. add flag names from docs; verify with `droid mcp add --help`.'

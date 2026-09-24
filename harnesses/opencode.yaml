@@ -1,0 +1,48 @@
+schema: 1
+id: opencode
+name: OpenCode
+vendor: SST
+kind: cli
+detect:
+  commands:
+  - opencode
+  paths:
+  - ~/.config/opencode
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.config/opencode/opencode.json
+    scope: user
+  - path: ./opencode.json
+    scope: project
+  format: json
+  key_path:
+  - mcp
+  entry_style: opencode
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli:
+    add: opencode mcp add  (interactive)
+    list: opencode mcp list
+    remove: null
+extensions:
+  skills: null
+  plugins: '`plugin` array in opencode.json'
+  marketplace: null
+update:
+  version_cmd: opencode --version
+  update_cmd: opencode upgrade
+docs_url: https://opencode.ai/docs/mcp-servers/
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Map key `mcp`. Remote: {type: remote, url, headers:{...}, enabled, oauth?, timeout?}. Local: {type: local, command:
+  [cmd, ...args] (single ARRAY, no args key), environment:{...}, enabled}. Note env field is `environment`. Observed 10 entries.
+  May also be opencode.jsonc — current file is plain JSON.'

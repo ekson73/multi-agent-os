@@ -28,6 +28,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `bot-finding-arbiter` | `bot-finding-arbiter/SKILL.md` | Soul-name **Praetor**. |
 | `chief-of-staff` | `chief-of-staff/SKILL.md` | Operator-facing work-focus conductor — the human twin of the agent-facing reactivate/Entelecheia. |
 | `claude-code-concierge` | `claude-code-concierge/SKILL.md` | Concierge / onboarding / router / docs-researcher / guarded-operator for the CLAUDE-CODE PLATFORM ITSELF — installing, configuring, using the CLI, man |
+| `harness-concierge` | `harness-concierge/SKILL.md` | Researched expert on ~40 AI-coding harnesses (MCP config paths/formats/CLIs); drives `bin/harness-mcp-sync` to plan/apply/verify one MCP SSOT across all of them. Soul-name Dragoman |
 | `content-recast` | `content-recast/SKILL.md` | Use when you need to RE-TARGET a piece of your own technical content for a DIFFERENT audience, abstraction level, intent, or language — then optionall |
 | `context-prep` | `context-prep/SKILL.md` | Prepare optimal context package before delegating tasks to sub-agents |
 | `converge` | `converge/SKILL.md` | Converge ≥2 AI-agent proposals into one validated synthesis via a 5-act protocol (steelman → critique → compare → synthesize → reject-log). |
@@ -103,7 +104,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 - **Agentic-tool lifecycle**: `agentic-tool-forge` (genesis) · `agentic-tool-intake` (adopt-or-not) · `agentic-tool-evaluator` (score/QA) · `agentic-tool-trainer` (improve/distill) · `agentic-tool-pipeline` (conductor)
 - **Session lifecycle**: `preflight` → `morning-briefing` → `postflight` (+ `quiesce` · `signoff` · `sync-to-git` · `session-fission` · `session-reentry` · `reactivate` · `context-prep`)
-- **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
+- **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
 - **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
