@@ -166,8 +166,9 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
      ([`trust-gates.md`](./trust-gates.md) §4). A server the seat's role does not need is left out. A projected
      server runs outside any bash sandbox with the operator's credentials. One whose executable or
      dependencies sit in a seat-writable location is an unconditional launch stop. Under the sandbox path, one
-     with filesystem, credential or network capability is a launch stop unless the credential has been removed
-     at its source ([`sandboxed-seats.md`](./sandboxed-seats.md) §0).
+     with filesystem, network or credential capability is a launch stop unless it is disabled for the seat or
+     runs under its own verified OS isolation with seat-immutable code; removing a credential is not enough
+     ([`sandboxed-seats.md`](./sandboxed-seats.md) §0).
   3. **Rules:** copy the reviewed `.claude/rules/` into the desk's `.claude/rules/`, or declare them
      unavailable in the culture and tell seats to read them from their worktree before any work.
   4. **Skills:** make them reachable, either by telling seats to read them from their worktree (for example
