@@ -242,6 +242,8 @@ put(".gemini/tmp/demo/chats/session-a.json", raw=json.dumps({"sessionId": "g-1",
 put(".gemini/tmp/demo/chats/session-b.jsonl", [
     {"sessionId": "g-2", "projectHash": "h", "startTime": T0 % 1, "lastUpdated": T0 % 2, "kind": "main"},
     {"$set": {"lastUpdated": T0 % 2, "messages": [{"id": "1", "type": "user", "timestamp": T0 % 2, "content": [{"text": "gemini jsonl demo-atlas"}]}]}}])
+put(".gemini/tmp/demo/chats/session-c.jsonl", [                      # no {sessionId, kind} header
+    {"id": "1", "type": "user", "timestamp": T0 % 3, "content": "gemini demo-atlas GEMNOHEADER-7Q"}])
 put(".gemini/antigravity-cli/history.jsonl", [
     {"conversationId": "agy-1", "display": "agy: demo-atlas prompt", "timestamp": 1767348000000, "workspace": "file://" + PROJ},
     {"conversationId": "agy-1", "display": "/help", "type": "slash_command", "timestamp": 1767348001000, "workspace": "file://" + PROJ}])
@@ -380,6 +382,22 @@ for control in ("run-manifest.json", ".catalog-key", "sessions.jsonl", ".lock"):
     ok(code == 5, "--security-findings naming the output root's own %s is refused" % control)
 ok(digest(os.path.join(out_ctl, ".catalog-key")) == key_before
    and digest(os.path.join(out_ctl, "run-manifest.json")) == man_before, "...and the key and receipt are intact")
+precious = os.path.join(FIX, "precious.txt")
+with open(precious, "w") as fh:
+    fh.write("data outside the catalog\n")
+precious_before = digest(precious)
+for control in (".lock", "run-manifest.json"):
+    os.unlink(os.path.join(out_ctl, control))
+    os.link(precious, os.path.join(out_ctl, control))
+    code, _, _, _ = run("--out", out_ctl, "index", "--project", PROJ)
+    ok(code == 5 and digest(precious) == precious_before,
+       "a hard-linked %s in the output root is refused; the linked file stays byte-identical" % control)
+    os.unlink(os.path.join(out_ctl, control))
+proc_home = os.path.join(FIX, "home-proc")
+os.makedirs(proc_home)
+code, _, _, _ = run("--out", "~", "index", "--project", PROJ, home=os.path.join(FIX, "home-scan"),
+                    env={"HOME": proc_home})
+ok(code == 5 and os.listdir(proc_home) == [], "--out ~ is refused even when --home points elsewhere (process home)")
 
 # 4. pass 1 index
 code, out, err, rc = run("--out", OUT, "--max-record-bytes", "4096", "--export", "chatgpt=" + good_zip,
@@ -449,6 +467,10 @@ ok(GH_TOOL not in out and any((m["tool"] or "").startswith("tool-") for m in msg
    "a token-shaped tool name is replaced by an opaque digest")
 ok("NOVERSION-7Q" not in out and "CODEXNOVER-7Q" not in out, "Claude/Codex records without a version are not emitted")
 ok("RECENT-7Q" not in out, "a transcript modified within the horizon is not a past session: not emitted")
+ok("GEMNOHEADER-7Q" not in out and any(x["reason"] == "missing-format-version" and x["source_id"] in
+                                         [k for k, v in man["sources_private"].items() if v.endswith("session-c.jsonl")]
+                                         for x in q),
+   "a Gemini JSONL without its {sessionId, kind} header is quarantined, never named after the file")
 ok("/root/" not in out and HOME not in text and os.path.realpath(HOME) not in text and "~/notes-7Q.txt" in text,
    "home paths are redacted: /root and the configured --home, lexical and canonical")
 src6 = [k for k, v in man["sources_private"].items() if v.endswith(U6 + ".jsonl")]
@@ -581,6 +603,12 @@ shapes = [x for x in jl(os.path.join(out_ch, "quarantine.jsonl")) if x["reason"]
 ok(len(shapes) == 3 and not any(m in out for m in ("SELFCYCLE7Q", "TWOCYCLE7Q", "DANGLING7Q"))
    and "ROOTED7Q-a" in out and "ROOTED7Q-b" in out,
    "self-cycle, 2-cycle and dangling-parent branches are quarantined; a branch that reaches the root is read")
+out_cap = os.path.join(FIX, "out-filecap")
+code, _, _, _ = run("--out", out_cap, "--max-files", "3", "index", "--project", PROJ)
+mcap = json.load(open(os.path.join(out_cap, "run-manifest.json")))
+ok(code == 3 and any(x["reason"] == "run-file-cap-during-discovery" for x in jl(os.path.join(out_cap, "quarantine.jsonl")))
+   and len([v for v in mcap["sources_private"].values() if v.endswith((".jsonl", ".json", ".md"))]) <= 3,
+   "--max-files stops discovery itself (walk halted, store marked partial with a reason)")
 
 # 8. concurrency: the lock is a kernel flock, so only a LIVE holder blocks; a leftover file never does
 holder = subprocess.Popen([sys.executable, "-c", "import fcntl, os, sys; fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600); "
@@ -714,6 +742,8 @@ ok(documented == mod.EXIT, "SKILL.md exit-code table matches the CLI (%s)" % sor
 ok(mod.VERSION == fixture_version(), "reader VERSION matches SKILL.md version")
 
 # 14. every path the reader touches stays inside the declared fixture roots and the output dir
+os.environ.update(HOME=HOME, XDG_DATA_HOME=ENV["XDG_DATA_HOME"], XDG_CONFIG_HOME=ENV["XDG_CONFIG_HOME"],
+                  XDG_STATE_HOME=ENV["XDG_STATE_HOME"])  # in-process runs see the synthetic process home too
 try:
     import fcntl
 except ImportError:
