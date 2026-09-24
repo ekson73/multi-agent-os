@@ -264,6 +264,13 @@ actual scope (removed from the user config, or its plugin disabled) or the seat 
 seat-scoped harness config directory (for Claude Code, `CLAUDE_CONFIG_DIR`, which needs its own login: a
 human step).
 
+**Projected project MCP servers are held to the same rule on the sandbox path.** A server copied from the
+target's `.mcp.json` into a desk ([`external-crew.md`](./external-crew.md) step 6) also runs outside the bash
+sandbox with the operator's credentials. When the sandbox is the chosen boundary (a credential still sits at
+its source), a projected server with filesystem, credential or network capability, or whose executable or
+dependencies sit in a seat-writable location (a worktree, a unit, the desk outside its denied control files),
+is a launch stop unless the credential has been removed at its source.
+
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
 seat shows which session hooks fired. Isolating hooks and plugins also needs the seat-scoped config

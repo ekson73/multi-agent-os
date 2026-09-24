@@ -25,8 +25,11 @@ its own sandbox, the projection of its project config and hooks (for Codex, `.co
 outside the desk (for Codex, `--add-dir`) are **not covered**. Do not use this recipe for those seats until it
 is validated for that runtime.
 
-The bash sandbox does not cover MCP servers: a user-scope or plugin MCP server runs outside it with the
-operator's credentials. Clear those first ([`trust-gates.md`](./trust-gates.md) §4, user-scope MCP servers).
+The bash sandbox does not cover MCP servers: every MCP server, whether user-scope, plugin-provided or projected
+from the target's `.mcp.json`, runs outside it with the operator's credentials. Under the sandbox path, a
+server with filesystem, credential or network capability, or whose executable or dependencies sit in a
+seat-writable location, is a **launch stop** unless the credential has been removed at its source
+([`trust-gates.md`](./trust-gates.md) §4, MCP servers).
 
 ## 1. The boundary: settings that held [T3, show the diff]
 
