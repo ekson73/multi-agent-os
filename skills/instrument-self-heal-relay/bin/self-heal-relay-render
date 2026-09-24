@@ -103,6 +103,8 @@ def render(lang: str) -> str:
 
 def extract(text: str) -> tuple[str, str] | None:
     lines = text.splitlines(keepends=True)
+    if sum(BEGIN in l for l in lines) > 1 or sum(END in l for l in lines) > 1:
+        return None   # two blocks = two sets of traps/hooks installed: never "current"
     start = next((i for i, l in enumerate(lines) if BEGIN in l), None)
     if start is None:
         return None
@@ -117,7 +119,7 @@ def extract(text: str) -> tuple[str, str] | None:
 def verify(path: Path, lang_hint: str | None) -> int:
     got = extract(path.read_text(encoding="utf-8"))
     if got is None:
-        print(f"no self-heal-relay block in {path}", file=sys.stderr)
+        print(f"no single, complete self-heal-relay block in {path} (absent, unterminated, or duplicated)", file=sys.stderr)
         return 2
     lang, block = got
     lang = lang_hint or lang

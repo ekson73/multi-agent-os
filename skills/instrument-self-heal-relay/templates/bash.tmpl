@@ -51,9 +51,9 @@ shr_redact() {
     -e 's/sk-[A-Za-z0-9_-]{20,}/[REDACTED:api-key]/g' \
     -e 's/xox[baprs]-[A-Za-z0-9-]{10,}/[REDACTED:slack-token]/g' \
     -e 's/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/[REDACTED:jwt]/g' \
-    -e 's#://[^/@[:space:]]+:[^/@[:space:]]+@#://[REDACTED]@#g' \
+    -e 's#://[^/@[:space:]]{1,200}:[^/@[:space:]]{1,200}@#://[REDACTED]@#g' \
     -e 's/([Bb]earer|[Bb]asic)[[:space:]]+[A-Za-z0-9._~+\/=-]{8,}/\1 [REDACTED]/g' \
-    -e "s/([A-Za-z0-9_.-]*([Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss]([Ww][Oo][Rr][Dd]|[Ww][Dd])?|[Aa][Pp][Ii]_?[Kk][Ee][Yy]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh])[A-Za-z0-9_.-]*)[[:space:]]*[=:][[:space:]]*(\"[^\"]*\"|${_shr_sq}[^${_shr_sq}]*${_shr_sq}|[^[:space:]\"${_shr_sq}]+)/\1=[REDACTED]/g"
+    -e "s/([A-Za-z0-9_.-]{0,64}([Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Pp][Aa][Ss][Ss]([Ww][Oo][Rr][Dd]|[Ww][Dd])?|[Aa][Pp][Ii]_?[Kk][Ee][Yy]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Aa][Uu][Tt][Hh])[A-Za-z0-9_.-]{0,64})[[:space:]]*[=:][[:space:]]*(\"[^\"]*\"|${_shr_sq}[^${_shr_sq}]*${_shr_sq}|[^[:space:]\"${_shr_sq}]+)/\1=[REDACTED]/g"
 }
 
 shr_is_contract() { case "$SHR_CONTRACT_CODES" in *" $1 "*) return 0 ;; esac; return 1; }
@@ -108,10 +108,14 @@ shr_dispatch() {  # $1=tier — exactly ONE invocation per harness; a failure mo
 
 shr_seed() {  # async hand-off for hooks / cron / CI: write a seed, return immediately, dispatch nothing
   local d="${MAOS_SELFHEAL_SEED_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/maos/self-heal-seeds}" f
-  mkdir -p "$d" 2>/dev/null && chmod 700 "$d" 2>/dev/null || :
+  if ! mkdir -p "$d" 2>/dev/null; then printf 'self-heal-relay: seed NOT written (cannot create %s); prompt kept at %s\n' "$d" "$SHR_PROMPT" >&2; return 1; fi
+  chmod 700 "$d" 2>/dev/null || :
   f="$d/NEEDS-AGENT-$(date -u +%Y%m%dT%H%M%S)-$$-${RANDOM:-0}-$SHR_NAME.md"
-  ( umask 077; { printf '<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n'; cat "$SHR_PROMPT"; } > "$f" )   # 0600: the prompt may hold residue
-  printf 'self-heal-relay: seed written -> %s\n' "$f" >&2
+  if ( umask 077; { printf '<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n'; cat "$SHR_PROMPT"; } > "$f" ) 2>/dev/null; then   # 0600: the prompt may hold residue
+    printf 'self-heal-relay: seed written -> %s\n' "$f" >&2
+  else
+    printf 'self-heal-relay: seed NOT written (cannot write %s); prompt kept at %s\n' "$f" "$SHR_PROMPT" >&2; return 1
+  fi
 }
 
 shr_relay() {  # $1=rc $2=line $3=cmd — never exits; the caller preserves the original exit code

@@ -72,8 +72,9 @@ relayed or auto-applied.
 4. **Other languages (`--lang other`)** — no template? Port the *contract*, not the code: a
    conformant port satisfies all ten invariants below. Write the block, then add a fixture to
    `tests/test-self-heal-relay.sh` proving invariants 1-4 and 6 before shipping.
-5. **Verify** — `bin/self-heal-relay-render --verify <file>` (rc 0 current · 1 drift · 2 no
-   block) and `bash tests/test-self-heal-relay.sh` (runs the bash block on macOS `/bin/bash`
+5. **Verify** — for bash / python / node blocks: `bin/self-heal-relay-render --verify <file>` (rc 0 current · 1 drift · 2 no
+   single complete block). For a hand-made `--lang other` port `--verify` does not apply: the completion check is the fixture
+   from step 4 passing (invariants 1-4 and 6). Then `bash tests/test-self-heal-relay.sh` (runs the bash block on macOS `/bin/bash`
    3.2 *and* a modern bash: ERR-trap semantics differ between them).
 6. **Record** — one line in the adopters table of `docs/self-heal-relay.md`; if a NEW artifact
    was created, `artifact-registry record --kind create …` (dedup memory).

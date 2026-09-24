@@ -54,6 +54,7 @@ if "$RENDER" --verify "$SANDBOX/blk.bash" >/dev/null 2>&1; then ok "fresh bash b
 sed 's/SHR_MAX_LOG_LINES:-200/SHR_MAX_LOG_LINES:-201/' "$SANDBOX/blk.bash" > "$SANDBOX/drift.bash"
 "$RENDER" --verify "$SANDBOX/drift.bash" >/dev/null 2>&1; check "hand-edited block is DRIFT (rc 1)" "$?" "1"
 printf 'echo hi\n' > "$SANDBOX/none.sh"; "$RENDER" --verify "$SANDBOX/none.sh" >/dev/null 2>&1; check "file without a block is rc 2" "$?" "2"
+cat "$SANDBOX/blk.bash" "$SANDBOX/blk.bash" > "$SANDBOX/dup.bash"; "$RENDER" --verify "$SANDBOX/dup.bash" >/dev/null 2>&1; check "two relay blocks in one file are rejected (rc 2)" "$?" "2"
 for L in python node; do "$RENDER" --verify "$SANDBOX/blk.$L" >/dev/null 2>&1; check "fresh $L block verifies" "$?" "0"; done
 
 BASHES="/bin/bash"; NB="$(command -v bash)"; [ "$NB" != "/bin/bash" ] && BASHES="$BASHES $NB"
@@ -188,6 +189,12 @@ false"
   check "seed file is mode 0600 (not world-readable)" "$(fmode "$SF")" "600"
 done
 
+  echo "-- 7b. seed mode reports failure instead of claiming a seed that was not written"
+  reset_stubs; mk_bash "$SANDBOX/t7b.sh" "" 'false'; : > "$SANDBOX/notadir"
+  OUT="$(MAOS_SELFHEAL_MODE=seed MAOS_SELFHEAL_SEED_DIR="$SANDBOX/notadir/sub" "$B" "$SANDBOX/t7b.sh" 2>&1 >/dev/null)"
+  case "$OUT" in *"seed NOT written"*) ok "unwritable seed dir is reported" ;; *) bad "seed failure not reported: $OUT" ;; esac
+  case "$OUT" in *"seed written ->"*) bad "claimed a seed that was not written" ;; *) ok "no false 'seed written'" ;; esac
+
 echo; echo "== ports: python + node (uncaught fault relays; intentional exit never does) =="
 if command -v python3 >/dev/null 2>&1; then
   reset_stubs; { printf 'import sys\n'; "$RENDER" --lang python; printf 'raise RuntimeError("boom %s")\n' "$FAKE_GH"; } > "$SANDBOX/p1.py"
@@ -204,6 +211,9 @@ if command -v python3 >/dev/null 2>&1; then
   if gc_alive "$GCP"; then bad "python: grandchild survived the timeout"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: no grandchild survives a harness timeout"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import threading\nt = threading.Thread(target=lambda: 1/0); t.start(); t.join()\n'; } > "$SANDBOX/p7.py"; python3 "$SANDBOX/p7.py" >/dev/null 2>&1; check "python: uncaught worker-thread exception relays once" "$(calls)" "1"
   check "python: prompt carries the absolute script path" "$(grep -cE '^Script: /.*/p7\.py$' "$STUB_LOG".stdin.1 2>/dev/null)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'import threading\ndef w(): 1/0\nt = threading.Thread(target=w); t.start(); t.join()\nraise RuntimeError("main")\n'; } > "$SANDBOX/p8.py"; python3 "$SANDBOX/p8.py" >/dev/null 2>&1; check "python: worker fault + later main fault dispatch exactly once" "$(calls)" "1"
+  reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("x" * 3000000 + "\\nTAILMARK\\n")\nraise RuntimeError("big log")\n'; } > "$SANDBOX/p9.py"; python3 "$SANDBOX/p9.py" >/dev/null 2>&1; check "python: 3MB log still relays with a bounded tail" "$(grep -c TAILMARK "$STUB_LOG".stdin.1 2>/dev/null)" "1"
+  reset_stubs; { "$RENDER" --lang node; printf 'process.stderr.write("x".repeat(3000000) + "\\nTAILMARK\\n"); throw new Error("big log");\n'; } > "$SANDBOX/n9.js"; node "$SANDBOX/n9.js" >/dev/null 2>&1; check "node: 3MB single-line log relays (redaction is linear, no ReDoS)" "$(calls)" "1"
   reset_stubs; { "$RENDER" --lang python; printf 'raise KeyboardInterrupt\n'; } > "$SANDBOX/p5.py"; python3 "$SANDBOX/p5.py" >/dev/null 2>&1; check "python: Ctrl-C (KeyboardInterrupt) never relays" "$(calls)" "0"
   python3 "$SANDBOX/p2.py" >/dev/null 2>&1; rc=$?; check "python: sys.exit(2) preserved" "$rc" "2"; check "python: sys.exit → zero dispatches" "$(calls)" "0"
 else bad "python3 missing"; fi

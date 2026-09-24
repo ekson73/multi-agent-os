@@ -23,14 +23,23 @@ const _SHR_REDACT = [
   [/sk-[A-Za-z0-9_-]{20,}/g, "[REDACTED:api-key]"],
   [/xox[baprs]-[A-Za-z0-9-]{10,}/g, "[REDACTED:slack-token]"],
   [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g, "[REDACTED:jwt]"],
-  [/:\/\/[^/@\s]+:[^/@\s]+@/g, "://[REDACTED]@"],
+  [/:\/\/[^/@\s]{1,200}:[^/@\s]{1,200}@/g, "://[REDACTED]@"],
   [/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 [REDACTED]"],
-  [/([A-Za-z0-9_.-]*(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]*)\s*[=:]\s*("[^"]*"|'[^']*'|[^\s"']+)/gi, "$1=[REDACTED]"],
+  [/([A-Za-z0-9_.-]{0,64}(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]{0,64})\s*[=:]\s*("[^"]*"|'[^']*'|[^\s"']+)/gi, "$1=[REDACTED]"],
 ];
 // Best-effort secret scrub. It cannot be exhaustive: a secret-handling script should default MAOS_SELFHEAL=0.
 function shrRedact(t) { for (const [rx, rep] of _SHR_REDACT) t = t.replace(rx, rep); return t; }
 
 let _shrDir = null, _shrLog = null, _shrRelayed = false;
+
+// Platform-independent executable lookup (no `sh` needed, so it also works on Windows).
+function shrWhich(bin) {
+  const exts = process.platform === "win32" ? (process.env.PATHEXT || ".EXE;.CMD;.BAT").split(";").concat("") : [""];
+  for (const d of (process.env.PATH || "").split(_shr.path.delimiter)) for (const e of exts) {
+    try { _shr.fs.accessSync(_shr.path.join(d, bin + e), _shr.fs.constants.X_OK); return true; } catch (_) {}
+  }
+  return false;
+}
 
 function shrBuildPrompt(excText, tier, logTail) {
   const nonce = _shr.crypto.randomBytes(8).toString("hex");
@@ -46,7 +55,7 @@ function shrBuildPrompt(excText, tier, logTail) {
 function shrRelay(excText) {
   if (_shrRelayed) return; _shrRelayed = true;
   let tier = SHR_TIER_LOCK || process.env.MAOS_SELFHEAL_TIER || "propose"; tier = tier === "apply" ? "apply" : "propose";
-  let logTail = ""; try { logTail = _shr.fs.readFileSync(_shrLog, "utf8").split("\n").slice(-200).join("\n"); } catch (_) {}
+  let logTail = ""; try { const fd = _shr.fs.openSync(_shrLog, "r"); const sz = _shr.fs.fstatSync(fd).size, cap = Math.min(sz, 262144), buf = Buffer.alloc(cap); _shr.fs.readSync(fd, buf, 0, cap, sz - cap); _shr.fs.closeSync(fd); logTail = buf.toString("utf8").split("\n").slice(-200).join("\n"); } catch (_) {} // bounded tail: a huge log cannot exhaust memory
   const prompt = shrBuildPrompt(excText, tier, logTail);
   const ppath = _shr.path.join(_shrDir, "prompt.md");
   _shr.fs.writeFileSync(ppath, prompt, { mode: 0o600 });
@@ -63,7 +72,7 @@ function shrRelay(excText) {
   for (const name of (process.env.MAOS_AI_HARNESS || SHR_DEFAULT_CHAIN.join(" ")).split(/\s+/).filter(Boolean)) {
     const h = SHR_HARNESSES[name];
     if (!h) { err(`self-heal-relay: unknown harness "${name}" (skipped)`); continue; }
-    if (_shr.cp.spawnSync("sh", ["-c", `command -v ${JSON.stringify(h.bin)}`]).status !== 0 || (!h.verified && !explicit)) continue;
+    if (!shrWhich(h.bin) || (!h.verified && !explicit)) continue;
     err(`self-heal-relay: dispatching to ${name} (tier=${tier})`);
     const argv = h.argv[tier].slice(); let input;
     if (h.via === "argv-path") argv.push(`Read the file ${ppath} and follow its instructions.`); else input = prompt;
