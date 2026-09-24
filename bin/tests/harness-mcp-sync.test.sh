@@ -863,6 +863,43 @@ print(" ".join(sorted({f for f in re.findall(r'"file": "([^"]+)"', txt) if not f
 PY
 )"
 eq "" "$OUTSIDE" 'every file the tool reported touching is inside the temp root'
+# 4096987733 (P1): a managed entry that becomes un-renderable (skip) is preserved, not deleted
+mk hkeep json mcpServers mcpservers-json "~/.hkeep/mcp.json" true null null high
+mkdir -p "$HOME/.hkeep"
+run apply --ssot "$SSOT" --harness hkeep --json
+eq 0 "$rc" '#4096987733: initial apply with header support'
+K0="$(python3 -c 'import json,sys; print("cf-remote" in json.load(open(sys.argv[1]))["mcpServers"])' "$HOME/.hkeep/mcp.json")"
+eq True "$K0" '#4096987733: cf-remote written while headers are supported'
+mk hkeep json mcpServers mcpservers-json "~/.hkeep/mcp.json" false null null high   # now: no header support
+run plan --ssot "$SSOT" --harness hkeep --json
+has 'lacks header support' "$o" '#4096987733: cf-remote now skipped (headers unsupported)'
+# Instrument must be able to fail: print the cf-remote action list, or PARSE-ERROR (never an empty pass).
+KA="$(printf '%s' "$o" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin); hs=d["harnesses"] if isinstance(d,dict) else d; print(" ".join(sorted(a["action"] for h in hs for a in h["actions"] if a["server"]=="cf-remote")) or "NONE")
+except Exception as e:
+    print("PARSE-ERROR", type(e).__name__)' 2>&1)"
+eq "skip" "$KA" '#4096987733: skipped managed entry is NOT scheduled for removal (action list = skip only)'
+run apply --ssot "$SSOT" --harness hkeep --json
+K1="$(python3 -c 'import json,sys; print("cf-remote" in json.load(open(sys.argv[1]))["mcpServers"])' "$HOME/.hkeep/mcp.json")"
+eq True "$K1" '#4096987733: apply preserves the still-working skipped entry'
+
+# 4096987739 (P2): YAML comment detection is quote-aware
+YC="$(python3 - "$BIN" <<'PY'
+import importlib.machinery,sys
+m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+cases=[('theme: "dark" # keep\n',True),("theme: 'dark' # keep\n",True),("# top\n",True),
+       ('url: "a#b"\n',False),("k: 'it''s #not'\n",False),("k: plain#tag\n",False),("k: it's fine\n",False)]
+print(" ".join(str(m.yaml_has_comments(t)==want) for t,want in cases))
+PY
+)"
+eq "True True True True True True True" "$YC" '#4096987739: yaml_has_comments quote-aware (7 cases)'
+printf 'theme: "dark" # keep\nextensions: {}\n' > "$HOME/.hgoose/config.yaml"
+G0="$(sum "$HOME/.hgoose/config.yaml")"
+run apply --ssot "$SSOT" --harness hgoose
+has 'allow-comment-loss' "$o" '#4096987739: goose comment after quoted scalar -> refused without the flag'
+eq "$G0" "$(sum "$HOME/.hgoose/config.yaml")" '#4096987739: commented goose config left untouched'
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

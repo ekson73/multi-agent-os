@@ -626,10 +626,29 @@ def _strip_trailing_commas(text: str) -> str:
 
 
 def yaml_has_comments(text: str) -> bool:
+    """Quote-aware: a '#' outside single/double quotes, at line start or after whitespace,
+    starts a comment. Errs toward True (a false positive only requires --allow-comment-loss;
+    a false negative would silently drop the operator's comments on rewrite)."""
     for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("#") or re.search(r"\s#", line.split("'")[0].split('"')[0]):
-            return True
+        quote, i, n = None, 0, len(line)
+        while i < n:
+            c = line[i]
+            if quote == '"':
+                if c == "\\":
+                    i += 1
+                elif c == '"':
+                    quote = None
+            elif quote == "'":
+                if c == "'":
+                    if i + 1 < n and line[i + 1] == "'":
+                        i += 1  # '' is an escaped quote inside single-quoted scalars
+                    else:
+                        quote = None
+            elif c in "\"'" and (i == 0 or line[i - 1] in " \t:[{,-?"):
+                quote = c
+            elif c == "#" and (i == 0 or line[i - 1] in " \t"):
+                return True
+            i += 1
     return False
 
 
@@ -1148,7 +1167,11 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                 else:
                     r["actions"].append({"server": legacy, "action": "remove", "reason": "replaced-by %s" % name})
                     r["_drops"].add(legacy)
-        for name in sorted(owned - desired_names - r["_drops"]):
+        # A desired server that could not be rendered for this harness (action "skip") is left
+        # exactly as it is: skipping means "don't touch", never "delete the working entry".
+        # Only "omit" (disabled in SSOT, no disable flag) and truly undesired names are removed.
+        kept = {a["server"] for a in r["actions"] if a.get("action") == "skip"}
+        for name in sorted(owned - desired_names - r["_drops"] - kept):
             if name in existing and not any(a["server"] == name and a["action"] == "conflict" for a in r["actions"]):
                 if modified(name):
                     r["actions"].append({"server": name, "action": "conflict",
