@@ -173,13 +173,27 @@ class Redactor(io.TextIOBase):
         self._s.flush()
 
 
+_CONFIG_SECRET_MIN = 8
+
+
+def _pathlike(v: str) -> bool:
+    if v.startswith(("/", "~", "./", "../")):
+        return True
+    home = os.path.expanduser("~")
+    return bool(home and home != "~" and v.startswith(home))
+
+
 def register_container_values(obj):
-    """Register header/env values found anywhere in a parsed config as secrets."""
+    """Register header/env values found in a parsed (third-party) config as stream secrets —
+    defense in depth: previews already mask container values structurally. Filesystem paths and
+    values shorter than 8 chars are NOT registered (they shred paths/keys via substring masking
+    and are not credentials). SSOT-resolved secrets are registered elsewhere at ANY length."""
     if isinstance(obj, dict):
         for k, v in obj.items():
             if k in SECRET_CONTAINERS and isinstance(v, dict):
                 for vv in v.values():
-                    Redactor.register(vv if isinstance(vv, str) else None)
+                    if isinstance(vv, str) and len(vv) >= _CONFIG_SECRET_MIN and not _pathlike(vv):
+                        Redactor.register(vv)
             register_container_values(v)
     elif isinstance(obj, list):
         for v in obj:
@@ -218,9 +232,10 @@ def entry_hash(obj) -> str:
 _SALT: bytes | None = None
 
 
-def load_salt(sd: str, create: bool = False):
+def load_salt(sd: str, create: bool = False, repair: bool = False):
     """Per-install random salt (0600) keying the manifest HMACs; plain hashes of
-    low-entropy secrets would be brute-forceable offline."""
+    low-entropy secrets would be brute-forceable offline. Loose permissions are tightened
+    only when `repair` (apply/restore); read-only modes warn and leave metadata untouched."""
     global _SALT
     p = os.path.join(sd, "salt")
     if os.path.lexists(p):
@@ -228,7 +243,11 @@ def load_salt(sd: str, create: bool = False):
             st = os.lstat(q)
             if stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid():
                 raise UsageError("refusing state %s: not owned by the current user or a symlink" % q)
-            if (st.st_mode & 0o777) != want:
+            if (st.st_mode & 0o777) != want and not repair:
+                print("harness-mcp-sync: warn: state %s has mode %s (want %s); not changed in this "
+                      "read-only mode — run apply to tighten" % (q, oct(st.st_mode & 0o777), oct(want)),
+                      file=sys.stderr)
+            elif (st.st_mode & 0o777) != want:
                 try:
                     os.chmod(q, want)
                 except OSError:
@@ -789,6 +808,16 @@ def toml_header_path(line: str):
     return out
 
 
+def toml_newline(raw: bytes):
+    """Original newline style: '\\n', '\\r\\n', or None when mixed/bare-CR (not preservable)."""
+    crlf = raw.count(b"\r\n")
+    lf = raw.count(b"\n") - crlf
+    cr = raw.count(b"\r") - crlf
+    if cr or (crlf and lf):
+        return None
+    return "\r\n" if crlf else "\n"
+
+
 def toml_surgical(text: str, key_path: list, drop: set, add: dict, subtables: bool) -> str:
     lines = text.splitlines(keepends=True)
     keep, skipping = [], False
@@ -1153,7 +1182,9 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
             if act.get("action") not in ("add", "update", "unchanged"):
                 continue  # replacement not written (skip/omit/conflict): never drop the legacy entry
             for legacy in raw.get("replaces") or []:
-                if legacy not in existing or legacy in ssot["servers"] or legacy in r["_drops"] or \
+                legacy_raw = ssot["servers"].get(legacy)
+                if legacy not in existing or (legacy_raw is not None and server_applies(hid, legacy_raw)) or \
+                        legacy in r["_drops"] or \
                         any(a["server"] == legacy for a in r["actions"]):
                     continue
                 if legacy not in owned and legacy not in adopt:
@@ -1214,6 +1245,11 @@ def render_file(h: dict, cfg: dict, writes: dict, drops: set) -> tuple[str, dict
                 raise Refused("entry %s is defined inline (not as a table); surgical removal impossible" % n)
         if entry_hash(new_doc) != entry_hash(expected):
             raise Refused("surgical TOML edit does not match the expected document; nothing written")
+        nl = toml_newline(cfg.get("raw", b""))
+        if nl is None:
+            raise Refused("TOML file has mixed line endings (CRLF and LF); normalize it, then re-run")
+        if nl == "\r\n":
+            text = text.replace("\n", "\r\n")  # surgical edit ran on the LF-normalized copy
     else:
         mp = ensure_map(doc, kp)
         for n in drops:
@@ -1267,7 +1303,7 @@ def config_changed(path: str, cfg: dict) -> bool:
 
 
 def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
-    load_salt(sd, create=True)
+    load_salt(sd, create=True, repair=True)
     ts = now_ts()
     snap_saved = False
     worst = EXIT_OK
@@ -1290,6 +1326,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             for n, e in r["_writes"].items():
                 entry["servers"][n] = mf_hash(e)
             r["apply"] = "adopted (manifest only; file untouched)"
+            save_manifest(sd, manifest)
             continue
         if cfg["has_comments"] and not allow_comment_loss:
             r["apply"] = "refused: %s file has comments (pass --allow-comment-loss; a backup is always kept)" % \
@@ -1322,6 +1359,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             ok = entry_hash(back) == entry_hash(expected)
         except Refused:
             ok = False
+        except BaseException:
+            restore_from(bdir)  # unexpected fault after the write: never leave an unowned edit behind
+            raise
         if not ok:
             restore_from(bdir)
             r["apply"] = "rolled-back: parse-back validation failed; original restored"
@@ -1334,6 +1374,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             entry["servers"][n] = mf_hash(e)
         r["apply"] = "applied (backup %s)" % ts
         r["backup_ts"] = ts
+        save_manifest(sd, manifest)  # persist ownership per harness: a later fault cannot orphan it
     save_manifest(sd, manifest)
     return worst, (ts if snap_saved else None)
 
@@ -1520,6 +1561,8 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
                 srv = ssot["servers"].get(name)
                 if srv is None:
                     e["issues"].append("%s: not in SSOT" % name)
+                elif not server_applies(hid, srv):
+                    e["issues"].append("%s: excluded from this harness by its SSOT selector (plan removes it)" % name)
                 elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
                     e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)
             for ck, cv in cur.items():
@@ -1708,7 +1751,7 @@ def run(argv) -> int:
         if os.path.lexists(sd):
             check_private_dir(sd)
         manifest = load_manifest(sd)
-        load_salt(sd)
+        load_salt(sd, repair=args.mode in ("apply", "restore"))
         if args.mode == "inventory":
             return mode_inventory(args, reg, ids, manifest)
         if args.mode == "restore":

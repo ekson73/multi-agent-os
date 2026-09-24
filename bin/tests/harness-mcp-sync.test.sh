@@ -541,10 +541,17 @@ chmod 600 "$SD/manifest.json"
 chmod 644 "$SD/salt"
 run plan --ssot "$SSOT" --harness hjson
 eq 0 "$rc" 'N2: loose (owned) salt: run continues'
-has 'tightened to 0o600' "$o" 'N2: warning emitted on stderr'
-eq 600 "$(mode "$SD/salt")" 'N2: salt tightened to 600'
+has 'not changed in this read-only mode' "$o" 'N2: read-only mode warns on stderr'
+eq 644 "$(mode "$SD/salt")" '#4097072133: plan leaves the salt mode untouched'
+run apply --ssot "$SSOT" --harness hjson
+has 'tightened to 0o600' "$o" 'N2: apply tightens + warns'
+eq 600 "$(mode "$SD/salt")" 'N2: salt tightened to 600 by apply'
 chmod 755 "$SD"; run plan --ssot "$SSOT" --harness hjson
-eq 700 "$(mode "$SD")" 'N2: loose state dir tightened to 700'
+eq 755 "$(mode "$SD")" '#4097072133: plan leaves a 0755 state dir unchanged'
+for m in inventory verify; do run $m --harness hjson; done
+eq 755 "$(mode "$SD")" '#4097072133: inventory/verify leave the state dir mode unchanged'
+run apply --ssot "$SSOT" --harness hjson
+eq 700 "$(mode "$SD")" 'N2: loose state dir tightened to 700 by apply'
 mv "$SD/salt" "$SD/salt.real"; ln -s "$SD/salt.real" "$SD/salt"
 run plan --ssot "$SSOT" --harness hjson
 eq 2 "$rc" 'N2: symlinked salt refused'
@@ -852,6 +859,126 @@ PY2
 eq "None ['fixh', '--version']" "$PYV" 'version_cmd re-checked by version_probe_argv before running'
 o="$("$BIN" explain --registry "$DIR/../../harnesses" --state-dir "$SD" 2>&1)"; rc=$?
 eq 0 "$rc" 'all real registry YAMLs pass the version_cmd load check'
+
+# ---------------------------------------------------------------- PDCA round 3 (#4097072123 .. #4097147125, root P5)
+# 4097072123: ownership of earlier successful writes survives a later harness fault
+SDM="$T/state-r3m"
+mk hp1 json mcpServers mcpservers-json "~/.hp1/mcp.json" true null null high
+mk hp2 json mcpServers mcpservers-json "~/.hp2blk/sub/mcp.json" true null null high
+printf 'x' > "$HOME/.hp2blk"          # a FILE where hp2's config dir must go -> makedirs faults
+cat > "$T/ssot-r3.json" <<'EOF'
+{"schema":1,"servers":{"p-tool":{"transport":"stdio","command":"npx","args":["-y","p"]}}}
+EOF
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hp1,hp2 --registry "$REG" --state-dir "$SDM" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 1 "$rc" '#4097072123: later harness fault -> exit 1'
+has 'p-tool' "$(cat "$HOME/.hp1/mcp.json" 2>/dev/null)" '#4097072123: earlier harness write landed'
+has "$HOME/.hp1/mcp.json" "$(cat "$SDM/manifest.json" 2>/dev/null)" '#4097072123: earlier ownership persisted in the manifest'
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hp1 --registry "$REG" --state-dir "$SDM" --json 2>&1)"; rc=$?
+hasnt 'conflict' "$o" '#4097072123: re-plan sees the earlier entry as owned (no conflict)'
+eq 0 "$rc" '#4097072123: re-plan of the earlier harness is clean'
+rm -f "$HOME/.hp2blk" "$REG/hp1.yaml" "$REG/hp2.yaml"
+
+# 4097072133 is covered in the N2 block (plan/inventory/verify never chmod; apply repairs)
+
+# 4097072141: TOML CRLF bytes outside the managed table are preserved; mixed endings refused
+SDC="$T/state-r3c"
+mk hcrlf toml mcp_servers codex "~/.hcrlf/config.toml" true enabled enabled-bool high
+printf 'model = "x"\r\n\r\n[other]\r\nk = 1\r\n' > "$HOME/.hcrlf/config.toml"
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" '#4097072141: CRLF TOML apply -> exit 0'
+CR="$(python3 - "$HOME/.hcrlf/config.toml" <<'PY2'
+import sys,re
+b=open(sys.argv[1],"rb").read()
+print("lone-LF=%d prefix=%s managed=%s" % (len(re.findall(rb"(?<!\r)\n",b)),
+      b.startswith(b'model = "x"\r\n\r\n[other]\r\nk = 1\r\n'), b"p-tool" in b))
+PY2
+)"
+eq "lone-LF=0 prefix=True managed=True" "$CR" '#4097072141: original CRLF bytes kept; no LF-only lines introduced'
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" --json 2>&1)"
+hasnt '"action": "add"' "$o" '#4097072141: CRLF apply is idempotent'
+printf 'model = "x"\r\nk2 = 1\n' > "$HOME/.hcrlf/config.toml"; M0="$(sum "$HOME/.hcrlf/config.toml")"
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" 2>&1)"; rc=$?
+eq 1 "$rc" '#4097072141: mixed line endings refused (exit 1)'
+has 'mixed line endings' "$o" '#4097072141: refusal explains mixed endings'
+eq "$M0" "$(sum "$HOME/.hcrlf/config.toml")" '#4097072141: mixed-ending file untouched'
+rm -f "$REG/hcrlf.yaml"
+
+# 4097072154: claude-desktop syncs stdio entries, never remote; siblings preserved
+SDD="$T/state-r3d"; CDD="$HOME/Library/Application Support/Claude"; mkdir -p "$CDD"
+cp "$DIR/../../harnesses/claude-desktop.yaml" "$REG/"
+printf '{"globalShortcut":"Cmd+K","preferences":{"x":1},"mcpServers":{}}' > "$CDD/claude_desktop_config.json"
+cat > "$T/ssot-cd.json" <<'EOF'
+{"schema":1,"servers":{"p-tool":{"transport":"stdio","command":"npx","args":["-y","p"]},
+ "r-srv":{"transport":"streamable-http","url":"https://r.example.test/mcp"}}}
+EOF
+o="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" apply --ssot "$T/ssot-cd.json" --harness claude-desktop --registry "$REG" --state-dir "$SDD" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" '#4097072154: claude-desktop apply -> exit 0'
+CDR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sorted(d["mcpServers"]), d["globalShortcut"], d["preferences"], d["mcpServers"]["p-tool"].get("command"))' "$CDD/claude_desktop_config.json")"
+eq "['p-tool'] Cmd+K {'x': 1} npx" "$CDR" '#4097072154: stdio written, remote not written, siblings preserved'
+o="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" verify --ssot "$T/ssot-cd.json" --harness claude-desktop --registry "$REG" --state-dir "$SDD" 2>&1)"; rc=$?
+eq 0 "$rc" '#4097072154: parse-back + verify clean'
+rm -f "$REG/claude-desktop.yaml"
+
+# 4097147118: verify flags a still-owned entry excluded by its SSOT selector
+SDS="$T/state-r3s"
+mk hsel json mcpServers mcpservers-json "~/.hsel/mcp.json" true null null high
+run_s() { o="$("$BIN" "$@" --harness hsel --registry "$REG" --state-dir "$SDS" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+run_s apply --ssot "$T/ssot-r3.json"; eq 0 "$rc" '#4097147118: setup apply'
+cat > "$T/ssot-excl.json" <<'EOF'
+{"schema":1,"servers":{"p-tool":{"transport":"stdio","command":"npx","args":["-y","p"],"harnesses":{"exclude":["hsel"]}}}}
+EOF
+run_s verify --ssot "$T/ssot-excl.json"
+eq 1 "$rc" '#4097147118: verify on a selector-excluded owned entry -> exit 1'
+has 'excluded from this harness by its SSOT selector' "$o" '#4097147118: issue names the selector exclusion'
+run_s plan --ssot "$T/ssot-excl.json" --json
+has '"action": "remove"' "$o" '#4097147118: plan and verify agree (plan removes it)'
+rm -f "$REG/hsel.yaml"
+
+# 4097147125: `replaces` legacy membership is per harness
+SDR="$T/state-r3r"
+mk hrep json mcpServers mcpservers-json "~/.hrep/mcp.json" true null null high
+printf '{"mcpServers":{"leg":{"command":"old"}}}' > "$HOME/.hrep/mcp.json"
+cat > "$T/ssot-rep.json" <<'EOF'
+{"schema":1,"servers":{"new":{"transport":"stdio","command":"npx","args":["-y","n"],"replaces":["leg"]},
+ "leg":{"transport":"stdio","command":"old","harnesses":{"include":["other-*"]}}}}
+EOF
+run_r() { o="$("$BIN" "$@" --harness hrep --registry "$REG" --state-dir "$SDR" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+run_r plan --ssot "$T/ssot-rep.json" --json
+has 'needs --adopt leg' "$o" '#4097147125: legacy for other harnesses only -> unmanaged conflict reported here'
+run_r apply --ssot "$T/ssot-rep.json" --adopt leg
+RR="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hrep/mcp.json")"
+eq "['new']" "$RR" '#4097147125: --adopt leg removes the legacy entry in this harness'
+rm -f "$REG/hrep.yaml"
+
+# root P5: config-derived env/header values that are paths or short words do not shred output
+SDK="$T/state-r3k"
+mk hmask json mcpServers mcpservers-json "~/.hmask/mcp.json" true null null high
+CTOK="zQ8vLr2Nx5Wp7Kt3Yb"
+printf '{"mcpServers":{"x":{"command":"c","env":{"HOMEP":"%s/.hmask","W":"model","TOK":"%s"}}}}' "$HOME" "$CTOK" > "$HOME/.hmask/mcp.json"
+cat > "$T/ssot-mask.json" <<EOF
+{"schema":1,"servers":{"my_model":{"transport":"stdio","command":"npx","args":["-y","m","$CTOK"]}}}
+EOF
+o="$("$BIN" inventory --harness hmask --registry "$REG" --state-dir "$SDK" 2>&1)"; printf '%s\n' "$o" >> "$ALLOUT"
+has "$HOME/.hmask/mcp.json" "$o" 'P5: env value equal to a HOME path does not mask the config path'
+o="$("$BIN" plan --ssot "$T/ssot-mask.json" --harness hmask --registry "$REG" --state-dir "$SDK" 2>&1)"; printf '%s\n' "$o" >> "$ALLOUT"
+has 'my_model' "$o" 'P5: short env word ("model") does not shred key names'
+hasnt "$CTOK" "$o" 'P5: secret-looking value never printed by plan'
+P5U="$(python3 - "$BIN" "$HOME" "$CTOK" <<'PY2'
+import importlib.machinery,sys
+m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+home,tok=sys.argv[2],sys.argv[3]
+m.register_container_values({"mcpServers":{"x":{"env":{"P":home+"/.hmask","T":"~/x/y","W":"model","K":tok},
+                                                  "headers":{"Authorization":"Bearer "+tok}}}})
+s=m.Redactor.secrets
+print(home+"/.hmask" in s, "~/x/y" in s, "model" in s, tok in s, "Bearer "+tok in s,
+      m.Redactor.scrub("v="+tok) == "v="+m.SECRET_MASK, tok not in m.Redactor.scrub(home+"/.hmask/"+tok))
+PY2
+)"
+eq "False False False True True True True" "$P5U" 'P5: config-derived paths/short words not registered; secret-looking env+header values still registered and masked'
+rm -f "$REG/hmask.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

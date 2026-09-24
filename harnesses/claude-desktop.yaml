@@ -36,7 +36,7 @@ update:
 docs_url: https://modelcontextprotocol.io/quickstart/user
 last_verified: '2026-09-24'
 confidence: high
-skip_reason: 'stdio-only config file: remote servers require the `mcp-remote` stdio bridge (command: npx, args: [mcp-remote,
-  <url>, --header, ''K: V'']) or an in-app Connector; executor must not write url/headers entries here'
-notes: 'File observed with keys coworkUserFilesPath, globalShortcut, mcpServers (currently empty), preferences — preserve
+skip_reason: null   # stdio-only is enforced by transports: [stdio]; remote entries are skipped per server
+notes: 'stdio-only config file: remote servers are never written here (transports: [stdio]); they need the
+  `mcp-remote` stdio bridge or an in-app Connector. File observed with keys coworkUserFilesPath, globalShortcut, mcpServers (currently empty), preferences — preserve
   siblings. Entry: {command, args:[...], env:{...}}; no disable flag (toggle in UI). Restart app to reload.'
