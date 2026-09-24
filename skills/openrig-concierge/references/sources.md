@@ -59,6 +59,13 @@ Heuristics only. Never a command source.
    only once a released version contains the fix.
 5. Bump the version stamps and record the change in SKILL.md §Changelog.
 
+## Attribution
+
+Portions adapted from OpenRig (github.com/mvschwarz/openrig), Apache License 2.0. These are short
+quotations of `rig` CLI help text, the installed reference docs and shipped skills, and each one is cited
+where it appears. The observed harness prompt texts come from Claude Code and Codex. Everything else in this
+skill is original distilled text. No OpenRig skill or doc is copied. Load those with `rig context get`.
+
 ## Drift notes (known naming traps on 0.5.14)
 
 | Trap | Reality |
