@@ -76,8 +76,8 @@ shr_tail() {
   if [ "$sz" -gt "$cap" ]; then cut=1; fi
   { if [ "$cut" = 1 ]; then tail -c "$cap" "$SHR_LOG" | tail -n +2; else cat "$SHR_LOG"; fi; } 2>/dev/null |
     tail -n "${SHR_MAX_LOG_LINES:-200}" |
-    awk 'BEGIN { lead = 1 }
-         lead && length($0) >= 16 && $0 ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/ { next }   # base64 body of a PEM whose BEGIN fell before the cut
+    awk 'BEGIN { lead = 1; dropped = 0 }
+         lead && $0 ~ /^[A-Za-z0-9+\/=]+[ \t\r]*$/ && (dropped || length($0) >= 16) { dropped = 1; next }   # base64 body of a PEM whose BEGIN fell before the cut
          { lead = 0 }
          { if (!b && /-----END [A-Z ]*PRIVATE KEY-----/) { n = 0; next }
            if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/) b = 1
