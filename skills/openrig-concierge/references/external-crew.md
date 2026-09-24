@@ -139,15 +139,23 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 - **Project-scoped config does not follow a desk seat (mandatory pre-launch step).** With the cwd outside the
   repo, the harness does not load the target's project-scoped config: `.claude/settings.json` (hooks,
   permissions, enabled plugins), `.mcp.json`, `.claude/` skills, commands and agents, or the Codex
-  equivalents. Before launch, inventory that config in the reviewed checkout, then:
-  1. project the reviewed hooks, permission rules and plugin enables into each desk's
-     `.claude/settings.local.json` (show the diff; project MCP servers follow [`trust-gates.md`](./trust-gates.md) §4);
-  2. make the project's skills reachable, either by telling seats to read them from their worktree (for
-     example the project's canonical `.agents/skills/<name>/SKILL.md`) or by copying reviewed skill
-     directories into the desk;
-  3. if a deterministic gate cannot be projected (for example a hook that resolves paths relative to the
-     project root), do not use this recipe for that repo, or record the gap as an explicit risk the operator
-     accepts before launch.
+  equivalents. Before launch, inventory that config in the reviewed checkout, then give every item a
+  disposition (show each diff):
+  1. **Hooks, permission rules, plugin enables:** project the reviewed entries into each desk's
+     `.claude/settings.local.json`.
+  2. **MCP servers:** project them, do not only approve them. Copy the reviewed server definitions from the
+     project's `.mcp.json` into the desk's `.mcp.json` (the desk is the seat's cwd, so that is the file the
+     harness reads), and approve each server by exact name in the desk's `enabledMcpjsonServers`
+     ([`trust-gates.md`](./trust-gates.md) §4). A server the seat's role does not need is left out.
+  3. **Skills:** make them reachable, either by telling seats to read them from their worktree (for example
+     the project's canonical `.agents/skills/<name>/SKILL.md`) or by copying reviewed skill directories into
+     the desk.
+  4. **Commands and agents:** copy the reviewed `.claude/commands/` and `.claude/agents/` directories into
+     the desk's `.claude/`, or state in the culture that they are unavailable as commands and agents in that
+     seat, and that the seat reads their content from its worktree when a runbook names one.
+  5. **A deterministic gate that cannot be projected** (for example a hook that resolves paths relative to
+     the project root) is not a risk anyone may accept: the project's gates outrank the crew (CANON C9). This
+     recipe is then unusable for that repo. Stop and escalate to the operator.
 - The culture's content:
   1. "The target project's AGENTS.md, runbooks and human gates outrank this file." A desk is outside the
      repo, so no seat loads the project's AGENTS.md / CLAUDE.md on its own. Tell each seat to read them
