@@ -24,6 +24,30 @@ padrao), renderer `bin/self-heal-relay-render` (`--verify` detecta drift), modos
 relay/seed, tier propose/apply e 103 assercoes hermeticas (bash 3.2 + moderno, python, node).
 Os 4 adotantes existentes continuam no bloco v1 (follow-up gated).
 
+### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
+
+- `skills/openrig-concierge/` (new; soul-name Navarch) — the front desk and guarded operator for
+  [OpenRig](https://github.com/mvschwarz/openrig) (Apache-2.0), the local control plane that runs Claude
+  Code and Codex seats as one rig. OpenRig 0.5.14 already ships about 78% of the needed knowledge as
+  first-party context packs, so the skill **routes** to them with `rig context get <ref>` (33 refs, each
+  resolved on 0.5.14) and copies none. It **owns** only the gap, in four references: `tiers.md` (T0–T3,
+  every `rig` command classified by the asset it protects), `trust-gates.md` (Claude workspace trust,
+  Claude project-MCP approval, Codex "Hooks need review": diagnose → least privilege → clear →
+  pre-configure, with operator guardrails: native hook review only and never a hand-written
+  `trusted_hash`, `deny` rather than `ask` for unattended seats, no secret access from seats, no trust by
+  name/path/owner alone), `external-crew.md` (a crew on an arbitrary repo: starter choice, builtin
+  `agent_ref` reuse from outside the install tree, one worktree per writing seat through member `cwd`
+  (never `rig up --cwd`), a culture file that carries the project's own governance, checkout hygiene for
+  projected files and managed blocks, the conduct loop from outside the rig, snapshot-first teardown)
+  and `sources.md` (the fact ladder, the refresh procedure, naming traps). `CANON.md` records the 11
+  decisions. Seven modes: explain, operate, heal, architect, crew, audit, anchor. Every cited `rig`
+  command and flag was checked against `rig <cmd> --help` on 0.5.14. There are no scripts, so the skill
+  is complete on the npm/Pi and `npx skills` surfaces, which carry skills only.
+- `agents/openrig-fleet-engineer.md` (new) — a thin delegable persona (Claude git plugin only). It loads
+  the skill through the Skill tool and resolves the references from the skill's base directory. At session
+  start it instantiates a concrete agent ID instead of echoing the ID template.
+- `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
