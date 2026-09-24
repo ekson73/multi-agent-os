@@ -28,7 +28,6 @@ T="$(mktemp -d 2>/dev/null || mktemp -d -t hms)"
 trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME"
 export TMPDIR="$T/tmp"; mkdir -p "$TMPDIR"   # self-heal run logs land inside the temp root
-export MAOS_SELFHEAL=0                       # never dispatch a real AI harness from the suite
 unset XDG_STATE_HOME
 SD="$T/state"; REG="$T/reg"; mkdir -p "$REG"
 ALLOUT="$T/all-output.log"; : > "$ALLOUT"
@@ -670,7 +669,7 @@ xrun plan --ssot "$SSOT" --harness hjson --state-dir "$SDX"
 eq 1 "$rc" '#4096445162: unexpected fault -> exit 1'
 has 'internal error: AttributeError' "$o" '#4096445162: class name reported'
 has 'run log' "$o" '#4096445162: run log captured'
-has 'opt-in' "$o" '#4096445162: fallback hint printed when dispatch not opted in'
+has 'feed ' "$o" '#4096445162: manual-feed hint printed by default'
 RL="$(printf '%s\n' "$o" | sed -n 's/.*run log \([^ ]*\) ;.*/\1/p')"
 PF="$(printf '%s\n' "$o" | sed -n 's/.*repair prompt \([^ ]*\)$/\1/p')"
 has 'build_plan' "$(cat "$RL" 2>/dev/null)" '#4096445162: run log carries the failing stack frame'
@@ -681,10 +680,8 @@ STUB="$T/stubbin"; mkdir -p "$STUB"
 printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s/stub-args"\n' "$T" > "$STUB/claude"; chmod +x "$STUB/claude"
 o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
 printf '%s\n' "$o" >> "$ALLOUT"
-has 'diagnosis dispatched via claude' "$o" '#4096445162: relay dispatched to the first available harness'
-has 'UNTRUSTED DATA' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness received the repair prompt'
-has 'Read,Grep,Glob' "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: harness invoked with a read-only tool set'
-hasnt "$FIXSECRET" "$(cat "$T/stub-args" 2>/dev/null)" '#4096445162: dispatched prompt carries no secret'
+[ -e "$T/stub-args" ] && no '#4096445162: stub never invoked even with MAOS_SELFHEAL=1' "invoked" || ok '#4096445162: stub never invoked even with MAOS_SELFHEAL=1'
+has 'never dispatches' "$o" '#4096445162: manual-feed hint printed'
 rm -f "$T/stub-args"
 o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness nope --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
 eq 2 "$rc" '#4096445162: usage error keeps exit 2'
@@ -762,27 +759,22 @@ o="$(env -u MAOS_SELFHEAL PATH="$SPATH" "$BIN" plan --ssot "$SSOT" --harness hjs
 printf '%s\n' "$o" >> "$ALLOUT"
 eq 1 "$rc" 'S1: injected fault -> exit 1'
 has 'run log' "$o" 'S1: default still writes the redacted run log'
-has 'opt-in' "$o" 'S1: default prints the opt-in fallback hint'
+has 'never dispatches' "$o" 'S1: default prints the manual-feed hint'
 eq "" "$(cat "$SHLOG")" 'S1: default never dispatches (stubs untouched)'
-# S1: opted in -> child env is the allow-list only, tools are read-only
-: > "$SHLOG"; rm -f "$T"/stub-env-* "$T"/stub-argv-*
-o="$(PATH="$SPATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS="crush claude" LC_ALL=C "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
+# S1: even opted in (MAOS_SELFHEAL=1, any harness order) nothing is ever dispatched
+: > "$SHLOG"
+o="$(PATH="$SPATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS="kiro-cli claude codex opencode gemini crush amp" "$BIN" plan --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDX" 2>&1)"; rc=$?
 printf '%s\n' "$o" >> "$ALLOUT"
-has 'skip crush' "$o" 'S1: unrestrictable harness (crush) skipped'
-eq "claude" "$(cat "$SHLOG")" 'S1: only the read-only-capable harness dispatched'
-CE="$(cat "$T/stub-env-claude" 2>/dev/null)"
-hasnt 'DUMMYTOK' "$CE" 'S1: child env has no DUMMYTOK'
-hasnt "$DUMMYTOK" "$CE" 'S1: child env has no DUMMYTOK value'
-hasnt 'OP_' "$CE" 'S1: child env has no OP_* var'
-hasnt 'FIXSECRET' "$CE" 'S1: child env has no resolved SSOT secret var'
-hasnt 'LC_ALL' "$CE" 'S1: LC_* not on the allow-list'
-has 'PATH=' "$CE" 'S1: child env keeps PATH'
-BADKEYS="$(sed 's/=.*//' "$T/stub-env-claude" 2>/dev/null | grep -vxE 'PATH|HOME|TMPDIR|LANG|TERM|PWD|SHLVL|_|OLDPWD' | tr '\n' ' ')"
-eq "" "$BADKEYS" 'S1: child env keys are exactly the allow-list (+ shell-set PWD/SHLVL/_)'
-CA="$(cat "$T/stub-argv-claude" 2>/dev/null)"
-has 'Read,Grep,Glob' "$CA" 'S1: claude invoked with read-only allowedTools'
-ALLOWED="$(printf '%s\n' "$CA" | grep -A1 -x -- '--allowedTools' | tail -1)"
-eq "Read,Grep,Glob" "$ALLOWED" 'S1: allowedTools has no Bash/Edit/Write/execute/fs_write'
+eq 1 "$rc" 'S1: injected fault with MAOS_SELFHEAL=1 -> exit 1'
+eq "" "$(cat "$SHLOG")" 'S1: MAOS_SELFHEAL=1 -> 0 dispatches (every stub untouched)'
+has 'never dispatches because it handles secrets' "$o" 'S1: hint states the executor never dispatches'
+RL="$(printf '%s\n' "$o" | sed -n 's/.*run log \([^ ]*\) ;.*/\1/p')"
+PF="$(printf '%s\n' "$o" | sed -n 's/.*repair prompt \([^ ]*\)$/\1/p')"
+eq 600 "$(mode "$RL")" 'S1: run log is 0600'
+eq 600 "$(mode "$PF")" 'S1: repair prompt is 0600'
+hasnt "$DUMMYTOK" "$(cat "$RL" "$PF")" 'S1: log + prompt carry no DUMMYTOK value'
+hasnt "$OP_SERVICE_ACCOUNT_TOKEN" "$(cat "$RL" "$PF")" 'S1: log + prompt carry no OP_* value'
+hasnt "$FIXSECRET" "$(cat "$RL" "$PF")" 'S1: log + prompt carry no resolved SSOT secret'
 # S2: verify on an owned entry that became non-mapping -> reported, no crash
 printf '{"mcpServers":{"local-tool":"oops-hand"},"z":1}' > "$HOME/.hadopt/mcp.json"
 run verify --harness hadopt
