@@ -8,7 +8,7 @@
 # Runtime env: MAOS_SELFHEAL=0 (off) · MAOS_SELFHEAL_MODE=relay|seed · MAOS_SELFHEAL_TIER=propose|apply
 #   MAOS_AI_HARNESS="claude codex" (explicit chain — the ONLY way to use an unverified harness)
 #   MAOS_SELFHEAL_TIMEOUT=300 · MAOS_SELFHEAL_SEED_DIR=<dir> · MAOS_SELFHEAL_ACTIVE=1 (set by the relay: re-entrancy guard)
-import atexit as _atexit, os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
+import atexit as _atexit, threading as _threading, os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
 
 SHR_CONTRACT_NOTE = globals().get("SHR_CONTRACT_NOTE", "Preserve this script's documented behaviour and exit-code contract; never weaken a guard, validation or security check.")
 SHR_TIER_LOCK = globals().get("SHR_TIER_LOCK", "")
@@ -25,9 +25,9 @@ _SHR_REDACT = [
     (_re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "[REDACTED:api-key]"),
     (_re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "[REDACTED:slack-token]"),
     (_re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"), "[REDACTED:jwt]"),
-    (_re.compile(r"://[^/@\s]+:[^/@\s]+@"), "://[REDACTED]@"),
+    (_re.compile(r"://[^/@\s]{1,200}:[^/@\s]{1,200}@"), "://[REDACTED]@"),
     (_re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}", _re.I), r"\1 [REDACTED]"),
-    (_re.compile(r"([A-Za-z0-9_.-]*(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]*)\s*[=:]\s*(\"[^\"]*\"|'[^']*'|[^\s\"']+)", _re.I), r"\1=[REDACTED]"),
+    (_re.compile(r"([A-Za-z0-9_.-]{0,64}(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]{0,64})\s*[=:]\s*(\"[^\"]*\"|'[^']*'|[^\s\"']+)", _re.I), r"\1=[REDACTED]"),
 ]
 
 
@@ -101,12 +101,23 @@ def _shr_cleanup():  # a clean / intentional exit leaves nothing behind; a relay
         _shutil.rmtree(_shr_dir, ignore_errors=True)
 
 
+_shr_lock = _threading.Lock()
+
+
+def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `cap` bytes: a huge log can't exhaust memory at fault time
+    with open(path, "rb") as f:
+        f.seek(0, 2); size = f.tell(); f.seek(max(0, size - cap))
+        return "".join(f.read().decode("utf-8", "replace").splitlines(True)[-n:])
+
+
 def shr_relay(exc_text):
-    global _SHR_HARNESSES_ENTRY
-    _shr_relayed_set()
+    global _SHR_HARNESSES_ENTRY, _shr_relayed
+    with _shr_lock:  # one atomic check-and-set: concurrent worker hooks + a later main-thread fault dispatch exactly once
+        if _shr_relayed: return
+        _shr_relayed = True
     tier = SHR_TIER_LOCK or _os.environ.get("MAOS_SELFHEAL_TIER", "propose")
     tier = "apply" if tier == "apply" else "propose"
-    try: _time.sleep(0.05); log_tail = "".join(open(_shr_log, encoding="utf-8", errors="replace").readlines()[-200:])
+    try: _time.sleep(0.05); log_tail = _shr_tail(_shr_log)
     except Exception: log_tail = ""
     prompt = shr_build_prompt(exc_text, tier, log_tail)
     ppath = _os.path.join(_shr_dir, "prompt.md")
@@ -154,7 +165,7 @@ if SHR_ON:
             except Exception: pass
     _sys.excepthook = _shr_hook
     try:  # an uncaught exception in a worker thread goes to threading.excepthook, not sys.excepthook
-        import threading as _th
+        _th = _threading
         _shr_prev_th = _th.excepthook
         def _shr_th_hook(a):
             try: _shr_prev_th(a)
