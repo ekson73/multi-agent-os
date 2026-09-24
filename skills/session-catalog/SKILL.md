@@ -88,14 +88,16 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   paths and ids only.
 - **Transcript-controlled labels never leave raw.** An unknown record type becomes the
   fixed class `unknown-record-type` plus an opaque `type_ref` digest. A tool name that
-  looks like secret material becomes an opaque `tool-…` digest. Attachment kinds come
+  looks like secret material (checked before its delimiters are stripped, so
+  `password=…` counts) becomes an opaque `tool-…` digest. Attachment kinds come
   from a fixed vocabulary (image, audio, video, document, file, inline-data).
 - **Data minimization.** The index stores pointers and metadata: surface, identity, session
   ref, source id, line pointers, timestamps, counts and private hashes. It never stores
   message text. `extract` streams redacted text to **stdout only**. Attachments (images,
   files, uploads) are counted by type, never imported or named. With `--surface`,
   `index`/`extract` never build, and so never read, stores outside the scope (not even
-  their account metadata).
+  their account metadata). An `--export` outside `--surface` is refused as a usage error
+  (exit 2) before its path is stat'ed or resolved.
 - **Private outputs.** `index`/`extract` require an explicit `--out`. The output root is
   canonicalized (every existing ancestor resolved) and refused, on both the requested and
   the canonical path, when it is a symlink, `/`, `$HOME` (both the scanned `--home` and the
@@ -131,8 +133,9 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   file handles are **not** inspected. A transcript that an idle process still holds open
   is therefore read up to its last complete record, and a truncated trailing record is
   quarantined. Exclude a session you know is still open with `--exclude-path`, or pick an
-  earlier `--high-water`. User-supplied exports are static files and are exempt from the
-  horizon.
+  earlier `--high-water`. The contract covers opaque-store samples too: a `.pb`/`.data`
+  file changed after the mark is never opened for entropy sampling. User-supplied exports
+  are static files and are exempt from the horizon.
 - **Fail-closed per record and per store.** The tool never guesses at a record whose
   type, version or shape it does not know. A Claude record without a `2.x` `version`, a
   Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
