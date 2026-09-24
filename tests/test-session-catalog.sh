@@ -623,17 +623,33 @@ ok(len(shapes) == 3 and not any(m in out for m in ("SELFCYCLE7Q", "TWOCYCLE7Q", 
    "self-cycle, 2-cycle and dangling-parent branches are quarantined; a branch that reaches the root is read")
 bad_cwd_home = os.path.join(FIX, "home-badcwd")
 put(".claude/projects/-work-demo-atlas/%s.jsonl" % U1, [
-    cl("user", "demo-atlas BADCWD-7Q", sid=U1, cwd={"not": "a path"}),
-    cl("user", "demo-atlas GOODAFTER-7Q", sid=U1, ts=T0 % 2)], home=bad_cwd_home)
-put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % R1, [
+    cl("user", "demo-atlas BADCWD-7Q", sid=U1, cwd={"not": "a path"}),        # present, not a string
+    cl("user", "demo-atlas EMPTYCWD-7Q", sid=U1, cwd="", ts=T0 % 2),         # present, empty
+    cl("user", "demo-atlas GOODAFTER-7Q", sid=U1, ts=T0 % 3)], home=bad_cwd_home)
+put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % R1, [  # malformed header cwd
     {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": R1, "cwd": ["x"], "cli_version": "0.146.0"}},
-    {"type": "turn_context", "timestamp": T0 % 2, "payload": {"cwd": {"a": 1}}},
     {"type": "response_item", "timestamp": T0 % 3, "payload": {"type": "message", "role": "user", "content": [
-        {"type": "input_text", "text": "demo-atlas CODEXCWD-7Q"}]}}], home=bad_cwd_home)
-code, out, err, _ = run("--out", os.path.join(FIX, "out-badcwd"), "extract", "--project", PROJ, "--mention", "demo-atlas",
-                        home=bad_cwd_home)
-ok(code in (0, 3) and "GOODAFTER-7Q" in out and "CODEXCWD-7Q" in out and "internal error" not in err,
-   "non-string transcript cwd values are ignored, never crash the run (exit %d)" % code)
+        {"type": "input_text", "text": "demo-atlas CODEXHDR-7Q"}]}}], home=bad_cwd_home)
+put(".codex/sessions/2026/01/02/rollout-2026-01-02T10-00-00-%s.jsonl" % R2, [  # malformed turn_context
+    {"type": "session_meta", "timestamp": T0 % 1, "payload": {"id": R2, "cwd": OTHER, "cli_version": "0.146.0"}},
+    {"type": "turn_context", "timestamp": T0 % 2, "payload": {"cwd": PROJ}},
+    {"type": "response_item", "timestamp": T0 % 3, "payload": {"type": "message", "role": "user", "content": [
+        {"type": "input_text", "text": "demo-atlas CODEXIN-7Q"}]}},
+    {"type": "turn_context", "timestamp": T0 % 4, "payload": {"cwd": {"a": 1}}},
+    {"type": "response_item", "timestamp": T0 % 5, "payload": {"type": "message", "role": "user", "content": [
+        {"type": "input_text", "text": "demo-atlas CODEXAFTER-7Q"}]}}], home=bad_cwd_home)
+put(".omp/agent/sessions/-work-demo-atlas/2026-01-03T10-00-00-000Z_0001.jsonl",      # malformed pi header cwd
+    [dict(PI[0], cwd=123), {"type": "message", "timestamp": T0 % 3, "message": {"role": "user", "content": [
+        {"type": "text", "text": "omp: demo-atlas PIHDR-7Q"}]}}], home=bad_cwd_home)
+out_bc = os.path.join(FIX, "out-badcwd")
+code, out, err, _ = run("--out", out_bc, "extract", "--project", PROJ, home=bad_cwd_home)  # attribution only
+malformed = [x for x in jl(os.path.join(out_bc, "quarantine.jsonl")) if x["reason"] == "malformed-field:cwd"]
+ok(code in (0, 3) and "internal error" not in err and "GOODAFTER-7Q" in out and "CODEXIN-7Q" in out,
+   "valid records around malformed cwd fields are still read (exit %d)" % code)
+ok(len(malformed) == 5 and not any(m in out for m in ("BADCWD-7Q", "EMPTYCWD-7Q", "CODEXHDR-7Q", "PIHDR-7Q")),
+   "a present-but-malformed cwd quarantines its record (Claude) or whole session (Codex/pi header): %d" % len(malformed))
+ok("CODEXAFTER-7Q" not in out,
+   "after a malformed turn_context cwd, later items are attributed to no project (never the stale cwd)")
 claude_ai = [{"uuid": "ca-bad", "chat_messages": [{"sender": "human", "text": "demo-atlas CABAD-7Q",
                                                   "created_at": T0 % 1, "attachments": {"x": 1}, "files": []}]},
              {"uuid": "ca-good", "chat_messages": [{"sender": "human", "text": "demo-atlas CAGOOD-7Q",
