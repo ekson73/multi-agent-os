@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (88 skills). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
 
-## Available Skills (87)
+## Available Skills (88)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -22,6 +22,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `anima` | `anima/SKILL.md` | Generate ONE precise name/identifier for anything (files, modules, DBs, agentic-tools, brands, media, prompts). |
 | `anti-conflict` | `anti-conflict/SKILL.md` | Prevent file conflicts between multiple AI agents working in parallel |
 | `atomize-and-route` | `atomize-and-route/SKILL.md` | Given ANY content (braindump · prompt · doc · transcript · insight · gap · pendency · idea · template) decompose it into TYPED knowledge atoms (norm · |
+| `instrument-self-heal-relay` | `instrument-self-heal-relay/SKILL.md` | Instrument, port or audit ANY script/program (bash · python · node · other) into the self-heal-relay model: unexpected fault → redacted log + UNTRUSTED prompt → AI-harness pool → agent proposes, human reviews; intentional exits never relay. |
 | `audit` | `audit/SKILL.md` | On-demand audit and analysis of agent orchestration flows via Sentinel Protocol |
 | `auto-pilot` | `auto-pilot/SKILL.md` | Autonomous unattended orchestration entry point. |
 | `bitbucket-pipeline-watch` | `bitbucket-pipeline-watch/SKILL.md` | Use when an agent needs to WAIT for a Bitbucket Cloud pipeline/build to finish and act on the outcome — instead of fixed-interval polling. |

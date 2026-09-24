@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""self-heal-relay-render — stamp / verify the canonical self-heal-relay block.
+
+The relay block is the SAME contract in every language (bash · python · node); only the
+harness TABLE varies by data. That table lives in ONE place —
+skills/instrument-self-heal-relay/harnesses.json — and this tool stamps it into the
+per-language templates, so a harness fix is made once and propagates by re-render.
+
+  self-heal-relay-render --lang bash|python|node      print the stamped block to stdout
+  self-heal-relay-render --verify FILE [--lang L]     is the block inside FILE current? (rc 0 / 1 drift / 2 none)
+  self-heal-relay-render --list                       print the harness table (verified vs opt-in)
+
+Stdlib only. Never executes anything from the target file — it only reads text.
+"""
+from __future__ import annotations
+
+import argparse
+import difflib
+import hashlib
+import json
+import shlex
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SKILL = ROOT / "skills" / "instrument-self-heal-relay"
+TABLE = SKILL / "harnesses.json"
+TEMPLATES = SKILL / "templates"
+LANGS = {"bash": ("bash.tmpl", "#"), "python": ("python.tmpl", "#"), "node": ("node.tmpl", "//")}
+BEGIN, END = ">>> self-heal-relay", "<<< self-heal-relay"
+
+
+def load_table() -> dict:
+    return json.loads(TABLE.read_text(encoding="utf-8"))
+
+
+# --- per-language rendering of the harness table -------------------------------------------------
+
+def _bash_meta(t: dict) -> str:
+    out = ["shr_meta() {  # $1=harness -> sets SHR_BIN SHR_VERIFIED ; rc!=0 when unknown", "  case \"$1\" in"]
+    for name, h in t["harnesses"].items():
+        out.append(f"    {name}) SHR_BIN={shlex.quote(h['bin'])}; SHR_VERIFIED={1 if h['verified'] else 0} ;;")
+    out += ["    *) return 1 ;;", "  esac", "}"]
+    return "\n".join(out)
+
+
+def _bash_call(t: dict) -> str:
+    out = ["shr_call() {  # $1=harness $2=tier ; stdin=prompt ; stdout=proposal ; rc 127 = no such harness/tier",
+           "  local argp=\"Read the file $SHR_PROMPT and follow its instructions.\"",
+           "  case \"$1:$2\" in"]
+    for name, h in t["harnesses"].items():
+        for tier in ("propose", "apply"):
+            args = " ".join(shlex.quote(a) for a in h[tier])
+            tail = ' "$argp"' if h["prompt_via"] == "argv-path" else ""
+            out.append(f"    {name}:{tier}) shr_run {shlex.quote(h['bin'])} {args}{tail} ;;")
+    out += ["    *) return 127 ;;", "  esac", "}"]
+    return "\n".join(out)
+
+
+def _py_table(t: dict) -> str:
+    rows = []
+    for name, h in t["harnesses"].items():
+        rows.append(
+            f'    {name!r}: {{"bin": {h["bin"]!r}, "verified": {h["verified"]!r}, "via": {h["prompt_via"]!r},\n'
+            f'        "argv": {{"propose": {h["propose"]!r}, "apply": {h["apply"]!r}}}}},'
+        )
+    return "_SHR_HARNESSES = {\n" + "\n".join(rows) + "\n}"
+
+
+def _js_table(t: dict) -> str:
+    rows = []
+    for name, h in t["harnesses"].items():
+        rows.append(
+            f'  {json.dumps(name)}: {{ bin: {json.dumps(h["bin"])}, verified: {json.dumps(h["verified"])}, via: {json.dumps(h["prompt_via"])},\n'
+            f'    argv: {{ propose: {json.dumps(h["propose"])}, apply: {json.dumps(h["apply"])} }} }},'
+        )
+    return "const SHR_HARNESSES = {\n" + "\n".join(rows) + "\n};"
+
+
+def render(lang: str) -> str:
+    tmpl_name, cmt = LANGS[lang]
+    t = load_table()
+    body = (TEMPLATES / tmpl_name).read_text(encoding="utf-8")
+    chain = " ".join(t["default_chain"])
+    if lang == "bash":
+        table = _bash_meta(t) + "\n" + _bash_call(t)
+    elif lang == "python":
+        table = _py_table(t)
+    else:
+        table = _js_table(t)
+    body = (body.replace("@@HARNESS_TABLE@@", table)
+                .replace("@@DEFAULT_CHAIN@@", chain)
+                .replace("@@VERSION@@", t["relay_version"])
+                .replace("@@VERIFIED_ON@@", t["verified_on"]))
+    body = body.strip("\n")
+    digest = hashlib.sha256(body.encode()).hexdigest()[:12]
+    head = f"{cmt} {BEGIN} {t['relay_version']} ({lang}) sha256:{digest} — stamped by bin/self-heal-relay-render; DO NOT hand-edit; verify with --verify"
+    foot = f"{cmt} {END} ({lang})"
+    return f"{head}\n{body}\n{foot}\n"
+
+
+# --- verification --------------------------------------------------------------------------------
+
+def extract(text: str) -> tuple[str, str] | None:
+    lines = text.splitlines(keepends=True)
+    start = next((i for i, l in enumerate(lines) if BEGIN in l), None)
+    if start is None:
+        return None
+    end = next((i for i in range(start + 1, len(lines)) if END in lines[i]), None)
+    if end is None:
+        return None
+    header = lines[start]
+    lang = header.split("(", 1)[1].split(")", 1)[0] if "(" in header else ""
+    return lang, "".join(lines[start:end + 1])
+
+
+def verify(path: Path, lang_hint: str | None) -> int:
+    got = extract(path.read_text(encoding="utf-8"))
+    if got is None:
+        print(f"no self-heal-relay block in {path}", file=sys.stderr)
+        return 2
+    lang, block = got
+    lang = lang_hint or lang
+    if lang not in LANGS:
+        print(f"unknown/absent language marker {lang!r}", file=sys.stderr)
+        return 2
+    fresh = render(lang)
+    if block == fresh:
+        print(f"OK  {path} — self-heal-relay block ({lang}) is current")
+        return 0
+    print(f"DRIFT {path} — block differs from a fresh render ({lang}):", file=sys.stderr)
+    for ln in list(difflib.unified_diff(block.splitlines(), fresh.splitlines(), "in-file", "fresh", lineterm="", n=0))[:20]:
+        print("  " + ln, file=sys.stderr)
+    return 1
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--lang", choices=sorted(LANGS))
+    ap.add_argument("--verify", metavar="FILE")
+    ap.add_argument("--list", action="store_true")
+    a = ap.parse_args()
+    if a.list:
+        t = load_table()
+        print(f"self-heal-relay {t['relay_version']} — harness table verified on {t['verified_on']}")
+        for n, h in t["harnesses"].items():
+            chain = "default-chain" if n in t["default_chain"] else "opt-in only (MAOS_AI_HARNESS)"
+            print(f"  {n:9} verified={str(h['verified']):5} via={h['prompt_via']:9} {chain}")
+        return 0
+    if a.verify:
+        return verify(Path(a.verify), a.lang)
+    if a.lang:
+        sys.stdout.write(render(a.lang))
+        return 0
+    ap.print_usage(sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
