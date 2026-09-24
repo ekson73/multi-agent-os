@@ -4,18 +4,18 @@
 > Load it for any authoring detail: `rig context get skills/core/openrig-architect`. The schema lives in
 > `~/.openrig/reference/rig-spec.md` and `agent-spec.md` (the installed reference docs; default
 > `OPENRIG_HOME`). This page covers only what those sources leave to the operator: reusing builtin agents
-> from outside the install tree, per-seat desks and worktrees, taking in the host project's governance,
-> checkout hygiene, and the conduct loop run from outside the rig.
+> from outside the install tree, per-seat desks, taking in the host project's governance, checkout hygiene,
+> and the conduct loop run from outside the rig.
 > **Checked against:** `rig` 0.5.14 (cc75efdd). Steps 4 and 8 were validated on that version with a
 > throwaway crew outside the install dir (`rig spec validate`, `rig spec preflight --rig-root .`,
 > `rig agent validate`, `rig up --plan`; all passed). Steps 5, 6 and 10–14 carry field corrections from the
 > first real external-crew run on the same version (2026-09-24 UTC).
 
-> **STOP: unattended crews that execute project code are not supported.** An unattended crew whose seats
-> run project code (tests, package scripts, hooks) as the operator's OS user is **not supported** by this
-> skill until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is
-> validated. Do not launch one. This recipe is for **attended** (human-in-the-loop) use only, with no
-> credential readable by seat-executed code.
+> **STOP: external crews with code-writing seats are not supported.** External crews with **code-writing**
+> seats (any runtime, attended or unattended) are **not supported** by this skill until the isolation design
+> in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. Do not launch them. This recipe
+> covers only **read-only / research crews**: seats that neither write to the target repository nor execute
+> its code (tests, package scripts, hooks), with no credential readable by anything a seat runs.
 
 Legend: **[T0]** read-only · **[T1]** reversible · **[T2]** disruptive · **[T3]** security gate ([`tiers.md`](./tiers.md)).
 
@@ -38,15 +38,16 @@ Builtin starters (`rig specs ls --kind rig`; inspect one with `rig specs preview
 
 | Starter | Seats (runtime) | Good for |
 |---|---|---|
-| `first-project` | dev.owner (codex), dev.check (codex) | one bounded change with an independent checker |
-| `implementation-pair` | dev.impl (claude-code), dev.qa (codex) | build plus cross-runtime QA |
+| `first-project` | dev.owner (codex), dev.check (codex) | one bounded change with an independent checker (code-writing: STOP) |
+| `implementation-pair` | dev.impl (claude-code), dev.qa (codex) | build plus cross-runtime QA (code-writing: STOP) |
 | `adversarial-review` | orch.lead (claude-code), review.r1 (claude-code), review.r2 (codex) | independent review of existing work |
-| `conveyor` | intake.lead, plan.planner, build.builder, review.reviewer (mixed) | a staged pipeline |
+| `conveyor` | intake.lead, plan.planner, build.builder, review.reviewer (mixed) | a staged pipeline (code-writing: STOP) |
 | `research-team` | orch.lead, research.analyst, research.synthesizer (mixed) | investigation, no code changes |
-| `product-team` (preview) | 7 seats across orch1 / dev1 / rev1 | a full product loop; expensive |
+| `product-team` (preview) | 7 seats across orch1 / dev1 / rev1 | a full product loop; expensive (code-writing: STOP) |
 
 Runtimes were read from the shipped `rig.yaml` files of 0.5.14. Starter contents change between releases,
-so always `rig specs preview <name> --kind rig` before you rely on one.
+so always `rig specs preview <name> --kind rig` before you rely on one. Starters with code-writing seats are
+out of scope until #453 (see the STOP above).
 
 ## 3. Shape the topology
 
@@ -74,48 +75,29 @@ To find the install's `specs/agents/` directory, run `rig specs ls --kind rig`. 
 path of a builtin `rig.yaml`, and the `agents/` tree sits under the same `specs/` parent. Validate every
 agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
 
-## 5. Desks, worktrees and `cwd` — one writing seat, one worktree
+## 5. Desks and `cwd` — read-only / research crews only
 
 - Keep the crew directory (`rig.yaml`, `agents/`, `CULTURE.md`) **outside** the target repo, on a "shelf".
   First-party guidance: "the spec root controls file resolution; the runtime cwd controls trust, project
   guidance, permissions, and repo context" (`openrig-architect`).
-- **Retracted: do not point a member's `cwd` at a repo worktree.** An earlier revision of this page said to.
-  On 0.5.14 OpenRig unconditionally `guidance_merge`s a managed block (the default culture plus the start
-  overlay) into `<cwd>/CLAUDE.md` at launch, whatever the spec says. In a repo that tracks `CLAUDE.md`, a seat
-  whose cwd is a worktree therefore modifies a tracked file the moment it launches (observed as ` M CLAUDE.md`).
-- **Replacement, for attended use only (see the STOP above): each seat's `cwd` is a desk,** an empty per-seat
-  directory outside every git repository (`mkdir -m 0700 <crew-home>/desks/<seat>`). The managed block and
-  projected files then land in the desk. The seat reaches its own worktree through the harness's
-  additional-directories permission (for Claude Code, `permissions.additionalDirectories` in the desk's
-  `.claude/settings.local.json`); never grant the shared parent of all worktrees. That grant scopes the
-  harness's file tools only. It is not isolation: code the seat runs executes as the operator.
-- Because the desk is outside the repo, the harness does not load the target's project-scoped config: its
-  `.claude/` settings and permissions, hooks, MCP servers, rules (including path-scoped ones, whose `paths:`
-  would resolve against the desk) and skills. Seats read the project's AGENTS.md / CLAUDE.md from their
-  worktree (step 6). **Launch stop:** if the target relies on **any** mandatory project-scoped config of that
-  kind, do not use the desk layout. Projecting it into a desk is not covered by this skill yet
-  ([#452](https://github.com/ekson73/multi-agent-os/issues/452),
-  [#453](https://github.com/ekson73/multi-agent-os/issues/453)).
-- **Required before launch [T0]: inventory the target's project-scoped config.** In the reviewed checkout,
-  list names and paths only, never values: in `.claude/settings.json` and `.claude/settings.local.json`, the
-  hook events, permission rules and `enabledPlugins` entries (for example
-  `jq -r '(.hooks // {} | keys[]), (.permissions // {} | keys[]), (.enabledPlugins // {} | keys[])' <file>`);
-  the server names in `.mcp.json` (`jq -r '.mcpServers // {} | keys[]' .mcp.json`); every file under
-  `.claude/rules/`, flagging each one whose frontmatter has `paths:` (`grep -l '^paths:' -r .claude/rules`);
-  the entries under `.claude/skills/`, `.claude/commands/` and `.claude/agents/`; and the equivalent `.codex/`
-  and `.agents/` directories. Classify each item as mandatory or optional from the project's own governance
-  docs (AGENTS.md, CLAUDE.md, CONTRIBUTING, runbooks). Any item that is mandatory, or whose status is unknown
-  or cannot be inspected, is a stop for the desk layout. Record the inventory and its classification in the
-  handoff.
-- Give **every writing seat its own git worktree** of the target repo, made the way the target project's own
-  worktree policy says (MAOS default: [`worktree-policy`](../../worktree-policy/SKILL.md)).
+- **Retracted: never set a seat's `cwd` to a repo worktree.** An earlier revision of this page said to point
+  each member's `cwd` at its worktree. On 0.5.14 OpenRig unconditionally `guidance_merge`s a managed block (the
+  default culture plus the start overlay) into `<cwd>/CLAUDE.md` at launch, whatever the spec says. In a repo
+  that tracks `CLAUDE.md`, a seat whose cwd is a worktree therefore modifies a tracked file the moment it
+  launches (observed as ` M CLAUDE.md`).
+- **STOP: code-writing seats.** External crews with code-writing seats (any runtime, attended or unattended)
+  are not supported by this skill until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is
+  validated. Do not launch them.
+- **Read-only / research crews:** each seat's `cwd` is a desk, an empty per-seat directory outside every git
+  repository (`mkdir -m 0700 <crew-home>/desks/<seat>`). The managed block and projected files land there,
+  not in the target. These seats do not write to the target repository and do not execute its code.
+- A seat that must read the target gets a reviewed checkout through the harness's additional-directories
+  permission (for Claude Code, `permissions.additionalDirectories` in the desk's `.claude/settings.local.json`).
+  That grant scopes file tools; it does not enforce read-only access ([#451](https://github.com/ekson73/multi-agent-os/issues/451)).
+  "Does not write, does not execute project code" is a role rule the operator watches in an attended crew.
 - **Never use `rig up --cwd` for a crew.** It overrides the working directory "for all members for this
   run" (`rig up --help`), so every seat would share one cwd.
-- The project's root checkout stays on its default branch. Reviewers read a worktree checked out at the
-  commit they review.
-- **Verify after launch [T0]:** `git -C <path> status --porcelain` (untracked files included) prints the same
-  lines as before launch for the root checkout and every worktree a seat can reach. A ` M CLAUDE.md` line, or
-  a new untracked `CLAUDE.md`, means a seat's cwd is inside the repo.
+- The project's root checkout stays on its default branch.
 - Every new desk path is a new trust key for Claude and for Codex. Plan for step 9.
 
 ## 6. Culture file and posture: the crew adds orchestration, never authority
@@ -137,8 +119,7 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   `rig spec audit` then reports that no `culture_file` is set. That advisory is expected and deliberate.
   Confirm delivery per seat with `rig transcript <session> --grep "<culture title>"` [T0]. Its content:
   1. "The target project's AGENTS.md, runbooks and human gates outrank this file." A desk is outside the
-     repo, so no seat loads the project's AGENTS.md / CLAUDE.md on its own: tell each seat to read them from
-     its worktree before any work.
+     repo, so no seat loads the project's AGENTS.md / CLAUDE.md on its own.
   2. The project's human gates, listed **by reference** (push, PR, merge, publish, production, secrets).
      Seats stop at them and escalate.
   3. The **name** of the project's just-in-time secret procedure. It runs outside the seats and returns only
@@ -168,7 +149,8 @@ Rules:
 2. **Never blanket-ignore** `.claude/`, `.agents/` or `.codex/`: the project may commit its own files there.
    If you need exclusions, add exact paths to the repo-local `.git/info/exclude`, which is never committed.
    Do not change the project's `.gitignore` unless its governance asks for that.
-3. **Clean only crew-owned worktrees**, and only after harvest (step 13).
+3. These rules apply to any checkout a crew touches. Crews with code-writing seats are out of scope (STOP
+   above).
 
 ## 8. Validate [T0]
 
@@ -185,9 +167,7 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 Before the first launch, follow [`trust-gates.md`](./trust-gates.md) §2 and §4, keyed to each seat's
 **actual cwd, the desk**. OpenRig auto-accepts Claude workspace trust for the desk, so review the desk (empty,
 apart from the settings the crew placed there) before it gets a seat. MCP approvals, settings and native Codex
-hook review also apply to the desk, because that is where the harness reads them. Review each **worktree**
-separately, before it is granted to a seat through additional directories: its checkout, and that it holds
-nothing a seat should not reach. Then: deny rules, and no secret values anywhere a seat can read.
+hook review also apply to the desk. Then: deny rules, and no secret values anywhere a seat can read.
 
 ## 10. Launch [T1]
 
@@ -271,9 +251,7 @@ rig down <rig> --snapshot                   # T2: stops sessions, keeps records
 rig archive <rig>                           # T1: hides it; `rig unarchive` reverses
 ```
 
-Never pass `--delete` by default (T3). Afterwards, restore any managed-block hunks in the worktrees and
-remove the crew-owned worktrees through the project's worktree procedure, only once each one is clean and its
-work is merged or recorded.
+Never pass `--delete` by default (T3). Afterwards, remove the crew's desks.
 
 ---
 Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · field corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/external-crew.md` · validated on `rig` 0.5.14 (cc75efdd).

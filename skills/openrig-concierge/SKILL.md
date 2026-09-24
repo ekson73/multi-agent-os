@@ -68,14 +68,14 @@ explain walkthrough, an optional audit panel), skip it, log `Skipped <step> — 
    reviewed before launch because OpenRig auto-accepts it. Nothing is
    trusted by name, path or owner alone. Attention is cleared only after its cause is resolved and verified.
 4. **Project governance outranks the crew** (C9). A crew adds orchestration, never authority.
-5. **One writing seat, one worktree; the root checkout stays on its default branch** (C6). A seat's `cwd` is a
-   desk outside the repository, never a repo worktree (`references/external-crew.md` step 5).
+5. **A seat's `cwd` is never a repo worktree; the root checkout stays on its default branch** (C6). Read-only /
+   research crews give each seat a desk outside the repository (`references/external-crew.md` step 5).
 6. **HUMAN_DOMAIN goes to the operator:** secrets, credential or account switching, public push/PR/merge/publish,
    `rig destroy`, `--delete`.
-7. **STOP: unattended crews that execute project code are not supported.** An unattended crew whose seats run
-   project code (tests, package scripts, hooks) as the operator's OS user is not supported by this skill
-   until the isolation design in [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated.
-   Do not launch one. Attended (human-in-the-loop) use only, with no credential readable by seat-executed code.
+7. **STOP: external crews with code-writing seats are not supported.** External crews with code-writing seats
+   (any runtime, attended or unattended) are not supported by this skill until the isolation design in
+   [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. Do not launch them. Only read-only / research
+   crews are covered: seats that neither write to the target nor execute its code.
 
 ## What this skill routes and what it owns
 
@@ -87,7 +87,7 @@ those packs and does not copy them (C2). It **owns** only the rest:
 |---|---|
 | mutation tiers T0–T3, with every command classified | `references/tiers.md` |
 | startup trust gates: diagnose, decide, clear, pre-configure | `references/trust-gates.md` |
-| external crew: agent_ref from outside, per-seat desks and worktrees, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
+| external crew (read-only / research crews only): agent_ref from outside, per-seat desks, governance, hygiene, conduct loop, teardown | `references/external-crew.md` |
 | fact ladder, refresh procedure, naming traps | `references/sources.md` |
 
 ## Phase 0 — capability detection (always first; all T0)
@@ -161,7 +161,7 @@ Load a ref with `rig context get <ref>`. Files marked *(doc)* live in `~/.openri
 | `explain` (and ask) | the index, then the ref it names. Syntax comes from `--help`. | fact-ladder resolution. A version-stamped answer with its source. |
 | `operate` | `openrig-user`, `queue-handoff`, `topology-mutation-and-seat-management` | outside-seat scoping. Classify every action by tier (`tiers.md`), check ownership, verify each mutation through its own T0 read surface (`tiers.md` rule 1), not with an exit code. |
 | `heal` | `rig-lifecycle`, `watchdog`, `refocusing`, the compaction pair, `health-diagnosis.md`, `openrig-user` §clear-attention | triage order: daemon (`rig daemon status`, `rig crash-cart`) → rig (`rig ps`, `rig restore-check --rig`) → seat (`rig ps --nodes --rig`, `rig parked --rig`, `rig capture`) → prompt (`trust-gates.md`). `rig seat clear-attention` only **after** the cause is resolved and verified, because attention is diagnostic state, never a dashboard to turn green. A hand-resumed session: `rig reconcile-session <session>`. Lost tmux: `rig discover` → `rig bind` / `rig adopt`. **Remediation this skill owns:** startup trust gates (classes A–C) and stale attention after a verified fix. Everything else is diagnosed and routed to its first-party ref, or reported as unsupported and escalated. |
-| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, desk cwd and worktrees, culture file carrying the project's governance, checkout hygiene |
+| `architect` | `openrig-architect`, `specification-system`, `agent-starters`, `rig-spec.md`, `agent-spec.md`, `applying-a-permission-policy` | `external-crew.md` §2–7: starter choice, agent_ref from outside the install tree, desk cwd (read-only / research crews only), culture file carrying the project's governance, checkout hygiene |
 | `crew` | pod handbooks, `watchdog`, `mission-slice-sop` | `external-crew.md` end to end: frame → validate → pre-clear gates → launch → verify → conduct from outside → harvest through the project's own channels → teardown (snapshot first, never `--delete`) |
 | `audit` (read-only) | `rig doctor [--spec]`, `rig spec audit`, `rig spec preflight`, `rig restore-check`, `rig health`, `rig policy current` | overlay checks. Projected files or OpenRig managed blocks committed? `enableAllProjectMcpServers` or blanket hook trust? `ask` rules on unattended seats? Two writing seats in one worktree? Root checkout off its default branch? A culture file that ignores the project's governance? A seat with secret access? Each finding carries evidence, a criterion and a fix. The audit proposes and never mutates. |
 | `anchor` | — | surface [`CANON.md`](./CANON.md) decisions and flag drift from them |
@@ -246,8 +246,9 @@ Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openr
   skill routes to first-party packs and owns tiers, trust gates (operator guardrails 1–4), the external-crew
   recipe and sources. Verified against `rig` 0.5.14. Dogfood crew pending.
 - 2026-09-24 — v0.1.0, no version change — Field corrections from the first external-crew dogfood on `rig`
-  0.5.14: desk cwds replace worktree cwds, culture via `send_text`, rig-ID command shapes, stopped-rig relaunch
-  and nesting-wrapper readiness, and a fail-closed STOP for unattended crews that execute project code (#453).
+  0.5.14: never a worktree as seat cwd (desks for read-only / research crews), culture via `send_text`, rig-ID
+  command shapes, stopped-rig relaunch and nesting-wrapper readiness, and a hard STOP for external crews with
+  code-writing seats (#453).
 
 ---
 Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · field corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/SKILL.md`

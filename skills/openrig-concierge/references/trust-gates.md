@@ -63,7 +63,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. For a crew seat that cwd is its desk ([`external-crew.md`](./external-crew.md) step 5), so review the desk; review each worktree separately before it is granted to the seat. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. For a crew seat that cwd is its desk ([`external-crew.md`](./external-crew.md) step 5), so review the desk, and review any checkout granted to it for reading. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -121,7 +121,7 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
   `rig context get skills/applying-a-permission-policy`.
 - **Workspace trust (class A).** Trust is keyed to the seat's cwd, which for a crew is its desk
   ([`external-crew.md`](./external-crew.md) step 5). Review every new desk before its first `rig up`
-  (section 2), and review every worktree separately before it is granted to a seat. OpenRig auto-accepts, so
+  (section 2), and any checkout granted to a seat for reading. OpenRig auto-accepts, so
   the review is the only gate.
 - **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results

@@ -34,21 +34,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed — `openrig-concierge`: field corrections from the first external-crew dogfood, and a fail-closed stop
 
 The first real run of the skill and the `openrig-fleet-engineer` agent built a Claude crew on a private target
-repo under `rig` 0.5.14 (cc75efdd). This entry carries only the verified, low-risk corrections, plus one
-fail-closed stop. The broader isolation design is tracked in #453.
+repo under `rig` 0.5.14 (cc75efdd). This entry carries only the verified, low-risk corrections, plus one hard
+stop. The isolation design for code-writing seats is tracked in #453.
 
-- **Stop: unattended crews that execute project code are not supported.** An unattended crew whose seats run
-  project code (tests, package scripts, hooks) as the operator's OS user is not supported until the isolation
-  design (#453) is validated. Attended use only, with no credential readable by seat-executed code
-  (`SKILL.md` §0, `external-crew.md`, the agent's prohibitions, `tiers.md` rule 4).
+- **Stop: external crews with code-writing seats are not supported.** Such crews (any runtime, attended or
+  unattended) are not supported by this skill until the isolation design (#453) is validated: do not launch
+  them. Only read-only / research crews are covered, meaning seats that neither write to the target nor execute
+  its code (`SKILL.md` §0 item 7, `external-crew.md` header and step 5, `CANON.md` C6, the agent's
+  prohibitions, `tiers.md` rule 4).
 - **Retraction: a seat's `cwd` is never a repo worktree.** OpenRig 0.5.14 unconditionally guidance-merges a
-  managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file. The replacement, for attended use
-  only, is an empty per-seat desk outside every repo: the seat reaches its own worktree through the harness's
-  additional-directories permission (a file-tool scope, not isolation), and a post-launch status check
-  includes untracked files. A target that relies on any mandatory project-scoped config a desk does not load
-  (hooks, rules, MCP, permissions/settings) is a launch stop for this layout, found by a required names-only
-  pre-launch inventory where any mandatory, unknown or uninspectable item stops the launch (`external-crew.md` step 5, `CANON.md` C6,
-  the agent's prohibitions).
+  managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file. Read-only / research crews give
+  each seat an empty desk outside every repository instead (`external-crew.md` step 5, `CANON.md` C6, the
+  agent). Trust review is keyed to the desk (`external-crew.md` step 9, `trust-gates.md`).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`**, because `culture_file` also resolves
   to a guidance merge. The `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;

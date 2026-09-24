@@ -101,9 +101,8 @@ evidence reference inside it) ·
    operation as a harness `deny` rule (fail-closed). The same first-party skill warns that prefix rules are
    best-effort: a `deny` on `Bash(rm -rf:*)` misses `rm <target> -rf`. A deny is therefore a speed bump,
    not proof of prevention. Where the stakes are real, do not give the seat the capability at all: no
-   push credentials, Codex `workspace-write` sandbox, no secret access. Note that unattended crews whose seats
-   run project code are not supported by this skill at all for now
-   ([`external-crew.md`](./external-crew.md), STOP).
+   push credentials, Codex `workspace-write` sandbox, no secret access. External crews with code-writing seats
+   are not supported by this skill at all for now ([`external-crew.md`](./external-crew.md), STOP).
 
 ---
 Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · command-shape corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/tiers.md` · verified against `rig` 0.5.14 (cc75efdd).
