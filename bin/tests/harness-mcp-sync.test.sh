@@ -29,6 +29,17 @@ trap 'rm -rf "$T"' EXIT
 export HOME="$T/home"; mkdir -p "$HOME"
 export TMPDIR="$T/tmp"; mkdir -p "$TMPDIR"   # self-heal run logs land inside the temp root
 unset XDG_STATE_HOME
+# Safe-by-construction against ANY binary (incl. pre-never-dispatch revisions that
+# auto-dispatched a self-heal agent on a fault): every AI harness name resolves first
+# to a failing stub that only records it was called, and the old opt-out is forced off.
+STUBS="$T/stubs"; mkdir -p "$STUBS"; STUBLOG="$T/stub-calls.log"; : > "$STUBLOG"
+HARNESS_STUB_NAMES="kiro-cli claude codex opencode gemini crush amp"
+for n in $HARNESS_STUB_NAMES; do
+  printf '#!/bin/sh\necho "%s $*" >> "%s"\nexit 1\n' "$n" "$STUBLOG" > "$STUBS/$n"
+  chmod +x "$STUBS/$n"
+done
+export PATH="$STUBS:$PATH"
+export MAOS_SELFHEAL=0
 SD="$T/state"; REG="$T/reg"; mkdir -p "$REG"
 ALLOUT="$T/all-output.log"; : > "$ALLOUT"
 export FIXSECRET="sekret-VALUE-7f3a9c1e2d"   # fixture secret: must never be printed
@@ -852,6 +863,16 @@ print(" ".join(sorted({f for f in re.findall(r'"file": "([^"]+)"', txt) if not f
 PY
 )"
 eq "" "$OUTSIDE" 'every file the tool reported touching is inside the temp root'
+# Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
+BAD=""
+for n in $HARNESS_STUB_NAMES; do
+  [ "$(command -v "$n")" = "$FIXBIN/$n" ] || [ "$(command -v "$n")" = "$STUBS/$n" ] || BAD="$BAD $n"
+done
+eq "" "$BAD" 'suite guard: every AI harness name resolves to a suite stub, never a real binary'
+eq 0 "$MAOS_SELFHEAL" 'suite guard: MAOS_SELFHEAL=0 exported for the whole suite'
+: > "$STUBLOG"; claude -p probe >/dev/null 2>&1; rc=$?
+eq 1 "$rc" 'suite guard: an accidental harness call fails fast (stub exits 1)'
+has 'claude -p probe' "$(cat "$STUBLOG")" 'suite guard: the accidental call is recorded, not executed'
 CHG=""
 while read -r f s; do [ "$(sum "$f")" = "$s" ] || CHG="$CHG $f"; done < "$REAL_SNAP"
 eq "" "$CHG" 'no real (non-temp) config file changed'
