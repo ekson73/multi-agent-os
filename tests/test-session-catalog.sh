@@ -36,7 +36,9 @@ def put(rel, lines=None, raw=None, mtime=None):
 
 
 def run(*args, stdin=None):
-    r = subprocess.run([sys.executable, SC, "--home", HOME] + list(args), capture_output=True, text=True)
+    env = dict(os.environ, HOME=HOME, XDG_DATA_HOME=os.path.join(FIX, "xdg-data"),
+               XDG_CONFIG_HOME=os.path.join(FIX, "xdg-config"), XDG_STATE_HOME=os.path.join(FIX, "xdg-state"))
+    r = subprocess.run([sys.executable, SC, "--home", HOME] + list(args), capture_output=True, text=True, env=env)
     last = r.stderr.strip().splitlines()[-1] if r.stderr.strip() else "{}"
     try:
         receipt = json.loads(last)
@@ -288,6 +290,16 @@ with open(os.path.join(OUT, ".lock"), "w") as fh:
     fh.write(json.dumps({"pid": 999999, "start": "never", "host": os.uname().nodename}))
 code, _, _, _ = run("--out", OUT, "index", "--project", PROJ)
 ok(code in (0, 3), "a stale lock (pid gone) is reclaimed")
+
+# 12. isolation guard: every adapter root resolves inside the synthetic tree (never the real home)
+import importlib.util as _iu
+_spec = _iu.spec_from_file_location("sc_guard", SC)
+_m = _iu.module_from_spec(_spec)
+_spec.loader.exec_module(_m)
+_ctx = _m.Ctx(HOME, time.time(), dict(_m.LIMITS), [], b"k" * 32)
+_roots = [s.root for s in _m.build_stores(_ctx, [("chatgpt", good_zip)])]
+ok(all(r == "cloud" or os.path.realpath(r).startswith(os.path.realpath(FIX)) for r in _roots),
+   "every adapter root resolves inside the synthetic test tree (%d roots)" % len(_roots))
 
 # 10. documented exit-code contract == CLI contract
 import importlib.util, re as _re
