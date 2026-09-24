@@ -115,8 +115,11 @@ function shrRelay(excText) {
     const r = _shr.cp.spawnSync(sp.cmd, sp.args, { ...sp.opts, input, encoding: "utf8", detached: process.platform !== "win32", timeout: shrTimeoutMs(), killSignal: "SIGKILL" });
     if (r.pid) { try { if (process.platform === "win32") _shr.cp.spawnSync("taskkill", ["/T", "/F", "/PID", String(r.pid)]); else process.kill(-r.pid, "SIGKILL"); } catch (_) {} }
     if (r.status === 0 && (r.stdout || "").trim()) {
-      const out = _shr.path.join(_shrDir, "proposal.md"); _shr.fs.writeFileSync(out, r.stdout.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")); // strip ANSI
-      err(`self-heal-relay: ${name} answered -> ${out} (a human must REVIEW before anything is applied)`); return;
+      const clean = r.stdout.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ""); // strip ANSI
+      if (clean.trim()) { // a reply that was ONLY control sequences is empty once stripped: not an answer
+        const out = _shr.path.join(_shrDir, "proposal.md"); _shr.fs.writeFileSync(out, clean);
+        err(`self-heal-relay: ${name} answered -> ${out} (a human must REVIEW before anything is applied)`); return;
+      }
     }
     err(`self-heal-relay: ${name} gave no usable answer (rc=${r.status}), trying the next harness`);
   }

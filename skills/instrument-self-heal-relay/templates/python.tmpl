@@ -131,7 +131,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         p.communicate(input=stdin, timeout=_timeout)
         if _os.fstat(_outf.fileno()).st_size > 4194304:  # a harness that flooded and exited before the watcher's first poll: reject, never keep a truncated answer
             _outf.truncate(0); _outf.close(); return 1, ""
-        _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.truncate(0); _outf.close()  # nothing of the raw capture is retained on disk
+        _outf.seek(0); out = _outf.read(4194304).decode("utf-8", "replace"); _outf.truncate(0); _outf.close()  # nothing of the raw capture is retained on disk
     except BaseException as e:  # timeout OR Ctrl-C/interrupt: the isolated harness must never outlive its caller
         if not isinstance(e, _sp.TimeoutExpired):
             try:
@@ -237,10 +237,11 @@ def shr_relay(exc_text):
         except Exception as e: rc, out = 1, ""; print(f"self-heal-relay: {name} failed: {e}", file=_sys.__stderr__)
         if rc == 0 and out.strip():
             out = _re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", out)  # strip ANSI
-            out_path = _os.path.join(_shr_dir, "proposal.md")
-            with open(out_path, "w", encoding="utf-8") as f: f.write(out)
-            print(f"self-heal-relay: {name} answered -> {out_path} (a human must REVIEW before anything is applied)", file=_sys.__stderr__)
-            return
+            if out.strip():  # a reply that was ONLY control sequences is empty once stripped: not an answer
+                out_path = _os.path.join(_shr_dir, "proposal.md")
+                with open(out_path, "w", encoding="utf-8") as f: f.write(out)
+                print(f"self-heal-relay: {name} answered -> {out_path} (a human must REVIEW before anything is applied)", file=_sys.__stderr__)
+                return
         print(f"self-heal-relay: {name} gave no usable answer (rc={rc}), trying the next harness", file=_sys.__stderr__)
     print(f"self-heal-relay: no eligible harness; prompt kept at {ppath}", file=_sys.__stderr__)
 
