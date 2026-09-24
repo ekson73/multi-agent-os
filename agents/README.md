@@ -22,6 +22,7 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | prompt-context-engineer | `prompt-context-engineer.md` | AI-craft layer: prompt + context + harness engineering |
 | agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
 | data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
+| self-heal-relay-engineer | `self-heal-relay-engineer.md` | Polyglot systems engineer + SRE + security reviewer: instruments/ports/audits scripts into the self-heal-relay model |
 
 ## Agent Categories
 

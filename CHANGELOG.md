@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `instrument-self-heal-relay` (Iatros): try-catch-to-AI-harness, hardened v2
+
+Novo par skill+comando `instrument-self-heal-relay` e agente `self-heal-relay-engineer`
+para instrumentar/portar qualquer script (bash, python, node e outras linguagens) no
+modelo `self-heal-relay`: falha inesperada -> log redigido + prompt UNTRUSTED -> pool de
+harness de IA -> o agente PROPOE o reparo, o humano revisa. `docs/self-heal-relay.md`
+reescrito (v2) e sanitizado (citacao privada removida).
+
+Endurecimento medido sobre o v1: (D1) sem `set -E` a trap ERR nao dispara dentro de
+funcoes; (D2) sem guarda de reentrancia; (D3) fallback com despacho duplo e stderr
+engolido; (D4) log sem redacao enviado a terceiro e via argv; (D5) despacho sincrono
+bloqueia hooks/cron; (D6) abort por `set -u` nunca dispara ERR (a doc antiga afirmava o
+contrario). Inclui tabela unica de harness (`harnesses.json`, so verificados na cadeia
+padrao), renderer `bin/self-heal-relay-render` (`--verify` detecta drift), modos
+relay/seed, tier propose/apply e 55 testes hermeticos (bash 3.2 + moderno, python, node).
+Os 4 adotantes existentes continuam no bloco v1 (follow-up gated).
+
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
 Superficies prescritivas em `rules/`, `skills/`, `protocols/` e `docs/`

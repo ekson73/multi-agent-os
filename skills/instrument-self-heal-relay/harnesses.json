@@ -1,0 +1,65 @@
+{
+  "_comment": "SINGLE SOURCE of the self-heal-relay harness table. bin/self-heal-relay-render stamps it into every language template; never hand-edit a stamped copy (verify with `bin/self-heal-relay-render --verify <file>`). 'verified' = the flags exist in the CLI's own --help AND a live headless round-trip through that exact argv+prompt_via was observed on verified_on. Unverified harnesses are NEVER in the default chain: they run only when the operator names them in MAOS_AI_HARNESS (explicit opt-in).",
+  "schema": 1,
+  "relay_version": "2.0.0",
+  "verified_on": "2026-09-23",
+  "default_chain": ["kiro-cli", "claude", "codex"],
+  "prompt_prefix": "Follow the task described in the prompt you were given. Diagnose the ROOT CAUSE of the fault.",
+  "harnesses": {
+    "kiro-cli": {
+      "bin": "kiro-cli",
+      "verified": true,
+      "prompt_via": "stdin",
+      "propose": ["chat", "--no-interactive", "--trust-tools=fs_read"],
+      "apply": ["chat", "--no-interactive", "--trust-tools=fs_read,fs_write"]
+    },
+    "claude": {
+      "bin": "claude",
+      "verified": true,
+      "prompt_via": "stdin",
+      "note": "use the =-form: --allowedTools is variadic and swallows a following positional prompt",
+      "propose": ["-p", "--allowedTools=Read,Grep,Glob"],
+      "apply": ["-p", "--allowedTools=Read,Grep,Glob,Edit,Write"]
+    },
+    "codex": {
+      "bin": "codex",
+      "verified": true,
+      "prompt_via": "stdin",
+      "note": "--skip-git-repo-check: codex refuses to run outside a trusted git dir otherwise",
+      "propose": ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "-"],
+      "apply": ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-"]
+    },
+    "gemini": {
+      "bin": "gemini",
+      "verified": false,
+      "prompt_via": "stdin",
+      "note": "in an untrusted folder gemini overrides --approval-mode to 'default' (observed 2026-09-23), so the read-only guarantee is not reliable there",
+      "propose": ["--approval-mode", "plan", "-p", "Follow the task described on stdin."],
+      "apply": ["--approval-mode", "auto_edit", "-p", "Follow the task described on stdin."]
+    },
+    "opencode": {
+      "bin": "opencode",
+      "verified": false,
+      "prompt_via": "argv-path",
+      "note": "no scoped-tool flag found in `opencode run --help`; prompt delivered as a file PATH in argv (never the log content)",
+      "propose": ["run"],
+      "apply": ["run"]
+    },
+    "crush": {
+      "bin": "crush",
+      "verified": false,
+      "prompt_via": "stdin",
+      "note": "no scoped-tool flag verified for `crush run`",
+      "propose": ["run"],
+      "apply": ["run"]
+    },
+    "amp": {
+      "bin": "amp",
+      "verified": false,
+      "prompt_via": "argv-path",
+      "note": "no scoped-tool flag verified for `amp -x`; prompt delivered as a file PATH in argv",
+      "propose": ["-x"],
+      "apply": ["-x"]
+    }
+  }
+}
