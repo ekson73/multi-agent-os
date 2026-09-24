@@ -151,8 +151,11 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   private file instead of holding them. A store stays `supported` only
   while its recent samples actually parse, and a failure inside one store (an unreadable
   file, an adapter error) marks only that store `unverified`. Inside an export, a
-  conversation whose loader fails is quarantined alone (`adapter-error:<Type>`), and a
-  transcript `cwd` that is not a string is ignored.
+  conversation whose loader fails is quarantined alone (`adapter-error:<Type>`). A
+  transcript `cwd` that is present but not a non-empty string is never used for
+  attribution: the record is quarantined (`malformed-field:cwd`); on a Codex or pi session
+  header the whole session is; after a malformed Codex `turn_context` the following items
+  belong to no project until a valid one arrives. An absent `cwd` keeps the last valid one.
 - **What may leave the private index.** Extracted content may enter a project repository
   only as **sanitized, project-owned facts** written in your own words, and those facts
   carry opaque ids, never paths or content hashes. Never copy raw transcripts,

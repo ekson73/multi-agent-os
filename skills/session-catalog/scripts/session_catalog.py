@@ -357,6 +357,19 @@ def _version_ok(v, major: str) -> bool:
     return isinstance(v, str) and re.match(r"^" + major + r"\.\d+", v) is not None
 
 
+_MALFORMED = object()
+UNKNOWN_CWD = "\x00cwd-unknown"  # attribution after a malformed cwd change: matches no project
+
+
+def _cwd(rec: dict):
+    """A transcript cwd: None when the key is absent, the path when it is a non-empty string,
+    and _MALFORMED when it is present but anything else (the record is then quarantined)."""
+    if "cwd" not in rec:
+        return None
+    v = rec["cwd"]
+    return v if isinstance(v, str) and v else _MALFORMED
+
+
 # ── helpers ────────────────────────────────────────────────────────────────
 
 def iso(ts) -> Optional[str]:
@@ -897,9 +910,13 @@ def load_claude(ctx: Ctx, store: "Store", path: str, fh, default_client: str) ->
         if not _version_ok(r.get("version"), "2"):  # absent or unverified: never guessed
             ctx.quarantine_(store.id, path, "unverified-format-version", ln)
             continue
+        cwd = _cwd(r)
+        if cwd is _MALFORMED:  # never emitted, never used for attribution
+            ctx.quarantine_(store.id, path, "malformed-field:cwd", ln)
+            continue
         meta["session_id"] = meta["session_id"] or r.get("sessionId")
-        meta["cwd"] = meta["cwd"] or _s(r.get("cwd"))  # transcript cwd: a string, or ignored
-        e.cwd = _s(r.get("cwd")) or e.cwd
+        meta["cwd"] = meta["cwd"] or cwd
+        e.cwd = cwd or e.cwd
         if meta["client"] is None and r.get("entrypoint"):
             ep = str(r["entrypoint"])
             meta["client"] = {"cli": "anthropic.claude-code", "claude-desktop": "anthropic.claude-desktop"}.get(
@@ -954,9 +971,13 @@ def load_codex(ctx: Ctx, store: "Store", path: str, fh, imported: Dict[str, str]
                 ctx.quarantine_(store.id, path, "unverified-format-version", ln)
                 return None, []
             verified = True
+            cwd = _cwd(p)
+            if cwd is _MALFORMED:  # the header's cwd attributes the whole session
+                ctx.quarantine_(store.id, path, "malformed-field:cwd", ln)
+                return None, []
             meta["session_id"] = meta["session_id"] or p.get("id")
-            meta["cwd"] = meta["cwd"] or _s(p.get("cwd"))
-            e.cwd = _s(p.get("cwd")) or e.cwd
+            meta["cwd"] = meta["cwd"] or cwd
+            e.cwd = cwd or e.cwd
             orig = str(p.get("originator") or "")
             meta["client"] = CODEX_CLIENTS.get(orig, "openai.codex-other")
             if isinstance(p.get("source"), dict) and "subagent" in p["source"]:
@@ -965,8 +986,13 @@ def load_codex(ctx: Ctx, store: "Store", path: str, fh, imported: Dict[str, str]
         if not verified:  # content before a versioned session_meta header
             ctx.quarantine_(store.id, path, "missing-format-version", ln)
             return None, []
-        if t == "turn_context" and _s(p.get("cwd")):
-            e.cwd = p["cwd"]  # the working directory can change per turn
+        if t == "turn_context":
+            cwd = _cwd(p)
+            if cwd is _MALFORMED:  # the new directory is unknown: later items belong to no project
+                ctx.quarantine_(store.id, path, "malformed-field:cwd", ln)
+                e.cwd = UNKNOWN_CWD
+            elif cwd:
+                e.cwd = cwd  # the working directory can change per turn
         if t != "response_item":
             continue  # event_msg duplicates response_item dialogue; the rest is harness state
         pt = _s(p.get("type"))
@@ -1010,9 +1036,13 @@ def load_pi(ctx: Ctx, store: "Store", path: str, fh, client: str, subagent: bool
                 ctx.quarantine_(store.id, path, "unverified-format-version", ln)
                 return None, []
             verified = True
+            cwd = _cwd(r)
+            if cwd is _MALFORMED:  # the header's cwd attributes the whole session
+                ctx.quarantine_(store.id, path, "malformed-field:cwd", ln)
+                return None, []
             meta["session_id"] = meta["session_id"] or r.get("id")
-            meta["cwd"] = meta["cwd"] or _s(r.get("cwd"))
-            e.cwd = _s(r.get("cwd")) or e.cwd
+            meta["cwd"] = meta["cwd"] or cwd
+            e.cwd = cwd or e.cwd
             continue
         if not verified:  # content before the versioned session header
             ctx.quarantine_(store.id, path, "missing-format-version", ln)
