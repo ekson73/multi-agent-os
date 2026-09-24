@@ -70,6 +70,8 @@ it can stream topic-scoped, redacted text.
   `--project` resolves against the working directory. Each directory listing is read only
   up to a bound derived from the remaining `--max-files` budget (ceiling 100 000), so one
   huge directory is never materialized; exceeding it quarantines `directory-entry-cap`.
+  Non-string transcript `cwd` values are ignored instead of crashing the run, and a
+  conversation whose loader fails is quarantined alone while the rest of its export is read.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
