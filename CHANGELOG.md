@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
+
+`package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
+calls a helper (`skills/*/scripts/**`, `skills/*/bin/**`) arrived broken on the npm/Pi
+surface while working from the git-marketplace Claude plugin. Eight skills were
+affected: `agentic-session-harness`, `bot-finding-arbiter`,
+`decompose-abstract-to-measurable`, `goal-recovery`, `ooda-loop`, `session-reentry`,
+`system-health-responder`, `transcript-corrector`.
+
+- **Added** the asset globs `skills/*/scripts/**` and `skills/*/bin/**`, with exclusions
+  for `__pycache__/`, `*.pyc` and nested `tests/` or `fixtures/` directories.
+- **Proof** (`npm pack --dry-run --json`, before → after): 159 → 184 entries, packed
+  size 768,921 → 845,278 bytes. The 25 added paths are exactly those skills' helpers,
+  all text scripts, and the largest is 26,158 bytes. Nothing was removed, and
+  `gitleaks dir` over the added files found no leaks.
+- No contract change for the Claude plugin, which already ships the whole repository.
+
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
 Superficies prescritivas em `rules/`, `skills/`, `protocols/` e `docs/`
