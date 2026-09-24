@@ -145,9 +145,9 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         _shr_spawning[0] = False
         _pend = list(_shr_pending); _shr_pending.clear()
         for _sg in _pend: _os.kill(_os.getpid(), _sg)  # the installed handler now sees the registered harness (or the failed spawn) and runs its normal path
-    _threading.Thread(target=_shr_watch_size, args=(p, _outf), daemon=True).start()
-    if _shr_cancel[0]: _shr_kill_live()  # cancellation raced with the spawn: either the kill pass saw this pid or this check sees the flag
     try:
+        _threading.Thread(target=_shr_watch_size, args=(p, _outf), daemon=True).start()  # inside the cleanup scope: if it cannot start, the except below kills the harness before any fallback
+        if _shr_cancel[0]: _shr_kill_live()  # cancellation raced with the spawn: either the kill pass saw this pid or this check sees the flag
         p.communicate(input=stdin, timeout=_timeout)
         if _os.fstat(_outf.fileno()).st_size > 4194304:  # a harness that flooded and exited before the watcher's first poll: reject, never keep a truncated answer
             _outf.truncate(0); _outf.close(); return 1, ""

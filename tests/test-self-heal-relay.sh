@@ -213,6 +213,11 @@ echo after'
   mk_bash "$SANDBOX/t4m.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4m.sh" >/dev/null 2>&1; sleep 1
   if [ -s "$GC" ] && kill -0 "$(cat "$GC")" 2>/dev/null && [ "$(ps -o stat= -p "$(cat "$GC")" 2>/dev/null | cut -c1)" != Z ]; then bad "grandchild of the timed-out harness survived"; kill -9 "$(cat "$GC")" 2>/dev/null; else ok "no grandchild survives a harness timeout"; fi
   restore_stubs; reset_stubs
+  reset_stubs; HP="$SANDBOX/helper.pid"; rm -f "$HP"
+  printf '#!/bin/sh\ncat >/dev/null\ntrap '"'"'sleep 60 & echo $! > "%s"'"'"' TERM\nwhile :; do sleep 1; done\n' "$HP" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
+  mk_bash "$SANDBOX/t4p.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4p.sh" >/dev/null 2>&1; sleep 1
+  if gc_alive "$HP"; then bad "bash: a helper spawned by the harness while handling TERM survived the KILL pass"; kill -9 "$(cat "$HP")" 2>/dev/null; else ok "bash: helpers created during the TERM grace period are killed too"; fi
+  restore_stubs; reset_stubs
   reset_stubs; GCT="$SANDBOX/gct.pid"; rm -f "$GCT"; gc_stub "$GCT"
   mk_bash "$SANDBOX/t4n.sh" "" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 "$B" "$SANDBOX/t4n.sh" >/dev/null 2>&1 & BP=$!
   for _ in $(seq 1 40); do [ -s "$GCT" ] && break; sleep 0.25; done; kill -TERM "$BP" 2>/dev/null; sleep 3
@@ -376,8 +381,9 @@ if command -v python3 >/dev/null 2>&1; then
   kill -TERM "$PYC" 2>/dev/null; sleep 3; kill -9 "$PYC" 2>/dev/null; wait "$PYC" 2>/dev/null
   check "python: no further harness is started after a handled (returning) TERM" "$(calls)" "1"; restore_stubs
   reset_stubs; printf '#!/bin/sh\necho kiro >> "$STUB_LOG"\ncat >/dev/null\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"
-  { printf 'import atexit, time, threading\natexit.register(lambda: time.sleep(2))  # the adopter callback registered BEFORE the block runs AFTER the relay cleanup (LIFO)\n'; "$RENDER" --lang python; printf 'import shutil\n_real_which = shutil.which\nshutil.which = lambda *a, **k: (time.sleep(1), _real_which(*a, **k))[1]  # hold the daemon relay in harness lookup while main exits\nthreading.Thread(target=lambda: 1/0, daemon=True).start()\ntime.sleep(0.3)  # let the relay reach the held lookup, then main exits\n'; } > "$SANDBOX/p30.py"
-  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p30.py" >/dev/null 2>&1; sleep 1
+  { printf 'import atexit, time, threading\natexit.register(lambda: time.sleep(2))  # the adopter callback registered BEFORE the block runs AFTER the relay cleanup (LIFO)\n'; "$RENDER" --lang python; printf 'import shutil, sys\n_real_which = shutil.which\n_entered = threading.Event()\ndef _held(*a, **k):\n    _entered.set(); time.sleep(1)  # hold the daemon relay in harness lookup while main exits\n    return _real_which(*a, **k)\nshutil.which = _held\nthreading.Thread(target=lambda: 1/0, daemon=True).start()\nif not _entered.wait(10): sys.exit(3)  # the relay never reached the held lookup: the scenario was not set up\n'; } > "$SANDBOX/p30.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p30.py" >/dev/null 2>&1; P30RC=$?; sleep 1
+  check "python: the held-lookup scenario was actually reached (script exits 0)" "$P30RC" "0"
   check "python: a daemon relay that races the atexit cleanup starts no harness" "$(calls)" "0"; restore_stubs
   reset_stubs; GCX="$SANDBOX/gcx.pid"; rm -f "$GCX"; gc_stub "$GCX"
   { "$RENDER" --lang python; printf 'import os, signal\n_orig_popen = _sp.Popen\ndef _P(*a, **k):\n    p = _orig_popen(*a, **k)\n    os.kill(os.getpid(), signal.SIGTERM)  # TERM lands between Popen and the pid registration\n    return p\n_sp.Popen = _P\nraise RuntimeError("x")\n'; } > "$SANDBOX/p31.py"
