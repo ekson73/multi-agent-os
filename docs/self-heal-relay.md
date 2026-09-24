@@ -121,6 +121,9 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- The bash harness-output cap (4 MiB per capture file) is enforced by 1-second polling in the watchdog, so a producer that writes more than
+  the free space of the temp filesystem within a single second can overshoot it. Bounding the stream itself would need a bounded copier
+  in the pipeline (`| head -c`), which changes the exit-status and SIGPIPE semantics the relay depends on; python (50 ms polling) is tighter.
 - Bash: the block chains an `ERR` trap the adopter installed **before** it, but a `trap … ERR` installed **after** the block replaces the
   relay handler. Insert the block after your own trap declarations.
 - After a harness exits **cleanly**, python and node kill its whole process group, so a background child it left behind is reaped. The

@@ -145,6 +145,7 @@ shr_dispatch() {  # $1=tier — exactly ONE invocation per harness; a failure mo
     if [ "$SHR_VERIFIED" != 1 ] && [ "$explicit" != 1 ]; then continue; fi
     printf 'self-heal-relay: dispatching to %s (tier=%s)\n' "$h" "$tier" >&2
     SHR_CAP1="$SHR_PROPOSAL"; SHR_CAP2="$SHR_RUNDIR/harness.err"
+    : > "$SHR_CAP2"   # each attempt starts with an empty stderr capture: a previous harness' oversized file must not trip THIS harness' watchdog
     rc=0; shr_call "$h" "$tier" < "$SHR_PROMPT" > "$SHR_PROPOSAL" 2>> "$SHR_RUNDIR/harness.err" || rc=$?
     SHR_CAP1=""; SHR_CAP2=""
     if [ "$rc" = 0 ] && [ -s "$SHR_PROPOSAL" ]; then
