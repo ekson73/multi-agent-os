@@ -121,6 +121,8 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
   suite runs the block under both; e.g. `( exit 2 )` trips ERR only on 5.x, so tests use
   `sh -c 'exit 2'`.
 - Redaction is pattern-based. A novel secret shape passes through.
+- Bash: the block chains an `ERR` trap the adopter installed **before** it, but a `trap … ERR` installed **after** the block replaces the
+  relay handler. Insert the block after your own trap declarations.
 - After a harness exits **cleanly**, python and node kill its whole process group, so a background child it left behind is reaped. The
   bash block cannot: once the harness process is gone its descendants are reparented and no longer discoverable without a process group
   (`set -m` would risk SIGTTIN on an inherited tty stdin). Timeouts and cancellation (TERM/HUP) do reap the full tree in bash.

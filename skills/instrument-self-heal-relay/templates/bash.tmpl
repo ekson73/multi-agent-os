@@ -1,5 +1,5 @@
 # Relay ONLY an UNEXPECTED fault to an AI-harness pool. An agent PROPOSES; a human reviews.
-# Insert AFTER the script's own `set -e…` line. Needs bash >= 3.2 (macOS default) and POSIX sed/tee/mktemp.
+# Insert AFTER the script's own `set -e…` line AND after any `trap … ERR` of your own (a trap installed LATER replaces this handler; one installed EARLIER is chained). Needs bash >= 3.2 (macOS default) and POSIX sed/tee/mktemp.
 #
 # Adopter knobs — set BEFORE this block:
 #   SHR_CONTRACT_CODES=" 2 "  exit codes that are intentional VERDICTS (gate BLOCK…): re-exited verbatim, never relayed
@@ -47,7 +47,14 @@ shr_run() {
   SHR_PID=""; SHR_W=""
   trap 'shr_abort TERM' TERM; trap 'shr_abort HUP' HUP
   "$@" <&0 & pid=$!; SHR_PID=$pid
-  ( sleep "$t"; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; sleep 3; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!; SHR_W=$w
+  # the watchdog also bounds the harness' captured output ON DISK while it runs (SHR_CAP1/SHR_CAP2, 4 MiB each): an over-full file ends the run
+  # exactly like a timeout (TERM the tree, KILL after 3s), so a flooding harness cannot fill the temp filesystem before the relay regains control
+  ( _i=0; while [ "$_i" -lt "$t" ]; do sleep 1; _i=$((_i+1)); _big=0
+      for _f in "${SHR_CAP1:-}" "${SHR_CAP2:-}"; do
+        if [ -n "$_f" ] && [ "$(wc -c < "$_f" 2>/dev/null | tr -d ' ')" -gt 4194304 ] 2>/dev/null; then _big=1; fi
+      done
+      if [ "$_big" = 1 ]; then break; fi
+    done; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; sleep 3; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!; SHR_W=$w
   wait "$pid" 2>/dev/null; rc=$?
   trap - TERM HUP; eval "${SHR_OT:-:}"; eval "${SHR_OH:-:}"
   if [ -e "$mark" ]; then wait "$w" 2>/dev/null || :; else for _p in $(shr_tree "$w"); do kill -KILL "$_p" 2>/dev/null || :; done; wait "$w" 2>/dev/null || :; fi
@@ -137,7 +144,9 @@ shr_dispatch() {  # $1=tier — exactly ONE invocation per harness; a failure mo
     command -v "$SHR_BIN" >/dev/null 2>&1 || continue
     if [ "$SHR_VERIFIED" != 1 ] && [ "$explicit" != 1 ]; then continue; fi
     printf 'self-heal-relay: dispatching to %s (tier=%s)\n' "$h" "$tier" >&2
+    SHR_CAP1="$SHR_PROPOSAL"; SHR_CAP2="$SHR_RUNDIR/harness.err"
     rc=0; shr_call "$h" "$tier" < "$SHR_PROMPT" > "$SHR_PROPOSAL" 2>> "$SHR_RUNDIR/harness.err" || rc=$?
+    SHR_CAP1=""; SHR_CAP2=""
     if [ "$rc" = 0 ] && [ -s "$SHR_PROPOSAL" ]; then
       LC_ALL=C sed -e $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' "$SHR_PROPOSAL" > "$SHR_PROPOSAL.clean" && mv "$SHR_PROPOSAL.clean" "$SHR_PROPOSAL"   # strip ANSI (kiro-cli colours its output)
       printf 'self-heal-relay: %s answered -> %s (a human must REVIEW before anything is applied)\n' "$h" "$SHR_PROPOSAL" >&2
@@ -149,7 +158,7 @@ shr_dispatch() {  # $1=tier — exactly ONE invocation per harness; a failure mo
 }
 
 shr_seed() {  # async hand-off for hooks / cron / CI: write a seed, return immediately, dispatch nothing
-  local d="${MAOS_SELFHEAL_SEED_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/maos/self-heal-seeds}" f
+  local d="${MAOS_SELFHEAL_SEED_DIR:-${XDG_STATE_HOME:-${HOME:-${TMPDIR:-/tmp}}/.local/state}/maos/self-heal-seeds}" f
   if ! mkdir -p "$d" 2>/dev/null; then printf 'self-heal-relay: seed NOT written (cannot create %s); prompt kept at %s\n' "$d" "$SHR_PROMPT" >&2; return 1; fi
   chmod 700 "$d" 2>/dev/null || :
   f="$d/NEEDS-AGENT-$(date -u +%Y%m%dT%H%M%S)-$$-${RANDOM:-0}-$SHR_NAME.md"
