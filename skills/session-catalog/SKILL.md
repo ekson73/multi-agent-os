@@ -98,7 +98,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   their account metadata).
 - **Private outputs.** `index`/`extract` require an explicit `--out`. The output root is
   canonicalized (every existing ancestor resolved) and refused, on both the requested and
-  the canonical path, when it is a symlink, `/`, `$HOME`, at or below a temporary root
+  the canonical path, when it is a symlink, `/`, `$HOME` (both the scanned `--home` and the
+  process home `~`), at or below a temporary root
   (`$TMPDIR`, `$TMP`, `$TEMP`, `/tmp`, `/var/tmp`, `/var/folders`, `/dev/shm`, and their
   canonical forms such as `/private/tmp`), inside the skill's own directory, inside a git work
   tree, or not owned by the current user. There is no override. The same policy applies
@@ -108,7 +109,10 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   refused, and so is a `--security-findings` file that is or lies inside one (it would be
   rename-replaced) or that names one of the output root's own control files (receipt,
   index, quarantine, key, marker, lock). An output root without the marker that already holds a file named like
-  an output is refused too. Every write goes through the held directory descriptor:
+  an output is refused too. Every output or control file the run modifies or replaces
+  (lock, receipt, index, quarantine, key, marker, findings) must be a regular, singly-linked
+  file owned by the current user; a hard link is refused. Every write goes through the held
+  directory descriptor:
   directories 0700, files 0600 from the first byte (`O_EXCL|O_NOFOLLOW` temp file, fsync,
   rename). The tool drops a marker file so it never re-ingests its own output. One run per
   output root is enforced with an exclusive, non-blocking `flock` on `<out>/.lock`. The
@@ -137,7 +141,10 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   rather than flattened. Such records are
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
-  export conversations and whole-document recordings too) are quarantined the same way. `index` streams its rows to the
+  export conversations and whole-document recordings too; `--max-files` also stops
+  discovery itself, marking the store with `run-file-cap-during-discovery`) are quarantined
+  the same way. A Gemini JSONL recording must start with its `{sessionId, kind}` header; a
+  session id is never invented from a filename. `index` streams its rows to the
   private file instead of holding them. A store stays `supported` only
   while its recent samples actually parse, and a failure inside one store (an unreadable
   file, an adapter error) marks only that store `unverified`.
@@ -170,7 +177,8 @@ rely only on POSIX primitives (`O_NOFOLLOW`, `O_DIRECTORY`, `openat`-style `dir_
 3. **Explicit exports** (`--export`) are resolved once, because the operator named them.
    They are then opened `O_NOFOLLOW` and must keep the identity seen at startup.
 4. **Outputs** are written only through a held, canonicalized, policy-checked directory
-   descriptor (see *Private outputs*).
+   descriptor, and a file the run modifies or replaces must be regular, singly-linked and
+   owned by the current user (see *Private outputs*).
 5. **Fail closed.** A platform without these primitives exits 4 without reading anything.
    A failure inside one store only marks that store.
 6. **"Past session" is a definition, not a detector.** A session counts as past when no

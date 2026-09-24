@@ -104,6 +104,10 @@ class SourceRefused(OSError):
         self.reason = reason
 
 
+class _DiscoveryCapped(Exception):
+    """--max-files reached while listing: the walk stops instead of retaining more paths."""
+
+
 def _is_link_at(dfd: Optional[int], name: str) -> bool:
     try:
         return stat.S_ISLNK(os.stat(name, dir_fd=dfd, follow_symlinks=False).st_mode)
@@ -442,6 +446,7 @@ class Ctx:
         self.findings: Dict[tuple, dict] = {}
         self.sources: Dict[str, str] = {}
         self.files_admitted = 0
+        self.files_discovered = 0   # every file retained by any walk, held to --max-files
         self.records_total = 0
         self.stdout_closed = False
         self.out = ""                                     # canonical output root (once prepared)
@@ -625,6 +630,8 @@ class Ctx:
             return out
         try:
             self._walk_fd(store, fd, root, "", keep, out, 0)
+        except _DiscoveryCapped:  # --max-files reached while listing: keep what was found, say so
+            self.quarantine_(store, root, "run-file-cap-during-discovery")
         finally:
             os.close(fd)
         return sorted(out)
@@ -675,6 +682,9 @@ class Ctx:
             elif not stat.S_ISREG(st.st_mode):
                 rc["files_refused_not_regular"] += 1
             else:
+                if self.files_discovered >= self.limits["max_files"]:
+                    raise _DiscoveryCapped()
+                self.files_discovered += 1
                 self.walked[full] = st
                 out.append(full)
 
@@ -1055,7 +1065,8 @@ def load_gemini(ctx: Ctx, store: "Store", path: str, fh, cwd: Optional[str]) -> 
         except ValueError:
             ctx.quarantine_(store.id, path, "malformed-json", 1)
             return None, []
-        if not isinstance(doc, dict) or not isinstance(doc.get("messages"), list) or "sessionId" not in doc:
+        if not isinstance(doc, dict) or not isinstance(doc.get("messages"), list) \
+                or not (isinstance(doc.get("sessionId"), str) and doc["sessionId"]):
             ctx.quarantine_(store.id, path, "unknown-document-shape", 1)
             return None, []
         if not ctx.take_record(store.id, path, 1):  # a whole-document recording is one record
@@ -1068,6 +1079,9 @@ def load_gemini(ctx: Ctx, store: "Store", path: str, fh, cwd: Optional[str]) -> 
                 records[str(m.get("id", i))] = (1, m)
     else:
         for ln, r in ctx.jsonl(store.id, path, fh):
+            if not meta["session_id"] and ("$set" in r or "$rewindTo" in r):
+                ctx.quarantine_(store.id, path, "missing-format-version", ln)  # before the header
+                return None, []
             if "$set" in r and isinstance(r["$set"], dict):
                 if isinstance(r["$set"].get("messages"), list):
                     records = OrderedDict((str(m.get("id", i)), (ln, m)) for i, m in enumerate(r["$set"]["messages"])
@@ -1078,15 +1092,24 @@ def load_gemini(ctx: Ctx, store: "Store", path: str, fh, cwd: Optional[str]) -> 
                     for k in keys[keys.index(r["$rewindTo"]):]:
                         records.pop(k, None)
             elif "sessionId" in r and "kind" in r:
-                meta["session_id"] = meta["session_id"] or r.get("sessionId")
+                if not (isinstance(r.get("sessionId"), str) and r["sessionId"]):
+                    ctx.quarantine_(store.id, path, "unknown-document-shape", ln)
+                    return None, []
+                meta["session_id"] = meta["session_id"] or r["sessionId"]
                 meta["kind"] = "subagent" if r.get("kind") == "subagent" else meta["kind"]
+            elif not meta["session_id"]:  # content before the documented {sessionId, kind} header
+                ctx.quarantine_(store.id, path, "missing-format-version", ln)
+                return None, []
             elif "type" in r:
                 records[str(r.get("id", ln))] = (ln, r)
             else:
                 ctx.unknown(store.id, path, ln, ("keys", sorted(map(str, r))[:3]))
+        if not meta["session_id"]:  # empty, or truncated before the header
+            ctx.quarantine_(store.id, path, "missing-format-version")
+            return None, []
     for ln, m in records.values():
         _gemini_msg(ctx, e, store, path, m, ln)
-    meta["session_id"] = str(meta["session_id"] or os.path.splitext(os.path.basename(path))[0])
+    meta["session_id"] = str(meta["session_id"])  # always from the document, never from the filename
     return meta, e.result()
 
 
@@ -1899,7 +1922,9 @@ def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, in
         die("refusing %s %s: it is a symlink" % (what, shown), "blocked")
     canon = os.path.realpath(lexical)
     both = (lexical, canon)
-    forbidden = {os.sep, ctx.home, ctx.home_real} if own else {os.sep}
+    process_home = os.path.abspath(os.path.expanduser("~"))
+    forbidden = ({os.sep, ctx.home, ctx.home_real, process_home, os.path.realpath(process_home)} if own
+                 else {os.sep})
     if any(p in forbidden for p in both):
         die("refusing %s %s: / or the home directory" % (what, shown), "blocked")
     temps = temp_roots()
@@ -1932,15 +1957,31 @@ def open_private_dir(ctx: Ctx, path: str, what: str, own: bool) -> Tuple[str, in
     return canon, fd
 
 
+def _own_plain_file(st: os.stat_result) -> bool:
+    """An output/control file this run may replace or modify: regular, one link, ours."""
+    return stat.S_ISREG(st.st_mode) and st.st_nlink == 1 and st.st_uid == os.geteuid()
+
+
 def write_private(dfd: int, name: str, lines) -> int:
     """0600 from the first byte: O_EXCL|O_NOFOLLOW temp file in the held directory, fsync,
-    atomic rename — all relative to the directory fd."""
+    atomic rename — all relative to the directory fd. An existing target must be a regular,
+    singly-linked file owned by this user (never a hard link to something else)."""
+    try:
+        existing = os.stat(name, dir_fd=dfd, follow_symlinks=False)
+    except FileNotFoundError:
+        existing = None
+    if existing is not None and not _own_plain_file(existing):
+        die("refusing to replace output file %s: not a regular, singly-linked file owned by this user" % name,
+            "blocked")
     tmp = "%s.%d.tmp" % (name, os.getpid())
     try:
         os.unlink(tmp, dir_fd=dfd)
     except FileNotFoundError:
         pass
     fd = os.open(tmp, O_NEW, 0o600, dir_fd=dfd)
+    if not _own_plain_file(os.fstat(fd)):
+        os.close(fd)
+        die("refusing output temp file %s: it is not the fresh private file just created" % tmp, "blocked")
     n = 0
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -1993,12 +2034,15 @@ class OutputLock:
 
     def acquire(self):
         try:
-            fd = os.open(self.NAME, os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC, 0o600, dir_fd=self.dfd)
+            fd = os.open(self.NAME, os.O_RDWR | os.O_CREAT | _O_NOFOLLOW | _O_CLOEXEC | getattr(os, "O_NONBLOCK", 0),
+                         0o600, dir_fd=self.dfd)
         except OSError:
             die("refusing the output lock: %s is not a plain file" % self.NAME, "blocked")
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
+        if not _own_plain_file(os.fstat(fd)):  # a hard link would let truncate/pwrite hit another file
             os.close(fd)
-            die("refusing the output lock: %s is not a plain file" % self.NAME, "blocked")
+            die("refusing the output lock: %s is not a regular, singly-linked file owned by this user" % self.NAME,
+                "blocked")
+        os.set_blocking(fd, True)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:

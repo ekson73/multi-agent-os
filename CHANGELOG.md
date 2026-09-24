@@ -60,7 +60,11 @@ it can stream topic-scoped, redacted text.
   `--security-findings` may not name the output root's own control files, an invalid
   `--mention`/`--grep` regex is a usage error before anything is prepared, and a ChatGPT
   conversation whose `current_node` does not walk to the root (missing, dangling parent,
-  self- or longer cycle) is quarantined.
+  self- or longer cycle) is quarantined. Output and control files (lock, receipt, index,
+  quarantine, key, marker, findings) must be regular, singly-linked and owned by the user,
+  so a hard-linked `.lock` can no longer be truncated. The process home is refused like
+  `--home`. `--max-files` stops discovery itself, and a Gemini JSONL recording without its
+  header is quarantined instead of being named after the file.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
