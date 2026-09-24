@@ -128,6 +128,8 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
     try:
         p.communicate(input=stdin, timeout=_timeout)
+        if _os.fstat(_outf.fileno()).st_size > 4194304:  # a harness that flooded and exited before the watcher's first poll: reject, never keep a truncated answer
+            _outf.truncate(0); _outf.close(); return 1, ""
         _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.truncate(0); _outf.close()  # nothing of the raw capture is retained on disk
     except BaseException as e:  # timeout OR Ctrl-C/interrupt: the isolated harness must never outlive its caller
         if not isinstance(e, _sp.TimeoutExpired):

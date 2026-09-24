@@ -18,6 +18,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import re
 import shlex
 import sys
 from pathlib import Path
@@ -101,10 +102,13 @@ def render(lang: str) -> str:
 
 # --- verification --------------------------------------------------------------------------------
 
+_HEAD_RE = re.compile(r"^\s*(?:#|//) " + re.escape(BEGIN) + r" \S+ \((?:bash|python|node)\) sha256:[0-9a-f]{12} — stamped by ")
+_FOOT_RE = re.compile(r"^\s*(?:#|//) " + re.escape(END) + r" \((?:bash|python|node)\)\s*$")
+
+
 def _is_marker(line: str, marker: str) -> bool:
-    """A real generated marker line only (`# >>> self-heal-relay …` / `// <<< self-heal-relay …`): the phrase merely mentioned in a comment or a string is not one."""
-    t = line.lstrip()
-    return any(t.startswith(f"{c} {marker}") for c in ("#", "//"))
+    """Only the COMPLETE generated header / footer line counts (version, language, digest, stamp text): a comment or string that merely starts with, or mentions, the phrase is not a marker."""
+    return bool((_HEAD_RE if marker == BEGIN else _FOOT_RE).match(line))
 
 
 def extract(text: str) -> tuple[str, str] | None:

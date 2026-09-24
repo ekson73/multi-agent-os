@@ -59,6 +59,8 @@ for L in bash python node; do "$RENDER" --lang "$L" > "$SANDBOX/blk.$L" || bad "
 if "$RENDER" --verify "$SANDBOX/blk.bash" >/dev/null 2>&1; then ok "fresh bash block verifies (rc 0)"; else bad "fresh bash block should verify"; fi
 { cat "$SANDBOX/blk.bash"; echo '# note: this script mentions >>> self-heal-relay and <<< self-heal-relay in a comment'; } > "$SANDBOX/mention.bash"
 "$RENDER" --verify "$SANDBOX/mention.bash" >/dev/null 2>&1; check "a comment that merely mentions the marker phrase does not break verification (rc 0)" "$?" "0"
+{ cat "$SANDBOX/blk.bash"; echo '# >>> self-heal-relay is described in the block above'; echo '# <<< self-heal-relay ends here'; } > "$SANDBOX/prefix.bash"
+"$RENDER" --verify "$SANDBOX/prefix.bash" >/dev/null 2>&1; check "a comment that merely STARTS with the marker phrase does not break verification (rc 0)" "$?" "0"
 sed 's/SHR_MAX_LOG_LINES:-200/SHR_MAX_LOG_LINES:-201/' "$SANDBOX/blk.bash" > "$SANDBOX/drift.bash"
 "$RENDER" --verify "$SANDBOX/drift.bash" >/dev/null 2>&1; check "hand-edited block is DRIFT (rc 1)" "$?" "1"
 printf 'echo hi\n' > "$SANDBOX/none.sh"; "$RENDER" --verify "$SANDBOX/none.sh" >/dev/null 2>&1; check "file without a block is rc 2" "$?" "2"
@@ -341,6 +343,9 @@ if command -v python3 >/dev/null 2>&1; then
   reset_stubs; GCS="$SANDBOX/gcs.pid"; rm -f "$GCS"; printf '#!/bin/sh\ncat >/dev/null\n( sleep 60 & echo $! > "%s"; wait ) >/dev/null 2>&1 &\nsleep 1\necho PROPOSAL-OK\n' "$GCS" > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p25.py"
   MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p25.py" >/dev/null 2>&1; sleep 1
   if gc_alive "$GCS"; then bad "python: a background child left by a harness that exited 0 survived"; kill -9 "$(cat "$GCS")" 2>/dev/null; else ok "python: descendants of a harness that exits cleanly are reaped"; fi; restore_stubs
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p26.py"
+  out="$(MAOS_AI_HARNESS=kiro-cli python3 "$SANDBOX/p26.py" 2>&1)"
+  case "$out" in *"kiro-cli answered"*) bad "python: an oversized answer from a fast harness was accepted" ;; *) ok "python: an oversized answer from a fast harness is rejected" ;; esac; restore_stubs
   # python's tempfile falls back to /tmp when TMPDIR is bad, so a bad TMPDIR cannot force the failure: make mkdtemp itself raise
   reset_stubs; { printf 'import tempfile\ndef _boom(*a, **k): raise OSError("boom")\ntempfile.mkdtemp = _boom\n'; "$RENDER" --lang python; printf 'print("ALIVE")\n'; } > "$SANDBOX/p23.py"
   out="$(python3 "$SANDBOX/p23.py" 2>&1)"; rc=$?
