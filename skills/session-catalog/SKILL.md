@@ -106,7 +106,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   is excluded from discovery. **Outputs never land on inputs:** an output root that is,
   lies inside, or contains a store root, a harness metadata file or a supplied export is
   refused, and so is a `--security-findings` file that is or lies inside one (it would be
-  rename-replaced). An output root without the marker that already holds a file named like
+  rename-replaced) or that names one of the output root's own control files (receipt,
+  index, quarantine, key, marker, lock). An output root without the marker that already holds a file named like
   an output is refused too. Every write goes through the held directory descriptor:
   directories 0700, files 0600 from the first byte (`O_EXCL|O_NOFOLLOW` temp file, fsync,
   rename). The tool drops a marker file so it never re-ingests its own output. One run per
@@ -131,7 +132,8 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   type, version or shape it does not know. A Claude record without a `2.x` `version`, a
   Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
   quarantined, not defaulted. An export must be exactly one top-level JSON array in strict
-  UTF-8, and each element is held to `--max-record-bytes`. Such records are
+  UTF-8, each element is held to `--max-record-bytes`, and a ChatGPT conversation without a
+  valid `current_node` branch is quarantined rather than flattened. Such records are
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
   export conversations and whole-document recordings too) are quarantined the same way. `index` streams its rows to the
@@ -238,7 +240,7 @@ stop. The guardrails above cannot be met by ad-hoc reading.
 |---|---|---|
 | 0 | `complete` | every in-scope store was read, nothing quarantined (`stores` also exits 0) |
 | 1 | `error` | internal failure (type name only, never content) |
-| 2 | `usage` | bad flags: missing `--out`, missing scope (`index` and `extract` both need `--project` and/or `--mention`), invalid date, a non-positive `--max-*` limit |
+| 2 | `usage` | bad flags: missing `--out`, missing scope (`index` and `extract` both need `--project` and/or `--mention`), invalid date or `--mention`/`--grep` regex, a non-positive `--max-*` limit |
 | 3 | `partial` | some stores skipped (encrypted, cloud, unverified, symlinked root) or items quarantined, or the output consumer closed stdout. **Never read this as "all sessions".** |
 | 4 | `unsupported` | no in-scope store is importable, or the platform lacks the no-follow / dir-fd primitives |
 | 5 | `blocked` | lock held by a live run, or an output-policy refusal (symlink, `/`, home, at/below a temp root, skill dir, git work tree, not owned, overlaps an input, unmarked root holding output-named files) |

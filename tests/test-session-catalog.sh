@@ -293,6 +293,9 @@ ok("claude-code/projects" in out and "supported" in out, "stores lists a support
 ok(run("extract", "--project", PROJ)[0] == 2, "extract without --out exits 2 (usage)")
 ok(run("--out", OUT, "extract")[0] == 2, "extract without --project/--mention exits 2 (usage)")
 ok(run("--out", OUT, "index")[0] == 2, "index without --project/--mention exits 2 (usage): no unscoped inventory")
+code, _, _, rc = run("--out", os.path.join(FIX, "out-badre"), "extract", "--mention", "[")
+ok(code == 2 and rc.get("status") == "usage" and not os.path.exists(os.path.join(FIX, "out-badre")),
+   "an invalid --mention regex is a usage error before any output is prepared")
 for flag, val in (("--max-record-bytes", "-2"), ("--max-records", "0"), ("--max-files", "-1"), ("--max-file-bytes", "0")):
     code, _, _, rc = run("--out", OUT, flag, val, "index", "--project", PROJ)
     ok(code == 2 and rc.get("status") == "usage", "non-positive %s %s is refused (exit 2, usage)" % (flag, val))
@@ -369,6 +372,14 @@ with open(os.path.join(foreign, "sessions.jsonl"), "w") as fh:
 code, _, _, _ = run("--out", foreign, "index", "--project", PROJ)
 ok(code == 5 and open(os.path.join(foreign, "sessions.jsonl")).read() == "not ours\n",
    "an unmarked output root holding a file named like an output is refused, file intact")
+out_ctl = os.path.join(FIX, "out-control")
+code, _, _, _ = run("--out", out_ctl, "index", "--project", PROJ)
+key_before, man_before = digest(os.path.join(out_ctl, ".catalog-key")), digest(os.path.join(out_ctl, "run-manifest.json"))
+for control in ("run-manifest.json", ".catalog-key", "sessions.jsonl", ".lock"):
+    code, _, _, _ = run("--out", out_ctl, "--security-findings", os.path.join(out_ctl, control), "index", "--project", PROJ)
+    ok(code == 5, "--security-findings naming the output root's own %s is refused" % control)
+ok(digest(os.path.join(out_ctl, ".catalog-key")) == key_before
+   and digest(os.path.join(out_ctl, "run-manifest.json")) == man_before, "...and the key and receipt are intact")
 
 # 4. pass 1 index
 code, out, err, rc = run("--out", OUT, "--max-record-bytes", "4096", "--export", "chatgpt=" + good_zip,
@@ -541,6 +552,13 @@ code, out, _, _ = run("--out", out_g, "--max-records", "1", "extract", "--mentio
 refs = {json.loads(l)["session_ref"] for l in out.splitlines()}
 ok(any(x["reason"] == "run-record-cap" for x in jl(os.path.join(out_g, "quarantine.jsonl"))) and len(refs) == 1,
    "whole-document Gemini recordings count against --max-records too")
+nobranch = zip_of(os.path.join(FIX, "nobranch.zip"), [("conversations.json", json.dumps(
+    [{k: v for k, v in dict(conv[0], id="cg-nb").items() if k != "current_node"}]))])
+out_nb = os.path.join(FIX, "out-nobranch")
+code, out, _, _ = run("--out", out_nb, "--export", "chatgpt=" + nobranch, "extract", "--surface", "openai.chatgpt-export",
+                      "--mention", "demo-atlas")
+ok(not out.strip() and any(x["reason"] == "unknown-document-shape" for x in jl(os.path.join(out_nb, "quarantine.jsonl"))),
+   "a ChatGPT mapping without a valid current_node is quarantined, never flattened in dict order")
 
 # 8. concurrency: the lock is a kernel flock, so only a LIVE holder blocks; a leftover file never does
 holder = subprocess.Popen([sys.executable, "-c", "import fcntl, os, sys; fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600); "

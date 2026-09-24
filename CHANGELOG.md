@@ -57,6 +57,9 @@ it can stream topic-scoped, redacted text.
   `--max-records`, and `index` streams its rows instead of holding them. `/root` and the
   configured `--home` are redacted like `/Users/*` and `/home/*`. The one-run lock is now a
   kernel `flock`, released when the holder dies, so there is no stale-lock race.
+  `--security-findings` may not name the output root's own control files, an invalid
+  `--mention`/`--grep` regex is a usage error before anything is prepared, and a ChatGPT
+  conversation without a valid `current_node` branch is quarantined.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,
