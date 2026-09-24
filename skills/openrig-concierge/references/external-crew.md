@@ -99,7 +99,10 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   grant each seat only its own parent. The seat then creates each unit worktree under that parent
   (`<repo>/.worktrees/<crew>-<seat>/<unit>`), the way the project's policy says. Two writers never share a
   worktree or a parent. A reviewer gets only the worktree checked out at the commit it reviews, read-only:
-  grant that one directory and deny `Edit` and `Write` on it.
+  grant that one directory and deny `Edit` and `Write` on it. **Sandboxed seats differ:** under the bash
+  sandbox's home-wide read block, git fails in an additional directory, so their unit worktrees must live
+  under the desk (`<desk>/units/<seat>-<unit>`). Where the project's worktree location is binding, the operator
+  decides; the crew cannot ([`sandboxed-seats.md`](./sandboxed-seats.md) §3).
 - **Unit worktrees come only from reviewed refs.** Under a desk cwd the harness loads no project config
   from a worktree, so a unit worktree needs no review gate of its own as long as the seat creates it from the
   reviewed remote default branch or from the seat's own branch. What still runs is code the seat executes
@@ -173,7 +176,9 @@ agent you copy: `rig agent validate agents/<group>/<name>/agent.yaml`.
   none is set. Record one with `rig policy apply <name>` [T2]. Translating it into live harness config goes
   through `rig context get skills/applying-a-permission-policy`. OpenRig records posture and the harness
   enforces it (CANON C4). Unattended seats get `deny`, not `ask` ([`tiers.md`](./tiers.md) rule 4).
-- **Unattended posture, as run in the field on Claude Code seats:**
+- **Unattended posture, as run in the field on Claude Code seats.** Where a credential stays seat-readable,
+  seats that run project code also need the OS-enforced sandbox boundary in
+  [`sandboxed-seats.md`](./sandboxed-seats.md); the items below are not a boundary on their own:
   - A positive allowlist per seat, plus a `PermissionRequest` hook in the desk settings that answers every
     remaining permission prompt `deny`, with a message telling the seat to park the item. No `ask` rule
     survives, so no pane freezes.
@@ -244,11 +249,12 @@ apply, native Codex hook review, deny rules, no secret values anywhere a seat ca
 **User scope and environment.** Every seat also inherits the operator's harness user scope (the user settings
 `env` block, hooks, plugins, user MCP config, home-level agent guidance) and the environment of the tmux
 server, the OpenRig daemon and the login shell. A seat runs code as the operator user, so any credential
-stored in a file it can read is reachable however empty its env is. The prerequisite is therefore to remove
-or isolate each credential **at its source** (user settings, shell startup files) before launch, or to have
-the operator record an explicit risk acceptance. Run the check in [`trust-gates.md`](./trust-gates.md) §4,
-whose per-channel scrubs and live `SCRUBBED` probe are a secondary control on top of that. `NOT-SCRUBBED` in
-any seat is a stop rule: take the rig down (snapshot first) and fix it before any work.
+stored in a file it can read is reachable however empty its env is. Launch therefore requires either every
+credential removed from every seat-readable source, or an OS-enforced boundary for seat-executed code
+([`sandboxed-seats.md`](./sandboxed-seats.md)). Risk acceptance never substitutes; if neither is possible,
+the recipe is not usable unattended: stop and escalate. Run the check in [`trust-gates.md`](./trust-gates.md)
+§4, whose per-channel scrubs and live `SCRUBBED` probe are a secondary control on top of that. `NOT-SCRUBBED`
+in any seat is a stop rule: take the rig down (snapshot first) and fix it before any work.
 
 ## 10. Launch [T1]
 

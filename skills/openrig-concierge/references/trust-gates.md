@@ -145,18 +145,26 @@ scrub:
 Observed on OpenRig 0.5.14 with Claude Code 2.1.281: a shell-side scrub removed the secrets from (b) and (d),
 while a secret in (a) still reached every seat's tool env.
 
-**Prerequisite: remove or isolate each credential at its source.** An empty tool env does not protect the
-file the value came from. A seat runs code as the operator user (a builder can edit package scripts), so
-the user settings file, shell startup files and credential directories stay readable whatever the probe
-says. Before launch, move each secret out of the user settings `env` and out of the shell's default
-environment, behind the project's just-in-time procedure (guardrail 3). If a source cannot be changed, the
-operator records an explicit risk acceptance (which secret, which seats, why) before launch. Also deny `Read`
-of the harness user settings file and of credential directories in each desk's settings. That deny is a speed
-bump: it does not close the code-execution path.
+**Launch rule: the credential leaves every seat-readable source, or seat code runs inside an OS-enforced
+boundary.** An empty tool env does not protect the file the value came from. When seats execute project code
+(package scripts, hooks) as the operator's OS user, the user settings file, shell startup files and credential
+directories stay readable to that code whatever the probe says. Launch therefore requires **one** of:
 
-The recipe below is a **secondary control** on top of that prerequisite. It keeps the values out of each seat's
-tool env and proves it per seat, which limits accidental exposure (logs, transcripts, tool output). Recipe
-for Claude Code seats:
+1. every credential removed from every seat-readable source (moved out of the user settings `env`, the shell's
+   default environment and seat-readable files, behind the project's just-in-time procedure; guardrail 3); or
+2. an OS-enforced boundary for seat-executed code: the harness bash sandbox in strict, fail-if-unavailable
+   mode, with credential file and env denies, a home-wide read block, narrow git write paths, no credential in
+   any seat, and a publisher outside the crew ([`sandboxed-seats.md`](./sandboxed-seats.md)).
+
+Risk acceptance never substitutes for either. If neither is possible, the external-crew recipe is **not usable
+unattended**: stop and escalate to the operator. `Read` denies on the harness user settings file and on
+credential directories belong in each desk's settings either way, but they are a speed bump that does not
+close the code-execution path.
+
+The recipe below is a **secondary control** on top of that rule. It keeps the values out of each seat's
+tool env and proves it per seat, which limits accidental exposure (logs, transcripts, tool output). In a
+sandboxed seat the hook may deny a shell parameter-expansion probe; run the same names-only enumeration from a
+small script instead. Recipe for Claude Code seats:
 
 1. **Inventory names, never values, from every channel [T0].** A pipeline that splits on newlines is not
    names-only if any value can contain a newline: `env | cut -d= -f1` or `tmux show-environment -g | cut -d= -f1`
@@ -232,7 +240,8 @@ for Claude Code seats:
    again.
 
 The override removes the value from the seat's tool env, not from its source file or from the harness process
-that parsed the user settings. That residual risk is why removal at the source is the prerequisite above.
+that parsed the user settings. That residual risk is why the launch rule above requires source removal or an
+OS-enforced boundary.
 
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
