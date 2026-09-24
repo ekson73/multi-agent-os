@@ -132,8 +132,9 @@ Boundary: OpenRig's `rig discover/bind/adopt` adopts live, unmanaged tmux proces
   type, version or shape it does not know. A Claude record without a `2.x` `version`, a
   Codex rollout without a `0.x` `cli_version` and a pi session without its v3 header are
   quarantined, not defaulted. An export must be exactly one top-level JSON array in strict
-  UTF-8, each element is held to `--max-record-bytes`, and a ChatGPT conversation without a
-  valid `current_node` branch is quarantined rather than flattened. Such records are
+  UTF-8, each element is held to `--max-record-bytes`, and a ChatGPT conversation whose
+  `current_node` does not walk to the root (missing, dangling parent, cycle) is quarantined
+  rather than flattened. Such records are
   quarantined as metadata only (store, source id, line, reason). Oversized records and
   files, binary content and run caps (`--max-*`, all positive; `--max-records` counts
   export conversations and whole-document recordings too) are quarantined the same way. `index` streams its rows to the

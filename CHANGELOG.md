@@ -59,7 +59,8 @@ it can stream topic-scoped, redacted text.
   kernel `flock`, released when the holder dies, so there is no stale-lock race.
   `--security-findings` may not name the output root's own control files, an invalid
   `--mention`/`--grep` regex is a usage error before anything is prepared, and a ChatGPT
-  conversation without a valid `current_node` branch is quarantined.
+  conversation whose `current_node` does not walk to the root (missing, dangling parent,
+  self- or longer cycle) is quarantined.
 - **Proof.** `tests/test-session-catalog.sh` builds generated synthetic fixtures for
   every adapter. It adds adversarial redaction cases, symlink, root-symlink and
   hard-link escapes, swap-after-walk races, output-alias/temp/findings refusals,

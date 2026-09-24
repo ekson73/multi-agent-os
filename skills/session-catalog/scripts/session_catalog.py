@@ -1306,12 +1306,20 @@ def load_chatgpt_conv(ctx: Ctx, store: "Store", path: str, idx: int, conv: dict)
     if mapping is None:
         ctx.quarantine_(store.id, path, "unknown-document-shape", idx)
         return None, []
-    node, chain, seen = conv.get("current_node"), [], set()
-    while isinstance(node, str) and node in mapping and node not in seen and isinstance(mapping[node], dict):
+    # The current branch must walk from current_node to the ROOT (parent None). Anything else (no
+    # current_node, a dangling parent id, a non-node entry, a cycle, a walk longer than the mapping)
+    # is an unknown shape: dict order is neither a branch nor chronological, so nothing is flattened.
+    node, chain, seen, rooted = conv.get("current_node"), [], set(), False
+    for _ in range(len(mapping)):
+        if not isinstance(node, str) or node in seen or not isinstance(mapping.get(node), dict):
+            break
         seen.add(node)
         chain.append(mapping[node])
         node = mapping[node].get("parent")
-    if not chain:  # no valid current branch: dict order is neither a branch nor chronological
+        if node is None:
+            rooted = True
+            break
+    if not rooted:
         ctx.quarantine_(store.id, path, "unknown-document-shape", idx)
         return None, []
     for n in reversed(chain):

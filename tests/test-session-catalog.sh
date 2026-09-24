@@ -560,6 +560,28 @@ code, out, _, _ = run("--out", out_nb, "--export", "chatgpt=" + nobranch, "extra
 ok(not out.strip() and any(x["reason"] == "unknown-document-shape" for x in jl(os.path.join(out_nb, "quarantine.jsonl"))),
    "a ChatGPT mapping without a valid current_node is quarantined, never flattened in dict order")
 
+
+def branch(cid, marker, parents, current):
+    """A ChatGPT conversation whose nodes carry `marker` and the given parent links."""
+    return {"id": cid, "current_node": current, "mapping": {n: {"parent": p, "message": {
+        "author": {"role": "user"}, "create_time": 1767348000, "content": {"content_type": "text",
+                                                                         "parts": ["demo-atlas %s-%s" % (marker, n)]}}}
+        for n, p in parents.items()}}
+
+
+chains = [branch("cg-self", "SELFCYCLE7Q", {"a": "a"}, "a"),              # a -> a
+          branch("cg-two", "TWOCYCLE7Q", {"a": "b", "b": "a"}, "b"),       # b -> a -> b
+          branch("cg-dangle", "DANGLING7Q", {"b": "zz"}, "b"),              # b -> (missing)
+          branch("cg-ok", "ROOTED7Q", {"a": None, "b": "a"}, "b")]         # b -> a -> root: the control
+chain_zip = zip_of(os.path.join(FIX, "chains.zip"), [("conversations.json", json.dumps(chains))])
+out_ch = os.path.join(FIX, "out-chains")
+code, out, _, _ = run("--out", out_ch, "--export", "chatgpt=" + chain_zip, "extract", "--surface", "openai.chatgpt-export",
+                      "--mention", "demo-atlas")
+shapes = [x for x in jl(os.path.join(out_ch, "quarantine.jsonl")) if x["reason"] == "unknown-document-shape"]
+ok(len(shapes) == 3 and not any(m in out for m in ("SELFCYCLE7Q", "TWOCYCLE7Q", "DANGLING7Q"))
+   and "ROOTED7Q-a" in out and "ROOTED7Q-b" in out,
+   "self-cycle, 2-cycle and dangling-parent branches are quarantined; a branch that reaches the root is read")
+
 # 8. concurrency: the lock is a kernel flock, so only a LIVE holder blocks; a leftover file never does
 holder = subprocess.Popen([sys.executable, "-c", "import fcntl, os, sys; fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600); "
                            "fcntl.flock(fd, fcntl.LOCK_EX); os.ftruncate(fd, 0); os.write(fd, b'{\"pid\": %d, \"host\": \"h\"}' % os.getpid()); "
