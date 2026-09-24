@@ -264,12 +264,16 @@ actual scope (removed from the user config, or its plugin disabled) or the seat 
 seat-scoped harness config directory (for Claude Code, `CLAUDE_CONFIG_DIR`, which needs its own login: a
 human step).
 
-**Projected project MCP servers are held to the same rule on the sandbox path.** A server copied from the
-target's `.mcp.json` into a desk ([`external-crew.md`](./external-crew.md) step 6) also runs outside the bash
-sandbox with the operator's credentials. When the sandbox is the chosen boundary (a credential still sits at
-its source), a projected server with filesystem, credential or network capability, or whose executable or
-dependencies sit in a seat-writable location (a worktree, a unit, the desk outside its denied control files),
-is a launch stop unless the credential has been removed at its source.
+**Projected project MCP servers run outside the sandbox too.** A server copied from the target's `.mcp.json`
+into a desk ([`external-crew.md`](./external-crew.md) step 6) also runs with the operator's credentials. For
+every MCP server, user-scope, plugin or projected, two separate stops apply:
+
+- **unconditional:** a server whose executable or dependencies sit in a seat-writable location (a worktree, a
+  unit, the desk outside its denied control files) stops the launch. Removing a credential does not make
+  mutable code that runs outside the sandbox safe;
+- **conditional, on the sandbox path** (a credential still sits at its source): a projected server with
+  filesystem, credential or network capability stops the launch unless the credential has been removed at
+  its source.
 
 Global hooks and plugins run in every seat as well. A memory-capture hook, for example, records seat sessions
 into the operator's personal store: a cross-domain data flow from the target project. `rig capture` of a fresh
