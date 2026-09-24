@@ -16,12 +16,32 @@ affected: `agentic-session-harness`, `bot-finding-arbiter`,
 `decompose-abstract-to-measurable`, `goal-recovery`, `ooda-loop`, `session-reentry`,
 `system-health-responder`, `transcript-corrector`.
 
-- **Added** the asset globs `skills/*/scripts/**` and `skills/*/bin/**`, with exclusions
-  for `__pycache__/`, `*.pyc` and nested `tests/` or `fixtures/` directories.
-- **Proof** (`npm pack --dry-run --json`, before → after): 159 → 184 entries, packed
-  size 768,921 → 845,278 bytes. The 25 added paths are exactly those skills' helpers,
-  all text scripts, and the largest is 26,158 bytes. Nothing was removed, and
-  `gitleaks dir` over the added files found no leaks.
+- **Added** the asset globs `skills/*/scripts/**` and `skills/*/bin/**`. They exclude
+  `__pycache__/`, `*.pyc`, nested `tests/` or `fixtures/` directories, and test scripts
+  named `*-test.*`, `*_test.*`, `test_*` or `test-*`.
+- **Added** the runtime assets the shipped helpers read or source, as explicit narrow
+  paths:
+  - `agentic-session-harness/hooks/lib.sh`, sourced by `bin/agentic-reindex` and
+    `bin/agentic-decide`.
+  - `ooda-loop/templates/*.json`, the schemas `bin/validate_intake_contract.py`
+    validates against.
+  - `goal-recovery/templates/*.json`, `decompose-abstract-to-measurable/templates/*.json`
+    and `decompose-abstract-to-measurable/examples/*.json`, the contract schemas and
+    inputs named in those skills' procedures.
+- **Narrowed out** two skills that cannot run from the package without a redesign. Their
+  `SKILL.md` files still ship, as before.
+  - `system-health-responder/bin/**`: the responder needs a machine-local, macOS/launchd
+    collector that uses user-scope absolute paths, and 3 of its 5 `bin/` files are test
+    suites (#446).
+  - `transcript-corrector/scripts/**`: the pipeline needs catalogs that hold an
+    organisation-specific roster of personal names, and it writes its audit output into
+    the package directory (#447).
+- **Proof** from `npm pack --dry-run --json`, before → after: 159 → 191 entries, packed
+  size 768,909 → 833,715 bytes, unpacked 2,027,976 → 2,239,508 bytes. The 32 added
+  paths are 15 helpers, `hooks/lib.sh` and 16 JSON schemas or examples. All are text
+  files, the pack contains no test, fixture, cache or binary file, and nothing was
+  removed. On a clean `npm install <tgz>`, all 15 helpers exit 0 on `--help` or a real
+  invocation, and `gitleaks detect --no-git` over the extracted tarball finds no leaks.
 - No contract change for the Claude plugin, which already ships the whole repository.
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
