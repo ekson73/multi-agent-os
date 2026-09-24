@@ -98,6 +98,6 @@ skill is fully usable without this agent.
       passes `rig doctor --spec <path>`.
 - [ ] No seat left at `att` without a recorded disposition (cleared through the trust-gate playbook; judged
       ready where a nesting terminal wrapper blocks clear-attention only when `startupStatus=ready`, `rig capture`
-      shows the runtime at a prompt, and `rig ps --nodes` ACTIVITY is live; or escalated).
+      shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` ACTIVITY is live; or escalated).
 - [ ] Unresolved items dispositioned: fixed, queued with an owner, or escalated with evidence.
 - [ ] Handoff signed with the concrete agent ID, stating rig name, seats, their state, open queue items and the next action.

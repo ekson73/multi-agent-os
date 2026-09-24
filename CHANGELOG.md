@@ -39,26 +39,32 @@ that version. Every correction below was observed there.
 
 - **Seat `cwd` is a desk, never a repo worktree (retraction).** The recipe said to point each member's `cwd`
   at its worktree. OpenRig 0.5.14 unconditionally merges a managed block (the default culture plus the start
-  overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now: an empty 0700 desk per seat
+  overlay) into `<cwd>/CLAUDE.md`, so launching modifies a tracked file. Now, for Claude Code seats only
+  (Codex and other runtimes are explicitly out of scope until validated): an empty 0700 desk per seat
   outside every repo; each seat granted only its own worktree parent through the harness's
   additional-directories permission (never the shared parent of all worktrees), with its unit worktrees
-  under that parent per the project's policy, created only from the reviewed default branch or the seat's own
-  branch; a read-only review worktree for the reviewer; and a post-launch status check that includes
+  under that parent per the project's policy, created only from the reviewed, pinned commit SHA or the seat's
+  own branch; a read-only review worktree for the reviewer; and a post-launch status check that includes
   untracked files and the projected paths (`external-crew.md` step 5, `CANON.md` C6, the agent's prohibitions).
 - **Culture goes in as `startup.files` with `delivery_hint: send_text`.** `culture_file` also resolves to a
   guidance merge; the `rig spec audit` advisory about a missing `culture_file` is then deliberate (step 6).
 - **Project-scoped config does not follow a desk seat.** New mandatory pre-launch step: inventory the target's
-  project config and give each item a disposition: reviewed hooks, permissions and plugin enables projected
-  into each desk; MCP definitions copied into the desk's `.mcp.json` with exact per-server approval; skills,
-  commands and agents copied into the desk or read from the worktree. A deterministic gate that cannot be
-  projected makes the recipe unusable for that repo: stop and escalate (CANON C9) (step 6).
+  project config (both `.claude/settings.json` and `.claude/settings.local.json`, `.mcp.json`, and `.claude/`
+  rules, skills, commands and agents) and give each item a disposition: reviewed hooks, permissions and
+  plugin enables projected into each desk; MCP definitions copied into the desk's `.mcp.json` with exact
+  per-server approval; rules, skills, commands and agents copied into the desk or read from the worktree. A
+  deterministic gate that cannot be projected makes the recipe unusable for that repo: stop and escalate
+  (CANON C9) (step 6).
 - **User-scope and environment check.** Every seat inherits the operator's harness user scope (settings
   `env`, hooks, plugins, user MCP config, home-level guidance) and the environment of the tmux server, the
   OpenRig daemon and the login shell. Launch rule: when seats run project code as the operator's OS user,
   every credential leaves every seat-readable source, or seat code runs inside an OS-enforced boundary; risk
   acceptance never substitutes, and if neither holds the recipe is not usable unattended (stop and escalate).
   `Read` denies on the user settings and credential directories are a speed bump only.
-  Secondary control: inventory secret-like names from every channel with value-free forms, scrub
+  User settings are read from the active config root (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}`). User-scope and
+  plugin MCP servers with filesystem, credential or network capability block the launch unless disabled at
+  their actual scope or the seat config is isolated. Secondary control: inventory secret-like names from
+  every channel with value-free forms, scrub
   each channel at the seat boundary (a desk settings override for the harness `env`, a desk-scoped shell
   unset for the rest), verify in each live seat that every inventoried name is empty, stop on
   `NOT-SCRUBBED`, re-render when a channel changes, reset desks after posture changes. Notes the

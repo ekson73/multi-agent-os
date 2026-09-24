@@ -20,6 +20,14 @@ when any credential stays in a file or environment channel a seat can reach, lau
 acceptance never substitutes for it. If neither this boundary nor source removal is possible, the external-crew
 recipe is not usable unattended: stop and escalate ([`trust-gates.md`](./trust-gates.md) §4).
 
+**Runtime scope.** This boundary is validated **only for Claude Code seats**. For Codex or any other runtime,
+its own sandbox, the projection of its project config and hooks (for Codex, `.codex/`) and its writable roots
+outside the desk (for Codex, `--add-dir`) are **not covered**. Do not use this recipe for those seats until it
+is validated for that runtime.
+
+The bash sandbox does not cover MCP servers: a user-scope or plugin MCP server runs outside it with the
+operator's credentials. Clear those first ([`trust-gates.md`](./trust-gates.md) §4, user-scope MCP servers).
+
 ## 1. The boundary: settings that held [T3, show the diff]
 
 All of it lives in each desk's `.claude/settings.local.json` ([`external-crew.md`](./external-crew.md) step 5).
