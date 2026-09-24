@@ -298,6 +298,12 @@ if command -v python3 >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p20.py" >/dev/null 2>&1 & PYW=$!
   for _ in $(seq 1 40); do [ -s "$GCW" ] && break; sleep 0.25; done; kill -TERM "$PYW" 2>/dev/null; sleep 2
   if gc_alive "$GCW"; then bad "python: harness started from a worker thread survived SIGTERM"; kill -9 "$(cat "$GCW")" 2>/dev/null; else ok "python: SIGTERM also kills a harness relayed from a worker thread"; fi; kill -9 "$PYW" 2>/dev/null; wait "$PYW" 2>/dev/null; restore_stubs
+  reset_stubs; GCD="$SANDBOX/gcd.pid"; rm -f "$GCD"; gc_stub "$GCD"; { "$RENDER" --lang python; printf 'import threading, time\nt = threading.Thread(target=lambda: 1/0, daemon=True); t.start(); time.sleep(1.5)\n'; } > "$SANDBOX/p21.py"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p21.py" >/dev/null 2>&1; sleep 1
+  if gc_alive "$GCD"; then bad "python: harness relayed from a daemon thread outlived the interpreter"; kill -9 "$(cat "$GCD")" 2>/dev/null; else ok "python: interpreter exit kills a harness relayed from a daemon thread"; fi; restore_stubs
+  reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; { "$RENDER" --lang python; printf 'raise RuntimeError("x")\n'; } > "$SANDBOX/p22.py"
+  T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p22.py" >/dev/null 2>&1; T1=$((SECONDS-T0))
+  if [ "$T1" -lt 30 ]; then ok "python: a harness flooding stdout is killed at the disk cap, not at the 60s timeout (${T1}s)"; else bad "python: runaway harness output was not bounded on disk" "took ${T1}s"; fi; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "python: PEM cut from its header by the 200-line cap leaked" "python: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\n" + "A" * 70000 + "\\nEXCBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p18.py"; python3 "$SANDBOX/p18.py" >/dev/null 2>&1

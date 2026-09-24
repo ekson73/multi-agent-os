@@ -97,6 +97,17 @@ def _shr_install_signals():
 
 
 _shr_install_signals()
+_atexit.register(_shr_kill_live)  # normal interpreter shutdown does not wait for daemon threads: a relay running in one must not leave its harness orphaned
+
+
+def _shr_watch_size(p, f, cap=4194304):
+    """Bound the harness stdout FILE on disk while it is written (the 1MB read-back only bounds memory): past `cap` bytes kill the group."""
+    while p.poll() is None:
+        try:
+            if _os.fstat(f.fileno()).st_size > cap:
+                _shr_kill_live(); return
+        except Exception: return
+        _time.sleep(0.2)
 
 
 def _shr_run(bin_, argv, prompt_text, prompt_path):
@@ -112,6 +123,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     _outp = _os.path.join(_shr_dir, "harness.out")
     _outf = open(_outp, "w+b")
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+    _threading.Thread(target=_shr_watch_size, args=(p, _outf), daemon=True).start()
     _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
     try:
         p.communicate(input=stdin, timeout=_timeout)
