@@ -1293,6 +1293,9 @@ def prepare_out(ctx: Ctx, out: str, allow_git: bool) -> str:
     if repo and not allow_git:
         die("refusing to write inside a git work tree (%s); session data must stay private" % rel(ctx.home, repo),
             "blocked")
+    if repo:
+        sys.stderr.write(json.dumps({"warning": "--allow-git-output: output root is inside a git work tree (%s); "
+                                                "never commit catalog outputs" % rel(ctx.home, repo)}) + "\n")
     os.makedirs(out, mode=0o700, exist_ok=True)
     if os.stat(out).st_mode & 0o077:
         os.chmod(out, 0o700)  # tighten a pre-existing directory BEFORE anything is written into it
