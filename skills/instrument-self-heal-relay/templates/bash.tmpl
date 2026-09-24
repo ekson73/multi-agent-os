@@ -33,7 +33,8 @@ shr_abort() {  # $1=signal received while shr_run waits
   if [ -n "${SHR_PID:-}" ]; then _l="$(shr_tree "$SHR_PID")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; fi
   if [ -n "${SHR_W:-}" ]; then for _p in $(shr_tree "$SHR_W"); do kill -KILL "$_p" 2>/dev/null || :; done; fi
   if [ -n "${_l:-}" ]; then sleep 1; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null; fi
-  trap - TERM HUP; kill -"$1" $$
+  trap - TERM HUP; eval "${SHR_OT:-:}"; eval "${SHR_OH:-:}"   # give the adopter's own handler back BEFORE re-delivering, so its cleanup still runs
+  kill -"$1" $$
 }
 shr_run() {
   local t="${MAOS_SELFHEAL_TIMEOUT:-300}" pid w rc mark="$SHR_RUNDIR/.wd.$$.$RANDOM"
@@ -42,13 +43,13 @@ shr_run() {
   if [ "${#t}" -gt 5 ] || [ "$t" -gt 86400 ]; then t=86400; elif [ "$t" -eq 0 ]; then t=300; fi   # same clamp as python/node
   # A TERM/HUP sent to THIS script while it waits must not orphan the harness (in `apply` mode it could keep editing after cancellation):
   # kill the harness tree + the watchdog, restore the adopter's traps, then re-deliver the signal to ourselves so its own handler still runs.
-  local _ot _oh; _ot="$(trap -p TERM)"; _oh="$(trap -p HUP)"
+  SHR_OT="$(trap -p TERM)"; SHR_OH="$(trap -p HUP)"
   SHR_PID=""; SHR_W=""
   trap 'shr_abort TERM' TERM; trap 'shr_abort HUP' HUP
   "$@" <&0 & pid=$!; SHR_PID=$pid
   ( sleep "$t"; : > "$mark"; _l="$(shr_tree "$pid")"; for _p in $_l; do kill -TERM "$_p"; done 2>/dev/null; sleep 3; for _p in $_l; do kill -KILL "$_p"; done 2>/dev/null ) >/dev/null 2>&1 & w=$!; SHR_W=$w
   wait "$pid" 2>/dev/null; rc=$?
-  trap - TERM HUP; eval "${_ot:-:}"; eval "${_oh:-:}"
+  trap - TERM HUP; eval "${SHR_OT:-:}"; eval "${SHR_OH:-:}"
   if [ -e "$mark" ]; then wait "$w" 2>/dev/null || :; else for _p in $(shr_tree "$w"); do kill -KILL "$_p" 2>/dev/null || :; done; wait "$w" 2>/dev/null || :; fi
   rm -f "$mark"
   return "$rc"

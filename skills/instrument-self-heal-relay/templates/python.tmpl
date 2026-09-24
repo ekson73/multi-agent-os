@@ -66,6 +66,39 @@ def shr_build_prompt(exc_text, tier, log_tail):
             f"<<<UNTRUSTED-LOG-{nonce}\n{shr_redact(exc_text)[-65536:] + chr(10) + shr_redact(log_tail)}\nUNTRUSTED-LOG-{nonce}>>>\n")
 
 
+_shr_live = set()  # process-group ids of harnesses currently running
+
+
+def _shr_kill_live():
+    for _pid in list(_shr_live):
+        try:
+            if _os.name == "posix": _os.killpg(_pid, 9)
+            else: _sp.run(["taskkill", "/T", "/F", "/PID", str(_pid)], capture_output=True)
+        except Exception: pass
+
+
+def _shr_install_signals():
+    """The harness lives in its OWN session, so a TERM/HUP sent to this script would orphan it. Installed once at load (the block runs in the
+    main thread; signal.signal raises anywhere else, which is exactly why this cannot live inside _shr_run, that also runs in worker threads):
+    kill every live harness group, then hand the signal to whatever handler was there before (default disposition re-delivered, an
+    adopter's own handler called, SIG_IGN honoured)."""
+    for _name in ("SIGTERM", "SIGHUP"):
+        _s = getattr(_signal, _name, None)
+        if _s is None: continue
+        try:
+            _prev = _signal.getsignal(_s)
+            def _h(sig, frm, _prev=_prev):
+                _shr_kill_live()
+                if callable(_prev): return _prev(sig, frm)
+                if _prev == _signal.SIG_IGN: return
+                _signal.signal(sig, _signal.SIG_DFL); _os.kill(_os.getpid(), sig)
+            _signal.signal(_s, _h)
+        except (ValueError, OSError): pass
+
+
+_shr_install_signals()
+
+
 def _shr_run(bin_, argv, prompt_text, prompt_path):
     a = list(argv)
     _timeout = _shr_timeout()
@@ -79,14 +112,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     _outp = _os.path.join(_shr_dir, "harness.out")
     _outf = open(_outp, "w+b")
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
-    # the harness lives in its OWN session, so a TERM/HUP sent to this script would otherwise orphan it: turn the signal into SystemExit, which the
-    # cleanup below turns into "kill the whole group" (SystemExit is an intentional exit: it never relays). Main thread only (signal.signal raises elsewhere).
-    _old_sig = {}
-    def _shr_on_sig(sig, frm): raise SystemExit(128 + sig)
-    for _s in (getattr(_signal, "SIGTERM", None), getattr(_signal, "SIGHUP", None)):
-        if _s is None: continue
-        try: _old_sig[_s] = _signal.signal(_s, _shr_on_sig)
-        except (ValueError, OSError): pass
+    _shr_live.add(p.pid)  # the process-wide TERM/HUP handler (installed at load, main thread) kills every live harness group
     try:
         p.communicate(input=stdin, timeout=_timeout)
         _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.close()
@@ -108,9 +134,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         _outf.close()
         return 124, ""
     finally:
-        for _s, _h in _old_sig.items():
-            try: _signal.signal(_s, _h)
-            except (ValueError, OSError): pass
+        _shr_live.discard(p.pid)
     return p.returncode, out
 
 
