@@ -292,9 +292,30 @@ def atomic_write(path: str, data: bytes, mode: int = 0o600):
         raise
 
 
+_VERSION_FLAGS = {"--version", "-v", "version"}
+
+
+def version_probe_argv(h: dict, vc: str):
+    """Registry version_cmd -> argv ONLY if it is exactly [<one of detect.commands>, <version flag>]
+    with flag in --version / -v / version. Else None. Enforced at registry load AND before running."""
+    try:
+        argv = shlex.split(vc)
+    except ValueError:
+        return None
+    cmds = set((h.get("detect") or {}).get("commands") or [])
+    if len(argv) != 2 or argv[0] not in cmds or argv[1] not in _VERSION_FLAGS:
+        return None
+    return argv
+
+
+# No repo-triggered execution: a hostile repo config cannot run fsmonitor/hooks through our git probes.
+_GIT = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
+
+
 def _git(d: str, *a) -> int:
     try:
-        return subprocess.run(["git", "-C", d, *a], capture_output=True, text=True, timeout=10).returncode
+        return subprocess.run([*_GIT, "-C", d, *a], capture_output=True, text=True, timeout=10,
+                              stdin=subprocess.DEVNULL).returncode
     except (OSError, subprocess.TimeoutExpired):
         return -1
 
@@ -308,8 +329,8 @@ def git_state(path: str):
     if not d or shutil.which("git") is None:
         return None
     try:
-        r = subprocess.run(["git", "-C", d, "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, text=True, timeout=10)
+        r = subprocess.run([*_GIT, "-C", d, "rev-parse", "--is-inside-work-tree"],
+                           capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0 or r.stdout.strip() != "true":
@@ -344,6 +365,10 @@ def load_registry(reg_dir: str) -> dict:
         if m.get("supported") and m.get("entry_style") in STYLES and not m.get("key_path"):
             raise UsageError("registry file %s: mcp.key_path must be non-empty for writable style %s"
                              % (fn, m.get("entry_style")))
+        vc = (d.get("update") or {}).get("version_cmd")
+        if vc is not None and (not isinstance(vc, str) or version_probe_argv(d, vc) is None):
+            raise UsageError("registry file %s: update.version_cmd rejected for harness %s (not a version "
+                             "probe: must be '<detect command> --version|-v|version')" % (fn, hid))
         reg[hid] = d
     return reg
 
@@ -445,7 +470,8 @@ class Resolver:
             return self.cache[ref]
         if self.exe:
             try:
-                r = subprocess.run([self.exe, ref], capture_output=True, text=True, timeout=30)
+                r = subprocess.run([self.exe, ref], capture_output=True, text=True, timeout=30,
+                                   stdin=subprocess.DEVNULL)
             except (OSError, subprocess.TimeoutExpired) as e:
                 raise UsageError("resolver failed for %s (%s)" % (ref, e.__class__.__name__))
             if r.returncode != 0:
@@ -1556,9 +1582,12 @@ def mode_update(args, reg, ids):
         upd = h.get("update") or {}
         e = {"id": hid, "version": None, "update_suggestion": upd.get("update_cmd"), "error": None}
         vc = upd.get("version_cmd")
-        if vc:
+        argv = version_probe_argv(h, vc) if vc else None
+        if vc and argv is None:
+            e["error"] = "version_cmd rejected (not a version probe)"
+        elif vc:
             try:
-                r = subprocess.run(shlex.split(vc), capture_output=True, text=True, timeout=10)
+                r = subprocess.run(argv, capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
                 lines = (r.stdout or r.stderr).strip().splitlines()
                 e["version"] = lines[0][:120] if lines else None
                 if r.returncode != 0:

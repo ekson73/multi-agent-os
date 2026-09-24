@@ -59,7 +59,7 @@ mcp:
   transports: [stdio, streamable-http, http, sse]
   supports: {headers: $6, env: true, disable: $( [ "$7" = null ] && echo false || echo true ), disable_field: $7, disable_semantics: $8}
   cli: null
-update: {version_cmd: "echo fixture-$1 1.0", update_cmd: "true-but-never-run"}
+update: {version_cmd: null, update_cmd: "true-but-never-run"}
 last_verified: '2026-09-24'
 confidence: $9
 skip_reason: null
@@ -69,6 +69,13 @@ EOF
 }
 mk hjson   json  mcpServers      mcpservers-json     "~/.hjson/mcp.json"      true  disabled null  high
 sed -i.bak 's/disable_semantics: null/disable_semantics: disabled-bool/' "$REG/hjson.yaml" && rm -f "$REG/hjson.yaml.bak"
+# hjson gets a real, allow-listed version probe: a fixture binary on PATH (records whatever it reads on stdin)
+FIXBIN="$T/fixbin"; mkdir -p "$FIXBIN"; export PATH="$FIXBIN:$PATH"
+printf '#!/bin/sh
+cat > "%s/fixh-stdin" 2>/dev/null
+echo "fixture-hjson 1.0"
+' "$T" > "$FIXBIN/fixh"; chmod +x "$FIXBIN/fixh"
+sed -i.bak -e 's/detect: {commands: \[\]/detect: {commands: [fixh]/' -e 's/version_cmd: null/version_cmd: "fixh --version"/' "$REG/hjson.yaml" && rm -f "$REG/hjson.yaml.bak"
 mk htoml   toml  mcp_servers     codex               "~/.htoml/config.toml"   true  enabled  enabled-bool high
 mk hgrok   toml  mcp_servers     grok-toml           "~/.hgrok/config.toml"   true  enabled  enabled-bool high
 mk hnohdr  json  mcpServers      mcpservers-json     "~/.hnohdr/mcp.json"     false null     null  high
@@ -784,6 +791,56 @@ hasnt 'Traceback' "$o" 'S2: verify does not crash'
 hasnt 'oops' "$o" 'S2: verify never prints the value'
 unset DUMMYTOK OP_SERVICE_ACCOUNT_TOKEN
 rm -f "$REG/hmal.yaml"
+
+# ---------------------------------------------------------------- final red-team hardening (git -c, stdin=DEVNULL, version_cmd)
+# (1) git probes never run repo-configured fsmonitor / hooks
+GR="$HOME/gitrepo"; mkdir -p "$GR"; git -C "$GR" init -q
+printf '#!/bin/sh\ntouch "%s/fsmon-ran"\nexit 1\n' "$T" > "$T/fsmon.sh"; chmod +x "$T/fsmon.sh"
+git -C "$GR" config core.fsmonitor "$T/fsmon.sh"
+mkdir -p "$GR/.git/hooks"; printf '#!/bin/sh\ntouch "%s/hook-ran"\n' "$T" > "$GR/.git/hooks/post-checkout"; chmod +x "$GR/.git/hooks/post-checkout"
+mk hgit json mcpServers mcpservers-json "~/gitrepo/mcp.json" true null null high
+printf '{"mcpServers":{}}' > "$GR/mcp.json"; git -C "$GR" add mcp.json >/dev/null 2>&1; rm -f "$T/fsmon-ran" "$T/hook-ran"
+run plan --ssot "$SSOT" --harness hgit --json
+has 'tracked' "$o" 'git -c: tracked state still detected'
+[ -e "$T/fsmon-ran" ] && no 'git -c: repo core.fsmonitor never executed' "ran" || ok 'git -c: repo core.fsmonitor never executed'
+[ -e "$T/hook-ran" ] && no 'git -c: repo hooks never executed' "ran" || ok 'git -c: repo hooks never executed'
+has 'core.fsmonitor=false' "$(grep -n '_GIT = ' "$BIN")" 'git -c: fsmonitor disabled in the git argv'
+has 'core.hooksPath=/dev/null' "$(grep -n '_GIT = ' "$BIN")" 'git -c: hooksPath neutralised in the git argv'
+eq 0 "$(grep -cE 'subprocess\.run\(\["git"' "$BIN")" 'git -c: no raw git call bypasses _GIT'
+rm -f "$REG/hgit.yaml"
+# (2) every subprocess gets stdin=DEVNULL
+eq "$(grep -c 'subprocess\.run(' "$BIN")" "$(grep -A1 'subprocess\.run(' "$BIN" | grep -c 'stdin=subprocess.DEVNULL')" 'stdin: every subprocess.run passes stdin=DEVNULL'
+RIN="$T/resolver-stdin.sh"; printf '#!/bin/sh\ncat > "%s/res-stdin"\nprintf "%%s" "$FIXSECRET"\n' "$T" > "$RIN"; chmod +x "$RIN"
+o="$(printf 'PARENT-STDIN-LEAK\n' | "$BIN" plan --ssot "$SSOT3" --harness hjson --resolver "$RIN" --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'stdin: resolver still resolves'
+eq "" "$(cat "$T/res-stdin" 2>/dev/null)" 'stdin: resolver cannot read the parent stdin'
+rm -f "$T/fixh-stdin"
+o="$(printf 'PARENT-STDIN-LEAK\n' | "$BIN" update --harness hjson --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+has 'fixture-hjson 1.0' "$o" 'stdin: version probe still runs'
+eq "" "$(cat "$T/fixh-stdin" 2>/dev/null)" 'stdin: version probe cannot read the parent stdin'
+# (3) version_cmd constrained at registry load (+ again before running)
+REGV="$T/regv"; mkdir -p "$REGV"
+vload() { # version_cmd -> sets o/rc from explain on a one-file registry
+  sed -e "s|version_cmd: \"fixh --version\"|version_cmd: \"$1\"|" "$REG/hjson.yaml" > "$REGV/hjson.yaml"
+  o="$("$BIN" explain --harness hjson --registry "$REGV" --state-dir "$SD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+vload 'claude -p x';  eq 2 "$rc" 'version_cmd "claude -p x" rejected at load (exit 2)'
+has 'version_cmd rejected for harness hjson' "$o" 'version_cmd rejection names the harness'
+vload 'fixh -V';      eq 2 "$rc" 'version_cmd "-V" rejected (not on allow-list)'
+vload 'fixh --version --x'; eq 2 "$rc" 'version_cmd with extra args rejected'
+vload 'sh --version'; eq 2 "$rc" 'version_cmd argv[0] not in detect.commands rejected'
+vload 'fixh;rm --version'; eq 2 "$rc" 'version_cmd shell-ish argv[0] rejected'
+for f in --version -v version; do vload "fixh $f"; eq 0 "$rc" "version_cmd \"fixh $f\" accepted"; done
+PYV="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,sys
+m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+h={"detect":{"commands":["fixh"]}}
+print(m.version_probe_argv(h,"claude -p x"), m.version_probe_argv(h,"fixh --version"))
+PY2
+)"
+eq "None ['fixh', '--version']" "$PYV" 'version_cmd re-checked by version_probe_argv before running'
+o="$("$BIN" explain --registry "$DIR/../../harnesses" --state-dir "$SD" 2>&1)"; rc=$?
+eq 0 "$rc" 'all real registry YAMLs pass the version_cmd load check'
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

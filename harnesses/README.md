@@ -52,7 +52,7 @@ extensions:                   # optional: non-MCP extension surfaces
   plugins: null
   marketplace: null
 update:
-  version_cmd: "codex --version"
+  version_cmd: "codex --version"          # run by `update` only; must be exactly "<detect.commands entry> --version|-v|version" — anything else is rejected at registry load
   update_cmd: "npm i -g @openai/codex"   # informative only; executor never runs it (T2)
 docs_url: "https://..."
 last_verified: "2026-09-24"   # ISO date the facts above were checked
