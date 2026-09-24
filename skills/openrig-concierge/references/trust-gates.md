@@ -47,7 +47,7 @@ Then read the pane (T0): `rig capture <session> --lines 40`. Classify the prompt
 **Why class C comes back.** Codex stores trust in `~/.codex/config.toml` under
 `[hooks.state."<source>:<event>:<i>:<j>"]`. `<source>` is the hook's source: an absolute file path such as
 `<worktree>/.codex/hooks.json` or `~/.codex/config.toml`, or a plugin id. Each **new worktree path** is
-therefore a new source, and so is any edit to a hook (a new hash). Project-local hooks load only once the
+therefore a new source, and so is any edit to a hook (a new hash). This path keying was seen in the config Codex 0.156.1 wrote. It is separate from #17. Project-local hooks load only once the
 project's `.codex/` layer is trusted. OpenRig 0.5.14 pre-writes trust for its own activity hooks, but #17
 reports that the dialog still appears on Codex 0.155.1. The maintainer has asked users to keep the trust
 decision in their own hands. The key shape above describes what Codex writes. It is not a recipe: see
