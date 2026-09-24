@@ -201,6 +201,9 @@ os.makedirs(os.path.join(repo, ".git"))
 code, _, err, rc = run("--out", os.path.join(repo, "out"), "index")
 ok(code == 5 and rc.get("status") == "blocked", "output inside a git work tree is refused (exit 5, blocked)")
 
+code, _, err, rc = run("--out", os.path.join(repo, "out"), "--allow-git-output", "index", "--project", PROJ)
+ok(code in (0, 3) and "--allow-git-output" in err and "never commit" in err,
+   "explicit --allow-git-output override proceeds but warns")
 # 4. pass 1 index
 code, out, err, rc = run("--out", OUT, "--max-record-bytes", "4096", "--export", "chatgpt=" + good_zip,
                          "index", "--project", PROJ, "--mention", "demo-atlas")
