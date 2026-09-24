@@ -8,7 +8,7 @@
 # Runtime env: MAOS_SELFHEAL=0 (off) · MAOS_SELFHEAL_MODE=relay|seed · MAOS_SELFHEAL_TIER=propose|apply
 #   MAOS_AI_HARNESS="claude codex" (explicit chain — the ONLY way to use an unverified harness)
 #   MAOS_SELFHEAL_TIMEOUT=300 · MAOS_SELFHEAL_SEED_DIR=<dir> · MAOS_SELFHEAL_ACTIVE=1 (set by the relay: re-entrancy guard)
-import atexit as _atexit, threading as _threading, os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
+import atexit as _atexit, signal as _signal, threading as _threading, os as _os, re as _re, sys as _sys, shutil as _shutil, subprocess as _sp, tempfile as _tf, time as _time, traceback as _tb
 
 SHR_CONTRACT_NOTE = globals().get("SHR_CONTRACT_NOTE", "Preserve this script's documented behaviour and exit-code contract; never weaken a guard, validation or security check.")
 SHR_TIER_LOCK = globals().get("SHR_TIER_LOCK", "")
@@ -79,6 +79,14 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     _outp = _os.path.join(_shr_dir, "harness.out")
     _outf = open(_outp, "w+b")
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_outf, stderr=None, text=True, start_new_session=(_os.name == "posix"))
+    # the harness lives in its OWN session, so a TERM/HUP sent to this script would otherwise orphan it: turn the signal into SystemExit, which the
+    # cleanup below turns into "kill the whole group" (SystemExit is an intentional exit: it never relays). Main thread only (signal.signal raises elsewhere).
+    _old_sig = {}
+    def _shr_on_sig(sig, frm): raise SystemExit(128 + sig)
+    for _s in (getattr(_signal, "SIGTERM", None), getattr(_signal, "SIGHUP", None)):
+        if _s is None: continue
+        try: _old_sig[_s] = _signal.signal(_s, _shr_on_sig)
+        except (ValueError, OSError): pass
     try:
         p.communicate(input=stdin, timeout=_timeout)
         _outf.seek(0); out = _outf.read(1048576).decode("utf-8", "replace"); _outf.close()
@@ -99,6 +107,10 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
         p.communicate()
         _outf.close()
         return 124, ""
+    finally:
+        for _s, _h in _old_sig.items():
+            try: _signal.signal(_s, _h)
+            except (ValueError, OSError): pass
     return p.returncode, out
 
 

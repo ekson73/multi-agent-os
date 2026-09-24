@@ -163,6 +163,10 @@ echo after'
   mk_bash "$SANDBOX/t4m.sh" "MAOS_SELFHEAL_TIMEOUT=2" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=2 "$B" "$SANDBOX/t4m.sh" >/dev/null 2>&1; sleep 1
   if [ -s "$GC" ] && kill -0 "$(cat "$GC")" 2>/dev/null && [ "$(ps -o stat= -p "$(cat "$GC")" 2>/dev/null | cut -c1)" != Z ]; then bad "grandchild of the timed-out harness survived"; kill -9 "$(cat "$GC")" 2>/dev/null; else ok "no grandchild survives a harness timeout"; fi
   restore_stubs; reset_stubs
+  reset_stubs; GCT="$SANDBOX/gct.pid"; rm -f "$GCT"; gc_stub "$GCT"
+  mk_bash "$SANDBOX/t4n.sh" "" 'false'; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 "$B" "$SANDBOX/t4n.sh" >/dev/null 2>&1 & BP=$!
+  for _ in $(seq 1 40); do [ -s "$GCT" ] && break; sleep 0.25; done; kill -TERM "$BP" 2>/dev/null; sleep 3
+  if gc_alive "$GCT"; then bad "bash: harness survived SIGTERM sent to the script"; kill -9 "$(cat "$GCT")" 2>/dev/null; else ok "bash: SIGTERM to the script kills the whole harness tree"; fi; kill -9 "$BP" 2>/dev/null; wait "$BP" 2>/dev/null; restore_stubs; reset_stubs
 
   echo "-- 4i. same-second seeds never collide"
   reset_stubs; mk_bash "$SANDBOX/t4i.sh" "" 'false'
@@ -281,6 +285,10 @@ if command -v python3 >/dev/null 2>&1; then
   MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 -c 'import signal,runpy,sys; signal.signal(signal.SIGINT, signal.default_int_handler); runpy.run_path(sys.argv[1], run_name="__main__")' "$SANDBOX/p16.py" >/dev/null 2>&1 & PYP=$!
   for _ in $(seq 1 40); do [ -s "$GCP" ] && break; sleep 0.25; done; kill -INT "$PYP" 2>/dev/null; sleep 2
   if gc_alive "$GCP"; then bad "python: harness survived Ctrl-C"; kill -9 "$(cat "$GCP")" 2>/dev/null; else ok "python: Ctrl-C during the harness kills the whole harness group"; fi; kill -9 "$PYP" 2>/dev/null; wait "$PYP" 2>/dev/null; restore_stubs
+  reset_stubs; GCQ="$SANDBOX/gcq.pid"; rm -f "$GCQ"; gc_stub "$GCQ"
+  MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=60 python3 "$SANDBOX/p16.py" >/dev/null 2>&1 & PYQ=$!
+  for _ in $(seq 1 40); do [ -s "$GCQ" ] && break; sleep 0.25; done; kill -TERM "$PYQ" 2>/dev/null; sleep 2
+  if gc_alive "$GCQ"; then bad "python: harness survived SIGTERM sent to the script"; kill -9 "$(cat "$GCQ")" 2>/dev/null; else ok "python: SIGTERM to the script kills the whole harness group"; fi; kill -9 "$PYQ" 2>/dev/null; wait "$PYQ" 2>/dev/null; restore_stubs
   reset_stubs; { "$RENDER" --lang python; printf 'import sys\nsys.stderr.write("%s\\n")\nfor _ in range(260): sys.stderr.write("SECRETBODYzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\\n")\nraise RuntimeError("k")\n' "$PEMB"; } > "$SANDBOX/p17.py"; python3 "$SANDBOX/p17.py" >/dev/null 2>&1
   noleak "SECRETBODYzzzz" "python: PEM cut from its header by the 200-line cap leaked" "python: PEM cut from its header by the line cap is dropped"
   reset_stubs; { "$RENDER" --lang python; printf 'raise RuntimeError("%s\\n" + "A" * 70000 + "\\nEXCBODYzzzz1234567890")\n' "$PEMB"; } > "$SANDBOX/p18.py"; python3 "$SANDBOX/p18.py" >/dev/null 2>&1
