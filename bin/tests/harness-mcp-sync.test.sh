@@ -1108,6 +1108,25 @@ run apply --ssot "$SSOT" --harness hgoose
 has 'allow-comment-loss' "$o" '#4096987739: goose comment after quoted scalar -> refused without the flag'
 eq "$G0" "$(sum "$HOME/.hgoose/config.yaml")" '#4096987739: commented goose config left untouched'
 
+# CodeRabbit 5308662091: an OWNED legacy entry survives while its replacement is skipped
+mk hrepl json mcpServers mcpservers-json "~/.hrepl/mcp.json" false null null high   # no header support
+mkdir -p "$HOME/.hrepl"
+printf '{"schema":1,"servers":{"oldr":{"transport":"stdio","command":"npx","args":["old-tool"]}}}' > "$T/ssot-rep1.json"
+printf '{"schema":1,"servers":{"newr":{"transport":"streamable-http","url":"https://mcp.example.test/new","headers":{"Authorization":"Bearer ${FIXSECRET}"},"replaces":["oldr"]}}}' > "$T/ssot-rep2.json"
+run apply --ssot "$T/ssot-rep1.json" --harness hrepl --json
+eq 0 "$rc" 'CR-5308662091: legacy oldr applied and owned'
+run plan --ssot "$T/ssot-rep2.json" --harness hrepl --json
+RA="$(printf '%s' "$o" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin); hs=d["harnesses"] if isinstance(d,dict) else d
+    print(" ".join(sorted("%s=%s"%(a["server"],a["action"]) for h in hs for a in h["actions"])) or "NONE")
+except Exception as e:
+    print("PARSE-ERROR", type(e).__name__)' 2>&1)"
+eq "newr=skip" "$RA" 'CR-5308662091: replacement skipped -> owned legacy NOT scheduled for removal'
+run apply --ssot "$T/ssot-rep2.json" --harness hrepl --json
+RK="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hrepl/mcp.json")"
+eq "['oldr']" "$RK" 'CR-5308662091: apply keeps the working legacy entry (harness never left empty)'
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

@@ -1238,6 +1238,14 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
         # exactly as it is: skipping means "don't touch", never "delete the working entry".
         # Only "omit" (disabled in SSOT, no disable flag) and truly undesired names are removed.
         kept = {a["server"] for a in r["actions"] if a.get("action") == "skip"}
+        # A legacy entry named in `replaces` survives while its replacement was NOT written here
+        # (skip/omit/conflict): removing it would leave the harness with neither server.
+        final = {}
+        for a in r["actions"]:
+            final.setdefault(a["server"], a.get("action"))
+        for sname, sraw in ssot["servers"].items():
+            if sname in final and final[sname] not in ("add", "update", "unchanged"):
+                kept.update(l for l in (sraw.get("replaces") or []) if l not in r["_drops"])
         for name in sorted(owned - desired_names - r["_drops"] - kept):
             if name in existing and not any(a["server"] == name and a["action"] == "conflict" for a in r["actions"]):
                 if modified(name):
