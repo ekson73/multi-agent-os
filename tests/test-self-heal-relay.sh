@@ -139,6 +139,12 @@ STUB
   reset_stubs; printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" o\nsleep 60\n' > "$STUBS/kiro-cli"; chmod +x "$STUBS/kiro-cli"; mk_bash "$SANDBOX/t4e4.sh" "" 'false'
   T0=$SECONDS; MAOS_AI_HARNESS=kiro-cli MAOS_SELFHEAL_TIMEOUT=120 "$B" "$SANDBOX/t4e4.sh" >/dev/null 2>&1; T1=$((SECONDS-T0))
   if [ "$T1" -lt 40 ]; then ok "bash: runaway harness output ends the run at the cap (${T1}s)"; else bad "bash: runaway harness output was not bounded on disk" "took ${T1}s"; fi; restore_stubs
+  echo "-- 4e6. a flooded stderr of one harness does not disable the next harness in the chain"
+  reset_stubs
+  printf '#!/bin/sh\ncat >/dev/null\nhead -c 6291456 /dev/zero | tr "\\000" e >&2\nsleep 60\n' > "$STUBS/kiro-cli"
+  printf '#!/bin/sh\ncat >/dev/null\nsleep 2\necho SECONDANSWER\n' > "$STUBS/claude"; chmod +x "$STUBS/kiro-cli" "$STUBS/claude"
+  mk_bash "$SANDBOX/t4e6.sh" "" 'false'; "$B" "$SANDBOX/t4e6.sh" >/dev/null 2>&1
+  case "$(cat "$SANDBOX"/tmp/shr.*/proposal.md 2>/dev/null)" in *SECONDANSWER*) ok "bash: the second harness answered after the first one was capped" ;; *) bad "bash: the flooded first harness disabled the fallback chain" ;; esac; restore_stubs
   echo "-- 4e5. an unset HOME does not abort the seed fallback under set -u"
   reset_stubs; mk_bash "$SANDBOX/t4e5.sh" "" 'false'
   out="$(env -u HOME -u XDG_STATE_HOME -u MAOS_SELFHEAL_SEED_DIR MAOS_SELFHEAL_MODE=seed "$B" "$SANDBOX/t4e5.sh" 2>&1)"; rc=$?
