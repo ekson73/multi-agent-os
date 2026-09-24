@@ -63,7 +63,7 @@ guardrail 1.
 
 | Class | Default choice | Choose more only when |
 |---|---|---|
-| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
+| A | **T3, reviewed before `rig up`.** Because OpenRig auto-accepts, launching a seat in a cwd *is* granting trust. First review that checkout and the project configuration trust would enable: `.claude/settings*.json` (hooks, permissions), `.mcp.json`, `.claude/` agents and skills, CLAUDE.md / AGENTS.md. For a crew seat that cwd is its desk ([`external-crew.md`](./external-crew.md) step 5), so review the desk; review each worktree separately before it is granted to the seat. Launch there only if the review passes, and record it. If the dialog appears, accept it in the pane only after the same review. | n/a. An unreviewed cwd gets no seat. |
 | B | **Continue without using this MCP server** | the seat's role needs that exact server and you have read what its command runs (guardrail 4). Then choose *Use this MCP server*. Never choose *…all future MCP servers in this project*: that approves servers nobody has reviewed yet. |
 | C | **Review hooks** → read every definition and script → finish the review in Codex only if all are understood and benign | never choose *Trust all and continue* without the review. If any hook is unclear: *Continue without trusting*, or switch the seat to `claude-code`, or park it. Codex's `--dangerously-bypass-hook-trust` flag exists but is meant for automation that already vets its hook sources, and OpenRig owns the launch flags. Do not reach for it. |
 
@@ -100,12 +100,12 @@ rig green while the cause is still there. A seat that goes back to `att` means t
 
 Each item below is a reviewed, T3 configuration change. Show the diff before you write it.
 
-- **Claude MCP approvals: scope each one to the reviewed worktree. Never approve by name at user scope.**
+- **Claude MCP approvals: scope each one to the seat's reviewed cwd (for a crew, its desk). Never approve by name at user scope.**
   Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
   `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
   binds the same name to a different command. That is trust by name alone (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
-    `enabledMcpjsonServers` of the **worktree's untracked** `.claude/settings.local.json`. It applies only to
+    `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json`. It applies only to
     that folder, and only once the folder is trusted. Re-review whenever that `.mcp.json` changes.
     Otherwise, the operator approves interactively in the pane.
   - *deny*: `disabledMcpjsonServers` may live at user scope. A deny by name fails closed.
@@ -113,14 +113,16 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
     repo's servers ([Claude Code MCP docs, "Project server approvals and workspace trust"](https://code.claude.com/docs/en/mcp)).
   - `claude mcp list` shows a server still waiting as `⏸ Pending approval`. `claude mcp reset-project-choices`
     resets the choices.
-- **Codex hooks.** Keep the per-worktree hook set small and stable. Reuse crew worktrees across runs rather
-  than creating new ones, because trust is keyed by path. Review once per new worktree through the native
+- **Codex hooks.** Keep the per-cwd hook set small and stable. Reuse crew desks across runs rather
+  than creating new ones, because trust is keyed by path. Review once per new path through the native
   flow (guardrail 1). Organization-managed hooks (`requirements.toml`, MDM) are trusted by policy. That is an
   administrator's decision, not a seat's.
 - **Unattended seats.** Use `deny` rules, not `ask` (guardrail 2). Translate the policy with
   `rig context get skills/applying-a-permission-policy`.
-- **Workspace trust (class A).** Review every new worktree's checkout and project configuration before its
-  first `rig up` (section 2). OpenRig auto-accepts, so the review is the only gate.
+- **Workspace trust (class A).** Trust is keyed to the seat's cwd, which for a crew is its desk
+  ([`external-crew.md`](./external-crew.md) step 5). Review every new desk before its first `rig up`
+  (section 2), and review every worktree separately before it is granted to a seat. OpenRig auto-accepts, so
+  the review is the only gate.
 - **Secrets.** Deny the secret-manager CLI in the seat's harness config. The crew's culture file names the
   project's just-in-time procedure, which runs outside the seat and returns only non-secret results
   (guardrail 3). No secret value ever goes into that file or any other seat-readable place.
@@ -142,4 +144,4 @@ is fixed, drop the workaround and follow the current first-party guidance instea
 | [#16](https://github.com/mvschwarz/openrig/pull/16) (PR, 2026-09-23) | `npm i -g @openrig/cli` fails on Node 26 | reported on Node 26.9.0; PR still open when checked | Node 20/22/24 until a release bumps better-sqlite3 |
 
 ---
-Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · wrapper-readiness row: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.
+Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · desk-keyed pre-configuration and wrapper-readiness row: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/trust-gates.md` · prompt texts observed live with `rig capture` on the versions above.

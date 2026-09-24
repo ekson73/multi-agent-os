@@ -167,9 +167,12 @@ rig up rig.yaml --plan                      # preview only; launches nothing
 
 ## 9. Pre-clear trust gates [T3]
 
-Before the first launch in any new worktree, follow [`trust-gates.md`](./trust-gates.md) §2 and §4. Review the
-worktree before it gets a seat, because OpenRig auto-accepts Claude workspace trust. Then: exact MCP approvals
-scoped to the worktree, native Codex hook review, deny rules, no secret values anywhere a seat can read.
+Before the first launch, follow [`trust-gates.md`](./trust-gates.md) §2 and §4, keyed to each seat's
+**actual cwd, the desk**. OpenRig auto-accepts Claude workspace trust for the desk, so review the desk (empty,
+apart from the settings the crew placed there) before it gets a seat. MCP approvals, settings and native Codex
+hook review also apply to the desk, because that is where the harness reads them. Review each **worktree**
+separately, before it is granted to a seat through additional directories: its checkout, and that it holds
+nothing a seat should not reach. Then: deny rules, and no secret values anywhere a seat can read.
 
 ## 10. Launch [T1]
 
