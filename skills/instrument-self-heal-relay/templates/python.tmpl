@@ -25,7 +25,7 @@ _SHR_REDACT = [
     (_re.compile(r"sk-[A-Za-z0-9_-]{20,}"), "[REDACTED:api-key]"),
     (_re.compile(r"xox[baprs]-[A-Za-z0-9-]{10,}"), "[REDACTED:slack-token]"),
     (_re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}"), "[REDACTED:jwt]"),
-    (_re.compile(r"://[^/@\s]{1,200}:[^/@\s]{1,200}@"), "://[REDACTED]@"),
+    (_re.compile(r"://[^/@\s]*@"), "://[REDACTED]@"),
     (_re.compile(r"\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}", _re.I), r"\1 [REDACTED]"),
     (_re.compile(r"([A-Za-z0-9_.-]{0,64}(?:secret|token|passw(?:or)?d|api_?key|credential|auth)[A-Za-z0-9_.-]{0,64})\s*[=:]\s*(\"[^\"]*\"|'[^']*'|[^\s\"']+)", _re.I), r"\1=[REDACTED]"),
 ]
@@ -68,6 +68,7 @@ def shr_build_prompt(exc_text, tier, log_tail):
 
 def _shr_run(bin_, argv, prompt_text, prompt_path):
     a = list(argv)
+    _timeout = _shr_timeout()
     stdin = None
     if _SHR_HARNESSES_ENTRY["via"] == "argv-path":
         a.append(f"Read the file {prompt_path} and follow its instructions.")
@@ -76,7 +77,7 @@ def _shr_run(bin_, argv, prompt_text, prompt_path):
     # own session/process group: on timeout the WHOLE group (the harness' subprocesses too) is killed, not just the leader
     p = _sp.Popen([bin_] + a, stdin=_sp.PIPE, stdout=_sp.PIPE, stderr=None, text=True, start_new_session=(_os.name == "posix"))
     try:
-        out, _ = p.communicate(input=stdin, timeout=int(_os.environ.get("MAOS_SELFHEAL_TIMEOUT", "300")))
+        out, _ = p.communicate(input=stdin, timeout=_timeout)
     except _sp.TimeoutExpired:
         try:
             if _os.name == "posix": _os.killpg(p.pid, 9)
@@ -106,8 +107,22 @@ _shr_lock = _threading.Lock()
 
 def _shr_tail(path, n=200, cap=262144):  # last n lines from at most the last `cap` bytes: a huge log can't exhaust memory at fault time
     with open(path, "rb") as f:
-        f.seek(0, 2); size = f.tell(); f.seek(max(0, size - cap))
-        return "".join(f.read().decode("utf-8", "replace").splitlines(True)[-n:])
+        f.seek(0, 2); size = f.tell(); start = max(0, size - cap); f.seek(start)
+        lines = f.read().decode("utf-8", "replace").splitlines(True)
+    if start > 0: lines = lines[1:]  # the first line is cut mid-way: drop it whole, so no half-token reaches the redactor
+    out, inkey = [], False
+    for l in lines:  # a private-key body whose BEGIN header fell before the cut would escape redaction: drop through its END
+        if not inkey and "PRIVATE KEY-----" in l and "-----END" in l: out = []; continue
+        if "-----BEGIN" in l and "PRIVATE KEY-----" in l: inkey = True
+        if "-----END" in l and "PRIVATE KEY-----" in l: inkey = False
+        out.append(l)
+    return "".join(out[-n:])
+
+
+def _shr_timeout():  # validated BEFORE the harness is spawned: a bad value must never leave a running child behind
+    try: t = int(float(_os.environ.get("MAOS_SELFHEAL_TIMEOUT", "300")))
+    except ValueError: return 300
+    return t if t > 0 else 300
 
 
 def shr_relay(exc_text):
@@ -126,11 +141,14 @@ def shr_relay(exc_text):
     _os.environ["MAOS_SELFHEAL_ACTIVE"] = "1"
     if _os.environ.get("MAOS_SELFHEAL_MODE", "relay") == "seed":
         d = _os.environ.get("MAOS_SELFHEAL_SEED_DIR") or _os.path.join(_os.environ.get("XDG_STATE_HOME", _os.path.expanduser("~/.local/state")), "maos", "self-heal-seeds")
-        _os.makedirs(d, mode=0o700, exist_ok=True)
-        seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{_os.getpid()}-{_os.urandom(3).hex()}-{SHR_NAME}.md")
-        fd = _os.open(seed, _os.O_WRONLY | _os.O_CREAT | _os.O_TRUNC, 0o600)  # the prompt may hold residue: never world-readable
-        with _os.fdopen(fd, "w", encoding="utf-8") as f: f.write("<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt)
-        print(f"self-heal-relay: seed written -> {seed}", file=_sys.__stderr__)
+        try:
+            _os.makedirs(d, mode=0o700, exist_ok=True)
+            seed = _os.path.join(d, f"NEEDS-AGENT-{_time.strftime('%Y%m%dT%H%M%S', _time.gmtime())}-{_os.getpid()}-{_os.urandom(3).hex()}-{SHR_NAME}.md")
+            fd = _os.open(seed, _os.O_WRONLY | _os.O_CREAT | _os.O_TRUNC, 0o600)  # the prompt may hold residue: never world-readable
+            with _os.fdopen(fd, "w", encoding="utf-8") as f: f.write("<!-- self-heal-relay seed: an agent should pick this up. Consume by moving it to consumed/ -->\n" + prompt)
+            print(f"self-heal-relay: seed written -> {seed}", file=_sys.__stderr__)
+        except Exception as e:
+            print(f"self-heal-relay: seed NOT written ({e}); prompt kept at {ppath}", file=_sys.__stderr__)
         return
     explicit = bool(_os.environ.get("MAOS_AI_HARNESS"))
     for name in (_os.environ.get("MAOS_AI_HARNESS") or " ".join(SHR_DEFAULT_CHAIN)).split():
