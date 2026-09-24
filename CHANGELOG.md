@@ -21,7 +21,7 @@ engolido; (D4) log sem redacao enviado a terceiro e via argv; (D5) despacho sinc
 bloqueia hooks/cron; (D6) abort por `set -u` nunca dispara ERR (a doc antiga afirmava o
 contrario). Inclui tabela unica de harness (`harnesses.json`, so verificados na cadeia
 padrao), renderer `bin/self-heal-relay-render` (`--verify` detecta drift), modos
-relay/seed, tier propose/apply e 81 testes hermeticos (bash 3.2 + moderno, python, node).
+relay/seed, tier propose/apply e 94 testes hermeticos (bash 3.2 + moderno, python, node).
 Os 4 adotantes existentes continuam no bloco v1 (follow-up gated).
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho

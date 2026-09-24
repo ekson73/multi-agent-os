@@ -135,6 +135,7 @@ if SHR_ON:
     def _shr_hook(et, ev, tb):
         try: _shr_prev_hook(et, ev, tb)
         finally:
+            if issubclass(et, KeyboardInterrupt): return  # an operator Ctrl-C is intentional, never a fault to relay
             try: shr_relay("".join(_tb.format_exception(et, ev, tb)))
             except Exception: pass
     _sys.excepthook = _shr_hook
