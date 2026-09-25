@@ -1360,6 +1360,51 @@ for md in plan "plan --json" apply "apply --json"; do
 done
 rm -f "$REG/hshort.yaml"
 
+# ---------------------------------------------------------------- PDCA round 10 (Codex on a350085)
+# 4105602622 (P1): a git-safety refusal of a DESIRED server makes apply exit non-zero,
+# for a refusal-only plan AND a mixed plan (harmless sibling still written).
+SD10="$T/state-r10g"
+mk hgr json mcpServers mcpservers-json "~/.hgr/mcp.json" true null null high
+printf '{"mcpServers":{}}' > "$HOME/.hgr/mcp.json"
+git -C "$HOME/.hgr" init -q >/dev/null 2>&1; git -C "$HOME/.hgr" add mcp.json >/dev/null 2>&1
+git -C "$HOME/.hgr" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+printf '{"schema":1,"servers":{"sec":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}}}}\n' > "$T/ssot-gr-only.json"
+printf '{"schema":1,"servers":{"sec":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}},"plain":{"transport":"stdio","command":"tool","args":["-v"]}}}\n' > "$T/ssot-gr-mix.json"
+o="$("$BIN" apply --ssot "$T/ssot-gr-only.json" --harness hgr --registry "$REG" --state-dir "$SD10" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'refused' "$o" '#4105602622: tracked config + secret -> refused'
+[ "$rc" -ne 0 ] && ok '#4105602622: refusal-only plan: apply exits non-zero (no false convergence)' || no '#4105602622: refusal-only plan: apply exits non-zero (no false convergence)' "rc=$rc"
+o="$("$BIN" apply --ssot "$T/ssot-gr-mix.json" --harness hgr --registry "$REG" --state-dir "$SD10" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok '#4105602622: mixed plan: apply exits non-zero' || no '#4105602622: mixed plan: apply exits non-zero' "rc=$rc"
+MX="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hgr/mcp.json")"
+eq "['plain']" "$MX" '#4105602622: mixed plan: harmless sibling written, secret server never written'
+rm -f "$REG/hgr.yaml"
+
+# 4105602627 (P2): restore recreates a deleted config parent directory (0700)
+SD10R="$T/state-r10r"
+mk hrs json mcpServers mcpservers-json "~/.hrs/cfg/mcp.json" true null null high
+mkdir -p "$HOME/.hrs/cfg"; printf '{"mcpServers":{"keep":{"command":"x"}}}' > "$HOME/.hrs/cfg/mcp.json"; chmod 600 "$HOME/.hrs/cfg/mcp.json"
+R0="$(sum "$HOME/.hrs/cfg/mcp.json")"
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hrs --registry "$REG" --state-dir "$SD10R" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+TSR="$(printf '%s' "$o" | python3 -c 'import sys,json; print(json.load(sys.stdin)["backup_ts"] or "")' 2>/dev/null)"
+rm -rf "$HOME/.hrs/cfg"
+o="$("$BIN" restore "$TSR" --harness hrs --registry "$REG" --state-dir "$SD10R" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" '#4105602627: restore succeeds after the config parent dir was deleted'
+eq "$R0" "$(sum "$HOME/.hrs/cfg/mcp.json")" '#4105602627: original bytes restored into the recreated dir'
+eq 700 "$(mode "$HOME/.hrs/cfg")" '#4105602627: recreated parent is 0700'
+rm -f "$REG/hrs.yaml"
+
+# 4105602640 (P2): doctor surfaces a non-0600 config mode as a warning
+SD10M="$T/state-r10m"
+mk hmd json mcpServers mcpservers-json "~/.hmd/mcp.json" true null null high
+printf '{"mcpServers":{}}' > "$HOME/.hmd/mcp.json"; chmod 644 "$HOME/.hmd/mcp.json"
+o="$("$BIN" doctor --harness hmd --registry "$REG" --state-dir "$SD10M" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'warn' "$o" '#4105602640: 0644 config -> doctor status warn'
+has '0o644' "$o" '#4105602640: doctor names the bad mode'
+chmod 600 "$HOME/.hmd/mcp.json"
+o="$("$BIN" doctor --harness hmd --registry "$REG" --state-dir "$SD10M" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has '"status": "ok"' "$o" '#4105602640: 0600 config -> ok'
+rm -f "$REG/hmd.yaml"
+
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
 OUTSIDE="$(python3 - "$T" "$ALLOUT" <<'PY'

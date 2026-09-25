@@ -1354,8 +1354,9 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
             elif in_git and carries_secret(raw):
                 where = ("could not check git visibility (git missing or erroring)" if gstate == "unknown"
                          else "config is %s in a git work tree (could leak via commit)" % gstate)
-                act.update(action="skip", reason="%s; server carries secret material (headers/env/secret args/URL "
-                                                 "credentials, placeholder or literal) — refused" % where)
+                act.update(action="skip", refused="git-safety",
+                           reason="%s; server carries secret material (headers/env/secret args/URL "
+                                  "credentials, placeholder or literal) — refused" % where)
             else:
                 entry = render_entry(h, name, resolver.resolve(raw))
                 desired_names.add(name)
@@ -1492,7 +1493,10 @@ def restore_from(bdir: str):
     path = meta["path"]
     if meta["existed"]:
         with open(os.path.join(bdir, os.path.basename(path)), "rb") as fh:
-            atomic_write(path, fh.read(), int(meta.get("mode", "0o600"), 8))
+            data = fh.read()
+        # The parent may be gone (uninstall/reset); recreate it (0700) like apply does.
+        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+        atomic_write(path, data, int(meta.get("mode", "0o600"), 8))
     elif os.path.exists(path):
         os.unlink(path)
     return path
@@ -1523,6 +1527,10 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
                 r["apply"] = "not-applied: %s" % r["reason"]
             continue
         if any(a["action"] == "conflict" for a in r["actions"]):
+            worst = EXIT_DRIFT
+        if any(a.get("refused") for a in r["actions"]):
+            # A security refusal leaves a DESIRED server absent: never report convergence (exit 0),
+            # even when harmless siblings in the same plan were written.
             worst = EXIT_DRIFT
         if plan_is_empty(r):
             r["apply"] = "nothing-to-do"
@@ -1705,6 +1713,9 @@ def mode_doctor(args, reg, ids):
         elif e["writable"] is False:
             e["status"] = "warn"
             e["note"] = "config directory not writable: apply's atomic replace would fail"
+        elif e["mode"] is not None and e["mode"] != oct(0o600):
+            e["status"] = "warn"
+            e["note"] = "config mode %s (want 0o600): may expose MCP credentials to other users" % e["mode"]
         elif git_leak_risk(e["git"]):
             e["status"] = "warn"
             e["note"] = "in-git-repo(%s): secret literals refused (could leak via commit)" % e["git"]
