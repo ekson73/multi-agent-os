@@ -1206,6 +1206,93 @@ eq "hsa=skip hsb=ok" "$SP" '#4100075046: writable harness outranks a plan-only s
 has 'shared with hsb' "$o" '#4100075046: the plan-only sibling names the writer as owner'
 rm -f "$REG/hsa.yaml" "$REG/hsb.yaml"
 
+# ---------------------------------------------------------------- PDCA round 8 (Codex P1s on 22f0d45)
+# 4100510426 (P1 SECURITY): the value after a secret-named flag is masked whatever its first char;
+# also repeated flags, a flag followed by another flag, `--x-key=` empty, and a trailing valueless flag.
+SD8="$T/state-r8m"
+mk hdash json mcpServers mcpservers-json "~/.hdash/mcp.json" true null null high
+printf '{"schema":1,"servers":{"sdash":{"transport":"stdio","command":"npx","args":["-y","pkg","--token","-zq9x","--auth","--token","dup7vq","--api-key=","--password"]}}}\n' > "$T/ssot-dash.json"
+run_8() { o="$("$BIN" "$@" --harness hdash --registry "$REG" --state-dir "$SD8" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+dashcheck() { if printf '%s' "$o" | grep -Eq -- '-zq9x|dup7vq'; then no "#4100510426: dash/repeated values never printed in $1" "LEAKED in $1"
+  else ok "#4100510426: dash/repeated values never printed in $1"; fi; }
+run_8 plan --ssot "$T/ssot-dash.json";            dashcheck plan
+has 'value missing' "$o" '#4100510426: trailing secret-named flag without a value is flagged'
+run_8 plan --ssot "$T/ssot-dash.json" --json;     dashcheck "plan --json"
+run_8 apply --ssot "$T/ssot-dash.json";           dashcheck apply
+eq 0 "$rc" '#4100510426: apply exits 0 (values are written; masking is output-only)'
+run_8 apply --ssot "$T/ssot-dash.json" --json;    dashcheck "apply --json"
+run_8 inventory --json;                           dashcheck "inventory --json"
+run_8 verify --ssot "$T/ssot-dash.json" --json;   dashcheck "verify --json"
+WD="$(python3 -c 'import json,sys; a=json.load(open(sys.argv[1]))["mcpServers"]["sdash"]["args"]; print("-zq9x" in a and "dup7vq" in a)' "$HOME/.hdash/mcp.json")"
+eq True "$WD" '#4100510426: file carries the real dash-prefixed and repeated-flag values'
+FD="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,importlib.util,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+print(m.mask_secret_args(["--token","-abc","--key","--port","80","--pass"]), m.secret_arg_values(["--api-key="]))
+PY2
+)"
+eq "['--token', '«secret»', '--key', '«secret»', '80', '--pass'] []" "$FD" '#4100510426: next token masked regardless of first char; empty `=` value and trailing flag print nothing'
+rm -f "$REG/hdash.yaml"
+
+# 4100510415 (P1 SECURITY): git missing/erroring => visibility "unknown" => secret material refused
+SD8G="$T/state-r8g"; NOGIT="$T/nogit-bin"; mkdir -p "$NOGIT"
+ln -sf "$(command -v python3)" "$NOGIT/python3"
+mk hnog json mcpServers mcpservers-json "~/.hnog/mcp.json" true null null high
+printf '{"mcpServers":{}}' > "$HOME/.hnog/mcp.json"; M0="$(sum "$HOME/.hnog/mcp.json")"
+printf '{"schema":1,"servers":{"snog":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}}}}\n' > "$T/ssot-nog.json"
+o="$(PATH="$NOGIT" "$BIN" apply --ssot "$T/ssot-nog.json" --harness hnog --registry "$REG" --state-dir "$SD8G" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'could not check git visibility' "$o" '#4100510415: git missing -> secret-bearing server refused (unknown state)'
+eq "$M0" "$(sum "$HOME/.hnog/mcp.json")" '#4100510415: file untouched; secret never written without a git check'
+FG="$T/fakegit"; mkdir -p "$FG/a" "$FG/b"
+printf '#!/bin/sh\necho "fatal: detected dubious ownership in repository" >&2\nexit 128\n' > "$FG/a/git"
+printf '#!/bin/sh\necho "fatal: not a git repository (or any of the parent directories): .git" >&2\nexit 128\n' > "$FG/b/git"
+chmod +x "$FG/a/git" "$FG/b/git"
+GS="$(python3 - "$BIN" "$FG" "$HOME/.hnog/mcp.json" <<'PY2'
+import importlib.machinery,importlib.util,os,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+base=os.environ["PATH"]; out=[]
+for sub in ("a","b"):
+    os.environ["PATH"]=os.path.join(sys.argv[2],sub)+os.pathsep+base
+    out.append(str(m.git_state(sys.argv[3])))
+os.environ["PATH"]=sys.argv[2]+"/none"
+out.append(str(m.git_state(sys.argv[3])))
+print(" ".join(out), m.git_leak_risk("unknown"))
+PY2
+)"
+eq "unknown None unknown True" "$GS" '#4100510415: erroring git -> unknown; "not a git repository" -> None; git missing -> unknown (a leak risk)'
+rm -f "$REG/hnog.yaml"
+
+# 4100510423 (P1): disabled + git-unsafe secret-bearing server is removed (owned) or a conflict (unmanaged),
+# never a silent skip that leaves it active
+SD8D="$T/state-r8d"
+mk hdgt json mcpServers mcpservers-json "~/.hdgt/mcp.json" true disabled null high
+printf '{"mcpServers":{}}' > "$HOME/.hdgt/mcp.json"
+printf '{"schema":1,"servers":{"sdg":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}}}}\n' > "$T/ssot-dg-on.json"
+printf '{"schema":1,"servers":{"sdg":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"},"enabled":false}}}\n' > "$T/ssot-dg-off.json"
+run_d8() { o="$("$BIN" "$@" --harness hdgt --registry "$REG" --state-dir "$SD8D" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+run_d8 apply --ssot "$T/ssot-dg-on.json"
+eq 0 "$rc" '#4100510423: owned secret-bearing server applied outside git'
+git -C "$HOME/.hdgt" init -q >/dev/null 2>&1; git -C "$HOME/.hdgt" add mcp.json >/dev/null 2>&1
+git -C "$HOME/.hdgt" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+run_d8 apply --ssot "$T/ssot-dg-off.json"
+has 'remove' "$o" '#4100510423: disabled + git-unsafe owned server -> remove action (not skip)'
+eq 0 "$rc" '#4100510423: the removal apply exits 0'
+GONE="$(python3 -c 'import json,sys; print("sdg" not in json.load(open(sys.argv[1]))["mcpServers"])' "$HOME/.hdgt/mcp.json")"
+eq True "$GONE" '#4100510423: owned disabled server removed from the tracked config (not left active)'
+run_d8 verify --ssot "$T/ssot-dg-off.json"
+eq 0 "$rc" '#4100510423: verify clean after the removal'
+# unmanaged entry in a tracked file -> conflict, non-zero, untouched
+mk hdgu json mcpServers mcpservers-json "~/.hdgu/mcp.json" true disabled null high
+printf '{"mcpServers":{"sdg":{"command":"npx","args":["-y","pkg"],"env":{"K":"hand"}}}}' > "$HOME/.hdgu/mcp.json"
+git -C "$HOME/.hdgu" init -q >/dev/null 2>&1; git -C "$HOME/.hdgu" add mcp.json >/dev/null 2>&1
+git -C "$HOME/.hdgu" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+MU="$(sum "$HOME/.hdgu/mcp.json")"
+o="$("$BIN" apply --ssot "$T/ssot-dg-off.json" --harness hdgu --registry "$REG" --state-dir "$SD8D" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'conflict' "$o" '#4100510423: unmanaged active entry, disabled in SSOT, git-unsafe -> conflict'
+[ "$rc" -ne 0 ] && ok '#4100510423: conflict exits non-zero' || no '#4100510423: conflict exits non-zero' "rc=$rc"
+eq "$MU" "$(sum "$HOME/.hdgu/mcp.json")" '#4100510423: unmanaged entry left untouched'
+rm -f "$REG/hdgt.yaml" "$REG/hdgu.yaml"
+
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
 OUTSIDE="$(python3 - "$T" "$ALLOUT" <<'PY'

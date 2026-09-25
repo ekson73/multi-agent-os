@@ -350,19 +350,26 @@ def _git(d: str, *a) -> int:
 
 
 def git_state(path: str):
-    """None (not in a git work tree) | 'tracked' | 'untracked' (not ignored) | 'ignored'.
-    Only 'tracked' / 'untracked' can leak via commit -> secret literals refused there."""
+    """None (confirmed: not in a git work tree) | 'tracked' | 'untracked' (not ignored) | 'ignored'
+    | 'unknown' (git missing or erroring — could not be checked).
+    'tracked' / 'untracked' / 'unknown' can leak via commit -> secret material refused there (fail-closed)."""
     d = os.path.dirname(path)
     while d and not os.path.isdir(d):
         d = os.path.dirname(d)
-    if not d or shutil.which("git") is None:
+    if not d:
         return None
+    if shutil.which("git") is None:
+        return "unknown"
     try:
         r = subprocess.run([*_GIT, "-C", d, "rev-parse", "--is-inside-work-tree"],
                            capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
     except (OSError, subprocess.TimeoutExpired):
-        return None
-    if r.returncode != 0 or r.stdout.strip() != "true":
+        return "unknown"
+    if r.returncode != 0:
+        # Only git's own "not a git repository" answer proves the negative; any other failure
+        # (dubious ownership, corrupt repo, ...) is an unchecked state.
+        return None if "not a git repository" in (r.stderr or "").lower() else "unknown"
+    if r.stdout.strip() != "true":
         return None
     if os.path.exists(path) and _git(d, "ls-files", "--error-unmatch", "--", path) == 0:
         return "tracked"
@@ -372,7 +379,7 @@ def git_state(path: str):
 
 
 def git_leak_risk(state) -> bool:
-    return state in ("tracked", "untracked")
+    return state in ("tracked", "untracked", "unknown")
 
 
 # --------------------------------------------------------------------------- registry
@@ -554,7 +561,7 @@ def secret_arg_values(args) -> list:
                 out.append(val)
         elif SECRET_ARG_NAME_RE.match(a):
             nxt = args[i + 1] if i + 1 < len(args) else None
-            if isinstance(nxt, str) and nxt and not nxt.startswith("-"):
+            if isinstance(nxt, str) and nxt:  # the next token IS the value, whatever its first char
                 out.append(nxt)
         elif SECRET_ARG_WHOLE_RE.search(a):
             out.append(a)
@@ -573,9 +580,8 @@ def mask_secret_args(args: list) -> list:
                 a = name + "=" + SECRET_MASK
             elif SECRET_ARG_WHOLE_RE.search(a):
                 a = SECRET_MASK
-            elif i > 0 and isinstance(args[i - 1], str) and SECRET_ARG_NAME_RE.match(args[i - 1]) \
-                    and a and not a.startswith("-"):
-                a = SECRET_MASK
+            elif i > 0 and isinstance(args[i - 1], str) and SECRET_ARG_NAME_RE.match(args[i - 1]) and a:
+                a = SECRET_MASK  # fail-closed: masked whatever its first character ("-abc" included)
         out.append(a)
     return out
 
@@ -614,6 +620,10 @@ def lint_ssot(ssot: dict):
         for val in secret_arg_values(s.get("args")):  # fail-closed: name-marked => masked, any entropy
             if not PLACEHOLDER_RE.search(val):  # a placeholder's RESOLVED value is registered by the resolver
                 Redactor.register(val)
+        sargs = [a for a in (s.get("args") or [])]
+        if sargs and isinstance(sargs[-1], str) and "=" not in sargs[-1] and SECRET_ARG_NAME_RE.match(sargs[-1]):
+            print("harness-mcp-sync: warn: server %s args end with secret-named flag %s but no value "
+                  "follows (value missing)" % (name, sargs[-1]), file=sys.stderr)
         fields = [("args[%d]" % i, a) for i, a in enumerate(s.get("args") or [])]
         for c in SECRET_CONTAINERS:
             if isinstance(s.get(c), dict):
@@ -1315,10 +1325,23 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                         act = {"server": name, "action": "conflict",
                                "reason": "conflict:unmanaged entry still active but disabled in SSOT "
                                          "(pass --adopt %s to remove it)" % name}
+            elif in_git and carries_secret(raw) and raw.get("enabled", True) is False and name in existing:
+                # Disabled in SSOT but its disabled form cannot be written here (secret + git-unsafe):
+                # never a silent skip that leaves it ACTIVE — remove what we own, else conflict.
+                if (name in owned or name in adopt) and not modified(name):
+                    act.update(action="remove", reason="disabled in SSOT; config is %s in git so the disabled "
+                                                       "entry (with its secret) cannot be written -> removed" % gstate)
+                    r["_drops"].add(name)
+                else:
+                    act.update(action="conflict", reason="conflict:entry still active but disabled in SSOT; config "
+                                                         "is %s in git so it cannot be rewritten (%s)"
+                                                         % (gstate, "modified-since-apply" if name in owned
+                                                            else "pass --adopt %s to remove it" % name))
             elif in_git and carries_secret(raw):
-                act.update(action="skip", reason="config is %s in a git work tree (could leak via commit); "
-                                                 "server carries secret material (headers/env/secret args/URL "
-                                                 "credentials, placeholder or literal) — refused" % gstate)
+                where = ("could not check git visibility (git missing or erroring)" if gstate == "unknown"
+                         else "config is %s in a git work tree (could leak via commit)" % gstate)
+                act.update(action="skip", reason="%s; server carries secret material (headers/env/secret args/URL "
+                                                 "credentials, placeholder or literal) — refused" % where)
             else:
                 entry = render_entry(h, name, resolver.resolve(raw))
                 desired_names.add(name)
