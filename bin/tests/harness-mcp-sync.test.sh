@@ -217,7 +217,12 @@ run plan --ssot "$SSOT" --json
 N2="$(printf '%s' "$o" | python3 -c 'import sys,json; r=json.load(sys.stdin); print(sum(1 for h in r if h["applicable"] for a in h["actions"] if a["action"] in ("add","update","remove")))' 2>&1)"
 eq 0 "$N2" 'second plan is empty (idempotent)'
 S1="$(sum "$HOME/.hjson/mcp.json")"; run apply --ssot "$SSOT"; eq "$S1" "$(sum "$HOME/.hjson/mcp.json")" 'second apply writes nothing'
-run verify --ssot "$SSOT"; eq 0 "$rc" 'verify clean after apply'
+run verify --ssot "$SSOT" --json
+eq 1 "$rc" 'verify after apply: drift only because git-unsafe harnesses refused secret servers'
+BAD="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"] and not all("refused" in i for i in e["issues"])}))')"
+eq "[]" "$BAD" 'verify after apply: every drift issue is a git-safety refusal (hgit/hgtrk), none elsewhere'
+run verify --ssot "$SSOT" --harness "$(printf '%s' "$o" | python3 -c 'import sys,json; print(",".join(sorted({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]})))')"
+eq 0 "$rc" 'verify clean after apply (git-safe harnesses)'
 
 # ---------------------------------------------------------------- conflict / adopt
 python3 - "$HOME/.hjson/mcp.json" <<'EOF'
@@ -1461,8 +1466,9 @@ o="$("$BIN" restore "$TSX" --registry "$REG" --state-dir "$SD11B" 2>&1)"; rc=$?;
 [ "$rc" -ne 0 ] && ok 'C-B restore: a failed harness makes restore exit non-zero' || no 'C-B restore: a failed harness makes restore exit non-zero' "rc=$rc"
 has 'hrx2' "$o" 'C-B restore: the failed harness is reported'
 eq "$X0" "$(sum "$HOME/.hrx1/mcp.json")" 'C-B restore: the earlier harness was restored'
-o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hrx1 --registry "$REG" --state-dir "$SD11B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+o="$("$BIN" verify --harness hrx1 --registry "$REG" --state-dir "$SD11B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 hasnt 'missing' "$o" 'C-B restore: ownership reconciled for the restored harness (no stale "missing" entry)'
+eq 0 "$rc" 'C-B restore: manifest-only verify is clean after the partial restore'
 rm -f "$REG/hrx1.yaml" "$REG/hrx2.yaml"
 # (2) apply: a manifest-persistence failure after a config write rolls that write back
 SD11C="$T/state-r11c"
@@ -1540,6 +1546,210 @@ for c in htsh:ssot-http.json:streamable-http hthp:ssot-sh.json:plain-http htbo:s
   eq 0 "$rc" "C-D: $id verify agrees with apply ($sf)"
 done
 rm -f "$REG/htsh.yaml" "$REG/hthp.yaml" "$REG/htbo.yaml"
+
+# ---------------------------------------------------------------- PDCA round 12 — write-ahead journal (design J1-J11b)
+# Crash injection (bin/tests/harness-mcp-sync.crash.py): runs the executor in-process with one
+# function wrapped so the process dies via os._exit(9) at that point (a real crash: no except,
+# finally or rollback runs), or so a write raises ENOSPC. Reconcile is then observed through
+# `restore <nonexistent-ts>`, which reconciles first and then fails with a usage error.
+CRASHPY="$(cd "$(dirname "$0")" && pwd)/harness-mcp-sync.crash.py"
+NOTS=20000101T000000000000Z
+wc12() { # id [absent]: fresh harness + state dir; the config holds a sibling key that must survive
+  W="$1"; WSD="$T/state-w-$1"; WF="$HOME/.$1/mcp.json"
+  mk "$1" json mcpServers mcpservers-json "~/.$1/mcp.json" true null null high
+  if [ "${2:-}" != absent ]; then printf '{"keep":1,"mcpServers":{}}' > "$WF"; chmod 600 "$WF"; fi
+}
+w() { o="$("$BIN" "$@" --harness "$W" --registry "$REG" --state-dir "$WSD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+crash() { o="$(CRASH_PATH="$WF" python3 "$CRASHPY" "$BIN" "$@" --harness "$W" --registry "$REG" --state-dir "$WSD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+openj() { ls "$WSD/journal" 2>/dev/null | grep -c '\.json$'; }
+S12="$T/ssot-ca.json"   # secret-bearing (env K=${FIXSECRET}), outside git
+
+# J3/J5: crash at every apply point, reconcile decides, then apply converges
+for cp in after-create after-backup after-pending in-config-write after-config-write after-config-written \
+          after-manifest after-committed before-close; do
+  for pa in present absent; do
+    id="hw$(printf '%s%s' "$cp" "$pa" | shasum | cut -c1-6)"; wc12 "$id" "$pa"; P0="$(sum "$WF")"
+    crash "$cp" apply --ssot "$S12"
+    eq 9 "$rc" "J9 $cp/$pa: injected crash killed the run"
+    w verify
+    if [ "$(openj)" -ge 1 ]; then
+      eq 1 "$rc" "J8 $cp/$pa: verify reports the interrupted run (exit 1)"
+      has 'interrupted apply run' "$o" "J8 $cp/$pa: verify names it"
+    else
+      ok "J9 $cp/$pa: crash before the journal existed leaves nothing to reconcile"
+    fi
+    w restore "$NOTS"
+    case "$cp" in
+      after-create|after-backup|after-pending|in-config-write)
+        eq "$P0" "$(sum "$WF")" "J5 $cp/$pa: nothing written -> config unchanged after reconcile" ;;
+      after-config-write|after-config-written)
+        eq "$P0" "$(sum "$WF")" "J5 $cp/$pa: manifest never written -> rolled back to the pre-run config"
+        has 'rolled back' "$o" "J5 $cp/$pa: reconcile reports the roll-back" ;;
+      after-manifest)
+        has 'roll forward' "$o" "J5 $cp/$pa: both writes landed -> roll forward"
+        [ "$P0" != "$(sum "$WF")" ] && ok "J5 $cp/$pa: config kept at the new state" || no "J5 $cp/$pa: config kept" unchanged ;;
+      *)
+        [ "$P0" != "$(sum "$WF")" ] && ok "J5 $cp/$pa: committed run kept" || no "J5 $cp/$pa: committed run kept" unchanged ;;
+    esac
+    eq 0 "$(openj)" "J5 $cp/$pa: no open journal after reconcile"
+    w restore "$NOTS"; eq 0 "$(openj)" "J5 $cp/$pa: reconcile is idempotent (second pass is a no-op)"
+    w apply --ssot "$S12"; eq 0 "$rc" "J5 $cp/$pa: apply converges after the crash"
+    w verify --ssot "$S12"; eq 0 "$rc" "J5 $cp/$pa: verify clean after convergence"
+    if [ "$pa" = present ]; then
+      K="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("keep"))' "$WF")"
+      eq 1 "$K" "J5 $cp/$pa: sibling key preserved"
+    fi
+    hasnt "$FIXSECRET" "$(cat "$WSD"/journal/done/*.json 2>/dev/null)" "J2 $cp/$pa: journals hold no secret value"
+    rm -f "$REG/$id.yaml"
+  done
+done
+
+# J4: parse-back failure with a working rollback vs a rollback that fails on ENOSPC
+wc12 hwinv; P0="$(sum "$WF")"
+crash invalid-rollback-ok apply --ssot "$S12"
+eq 1 "$rc" 'J4 invalid/rollback-ok: apply reports drift'
+has 'rolled-back' "$o" 'J4 invalid/rollback-ok: rolled back'
+eq "$P0" "$(sum "$WF")" 'J4 invalid/rollback-ok: original restored'
+eq 0 "$(openj)" 'J4 invalid/rollback-ok: journal closed'
+rm -f "$REG/hwinv.yaml"
+wc12 hwrbf; P0="$(sum "$WF")"
+crash invalid-rollback-enospc apply --ssot "$S12"
+eq 1 "$rc" 'J4 rollback-fails: exit 1'
+has 'rollback failed (OSError)' "$o" 'J4 rollback-fails: both errors reported'
+has 'backup kept at' "$o" 'J4 rollback-fails: backup path reported'
+eq 1 "$(openj)" 'J4 rollback-fails: journal stays open'
+ST="$(python3 -c 'import json,glob,sys; print(json.load(open(glob.glob(sys.argv[1]+"/journal/*.json")[0]))["entries"][0]["state"])' "$WSD")"
+eq rolling-back "$ST" 'J4 rollback-fails: entry durable in rolling-back (never rolled forward)'
+w restore "$NOTS"; has 'rolled back' "$o" 'J5 rolling-back: reconcile retries the rollback'
+eq "$P0" "$(sum "$WF")" 'J5 rolling-back: config at the pre-run state'
+eq 0 "$(openj)" 'J5 rolling-back: journal closed'
+w apply --ssot "$S12"; eq 0 "$rc" 'J5 rolling-back: apply converges afterwards'
+rm -f "$REG/hwrbf.yaml"
+# CodeRabbit 4107828365: manifest save fails, rollback succeeds -> the ORIGINAL error is reported
+wc12 hwmf1; P0="$(sum "$WF")"
+crash manifest-enospc-once apply --ssot "$S12"
+[ "$rc" -ne 0 ] && ok 'J4 manifest-fail: apply fails' || no 'J4 manifest-fail: apply fails' "rc=$rc"
+has 'OSError' "$o" 'J4 manifest-fail: the original error class is reported'
+eq "$P0" "$(sum "$WF")" 'J4 manifest-fail: config rolled back'
+rm -f "$REG/hwmf1.yaml"
+# J9: ENOSPC on a journal write itself (S5)
+wc12 hwjnl; P0="$(sum "$WF")"
+crash enospc-config-written apply --ssot "$S12"
+[ "$rc" -ne 0 ] && ok 'J9 journal-ENOSPC: apply fails' || no 'J9 journal-ENOSPC: apply fails' "rc=$rc"
+eq "$P0" "$(sum "$WF")" 'J9 journal-ENOSPC: config rolled back'
+w restore "$NOTS"; eq 0 "$(openj)" 'J9 journal-ENOSPC: reconcile closes the journal'
+rm -f "$REG/hwjnl.yaml"
+# J5: crash INSIDE reconcile, then reconcile again (idempotency)
+wc12 hwrc; P0="$(sum "$WF")"
+crash after-config-write apply --ssot "$S12"
+crash reconcile-crash restore "$NOTS"; eq 9 "$rc" 'J5 crash-in-reconcile: injected'
+w restore "$NOTS"; eq "$P0" "$(sum "$WF")" 'J5 crash-in-reconcile: second reconcile reaches the pre-run config'
+eq 0 "$(openj)" 'J5 crash-in-reconcile: journal closed'
+rm -f "$REG/hwrc.yaml"
+
+# J5 trust: foreign change -> conflict (touch nothing); tampered payload -> conflict; then `resolve`
+wc12 hwfc
+crash after-config-write apply --ssot "$S12"
+printf '{"user":"edited by hand"}' > "$WF"; F1="$(sum "$WF")"
+w restore "$NOTS"; eq 1 "$rc" 'J5 foreign-change: reconcile refuses (exit 1)'
+has 'changed outside this tool' "$o" 'J5 foreign-change: names it'
+has 'resolve' "$o" 'J5 foreign-change: prints the resolve command'
+eq "$F1" "$(sum "$WF")" 'J5 foreign-change: the hand edit is untouched'
+w apply --ssot "$S12"; eq 1 "$rc" 'J5 foreign-change: apply stays refused until resolved'
+RID="$(ls "$WSD/journal" | grep '\.json$' | sed 's/\.json$//')"
+w resolve "$RID"; eq 0 "$rc" 'J8b resolve: exit 0'
+has 'backup' "$o" 'J8b resolve: prints the backup path'
+eq "$F1" "$(sum "$WF")" 'J8b resolve: never touches the config'
+eq 0 "$(openj)" 'J8b resolve: journal moved to done/'
+[ -e "$WSD/journal/done/$RID.json" ] && ok 'J8b resolve: kept for audit' || no 'J8b resolve: kept for audit' missing
+rm -f "$REG/hwfc.yaml"
+wc12 hwtp
+crash after-config-write apply --ssot "$S12"
+PAY="$(ls -d "$WSD"/backups/*/hwtp)/mcp.json"; printf '{"evil":1}' > "$PAY"; F1="$(sum "$WF")"
+w restore "$NOTS"; eq 1 "$rc" 'J5 tampered backup payload: reconcile refuses'
+eq "$F1" "$(sum "$WF")" 'J5 tampered backup payload: nothing restored from it'
+rm -f "$REG/hwtp.yaml"
+# J2/J5: journal integrity — swapped pre/post, dropped entry, renamed file, re-salted state
+for t in swap drop rename salt; do
+  wc12 "hwt$t"; crash after-config-write apply --ssot "$S12"
+  JF="$(ls "$WSD"/journal/*.json)"
+  case "$t" in
+    swap) python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); e=d["entries"][0]; e["pre"],e["post"]=e["post"],e["pre"]; json.dump(d,open(p,"w"))' "$JF" ;;
+    drop) python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["entries"]=[]; json.dump(d,open(p,"w"))' "$JF" ;;
+    rename) mv "$JF" "$WSD/journal/20000101T000000000001Z.json" ;;
+    salt) python3 -c 'import os,sys; open(sys.argv[1],"w").write(os.urandom(32).hex())' "$WSD/salt" ;;
+  esac
+  F1="$(sum "$WF")"
+  w apply --ssot "$S12"; eq 2 "$rc" "J5 journal-$t: mutation refused (exit 2)"
+  eq "$F1" "$(sum "$WF")" "J5 journal-$t: config untouched"
+  if [ "$t" = salt ]; then
+    has 'different state salt' "$o" 'J5 journal-salt: names the salt problem'
+    has 'salt recovery' "$o" 'J8b salt: recovery path printed'
+  else
+    has 'resolve' "$o" "J5 journal-$t: points at resolve"
+  fi
+  rm -f "$REG/hwt$t.yaml"
+done
+
+# J6: restore is journaled too; a crash mid-restore is undone; a manifest failure rolls it back
+wc12 hwrs; P0="$(sum "$WF")"
+w apply --ssot "$S12" --json
+TSR="$(printf '%s' "$o" | python3 -c 'import sys,json; print(json.load(sys.stdin)["backup_ts"] or "")')"
+P1="$(sum "$WF")"
+crash after-config-write restore "$TSR"; eq 9 "$rc" 'J6 restore crash: injected'
+w restore "$NOTS"; eq "$P1" "$(sum "$WF")" 'J6 restore crash: rolled back to the pre-restore config'
+w verify; eq 0 "$rc" 'J6 restore crash: manifest consistent with the file afterwards'
+crash manifest-enospc-once restore "$TSR"   # Codex 4107841820
+eq 1 "$rc" 'J6 restore manifest-fail: restore reports failure'
+has 'rolled back' "$o" 'J6 restore manifest-fail: rolled back'
+eq "$P1" "$(sum "$WF")" 'J6 restore manifest-fail: config back at the pre-restore state'
+w verify; eq 0 "$rc" 'J6 restore manifest-fail: ownership still matches the file'
+w restore "$TSR" --json; eq 0 "$rc" 'J6 restore: succeeds when nothing fails'
+eq "$P0" "$(sum "$WF")" 'J6 restore: original bytes back'
+RR="$(printf '%s' "$o" | python3 -c 'import sys,json; print(json.load(sys.stdin)["restore_run"] or "")')"
+w restore "$RR"; eq 0 "$rc" 'J6 restore-of-restore: the restore itself can be undone'
+eq "$P1" "$(sum "$WF")" 'J6 restore-of-restore: back to the applied config'
+rm -f "$REG/hwrs.yaml"
+
+# J7: lock — mutating modes refuse while another run holds it; read modes report transient; plan is free
+wc12 hwlk; w apply --ssot "$S12"
+python3 -c 'import fcntl,os,sys,time; fd=os.open(sys.argv[1]+"/lock",os.O_RDWR|os.O_CREAT,0o600); fcntl.flock(fd,fcntl.LOCK_EX); open(sys.argv[1]+"/locked","w").close(); time.sleep(8)' "$WSD" &
+LKP=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -e "$WSD/locked" ] && break; sleep 0.2; done
+w apply --ssot "$S12"; eq 2 "$rc" 'J7 lock: apply refused while another run holds the lock'
+has 'holds' "$o" 'J7 lock: names the lock'
+w restore "$NOTS"; eq 2 "$rc" 'J7 lock: restore refused while locked'
+w verify; eq 2 "$rc" 'J7 lock: verify refuses (results would be transient)'
+has 'transient' "$o" 'J7 lock: says transient'
+w inventory; eq 2 "$rc" 'J7 lock: inventory refuses while locked'
+w plan --ssot "$S12"; eq 0 "$rc" 'J7 lock: plan is advisory and unaffected'
+kill "$LKP" 2>/dev/null; wait "$LKP" 2>/dev/null
+w apply --ssot "$S12"; eq 0 "$rc" 'J7 lock: apply works once released'
+rm -f "$REG/hwlk.yaml"
+
+# Codex P1s from round 11
+wc12 hwpm; w apply --ssot "$S12"; chmod 644 "$WF"; H0="$(sum "$WF")"
+w apply --ssot "$S12"; eq 0 "$rc" 'Codex 4107841802: permission-only drift -> apply succeeds'
+eq 600 "$(mode "$WF")" 'Codex 4107841802: mode repaired to 0600'
+eq "$H0" "$(sum "$WF")" 'Codex 4107841802: content untouched'
+w verify --ssot "$S12"; eq 0 "$rc" 'Codex 4107841802: verify clean after the repair'
+rm -f "$REG/hwpm.yaml"
+wc12 hwfr; w verify --ssot "$S12"
+eq 1 "$rc" 'Codex 4107841810: fresh install (no manifest) is not "clean"'
+has 'missing (plan would add it)' "$o" 'Codex 4107841810: names the missing server'
+rm -f "$REG/hwfr.yaml"
+wc12 hwgv; w apply --ssot "$S12"; eq 0 "$rc" 'Codex 4107841816: secret server applied outside git'
+git -C "$HOME/.hwgv" init -q >/dev/null 2>&1; git -C "$HOME/.hwgv" add mcp.json >/dev/null 2>&1
+w verify; eq 1 "$rc" 'Codex 4107841816: verify rejects a now-git-visible secret config'
+has 'holds secret material' "$o" 'Codex 4107841816: says why'
+hasnt "$FIXSECRET" "$o" 'Codex 4107841816: never prints the secret'
+rm -f "$REG/hwgv.yaml"
+# doctor lists an open journal
+wc12 hwdr; crash after-config-write apply --ssot "$S12"
+o="$("$BIN" doctor --harness hwdr --registry "$REG" --state-dir "$WSD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 1 "$rc" 'J8 doctor: open journal -> exit 1'
+has 'interrupted apply run' "$o" 'J8 doctor: names the interrupted run'
+rm -f "$REG/hwdr.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

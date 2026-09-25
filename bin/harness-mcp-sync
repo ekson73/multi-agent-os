@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import copy
 import datetime as _dt
+import fcntl
 import fnmatch
 import hashlib
 import hmac
@@ -54,7 +55,7 @@ except ModuleNotFoundError:  # pragma: no cover
     yaml = None
 
 EXIT_OK, EXIT_DRIFT, EXIT_USAGE = 0, 1, 2
-MODES = ("explain", "inventory", "doctor", "plan", "apply", "verify", "restore", "update")
+MODES = ("explain", "inventory", "doctor", "plan", "apply", "verify", "restore", "resolve", "update")
 TRANSPORTS = ("stdio", "streamable-http", "http", "sse")
 SECRET_CONTAINERS = {"headers", "http_headers", "env", "envs", "environment"}
 PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|(op://[^\s\"'}]+)")
@@ -314,6 +315,15 @@ def mkdir_private(path: str):
     os.chmod(path, 0o700)
 
 
+def fsync_dir(d: str):
+    """A rename is durable only once its directory entry is flushed (J3)."""
+    fd = os.open(d or ".", os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def atomic_write(path: str, data: bytes, mode: int = 0o600):
     d = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(prefix=".hms-", dir=d)
@@ -324,6 +334,7 @@ def atomic_write(path: str, data: bytes, mode: int = 0o600):
             os.fsync(fh.fileno())
         os.chmod(tmp, mode)
         os.replace(tmp, path)
+        fsync_dir(d)
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)
@@ -1236,7 +1247,353 @@ def load_manifest(sd: str) -> dict:
 
 def save_manifest(sd: str, m: dict):
     mkdir_private(sd)
+    if _SALT is not None:
+        m["salt_id"] = salt_id()
     atomic_write(os.path.join(sd, "manifest.json"), (json.dumps(m, indent=2, sort_keys=True) + "\n").encode())
+
+
+# --------------------------------------------------------------------------- write-ahead journal
+# Design + threat model: docs/harness-mcp-sync-threat-model.md, "Round 12" (J1-J11b).
+# Every mutation of a harness config and of manifest.json is announced in a durable, salted,
+# MAC'd intent journal BEFORE it happens, so an interrupted run is always finished or undone
+# by the next apply/restore (reconcile), never left half-applied.
+J_FINAL = {"rolled-back", "manifest-committed", "conflict-resolved"}
+
+
+class RollbackFailed(Refused):
+    pass
+
+
+def salt_id() -> str:
+    if _SALT is None:
+        raise UsageError("state salt missing")
+    return hmac.new(_SALT, b"salt-id", hashlib.sha256).hexdigest()[:16]
+
+
+SALT_RECOVERY = ("salt recovery: move <state>/manifest.json and <state>/journal/ aside, then re-run "
+                 "`apply --adopt NAME` to rebuild ownership; backups/ stay valid for restore")
+
+
+def bind_salt(manifest: dict):
+    """A lost or rotated salt silently re-keys every recorded hash; refuse instead (J5)."""
+    sid = manifest.get("salt_id")
+    if sid is not None and (_SALT is None or sid != salt_id()):
+        raise UsageError("manifest was written with a different state salt; mutation refused. " + SALT_RECOVERY)
+
+
+def _jmac(obj) -> str:
+    return hmac.new(_SALT, ("journal-mac:" + canon(obj)).encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def file_triple(path: str) -> dict:
+    """(exists, hash, mode) of a config; the hash is salted so a journal reader cannot confirm
+    a guessed secret. Symlinks are observed as what they point to, like every other read here."""
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+        mode = os.stat(path).st_mode & 0o777
+    except FileNotFoundError:
+        return {"exists": False, "hash": None, "mode": None}
+    return bytes_triple(data, mode)
+
+
+def bytes_triple(data: bytes, mode: int) -> dict:
+    return {"exists": True, "hash": hmac.new(_SALT, data, hashlib.sha256).hexdigest(), "mode": oct(mode)}
+
+
+ABSENT = {"exists": False, "hash": None, "mode": None}
+
+
+class Journal:
+    def __init__(self, sd: str, data: dict, path: str):
+        self.sd, self.data, self.path = sd, data, path
+
+    @classmethod
+    def create(cls, sd: str, op: str, run_id: str) -> "Journal":
+        jd = os.path.join(sd, "journal")
+        mkdir_private(jd)
+        p = os.path.join(jd, run_id + ".json")
+        if os.path.lexists(p):
+            raise UsageError("journal %s already exists" % p)
+        j = cls(sd, {"schema": 1, "run_id": run_id, "op": op, "state": "open", "salt_id": salt_id(),
+                     "entries": []}, p)
+        j.save()
+        return j
+
+    def _seal(self):
+        for e in self.data["entries"]:
+            e["mac"] = _jmac({k: v for k, v in e.items() if k != "mac"})
+        d = self.data
+        d["journal_mac"] = _jmac({"run_id": d["run_id"], "salt_id": d["salt_id"], "op": d["op"],
+                                  "state": d["state"], "macs": [e["mac"] for e in d["entries"]]})
+
+    def save(self):
+        self._seal()
+        atomic_write(self.path, (json.dumps(self.data, indent=2, sort_keys=True) + "\n").encode())
+
+    def add(self, **entry) -> int:
+        entry.update(state="pending", error=None)
+        self.data["entries"].append(entry)
+        self.save()
+        return len(self.data["entries"]) - 1
+
+    def set(self, i: int, state: str, error: BaseException | None = None):
+        e = self.data["entries"][i]
+        e["state"] = state
+        if error is not None:
+            e["error"] = error.__class__.__name__  # class only: a message may carry config values
+        self.save()
+
+    def close(self):
+        self.data["state"] = "closed"
+        self.save()
+        done = os.path.join(self.sd, "journal", "done")
+        mkdir_private(done)
+        dst = os.path.join(done, os.path.basename(self.path))
+        os.replace(self.path, dst)
+        fsync_dir(os.path.dirname(self.path))
+        fsync_dir(done)
+        self.path = dst
+
+
+def allowed_targets(reg: dict, hid: str) -> set:
+    """Registry-derived ONLY: a state-dir file (backup meta, journal) must never grant a target."""
+    home = os.path.realpath(os.path.expanduser("~"))
+    return {p for p in (os.path.realpath(expand(cp["path"])) for cp in
+                        (reg.get(hid, {}).get("mcp") or {}).get("config_paths") or []
+                        if isinstance(cp, dict) and isinstance(cp.get("path"), str)
+                        and cp["path"].startswith(("~", "/")))
+            if p.startswith(home + os.sep)}
+
+
+def open_journal_files(sd: str) -> list:
+    jd = os.path.join(sd, "journal")
+    if not os.path.lexists(jd):
+        return []
+    check_private_dir(jd)
+    return sorted(n for n in os.listdir(jd) if n.endswith(".json"))
+
+
+def load_journal(sd: str, name: str) -> "Journal":
+    """Full verification (J5): used by every decision-making path. Raises UsageError."""
+    p = os.path.join(sd, "journal", name)
+    rid = name[:-5]
+    hint = "; inspect it, then `harness-mcp-sync resolve %s`" % rid
+
+    def bad(why):
+        raise UsageError("journal %s %s; mutation refused%s" % (p, why, hint))
+    if not TS_RE.match(rid):
+        bad("has an invalid run-id name")
+    st = os.lstat(p)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid():
+        bad("is not a regular file owned by the current user")
+    try:
+        with open(p, encoding="utf-8") as fh:
+            d = json.load(fh)
+    except (OSError, ValueError):
+        bad("does not parse")
+    if not isinstance(d, dict) or d.get("schema") != 1 or d.get("run_id") != rid or \
+            not isinstance(d.get("entries"), list) or d.get("op") not in ("apply", "restore"):
+        bad("is malformed or its run_id differs from its file name")
+    if _SALT is None or d.get("salt_id") != salt_id():
+        bad("was written with a different state salt (%s)" % SALT_RECOVERY)
+    for e in d["entries"]:
+        if not isinstance(e, dict) or e.get("mac") != _jmac({k: v for k, v in e.items() if k != "mac"}):
+            bad("has an entry whose MAC does not verify")
+    if d.get("journal_mac") != _jmac({"run_id": d["run_id"], "salt_id": d["salt_id"], "op": d["op"],
+                                      "state": d.get("state"), "macs": [e["mac"] for e in d["entries"]]}):
+        bad("has a journal MAC that does not verify (entries added, removed or reordered)")
+    return Journal(sd, d, p)
+
+
+def set_mf(sd: str, manifest: dict, path: str, value):
+    if value is None:
+        manifest["files"].pop(path, None)
+    else:
+        manifest["files"][path] = copy.deepcopy(value)
+    save_manifest(sd, manifest)
+
+
+class BackupMismatch(Exception):
+    pass
+
+
+def _backup_payload(sd: str, e: dict) -> bytes:
+    rid = os.path.basename(os.path.dirname(os.path.join(sd, e["backup"])))
+    root = os.path.join(sd, "backups")
+    for d in (root, os.path.join(root, rid), os.path.join(sd, e["backup"])):
+        check_private_dir(d)  # link-free AT USE TIME, not only when the journal was parsed
+    p = os.path.join(sd, e["backup"], os.path.basename(e["path"]))
+    st = os.lstat(p)
+    if not stat.S_ISREG(st.st_mode):
+        raise BackupMismatch("backup payload is not a regular file")
+    with open(p, "rb") as fh:
+        data = fh.read()
+    if bytes_triple(data, int(e["pre"]["mode"], 8)) != e["pre"]:
+        raise BackupMismatch("backup payload does not match the recorded pre-state")
+    return data
+
+
+def rollback_entry(j: Journal, i: int, manifest: dict):
+    """J4: durable `rolling-back` FIRST, then restore bytes+mode (or unlink), then the manifest
+    entry. Retry-safe: an already-restored file or an already-gone file is a no-op."""
+    e = j.data["entries"][i]
+    j.set(i, "rolling-back")
+    path, pre = e["path"], e["pre"]
+    if pre["exists"]:
+        data = _backup_payload(j.sd, e)
+        if file_triple(path) != pre:
+            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            atomic_write(path, data, int(pre["mode"], 8))
+    else:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+        fsync_dir(os.path.dirname(path))
+    set_mf(j.sd, manifest, path, e["mf_before"])
+    j.set(i, "rolled-back")
+
+
+def journaled_change(j: Journal, manifest: dict, hid: str, path: str, backup_rel: str, pre: dict, post: dict,
+                     mf_after, write_fn, validate_fn=None, changed_fn=None):
+    """J3 S3..S8 for one harness. Returns "applied" | "changed" (S3b refusal) | "invalid"
+    (parse-back failed, rolled back). The ORIGINAL error always propagates; a failed rollback is
+    reported with both error classes and the backup path, and the journal stays open (J4)."""
+    mf_before = copy.deepcopy(manifest["files"].get(path))
+    i = j.add(hid=hid, path=path, pre=pre, post=post, backup=backup_rel, mf_before=mf_before,
+              mf_after=copy.deepcopy(mf_after))
+    if changed_fn is not None and changed_fn():
+        j.set(i, "rolled-back")  # S3b: nothing written yet
+        return "changed"
+    try:
+        write_fn()                                  # S4
+        j.set(i, "config-written")                  # S5
+        if validate_fn is not None and not validate_fn():   # S6
+            rollback_entry(j, i, manifest)
+            return "invalid"
+        set_mf(j.sd, manifest, path, mf_after)      # S7
+        j.set(i, "manifest-committed")              # S8
+        return "applied"
+    except BaseException as orig:
+        if isinstance(orig, RollbackFailed):
+            raise
+        try:
+            if j.data["entries"][i]["state"] != "rolled-back":
+                rollback_entry(j, i, manifest)
+        except BaseException as rb:
+            raise RollbackFailed("%s of %s failed (%s) and its rollback failed (%s); backup kept at %s; journal %s "
+                                 "stays open and the next apply/restore reconciles it"
+                                 % (j.data["op"], hid, orig.__class__.__name__, rb.__class__.__name__,
+                                    os.path.join(j.sd, backup_rel), j.data["run_id"])) from orig
+        raise
+
+
+def reconcile(sd: str, reg: dict, manifest: dict) -> list:
+    """J5: finish or undo every open journal. Returns human notes; raises UsageError when a
+    journal cannot be trusted, Refused when an entry is (or stays) in `conflict`."""
+    notes, conflicts = [], []
+    for name in open_journal_files(sd):
+        j = load_journal(sd, name)
+        rid = j.data["run_id"]
+        for i, e in enumerate(j.data["entries"]):
+            st = e.get("state")
+            if st in J_FINAL - {"manifest-committed"}:
+                continue
+            path, hid = e.get("path"), e.get("hid")
+            if st == "conflict":
+                conflicts.append((rid, hid, e))
+                continue
+            if path not in allowed_targets(reg, hid) or e.get("backup") != "backups/%s/%s" % (rid, hid):
+                j.set(i, "conflict")
+                conflicts.append((rid, hid, e))
+                continue
+            cur_mf = manifest["files"].get(path)
+            if st == "manifest-committed":
+                if canon(cur_mf) != canon(e["mf_after"]):
+                    set_mf(sd, manifest, path, e["mf_after"])
+                    notes.append("%s %s: manifest entry re-asserted" % (rid, hid))
+                continue
+            obs = file_triple(path)
+            try:
+                if st == "pending" and obs == e["pre"]:
+                    set_mf(sd, manifest, path, e["mf_before"])
+                    j.set(i, "rolled-back")
+                    notes.append("%s %s: nothing was written; closed" % (rid, hid))
+                    continue
+                if st == "pending" and obs == e["post"]:
+                    st = "config-written"
+                if st == "config-written" and obs == e["post"] and canon(cur_mf) == canon(e["mf_after"]):
+                    j.set(i, "manifest-committed")
+                    notes.append("%s %s: both writes had landed; committed (roll forward)" % (rid, hid))
+                    continue
+                if (st == "config-written" and obs == e["post"]) or (st == "rolling-back" and obs in (e["pre"], e["post"])):
+                    rollback_entry(j, i, manifest)
+                    notes.append("%s %s: rolled back to the pre-run config" % (rid, hid))
+                    continue
+            except BackupMismatch:
+                pass
+            j.set(i, "conflict")
+            conflicts.append((rid, hid, e))
+        if all(e.get("state") in J_FINAL for e in j.data["entries"]):
+            j.close()
+    if conflicts:
+        raise Refused("interrupted run(s) need a human: " + "; ".join(
+            "%s %s: %s changed outside this tool (backup %s) — fix it, then `harness-mcp-sync resolve %s`"
+            % (rid, hid, e.get("path"), os.path.join(sd, e.get("backup") or "?"), rid) for rid, hid, e in conflicts))
+    return notes
+
+
+def journal_summaries(sd: str) -> list:
+    """Read-only view for verify/doctor (J8): never verifies MACs, never writes."""
+    out = []
+    try:
+        names = open_journal_files(sd)
+    except UsageError as e:
+        return [{"run_id": None, "summary": str(e)}]
+    for name in names:
+        rid = name[:-5]
+        try:
+            with open(os.path.join(sd, "journal", name), encoding="utf-8") as fh:
+                d = json.load(fh)
+            states = {}
+            for e in d.get("entries") or []:
+                states[e.get("state")] = states.get(e.get("state"), 0) + 1
+            conf = [e for e in d.get("entries") or [] if e.get("state") == "conflict"]
+            s = "interrupted %s run %s (%s); the next apply/restore reconciles it" % (
+                d.get("op"), rid, ", ".join("%d %s" % (n, k) for k, n in sorted(states.items())) or "no entries")
+            if conf:
+                s += "; conflict: " + ", ".join("%s (backup %s)" % (e.get("path"), os.path.join(sd, e.get("backup") or "?"))
+                                                for e in conf)
+        except (OSError, ValueError, AttributeError):
+            s = "unreadable journal %s" % rid
+        out.append({"run_id": rid, "summary": s + " — or `harness-mcp-sync resolve %s`" % rid})
+    return out
+
+
+def acquire_lock(sd: str, exclusive: bool):
+    """J7: one mutating run at a time; readers never see a half-applied run."""
+    if not os.path.lexists(sd):
+        if not exclusive:
+            return None
+        mkdir_private(sd)
+    check_private_dir(sd)
+    fd = os.open(os.path.join(sd, "lock"), os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise UsageError("another harness-mcp-sync run holds %s" % os.path.join(sd, "lock") +
+                         ("" if exclusive else "; results would be transient — retry when it finishes"))
+    return fd
+
+
+def new_run_id(sd: str) -> str:
+    while True:
+        rid = now_ts()
+        if not os.path.lexists(os.path.join(sd, "backups", rid)) and \
+                not os.path.lexists(os.path.join(sd, "journal", rid + ".json")):
+            return rid
 
 
 # --------------------------------------------------------------------------- plan
@@ -1377,6 +1734,10 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                                                          "is %s in git so it cannot be rewritten (%s)"
                                                          % (gstate, "modified-since-apply" if name in owned
                                                             else "pass --adopt %s to remove it" % name))
+            elif in_git and carries_secret(raw) and raw.get("enabled", True) is False:
+                # disabled and already absent: the desired state (no active entry) holds — converged
+                act.update(action="skip", reason="disabled in SSOT and absent; nothing to write "
+                                                 "(config is %s in git)" % gstate)
             elif in_git and carries_secret(raw):
                 where = ("could not check git visibility (git missing or erroring)" if gstate == "unknown"
                          else "config is %s in a git work tree (could leak via commit)" % gstate)
@@ -1542,9 +1903,21 @@ def config_changed(path: str, cfg: dict) -> bool:
 
 def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
     load_salt(sd, create=True, repair=True)
-    ts = now_ts()
-    snap_saved = False
+    bind_salt(manifest)
+    ts = new_run_id(sd)
+    j = None
     worst = EXIT_OK
+
+    def journal():
+        nonlocal j
+        if j is None:
+            mkdir_private(os.path.join(sd, "backups"))  # checked link-free BEFORE anything is created inside
+            mkdir_private(os.path.join(sd, "backups", ts))
+            atomic_write(os.path.join(sd, "backups", ts, "manifest.json"),
+                         json.dumps(manifest, indent=2, sort_keys=True).encode())
+            j = Journal.create(sd, "apply", ts)                                 # S1
+        return j
+
     for r in results:
         if not r["applicable"]:
             if r["status"] in ("error",):
@@ -1558,17 +1931,37 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             # A security refusal leaves a DESIRED server absent: never report convergence (exit 0),
             # even when harmless siblings in the same plan were written.
             worst = EXIT_DRIFT
-        if plan_is_empty(r):
+        h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
+        entry = copy.deepcopy(manifest["files"].get(path) or {"harness": r["id"], "servers": {}})
+        for n in r["_drops"]:
+            entry["servers"].pop(n, None)
+        for n, e in r["_writes"].items():
+            entry["servers"][n] = mf_hash(e)
+        mode_drift = cfg["exists"] and path in manifest["files"] and \
+            (os.stat(path).st_mode & 0o777) != 0o600
+        if plan_is_empty(r) and not mode_drift:
             r["apply"] = "nothing-to-do"
             continue
-        h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
-        if not any(a["action"] in ("add", "update", "remove") for a in r["actions"]):
-            # adopt-only (content already identical): record ownership, never rewrite/reformat the file
-            entry = manifest["files"].setdefault(path, {"harness": r["id"], "servers": {}})
-            for n, e in r["_writes"].items():
-                entry["servers"][n] = mf_hash(e)
-            r["apply"] = "adopted (manifest only; file untouched)"
-            save_manifest(sd, manifest)
+        if plan_is_empty(r) or not any(a["action"] in ("add", "update", "remove") for a in r["actions"]):
+            # adopt-only and/or permission-only (content already identical): never rewrite/reformat the
+            # file — record ownership and/or restore 0600, both journaled (C-B)
+            pre = file_triple(path)
+            post = dict(pre, mode=oct(0o600)) if mode_drift else pre
+            journal()
+            backup_file(sd, ts, r["id"], path)                                    # S2
+            res = journaled_change(j, manifest, r["id"], path, "backups/%s/%s" % (ts, r["id"]), pre, post, entry,
+                                   write_fn=(lambda: os.chmod(path, 0o600)) if mode_drift else (lambda: None),
+                                   validate_fn=lambda: file_triple(path) == post,
+                                   changed_fn=lambda: config_changed(path, cfg))
+            if res in ("changed", "invalid"):
+                r["apply"] = ("refused: config changed since plan; re-run apply" if res == "changed"
+                              else "rolled-back: the file did not reach the expected state")
+                worst = EXIT_DRIFT
+                continue
+            r["apply"] = ", ".join(x for x in ("adopted (manifest only; file untouched)"
+                                               if not plan_is_empty(r) else None,
+                                               "mode repaired to 0o600" if mode_drift else None) if x)
+            r["backup_ts"] = ts
             continue
         if cfg["has_comments"] and not allow_comment_loss:
             r["apply"] = "refused: %s file has comments (pass --allow-comment-loss; a backup is always kept)" % \
@@ -1581,55 +1974,42 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             r["apply"] = "refused: %s" % e
             worst = EXIT_DRIFT
             continue
-        if not snap_saved:
-            mkdir_private(os.path.join(sd, "backups"))  # checked link-free BEFORE anything is created inside
-            mkdir_private(os.path.join(sd, "backups", ts))
-            atomic_write(os.path.join(sd, "backups", ts, "manifest.json"),
-                         json.dumps(manifest, indent=2, sort_keys=True).encode())
-            snap_saved = True
         if config_changed(path, cfg):
             r["apply"] = "refused: config changed since plan; re-run apply"
             worst = EXIT_DRIFT
             continue
-        bdir, _ = backup_file(sd, ts, r["id"], path)
-        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-        atomic_write(path, text.encode("utf-8"))
-        ok = False
-        try:
-            with open(path, encoding="utf-8") as fh:
-                back, _ = parse_config(h["mcp"]["format"], fh.read())
-            ok = entry_hash(back) == entry_hash(expected)
-        except Refused:
-            ok = False
-        except BaseException:
-            restore_from(bdir)  # unexpected fault after the write: never leave an unowned edit behind
-            raise
-        if not ok:
-            restore_from(bdir)
+        journal()
+        backup_file(sd, ts, r["id"], path)                                        # S2
+        data = text.encode("utf-8")
+        pre, post = file_triple(path), bytes_triple(data, 0o600)
+
+        def write():
+            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            atomic_write(path, data)
+
+        def valid():
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    back, _ = parse_config(h["mcp"]["format"], fh.read())
+                return entry_hash(back) == entry_hash(expected)
+            except Refused:
+                return False
+        res = journaled_change(j, manifest, r["id"], path, "backups/%s/%s" % (ts, r["id"]), pre, post, entry,
+                               write_fn=write, validate_fn=valid, changed_fn=lambda: config_changed(path, cfg))
+        if res == "changed":
+            r["apply"] = "refused: config changed since plan; re-run apply"
+            worst = EXIT_DRIFT
+            continue
+        if res == "invalid":
             r["apply"] = "rolled-back: parse-back validation failed; original restored"
             worst = EXIT_DRIFT
             continue
-        prior = copy.deepcopy(manifest["files"].get(path))
-        entry = manifest["files"].setdefault(path, {"harness": r["id"], "servers": {}})
-        for n in r["_drops"]:
-            entry["servers"].pop(n, None)
-        for n, e in r["_writes"].items():
-            entry["servers"][n] = mf_hash(e)
-        try:
-            save_manifest(sd, manifest)  # persist ownership per harness: a later fault cannot orphan it
-        except BaseException:
-            # Class C-B: config and manifest must never disagree — undo this harness's write.
-            restore_from(bdir)
-            if prior is None:
-                manifest["files"].pop(path, None)
-            else:
-                manifest["files"][path] = prior
-            raise
         r["apply"] = "applied (backup %s)" % ts
         r["backup_ts"] = ts
-    save_manifest(sd, manifest)
-    return worst, (ts if snap_saved else None)
-
+    if j is not None:
+        j.close()                                                                  # S9
+    save_manifest(sd, manifest)  # idempotent: same content every committed entry already wrote
+    return worst, (ts if j is not None else None)
 
 # --------------------------------------------------------------------------- output
 def public(r: dict) -> dict:
@@ -1759,6 +2139,14 @@ def mode_doctor(args, reg, ids):
             e["note"] = "in-git-repo(ignored): ok — git-ignored, secret literals allowed"
         out.append(e)
 
+    sd = state_dir(args)
+    if os.path.lexists(sd):
+        for js in journal_summaries(sd):
+            out.append({"id": "*", "installed": None, "config": None, "exists": None, "parses": None, "mode": None,
+                        "git": None, "writable": None, "confidence": None, "skip_reason": None,
+                        "status": "error", "note": js["summary"]})
+            worst = EXIT_DRIFT
+
     def txt(p):
         for e in p:
             print("%-16s %-14s %s" % (e["id"], e["status"], e["note"] or (e["config"] or "")))
@@ -1784,9 +2172,11 @@ def mode_apply(args, reg, ids, ssot, resolver, manifest, sd):
 _EPHEMERAL = os.urandom(32)  # in-process-only key for cross-harness equality; never output
 
 
-def mode_verify(args, reg, ids, ssot, resolver, manifest):
+def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
     by_path = {target_path(reg[i])[0]: i for i in ids if (reg[i].get("mcp") or {}).get("supported")}
     out, worst, secret_hashes = [], EXIT_OK, {}
+    for js in (journal_summaries(sd) if sd else []):  # J8: an interrupted run is never "clean"
+        out.append({"id": "*", "file": None, "issues": [js["summary"]]})
     for path, fe in sorted(manifest["files"].items()):
         hid = fe.get("harness")
         if hid not in reg or path not in by_path:
@@ -1809,6 +2199,12 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
             e["issues"].append("malformed %s: not a mapping" % bad_map)
             continue
         mp = get_map(cfg["doc"], h["mcp"]["key_path"]) or {}
+        gstate = git_state(path)
+        if git_leak_risk(gstate):
+            leaky = sorted(n for n in fe.get("servers", {}) if isinstance(mp.get(n), dict) and carries_secret(mp[n]))
+            if leaky:  # the same fail-closed visibility check planning uses (Codex 4107841816)
+                e["issues"].append("config is %s in git and holds secret material in %s: could leak via commit"
+                                   % (gstate, ", ".join(leaky)))
         for name, want in sorted(fe.get("servers", {}).items()):
             cur = mp.get(name)
             if cur is None:
@@ -1839,6 +2235,32 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
                         if isinstance(v, str):
                             eph = hmac.new(_EPHEMERAL, v.encode("utf-8"), hashlib.sha256).hexdigest()
                             secret_hashes.setdefault((name, k), {}).setdefault(eph, []).append(hid)
+    if ssot is not None:
+        # Converge on the SSOT, not only on the manifest: a desired server with no ownership record
+        # (fresh install, lost manifest) is drift, exactly as plan would add it (Codex 4107841810).
+        reported = {(e.get("file"), n) for e in out for n in fe_names(e)}
+        for r in build_plan(reg, ids, ssot, resolver, manifest, set()):
+            if not r["applicable"]:
+                continue
+            ent = next((e for e in out if e.get("file") == r["file"]), None)
+            for a in r["actions"]:
+                if (r["file"], a["server"]) in reported:
+                    continue
+                why = None
+                if a["action"] == "add":
+                    why = "%s: missing (plan would add it)" % a["server"]
+                elif a["action"] == "conflict":
+                    why = "%s: %s" % (a["server"], a.get("reason"))
+                elif a.get("refused"):
+                    why = "%s: refused — %s" % (a["server"], a.get("reason"))
+                elif a["action"] in ("update", "remove") and a["server"] not in \
+                        (manifest["files"].get(r["file"]) or {}).get("servers", {}):
+                    why = "%s: plan would %s it" % (a["server"], a["action"])
+                if why:
+                    if ent is None:
+                        ent = {"id": r["id"], "file": r["file"], "issues": []}
+                        out.append(ent)
+                    ent["issues"].append(why)
     for (name, k), hs in sorted(secret_hashes.items()):
         if len(hs) > 1:
             out.append({"id": "*", "file": None, "issues": ["%s.%s: differing secret hashes across harnesses %s" %
@@ -1859,6 +2281,11 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
 TS_RE = re.compile(r"^\d{8}T\d{12}Z$")
 
 
+def fe_names(e: dict) -> set:
+    """Server names already reported for a verify entry (avoid double-reporting one problem)."""
+    return {i.split(":", 1)[0] for i in e.get("issues", []) if ":" in i}
+
+
 def mode_restore(args, reg, ids, sd, ts):
     if not ts or not TS_RE.match(ts):
         raise UsageError("restore needs a backup timestamp like 20260924T135959123456Z (got %r)" % ts)
@@ -1870,11 +2297,14 @@ def mode_restore(args, reg, ids, sd, ts):
     only = set(ids) if args.harness else None
     restored, refused = [], []
     snap = os.path.join(root, "manifest.json")
-    old, cur = None, None
+    old = None
     if os.path.exists(snap):
         with open(snap, encoding="utf-8") as fh:
             old = json.load(fh)
-        cur = load_manifest(sd)
+    cur = load_manifest(sd)
+    bind_salt(cur)
+    run_id = new_run_id(sd)
+    j = None
     for hid in sorted(os.listdir(root)):
         bdir = os.path.join(root, hid)
         if not os.path.isdir(bdir) or (only is not None and hid not in only):
@@ -1884,35 +2314,93 @@ def mode_restore(args, reg, ids, sd, ts):
             continue
         try:
             with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
-                mpath = json.load(fh).get("path")
+                meta = json.load(fh)
+            mpath = meta.get("path")
         except (OSError, json.JSONDecodeError, AttributeError):
             refused.append({"id": hid, "reason": "refused: unreadable backup meta"})
             continue
-        home = os.path.realpath(os.path.expanduser("~"))
-        # registry-derived ONLY (every registered config_path, realpath'd): a state-dir write must not grant targets
-        allowed = {os.path.realpath(expand(cp["path"])) for cp in (reg[hid].get("mcp") or {}).get("config_paths") or []
-                   if isinstance(cp, dict) and isinstance(cp.get("path"), str) and cp["path"].startswith(("~", "/"))}
-        if not isinstance(mpath, str) or mpath not in allowed or not mpath.startswith(home + os.sep):
+        if not isinstance(mpath, str) or mpath not in allowed_targets(reg, hid):
             refused.append({"id": hid, "reason": "refused: backup targets a path not recorded for this harness"})
             continue
         try:
-            f = restore_from(bdir)  # atomic per file: a failure leaves that file as it was
-        except (OSError, ValueError, KeyError) as e:
+            check_private_dir(bdir)
+            if meta.get("existed"):
+                with open(os.path.join(bdir, os.path.basename(mpath)), "rb") as fh:
+                    post = bytes_triple(fh.read(), int(meta.get("mode", "0o600"), 8))
+            else:
+                post = dict(ABSENT)
+        except (OSError, ValueError, TypeError, UsageError) as e:
             refused.append({"id": hid, "reason": "restore failed (%s); file left unchanged" % e.__class__.__name__})
             continue
-        restored.append({"id": hid, "file": f})
-        if old is not None:
-            # Class C-B: reconcile ownership for THIS file right away, so a later failure
-            # can never leave an already-restored config with post-apply ownership hashes.
-            if f in old.get("files", {}):
-                cur["files"][f] = old["files"][f]
-            else:
-                cur["files"].pop(f, None)
-            save_manifest(sd, cur)
-    emit(args, {"backup_ts": ts, "restored": restored, "refused": refused},
+        if j is None:
+            mkdir_private(os.path.join(sd, "backups", run_id))
+            atomic_write(os.path.join(sd, "backups", run_id, "manifest.json"),
+                         json.dumps(cur, indent=2, sort_keys=True).encode())
+            j = Journal.create(sd, "restore", run_id)
+        backup_file(sd, run_id, hid, mpath)  # J6: the pre-restore config, so this restore can be undone
+        pre = file_triple(mpath)
+        mf_after = (old.get("files", {}).get(mpath) if old is not None else cur["files"].get(mpath))
+        try:
+            journaled_change(j, cur, hid, mpath, "backups/%s/%s" % (run_id, hid), pre, post, mf_after,
+                             write_fn=lambda: restore_from(bdir), validate_fn=lambda: file_triple(mpath) == post)
+        except RollbackFailed:
+            raise
+        except (OSError, ValueError, KeyError) as e:
+            refused.append({"id": hid, "reason": "restore failed (%s); rolled back, file unchanged"
+                                                 % e.__class__.__name__})
+            continue
+        if j.data["entries"][-1]["state"] != "manifest-committed":
+            refused.append({"id": hid, "reason": "restore failed validation; rolled back, file unchanged"})
+            continue
+        restored.append({"id": hid, "file": mpath})
+    if j is not None:
+        j.close()
+    emit(args, {"backup_ts": ts, "restore_run": run_id if j is not None else None,
+                "restored": restored, "refused": refused},
          lambda p: ([print("restored %-16s %s" % (r["id"], r["file"])) for r in p["restored"]],
                     [print("refused  %-16s %s" % (r["id"], r["reason"])) for r in p["refused"]]))
     return EXIT_OK if restored and not refused else EXIT_DRIFT
+
+
+def mode_resolve(args, sd, run_id):
+    """J8b operator escape: close a journal that reconcile cannot (conflict, invalid, re-salted).
+    Deliberately does NOT verify salt_id/MACs/parseability and does not reconcile; never touches a
+    config or the manifest; keeps every backup."""
+    if not run_id or not TS_RE.match(run_id):
+        raise UsageError("resolve needs a run id like 20260924T135959123456Z (got %r)" % run_id)
+    jd = os.path.join(sd, "journal")
+    p = os.path.join(jd, run_id + ".json")
+    if not os.path.lexists(p):
+        raise UsageError("no open journal %s" % p)
+    check_private_dir(jd)
+    st = os.lstat(p)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid():
+        raise UsageError("refusing journal %s: not a regular file owned by the current user" % p)
+    backups, data = [], None
+    try:
+        with open(p, encoding="utf-8") as fh:
+            data = json.load(fh)
+        for e in data.get("entries") or []:
+            if isinstance(e, dict) and e.get("state") not in J_FINAL:
+                e["state"] = "conflict-resolved"
+                backups.append((e.get("path"), os.path.join(sd, str(e.get("backup")))))
+        data["state"] = "resolved"
+    except (OSError, ValueError, AttributeError):
+        data = None
+    done = os.path.join(jd, "done")
+    mkdir_private(done)
+    dst = os.path.join(done, run_id + ".json")
+    if data is not None:
+        atomic_write(dst, (json.dumps(data, indent=2, sort_keys=True) + "\n").encode())
+        os.unlink(p)
+    else:
+        os.replace(p, dst)
+    fsync_dir(jd)
+    fsync_dir(done)
+    emit(args, {"resolved": run_id, "journal": dst, "backups": [b for _, b in backups]},
+         lambda q: (print("resolved %s -> %s (no config or manifest was changed)" % (run_id, dst)),
+                    [print("    %s  backup %s" % (f, b)) for f, b in backups]))
+    return EXIT_OK
 
 
 def mode_update(args, reg, ids):
@@ -2022,12 +2510,21 @@ def run(argv) -> int:
             return mode_explain(args, reg, ids)
         if args.mode == "update":
             return mode_update(args, reg, ids)
+        mutating = args.mode in ("apply", "restore", "resolve")
+        if args.mode in ("doctor", "inventory", "verify") or mutating:
+            _lock = acquire_lock(sd, exclusive=mutating)  # noqa: F841 — held until the process exits
         if args.mode == "doctor":
             return mode_doctor(args, reg, ids)
+        if args.mode == "resolve":
+            return mode_resolve(args, sd, args.ts)
         if os.path.lexists(sd):
             check_private_dir(sd)
         manifest = load_manifest(sd)
         load_salt(sd, repair=args.mode in ("apply", "restore"))
+        if args.mode in ("apply", "restore") and open_journal_files(sd):
+            bind_salt(manifest)
+            for note in reconcile(sd, reg, manifest):  # J5: finish or undo interrupted runs first
+                print("harness-mcp-sync: reconciled %s" % note, file=sys.stderr)
         if args.mode == "inventory":
             return mode_inventory(args, reg, ids, manifest)
         if args.mode == "restore":
@@ -2035,7 +2532,7 @@ def run(argv) -> int:
         resolver = Resolver(args.resolver)
         if args.mode == "verify":
             ssot = load_ssot(args.ssot) if args.ssot else None
-            return mode_verify(args, reg, ids, ssot, resolver, manifest)
+            return mode_verify(args, reg, ids, ssot, resolver, manifest, sd)
         if not args.ssot:
             raise UsageError("--ssot is required for %s" % args.mode)
         ssot = load_ssot(args.ssot)

@@ -48,7 +48,7 @@ same input always produces the same files:
 |---|---|---|
 | Knowledge (data) | `harnesses/<id>.yaml` | one file per harness: detect, config paths, format, key path, entry style, transports, header/env/disable support, CLI commands, update command, docs URL, `last_verified`, `confidence` |
 | Contract | `harnesses/README.md` | registry schema v1 + entry-style table |
-| Executor | `bin/harness-mcp-sync` | explain · inventory · doctor · plan · apply · verify · restore · update |
+| Executor | `bin/harness-mcp-sync` | explain · inventory · doctor · plan · apply · verify · restore · resolve · update |
 | SSOT format | `templates/harness-mcp-sync/ssot.schema.json` (+ `ssot.example.json`) | vendor-neutral server list with `${VAR}` / vault-ref placeholders only |
 | Tests | `bin/tests/harness-mcp-sync.test.sh` | temp-HOME fixtures; never touches real configs |
 
@@ -77,10 +77,17 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 4. **Apply (T1, only after the plan was shown).** `bin/harness-mcp-sync apply ...` — scoped with
    `--harness`, writes only non-empty diffs, timestamped backup first, atomic write, chmod 600,
    parse-back validation with automatic restore on failure. A second `apply` must be an empty plan.
+   Every write is announced first in a durable intent journal (`<state>/journal/`); an interrupted
+   run is finished or undone automatically by the next `apply`/`restore` (design:
+   `docs/harness-mcp-sync-threat-model.md`, Round 12). One mutating run at a time (lock).
 5. **Verify (T0).** `bin/harness-mcp-sync verify --ssot <file>` — mode 600, parses, managed entries
-   match the SSOT by hash, same secret → same hash everywhere, enabled/disabled state correct.
+   match the SSOT by hash, same secret → same hash everywhere, enabled/disabled state correct,
+   every desired server present, no secret-bearing config visible to git, no interrupted run.
    Then confirm with the harness's own CLI (`<cli> mcp list`) where one exists.
-6. **Rollback (T1).** `bin/harness-mcp-sync restore <ts> [--harness id]`.
+6. **Rollback (T1).** `bin/harness-mcp-sync restore <ts> [--harness id]` (journaled, so a restore
+   can itself be undone with the `restore_run` it prints). If verify/doctor report an interrupted run
+   the tool cannot finish (a file changed outside it), inspect the named backup, then
+   `bin/harness-mcp-sync resolve <run-id>` — it never touches a config or the manifest.
 7. **Update check (T0).** `bin/harness-mcp-sync update` prints versions and the vendor update
    command as a suggestion. Installing/upgrading a harness, adding a marketplace, logging in, or
    rotating a secret are **T2 — operator-confirmed each time**; I never run them.
