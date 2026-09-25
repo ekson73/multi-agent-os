@@ -221,6 +221,11 @@ run verify --ssot "$SSOT" --json
 eq 1 "$rc" 'verify after apply: drift only because git-unsafe harnesses refused secret servers'
 BAD="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"] and not all("refused" in i for i in e["issues"])}))')"
 eq "[]" "$BAD" 'verify after apply: every drift issue is a git-safety refusal (hgit/hgtrk), none elsewhere'
+DRIFTED="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"]}))')"
+eq "['hgit', 'hgtrk']" "$DRIFTED" 'verify after apply: drift set is EXACTLY the two refused-secret fixtures (hgit, hgtrk)'
+NALL="$(printf '%s' "$o" | python3 -c 'import sys,json; print(len({e["id"] for e in json.load(sys.stdin) if e["id"]!="*"}))')"
+NCLEAN="$(printf '%s' "$o" | python3 -c 'import sys,json; print(len({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]}))')"
+eq "$((NALL-2))" "$NCLEAN" 'verify after apply: every harness other than hgit/hgtrk is in the clean set'
 run verify --ssot "$SSOT" --harness "$(printf '%s' "$o" | python3 -c 'import sys,json; print(",".join(sorted({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]})))')"
 eq 0 "$rc" 'verify clean after apply (git-safe harnesses)'
 
