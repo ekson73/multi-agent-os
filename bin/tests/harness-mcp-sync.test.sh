@@ -223,10 +223,10 @@ BAD="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for
 eq "[]" "$BAD" 'verify after apply: every drift issue is a git-safety refusal (hgit/hgtrk), none elsewhere'
 DRIFTED="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"]}))')"
 eq "['hgit', 'hgtrk']" "$DRIFTED" 'verify after apply: drift set is EXACTLY the two refused-secret fixtures (hgit, hgtrk)'
-NALL="$(printf '%s' "$o" | python3 -c 'import sys,json; print(len({e["id"] for e in json.load(sys.stdin) if e["id"]!="*"}))')"
-NCLEAN="$(printf '%s' "$o" | python3 -c 'import sys,json; print(len({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]}))')"
-eq "$((NALL-2))" "$NCLEAN" 'verify after apply: every harness other than hgit/hgtrk is in the clean set'
-run verify --ssot "$SSOT" --harness "$(printf '%s' "$o" | python3 -c 'import sys,json; print(",".join(sorted({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]})))')"
+GITSAFE=hgem,hgign,hgoose,hgrok,hjson,hjsonc,hnohdr,hopen,htoml   # explicit: the known git-safe fixtures (hlow is low-confidence, never written)
+CLEAN="$(printf '%s' "$o" | python3 -c 'import sys,json; print(",".join(sorted({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]})))')"
+eq "$GITSAFE" "$CLEAN" 'verify after apply: the clean set is EXACTLY the named git-safe fixtures (no false refusal)'
+run verify --ssot "$SSOT" --harness "$GITSAFE"
 eq 0 "$rc" 'verify clean after apply (git-safe harnesses)'
 
 # ---------------------------------------------------------------- conflict / adopt
