@@ -1,0 +1,37 @@
+schema: 1
+id: prime-agent
+name: prime-agent
+vendor: null
+kind: cli
+detect:
+  commands:
+  - prime-agent
+  paths:
+  - ~/.prime/agent
+mcp:
+  supported: true
+  config_paths: []
+  format: json
+  key_path: []
+  entry_style: unknown
+  transports: []
+  supports:
+    headers: false
+    env: false
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: null
+docs_url: null
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: MCP config location not found (~/.prime/agent/settings.json has only model/telemetry keys; help shows no mcp
+  command)
+notes: Installed as npm global (prime-agent). Marked supported:true only tentatively; revisit.

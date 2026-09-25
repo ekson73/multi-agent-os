@@ -1,0 +1,47 @@
+schema: 1
+id: antigravity
+name: Google Antigravity (IDE app)
+vendor: Google
+kind: ide
+detect:
+  commands:
+  - antigravity
+  paths:
+  - /Applications/Antigravity.app
+  - ~/.gemini/antigravity
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.gemini/antigravity/mcp_config.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    url_field: serverUrl
+    type_values: {stdio: null, streamable-http: null, http: null}
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: ~/.gemini/antigravity/skills
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://antigravity.google/docs/mcp
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Remote uses `serverUrl` (NOT url): {serverUrl, headers:{...}}; some entries also carry authProviderType/oauth (OAuth-managed
+  — do not overwrite). Stdio: {command, args, env}. `disabled: true` observed. 24 entries. A second install exists: see antigravity-ide
+  (separate dir, separate file). ~/.gemini/antigravity-backup/mcp_config.json is a backup — never target.'

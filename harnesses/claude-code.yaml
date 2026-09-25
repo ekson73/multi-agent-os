@@ -1,0 +1,52 @@
+schema: 1
+id: claude-code
+name: Claude Code
+vendor: Anthropic
+kind: cli
+detect:
+  commands:
+  - claude
+  paths:
+  - ~/.claude.json
+  - ~/.claude
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.claude.json
+    scope: user
+  - path: ./.mcp.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli:
+    add: 'claude mcp add --scope user [--transport http] <name> <commandOrUrl> [--header ''K: V''] [-e K=V] -- <args>'
+    list: claude mcp list
+    remove: claude mcp remove --scope user <name>
+extensions:
+  skills: ~/.claude/skills
+  plugins: claude plugin install <plugin>@<marketplace>
+  marketplace: claude plugin marketplace add <source>
+update:
+  version_cmd: claude --version
+  update_cmd: claude update
+docs_url: https://code.claude.com/docs/en/mcp
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'User scope = top-level `mcpServers` in ~/.claude.json (a large file with many unrelated keys: surgical key-path edit
+  only, never rewrite). Local scope lives under `projects.<abs-path>.mcpServers` in the same file; project scope = ./.mcp.json.
+  Remote entry: {type: http, url, headers:{...}} (also seen: headersHelper = script path printing headers; used to avoid literal
+  tokens). Stdio: {type: stdio (optional), command, args:[...], env:{...}}. `disabled: true` observed on an entry; a top-level
+  `disabledMcpServers` list also exists. Observed 26 user entries, types http|stdio.'

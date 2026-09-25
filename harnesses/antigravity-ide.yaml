@@ -1,0 +1,45 @@
+schema: 1
+id: antigravity-ide
+name: Google Antigravity IDE (second app build)
+vendor: Google
+kind: ide
+detect:
+  commands: []
+  paths:
+  - /Applications/Antigravity IDE.app
+  - ~/.gemini/antigravity-ide
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.gemini/antigravity-ide/mcp_config.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    url_field: serverUrl
+    type_values: {stdio: null, streamable-http: null, http: null}
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: ~/.gemini/antigravity-ide/skills
+  plugins: ~/.gemini/antigravity-ide/plugins
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://antigravity.google/docs/mcp
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: Same shape as antigravity (serverUrl + headers; command/args/env; disabled). 7 entries observed. Which of the two /Applications
+  builds maps to which dir is inferred from dir names, not verified.

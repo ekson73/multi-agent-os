@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "servers": {
+    "example-remote": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer ${EXAMPLE_API_TOKEN}" },
+      "enabled": true,
+      "replaces": ["example-remote-legacy"],
+      "harnesses": { "include": ["*"], "exclude": [] }
+    },
+    "example-remote-optional": {
+      "transport": "streamable-http",
+      "url": "https://mcp.example.com/optional/mcp",
+      "enabled": false
+    },
+    "example-local": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "example-mcp-server"],
+      "env": { "EXAMPLE_KEY": "${EXAMPLE_KEY}" },
+      "harnesses": { "include": ["*"], "exclude": ["claude-desktop"] }
+    }
+  }
+}

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
+
+- `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
+  facts per AI-coding harness — detect, MCP config path, format, key path, entry style, transports,
+  header/env/disable support, CLI add/list/remove, extension surfaces, update command, docs URL,
+  `last_verified`, `confidence`. Low-confidence or `skip_reason` entries are plan-only.
+- `bin/harness-mcp-sync` (new; Python 3.11 stdlib + PyYAML): one vendor-neutral MCP SSOT →
+  every harness's native file. Modes explain · inventory · doctor · plan · apply · verify ·
+  restore · resolve · update. Dry-run by default, timestamped backups, atomic write + chmod 600, parse-back
+  validation with auto-restore, idempotent, ownership manifest in the state dir (no marker keys in
+  harness files), conflict on unmanaged same-name entries (`--adopt`), legacy removal only via
+  SSOT `replaces`, surgical TOML edits, refusal of secret-carrying servers for git-tracked /
+  untracked-unignored files, refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
+  Config + manifest atomicity via a salted, MAC'd write-ahead intent journal with reconcile on the
+  next run, an exclusive run lock, and `resolve` as the operator escape; threat model and design in
+  `docs/harness-mcp-sync-threat-model.md`.
+- `templates/harness-mcp-sync/ssot.schema.json` + `ssot.example.json` (placeholders only).
+- `bin/tests/harness-mcp-sync.test.sh` (+ `harness-mcp-sync.crash.py` crash injection): temp-HOME
+  fixtures; never touches real configs.
+- `skills/harness-concierge/` (new; soul-name Dragoman, named by `anima`): knowledge + routing skill
+  over the registry and executor; sibling of `claude-code-concierge`, which now hands non-Claude
+  harness MCP questions to it.
+
 ### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
 
 - `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —

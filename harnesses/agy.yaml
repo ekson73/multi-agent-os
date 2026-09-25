@@ -1,0 +1,50 @@
+schema: 1
+id: agy
+name: Antigravity CLI (agy)
+vendor: Google
+kind: cli
+detect:
+  commands:
+  - agy
+  paths:
+  - ~/.gemini/antigravity-cli
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.gemini/antigravity-cli/mcp_config.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    url_field: serverUrl
+    type_values: {stdio: null, streamable-http: null, http: null}
+  transports:
+  - stdio
+  - http
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: 'agy mcp add [--type http] [--header ''K: V''] [--env K=V] <name> <commandOrUrl> [args...]'
+    list: agy mcp list
+    remove: agy mcp remove <name>
+extensions:
+  skills: ~/.gemini/antigravity-cli/skills
+  plugins: agy plugin install <source>
+  marketplace: null
+update:
+  version_cmd: agy --version
+  update_cmd: agy update
+docs_url: https://antigravity.google/docs
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: 'config file location not verified: ~/.gemini/antigravity-cli has no mcp_config.json and its mcp/ dir holds per-server
+  tool caches only; use `agy mcp add/remove` (CLI path) instead of file writes'
+notes: agy is the Antigravity CLI, NOT an alias sharing the app's config (it has its own dir ~/.gemini/antigravity-cli with
+  settings.json keys model/trustedWorkspaces). `agy mcp` supports add/remove/list/enable/disable; types stdio|http. Candidate
+  path above is a guess.
