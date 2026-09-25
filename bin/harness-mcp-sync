@@ -148,6 +148,11 @@ class Redactor(io.TextIOBase):
         (a value with '"', '\\' or control chars serializes differently)."""
         if not isinstance(value, str) or not value:
             return
+        if len(value) < 4 and value not in cls.secrets:
+            # Decision: short secrets are masked EVERYWHERE they occur (fail-closed), never only
+            # as standalone tokens — expect over-masking of unrelated text; say so, never the value.
+            cls._stderr_warn("a secret shorter than 4 characters was registered; every occurrence "
+                             "of it in output is masked (expect over-masking) — use a stronger secret")
         cls.secrets.add(value)
         for esc in (json.dumps(value)[1:-1], json.dumps(value, ensure_ascii=False)[1:-1]):
             if esc != value:
@@ -157,14 +162,18 @@ class Redactor(io.TextIOBase):
     def scrub(cls, text: str) -> str:
         """THE single choke point: every emitted string (stream AND value-level) passes here."""
         for sec in sorted(cls.secrets, key=len, reverse=True):
-            if len(sec) >= 4:
-                if sec in text:
-                    text = text.replace(sec, SECRET_MASK)
-            else:
-                # 1-3 char secrets: mask only as a standalone token, so ordinary words
-                # are not shredded. Over-masking a coincidental token is fail-safe.
-                text = re.sub(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(sec), SECRET_MASK, text)
+            if sec in text:
+                # Any length, any position (fail-closed). Split on the mask first so a short
+                # secret that happens to occur inside "«secret»" never mangles an earlier mask.
+                text = SECRET_MASK.join(p.replace(sec, SECRET_MASK) for p in text.split(SECRET_MASK))
         return URL_RE.sub(lambda m: mask_url(m.group(0)), text)
+
+    @staticmethod
+    def _stderr_warn(msg):
+        try:
+            sys.__stderr__.write("harness-mcp-sync: warn: %s\n" % msg)
+        except Exception:
+            pass
 
     def write(self, s):
         return self._s.write(self.scrub(s))
@@ -1113,10 +1122,15 @@ def path_applies(cp: dict, plat: str | None = None) -> bool:
 
 
 def user_config_path(h: dict):
-    for cp in (h.get("mcp") or {}).get("config_paths") or []:
-        if isinstance(cp, dict) and cp.get("scope") == "user" and cp.get("path") and path_applies(cp):
-            return expand(cp["path"])
-    return None
+    """Registry contract: among the user-scope candidates for this platform, the FIRST EXISTING
+    one wins (a harness may read either); if none exists yet, the first candidate is created.
+    Every mode (plan/apply/verify/doctor/inventory) resolves through here, so they agree."""
+    cands = [expand(cp["path"]) for cp in (h.get("mcp") or {}).get("config_paths") or []
+             if isinstance(cp, dict) and cp.get("scope") == "user" and cp.get("path") and path_applies(cp)]
+    for p in cands:
+        if os.path.lexists(p):
+            return p
+    return cands[0] if cands else None
 
 
 def target_path(h: dict):

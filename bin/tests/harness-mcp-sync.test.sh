@@ -1236,7 +1236,8 @@ rm -f "$REG/hdash.yaml"
 
 # 4100510415 (P1 SECURITY): git missing/erroring => visibility "unknown" => secret material refused
 SD8G="$T/state-r8g"; NOGIT="$T/nogit-bin"; mkdir -p "$NOGIT"
-ln -sf "$(command -v python3)" "$NOGIT/python3"
+# Resolve shims (pyenv & co.) to the real interpreter: PATH below holds ONLY this dir.
+ln -sf "$(python3 -c 'import os,sys; print(os.path.realpath(sys.executable))')" "$NOGIT/python3"
 mk hnog json mcpServers mcpservers-json "~/.hnog/mcp.json" true null null high
 printf '{"mcpServers":{}}' > "$HOME/.hnog/mcp.json"; M0="$(sum "$HOME/.hnog/mcp.json")"
 printf '{"schema":1,"servers":{"snog":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}}}}\n' > "$T/ssot-nog.json"
@@ -1292,6 +1293,72 @@ has 'conflict' "$o" '#4100510423: unmanaged active entry, disabled in SSOT, git-
 [ "$rc" -ne 0 ] && ok '#4100510423: conflict exits non-zero' || no '#4100510423: conflict exits non-zero' "rc=$rc"
 eq "$MU" "$(sum "$HOME/.hdgu/mcp.json")" '#4100510423: unmanaged entry left untouched'
 rm -f "$REG/hdgt.yaml" "$REG/hdgu.yaml"
+
+# ---------------------------------------------------------------- PDCA round 9 (kimi routed review on b60531f)
+# kimi Finding 1 (MAJOR): "first existing wins" among user-scope candidates (cline.yaml shape);
+# none existing -> the first is created; plan/apply/verify all resolve the same path.
+SD9="$T/state-r9p"
+cat > "$REG/hmc.yaml" <<'EOF'
+schema: 1
+id: hmc
+name: Fixture hmc
+kind: cli
+detect: {commands: [], paths: ["~/.hmc"]}
+mcp:
+  supported: true
+  config_paths:
+  - {path: "~/.hmc/data/settings/first.json", scope: user}
+  - {path: "~/.hmc/second.json", scope: user}
+  format: json
+  key_path: [mcpServers]
+  entry_style: mcpservers-json
+  transports: [stdio, streamable-http, http, sse]
+  supports: {headers: true, env: true, disable: false, disable_field: null, disable_semantics: null}
+  cli: null
+update: {version_cmd: null, update_cmd: "true-but-never-run"}
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+EOF
+mkdir -p "$HOME/.hmc"
+pickfile() { o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hmc --registry "$REG" --state-dir "$SD9" --json 2>&1)"; printf '%s\n' "$o" >> "$ALLOUT"
+  printf '%s' "$o" | python3 -c 'import json,sys
+d=json.load(sys.stdin); d=d["harnesses"] if isinstance(d,dict) else d
+print(d[0]["file"].rsplit("/",1)[-1])' 2>/dev/null || echo PARSE-ERROR; }
+eq first.json "$(pickfile)" 'kimi-F1: no candidate exists -> the first candidate is targeted (created)'
+printf '{"mcpServers":{}}' > "$HOME/.hmc/second.json"
+eq second.json "$(pickfile)" 'kimi-F1: only the 2nd candidate exists -> the 2nd wins (first existing)'
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hmc --registry "$REG" --state-dir "$SD9" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'kimi-F1: apply to the existing 2nd candidate exits 0'
+[ ! -e "$HOME/.hmc/data/settings/first.json" ] && ok 'kimi-F1: apply did NOT create the unused 1st candidate' || no 'kimi-F1: apply did NOT create the unused 1st candidate' "created"
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hmc --registry "$REG" --state-dir "$SD9" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'kimi-F1: verify checks the same (2nd) file apply wrote -> clean'
+has 'second.json' "$o" 'kimi-F1: verify names the 2nd candidate'
+mkdir -p "$HOME/.hmc/data/settings"; printf '{"mcpServers":{}}' > "$HOME/.hmc/data/settings/first.json"
+eq first.json "$(pickfile)" 'kimi-F1: both candidates exist -> the 1st wins'
+rm -f "$REG/hmc.yaml"
+
+# kimi Finding 2 (minor): a resolved/registered secret shorter than 4 chars is masked
+# EVERYWHERE (substring, fail-closed) and flagged; the mask itself is never mangled.
+RS="$(python3 - "$BIN" <<'PY2' 2>"$T/r9-warn.txt"
+import importlib.machinery,importlib.util,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+m.Redactor.register("q7"); m.Redactor.register("e")
+print(m.Redactor.scrub("xq7y q7 path/q7dir"))
+PY2
+)"
+hasnt 'q7' "$RS" 'kimi-F2: a 2-char secret embedded in a longer token is masked'
+has '«secret»' "$RS" 'kimi-F2: masking still renders the intact mask token (a 1-char secret "e" inside the mask did not mangle it)'
+has 'shorter than 4' "$(cat "$T/r9-warn.txt")" 'kimi-F2: registering a short secret is flagged on stderr'
+hasnt 'q7' "$(cat "$T/r9-warn.txt")" 'kimi-F2: the warning never contains the value'
+SD9K="$T/state-r9k"
+mk hshort json mcpServers mcpservers-json "~/.hshort/mcp.json" true null null high
+printf '{"schema":1,"servers":{"sshort":{"transport":"stdio","command":"npx","args":["--key=q7","/opt/q7tool"]}}}\n' > "$T/ssot-short.json"
+for md in plan "plan --json" apply "apply --json"; do
+  o="$("$BIN" $md --ssot "$T/ssot-short.json" --harness hshort --registry "$REG" --state-dir "$SD9K" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+  hasnt 'q7' "$o" "kimi-F2: short secret never printed, even embedded ($md)"
+done
+rm -f "$REG/hshort.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
