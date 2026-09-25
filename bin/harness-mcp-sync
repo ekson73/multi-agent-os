@@ -2385,6 +2385,8 @@ def mode_resolve(args, sd, run_id):
                 e["state"] = "conflict-resolved"
                 backups.append((e.get("path"), os.path.join(sd, str(e.get("backup")))))
         data["state"] = "resolved"
+        data["resolution"] = {"utc": now_ts(), "by": "resolve", "configs_changed": False,
+                              "note": "archived by operator; no config or manifest was read for decisions or written"}
     except (OSError, ValueError, AttributeError):
         data = None
     done = os.path.join(jd, "done")

@@ -1744,6 +1744,30 @@ w verify; eq 1 "$rc" 'Codex 4107841816: verify rejects a now-git-visible secret 
 has 'holds secret material' "$o" 'Codex 4107841816: says why'
 hasnt "$FIXSECRET" "$o" 'Codex 4107841816: never prints the secret'
 rm -f "$REG/hwgv.yaml"
+# Codex 4107841802 under a crash: a permission-only entry interrupted after the chmod rolls forward;
+# interrupted before it rolls back and the next apply repairs it
+wc12 hwpc; w apply --ssot "$S12"; chmod 644 "$WF"; H0="$(sum "$WF")"
+crash after-config-written apply --ssot "$S12"; eq 9 "$rc" 'J9 perm-only/after-chmod: injected'
+w restore "$NOTS"; has 'roll forward' "$o" 'J5 perm-only/after-chmod: chmod + unchanged manifest -> roll forward'
+eq 600 "$(mode "$WF")" 'J5 perm-only/after-chmod: mode 0600 kept'; eq "$H0" "$(sum "$WF")" 'J5 perm-only/after-chmod: content untouched'
+chmod 644 "$WF"; crash after-pending apply --ssot "$S12"
+w restore "$NOTS"; eq 644 "$(mode "$WF")" 'J5 perm-only/pending: nothing written -> mode left as found'
+w apply --ssot "$S12"; eq 600 "$(mode "$WF")" 'J5 perm-only/pending: the next apply repairs it'
+w verify --ssot "$S12"; eq 0 "$rc" 'J5 perm-only: verify clean'
+rm -f "$REG/hwpc.yaml"
+# resolve guardrail: tampered journal + resolve -> every config byte-identical, journal archived
+wc12 hwrg; crash after-config-write apply --ssot "$S12"
+JF="$(ls "$WSD"/journal/*.json)"; RID="$(basename "$JF" .json)"
+python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); e=d["entries"][0]; e["pre"],e["post"]=e["post"],e["pre"]; e["path"]="/etc/hosts"; json.dump(d,open(p,"w"))' "$JF"
+B0="$(find "$HOME" "$WSD/backups" -type f -exec shasum -a 256 {} + 2>/dev/null | sort)"; M0="$(sum "$WSD/manifest.json")"
+w resolve "$RID"; eq 0 "$rc" 'J8b resolve on a tampered journal: exit 0'
+eq "$B0" "$(find "$HOME" "$WSD/backups" -type f -exec shasum -a 256 {} + 2>/dev/null | sort)" 'J8b resolve on a tampered journal: every config and backup byte-identical'
+eq "$M0" "$(sum "$WSD/manifest.json")" 'J8b resolve on a tampered journal: manifest untouched'
+eq 0 "$(openj)" 'J8b resolve on a tampered journal: journal archived'
+RS="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["state"], d["resolution"]["configs_changed"])' "$WSD/journal/done/$RID.json")"
+eq "resolved False" "$RS" 'J8b resolve: resolution record written'
+for bad in '*' all "$NOTS*" ''; do w resolve "$bad"; eq 2 "$rc" "J8b resolve refuses a non-explicit run-id [$bad]"; done
+rm -f "$REG/hwrg.yaml"
 # doctor lists an open journal
 wc12 hwdr; crash after-config-write apply --ssot "$S12"
 o="$("$BIN" doctor --harness hwdr --registry "$REG" --state-dir "$WSD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"

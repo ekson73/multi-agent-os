@@ -126,7 +126,11 @@ All three live in the private state dir, which is already checked link-free and 
 - Each entry `mac` covers the entry as currently written and is recomputed on every
   state change; `journal_mac` is recomputed on every journal rewrite. Deleting, reordering
   or swapping an entry therefore breaks the journal loudly instead of silently.
-- A permission-only repair (Codex 4107841802) is an entry with `pre.hash == post.hash` and
+- **Permission-only drift (Codex 4107841802).** apply treats a managed file whose mode is not
+  0600 as work even when no content changes: a journaled entry whose only write is `chmod 0600`
+  (S2 backup, S3 intent, S4 = chmod, S6 = observe the post triple, S7 manifest unchanged). It
+  follows the same reconcile table, because the observed triple includes the mode.
+- A permission-only repair is an entry with `pre.hash == post.hash` and
   a different `mode`.
 
 ## J3 — Commit protocol (per harness, in order)
@@ -244,6 +248,10 @@ and prints each entry's backup path. `resolve` deliberately does **not** verify
 validated run-id alone (if the journal parses, mark its non-final entries; either way
 move the file to `done/`). Only decision-making paths (reconcile) require full
 verification, so the escape hatch works for exactly the journals it exists to clear.
+**Guardrail:** because `resolve` reads unverified journal content, it never writes, restores or
+deletes a harness config or the manifest on the basis of that content. It only archives the
+journal to `done/` with a resolution record. Any config change afterwards goes through a normal,
+fully verified `apply` or `restore`. It requires one explicit run-id (no wildcard, no "all").
 
 **Salt recovery.** A lost or rotated salt blocks every mutation through the manifest's
 `salt_id`, which `resolve` does not clear. Recovery: move `manifest.json` and `journal/`
@@ -261,7 +269,9 @@ Added from the red-team: crash after S1 (empty journal closes) · pre-absent fil
 point (rollback unlinks) · permission-only entry at every point · S6 failure with rollback
 succeeding vs failing (the `rolling-back` case) · S3b config-changed · ENOSPC during
 journal writes (S3/S5/S8) · crash during the `done/` move · salt lost then reconcile ·
-tampered backup payload / symlinked backup component · swapped pre/post hashes (MAC) ·
+tampered backup payload / symlinked backup component · tampered journal then `resolve` (configs
+byte-identical, journal archived) · `resolve` with a wildcard or "all" refused · permission-only
+entry interrupted mid-run · swapped pre/post hashes (MAC) ·
 filename/run_id mismatch · lock-busy for every locked mode · restore whose target parent
 dir is gone · `resolve` on a conflict. Each test asserts the three observable facts:
 config bytes (and mode), manifest entry, journal state.
