@@ -216,6 +216,8 @@ def masked_preview(obj, parent=None):
         return {k: (mask(v) if parent in SECRET_CONTAINERS and isinstance(v, str) else masked_preview(v, k))
                 for k, v in obj.items()}
     if isinstance(obj, list):
+        if parent == "args":
+            obj = mask_secret_args(obj)
         return [masked_preview(v, parent) for v in obj]
     return obj
 
@@ -531,6 +533,67 @@ SECRET_ARG_RE = re.compile(r"(?i)^--?[a-z0-9_.-]*(key|token|secret|passw(or)?d|p
                            r"[a-z0-9_.-]*(=.*)?$|^(sk|pk|rk)-|^gh[pousr]_|^xox[abpr]-|^bearer\s")
 
 
+# The NAME part only (no "=value"): a flag whose name marks it as a secret.
+SECRET_ARG_NAME_RE = re.compile(r"(?i)^--?[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
+                                r"[a-z0-9_.-]*$")
+# A whole argument that is itself a credential (prefix-typed token or "Bearer x").
+SECRET_ARG_WHOLE_RE = re.compile(r"(?i)^(sk|pk|rk)-|^gh[pousr]_|^xox[abpr]-|^bearer\s")
+
+
+def secret_arg_values(args) -> list:
+    """FAIL-CLOSED: the values of secret-NAMED arguments, whatever their length or entropy.
+    Covers `--token=v`, `--token v` (the next argument) and whole-credential arguments.
+    Entropy heuristics may ADD masking elsewhere; they never remove it from these."""
+    out, args = [], [a for a in (args or [])]
+    for i, a in enumerate(args):
+        if not isinstance(a, str):
+            continue
+        name, eq, val = a.partition("=")
+        if eq and SECRET_ARG_NAME_RE.match(name):
+            if val:
+                out.append(val)
+        elif SECRET_ARG_NAME_RE.match(a):
+            nxt = args[i + 1] if i + 1 < len(args) else None
+            if isinstance(nxt, str) and nxt and not nxt.startswith("-"):
+                out.append(nxt)
+        elif SECRET_ARG_WHOLE_RE.search(a):
+            out.append(a)
+            if a.lower().startswith("bearer") and len(a.split(None, 1)) == 2:
+                out.append(a.split(None, 1)[1])
+    return out
+
+
+def mask_secret_args(args: list) -> list:
+    """Structural (value-level) mask of secret-named argument values, for previews."""
+    out, args = [], list(args)
+    for i, a in enumerate(args):
+        if isinstance(a, str):
+            name, eq, val = a.partition("=")
+            if eq and val and SECRET_ARG_NAME_RE.match(name):
+                a = name + "=" + SECRET_MASK
+            elif SECRET_ARG_WHOLE_RE.search(a):
+                a = SECRET_MASK
+            elif i > 0 and isinstance(args[i - 1], str) and SECRET_ARG_NAME_RE.match(args[i - 1]) \
+                    and a and not a.startswith("-"):
+                a = SECRET_MASK
+        out.append(a)
+    return out
+
+
+def register_secret_args(obj):
+    """Register (stream-level) every secret-named argument value found anywhere in `obj`
+    (an SSOT server, a resolved entry, or a parsed third-party config), at ANY length."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "args" and isinstance(v, list):
+                for val in secret_arg_values(v):
+                    Redactor.register(val)
+            register_secret_args(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            register_secret_args(v)
+
+
 def literal_secretish(v) -> bool:
     """A NON-placeholder value that looks like a secret: len>=12, >=3 char classes,
     Shannon entropy >=3.5 (whole value or any whitespace token). Heuristic: short or
@@ -548,6 +611,9 @@ def lint_ssot(ssot: dict):
     """Register literal secret-looking arg/header values (so they are masked) and warn
     on stderr — the value itself is never printed."""
     for name, s in ssot["servers"].items():
+        for val in secret_arg_values(s.get("args")):  # fail-closed: name-marked => masked, any entropy
+            if not PLACEHOLDER_RE.search(val):  # a placeholder's RESOLVED value is registered by the resolver
+                Redactor.register(val)
         fields = [("args[%d]" % i, a) for i, a in enumerate(s.get("args") or [])]
         for c in SECRET_CONTAINERS:
             if isinstance(s.get(c), dict):
@@ -1053,6 +1119,7 @@ def read_config(h: dict, path: str):
         if not isinstance(info["doc"], dict):
             raise Refused("config root is not a mapping")
         register_container_values(info["doc"])
+        register_secret_args(info["doc"])
     except (OSError, UnicodeDecodeError) as e:
         info["error"] = "unreadable (%s)" % e.__class__.__name__
     except Refused as e:
@@ -1103,13 +1170,19 @@ def desired_disposition(h: dict, hid: str, raw: dict) -> tuple[str, str | None]:
     if not server_applies(hid, raw):
         return "not-applicable", "excluded from this harness by its SSOT selector"
     t = raw["transport"]
+    unrenderable = None
     if not transport_ok(t, m.get("transports")):
-        return "skip", "transport %s unsupported by harness" % t
-    if t != "stdio" and raw.get("headers") and not sup.get("headers"):
-        return "skip", ("warn: harness lacks header support; remote server skipped "
+        unrenderable = "transport %s unsupported by harness" % t
+    elif t != "stdio" and raw.get("headers") and not sup.get("headers"):
+        unrenderable = ("warn: harness lacks header support; remote server skipped "
                         "(a header-less entry would trigger OAuth)")
-    if raw.get("enabled", True) is False and not sup.get("disable"):
-        return "omit", "disabled in SSOT; harness has no disable flag -> not written"
+    # Explicit deactivation outranks a rendering limitation: a disabled server must end up
+    # absent (or disabled), never preserved active because it cannot be rendered here.
+    if raw.get("enabled", True) is False and (not sup.get("disable") or unrenderable):
+        return "omit", ("disabled in SSOT; harness has no disable flag -> not written" if not unrenderable
+                        else "disabled in SSOT and not renderable here (%s) -> not written" % unrenderable)
+    if unrenderable:
+        return "skip", unrenderable
     return "render", None
 
 
@@ -1513,7 +1586,12 @@ def mode_doctor(args, reg, ids):
             e["exists"] = os.path.exists(path)
             e["git"] = git_state(path)
             parent = os.path.dirname(path)
-            e["writable"] = os.access(path, os.W_OK) if e["exists"] else (os.path.isdir(parent) and os.access(parent, os.W_OK))
+            # atomic_write makes a temp file in the parent dir and renames it over the target (and apply
+            # creates missing dirs), so what matters is the nearest EXISTING directory, not the file.
+            anc = parent
+            while anc and not os.path.exists(anc) and os.path.dirname(anc) != anc:
+                anc = os.path.dirname(anc)
+            e["writable"] = os.path.isdir(anc) and os.access(anc, os.W_OK | os.X_OK)
             if e["exists"]:
                 e["mode"] = oct(os.stat(path).st_mode & 0o777)
                 if (h.get("mcp") or {}).get("format"):
@@ -1533,6 +1611,9 @@ def mode_doctor(args, reg, ids):
         elif e["parses"] is False:
             e["status"] = "error"
             worst = EXIT_DRIFT
+        elif e["writable"] is False:
+            e["status"] = "warn"
+            e["note"] = "config directory not writable: apply's atomic replace would fail"
         elif git_leak_risk(e["git"]):
             e["status"] = "warn"
             e["note"] = "in-git-repo(%s): secret literals refused (could leak via commit)" % e["git"]
@@ -1610,6 +1691,8 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest):
                     e["issues"].append("%s: excluded from this harness by its SSOT selector (plan removes it)" % name)
                 elif kind == "omit":
                     e["issues"].append("%s: disabled in SSOT; harness has no disable flag (plan removes it)" % name)
+                elif kind == "skip":
+                    pass  # plan leaves a skipped entry untouched; SSOT content is not renderable here
                 elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
                     e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)
             for ck, cv in cur.items():

@@ -851,7 +851,7 @@ vload 'fixh;rm --version'; eq 2 "$rc" 'version_cmd shell-ish argv[0] rejected'
 for f in --version -v version; do vload "fixh $f"; eq 0 "$rc" "version_cmd \"fixh $f\" accepted"; done
 PYV="$(python3 - "$BIN" <<'PY2'
 import importlib.machinery,sys
-m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+import importlib.util; _l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
 h={"detect":{"commands":["fixh"]}}
 print(m.version_probe_argv(h,"claude -p x"), m.version_probe_argv(h,"fixh --version"))
 PY2
@@ -968,7 +968,7 @@ has 'my_model' "$o" 'P5: short env word ("model") does not shred key names'
 hasnt "$CTOK" "$o" 'P5: secret-looking value never printed by plan'
 P5U="$(python3 - "$BIN" "$HOME" "$CTOK" <<'PY2'
 import importlib.machinery,sys
-m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+import importlib.util; _l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
 home,tok=sys.argv[2],sys.argv[3]
 m.register_container_values({"mcpServers":{"x":{"env":{"P":home+"/.hmask","T":"~/x/y","W":"model","K":tok},
                                                   "headers":{"Authorization":"Bearer "+tok}}}})
@@ -1022,7 +1022,7 @@ run_5 verify --ssot "$T/ssot-off.json"
 eq 0 "$rc" '#4097283179: after apply removes it, verify is clean'
 SHARED="$(python3 - "$BIN" <<'PY2'
 import importlib.machinery,sys
-m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+import importlib.util; _l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
 h={"mcp":{"transports":["stdio"],"supports":{"disable":False}}}
 cases=[({"transport":"stdio","enabled":False},"omit"),({"transport":"stdio"},"render"),
        ({"transport":"sse"},"skip"),({"transport":"stdio","harnesses":{"exclude":["x"]}},"not-applicable")]
@@ -1053,13 +1053,106 @@ run_6 apply --ssot "$T/ssot-on.json"
 has 'nothing-to-do' "$o" '#4097283192: re-apply is idempotent'
 CN="$(python3 - "$BIN" <<'PY2'
 import importlib.machinery,sys,datetime as d
-m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+import importlib.util; _l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
 print(m.entry_hash({"a":d.date(2026,9,24)})!=m.entry_hash({"a":"2026-09-24"}),
       m.entry_hash({"a":d.date(2026,9,24)})==m.entry_hash({"a":d.date(2026,9,24)}))
 PY2
 )"
 eq "True True" "$CN" '#4097283192: a native date never hashes equal to its ISO string'
 rm -f "$REG/htd.yaml"
+
+# ---------------------------------------------------------------- PDCA round 6 (#4098643726 .. #4098635224)
+# 4098643726 (P1 SECURITY): secret-NAMED args are masked FAIL-CLOSED, whatever the entropy.
+# Low-entropy fixture value "abc"; both the `--token=abc` and the `--token abc` forms.
+leakcheck() { # $1 form-label $2 mode-label ; checks $o for the standalone fixture value
+  if printf '%s' "$o" | grep -Eq '(^|[^A-Za-z0-9])abc([^A-Za-z0-9]|$)'; then
+    no "#4098643726: $1 value never printed in $2" "LEAKED in $2"
+  else ok "#4098643726: $1 value never printed in $2"; fi
+}
+for form in eq sp; do
+  SDA="$T/state-r6-$form"
+  mk "hsa$form" json mcpServers mcpservers-json "~/.hsa$form/mcp.json" true null null high
+  if [ "$form" = eq ]; then ARGS='["-y","pkg","--token=abc"]'; else ARGS='["-y","pkg","--token","abc"]'; fi
+  printf '{"schema":1,"servers":{"stok":{"transport":"stdio","command":"npx","args":%s}}}\n' "$ARGS" > "$T/ssot-tok-$form.json"
+  run_a() { o="$("$BIN" "$@" --harness "hsa$form" --registry "$REG" --state-dir "$SDA" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+  run_a plan --ssot "$T/ssot-tok-$form.json";          leakcheck "$form" plan
+  run_a plan --ssot "$T/ssot-tok-$form.json" --json;   leakcheck "$form" "plan --json"
+  run_a apply --ssot "$T/ssot-tok-$form.json";         leakcheck "$form" apply
+  eq 0 "$rc" "#4098643726: $form apply exits 0 (the value IS written to the file)"
+  WROTE="$(python3 -c 'import json,sys; print(any(a in ("abc","--token=abc") for a in json.load(open(sys.argv[1]))["mcpServers"]["stok"]["args"]))' "$HOME/.hsa$form/mcp.json")"
+  eq True "$WROTE" "#4098643726: $form entry on disk carries the real value (masking is output-only)"
+  run_a apply --ssot "$T/ssot-tok-$form.json" --json;  leakcheck "$form" "apply --json"
+  run_a inventory;                                     leakcheck "$form" inventory
+  run_a inventory --json;                              leakcheck "$form" "inventory --json"
+  run_a doctor;                                        leakcheck "$form" doctor
+  run_a doctor --json;                                 leakcheck "$form" "doctor --json"
+  run_a verify --ssot "$T/ssot-tok-$form.json";        leakcheck "$form" verify
+  run_a verify --ssot "$T/ssot-tok-$form.json" --json; leakcheck "$form" "verify --json"
+  rm -f "$REG/hsa$form.yaml"
+done
+FC="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,importlib.util,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+print(m.secret_arg_values(["--token=abc"]), m.secret_arg_values(["--api-key","x1"]), m.secret_arg_values(["--port","8080"]),
+      m.mask_secret_args(["--token","abc","--port","80"]))
+PY2
+)"
+eq "['abc'] ['x1'] [] ['--token', '«secret»', '--port', '80']" "$FC" '#4098643726: name-marked values selected at any entropy; non-secret flags untouched'
+
+# 4098643734 (P1): disabled beats a capability skip; 4098635219 (minor): verify treats skip like plan
+SDD="$T/state-r6d"
+mk hdh json mcpServers mcpservers-json "~/.hdh/mcp.json" false null null high   # no headers, no disable
+run_d() { o="$("$BIN" "$@" --harness hdh --registry "$REG" --state-dir "$SDD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+echo '{"schema":1,"servers":{"rsrv":{"transport":"streamable-http","url":"https://mcp.example.invalid/mcp"}}}' > "$T/ssot-r6a.json"
+echo '{"schema":1,"servers":{"rsrv":{"transport":"streamable-http","url":"https://mcp.example.invalid/mcp","headers":{"X-K":"${OTHERVAL}"}}}}' > "$T/ssot-r6skip.json"
+echo '{"schema":1,"servers":{"rsrv":{"transport":"streamable-http","url":"https://mcp.example.invalid/mcp","headers":{"X-K":"${OTHERVAL}"},"enabled":false}}}' > "$T/ssot-r6off.json"
+run_d apply --ssot "$T/ssot-r6a.json"; eq 0 "$rc" '#4098643734: setup: owned remote entry written'
+run_d plan --ssot "$T/ssot-r6skip.json" --json
+has '"action": "skip"' "$o" '#4098635219: still-enabled + headers on a header-less harness -> skip (preserve)'
+run_d verify --ssot "$T/ssot-r6skip.json"
+eq 0 "$rc" '#4098635219: verify agrees with plan on skip (no drift reported for an untouched entry)'
+hasnt 'drift vs SSOT' "$o" '#4098635219: skipped entry not reported as SSOT drift'
+run_d apply --ssot "$T/ssot-r6skip.json"
+DK="$(python3 -c 'import json,sys; print("rsrv" in json.load(open(sys.argv[1]))["mcpServers"])' "$HOME/.hdh/mcp.json")"
+eq True "$DK" '#4098635219: preserve-on-skip kept for an ENABLED server'
+run_d plan --ssot "$T/ssot-r6off.json" --json
+has '"action": "remove"' "$o" '#4098643734: disabled + unrenderable -> omit, plan removes the owned entry'
+hasnt '"action": "skip"' "$o" '#4098643734: disabled state is not overridden by the capability skip'
+run_d verify --ssot "$T/ssot-r6off.json"
+eq 1 "$rc" '#4098643734: verify flags the still-active disabled entry'
+run_d apply --ssot "$T/ssot-r6off.json"
+DK="$(python3 -c 'import json,sys; print("rsrv" in json.load(open(sys.argv[1]))["mcpServers"])' "$HOME/.hdh/mcp.json")"
+eq False "$DK" '#4098643734: apply removes the disabled server'
+run_d verify --ssot "$T/ssot-r6off.json"; eq 0 "$rc" '#4098643734: verify clean after removal'
+rm -f "$REG/hdh.yaml"
+DP="$(python3 - "$BIN" <<'PY2'
+import importlib.machinery,importlib.util,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+dis={"mcp":{"transports":["stdio"],"supports":{"disable":True,"headers":False}}}
+print(m.desired_disposition(dis,"x",{"transport":"sse","enabled":False})[0],
+      m.desired_disposition(dis,"x",{"transport":"stdio","enabled":False})[0],
+      m.desired_disposition(dis,"x",{"transport":"sse"})[0])
+PY2
+)"
+eq "omit render skip" "$DP" '#4098643734: disable-capable harness: disabled+unrenderable=omit, disabled+renderable=render(flag), enabled+unrenderable=skip'
+
+# 4098643743 (P2): doctor checks the PARENT directory (atomic_write temp-file + rename)
+SDW="$T/state-r6w"
+mk hwd json mcpServers mcpservers-json "~/.hwd/cfg/mcp.json" true null null high
+mkdir -p "$HOME/.hwd/cfg"; printf '{"mcpServers":{}}' > "$HOME/.hwd/cfg/mcp.json"; chmod 600 "$HOME/.hwd/cfg/mcp.json"
+run_w() { o="$("$BIN" "$@" --harness hwd --registry "$REG" --state-dir "$SDW" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
+chmod 555 "$HOME/.hwd/cfg"
+run_w doctor --json
+has '"writable": false' "$o" '#4098643743: writable file in a read-only dir -> writable false'
+run_w doctor
+has 'warn' "$o" '#4098643743: text status shows the failed write check'
+run_w apply --ssot "$T/ssot-r3.json"
+[ "$rc" -ne 0 ] && ok '#4098643743: apply indeed fails in that dir (doctor was right)' || no '#4098643743: apply indeed fails in that dir (doctor was right)' "rc=$rc"
+chmod 755 "$HOME/.hwd/cfg"; chmod 444 "$HOME/.hwd/cfg/mcp.json"
+run_w doctor --json
+has '"writable": true' "$o" '#4098643743: read-only file in a writable dir -> writable true (rename replaces it)'
+chmod 600 "$HOME/.hwd/cfg/mcp.json"
+rm -f "$REG/hwd.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
@@ -1095,7 +1188,7 @@ eq True "$K1" '#4096987733: apply preserves the still-working skipped entry'
 # 4096987739 (P2): YAML comment detection is quote-aware
 YC="$(python3 - "$BIN" <<'PY'
 import importlib.machinery,sys
-m=importlib.machinery.SourceFileLoader("hms",sys.argv[1]).load_module()
+import importlib.util; _l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
 cases=[('theme: "dark" # keep\n',True),("theme: 'dark' # keep\n",True),("# top\n",True),
        ('url: "a#b"\n',False),("k: 'it''s #not'\n",False),("k: plain#tag\n",False),("k: it's fine\n",False)]
 print(" ".join(str(m.yaml_has_comments(t)==want) for t,want in cases))
