@@ -1405,6 +1405,142 @@ o="$("$BIN" doctor --harness hmd --registry "$REG" --state-dir "$SD10M" --json 2
 has '"status": "ok"' "$o" '#4105602640: 0600 config -> ok'
 rm -f "$REG/hmd.yaml"
 
+# ---------------------------------------------------------------- PDCA round 11 — failure CLASSES (threat model C-A..C-D)
+# C-A git environment trust: an inherited GIT_* variable must never make a tracked config look safe.
+GR="$HOME/.hca"; mkdir -p "$GR"; git -C "$GR" init -q >/dev/null 2>&1
+printf '{"mcpServers":{}}' > "$GR/mcp.json"; printf '{"mcpServers":{}}' > "$GR/free.json"
+git -C "$GR" add mcp.json >/dev/null 2>&1; git -C "$GR" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+: > "$T/empty-index"; printf '[core]\n\tworktree = /tmp\n' > "$T/evil-gitconfig"
+CA="$(python3 - "$BIN" "$GR" "$T" <<'PY2'
+import importlib.machinery,importlib.util,os,sys
+_l=importlib.machinery.SourceFileLoader("hms",sys.argv[1]); m=importlib.util.module_from_spec(importlib.util.spec_from_loader("hms",_l)); _l.exec_module(m)
+gr, t = sys.argv[2], sys.argv[3]
+cases = {
+  "GIT_DIR": {"GIT_DIR": t + "/nonexistent"},
+  "GIT_WORK_TREE": {"GIT_WORK_TREE": "/tmp"},
+  "GIT_INDEX_FILE": {"GIT_INDEX_FILE": t + "/empty-index"},
+  "GIT_OBJECT_DIRECTORY": {"GIT_OBJECT_DIRECTORY": t + "/nonexistent"},
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES": {"GIT_ALTERNATE_OBJECT_DIRECTORIES": t + "/nonexistent"},
+  "GIT_COMMON_DIR": {"GIT_COMMON_DIR": t + "/nonexistent"},
+  "GIT_CEILING_DIRECTORIES": {"GIT_CEILING_DIRECTORIES": os.path.dirname(gr)},
+  "GIT_CONFIG_COUNT": {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.worktree", "GIT_CONFIG_VALUE_0": "/tmp"},
+  "GIT_CONFIG_GLOBAL": {"GIT_CONFIG_GLOBAL": t + "/evil-gitconfig"},
+}
+base = dict(os.environ); out = []
+for name, env in cases.items():
+    os.environ.clear(); os.environ.update(base); os.environ.update(env)
+    out.append("%s=%s/%s" % (name, m.git_state(gr + "/mcp.json"), m.git_state(gr + "/free.json")))
+print(" ".join(out))
+PY2
+)"
+for v in GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_CEILING_DIRECTORIES GIT_CONFIG_COUNT GIT_CONFIG_GLOBAL; do
+  has "$v=tracked/untracked" "$CA" "C-A: $v in the environment cannot relocate the probe (tracked stays tracked, untracked stays untracked)"
+done
+SD11="$T/state-r11a"
+mk hca json mcpServers mcpservers-json "~/.hca/mcp.json" true null null high
+printf '{"schema":1,"servers":{"sec":{"transport":"stdio","command":"npx","args":["-y","pkg"],"env":{"K":"${FIXSECRET}"}}}}\n' > "$T/ssot-ca.json"
+MCA="$(sum "$GR/mcp.json")"
+o="$(GIT_DIR="$T/nonexistent" "$BIN" apply --ssot "$T/ssot-ca.json" --harness hca --registry "$REG" --state-dir "$SD11" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'refused' "$o" 'C-A e2e: GIT_DIR override cannot unlock a secret write to a tracked config'
+eq "$MCA" "$(sum "$GR/mcp.json")" 'C-A e2e: tracked config untouched'
+[ "$rc" -ne 0 ] && ok 'C-A e2e: apply exits non-zero' || no 'C-A e2e: apply exits non-zero' "rc=$rc"
+rm -f "$REG/hca.yaml"
+
+# C-B multi-harness atomicity
+# (1) restore: a failing later harness never leaves an earlier restored config with post-apply ownership
+SD11B="$T/state-r11b"
+mk hrx1 json mcpServers mcpservers-json "~/.hrx1/mcp.json" true null null high
+mk hrx2 json mcpServers mcpservers-json "~/.hrx2/mcp.json" true null null high
+printf '{"mcpServers":{}}' > "$HOME/.hrx1/mcp.json"; printf '{"mcpServers":{}}' > "$HOME/.hrx2/mcp.json"
+chmod 600 "$HOME/.hrx1/mcp.json" "$HOME/.hrx2/mcp.json"
+X0="$(sum "$HOME/.hrx1/mcp.json")"
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hrx1,hrx2 --registry "$REG" --state-dir "$SD11B" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+TSX="$(printf '%s' "$o" | python3 -c 'import sys,json; print(json.load(sys.stdin)["backup_ts"] or "")' 2>/dev/null)"
+rm -f "$SD11B/backups/$TSX/hrx2/mcp.json"   # payload of the LATER harness goes missing
+o="$("$BIN" restore "$TSX" --registry "$REG" --state-dir "$SD11B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'C-B restore: a failed harness makes restore exit non-zero' || no 'C-B restore: a failed harness makes restore exit non-zero' "rc=$rc"
+has 'hrx2' "$o" 'C-B restore: the failed harness is reported'
+eq "$X0" "$(sum "$HOME/.hrx1/mcp.json")" 'C-B restore: the earlier harness was restored'
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hrx1 --registry "$REG" --state-dir "$SD11B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+hasnt 'missing' "$o" 'C-B restore: ownership reconciled for the restored harness (no stale "missing" entry)'
+rm -f "$REG/hrx1.yaml" "$REG/hrx2.yaml"
+# (2) apply: a manifest-persistence failure after a config write rolls that write back
+SD11C="$T/state-r11c"
+mk hmf json mcpServers mcpservers-json "~/.hmf/mcp.json" true null null high
+printf '{"keep":1,"mcpServers":{}}' > "$HOME/.hmf/mcp.json"; chmod 600 "$HOME/.hmf/mcp.json"
+F0="$(sum "$HOME/.hmf/mcp.json")"
+o="$(python3 - "$BIN" apply --ssot "$T/ssot-r3.json" --harness hmf --registry "$REG" --state-dir "$SD11C" 2>&1 <<'PY2'
+import importlib.machinery, importlib.util, sys
+loader = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+hms = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", loader)); loader.exec_module(hms)
+def failing(sd, m): raise OSError("injected: state filesystem full")
+hms.save_manifest = failing
+sys.stdout, sys.stderr = hms.Redactor(sys.stdout), hms.Redactor(sys.stderr)
+code = hms.run(sys.argv[2:]); sys.stdout.flush(); sys.exit(code)
+PY2
+)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'C-B apply: manifest-save failure -> apply fails' || no 'C-B apply: manifest-save failure -> apply fails' "rc=$rc"
+eq "$F0" "$(sum "$HOME/.hmf/mcp.json")" 'C-B apply: the config write was rolled back (config and manifest never disagree)'
+rm -f "$REG/hmf.yaml"
+
+# C-C config shape strictness: explicit null at a managed path is malformed, left untouched
+SD11N="$T/state-r11n"
+mk hnj json mcpServers mcpservers-json "~/.hnj/mcp.json" true null null high
+mk hny yaml extensions goose-extensions "~/.hny/cfg.yaml" true enabled enabled-bool high
+mk hn2 json "outer, mcp" mcpservers-json "~/.hn2/mcp.json" true null null high
+printf '{"mcpServers": null}' > "$HOME/.hnj/mcp.json"
+printf 'extensions: null\n' > "$HOME/.hny/cfg.yaml"
+printf '{"outer": null}' > "$HOME/.hn2/mcp.json"
+for d in hnj:mcp.json hny:cfg.yaml hn2:mcp.json; do
+  id="${d%%:*}"; f="$HOME/.$id/${d#*:}"; N0="$(sum "$f")"
+  o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness "$id" --registry "$REG" --state-dir "$SD11N" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+  has 'not a mapping' "$o" "C-C: $id explicit null at a managed path -> malformed"
+  [ "$rc" -ne 0 ] && ok "C-C: $id apply exits non-zero" || no "C-C: $id apply exits non-zero" "rc=$rc"
+  eq "$N0" "$(sum "$f")" "C-C: $id file untouched"
+done
+rm -f "$REG/hnj.yaml" "$REG/hny.yaml" "$REG/hn2.yaml"
+
+# C-D transport alias normalization: render the spelling the adapter declares
+SD11T="$T/state-r11t"
+mkt() { # id transports-list type_values-map
+  cat > "$REG/$1.yaml" <<EOF
+schema: 1
+id: $1
+name: Fixture $1
+kind: cli
+detect: {commands: [], paths: ["~/.$1"]}
+mcp:
+  supported: true
+  config_paths: [{path: "~/.$1/mcp.json", scope: user}]
+  format: json
+  key_path: [mcpServers]
+  entry_style: mcpservers-json
+  entry_overrides: {type_values: $3}
+  transports: $2
+  supports: {headers: true, env: true, disable: false, disable_field: null, disable_semantics: null}
+  cli: null
+update: {version_cmd: null, update_cmd: "true-but-never-run"}
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+EOF
+  mkdir -p "$HOME/.$1"; printf '{"mcpServers":{}}' > "$HOME/.$1/mcp.json"; chmod 600 "$HOME/.$1/mcp.json"
+}
+mkt htsh "[stdio, streamable-http]" "{streamable-http: streamable-http}"
+mkt hthp "[stdio, http]" "{http: plain-http, streamable-http: streamable}"
+mkt htbo "[stdio, http, streamable-http]" "{http: plain-http, streamable-http: streamable}"
+printf '{"schema":1,"servers":{"rt":{"transport":"http","url":"https://mcp.example.test/mcp"}}}\n' > "$T/ssot-http.json"
+printf '{"schema":1,"servers":{"rt":{"transport":"streamable-http","url":"https://mcp.example.test/mcp"}}}\n' > "$T/ssot-sh.json"
+ty() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mcpServers"]["rt"].get("type"))' "$HOME/.$1/mcp.json"; }
+for c in htsh:ssot-http.json:streamable-http hthp:ssot-sh.json:plain-http htbo:ssot-http.json:plain-http htbo:ssot-sh.json:streamable; do
+  IFS=: read -r id sf want <<<"$c"
+  o="$("$BIN" apply --ssot "$T/$sf" --harness "$id" --registry "$REG" --state-dir "$SD11T" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+  eq "$want" "$(ty "$id")" "C-D: $id with $sf renders type $want (adapter-declared spelling)"
+  o="$("$BIN" verify --ssot "$T/$sf" --harness "$id" --registry "$REG" --state-dir "$SD11T" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+  eq 0 "$rc" "C-D: $id verify agrees with apply ($sf)"
+done
+rm -f "$REG/htsh.yaml" "$REG/hthp.yaml" "$REG/htbo.yaml"
+
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
 OUTSIDE="$(python3 - "$T" "$ALLOUT" <<'PY'

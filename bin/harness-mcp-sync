@@ -350,10 +350,23 @@ def version_probe_argv(h: dict, vc: str):
 _GIT = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
 
 
+def _git_env() -> dict:
+    """Environment for every git PROBE (class C-A, threat model): no inherited GIT_* variable may
+    relocate or redefine the repository (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE,
+    GIT_OBJECT_DIRECTORY, GIT_ALTERNATE_OBJECT_DIRECTORIES, GIT_COMMON_DIR, GIT_CEILING_DIRECTORIES,
+    GIT_CONFIG_*, GIT_DISCOVERY_ACROSS_FILESYSTEM, GIT_NAMESPACE, ...). All GIT_* are dropped and
+    global/system config is ignored, so the probe sees the repository the PATH is actually in.
+    Anything git then cannot answer is 'unknown' => secrets refused (fail-closed)."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    return env
+
+
 def _git(d: str, *a) -> int:
     try:
         return subprocess.run([*_GIT, "-C", d, *a], capture_output=True, text=True, timeout=10,
-                              stdin=subprocess.DEVNULL).returncode
+                              stdin=subprocess.DEVNULL, env=_git_env()).returncode
     except (OSError, subprocess.TimeoutExpired):
         return -1
 
@@ -371,7 +384,7 @@ def git_state(path: str):
         return "unknown"
     try:
         r = subprocess.run([*_GIT, "-C", d, "rev-parse", "--is-inside-work-tree"],
-                           capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL)
+                           capture_output=True, text=True, timeout=10, stdin=subprocess.DEVNULL, env=_git_env())
     except (OSError, subprocess.TimeoutExpired):
         return "unknown"
     if r.returncode != 0:
@@ -835,10 +848,10 @@ def map_shape_error(doc: dict, key_path: list):
     otherwise silently replace it), else None. Never returns a value."""
     cur = doc
     for i, k in enumerate(key_path):
-        nxt = cur.get(k) if isinstance(cur, dict) else None
-        if nxt is None:
-            return None
-        if not isinstance(nxt, dict):
+        if not isinstance(cur, dict) or k not in cur:
+            return None  # absent: apply creates it
+        nxt = cur[k]
+        if not isinstance(nxt, dict):  # explicit null / list / scalar (class C-C): malformed, untouched
             return ".".join(key_path[:i + 1])
         cur = nxt
     return None
@@ -1081,11 +1094,24 @@ def transport_ok(t: str, harness_transports) -> bool:
     return t in ht
 
 
+def canonical_transport(t: str, harness_transports) -> str:
+    """Class C-D: http and streamable-http are aliases; render the spelling the ADAPTER declares
+    (its capability list), never the SSOT's spelling when the adapter only declares the other."""
+    ht = set(harness_transports or [])
+    if t in ("http", "streamable-http") and t not in ht:
+        for alt in ("streamable-http", "http"):
+            if alt in ht:
+                return alt
+    return t
+
+
 def render_entry(h: dict, name: str, srv: dict) -> dict:
     m = h["mcp"]
     style = STYLES[m["entry_style"]]
     s = dict(srv)
     s["_name"] = name
+    if isinstance(s.get("transport"), str):
+        s["transport"] = canonical_transport(s["transport"], m.get("transports"))
     e = style["render"](s, m.get("entry_overrides") or {}, style["defaults"])
     sup = m.get("supports") or {}
     enabled = srv.get("enabled", True) is not False
@@ -1583,14 +1609,24 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             r["apply"] = "rolled-back: parse-back validation failed; original restored"
             worst = EXIT_DRIFT
             continue
+        prior = copy.deepcopy(manifest["files"].get(path))
         entry = manifest["files"].setdefault(path, {"harness": r["id"], "servers": {}})
         for n in r["_drops"]:
             entry["servers"].pop(n, None)
         for n, e in r["_writes"].items():
             entry["servers"][n] = mf_hash(e)
+        try:
+            save_manifest(sd, manifest)  # persist ownership per harness: a later fault cannot orphan it
+        except BaseException:
+            # Class C-B: config and manifest must never disagree — undo this harness's write.
+            restore_from(bdir)
+            if prior is None:
+                manifest["files"].pop(path, None)
+            else:
+                manifest["files"][path] = prior
+            raise
         r["apply"] = "applied (backup %s)" % ts
         r["backup_ts"] = ts
-        save_manifest(sd, manifest)  # persist ownership per harness: a later fault cannot orphan it
     save_manifest(sd, manifest)
     return worst, (ts if snap_saved else None)
 
@@ -1833,6 +1869,12 @@ def mode_restore(args, reg, ids, sd, ts):
     check_private_dir(root)
     only = set(ids) if args.harness else None
     restored, refused = [], []
+    snap = os.path.join(root, "manifest.json")
+    old, cur = None, None
+    if os.path.exists(snap):
+        with open(snap, encoding="utf-8") as fh:
+            old = json.load(fh)
+        cur = load_manifest(sd)
     for hid in sorted(os.listdir(root)):
         bdir = os.path.join(root, hid)
         if not os.path.isdir(bdir) or (only is not None and hid not in only):
@@ -1853,18 +1895,20 @@ def mode_restore(args, reg, ids, sd, ts):
         if not isinstance(mpath, str) or mpath not in allowed or not mpath.startswith(home + os.sep):
             refused.append({"id": hid, "reason": "refused: backup targets a path not recorded for this harness"})
             continue
-        restored.append({"id": hid, "file": restore_from(bdir)})
-    snap = os.path.join(root, "manifest.json")
-    if os.path.exists(snap):
-        with open(snap, encoding="utf-8") as fh:
-            old = json.load(fh)
-        cur = load_manifest(sd)
-        for r in restored:
-            if r["file"] in old.get("files", {}):
-                cur["files"][r["file"]] = old["files"][r["file"]]
+        try:
+            f = restore_from(bdir)  # atomic per file: a failure leaves that file as it was
+        except (OSError, ValueError, KeyError) as e:
+            refused.append({"id": hid, "reason": "restore failed (%s); file left unchanged" % e.__class__.__name__})
+            continue
+        restored.append({"id": hid, "file": f})
+        if old is not None:
+            # Class C-B: reconcile ownership for THIS file right away, so a later failure
+            # can never leave an already-restored config with post-apply ownership hashes.
+            if f in old.get("files", {}):
+                cur["files"][f] = old["files"][f]
             else:
-                cur["files"].pop(r["file"], None)
-        save_manifest(sd, cur)
+                cur["files"].pop(f, None)
+            save_manifest(sd, cur)
     emit(args, {"backup_ts": ts, "restored": restored, "refused": refused},
          lambda p: ([print("restored %-16s %s" % (r["id"], r["file"])) for r in p["restored"]],
                     [print("refused  %-16s %s" % (r["id"], r["reason"])) for r in p["refused"]]))
