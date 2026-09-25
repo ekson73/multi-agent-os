@@ -745,19 +745,56 @@ def yaml_has_comments(text: str) -> bool:
     return False
 
 
+class DuplicateKey(ValueError):
+    """A mapping repeats a key. json/yaml keep only the last copy, so rewriting the parsed
+    document would silently drop the earlier ones — refuse instead of losing data."""
+
+
+def _unique_pairs(pairs):
+    out = {}
+    for k, v in pairs:
+        if k in out:
+            raise DuplicateKey()
+        out[k] = v
+    return out
+
+
+if yaml:
+    class _UniqueKeyLoader(yaml.SafeLoader):
+        pass
+
+    def _unique_mapping(loader, node, deep=False):
+        seen = set()
+        for k_node, _ in node.value:
+            if k_node.tag == "tag:yaml.org,2002:merge":
+                continue  # `<<` merge keys may legitimately repeat
+            k = loader.construct_object(k_node, deep=deep)
+            try:
+                if k in seen:
+                    raise DuplicateKey()
+                seen.add(k)
+            except TypeError:
+                pass  # unhashable key: SafeLoader rejects it below
+        return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
+
+    _UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping)
+
+
 def parse_config(fmt: str, text: str) -> tuple[dict, bool]:
-    """Returns (document, has_comments). Raises Refused on malformed input."""
+    """Returns (document, has_comments). Raises Refused on malformed input or duplicate keys."""
     try:
         if fmt == "json":
-            doc = json.loads(text) if text.strip() else {}
+            doc = json.loads(text, object_pairs_hook=_unique_pairs) if text.strip() else {}
             return doc, False
         if fmt == "jsonc":
             cleaned, had = strip_jsonc(text)
-            return (json.loads(cleaned) if cleaned.strip() else {}), had
+            return (json.loads(cleaned, object_pairs_hook=_unique_pairs) if cleaned.strip() else {}), had
         if fmt == "toml":
-            return tomllib.loads(text), False
+            return tomllib.loads(text), False  # tomllib already rejects redefined keys
         if fmt == "yaml":
-            return (yaml.safe_load(text) or {}), yaml_has_comments(text)
+            return (yaml.load(text, Loader=_UniqueKeyLoader) or {}), yaml_has_comments(text)
+    except DuplicateKey:
+        raise Refused("duplicate mapping key in %s config; refusing to rewrite (would drop entries)" % fmt)
     except (ValueError, yaml.YAMLError if yaml else ValueError) as e:
         raise Refused("malformed %s config (%s)" % (fmt, e.__class__.__name__))
     raise Refused("unsupported format %r" % fmt)
@@ -1187,7 +1224,22 @@ def desired_disposition(h: dict, hid: str, raw: dict) -> tuple[str, str | None]:
 
 
 def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
-    results, seen_paths = [], {}
+    results, claimants = [], {}
+    # Pre-pass: pick one claimant per shared config path among INSTALLED harnesses,
+    # preferring writable over plan-only, then sorted id (deterministic).
+    for hid in ids:
+        h = reg[hid]
+        blk = static_blocker(h)
+        if blk and blk[0] == "skip":
+            continue
+        path, tp_err = target_path(h)
+        if tp_err or not harness_installed(h):
+            continue
+        rank = (1 if blk else 0, hid)
+        cur = claimants.get(path)
+        if cur is None or rank < cur[0]:
+            claimants[path] = (rank, hid)
+    claimants = {p: v[1] for p, v in claimants.items()}
     for hid in ids:
         h = reg[hid]
         r = {"id": hid, "name": h.get("name"), "status": "ok", "applicable": True, "reason": None,
@@ -1202,12 +1254,14 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
         if tp_err:
             r.update(status="error", applicable=False, reason=tp_err)
             continue
-        if path in seen_paths:
-            r.update(status="skip", applicable=False, reason="config file shared with %s" % seen_paths[path])
-            continue
-        seen_paths[path] = hid
         if not harness_installed(h):
             r.update(status="not-installed", applicable=False, reason="not detected on this machine")
+            continue
+        # Claim a shared file only once installed, and let a writable harness outrank a plan-only one
+        # (sorted order alone would let an absent or plan-only sibling lock the writer out).
+        owner = claimants.get(path)
+        if owner is not None and owner != hid:
+            r.update(status="skip", applicable=False, reason="config file shared with %s" % owner)
             continue
         if blk:
             r.update(status="plan-only", applicable=False, reason=blk[1])

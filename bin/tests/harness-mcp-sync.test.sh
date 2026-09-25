@@ -662,9 +662,9 @@ printf '%s\n' "$PL" >> "$ALLOUT"
 has "$HOME/.config/Code/User/mcp.json" "$PL" '#4096445171: linux -> ~/.config/Code/User/mcp.json'
 has "$HOME/.config/Code - Insiders/User/mcp.json" "$PL" '#4096445171: linux Insiders -> ~/.config/Code - Insiders/User/mcp.json'
 hasnt 'Library/Application Support' "$PL" '#4096445171: no macOS path selected on linux'
-PD="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"
+PD="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"; rc=$?; printf '%s\n' "$PD" >> "$ALLOUT"
 has 'Library/Application Support/Code/User/mcp.json' "$PD" '#4096445171: darwin -> ~/Library/.../Code/User/mcp.json'
-PW="$(HARNESS_MCP_SYNC_PLATFORM=win32 "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"
+PW="$(HARNESS_MCP_SYNC_PLATFORM=win32 "$BIN" explain --harness vscode --registry "$REG" --state-dir "$SD" --json 2>&1)"; rc=$?; printf '%s\n' "$PW" >> "$ALLOUT"
 has 'no user-scope config path in registry for platform win32' "$PW" '#4096445171: undocumented OS -> skipped, never a guessed path'
 DOPL="$(python3 - "$DIR/../../harnesses" <<'PY'
 import glob, sys, yaml
@@ -708,18 +708,18 @@ printf '%s\n' "$o" >> "$ALLOUT"
 [ -e "$T/stub-args" ] && no '#4096445162: stub never invoked even with MAOS_SELFHEAL=1' "invoked" || ok '#4096445162: stub never invoked even with MAOS_SELFHEAL=1'
 has 'never dispatches' "$o" '#4096445162: manual-feed hint printed'
 rm -f "$T/stub-args"
-o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness nope --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" plan --ssot "$SSOT" --harness nope --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 2 "$rc" '#4096445162: usage error keeps exit 2'
 hasnt 'run log' "$o" '#4096445162: usage error does not relay'
 printf '// comment\n{"servers": {}}\n' > "$HOME/.hjsonc/mcp.json"
-o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" apply --ssot "$SSOT" --harness hjsonc --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+o="$(PATH="$STUB:$PATH" MAOS_SELFHEAL=1 MAOS_AI_HARNESS=claude "$BIN" apply --ssot "$SSOT" --harness hjsonc --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 1 "$rc" '#4096445162: refused/drift keeps exit 1'
 hasnt 'run log' "$o" '#4096445162: refusal does not relay'
 [ -e "$T/stub-args" ] && no '#4096445162: stub never invoked for intentional exits' "invoked" || ok '#4096445162: stub never invoked for intentional exits'
 
 # Copilot overview (state-directory symlinks): state dir / backups dir may not be a symlink
 REDIR="$T/elsewhere"; mkdir -p "$REDIR"; ln -s "$REDIR" "$T/state-link"
-o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$T/state-link" 2>&1)"; rc=$?
+o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$T/state-link" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 2 "$rc" 'Copilot/state-dir: symlinked state dir refused (exit 2)'
 has 'a symlink' "$o" 'Copilot/state-dir: refusal names the reason'
 eq "" "$(ls -A "$REDIR")" 'Copilot/state-dir: nothing written through the link'
@@ -727,7 +727,7 @@ SDB="$T/state-b"; mkdir -p "$SDB"; chmod 700 "$SDB"; ln -s "$REDIR" "$SDB/backup
 cat > "$HOME/.hjson/mcp.json" <<'EOF'
 {"mcpServers": {}}
 EOF
-o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDB" 2>&1)"; rc=$?
+o="$("$BIN" apply --ssot "$SSOT" --harness hjson --registry "$REG" --state-dir "$SDB" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 2 "$rc" 'Copilot/state-dir: symlinked backups dir refused (exit 2)'
 eq "" "$(ls -A "$REDIR")" 'Copilot/state-dir: no backup written through the link'
 eq '{"mcpServers": {}}' "$(cat "$HOME/.hjson/mcp.json")" 'Copilot/state-dir: config untouched when backups cannot be written safely'
@@ -834,7 +834,7 @@ printf '%s\n' "$o" >> "$ALLOUT"
 eq 0 "$rc" 'stdin: resolver still resolves'
 eq "" "$(cat "$T/res-stdin" 2>/dev/null)" 'stdin: resolver cannot read the parent stdin'
 rm -f "$T/fixh-stdin"
-o="$(printf 'PARENT-STDIN-LEAK\n' | "$BIN" update --harness hjson --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?
+o="$(printf 'PARENT-STDIN-LEAK\n' | "$BIN" update --harness hjson --registry "$REG" --state-dir "$SD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 has 'fixture-hjson 1.0' "$o" 'stdin: version probe still runs'
 eq "" "$(cat "$T/fixh-stdin" 2>/dev/null)" 'stdin: version probe cannot read the parent stdin'
 # (3) version_cmd constrained at registry load (+ again before running)
@@ -857,7 +857,7 @@ print(m.version_probe_argv(h,"claude -p x"), m.version_probe_argv(h,"fixh --vers
 PY2
 )"
 eq "None ['fixh', '--version']" "$PYV" 'version_cmd re-checked by version_probe_argv before running'
-o="$("$BIN" explain --registry "$DIR/../../harnesses" --state-dir "$SD" 2>&1)"; rc=$?
+o="$("$BIN" explain --registry "$DIR/../../harnesses" --state-dir "$SD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 0 "$rc" 'all real registry YAMLs pass the version_cmd load check'
 
 # ---------------------------------------------------------------- PDCA round 3 (#4097072123 .. #4097147125, root P5)
@@ -874,7 +874,7 @@ printf '%s\n' "$o" >> "$ALLOUT"
 eq 1 "$rc" '#4097072123: later harness fault -> exit 1'
 has 'p-tool' "$(cat "$HOME/.hp1/mcp.json" 2>/dev/null)" '#4097072123: earlier harness write landed'
 has "$HOME/.hp1/mcp.json" "$(cat "$SDM/manifest.json" 2>/dev/null)" '#4097072123: earlier ownership persisted in the manifest'
-o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hp1 --registry "$REG" --state-dir "$SDM" --json 2>&1)"; rc=$?
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hp1 --registry "$REG" --state-dir "$SDM" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 hasnt 'conflict' "$o" '#4097072123: re-plan sees the earlier entry as owned (no conflict)'
 eq 0 "$rc" '#4097072123: re-plan of the earlier harness is clean'
 rm -f "$HOME/.hp2blk" "$REG/hp1.yaml" "$REG/hp2.yaml"
@@ -896,10 +896,10 @@ print("lone-LF=%d prefix=%s managed=%s" % (len(re.findall(rb"(?<!\r)\n",b)),
 PY2
 )"
 eq "lone-LF=0 prefix=True managed=True" "$CR" '#4097072141: original CRLF bytes kept; no LF-only lines introduced'
-o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" --json 2>&1)"
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 hasnt '"action": "add"' "$o" '#4097072141: CRLF apply is idempotent'
 printf 'model = "x"\r\nk2 = 1\n' > "$HOME/.hcrlf/config.toml"; M0="$(sum "$HOME/.hcrlf/config.toml")"
-o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" 2>&1)"; rc=$?
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hcrlf --registry "$REG" --state-dir "$SDC" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 1 "$rc" '#4097072141: mixed line endings refused (exit 1)'
 has 'mixed line endings' "$o" '#4097072141: refusal explains mixed endings'
 eq "$M0" "$(sum "$HOME/.hcrlf/config.toml")" '#4097072141: mixed-ending file untouched'
@@ -918,7 +918,7 @@ printf '%s\n' "$o" >> "$ALLOUT"
 eq 0 "$rc" '#4097072154: claude-desktop apply -> exit 0'
 CDR="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sorted(d["mcpServers"]), d["globalShortcut"], d["preferences"], d["mcpServers"]["p-tool"].get("command"))' "$CDD/claude_desktop_config.json")"
 eq "['p-tool'] Cmd+K {'x': 1} npx" "$CDR" '#4097072154: stdio written, remote not written, siblings preserved'
-o="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" verify --ssot "$T/ssot-cd.json" --harness claude-desktop --registry "$REG" --state-dir "$SDD" 2>&1)"; rc=$?
+o="$(HARNESS_MCP_SYNC_PLATFORM=darwin "$BIN" verify --ssot "$T/ssot-cd.json" --harness claude-desktop --registry "$REG" --state-dir "$SDD" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 eq 0 "$rc" '#4097072154: parse-back + verify clean'
 rm -f "$REG/claude-desktop.yaml"
 
@@ -1142,17 +1142,69 @@ mk hwd json mcpServers mcpservers-json "~/.hwd/cfg/mcp.json" true null null high
 mkdir -p "$HOME/.hwd/cfg"; printf '{"mcpServers":{}}' > "$HOME/.hwd/cfg/mcp.json"; chmod 600 "$HOME/.hwd/cfg/mcp.json"
 run_w() { o="$("$BIN" "$@" --harness hwd --registry "$REG" --state-dir "$SDW" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"; }
 chmod 555 "$HOME/.hwd/cfg"
-run_w doctor --json
-has '"writable": false' "$o" '#4098643743: writable file in a read-only dir -> writable false'
-run_w doctor
-has 'warn' "$o" '#4098643743: text status shows the failed write check'
-run_w apply --ssot "$T/ssot-r3.json"
-[ "$rc" -ne 0 ] && ok '#4098643743: apply indeed fails in that dir (doctor was right)' || no '#4098643743: apply indeed fails in that dir (doctor was right)' "rc=$rc"
+if [ "$(id -u)" -ne 0 ]; then   # #4100075066: root ignores directory write bits
+  run_w doctor --json
+  has '"writable": false' "$o" '#4098643743: writable file in a read-only dir -> writable false'
+  run_w doctor
+  has 'warn' "$o" '#4098643743: text status shows the failed write check'
+  run_w apply --ssot "$T/ssot-r3.json"
+  [ "$rc" -ne 0 ] && ok '#4098643743: apply indeed fails in that dir (doctor was right)' || no '#4098643743: apply indeed fails in that dir (doctor was right)' "rc=$rc"
+else
+  printf '  - skipped 3 read-only-dir checks: running as root (#4100075066)\n'
+fi
 chmod 755 "$HOME/.hwd/cfg"; chmod 444 "$HOME/.hwd/cfg/mcp.json"
 run_w doctor --json
 has '"writable": true' "$o" '#4098643743: read-only file in a writable dir -> writable true (rename replaces it)'
 chmod 600 "$HOME/.hwd/cfg/mcp.json"
 rm -f "$REG/hwd.yaml"
+
+# 4100075041 (Minor): duplicate mapping keys are refused, never silently collapsed on rewrite
+SDK7="$T/state-r7d"
+mk hdupj json mcpServers mcpservers-json "~/.hdupj/mcp.json" true null null high
+mk hdupc jsonc mcpServers mcpservers-json "~/.hdupc/mcp.json" true null null high
+mk hdupy yaml extensions goose-extensions "~/.hdupy/cfg.yaml" true enabled enabled-bool high
+printf '{"mcpServers":{"a":{"command":"x"},"a":{"command":"y"}}}' > "$HOME/.hdupj/mcp.json"
+printf '{\n  // note\n  "mcpServers": {"a": {"command": "x"}, "a": {"command": "y"}}\n}\n' > "$HOME/.hdupc/mcp.json"
+printf 'extensions:\n  a: {cmd: x}\n  a: {cmd: y}\n' > "$HOME/.hdupy/cfg.yaml"
+for d in hdupj:mcp.json hdupc:mcp.json hdupy:cfg.yaml; do
+  id="${d%%:*}"; f="$HOME/.$id/${d#*:}"; M0="$(sum "$f")"
+  o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness "$id" --allow-comment-loss --registry "$REG" --state-dir "$SDK7" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+  has 'duplicate mapping key' "$o" "#4100075041: $id duplicate key -> refused"
+  [ "$rc" -ne 0 ] && ok "#4100075041: $id apply exits non-zero" || no "#4100075041: $id apply exits non-zero" "rc=$rc"
+  eq "$M0" "$(sum "$f")" "#4100075041: $id file untouched"
+done
+DK="$(python3 - "$BIN" <<'PY2'
+import importlib.util, importlib.machinery, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1]); sp = importlib.util.spec_from_loader("hms", ld)
+m = importlib.util.module_from_spec(sp); ld.exec_module(m)
+ok = []
+for fmt, txt in (("json", '{"a":1,"b":{"c":1}}'), ("yaml", "a: 1\nb: {c: 1}\nx: &x {k: 1}\ny:\n  <<: *x\n  z: 2\n")):
+    try: m.parse_config(fmt, txt); ok.append("ok")
+    except Exception as e: ok.append(type(e).__name__)
+print(" ".join(ok))
+PY2
+)"
+eq "ok ok" "$DK" '#4100075041: unique keys (and YAML merge keys) still parse'
+rm -f "$REG/hdupj.yaml" "$REG/hdupc.yaml" "$REG/hdupy.yaml"
+
+# 4100075046 (Major): a shared config path is claimed only by an installed harness, writable before plan-only
+SDP7="$T/state-r7p"; mkdir -p "$HOME/.sharedcfg"; printf '{"mcpServers":{}}' > "$HOME/.sharedcfg/mcp.json"
+mk hsa json mcpServers mcpservers-json "~/.sharedcfg/mcp.json" true null null high
+mk hsb json mcpServers mcpservers-json "~/.sharedcfg/mcp.json" true null null high
+rm -rf "$HOME/.hsa"   # hsa sorts first but is NOT installed
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hsa,hsb --registry "$REG" --state-dir "$SDP7" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+SP="$(printf '%s' "$o" | python3 -c 'import json,sys
+d=json.load(sys.stdin); d=d["harnesses"] if isinstance(d,dict) else d
+print(" ".join("%s=%s" % (h["id"], h["status"]) for h in d))' 2>/dev/null || echo PARSE-ERROR)"
+eq "hsa=not-installed hsb=ok" "$SP" '#4100075046: absent sibling cannot lock the installed harness out of a shared file'
+mkdir -p "$HOME/.hsa"; sed -i.bak 's/^skip_reason: null$/skip_reason: "fixture plan-only"/' "$REG/hsa.yaml"; rm -f "$REG/hsa.yaml.bak"
+o="$("$BIN" plan --ssot "$T/ssot-r3.json" --harness hsa,hsb --registry "$REG" --state-dir "$SDP7" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+SP="$(printf '%s' "$o" | python3 -c 'import json,sys
+d=json.load(sys.stdin); d=d["harnesses"] if isinstance(d,dict) else d
+print(" ".join("%s=%s" % (h["id"], h["status"]) for h in d))' 2>/dev/null || echo PARSE-ERROR)"
+eq "hsa=skip hsb=ok" "$SP" '#4100075046: writable harness outranks a plan-only sibling on a shared file'
+has 'shared with hsb' "$o" '#4100075046: the plan-only sibling names the writer as owner'
+rm -f "$REG/hsa.yaml" "$REG/hsb.yaml"
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi
