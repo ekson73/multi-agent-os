@@ -28,6 +28,8 @@ mcp:
                               # matches sys.platform (override: HARNESS_MCP_SYNC_PLATFORM).
                               # A path known for one OS only is tagged with that OS — never
                               # guessed for the others.
+                              # win32 entries document the path only: the executor itself
+                              # runs on macOS/Linux/WSL and exits 2 on native Windows.
   format: toml                # json | jsonc | toml | yaml
   key_path: [mcp_servers]     # path to the server MAP inside the file (list of keys)
   entry_style: codex          # which entry shape to render (see "Entry styles")

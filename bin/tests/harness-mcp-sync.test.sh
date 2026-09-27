@@ -1718,7 +1718,13 @@ rm -f "$REG/hwrs.yaml"
 
 # J7: lock — mutating modes refuse while another run holds it; read modes report transient; plan is free
 wc12 hwlk; w apply --ssot "$S12"
-python3 -c 'import fcntl,os,sys,time; fd=os.open(sys.argv[1]+"/lock",os.O_RDWR|os.O_CREAT,0o600); fcntl.flock(fd,fcntl.LOCK_EX); open(sys.argv[1]+"/locked","w").close(); time.sleep(8)' "$WSD" &
+# The holder keeps the lock until the test drops $T/j7-release (bounded at 120s), so every
+# J7 assertion runs while the lock is really held, however slow the machine (CodeRabbit Major).
+rm -f "$T/j7-release"
+python3 -c 'import fcntl,os,sys,time
+fd=os.open(sys.argv[1]+"/lock",os.O_RDWR|os.O_CREAT,0o600); fcntl.flock(fd,fcntl.LOCK_EX); open(sys.argv[1]+"/locked","w").close()
+t=time.time()
+while not os.path.exists(sys.argv[2]) and time.time()-t<120: time.sleep(0.1)' "$WSD" "$T/j7-release" &
 LKP=$!
 for _ in 1 2 3 4 5 6 7 8 9 10; do [ -e "$WSD/locked" ] && break; sleep 0.2; done
 w apply --ssot "$S12"; eq 2 "$rc" 'J7 lock: apply refused while another run holds the lock'
@@ -1728,7 +1734,9 @@ w verify; eq 2 "$rc" 'J7 lock: verify refuses (results would be transient)'
 has 'transient' "$o" 'J7 lock: says transient'
 w inventory; eq 2 "$rc" 'J7 lock: inventory refuses while locked'
 w plan --ssot "$S12"; eq 0 "$rc" 'J7 lock: plan is advisory and unaffected'
-kill "$LKP" 2>/dev/null; wait "$LKP" 2>/dev/null
+kill -0 "$LKP" 2>/dev/null && ok 'J7 lock: holder still alive when the J7 assertions finished' \
+  || no 'J7 lock: holder still alive when the J7 assertions finished' exited-early
+: > "$T/j7-release"; wait "$LKP" 2>/dev/null
 w apply --ssot "$S12"; eq 0 "$rc" 'J7 lock: apply works once released'
 rm -f "$REG/hwlk.yaml"
 
@@ -1779,6 +1787,100 @@ o="$("$BIN" doctor --harness hwdr --registry "$REG" --state-dir "$WSD" 2>&1)"; r
 eq 1 "$rc" 'J8 doctor: open journal -> exit 1'
 has 'interrupted apply run' "$o" 'J8 doctor: names the interrupted run'
 rm -f "$REG/hwdr.yaml"
+
+# ---------------------------------------------------------------- PDCA round 13 — C-E restore write guarantees, C-F platform
+# Threat model: docs/harness-mcp-sync-threat-model.md "Round 13".
+jts() { printf '%s' "$o" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(sys.argv[1]) or "")' "$1"; }
+# C-E I1 (Codex 4108664581): restore of a secret-bearing backup into a git-visible config is refused
+wc12 hwgr; w apply --ssot "$S12" --json; TS1="$(jts backup_ts)"
+w restore "$TS1" --json; eq 0 "$rc" 'C-E git: setup restore (outside git) succeeds'; RR="$(jts restore_run)"
+grep -q "$FIXSECRET" "$WSD/backups/$RR/hwgr/mcp.json" 2>/dev/null && ok 'C-E git: setup backup holds secret material' || no 'C-E git: setup backup holds secret material' none
+NS="$(sum "$WF")"
+git -C "$HOME/.hwgr" init -q >/dev/null 2>&1; git -C "$HOME/.hwgr" add mcp.json >/dev/null 2>&1
+w restore "$RR"; eq 1 "$rc" 'C-E git: secret backup into a TRACKED config is refused'
+has 'git' "$o" 'C-E git: names git as the reason'
+hasnt "$FIXSECRET" "$o" 'C-E git: never prints the secret'
+eq "$NS" "$(sum "$WF")" 'C-E git: tracked config untouched'
+eq 0 "$(openj)" 'C-E git: no journal left open by the refusal'
+git -C "$HOME/.hwgr" rm -q --cached mcp.json >/dev/null 2>&1
+w restore "$RR"; eq 1 "$rc" 'C-E git: secret backup into an UNTRACKED-not-ignored config is refused'
+eq "$NS" "$(sum "$WF")" 'C-E git: untracked config untouched'
+printf 'mcp.json\n' > "$HOME/.hwgr/.gitignore"
+w restore "$RR"; eq 0 "$rc" 'C-E git: secret backup into a git-IGNORED config is allowed'
+grep -q "$FIXSECRET" "$WF" && ok 'C-E git: ignored config received the restore' || no 'C-E git: ignored config received the restore' none
+rm -f "$HOME/.hwgr/.gitignore"; git -C "$HOME/.hwgr" add -f mcp.json >/dev/null 2>&1
+w restore "$TS1"; eq 0 "$rc" 'C-E git: a SECRET-FREE backup into a tracked config is allowed'
+hasnt "$FIXSECRET" "$(cat "$WF")" 'C-E git: tracked config now holds no secret'
+rm -f "$REG/hwgr.yaml"
+# C-E I4: a secret-bearing backup recorded with a wide mode is restored at most 0600
+wc12 hwmd; w apply --ssot "$S12" --json; TS1="$(jts backup_ts)"; chmod 644 "$WF"
+w restore "$TS1" --json; RR="$(jts restore_run)"
+eq 0o644 "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["mode"])' "$WSD/backups/$RR/hwmd/meta.json" 2>&1)" 'C-E mode: setup backup recorded 0644'
+w restore "$RR"; eq 0 "$rc" 'C-E mode: restore succeeds'
+eq 600 "$(mode "$WF")" 'C-E mode: secret-bearing config restored at 0600, not 0644'
+rm -f "$REG/hwmd.yaml"
+# C-E I2 (Codex 4108664601): unlink, new parent dirs and pre-absent rollbacks are flushed
+FS="$(python3 - "$BIN" "$T/ce-fsync" 2>&1 <<'CEPY'
+import importlib.machinery, importlib.util, json, os, sys
+_l = importlib.machinery.SourceFileLoader("hms", sys.argv[1]); m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", _l)); _l.exec_module(m)
+root = os.path.realpath(sys.argv[2]); os.makedirs(root)
+calls = []; orig = m.fsync_dir
+m.fsync_dir = lambda d: (calls.append(os.path.realpath(d or ".")), orig(d))
+out = []
+b1 = os.path.join(root, "b1"); os.makedirs(b1); p1 = os.path.join(root, "cfgdir", "c.json"); os.makedirs(os.path.dirname(p1))
+open(p1, "w").write("{}"); json.dump({"path": p1, "existed": False}, open(os.path.join(b1, "meta.json"), "w"))
+calls.clear(); m.restore_from(b1)
+out.append(str(not os.path.exists(p1) and os.path.dirname(p1) in calls))
+b2 = os.path.join(root, "b2"); os.makedirs(b2); p2 = os.path.join(root, "x", "y", "z", "c.json")
+open(os.path.join(b2, "c.json"), "w").write("{}"); json.dump({"path": p2, "existed": True, "mode": "0o600"}, open(os.path.join(b2, "meta.json"), "w"))
+calls.clear(); m.restore_from(b2)
+out.append(str(all(d in calls for d in (root, os.path.join(root, "x"), os.path.join(root, "x", "y")))))
+sd = os.path.join(root, "state"); m.load_salt(sd, create=True)
+j = m.Journal.create(sd, "apply", "20260101T000000000000Z")
+gone = os.path.join(root, "gone", "deeper", "c.json")
+j.add(hid="h", path=gone, pre=dict(m.ABSENT), post=dict(m.ABSENT), backup="backups/20260101T000000000000Z/h", mf_before=None, mf_after=None)
+try:
+    m.rollback_entry(j, 0, {"schema": 1, "files": {}}); out.append(j.data["entries"][0]["state"])
+except Exception as e:
+    out.append("RAISED-" + e.__class__.__name__)
+print(" ".join(out))
+CEPY
+)"
+eq "True True rolled-back" "$FS" 'C-E fsync: unlink flushed · new parent dirs flushed · pre-absent rollback with its parent gone'
+# C-E I3 (CodeRabbit 4108748601): a backup whose manifest snapshot was keyed by another (or no) salt is refused
+wc12 hwsl; w apply --ssot "$S12" --json; TS1="$(jts backup_ts)"
+printf '{"schema":1,"servers":{"plain13":{"transport":"stdio","command":"npx","args":["plain-tool"]}}}' > "$T/ssot-13.json"
+w apply --ssot "$T/ssot-13.json" --json; TS2="$(jts backup_ts)"
+[ -n "$TS2" ] && ok 'C-E salt: setup second apply made a backup' || no 'C-E salt: setup second apply made a backup' none
+mkdir -p "$T/hwsl-aside"; mv "$WSD/manifest.json" "$T/hwsl-aside/"; [ -e "$WSD/journal" ] && mv "$WSD/journal" "$T/hwsl-aside/"
+python3 -c 'import os,sys; p=sys.argv[1]+"/salt"; open(p,"w").write(os.urandom(32).hex()); os.chmod(p,0o600)' "$WSD"
+F0="$(sum "$WF")"; NB="$(ls "$WSD/backups" | wc -l)"
+w restore "$TS2"; eq 2 "$rc" 'C-E salt: backup snapshot under a different salt -> restore refused'
+has 'salt' "$o" 'C-E salt: names the salt as the reason'
+eq "$F0" "$(sum "$WF")" 'C-E salt: config untouched'
+eq "$NB" "$(ls "$WSD/backups" | wc -l)" 'C-E salt: no backup dir created by the refusal'
+[ ! -e "$WSD/journal" ] && ok 'C-E salt: no journal created by the refusal' || no 'C-E salt: no journal created by the refusal' "$(ls -R "$WSD/journal")"
+python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d.pop("salt_id",None); json.dump(d,open(p,"w"))' "$WSD/backups/$TS2/manifest.json"
+w restore "$TS2"; eq 2 "$rc" 'C-E salt: snapshot with entries but NO salt_id -> restore refused'
+eq "$F0" "$(sum "$WF")" 'C-E salt: config still untouched'
+w restore "$TS1"; eq 0 "$rc" 'C-E salt: a snapshot with no ownership entries still restores under the new salt'
+rm -f "$REG/hwsl.yaml"
+# C-F (Codex 4108664588): native Windows (no fcntl) exits 2 with a clear reason before touching anything
+CF="$(python3 - "$BIN" "$T/state-cf" "$REG" 2>&1 <<'CFPY'
+import runpy, sys
+sys.modules["fcntl"] = None  # `import fcntl` now raises ImportError, as on native Windows
+b, sd, reg = sys.argv[1], sys.argv[2], sys.argv[3]
+sys.argv = [b, "apply", "--ssot", "/nonexistent.json", "--registry", reg, "--state-dir", sd]
+try:
+    runpy.run_path(b, run_name="__main__")
+except SystemExit as e:
+    print("EXIT", e.code)
+CFPY
+)"; printf '%s\n' "$CF" >> "$ALLOUT"
+has 'EXIT 2' "$CF" 'C-F: fcntl unavailable -> exit 2 (usage), no traceback'
+has 'WSL' "$CF" 'C-F: tells the user to use WSL'
+hasnt 'Traceback' "$CF" 'C-F: no Python traceback'
+[ ! -e "$T/state-cf" ] && ok 'C-F: exits before creating the state dir' || no 'C-F: exits before creating the state dir' created
 
 # ---------------------------------------------------------------- global invariants
 if grep -q "$FIXSECRET" "$ALLOUT"; then no 'fixture secret never printed (all modes)' "$(grep -c "$FIXSECRET" "$ALLOUT") hits"; else ok 'fixture secret never printed (all modes)'; fi

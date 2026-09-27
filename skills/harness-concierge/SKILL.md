@@ -126,6 +126,13 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 - JSON/YAML files are re-serialized (content preserved, formatting may change); only TOML is
   edited byte-for-byte outside managed tables.
 - The npm/Pi package ships `skills/**` only; the executor and registry are used from a repo checkout.
+- **Platforms: macOS, Linux, and Windows through WSL.** Native Windows is outside the contract
+  (no POSIX file lock or 0600 modes): the executor exits 2 with "run it under WSL" before touching
+  anything. `win32` paths in the registry describe where a harness keeps its config, not a promise
+  that the executor runs natively there.
+- **Restore obeys the same gates as apply.** A backup that may carry secret material is refused for a
+  git-visible config, restored at most 0600, and a backup taken under a different state salt is
+  refused (copy its bytes by hand, then `apply --adopt NAME`). See threat model C-E.
 
 ## Routing
 

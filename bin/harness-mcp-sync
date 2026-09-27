@@ -24,13 +24,18 @@
 #   git work tree => no secret literals written (git-ignored files are allowed) · jsonc/yaml with comments => refused without --allow-comment-loss ·
 #   TOML is edited surgically (only managed tables), validated before and after.
 # Portability: Python 3.11+ stdlib + PyYAML. AAIF cross-vendor — no host-specific content.
+#   POSIX only (macOS, Linux, Windows via WSL): native Windows exits 2 before doing anything
+#   (no fcntl lock, no POSIX modes; threat model C-F).
 # Exit codes ([C06]): 0 ok · 1 drift / validation / refused · 2 usage / setup.
 from __future__ import annotations
 
 import argparse
 import copy
 import datetime as _dt
-import fcntl
+try:
+    import fcntl
+except ImportError:  # native Windows — outside the supported contract (threat model C-F)
+    fcntl = None
 import fnmatch
 import hashlib
 import hmac
@@ -322,6 +327,27 @@ def fsync_dir(d: str):
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def fsync_nearest(d: str):
+    """Flush the nearest existing directory at or above `d` (a pre-absent rollback may find its
+    parent already gone; the flush must not turn a finished rollback into a failed one)."""
+    while d and not os.path.isdir(d):
+        d = os.path.dirname(d)
+    fsync_dir(d)
+
+
+def makedirs_durable(d: str):
+    """os.makedirs(d, 0o700) whose new directory entries are flushed (C-E I2): each level that
+    had to be created is fsynced in its parent, so a crash cannot drop the directory a journal
+    already records a file in."""
+    missing = []
+    while d and not os.path.isdir(d):
+        missing.append(d)
+        d = os.path.dirname(d)
+    for x in reversed(missing):
+        os.mkdir(x, 0o700)
+        fsync_dir(os.path.dirname(x))
 
 
 def atomic_write(path: str, data: bytes, mode: int = 0o600):
@@ -1271,7 +1297,8 @@ def salt_id() -> str:
 
 
 SALT_RECOVERY = ("salt recovery: move <state>/manifest.json and <state>/journal/ aside, then re-run "
-                 "`apply --adopt NAME` to rebuild ownership; backups/ stay valid for restore")
+                 "`apply --adopt NAME` to rebuild ownership; backups taken under the old salt cannot be "
+                 "`restore`d (their config bytes stay in <state>/backups/ for a manual copy)")
 
 
 def bind_salt(manifest: dict):
@@ -1443,14 +1470,14 @@ def rollback_entry(j: Journal, i: int, manifest: dict):
     if pre["exists"]:
         data = _backup_payload(j.sd, e)
         if file_triple(path) != pre:
-            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            makedirs_durable(os.path.dirname(path))
             atomic_write(path, data, int(pre["mode"], 8))
     else:
         try:
             os.unlink(path)
         except FileNotFoundError:
             pass
-        fsync_dir(os.path.dirname(path))
+        fsync_nearest(os.path.dirname(path))
     set_mf(j.sd, manifest, path, e["mf_before"])
     j.set(i, "rolled-back")
 
@@ -1874,19 +1901,63 @@ def backup_file(sd: str, ts: str, hid: str, path: str):
     return bdir, meta
 
 
-def restore_from(bdir: str):
+def restore_from(bdir: str, data: bytes | None = None, mode: int | None = None):
+    """Write a backup back (C-E): `data`/`mode` are what the caller already checked (git gate,
+    secret mode cap) and recorded as `post`; when omitted they are read from the backup."""
     with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
         meta = json.load(fh)
     path = meta["path"]
     if meta["existed"]:
-        with open(os.path.join(bdir, os.path.basename(path)), "rb") as fh:
-            data = fh.read()
-        # The parent may be gone (uninstall/reset); recreate it (0700) like apply does.
-        os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-        atomic_write(path, data, int(meta.get("mode", "0o600"), 8))
+        if data is None:
+            with open(os.path.join(bdir, os.path.basename(path)), "rb") as fh:
+                data = fh.read()
+        # The parent may be gone (uninstall/reset); recreate it (0700, flushed) like apply does.
+        makedirs_durable(os.path.dirname(path))
+        atomic_write(path, data, int(meta.get("mode", "0o600"), 8) if mode is None else mode)
     elif os.path.exists(path):
         os.unlink(path)
+        fsync_dir(os.path.dirname(path))  # the delete is durable before the journal says config-written
     return path
+
+
+def doc_may_carry_secret(fmt: str, data: bytes) -> bool:
+    """C-E I1/I4: could these config bytes put secret material into a file? Same signals apply
+    uses (carries_secret on every mapping) plus secret-looking or placeholder string leaves.
+    Undecodable / unparseable => True (fail-closed)."""
+    try:
+        doc, _ = parse_config(fmt, data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n"))
+    except (UnicodeDecodeError, Refused):
+        return True
+    stack = [doc]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, dict):
+            if carries_secret({k: v for k, v in n.items() if k != "args" or isinstance(v, list)}):
+                return True
+            stack.extend(n.values())
+        elif isinstance(n, list):
+            stack.extend(n)
+        elif isinstance(n, str) and (has_placeholder(n) or literal_secretish(n)):
+            return True
+    return False
+
+
+def restore_git_refusal(path: str, fmt: str, data: bytes | None):
+    """C-E I1 (Codex 4108664581): the fail-closed git gate apply uses, applied to restore.
+    Returns a refusal reason, or None when the write may proceed."""
+    if data is None:
+        return None  # restoring "absent" (unlink) never adds material
+    try:
+        with open(path, "rb") as fh:
+            if fh.read() == data:
+                return None  # identical bytes: nothing new becomes visible
+    except FileNotFoundError:
+        pass
+    gstate = git_state(path)
+    if git_leak_risk(gstate) and doc_may_carry_secret(fmt, data):
+        return ("refused: the backup may carry secret material and the config is %s in git "
+                "(git-ignore it, or copy the backup by hand); file left unchanged" % gstate)
+    return None
 
 
 def config_changed(path: str, cfg: dict) -> bool:
@@ -1984,7 +2055,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         pre, post = file_triple(path), bytes_triple(data, 0o600)
 
         def write():
-            os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+            makedirs_durable(os.path.dirname(path))
             atomic_write(path, data)
 
         def valid():
@@ -2301,8 +2372,16 @@ def mode_restore(args, reg, ids, sd, ts):
     if os.path.exists(snap):
         with open(snap, encoding="utf-8") as fh:
             old = json.load(fh)
+        if not isinstance(old, dict) or not isinstance(old.get("files", {}), dict):
+            raise UsageError("backup %s has a malformed manifest snapshot; restore refused" % ts)
     cur = load_manifest(sd)
     bind_salt(cur)
+    if old is not None and old.get("files") and old.get("salt_id") != salt_id():
+        # C-E I3 (CodeRabbit 4108748601): its ownership hashes are keyed by another (or no) salt and
+        # would land in the manifest as stale entries. Refused before any journal or backup exists.
+        raise UsageError("backup %s was taken under a different state salt; its ownership hashes cannot be "
+                         "carried over, restore refused. Its config bytes stay in %s for a manual copy; then "
+                         "run `apply --adopt NAME` to rebuild ownership" % (ts, root))
     run_id = new_run_id(sd)
     j = None
     for hid in sorted(os.listdir(root)):
@@ -2324,13 +2403,22 @@ def mode_restore(args, reg, ids, sd, ts):
             continue
         try:
             check_private_dir(bdir)
+            payload, rmode = None, None
             if meta.get("existed"):
                 with open(os.path.join(bdir, os.path.basename(mpath)), "rb") as fh:
-                    post = bytes_triple(fh.read(), int(meta.get("mode", "0o600"), 8))
+                    payload = fh.read()
+                rmode = int(meta.get("mode", "0o600"), 8)
+                if doc_may_carry_secret(reg[hid]["mcp"]["format"], payload):
+                    rmode &= 0o600  # C-E I4: secret material is never restored wider than apply writes it
+                post = bytes_triple(payload, rmode)
             else:
                 post = dict(ABSENT)
         except (OSError, ValueError, TypeError, UsageError) as e:
             refused.append({"id": hid, "reason": "restore failed (%s); file left unchanged" % e.__class__.__name__})
+            continue
+        why = restore_git_refusal(mpath, reg[hid]["mcp"]["format"], payload)
+        if why:
+            refused.append({"id": hid, "reason": why})
             continue
         if j is None:
             mkdir_private(os.path.join(sd, "backups", run_id))
@@ -2342,7 +2430,8 @@ def mode_restore(args, reg, ids, sd, ts):
         mf_after = (old.get("files", {}).get(mpath) if old is not None else cur["files"].get(mpath))
         try:
             journaled_change(j, cur, hid, mpath, "backups/%s/%s" % (run_id, hid), pre, post, mf_after,
-                             write_fn=lambda: restore_from(bdir), validate_fn=lambda: file_triple(mpath) == post)
+                             write_fn=lambda: restore_from(bdir, payload, rmode),
+                             validate_fn=lambda: file_triple(mpath) == post)
         except RollbackFailed:
             raise
         except (OSError, ValueError, KeyError) as e:
@@ -2498,6 +2587,10 @@ def self_heal_relay(exc: BaseException, exit_code: int) -> None:
 
 
 def run(argv) -> int:
+    if fcntl is None:  # C-F: before argument parsing, before the state dir is touched
+        print("harness-mcp-sync: error: native Windows is not supported (no POSIX file locking); "
+              "run it under WSL", file=sys.stderr)
+        return EXIT_USAGE
     try:
         args = parse_args(argv)
     except SystemExit as e:

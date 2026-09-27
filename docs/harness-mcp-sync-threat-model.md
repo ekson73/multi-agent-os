@@ -256,7 +256,7 @@ fully verified `apply` or `restore`. It requires one explicit run-id (no wildcar
 **Salt recovery.** A lost or rotated salt blocks every mutation through the manifest's
 `salt_id`, which `resolve` does not clear. Recovery: move `manifest.json` and `journal/`
 aside, then re-run `apply --adopt` to rebuild ownership from the current configs.
-Everything under `backups/` stays valid for `restore`. verify and doctor print this command whenever they
+Backups taken under the old salt cannot be `restore`d (see C-E below); their bytes stay available for a manual copy. verify and doctor print this command whenever they
 report an open journal.
 
 ## J9 — Failure points to inject (test plan)
@@ -323,3 +323,69 @@ Findings 1–8: all **CLOSED** by the text above. New findings from the fixes:
 
 Economic stop (Convergence Engine, ≤3 rounds): the remaining items are pinned by
 J9 tests rather than a third design round; the implementation PR gets its own review.
+
+---
+
+# Round 13 — failure classes found in review of the journal PR
+
+Two classes. Each row lists an instance found by auditing every write path, the fix, and the
+regression test that pins it (`bin/tests/harness-mcp-sync.test.sh`, block "PDCA round 13").
+Negative control: the new block fails against `cb0c75d` and passes on this head.
+
+## C-E — restore write guarantees
+
+**Threat.** `restore` and every rollback write harness configs, the same way `apply` does. They
+must keep every invariant `apply` keeps. They did not: `apply` checks git before writing secret
+material, fsyncs every rename, and only ever records hashes keyed by the current salt. `restore`
+wrote backup bytes without the git check, deleted a config without flushing its directory, and
+copied ownership hashes from a backup taken under another salt. Sources: Codex P1 4108664581,
+Codex P2 4108664601, CodeRabbit Minor 4108748601.
+
+Invariants a config write must keep: **(I1)** no secret material lands in a git-visible file
+(tracked, untracked-not-ignored, or unknown); **(I2)** every write, delete and directory creation
+is durable before the journal records it; **(I3)** every manifest hash is keyed by the current
+salt; **(I4)** a file carrying secret material is never wider than 0600.
+
+| Write path | Invariant | Before | Fix | Test |
+|---|---|---|---|---|
+| `mode_restore` → `restore_from`, backup existed | I1 | wrote the bytes into any file | `restore_git_refusal()`: when git reports the target leak-prone and the backup may carry secret material (or cannot be parsed to check), the harness is refused before the journal entry; file untouched | C-E git: tracked + untracked refused, ignored allowed, secret-free backup allowed |
+| `restore_from`, backup existed=false (unlink) | I2 | `os.unlink` without a directory fsync | `fsync_dir(parent)` after the unlink | C-E fsync: unlink flushed |
+| `restore_from` / `apply` write / `rollback_entry`, missing parent dirs | I2 | `os.makedirs` without flushing the new entries | `makedirs_durable()`: creates each missing level 0700 and fsyncs its parent | C-E fsync: new parent dirs flushed |
+| `rollback_entry`, pre-absent, parent dir gone | I2 | `fsync_dir` raised `FileNotFoundError` → rollback reported failed | flush the nearest existing ancestor | C-E rollback: parent gone |
+| `mode_restore`, `mf_after` from the backup's manifest snapshot | I3 | copied hashes from any salt → stale ownership | snapshot with entries must carry the current `salt_id`; otherwise the whole restore is refused (exit 2) before any journal or backup dir is created | C-E salt: rotated + missing `salt_id` refused, nothing created |
+| `restore_from`, backup mode wider than 0600 | I4 | restored the recorded mode (e.g. 0644) with secret material | mode capped to `mode & 0600` when the backup may carry secret material | C-E mode: 0644 secret backup restored as 0600 |
+| `rollback_entry` (apply or restore run, incl. reconcile) | I1, I4 | restores the exact pre-run bytes and mode | unchanged by design: it returns the file to the state it had seconds before, so it adds no exposure that was not already there | existing J4/J5 tests |
+| `reconcile` manifest re-assert (`set_mf`) | I2, I3 | atomic, salt-bound (`bind_salt`, journal `salt_id`) | unchanged | existing J5 tests |
+
+`restore_git_refusal` scans the parsed backup for the same signals `apply` treats as secret
+material (`carries_secret()` on every mapping in the document: placeholders, non-empty
+header/env containers, secret-looking args, masked URLs). A backup that cannot be decoded or
+parsed is treated as secret-bearing (fail-closed). Restoring to "absent" (unlink) never adds
+material and is not gated. Bytes identical to the current file are not gated either: nothing new
+becomes visible.
+
+**Salt recovery (updated).** After a salt loss, backups taken under the old salt can no longer be
+`restore`d: their ownership hashes are keyed by the old salt and would be written as stale entries.
+Their config bytes stay in `backups/<ts>/<harness>/` for a manual copy; after copying, run
+`apply --adopt NAME` to rebuild ownership. This replaces the J8b sentence "everything under
+`backups/` stays valid for `restore`".
+
+## C-F — platform contract
+
+**Threat.** The executor imported `fcntl` unconditionally. On native Windows that import fails
+before any output, so the user gets a traceback instead of a reason. Source: Codex P1 4108664588.
+
+**Decision.** Native Windows is outside the supported contract (the lock, the private-dir checks
+and the `0600` modes all assume POSIX). Supported: macOS, Linux, and Windows through WSL.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `import fcntl` at module load | guarded import; `run()` exits 2 with "native Windows is not supported … use WSL" before parsing arguments or touching the state dir | C-F: fcntl unavailable → exit 2, message, no state dir |
+
+No Windows lock is implemented; adding one would widen the contract without a way to test it here.
+
+## Test hygiene
+
+J7 (lock) let the lock-holding process exit after a fixed sleep, so on a slow machine the
+remaining assertions could run with the lock already released. The holder now waits for a release
+file and the test checks it is still alive before releasing it (CodeRabbit Major, outside-diff).
