@@ -2368,6 +2368,20 @@ has 'stale ownership' "$o" 'R25: names it as stale ownership'
 has 'Git-visible' "$o" 'R25: the C-J gate examines the fallback-retained old file'
 rm -f "$REG/hfb25.yaml"
 
+# R26: an owner that migrated away from A keeps its A record stale even when ANOTHER harness targets A
+SD26="$T/state-r26"; mkdir -p "$HOME/.hold26" "$HOME/.hnew26"
+printf '{"mcpServers":{}}' > "$HOME/.hold26/mcp.json"; printf '{"mcpServers":{}}' > "$HOME/.hnew26/mcp.json"
+mk how26 json mcpServers mcpservers-json "~/.hold26/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness how26 --registry "$REG" --state-dir "$SD26" >> "$ALLOUT" 2>&1
+mk how26 json mcpServers mcpservers-json "~/.hnew26/mcp.json" true null null high
+mk hal26 json mcpServers mcpservers-json "~/.hold26/mcp.json" true null null high   # unselected alias of the old path
+git -C "$HOME/.hold26" init -q >/dev/null 2>&1; git -C "$HOME/.hold26" add mcp.json >/dev/null 2>&1
+o="$("$BIN" verify --harness how26 --registry "$REG" --state-dir "$SD26" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R26: verify --harness owner reports its migrated record despite an aliasing harness' || no 'R26: verify --harness owner reports its migrated record despite an aliasing harness' "rc=$rc"
+has 'stale ownership' "$o" 'R26: names it as stale ownership'
+has 'Git-visible' "$o" 'R26: the C-J gate examines it'
+rm -f "$REG/how26.yaml" "$REG/hal26.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

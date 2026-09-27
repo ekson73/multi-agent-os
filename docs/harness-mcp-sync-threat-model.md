@@ -566,3 +566,11 @@ as live, so an old path kept as a secondary fallback after a migration was never
 C-J gate never examined it. Liveness is now each harness's **current** `target_path()`, and
 `allowed_targets()` is left for restore only. Test R25; negative control on 9e40270: 3 failures.
 Suite 805/805.
+
+## Round 26 — stale liveness per record owner
+
+Codex 4117340767 (P1, on 7f42415): liveness was global (any harness's current target), so an
+owner that migrated A→B kept its A record alive whenever another, unselected harness also targets A.
+`verify --harness <owner>` then skipped A and the C-J gate never ran. Liveness is now per record:
+the record is live only when its **recorded owner's** current `target_path()` is that path. Test
+R26; negative control on 7f42415: 3 failures. Suite 808/808.

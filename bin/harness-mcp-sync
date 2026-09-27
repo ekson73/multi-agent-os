@@ -2354,12 +2354,13 @@ def stale_records(reg, ids, manifest) -> list:
     owner left the registry and no --harness filter narrows the run."""
     # R25 (Codex 4117313067): liveness is each harness's CURRENT target, never its restore allow-list —
     # an old path kept as a secondary config_paths fallback is still stale once another path wins.
-    live = {target_path(reg[i])[0] for i in reg} - {None}
+    # R26 (Codex 4117340767): liveness is per RECORD — its recorded owner's current target. Another
+    # harness that happens to target the same path does not keep a migrated owner's record alive.
     whole = set(ids) == set(reg)
     out = []
     for path, fe in sorted(manifest["files"].items()):
         hid = fe.get("harness")
-        if path in live:
+        if hid in reg and target_path(reg[hid])[0] == path:
             continue
         if hid in ids or (hid not in reg and whole):
             out.append((path, hid))
