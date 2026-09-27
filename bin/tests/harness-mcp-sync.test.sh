@@ -218,11 +218,12 @@ N2="$(printf '%s' "$o" | python3 -c 'import sys,json; r=json.load(sys.stdin); pr
 eq 0 "$N2" 'second plan is empty (idempotent)'
 S1="$(sum "$HOME/.hjson/mcp.json")"; run apply --ssot "$SSOT"; eq "$S1" "$(sum "$HOME/.hjson/mcp.json")" 'second apply writes nothing'
 run verify --ssot "$SSOT" --json
-eq 1 "$rc" 'verify after apply: drift only because git-unsafe harnesses refused secret servers'
-BAD="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"] and not all("refused" in i for i in e["issues"])}))')"
-eq "[]" "$BAD" 'verify after apply: every drift issue is a git-safety refusal (hgit/hgtrk), none elsewhere'
+eq 1 "$rc" 'verify after apply: drift only from git-safety refusals and pending plan-only work'
+# R17: pending plan-only work (hlow, low confidence) is reported as drift, like apply's exit code
+BAD="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"] and not all(("refused" in i) or i.startswith("plan-only") for i in e["issues"])}))')"
+eq "[]" "$BAD" 'verify after apply: every drift issue is a git-safety refusal or pending plan-only work, none elsewhere'
 DRIFTED="$(printf '%s' "$o" | python3 -c 'import sys,json; print(sorted({e["id"] for e in json.load(sys.stdin) if e["issues"]}))')"
-eq "['hgit', 'hgtrk']" "$DRIFTED" 'verify after apply: drift set is EXACTLY the two refused-secret fixtures (hgit, hgtrk)'
+eq "['hgit', 'hgtrk', 'hlow']" "$DRIFTED" 'verify after apply: drift set is EXACTLY the refused-secret fixtures plus the plan-only one'
 GITSAFE=hgem,hgign,hgoose,hgrok,hjson,hjsonc,hnohdr,hopen,htoml   # explicit: the known git-safe fixtures (hlow is low-confidence, never written)
 CLEAN="$(printf '%s' "$o" | python3 -c 'import sys,json; print(",".join(sorted({e["id"] for e in json.load(sys.stdin) if e["id"]!="*" and not e["issues"]})))')"
 eq "$GITSAFE" "$CLEAN" 'verify after apply: the clean set is EXACTLY the named git-safe fixtures (no false refusal)'
@@ -2050,6 +2051,43 @@ PY
 )"
 eq "refused
 {\"a\":1}" "$UC" 'R16c: unterminated /* is refused; a closed block comment still strips'
+
+# ---------------------------------------------------------------- PDCA round 17 (Codex on be9b35d)
+# R17a (P1, class C-H): a credential-bearing URL is caught under ANY key (httpUrl/serverUrl/uri), not only `url`
+UH="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+u = "https://example.test/mcp?token=abc"
+print([m.carries_secret({k: u}) for k in ("url", "httpUrl", "serverUrl", "uri")],
+      m.carries_secret({"httpUrl": "https://example.test/mcp"}),
+      m.doc_may_carry_secret("json", b'{"a":{"b":["x","https://u:pw@example.test/mcp"]}}'),
+      m.doc_may_carry_secret("json", b'{"mcpServers":{"s":{"httpUrl":"https://example.test/mcp"}}}'))
+PY
+)"
+eq "[True, True, True, True] False True False" "$UH" 'R17a: URL credentials detected whatever the adapter key; clean URLs stay clean'
+
+# R17b: with two writable claimants of a shared file selected, verify evaluates the planner's claimant
+SD17B="$T/state-r17b"; mkdir -p "$HOME/.shr17" "$HOME/.hse" "$HOME/.hsf"; printf '{"mcpServers":{}}' > "$HOME/.shr17/mcp.json"
+mk hse json mcpServers mcpservers-json "~/.shr17/mcp.json" true null null high
+mk hsf json mcpServers mcpservers-json "~/.shr17/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r3.json" --harness hse,hsf --registry "$REG" --state-dir "$SD17B" >> "$ALLOUT" 2>&1
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hse,hsf --registry "$REG" --state-dir "$SD17B" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+VI="$(printf '%s' "$o" | python3 -c 'import json,sys
+d=json.load(sys.stdin); d=d.get("files", d.get("harnesses", d)) if isinstance(d,dict) else d
+print(" ".join(sorted({x["id"] for x in d if x.get("file")})))' 2>/dev/null || echo PARSE-ERROR)"
+eq hse "$VI" 'R17b: verify uses the same shared-file claimant as the planner'
+eq 0 "$rc" 'R17b: verify is clean right after a successful apply through the claimant'
+rm -f "$REG/hse.yaml" "$REG/hsf.yaml"
+
+# R17c: pending plan-only work is drift in verify too (apply and verify agree)
+SD17C="$T/state-r17c"; mkdir -p "$HOME/.hlow2"; printf '{"mcpServers":{}}' > "$HOME/.hlow2/mcp.json"
+mk hlow2 json mcpServers mcpservers-json "~/.hlow2/mcp.json" true null null low
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hlow2 --registry "$REG" --state-dir "$SD17C" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R17c: verify exits nonzero on pending plan-only work' || no 'R17c: verify exits nonzero on pending plan-only work' "rc=$rc"
+has 'plan-only' "$o" 'R17c: verify names the pending plan-only work'
+eq "$(printf '{"mcpServers":{}}')" "$(cat "$HOME/.hlow2/mcp.json")" 'R17c: the no-write policy holds (file untouched)'
+rm -f "$REG/hlow2.yaml"
 
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""

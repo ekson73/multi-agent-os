@@ -430,3 +430,21 @@ file and the test checks it is still alive before releasing it (CodeRabbit Major
 | unterminated `/*` silently swallowed to EOF | parser fail-closed | `strip_jsonc` raises `Refused`; with `--allow-comment-loss` the file is left untouched (e2e verified) | R16c |
 
 Enumeration by concept: every `not-applied` / refusal branch in `mode_apply` now sets `worst`; the only `strip_jsonc` caller (`parse_config`) is already inside `read_config`'s `except Refused`, so the new refusal surfaces as a per-harness error, not a traceback.
+
+## Round 17 (Codex on `be9b35d`) — new class C-H: URL credentials are key-agnostic
+
+Adapters store the endpoint under their own key (`url`, Gemini/Qwen `httpUrl`, Antigravity `serverUrl`,
+Goose `uri`). `carries_secret` only inspected `url`, so `https://host/mcp?token=…` under any other key
+read as clean — letting a restore write it into a Git-visible file and verify report it clean. Same
+lesson as C-G, one axis over: **detect by value shape, never by key name**.
+
+| Site | Fix | Test |
+|---|---|---|
+| `carries_secret` (root) | every string value is checked with `mask_url`; argv elements too | R17a |
+| `doc_may_carry_secret` string leaves | `mask_url(n) != n` added (nested URLs anywhere) | R17a |
+| output masking (`Redactor`) | already text-level `URL_RE` over all output — no change needed | — |
+
+Also in this round (P2): `shared_claimants()` is now the single claimant source for plan **and**
+verify (R17b), and verify reports pending plan-only work as drift so apply and verify agree (R17c;
+the no-write policy is unchanged). The pre-existing "verify after apply" drift-set assertion now
+expects `hlow` (plan-only) alongside the two git-refused fixtures.

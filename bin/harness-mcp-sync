@@ -718,10 +718,12 @@ def carries_secret(raw: dict) -> bool:
     if raw.get("args") is not None and not is_argv(raw.get("args")):
         argvs.append(raw.get("args") or [])
     for a in (x for v in argvs for x in v):
-        if not isinstance(a, str) or SECRET_ARG_RE.search(a) or _secretish_segment(a) or literal_secretish(a):
+        if not isinstance(a, str) or SECRET_ARG_RE.search(a) or _secretish_segment(a) or literal_secretish(a) \
+                or mask_url(a) != a:
             return True
-    u = raw.get("url")
-    return isinstance(u, str) and mask_url(u) != u
+    # C-H root: adapters store the URL under their own key (`url`, `httpUrl`, `serverUrl`, `uri`, ...),
+    # so every string value is checked for embedded credentials, independently of its key.
+    return any(isinstance(v, str) and mask_url(v) != v for v in raw.values())
 
 
 def has_placeholder(obj) -> bool:
@@ -1677,10 +1679,10 @@ def desired_disposition(h: dict, hid: str, raw: dict) -> tuple[str, str | None]:
     return "render", None
 
 
-def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
-    results, claimants = [], {}
-    # Pre-pass: pick one claimant per shared config path among INSTALLED harnesses,
-    # preferring writable over plan-only, then sorted id (deterministic).
+def shared_claimants(reg, ids) -> dict:
+    """One claimant per shared config path among INSTALLED harnesses, preferring writable over
+    plan-only, then sorted id (deterministic). Single source for plan AND verify (R17)."""
+    claimants = {}
     for hid in ids:
         h = reg[hid]
         blk = static_blocker(h)
@@ -1693,7 +1695,11 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
         cur = claimants.get(path)
         if cur is None or rank < cur[0]:
             claimants[path] = (rank, hid)
-    claimants = {p: v[1] for p, v in claimants.items()}
+    return {p: v[1] for p, v in claimants.items()}
+
+
+def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
+    results, claimants = [], shared_claimants(reg, ids)
     for hid in ids:
         h = reg[hid]
         r = {"id": hid, "name": h.get("name"), "status": "ok", "applicable": True, "reason": None,
@@ -1959,7 +1965,7 @@ def doc_may_carry_secret(fmt: str, data: bytes) -> bool:
             if is_argv(n) and carries_secret({"args": n}):  # C-G: argv under any key
                 return True
             stack.extend(n)
-        elif isinstance(n, str) and (has_placeholder(n) or literal_secretish(n)):
+        elif isinstance(n, str) and (has_placeholder(n) or literal_secretish(n) or mask_url(n) != n):  # C-H
             return True
     return False
 
@@ -2270,6 +2276,8 @@ _EPHEMERAL = os.urandom(32)  # in-process-only key for cross-harness equality; n
 
 def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
     by_path = {target_path(reg[i])[0]: i for i in ids if (reg[i].get("mcp") or {}).get("supported")}
+    by_path.update({p: i for p, i in shared_claimants(reg, ids).items()
+                    if (reg[i].get("mcp") or {}).get("supported")})  # R17: the planner's claimant wins
     out, worst, secret_hashes = [], EXIT_OK, {}
     for js in (journal_summaries(sd) if sd else []):  # J8: an interrupted run is never "clean"
         out.append({"id": "*", "file": None, "issues": [js["summary"]]})
@@ -2337,6 +2345,14 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
         reported = {(e.get("file"), n) for e in out for n in fe_names(e)}
         for r in build_plan(reg, ids, ssot, resolver, manifest, set()):
             if not r["applicable"]:
+                if r["status"] == "plan-only" and not plan_is_empty(r):
+                    # R17: same verdict as apply — the no-write policy holds, but pending work is drift
+                    ent = next((e for e in out if e.get("file") == r["file"]), None)
+                    if ent is None:
+                        ent = {"id": r["id"], "file": r["file"], "issues": []}
+                        out.append(ent)
+                    ent["issues"].append("plan-only (%s): %d pending action(s) not applied" %
+                                         (r["reason"], len(r["actions"])))
                 continue
             ent = next((e for e in out if e.get("file") == r["file"]), None)
             for a in r["actions"]:
