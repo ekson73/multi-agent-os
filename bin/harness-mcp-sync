@@ -1038,7 +1038,12 @@ def toml_header_path(line: str):
     out = []
     for p in parts:
         if len(p) >= 2 and p[0] == p[-1] == '"':
-            out.append(json.loads(p))
+            # R22 (Codex 4117011458): TOML basic-string escapes (\U0001F600, \e …) are not JSON;
+            # decode with the TOML parser itself so any key tomllib accepts is read identically.
+            try:
+                out.append(tomllib.loads("k = " + p)["k"])
+            except tomllib.TOMLDecodeError as e:
+                raise Refused("unparseable quoted TOML key %s" % p[:40]) from e
         elif len(p) >= 2 and p[0] == p[-1] == "'":
             out.append(p[1:-1])
         else:
@@ -1910,12 +1915,17 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                     continue
                 r["actions"].append({"server": name, "action": "remove", "reason": "managed; no longer desired"})
                 r["_drops"].add(name)
+            elif name not in existing:
+                # R22 (Codex 4117011451): owned, undesired, and already gone from the file — the only
+                # thing left is the stale ownership record; drop it (manifest-only, file untouched).
+                r["actions"].append({"server": name, "action": "forget",
+                                     "reason": "managed entry already absent; ownership record dropped"})
         r["git"] = gstate
     return results
 
 
 def plan_is_empty(r) -> bool:
-    return not any(a["action"] in ("add", "update", "remove") for a in r["actions"]) and \
+    return not any(a["action"] in ("add", "update", "remove", "forget") for a in r["actions"]) and \
         not any(a.get("adopt") for a in r["actions"])
 
 
@@ -1974,13 +1984,19 @@ def backup_file(sd: str, ts: str, hid: str, path: str):
     mkdir_private(os.path.join(sd, "backups"))
     mkdir_private(os.path.join(sd, "backups", ts))
     mkdir_private(bdir)
-    meta = {"path": path, "existed": os.path.exists(path)}
-    if meta["existed"]:
+    # R22 (Codex 4117011446): ONE snapshot — bytes and mode from the same open file — is both the
+    # backup and the recorded pre-state, so a rewrite between the two can never desynchronize them.
+    try:
         with open(path, "rb") as fh:
-            atomic_write(os.path.join(bdir, os.path.basename(path)), fh.read())
-        meta["mode"] = oct(os.stat(path).st_mode & 0o777)
+            data, mode = fh.read(), os.fstat(fh.fileno()).st_mode & 0o777
+    except FileNotFoundError:
+        data = mode = None
+    meta = {"path": path, "existed": data is not None}
+    if data is not None:
+        atomic_write(os.path.join(bdir, os.path.basename(path)), data)
+        meta["mode"] = oct(mode)
     atomic_write(os.path.join(bdir, "meta.json"), json.dumps(meta).encode())
-    return bdir, meta
+    return bdir, meta, (bytes_triple(data, mode) if data is not None else dict(ABSENT))
 
 
 def restore_from(bdir: str, data: bytes | None = None, mode: int | None = None):
@@ -2098,7 +2114,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
         entry = copy.deepcopy(manifest["files"].get(path) or {"harness": r["id"], "servers": {}})
         entry["harness"] = r["id"]  # a shared file's claimant is whoever touches it now (R16)
-        for n in r["_drops"]:
+        for n in r["_drops"] | {a["server"] for a in r["actions"] if a["action"] == "forget"}:
             entry["servers"].pop(n, None)
         for n, e in r["_writes"].items():
             entry["servers"][n] = mf_hash(e)
@@ -2110,10 +2126,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         if plan_is_empty(r) or not any(a["action"] in ("add", "update", "remove") for a in r["actions"]):
             # adopt-only and/or permission-only (content already identical): never rewrite/reformat the
             # file — record ownership and/or restore 0600, both journaled (C-B)
-            pre = file_triple(path)
-            post = dict(pre, mode=oct(0o600)) if mode_drift else pre
             journal()
-            backup_file(sd, ts, r["id"], path)                                    # S2
+            pre = backup_file(sd, ts, r["id"], path)[2]                           # S2 (pre = backup snapshot)
+            post = dict(pre, mode=oct(0o600)) if mode_drift else pre
             res = journaled_change(j, manifest, r["id"], path, "backups/%s/%s" % (ts, r["id"]), pre, post, entry,
                                    write_fn=(lambda: os.chmod(path, 0o600)) if mode_drift else (lambda: None),
                                    validate_fn=lambda: file_triple(path) == post,
@@ -2123,7 +2138,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
                               else "rolled-back: the file did not reach the expected state")
                 worst = EXIT_DRIFT
                 continue
-            r["apply"] = ", ".join(x for x in ("adopted (manifest only; file untouched)"
+            r["apply"] = ", ".join(x for x in (("ownership updated (manifest only; file untouched)"
+                                                if any(a["action"] == "forget" for a in r["actions"])
+                                                else "adopted (manifest only; file untouched)")
                                                if not plan_is_empty(r) else None,
                                                "mode repaired to 0o600" if mode_drift else None) if x)
             r["backup_ts"] = ts
@@ -2144,9 +2161,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             worst = EXIT_DRIFT
             continue
         journal()
-        backup_file(sd, ts, r["id"], path)                                        # S2
+        pre = backup_file(sd, ts, r["id"], path)[2]                               # S2 (pre = backup snapshot)
         data = text.encode("utf-8")
-        pre, post = file_triple(path), bytes_triple(data, 0o600)
+        post = bytes_triple(data, 0o600)
 
         def write():
             makedirs_durable(os.path.dirname(path))
@@ -2531,18 +2548,21 @@ def mode_restore(args, reg, ids, sd, ts):
             atomic_write(os.path.join(sd, "backups", run_id, "manifest.json"),
                          json.dumps(cur, indent=2, sort_keys=True).encode())
             j = Journal.create(sd, "restore", run_id)
-        backup_file(sd, run_id, hid, mpath)  # J6: the pre-restore config, so this restore can be undone
-        pre = file_triple(mpath)
+        pre = backup_file(sd, run_id, hid, mpath)[2]  # J6: pre-restore snapshot, so this restore can be undone
         mf_after = (old.get("files", {}).get(mpath) if old is not None else cur["files"].get(mpath))
         try:
             journaled_change(j, cur, hid, mpath, "backups/%s/%s" % (run_id, hid), pre, post, mf_after,
                              write_fn=lambda: restore_from(bdir, payload, rmode),
-                             validate_fn=lambda: file_triple(mpath) == post)
+                             validate_fn=lambda: file_triple(mpath) == post,
+                             changed_fn=lambda: file_triple(mpath) != pre)  # R22: recheck right before writing
         except RollbackFailed:
             raise
         except (OSError, ValueError, KeyError) as e:
             refused.append({"id": hid, "reason": "restore failed (%s); rolled back, file unchanged"
                                                  % e.__class__.__name__})
+            continue
+        if j.data["entries"][-1]["state"] == "rolled-back" and file_triple(mpath) != pre:
+            refused.append({"id": hid, "reason": "refused: config changed during restore; file left as found, re-run restore"})
             continue
         if j.data["entries"][-1]["state"] != "manifest-committed":
             refused.append({"id": hid, "reason": "restore failed validation; rolled back, file unchanged"})

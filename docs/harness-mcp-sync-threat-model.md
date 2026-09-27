@@ -528,3 +528,13 @@ Negative control on 4e49146: 9 failures, all in the new/updated cases.
 
 **Binding principle.** Detection by name or shape informs masking; it never authorizes a write
 into a place that is shared through version control. Exposure is decided by location, not content.
+
+## Round 22 — snapshot consistency, stale ownership, TOML key semantics
+
+| Finding (Codex, on 258afd2) | Root cause | Fix |
+|---|---|---|
+| 4117011446 (P1) restore backup vs recorded pre-state | `backup_file()` and `file_triple()` read the config separately; a rewrite in between recorded `pre` ≠ backup, so restore overwrote the edit and any rollback failed | `backup_file()` reads bytes + mode from ONE open file and returns that snapshot as `pre` (all 3 callers); restore rechecks `file_triple == pre` right before writing (S3b) and refuses, leaving the concurrent edit in place |
+| 4117011451 (P2) stale ownership of an already-absent entry | removal planning only acted on names present in the file | new manifest-only `forget` action: owned + undesired + absent → the ownership record is dropped through the journaled no-write path; verify converges |
+| 4117011458 (P2) quoted TOML key with `\U` escape | quoted keys were decoded with `json.loads` | decoded with `tomllib` itself; an undecodable key is a `Refused`, never an internal error |
+
+Tests R22a/b/c; negative control on 258afd2: 6 failures. Suite 785/785.

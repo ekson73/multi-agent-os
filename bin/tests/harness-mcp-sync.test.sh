@@ -2217,6 +2217,67 @@ PY
 )"
 eq "True [] False []" "$AU" 'R20: all 6 audited bypass classes detected; ordinary values stay clean'
 
+# ---------------------------------------------------------------- round 22 (Codex on 258afd2)
+# R22c: a quoted TOML key with a TOML-only escape (\U…) is decoded with TOML semantics
+TK="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+print(m.toml_header_path('[unrelated."\\U0001F600"]') == ["unrelated", "\U0001F600"])
+PY
+)"
+eq "True" "$TK" 'R22c: quoted TOML key with a \U escape parses with TOML semantics'
+mkdir -p "$HOME/.htk22"; printf '[unrelated."\\U0001F600"]\nx = 1\n' > "$HOME/.htk22/config.toml"
+mk htk22 toml mcp_servers codex "~/.htk22/config.toml" true enabled enabled-bool high
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness htk22 --registry "$REG" --state-dir "$T/state-r22c" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R22c: apply against a config holding a \U-escaped table header succeeds'
+python3 -c 'import tomllib,sys; d=tomllib.load(open(sys.argv[1],"rb")); assert d["unrelated"]["\U0001F600"]["x"]==1 and d["mcp_servers"]' "$HOME/.htk22/config.toml" 2>/dev/null \
+  && ok 'R22c: unrelated table preserved and managed table written' || no 'R22c: unrelated table preserved and managed table written' "$o"
+rm -f "$REG/htk22.yaml"
+
+# R22b: an owned entry deleted by hand and then removed from the SSOT converges (manifest-only)
+SD22B="$T/state-r22b"; mkdir -p "$HOME/.hfg22"; printf '{"mcpServers":{}}' > "$HOME/.hfg22/mcp.json"
+mk hfg22 json mcpServers mcpservers-json "~/.hfg22/mcp.json" true null null high
+printf '{"schema":1,"servers":{"keep":{"transport":"stdio","command":"tool","args":["-v"]},"gone":{"transport":"stdio","command":"tool","args":["-q"]}}}' > "$T/ssot-r22b1.json"
+printf '{"schema":1,"servers":{"keep":{"transport":"stdio","command":"tool","args":["-v"]}}}' > "$T/ssot-r22b2.json"
+"$BIN" apply --ssot "$T/ssot-r22b1.json" --harness hfg22 --registry "$REG" --state-dir "$SD22B" >> "$ALLOUT" 2>&1
+python3 - "$HOME/.hfg22/mcp.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["mcpServers"].pop("gone"); json.dump(d, open(sys.argv[1], "w"))
+PY
+chmod 600 "$HOME/.hfg22/mcp.json"
+o="$("$BIN" apply --ssot "$T/ssot-r22b2.json" --harness hfg22 --registry "$REG" --state-dir "$SD22B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R22b: apply drops the stale ownership of an already-absent undesired entry'
+o="$("$BIN" verify --ssot "$T/ssot-r22b2.json" --harness hfg22 --registry "$REG" --state-dir "$SD22B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R22b: verify is clean afterwards'
+hasnt 'gone' "$o" 'R22b: the forgotten entry is no longer reported'
+rm -f "$REG/hfg22.yaml"
+
+# R22a: backup and recorded pre-state are one snapshot; a rewrite during restore is refused, not overwritten
+SD22A="$T/state-r22a"; mkdir -p "$HOME/.hrs22"; printf '{"mcpServers":{}}' > "$HOME/.hrs22/mcp.json"
+mk hrs22 json mcpServers mcpservers-json "~/.hrs22/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r22b2.json" --harness hrs22 --registry "$REG" --state-dir "$SD22A" --json > "$T/r22a.json" 2>>"$ALLOUT"
+TS22="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backup_ts"])' "$T/r22a.json" 2>/dev/null)"
+RA="$(python3 - "$BIN" "$TS22" "$REG" "$SD22A" "$HOME/.hrs22/mcp.json" <<'PY'
+import importlib.machinery, importlib.util, sys, io, contextlib
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+ts, reg, sd, cfg = sys.argv[2:6]
+orig = m.backup_file
+def racing(*a, **k):
+    res = orig(*a, **k)
+    with open(cfg, "a") as fh:
+        fh.write(" ")   # the harness rewrites its config right after the snapshot
+    return res
+m.backup_file = racing
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    rc = m.run(["restore", ts, "--harness", "hrs22", "--registry", reg, "--state-dir", sd])
+print(rc != 0, open(cfg).read().endswith(" "))
+PY
+)"
+eq "True True" "$RA" 'R22a: restore refuses (nonzero) and keeps the concurrent edit instead of overwriting it'
+rm -f "$REG/hrs22.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
