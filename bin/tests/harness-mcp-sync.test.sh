@@ -1970,6 +1970,26 @@ PY
 eq "True True True
 False" "$CG" 'C-G: argv under `command` (OpenCode) is gated, registered and masked; a secret-free argv is not flagged'
 
+# C-G root (Codex 5332*, round 15): carries_secret itself is format-agnostic, so EVERY caller
+# (verify's git check, apply's git gate, restore gate) sees argv under any key.
+CR="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+print(m.carries_secret({"type": "local", "command": ["cmd", "--token", "abc"]}),
+      m.carries_secret({"type": "local", "command": ["cmd", "--verbose"]}))
+PY
+)"
+eq "True False" "$CR" 'C-G root: carries_secret sees argv under `command`; a secret-free argv is not flagged'
+
+# Codex P2 (round 15): a journal target that became a directory is a reconcile conflict, not an internal error
+wc12 hwdir; crash after-pending apply --ssot "$S12"
+rm -f "$WF"; mkdir "$WF"
+w restore "$NOTS"
+has 'need a human' "$o" 'reconcile: target now a directory -> conflict needing a human'
+hasnt 'internal error' "$o" 'reconcile: target now a directory is not an internal error'
+rmdir "$WF"
+
 # kimi P3 (round 14 DIY review): state dirs are durable; the restore gate fails closed on any parse error
 KP="$(python3 - "$BIN" "$T" <<'PY'
 import importlib.machinery, importlib.util, os, sys

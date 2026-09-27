@@ -401,6 +401,16 @@ masks or refuses more, so the direction is fail-closed.
 | `doc_may_carry_secret` (restore gate, mode cap) | every argv list goes through `carries_secret` | C-G: `command` argv is gated |
 | `register_secret_args` (parsed configs) | registers values from every argv list | C-G: `command` argv is registered |
 | `masked_preview` (plan/apply output) | masks every argv list, not only `parent == "args"` | C-G: `command` argv is masked |
+| `carries_secret` (root; callers: `verify` git check, `apply` git gate, restore gate) | scans every argv-shaped value of the entry, not only `args` (round 15, Codex P1: `verify` still reported `clean` for a tracked OpenCode config) | C-G root: `command` argv flagged |
+
+Round-14 lesson: the first C-G pass enumerated by the *key* (`"args"` occurrences) instead of by
+the *concept* (every caller of the secret predicate), so the `verify` caller was missed. Fixing the
+predicate itself closes every caller at once.
+
+**Reconcile robustness (round 15, Codex P2).** A journal target that has become a directory or is
+unreadable made `file_triple` raise before the reconcile guard, so every later run aborted as an
+internal error. It is now recorded as a `conflict` (human `resolve`), like any other outside change.
+Test: reconcile, target now a directory.
 
 The SSOT schema still names the field `args`; only the rendered and parsed shapes vary, and those
 are what the three consumers see.

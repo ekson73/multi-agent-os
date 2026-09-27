@@ -712,7 +712,12 @@ def carries_secret(raw: dict) -> bool:
     for c in SECRET_CONTAINERS:
         if isinstance(raw.get(c), dict) and raw[c]:
             return True
-    for a in raw.get("args") or []:
+    # C-G root: argv may live under any key (`args`, OpenCode `command: [...]`), so every
+    # argv-shaped value is scanned; a non-list `args` keeps the old fail-closed element check.
+    argvs = [v for v in raw.values() if is_argv(v)]
+    if raw.get("args") is not None and not is_argv(raw.get("args")):
+        argvs.append(raw.get("args") or [])
+    for a in (x for v in argvs for x in v):
         if not isinstance(a, str) or SECRET_ARG_RE.search(a) or _secretish_segment(a) or literal_secretish(a):
             return True
     u = raw.get("url")
@@ -1548,7 +1553,12 @@ def reconcile(sd: str, reg: dict, manifest: dict) -> list:
                     set_mf(sd, manifest, path, e["mf_after"])
                     notes.append("%s %s: manifest entry re-asserted" % (rid, hid))
                 continue
-            obs = file_triple(path)
+            try:
+                obs = file_triple(path)
+            except OSError:  # Codex P2: target became a directory / unreadable -> human decides
+                j.set(i, "conflict")
+                conflicts.append((rid, hid, e))
+                continue
             try:
                 if st == "pending" and obs == e["pre"]:
                     set_mf(sd, manifest, path, e["mf_before"])
