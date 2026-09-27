@@ -448,3 +448,15 @@ Also in this round (P2): `shared_claimants()` is now the single claimant source 
 verify (R17b), and verify reports pending plan-only work as drift so apply and verify agree (R17c;
 the no-write policy is unchanged). The pre-existing "verify after apply" drift-set assertion now
 expects `hlow` (plan-only) alongside the two git-refused fixtures.
+
+## Round 18 (Codex on `e7e8957`)
+
+**C-H follow-up — classify the decoded form.** `mask_url` matched `SECRET_PARAM_RE` against the raw
+query key, so `?api%5Fkey=a` (or double-encoded `api%255Fkey`) read as a non-secret name. Every
+classification point in `mask_url` now uses `_decoded()` (bounded repeated `unquote_plus`): query
+keys and path segments; output keeps the original spelling (R18a). `mask_url` is the only URL
+classifier, so `carries_secret`, `doc_may_carry_secret` and the `Redactor` inherit the fix.
+
+**Plan-only drift includes conflicts/refusals.** `plan_is_empty` counts writes/adoption only, so a
+conflict-only plan-only result read as converged. `plan_pending()` (writes, adoption, conflict or
+refusal) now drives both the apply exit code and the verify report (R18b).

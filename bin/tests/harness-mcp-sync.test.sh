@@ -2089,6 +2089,35 @@ has 'plan-only' "$o" 'R17c: verify names the pending plan-only work'
 eq "$(printf '{"mcpServers":{}}')" "$(cat "$HOME/.hlow2/mcp.json")" 'R17c: the no-write policy holds (file untouched)'
 rm -f "$REG/hlow2.yaml"
 
+# ---------------------------------------------------------------- PDCA round 18 (Codex on e7e8957)
+# R18a (P1, C-H follow-up): URL components are classified DECODED; output keeps the original spelling
+UD="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+for u in ("https://x.test/mcp?api%5Fkey=a", "https://x.test/mcp?api%255Fkey=a", "https://x.test/mcp?to%6Ben=a",
+          "https://x.test/mcp?page=2"):
+    print(m.mask_url(u))
+print(m.carries_secret({"httpUrl": "https://x.test/mcp?api%5Fkey=a"}))
+PY
+)"
+eq "https://x.test/mcp?api%5Fkey=«masked»
+https://x.test/mcp?api%255Fkey=«masked»
+https://x.test/mcp?to%6Ben=«masked»
+https://x.test/mcp?page=2
+True" "$UD" 'R18a: percent-encoded secret query names are masked (single/double-encoded), original spelling kept'
+
+# R18b: a plan-only harness whose plan is conflict-only is still pending drift (apply AND verify)
+SD18="$T/state-r18"; mkdir -p "$HOME/.hlow3"
+printf '{"mcpServers":{"p-tool":{"command":"hand-written"}}}' > "$HOME/.hlow3/mcp.json"
+mk hlow3 json mcpServers mcpservers-json "~/.hlow3/mcp.json" true null null low
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hlow3 --registry "$REG" --state-dir "$SD18" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R18b: apply exits nonzero on a conflict-only plan-only result' || no 'R18b: apply exits nonzero on a conflict-only plan-only result' "rc=$rc"
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hlow3 --registry "$REG" --state-dir "$SD18" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R18b: verify exits nonzero on a conflict-only plan-only result' || no 'R18b: verify exits nonzero on a conflict-only plan-only result' "rc=$rc"
+eq '{"mcpServers":{"p-tool":{"command":"hand-written"}}}' "$(cat "$HOME/.hlow3/mcp.json")" 'R18b: the hand-written entry is untouched'
+rm -f "$REG/hlow3.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

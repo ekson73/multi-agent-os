@@ -111,6 +111,18 @@ def _secretish_segment(seg: str) -> bool:
     return classes >= 2 and _entropy(seg) >= 3.5
 
 
+def _decoded(part: str) -> str:
+    """Classification form of a URL component: percent/plus-decoded until stable (bounded, so
+    double-encoding such as api%255Fkey cannot hide a secret name). Output keeps the raw spelling."""
+    from urllib.parse import unquote_plus
+    for _ in range(4):
+        nxt = unquote_plus(part)
+        if nxt == part:
+            break
+        part = nxt
+    return part
+
+
 def mask_url(url: str) -> str:
     """Mask credentials embedded in a URL; scheme + host stay visible."""
     m = URL_RE.match(url)
@@ -130,13 +142,14 @@ def mask_url(url: str) -> str:
         parts = []
         for kv in q.split("&"):
             k, sep, v = kv.partition("=")
-            parts.append(k + sep + (MASKED if sep and v and SECRET_PARAM_RE.match(k) else v))
+            parts.append(k + sep + (MASKED if sep and v and SECRET_PARAM_RE.match(_decoded(k)) else v))
         query = "?" + "&".join(parts)
     auth, slash, path = rest.partition("/")
     if "@" in auth:
         auth = MASKED + "@" + auth.rsplit("@", 1)[1]
     if slash:
-        path = "/".join(MASKED if _secretish_segment(s) else s for s in path.split("/"))
+        path = "/".join(MASKED if _secretish_segment(_decoded(s)) or _secretish_segment(s) else s
+                        for s in path.split("/"))
     return scheme + auth + slash + path + query + frag + trail
 
 
@@ -1869,6 +1882,12 @@ def plan_is_empty(r) -> bool:
         not any(a.get("adopt") for a in r["actions"])
 
 
+def plan_pending(r) -> bool:
+    """Unconverged work of any kind: writes/adoption, OR a conflict/refusal the run cannot resolve.
+    Used for plan-only results, which never write but must never read as converged (R18)."""
+    return not plan_is_empty(r) or any(a["action"] == "conflict" or a.get("refused") for a in r["actions"])
+
+
 # --------------------------------------------------------------------------- apply
 def render_file(h: dict, cfg: dict, writes: dict, drops: set) -> tuple[str, dict]:
     m = h["mcp"]
@@ -2021,7 +2040,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         if not r["applicable"]:
             if r["status"] in ("error",):
                 worst = EXIT_DRIFT
-            if r["status"] in ("plan-only",) and not plan_is_empty(r):
+            if r["status"] in ("plan-only",) and plan_pending(r):
                 # skipped pending work is unconverged, exactly like a Git-safety refusal (R16)
                 r["apply"] = "not-applied: %s" % r["reason"]
                 worst = EXIT_DRIFT
@@ -2345,7 +2364,7 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
         reported = {(e.get("file"), n) for e in out for n in fe_names(e)}
         for r in build_plan(reg, ids, ssot, resolver, manifest, set()):
             if not r["applicable"]:
-                if r["status"] == "plan-only" and not plan_is_empty(r):
+                if r["status"] == "plan-only" and plan_pending(r):
                     # R17: same verdict as apply — the no-write policy holds, but pending work is drift
                     ent = next((e for e in out if e.get("file") == r["file"]), None)
                     if ent is None:
