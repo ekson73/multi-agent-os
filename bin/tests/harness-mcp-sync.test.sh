@@ -412,9 +412,20 @@ cat > "$SSOTL" <<'EOF'
  "lit-url":{"transport":"streamable-http","url":"https://u:pw9876543@l.example.test/mcp"},
  "clean":{"transport":"stdio","command":"tool","args":["-v"]}}}
 EOF
-run apply --ssot "$SSOTL" --harness hgtrk,hgit
+run apply --ssot "$SSOTL" --harness hgtrk,hgit --allow-git-visible
 L="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]), sorted(json.load(open(sys.argv[2]))["mcpServers"]))' "$HOME/gitrepo/tracked.json" "$HOME/gitrepo/mcp.json" 2>&1)"
 eq "['clean'] ['clean']" "$L" 'F2: literal header/arg/url secrets refused in tracked + untracked git files; clean server written'
+# C-J: without the opt-in, NOTHING is written into a git-visible config — the heuristics are no longer
+# the barrier (every value they miss would otherwise ship). A value no detector recognizes proves it.
+printf '{"mcpServers":{}}' > "$HOME/gitrepo/tracked.json"; printf '{"mcpServers":{}}' > "$HOME/gitrepo/mcp.json"
+( cd "$HOME/gitrepo" && git add tracked.json >/dev/null 2>&1 && git -c user.email=t@t -c user.name=t commit -qm cj >/dev/null 2>&1 )
+CJV="$(python3 -c 'import random;r=random.Random(11);print("".join(r.choice("abcdefghijklmnop") for _ in range(9)))')"
+printf '{"schema":1,"servers":{"odd":{"transport":"stdio","command":"tool","args":["-q","%s"]}}}\n' "$CJV" > "$T/ssot-cj.json"
+run apply --ssot "$T/ssot-cj.json" --harness hgtrk,hgit
+[ "$rc" -ne 0 ] && ok 'C-J: apply into git-visible configs exits nonzero by default' || no 'C-J: apply into git-visible configs exits nonzero by default' "rc=$rc"
+has 'allow-git-visible' "$o" 'C-J: the refusal names the opt-in flag'
+L="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]), sorted(json.load(open(sys.argv[2]))["mcpServers"]))' "$HOME/gitrepo/tracked.json" "$HOME/gitrepo/mcp.json" 2>&1)"
+eq "[] []" "$L" 'C-J: no server (even one no detector flags) reaches a tracked or untracked-not-ignored config'
 hasnt 'literal' "$(cat "$HOME/gitrepo/tracked.json" "$HOME/gitrepo/mcp.json")" 'F2: no literal secret reached a git-visible file'
 
 # F3: symlinked config — inside HOME written THROUGH (link kept); outside HOME refused; into git repo judged by target
@@ -1384,7 +1395,7 @@ printf '{"schema":1,"servers":{"sec":{"transport":"stdio","command":"npx","args"
 o="$("$BIN" apply --ssot "$T/ssot-gr-only.json" --harness hgr --registry "$REG" --state-dir "$SD10" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 has 'refused' "$o" '#4105602622: tracked config + secret -> refused'
 [ "$rc" -ne 0 ] && ok '#4105602622: refusal-only plan: apply exits non-zero (no false convergence)' || no '#4105602622: refusal-only plan: apply exits non-zero (no false convergence)' "rc=$rc"
-o="$("$BIN" apply --ssot "$T/ssot-gr-mix.json" --harness hgr --registry "$REG" --state-dir "$SD10" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+o="$("$BIN" apply --ssot "$T/ssot-gr-mix.json" --harness hgr --registry "$REG" --state-dir "$SD10" --allow-git-visible 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
 [ "$rc" -ne 0 ] && ok '#4105602622: mixed plan: apply exits non-zero' || no '#4105602622: mixed plan: apply exits non-zero' "rc=$rc"
 MX="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hgr/mcp.json")"
 eq "['plain']" "$MX" '#4105602622: mixed plan: harmless sibling written, secret server never written'
@@ -1810,7 +1821,11 @@ printf 'mcp.json\n' > "$HOME/.hwgr/.gitignore"
 w restore "$RR"; eq 0 "$rc" 'C-E git: secret backup into a git-IGNORED config is allowed'
 grep -q "$FIXSECRET" "$WF" && ok 'C-E git: ignored config received the restore' || no 'C-E git: ignored config received the restore' none
 rm -f "$HOME/.hwgr/.gitignore"; git -C "$HOME/.hwgr" add -f mcp.json >/dev/null 2>&1
-w restore "$TS1"; eq 0 "$rc" 'C-E git: a SECRET-FREE backup into a tracked config is allowed'
+NS2="$(sum "$WF")"
+w restore "$TS1"; eq 1 "$rc" 'C-J: even a SECRET-FREE backup into a tracked config is refused by default'
+has 'allow-git-visible' "$o" 'C-J: the restore refusal names the opt-in flag'
+eq "$NS2" "$(sum "$WF")" 'C-J: tracked config untouched by the default refusal'
+w restore "$TS1" --allow-git-visible; eq 0 "$rc" 'C-E git: with --allow-git-visible a SECRET-FREE backup into a tracked config is allowed'
 hasnt "$FIXSECRET" "$(cat "$WF")" 'C-E git: tracked config now holds no secret'
 rm -f "$REG/hwgr.yaml"
 # C-E I4: a secret-bearing backup recorded with a wide mode is restored at most 0600

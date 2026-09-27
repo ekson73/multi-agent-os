@@ -493,3 +493,38 @@ by executing the module). Root cause of the recurring findings: detection was bu
 Principle now binding for this file: **a detector must be defined by the value, not by a list of
 names or a fixed number of passes**; name lists only ADD detection, never gate it. False-positive
 guards (ordinary query params, package specs, paths, short session ids) are part of R20.
+
+## Round 21 — C-J: structural fail-closed gate for Git-visible configs
+
+**Why the class changed.** Rounds 14-20 closed, one by one, secret shapes that the content
+heuristics missed (argv under any key, URL credentials under any key and any encoding depth,
+camelCase/acronym container keys, Windows-style flags, short hex, scheme-less userinfo). The
+Codex review of round 20 found five more variants of the same family (punctuation as a character
+class, `HTTPHeaders`, `/password:value`, a URL embedded inside an argv token, scheme-less userinfo
+before an IPv6 host). A detector that recognizes secrets by name or shape can never be complete,
+so it must not be the barrier that keeps a secret out of a commit.
+
+**Fix (structural).** A config that Git can see — tracked, untracked-but-not-ignored, or of
+unknown state — is **never written and never restored by default**, whatever the content. The
+refusal names the opt-in `--allow-git-visible` and the alternative (git-ignore the file).
+
+**Defense in depth.** With `--allow-git-visible`, every server that the content check flags is
+still refused (the round 14-20 detectors stay active), and restore still refuses a backup that
+may carry secret material. Masking of output/logs keeps using the same detectors; there, a miss
+affects display only, never what reaches Git.
+
+| Finding (Codex, on 4e49146) | Disposition |
+|---|---|
+| 4116927279 punctuation class | subsumed by C-J for Git exposure; masking remains best-effort |
+| 4116927281 `HTTPHeaders` | subsumed by C-J |
+| 4116927285 `/password:value` | subsumed by C-J |
+| 4116927289 URL inside argv token | subsumed by C-J |
+| 4116927291 userinfo before `[::1]` | subsumed by C-J |
+
+**Tests.** C-J cases prove a value no detector recognizes never reaches a tracked or
+untracked-not-ignored config, that the refusal exits nonzero and names the flag, and that a
+secret-free restore into a tracked config is refused by default and allowed only with the flag.
+Negative control on 4e49146: 9 failures, all in the new/updated cases.
+
+**Binding principle.** Detection by name or shape informs masking; it never authorizes a write
+into a place that is shared through version control. Exposure is decided by location, not content.

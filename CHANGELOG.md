@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore · resolve · update. Dry-run by default, timestamped backups, atomic write + chmod 600, parse-back
   validation with auto-restore, idempotent, ownership manifest in the state dir (no marker keys in
   harness files), conflict on unmanaged same-name entries (`--adopt`), legacy removal only via
-  SSOT `replaces`, surgical TOML edits, refusal of secret-carrying servers for git-tracked /
-  untracked-unignored files, refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
+  SSOT `replaces`, surgical TOML edits, fail-closed refusal of every write/restore into a git-visible
+  (tracked / untracked-unignored) file unless `--allow-git-visible` (then secret-carrying servers are still refused), refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
   Config + manifest atomicity via a salted, MAC'd write-ahead intent journal with reconcile on the
   next run, an exclusive run lock, and `resolve` as the operator escape; threat model and design in
   `docs/harness-mcp-sync-threat-model.md`.

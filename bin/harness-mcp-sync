@@ -466,6 +466,17 @@ def git_state(path: str):
     return "untracked"
 
 
+# C-J (structural gate): writing into a Git-visible config (tracked, or untracked-not-ignored, or
+# unknown) is REFUSED by default, whatever the content. Secret detection is heuristic and can never
+# be complete, so it must not be the barrier; with --allow-git-visible it remains as defense in depth.
+ALLOW_GIT_VISIBLE = False
+
+
+def git_write_blocked(raw) -> bool:
+    """For a Git-visible target: may this server NOT be written? Fail-closed by default (C-J)."""
+    return (not ALLOW_GIT_VISIBLE) or carries_secret(raw)
+
+
 def git_leak_risk(state) -> bool:
     return state in ("tracked", "untracked", "unknown")
 
@@ -1812,7 +1823,7 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                         act = {"server": name, "action": "conflict",
                                "reason": "conflict:unmanaged entry still active but disabled in SSOT "
                                          "(pass --adopt %s to remove it)" % name}
-            elif in_git and carries_secret(raw) and raw.get("enabled", True) is False and name in existing:
+            elif in_git and git_write_blocked(raw) and raw.get("enabled", True) is False and name in existing:
                 # Disabled in SSOT but its disabled form cannot be written here (secret + git-unsafe):
                 # never a silent skip that leaves it ACTIVE — remove what we own, else conflict.
                 if (name in owned or name in adopt) and not modified(name):
@@ -1824,16 +1835,18 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                                                          "is %s in git so it cannot be rewritten (%s)"
                                                          % (gstate, "modified-since-apply" if name in owned
                                                             else "pass --adopt %s to remove it" % name))
-            elif in_git and carries_secret(raw) and raw.get("enabled", True) is False:
+            elif in_git and git_write_blocked(raw) and raw.get("enabled", True) is False:
                 # disabled and already absent: the desired state (no active entry) holds — converged
                 act.update(action="skip", reason="disabled in SSOT and absent; nothing to write "
                                                  "(config is %s in git)" % gstate)
-            elif in_git and carries_secret(raw):
+            elif in_git and git_write_blocked(raw):
                 where = ("could not check git visibility (git missing or erroring)" if gstate == "unknown"
                          else "config is %s in a git work tree (could leak via commit)" % gstate)
-                act.update(action="skip", refused="git-safety",
-                           reason="%s; server carries secret material (headers/env/secret args/URL "
-                                  "credentials, placeholder or literal) — refused" % where)
+                why = ("server carries secret material (headers/env/secret args/URL credentials, "
+                       "placeholder or literal)" if ALLOW_GIT_VISIBLE else
+                       "Git-visible configs are never written by default (pass --allow-git-visible, "
+                       "or git-ignore the file)")
+                act.update(action="skip", refused="git-safety", reason="%s; %s — refused" % (where, why))
             else:
                 entry = render_entry(h, name, resolver.resolve(raw))
                 desired_names.add(name)
@@ -2025,9 +2038,11 @@ def restore_git_refusal(path: str, fmt: str, data: bytes | None):
     except FileNotFoundError:
         pass
     gstate = git_state(path)
-    if git_leak_risk(gstate) and doc_may_carry_secret(fmt, data):
-        return ("refused: the backup may carry secret material and the config is %s in git "
-                "(git-ignore it, or copy the backup by hand); file left unchanged" % gstate)
+    if git_leak_risk(gstate) and (not ALLOW_GIT_VISIBLE or doc_may_carry_secret(fmt, data)):
+        return ("refused: the config is %s in git and %s (git-ignore it, or copy the backup by hand); "
+                "file left unchanged" % (gstate, "the backup may carry secret material" if ALLOW_GIT_VISIBLE
+                                         else "Git-visible configs are never restored by default "
+                                              "(--allow-git-visible)"))
     return None
 
 
@@ -2632,6 +2647,9 @@ def parse_args(argv):
     p.add_argument("--resolver", help="executable: argv[1]=ref, prints value; non-zero = error")
     p.add_argument("--adopt", action="append", metavar="NAME", help="take ownership of an existing same-name entry")
     p.add_argument("--allow-comment-loss", action="store_true", help="allow rewriting jsonc/yaml that has comments")
+    p.add_argument("--allow-git-visible", action="store_true",
+                   help="allow writing/restoring configs that git can see (tracked or not ignored); secret-bearing "
+                        "servers stay refused by the content check — default: refuse every such write")
     return p.parse_args(argv)
 
 
@@ -2686,6 +2704,8 @@ def run(argv) -> int:
         args = parse_args(argv)
     except SystemExit as e:
         return EXIT_OK if e.code == 0 else EXIT_USAGE
+    global ALLOW_GIT_VISIBLE
+    ALLOW_GIT_VISIBLE = bool(getattr(args, "allow_git_visible", False))
     try:
         if tomllib is None:
             raise UsageError("Python 3.11+ required (tomllib)")
