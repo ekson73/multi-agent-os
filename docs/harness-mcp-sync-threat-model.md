@@ -582,4 +582,13 @@ R26; negative control on 7f42415: 3 failures. Suite 808/808.
 | 4117390454 (P2) A owned a shared path and moved away while B kept targeting it with an unchanged server: `nothing-to-do` never recorded B, so the per-owner stale check flagged B's valid config forever | a claimant change is manifest-only work (journaled, file untouched): the new owner is recorded and apply/verify converge |
 | 4117390459 (P2) `NaN`/`Infinity` accepted by Python's `json` and round-tripped | configs parse with `parse_constant` rejecting non-finite constants (refused, file untouched), JSON output uses `allow_nan=False`, and the SSOT loader parses strictly too (defense in depth: the SSOT schema already rejects the only fields that could hold them, so that path has no separate test) |
 
-Tests R27a/b; negative control on 24dcf1c: 5 failures. Suite 811/811.
+Tests R27a/b; negative control on 24dcf1c: 5 failures. Suite 813/813.
+
+## Round 28 — duplicate SSOT keys; repeated harness ids
+
+| Finding (Codex, on 858341e) | Fix |
+|---|---|
+| 4117446242 (P1) a duplicate SSOT key (a second, empty `servers`) silently won and scheduled removal of every managed server | the SSOT loader uses the same duplicate-pair detection as config parsing → usage error, nothing removed |
+| 4117446245 (P2) `--harness h,h` planned one config twice; the second result saw the first write as a concurrent change | ids deduplicated preserving order |
+
+Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27's suite count corrected to 813.)

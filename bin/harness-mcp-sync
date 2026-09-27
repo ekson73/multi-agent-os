@@ -516,7 +516,7 @@ def select_harnesses(reg: dict, spec: str | None) -> list:
     if unknown:
         raise UsageError("unknown harness id(s): %s — research it, then add harnesses/<id>.yaml "
                          "with confidence: low" % ", ".join(unknown))
-    return ids
+    return list(dict.fromkeys(ids))  # R28 (Codex 4117446245): `--harness h,h` must not plan one config twice
 
 
 # --------------------------------------------------------------------------- SSOT
@@ -579,7 +579,11 @@ def validate_ssot(ssot) -> None:
 def load_ssot(path: str) -> dict:
     try:
         with open(path, encoding="utf-8") as fh:
-            ssot = json.load(fh, parse_constant=_reject_constant)
+            # R28 (Codex 4117446242): a repeated key (e.g. a second, empty "servers") must be rejected,
+            # never silently win — the last value would schedule removal of every managed server
+            ssot = json.load(fh, parse_constant=_reject_constant, object_pairs_hook=_unique_pairs)
+    except DuplicateKey:
+        raise UsageError("SSOT %s has a duplicate key; refusing an ambiguous source of truth" % path)
     except (OSError, ValueError) as e:
         raise UsageError("cannot read SSOT %s: %s" % (path, e.__class__.__name__))
     validate_ssot(ssot)

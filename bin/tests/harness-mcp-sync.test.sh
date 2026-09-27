@@ -2406,6 +2406,24 @@ o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hnan27 --registry "$REG"
 eq "$N0" "$(sum "$HOME/.hnan27/mcp.json")" 'R27b: the file is left untouched'
 rm -f "$REG/hnan27.yaml"
 
+# R28a: an SSOT with a duplicate key (second, empty "servers") is refused and nothing is removed
+SD28="$T/state-r28"; mkdir -p "$HOME/.hdk28"; printf '{"mcpServers":{}}' > "$HOME/.hdk28/mcp.json"
+mk hdk28 json mcpServers mcpservers-json "~/.hdk28/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hdk28 --registry "$REG" --state-dir "$SD28" >> "$ALLOUT" 2>&1
+D0="$(sum "$HOME/.hdk28/mcp.json")"
+printf '{"schema":1,"servers":{"only":{"transport":"stdio","command":"tool","args":["-v"]}},"servers":{}}' > "$T/ssot-r28.json"
+o="$("$BIN" apply --ssot "$T/ssot-r28.json" --harness hdk28 --registry "$REG" --state-dir "$SD28" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 2 "$rc" 'R28a: a duplicate-key SSOT is a usage error'
+has 'duplicate key' "$o" 'R28a: says why'
+eq "$D0" "$(sum "$HOME/.hdk28/mcp.json")" 'R28a: no managed entry removed'
+
+# R28b: a repeated --harness id is planned once; apply converges on the first run
+printf '{"mcpServers":{}}' > "$HOME/.hdk28/mcp.json"
+o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hdk28,hdk28 --registry "$REG" --state-dir "$T/state-r28b" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R28b: --harness h,h applies once and exits 0'
+hasnt 'changed since plan' "$o" 'R28b: no self-inflicted concurrent-change refusal'
+rm -f "$REG/hdk28.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
