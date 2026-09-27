@@ -558,3 +558,11 @@ Tests R23a/b; negative control on 2615d11: 5 failures. Suite 792/792.
 | 4117281377 (P2) an empty record left by an older version plus an absent config → apply `nothing-to-do`, verify `file missing` forever | a record that ends up with no owned server is cleanup work: dropped through the journaled no-write path |
 
 Tests R24a/b; negative control on 3593157: 6 failures. Suite 802/802.
+
+## Round 25 — stale liveness from the current target, not the restore allow-list
+
+Codex 4117313067 (P1, on 9e40270): `stale_records()` treated every registered `config_paths` entry
+as live, so an old path kept as a secondary fallback after a migration was never flagged, and the
+C-J gate never examined it. Liveness is now each harness's **current** `target_path()`, and
+`allowed_targets()` is left for restore only. Test R25; negative control on 9e40270: 3 failures.
+Suite 805/805.

@@ -2353,6 +2353,21 @@ o="$("$BIN" verify --ssot "$T/ssot-r23b2.json" --harness hem24 --registry "$REG"
 eq 0 "$rc" 'R24b: verify converges (no stale "file missing")'
 rm -f "$REG/hem24.yaml"
 
+# R25: the old path kept as a SECONDARY config_paths fallback is still stale once the new path wins
+SD25="$T/state-r25"; mkdir -p "$HOME/.hold25" "$HOME/.hnew25"
+printf '{"mcpServers":{}}' > "$HOME/.hold25/mcp.json"
+mk hfb25 json mcpServers mcpservers-json "~/.hold25/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hfb25 --registry "$REG" --state-dir "$SD25" >> "$ALLOUT" 2>&1
+printf '{"mcpServers":{}}' > "$HOME/.hnew25/mcp.json"
+sed -i.bak 's|  config_paths: \[{path: "~/.hold25/mcp.json", scope: user}\]|  config_paths: [{path: "~/.hnew25/mcp.json", scope: user}, {path: "~/.hold25/mcp.json", scope: user}]|' "$REG/hfb25.yaml"; rm -f "$REG/hfb25.yaml.bak"
+git -C "$HOME/.hold25" init -q >/dev/null 2>&1; git -C "$HOME/.hold25" add mcp.json >/dev/null 2>&1
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hfb25 --registry "$REG" --state-dir "$SD25" >> "$ALLOUT" 2>&1
+o="$("$BIN" verify --harness hfb25 --registry "$REG" --state-dir "$SD25" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R25: verify reports the old path kept only as a fallback' || no 'R25: verify reports the old path kept only as a fallback' "rc=$rc"
+has 'stale ownership' "$o" 'R25: names it as stale ownership'
+has 'Git-visible' "$o" 'R25: the C-J gate examines the fallback-retained old file'
+rm -f "$REG/hfb25.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
