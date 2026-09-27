@@ -112,10 +112,10 @@ def _secretish_segment(seg: str) -> bool:
 
 
 def _decoded(part: str) -> str:
-    """Classification form of a URL component: percent/plus-decoded until stable (bounded, so
-    double-encoding such as api%255Fkey cannot hide a secret name). Output keeps the raw spelling."""
+    """Classification form of a URL component: percent/plus-decoded until stable, however many
+    layers (api%255Fkey, api%252525255Fkey, ...). Output keeps the raw spelling."""
     from urllib.parse import unquote_plus
-    for _ in range(4):
+    for _ in range(len(part) + 2):  # always reaches a fixed point: length never grows (R19)
         nxt = unquote_plus(part)
         if nxt == part:
             break
@@ -683,7 +683,7 @@ def literal_secretish(v) -> bool:
     """A NON-placeholder value that looks like a secret: len>=12, >=3 char classes,
     Shannon entropy >=3.5 (whole value or any whitespace token). Heuristic: short or
     low-entropy literals are undetectable — keep secrets in placeholders."""
-    if not isinstance(v, str) or PLACEHOLDER_RE.search(v) or v.startswith("secret:"):
+    if not isinstance(v, str) or PLACEHOLDER_RE.search(v):
         return False
 
     def hit(t):
@@ -780,6 +780,7 @@ def strip_jsonc(text: str) -> tuple[str, bool]:
             if j < 0:
                 # swallowing to EOF would let --allow-comment-loss rewrite (and lose) the tail (R16)
                 raise Refused("unterminated /* block comment")
+            out.append(" ")  # keep the token boundary: `1/*c*/2` must stay invalid, never become 12 (R19)
             i = j + 2
         else:
             out.append(c)
@@ -1775,6 +1776,13 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
                 continue
             if kind in ("skip", "omit"):
                 act.update(action=kind, reason=why)
+                if kind == "skip" and modified(name):
+                    # The SSOT definition cannot be rendered here AND our owned entry was hand-edited:
+                    # keep it, but never claim convergence over an ownership conflict (R19).
+                    r["actions"].append(act)
+                    act = {"server": name, "action": "conflict",
+                           "reason": "conflict:owned entry hand-edited since last apply; SSOT definition "
+                                     "is not renderable here (%s) — entry kept" % why}
                 if kind == "omit" and name in existing and name not in owned:
                     # An unmanaged ACTIVE entry of a server the SSOT disables: never silently kept,
                     # never silently deleted. Report it; remove only with explicit --adopt.
@@ -2040,10 +2048,15 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         if not r["applicable"]:
             if r["status"] in ("error",):
                 worst = EXIT_DRIFT
-            if r["status"] in ("plan-only",) and plan_pending(r):
-                # skipped pending work is unconverged, exactly like a Git-safety refusal (R16)
-                r["apply"] = "not-applied: %s" % r["reason"]
-                worst = EXIT_DRIFT
+            if r["status"] in ("plan-only",):
+                path = r.get("file")
+                # a managed file off 0600 is a pending permission repair, even with an empty plan (R19)
+                perm = bool(path) and path in manifest["files"] and os.path.exists(path) and \
+                    (os.stat(path).st_mode & 0o777) != 0o600
+                if plan_pending(r) or perm:
+                    # skipped pending work is unconverged, exactly like a Git-safety refusal (R16)
+                    r["apply"] = "not-applied: %s%s" % (r["reason"], " (mode repair pending)" if perm else "")
+                    worst = EXIT_DRIFT
             continue
         if any(a["action"] == "conflict" for a in r["actions"]):
             worst = EXIT_DRIFT

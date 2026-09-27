@@ -460,3 +460,16 @@ classifier, so `carries_secret`, `doc_may_carry_secret` and the `Redactor` inher
 **Plan-only drift includes conflicts/refusals.** `plan_is_empty` counts writes/adoption only, so a
 conflict-only plan-only result read as converged. `plan_pending()` (writes, adoption, conflict or
 refusal) now drives both the apply exit code and the verify report (R18b).
+
+## Round 19 (Codex on `7f76865`)
+
+| Finding | Fix | Test |
+|---|---|---|
+| P1 fixed 4-pass decode let 5-layer encoding through | `_decoded()` iterates to a fixed point, bounded by input length (length never grows) | R19a |
+| JSONC `1/*c*/2` fused into `12` | removed block comment is replaced by a space (token boundary kept) | R19b |
+| owned entry hand-edited + SSOT now unrenderable → `nothing-to-do` | `skip` on a modified owned entry emits a conflict; entry kept | R19c |
+| plan-only harness with 0644 managed file exited 0 | pending mode repair is drift; no-write policy kept | R19d |
+| `secret:` documented but not a placeholder, and exempt from the literal heuristic | removed from the SKILL contract and from `literal_secretish` | R19e |
+
+Lesson (C-H, third instance): a fixed iteration cap is a key-name check in disguise — bound by the
+input, not by a guess.

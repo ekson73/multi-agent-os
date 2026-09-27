@@ -2118,6 +2118,54 @@ o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hlow3 --registry "$REG" --
 eq '{"mcpServers":{"p-tool":{"command":"hand-written"}}}' "$(cat "$HOME/.hlow3/mcp.json")" 'R18b: the hand-written entry is untouched'
 rm -f "$REG/hlow3.yaml"
 
+# ---------------------------------------------------------------- PDCA round 19 (Codex on 7f76865)
+R19="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+# R19a (P1): decode until stable, however many layers
+print(m.mask_url("https://x.test/mcp?api%252525255Fkey=a").endswith("=«masked»"),
+      m.mask_url("https://x.test/mcp?page=2") == "https://x.test/mcp?page=2")
+# R19b: a block comment between adjacent tokens must not fuse them into new data
+try:
+    import json; json.loads(m.strip_jsonc('{"quota":1/*c*/2}')[0]); print("accepted")
+except Exception:
+    print("rejected")
+# R19e: `secret:` is not a placeholder form, so it gets no literal-secret exemption
+print(m.literal_secretish("secret:Zq7Kp2Vx9Lm4Rt8W"))
+PY
+)"
+eq "True True
+rejected
+True" "$R19" 'R19a/b/e: 5-layer encoding masked; comment keeps token boundary; no secret: exemption'
+
+# R19c: an owned entry hand-edited while its SSOT definition is unrenderable is a conflict, not nothing-to-do
+SD19C="$T/state-r19c"; mkdir -p "$HOME/.hnh19"; printf '{"mcpServers":{}}' > "$HOME/.hnh19/mcp.json"
+mk hnh19 json mcpServers mcpservers-json "~/.hnh19/mcp.json" false null null high
+printf '{"schema":1,"servers":{"p-tool":{"transport":"stdio","command":"npx","args":["-y","p"]}}}' > "$T/ssot-r19a.json"
+printf '{"schema":1,"servers":{"p-tool":{"transport":"http","url":"https://x.test/mcp","headers":{"Authorization":"Bearer ${FIXSECRET}"}}}}' > "$T/ssot-r19b.json"
+"$BIN" apply --ssot "$T/ssot-r19a.json" --harness hnh19 --registry "$REG" --state-dir "$SD19C" >> "$ALLOUT" 2>&1
+python3 - "$HOME/.hnh19/mcp.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["mcpServers"]["p-tool"]["args"] = ["-y", "hand-edited"]; json.dump(d, open(sys.argv[1], "w"))
+PY
+o="$("$BIN" apply --ssot "$T/ssot-r19b.json" --harness hnh19 --registry "$REG" --state-dir "$SD19C" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R19c: apply is drift when an owned entry was hand-edited and is now unrenderable' || no 'R19c: apply is drift when an owned entry was hand-edited and is now unrenderable' "rc=$rc"
+has 'conflict' "$o" 'R19c: the ownership conflict is reported'
+has 'hand-edited' "$(cat "$HOME/.hnh19/mcp.json")" 'R19c: the hand-edited entry is preserved'
+rm -f "$REG/hnh19.yaml"
+
+# R19d: a managed file with permission drift on a harness later made plan-only is drift in apply
+SD19D="$T/state-r19d"; mkdir -p "$HOME/.hdn19"; printf '{"mcpServers":{}}' > "$HOME/.hdn19/mcp.json"
+mk hdn19 json mcpServers mcpservers-json "~/.hdn19/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r3.json" --harness hdn19 --registry "$REG" --state-dir "$SD19D" >> "$ALLOUT" 2>&1
+chmod 644 "$HOME/.hdn19/mcp.json"
+sed -i.bak 's/^skip_reason: null$/skip_reason: "fixture downgraded to plan-only"/' "$REG/hdn19.yaml"; rm -f "$REG/hdn19.yaml.bak"
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hdn19 --registry "$REG" --state-dir "$SD19D" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R19d: plan-only permission drift exits nonzero' || no 'R19d: plan-only permission drift exits nonzero' "rc=$rc"
+eq 644 "$(mode "$HOME/.hdn19/mcp.json")" 'R19d: the plan-only no-write policy holds (mode untouched)'
+rm -f "$REG/hdn19.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

@@ -114,8 +114,8 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 - **Short or low-entropy secret literals are undetectable.** The SSOT lint flags values that look
   secret-like (long, mixed character classes, high entropy) and refuses them for git-tracked
   targets, but a short literal password in a bare positional arg cannot be told apart from an
-  ordinary word. Rule: the SSOT references secrets **only** by placeholder (`${VAR}`, vault refs,
-  `secret:`), never inline.
+  ordinary word. Rule: the SSOT references secrets **only** by placeholder (`${VAR}` or a vault
+  reference), never inline.
 - **Restore trusts the local state dir.** Restore targets are limited to the harness's registered
   config paths (realpath, inside HOME), but backups and the manifest share one state directory; an
   attacker with write access to it can still swap backup *contents*. Keep the state dir at 0700.
