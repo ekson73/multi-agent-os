@@ -2382,6 +2382,30 @@ has 'stale ownership' "$o" 'R26: names it as stale ownership'
 has 'Git-visible' "$o" 'R26: the C-J gate examines it'
 rm -f "$REG/how26.yaml" "$REG/hal26.yaml"
 
+# R27a: A owns a shared path, A moves away, B still targets it with an unchanged server:
+# an all-harness apply records B as the claimant, and apply/verify converge
+SD27="$T/state-r27"; mkdir -p "$HOME/.hsh27" "$HOME/.hmv27"
+printf '{"mcpServers":{}}' > "$HOME/.hsh27/mcp.json"; printf '{"mcpServers":{}}' > "$HOME/.hmv27/mcp.json"
+mk ha27 json mcpServers mcpservers-json "~/.hsh27/mcp.json" true null null high
+mk hb27 json mcpServers mcpservers-json "~/.hsh27/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness ha27,hb27 --registry "$REG" --state-dir "$SD27" >> "$ALLOUT" 2>&1
+mk ha27 json mcpServers mcpservers-json "~/.hmv27/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness ha27,hb27 --registry "$REG" --state-dir "$SD27" >> "$ALLOUT" 2>&1
+o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness ha27,hb27 --registry "$REG" --state-dir "$SD27" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R27a: after the claimant handoff, apply converges'
+o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness ha27,hb27 --registry "$REG" --state-dir "$SD27" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R27a: verify converges (the still-valid shared config is not stale)'
+hasnt 'stale ownership' "$o" 'R27a: no false stale ownership'
+rm -f "$REG/ha27.yaml" "$REG/hb27.yaml"
+
+# R27b: NaN/Infinity are refused, never round-tripped as "valid JSON"
+mkdir -p "$HOME/.hnan27"; printf '{"mcpServers":{},"x":NaN}' > "$HOME/.hnan27/mcp.json"; N0="$(sum "$HOME/.hnan27/mcp.json")"
+mk hnan27 json mcpServers mcpservers-json "~/.hnan27/mcp.json" true null null high
+o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hnan27 --registry "$REG" --state-dir "$T/state-r27b" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R27b: a config holding NaN is refused' || no 'R27b: a config holding NaN is refused' "rc=$rc"
+eq "$N0" "$(sum "$HOME/.hnan27/mcp.json")" 'R27b: the file is left untouched'
+rm -f "$REG/hnan27.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

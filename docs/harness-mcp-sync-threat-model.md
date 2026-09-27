@@ -574,3 +574,12 @@ owner that migrated A→B kept its A record alive whenever another, unselected h
 `verify --harness <owner>` then skipped A and the C-J gate never ran. Liveness is now per record:
 the record is live only when its **recorded owner's** current `target_path()` is that path. Test
 R26; negative control on 7f42415: 3 failures. Suite 808/808.
+
+## Round 27 — claimant handoff persistence; non-finite JSON constants
+
+| Finding (Codex, on 24dcf1c) | Fix |
+|---|---|
+| 4117390454 (P2) A owned a shared path and moved away while B kept targeting it with an unchanged server: `nothing-to-do` never recorded B, so the per-owner stale check flagged B's valid config forever | a claimant change is manifest-only work (journaled, file untouched): the new owner is recorded and apply/verify converge |
+| 4117390459 (P2) `NaN`/`Infinity` accepted by Python's `json` and round-tripped | configs parse with `parse_constant` rejecting non-finite constants (refused, file untouched), JSON output uses `allow_nan=False`, and the SSOT loader parses strictly too (defense in depth: the SSOT schema already rejects the only fields that could hold them, so that path has no separate test) |
+
+Tests R27a/b; negative control on 24dcf1c: 5 failures. Suite 811/811.
