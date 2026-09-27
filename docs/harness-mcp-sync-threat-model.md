@@ -592,3 +592,11 @@ Tests R27a/b; negative control on 24dcf1c: 5 failures. Suite 813/813.
 | 4117446245 (P2) `--harness h,h` planned one config twice; the second result saw the first write as a concurrent change | ids deduplicated preserving order |
 
 Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27's suite count corrected to 813.)
+
+## Round 29 — an explicitly empty `--harness` filter widened to every harness
+
+**Finding (Codex 4117494399, P1).** `--harness "$UNSET"` passes `""`; `select_harnesses` treated a falsy spec as "no filter" and returned every registered harness, and restore's `only = set(ids) if args.harness else None` did the same. A scripted, single-harness intent silently became a fleet-wide write.
+
+**Fix.** The all-harness default is reserved for `spec is None` (flag omitted). A filter that is present but parses to zero ids (`""`, `" , "`) is a usage error (exit 2) before any plan or write; restore tests `args.harness is not None`. Principle: an *absent* selector and an *empty* selector are different inputs — only absence may mean "all".
+
+**Evidence.** R29 tests (plan/apply/restore × empty filter → exit 2 + reason); suite 824/824; negative control against `06aee67` fails 5 of the 6 new assertions.

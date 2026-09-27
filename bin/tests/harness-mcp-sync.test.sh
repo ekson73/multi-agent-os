@@ -2424,6 +2424,15 @@ eq 0 "$rc" 'R28b: --harness h,h applies once and exits 0'
 hasnt 'changed since plan' "$o" 'R28b: no self-inflicted concurrent-change refusal'
 rm -f "$REG/hdk28.yaml"
 
+# R29: an explicitly empty --harness filter is a usage error, never "every harness"
+for md in plan apply restore; do
+  if [ "$md" = restore ]; then o="$("$BIN" restore 20260101T000000000000Z --harness "" --registry "$REG" --state-dir "$T/state-r29" 2>&1)"; rc=$?
+  else o="$("$BIN" "$md" --ssot "$T/ssot-r23b1.json" --harness " , " --registry "$REG" --state-dir "$T/state-r29" 2>&1)"; rc=$?; fi
+  printf '%s\n' "$o" >> "$ALLOUT"
+  eq 2 "$rc" "R29: $md with an empty --harness filter is a usage error"
+  has 'names no harness id' "$o" "R29: $md says why"
+done
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

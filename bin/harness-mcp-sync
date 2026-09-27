@@ -509,9 +509,11 @@ def load_registry(reg_dir: str) -> dict:
 
 
 def select_harnesses(reg: dict, spec: str | None) -> list:
-    if not spec:
+    if spec is None:
         return sorted(reg)
     ids = [s.strip() for s in spec.split(",") if s.strip()]
+    if not ids:  # R29 (Codex 4117494399): `--harness "$UNSET"` must never widen to every harness
+        raise UsageError("--harness was given but names no harness id")
     unknown = [i for i in ids if i not in reg]
     if unknown:
         raise UsageError("unknown harness id(s): %s — research it, then add harnesses/<id>.yaml "
@@ -2546,7 +2548,7 @@ def mode_restore(args, reg, ids, sd, ts):
         raise UsageError("no backup %r under %s" % (ts, os.path.join(sd, "backups")))
     check_private_dir(os.path.join(sd, "backups"))
     check_private_dir(root)
-    only = set(ids) if args.harness else None
+    only = set(ids) if args.harness is not None else None
     restored, refused = [], []
     snap = os.path.join(root, "manifest.json")
     old = None
