@@ -2307,6 +2307,52 @@ eq 0 "$rc" 'R23b: verify converges (no stale "file missing")'
 hasnt 'file missing' "$o" 'R23b: no file record left behind'
 rm -f "$REG/hfa23.yaml"
 
+# ---------------------------------------------------------------- round 24 (Codex on 3593157)
+# R24a: a registry path migration leaves the OLD manifest-owned path stale: verify names it (and its
+# Git visibility), apply refuses to call it converged while the old file exists, then drops the record
+SD24="$T/state-r24a"; mkdir -p "$HOME/.hold24" "$HOME/.hnew24"
+printf '{"mcpServers":{}}' > "$HOME/.hold24/mcp.json"; printf '{"mcpServers":{}}' > "$HOME/.hnew24/mcp.json"
+mk hmv24 json mcpServers mcpservers-json "~/.hold24/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hmv24 --registry "$REG" --state-dir "$SD24" >> "$ALLOUT" 2>&1
+mk hmv24 json mcpServers mcpservers-json "~/.hnew24/mcp.json" true null null high
+git -C "$HOME/.hold24" init -q >/dev/null 2>&1; git -C "$HOME/.hold24" add mcp.json >/dev/null 2>&1
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hmv24 --registry "$REG" --state-dir "$SD24" >> "$ALLOUT" 2>&1; rc=$?
+[ "$rc" -ne 0 ] && ok 'R24a: apply is drift while the old manifest-owned file still exists' || no 'R24a: apply is drift while the old manifest-owned file still exists' "rc=$rc"
+o="$("$BIN" verify --harness hmv24 --registry "$REG" --state-dir "$SD24" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R24a: manifest-only verify reports the stale path' || no 'R24a: manifest-only verify reports the stale path' "rc=$rc"
+has 'stale ownership' "$o" 'R24a: names it as stale ownership'
+has 'Git-visible' "$o" 'R24a: the C-J gate examines the stale file too'
+has '"only"' "$(cat "$HOME/.hold24/mcp.json")" 'R24a: the old file is never deleted or rewritten automatically'
+rm -rf "$HOME/.hold24"
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hmv24 --registry "$REG" --state-dir "$SD24" >> "$ALLOUT" 2>&1; rc=$?
+eq 0 "$rc" 'R24a: once the old file is gone, apply drops the stale record'
+o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness hmv24 --registry "$REG" --state-dir "$SD24" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R24a: verify converges after the migration'
+rm -f "$REG/hmv24.yaml"
+
+# R24b: a pre-existing EMPTY file record for an absent config is cleanup work, not nothing-to-do
+SD24B="$T/state-r24b"; mkdir -p "$HOME/.hem24"; printf '{"mcpServers":{}}' > "$HOME/.hem24/mcp.json"
+mk hem24 json mcpServers mcpservers-json "~/.hem24/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hem24 --registry "$REG" --state-dir "$SD24B" >> "$ALLOUT" 2>&1
+python3 - "$BIN" "$SD24B" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+sd = sys.argv[2]
+m.load_salt(sd) if hasattr(m, "load_salt") else None
+mf = m.load_manifest(sd)
+for f in mf["files"].values():
+    f["servers"] = {}   # the empty record an older implementation could leave
+m.save_manifest(sd, mf)
+PY
+rm -f "$HOME/.hem24/mcp.json"
+o="$("$BIN" apply --ssot "$T/ssot-r23b2.json" --harness hem24 --registry "$REG" --state-dir "$SD24B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R24b: apply cleans a pre-existing empty record'
+hasnt 'nothing-to-do' "$o" 'R24b: the cleanup is reported as work'
+o="$("$BIN" verify --ssot "$T/ssot-r23b2.json" --harness hem24 --registry "$REG" --state-dir "$SD24B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R24b: verify converges (no stale "file missing")'
+rm -f "$REG/hem24.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

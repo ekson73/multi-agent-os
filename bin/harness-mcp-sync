@@ -2122,7 +2122,8 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             entry = None  # R23 (Codex 4117227900): nothing owned left -> no file record (else verify says "file missing" forever)
         mode_drift = cfg["exists"] and path in manifest["files"] and \
             (os.stat(path).st_mode & 0o777) != 0o600
-        if plan_is_empty(r) and not mode_drift:
+        stale_rec = entry is None and path in manifest["files"]  # R24: pre-existing empty record is cleanup work
+        if plan_is_empty(r) and not mode_drift and not stale_rec:
             r["apply"] = "nothing-to-do"
             continue
         if plan_is_empty(r) or not any(a["action"] in ("add", "update", "remove") for a in r["actions"]):
@@ -2144,7 +2145,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
                                                 if any(a["action"] == "forget" for a in r["actions"])
                                                 else "adopted (manifest only; file untouched)")
                                                if not plan_is_empty(r) else None,
-                                               "mode repaired to 0o600" if mode_drift else None) if x)
+                                               "mode repaired to 0o600" if mode_drift else None,
+                                               "empty ownership record dropped" if stale_rec and plan_is_empty(r)
+                                               else None) if x)
             r["backup_ts"] = ts
             continue
         if cfg["has_comments"] and not allow_comment_loss:
@@ -2345,9 +2348,30 @@ def mode_plan(args, reg, ids, ssot, resolver, manifest):
     return worst
 
 
+def stale_records(reg, ids, manifest) -> list:
+    """R24 (Codex 4117281371): manifest-owned paths no longer registered for their harness (registry
+    moved the config, or the harness was removed). In scope when the owner is selected, or when the
+    owner left the registry and no --harness filter narrows the run."""
+    live = {p for i in ids for p in allowed_targets(reg, i)}
+    whole = set(ids) == set(reg)
+    out = []
+    for path, fe in sorted(manifest["files"].items()):
+        hid = fe.get("harness")
+        if path in live or path in {target_path(reg[i])[0] for i in ids if i in reg}:
+            continue
+        if hid in ids or (hid not in reg and whole):
+            out.append((path, hid))
+    return out
+
+
 def mode_apply(args, reg, ids, ssot, resolver, manifest, sd):
     results = build_plan(reg, ids, ssot, resolver, manifest, set(args.adopt or []))
     worst, ts = apply_plan(reg, results, sd, manifest, args.allow_comment_loss)
+    for path, hid in stale_records(reg, ids, manifest):
+        if os.path.lexists(path):
+            worst = max(worst, EXIT_DRIFT)  # file still there: never deleted automatically; verify names it
+        else:
+            set_mf(sd, manifest, path, None)  # the old file is gone: only the ownership record is left
     payload = {"backup_ts": ts, "harnesses": [public(r) for r in results]}
     emit(args, payload, lambda p: (text_plan(results), print("backup_ts: %s" % (ts or "-"))))
     return worst
@@ -2363,7 +2387,16 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
     out, worst, secret_hashes = [], EXIT_OK, {}
     for js in (journal_summaries(sd) if sd else []):  # J8: an interrupted run is never "clean"
         out.append({"id": "*", "file": None, "issues": [js["summary"]]})
+    stale = dict(stale_records(reg, ids, manifest))
     for path, fe in sorted(manifest["files"].items()):
+        if path in stale:
+            e = {"id": stale[path] or "?", "file": path,
+                 "issues": ["stale ownership: path no longer registered for %s (remove its managed entries "
+                            "or the file by hand; apply then drops the record)" % (stale[path] or "a removed harness")]}
+            if os.path.lexists(path) and git_leak_risk(git_state(path)) and not ALLOW_GIT_VISIBLE:
+                e["issues"].append("config is Git-visible (git-ignore it, or pass --allow-git-visible)")
+            out.append(e)
+            continue
         if path not in by_path:
             continue
         hid = by_path[path]  # the selected claimant, never a stale manifest id (R16)

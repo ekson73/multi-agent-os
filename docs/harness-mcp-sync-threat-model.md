@@ -549,3 +549,12 @@ Tests R22a/b/c; negative control on 258afd2: 6 failures. Suite 785/785.
 | CodeRabbit 4117218581 masking of short inline literals | **qualified as best-effort.** Placeholder-resolved values are registered and masked at any length; an inline literal is masked only if a detector matches it. The SSOT contract (secrets by placeholder only) is what makes output clean; the lint enforces it for Git-visible targets. |
 
 Tests R23a/b; negative control on 2615d11: 5 failures. Suite 792/792.
+
+## Round 24 — stale manifest paths after a registry migration; pre-existing empty records
+
+| Finding (Codex, on 3593157) | Fix |
+|---|---|
+| 4117281371 (P1) a registry path migration left the old manifest-owned path unexamined; verify said clean even after the old credential-bearing file became Git-visible | `stale_records()` finds manifest paths no longer registered for their (selected) harness. verify reports them as stale ownership and applies the C-J gate to them. apply stays drift while the old file exists (never deleted or rewritten automatically) and drops the record once the file is gone |
+| 4117281377 (P2) an empty record left by an older version plus an absent config → apply `nothing-to-do`, verify `file missing` forever | a record that ends up with no owned server is cleanup work: dropped through the journaled no-write path |
+
+Tests R24a/b; negative control on 3593157: 6 failures. Suite 802/802.
