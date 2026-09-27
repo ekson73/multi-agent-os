@@ -420,3 +420,13 @@ are what the three consumers see.
 J7 (lock) let the lock-holding process exit after a fixed sleep, so on a slow machine the
 remaining assertions could run with the lock already released. The holder now waits for a release
 file and the test checks it is still alive before releasing it (CodeRabbit Major, outside-diff).
+
+## Round 16 (Codex P2s on `c8414b5`)
+
+| Finding | Class | Fix | Test |
+|---|---|---|---|
+| plan-only harness with pending work exited 0 | exit-code honesty (drift ≠ convergence) | `not-applied` now sets `worst = EXIT_DRIFT`, same as a Git-safety refusal | R16a |
+| shared file kept a stale `harness` claimant | ownership | reused manifest entry takes `harness = r["id"]`; `verify` uses the selected claimant (`by_path[path]`) instead of the stored id | R16b |
+| unterminated `/*` silently swallowed to EOF | parser fail-closed | `strip_jsonc` raises `Refused`; with `--allow-comment-loss` the file is left untouched (e2e verified) | R16c |
+
+Enumeration by concept: every `not-applied` / refusal branch in `mode_apply` now sets `worst`; the only `strip_jsonc` caller (`parse_config`) is already inside `read_config`'s `except Refused`, so the new refusal surfaces as a per-harness error, not a traceback.

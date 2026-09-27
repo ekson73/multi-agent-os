@@ -762,7 +762,10 @@ def strip_jsonc(text: str) -> tuple[str, bool]:
         elif text.startswith("/*", i):
             had = True
             j = text.find("*/", i + 2)
-            i = n if j < 0 else j + 2
+            if j < 0:
+                # swallowing to EOF would let --allow-comment-loss rewrite (and lose) the tail (R16)
+                raise Refused("unterminated /* block comment")
+            i = j + 2
         else:
             out.append(c)
             i += 1
@@ -2013,7 +2016,9 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             if r["status"] in ("error",):
                 worst = EXIT_DRIFT
             if r["status"] in ("plan-only",) and not plan_is_empty(r):
+                # skipped pending work is unconverged, exactly like a Git-safety refusal (R16)
                 r["apply"] = "not-applied: %s" % r["reason"]
+                worst = EXIT_DRIFT
             continue
         if any(a["action"] == "conflict" for a in r["actions"]):
             worst = EXIT_DRIFT
@@ -2023,6 +2028,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             worst = EXIT_DRIFT
         h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
         entry = copy.deepcopy(manifest["files"].get(path) or {"harness": r["id"], "servers": {}})
+        entry["harness"] = r["id"]  # a shared file's claimant is whoever touches it now (R16)
         for n in r["_drops"]:
             entry["servers"].pop(n, None)
         for n, e in r["_writes"].items():
@@ -2268,9 +2274,9 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
     for js in (journal_summaries(sd) if sd else []):  # J8: an interrupted run is never "clean"
         out.append({"id": "*", "file": None, "issues": [js["summary"]]})
     for path, fe in sorted(manifest["files"].items()):
-        hid = fe.get("harness")
-        if hid not in reg or path not in by_path:
+        if path not in by_path:
             continue
+        hid = by_path[path]  # the selected claimant, never a stale manifest id (R16)
         h = reg[hid]
         e = {"id": hid, "file": path, "issues": []}
         out.append(e)

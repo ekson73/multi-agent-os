@@ -2006,6 +2006,51 @@ PY
 eq "True
 True" "$KP" 'kimi P3: mkdir_private flushes every created level; hostile nesting makes the restore gate fail closed'
 
+# ---------------------------------------------------------------- PDCA round 16 (Codex P2s on c8414b5)
+# R16a: a plan-only harness with pending work is drift — apply must not exit 0 on skipped work
+SD16="$T/state-r16"; mkdir -p "$HOME/.hlow"; printf '{"mcpServers":{}}' > "$HOME/.hlow/mcp.json"
+mk hlow json mcpServers mcpservers-json "~/.hlow/mcp.json" true null null low
+o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hlow --registry "$REG" --state-dir "$SD16" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+has 'not-applied' "$o" 'R16a: low-confidence harness with a non-empty plan is reported not-applied'
+[ "$rc" -ne 0 ] && ok 'R16a: skipped plan-only work exits nonzero (drift)' || no 'R16a: skipped plan-only work exits nonzero (drift)' "rc=$rc"
+rm -f "$REG/hlow.yaml"
+
+# R16b: a shared file's manifest claimant follows the harness that last touched it; verify uses the selection
+SD16B="$T/state-r16b"; mkdir -p "$HOME/.shr16" "$HOME/.hsc" "$HOME/.hsd"; printf '{"mcpServers":{}}' > "$HOME/.shr16/mcp.json"
+mk hsc json mcpServers mcpservers-json "~/.shr16/mcp.json" true null null high
+mk hsd json mcpServers mcpservers-json "~/.shr16/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r3.json" --harness hsc --registry "$REG" --state-dir "$SD16B" >> "$ALLOUT" 2>&1
+chmod 644 "$HOME/.shr16/mcp.json"   # permission-only drift: the reused entry is rewritten by hsd
+"$BIN" apply --ssot "$T/ssot-r3.json" --harness hsd --registry "$REG" --state-dir "$SD16B" >> "$ALLOUT" 2>&1
+CL="$(python3 -c 'import json,os,sys; print(json.load(open(sys.argv[1]))["files"][os.path.realpath(sys.argv[2])]["harness"])' "$SD16B/manifest.json" "$HOME/.shr16/mcp.json" 2>/dev/null || echo PARSE-ERROR)"
+eq hsd "$CL" 'R16b: reusing a shared manifest entry persists the current claimant'
+python3 - "$SD16B/manifest.json" "$HOME/.shr16/mcp.json" <<'PY'
+import json, sys
+import os
+d = json.load(open(sys.argv[1])); d["files"][os.path.realpath(sys.argv[2])]["harness"] = "hsc"; json.dump(d, open(sys.argv[1], "w"))
+PY
+o="$("$BIN" verify --ssot "$T/ssot-r3.json" --harness hsd --registry "$REG" --state-dir "$SD16B" --json 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+VI="$(printf '%s' "$o" | python3 -c 'import json,sys
+d=json.load(sys.stdin); d=d.get("files", d.get("harnesses", d)) if isinstance(d,dict) else d
+print(" ".join(sorted({x["id"] for x in d if x.get("file")})))' 2>/dev/null || echo PARSE-ERROR)"
+eq hsd "$VI" 'R16b: verify --harness evaluates the selected claimant, not a stale manifest id'
+rm -f "$REG/hsc.yaml" "$REG/hsd.yaml"
+
+# R16c: an unterminated JSONC block comment is invalid input, never a silent comment
+UC="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+try:
+    m.strip_jsonc('{"mcpServers": {} /* never closed\n, "keep": 1}'); print("accepted")
+except m.Refused:
+    print("refused")
+print(m.strip_jsonc('{"a": 1 /* ok */}')[0].replace(" ", ""))
+PY
+)"
+eq "refused
+{\"a\":1}" "$UC" 'R16c: unterminated /* is refused; a closed block comment still strips'
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
