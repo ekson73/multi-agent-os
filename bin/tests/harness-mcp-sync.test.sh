@@ -1948,6 +1948,44 @@ run apply --ssot "$T/ssot-rep2.json" --harness hrepl --json
 RK="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]))' "$HOME/.hrepl/mcp.json")"
 eq "['oldr']" "$RK" 'CR-5308662091: apply keeps the working legacy entry (harness never left empty)'
 
+# ---------------------------------------------------------------- PDCA round 14 — C-G argv is format-agnostic
+# Codex 5331599477: adapters serialize argv under keys other than `args` (OpenCode: `command: [...]`).
+# Every secret-argv consumer (restore gate, redactor registration, preview mask) must see ANY
+# list of strings as a potential argv, never only the `args` key. Short value => entropy can't save it.
+CG="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, json, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+doc = {"mcp": {"x": {"type": "local", "command": ["cmd", "--token", "abc"]},
+               "y": {"type": "local", "command": ["cmd", "--api-key=abd"]}}}
+gate = m.doc_may_carry_secret("json", json.dumps(doc).encode())
+m.register_secret_args(doc)
+reg = m.Redactor.scrub("v=abc w=abd") != "v=abc w=abd"
+prev = json.dumps(m.masked_preview(doc))
+print(gate, reg, "abc" not in prev and "abd" not in prev)
+clean = {"mcp": {"z": {"type": "local", "command": ["cmd", "--verbose", "serve"]}}}
+print(m.doc_may_carry_secret("json", json.dumps(clean).encode()))
+PY
+)"
+eq "True True True
+False" "$CG" 'C-G: argv under `command` (OpenCode) is gated, registered and masked; a secret-free argv is not flagged'
+
+# kimi P3 (round 14 DIY review): state dirs are durable; the restore gate fails closed on any parse error
+KP="$(python3 - "$BIN" "$T" <<'PY'
+import importlib.machinery, importlib.util, os, sys
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+base = os.path.join(sys.argv[2], "kp-state"); os.makedirs(base, 0o700, exist_ok=True)
+flushed = []; real = m.fsync_dir
+m.fsync_dir = lambda d: (flushed.append(d), real(d))
+m.mkdir_private(os.path.join(base, "backups", "run1"))
+print(os.path.join(base, "backups") in flushed and base in flushed)
+print(m.doc_may_carry_secret("json", b"[" * 100000))
+PY
+)"
+eq "True
+True" "$KP" 'kimi P3: mkdir_private flushes every created level; hostile nesting makes the restore gate fail closed'
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

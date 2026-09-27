@@ -351,6 +351,8 @@ salt; **(I4)** a file carrying secret material is never wider than 0600.
 | `mode_restore` → `restore_from`, backup existed | I1 | wrote the bytes into any file | `restore_git_refusal()`: when git reports the target leak-prone and the backup may carry secret material (or cannot be parsed to check), the harness is refused before the journal entry; file untouched | C-E git: tracked + untracked refused, ignored allowed, secret-free backup allowed |
 | `restore_from`, backup existed=false (unlink) | I2 | `os.unlink` without a directory fsync | `fsync_dir(parent)` after the unlink | C-E fsync: unlink flushed |
 | `restore_from` / `apply` write / `rollback_entry`, missing parent dirs | I2 | `os.makedirs` without flushing the new entries | `makedirs_durable()`: creates each missing level 0700 and fsyncs its parent | C-E fsync: new parent dirs flushed |
+| `mkdir_private` (state dir, `backups/`, `backups/<run>`, `journal/`) | I2 | `os.makedirs` without flushing the new entries: a crash could drop a backup dir the journal points into (degrades to `conflict`) | uses `makedirs_durable()` (kimi DIY review P3, round 14) | kimi P3: every created level flushed |
+| `mode_restore` gate call (`restore_git_refusal`) | I1 | ran outside the per-harness guard: a config path that is now a directory, or a payload whose parse raises (e.g. `RecursionError`), aborted the whole restore as an internal error | moved inside the per-harness `try`; `doc_may_carry_secret` treats any parse exception as secret-bearing | kimi P3: hostile nesting → fail-closed |
 | `rollback_entry`, pre-absent, parent dir gone | I2 | `fsync_dir` raised `FileNotFoundError` → rollback reported failed | flush the nearest existing ancestor | C-E rollback: parent gone |
 | `mode_restore`, `mf_after` from the backup's manifest snapshot | I3 | copied hashes from any salt → stale ownership | snapshot with entries must carry the current `salt_id`; otherwise the whole restore is refused (exit 2) before any journal or backup dir is created | C-E salt: rotated + missing `salt_id` refused, nothing created |
 | `restore_from`, backup mode wider than 0600 | I4 | restored the recorded mode (e.g. 0644) with secret material | mode capped to `mode & 0600` when the backup may carry secret material | C-E mode: 0644 secret backup restored as 0600 |
@@ -383,6 +385,25 @@ and the `0600` modes all assume POSIX). Supported: macOS, Linux, and Windows thr
 | `import fcntl` at module load | guarded import; `run()` exits 2 with "native Windows is not supported … use WSL" before parsing arguments or touching the state dir | C-F: fcntl unavailable → exit 2, message, no state dir |
 
 No Windows lock is implemented; adding one would widen the contract without a way to test it here.
+
+## C-G — argv is format-agnostic
+
+**Threat.** Secret detection for arguments keyed on the field name `args`. Adapters choose where
+argv lives: OpenCode renders `command: [cmd, "--token", "abc"]`. A short secret-named value there
+was invisible to the restore git gate and the 0600 cap (C-E I1/I4), to the redactor registration of
+parsed third-party configs, and to the preview mask. Source: Codex P1 5331599477.
+
+**Decision.** Any non-empty list of strings is a potential argv (`is_argv`). Over-inclusion only
+masks or refuses more, so the direction is fail-closed.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `doc_may_carry_secret` (restore gate, mode cap) | every argv list goes through `carries_secret` | C-G: `command` argv is gated |
+| `register_secret_args` (parsed configs) | registers values from every argv list | C-G: `command` argv is registered |
+| `masked_preview` (plan/apply output) | masks every argv list, not only `parent == "args"` | C-G: `command` argv is masked |
+
+The SSOT schema still names the field `args`; only the rendered and parsed shapes vary, and those
+are what the three consumers see.
 
 ## Test hygiene
 

@@ -231,7 +231,7 @@ def masked_preview(obj, parent=None):
         return {k: (mask(v) if parent in SECRET_CONTAINERS and isinstance(v, str) else masked_preview(v, k))
                 for k, v in obj.items()}
     if isinstance(obj, list):
-        if parent == "args":
+        if is_argv(obj):  # C-G: argv's key is adapter-defined (`args`, OpenCode `command`, ...)
             obj = mask_secret_args(obj)
         return [masked_preview(v, parent) for v in obj]
     return obj
@@ -315,7 +315,7 @@ def check_private_dir(path: str):
 def mkdir_private(path: str):
     if os.path.lexists(path):
         check_private_dir(path)
-    os.makedirs(path, mode=0o700, exist_ok=True)
+    makedirs_durable(path)  # C-E I2 (kimi P3): state dirs are durable before a journal points into them
     check_private_dir(path)
     os.chmod(path, 0o700)
 
@@ -645,16 +645,23 @@ def mask_secret_args(args: list) -> list:
     return out
 
 
+def is_argv(v) -> bool:
+    """C-G (Codex 5331599477): a potential argv is ANY non-empty list of strings. Adapters choose
+    the key (`args`, OpenCode `command: [cmd, ...]`, ...), so secret handling never keys on the name.
+    Over-inclusion only masks/refuses more (fail-closed)."""
+    return isinstance(v, list) and bool(v) and all(isinstance(a, str) for a in v)
+
+
 def register_secret_args(obj):
     """Register (stream-level) every secret-named argument value found anywhere in `obj`
     (an SSOT server, a resolved entry, or a parsed third-party config), at ANY length."""
     if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k == "args" and isinstance(v, list):
-                for val in secret_arg_values(v):
-                    Redactor.register(val)
+        for v in obj.values():
             register_secret_args(v)
     elif isinstance(obj, list):
+        if is_argv(obj):
+            for val in secret_arg_values(obj):
+                Redactor.register(val)
         for v in obj:
             register_secret_args(v)
 
@@ -1926,7 +1933,7 @@ def doc_may_carry_secret(fmt: str, data: bytes) -> bool:
     Undecodable / unparseable => True (fail-closed)."""
     try:
         doc, _ = parse_config(fmt, data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n"))
-    except (UnicodeDecodeError, Refused):
+    except Exception:  # any parse failure (incl. RecursionError on hostile nesting) => fail-closed
         return True
     stack = [doc]
     while stack:
@@ -1936,6 +1943,8 @@ def doc_may_carry_secret(fmt: str, data: bytes) -> bool:
                 return True
             stack.extend(n.values())
         elif isinstance(n, list):
+            if is_argv(n) and carries_secret({"args": n}):  # C-G: argv under any key
+                return True
             stack.extend(n)
         elif isinstance(n, str) and (has_placeholder(n) or literal_secretish(n)):
             return True
@@ -2413,10 +2422,12 @@ def mode_restore(args, reg, ids, sd, ts):
                 post = bytes_triple(payload, rmode)
             else:
                 post = dict(ABSENT)
-        except (OSError, ValueError, TypeError, UsageError) as e:
+            # kimi P3: inside the per-harness guard, so e.g. a config path that is now a directory
+            # refuses this harness instead of aborting the whole restore as an internal error.
+            why = restore_git_refusal(mpath, reg[hid]["mcp"]["format"], payload)
+        except (OSError, ValueError, TypeError, UsageError, RecursionError) as e:
             refused.append({"id": hid, "reason": "restore failed (%s); file left unchanged" % e.__class__.__name__})
             continue
-        why = restore_git_refusal(mpath, reg[hid]["mcp"]["format"], payload)
         if why:
             refused.append({"id": hid, "reason": why})
             continue
