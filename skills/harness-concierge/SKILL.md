@@ -107,7 +107,11 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 - Secret literals are written only to user-scope files that are **not** git-tracked and **not**
   untracked-and-unignored.
 - JSONC/YAML files with comments are refused unless `--allow-comment-loss` (backup is always taken).
-- No secret value appears in any output, in any mode, including errors.
+- No secret value resolved from a placeholder appears in any output, in any mode, including errors;
+  an inline literal is masked only when a detector recognizes it (best-effort — keep secrets in
+  placeholders, per the SSOT contract).
+- Restore refuses a config rewritten before its final recheck; an external writer racing the
+  last instant before the atomic replace is not excluded (the pre-restore backup keeps it recoverable).
 
 ## Known limitations
 

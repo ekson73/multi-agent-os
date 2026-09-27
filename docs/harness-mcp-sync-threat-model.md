@@ -533,8 +533,19 @@ into a place that is shared through version control. Exposure is decided by loca
 
 | Finding (Codex, on 258afd2) | Root cause | Fix |
 |---|---|---|
-| 4117011446 (P1) restore backup vs recorded pre-state | `backup_file()` and `file_triple()` read the config separately; a rewrite in between recorded `pre` ≠ backup, so restore overwrote the edit and any rollback failed | `backup_file()` reads bytes + mode from ONE open file and returns that snapshot as `pre` (all 3 callers); restore rechecks `file_triple == pre` right before writing (S3b) and refuses, leaving the concurrent edit in place |
+| 4117011446 (P1) restore backup vs recorded pre-state | `backup_file()` and `file_triple()` read the config separately; a rewrite in between recorded `pre` ≠ backup, so restore overwrote the edit and any rollback failed | `backup_file()` reads bytes + mode from ONE open file and returns that snapshot as `pre` (all 3 callers); restore rechecks `file_triple == pre` right before writing (S3b) and refuses a rewrite observed up to that point, leaving it in place (best-effort: see round 23) |
 | 4117011451 (P2) stale ownership of an already-absent entry | removal planning only acted on names present in the file | new manifest-only `forget` action: owned + undesired + absent → the ownership record is dropped through the journaled no-write path; verify converges |
 | 4117011458 (P2) quoted TOML key with `\U` escape | quoted keys were decoded with `json.loads` | decoded with `tomllib` itself; an undecodable key is a `Refused`, never an internal error |
 
 Tests R22a/b/c; negative control on 258afd2: 6 failures. Suite 785/785.
+
+## Round 23 — manifest-only verify under C-J, final forget, narrowed guarantees
+
+| Finding (on 2615d11) | Fix |
+|---|---|
+| Codex 4117227895 (P1) manifest-only `verify` authorized a now-Git-visible config through `carries_secret()` alone | the C-J gate applies to `verify` too: a managed config that is Git-visible is drift by default; `--allow-git-visible` falls back to the content check |
+| Codex 4117227900 (P2) forgetting the final server of an absent file left an empty file record ("file missing" forever) | a file record with no owned server is removed from the manifest |
+| CodeRabbit 4117218571 compare-and-write is not atomic against external writers | **guarantee narrowed, not overstated.** The run lock serializes `harness-mcp-sync` processes only; a harness or user can still write between the S3b recheck and the atomic replace. That window is now microseconds (one stat+hash before `rename`) instead of the whole plan, and every write keeps a backup, so a lost edit is recoverable from `backups/` — but it is not excluded. Harnesses expose no file-lock protocol to honor. |
+| CodeRabbit 4117218581 masking of short inline literals | **qualified as best-effort.** Placeholder-resolved values are registered and masked at any length; an inline literal is masked only if a detector matches it. The SSOT contract (secrets by placeholder only) is what makes output clean; the lint enforces it for Git-visible targets. |
+
+Tests R23a/b; negative control on 2615d11: 5 failures. Suite 792/792.

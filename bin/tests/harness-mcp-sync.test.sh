@@ -1766,6 +1766,8 @@ rm -f "$REG/hwfr.yaml"
 wc12 hwgv; w apply --ssot "$S12"; eq 0 "$rc" 'Codex 4107841816: secret server applied outside git'
 git -C "$HOME/.hwgv" init -q >/dev/null 2>&1; git -C "$HOME/.hwgv" add mcp.json >/dev/null 2>&1
 w verify; eq 1 "$rc" 'Codex 4107841816: verify rejects a now-git-visible secret config'
+has 'allow-git-visible' "$o" 'C-J: manifest-only verify names the structural gate by default'
+w verify --allow-git-visible; eq 1 "$rc" 'Codex 4107841816: with the opt-in, the content check still rejects it'
 has 'holds secret material' "$o" 'Codex 4107841816: says why'
 hasnt "$FIXSECRET" "$o" 'Codex 4107841816: never prints the secret'
 rm -f "$REG/hwgv.yaml"
@@ -2277,6 +2279,33 @@ PY
 )"
 eq "True True" "$RA" 'R22a: restore refuses (nonzero) and keeps the concurrent edit instead of overwriting it'
 rm -f "$REG/hrs22.yaml"
+
+# ---------------------------------------------------------------- round 23 (Codex on 2615d11)
+# R23a: manifest-only verify of a now-Git-visible managed config is drift by default, even for a
+# shape no detector recognizes; with --allow-git-visible the heuristic check applies (and passes here)
+SD23="$T/state-r23a"; mkdir -p "$HOME/.hgv23"; printf '{"mcpServers":{}}' > "$HOME/.hgv23/mcp.json"
+mk hgv23 json mcpServers mcpservers-json "~/.hgv23/mcp.json" true null null high
+printf '{"schema":1,"servers":{"odd":{"transport":"stdio","command":"tool","args":["/password:abc"]}}}' > "$T/ssot-r23a.json"
+"$BIN" apply --ssot "$T/ssot-r23a.json" --harness hgv23 --registry "$REG" --state-dir "$SD23" >> "$ALLOUT" 2>&1
+git -C "$HOME/.hgv23" init -q >/dev/null 2>&1; git -C "$HOME/.hgv23" add mcp.json >/dev/null 2>&1
+o="$("$BIN" verify --harness hgv23 --registry "$REG" --state-dir "$SD23" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R23a: manifest-only verify flags a now-Git-visible managed config by default' || no 'R23a: manifest-only verify flags a now-Git-visible managed config by default' "rc=$rc"
+has 'allow-git-visible' "$o" 'R23a: the issue names the opt-in flag'
+rm -f "$REG/hgv23.yaml"
+
+# R23b: forgetting the final owned server of an ALREADY-ABSENT file removes the file record
+SD23B="$T/state-r23b"; mkdir -p "$HOME/.hfa23"; printf '{"mcpServers":{}}' > "$HOME/.hfa23/mcp.json"
+mk hfa23 json mcpServers mcpservers-json "~/.hfa23/mcp.json" true null null high
+printf '{"schema":1,"servers":{"only":{"transport":"stdio","command":"tool","args":["-v"]}}}' > "$T/ssot-r23b1.json"
+printf '{"schema":1,"servers":{}}' > "$T/ssot-r23b2.json"
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hfa23 --registry "$REG" --state-dir "$SD23B" >> "$ALLOUT" 2>&1
+rm -f "$HOME/.hfa23/mcp.json"
+o="$("$BIN" apply --ssot "$T/ssot-r23b2.json" --harness hfa23 --registry "$REG" --state-dir "$SD23B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R23b: apply forgets the final owned server of an absent file'
+o="$("$BIN" verify --ssot "$T/ssot-r23b2.json" --harness hfa23 --registry "$REG" --state-dir "$SD23B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+eq 0 "$rc" 'R23b: verify converges (no stale "file missing")'
+hasnt 'file missing' "$o" 'R23b: no file record left behind'
+rm -f "$REG/hfa23.yaml"
 
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""

@@ -2118,6 +2118,8 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             entry["servers"].pop(n, None)
         for n, e in r["_writes"].items():
             entry["servers"][n] = mf_hash(e)
+        if not entry["servers"]:
+            entry = None  # R23 (Codex 4117227900): nothing owned left -> no file record (else verify says "file missing" forever)
         mode_drift = cfg["exists"] and path in manifest["files"] and \
             (os.stat(path).st_mode & 0o777) != 0o600
         if plan_is_empty(r) and not mode_drift:
@@ -2384,7 +2386,12 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
             continue
         mp = get_map(cfg["doc"], h["mcp"]["key_path"]) or {}
         gstate = git_state(path)
-        if git_leak_risk(gstate):
+        if git_leak_risk(gstate) and not ALLOW_GIT_VISIBLE:
+            # R23 (Codex 4117227895): the C-J gate applies to manifest-only verify too — a managed
+            # config that became Git-visible is drift by default, whatever the heuristics detect.
+            e["issues"].append("config is %s in git: a managed config must not be Git-visible "
+                               "(git-ignore it, or pass --allow-git-visible)" % gstate)
+        elif git_leak_risk(gstate):
             leaky = sorted(n for n in fe.get("servers", {}) if isinstance(mp.get(n), dict) and carries_secret(mp[n]))
             if leaky:  # the same fail-closed visibility check planning uses (Codex 4107841816)
                 e["issues"].append("config is %s in git and holds secret material in %s: could leak via commit"
