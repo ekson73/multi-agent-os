@@ -2166,6 +2166,42 @@ o="$("$BIN" apply --ssot "$T/ssot-r3.json" --harness hdn19 --registry "$REG" --s
 eq 644 "$(mode "$HOME/.hdn19/mcp.json")" 'R19d: the plan-only no-write policy holds (mode untouched)'
 rm -f "$REG/hdn19.yaml"
 
+# ---------------------------------------------------------------- round 20: cross-vendor audit of the secret path
+# (kimi, 6 verified findings on 38798ce). Values are generated at runtime: no token-shaped literal in source.
+AU="$(python3 - "$BIN" <<'PY'
+import importlib.machinery, importlib.util, sys, random, string
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+r = random.Random(7)
+mix = "".join(r.choice(string.ascii_letters + string.digits) for _ in range(36))
+hexv = "".join(r.choice("0123456789abcdef") for _ in range(40))
+cs = m.carries_secret
+out = [
+    # F1 (P1) camelCase secret names and innocent names carrying a high-entropy value
+    cs({"url": "https://x.test/mcp?accessToken=" + mix}), cs({"url": "https://x.test/mcp?clientSecret=" + mix}),
+    cs({"url": "https://x.test/mcp?id=" + hexv}), "«masked»" in m.mask_url("https://x.test/mcp?accessToken=" + mix),
+    # F2 (P1) 2-class (hex) secrets: literal heuristic + restore gate
+    m.literal_secretish(hexv), m.doc_may_carry_secret("json", ('{"a":{"hook":"%s"}}' % hexv).encode()),
+    # F3 (P2) scheme-relative / bare userinfo
+    cs({"url": "//user:pw@host/x"}), cs({"url": "user:pw@host:443/x"}), "pw" not in m.Redactor.scrub("see //user:pw@host/x"),
+    # F4 (P2) Windows / plus flag prefixes
+    m.secret_arg_values(["/password", "correct horse battery staple"]) == ["correct horse battery staple"],
+    m.secret_arg_values(["+token", "abc"]) == ["abc"],
+    # F5 (P3) case-variant containers
+    cs({"Headers": {"Authorization": "x"}}), cs({"ENV": {"A": "b"}}),
+    # F6 (P3) 19-char high-entropy path segment
+    cs({"url": "https://x.test/s/" + mix[:19] + "/mcp"}),
+]
+controls = [  # false-positive guards: ordinary values stay clean
+    cs({"url": "https://x.test/mcp?page=2&sort=name"}), cs({"url": "https://x.test/v1/sse"}),
+    m.literal_secretish("@modelcontextprotocol/server-filesystem"), cs({"args": ["-y", "pkg@1.2.3", "/tmp/data"]}),
+    cs({"url": "https://x.test/mcp?session=abc"}),
+]
+print(all(out), [i for i, v in enumerate(out) if not v], any(controls), [i for i, v in enumerate(controls) if v])
+PY
+)"
+eq "True [] False []" "$AU" 'R20: all 6 audited bypass classes detected; ordinary values stay clean'
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

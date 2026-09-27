@@ -473,3 +473,23 @@ refusal) now drives both the apply exit code and the verify report (R18b).
 
 Lesson (C-H, third instance): a fixed iteration cap is a key-name check in disguise — bound by the
 input, not by a guess.
+
+## Round 20 — cross-vendor audit of the whole secret-detection path (class C-I)
+
+After four consecutive Codex P1s, each one input shape at a time, the secret path was audited as a
+whole by an independent reviewer from a different vendor (kimi, read-only, every finding verified
+by executing the module). Root cause of the recurring findings: detection was built from
+**name/shape heuristics with incomplete coverage** — each gate knew some spellings of "secret".
+
+| # | Sev | Bypass class | Fix |
+|---|---|---|---|
+| F1 | P1 | camelCase names (`accessToken`) and innocent names (`?id=`) with a high-entropy value | query names classified after `_snake()`; any query value is also checked by value (entropy) |
+| F2 | P1 | 2-class secrets (hex) failed the 3-class literal heuristic → restore gate | `literal_secretish` also accepts `_secretish_segment` (2 classes, high entropy) |
+| F3 | P2 | no scheme: `//user:pw@host`, `user:pw@host:port` | `USERINFO_RE` in `mask_url` and in the output `Redactor` |
+| F4 | P2 | `/password v`, `+token v` flag prefixes | flag-name regexes accept `-`, `--`, `/`, `+` |
+| F5 | P3 | case-variant containers (`Headers`, `ENV`) | single `is_container()` predicate at every site |
+| F6 | P3 | 19-char high-entropy path segment | segment floor 20 → 16 |
+
+Principle now binding for this file: **a detector must be defined by the value, not by a list of
+names or a fixed number of passes**; name lists only ADD detection, never gate it. False-positive
+guards (ordinary query params, package specs, paths, short session ids) are part of R20.

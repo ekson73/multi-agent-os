@@ -63,6 +63,11 @@ EXIT_OK, EXIT_DRIFT, EXIT_USAGE = 0, 1, 2
 MODES = ("explain", "inventory", "doctor", "plan", "apply", "verify", "restore", "resolve", "update")
 TRANSPORTS = ("stdio", "streamable-http", "http", "sse")
 SECRET_CONTAINERS = {"headers", "http_headers", "env", "envs", "environment"}
+
+
+def is_container(k) -> bool:
+    """Audit F5: container keys are matched case-insensitively (`Headers`, `ENV`, `httpHeaders`)."""
+    return isinstance(k, str) and (k.lower() in SECRET_CONTAINERS or _snake(k).lower() in SECRET_CONTAINERS)
 PLACEHOLDER_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|(op://[^\s\"'}]+)")
 NAME_RE = re.compile(r"^[A-Za-z0-9_.@-]{1,128}$")
 
@@ -93,6 +98,14 @@ URL_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9+.-]*://)([^\s\"'<>«»`]+)")
 SECRET_PARAM_RE = re.compile(r"(?i)^(?:.*[_.-])?(?:key|token|secret|api_?key|auth|sig|signature|password|"
                              r"passwd|access_token|credential)s?$")
 MASKED = "«masked»"
+# F3 (audit): credentials without a scheme — `//user:pw@host/...` or bare `user:pw@host[:port]/...`
+USERINFO_RE = re.compile(r"(?<![A-Za-z0-9+.:/-])(//)?([A-Za-z0-9._~%!$&'()*+,;=-]+:[^\s/@\"'<>«»`]+)@"
+                         r"(?=[A-Za-z0-9.-]+(?::\d+)?(?:[/?#\s\"'<>]|$))")
+
+
+def _snake(k: str) -> str:
+    """accessToken -> access_Token: camelCase boundaries become separators for name classification."""
+    return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", k)
 
 
 def _entropy(s: str) -> float:
@@ -105,7 +118,7 @@ def _entropy(s: str) -> float:
 
 def _secretish_segment(seg: str) -> bool:
     """Long, high-entropy path segments (e.g. /s/<token>/mcp) — not ordinary words."""
-    if len(seg) < 20:
+    if len(seg) < 16:  # audit F6: 16+ covers short webhook/API tokens; ordinary words stay below it
         return False
     classes = sum(bool(re.search(p, seg)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]"))
     return classes >= 2 and _entropy(seg) >= 3.5
@@ -127,7 +140,7 @@ def mask_url(url: str) -> str:
     """Mask credentials embedded in a URL; scheme + host stay visible."""
     m = URL_RE.match(url)
     if not m:
-        return url
+        return USERINFO_RE.sub(lambda u: (u.group(1) or "") + MASKED + "@", url)
     scheme, rest = m.group(1), m.group(2)
     trail = ""
     while rest and rest[-1] in ".,;:)]}":
@@ -142,7 +155,9 @@ def mask_url(url: str) -> str:
         parts = []
         for kv in q.split("&"):
             k, sep, v = kv.partition("=")
-            parts.append(k + sep + (MASKED if sep and v and SECRET_PARAM_RE.match(_decoded(k)) else v))
+            dk, dv = _decoded(k), _decoded(v)
+            secret = SECRET_PARAM_RE.match(_snake(dk)) or _secretish_segment(dv) or literal_secretish(dv)
+            parts.append(k + sep + (MASKED if sep and v and secret else v))
         query = "?" + "&".join(parts)
     auth, slash, path = rest.partition("/")
     if "@" in auth:
@@ -185,7 +200,8 @@ class Redactor(io.TextIOBase):
                 # Any length, any position (fail-closed). Split on the mask first so a short
                 # secret that happens to occur inside "«secret»" never mangles an earlier mask.
                 text = SECRET_MASK.join(p.replace(sec, SECRET_MASK) for p in text.split(SECRET_MASK))
-        return URL_RE.sub(lambda m: mask_url(m.group(0)), text)
+        text = URL_RE.sub(lambda m: mask_url(m.group(0)), text)
+        return USERINFO_RE.sub(lambda u: (u.group(1) or "") + MASKED + "@", text)  # audit F3
 
     @staticmethod
     def _stderr_warn(msg):
@@ -218,7 +234,7 @@ def register_container_values(obj):
     and are not credentials). SSOT-resolved secrets are registered elsewhere at ANY length."""
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if k in SECRET_CONTAINERS and isinstance(v, dict):
+            if is_container(k) and isinstance(v, dict):
                 for vv in v.values():
                     if isinstance(vv, str) and len(vv) >= _CONFIG_SECRET_MIN and not _pathlike(vv):
                         Redactor.register(vv)
@@ -241,7 +257,7 @@ def redact_obj(obj):
 
 def masked_preview(obj, parent=None):
     if isinstance(obj, dict):
-        return {k: (mask(v) if parent in SECRET_CONTAINERS and isinstance(v, str) else masked_preview(v, k))
+        return {k: (mask(v) if is_container(parent) and isinstance(v, str) else masked_preview(v, k))
                 for k, v in obj.items()}
     if isinstance(obj, list):
         if is_argv(obj):  # C-G: argv's key is adapter-defined (`args`, OpenCode `command`, ...)
@@ -608,12 +624,12 @@ class Resolver:
         return obj
 
 
-SECRET_ARG_RE = re.compile(r"(?i)^--?[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
+SECRET_ARG_RE = re.compile(r"(?i)^(?:--?|/|\+)[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
                            r"[a-z0-9_.-]*(=.*)?$|^(sk|pk|rk)-|^gh[pousr]_|^xox[abpr]-|^bearer\s")
 
 
 # The NAME part only (no "=value"): a flag whose name marks it as a secret.
-SECRET_ARG_NAME_RE = re.compile(r"(?i)^--?[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
+SECRET_ARG_NAME_RE = re.compile(r"(?i)^(?:--?|/|\+)[a-z0-9_.-]*(key|token|secret|passw(or)?d|pass|auth|bearer|credential)"
                                 r"[a-z0-9_.-]*$")
 # A whole argument that is itself a credential (prefix-typed token or "Bearer x").
 SECRET_ARG_WHOLE_RE = re.compile(r"(?i)^(sk|pk|rk)-|^gh[pousr]_|^xox[abpr]-|^bearer\s")
@@ -688,7 +704,8 @@ def literal_secretish(v) -> bool:
 
     def hit(t):
         classes = sum(bool(re.search(p, t)) for p in (r"[a-z]", r"[A-Z]", r"[0-9]", r"[^A-Za-z0-9]"))
-        return len(t) >= 12 and classes >= 3 and _entropy(t) >= 3.5
+        # audit F2: a 2-class high-entropy token (hex, lowercase+digits) is a secret too
+        return (len(t) >= 12 and classes >= 3 and _entropy(t) >= 3.5) or _secretish_segment(t)
     return hit(v) or any(hit(t) for t in v.split())
 
 
@@ -704,9 +721,9 @@ def lint_ssot(ssot: dict):
             print("harness-mcp-sync: warn: server %s args end with secret-named flag %s but no value "
                   "follows (value missing)" % (name, sargs[-1]), file=sys.stderr)
         fields = [("args[%d]" % i, a) for i, a in enumerate(s.get("args") or [])]
-        for c in SECRET_CONTAINERS:
-            if isinstance(s.get(c), dict):
-                fields += [("%s.%s" % (c, k), v) for k, v in s[c].items()]
+        for c, cv in s.items():
+            if is_container(c) and isinstance(cv, dict):
+                fields += [("%s.%s" % (c, k), v) for k, v in cv.items()]
         for label, v in fields:
             if literal_secretish(v):
                 Redactor.register(v)
@@ -722,9 +739,8 @@ def carries_secret(raw: dict) -> bool:
     without a placeholder (literal values count)."""
     if has_placeholder(raw):
         return True
-    for c in SECRET_CONTAINERS:
-        if isinstance(raw.get(c), dict) and raw[c]:
-            return True
+    if any(is_container(c) and isinstance(cv, dict) and cv for c, cv in raw.items()):
+        return True
     # C-G root: argv may live under any key (`args`, OpenCode `command: [...]`), so every
     # argv-shaped value is scanned; a non-list `args` keeps the old fail-closed element check.
     argvs = [v for v in raw.values() if is_argv(v)]
@@ -2366,7 +2382,7 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
                 elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
                     e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)
             for ck, cv in cur.items():
-                if ck in SECRET_CONTAINERS and isinstance(cv, dict):
+                if is_container(ck) and isinstance(cv, dict):
                     for k, v in cv.items():
                         if isinstance(v, str):
                             eph = hmac.new(_EPHEMERAL, v.encode("utf-8"), hashlib.sha256).hexdigest()
