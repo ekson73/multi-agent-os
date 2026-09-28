@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""attention-block-lint — deterministic checker for the Pharos operator-attention block.
+
+Reads one agent response on stdin and answers ONE question: does this text ask
+the human for something (approval, decision, answer, manual step) without
+surfacing it in the fixed end-of-message attention block?
+
+Spec: skills/operator-attention-block/SKILL.md (soul-name Pharos).
+
+Exit codes (C06): 0 = ok · 1 = usage/IO error · 2 = warning (block missing or
+inconsistent). Output: human line, or JSON with --json.
+
+Deliberately narrow (name == instrument): it detects ASK-SHAPED text, it does
+not judge whether the ask was necessary. Heuristic; fenced code, blockquotes
+(other than the block itself), headings and table rows are excluded from the
+ask scan, the same exclusion set as question-batch-gate.
+"""
+from __future__ import annotations
+
+import json
+import re
+import sys
+
+# Block header markers — keyed on the emoji, not the words, so the block is
+# detectable in any operator language (pt-BR "PRECISA DE VOCÊ", en "NEEDS YOU").
+BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)")
+ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋|🔴|🟠|🟡)")
+BLOCKING = {"🛑", "🔴"}
+
+# Ask-shaped phrases (pt-BR + en). Lower-cased match on prose lines.
+ASK_PHRASES = [
+    r"\bquer que eu\b", r"\bposso (seguir|prosseguir|fazer|aplicar|executar|continuar)\b",
+    r"\bdevo (seguir|prosseguir|fazer|aplicar)\b", r"\bautoriza\b", r"\baprova\b",
+    r"\bconfirme\b", r"\bconfirma\b", r"\baguardando (seu|sua|o seu|a sua)\b",
+    r"\bsua decis[ãa]o\b", r"\bprecisa de voc[êe]\b", r"\bvoc[êe] prefere\b",
+    r"\bshould i\b", r"\bdo you want\b", r"\bwant me to\b", r"\bshall i\b",
+    r"\bplease (approve|confirm)\b", r"\byour call\b", r"\bawaiting your\b",
+    r"(^|[\s(`])go\s*/\s*no\b", r"\bpede (go|autoriza)", r"\b(me )?d[êe] (um |o )?go\b",
+]
+ASK_RE = re.compile("|".join(ASK_PHRASES), re.IGNORECASE)
+QUESTION_RE = re.compile(r"\?[)\"\]}*_`]*(\s|$)")
+
+
+def scan(text: str) -> dict:
+    lines = text.splitlines()
+    fences = sum(1 for l in lines if re.match(r"^\s*(```|~~~)", l))
+    trust_fence = fences % 2 == 0
+    in_fence = False
+    in_block = False
+    block_kind = None  # "attention" | "clear"
+    block_seen_at = None
+    items = []
+    signals = []
+    last_nonblank = 0
+
+    for i, raw in enumerate(lines, 1):
+        if raw.strip():
+            last_nonblank = i
+        if re.match(r"^\s*(```|~~~)", raw):
+            if trust_fence:
+                in_fence = not in_fence
+            continue
+        if trust_fence and in_fence:
+            continue
+        m = BLOCK_HEADER.match(raw)
+        if m:
+            in_block = True
+            block_kind = "attention" if m.group(1) == "🔔" else "clear"
+            block_seen_at = i
+            items = []
+            continue
+        if in_block:
+            if re.match(r"^\s*>", raw):
+                im = ITEM_LINE.match(raw)
+                if im:
+                    items.append({"line": i, "severity": im.group(1)})
+                continue
+            if raw.strip():
+                in_block = False  # block ended by prose
+        if re.match(r"^\s*(>|\||#)", raw):
+            continue
+        prose = re.sub(r"[*_`~]", "", raw)
+        if QUESTION_RE.search(prose + " ") or ASK_RE.search(prose):
+            signals.append({"line": i, "text": raw.strip()[:120]})
+
+    at_end = block_seen_at is not None and not any(s["line"] > block_seen_at for s in signals)
+    # trailing prose after the block breaks "last thing on screen"
+    trailing = False
+    if block_seen_at is not None:
+        tail = [l for l in lines[block_seen_at:] if l.strip() and not re.match(r"^\s*>", l)]
+        trailing = bool(tail)
+
+    if block_seen_at is None:
+        verdict = "missing_block" if signals else "no_block_no_asks"
+    elif block_kind == "clear" and signals:
+        verdict = "inconsistent_clear_with_asks"
+    elif block_kind == "attention" and not items:
+        verdict = "empty_attention_block"
+    elif trailing:
+        verdict = "block_not_last"
+    elif len(items) > 3:
+        verdict = "over_cap"
+    else:
+        verdict = "ok"
+
+    return {
+        "verdict": verdict,
+        "block": block_kind,
+        "items": len(items),
+        "red_items": sum(1 for x in items if x["severity"] in BLOCKING),
+        "ask_signals": len(signals),
+        "signals": signals[:5],
+        "block_at_end": at_end and not trailing,
+    }
+
+
+WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
+        "block_not_last", "over_cap"}
+
+
+def main(argv: list[str]) -> int:
+    as_json = "--json" in argv
+    if any(a in ("-h", "--help") for a in argv):
+        print(__doc__)
+        return 0
+    try:
+        text = sys.stdin.read()
+    except Exception as e:  # noqa: BLE001
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        return 1
+    r = scan(text)
+    if as_json:
+        print(json.dumps(r, ensure_ascii=False))
+    else:
+        print(f"{r['verdict']} (asks={r['ask_signals']} block={r['block']} items={r['items']})")
+    return 2 if r["verdict"] in WARN else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

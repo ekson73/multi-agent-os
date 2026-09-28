@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `operator-attention-block` skill (*Pharos*) + `bin/attention-block-lint` + Stop hook `attention-block-gate`
+
+- **Problem**: operators miss the approvals / decisions / GO requests an agent buries mid-answer ("agulha no palheiro"). A convention alone fails — amnesic agents forget it.
+- `skills/operator-attention-block/SKILL.md` (new): fixed end-of-message block — `> **🔔 PRECISA DE VOCÊ (N)**` + ≤3 items, each shape+verb (🛑 blocking/security · 🔶 decision · ✋ manual), numbered reply tokens (`1 sim` / `2A`), overflow line `➕`; or the bare `> **✅ NADA PRECISA DE VOCÊ**`. Terminal-safe markdown only (no `---`, no `##`, no GFM alerts). UX-reviewed: distinct shapes for red-green color blindness (WCAG 1.4.1).
+- `bin/attention-block-lint` (new, python3 stdlib): deterministic verdict (`missing_block` · `inconsistent_clear_with_asks` · `empty_attention_block` · `block_not_last` · `over_cap` · `ok`), `--json`, exit 2 on warning; excludes fences/quotes/headings/tables like `question-batch-gate`.
+- `plugin-scripts/governance/attention-block-gate.sh` (new, wired in `hooks/hooks.json` Stop): bad verdict ⇒ one-shot `additionalContext` reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. Never blocks, atomic one-shot per `prompt_id`, fail-safe, path-allowlisted ids, ledgered. Kill-switches `MAOS_ATTENTION_GATE=0` / `MAOS_ATTENTION_NOTIFY=0`.
+- Tests: `bin/tests/attention-block-lint.test.sh` (12) + `tests/governance/test-attention-block-gate.sh` (8).
+
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
 - `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
