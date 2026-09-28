@@ -1,0 +1,41 @@
+schema: 1
+id: omp
+name: oh-my-pi (omp)
+vendor: null
+kind: cli
+detect:
+  commands:
+  - omp
+  paths:
+  - ~/.omp
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.omp/agent/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - http
+  supports:
+    headers: false
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: ~/.omp/plugins
+  marketplace: ~/.omp/marketplaces.json
+update:
+  version_cmd: omp --version
+  update_cmd: bun i -g oh-my-pi (unverified)
+docs_url: null
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: 'only one entry observed ({type: http, url, auth}); header and stdio shapes unknown — `auth` object semantics
+  unverified'
+notes: File has $schema + mcpServers. `omp mcp` is not a subcommand (prints main help).

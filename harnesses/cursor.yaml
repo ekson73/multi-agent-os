@@ -1,0 +1,52 @@
+schema: 1
+id: cursor
+name: Cursor (IDE + cursor-agent)
+vendor: Anysphere
+kind: ide
+detect:
+  commands:
+  - cursor
+  - cursor-agent
+  paths:
+  - ~/.cursor
+  - /Applications/Cursor.app
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.cursor/mcp.json
+    scope: user
+  - path: ./.cursor/mcp.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values: {stdio: stdio, streamable-http: streamable-http}
+  transports:
+  - stdio
+  - sse
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: null
+    list: cursor-agent mcp list
+    remove: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: cursor --version
+  update_cmd: in-app auto-update; cursor-agent update
+docs_url: https://cursor.com/docs/context/mcp
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Remote: {type: streamable-http (observed; `url` alone also accepted), url, headers}; stdio: {command, args, env, type:
+  stdio}. No file-level disable flag (UI toggle). cursor-agent reads the same file. 10 entries observed.'

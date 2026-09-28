@@ -1,0 +1,45 @@
+schema: 1
+id: kimi
+name: Kimi CLI
+vendor: Moonshot AI
+kind: cli
+detect:
+  commands:
+  - kimi
+  paths:
+  - ~/.kimi
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.kimi/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_field: transport
+    type_values: {stdio: null, streamable-http: http, http: http}
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: kimi --version
+  update_cmd: null
+docs_url: https://github.com/MoonshotAI/kimi-cli
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Remote entries use `transport` (not `type`): {url, transport: http, headers}; stdio {command, args}. 6 entries observed.
+  `kimi mcp` subcommand not present in this build.'
