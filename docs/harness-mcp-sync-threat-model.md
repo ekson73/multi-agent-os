@@ -621,3 +621,15 @@ Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27'
 **Fixes.** Verify records an issue for every planning error ("apply refuses this config"). Skipped entries are preserved only while they still exist; absent ones fall through to `forget`. Provenance of the post-write state now comes from `atomic_write` itself (it returns the triple of the bytes *it* wrote, no re-read); a writer that reports nothing leaves only `pre`/planned `post` as acceptable, so any other state is a conflict.
 
 **Evidence.** R31a/b/c tests; suite 833/833; negative control against `c65f261` fails all 5 new assertions.
+
+## Round 32 — Git visibility checked only at plan time; key-path migration left a managed copy behind
+
+**Findings (Codex on `25e5544`).**
+- 4117809383 (P1): the C-J gate probed Git state once, at plan time. If the target became tracked or unignored afterwards (during an external resolver, or while earlier harnesses were applied), `config_changed()` still passed on identical bytes and resolved credentials were written into a now Git-visible file with exit 0.
+- 4117809384 (P2): ownership records did not carry the adapter `key_path`. After a registry change of `mcp.key_path` on the same file, apply wrote the desired server under the new map and left the previously managed copy — credentials included — under the old one as an unrelated sibling; verify read only the new map and reported clean.
+
+**Fixes.** Immediately before each content write the Git state is re-probed, both as a pre-check and inside the journaled `changed_fn` (the last moment before `write_fn`); a transition into a Git-visible state refuses with the file untouched. Manifest records now persist `key_path`; a record whose owned servers were taken under a different path makes plan/apply/verify report an error until the old entries are handled by hand. Records written before this change carry no `key_path` and are not checked (they gain it on their next write).
+
+**Residual.** The window between the last Git probe and `os.replace` is not atomic (a repository could appear in that instant); detection is best-effort there, as for restore concurrency (round 23).
+
+**Evidence.** R32a/b tests; suite 840/840; negative control against `25e5544` fails all 7 new assertions.

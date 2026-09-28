@@ -1819,6 +1819,15 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
             r.update(status="error", applicable=False,
                      reason="malformed %s: not a mapping — fix it by hand; refused" % bad_map)
             continue
+        rec_kp = (manifest["files"].get(path) or {}).get("key_path")
+        if rec_kp is not None and list(rec_kp) != list(m["key_path"]) and \
+                (manifest["files"].get(path) or {}).get("servers"):
+            # R32 (Codex 4117809384): ownership recorded under another map; writing the new one would leave
+            # the old managed copy (credentials included) behind as an unrelated sibling.
+            r.update(status="error", applicable=False,
+                     reason="managed key path changed from %s to %s — move or remove the entries under the old "
+                            "path by hand, then re-run apply; refused" % (".".join(rec_kp), ".".join(m["key_path"])))
+            continue
         existing = get_map(cfg["doc"], m["key_path"]) or {}
         owned_h = (manifest["files"].get(path) or {}).get("servers", {})
         owned = set(owned_h)
@@ -2152,6 +2161,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
         h, cfg, path = reg[r["id"]], r["_cfg"], r["file"]
         entry = copy.deepcopy(manifest["files"].get(path) or {"harness": r["id"], "servers": {}})
         entry["harness"] = r["id"]  # a shared file's claimant is whoever touches it now (R16)
+        entry["key_path"] = list(h["mcp"]["key_path"])  # R32: ownership is scoped to the map it was taken under
         for n in r["_drops"] | {a["server"] for a in r["actions"] if a["action"] == "forget"}:
             entry["servers"].pop(n, None)
         for n, e in r["_writes"].items():
@@ -2209,6 +2219,16 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             r["apply"] = "refused: config changed since plan; re-run apply"
             worst = EXIT_DRIFT
             continue
+        def visibility_changed():
+            # R32 (Codex 4117809383): the C-J gate ran once at plan time; re-probe right before writing
+            # so a target that became tracked/unignored meanwhile never receives resolved credentials.
+            now = git_state(path)
+            return git_leak_risk(now) and now != r.get("git")
+        if visibility_changed():
+            r["apply"] = "refused: the config became Git-visible since plan (%s); git-ignore it and re-run apply" \
+                         % git_state(path)
+            worst = EXIT_DRIFT
+            continue
         journal()
         pre = backup_file(sd, ts, r["id"], path)[2]                               # S2 (pre = backup snapshot)
         data = text.encode("utf-8")
@@ -2226,7 +2246,8 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
             except Refused:
                 return False
         res = journaled_change(j, manifest, r["id"], path, "backups/%s/%s" % (ts, r["id"]), pre, post, entry,
-                               write_fn=write, validate_fn=valid, changed_fn=lambda: config_changed(path, cfg))
+                               write_fn=write, validate_fn=valid,
+                               changed_fn=lambda: config_changed(path, cfg) or visibility_changed())
         if res == "changed":
             r["apply"] = "refused: config changed since plan; re-run apply"
             worst = EXIT_DRIFT

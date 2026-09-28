@@ -2523,6 +2523,45 @@ ENDPY
 eq "True True True" "$RC31" 'R31c: an external rewrite after our write is a conflict, not rolled back'
 rm -f "$REG/hpv31.yaml"
 
+# ---------------------------------------------------------------- round 32 (Codex on 25e5544)
+# R32a: a target that becomes Git-visible between plan and write is refused, file untouched
+SD32="$T/state-r32a"; mkdir -p "$HOME/.hgv32"; CF="$HOME/.hgv32/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hgv32 json mcpServers mcpservers-json "~/.hgv32/mcp.json" true null null high
+B32="$(sum "$CF")"
+o="$(python3 - "$BIN" "$SSOT" "$REG" "$SD32" "$CF" <<'ENDPY' 2>&1
+import importlib.machinery, importlib.util, sys, os, subprocess
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+ssot, reg, sd, cfg = sys.argv[2:6]
+rf, done = m.render_file, []
+def racing(*a, **k):
+    if not done:
+        done.append(1)   # the directory becomes a git work tree after the plan-time probe
+        subprocess.run(["git", "init", "-q", os.path.dirname(cfg)], check=True)
+    return rf(*a, **k)
+m.render_file = racing
+sys.exit(m.run(["apply", "--ssot", ssot, "--harness", "hgv32", "--registry", reg, "--state-dir", sd]))
+ENDPY
+)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R32a: apply refuses when the target became Git-visible after planning' || no 'R32a: apply refuses when the target became Git-visible after planning' "rc=$rc"
+has 'Git-visible since plan' "$o" 'R32a: the refusal says why'
+eq "$B32" "$(sum "$CF")" 'R32a: the now-visible config is untouched'
+rm -f "$REG/hgv32.yaml"
+
+# R32b: a registry key_path change for an owned file is refused, not a silent second copy
+SD32B="$T/state-r32b"; mkdir -p "$HOME/.hkp32"; CF="$HOME/.hkp32/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hkp32 json mcpServers mcpservers-json "~/.hkp32/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hkp32 --registry "$REG" --state-dir "$SD32B" >> "$ALLOUT" 2>&1
+mk hkp32 json altServers mcpservers-json "~/.hkp32/mcp.json" true null null high
+B32B="$(sum "$CF")"
+o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hkp32 --registry "$REG" --state-dir "$SD32B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R32b: apply refuses a managed key-path migration' || no 'R32b: apply refuses a managed key-path migration' "rc=$rc"
+has 'managed key path changed' "$o" 'R32b: the refusal names the migration'
+eq "$B32B" "$(sum "$CF")" 'R32b: no second copy is written under the new path'
+o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness hkp32 --registry "$REG" --state-dir "$SD32B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R32b: verify is not clean either' || no 'R32b: verify is not clean either' "rc=$rc"
+rm -f "$REG/hkp32.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
