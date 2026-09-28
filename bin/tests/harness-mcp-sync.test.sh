@@ -2562,6 +2562,34 @@ o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness hkp32 --registry "$REG"
 [ "$rc" -ne 0 ] && ok 'R32b: verify is not clean either' || no 'R32b: verify is not clean either' "rc=$rc"
 rm -f "$REG/hkp32.yaml"
 
+# ---------------------------------------------------------------- round 33 (Codex on 21ab916)
+# R33: a restore target that becomes Git-visible after the first gate is refused at the last moment
+SD33="$T/state-r33"; mkdir -p "$HOME/.hrg33"; CF="$HOME/.hrg33/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hrg33 json mcpServers mcpservers-json "~/.hrg33/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hrg33 --registry "$REG" --state-dir "$SD33" --json > "$T/r33.json" 2>>"$ALLOUT"
+TS33="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["backup_ts"])' "$T/r33.json" 2>/dev/null)"
+A33="$(sum "$CF")"
+o="$(python3 - "$BIN" "$TS33" "$REG" "$SD33" "$CF" <<'ENDPY' 2>&1
+import importlib.machinery, importlib.util, sys, os, subprocess
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+ts, reg, sd, cfg = sys.argv[2:6]
+bf, done = m.backup_file, []
+def racing(*a, **k):
+    res = bf(*a, **k)
+    if not done:
+        done.append(1)   # the directory becomes a git work tree after the first restore gate
+        subprocess.run(["git", "init", "-q", os.path.dirname(cfg)], check=True)
+    return res
+m.backup_file = racing
+sys.exit(m.run(["restore", ts, "--harness", "hrg33", "--registry", reg, "--state-dir", sd]))
+ENDPY
+)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R33: restore refuses when the target became Git-visible after the first gate' || no 'R33: restore refuses when the target became Git-visible after the first gate' "rc=$rc"
+has 'allow-git-visible' "$o" 'R33: the refusal names the Git-visibility policy'
+eq "$A33" "$(sum "$CF")" 'R33: the now-visible config is untouched'
+rm -f "$REG/hrg33.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

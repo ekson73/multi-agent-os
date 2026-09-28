@@ -507,6 +507,9 @@ so it must not be the barrier that keeps a secret out of a commit.
 **Fix (structural).** A config that Git can see — tracked, untracked-but-not-ignored, or of
 unknown state — is **never written and never restored by default**, whatever the content. The
 refusal names the opt-in `--allow-git-visible` and the alternative (git-ignore the file).
+The one exception is **removal of a server this tool owns** (disabled, excluded or dropped from the
+SSOT): it is still applied, because deleting a managed entry only reduces exposure and refusing it
+would keep a credential the operator asked to remove; no new server content is written (round 33).
 
 **Defense in depth.** With `--allow-git-visible`, every server that the content check flags is
 still refused (the round 14-20 detectors stay active), and restore still refuses a backup that
@@ -633,3 +636,13 @@ Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27'
 **Residual.** The window between the last Git probe and `os.replace` is not atomic (a repository could appear in that instant); detection is best-effort there, as for restore concurrency (round 23).
 
 **Evidence.** R32a/b tests; suite 840/840; negative control against `25e5544` fails all 7 new assertions.
+
+## Round 33 — restore re-probes Git at the last moment; removal exception documented
+
+**Findings (Codex on `21ab916`).**
+- 4117861623 (P1): the round-32 last-moment Git re-probe covered apply only. Restore ran `restore_git_refusal()` once, then created the journal and the pre-restore backup; its pre-write callback checked config bytes only, so a target that became Git-visible in that gap could receive a secret-bearing backup.
+- 4117861627 (P2): the "never written by default" guarantee omitted a real, intentional exception — removal of an owned server still rewrites a Git-visible config.
+
+**Fixes.** Restore's journaled `changed_fn` now re-runs the same Git/content gate as the first check, immediately before `write_fn`; a late refusal is reported with the gate's own reason and the file untouched. The removal exception is now stated in C-J (above) and in SKILL.md: deleting a managed entry only reduces exposure, and no new server content is written.
+
+**Evidence.** R33 test (repo appears after the first restore gate → refused, reason names the policy, file untouched); suite 843/843; negative control against `21ab916` fails all 3 new assertions.

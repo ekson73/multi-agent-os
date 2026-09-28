@@ -118,6 +118,9 @@ config layer, never in this repo. The executor takes them via `--ssot FILE --res
 - **Git-visible configs are never written or restored by default** (tracked, untracked-not-ignored,
   or unknown git state). Git-ignore the file, or pass `--allow-git-visible` to opt in; with the flag
   every server the content check flags is still refused. See threat model C-J.
+  *Exception:* removing a server this tool owns (disabled, excluded or dropped from the SSOT) is
+  still applied to a Git-visible config — deleting a managed entry reduces exposure, and refusing it
+  would keep a credential the operator asked to remove. Nothing new is written in that case.
 - **Short or low-entropy secret literals are undetectable.** The SSOT lint flags values that look
   secret-like (long, mixed character classes, high entropy); under `--allow-git-visible` it is the
   only thing between such a value and a commit, and a short literal password in a bare positional

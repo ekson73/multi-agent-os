@@ -2670,13 +2670,21 @@ def mode_restore(args, reg, ids, sd, ts):
             journaled_change(j, cur, hid, mpath, "backups/%s/%s" % (run_id, hid), pre, post, mf_after,
                              write_fn=lambda: restore_from(bdir, payload, rmode),
                              validate_fn=lambda: file_triple(mpath) == post,
-                             changed_fn=lambda: file_triple(mpath) != pre)  # R22: recheck right before writing
+                             # R22: recheck bytes right before writing; R33 (Codex 4117861623): and re-run the
+                             # Git/content gate there too, so a target that became Git-visible meanwhile is refused
+                             changed_fn=lambda: file_triple(mpath) != pre or
+                             restore_git_refusal(mpath, reg[hid]["mcp"]["format"], payload) is not None)
         except RollbackFailed:
             raise
         except (OSError, ValueError, KeyError) as e:
             refused.append({"id": hid, "reason": "restore failed (%s); rolled back, file unchanged"
                                                  % e.__class__.__name__})
             continue
+        if j.data["entries"][-1]["state"] == "rolled-back":
+            late = restore_git_refusal(mpath, reg[hid]["mcp"]["format"], payload)
+            if late:  # R33: the target became Git-visible after the first gate
+                refused.append({"id": hid, "reason": late})
+                continue
         if j.data["entries"][-1]["state"] == "rolled-back" and file_triple(mpath) != pre:
             refused.append({"id": hid, "reason": "refused: config changed during restore; file left as found, re-run restore"})
             continue
