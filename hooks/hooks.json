@@ -112,6 +112,10 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/session-end.sh"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/plugin-scripts/governance/attention-block-gate.sh"
           }
         ]
       }

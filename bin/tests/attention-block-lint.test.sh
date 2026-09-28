@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Tests for bin/attention-block-lint (Pharos). Run: bash bin/tests/attention-block-lint.test.sh
+set -u
+LINT="$(cd "$(dirname "$0")/.." && pwd)/attention-block-lint"
+pass=0; fail=0
+check() { # name expected_verdict expected_rc <<< text
+  local name="$1" want="$2" want_rc="$3" out rc
+  out="$("$LINT" --json)"; rc=$?
+  got="$(printf '%s' "$out" | python3 -c 'import json,sys;print(json.load(sys.stdin)["verdict"])')"
+  if [ "$got" = "$want" ] && [ "$rc" = "$want_rc" ]; then pass=$((pass+1)); echo "ok   $name";
+  else fail=$((fail+1)); echo "FAIL $name: got=$got rc=$rc want=$want/$want_rc"; fi
+}
+
+check "buried question, no block" missing_block 2 <<'T'
+Fiz a limpeza. Quer que eu remova também os brokers órfãos?
+Segue o resto do relatório.
+T
+
+check "buried go request en" missing_block 2 <<'T'
+Everything is staged. Should I merge the PR now.
+T
+
+check "proper attention block at end" ok 0 <<'T'
+Limpeza concluída, 41 GB liberados.
+
+> **🔔 PRECISA DE VOCÊ (2)**
+> 1. **🛑 AUTORIZAR** — encerrar 7 brokers órfãos · responda `1 sim` / `1 não`
+> 2. **🔶 DECIDIR** — região · `2A` sa-east-1 (recomendado) · `2B` us-east-1
+> ➕ +1 registrado no backlog (não precisa de você agora)
+T
+
+check "clear line, no asks" ok 0 <<'T'
+PR #42 mergeado, checks verdes.
+
+> **✅ NADA PRECISA DE VOCÊ**
+T
+
+check "clear line but ask buried above" inconsistent_clear_with_asks 2 <<'T'
+Posso aplicar a migração em hml?
+
+> **✅ NADA PRECISA DE VOCÊ** — tudo certo.
+T
+
+check "block followed by trailing prose" block_not_last 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🟡 AÇÃO MANUAL** — rotacionar URL do Zapier
+Ah, e mais uma coisa sobre o disco.
+T
+
+check "empty attention header" empty_attention_block 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (0)**
+T
+
+check "over cap (4 items)" over_cap 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (4)**
+> 1. **🔴 AUTORIZAR** — a
+> 2. **🟠 DECIDIR** — b
+> 3. **🟡 AÇÃO MANUAL** — c
+> 4. **🟡 AÇÃO MANUAL** — d
+T
+
+check "question inside code fence ignored" no_block_no_asks 0 <<'T'
+Resultado:
+```
+read -p "Continue? " x
+```
+Pronto.
+T
+
+check "quoted operator question ignored" no_block_no_asks 0 <<'T'
+> você perguntou: "terminou?"
+Sim, terminou — evidência abaixo.
+T
+
+check "plain status, nothing asked" no_block_no_asks 0 <<'T'
+Disco em 88%, memória 51% livre.
+T
+
+check "legacy color icons still parsed" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔴 AUTORIZAR** — x · `1 sim` / `1 não`
+T
+
+echo "--- $pass passed, $fail failed"
+[ "$fail" -eq 0 ]
