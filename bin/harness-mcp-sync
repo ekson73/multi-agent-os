@@ -2493,7 +2493,11 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
         mp = get_map(cfg["doc"], h["mcp"]["key_path"]) or {}
         # #460 (Codex 4117950052): a registry correction can leave a managed harness on an unknown or
         # unsupported entry_style; render_entry() would KeyError, so report the adapter instead.
+        # Only a skip blocker means "not renderable"; plan-only (low confidence / skip_reason) still
+        # renders, and plan reports it unchanged, so it must not fail verify (Codex 4122248251).
         blk = static_blocker(h) if ssot is not None else None
+        if blk is not None and blk[0] != "skip":
+            blk = None
         if blk is not None:
             e["issues"].append("adapter not renderable (%s); SSOT drift not checked — plan skips it" % blk[1])
         gstate = git_state(path)
