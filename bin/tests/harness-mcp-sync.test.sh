@@ -2433,6 +2433,39 @@ for md in plan apply restore; do
   has 'names no harness id' "$o" "R29: $md says why"
 done
 
+# R30: an immediate rollback never destroys a concurrent edit (third state = conflict, file kept)
+for variant in present absent; do
+  SD30="$T/state-r30-$variant"; mkdir -p "$HOME/.hrb30$variant"; CF="$HOME/.hrb30$variant/mcp.json"; rm -f "$CF"
+  [ "$variant" = present ] && printf '{"mcpServers":{}}' > "$CF"
+  mk "hrb30$variant" json mcpServers mcpservers-json "~/.hrb30$variant/mcp.json" true null null high
+  RB="$(python3 - "$BIN" "$T/ssot-r23b1.json" "hrb30$variant" "$REG" "$SD30" "$CF" <<'ENDPY'
+import importlib.machinery, importlib.util, sys, io, contextlib, os
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+ssot, hid, reg, sd, cfg = sys.argv[2:7]
+orig, fired = m.set_mf, []
+def racing(sdir, manifest, path, value):
+    if not fired and value is not None and os.path.realpath(path) == os.path.realpath(cfg):
+        fired.append(1)
+        with open(cfg, "a") as fh:
+            fh.write(" ")          # the harness rewrites its config after our write lands
+        raise OSError("simulated manifest failure")
+    return orig(sdir, manifest, path, value)
+m.set_mf = racing
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        rc = m.run(["apply", "--ssot", ssot, "--harness", hid, "--registry", reg, "--state-dir", sd])
+    except BaseException:
+        rc = 99
+print(bool(fired), rc != 0, os.path.exists(cfg) and open(cfg).read().endswith(" "))
+ENDPY
+)"
+  eq "True True True" "$RB" "R30: rollback ($variant pre-state) refuses and keeps the concurrent edit"
+  o="$("$BIN" verify --harness "hrb30$variant" --registry "$REG" --state-dir "$SD30" 2>&1)"; printf '%s\n' "$o" >> "$ALLOUT"
+  has 'conflict' "$o" "R30: verify reports the entry as a conflict ($variant)"
+  rm -f "$REG/hrb30$variant.yaml"
+done
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

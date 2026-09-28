@@ -1521,6 +1521,10 @@ class BackupMismatch(Exception):
     pass
 
 
+class RollbackConflict(Refused):
+    """R30: the target is neither the recorded pre- nor post-state — someone else edited it."""
+
+
 def _backup_payload(sd: str, e: dict) -> bytes:
     rid = os.path.basename(os.path.dirname(os.path.join(sd, e["backup"])))
     root = os.path.join(sd, "backups")
@@ -1537,12 +1541,22 @@ def _backup_payload(sd: str, e: dict) -> bytes:
     return data
 
 
-def rollback_entry(j: Journal, i: int, manifest: dict):
+def rollback_entry(j: Journal, i: int, manifest: dict, written=None):
     """J4: durable `rolling-back` FIRST, then restore bytes+mode (or unlink), then the manifest
     entry. Retry-safe: an already-restored file or an already-gone file is a no-op."""
     e = j.data["entries"][i]
     j.set(i, "rolling-back")
     path, pre = e["path"], e["pre"]
+    # R30 (Codex 4117524102): a third state is a concurrent edit — preserve it, as reconcile does.
+    try:
+        obs = file_triple(path)
+    except OSError:
+        obs = None
+    if obs not in (pre, e["post"]) and (written is None or obs != written):
+        j.set(i, "conflict")
+        raise RollbackConflict("%s changed outside this tool while %s was rolling back; kept as-is "
+                               "(backup %s) — fix it, then `harness-mcp-sync resolve %s`"
+                               % (path, e.get("hid"), os.path.join(j.sd, e["backup"]), j.data["run_id"]))
     if pre["exists"]:
         data = _backup_payload(j.sd, e)
         if file_triple(path) != pre:
@@ -1569,21 +1583,25 @@ def journaled_change(j: Journal, manifest: dict, hid: str, path: str, backup_rel
     if changed_fn is not None and changed_fn():
         j.set(i, "rolled-back")  # S3b: nothing written yet
         return "changed"
+    written = None
     try:
         write_fn()                                  # S4
+        written = file_triple(path)                 # R30: what WE put there (may differ from post if corrupted)
         j.set(i, "config-written")                  # S5
         if validate_fn is not None and not validate_fn():   # S6
-            rollback_entry(j, i, manifest)
+            rollback_entry(j, i, manifest, written)
             return "invalid"
         set_mf(j.sd, manifest, path, mf_after)      # S7
         j.set(i, "manifest-committed")              # S8
         return "applied"
     except BaseException as orig:
-        if isinstance(orig, RollbackFailed):
+        if isinstance(orig, (RollbackFailed, RollbackConflict)):
             raise
         try:
             if j.data["entries"][i]["state"] != "rolled-back":
-                rollback_entry(j, i, manifest)
+                rollback_entry(j, i, manifest, written)
+        except RollbackConflict:
+            raise
         except BaseException as rb:
             raise RollbackFailed("%s of %s failed (%s) and its rollback failed (%s); backup kept at %s; journal %s "
                                  "stays open and the next apply/restore reconciles it"

@@ -600,3 +600,13 @@ Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27'
 **Fix.** The all-harness default is reserved for `spec is None` (flag omitted). A filter that is present but parses to zero ids (`""`, `" , "`) is a usage error (exit 2) before any plan or write; restore tests `args.harness is not None`. Principle: an *absent* selector and an *empty* selector are different inputs — only absence may mean "all".
 
 **Evidence.** R29 tests (plan/apply/restore × empty filter → exit 2 + reason); suite 824/824; negative control against `06aee67` fails 5 of the 6 new assertions.
+
+## Round 30 — immediate rollback destroyed a concurrent edit
+
+**Finding (Codex 4117524102, P2).** If a harness rewrote its config after our write landed but before parse-back or the manifest commit finished, the in-process rollback restored the backup (or unlinked a newly created file) regardless — silently erasing a state that was neither our recorded `pre` nor `post`. The crash-recovery path (`reconcile`) already treated that third state as a conflict; the immediate path did not.
+
+**Fix.** `rollback_entry` now observes the target first. Allowed states are `pre`, the planned `post`, and the triple observed immediately after our own `write_fn` (so a self-inflicted corrupted write still rolls back). Anything else marks the journal entry `conflict`, leaves the file untouched, and raises `RollbackConflict` naming the backup and `harness-mcp-sync resolve <run>`. Both the pre-existing and pre-absent (would-unlink) cases are covered.
+
+**Residual.** The window between that observation and the rollback write is not atomic; this is best-effort detection, consistent with the round-23 scoping of restore concurrency.
+
+**Evidence.** R30 tests (present/absent pre-state × concurrent edit injected at the manifest commit → nonzero exit, edit preserved, verify reports `conflict`); suite 828/828; negative control against `248fca9` fails all 4 new assertions.
