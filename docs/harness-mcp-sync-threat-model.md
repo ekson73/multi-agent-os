@@ -646,3 +646,15 @@ Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27'
 **Fixes.** Restore's journaled `changed_fn` now re-runs the same Git/content gate as the first check, immediately before `write_fn`; a late refusal is reported with the gate's own reason and the file untouched. The removal exception is now stated in C-J (above) and in SKILL.md: deleting a managed entry only reduces exposure, and no new server content is written.
 
 **Evidence.** R33 test (repo appears after the first restore gate → refused, reason names the policy, file untouched); suite 843/843; negative control against `21ab916` fails all 3 new assertions.
+
+## Follow-ups #459 / #460 (post round 33)
+
+- **#459 — unbound populated manifest.** `bind_salt` accepted a manifest with ownership records but no
+  `salt_id`; with a replaced salt the next `apply` would silently re-key every ownership HMAC,
+  bypassing `--adopt` and the documented salt-recovery path. A manifest that holds `files` must now
+  carry a matching `salt_id`; otherwise mutation is refused with the recovery path. An empty manifest
+  (fresh state) is unaffected.
+- **#460 — verify on an unrenderable adapter.** A registry correction that moves a managed harness to an
+  unknown or unsupported `entry_style` made `verify --ssot` exit through `KeyError` in `render_entry`.
+  Verify now consults `static_blocker()` first and reports "adapter not renderable" as an issue (verify
+  does not read clean), leaving SSOT drift unchecked for that file — exactly what plan does (skip).

@@ -1383,6 +1383,11 @@ SALT_RECOVERY = ("salt recovery: move <state>/manifest.json and <state>/journal/
 def bind_salt(manifest: dict):
     """A lost or rotated salt silently re-keys every recorded hash; refuse instead (J5)."""
     sid = manifest.get("salt_id")
+    # #459 (Codex 4117950047): a populated manifest with no salt_id is an unbound one — accepting it
+    # would let the next apply silently re-key every ownership HMAC under whatever salt is loaded.
+    if sid is None and manifest.get("files"):
+        raise UsageError("manifest holds ownership records but no salt binding; mutation refused. "
+                         + SALT_RECOVERY)
     if sid is not None and (_SALT is None or sid != salt_id()):
         raise UsageError("manifest was written with a different state salt; mutation refused. " + SALT_RECOVERY)
 
@@ -2486,6 +2491,11 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
             e["issues"].append("malformed %s: not a mapping" % bad_map)
             continue
         mp = get_map(cfg["doc"], h["mcp"]["key_path"]) or {}
+        # #460 (Codex 4117950052): a registry correction can leave a managed harness on an unknown or
+        # unsupported entry_style; render_entry() would KeyError, so report the adapter instead.
+        blk = static_blocker(h) if ssot is not None else None
+        if blk is not None:
+            e["issues"].append("adapter not renderable (%s); SSOT drift not checked — plan skips it" % blk[1])
         gstate = git_state(path)
         if git_leak_risk(gstate) and not ALLOW_GIT_VISIBLE:
             # R23 (Codex 4117227895): the C-J gate applies to manifest-only verify too — a managed
@@ -2517,7 +2527,7 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
                     e["issues"].append("%s: excluded from this harness by its SSOT selector (plan removes it)" % name)
                 elif kind == "omit":
                     e["issues"].append("%s: disabled in SSOT; harness has no disable flag (plan removes it)" % name)
-                elif kind == "skip":
+                elif kind == "skip" or blk is not None:
                     pass  # plan leaves a skipped entry untouched; SSOT content is not renderable here
                 elif entry_hash(render_entry(h, name, resolver.resolve(srv))) != entry_hash(cur):
                     e["issues"].append("%s: drift vs SSOT (value or enabled-state)" % name)

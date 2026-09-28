@@ -2590,6 +2590,30 @@ has 'allow-git-visible' "$o" 'R33: the refusal names the Git-visibility policy'
 eq "$A33" "$(sum "$CF")" 'R33: the now-visible config is untouched'
 rm -f "$REG/hrg33.yaml"
 
+# #459: a populated manifest that lost its salt_id is refused instead of silently re-keyed
+SD459="$T/state-459"; mkdir -p "$HOME/.hrg459"; CF="$HOME/.hrg459/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hrg459 json mcpServers mcpservers-json "~/.hrg459/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hrg459 --registry "$REG" --state-dir "$SD459" >>"$ALLOUT" 2>&1
+python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); assert d.get("files"); d.pop("salt_id",None); json.dump(d,open(p,"w"))' "$SD459/manifest.json"
+A459="$(sum "$CF")"
+o="$("$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hrg459 --registry "$REG" --state-dir "$SD459" 2>&1)"; rc=$?
+eq 2 "$rc" '#459: populated manifest without salt_id: mutation refused (exit 2)'
+has 'no salt binding' "$o" '#459: the refusal names the missing salt binding'
+has 'salt recovery' "$o" '#459: the recovery path is printed'
+eq "$A459" "$(sum "$CF")" '#459: config untouched'
+rm -f "$REG/hrg459.yaml"
+
+# #460: verify --ssot reports an unrenderable adapter instead of crashing with KeyError
+SD460="$T/state-460"; mkdir -p "$HOME/.hrg460"; CF="$HOME/.hrg460/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hrg460 json mcpServers mcpservers-json "~/.hrg460/mcp.json" true null null high
+"$BIN" apply --ssot "$T/ssot-r23b1.json" --harness hrg460 --registry "$REG" --state-dir "$SD460" >>"$ALLOUT" 2>&1
+sed -i.bak 's/entry_style: mcpservers-json/entry_style: bogus-style/' "$REG/hrg460.yaml" && rm -f "$REG/hrg460.yaml.bak"
+o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness hrg460 --registry "$REG" --state-dir "$SD460" 2>&1)"; rc=$?
+case "$o" in *KeyError*|*Traceback*|*"internal error"*) no '#460: verify does not crash on an unknown entry_style' "$o" ;; *) ok '#460: verify does not crash on an unknown entry_style' ;; esac
+has 'adapter not renderable' "$o" '#460: verify reports the unrenderable adapter'
+[ "$rc" -ne 0 ] && ok '#460: verify does not read clean' || no '#460: verify does not read clean' "rc=$rc"
+rm -f "$REG/hrg460.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do
