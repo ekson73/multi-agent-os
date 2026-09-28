@@ -390,6 +390,9 @@ def atomic_write(path: str, data: bytes, mode: int = 0o600):
         os.chmod(tmp, mode)
         os.replace(tmp, path)
         fsync_dir(d)
+        # R31: provenance of what THIS call wrote (no re-read of the target); state-file writes made
+        # before the salt exists have no journal to feed, so they report nothing.
+        return bytes_triple(data, mode) if _SALT is not None else None
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)
@@ -1585,8 +1588,10 @@ def journaled_change(j: Journal, manifest: dict, hid: str, path: str, backup_rel
         return "changed"
     written = None
     try:
-        write_fn()                                  # S4
-        written = file_triple(path)                 # R30: what WE put there (may differ from post if corrupted)
+        w = write_fn()                              # S4
+        # R31 (Codex 4117749614): provenance comes from the writer itself, never from re-reading the
+        # target (an external rewrite after the write returns would be mistaken for ours).
+        written = w if isinstance(w, dict) else None
         j.set(i, "config-written")                  # S5
         if validate_fn is not None and not validate_fn():   # S6
             rollback_entry(j, i, manifest, written)
@@ -1928,7 +1933,9 @@ def build_plan(reg, ids, ssot, resolver, manifest, adopt: set) -> list:
         # A desired server that could not be rendered for this harness (action "skip") is left
         # exactly as it is: skipping means "don't touch", never "delete the working entry".
         # Only "omit" (disabled in SSOT, no disable flag) and truly undesired names are removed.
-        kept = {a["server"] for a in r["actions"] if a.get("action") == "skip"}
+        # R31 (Codex 4117749612): only a skipped entry that still EXISTS is preserved; an owned one that
+        # is already gone falls through to the absent-entry cleanup below (forget).
+        kept = {a["server"] for a in r["actions"] if a.get("action") == "skip" and a["server"] in existing}
         # A legacy entry named in `replaces` survives while its replacement was NOT written here
         # (skip/omit/conflict): removing it would leave the harness with neither server.
         final = {}
@@ -2042,7 +2049,7 @@ def restore_from(bdir: str, data: bytes | None = None, mode: int | None = None):
                 data = fh.read()
         # The parent may be gone (uninstall/reset); recreate it (0700, flushed) like apply does.
         makedirs_durable(os.path.dirname(path))
-        atomic_write(path, data, int(meta.get("mode", "0o600"), 8) if mode is None else mode)
+        return atomic_write(path, data, int(meta.get("mode", "0o600"), 8) if mode is None else mode)
     elif os.path.exists(path):
         os.unlink(path)
         fsync_dir(os.path.dirname(path))  # the delete is durable before the journal says config-written
@@ -2209,7 +2216,7 @@ def apply_plan(reg, results, sd, manifest, allow_comment_loss: bool):
 
         def write():
             makedirs_durable(os.path.dirname(path))
-            atomic_write(path, data)
+            return atomic_write(path, data)
 
         def valid():
             try:
@@ -2505,6 +2512,14 @@ def mode_verify(args, reg, ids, ssot, resolver, manifest, sd=None):
         reported = {(e.get("file"), n) for e in out for n in fe_names(e)}
         for r in build_plan(reg, ids, ssot, resolver, manifest, set()):
             if not r["applicable"]:
+                if r["status"] == "error":
+                    # R31 (Codex 4117749606): apply refuses this config, so verify must not read clean
+                    ent = next((e for e in out if e.get("file") == r.get("file")), None)
+                    if ent is None:
+                        ent = {"id": r["id"], "file": r.get("file"), "issues": []}
+                        out.append(ent)
+                    ent["issues"].append("error: %s (apply refuses this config)" % r.get("reason"))
+                    continue
                 if r["status"] == "plan-only" and plan_pending(r):
                     # R17: same verdict as apply — the no-write policy holds, but pending work is drift
                     ent = next((e for e in out if e.get("file") == r["file"]), None)

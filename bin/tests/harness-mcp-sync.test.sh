@@ -2466,6 +2466,63 @@ ENDPY
   rm -f "$REG/hrb30$variant.yaml"
 done
 
+# ---------------------------------------------------------------- round 31 (Codex on c65f261)
+# R31a: verify --ssot reports a config apply would refuse (malformed, no manifest record) — never clean
+mkdir -p "$HOME/.hme31"; printf '{"mcpServers": [' > "$HOME/.hme31/mcp.json"
+mk hme31 json mcpServers mcpservers-json "~/.hme31/mcp.json" true null null high
+o="$("$BIN" verify --ssot "$T/ssot-r23b1.json" --harness hme31 --registry "$REG" --state-dir "$T/state-r31a" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+[ "$rc" -ne 0 ] && ok 'R31a: verify is not clean when apply would refuse the config' || no 'R31a: verify is not clean when apply would refuse the config' "rc=$rc"
+has 'apply refuses' "$o" 'R31a: verify names the planning error'
+rm -f "$REG/hme31.yaml"
+
+# R31b: an owned server that is now skipped AND already absent drops its ownership record
+SD31B="$T/state-r31b"; mkdir -p "$HOME/.hks31"; printf '{"mcpServers":{}}' > "$HOME/.hks31/mcp.json"
+mk hks31 json mcpServers mcpservers-json "~/.hks31/mcp.json" true null null high
+"$BIN" apply --ssot "$SSOT" --harness hks31 --registry "$REG" --state-dir "$SD31B" >> "$ALLOUT" 2>&1
+mk hks31 json mcpServers mcpservers-json "~/.hks31/mcp.json" false null null high   # headers now unsupported -> skip
+python3 - "$HOME/.hks31/mcp.json" <<'ENDPY'
+import json, sys; p = sys.argv[1]; d = json.load(open(p)); d["mcpServers"].pop("cf-remote", None); json.dump(d, open(p, "w"))
+ENDPY
+chmod 600 "$HOME/.hks31/mcp.json"
+o="$("$BIN" apply --ssot "$SSOT" --harness hks31 --registry "$REG" --state-dir "$SD31B" 2>&1)"; rc=$?; printf '%s\n' "$o" >> "$ALLOUT"
+OWN="$(grep -rl '"cf-remote"' "$SD31B"/manifest*.json 2>/dev/null | wc -l | tr -d ' ')"
+eq 0 "$OWN" 'R31b: the skipped, already-absent owned server is no longer recorded as owned'
+o="$("$BIN" verify --harness hks31 --registry "$REG" --state-dir "$SD31B" 2>&1)"; printf '%s\n' "$o" >> "$ALLOUT"
+hasnt 'cf-remote' "$o" 'R31b: manifest-only verify no longer reports it missing'
+rm -f "$REG/hks31.yaml"
+
+# R31c: provenance of the post-write snapshot comes from the writer, not a re-read of the target
+SD31C="$T/state-r31c"; mkdir -p "$HOME/.hpv31"; CF="$HOME/.hpv31/mcp.json"; printf '{"mcpServers":{}}' > "$CF"
+mk hpv31 json mcpServers mcpservers-json "~/.hpv31/mcp.json" true null null high
+RC31="$(python3 - "$BIN" "$T/ssot-r23b1.json" "$REG" "$SD31C" "$CF" <<'ENDPY'
+import importlib.machinery, importlib.util, sys, io, contextlib, os
+ld = importlib.machinery.SourceFileLoader("hms", sys.argv[1])
+m = importlib.util.module_from_spec(importlib.util.spec_from_loader("hms", ld)); ld.exec_module(m)
+ssot, reg, sd, cfg = sys.argv[2:6]
+aw, sm, hit = m.atomic_write, m.set_mf, []
+def writer(p, data, mode=0o600):
+    res = aw(p, data, mode)
+    if not hit and os.path.realpath(p) == os.path.realpath(cfg):
+        hit.append("w")
+        with open(cfg, "a") as fh:
+            fh.write(" ")      # external rewrite lands right after our write returns
+    return res
+def failing(sdir, manifest, path, value):
+    if hit == ["w"] and value is not None and os.path.realpath(path) == os.path.realpath(cfg):
+        hit.append("m"); raise OSError("simulated manifest failure")
+    return sm(sdir, manifest, path, value)
+m.atomic_write, m.set_mf = writer, failing
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        rc = m.run(["apply", "--ssot", ssot, "--harness", "hpv31", "--registry", reg, "--state-dir", sd])
+    except BaseException:
+        rc = 99
+print(hit == ["w", "m"], rc != 0, open(cfg).read().endswith(" "))
+ENDPY
+)"
+eq "True True True" "$RC31" 'R31c: an external rewrite after our write is a conflict, not rolled back'
+rm -f "$REG/hpv31.yaml"
+
 # Suite self-guard: running this suite against ANY revision can never launch a real AI harness.
 BAD=""
 for n in $HARNESS_STUB_NAMES; do

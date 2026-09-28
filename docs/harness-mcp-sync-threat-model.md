@@ -610,3 +610,14 @@ Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27'
 **Residual.** The window between that observation and the rollback write is not atomic; this is best-effort detection, consistent with the round-23 scoping of restore concurrency.
 
 **Evidence.** R30 tests (present/absent pre-state × concurrent edit injected at the manifest commit → nonzero exit, edit preserved, verify reports `conflict`); suite 828/828; negative control against `248fca9` fails all 4 new assertions.
+
+## Round 31 — verify blind to planning errors; skipped-and-absent ownership; snapshot provenance
+
+**Findings (Codex on `c65f261`, all P2).**
+- 4117749606: `verify --ssot` discarded `status: error` plan results (malformed config, non-mapping managed path), so it printed clean with exit 0 while `apply` refused the same config.
+- 4117749612: an owned server whose current disposition is `skip` (e.g. header-bearing remote on a harness without header support) was always "kept", even when already absent from the file — the stale ownership record was never forgotten and every later verify reported it missing.
+- 4117749614: round 30's `written` snapshot re-read the target after `write_fn()` returned, so an external rewrite in that gap was mistaken for our own bytes and a subsequent rollback erased it.
+
+**Fixes.** Verify records an issue for every planning error ("apply refuses this config"). Skipped entries are preserved only while they still exist; absent ones fall through to `forget`. Provenance of the post-write state now comes from `atomic_write` itself (it returns the triple of the bytes *it* wrote, no re-read); a writer that reports nothing leaves only `pre`/planned `post` as acceptable, so any other state is a conflict.
+
+**Evidence.** R31a/b/c tests; suite 833/833; negative control against `c65f261` fails all 5 new assertions.
