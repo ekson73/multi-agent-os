@@ -183,14 +183,23 @@ EOF
 ```bash
 # Create PR
 BRANCH=$(git branch --show-current)
-BASE="${2:-main}"
 TITLE="$1"
+
+# Base: argumento explicito > base PERSISTIDA pelo worktree > fail-closed.
+# `${2:-main}` era um default fixo -- num repo cuja default e `develop`, ou
+# num PR empilhado, o PR seria aberto contra a branch errada.
+BASE_REF="${2:-}"
+[ -n "$BASE_REF" ] || BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32018,"message":"Base indeterminate","data":{"instructions":"Pass the base explicitly or recreate the worktree via worktree-policy (which persists BASE_REF)"}}}' >&2
+  exit 1; }
 
 # Ensure branch is pushed
 git push -u origin $BRANCH 2>/dev/null
 
 # Create PR using gh CLI
-gh pr create --title "$TITLE" --body "$(cat <<EOF
+# --base OBRIGATORIO: sem ele o gh assume a branch default do repo.
+gh pr create --base "$BASE_REF" --title "$TITLE" --body "$(cat <<EOF
 ## Summary
 [Description of changes]
 
@@ -201,7 +210,7 @@ gh pr create --title "$TITLE" --body "$(cat <<EOF
 ---
 Co-Authored-By: Claude-Code (Anthropic/Claude-4-Sonnet) <noreply+claude-code@anthropic.com>
 EOF
-)" --base "$BASE"
+)"
 
 # Get PR URL
 PR_URL=$(gh pr view --json url -q '.url')
@@ -225,23 +234,71 @@ if [ "$PR_STATE" != "OPEN" ]; then
   echo "PR is not open"
   exit 1
 fi
-
-# Check reviews
+# Check reviews -- CONTAR nao basta: `reviews|length > 0` aceita um
+# CHANGES_REQUESTED como se fosse aprovacao. Avalie o VEREDITO.
+DECISION=$(gh pr view --json reviewDecision -q '.reviewDecision // ""')
+if [ "$DECISION" = "CHANGES_REQUESTED" ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32017,"message":"Changes requested","data":{"instructions":"Address the findings, then request re-review"}}}' >&2
+  exit 1
+fi
 REVIEWS=$(gh pr view --json reviews -q '.reviews | length')
-if [ "$REVIEWS" -eq 0 ]; then
+if [ "${REVIEWS:-0}" -eq 0 ]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32015,"message":"Review pending","data":{"instructions":"Wait for review or delegate to code-reviewer agent"}}}' >&2
   exit 1
 fi
 
-# Check CI
-CI_STATUS=$(gh pr view --json statusCheckRollup -q '.statusCheckRollup[0].conclusion')
-if [ "$CI_STATUS" != "SUCCESS" ]; then
+# Check CI -- TODOS os contexts, nao so o primeiro.
+# `statusCheckRollup[0]` e fail-open: o check[0] verde autorizava o merge
+# ainda que qualquer outro estivesse vermelho.
+ROLLUP=$(gh pr view --json statusCheckRollup -q '.statusCheckRollup') || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI state unreadable"}}' >&2
+  exit 1; }
+TOTAL=$(printf '%s' "$ROLLUP" | jq 'length')
+PENDING=$(printf '%s' "$ROLLUP" | jq '[.[]?|select((.conclusion//.state)|IN("PENDING","QUEUED","IN_PROGRESS","EXPECTED"))]|length')
+FAILED=$(printf '%s' "$ROLLUP" | jq '[.[]?|select((.conclusion//.state) as $s
+  | ($s|IN("SUCCESS","NEUTRAL","SKIPPED","PENDING","QUEUED","IN_PROGRESS","EXPECTED"))|not)]|length')
+
+# ZERO checks nao e "CI verde": e ausencia de sinal. O contador de falhas
+# daria 0 e liberaria o merge sem nenhuma verificacao ter rodado.
+if [ "${TOTAL:-0}" -eq 0 ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"No CI checks reported","data":{"instructions":"Confirm CI is configured and has reported, or merge explicitly out-of-band"}}}' >&2
+  exit 1
+fi
+if [ "${PENDING:-1}" -ne 0 ]; then
+  echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI still running","data":{"instructions":"Wait for all checks to report"}}}' >&2
+  exit 1
+fi
+if [ "${FAILED:-1}" -ne 0 ]; then
   echo '{"jsonrpc":"2.0","error":{"code":-32016,"message":"CI failed","data":{"instructions":"Fix CI failures before merge"}}}' >&2
   exit 1
 fi
 
-# Merge
-gh pr merge --merge
+# Merge -- metodo resolvido por autoridade LOCAL do repo (Step 9 de
+# rules/pr-governance-unified.md). `--merge` incondicional contraria os repos
+# que declaram squash e e REJEITADO por repo squash-only.
+# ⚠️ A variavel precisa ser DEFINIDA aqui: usa-la sem origem apenas move o
+# problema, porque um valor vazio produz `gh pr merge --` e um valor arbitrario
+# nao foi validado contra a capacidade efetiva da base.
+# Carregado do Step 9a (resolve+persiste). Nao "rode o Step 9 e exporte": export
+# nao atravessa shell, e o Step 9 completo ja mergeia -- seria um segundo merge.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+[ -n "$MERGE_METHOD" ] || {
+  echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Merge method unresolved","data":{"instructions":"Run Step 9a (resolve + persist) in pr-governance-unified; it writes $(git rev-parse --git-dir)/MERGE_METHOD"}}}' >&2
+  exit 1; }
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo '{"jsonrpc":"2.0","error":{"code":-32019,"message":"Invalid merge method","data":{"instructions":"MERGE_METHOD must be exactly merge, squash or rebase"}}}' >&2
+     exit 1;;
+esac
+# PIN do head auditado: sem ele este merge aceita um push chegado DEPOIS da
+# checagem, e o commit mergeado nunca passou pelos checks que autorizaram.
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo '{"jsonrpc":"2.0","error":{"code":-32020,"message":"Audited head OID missing","data":{"instructions":"Run Step 7 in pr-governance-unified; it writes $(git rev-parse --git-dir)/REVIEWED_OID"}}}' >&2
+     exit 1 ;;
+esac
+gh pr merge --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ## Safety Gates

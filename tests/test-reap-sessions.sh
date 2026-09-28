@@ -28,10 +28,58 @@ mkwt() { # name  date  -> worktree at $R/.worktrees/<name> on branch wt/<name>
   git -C "$R/.worktrees/$1" add -A
   GIT_AUTHOR_DATE="$2" GIT_COMMITTER_DATE="$2" git -C "$R/.worktrees/$1" commit -qm "$1"
 }
-mkwt stale-clean  "$OLD"                 # eligible (old) + clean      → REAP
-mkwt stale-wip    "$OLD"                 # eligible (old) + dirty      → SKIP (WIP)
+# Stub de `gh`: a via por IDADE agora exige prova de PR MERGEADO para aquela
+# branch -- idade e sinal de abandono, nao prova. O stub responde com um numero
+# de PR SO para `wt/stale-clean`; qualquer outra branch devolve vazio, que e o
+# caminho "held" (relatado, nunca removido).
+mkwt stale-clean  "$OLD"                 # old + clean + PR MERGEADO   → REAP
+mkwt stale-wip    "$OLD"                 # old + dirty                 → SKIP (WIP)
+mkwt stale-nopr   "$OLD"                 # old + clean SEM PR mergeado → HELD
+# Branch REUSADA: existe PR mergeado, mas a ponta AVANCOU depois dele. O PR
+# historico nao prova que o trabalho atual acabou -> HELD, nunca reap.
+mkwt stale-reused "$OLD"
+REUSED_OLD_OID="$(git -C "$R/.worktrees/stale-reused" rev-parse HEAD)"
+GIT_AUTHOR_DATE="$OLD" GIT_COMMITTER_DATE="$OLD" \
+  git -C "$R/.worktrees/stale-reused" commit -q --allow-empty -m "commit APOS o merge"
+
+STUB="$(mktemp -d)"
+cat > "$STUB/gh" <<GH
+#!/usr/bin/env bash
+# Implementa o minimo que o reaper consulta:
+#   pr list --head <branch> --state merged   -> numero do PR
+#   pr view <n> --json headRefOid            -> OID da ponta daquele PR
+# O PR mergeado precisa casar a PONTA ATUAL; devolvemos o HEAD real de
+# wt/stale-clean para que o caminho de remocao seja de fato exercitado.
+sub="\$1\$2"
+head=""; prev=""
+for a in "\$@"; do [ "\$prev" = "--head" ] && head="\$a"; prev="\$a"; done
+case "\$sub" in
+  prlist) case "\$head" in
+            wt/stale-clean)  echo 4242 ;;
+            wt/stale-reused) echo 7777 ;;
+            *) : ;;
+          esac ;;
+  prview) case "\$3" in
+            4242) git -C "$R/.worktrees/stale-clean" rev-parse HEAD ;;
+            7777) echo "$REUSED_OLD_OID" ;;   # OID ANTIGO: a ponta ja avancou
+          esac ;;
+esac
+GH
+chmod +x "$STUB/gh"
+PATH="$STUB:$PATH"; export PATH
+
 echo dirty > "$R/.worktrees/stale-wip/wip-uncommitted"   # make it dirty
 mkwt fresh-clean  "$(date +%Y-%m-%dT%H:%M:%S)"           # recent + clean → UNTOUCHED (age guard)
+
+# eligible (old) + "clean" por `--porcelain` puro, MAS com um arquivo IGNORADO.
+# Medido: `worktree remove` NAO recusa por ignorados -- ele teria SUCESSO e
+# destruiria o `.env`. A guarda precisa de `-uall --ignored` para ver isso.
+mkwt stale-ignored "$OLD"
+printf 'secret.env\n' > "$R/.worktrees/stale-ignored/.gitignore"
+git -C "$R/.worktrees/stale-ignored" add .gitignore
+GIT_AUTHOR_DATE="$OLD" GIT_COMMITTER_DATE="$OLD" \
+  git -C "$R/.worktrees/stale-ignored" commit -qm ignore-rule
+printf 'TOKEN=nao-perder\n' > "$R/.worktrees/stale-ignored/secret.env"
 
 # a merged orphan branch (no worktree) → safe -d ; and an UNMERGED branch → must survive
 git -C "$R" branch merged-orphan main
@@ -55,9 +103,17 @@ APP="$("$REAPER" --repo-dir "$R" --stale-days 7 --apply --json)"
 chk "apply: stale-clean worktree removed"           "[ ! -e '$R/.worktrees/stale-clean' ]"
 chk "apply: stale-wip PRESERVED (WIP never reaped)" "[ -e '$R/.worktrees/stale-wip/wip-uncommitted' ]"
 chk "apply: fresh-clean PRESERVED (age guard)"      "[ -e '$R/.worktrees/fresh-clean/x' ]"
+chk "apply: stale-ignored PRESERVADO (ignorado conta como WIP)" \
+  "[ -e '$R/.worktrees/stale-ignored/secret.env' ]"
+chk "apply: conteudo do ignorado intacto" \
+  "grep -q nao-perder '$R/.worktrees/stale-ignored/secret.env'"
 chk "apply: merged-orphan branch deleted"           "! git -C '$R' branch --list merged-orphan | grep -q ."
 chk "apply: unmerged-keep branch SURVIVES"          "git -C '$R' branch --list unmerged-keep | grep -q ."
 chk "apply: main worktree untouched"                "[ -e '$R/f' ]"
+chk "held: stale SEM PR mergeado nao e removido"     "[ -e '$R/.worktrees/stale-nopr/x' ]"
+chk "held: branch REUSADA (PR antigo) nao e removida" "[ -e '$R/.worktrees/stale-reused/x' ]"
+chk "held: JSON expoe held_stale com o motivo"       "echo '$APP' | grep -q '\"held_stale\"[^]]*stale-reused'"
+chk "held: aparece na lista held, nao em reaped"     "echo '$APP' | grep -qv '\"reaped_worktrees\"[^]]*stale-nopr'"
 chk "apply: JSON reports dry_run=false"             "echo '$APP' | grep -q '\"dry_run\"[: ]*false'"
 chk "apply: JSON reaped_worktrees lists stale-clean" "echo '$APP' | grep -q '\"reaped_worktrees\"[^]]*stale-clean'"
 
