@@ -9,9 +9,12 @@ web_search = "live"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 
+# Remote transport, same as the user-scope standard: Codex merges project + user
+# config per key, so a stdio entry here collided with a remote user entry
+# ("url is not supported for stdio"). Keyless here; an API key header, if any,
+# comes from ~/.codex/config.toml [mcp_servers.context7.http_headers].
 [mcp_servers.context7]
-command = "npx"
-args = ["-y", "@upstash/context7-mcp@latest"]
+url = "https://mcp.context7.com/mcp"
 
 [mcp_servers.exa]
 url = "https://mcp.exa.ai/mcp"
