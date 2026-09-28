@@ -11,15 +11,30 @@ description: Workflow operacional — PR governance + git worktrees + email clea
 ## Quick Reference: Complete PR Lifecycle
 
 ```
-WORKTREE → CODE → LOCAL REVIEW → FIX LOOP → PUSH → PR → [BOT REVIEW] → MERGE → PULL → AUDIT → ARCHIVE EMAILS → CLEANUP
+WORKTREE → CODE → LOCAL REVIEW → FIX LOOP → PUSH → PR → [BOT REVIEW] → MERGE → SYNC BASE → AUDIT → ARCHIVE EMAILS → CLEANUP
 ```
 
 ## 1. Worktree Creation (MANDATORY)
 
 ```bash
-# Create worktree with session-prefixed branch
-git worktree add .worktrees/{feature} -b {type}/{feature}
-cd .worktrees/{feature}
+# A base NUNCA é `main` por reflexo: resolva e PERSISTA para os steps seguintes.
+BASE_REF="${BASE_REF_OVERRIDE:-$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)}"
+git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null || {
+  echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
+git fetch -q origin "$BASE_REF" || {
+  echo "fail-closed: fetch de '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2
+  exit 1; }
+
+# Encadeie com `||`: se o worktree add falhar, o cd tambem falha e o
+# `git rev-parse --git-dir` do PERSIST resolve para o REPO PRINCIPAL, gravando
+# a base la. Medido: `.git/BASE_REF` criado na raiz com valor errado.
+git worktree add .worktrees/{feature} -b {type}/{feature} "origin/$BASE_REF" \
+  || { echo "fail-closed: worktree add falhou" >&2; exit 1; }
+cd .worktrees/{feature} \
+  || { echo "fail-closed: cd para o worktree falhou" >&2; exit 1; }
+
+# Persista: variaveis de shell NAO sobrevivem entre steps. Sem isto o Step 3 falha.
+printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
 ```
 
 Types: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`
@@ -37,22 +52,48 @@ git commit -m "{type}({scope}): {description}"
 ## 3. Local Review (MANDATORY before push)
 
 ```bash
-# PRIMARY: CodeRabbit CLI
-cr review --plain --base main --config CLAUDE.md
+# Base NUNCA fixa: mesma precedencia do pr-governance-unified Step 3.
+# Sob `set -e` a atribuicao herda o status do comando: guarde CADA etapa com `|| ...`.
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || BASE_REF="${BASE_REF_OVERRIDE:-}"
+[ -n "$BASE_REF" ] || BASE_REF=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || { echo "fail-closed: base indeterminada" >&2; exit 1; }
 
-# FALLBACK: Qodo CLI (if CodeRabbit rate-limited)
-qodo --ci -y "Review the git diff between this branch and main. Focus on correctness, consistency, and compliance."
+# PRIMARY: CodeRabbit CLI (`--plain` foi REMOVIDO na 0.7.8; texto plano e o default)
+if cr review --base "$BASE_REF" --config CLAUDE.md; then
+  PRIMARY_OK=1
+else
+  PRIMARY_OK=0
+fi
 
-# If BOTH rate-limited: proceed to push (GitHub bots will review on PR)
+# FALLBACK: so quando o primario falha (`qodo --ci -y` NAO EXISTE MAIS; use `review`).
+# Rodar incondicionalmente derruba um review bom com `repo_not_connected`.
+REVIEW_OK=$PRIMARY_OK
+if [ "$PRIMARY_OK" -eq 0 ]; then
+  # --base tambem aqui: sem ele o Qodo usa a default do repo.
+  if qodo review --base "$BASE_REF"; then REVIEW_OK=1; else REVIEW_OK=0; fi
+fi
+
+# AMBOS indisponiveis e ESTADO BLOQUEANTE, nao aviso: so a passagem DIY
+# EXECUTADA e DIVULGADA no corpo do PR (qual primario faltou e por que)
+# libera o push. Registrar o erro e seguir seria o fail-open que a politica
+# DIY-review existe para impedir.
+if [ "$REVIEW_OK" -eq 0 ]; then
+  [ "${DIY_REVIEW_DONE:-0}" -eq 1 ] || {
+    echo "fail-closed: sem reviewer local e sem passagem DIY executada/divulgada" >&2
+    echo "  execute a revisao DIY e exporte DIY_REVIEW_DONE=1" >&2
+    exit 1; }
+fi
 ```
 
 ### CodeRabbit CLI aliases
 - `cr` or `coderabbit` — same binary
-- `cr review --plain --base main` — minimal output, compare against main
+- `cr review --base "$BASE_REF"` — compara contra a base RESOLVIDA (nunca `main` fixo)
 - Rate limit: ~1 review/25min on free plan, 150 files/PR max
 
 ### Qodo CLI notes
-- `qodo --ci -y "prompt"` — non-interactive mode (no agent.toml needed)
+- `qodo review [pathspec...]` — subcomando atual (⚠️ `qodo --ci -y "prompt"` foi REMOVIDO:
+  retorna `error: unknown option '--ci'`). Exige o repo conectado ao workspace Qodo.
 - AVOID `qodo self-review` without agent.toml (opens browser)
 - AVOID `-q` flag (suppresses output)
 
@@ -69,7 +110,15 @@ git commit -m "fix: address review findings"
 
 ```bash
 git push -u origin {branch-name}
-gh pr create --title "{type}({scope}): {description}" --body "$(cat <<'EOF'
+# RECARREGUE a base: este passo pode rodar em shell NOVO, onde $BASE_REF do
+# passo 3 nao existe -- esta propria regra afirma que variavel nao sobrevive
+# entre passos. Sem isso o `gh pr create` recebe `--base ""` e aborta.
+BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+[ -n "$BASE_REF" ] || { echo "fail-closed: base nao persistida -- rode o passo 3" >&2; exit 1; }
+# --base OBRIGATORIO: sem ele o gh assume a branch DEFAULT do repo, e um PR
+# empilhado seria aberto contra a base errada.
+gh pr create --base "$BASE_REF" \
+  --title "{type}({scope}): {description}" --body "$(cat <<'EOF'
 ## Summary
 - ...
 
@@ -81,10 +130,39 @@ EOF
 
 ## 6. Merge + Pull
 
-```bash
-gh pr merge <N> --merge
-cd /path/to/main-repo
-git pull origin main
+⛔ **PRE-CONDICAO: auditar a revisao pelos DOIS endpoints, nao so as threads.**
+Um achado *outside diff range* NAO cria thread inline, e um achado inline sem
+repeticao no corpo nao aparece em `/reviews`. Medido: um veredito anunciava 2
+acionaveis com ZERO threads (4 achados reais nos corpos), e depois 12 threads
+inline de outro revisor enquanto a auditoria de corpos reportava tudo disposto.
+
+⛔ **Nao ha copia executavel aqui.** Esta regra e um RESUMO. Replicar o gate
+significaria manter dois conjuntos de comandos em sincronia -- e foi exatamente
+o que falhou: a copia daqui lia so `/reviews` e ficou defasada no instante em
+que o canonico passou a exigir tambem `/pulls/{N}/comments`. Mesmo principio ja
+aplicado ao merge logo abaixo.
+
+```text
+Auditoria pre-merge (corpos 7b + inline 7c, paginados) -> pr-governance-unified, Step 7
+Decisao por achado, com os dois endpoints como entrada -> pr-governance-unified, Step 8
+```
+
+Achado de qualquer um dos dois endpoints sem disposicao => NAO mergeie. A secao
+7 audita de novo, mas DEPOIS do merge -- confiar so nela deixa o defeito entrar.
+
+⛔ **O merge em si NAO se executa aqui.** Esta regra e um RESUMO; a resolucao do
+metodo e a invocacao vivem no `pr-governance-unified` Step 9, que ja termina em
+`gh pr merge`. Repetir o comando aqui criaria um SEGUNDO merge e tornaria o fluxo
+impossivel: para chegar nele seria preciso interromper o Step 9 no meio.
+
+```text
+Resolucao do metodo + merge  -> pr-governance-unified, Step 9 (fonte unica)
+Sincronizacao da base do PR  -> pr-governance-unified, Step 10
+                                (dentro do worktree que acompanha a base;
+                                 NUNCA `git checkout` no repo principal --
+                                 o Step 1 proibe)
+Delecao da branch local      -> pr-governance-unified, Step 12
+                                (`update-ref -d <ref> "$MERGED_OID"`, atomica)
 ```
 
 ## 7. Audit Reviews (gh api)
@@ -108,11 +186,25 @@ gog gmail search '{repo}' -a user@acme-corp.example.com -p
 
 ## 9. Cleanup Worktree
 
+⛔ **A remocao ingenua (`worktree remove` + `branch -d`) foi REMOVIDA daqui.**
+`git branch -d` RECUSA apos squash/rebase ("not fully merged") -- e este workflow
+agora permite os tres metodos. E `worktree remove` sem guardas destroi WIP nao
+commitado de outra sessao. So execute sob TODAS as guardas do procedimento canonico (Step 12).
+
 ```bash
-cd /path/to/main-repo
-git worktree remove .worktrees/{feature}
-git branch -d {type}/{feature}
-git push origin --delete {type}/{feature}
+# REFERENCIA: pr-governance-unified.md Step 12 (procedimento completo e guardado).
+# Resumo das guardas, nesta ordem, ANTES de qualquer remocao:
+#   1. PR state == MERGED  (ancestralidade nao serve para squash/rebase)
+#   2. worktree resolvido pelo REGISTRO a partir de headRefName (nunca template)
+#   3. `status --porcelain -uall --ignored` vazio (o `--porcelain` puro OMITE
+#      arquivos ignorados, e o remove apagaria um `.env` de outra sessao)
+#   4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
+# So entao: cd <raiz>; git worktree remove <path>
+# 5. A delecao da branch e ATOMICA (expected-OID), nunca `branch -D` solto:
+#    entre as guardas e a remocao outra sessao pode avancar a ref, e o `-D`
+#    incondicional descartaria esse commit.
+#      git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"  # recusa se avancou
+# Remota: `ls-remote` distingue 0=existe · 2=ja removida · 128=erro (fail-closed)
 ```
 
 ## Tool Availability Matrix

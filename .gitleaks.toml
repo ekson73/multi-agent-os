@@ -1,6 +1,6 @@
 # .gitleaks.toml -- Gitleaks configuration for VEK repositories
 # Canonical source: multi-agent-os/.gitleaks.toml
-# Version: 1.0.0
+# Version: 1.1.0
 
 title = "VEK Secret Scanning Rules"
 
@@ -41,6 +41,28 @@ keywords = ["bitbucket", "BB_AUTH"]
 
 [allowlist]
 description = "VEK global allowlist"
+
+# Documentation placeholders are not credentials.
+#
+# WHY regexTarget = "line" (not the default, and not "match"): the allowlist
+# regex is tested against the ENTIRE source line, so it can be anchored `^…$`.
+# Anchoring the match target instead would be unsafe — a rule's match can
+# truncate at a quote (`=your_app_password'REALSECRET'`), leaving the real
+# secret outside the match while a `$`-anchored exemption still fires. Testing
+# the whole line means any trailing content (glued, quoted, or after a colon)
+# breaks the `$` and the credential stays detectable.
+#
+# SCOPE (deliberately narrow): only the exact documented Bitbucket app-password
+# placeholder lines in mcp-tools/maos-mcp-hub docs — bare `KEY=value`, JSON
+# `"KEY": "value",`, and commented `# KEY=value_here` forms — where the whole
+# value is the literal `your_app_password` / `your_app_password_here`. A real
+# credential (any other value, or extra trailing content) is NOT allowlisted
+# and still fails the gate.
+regexTarget = "line"
+regexes = [
+    '''(?i)^\s*(?:#\s*)?["']?[a-z0-9_.]*bitbucket[a-z0-9_.]*password["']?\s*[:=]\s*["']?your_app_password(?:_here)?["']?,?\s*$''',
+]
+
 paths = [
     '''target/''',
     '''dist/''',
