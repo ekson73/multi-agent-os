@@ -24,3 +24,12 @@ out/
 
 # codegraph index cache (local tool state, never committed)
 .codegraph/
+# Kiro — versionar config de projeto (steering/specs/hooks/agents),
+# ignorar apenas config pessoal/sensivel. Ver https://kiro.dev/docs/steering/
+.kiro/*
+!.kiro/steering/
+!.kiro/specs/
+!.kiro/hooks/
+!.kiro/agents/
+# mcp.json pode conter tokens no bloco env — NUNCA commitar
+.kiro/settings/

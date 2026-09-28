@@ -78,14 +78,38 @@ INPUT (obrigatorio):
   - type: feat|fix|chore|docs|refactor|test
 
 INPUT (opcional):
-  - base_branch: string (default: main)
+  - base_branch: string
+    (SEM default `main`: um PR empilhado ou um repo cuja default e `develop`
+     seria criado a partir da base errada. Resolucao: BASE_REF_OVERRIDE do
+     chamador > branch default REAL do repo, consultada via API.)
   - session_id: string (auto-generated if omitted)
 
 EXECUCAO:
   1. Verificar git status do main repo (deve estar limpo)
-  2. git worktree add .worktrees/{feature_name} -b {type}/{feature_name}
-  3. cd .worktrees/{feature_name}
-  4. Confirmar: branch criada, worktree ativo
+  2. Resolver e VALIDAR a base antes de criar:
+       # Precedencia: BASE_REF_OVERRIDE > input base_branch > default do repo.
+       # Omitir `base_branch` aqui faria o input DOCUMENTADO ser silenciosamente
+       # ignorado -- o worktree nasceria do default e a base errada seria
+       # persistida para review e PR.
+       BASE_REF="${BASE_REF_OVERRIDE:-${base_branch:-$(gh repo view --json defaultBranchRef \
+         -q .defaultBranchRef.name)}}"
+       git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null \
+         || { echo "fail-closed: base '$BASE_REF' nao existe em origin" >&2; exit 1; }
+       git fetch -q origin "$BASE_REF" || { echo "fail-closed: fetch de \
+         '$BASE_REF' falhou; origin/$BASE_REF pode estar obsoleto" >&2; exit 1; }
+  3. git worktree add .worktrees/{feature_name} -b {type}/{feature_name} \
+       "origin/$BASE_REF" \
+       || { echo "fail-closed: worktree add falhou" >&2; exit 1; }
+     (criar a partir do HEAD atual herdaria commits alheios da branch em que
+      o repo principal por acaso estiver)
+  4. cd .worktrees/{feature_name} \
+       || { echo "fail-closed: cd para o worktree falhou" >&2; exit 1; }
+     (sem esta guarda o PERSIST abaixo resolve o git-dir do REPO PRINCIPAL e
+      grava a base errada la -- medido)
+  5. PERSISTIR a base: variavel de shell NAO sobrevive entre operacoes, e o
+     OP-3 (review) e o OP-7 (PR) dependem dela.
+       printf '%s\n' "$BASE_REF" > "$(git rev-parse --git-dir)/BASE_REF"
+  6. Confirmar: branch criada, worktree ativo, BASE_REF persistida
 
 OUTPUT:
   - worktree_path: string
@@ -151,16 +175,34 @@ ANTI-PATTERNS:
 
 ```
 INPUT (obrigatorio):
-  - base_branch: string (default: main)
+  - base_branch: NAO informe: recarregue a base PERSISTIDA pelo OP-1
+    (`cat "$(git rev-parse --git-dir)/BASE_REF"`). Um default `main` faria a
+    revisao comparar contra branch diferente da do PR.
 
 INPUT (opcional):
   - config_file: string (default: CLAUDE.md)
-  - skip_if_rate_limited: boolean (default: true)
+  - on_all_reviewers_unavailable: enum (default: "diy_review_and_disclose")
+    ("skip" NAO e valor valido: indisponibilidade de CLI nao dispensa revisao)
 
 EXECUCAO:
-  1. PRIMARIO: cr review --plain --base {base_branch} --config {config_file}
-  2. Se rate-limited: FALLBACK qodo --ci -y "Review the git diff..."
-  3. Se ambos rate-limited: DOCUMENTAR e prosseguir (bots reviewers no PR)
+  0. RECARREGAR a base persistida (fail-closed): variavel de shell NAO
+     sobrevive entre operacoes, entao leia do arquivo do OP-1.
+       BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+       [ -n "$BASE_REF" ] || { echo "fail-closed: BASE_REF nao persistida -- recrie pelo OP-1" >&2; exit 1; }
+  1. PRIMARIO: cr review --base "$BASE_REF" --config {config_file}
+     (`--plain` foi REMOVIDO na 0.7.x; texto plano ja e o modo default.
+      Para saida estruturada por agente use `--agent`.)
+  2. Se o PRIMARIO falhar: FALLBACK `qodo review --base "$BASE_REF" [pathspec...]`
+     (SEM `--base` o Qodo diffa contra o default do repo: numa mudanca empilhada
+      ou de base nao-default ele revisaria OUTRO diff e ainda assim liberaria o
+      push. Ver a referencia de CLI deste arquivo.)
+     (`qodo --ci -y "prompt"` NAO EXISTE MAIS: "unknown option '--ci'".
+      Exige repo conectado; senao falha com `repo_not_connected`.
+      Rode SOMENTE quando o primario falhar -- em sequencia incondicional
+      um review bom do CodeRabbit e derrubado pelo erro do Qodo.)
+  3. Se ambos indisponiveis: NAO pule a revisao. Execute a passagem DIY e
+     DIVULGUE no corpo do PR qual primario faltou e por que. Bot reviewer
+     no PR NAO substitui a revisao local exigida.
 
 CLASSIFICACAO DE FINDINGS:
   | Categoria | Prioridade | Acao |
@@ -215,11 +257,20 @@ INPUT (opcional):
   - reviewers: list[string]
   - labels: list[string]
   - draft: boolean (default: false)
-  - base: string (default: main)
+  - base: NAO informe: use a MESMA base persistida que o OP-3 revisou, via
+    `--base "$BASE_REF"`. Sem isso, revisao e PR podem mirar branches
+    diferentes -- e sem `--base` o gh assume a default do repo.
 
 EXECUCAO:
+  0. RECARREGAR a base persistida (fail-closed) -- mesma do OP-3, senao
+     revisao e PR miram branches diferentes.
+       BASE_REF=$(cat "$(git rev-parse --git-dir)/BASE_REF" 2>/dev/null) || BASE_REF=""
+       [ -n "$BASE_REF" ] || { echo "fail-closed: BASE_REF nao persistida" >&2; exit 1; }
   1. git push -u origin {branch_name}
-  2. gh pr create --title "{pr_title}" --body "$(cat <<'EOF' ... EOF)"
+  2. gh pr create --base "$BASE_REF" --title "{pr_title}" \
+       --body "$(cat <<'EOF' ... EOF)"
+     (--base OBRIGATORIO: sem ele o gh usa a branch DEFAULT do repo e um PR
+      empilhado seria aberto contra a base errada.)
 
 TEMPLATE PR BODY:
   ## Summary
@@ -289,16 +340,28 @@ ANTI-PATTERNS:
 ```
 INPUT:
   - pr_number: integer
-  - merge_strategy: merge|squash|rebase (default: merge)
+  - merge_strategy: merge|squash|rebase
+    (SEM default: resolvido por autoridade LOCAL -- ver
+     pr-governance-unified.md Step 9. Um default `merge` contraria os 4 repos
+     do inventario que declaram squash e e REJEITADO por repo squash-only.)
 
 EXECUCAO:
-  1. gh pr merge {pr_number} --{merge_strategy}
-  2. cd {main_repo_path}
-  3. git pull origin main
+  1. Resolver e PERSISTIR o metodo pelo Step 9a (declaracao explicita > default),
+     validando a capacidade EFETIVA (flag do repo E ausencia de
+     required_linear_history em ruleset E branch protection classica).
+     Metodo declarado porem desabilitado => fail-closed, nao mergeie.
+  2. Carregar o metodo persistido e enum-validar antes de invocar -- ver o
+     "Contrato de leitura" do Step 9a. NAO exporte a variavel de um passo para
+     outro: export nao atravessa shell.
+  3. gh pr merge {pr_number} --"$MERGE_METHOD"   (Step 9b)
+  4. Sincronizar a BASE do PR, dentro do worktree que a acompanha (Step 10).
+     NUNCA `git pull origin main` por reflexo -- mergear em `develop` e puxar
+     `main` deixa o estado local na branch errada. E NUNCA `git checkout` no
+     repo principal: o Step 1 proibe.
 
 OUTPUT:
   - merge_commit: string
-  - main_updated: boolean
+  - base_synced: boolean   # a BASE do PR, nao `main` por reflexo
 ```
 
 ### OP-9: Post-Merge Audit
@@ -362,17 +425,40 @@ INPUT:
   - branch_name: string (de OP-1)
 
 EXECUCAO:
-  1. cd {main_repo_path}
-  2. git worktree remove {worktree_path}
-     (ou: rm -rf {worktree_path} && git worktree prune)
-  3. git branch -d {branch_name}
-  4. git push origin --delete {branch_name}
+  DELEGA ao procedimento canonico: pr-governance-unified.md Step 12.
+  NAO reimplemente a remocao aqui -- esta era a TERCEIRA copia divergente,
+  e a unica que ainda oferecia `rm -rf`, que ignora TODAS as guardas.
 
-CHECKLIST DE SAIDA (C13):
+  Pre-condicoes obrigatorias, nesta ordem, ANTES de remover qualquer coisa:
+    1. PR state == MERGED (ancestralidade nao serve para squash/rebase)
+    2. worktree resolvido pelo REGISTRO a partir de headRefName do PR
+       (NUNCA reconstruido por template: ha tres convencoes de path)
+    3. `git -C <wt> status --porcelain --untracked-files=all --ignored` vazio
+       (o `--porcelain` puro OMITE ignorados; `rm -rf` nao checa nada)
+    4. ponta atual == headRefOid do PR (detecta commit feito APOS o merge)
+
+  PROIBIDO:
+    - `rm -rf {worktree_path}`      (ignora TODAS as guardas; destroi WIP alheio)
+    - `git worktree remove --force` (apaga arquivo nao rastreado sem aviso)
+    - `git branch -d`               (RECUSA apos squash/rebase)
+    - `git branch -D`               (apaga MESMO nao-mesclada: entre a guarda 4
+                                     e a execucao outra sessao pode avancar a
+                                     branch, e o commit novo some em silencio)
+
+  DELECAO DA BRANCH LOCAL: nao prescreva `branch -D` aqui. Delegue ao Step 12
+  do `pr-governance-unified`, que fecha essa corrida de forma CONDICIONAL:
+      git update-ref -d "refs/heads/$BRANCH" "$MERGED_OID"
+  (o ref so cai se a ponta AINDA for o OID mesclado; se outra sessao avancou,
+   o comando FALHA em vez de destruir o trabalho dela)
+
+CHECKLIST DE SAIDA (C13) -- escopo: SOMENTE os artefatos DESTA tarefa.
+  Em ambiente multi-sessao, outros agentes mantem worktrees e branches
+  legitimos em andamento: exigir estado global limpo mandaria apaga-los.
   - [ ] git status limpo no main repo
-  - [ ] git worktree list mostra apenas main
-  - [ ] Nenhum branch local stale
-  - [ ] Nenhum branch remoto stale
+  - [ ] o worktree DESTA tarefa nao aparece mais em `git worktree list`
+        (worktrees de outras sessoes PERMANECEM -- fora de escopo)
+  - [ ] a branch local DESTA tarefa foi removida
+  - [ ] a branch remota DESTA tarefa foi removida (ou ja o fora no merge)
   - [ ] prs_merged incrementado onde aplicavel
   - [ ] Emails auditados e arquivados (ambas contas)
   - [ ] MEMORY.md atualizado se necessario
@@ -429,35 +515,41 @@ Fluxo pode ser invocado parcialmente:
 ### CodeRabbit CLI (`coderabbit` / `cr`)
 
 ```bash
-# Primary local review
-cr review --plain --base main --config CLAUDE.md
-# Review uncommitted changes
-cr review --plain --type uncommitted
-# Review specific base
-cr review --plain --base-commit abc123
+# Review local primario -- `--plain` FOI REMOVIDO (0.7.x): texto plano ja e o default.
+# A base NUNCA e `main` por reflexo: use a BASE_REF resolvida/persistida no Step 1.
+cr review --base "$BASE_REF" --config CLAUDE.md
+# Apenas mudancas nao commitadas (a flag e `--uncommitted`, NAO `--type uncommitted`)
+cr review --uncommitted
+# Base por commit
+cr review --base-commit abc123
+# Saida estruturada para consumo por agente
+cr review --agent
 ```
 
 Gotchas:
-- Free plan: ~1 review/25min, 150 files/PR limit
-- `--type all` = committed + uncommitted (most comprehensive)
-- Portuguese accent suggestions are false positives (ASCII-safe convention) — DISMISS
-- Output includes "Prompt for AI Agent" — useful for automated fixes
+- Free plan: ~1 review/25min, limite de 150 arquivos/PR
+- `--type` NAO EXISTE (verificado no --help da 0.7.8). Use `--committed`,
+  `--uncommitted` e/ou `--include-untracked`
+- Sugestoes de acento em portugues sao falso-positivo (convencao ASCII-safe) -- DISMISS
+- A saida traz "Prompt for AI Agent" -- util para correcoes automatizadas
 
 ### Qodo CLI (`qodo`)
 
 ```bash
-# CLI review (preferred non-interactive mode)
-qodo --ci -y "Review the git diff between this branch and main."
-# With model selection (default may fail)
-qodo --ci -y "prompt" -m claude-sonnet-4-6
+# `qodo --ci -y "prompt"` NAO EXISTE MAIS ("unknown option '--ci'").
+# O subcomando atual e `review`:
+qodo review                      # escopo completo
+qodo review <caminho>            # limita o escopo
+qodo review --base <ref>         # diff contra uma ref
 ```
 
 Gotchas:
-- `self-review` requires `agent.toml` — use `qodo --ci -y "prompt"` instead
-- `-q` suppresses output — NEVER use for reviews
-- `--ci` = non-interactive, `-y` = auto-confirm
-- `--permissions=r` for read-only (safe for review)
-- Default model `claude-4.5-sonnet` may be INVALID — always specify `-m`
+- E FALLBACK: rode SOMENTE quando o primario falhar. Em sequencia incondicional
+  um review bom do CodeRabbit e derrubado por erro do Qodo.
+- Exige o repo CONECTADO a plataforma; senao falha com `repo_not_connected`
+- `--ci`, `-y` e `self-review` pertencem a CLI ANTIGA -- nao existem mais
+- Flags reais do subcomando: `--base`, `--repo`, `--ticket`, `--context-file`,
+  `--full`, `--deep`, `--fast`
 
 ### gog CLI (email)
 
@@ -494,7 +586,8 @@ acli jira issue create --project VKS --type Task --summary "..."
 
 ```
 1. NUNCA git checkout/switch no main repo (usar worktree)
-2. NUNCA push sem local review (exceto se ambos CLIs rate-limited)
+2. NUNCA push sem local review (CLI indisponivel -> passagem DIY + divulgacao
+   no corpo do PR; rate-limit NAO e dispensa de revisao)
 3. NUNCA merge sem nenhum review (local OU bot)
 4. NUNCA force-push sem autorizacao LITERAL do user
 5. NUNCA --no-verify (investigar hook failure)
