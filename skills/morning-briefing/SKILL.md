@@ -13,7 +13,9 @@ description: |
   recap", or starts/ends a session. Capability-detected (git/gh/jq optional), cross-vendor (AAIF spec),
   no hardcoded vendors, open-source-promotable. Differs from /context-restore (no prior /context-save
   required — works cold) and /retro (daily, not weekly, decision-oriented not retrospective).
-prompt_version: "1.8.0"
+  Recap mode (v1.9.0+) renders always-on ASCII progress bars in §4 execution-metrics for the two
+  measured PR metrics (PRs-green, PR-agentic-convergence) with GREEN/WARN/RED state tokens.
+prompt_version: "1.9.0"
 type: skill
 spec: AAIF / agentskills.io
 applicable_hosts: [Claude Code, Cursor, GitHub Copilot, Aider, any AAIF-compliant agent]
@@ -31,7 +33,9 @@ cycles_evidence:
   - "2026-05-22 v1.5.0 MINOR — REPLACE underspecified --deep flag with Compass-aligned --scope=<verb> family per operator Mente Tomé detection 2026-05-22 + N-Tree multi-dimensional reflection. Operator quote: 'temos N-Tree matrix [foco/presença/prioridade/centro/dentro (here/now), profundidade (deep levels, from here down), amplitude/largura (multi-dimensional same level), altura [higher levels, from here up]'. Maps directly to cowork-process-topology-protocol.md §9 Compass API (5 canonical verbs: inside/down/sideways/up/forward). NEW: 5 verb flags --scope=inside|down|sideways|up|forward + 3 modifier flags --depth N · --height N · --breadth all|N. NEW Phase 0c: SCOPE_VERB resolution function with default=inside. NEW Phase 2.5: per-verb deterministic skip/expansion matrix. NEW Phase 3.5: per-verb section weighting deterministic table (replaces interpretation-dependent --deep). NEW Phase 3b.5: per-verb recap-mode N-Tree projection. NEW backward-compat anchor: --deep migration → --scope=down --depth=2 (closest semantic equivalent; clean replacement, NOT shim). 3 new anti-patterns (#22 verb-confusion · #23 over-deep recursive bloat · #24 single-axis blind-spot). 5 new edge cases (verb absent → inside default · combined verbs · cyclic up-then-down · depth > tree-actual-depth · cross-vendor verb support). CPT sister rule §9 addendum operationalized morning-briefing v1.5.0 as first consumer (rule v1.0.0→v1.1.0 MINOR addendum). Cycle-0 evidence: operator articulated 5-D N-Tree taxonomy in 1 message (signal-strong [C17] §3.5 capture); recursive dogfood: this skill self-applied via /morning-briefing --scope=up --height=2 to generate PR description. §11 Quality Tests 6/6 PASS + §0 BEING > Rules PASS dogfooded. Jira: VKS-2008 Ticket-as-Prompt + operator /goal directive auto-merge authorized [high score, green PR, IF converge]. cycles_completed:0 + promotion_eligible:false per ADR-017 R1 MINOR bump (2 fresh cycles required). Sister rule: cowork-process-topology-protocol.md v1.1.0 (Compass API operationalization addendum)."
   - "2026-05-22 v1.5.1 PATCH — RENAME default --scope=inside → --scope=current per operator naming critique 2026-05-22. Operator quote: 'esse termo --scope=inside (default) inside não ficou estranho? current nao seria melhor? analise, critique, valide'. Rationale: 'current' is idiomatic across CLI ecosystem (pwd, kubectl config current-context, git status, gcloud config get current) — decades-consolidated convention; 'inside' was ambiguous against down() which operator directive v2 mapped to pt-br 'pra dentro' (collision risk). Refinement applied during cycle-0 window (PR #60 merge +30min, zero cycle-1 invocations), maximally safe rollback. Backward-compat 100%: --scope=inside still accepted as alias (Phase 0c normalizes inside→current internally before downstream processing). Zero behavior change for legacy callers. Sister rule sync: cowork-process-topology-protocol.md v1.1.0→v1.1.1 (registry lead with current, inside as alias note). PATCH bump per [C07b] (naming refinement, zero behavioral change). cycles_completed preserved (PATCH does NOT reset per ADR-017 R1; only MINOR/MAJOR reset). §11 Quality Tests 6/6 retained PASS + §0 BEING > Rules PASS dogfooded (4-lens audit Tomé/Critical/Devil's-Advocate/Conservative all converged on current). Jira: VKS-2008 (same epic, refinement sub-task). Sister memories TODO post-merge: feedback_default_scope_canonical_naming_current.md."
   - "2026-06-07 v1.6.0 MINOR — --clipboard destination-sink flag per operator directive 2026-06-07 /enhance. Adds clipboard as a sink (sibling of --save), copying {continuation-header + rendered briefing/recap} to the system clipboard so operator can /compact then paste-to-resume across the context boundary. Over-engineering analysis (operator-delegated): chose --clipboard boolean + auto-detect (pbcopy→wl-copy→xclip→xsel→clip.exe) OVER --output=[clipboard,pbcopy,...] multi-value (REJECTED: collides with --format, redundant with auto-detect). gitleaks pre-copy guard (clipboard=paste-anywhere surface, ⛔ secrets); graceful stdout-only degradation when no clipboard tool. NEW Phase 6 + detect_clipboard_cmd() Phase 0 helper + 1 flag row + 2 anti-patterns (#25 clipboard-tool-absent theater · #26 clipboard secret-leak) + 6 edge cases. Localized continuation-header (canonical en-us+pt-br; LLM-localizes others; survives --no-llm). Default off = 100% backward-compat. §11 Quality Tests 6/6 PASS + §0 BEING > Rules PASS dogfooded. Repo ekson73/akasha-claude. cycles_completed:0 + promotion_eligible:false per ADR-017 R1 MINOR bump."
+  - "2026-09-11 v1.8.1 PATCH — Default-scope worktree-leakage fix per operator directive (verbatim pt-BR): 'garanta que o default scope do skill seja [current session] para evitar ampliar o escopo para outro agentic-wip sem awareness do usuário operador'. The Phase-1 baseline unconditionally cd'd into EVERY worktree returned by `git worktree list` and dumped `git status --short` for each — meaning the default `--scope=current` briefing already inspected another agentic session's/agent's uncommitted work, contradicting Phase 2.5's own 'current = baseline, no expansion' claim and the anti-pattern #9 principle (whose `--multi-repo` flag only ever gated sibling REPOS, never sibling WORKTREES within the same repo). Fix: per-worktree content scan moved to the explicit `--scope=sideways` case (Phase 2.5, matching what its own per-verb table already promised but never implemented); Phase-1 default now enumerates worktree paths/count only (needed for `$worktrees <n>` in Pulse), never their content. New anti-pattern #29 + 1 new edge case + operator-flags-table clarifications (`--scope=current`, `--scope=sideways`, `--multi-repo`). Zero new capability — corrects an implementation/documentation mismatch. `cycles_completed` preserved per ADR-017 R1 (PATCH does not reset). Discovered/fixed 2026-09-11 dogfooding the skill in multi-agent-os itself (2 other worktrees present at fix-time: verified-agentic-session-model, wacli-archetype). PDCA round (PR #422, pre-merge): 5 reviewers converged on 2 real remaining gaps closed same-day — Phase 3 `$state_detail` still leaked sibling paths under default scope (now count-only) and the new `sideways` scan block had 4 correctness bugs (head -N portability, head -all crash, current-worktree not excluded, whitespace-unsafe word-splitting) all fixed via a breadth_limit() helper + canonical-path exclusion + line-safe read loop; 2 other bot findings (missing version: field, missing ticket-key) verified as false positives against this repo's actual validator/CI and left unfixed with cited evidence. See Changelog table 1.8.1 entry for full detail."
   - "2026-06-12 v1.7.0 MINOR — Phase 0d dynamic presentation selection per operator directive multi-agent-os#132 item 2 ('atualizar morning-briefing para também seguir o calculo dinamico baseado em [contexto, escopo, propósito, objetivo, risco, segurança, impacto, urgencia, importancia, criticidade, human/agent, etc]'). 4 optional factor flags (--audience human|agent · --purpose cold-start|checkpoint|end-of-session|handoff · --risk low|medium|high · --urgency low|medium|high) → deterministic first-match decision table D1-D6 filling ONLY unset presentation dimensions; P0 explicit-pin precedence (operator flags never overridden). No-information gate imported from scorecard SIZED-gate lesson (absent flag ≠ low/trivial; invalid value = stderr + ignored, never abort). Sister implementation: multi-agent-os bin/scorecard-select-model.sh (shipped v1.12.0, PR #139) — pattern shared, surface distinct. Bare invocation = identical v1.6.0 baseline (backward-compat 100%). cycles_completed:0 per ADR-017 R1 MINOR bump."
+  - "2026-09-18 v1.9.0 MINOR — recap-mode progress-bar in §4 execution_metrics per council-of-MoE DDR (2026-09-18). Two always-on ASCII per-metric bars for the ONLY two probe-measured (falsifiable) metrics: prs_green + pr_agentic_convergence; % Plan execution + % Principais completos stay text, labelled (LLM-estimated), NO bar (DDR Q1 — a bar is a measured-denominator privilege). Bar spec (DDR Q3): [####------] 10 cells, glyphs #/-/[/], filled=0 if pct==0 else max(1,floor(pct/10)), state GREEN≥90 / WARN 60-89 / RED<60, NO emoji, NO Unicode block, ANSI only in console under [ -t 1 ], in md inside a fence; human line ALWAYS <label> <TOKEN> <pct>% (<n>/<total>); --format=json carries the metrics as an execution_metrics array INSIDE the single recap object (not a standalone document — the rest of the recap + Phase-5 _meta are preserved), each {metric,numerator,denominator,pct,state,bar}; a hole → that metric object present with state:UNKNOWN, bar:null, null numerics (never a faked 0). Deterministic layer = a 12-row literal lookup table embedded in the template (DDR Q6 — the LLM copies a row, never computes; pct already materialized by R3), so same-state reruns are byte-reproducible. recap-only (DDR Q2); NO new flag (always-on in recap §4, DDR §8.4); NO taxonomy expansion (4 tiers kept, DDR Q5). NEW: dedicated $risks section in recap-mode (net-new — briefing already had one); bar degradation/diagnostic sub-section (DDR §7); anti-patterns #30 (bar without measured denominator) + #31 (bar as source of truth / glyph-only); 6 edge cases (denominator 0 · unmeasured · partial probe · gh absent · cold-start · missing i18n key → omit bar + stderr, NEVER draw 0% as measured); new bundle keys in all translations/*.yml with PRESERVE class (GREEN/WARN/RED, json keys, metric ids prs_green/pr_agentic_convergence, glyphs stay en-US; Barra header + row labels localizable). self-heal M.O.: N/A por artefato (declarative skill, no scripts/ dir — declaring adoption without an executable would be theater; the honest analogue is the documented degradation path for the bar's NEW deps). 6 Self-Validity Tests audited 6/6 (see §8.2). Dogfood cycle-1 recorded via bin/dogfood-mark; ONE cycle does NOT promote. ADR-017 R1: reset is a no-op (cycles_completed already 0), cycles_completed:0 + promotion_eligible:false kept, NO Bundle-Now waiver. Repo ekson73/multi-agent-os."
 i18n:
   default_lang: en-us
   detection_cascade:
@@ -109,16 +113,16 @@ This skill answers (dual-mode v1.3.0+):
 | `--mode=briefing\|recap` | **NEW v1.3.0** — Output mode selector. `briefing` (default, backward-compat with v1.2.0) = 7-section state recap for **cold-start / post-sleep / post-compact** context restoration (forward-looking). `recap` = end-of-session retrospective producing N-Tree multi-tier objectives (primary/secondary/auxiliary) + tasks/subtasks/steps with status + % done + % PRs green + % agentic convergence + gaps + pendings + unasked-Qs + unanswered-Qs + undecided-decisions + HITL-pendings + Eisenhower 2×2 next-tasks + inter-dependencies DAG + blocked/blockers (backward-looking + forward-priority). Both modes share Phase 0/1/2 probe; diverge at Phase 3 synthesis. |
 | `--lang <BCP-47>` | **NEW v1.2.0** — Override language detection. Accepts `pt-br`, `en-us`, `pt`, `en`, `pt_BR.UTF-8` (normalized). Unknown code → fallback `en-us` + stderr diagnostic. Bundle file in `translations/<lang>.yml` MUST exist for full label localization; missing bundle → en-us labels but LLM still attempts to render dynamic content in target language (graceful degradation, pure-D mode). |
 | `--quick` | State + Next-action only (~150 tokens; ≤2s) · labels still localized via $LABELS · briefing-mode only (recap-mode ignores --quick, always full) |
-| `--scope=current` (default) | **NEW v1.5.1** (canonical; v1.5.0 used `inside`) — Compass `current()` / `inside()` verb. Render here-and-now state (default behavior; no behavior change when omitted). Maps to `cowork-process-topology-protocol.md` §9. Idiomatic CLI convention (parallel to `pwd`, `kubectl config current-context`, `git status`, `gcloud config get current`). |
+| `--scope=current` (default) | **NEW v1.5.1** (canonical; v1.5.0 used `inside`) — Compass `current()` / `inside()` verb. Render here-and-now state (default behavior; no behavior change when omitted). Maps to `cowork-process-topology-protocol.md` §9. Idiomatic CLI convention (parallel to `pwd`, `kubectl config current-context`, `git status`, `gcloud config get current`). **Session-scope boundary (v1.8.1)**: inspects THIS worktree/session's own state only — never scans sibling worktrees' content (that requires explicit `--scope=sideways`). Prevents silently expanding the briefing's scope into another agentic work-in-progress without operator awareness. |
 | `--scope=inside` (alias) | **DEPRECATED-CANONICAL v1.5.1** — Accepted as backward-compat alias for `--scope=current` (zero break for any v1.5.0 caller). Phase 0c normalizes `inside` → `current` internally before downstream processing. Prefer `--scope=current` in new code/docs. |
 | `--scope=down` | **NEW v1.5.0** — Compass `children()` / `down()` verb. Drill-down sub-tasks/sub-PRs/sub-decisions. Pair with `--depth N` (default `N=2`, max `N=5` per anti-pattern #23). Replaces deprecated `--deep` semantics with deterministic spec. |
-| `--scope=sideways` | **NEW v1.5.0** — Compass `siblings()` verb. Render peers/alternatives at same hierarchical level (worktrees-irmãs, parallel PRs, option matrices A/B/C/D). Pair with `--breadth all\|N` (default `N=5`). |
+| `--scope=sideways` | **NEW v1.5.0** — Compass `siblings()` verb. Render peers/alternatives at same hierarchical level (worktrees-irmãs, parallel PRs, option matrices A/B/C/D). Pair with `--breadth all\|N` (default `N=5`). **v1.8.1**: this is now the ONLY path that inspects sibling-worktree git status (moved here from the Phase-1 default baseline, which previously did this unconditionally). |
 | `--scope=up` | **NEW v1.5.0** — Compass `parent()` / `root_path()` verb. Render objetivo-pai/contexto-superior. Pair with `--height N` (`N=root` for full ancestry walk; integer for N levels). Useful for PR descriptions self-generated from sub-task context. |
 | `--scope=forward` | **NEW v1.5.0** — Compass `next()` verb. Render next N planned steps (FIFO direction). Pair with `--depth N` (default `N=3`). In recap-mode, surfaces Eisenhower Q1+Q2 ranked actions. |
 | `--depth N` | **NEW v1.5.0** — Modifier flag for `--scope=down` OR `--scope=forward`. Integer 1-5 (cap per anti-pattern #23). Default depends on verb: down=2, forward=3. |
 | `--height N` | **NEW v1.5.0** — Modifier flag for `--scope=up`. Integer OR `root`. Default `1` (immediate parent). `root` walks all the way up via FILO `parent` pointers. |
 | `--breadth all\|N` | **NEW v1.5.0** — Modifier flag for `--scope=sideways`. `all` lists all siblings; integer caps at N (default `5`). |
-| `--multi-repo` | Scan known sibling repo paths beyond cwd (capability-detected) · localized · works in both modes |
+| `--multi-repo` | Scan known sibling repo paths beyond cwd (capability-detected) · localized · works in both modes. **Distinct axis from `--scope=sideways`** (v1.8.1 clarification): `--multi-repo` covers DIFFERENT repos entirely; `--scope=sideways` covers SAME-repo sibling worktrees. Neither fires unless explicitly passed. |
 | `--no-llm` | **MODIFIED v1.2.0** — Skip Phase 4 narrative AND skip LLM localization of dynamic content (labels still localized via bundle — degrades to "scope B labels+narrative-omitted" mode) |
 | `--format=md\|json\|console` | Output format (default md) |
 | `--save [path?]` | **NEW v1.4.0** — Opt-in persistence of rendered output (briefing OR recap) to disk. Mode-agnostic (works with both `--mode=briefing` + `--mode=recap`). Path argument optional; resolved via 4-step cascade (Phase 5): explicit `--save FILE` → repo `.claude/sessions/{YYYY-MM-DD}_{SSID8}_{mode}.md` per `[C05]` → AAIF user-scope `~/.{vendor}/docs/{mode}s/{YYYY-MM-DD}-{cwd-slug}.md` → cwd fallback `./{YYYY-MM-DD}-{mode}-{cwd-slug}.md`. Trailing slash treats arg as directory + auto-filename. Frontmatter prepended to saved file (`name`/`mode`/`created_utc`/`originSessionId`/`cwd`/`repo`/`skill_version`/`lang`). 5 safety guards: no-silent-overwrite · path-traversal-reject · symlink-escape-detect · gitleaks-pre-write scan · PII-sanitize per `language-policy-en-pt.md` PRESERVE rules. Atomic write (`tmp.X → rename`). Default = no-save (backward-compat v1.3.0 preserved 100%). |
@@ -206,31 +210,57 @@ LANG_CODE=$(detect_lang_code)
 
 # ─── i18n: Bundle load (Phase 0b) ───────────────────────────────────────────
 # Loads translations/<lang>.yml into $LABELS (associative-array-like via temp file).
-# Fallback chain: <lang> → en-us → pure-D LLM-only mode (no bundle).
+# Fallback chain: en-us (canonical base) ← overlaid by <lang> → pure-D LLM-only mode.
+# PER-KEY fallback: en-us is loaded FIRST as the base, then the selected <lang> is
+# overlaid on top, so a key MISSING from a partial or third-party <lang> bundle keeps
+# its canonical en-us value (never renders unset / a literal `unknown` — anti-pattern
+# #12). A whole-file-absent <lang> degrades to en-us only; en-us absent → pure-D.
 SKILL_DIR="$HOME/.claude/skills/morning-briefing"
 LABELS_TMP="$(mktemp -t mb-labels.XXXXXX 2>/dev/null || echo /tmp/mb-labels-$$)"
-load_bundle() {
-  local lang="$1"
-  local bundle="$SKILL_DIR/translations/${lang}.yml"
-  if [ ! -f "$bundle" ]; then
-    [ "$lang" != "en-us" ] && echo "[i18n] bundle '$lang' absent → fallback en-us" >&2
-    bundle="$SKILL_DIR/translations/en-us.yml"
-  fi
-  if [ ! -f "$bundle" ]; then
-    echo "[i18n] no bundles found → pure-D LLM-only mode" >&2
-    : > "$LABELS_TMP"  # empty file
-    return
-  fi
-  # Parse YAML → KEY=VALUE for downstream sourcing (yq preferred, awk fallback)
+_parse_bundle_into() {  # $1=bundle file, $2=dest tmp (appended → later keys win on source)
+  local bundle="$1" dest="$2"
   if [ "$HAS_YQ" = "yes" ]; then
-    yq -r 'to_entries | .[] | "\(.key)=\(.value | @sh)"' "$bundle" 2>/dev/null > "$LABELS_TMP"
+    yq -r 'to_entries | .[] | "\(.key)=\(.value | @sh)"' "$bundle" 2>/dev/null >> "$dest"
   else
     # awk fallback: parse flat 'key: "value"' YAML (no nesting supported)
     awk -F': *' '/^[a-z_]+:/ {
       key=$1; val=$2; sub(/^"/, "", val); sub(/"[ \t]*(#.*)?$/, "", val);
       gsub(/'\''/, "'\''\\\\'\'''\''", val);  # shell-escape single quotes
       printf "%s='\''%s'\''\n", key, val
-    }' "$bundle" > "$LABELS_TMP"
+    }' "$bundle" >> "$dest"
+  fi
+}
+load_bundle() {
+  local lang="$1"
+  local en="$SKILL_DIR/translations/en-us.yml"
+  local sel="$SKILL_DIR/translations/${lang}.yml"
+  : > "$LABELS_TMP"
+  # en-us is the canonical key set and the fallback base. If it is absent we CANNOT
+  # guarantee any key, so we enter pure-D LLM-only mode even when a selected bundle
+  # exists (loading a lang bundle without the canonical base would give an unknowable,
+  # possibly-partial key set — the documented `en-us absent → pure-D` contract).
+  if [ ! -f "$en" ]; then
+    echo "[i18n] canonical en-us bundle absent → pure-D LLM-only mode" >&2
+    return
+  fi
+  # Base = en-us (every canonical key assigned).
+  _parse_bundle_into "$en" "$LABELS_TMP"
+  # Overlay the selected language: its lines come AFTER en-us, so on `source` its keys
+  # win, while any key it omits retains the en-us value already assigned above.
+  if [ "$lang" != "en-us" ]; then
+    if [ -f "$sel" ]; then
+      _parse_bundle_into "$sel" "$LABELS_TMP"
+      # Per-key fallback diagnostic: report each canonical key the selected bundle omits
+      # (it will render in en-us → mixed-language output, which the operator should see).
+      local en_keys sel_keys k
+      en_keys="$(grep -oE '^[a-z_]+:' "$en" | tr -d ':' | sort -u)"
+      sel_keys="$(grep -oE '^[a-z_]+:' "$sel" | tr -d ':' | sort -u)"
+      for k in $(comm -23 <(printf '%s\n' "$en_keys") <(printf '%s\n' "$sel_keys")); do
+        echo "[i18n] label key '$k' missing in bundle '$lang', fell back to en-us" >&2
+      done
+    else
+      echo "[i18n] bundle '$lang' absent → en-us canonical only" >&2
+    fi
   fi
 }
 load_bundle "$LANG_CODE"
@@ -368,7 +398,9 @@ Inventory in parallel where possible:
 git branch --show-current
 git log --oneline -5
 git status --short | head -20
-git worktree list
+git worktree list   # enumeration ONLY (paths + count) — cheap metadata for the $worktrees
+                     # <n> figure in the Pulse callout. Does NOT `cd` into, nor scan the
+                     # content of, sibling worktrees by default — see scope-boundary note.
 
 # Open PRs (skip if !HAS_GH or !NETWORK_OK)
 # Detect repo origin → parse host/owner/repo → scope queries
@@ -378,15 +410,22 @@ gh pr list --state open --json number,title,author,createdAt,mergeable,reviewDec
 # Recent commits since 24h ago
 git log --since="24 hours ago" --oneline 2>/dev/null
 
-# Worktree-specific staged/uncommitted work
-for wt in $(git worktree list --porcelain | grep '^worktree' | cut -d' ' -f2); do
-  echo "=== $wt"; (cd "$wt" && git status --short | head -10)
-done
-
 # Claude session-name (already captured in Phase 0 as $CLAUDE_SESSION_NAME)
 # No additional probe needed here — passes through to Phase 3 synthesis.
 # When empty (non-Claude host OR ai-title absent), header silently omits the field.
 ```
+
+> **Scope boundary (v1.8.1) — default scope = CURRENT session/worktree only.** Prior versions
+> unconditionally `cd`-ed into **every** worktree returned by `git worktree list` and dumped its
+> `git status --short` — meaning the default (`--scope=current`) baseline already inspected the
+> content of every other agentic work-in-progress sharing this repo (another session's/agent's
+> branch), silently contradicting both Phase 2.5's own "`current` = baseline, no expansion" claim
+> and anti-pattern #9's "only scan beyond current with explicit flag" principle (a principle whose
+> flag, `--multi-repo`, only ever gated *sibling repos* — it never gated this *sibling-worktree*
+> loop). Per-worktree content scanning is now an explicit, opt-in expansion under
+> `--scope=sideways` (see the `sideways` case in Phase 2.5) — it never fires by default, and it
+> never fires silently. This is a fix, not a new capability: it makes the code match what the
+> skill already documented it did.
 
 Optional task tool integration (host-specific): if Claude Code TaskList tool available, surface in_progress + blocked tasks.
 
@@ -410,7 +449,7 @@ Filter for relevance: prefer entries tagged with current branch / repo / recent 
 
 | Verb | Phase 1 probe expansion | Phase 2 memory expansion | Section weighting downstream |
 |---|---|---|---|
-| **`current`** (default) | Current branch · last 5 commits · 24h status (baseline) | MEMORY.md head 100 + 3 most-recent entries | Standard 7-section briefing (no expansion) |
+| **`current`** (default) | Current branch · last 5 commits · 24h status (baseline) · **this worktree/session ONLY — sibling worktrees NOT scanned** (v1.8.1) | MEMORY.md head 100 + 3 most-recent entries | Standard 7-section briefing (no expansion) |
 | **`down --depth=N`** | + `git log --oneline HEAD~10..HEAD` per worktree · ` gh pr view <current-PR> --json comments,reviews,statusCheckRollup` · sub-tasks via TaskList (recursive depth=N) | + N most-recent feedback_* entries · cross-link `[[slug]]` resolution depth=N | Amplify **In-flight** + **Risks** sections (cap N items each); cap N=5 hard per anti-pattern #23 |
 | **`sideways --breadth=N`** | + sibling worktrees state (peer branches off same parent) · sibling PRs same milestone · peer option matrices A/B/C/D from MEMORY.md | + N most-recent reference_* entries (pattern peers) | Amplify **Decisions awaiting** section + render Compass option matrix; expose alternatives without prescribing |
 | **`up --height=N`** | + `git log --first-parent` walk N levels · parent-PR via `gh pr view --json closingIssuesReferences` · ancestor task tree | + N most-recent project_* entries · root_path walk via `[[slug]]` parent pointers | Amplify **State detail** + **Next Action** rationale (provides why-this-task-now context); useful for PR descriptions self-generated from sub-context |
@@ -435,9 +474,37 @@ case "$SCOPE_VERB" in
     # Memory recursive cross-link walk depth=$SCOPE_DEPTH
     ;;
   sideways)
-    # Peer expansion: sibling branches, sibling PRs, parallel option matrices
-    git for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null | head -"$SCOPE_BREADTH"
-    [ "$HAS_GH" = "yes" ] && gh pr list --state open --json number,title,headRefName --limit "$SCOPE_BREADTH"
+    # Peer expansion: sibling branches, sibling PRs, parallel option matrices,
+    # AND sibling-worktree state (moved here from the Phase-1 default baseline in
+    # v1.8.1 — scanning another agentic-wip's content is an explicit expansion,
+    # never the default; see Phase 1 §"Scope boundary").
+    #
+    # SCOPE_BREADTH is either a positive integer OR the literal "all" (§ operator-flags
+    # table default modifier). `head -N`/`head -"$SCOPE_BREADTH"` is non-portable AND
+    # breaks outright when SCOPE_BREADTH=all (`head -all` is an invalid option, not
+    # "unlimited"); breadth_limit() below normalizes both: `cat` (unlimited) for "all",
+    # `head -n N` (portable form) otherwise. `gh pr list --limit` also requires an
+    # integer — "all" maps to a generous ceiling instead.
+    if [ "$SCOPE_BREADTH" = "all" ]; then
+      breadth_limit() { cat; }
+      BREADTH_GH_LIMIT=1000  # gh --limit rejects "all"; ample ceiling stands in for unlimited
+    else
+      breadth_limit() { head -n "$SCOPE_BREADTH"; }
+      BREADTH_GH_LIMIT="$SCOPE_BREADTH"
+    fi
+    git for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null | breadth_limit
+    [ "$HAS_GH" = "yes" ] && gh pr list --state open --json number,title,headRefName --limit "$BREADTH_GH_LIMIT"
+    # Exclude the CURRENT worktree (per git-worktree(1), the main worktree is listed
+    # first — but "current" may itself be a linked worktree, so filter by the actual
+    # checked-out toplevel, not by list position) so it never consumes a breadth slot
+    # (e.g. --breadth=1 returning zero real siblings). `cut -d' ' -f2-` (not `-f2`) +
+    # a line-safe `while read` loop (not `for wt in $(...)`) preserve worktree paths
+    # that contain spaces, which shell word-splitting would otherwise truncate.
+    CURRENT_WT="$(git rev-parse --show-toplevel 2>/dev/null)"
+    git worktree list --porcelain | grep '^worktree' | cut -d' ' -f2- | grep -Fxv "$CURRENT_WT" | breadth_limit |
+    while IFS= read -r wt; do
+      echo "=== $wt"; (cd "$wt" && git status --short | head -n 10)
+    done
     ;;
   up)
     # Ancestor walk: first-parent log, parent-PR, root-path traversal
@@ -533,7 +600,9 @@ When rendering this template, the LLM MUST follow this instruction:
 - <n> tasks complete — <title>, <title>
 
 ## 🌿 $state_detail
-- $worktrees: `<path>` · `<path>`
+- $worktrees: <n> <!-- COUNT ONLY under default --scope=current (v1.8.1); paths are an explicit
+     --scope=sideways expansion — see Phase 1 §"Scope boundary" and anti-pattern #29. Never
+     render `<path>` entries here unless SCOPE_VERB=sideways. -->
 - $untracked: <n> files
 
 ---
@@ -634,16 +703,46 @@ A1. <process discipline aplicado> ✅/🟡
 \`\`\`
 
 ## 4. $execution_metrics
-| Métrica | Valor |
-|---|---|
-| PRs criados | <n> |
-| PRs merged | <n> |
-| % PRs Green (CI all-pass) | <n>/<total> = <pct>% |
-| % PR Agentic Convergence | <n>/<total> = <pct>% |
-| % Plan execution | <n>/<total> = <pct>% |
-| % Principais completos | <n>/<total> = <pct>% |
-| Wall-clock engagement | <hours>h |
-| Worktrees vivos | <n> (target: 0 post-merge) |
+| Métrica | Valor | $bar_col |
+|---|---|---|
+| PRs criados | <n> | — |
+| PRs merged | <n> | — |
+| % $metric_prs_green | <TOKEN> <pct>% (<n>/<total>) | see fenced bars below (or `$bar_na` if unmeasured) |
+| % $metric_pr_agentic_convergence | <TOKEN> <pct>% (<n>/<total>) | see fenced bars below (or `$bar_na` if unmeasured) |
+| % Plan execution ($llm_estimated) | <n>/<total> = <pct>% | — ($llm_estimated — NO bar per anti-pattern #30) |
+| % Principais completos ($llm_estimated) | <n>/<total> = <pct>% | — ($llm_estimated — NO bar per anti-pattern #30) |
+| Wall-clock engagement | <hours>h | — |
+| Worktrees vivos | <n> (target: 0 post-merge) | — |
+
+<!-- MEASURED-metric bars render STACKED in this fenced block (md/console), per Phase 3b.6,
+     so they align in monospace. This block IS part of the template — emit it verbatim with
+     the row filled from the lookup. Each line: `<label> <bar> <TOKEN> <pct>% (<n>/<total>)`.
+     Omit a metric's line from this fenced block when that metric is a hole; in the §4
+     table its `$bar_col` cell then shows `$bar_na` and its `Valor` cell shows the
+     case text (see the degradation table). Drop the whole block only when BOTH metrics
+     are holes. -->
+\`\`\`
+% $metric_prs_green              <bar>  <TOKEN> <pct>% (<n>/<total>)
+% $metric_pr_agentic_convergence <bar>  <TOKEN> <pct>% (<n>/<total>)
+\`\`\`
+
+<!-- i18n: the §4 column header and the two bar-metric row labels are localizable and
+     resolve through the loaded bundle — $bar_col, $bar_na, $llm_estimated,
+     $metric_prs_green, $metric_pr_agentic_convergence (en-us canonical fallback per the
+     Localization rules; NEVER a literal `unknown` — anti-pattern #12). PRESERVE-class and
+     therefore NOT placeholders here: state tokens GREEN/WARN/RED, the json keys, the metric
+     ids prs_green / pr_agentic_convergence, and the glyphs # - [ ] — those stay en-US in
+     every bundle.
+     The human line for a measured metric ALWAYS reads (both in the table Valor cell as
+     `<TOKEN> <pct>% (<n>/<total>)` AND in the fenced block above with the bar prepended):
+       <label> <bar> <TOKEN> <pct>% (<n>/<total>)
+     e.g.  % PRs Green  [#########-] GREEN 92% (11/12).
+     The `<bar>` glyph is decorative (anti-pattern #31): dropping it loses NO information —
+     the TOKEN + pct + ratio in the Valor cell carry the full signal. The fenced block is
+     where the md bars live (monospace alignment); the table Valor cell carries the token.
+     Rendering rules, the 12-row lookup, state cutoffs, --format=json shape and the omit-on-hole
+     degradation are specified below in "Phase 3b.6 — $execution_metrics progress-bar". -->
+
 
 ## 5. $pr_details
 | PR | Repo | Status | Commit | Convergence | HITL path |
@@ -670,7 +769,17 @@ A1. <process discipline aplicado> ✅/🟡
 | # | HITL approval needed | Trigger |
 |---|---|---|
 
-## 12. $eisenhower
+## 12. $risks_section · <n>   <!-- NET-NEW v1.9.0 · omit when n=0 · uses the dedicated recap key, NOT the briefing $risks label -->
+| # | Risco | Probabilidade × Impacto | Mitigação |
+|---|---|---|---|
+<!-- Recap-mode's own risks section (briefing-mode already had one; recap previously
+     only amplified risks via --risk high). Retrospective + forward-looking: risks
+     surfaced by the session's work that carry into the next one (regressions not yet
+     covered, un-merged PRs blocking a chain, credential/quota limits, un-rotated keys).
+     Text only — NO progress bar (a risk has no measured completion denominator; drawing
+     one would be anti-pattern #30). Omit entirely when n=0, per the section-omission rule. -->
+
+## 13. $eisenhower
 | Quadrante | Urgência × Importância | Tarefas |
 |---|---|---|
 | **Q1 Do Now** | high × high | <task> |
@@ -678,23 +787,23 @@ A1. <process discipline aplicado> ✅/🟡
 | **Q3 Delegate** | high × low | <task> |
 | **Q4 Drop** | low × low | (nenhum) |
 
-## 13. $dependencies_dag
+## 14. $dependencies_dag
 \`\`\`
 <root-task> ──► <dependent> ──► <terminal>
 \`\`\`
 
-## 14. $blocked_blockers
+## 15. $blocked_blockers
 | Task | Status | Blocker |
 |---|---|---|
 
-## 15. $handoff_menu
+## 16. $handoff_menu
 - **A** ⭐ <recommended action>
 - **B** <alternative>
 - **C** Stop-for-now → fresh session
 - **D** Recalcular
 - **E** Pause/cancel
 
-## 16. $operator_quotes (verbatim per language-policy + [C17] §3.5)
+## 17. $operator_quotes (verbatim per language-policy + [C17] §3.5)
 <numbered list, source language preserved>
 
 <!-- Narrative renders ONLY when --no-llm absent -->
@@ -712,15 +821,15 @@ Same Phase 3 PRESERVE rules apply (git terms · status icons · session-name slu
 
 ### Section-omission rule (recap-mode)
 
-Sections 6-11 (gaps · pendings · unasked-Qs · unanswered-Qs · undecided · HITL) omit entirely when `<n>=0`. Sections 1-5 + 12-16 always render (structural backbone). This matches briefing-mode's signal/noise discipline.
+Sections 6-11 (gaps · pendings · unasked-Qs · unanswered-Qs · undecided · HITL) omit entirely when `<n>=0`; §12 `$risks` (v1.9.0) likewise omits when `<n>=0`. Sections 1-5 + 13-17 always render (structural backbone). This matches briefing-mode's signal/noise discipline.
 
 **§3 P0 `Originários` sub-tier omission (v1.8.0)**: within §3, the `### $originating · P0` block omits entirely when `originating == primary` trivially (single-thread session — the overwhelmingly common case). It renders ONLY on genuine divergence: (a) the session has **>1 causal root**, OR (b) an **external graft** was absorbed (a handoff seed / postmortem from a different prior session, whose own origin lives outside this transcript). Forcing P0 when it equals P1 is ceremony, not information (per `over-engineering-circuit-breaker`/Gordian + anti-pattern #28).
 
 ### Phase 3b.5 — Per-verb N-Tree projection (recap-mode, v1.5.0+, deterministic)
 
-Recap-mode renders the §3 N-Tree objectives + §12 Eisenhower + §13 DAG sections under verb-conditional projection:
+Recap-mode renders the §3 N-Tree objectives + §13 Eisenhower + §14 DAG sections under verb-conditional projection:
 
-| Verb | §3 N-Tree projection | §12 Eisenhower rendering | §13 DAG rendering |
+| Verb | §3 N-Tree projection | §13 Eisenhower rendering | §14 DAG rendering |
 |---|---|---|---|
 | **`current`** (default) | All P1/P2/P3 baseline | Full 2×2 (Q1+Q2+Q3+Q4) | Full DAG |
 | **`down --depth=N`** | P1 only, expanded to N sub-task levels (T → S → step) | Q1 + Q2 only, top-N each | Sub-DAG rooted at current task, depth=N |
@@ -730,7 +839,7 @@ Recap-mode renders the §3 N-Tree objectives + §12 Eisenhower + §13 DAG sectio
 
 **Recap-mode verb default**: `current` (full snapshot; v1.5.1 rename from `inside`). Recap-mode explicit consumers often want `forward --depth=3` (next-3 actions) for handoff briefings; `up --height=2` for PR descriptions self-generated from sub-task context.
 
-**Determinism contract** (recap-mode): given identical session-transcript probe + identical verb + identical modifier, §3+§12+§13 outputs MUST be reproducible across LLM runs. Operator quotes (§16) + execution metrics (§4) always render verbatim/calculated (NOT verb-conditional — they are facts, not projections).
+**Determinism contract** (recap-mode): given identical session-transcript probe + identical verb + identical modifier, §3+§13+§14 outputs MUST be reproducible across LLM runs. Operator quotes (§17) + execution metrics (§4, incl. the progress bars) always render verbatim/calculated (NOT verb-conditional — they are facts, not projections).
 
 ### When to use recap vs briefing
 
@@ -739,6 +848,90 @@ Recap-mode renders the §3 N-Tree objectives + §12 Eisenhower + §13 DAG sectio
 | "morning briefing" / "bom dia" / "where was I" / "post-compact briefing" | `briefing` (default) |
 | "session recap" / "faça um session recap" / "end of session" / "what have we done" / "list objectives [primary/secondary/auxiliary]" | `recap` |
 | Ambiguous ("state recap") | Heuristic: if session has >5 substantive actions logged in ai-title → `recap`; else `briefing` |
+
+### Phase 3b.6 — $execution_metrics progress-bar (recap-mode, v1.9.0+, deterministic)
+
+> **Always-on inside recap-mode §4. No flag.** Renders a proportional ASCII bar for the **two probe-measured, falsifiable** metrics ONLY: `prs_green` and `pr_agentic_convergence`. `% Plan execution` and `% Principais completos` are LLM syntheses (their denominator is the model's own reading of "the plan", not a `gh` probe) — they stay **text**, labelled `(LLM-estimated)`, and get **NO bar** (drawing one would launder an estimate as a measurement — anti-pattern #30). There is **no aggregate bar**.
+
+**Determinism — the LLM never does arithmetic.** `<pct>` is already materialized by R3 in the §4 rows (`<n>/<total> = <pct>%`); the bar does not recompute it (recomputing would risk R3-vs-bar divergence). The `pct → bar` map is an **exhaustive 12-row literal lookup table** — the LLM copies one row's string; there is no fill calculation, no rounding to decide:
+
+```
+pct    lookup
+=====  ============
+0      [----------]
+1-9    [#---------]
+10-19  [#---------]
+20-29  [##--------]
+30-39  [###-------]
+40-49  [####------]
+50-59  [#####-----]
+60-69  [######----]
+70-79  [#######---]
+80-89  [########--]
+90-99  [#########-]
+100    [##########]
+```
+
+Equivalent rule (documentation of the table, NOT a second code path): `filled = 0` if `pct == 0`, else `filled = max(1, floor(pct / 10))` — the floor never fills the last cell until `pct == 100` (rounding 95%→10/10 would lie about "complete"); the `max(1, …)` floor keeps `0 < pct < 10` from drawing an empty bar visually identical to `pct == 0`. Glyphs are literal and PRESERVE-class: fill `#` (U+0023) · empty `-` (U+002D) · delimiters `[` `]`. **No** partial-cell glyph, **no** Unicode block (`█`/`░` desalign in the dashboard's proportional font — violates the skill's own "render identically" invariant, changelog v1.1.0), **no** emoji.
+
+**`pct` normalization (one rule, used by BOTH the displayed `<pct>%` and the state/bar lookup).** `<pct>` is a single **integer** materialized once by R3 as `pct = round(numerator * 100 / denominator)` with **round-half-up** (e.g. `5/6 = 83.33 → 83`, `2/3 = 66.67 → 67`, `17/20 = 85.0 → 85`, a boundary `89.5 → 90`). The displayed percentage, the state token cutoffs, and the lookup-table row ALL read that same normalized integer — there is no second rounding and no fractional `pct` anywhere, so the integer rows are exhaustive by construction (no `66.7`/`89.5` can reach the lookup). Because rounding happens BEFORE the cutoffs, a value that rounds up to `90` is legitimately `GREEN`, and the `md` row, the `state`, and the `bar` cannot disagree.
+
+**State token (by lookup, PRESERVE-class — never localized):** `pct >= 90 → GREEN` · `60 <= pct < 90 → WARN` · `pct < 60 → RED`. The token is the load-bearing signal (anti-pattern #14); color, where present, is redundant, never sole.
+
+**The human line (`md`/`console`) ALWAYS carries, in this order:** `<label> <TOKEN> <pct>% (<n>/<total>)`. The `[<bar>]` is decorative — a screen reader or monochrome terminal reads `PRs Green WARN 83 percent 5 of 6` and loses nothing (anti-pattern #31). In `md` the bar sits **inside a fenced code block** so stacked bars align in monospace. `--no-llm` renders the bar identically (it is deterministic; `--no-llm` only drops narrative). `--quick` never reaches it (recap-mode ignores `--quick`, and the bar is recap-only).
+
+**ANSI:** never in `md`, never in `json`; in `console` **only when `[ -t 1 ]`** (stdout is a TTY), wrapping only the token, never replacing it. Piped / non-TTY → ANSI off, byte-identical to `md`.
+
+**Specimen (`md`, inside a fence):**
+```
+% PRs Green             [########--]  WARN 83% (5/6)
+% PR Agentic Convergence [##########]  GREEN 100% (4/4)
+```
+
+**`--format=json`** carries the metrics inside the recap's **single top-level JSON object** as an `execution_metrics` array — NOT as a standalone document that replaces the rest of the recap. The whole `--format=json` output is still one valid JSON document (`jq`/`JSON.parse` parse it in one pass); the fix that mattered is that the metrics are an **array under one key**, never two consecutive top-level objects. `--save --format=json` keeps its Phase-5 top-level `_meta`, and `--audience agent` still receives the full recap (objectives, gaps, pendings, risks, handoff, …) alongside `execution_metrics`. Each metric object keeps `state` first-class and `bar` as convenience, never source-of-truth; keys are en-US, versioned via the recap's `prompt_version`. **`execution_metrics` contains EXACTLY the two probe-measured metrics** — `prs_green` and `pr_agentic_convergence` — and no others: the `LLM-estimated` rows (`% Plan execution`, `% Principais completos`) are **human-only** and never enter this array (they have no probe denominator and no JSON contract of their own, per DDR Q1), so a consumer reads the array as those two ids, distinguishing an absent id from a measured hole (below) by `state`:
+```json
+{
+  "prompt_version": "1.9.0",
+  "_meta": { "…": "top-level save envelope, Phase 5 — present only with --save" },
+  "…": "…other recap sections (objectives, gaps, pendings, risks, handoff, …)…",
+  "execution_metrics": [
+    {"metric":"prs_green","numerator":5,"denominator":6,"pct":83,"state":"WARN","bar":"[########--]"},
+    {"metric":"pr_agentic_convergence","numerator":4,"denominator":4,"pct":100,"state":"GREEN","bar":"[##########]"}
+  ]
+}
+```
+**Degraded metric (a hole — denominator 0 / unmeasured / partial probe / `gh` absent / cold-start):** the metric object is STILL present in `execution_metrics` (so a consumer distinguishes "measured a hole" from "metric not in this recap"), but carries `state:"UNKNOWN"`, `bar:null`, and `null` for any unavailable `numerator`/`denominator`/`pct` — never a fabricated `0` (a real `0%` is denominator `> 0` with numerator `0`, which stays a measured object, `state` per the cutoffs). `UNKNOWN` is a PRESERVE-class token like `GREEN`/`WARN`/`RED` and never localized. Example, `gh` resolved one metric and could not measure the other:
+```json
+{
+  "prompt_version": "1.9.0",
+  "execution_metrics": [
+    {"metric":"prs_green","numerator":5,"denominator":6,"pct":83,"state":"WARN","bar":"[########--]"},
+    {"metric":"pr_agentic_convergence","numerator":null,"denominator":null,"pct":null,"state":"UNKNOWN","bar":null}
+  ]
+}
+```
+`--format=json` NEVER emits: an ANSI escape; emoji as a semantic field; a state that exists only inside the `bar` string; a localized label as a key; two consecutive top-level objects (the metrics are always an `execution_metrics` array under the single recap object, never a second root). The `bar` field, when present, is a **decorative** string only — `state` plus the numeric fields (`pct`, `numerator`, `denominator`) are authoritative; a consumer MUST read `state`, never derive it from the `bar` glyph (anti-pattern #31), and may ignore `bar` entirely. `md` is **not** a machine contract (line-wrapping, i18n and the fence can break any regex) — `--format=json` is. `--audience agent` already routes to `--format=json` (v1.7.0 D1); it does not add a second bar mode.
+
+#### Degradation / diagnostic (the honest analogue of self-heal — N/A por artefato)
+
+> This skill ships **no executable** (Q6: the deterministic layer is a lookup table in the template, not a `bin/*.sh`), so the `eko-executable-scripts` self-heal M.O. (`trap self_heal ERR`, `exec > >(tee …)`, dispatch a repair harness) has **no file to live in** — declaring "self-heal adopted" would be theater. A declarative skill is executed **by** a harness by definition; the harness that would "fix" it is already in the loop. The legitimate analogue is a **degradation path** for the bar's NEW dependencies: detect the hole → one stderr diagnostic line → degrade gracefully. The bar is a privilege of a **measured, stable, present** denominator; on any hole, **omit the bar** and diagnose — **NEVER** draw `0%` as if measured (`0/0` is undefined, not `0%`; a partial probe merely *looks* total). In `md`/`console` the omitted bar shows `$bar_na`; in `--format=json` the metric object is still emitted inside `execution_metrics` but carries `state:"UNKNOWN"`, `bar:null` and `null` numerics (see the `--format=json` degraded-metric contract above) — so a machine consumer tells a measured hole apart from a metric absent this recap.
+
+Every degraded case keeps the metric's LABEL and its table ROW (never silently dropped), drops the `<bar>`, and drops the measured trio `<TOKEN>`/`<pct>%` (printing `RED 0%` on a hole is the fabricated-measurement anti-pattern #30). The `Valor` cell carries the case text below; the `$bar_col` cell shows `$bar_na`. The fenced bars block omits that metric's line (and is dropped entirely only when BOTH metrics are holes).
+
+| Hole | Complete `md`/`console` row (row kept, `<bar>`+TOKEN+pct dropped) | stderr diagnostic |
+|---|---|---|
+| `denominator == 0` (no PR in scope) | `% <label>` · Valor `n/a — 0 PRs no escopo` (`0/0` is undefined, not `0%`) · bar cell `$bar_na` | `[morning-briefing] metric '<name>': denominator=0, bar omitted (n/a)` |
+| denominator unmeasured | `% <label>` · Valor `n/a — não medido` · bar cell `$bar_na` | `[morning-briefing] metric '<name>': denominator unmeasured, bar omitted` |
+| partial probe (`gh` resolved some PRs, timed out on others) | `% <label>` · Valor `<n>/<parcial>? (probe incompleto)` (half-measured *looks* total, so no TOKEN/pct) · bar cell `$bar_na` | `[morning-briefing] metric '<name>': partial probe (<k>/<N> PRs resolved), bar omitted` |
+| `gh` absent (`HAS_GH=no`) | **both** metric rows kept · Valor `n/a — gh indisponível` · bar cell `$bar_na` (both are PR-based); the rest of the recap renders | `[morning-briefing] gh absent → PR-based bars skipped` |
+| cold-start (no measured objectives) | **both** metric rows kept · Valor `n/a — cold start` · bar cell `$bar_na` | `[morning-briefing] cold-start: no measured objectives, bars omitted` |
+| i18n label key missing in a bundle | row renders normally (the bar's data is not from the bundle); only the LABEL falls back to the canonical en-US key — **never** a literal `unknown` (anti-pattern #12) | `[morning-briefing] i18n: label key '<key>' missing in bundle '<lang>', fell back to en-us` |
+
+**The only legitimate `0%`:** denominator known and `> 0` with numerator `0` — e.g. 3 PRs in scope, none green yet → `0/3 = 0%`, an honest empty bar `[----------]` RED.
+
+**Complete `md`/`console` row for a degraded metric (so the "human line always carries `<pct>% (<n>/<total>)`" rule and the omit-the-bar rule do not conflict).** A hole means the metric is NOT fully measured, so the normal `<label> <TOKEN> <pct>% (<n>/<total>)` line does not apply — there is no honest `pct`/`state` to print. The degraded row is: **`<label>` + `$bar_na` in the bar cell + the case-specific `Valor`-cell text from the table above** (e.g. `n/a — 0 PRs no escopo` for `denominator == 0`, `<n>/<parcial>? (probe incompleto)` for a partial probe), and **no `TOKEN`, no `<pct>%`** (printing `RED 0%` would be the fabricated-measurement anti-pattern #30). The label stays; only the measured trio (`TOKEN`, `pct`, bar) is what a hole legitimately drops. This mirrors the JSON side, where the object stays present with `state:"UNKNOWN"`, `bar:null`, `null` numerics.
+
+**Privacy (recap-mode, unchanged guards apply):** the bar shows only the aggregate (`3/7`), **never** the list of repos composing the denominator (that decomposition needs explicit `--scope=down`; `--scope=current` default does not scan siblings — anti-pattern #29). `--format=json` emits the numeric fields + `state` as the data; the `bar` glyph, when present, is decorative and is **never the state signal a consumer parses** (read `state`, not the glyph — anti-pattern #31). When a recap is routed to `--save`/`--clipboard`, the existing `gitleaks` guard remains the LAST step over the fully assembled artifact — a bar added upstream is inside that scan, not after it.
 
 ## Phase 4 — Narrative polish (optional, LLM-augmented)
 
@@ -965,6 +1158,11 @@ Per Anthropic best practice — these are real issues observed in analogues and 
 26. **Clipboard secret-leak** — the clipboard is a paste-into-anywhere surface (shared chat, PR comment, ticket). A secret in the copied payload → secret pasted somewhere shared → unrotatable leak. ALWAYS run `gitleaks dir <tmpfile>` (8.30+ syntax) PRE-copy; abort the copy (NOT the stdout) on any hit. Fail-closed: any non-zero gitleaks exit aborts. Cross-link `script-safety.md` §2 + `op-service-account-tokens.md` ⛔ ABSOLUTE + `--save` guard #4. Discovered v1.6.0 design 2026-06-07.
 27. **Factor-flag inference theater** — absent `--risk`/`--urgency`/`--purpose`/`--audience` flags carry NO information; NEVER infer "low risk" or "cold-start" from absence and silently degrade the briefing (no information ≠ trivial — the scorecard SIZED-gate lesson). Invalid values likewise = no information (stderr diagnostic + ignore, never abort). The Phase 0d table fills ONLY dimensions left unset by explicit flags (P0 pin precedence) — overriding an operator-passed `--mode`/`--quick`/`--scope` from a factor flag violates the pin contract. Discovered v1.7.0 design 2026-06-12 (imported from `multi-agent-os` `scorecard-select-model.sh` PDCA findings, PR #139).
 28. **Originating-tier ceremony (P0 forced when it equals P1)** — rendering the §3 `Originários · P0` block in a single-thread session, where `originating == primary` trivially, adds a tier with zero information (Gordian violation per `over-engineering-circuit-breaker`). P0 earns its place ONLY on genuine divergence: **>1 causal root**, OR an **external graft** (a handoff seed/postmortem absorbed from a different prior session whose origin lives outside this transcript). Conversely — and this is the failure that motivated the tier — **flattening 2 distinct causal roots into one P1 implies a causal continuity that does not exist**, which is the same defect class as reading a present `tool_result` as absent: two distinct things fused under one label. Empirical origin: a recap absorbed a hung session's postmortem, giving that session two roots (`debug "(no output)"` + `resume VKS-2599`); with only P1 available both collapsed into one, and the operator caught it by asking *"qual diferença entre originário vs principal?"*. Taxonomy inherited from `maos:goal-recovery` (SSOT: `originating` = *why we started at all* vs `primary` = *the top deliverable now*, which may have migrated to a derived sub-objective). Discovered v1.8.0 design 2026-08-10 (VKS-2611).
+29. **Default-scope worktree leakage** — the Phase-1 baseline unconditionally `cd`-ed into every sibling worktree returned by `git worktree list` and dumped its `git status --short`, meaning the default `--scope=current` briefing already inspected another agentic session's/agent's uncommitted work — content the operator never asked to see and may not even know exists as a separate task. This is the sibling-repo over-extension of anti-pattern #9, one level down (worktrees within the SAME repo instead of separate repos), and it directly contradicts Phase 2.5's own claim that `current` = "baseline, no expansion". Fix (v1.8.1): the per-worktree content scan moved to the explicit `--scope=sideways` case (Phase 2.5); the Phase-1 default now enumerates worktree PATHS/COUNT only (needed for the `$worktrees <n>` Pulse figure), never their content. Operator directive (verbatim pt-BR): *"garanta que o default scope do skill seja [current session] para evitar ampliar o escopo para outro agentic-wip sem awareness do usuário operador"*. Discovered v1.8.1 design 2026-09-11.
+
+30. **Bar without a measured denominator** — rendering a progress bar for a percentage whose denominator is an LLM synthesis (`% Plan execution`, `% Principais completos`), or when the `gh` probe did not resolve, launders an estimate as a measurement. A bar is a *confidence affordance*: proportional fill communicates "this was measured". The bar is a privilege of a **measured, stable, present** denominator — the only two metrics that earn it are `prs_green` and `pr_agentic_convergence` (each has a `gh` probe, R3). On any hole (denominator 0, unmeasured, partial probe, `gh` absent, cold-start), **omit the bar and diagnose to stderr** — NEVER draw `0%` as if measured (`0/0` is undefined, not zero) and NEVER draw an empty bar for an unmeasured metric. The only honest `0%` is a known denominator `>0` with numerator `0`. Echoes #2 (vanity metric), #7 (stale-state hallucination), #27 (factor-flag inference theater). Discovered v1.9.0 design 2026-09-18 (council-of-MoE DDR Q1 + §8.1).
+
+31. **Bar as source of truth / glyph-only** — the bar `[####------]` is decorative: the human line ALWAYS carries `<TOKEN> <pct>% (<n>/<total>)` and `--format=json` ALWAYS carries `state` as its own field. Encoding the state only in color, in an emoji, or in the bar's length alone violates #14 (label carries full meaning) and makes the artifact illegible to a screen reader, a monochrome terminal, and a machine consumer (which must parse `state`, never regex the `bar` string). The state token `GREEN|WARN|RED` is PRESERVE-class (identical in `md`/`console`/`json`, every language) — a localized `"state":"VERMELHO"` would break every consumer matching `state == "RED"`. Discovered v1.9.0 design 2026-09-18 (council-of-MoE DDR Q3/Q4 + §8.4).
 
 ## Edge cases
 
@@ -993,6 +1191,7 @@ Per Anthropic best practice — these are real issues observed in analogues and 
 - **Mid-session recap** (operator invokes `--mode=recap` while substantive work still in-flight) → produces snapshot recap with `in_progress` status on incomplete tasks. Renders N-Tree showing 🟡 partial-done for in-flight tasks. Valid use case (checkpoint recap before context-compact).
 - **End-of-session recap** (operator invokes `--mode=recap` after merge-and-cleanup) → produces "session closure" variant: all tasks ✅ done, 100% PRs green, zero gaps/pendings/HITL, → emits Completion-State Closure per `end-of-action-briefing-protocol.md` §8 (motivational message + minimal handoff).
 - **Recap on cross-product session** (operator touched 2+ repos in same session) → §1 projects-touched table lists all; § metrics aggregate across repos; § PR-details groups by repo. No special flag needed (heuristic via Phase 1 multi-repo probe outputs).
+- **Repo has N sibling worktrees** (other agentic sessions/tasks sharing the repo) → default `--scope=current` briefing reports ONLY this worktree's own state + a worktree COUNT (`$worktrees <n>` in Pulse); sibling worktrees' paths/status are never scanned or rendered unless `--scope=sideways` is explicitly passed. Per anti-pattern #29.
 - **Operator WIP filter** (uncommitted work on main from prior session) → recap-mode Phase 1 filters M-files NOT touched by this session's commits. Cross-link gotcha #18.
 - **`--save` with no AIPROVIDER detected** (Copilot OR sandboxed shell with no `~/.claude/`/`~/.cursor/`/`~/.aider/`) → cascade Step 3 skipped; falls to Step 4 (cwd). Honest degradation; no fabricated host path.
 - **`--save` with path traversal attempt** (e.g., `--save ../../etc/recap.md`) → reject before any write; emit `[--save] path traversal denied`. Per safety guard #2.
@@ -1022,6 +1221,13 @@ Per Anthropic best practice — these are real issues observed in analogues and 
 - **Factor flag + explicit presentation flag conflict** (e.g., `--purpose end-of-session --mode=briefing`) → explicit pin wins per P0; the factor flag fills only OTHER unset dimensions; no diagnostic emitted (operator stated both — both are honored on their own dimension).
 - **Invalid factor value** (`--risk banana`) → stderr `[--risk] invalid value 'banana' → ignored`; treated as unset; render proceeds normally (tolerant parse per Phase 0d no-information gate — never abort).
 - **All factor flags absent** (bare `/morning-briefing`) → D6 baseline; output identical to v1.6.0 behavior (backward-compat contract — Phase 0d is invisible until a factor flag is passed).
+- **Progress-bar: `denominator == 0`** (recap §4, no PR in scope) → omit the bar; render text `n/a — 0 PRs no escopo`; `0/0` is undefined, NEVER `0%`. stderr `[morning-briefing] metric '<name>': denominator=0, bar omitted (n/a)`. Per anti-pattern #30.
+- **Progress-bar: denominator unmeasured** → omit the bar; stderr `[morning-briefing] metric '<name>': denominator unmeasured, bar omitted`. Never draw an empty bar for an unmeasured metric.
+- **Progress-bar: partial probe** (`gh` resolved some PRs, timed out on the rest) → omit the bar + text `<n>/<parcial>? (probe incompleto)`; half-measured is worse than unmeasured because it *looks* total. stderr `[morning-briefing] metric '<name>': partial probe (<k>/<N> PRs resolved), bar omitted`.
+- **Progress-bar: `gh` absent** (`HAS_GH=no`) → omit **both** bars (both are PR-based); the rest of the recap renders normally. stderr `[morning-briefing] gh absent → PR-based bars skipped`. Per anti-pattern #30 (and consistent with the existing "No `gh`" edge case above).
+- **Progress-bar: cold-start** (`--mode=recap` degraded, no measured objectives) → omit both bars; stderr `[morning-briefing] cold-start: no measured objectives, bars omitted`. (The recap already degrades to briefing per anti-pattern #17, which carries no bar by Q2.)
+- **Progress-bar: i18n label key missing in a bundle** → the bar STILL renders (its data comes from the probe, not the bundle); the row label falls back to the canonical en-US key — never a literal `unknown` (anti-pattern #12). stderr `[morning-briefing] i18n: label key '<key>' missing in bundle '<lang>', fell back to en-us`.
+- **Progress-bar: only legitimate `0%`** → denominator known and `> 0` with numerator `0` (e.g. 3 PRs in scope, none green yet) → `0/3 = 0%`, honest empty bar `[----------]` RED. This is a factual measurement, distinct from the omit-on-hole cases above.
 
 ## Capability-detected fallbacks (by host)
 
@@ -1063,6 +1269,8 @@ This skill was invoked 2026-05-08 (the operator wake-up after Onda 15 PII remedi
 | 1.7.0 | 2026-06-12 | **MINOR — Phase 0d Dynamic Presentation Selection (factor-flag decision table)** per operator directive on `multi-agent-os#132` item 2 (verbatim pt-BR per `language-policy-en-pt.md` §3: *"atualizar morning-briefing para também seguir o calculo dinamico baseado em [contexto, escopo, propósito, objetivo, risco, segurança, impacto, urgencia, importancia, criticidade, human/agent, etc]"*) — item 1 of the same directive (scorecard dynamic selector + Model 8 Briefing Card) shipped in `multi-agent-os` v1.12.0 (PR #139, `bin/scorecard-select-model.sh`). **Imports the pattern, not the script** (pointer-not-copy per `layer-precedence-policy`): same hybrid deterministic/probabilistic split — invoking agent (probabilistic) distils session factors → **4 optional factor flags** (`--audience human\|agent` · `--purpose cold-start\|checkpoint\|end-of-session\|handoff` · `--risk low\|medium\|high` · `--urgency low\|medium\|high`) → **deterministic first-match decision table D1-D6** fills ONLY unset presentation dimensions (mode · quick/full · scope · format · narrative). **P0 pin precedence**: explicit presentation flags NEVER overridden by the table (mirrors scorecard R0 env-pin). **No-information gate** imported from scorecard SIZED-gate PDCA lesson: absent factor flag ≠ low/trivial (never inferred); invalid value = stderr diagnostic + treated-as-unset (tolerant parse, never abort). **D6 default = baseline** → bare invocation identical to v1.6.0 (backward-compat 100%; Phase 0d invisible until a factor flag is passed). **NEW Phase 0d** (sister-implementation pointer · hybrid-split rationale · precedence · D1-D6 table · no-information gate · determinism contract) + **4 new operator-flag rows** + **1 new anti-pattern** (#27 factor-flag inference theater) + **3 new edge cases** (factor+explicit conflict → P0 wins · invalid factor value → ignored · all-absent → D6 baseline). Closes the `multi-agent-os#132` directive (item 1 shipped PR #139 + released v1.12.0; item 2 = this). **§11 Quality Tests 6/6 PASS** + **§0 BEING > Rules PASS** dogfooded (serves operator's BEING: presentation auto-fits context without operator flag-tuning; slavery-risk LOW — all factor flags opt-in, P0 pin always wins). Repo: `ekson73/akasha-claude`. `cycles_completed:0` + `promotion_eligible:false` per ADR-017 R1 MINOR bump (2 fresh cycles required). PR: `ekson73/akasha-claude#TBD`. |
 
 | 1.8.0 | 2026-08-10 | **MINOR — `Originários` (P0) as 4th N-Tree tier in recap-mode §3** per operator directive 2026-08-10 (asked 3×, verbatim pt-BR per `language-policy-en-pt.md` §3): *"qual diferença entre [originário vs principal]? qual impacto em adicionar o termo originários aos objetivos/propósitos? [(Primary/Secondary/Auxiliary)] ==> (Originários/Primary/Secondary/Auxiliary)"*. **NOT a new concept — a PROPAGATION** (Strata/reuse-and-elevate): `maos:goal-recovery` already ships the 4-tier taxonomy `{originating, primary, secondary, auxiliary}` with a textual definition (*"Distinguish `originating` (why we started at all) from `primary` (the top deliverable)"*) AND a JSON Schema marking `originating` **required** with the inline note `"primary/secondary/auxiliary REUSED from seed; originating NET-NEW"` — i.e. the gap was recognized and solved once, then never propagated back. **Recon verified on disk (not assumed)**: `goal-recovery` skill+command = 4-tier ✅ (SSOT) · `session-reentry` = already 4-tier in 3 places incl. the `🌱 originary` sign-system, AND it names `postflight P2 DEBRIEF` as *"the owner"* of the synthesis · `postflight:103` (that declared owner) = 3-tier ❌ → `session-reentry` was structurally requesting a tier its own owner never produced · `pulse:34,86` (which PRODUCES the objectives map the others consume) = 3-tier ❌ → `originating` was lost at the head of the pipeline. Direction unambiguous: reverting `goal-recovery` to 3-tier would regress 2 tools across 4+ points to fix 1. **Scope-discovery note**: `pulse` was found ONLY by widening the grep — it writes `primary / secondary / auxiliary` with spaces around the slashes, so the unspaced pattern missed it (an audit trusting a single search pattern fabricates completeness — same free-negative class this session spent hours on). **NEW**: R2 gains the P0 tier + anti-ceremony mandate · §3 template gains a conditional `### $originating · P0` block (`🌱 R1/R2` causal roots with source attribution) · §"Section-omission rule (recap-mode)" gains the §3 P0 sub-tier rule · **anti-pattern #28** (originating-tier ceremony — documents BOTH failure directions: forcing P0 when it equals P1 = Gordian ceremony; flattening 2 roots into one P1 = implying a causal continuity that does not exist). **Empirical origin**: a recap absorbed a hung session's postmortem, giving the session two causal roots (`debug "(no output)"` + `resume VKS-2599`); with only P1 available both were flattened, and the operator caught it. Same defect class as the parent session's investigation (present `tool_result` read as absent) — two distinct things fused under one label. **Layer Purity** per `layer-precedence-policy`: this user-scope PR is SEPARATE from the community-scope `multi-agent-os` PR (`postflight`+`pulse`, commit `96460c1`). `session-reentry`+`goal-recovery` deliberately UNCHANGED (already correct). Jira: VKS-2611. `cycles_completed:0` + `promotion_eligible:false` per ADR-017 R1 MINOR bump. |
+| 1.8.1 | 2026-09-11 | **PATCH — default-scope worktree-leakage fix** per operator directive (verbatim pt-BR per `language-policy-en-pt.md` §3): *"garanta que o default scope do skill seja [current session] para evitar ampliar o escopo para outro agentic-wip sem awareness do usuário operador"*. **Bug**: Phase 1's baseline probe unconditionally `cd`-ed into every worktree returned by `git worktree list` and dumped `git status --short` for each — so the default `--scope=current` briefing ALREADY inspected sibling worktrees' content (another agentic session's/agent's uncommitted work), contradicting Phase 2.5's own "`current` = baseline, no expansion" claim and anti-pattern #9's "only scan beyond current with explicit flag" principle. The `--multi-repo` flag that anti-pattern #9 names never gated this loop — it gates a different axis entirely (sibling REPOS, not sibling WORKTREES within the same repo). **Fix**: moved the per-worktree content scan into the explicit `--scope=sideways` case in Phase 2.5 (which already documented "+ sibling worktrees state" in its per-verb table but never implemented it — this closes that gap too); Phase 1's default now enumerates worktree paths/count only (still needed for the `$worktrees <n>` Pulse figure), never `cd`s into or scans their content. **NEW** anti-pattern #29 (Default-scope worktree leakage) · 1 new edge case (N-sibling-worktrees repo) · operator-flags-table clarifications on `--scope=current` (session-scope boundary), `--scope=sideways` (now the sole path to sibling-worktree state), and `--multi-repo` (disambiguated as the orthogonal cross-repo axis). Zero new capability — corrects an implementation-vs-documentation mismatch; PATCH per `[C07b]` (no new flags, no new output sections, purely a scope-tightening correction). `cycles_completed` preserved per ADR-017 R1 (PATCH does not reset; only MINOR/MAJOR do). **Discovered dogfooding this very skill** while investigating it in `multi-agent-os` — 2 sibling worktrees were present at fix-time (`verified-agentic-session-model`, `wacli-archetype`), which a bare invocation would have silently scanned and surfaced. **PDCA iteration (pre-merge, PR #422 bot-review round)**: 5 independent reviewers (CodeRabbit + qodo-code-review + Copilot + chatgpt-codex-connector + amazon-q-developer, the latter APPROVED with no blocking issues) converged on 2 real gaps the initial v1.8.1 push had not yet closed. Fixed both, verified against `bash -n`: (1) **Phase 3 `$state_detail` still leaked sibling paths** (`- $worktrees: \`<path>\` · \`<path>\`` under default `--scope=current`, contradicting this very row's claim) → changed to count-only, paths reserved for `--scope=sideways`; (2) the NEW `sideways` scan block (introduced by this same PATCH) had 4 correctness bugs of its own — `head -"$SCOPE_BREADTH"`/`head -10` used the non-portable `head -N` form instead of `head -n N`; `--breadth=all` passed the literal string `all` straight into `head` (`head -all` is an invalid option, not "unlimited") and into `gh pr list --limit` (same failure); the current worktree was never excluded from the sideways enumeration (per `git-worktree(1)` the main worktree is listed first, but "current" may itself be a linked worktree — filtering by list-position isn't equivalent to filtering by `git rev-parse --show-toplevel`), so e.g. `--breadth=1` could return zero real siblings; and `cut -d' ' -f2` + `for wt in $(...)` word-split any worktree path containing a space. Fixed with a `breadth_limit()` helper (`cat` for `all`, `head -n N` otherwise) + `grep -Fxv "$CURRENT_WT"` exclusion + `cut -d' ' -f2-` piped into a line-safe `while IFS= read -r wt; do … done` loop. The parallel `down)` case (pre-existing code, NOT touched by this PR's diff) has the identical word-splitting/`head -N` pattern — left untouched here to keep this PATCH's diff scoped to what it actually changed; tracked as a follow-up, not silently smuggled into an unrelated PR. Two bot findings on this same PR were verified and rejected as **false positives** with cited evidence, not fixed: a claimed missing `version:` frontmatter field (the repo's actual validator, `scripts/validate-skill-frontmatter.sh`, requires only `name:` + `description:` — confirmed by reading its full source) and a claimed missing Jira/ticket-key requirement (no such CI gate exists anywhere in this repo's workflows/scripts — grepped and confirmed absent). |
+| 1.9.0 | 2026-09-18 | **MINOR — recap-mode `$execution_metrics` progress-bar + dedicated `$risks` section** per council-of-MoE Design Decision Record (kept in the session scratch workspace, not versioned; 7-seat council synthesized by the R1 sub-conductor). **Q1 (denominator):** two always-on ASCII per-metric bars for the ONLY two probe-measured, falsifiable metrics — `prs_green` (`gh pr view --json statusCheckRollup`) + `pr_agentic_convergence` (`gh` + `pr-review-protocol v2.1.0 §4`); `% Plan execution` + `% Principais completos` stay text, labelled `(LLM-estimated)`, NO bar (their denominator is an LLM synthesis, not a probe — a bar there launders an estimate as a measurement). No aggregate bar. **Q3 (render):** `[####------]` 10 cells, glyphs `#`/`-`/`[`/`]`, `filled = 0 if pct==0 else max(1, floor(pct/10))`, state `GREEN ≥90 / WARN 60-89 / RED <60`, NO emoji, NO Unicode block (`█`/`░` desalign in the dashboard proportional font — the v1.1.0 "render identically" invariant), ANSI only in `console` under `[ -t 1 ]`, in `md` inside a fence. **Q4 (dual legibility):** the human line ALWAYS carries `<label> <TOKEN> <pct>% (<n>/<total>)` (bar decorative); `--format=json` carries the metrics as an `execution_metrics` array INSIDE the single recap object (not a standalone document — the rest of the recap + Phase-5 `_meta` preserved), each `{metric,numerator,denominator,pct,state,bar}` — a hole keeps its metric object with `state:"UNKNOWN"`, `bar:null`, `null` numerics (never a faked `0`) — as THE machine contract (`md` explicitly rejected as regex-stable). **Q6 (hybrid split):** deterministic layer = an exhaustive **12-row literal lookup table** in the template — the LLM copies a row, never computes (`pct` already materialized by R3), so same-state reruns are byte-reproducible; NO bundled script (declaring one to host self-heal would be over-engineering theater — reopening condition documented in DDR §6.4). **Q2:** recap-only (nothing in briefing-mode or `$pulse`). **Q5:** taxonomy kept at 4 tiers (12/15 operator items already exist; the 3 extra tiers + `DoR` are DEFERRED with a named unblock condition — falsifiable definition first landed in the `goal-recovery` SSOT, DDR §5.3); the only net-new structural section is a **dedicated `$risks` in recap-mode** (§12, renumbering old §12-16 → §13-17). **Self-heal M.O.: N/A por artefato** — declarative skill, no `scripts/` dir, no executable for `trap self_heal ERR` to live in; the honest analogue is the documented **degradation/diagnostic** path for the bar's NEW deps (denominator 0 · unmeasured · partial probe · `gh` absent · cold-start · missing i18n key → omit bar + one stderr line, NEVER draw `0%` as measured). **NEW:** Phase 3b.6 (bar spec + lookup + json + degradation) · `$risks` recap section · **anti-patterns #30** (bar without a measured denominator) + **#31** (bar as source of truth / glyph-only) · 7 new edge cases (6 bar-holes + the only-legitimate-`0%`) · new bundle keys in ALL `translations/*.yml` (`bar_col`, `bar_na`, `llm_estimated`, `risks_section` + col/row labels) with PRESERVE class (`GREEN`/`WARN`/`RED`, json keys, metric ids `prs_green`/`pr_agentic_convergence`, glyphs `#`/`-`/`[`/`]` stay en-US; `Barra` header + row labels localizable) · `description` clause. **No new flag** (bar is always-on in recap §4 — DDR §8.4; a flag without an axis is noise) · `triggers`/`evals.should_trigger` unchanged. **6 Self-Validity Tests audited 6/6** (DDR §8.2: Self-Application · Non-Contradiction · Survival · Bounded-Responsibility · Explicit-Exception · Utility-Sunset) — the "6/6" is the `rule-quality-tests` skill applied to this change, NOT an in-file §11 section (none exists; that finding is pre-refuted in DDR §10). **Dogfood cycle-1** recorded via `bin/dogfood-mark` (`--status in-progress` → `--status complete --ratified` with PR+session evidence); ONE cycle does NOT promote — the gate is ≥2 and fabricating a second would be a lie. **ADR-017 R1:** reset is a no-op (`cycles_completed` already `0`), `cycles_completed:0` + `promotion_eligible:false` kept, **NO Bundle-Now waiver** (it would buy nothing — inverted ceremony). Single PR (Q5 kept 4 tiers, so no cross-tool sync fires). Gates measured, not presumed (DDR §10): `validate-skill-frontmatter.sh` OK, PII linter (BLOCK) clean via role abstractions, semantic `feat:` title, CHANGELOG root entry. Repo `ekson73/multi-agent-os`. |
 
 ## Refs (research-driven)
 

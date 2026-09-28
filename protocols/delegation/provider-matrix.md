@@ -49,7 +49,31 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 | read / list branches & PRs | `gh pr list`, `gh pr view`, `gh api /repos/{owner}/{repo}/...` | `git ls-remote` | GitHub REST via `curl -H "Authorization: Bearer $GITHUB_TOKEN"` |
 | branch create / commit / push | `git` (local) + `env -u GITHUB_TOKEN git push` | `gh api -X POST /repos/.../git/refs` | — |
 | PR create / review | `gh pr create`, `gh pr comment`, `gh pr review` | `gh api -X POST /repos/.../pulls` | REST via `curl` |
-| merge | `gh api -X PUT /repos/.../pulls/{n}/merge` (REST — avoids local-checkout side effects) | `gh pr merge` | REST via `curl` |
+| merge | `gh api -X PUT /repos/.../pulls/{n}/merge -f merge_method="$MERGE_METHOD" -f sha="$REVIEWED_OID"` (REST — avoids local-checkout side effects; **both fields mandatory**: sem `merge_method` o endpoint cai em merge commit; sem `sha` ele mergeia o head ATUAL, inclusive um push posterior à auditoria) | `gh pr merge --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"` | REST via `curl`, mesmos dois campos |
+
+⚠️ **`$MERGE_METHOD` NÃO está no ambiente de uma chamada de provider.** O Step 9a
+persiste em arquivo; uma shell nova não restaura nada. Sem recarregar, a via REST
+manda o campo **vazio** (e o endpoint cai em merge commit por default) e a via
+`gh pr merge` vira `--`. Recarregue com o contrato de leitura do Step 9a **antes**
+de qualquer um dos dois:
+
+O mesmo vale para o head auditado: o `REVIEWED_OID` vem do Step 7, e **nenhuma
+das duas vias pode reconsultar a API** — consultar aqui devolveria o head atual,
+que é exatamente o que o pin existe para rejeitar.
+
+```bash
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+```
 
 **Auth pattern** (per `feedback_autonomous_merge.md` + this session): run `gh` commands with `env -u GITHUB_TOKEN` when a stale `GITHUB_TOKEN` env var is present; this forces `gh` to use the keyring auth. See also `rules/agent-scm.md` §GitHub.
 
