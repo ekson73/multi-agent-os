@@ -54,7 +54,24 @@ if [ -z "$DEFAULT_BRANCH" ]; then   # no origin/HEAD → prefer a REAL default; 
 fi
 [ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD)"   # last resort
 
-reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=()
+reaped_wt=(); skipped_wip=(); would_wt=(); reaped_br=(); would_br=(); held_stale=()
+
+# Slug para consultar PRs. Falha silenciosa e aceitavel: sem slug, `gh` nao
+# confirma merge e a via por idade cai no ramo "apenas relatado" -- fail-closed.
+# `|| true` OBRIGATORIO: sob `set -euo pipefail` um repo SEM `origin` faz o
+# `remote get-url` falhar, o pipefail propaga, e o script inteiro ABORTA.
+# Medido: `tests/test-reap-sessions.sh` saia 2 sem imprimir uma linha sequer.
+# (E meu teste manual "passou" porque li `$?` DEPOIS de um pipe -- o exit era
+#  o do `sed`, nao o do subshell. Mesma armadilha que ja registrei antes.)
+# Normaliza as TRES formas validas de URL. Sem cobrir `ssh://`, o slug sai
+# como `ssh://org/repo` e toda consulta ao `gh` falha -- silenciosamente, pois
+# a falha vira "sem PR mergeado" e o worktree so fica `held`. Medido:
+#   git@github.com:org/repo.git        -> org/repo
+#   https://github.com/org/repo.git    -> org/repo
+#   ssh://git@github.com/org/repo.git  -> ssh://org/repo   (ERRADO, antes)
+REPO_SLUG="$(git -C "$REPO_DIR" remote get-url origin 2>/dev/null \
+  | sed -E 's#^ssh://##; s#(git@|https://)[^:/]+[:/]##; s#\.git$##')" || true
+[ -n "${REPO_SLUG:-}" ] || REPO_SLUG=""
 
 # ── worktrees: eligible = (detached/orphan) OR (last-commit age > stale-days); reaped only if CLEAN ──
 emit_wt() {
@@ -62,16 +79,73 @@ emit_wt() {
   [ -n "$p" ] || return 0
   [ "$p" = "$MAIN_TOP" ] && return 0          # NEVER the main worktree
   [ -d "$p" ] || return 0                      # admin-stale entry → handled by `worktree prune`
-  local ts age elig=0 reason=""
+  local ts age elig=0 reason="" wt_state=""
   ts="$(git -C "$p" log -1 --format=%ct 2>/dev/null || echo 0)"
   age=$(( (NOW - ts) / 86400 ))
   [ "$age" -ge 0 ] || age=0          # clamp future-dated commits → never a spurious "stale" sign-flip
-  if [ "$det" -eq 1 ] || [ -z "$b" ]; then elig=1; reason="orphan-detached"; fi
-  if [ "$age" -gt "$STALE_DAYS" ]; then elig=1; reason="${reason:+$reason,}stale-${age}d"; fi
-  [ "$elig" -eq 1 ] || return 0
-  if [ -n "$(git -C "$p" status --porcelain 2>/dev/null)" ]; then   # WIP guard — never reap dirty
+  # WIP guard PRIMEIRO. Sujo e o sinal mais forte e mais especifico: um
+  # worktree com trabalho nao commitado e WIP, nao "stale sem prova". Deixar
+  # a prova-de-termino antes disto classificaria um WIP sujo como `held`,
+  # escondendo a informacao que o operador realmente precisa ver.
+  # `--porcelain` sozinho OMITE ignorados: um worktree so com um `.env`
+  # ignorado le como limpo, e o `worktree remove` entao TEM SUCESSO e o apaga
+  # (medido -- o remove NAO recusa por ignorados). `-uall --ignored` fecha
+  # isso. Falha de inspecao e fail-closed: pula, nunca remove as cegas.
+  wt_state="$(git -C "$p" status --porcelain --untracked-files=all --ignored 2>/dev/null)" \
+    || { skipped_wip+=("$p"); return 0; }
+  if [ -n "$wt_state" ]; then
     skipped_wip+=("$p"); return 0
   fi
+
+  # Detached NAO significa abandonado, e o registro do worktree E a fronteira
+  # de ownership multi-sessao. Pior: um HEAD detached pode conter commits
+  # alcancaveis SO por ele. Medido em repo descartavel -- `worktree remove`
+  # apagou sem reclamar um detached com commit fora de toda branch; o objeto
+  # sobrevive apenas ate o `gc`. So e seguro remover se NADA se perde, isto e,
+  # se o HEAD ja esta contido em alguma branch.
+  if [ "$det" -eq 1 ] || [ -z "$b" ]; then
+    local head_oid contained=""
+    head_oid="$(git -C "$p" rev-parse HEAD 2>/dev/null || true)"
+    [ -n "$head_oid" ] && contained="$(git -C "$REPO_DIR" branch -a --contains "$head_oid" 2>/dev/null | head -1)"
+    if [ -n "$contained" ]; then
+      elig=1; reason="orphan-detached(head ja em branch)"
+    else
+      held_stale+=("$p (detached com commit FORA de toda branch — remover perderia trabalho)")
+      return 0
+    fi
+  fi
+  # Idade SOZINHA nao autoriza remocao. Um worktree limpo e ATIVO -- alguem
+  # explorando, com tudo commitado, parado alguns dias -- some so por ser
+  # antigo, e o `--apply` executa sem checar PR mergeado nem dono. Idade e
+  # sinal de ABANDONO, nao prova dele: a prova e o PR da branch ter sido
+  # mergeado. Sem `gh`, ou sem PR mergeado, o item e apenas RELATADO.
+  if [ "$age" -gt "$STALE_DAYS" ] && [ -n "$b" ]; then
+    local merged=""
+    if command -v gh >/dev/null 2>&1; then
+      merged="$(gh pr list -R "$REPO_SLUG" --head "$b" --state merged \
+                  --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)"
+    fi
+    # O PR mergeado precisa corresponder a PONTA ATUAL. Uma branch reusada, ou
+    # que recebeu commits DEPOIS do merge, ainda casa o PR historico -- e isso
+    # seria lido como prova de abandono de um trabalho que esta em curso.
+    local pr_oid="" tip_oid=""
+    if [ -n "$merged" ]; then
+      pr_oid="$(gh pr view "$merged" -R "$REPO_SLUG" --json headRefOid \
+                  --jq .headRefOid 2>/dev/null || true)"
+      tip_oid="$(git -C "$p" rev-parse HEAD 2>/dev/null || true)"
+      [ -n "$pr_oid" ] && [ "$pr_oid" = "$tip_oid" ] || {
+        held_stale+=("$p (pr#${merged} mergeado, mas a ponta AVANCOU desde entao)")
+        return 0; }
+    fi
+    if [ -n "$merged" ]; then
+      elig=1; reason="${reason:+$reason,}stale-${age}d+pr#${merged}-merged"
+    else
+      # Relatado, NUNCA removido: nao ha evidencia de que o trabalho acabou.
+      held_stale+=("$p (stale-${age}d, sem PR mergeado)")
+      return 0
+    fi
+  fi
+  [ "$elig" -eq 1 ] || return 0
   if [ "$APPLY" -eq 0 ]; then would_wt+=("$p ($reason)"); return 0; fi
   if git -C "$REPO_DIR" worktree remove "$p" >/dev/null 2>&1; then   # NO --force (belt-and-suspenders)
     reaped_wt+=("$p")
@@ -112,10 +186,14 @@ jarr() {  # bash-3.2-safe JSON array from "$@" (escapes \ then " → valid JSON 
   printf '[%s]' "${out%,}"
 }
 if [ "$JSON" -eq 1 ]; then
-  printf '{"dry_run":%s,"repo":"%s","stale_days":%s,"reaped_worktrees":%s,"skipped_wip":%s,"would_reap_worktrees":%s,"reaped_branches":%s,"would_reap_branches":%s}\n' \
+  # `held_stale` TAMBEM no JSON: um consumidor automatico que so ve
+  # `skipped_wip` e `would_reap_*` nao tem como saber POR QUE um worktree foi
+  # preservado -- ele simplesmente some de todas as listas.
+  printf '{"dry_run":%s,"repo":"%s","stale_days":%s,"reaped_worktrees":%s,"skipped_wip":%s,"held_stale":%s,"would_reap_worktrees":%s,"reaped_branches":%s,"would_reap_branches":%s}\n' \
     "$([ "$APPLY" -eq 0 ] && echo true || echo false)" "$MAIN_TOP" "$STALE_DAYS" \
     "$(jarr "${reaped_wt[@]+"${reaped_wt[@]}"}")" \
     "$(jarr "${skipped_wip[@]+"${skipped_wip[@]}"}")" \
+    "$(jarr "${held_stale[@]+"${held_stale[@]}"}")" \
     "$(jarr "${would_wt[@]+"${would_wt[@]}"}")" \
     "$(jarr "${reaped_br[@]+"${reaped_br[@]}"}")" \
     "$(jarr "${would_br[@]+"${would_br[@]}"}")"
@@ -123,6 +201,7 @@ else
   echo "reap-sessions ($([ "$APPLY" -eq 0 ] && echo DRY-RUN || echo APPLY)) repo=$MAIN_TOP stale>${STALE_DAYS}d"
   if [ "$APPLY" -eq 0 ]; then
     printf '  would reap worktrees: %s\n' "${would_wt[*]:-(none)}"
+    printf '  held (stale, unproven): %s\n' "${held_stale[*]:-(none)}"
     printf '  would reap branches : %s\n' "${would_br[*]:-(none)}"
     printf '  skip (WIP)          : %s\n' "${skipped_wip[*]:-(none)}"
     echo   "  → re-run with --apply to execute (WIP + main always preserved)"
@@ -130,5 +209,6 @@ else
     printf '  reaped worktrees: %s\n' "${reaped_wt[*]:-(none)}"
     printf '  reaped branches : %s\n' "${reaped_br[*]:-(none)}"
     printf '  skip (WIP)      : %s\n' "${skipped_wip[*]:-(none)}"
+    printf '  held (unproven) : %s\n' "${held_stale[*]:-(none)}"
   fi
 fi

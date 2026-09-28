@@ -192,17 +192,30 @@ git worktree list
 
 ### Remover Worktree
 
+⛔ `rm -rf` **nao e remocao de worktree**: ignora toda checagem do git e apaga
+WIP nao commitado (inclusive de outra sessao) sem aviso.
+
 ```bash
-# Remover diretório e limpar referências
-rm -rf .worktrees/{agent}-{feature}
-git worktree prune
+# Procedimento guardado completo: rules/pr-governance-unified.md Step 12
+# (todas as guardas: PR MERGED · worktree pelo REGISTRO · status -uall --ignored
+#  vazio · ponta == headRefOid). Resumo seguro, apos as guardas:
+git worktree remove "$WT_REAL"   # sem --force: worktree sujo e fail-closed
 ```
 
 ### Atualizar Worktree
 
-```bash
-cd .worktrees/{agent}-{feature}
-git pull origin main
+⛔ **Sem copia executavel aqui.** Este bloco duplicava a sincronizacao e o
+`git pull --ff-only` ficava SEM guarda: `--ff-only` RECUSA quando a base
+divergiu e, num shell sem `errexit`, o fluxo seguiria como se tivesse
+sincronizado. Duas copias do mesmo procedimento tambem voltam a divergir --
+foi exatamente o que aconteceu com o gate de auditoria e com o merge nesta
+mesma revisao.
+
+```text
+Sincronizacao da base -> rules/pr-governance-unified.md, Step 10
+                         (resolve a base persistida, sincroniza DENTRO do
+                          worktree que a acompanha, e aborta fail-closed
+                          quando o fast-forward e recusado)
 ```
 
 ---
@@ -261,8 +274,15 @@ git merge feature/child-branch --no-edit
 # SE PAI ≠ MAIN → Continuar subindo a hierarquia
 git push origin <parent-branch>
 
-# 5. CLEANUP
-git worktree remove .worktrees/prime-feature --force
+# 5. CLEANUP deste fluxo LOCAL.
+#    ⚠️ Aqui o merge foi `git merge` local, que PRESERVA ancestralidade --
+#    entao `-d` e o comando CERTO: ele so apaga se a filha estiver realmente
+#    integrada, e essa recusa e uma verificacao util. Trocar por `-D` aqui
+#    ENFRAQUECERIA a seguranca. O `-D` do Step 12 existe para outro caso: PR
+#    com squash/rebase, onde a ponta deixa de ser ancestral e a autorizacao
+#    vem do estado MERGED do PR, nao da ancestralidade.
+#    NUNCA `--force` no worktree: apaga WIP nao commitado sem aviso.
+git worktree remove .worktrees/prime-feature
 git branch -d feature/child-branch
 ```
 
@@ -552,17 +572,39 @@ cat .worktrees/sessions.json | jq '.orphaned_sessions'
 
 **Resolução**:
 ```bash
-# 1. Verificar se há trabalho não commitado
-git -C .worktrees/{orphan-name} status
+# Caso DISTINTO: worktree orfao nao tem PR, entao as guardas do Step 12
+# (PR MERGED, headRefOid) nao se aplicam. A protecao aqui e outra: so remova
+# depois que o `worktree remove` CONFIRMAR que nada restou por salvar.
 
-# 2. Se há trabalho importante, criar branch de resgate
+# 1. Verificar trabalho nao commitado -- incluindo IGNORADOS, que o
+#    `--porcelain` puro omite (um `.env` ficaria invisivel).
+git -C .worktrees/{orphan-name} status --porcelain --untracked-files=all --ignored
+
+# 2. Se ha trabalho importante, criar branch de resgate.
+#    ⚠️ `git add -A` NAO resgata arquivos IGNORADOS (medido: 0 staged com um
+#    `seg.env` presente). Eles precisam ser copiados a mao antes de remover.
 git -C .worktrees/{orphan-name} checkout -b rescue/orphan-work
 git -C .worktrees/{orphan-name} add -A
 git -C .worktrees/{orphan-name} commit -m "rescue: work from orphaned worktree"
 
-# 3. Remover worktree
-rm -rf .worktrees/{orphan-name}
-git worktree prune
+# 3. Arquivos IGNORADOS: o `worktree remove` NAO recusa por causa deles --
+#    medido: com `seg.env` ignorado presente o comando teve SUCESSO e o
+#    arquivo foi DESTRUIDO. Confiar na recusa do git aqui e fail-open.
+#    Verifique explicitamente e salve-os fora do worktree.
+IGN=$(git -C .worktrees/{orphan-name} status --porcelain --ignored \
+      | awk '/^!! /{print substr($0,4)}')
+if [ -n "$IGN" ]; then
+  echo "conteudo ignorado presente -- NAO sera resgatado por 'add -A':" >&2
+  printf '  %s\n' "$IGN" >&2
+  echo "copie-os para fora do worktree antes de remover" >&2
+  exit 1
+fi
+
+# 4. So entao remover. NUNCA `rm -rf` nem `--force`.
+git worktree remove .worktrees/{orphan-name} || {
+  echo "resgate incompleto: ainda ha conteudo nao commitado" >&2
+  echo "salve-o antes de remover -- NAO use --force nem rm -rf" >&2
+  exit 1; }
 ```
 
 ### Cenário 4: Merge Hierárquico com Conflitos
