@@ -23,7 +23,7 @@ import sys
 
 # Block header markers — keyed on the emoji, not the words, so the block is
 # detectable in any operator language (pt-BR "PRECISA DE VOCÊ", en "NEEDS YOU").
-BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)")
+BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)[^(\n]*(?:\((\d+)\))?")
 ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)")
 # A well-formed item: icon + UPPERCASE verb in bold, then a separator and the ask.
 # Asking items (🛑 blocking, 🔶 decision) must also carry an exact reply token in a
@@ -34,7 +34,12 @@ ANY_NUMBERED = re.compile(r"^\s*>\s*(\d+)\.\s")
 # Dependency references inside an item (a PR, ticket, or "after X") must say who
 # owns them and their state, on a ⏳ line of the same block. A human item that waits
 # on something invisible is itself a needle in a haystack.
-DEP_REF = re.compile(r"(#\d+|\b[A-Z][A-Z0-9]+-\d+\b)")
+# Only `#N` by default; ticket keys only for prefixes the operator configures
+# (MAOS_ATTENTION_TICKET_PREFIXES="ABC,XYZ"), so UTF-8 / SHA-256 / SOC-2 are never
+# mistaken for tickets.
+import os as _os
+_PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
+DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
 WAIT_LINE = re.compile(r"^\s*>\s*⏳")
 # Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
 # in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
@@ -66,6 +71,7 @@ def scan(text: str) -> dict:
     items = []
     signals = []
     waits = []
+    header_count = None
     last_nonblank = 0
 
     for i, raw in enumerate(lines, 1):
@@ -81,6 +87,7 @@ def scan(text: str) -> dict:
         if m:
             in_block = True
             block_kind = "attention" if m.group(1) == "🔔" else "clear"
+            header_count = int(m.group(2)) if m.group(2) else None
             block_seen_at = i
             items = []
             waits = []
@@ -95,7 +102,7 @@ def scan(text: str) -> dict:
                     continue
                 im = ITEM_LINE.match(raw)
                 if not im:  # a numbered line with an unknown/legacy marker
-                    items.append({"line": i, "severity": None, "wellformed": False, "deps": []})
+                    items.append({"line": i, "severity": None, "wellformed": False, "deps": [], "n": num.group(1)})
                     continue
                 n = num.group(1)
                 ok_shape = bool(ITEM_WELLFORMED.match(raw))
@@ -104,7 +111,7 @@ def scan(text: str) -> dict:
                     bool(tokens) and all(t.strip("`").startswith(n) for t in tokens))
                 deps = DEP_REF.findall(re.sub(r"`[^`]+`", "", raw))
                 items.append({"line": i, "severity": im.group(1),
-                              "wellformed": ok_shape and ok_token, "deps": deps})
+                              "wellformed": ok_shape and ok_token, "deps": deps, "n": n})
                 continue
             if raw.strip():
                 in_block = False  # block ended by prose
@@ -133,7 +140,12 @@ def scan(text: str) -> dict:
         verdict = "over_cap"
     elif not all(x["wellformed"] for x in items):
         verdict = "malformed_item"
-    elif any(d not in "".join(waits) for x in items for d in x["deps"]):
+    elif [x["n"] for x in items] != [str(k) for k in range(1, len(items) + 1)]:
+        verdict = "misnumbered_items"  # duplicates or gaps make "1 sim" ambiguous
+    elif header_count is not None and block_kind == "attention" and header_count != len(items):
+        verdict = "header_count_mismatch"
+    elif any(not any(re.search(r"(?<![\w#])" + re.escape(d) + r"(?!\w)", w) for w in waits)
+             for x in items for d in x["deps"]):
         verdict = "dependency_unexplained"
     else:
         verdict = "ok"
@@ -152,7 +164,7 @@ def scan(text: str) -> dict:
 
 WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
         "block_not_last", "over_cap", "malformed_item",
-        "dependency_unexplained"}
+        "dependency_unexplained", "misnumbered_items", "header_count_mismatch"}
 
 
 def main(argv: list[str]) -> int:

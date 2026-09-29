@@ -43,8 +43,11 @@ checked, because an amnesic agent forgets conventions.
    "after X merges"), the block carries a `⏳` line for it: owner, state, and whether the
    human has anything to do. An item that says "after #463" while #463 appears nowhere
    forces the human to go hunt for #463 — the needle problem, one level down. The linter
-   flags this as `dependency_unexplained`.
-7. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
+   flags this as `dependency_unexplained`. `#N` references are always checked; ticket
+   keys only for prefixes listed in `MAOS_ATTENTION_TICKET_PREFIXES` (so `UTF-8` is not a
+   ticket).
+8. **Items numbered 1..N, and the header count `(N)` equals the item count.**
+9. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
    goes in the block. The block is not a license to ask more.
 
 ### Template — items pending
@@ -97,13 +100,13 @@ circles as item markers.
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 33 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 36 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
 
 Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
 `hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.
 
 Hook safety: never blocks (exit 0), one-shot per turn (atomic mkdir keyed on `prompt_id`,
-or on a message digest when the harness omits it — and never re-injects on a
+or, when the harness omits it, on the first Stop of the cycle only — never on a
 hook-driven continuation), fail-safe on any
 missing dependency, untrusted ids path-allowlisted, every invocation ledgered at
 `~/.claude/state/attention-block-gate/ledger.jsonl`. Kill-switches: `MAOS_ATTENTION_GATE=0`,
