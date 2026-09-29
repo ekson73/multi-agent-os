@@ -1,0 +1,42 @@
+schema: 1
+id: warp
+name: Warp
+vendor: Warp
+kind: desktop-app
+detect:
+  commands:
+  - warp
+  paths:
+  - ~/.warp
+  - /Applications/Warp.app
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.warp/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  supports:
+    headers: false
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://docs.warp.dev/knowledge-and-collaboration/mcp
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: Warp manages MCP servers primarily in-app (Warp Drive); whether ~/.warp/mcp.json is read or only exported is
+  unverified
+notes: File observed with 1 stdio entry {command, args}.
