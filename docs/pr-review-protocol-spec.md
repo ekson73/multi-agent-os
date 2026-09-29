@@ -259,7 +259,26 @@ gh pr comment <numero> --body "## Análise da Revisão
 - {link para spec/requisito que suporta a decisão}"
 
 # Merge
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 #### 6b. Aplicar Correção (Loop)
@@ -367,12 +386,34 @@ gh pr comment <numero> --body "## ⚠️ Status: Requer Assistência Humana
 - [ ] CI/CD checks passando (se configurado)
 
 ```bash
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 
-# Cleanup
-cd /path/to/repo
-rm -rf .worktrees/{session-id}-{feature}
-git worktree prune
+# Cleanup: DELEGADO, sem copia executavel. Um `worktree remove` solto aqui
+# perde as guardas do Step 12 (PR MERGED; worktree resolvido pelo REGISTRO via
+# headRefName; `status --porcelain -uall --ignored` vazio; ponta == headRefOid)
+# e o fail-closed que impede seguir para as delecoes de ref quando o remove
+# falha. Uma copia parcial com uma guarda so e pior que nenhuma: parece segura.
+#
+#   Cleanup completo -> rules/pr-governance-unified.md, Step 12
 ```
 
 ---
@@ -558,7 +599,26 @@ gh pr comment <numero> --body "## ⚠️ Bypass de Revisão Autorizado
 **Risco assumido**: Sim"
 
 # Merge imediato
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ### 6.2 Hotfix Crítico
@@ -582,7 +642,26 @@ gh pr create --title "HOTFIX: {descrição}" --body "
 Revisão post-mortem agendada para {data}.
 "
 
-gh pr merge <numero> --merge
+# Metodo resolvido por autoridade LOCAL do repo -- ver
+# rules/pr-governance-unified.md Step 9. NUNCA `--merge` por reflexo:
+# 4 repos do inventario declaram squash e um repo squash-only rejeita.
+# CARREGUE o metodo persistido pelo Step 9a. "Rode o Step 9 e exporte" era
+# impossivel: export nao atravessa shell, e o Step 9 completo ja mergeia --
+# o caller produziria um SEGUNDO merge.
+# O Step 9a resolve e persiste (autoridade local do repo +
+# capacidade EFETIVA da base). Usa-lo sem origem apenas move o problema:
+# vazio produz `gh pr merge --`, e um valor arbitrario nao foi validado.
+MERGE_METHOD=$(cat "$(git rev-parse --git-dir)/MERGE_METHOD" 2>/dev/null) || MERGE_METHOD=""
+case "$MERGE_METHOD" in
+  merge|squash|rebase) ;;
+  *) echo "fail-closed: metodo nao resolvido -- rode o Step 9a antes" >&2; exit 1 ;;
+esac
+REVIEWED_OID=$(cat "$(git rev-parse --git-dir)/REVIEWED_OID" 2>/dev/null) || REVIEWED_OID=""
+case "$REVIEWED_OID" in
+  [0-9a-f][0-9a-f]*) ;;
+  *) echo "fail-closed: OID auditado ausente -- rode o Step 7 antes" >&2; exit 1 ;;
+esac
+gh pr merge <numero> --"$MERGE_METHOD" --match-head-commit "$REVIEWED_OID"
 ```
 
 ---

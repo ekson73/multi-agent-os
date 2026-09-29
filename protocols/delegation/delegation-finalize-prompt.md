@@ -34,9 +34,9 @@ If dirty → either commit (atomic, with `Agent: {session-id}` sign-off line), s
 
 Per `skills/worktree-policy/SKILL.md` + `skills/hierarchical-merge/SKILL.md`:
 
-- **Merged**: delete the worktree after PR merge — `git worktree remove .worktrees/{agent-hex}-{feature} --force` + `git branch -D {branch}`.
+- **Merged**: delete the worktree after PR merge — **only** through the guarded procedure in `rules/pr-governance-unified.md` Step 12 (gates: PR `MERGED`; worktree from the **registry** via `headRefName`; `status --porcelain --untracked-files=all --ignored` empty; local tip == `headRefOid`; remote tip == `headRefOid` **or absent** — automation may have deleted it; rejected is a remote tip that exists and differs). Then `git worktree remove <path>` + the **atomic** `git update-ref -d "refs/heads/{branch}" "$MERGED_OID"` — never bare `git branch -D`, which discards a commit pushed between the gates and the deletion. **NEVER `--force`** — it deletes another session's uncommitted WIP with no warning; a dirty worktree is fail-closed, not an obstacle to override.
 - **WIP** (must persist): keep the worktree AND write `<worktree>/RESUME.md` with a 5-line handoff (context, last step, next step, blockers, ETA).
-- **Abandoned**: remove worktree + document reason in `dna_delegation_learnings.md` (user-scope memory) so future sessions don't re-attempt blindly.
+- **Abandoned**: remove worktree + log the reason in `dna_delegation_learnings.md` so future sessions don't re-attempt blindly.
 
 Branches merge to **parent**, not directly to main (Hierarchical Merge Protocol). Exceptions: `bugfix/`, `hotfix/`, `emergency/` prefixes.
 
@@ -91,13 +91,28 @@ Use `protocols/delegation/provider-matrix.md` rows for the active `TICKET_PROVID
 
 ### 7.3 PR merge decision
 
-Consult `feedback_autonomous_merge.md` (user-scope memory). If all 6 criteria met → merge autonomously via `gh api -X PUT /repos/.../pulls/{n}/merge` (prefer REST over `gh pr merge` to avoid local checkout side-effects in multi-worktree setups). Otherwise → pause and request delegator confirmation with the criteria table.
+Consult `feedback_autonomous_merge.md`. All 6 criteria met → merge autonomously; else
+pause and request confirmation with the criteria table.
 
-### 7.4 Post-merge sync
+**Execute the merge through canonical Step 9** (`rules/pr-governance-unified.md`) — do
+not inline the command here. A second executable copy is exactly the drift this protocol
+suffered: it merged over REST without `merge_method`, silently falling back to a merge
+commit on repos that declare squash. Step 9 resolves the method from declared policy ∧
+effective capability (repo flags, rulesets, classic protection) and fails closed.
 
-- Delete remote branch: `gh api -X DELETE /repos/.../git/refs/heads/{branch}` (GitHub) or equivalent per provider.
-- `git fetch origin` + `git merge --ff-only origin/main` in the main worktree.
-- Remove the feature worktree + prune: `git worktree prune`.
+### 7.4 Post-merge cleanup
+
+**Delegate to canonical Steps 10 and 12** — no cleanup commands belong in this file.
+
+- **Step 10** syncs the branch the PR merged **into**, resolved from the PR — never
+  `origin/main` by reflex.
+- **Step 12** removes the worktree and refs under all its gates, deleting local and remote
+  refs **atomically** (expected-OID / lease).
+
+⛔ Two forms are **never** acceptable, whatever the caller: deleting the remote ref over
+REST (that endpoint has **no expected-OID parameter**, so it cannot be atomic — a push
+landing mid-call is destroyed undetectably) and bare `git worktree prune` as cleanup
+(skips every gate).
 
 ---
 

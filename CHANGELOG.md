@@ -53,6 +53,300 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
   exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
 
+### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
+
+- `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
+  facts per AI-coding harness — detect, MCP config path, format, key path, entry style, transports,
+  header/env/disable support, CLI add/list/remove, extension surfaces, update command, docs URL,
+  `last_verified`, `confidence`. Low-confidence or `skip_reason` entries are plan-only.
+- `bin/harness-mcp-sync` (new; Python 3.11 stdlib + PyYAML): one vendor-neutral MCP SSOT →
+  every harness's native file. Modes explain · inventory · doctor · plan · apply · verify ·
+  restore · resolve · update. Dry-run by default, timestamped backups, atomic write + chmod 600, parse-back
+  validation with auto-restore, idempotent, ownership manifest in the state dir (no marker keys in
+  harness files), conflict on unmanaged same-name entries (`--adopt`), legacy removal only via
+  SSOT `replaces`, surgical TOML edits, fail-closed refusal of every write/restore into a git-visible
+  (tracked / untracked-unignored) file unless `--allow-git-visible` (then secret-carrying servers are still refused), refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
+  Config + manifest atomicity via a salted, MAC'd write-ahead intent journal with reconcile on the
+  next run, an exclusive run lock, and `resolve` as the operator escape; threat model and design in
+  `docs/harness-mcp-sync-threat-model.md`.
+- `templates/harness-mcp-sync/ssot.schema.json` + `ssot.example.json` (placeholders only).
+- `bin/tests/harness-mcp-sync.test.sh` (+ `harness-mcp-sync.crash.py` crash injection): temp-HOME
+  fixtures; never touches real configs.
+- `skills/harness-concierge/` (new; soul-name Dragoman, named by `anima`): knowledge + routing skill
+  over the registry and executor; sibling of `claude-code-concierge`, which now hands non-Claude
+  harness MCP questions to it.
+
+### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
+
+- `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —
+  adds an always-on ASCII progress bar to recap-mode `## 4. $execution_metrics` for
+  the two probe-measured metrics `prs_green` and `pr_agentic_convergence` only
+  (`% Plan execution` / `% Principais completos` stay text, labelled `(LLM-estimated)`,
+  no bar — a bar is a measured-denominator privilege, per new anti-pattern #30). Bar
+  spec: `[####------]` 10 cells, glyphs `#`/`-`/`[`/`]`,
+  `filled = 0 if pct==0 else max(1, floor(pct/10))`, state `GREEN ≥90 / WARN 60-89 /
+  RED <60`, no emoji, no Unicode block, ANSI only in `console` under `[ -t 1 ]`, in `md`
+  inside a fence. The human line always carries `<label> <TOKEN> <pct>% (<n>/<total>)`;
+  `--format=json` carries the metrics as an `execution_metrics` array inside the single
+  recap object (not a standalone document — the rest of the recap and Phase-5 `_meta` are
+  preserved), each `{metric,numerator,denominator,pct,state,bar}` (a hole keeps its metric
+  object with `state:"UNKNOWN"`, `bar:null`, `null` numerics — never a faked `0`) as the machine
+  contract. Deterministic layer = a 12-row literal lookup table in the template (the
+  LLM copies a row, never computes — `pct` is already materialized by R3), so same-state
+  reruns are byte-reproducible; no bundled script. Adds a dedicated recap `$risks` section
+  (§12; old §12-16 renumbered to §13-17), a Phase 3b.6 bar spec + degradation/diagnostic
+  block, anti-patterns #30/#31, 7 edge cases, and new localizable bundle keys in
+  `translations/en-us.yml` + `translations/pt-br.yml` (state tokens / json keys / metric
+  ids / glyphs stay en-US PRESERVE-class). recap-only; no new flag; `triggers`/`evals`
+  unchanged. Self-heal M.O. is **N/A por artefato** (declarative skill, no `scripts/` dir).
+  Per the council-of-MoE Design Decision Record. `cycles_completed:0` +
+  `promotion_eligible:false` kept (ADR-017 R1 reset is a no-op).
+
+### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
+
+- `skills/openrig-concierge/` (new; soul-name Navarch) — the front desk and guarded operator for
+  [OpenRig](https://github.com/mvschwarz/openrig) (Apache-2.0), the local control plane that runs Claude
+  Code and Codex seats as one rig. OpenRig 0.5.14 already ships about 78% of the needed knowledge as
+  first-party context packs, so the skill **routes** to them with `rig context get <ref>` (33 refs, each
+  resolved on 0.5.14) and copies none. It **owns** only the gap, in four references: `tiers.md` (T0–T3,
+  every `rig` command classified by the asset it protects), `trust-gates.md` (Claude workspace trust,
+  Claude project-MCP approval, Codex "Hooks need review": diagnose → least privilege → clear →
+  pre-configure, with operator guardrails: native hook review only and never a hand-written
+  `trusted_hash`, `deny` rather than `ask` for unattended seats, no secret access from seats, no trust by
+  name/path/owner alone), `external-crew.md` (a crew on an arbitrary repo: starter choice, builtin
+  `agent_ref` reuse from outside the install tree, one worktree per writing seat through member `cwd`
+  (never `rig up --cwd`), a culture file that carries the project's own governance, checkout hygiene for
+  projected files and managed blocks, the conduct loop from outside the rig, snapshot-first teardown)
+  and `sources.md` (the fact ladder, the refresh procedure, naming traps). `CANON.md` records the 11
+  decisions. Seven modes: explain, operate, heal, architect, crew, audit, anchor. Every cited `rig`
+  command and flag was checked against `rig <cmd> --help` on 0.5.14. There are no scripts, so the skill
+  is complete on the npm/Pi and `npx skills` surfaces, which carry skills only.
+- `agents/openrig-fleet-engineer.md` (new) — a thin delegable persona (Claude git plugin only). It loads
+  the skill through the Skill tool and resolves the references from the skill's base directory. At session
+  start it instantiates a concrete agent ID instead of echoing the ID template.
+- `skills/README.md` and `agents/README.md`: one inventory row each, plus the concierge family line.
+
+### Fixed — `openrig-concierge`: hard STOP for external crews, plus verified OpenRig facts
+
+The first real run of the skill and the `openrig-fleet-engineer` agent built a Claude crew on a private target
+repo under `rig` 0.5.14 (cc75efdd). Review of the resulting guidance showed that no crew recipe for a target
+repository (writing, reviewing or research) could yet be backed by evidence. This entry therefore carries one
+hard stop plus only verified OpenRig facts; the isolation design is tracked in #453.
+
+- **Stop: external crews are not supported.** External crews on a target repository (any seat, any role,
+  attended or unattended) are not supported by this skill until the isolation design (#453) is validated: do
+  not launch them. An already-running external-target crew is diagnosis-only; the one permitted action is
+  containment teardown (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig
+  the delegation names. The crew recipe is removed; `external-crew.md` is now the STOP with its reasons plus facts
+  (`SKILL.md` §0 items 7–8 and its operate/heal modes, `CANON.md` C6, `external-crew.md` §0, the agent's prohibitions, `tiers.md` rule 4).
+- **Retraction: never point a seat's `cwd` at a repository checkout.** OpenRig 0.5.14 unconditionally
+  guidance-merges a managed block into `<cwd>/CLAUDE.md`, so launching modified a tracked file
+  (`external-crew.md` §3, `CANON.md` C6, `SKILL.md` §0 item 5, the agent).
+- **Culture delivery:** `culture_file` also resolves to a guidance merge; `startup.files` with
+  `delivery_hint: send_text` delivers a culture without writing into the cwd (`external-crew.md` §4).
+- **Command shapes (0.5.14).** `rig snapshot`, `snapshot list`, `launch` and `restore` take the rig ID;
+  `rig restore status` needs `--rig <rigId>`; single-node `rig launch --plan` is rejected; outside a seat,
+  `rig queue create` needs an honest external `OPENRIG_SESSION_NAME` label; `rig queue handoff` needs `--body`,
+  with the evidence reference inside it; outside-seat `rig send` carries no sender identity, so sign the body;
+  `--wait-for-idle --verify` is not a turn boundary (`tiers.md`, `external-crew.md` §8 and §9, `CANON.md` C7).
+- **Stopped-rig relaunch.** `rig up <name> --existing` can fail after a fresh seat launch, and `rig up <spec>`
+  with a stopped rig's name creates a second same-name rig. Relaunch under a new name and address rigs by ID
+  (`external-crew.md` §6).
+- **Readiness under a nesting terminal wrapper**: a seat is ready only when `startupStatus=ready`, `rig capture`
+  shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` activity is live (`external-crew.md` §7,
+  `trust-gates.md` §1, the agent).
+
+### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
+
+`package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
+calls a helper (`skills/*/scripts/**`, `skills/*/bin/**`) arrived broken on the npm/Pi
+surface while working from the git-marketplace Claude plugin. Eight skills were
+affected: `agentic-session-harness`, `bot-finding-arbiter`,
+`decompose-abstract-to-measurable`, `goal-recovery`, `ooda-loop`, `session-reentry`,
+`system-health-responder`, `transcript-corrector`.
+
+- **Added** the asset globs `skills/*/scripts/**` and `skills/*/bin/**`. They exclude
+  `__pycache__/`, `*.pyc`, nested `tests/` or `fixtures/` directories, and test scripts
+  named `*-test.*`, `*_test.*`, `test_*` or `test-*`.
+- **Added** the runtime assets the shipped helpers read or source, as explicit narrow
+  paths:
+  - `agentic-session-harness/hooks/lib.sh`, sourced by `bin/agentic-reindex` and
+    `bin/agentic-decide`.
+  - `ooda-loop/templates/*.json`, the schemas `bin/validate_intake_contract.py`
+    validates against.
+  - `goal-recovery/templates/*.json`, `decompose-abstract-to-measurable/templates/*.json`
+    and `decompose-abstract-to-measurable/examples/*.json`, the contract schemas and
+    inputs named in those skills' procedures.
+- **Narrowed out** two skills that cannot run from the package without a redesign. Their
+  `SKILL.md` files still ship, as before.
+  - `system-health-responder/bin/**`: the responder needs a machine-local, macOS/launchd
+    collector that uses user-scope absolute paths, and 3 of its 5 `bin/` files are test
+    suites (#446).
+  - `transcript-corrector/scripts/**`: the pipeline needs catalogs that hold an
+    organisation-specific roster of personal names, and it writes its audit output into
+    the package directory (#447).
+- **Proof** from `npm pack --dry-run --json`, before → after: 159 → 191 entries, packed
+  size 768,909 → 833,715 bytes, unpacked 2,027,976 → 2,239,508 bytes. The 32 added
+  paths are 15 helpers, `hooks/lib.sh` and 16 JSON schemas or examples. All are text
+  files, the pack contains no test, fixture, cache or binary file, and nothing was
+  removed. On a clean `npm install <tgz>`, all 15 helpers exit 0 on `--help` or a real
+  invocation, and `gitleaks detect --no-git` over the extracted tarball finds no leaks.
+- No contract change for the Claude plugin, which already ships the whole repository.
+
+### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
+
+Superficies prescritivas em `rules/`, `skills/`, `protocols/` e `docs/`
+mandavam comandos git que falham ou destroem trabalho — o mesmo procedimento
+de cleanup e a mesma escolha de merge existiam em varias copias divergentes,
+algumas oferecendo `rm -rf`, que ignora toda checagem do git.
+
+Agora ha UM procedimento guardado e as demais copias delegam a ele. O conjunto
+exato de arquivos tocados e o diff/historico deste PR — nao um numero fixo
+aqui, que envelheceria a cada rodada de revisao. O que NAO envelhece e a
+garantia: `tests/governance/test-no-destructive-git-prescriptions.sh` reprova
+qualquer reintroducao, e roda dentro do `validate-plugin`.
+
+Cada correcao abaixo tem contraprova executada.
+
+- **Step 9 — metodo de merge resolvido, nao fixo.** O `--merge` incondicional
+  contrariava os 4 repos do inventario que declaram squash. Agora resolve por
+  autoridade LOCAL do repo (declaracao explicita > default), cobre os TRES
+  metodos e e **fail-closed** quando o metodo declarado esta desabilitado.
+- **Capacidade efetiva, nao so a flag do repo.** `required_linear_history` faz o
+  GitHub rejeitar merge commit mesmo com `allow_merge_commit=true`. O gate agora
+  consulta rulesets **e** branch protection classica, pagina o endpoint
+  (`--paginate --slurp` + `add`) e codifica bases com barra (`release/1.0` cru
+  devolvia `[]` com exit 0 — falha ABERTA).
+- **Step 12 — todas as guardas antes de qualquer remocao.** PR `MERGED`; worktree
+  resolvido pelo REGISTRO a partir de `headRefName` (havia TRES convencoes de
+  path incompativeis); `status -uall --ignored` (o `--porcelain` puro omite
+  ignorados, e o remove apagaria um `.env` de outra sessao); e ponta atual ==
+  `headRefOid` (ancestralidade contaria os commits originais apos squash e
+  reprovaria todo cleanup legitimo).
+- **`git worktree remove --force` proibido** — destroi WIP nao commitado sem
+  aviso. Worktree sujo e fail-closed, nao obstaculo a forcar.
+- **Delecao da branch local vira ATOMICA** — `git update-ref -d "refs/heads/$B"
+  "$MERGED_OID"`. `git branch -d` RECUSA apos squash/rebase (a ponta deixa de ser
+  ancestral da base), mas `-D` tambem nao serve: entre a checagem `MERGED` e a
+  execucao outra sessao pode avancar a branch, e `-D` apaga mesmo nao-mesclada.
+  A forma com expected-OID FALHA em vez de destruir o commit alheio.
+- **Base nunca fixa em `main`**: Steps 3/6/10 resolvem e persistem `BASE_REF`
+  (variavel de shell nao sobrevive entre steps).
+- **Reviewer indisponivel deixa de ser dispensa de revisao.** Qodo virou fallback
+  de verdade (so quando o primario falha) e "ambos indisponiveis" e ESTADO
+  BLOQUEANTE ate a passagem DIY ser executada e divulgada no corpo do PR.
+- **Comandos de CLI inexistentes removidos** das tres regras: `cr review --plain`,
+  `--type uncommitted|all` e `qodo --ci -y` nao existem mais (verificado no
+  `--help`); substituidos pelas flags reais.
+- **Fail-opens de shell** fechados: sob `set -e`, `V=$(cat inexistente)` aborta e
+  torna os fallbacks inalcancaveis; `cmd; RC=$?` aborta no status legitimo 2; e
+  `read ... <<<"$(cmd)"` mascara a falha do comando com campos vazios.
+
+### Fixed — `.gitleaks.toml` false-positive gate on `main` (v1.0.0 → v1.1.0)
+
+- The **scheduled** `Supply-Chain Sentinel` gitleaks job had been failing on `main`
+  every day (3 of 3 `schedule` runs: 2026-09-16/17/18) while **all 22** `push` /
+  `pull_request` runs passed. Cause: the scheduled scan walks full history
+  (`git log -p -U0 --full-history --all`, 601 commits) and so reaches commit
+  `20df6d93` (2026-02-23), which a push-scoped incremental scan never sees. The 2
+  findings were **documentation placeholders**, not secrets — the literal value
+  `your_app_password` in `mcp-tools/maos-mcp-hub/.env.example:13` and
+  `mcp-tools/maos-mcp-hub/README.md:94`, matched by rule `vek-bitbucket-app-password`
+  (whose regex accepts any 8+ non-`$` characters). A red gate that cannot be fixed by
+  any commit trains contributors to ignore the one secret-scanning gate the repo has.
+- Fix: a **narrow placeholder allowlist** on the global `[allowlist]`, matching only
+  the exact documented Bitbucket app-password placeholder lines whose value is literally
+  `your_app_password` / `your_app_password_here` — the two proven false positives.
+  Chosen over a `.gitleaksignore` fingerprint because a fingerprint ignores a specific
+  *location* (`file:rule:startLine`), so it says nothing about the value and would keep
+  suppressing that line even if a real secret later replaced the placeholder there;
+  this allowlist instead keys on the placeholder *value*, so the exemption evaporates
+  the moment the value stops being the documented placeholder. Deliberately NOT
+  broadened to arbitrary value shapes (`<…>`, `{{…}}`, `changeme`, `x{8,}`): those occur
+  in real weak credentials, and a global exemption for them would silently hide an
+  actual leak.
+- The allowlist uses `regexTarget = "line"` and is anchored to the whole source
+  line (`^…$`), so it exempts only the exact documented Bitbucket app-password
+  placeholder lines (bare `KEY=value`, JSON `"KEY": "value",`, and commented
+  `# KEY=value_here`) whose value is literally `your_app_password` /
+  `your_app_password_here`. Line-anchoring (rather than anchoring the rule
+  *match*) is deliberate: a rule match can truncate at a quote, so a
+  `$`-anchored match target would still fire on `=your_app_password'REALSECRET'`
+  and hide the trailing secret. Testing the entire line means any extra content
+  breaks the anchor and the credential stays detectable — verified by control
+  tests: a real `BITBUCKET_APP_PASSWORD` value, a value glued/quoted after the
+  placeholder, and `changeme` on a Spring or Quarkus datasource password key are
+  all still detected, while the finding set is **identical with the allowlist
+  present vs. removed** for every real value (the exemption adds no suppression
+  beyond the documented placeholder lines).
+
+### Added — Kiro install path + co-habitation/compatibility doc
+
+- `docs/kiro-cohabitation.md` (new) — how MAOS installs on the Kiro family
+  (`kiro-cli`, Kiro IDE, Kiro Crew) **alongside** Claude Code on the same machine,
+  and an honest account of what ports and what does not (verified on
+  `kiro-cli 2.22.0`). Every change is ADDITIVE — nothing under `~/.claude/**` or any
+  other harness path is removed, renamed or degraded. Documents Kiro's TWO
+  independent skill loaders (`~/.kiro/skills` for kiro-cli + IDE default agent;
+  `skills.extra_paths` for Kiro Crew), the single valid agent id `kiro-cli` (`kiro`
+  /`kiro-ide`/`kiro-crew` are invalid and write zero files), governance-hook porting
+  (**6 of 8 MAOS hook classes port**; only context-compaction governance
+  `PreCompact`/`PostCompact` is genuinely lost — Kiro 2.22.0 has no compaction event),
+  Kiro's stronger `permissions.yaml` deny layer — scoped to the **IDE + `kiro-cli`
+  surfaces**, since Kiro Crew is governed by its own separate trust root and hardening
+  `permissions.yaml` does **not** harden Crew — and the first-writer-wins name-masking
+  hazard. `agents/` is stated as repository-only source (the skills CLI installs skills,
+  not agents; Kiro's own custom-agent surface is JSON under `~/.kiro/agents/`). Powers is
+  noted as an unverified target-only distribution surface, not a shipped one.
+- `README.md` — new **Installation → Kiro (kiro-cli + Kiro IDE + Kiro Crew)**
+  subsection: the two-step install (`npx skills add … -a kiro-cli`, then
+  `kirocrew config set skills.extra_paths '["~/.kiro/skills"]'`), why two steps (two
+  loaders, skills CLI reaches only one), one copy on disk / no clone, and a pointer to
+  `docs/kiro-cohabitation.md`. `AGENTS.md` stays the vendor-neutral SSOT (no `KIRO.md`).
+- `docs/multi-host-packaging.md` — the published `skills` agent id for Kiro was `-a kiro`,
+  which the CLI **rejects** (`Invalid agents: kiro`) while writing **zero** files, so anyone
+  following that line got a silent no-op. Corrected to `-a kiro-cli`, with the Kiro Crew
+  second-loader step (`skills.extra_paths`) alongside it and a pointer to
+  `docs/kiro-cohabitation.md`.
+
+### Added — `self-heal-relay` pattern across 3 cross-language scripts + pattern doc
+
+- `docs/self-heal-relay.md` (new) — pattern doc (NOT a skill) for the Anima-named
+  `self-heal-relay` (soul-name "Phoenix"): on an UNEXPECTED fault a script captures a
+  run log + an UNTRUSTED-labelled prompt, then relays the error to a harness-agnostic
+  AI fallback chain (`kiro-cli → claude → codex → opencode → gemini → crush → amp`,
+  most-qualified-first, each with its own headless syntax + a SCOPED never-trust-all
+  tool set) for auto-repair. Cites `~/.kiro/steering/eko-executable-scripts.md` §prop-6
+  as the upstream standard; reference impl `bin/kirocrew-extras`.
+- `plugin-scripts/governance/worktree-gate.sh` — ported the pattern as a
+  `trap self_heal ERR` handler. Fires ONLY on an unexpected fault (unbound var,
+  `require_jq` fail, `source` fail); the intentional `exit 2` BLOCK verdict is never
+  intercepted (ERR does not trip on a plain `exit 2`, plus a defensive re-exit-2
+  guard). The runlog tee goes to STDERR only — the hook's JSON-RPC verdict is left
+  uncorrupted.
+- `bin/work-compass-aggregate.py` — `__main__` wrapped in `try/except` that RE-RAISES
+  `SystemExit` (preserves the clean exit 0, argparse's exit-2 usage, and the exit-1
+  route-miss) and relays ONLY on an uncaught `Exception`. Stdlib only
+  (`subprocess`/`tempfile`).
+- `bin/research-dossier-render.mjs` — `process.on('uncaughtException'/'unhandledRejection')`
+  + a `main()` wrapper that relays the exit-2 IO/usage class; the exit-1 GATE-FAILURE
+  verdict is guarded and NEVER relayed. Zero-dependency (Node builtins only).
+- All three honour opt-out `MAOS_SELFHEAL=0` and order override `MAOS_AI_HARNESS`,
+  and embed the run log as UNTRUSTED-labelled prompt data. Existing behavior, exit-code
+  semantics, and stdout contracts preserved (`bin/tests/research-dossier.test.sh`:
+  90 passed; `tests/validate-plugin.sh`: 0 errors / 0 warnings).
+
+### Added — `sprint-carryover` skill + command (#429)
+
+- `skills/sprint-carryover/SKILL.md` + `commands/sprint-carryover.md` (new) — relocate stranded open
+  backlog from past/closed sprints into the active sprint: discover → present → (operator-gated) move
+  → report. dry-run default ON; the MOVE is a HUMAN_DOMAIN bulk mutation of a shared tracker and is
+  confirm-gated. Level-triggered/idempotent (re-derives from the tracker each pass, no stored queue);
+  report table `ticket-id | Title/Description-slug | Old Sprint | New Sprint`; `--json` family
+  envelope with `proposed`/`migrated`/`skipped`/`failed`. Composes `work-compass` for the discovery
+  fan-out + identity seed; sprint/owner enrichment and pagination are the skill's own tracker-native
+  query. EN+PT triggers; capability-detected (MCP first, then `gh`/`acli`/`jira` CLI).
+
 ### Fixed — `morning-briefing` v1.8.1: default-scope worktree leakage (PR #422)
 
 - `skills/morning-briefing/SKILL.md` — the default `--scope=current` briefing was
