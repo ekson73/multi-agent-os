@@ -70,7 +70,7 @@ case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
 case "$verdict" in
-  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained) action="inject" ;;
+  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained|misnumbered_items|header_count_mismatch) action="inject" ;;
   ok) if [ "$items" -gt 0 ]; then action="notify"; fi ;;
 esac
 [ -n "$action" ] || { log "$verdict" false ""; exit 0; }
@@ -80,36 +80,27 @@ safe_id "$sid" || { log "$verdict" false "unsafe_session_id"; exit 0; }
 
 # Dedup key. The harness omits prompt_id intermittently (~35% of real Stop events,
 # measured by the sibling question-batch-gate), so a prompt_id-only guard would
-# silently miss a third of turns. Fallback key = digest of the message itself.
+# silently miss a third of turns. Fallback: bind to the Stop cycle (see below).
 # Loop-safety without prompt_id: never INJECT when this Stop is already a hook-driven
 # continuation (stop_hook_active=true) — the one reminder already happened.
 if safe_id "$pid"; then
   key="p${#pid}.${pid}"
 else
-  if [ "$action" = "inject" ] && [ "$cont" = "true" ]; then
-    log "$verdict" false "continuation_no_prompt_id"; exit 0
-  fi
-  digest="$(printf '%s' "$msg" | shasum -a 256 2>/dev/null | cut -c1-32 || true)"
-  case "$digest" in ''|*[!0-9a-f]*) log "$verdict" false "digest_failed"; exit 0 ;; esac
-  key="m.${digest}"
+  # No prompt_id: the only reliable Stop-cycle boundary the harness provides is
+  # stop_hook_active (false on the first Stop of a cycle, true on a hook-driven
+  # continuation). Act on the first Stop, never on a continuation. No persistent
+  # marker: a message-digest key would wrongly suppress a LATER turn that repeats
+  # the same text (bot review, PR #463 rounds 2-3).
+  if [ "$cont" = "true" ]; then log "$verdict" false "continuation_no_prompt_id"; exit 0; fi
+  key=""
 fi
 
-marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
-# A digest key is NOT unique per turn (two prompts can end in the same "Should I
-# continue?"), so it only dedups within one Stop cycle: a digest marker older than
-# DIGEST_TTL seconds is stale and re-claimable. Loop-safety inside the cycle comes
-# from the stop_hook_active guard above. prompt_id markers stay permanent.
-DIGEST_TTL="${MAOS_ATTENTION_DIGEST_TTL:-600}"
-case "$DIGEST_TTL" in ''|*[!0-9]*) DIGEST_TTL=600 ;; esac
-if [ -d "$marker" ] && [ "${key#m.}" != "$key" ]; then
-  mt="$(stat -f %m "$marker" 2>/dev/null || stat -c %Y "$marker" 2>/dev/null || echo 0)"
-  now="$(date +%s)"
-  case "$mt" in ''|*[!0-9]*) mt=0 ;; esac
-  if [ $(( now - mt )) -ge "$DIGEST_TTL" ]; then rmdir "$marker" 2>/dev/null || true; fi
-fi
-if ! mkdir "$marker" 2>/dev/null; then
-  if [ -d "$marker" ]; then log "$verdict" false "idempotent"; else log "$verdict" false "marker_claim_failed"; fi
-  exit 0
+if [ -n "$key" ]; then
+  marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
+  if ! mkdir "$marker" 2>/dev/null; then
+    if [ -d "$marker" ]; then log "$verdict" false "idempotent"; else log "$verdict" false "marker_claim_failed"; fi
+    exit 0
+  fi
 fi
 find "$STATE_DIR" -maxdepth 1 -type d -name '*.marker.d' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 

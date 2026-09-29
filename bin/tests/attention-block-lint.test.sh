@@ -123,5 +123,27 @@ check "dependency explained on a wait line" ok 0 <<'T'
 > ⏳ #463 — comigo (agente): 2ª rodada de revisão dos bots; merge automático quando verde · nada a fazer por você
 T
 
+check "dependency prefix does not match longer id" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — depois do #46 · `1A` / `1B`
+> ⏳ #463 — comigo: outra coisa
+T
+
+check "UTF-8 is not a ticket" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — converter arquivos para UTF-8 · `1 sim` / `1 não`
+T
+
+check "duplicate item numbers" misnumbered_items 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (2)**
+> 1. **🛑 AUTORIZAR** — a · `1 sim`
+> 1. **🔶 DECIDIR** — b · `1A`
+T
+
+check "header count disagrees with items" header_count_mismatch 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (9)**
+> 1. **🛑 AUTORIZAR** — a · `1 sim`
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

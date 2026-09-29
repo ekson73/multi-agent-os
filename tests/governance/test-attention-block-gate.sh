@@ -21,11 +21,9 @@ expect "notify logged for ok block"  'grep -q "\"note\":\"notify\"" "$TMP/state/
 out="$(jq -cn '{last_assistant_message:"Should I merge?",session_id:"../../x",prompt_id:"p4"}' | bash "$HOOK")"
 expect "rejects unsafe session_id"   '[ -z "$out" ] && [ ! -e "$TMP/x" ]'
 out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | bash "$HOOK")"
-expect "injects without prompt_id (digest key)" 'printf "%s" "$out" | grep -q additionalContext'
+expect "injects without prompt_id (first Stop of cycle)" 'printf "%s" "$out" | grep -q additionalContext'
 out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | bash "$HOOK")"
-expect "digest key is one-shot"      '[ -z "$out" ]'
-out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | MAOS_ATTENTION_DIGEST_TTL=0 bash "$HOOK")"
-expect "stale digest marker re-claimable (new turn, same text)" 'printf "%s" "$out" | grep -q additionalContext'
+expect "same text on a LATER turn still gets the reminder" 'printf "%s" "$out" | grep -q additionalContext'
 out="$(jq -cn --arg m 'Outra: posso aplicar?' '{last_assistant_message:$m,session_id:"s9",stop_hook_active:true}' | bash "$HOOK")"
 expect "no re-inject on continuation w/o prompt_id" '[ -z "$out" ]'
 mkdir -p "$TMP/bin"; for c in dirname mkdir date cat; do ln -sf "$(command -v $c)" "$TMP/bin/$c"; done
