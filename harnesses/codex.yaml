@@ -1,0 +1,49 @@
+schema: 1
+id: codex
+name: OpenAI Codex CLI
+vendor: OpenAI
+kind: cli
+detect:
+  commands:
+  - codex
+  paths:
+  - ~/.codex
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.codex/config.toml
+    scope: user
+  - path: ./.codex/config.toml
+    scope: project
+  format: toml
+  key_path:
+  - mcp_servers
+  entry_style: codex
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli:
+    add: codex mcp add <name> [--env K=V] -- <command> <args>  |  codex mcp add <name> --url <url>
+    list: codex mcp list
+    remove: codex mcp remove <name>
+extensions:
+  skills: ~/.codex/skills
+  plugins: '[plugins."<name>@<marketplace>"] tables in config.toml'
+  marketplace: '[marketplaces.<name>] tables in config.toml'
+update:
+  version_cmd: codex --version
+  update_cmd: npm i -g @openai/codex (or brew upgrade codex)
+docs_url: https://developers.openai.com/codex/mcp
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Tables `[mcp_servers.<name>]`. Remote: url = "..." plus `[mcp_servers.<name>.http_headers]` sub-table (or bearer_token_env_var
+  = "ENV_NAME" / env_http_headers to reference env vars instead of literals — preferred). Stdio: command, args = [...], `[mcp_servers.<name>.env]`
+  sub-table, optional cwd, startup_timeout_sec. `enabled = false` disables. config.toml also holds hooks/plugins/marketplaces/projects
+  tables — edit only mcp_servers.*. Observed 33 server tables, 8 env sub-tables, 1 http_headers sub-table.'

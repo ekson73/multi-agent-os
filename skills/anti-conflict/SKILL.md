@@ -33,10 +33,17 @@ git log --oneline -3           # Verify expected state
 ```
 
 ### Phase 1.2: Worktree Creation (Mandatory)
-```bash
-git worktree add .worktrees/{agent-hex}-{feature} -b {tipo}/{name}
-cd .worktrees/{agent-hex}-{feature}
-```
+
+⛔ **Sem cópia executável aqui.** O bloco anterior prescrevia
+`git worktree add ... "origin/$BASE_REF"` sem nenhuma atribuição de `BASE_REF`:
+em shell novo isso aborta sob `nounset` ou entrega a Git o start point inválido
+`origin/`. Era um duplicado parcial incapaz de executar a fase que documenta —
+dizia "delegado" e mesmo assim mandava rodar o comando final.
+
+**Execute o procedimento canônico:** `skills/worktree-policy/SKILL.md`, Phase 1.2.
+Ele resolve e valida a base, cria a partir de `origin/<base>` — criar do HEAD atual
+herdaria commits alheios da branch em que o repo principal por acaso estiver — e
+PERSISTE a base para os passos seguintes.
 
 ### Phase 1.5: Lock File Protocol
 For protected files (CLAUDE.md, README.md, CSVs):
