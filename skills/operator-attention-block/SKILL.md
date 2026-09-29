@@ -78,8 +78,12 @@ linter keys on the emoji markers, so any language works.
 Shapes differ, not only colors: red/orange/yellow circles collapse into one another for
 red-green color-blind readers (WCAG 1.4.1). Order items by severity (🛑 first). Reply tokens
 carry the item number (`1 sim`, `2A`) so a bare "go" is never ambiguous, and use the
-operator's language (`sim`/`não`, not `go`/`no`). The linter still accepts the legacy
-🔴🟠🟡 circles.
+operator's language (`sim`/`não`, not `go`/`no`).
+
+**Why not colored circles**: 🔴🟡🟠🟢🔵 already mean *progress state* in the unified status
+legend (`end-of-action-briefing-protocol` §4.1). Pharos encodes *what the human must do*, a
+different axis, so it uses different glyphs. One icon, one meaning; the linter rejects
+circles as item markers.
 
 ## Enforcement (why this is a mechanism, not a wish)
 
@@ -87,14 +91,19 @@ operator's language (`sim`/`não`, not `go`/`no`). The linter still accepts the 
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 20 cases (buried asks pt/en, fences, quotes, trailing prose, cap, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 27 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed items, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
 
-Hook safety: never blocks (exit 0), one-shot per `prompt_id` (atomic mkdir), fail-safe on any
+Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
+`hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.
+
+Hook safety: never blocks (exit 0), one-shot per turn (atomic mkdir keyed on `prompt_id`,
+or on a message digest when the harness omits it — and never re-injects on a
+hook-driven continuation), fail-safe on any
 missing dependency, untrusted ids path-allowlisted, every invocation ledgered at
 `~/.claude/state/attention-block-gate/ledger.jsonl`. Kill-switches: `MAOS_ATTENTION_GATE=0`,
 `MAOS_ATTENTION_NOTIFY=0`.
 
-Wiring (Claude Code settings, `hooks.Stop`):
+Wiring for a non-plugin install (Claude Code settings, `hooks.Stop`):
 
 ```json
 { "type": "command", "command": "<maos>/plugin-scripts/governance/attention-block-gate.sh" }
@@ -119,8 +128,16 @@ behavioral-binding there, and `attention-block-lint` can run in any CI or review
 4. ❌ Color alone (circles of different colors) without distinct shapes + the verb word.
 5. ❌ `✅ NADA PRECISA DE VOCÊ` while a question sits above it (the linter flags this).
 
-## Relations
+## Harmonization (SSOT map — one owner per concept)
 
-`question-batch-gate` (sibling: counts questions, pushes toward ≤1 per turn) ·
-`end-of-action-briefing-protocol` (the block is its Handoff/Status closing line) ·
-`council-gate` (items only after the council could not resolve them).
+Pharos owns **one** thing: the terminal rendering of *what the human must act on*. It does
+not replace any sibling; it is the single place their human-action items end up.
+
+| Concept | SSOT | Pharos relation |
+|---|---|---|
+| Progress state of every item (🔴 not-started · 🟡 in-progress · 🟠 need-HITL · 🟢 agentic-done · 🔵 human-done) | `end-of-action-briefing-protocol` §4.1 | every 🟠 `need_hitl` item of that checklist is rendered here, last |
+| How to phrase one question (tool-over-prose, recommended first) | `end-of-action-briefing-protocol` §7.1 | if an `AskUserQuestion` tool exists and the reply is blocking, use it; the block still lists it so nothing lives only in prose |
+| ≤1 question per turn | `question-batch-gate` | sibling gate: it limits *how many*; Pharos fixes *where* |
+| Recap sections unanswered-Qs · undecided · HITL-pendings · handoff menu | `morning-briefing` §9–§11, §16 | those sections keep the detail; the closing Pharos block is their summary pointer |
+| Story-shaped recap and its next step | `opera-debrief` `👉 Próximo passo` | if that step needs the human, it also appears in the closing block |
+| Resolving items before they reach a human | `council-gate` | only its irreducible residue becomes a block item |

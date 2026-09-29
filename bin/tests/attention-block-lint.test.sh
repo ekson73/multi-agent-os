@@ -43,7 +43,7 @@ T
 
 check "block followed by trailing prose" block_not_last 2 <<'T'
 > **🔔 PRECISA DE VOCÊ (1)**
-> 1. **🟡 AÇÃO MANUAL** — rotacionar URL do Zapier
+> 1. **✋ AÇÃO MANUAL** — rotacionar URL do Zapier
 Ah, e mais uma coisa sobre o disco.
 T
 
@@ -53,10 +53,10 @@ T
 
 check "over cap (4 items)" over_cap 2 <<'T'
 > **🔔 PRECISA DE VOCÊ (4)**
-> 1. **🔴 AUTORIZAR** — a
-> 2. **🟠 DECIDIR** — b
-> 3. **🟡 AÇÃO MANUAL** — c
-> 4. **🟡 AÇÃO MANUAL** — d
+> 1. **🛑 AUTORIZAR** — a · `1 sim`
+> 2. **🔶 DECIDIR** — b · `2A`
+> 3. **✋ AÇÃO MANUAL** — c
+> 4. **✋ AÇÃO MANUAL** — d
 T
 
 check "question inside code fence ignored" no_block_no_asks 0 <<'T'
@@ -76,9 +76,24 @@ check "plain status, nothing asked" no_block_no_asks 0 <<'T'
 Disco em 88%, memória 51% livre.
 T
 
-check "legacy color icons still parsed" ok 0 <<'T'
+check "legacy color circles are not items" empty_attention_block 2 <<'T'
 > **🔔 PRECISA DE VOCÊ (1)**
 > 1. **🔴 AUTORIZAR** — x · `1 sim` / `1 não`
+T
+
+check "asking item without reply token" malformed_item 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — encerrar processos, ok?
+T
+
+check "item without verb word" malformed_item 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶** — escolher região · `1A` / `1B`
+T
+
+check "manual step needs no token" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **✋ AÇÃO MANUAL** — rotacionar a URL do Zapier
 T
 
 echo "--- $pass passed, $fail failed"

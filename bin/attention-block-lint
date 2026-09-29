@@ -24,8 +24,16 @@ import sys
 # Block header markers — keyed on the emoji, not the words, so the block is
 # detectable in any operator language (pt-BR "PRECISA DE VOCÊ", en "NEEDS YOU").
 BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)")
-ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋|🔴|🟠|🟡)")
-BLOCKING = {"🛑", "🔴"}
+ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)")
+# A well-formed item: icon + UPPERCASE verb in bold, then a separator and the ask.
+# Asking items (🛑 blocking, 🔶 decision) must also carry an exact reply token in a
+# code span; a ✋ manual step describes an action, so it needs none.
+ITEM_WELLFORMED = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)\s+[A-ZÀ-Ý][A-ZÀ-Ý ]+\*\*\s+[—–-]\s+\S")
+REPLY_TOKEN = re.compile(r"`[^`]+`")
+# Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
+# in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
+# would give one icon two meanings — the exact ambiguity this block exists to remove.
+BLOCKING = {"🛑"}
 
 # Ask-shaped phrases (pt-BR + en). Lower-cased match on prose lines.
 ASK_PHRASES = [
@@ -73,7 +81,10 @@ def scan(text: str) -> dict:
             if re.match(r"^\s*>", raw):
                 im = ITEM_LINE.match(raw)
                 if im:
-                    items.append({"line": i, "severity": im.group(1)})
+                    ok_shape = bool(ITEM_WELLFORMED.match(raw))
+                    ok_token = im.group(1) == "✋" or bool(REPLY_TOKEN.search(raw))
+                    items.append({"line": i, "severity": im.group(1),
+                                  "wellformed": ok_shape and ok_token})
                 continue
             if raw.strip():
                 in_block = False  # block ended by prose
@@ -100,6 +111,8 @@ def scan(text: str) -> dict:
         verdict = "block_not_last"
     elif len(items) > 3:
         verdict = "over_cap"
+    elif not all(x["wellformed"] for x in items):
+        verdict = "malformed_item"
     else:
         verdict = "ok"
 
@@ -110,12 +123,13 @@ def scan(text: str) -> dict:
         "red_items": sum(1 for x in items if x["severity"] in BLOCKING),
         "ask_signals": len(signals),
         "signals": signals[:5],
+        "malformed_lines": [x["line"] for x in items if not x["wellformed"]],
         "block_at_end": at_end and not trailing,
     }
 
 
 WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
-        "block_not_last", "over_cap"}
+        "block_not_last", "over_cap", "malformed_item"}
 
 
 def main(argv: list[str]) -> int:
