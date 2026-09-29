@@ -208,5 +208,41 @@ check "header missing the closing bold" malformed_header 2 <<'T'
 > 1. **🛑 AUTORIZAR** — x · `1 sim`
 T
 
+check "substring boundary: #46 is not explained by a well-formed #463 line" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — depois do #46 · `1A` / `1B`
+> ⏳ #463 — comigo (agente): em revisão dos bots · nada a fazer por você
+T
+
+check "wait line explains its LEADING ref only, not a ref mentioned later" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — mesclar depois do #463 · `1 sim` / `1 não`
+> ⏳ #999 — comigo (agente): em revisão · #463 nada a fazer por você
+T
+
+check "malformed wait line carrying an ask is scanned" unnumbered_ask_in_block 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1 não`
+> ⏳ Should I delete the backups?
+T
+
+check "malformed overflow line carrying an ask is scanned" unnumbered_ask_in_block 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1 não`
+> ➕ Should I also delete the backups?
+T
+
+check "dependency inside a code span is still a dependency" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — mesclar depois do `#463` · `1 sim` / `1 não`
+T
+
+check "separate quoted paragraph after the block breaks last-thing" block_not_last 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1 não`
+
+> outro parágrafo citado, sem relação com o bloco
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
