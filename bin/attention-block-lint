@@ -44,12 +44,15 @@ ANY_NUMBERED = re.compile(r"^\s*>\s*(\d+)\.\s")
 import os as _os
 _PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
 DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
-WAIT_LINE = re.compile(r"^\s*>\s*⏳")
-OVERFLOW_LINE = re.compile(r"^\s*>\s*➕")
 # A CHECKABLE wait line: `> ⏳ <ref> — <owner>: <state> · <what the human must do>`.
 # A bare mention of the ref is not an explanation: owner, state and the human action
 # must all be present, or the dependency is still invisible (CodeRabbit, PR #463).
-WAIT_WELLFORMED = re.compile(r"^\s*>\s*⏳\s+\S.*?\s[—–-]\s+[^:·]+:\s*[^·]*\S[^·]*·\s*\S")
+WAIT_WELLFORMED = re.compile(r"^\s*>\s*⏳\s+(\S+).*?\s[—–-]\s+[^:·]+:\s*[^·]*\S[^·]*·\s*\S")
+# The ref a wait line explains is the one IMMEDIATELY after ⏳ — a ref mentioned later
+# in the same line does not get its status from it (CodeRabbit, PR #463).
+# Overflow: `> ➕ +N <text>`. Anything else after ➕ is not metadata and is scanned.
+OVERFLOW_WELLFORMED = re.compile(r"^\s*>\s*➕\s+\+\d+\s+\S")
+NUMBERED_TOKEN = re.compile(r"`\d+(?:[A-Z]\b|\s|`)")
 # Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
 # in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
 # would give one icon two meanings — the exact ambiguity this block exists to remove.
@@ -90,6 +93,7 @@ def scan(text: str) -> dict:
     malformed_header = False
     stray = []  # ask-shaped quoted lines inside the block that are not numbered items
     last_nonblank = 0
+    block_end = None  # last line of the recognized (contiguous) block
 
     for i, raw in enumerate(lines, 1):
         if raw.strip():
@@ -110,6 +114,7 @@ def scan(text: str) -> dict:
             block_kind = "attention" if m.group(1) == "🔔" else "clear"
             header_count = int(m.group(3)) if m.lastindex and m.lastindex >= 3 and m.group(3) else None
             block_seen_at = i
+            block_end = i
             # Text after the closing `**` is still content: a clear status followed by
             # "— Should I merge?" is an ask, not a clear line.
             suffix = m.group(4) if m.lastindex and m.lastindex >= 4 else ""
@@ -119,16 +124,17 @@ def scan(text: str) -> dict:
             continue
         if in_block:
             if re.match(r"^\s*>", raw):
-                if WAIT_LINE.match(raw):
-                    if WAIT_WELLFORMED.match(raw):
-                        waits.append(raw)
+                block_end = i
+                wm = WAIT_WELLFORMED.match(raw)
+                if wm:
+                    waits.append(wm.group(1).strip("`*_.,;:()[]"))
                     continue
-                if OVERFLOW_LINE.match(raw):
+                if OVERFLOW_WELLFORMED.match(raw):
                     continue
                 num = ANY_NUMBERED.match(raw)
                 if not num:
-                    # Only ⏳ and ➕ are defined metadata; any other quoted line is scanned,
-                    # so an unnumbered ask cannot hide inside the block.
+                    # Only WELL-FORMED ⏳ and ➕ lines are metadata; any other quoted line —
+                    # including a malformed ⏳/➕ — is scanned, so an ask cannot hide there.
                     if _is_ask(re.sub(r"^\s*>\s?", "", raw)):
                         stray.append({"line": i, "text": raw.strip()[:120]})
                     continue
@@ -145,12 +151,13 @@ def scan(text: str) -> dict:
                 numbered = [t.strip("`") for t in tokens if re.match(r"`\d+(?:[A-Z]\b|\s|`)", t)]
                 ok_token = im.group(1) == "✋" or (
                     bool(numbered) and all(re.match(re.escape(n) + r"(?:[A-Z]\b|\s|$)", t) for t in numbered))
-                deps = DEP_REF.findall(re.sub(r"`[^`]+`", "", raw))
+                # Drop only reply-token spans; a ref inside ordinary code (`#463`) is
+                # still a dependency (Codex, PR #463).
+                deps = DEP_REF.findall(re.sub(r"`[^`]+`", lambda t: "" if NUMBERED_TOKEN.match(t.group(0)) else t.group(0), raw))
                 items.append({"line": i, "severity": im.group(1),
                               "wellformed": ok_shape and ok_token, "deps": deps, "n": n})
                 continue
-            if raw.strip():
-                in_block = False  # block ended by prose
+            in_block = False  # block ended by prose or a blank line
         if re.match(r"^\s*(>|\||#)", raw):
             continue
         if _is_ask(raw):
@@ -160,8 +167,9 @@ def scan(text: str) -> dict:
     # trailing prose after the block breaks "last thing on screen"
     trailing = False
     if block_seen_at is not None:
-        tail = [l for l in lines[block_seen_at:] if l.strip() and not re.match(r"^\s*>", l)]
-        trailing = bool(tail)
+        # Anything nonblank after the block's last line — prose OR a separate quoted
+        # paragraph — means the block is not the last thing on screen.
+        trailing = any(l.strip() for l in lines[block_end:])
 
     if block_seen_at is None:
         verdict = "missing_block" if signals else "no_block_no_asks"
@@ -185,8 +193,7 @@ def scan(text: str) -> dict:
         verdict = "misnumbered_items"  # duplicates or gaps make "1 sim" ambiguous
     elif block_kind == "attention" and header_count != len(items):  # a missing (N) is a mismatch too
         verdict = "header_count_mismatch"
-    elif any(not any(re.search(r"(?<![\w#])" + re.escape(d) + r"(?!\w)", w) for w in waits)
-             for x in items for d in x["deps"]):
+    elif any(d not in waits for x in items for d in x["deps"]):
         verdict = "dependency_unexplained"
     else:
         verdict = "ok"
