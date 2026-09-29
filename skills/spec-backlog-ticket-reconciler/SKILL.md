@@ -1,9 +1,20 @@
 ---
 name: spec-backlog-ticket-reconciler
 description: Reconcile actionable requirements in a repository's specification sources with local backlog and GitHub, Jira, or Linear issues. Use when asked to find missing or stale tickets from specs, synchronize a spec backlog, or turn pending spec work into traceable issues.
+version: 0.1.0
+metadata:
+  scope: AAIF cross-vendor
+  family: spec-lifecycle
+  lifecycle-stage: operate
+  cross_link_slug: spec-backlog-ticket-reconciler
+  dogfood_status: pending-first-cycle
 ---
 
 # Spec–backlog–ticket reconciler
+
+## §0 BEING > Rules
+
+Preserve source authority, human approval, and destination integrity over ticket throughput; if a write gate cannot be proved, HOLD the write and return a reviewable plan. This skill is intentionally model-/agent-invoked through its description or scoped skill name; it has no human slash command wrapper, and /spec-backlog-ticket-reconciler is not an entry point.
 
 Reconcile one repository's authoritative specification corpus to its backlog. The repository's observed conventions determine paths and authority; this skill supplies the reconciliation procedure, not a universal file layout. A ticket is an execution view of a source requirement, never a second specification authority. Read [templates/issue-body.md](templates/issue-body.md) before drafting any ticket.
 
@@ -68,3 +79,14 @@ Use [templates/issue-body.md](templates/issue-body.md) as the one reusable execu
 | Accepted spec REQ-19 with implementation completed and no pending backlog/tasks | Complete open/closed inventory; no matching issue | skip; no retroactive issue from accepted baseline |
 
 The check passes only if all twenty-one rows follow these outcomes and no duplicate issue is created on an unchanged second pass.
+
+## DUED sunset
+
+Retire this procedure when the owning backlog/tracker supplies authoritative, auditable spec-to-issue reconciliation with equivalent source identity, collision detection, write gates, and read-back; migrate consumers to that surface rather than preserving duplicate authority. Until then, a missing provider or independent verifier means plan-only/HOLD, not a weaker fallback.
+
+## Refs
+
+- [Canonical issue body](templates/issue-body.md) — execution view, not source authority.
+- [Red-team](../red-team/SKILL.md) — independent campaign-risk decision before writes.
+- [Postflight](../postflight/SKILL.md) — close the work session after verification; never substitutes for write read-back.
+- License: MIT (repository LICENSE).
