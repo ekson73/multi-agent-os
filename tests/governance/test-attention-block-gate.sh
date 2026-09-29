@@ -18,6 +18,7 @@ expect "silent on clear line"        '[ -z "$out" ]'
 out="$(run $'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`' p3)"
 expect "no injection when block ok"  '[ -z "$out" ]'
 expect "suppressed notify is not logged as fired" 'grep -q "\"fired\":false,\"note\":\"notify_disabled\"" "$TMP/state/ledger.jsonl" && ! grep -q "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl"'
+expect "disabled notify does not burn the per-turn marker" '! ls -d "$TMP"/state/*.p3.notify.marker.d >/dev/null 2>&1'
 out="$(jq -cn '{last_assistant_message:"Should I merge?",session_id:"../../x",prompt_id:"p4"}' | bash "$HOOK")"
 expect "rejects unsafe session_id"   '[ -z "$out" ] && [ ! -e "$TMP/x" ]'
 out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | bash "$HOOK")"

@@ -41,6 +41,10 @@ import os as _os
 _PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
 DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
 WAIT_LINE = re.compile(r"^\s*>\s*⏳")
+# A CHECKABLE wait line: `> ⏳ <ref> — <owner>: <state> · <what the human must do>`.
+# A bare mention of the ref is not an explanation: owner, state and the human action
+# must all be present, or the dependency is still invisible (CodeRabbit, PR #463).
+WAIT_WELLFORMED = re.compile(r"^\s*>\s*⏳\s+\S.*?\s[—–-]\s+[^:·]+:\s*[^·]*\S[^·]*·\s*\S")
 # Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
 # in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
 # would give one icon two meanings — the exact ambiguity this block exists to remove.
@@ -95,7 +99,8 @@ def scan(text: str) -> dict:
         if in_block:
             if re.match(r"^\s*>", raw):
                 if WAIT_LINE.match(raw):
-                    waits.append(raw)
+                    if WAIT_WELLFORMED.match(raw):
+                        waits.append(raw)
                     continue
                 num = ANY_NUMBERED.match(raw)
                 if not num:
@@ -146,7 +151,7 @@ def scan(text: str) -> dict:
         verdict = "malformed_item"
     elif [x["n"] for x in items] != [str(k) for k in range(1, len(items) + 1)]:
         verdict = "misnumbered_items"  # duplicates or gaps make "1 sim" ambiguous
-    elif header_count is not None and block_kind == "attention" and header_count != len(items):
+    elif block_kind == "attention" and header_count != len(items):  # a missing (N) is a mismatch too
         verdict = "header_count_mismatch"
     elif any(not any(re.search(r"(?<![\w#])" + re.escape(d) + r"(?!\w)", w) for w in waits)
              for x in items for d in x["deps"]):
