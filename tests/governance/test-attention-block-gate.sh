@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Tests for plugin-scripts/governance/attention-block-gate.sh (Pharos Stop hook).
+set -u
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+HOOK="$ROOT/plugin-scripts/governance/attention-block-gate.sh"
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+export MAOS_ATTENTION_STATE_DIR="$TMP/state" MAOS_ATTENTION_NOTIFY=0
+pass=0; fail=0
+run() { jq -cn --arg m "$1" --arg p "$2" '{last_assistant_message:$m,session_id:"s1",prompt_id:$p}' | bash "$HOOK"; }
+expect() { if eval "$2"; then pass=$((pass+1)); echo "ok   $1"; else fail=$((fail+1)); echo "FAIL $1"; fi; }
+
+out="$(run 'Fiz tudo. Quer que eu apague os brokers?' p1)"; rc=$?
+expect "injects on buried ask"      '[ $rc -eq 0 ] && printf "%s" "$out" | grep -q additionalContext'
+out="$(run 'Fiz tudo. Quer que eu apague os brokers?' p1)"
+expect "one-shot per prompt"         '[ -z "$out" ]'
+out="$(run $'Pronto.\n\n> **✅ NADA PRECISA DE VOCÊ** — ok.' p2)"
+expect "silent on clear line"        '[ -z "$out" ]'
+out="$(run $'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`' p3)"
+expect "no injection when block ok"  '[ -z "$out" ]'
+expect "suppressed notify is not logged as fired" 'grep -q "\"fired\":false,\"note\":\"notify_disabled\"" "$TMP/state/ledger.jsonl" && ! grep -q "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl"'
+expect "disabled notify does not burn the per-turn marker" '! ls -d "$TMP"/state/*.notify.marker.d >/dev/null 2>&1'
+out="$(jq -cn '{last_assistant_message:"Should I merge?",session_id:"../../x",prompt_id:"p4"}' | bash "$HOOK")"
+expect "rejects unsafe session_id"   '[ -z "$out" ] && [ ! -e "$TMP/x" ]'
+out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | bash "$HOOK")"
+expect "injects without prompt_id (first Stop of cycle)" 'printf "%s" "$out" | grep -q additionalContext'
+out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id:"s9"}' | bash "$HOOK")"
+expect "same text on a LATER turn still gets the reminder" 'printf "%s" "$out" | grep -q additionalContext'
+out="$(jq -cn --arg m 'Outra: posso aplicar?' '{last_assistant_message:$m,session_id:"s9",stop_hook_active:true}' | bash "$HOOK")"
+expect "no re-inject on continuation w/o prompt_id" '[ -z "$out" ]'
+out="$(jq -cn --arg m $'Corrigido.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`' '{last_assistant_message:$m,session_id:"s10",stop_hook_active:true}' | bash "$HOOK")"
+expect "notify path still reached on corrected continuation w/o prompt_id" '[ -z "$out" ] && tail -1 "$TMP/state/ledger.jsonl" | grep -q "\"note\":\"notify_disabled\""'
+L128="$(printf 'a%.0s' $(seq 1 128))"; P128="$(printf 'b%.0s' $(seq 1 128))"
+out="$(jq -cn --arg m 'Quer que eu siga?' --arg s "$L128" --arg p "$P128" '{last_assistant_message:$m,session_id:$s,prompt_id:$p}' | bash "$HOOK")"
+expect "max-length ids (128+128) still inject (marker name bounded)" 'printf "%s" "$out" | grep -q additionalContext && ! tail -1 "$TMP/state/ledger.jsonl" | grep -q marker_claim_failed'
+out="$(jq -cn --arg m 'Quer que eu siga?' --arg s "$L128" --arg p "$P128" '{last_assistant_message:$m,session_id:$s,prompt_id:$p}' | bash "$HOOK")"
+expect "max-length ids stay one-shot" '[ -z "$out" ] && tail -1 "$TMP/state/ledger.jsonl" | grep -q idempotent'
+out="$(jq -cn --arg m 'Quer que eu siga?' --arg s "$L128" --arg p "${P128%b}c" '{last_assistant_message:$m,session_id:$s,prompt_id:$p}' | bash "$HOOK")"
+expect "distinct prompt_id is a distinct marker" 'printf "%s" "$out" | grep -q additionalContext'
+out="$(run $'Should I merge?\nShould I delete the branch?\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — merge · `1 sim`' p6)"
+expect "injects when block omits a prose ask (unsurfaced_asks)" 'printf "%s" "$out" | grep -q additionalContext'
+# Notify dedup WITHOUT prompt_id (~35% of real Stop events): one notify per distinct
+# pending block per session. Needs the real notify path → macOS + stub notifier.
+if [ "$(uname -s)" = "Darwin" ]; then
+  mkdir -p "$TMP/stub"; printf '#!/bin/sh\nexit 0\n' >"$TMP/stub/terminal-notifier"; chmod +x "$TMP/stub/terminal-notifier"
+  nrun() { jq -cn --arg m "$1" '{last_assistant_message:$m,session_id:"s20"}' | PATH="$TMP/stub:$PATH" MAOS_ATTENTION_NOTIFY=1 bash "$HOOK"; }
+  B1=$'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`'
+  B2=$'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — y · `1 sim`'
+  nrun "$B1" >/dev/null; nrun "Outro texto antes.${B1#Pronto.}" >/dev/null
+  expect "no prompt_id: same pending block notifies once per session" '[ "$(grep -c "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl")" -eq 1 ] && tail -1 "$TMP/state/ledger.jsonl" | grep -q idempotent'
+  nrun "$B2" >/dev/null
+  expect "no prompt_id: changed pending block notifies again" '[ "$(grep -c "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl")" -eq 2 ]'
+else
+  pass=$((pass+2)); echo "skip notify-dedup (non-Darwin: notify unsupported)"
+fi
+mkdir -p "$TMP/bin"; for c in dirname mkdir date cat; do ln -sf "$(command -v $c)" "$TMP/bin/$c"; done
+out="$(PATH="$TMP/bin" /bin/bash "$HOOK" </dev/null)"; rc=$?
+expect "dep-missing still ledgered"  '[ $rc -eq 0 ] && grep -q "jq_missing" "$TMP/state/ledger.jsonl"'
+out="$(MAOS_ATTENTION_GATE=0 run 'Should I merge?' p5)"
+expect "kill-switch honored"         '[ -z "$out" ]'
+out="$(printf 'not json' | bash "$HOOK")"; rc=$?
+expect "fail-safe on garbage"        '[ $rc -eq 0 ]'
+echo "--- $pass passed, $fail failed"; [ "$fail" -eq 0 ]

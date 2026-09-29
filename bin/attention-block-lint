@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+"""attention-block-lint — deterministic checker for the Pharos operator-attention block.
+
+Reads one agent response on stdin and answers ONE question: does this text ask
+the human for something (approval, decision, answer, manual step) without
+surfacing it in the fixed end-of-message attention block?
+
+Spec: skills/operator-attention-block/SKILL.md (soul-name Pharos).
+
+Exit codes (C06): 0 = ok · 1 = usage/IO error · 2 = warning (block missing or
+inconsistent). Output: human line, or JSON with --json.
+
+Deliberately narrow (name == instrument): it detects ASK-SHAPED text, it does
+not judge whether the ask was necessary. Heuristic; fenced code, blockquotes
+(other than the block itself), headings and table rows are excluded from the
+ask scan, the same exclusion set as question-batch-gate.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import sys
+
+# Block header markers — keyed on the emoji, not the words, so the block is
+# detectable in any operator language (pt-BR "PRECISA DE VOCÊ", en "NEEDS YOU").
+# Any line that STARTS like a header (emoji after `> **`) is claimed as a header; only a
+# COMPLETE one — non-empty label, optional (N), closing `**` — is valid. A truncated
+# `> **🔔 (1)` is flagged, never silently treated as "no block" (Codex, PR #463).
+HEADER_PREFIX = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)")
+BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)\s+([^*()\n]*[^\s*()][^*()\n]*?)\s*(?:\((\d+)\))?\s*\*\*(.*)$")
+ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)")
+# A well-formed item: icon + UPPERCASE verb in bold, then a separator and the ask.
+# Asking items (🛑 blocking, 🔶 decision) must also carry an exact reply token in a
+# code span; a ✋ manual step describes an action, so it needs none.
+ITEM_WELLFORMED = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)\s+[A-ZÀ-Ý][A-ZÀ-Ý ]+\*\*\s+[—–-]\s+\S")
+REPLY_TOKEN = re.compile(r"`[^`]+`")
+ANY_NUMBERED = re.compile(r"^\s*>\s*(\d+)\.\s")
+# Dependency references inside an item (a PR, ticket, or "after X") must say who
+# owns them and their state, on a ⏳ line of the same block. A human item that waits
+# on something invisible is itself a needle in a haystack.
+# Only `#N` by default; ticket keys only for prefixes the operator configures
+# (MAOS_ATTENTION_TICKET_PREFIXES="ABC,XYZ"), so UTF-8 / SHA-256 / SOC-2 are never
+# mistaken for tickets.
+import os as _os
+_PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
+DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
+# A CHECKABLE wait line: `> ⏳ <ref> — <owner>: <state> · <what the human must do>`.
+# A bare mention of the ref is not an explanation: owner, state and the human action
+# must all be present, or the dependency is still invisible (CodeRabbit, PR #463).
+WAIT_WELLFORMED = re.compile(r"^\s*>\s*⏳\s+(\S+).*?\s[—–-]\s+[^:·]+:\s*[^·]*\S[^·]*·\s*\S")
+# The ref a wait line explains is the one IMMEDIATELY after ⏳ — a ref mentioned later
+# in the same line does not get its status from it (CodeRabbit, PR #463).
+# Overflow: `> ➕ +N <text>`. Anything else after ➕ is not metadata and is scanned.
+OVERFLOW_WELLFORMED = re.compile(r"^\s*>\s*➕\s+\+\d+\s+\S")
+NUMBERED_TOKEN = re.compile(r"`\d+(?:[A-Z]\b|\s|`)")
+# Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
+# in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
+# would give one icon two meanings — the exact ambiguity this block exists to remove.
+BLOCKING = {"🛑"}
+
+# Ask-shaped phrases (pt-BR + en). Lower-cased match on prose lines.
+ASK_PHRASES = [
+    r"\bquer que eu\b", r"\bposso (seguir|prosseguir|fazer|aplicar|executar|continuar)\b",
+    r"\bdevo (seguir|prosseguir|fazer|aplicar)\b", r"\bautoriza\b", r"\baprova\b",
+    r"\bconfirme\b", r"\bconfirma\b", r"\baguardando (seu|sua|o seu|a sua)\b",
+    r"\bsua decis[ãa]o\b", r"\bprecisa de voc[êe]\b", r"\bvoc[êe] prefere\b",
+    r"\bshould i\b", r"\bdo you want\b", r"\bwant me to\b", r"\bshall i\b",
+    r"\bplease (approve|confirm)\b", r"\byour call\b", r"\bawaiting your\b",
+    r"(^|[\s(`])go\s*/\s*no\b", r"\bpede (go|autoriza)", r"\b(me )?d[êe] (um |o )?go\b",
+]
+ASK_RE = re.compile("|".join(ASK_PHRASES), re.IGNORECASE)
+QUESTION_RE = re.compile(r"\?[)\"\]}*_`]*(\s|$)")
+
+
+def _is_ask(text: str) -> bool:
+    prose = re.sub(r"[*_`~]", "", text)
+    return bool(QUESTION_RE.search(prose + " ") or ASK_RE.search(prose))
+
+
+def _explicit_asks(text: str) -> int:
+    """Count sentences carrying an EXPLICIT ask phrase (ASK_RE), not a bare `?`.
+
+    Used only for the block-coverage check (Codex, PR #463): a bare question mark is
+    often rhetorical/explanatory ("Por que falhou? Porque ..."), so counting it would
+    over-block; an ask phrase ("should I", "quer que eu", "posso aplicar") is a
+    request directed at the operator. Counted per sentence so two asks on one line
+    are two asks; two phrases in one sentence are one ask (undercount = fewer FPs)."""
+    prose = re.sub(r"[*_`~]", "", text)
+    return sum(1 for sent in re.split(r"(?<=[?!.])\s+", prose) if ASK_RE.search(sent))
+
+
+def scan(text: str) -> dict:
+    lines = text.splitlines()
+    fences = sum(1 for l in lines if re.match(r"^\s*(```|~~~)", l))
+    trust_fence = fences % 2 == 0
+    in_fence = False
+    in_block = False
+    block_kind = None  # "attention" | "clear"
+    block_seen_at = None
+    items = []
+    signals = []
+    waits = []
+    explicit_asks = 0  # explicit ask sentences in prose (block-coverage check)
+    overflow = 0  # `➕ +N` asks routed to backlog (surfaced, just not now)
+    header_count = None
+    headers = 0
+    malformed_header = False
+    stray = []  # ask-shaped quoted lines inside the block that are not numbered items
+    last_nonblank = 0
+    block_end = None  # last line of the recognized (contiguous) block
+
+    for i, raw in enumerate(lines, 1):
+        if raw.strip():
+            last_nonblank = i
+        if re.match(r"^\s*(```|~~~)", raw):
+            if trust_fence:
+                in_fence = not in_fence
+            continue
+        if trust_fence and in_fence:
+            continue
+        if HEADER_PREFIX.match(raw):
+            headers += 1  # a second header must never reset away earlier items
+            m = BLOCK_HEADER.match(raw)
+            if not m:
+                malformed_header = True
+                m = HEADER_PREFIX.match(raw)
+            in_block = True
+            block_kind = "attention" if m.group(1) == "🔔" else "clear"
+            header_count = int(m.group(3)) if m.lastindex and m.lastindex >= 3 and m.group(3) else None
+            block_seen_at = i
+            block_end = i
+            # Text after the closing `**` is still content: a clear status followed by
+            # "— Should I merge?" is an ask, not a clear line.
+            suffix = m.group(4) if m.lastindex and m.lastindex >= 4 else ""
+            if suffix and _is_ask(suffix):
+                target = signals if block_kind == "clear" else stray
+                target.append({"line": i, "text": raw.strip()[:120]})
+            continue
+        if in_block:
+            if re.match(r"^\s*>", raw):
+                block_end = i
+                wm = WAIT_WELLFORMED.match(raw)
+                if wm:
+                    waits.append(wm.group(1).strip("`*_.,;:()[]"))
+                    continue
+                if OVERFLOW_WELLFORMED.match(raw):
+                    overflow += int(re.search(r"\+(\d+)", raw).group(1))
+                    continue
+                num = ANY_NUMBERED.match(raw)
+                if not num:
+                    # Only WELL-FORMED ⏳ and ➕ lines are metadata; any other quoted line —
+                    # including a malformed ⏳/➕ — is scanned, so an ask cannot hide there.
+                    if _is_ask(re.sub(r"^\s*>\s?", "", raw)):
+                        stray.append({"line": i, "text": raw.strip()[:120]})
+                    continue
+                im = ITEM_LINE.match(raw)
+                if not im:  # a numbered line with an unknown/legacy marker
+                    items.append({"line": i, "severity": None, "wellformed": False, "deps": [], "n": num.group(1)})
+                    continue
+                n = num.group(1)
+                ok_shape = bool(ITEM_WELLFORMED.match(raw))
+                tokens = REPLY_TOKEN.findall(raw)
+                # Reply tokens are spans shaped like "<num>..." (`1 sim`, `2A`). At least one
+                # must carry THIS item's number and none may carry another's; spans that are
+                # not numbered (`make deploy`) are ordinary code and are ignored.
+                numbered = [t.strip("`") for t in tokens if re.match(r"`\d+(?:[A-Z]\b|\s|`)", t)]
+                ok_token = im.group(1) == "✋" or (
+                    bool(numbered) and all(re.match(re.escape(n) + r"(?:[A-Z]\b|\s|$)", t) for t in numbered))
+                # The reply contract is exact only if each token identifies ONE option:
+                # `1A` offered twice (or `1A`/`1a`) is ambiguous (Codex, PR #463).
+                norm = [" ".join(t.split()).casefold() for t in numbered]
+                dup_token = len(norm) != len(set(norm))
+                # Drop only reply-token spans; a ref inside ordinary code (`#463`) is
+                # still a dependency (Codex, PR #463).
+                deps = DEP_REF.findall(re.sub(r"`[^`]+`", lambda t: "" if NUMBERED_TOKEN.match(t.group(0)) else t.group(0), raw))
+                items.append({"line": i, "severity": im.group(1),
+                              "wellformed": ok_shape and ok_token, "deps": deps, "n": n,
+                              "dup_token": dup_token})
+                continue
+            in_block = False  # block ended by prose or a blank line
+        if re.match(r"^\s*(>|\||#)", raw):
+            continue
+        if _is_ask(raw):
+            signals.append({"line": i, "text": raw.strip()[:120]})
+            explicit_asks += _explicit_asks(raw)
+
+    at_end = block_seen_at is not None and not any(s["line"] > block_seen_at for s in signals)
+    # trailing prose after the block breaks "last thing on screen"
+    trailing = False
+    if block_seen_at is not None:
+        # Anything nonblank after the block's last line — prose OR a separate quoted
+        # paragraph — means the block is not the last thing on screen.
+        trailing = any(l.strip() for l in lines[block_end:])
+
+    if block_seen_at is None:
+        verdict = "missing_block" if signals else "no_block_no_asks"
+    elif headers > 1:
+        verdict = "multiple_status_headers"
+    elif malformed_header:
+        verdict = "malformed_header"
+    elif block_kind == "clear" and (signals or items):
+        verdict = "inconsistent_clear_with_asks"
+    elif block_kind == "attention" and not items:
+        verdict = "empty_attention_block"
+    elif stray:
+        verdict = "unnumbered_ask_in_block"
+    elif trailing:
+        verdict = "block_not_last"
+    elif len(items) > 3:
+        verdict = "over_cap"
+    elif not all(x["wellformed"] for x in items):
+        verdict = "malformed_item"
+    elif any(x.get("dup_token") for x in items):
+        verdict = "duplicate_reply_token"
+    elif [x["n"] for x in items] != [str(k) for k in range(1, len(items) + 1)]:
+        verdict = "misnumbered_items"  # duplicates or gaps make "1 sim" ambiguous
+    elif block_kind == "attention" and header_count != len(items):  # a missing (N) is a mismatch too
+        verdict = "header_count_mismatch"
+    elif any(d not in waits for x in items for d in x["deps"]):
+        verdict = "dependency_unexplained"
+    elif block_kind == "attention" and explicit_asks > len(items) + overflow:
+        # More explicit asks in the prose than the block surfaces (items + ➕ backlog):
+        # at least one ask stays buried — the exact failure the block exists to stop.
+        verdict = "unsurfaced_asks"
+    else:
+        verdict = "ok"
+
+    # Digest of the block itself (whitespace-normalized): lets the Stop hook dedup a
+    # notification per distinct pending block when the harness omits prompt_id.
+    block_digest = None
+    if block_seen_at is not None:
+        norm = "\n".join(" ".join(l.split()) for l in lines[block_seen_at - 1:block_end])
+        block_digest = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
+    return {
+        "verdict": verdict,
+        "block_digest": block_digest,
+        "block": block_kind,
+        "items": len(items),
+        "red_items": sum(1 for x in items if x["severity"] in BLOCKING),
+        "ask_signals": len(signals),
+        "explicit_asks": explicit_asks,
+        "signals": signals[:5],
+        "malformed_lines": [x["line"] for x in items if not x["wellformed"]],
+        "block_at_end": at_end and not trailing,
+    }
+
+
+WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
+        "block_not_last", "over_cap", "malformed_item",
+        "dependency_unexplained", "misnumbered_items", "header_count_mismatch",
+        "multiple_status_headers", "malformed_header", "unnumbered_ask_in_block",
+        "duplicate_reply_token", "unsurfaced_asks"}
+
+
+def main(argv: list[str]) -> int:
+    as_json = "--json" in argv
+    if any(a in ("-h", "--help") for a in argv):
+        print(__doc__)
+        return 0
+    try:
+        text = sys.stdin.read()
+    except Exception as e:  # noqa: BLE001
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        return 1
+    r = scan(text)
+    if as_json:
+        print(json.dumps(r, ensure_ascii=False))
+    else:
+        print(f"{r['verdict']} (asks={r['ask_signals']} block={r['block']} items={r['items']})")
+    return 2 if r["verdict"] in WARN else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

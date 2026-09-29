@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills; `openrig-concierge` added by hand 2026-09-23; `harness-concierge` added by hand 2026-09-24). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills; `openrig-concierge` added by hand 2026-09-23; `harness-concierge` added by hand 2026-09-24; `operator-attention-block` added by hand 2026-09-28). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
 
-## Available Skills (89)
+## Available Skills (90)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -66,6 +66,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `opendesign-concierge` | `opendesign-concierge/SKILL.md` | Concierge / onboarding / guide / capability-detector for the Open Design platform (`nexu-io/open-design` — the open-source, agent-native, local-first  |
 | `openrig-concierge` | `openrig-concierge/SKILL.md` | Concierge and guarded operator for OpenRig (the `rig` CLI that runs Claude Code and Codex seats as one rig): explains, operates and diagnoses rigs; routes to first-party `rig context get` refs; owns tiers and trust gates. Crews on target repositories are a hard STOP until #453. |
 | `opera-debrief` | `opera-debrief/SKILL.md` | Use when you want to deliver a session/work recap as a FAITHFUL, dosed NARRATIVE — a "summary as an opera": a short story-arc (acts) with measured hum |
+| `operator-attention-block` | `operator-attention-block/SKILL.md` | Pharos — the fixed end-of-message block that surfaces EVERY item a human must act on (approval/GO, decision, answer, security alert, manual step) so it is never buried in prose. |
 | `operator-quote-capture` | `operator-quote-capture/SKILL.md` | Use when operator says "salva isto", "tome nota", "remember this", "from now on", "capture this rule/tip", OR when detecting substantive operator quot |
 | `pii-masking` | `pii-masking/SKILL.md` | Synchronous CI-time PII detection — CPF Modulo-11 (algorithmic checksum, not just regex), RFC 5322 email subset (catastrophic-backtracking-safe), E.16 |
 | `postflight` | `postflight/SKILL.md` | Use at the END of a session/action — especially before the operator compacts or clears the conversation — to close the workspace out cleanly and hand  |
@@ -105,7 +106,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - **Agentic-tool lifecycle**: `agentic-tool-forge` (genesis) · `agentic-tool-intake` (adopt-or-not) · `agentic-tool-evaluator` (score/QA) · `agentic-tool-trainer` (improve/distill) · `agentic-tool-pipeline` (conductor)
 - **Session lifecycle**: `preflight` → `morning-briefing` → `postflight` (+ `quiesce` · `signoff` · `sync-to-git` · `session-fission` · `session-reentry` · `reactivate` · `context-prep`)
 - **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
-- **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
+- **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking` · `operator-attention-block`
 - **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
 
