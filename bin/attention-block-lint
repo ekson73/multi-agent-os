@@ -77,6 +77,18 @@ def _is_ask(text: str) -> bool:
     return bool(QUESTION_RE.search(prose + " ") or ASK_RE.search(prose))
 
 
+def _explicit_asks(text: str) -> int:
+    """Count sentences carrying an EXPLICIT ask phrase (ASK_RE), not a bare `?`.
+
+    Used only for the block-coverage check (Codex, PR #463): a bare question mark is
+    often rhetorical/explanatory ("Por que falhou? Porque ..."), so counting it would
+    over-block; an ask phrase ("should I", "quer que eu", "posso aplicar") is a
+    request directed at the operator. Counted per sentence so two asks on one line
+    are two asks; two phrases in one sentence are one ask (undercount = fewer FPs)."""
+    prose = re.sub(r"[*_`~]", "", text)
+    return sum(1 for sent in re.split(r"(?<=[?!.])\s+", prose) if ASK_RE.search(sent))
+
+
 def scan(text: str) -> dict:
     lines = text.splitlines()
     fences = sum(1 for l in lines if re.match(r"^\s*(```|~~~)", l))
@@ -88,6 +100,8 @@ def scan(text: str) -> dict:
     items = []
     signals = []
     waits = []
+    explicit_asks = 0  # explicit ask sentences in prose (block-coverage check)
+    overflow = 0  # `➕ +N` asks routed to backlog (surfaced, just not now)
     header_count = None
     headers = 0
     malformed_header = False
@@ -130,6 +144,7 @@ def scan(text: str) -> dict:
                     waits.append(wm.group(1).strip("`*_.,;:()[]"))
                     continue
                 if OVERFLOW_WELLFORMED.match(raw):
+                    overflow += int(re.search(r"\+(\d+)", raw).group(1))
                     continue
                 num = ANY_NUMBERED.match(raw)
                 if not num:
@@ -151,17 +166,23 @@ def scan(text: str) -> dict:
                 numbered = [t.strip("`") for t in tokens if re.match(r"`\d+(?:[A-Z]\b|\s|`)", t)]
                 ok_token = im.group(1) == "✋" or (
                     bool(numbered) and all(re.match(re.escape(n) + r"(?:[A-Z]\b|\s|$)", t) for t in numbered))
+                # The reply contract is exact only if each token identifies ONE option:
+                # `1A` offered twice (or `1A`/`1a`) is ambiguous (Codex, PR #463).
+                norm = [" ".join(t.split()).casefold() for t in numbered]
+                dup_token = len(norm) != len(set(norm))
                 # Drop only reply-token spans; a ref inside ordinary code (`#463`) is
                 # still a dependency (Codex, PR #463).
                 deps = DEP_REF.findall(re.sub(r"`[^`]+`", lambda t: "" if NUMBERED_TOKEN.match(t.group(0)) else t.group(0), raw))
                 items.append({"line": i, "severity": im.group(1),
-                              "wellformed": ok_shape and ok_token, "deps": deps, "n": n})
+                              "wellformed": ok_shape and ok_token, "deps": deps, "n": n,
+                              "dup_token": dup_token})
                 continue
             in_block = False  # block ended by prose or a blank line
         if re.match(r"^\s*(>|\||#)", raw):
             continue
         if _is_ask(raw):
             signals.append({"line": i, "text": raw.strip()[:120]})
+            explicit_asks += _explicit_asks(raw)
 
     at_end = block_seen_at is not None and not any(s["line"] > block_seen_at for s in signals)
     # trailing prose after the block breaks "last thing on screen"
@@ -189,12 +210,18 @@ def scan(text: str) -> dict:
         verdict = "over_cap"
     elif not all(x["wellformed"] for x in items):
         verdict = "malformed_item"
+    elif any(x.get("dup_token") for x in items):
+        verdict = "duplicate_reply_token"
     elif [x["n"] for x in items] != [str(k) for k in range(1, len(items) + 1)]:
         verdict = "misnumbered_items"  # duplicates or gaps make "1 sim" ambiguous
     elif block_kind == "attention" and header_count != len(items):  # a missing (N) is a mismatch too
         verdict = "header_count_mismatch"
     elif any(d not in waits for x in items for d in x["deps"]):
         verdict = "dependency_unexplained"
+    elif block_kind == "attention" and explicit_asks > len(items) + overflow:
+        # More explicit asks in the prose than the block surfaces (items + ➕ backlog):
+        # at least one ask stays buried — the exact failure the block exists to stop.
+        verdict = "unsurfaced_asks"
     else:
         verdict = "ok"
 
@@ -204,6 +231,7 @@ def scan(text: str) -> dict:
         "items": len(items),
         "red_items": sum(1 for x in items if x["severity"] in BLOCKING),
         "ask_signals": len(signals),
+        "explicit_asks": explicit_asks,
         "signals": signals[:5],
         "malformed_lines": [x["line"] for x in items if not x["wellformed"]],
         "block_at_end": at_end and not trailing,
@@ -213,7 +241,8 @@ def scan(text: str) -> dict:
 WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
         "block_not_last", "over_cap", "malformed_item",
         "dependency_unexplained", "misnumbered_items", "header_count_mismatch",
-        "multiple_status_headers", "malformed_header", "unnumbered_ask_in_block"}
+        "multiple_status_headers", "malformed_header", "unnumbered_ask_in_block",
+        "duplicate_reply_token", "unsurfaced_asks"}
 
 
 def main(argv: list[str]) -> int:
