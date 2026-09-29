@@ -1,0 +1,53 @@
+schema: 1
+id: gemini-cli
+name: Gemini CLI
+vendor: Google
+kind: cli
+detect:
+  commands:
+  - gemini
+  paths:
+  - ~/.gemini/settings.json
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.gemini/settings.json
+    scope: user
+  - path: ./.gemini/settings.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    url_field: {streamable-http: httpUrl, http: httpUrl, sse: url}
+    type_values: {stdio: null, streamable-http: null, http: null, sse: null}
+  transports:
+  - stdio
+  - sse
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: 'gemini mcp add [-s user] [-t http] [-H ''K: V''] [-e K=V] <name> <commandOrUrl> [args...]'
+    list: gemini mcp list
+    remove: gemini mcp remove <name>
+extensions:
+  skills: ~/.gemini/skills
+  plugins: gemini extensions install <source>
+  marketplace: null
+update:
+  version_cmd: gemini --version
+  update_cmd: npm i -g @google/gemini-cli
+docs_url: https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Field differences: streamable HTTP uses `httpUrl`; `url` means SSE. Remote: {httpUrl, headers:{...}}; stdio: {command,
+  args, env, cwd?}. Extra optional keys: trust (bool), timeout, includeTools/excludeTools. No per-entry disable field: `gemini
+  mcp enable/disable` persist state out-of-band in ~/.gemini/mcp-server-enablement.json. Observed 9 entries (stdio, some with
+  trust/type). settings.json has many sibling sections — preserve.'

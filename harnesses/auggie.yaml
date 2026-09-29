@@ -1,0 +1,43 @@
+schema: 1
+id: auggie
+name: Augment CLI (auggie)
+vendor: Augment Code
+kind: cli
+detect:
+  commands:
+  - auggie
+  paths:
+  - ~/.augment
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.augment/settings.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: ~/.augment/skills
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: auggie --version
+  update_cmd: npm i -g @augmentcode/auggie
+docs_url: https://docs.augmentcode.com/cli/integrations
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Additional installed harness. settings.json observed with only `hooks` key; mcpServers shape docs-only: stdio {command,args,env};
+  remote {type: http, url, headers}.'

@@ -3,8 +3,7 @@
 > **Owned layer.** OpenRig ships the raw material (the `openrig-user` trust-boundary section, policy
 > modes, `applying-a-permission-policy`) but no canonical tier table. This page is a
 > citation-backed digest of that material. It is not new policy.
-> **Checked against:** `rig` **0.5.14 (cc75efdd)**. Every command below appears in its `--help`, and the
-> argument shapes (rig ID versus name, required flags) were corrected from a field run on that version.
+> **Checked against:** `rig` **0.5.14 (cc75efdd)**. Every command below appears in its `--help`.
 > Re-check with `rig <cmd> --help` after an upgrade (fact ladder, [`sources.md`](./sources.md)).
 
 ## Why tiers, and why these ones
@@ -44,7 +43,7 @@ Caveats observed on 0.5.14:
   T1 topology change. To watch a pane, use `rig capture` or the terminal provider's attach.
 - `rig snapshot`, `rig snapshot list` and `rig launch` take the rig **ID** (`rigId` in `rig ps --json`). A rig
   name fails with "not found". `rig down` accepts either, but two rigs can share a name
-  ([`external-crew.md`](./external-crew.md) step 10), so prefer the ID for every mutation.
+  ([`external-crew.md`](./external-crew.md) §6), so prefer the ID for every mutation.
 - `rig restore status <attemptId>` fails without `--rig <rigId>`.
 - `rig launch <rigId> <node> --plan` is rejected: `--plan` applies only to a multi-seat `--seats` launch.
 
@@ -53,10 +52,10 @@ Caveats observed on 0.5.14:
 `rig send <session> <text>` (guarded; refuses a pane that sits at a prompt. Outside a seat it arrives
 "without sender identity": sign the body) · `rig broadcast` ·
 `rig queue create|claim|unclaim|update|block|resolve|handoff|handoff-and-complete|fallback|inbox-*|outbox-record`
-(outside a seat, `queue create` needs an `OPENRIG_SESSION_NAME` label even though its `--source` flag is
-documented as deprecated: set it for that one command to an honest external label, never a seat's name.
-`queue handoff` without `--body` produced an empty body on 0.5.14, and `--evidence-ref` was not kept: always
-pass `--body` with the evidence reference inside it) ·
+(outside a seat, `queue create` needs an `OPENRIG_SESSION_NAME` label although `--source` is documented as
+deprecated: set it for that one command to an honest external label, never a seat's name. `queue handoff`
+without `--body` produced an empty body on 0.5.14 and `--evidence-ref` was not kept: pass `--body` with the
+evidence reference inside it) ·
 `rig heartbeat --nudge` · `rig up <new-rig>` (a rig name that is not running; reversible via `rig down`) ·
 `rig snapshot <rigId>` · `rig archive` / `rig unarchive` · `rig specs add|remove|rename|sync` ·
 `rig context add|rm|sync` · `rig launch <rigId> <seat>` (only for a seat that `rig ps --nodes` shows stopped; relaunching a live seat is T2) ·
@@ -81,7 +80,6 @@ pass `--body` with the evidence reference inside it) ·
 |---|---|
 | `rig send <session> <keys> --dangerously-interact --reason "<why>"` | drives another agent's prompt. It is the only override of the prompt guard and it is audit-logged. |
 | trusting Codex hooks, approving a Claude MCP server, pre-trusting a workspace | changes what runs outside the sandbox. Procedure: [`trust-gates.md`](./trust-gates.md). |
-| removing the workspace-trust entries OpenRig pre-wrote (each seat's cwd **and** its git root, in the harness's user trust store) after teardown | a global store shared with every other session. **Operator only.** Residue list: [`external-crew.md`](./external-crew.md) step 14. |
 | `rig seat clear-attention <session> --reason "<attestation>"` | skips the daemon's evidence gate on your word. Use it only **after** the cause is resolved and verified with `rig capture`, and quote that evidence in the reason. Attention is diagnostic state: never clear it to turn a rig green. |
 | `rig auth save|switch` · `rig provider` account switching · `rig seat set-resume-token` | credentials and identity |
 | `rig down --delete` · `rig release --delete` · `rig destroy` | delete canonical records. `rig destroy` requires `--confirm destroy-openrig-state`. **Operator only.** |
@@ -105,10 +103,11 @@ pass `--body` with the evidence reference inside it) ·
    operation as a harness `deny` rule (fail-closed). The same first-party skill warns that prefix rules are
    best-effort: a `deny` on `Bash(rm -rf:*)` misses `rm <target> -rf`. A deny is therefore a speed bump,
    not proof of prevention. Where the stakes are real, do not give the seat the capability at all: no
-   push credentials, Codex `workspace-write` sandbox, no secret access. Prefix and wildcard denies also fail
-   open for `git -C <dir>`, flag-last forms and chained commands. Field practice for unattended Claude seats
-   (a `PermissionRequest` hook that answers `deny`, single simple commands, unattended commit signing, the
-   structural controls that actually hold): [`external-crew.md`](./external-crew.md) step 6.
+   push credentials, Codex `workspace-write` sandbox, no secret access. External crews on a target repository
+   are not supported by this skill at all for now ([`external-crew.md`](./external-crew.md) §0). An
+   already-running external-target crew is T0 only, apart from one exception: containment teardown
+   (`rig snapshot <rigId>`, then `rig down <rigId> --snapshot`, never `--delete`) on a rig the delegation
+   names. No `rig send`, queue writes, heals, fresh launches or relaunches on it.
 
 ---
 Signed: Claude-RigOps-01a0-002 (sub-agent of orchestrator session `01a0`) · first authored 2026-09-23 · command-shape corrections: Claude-RigOps-8f02-001, 2026-09-24 (UTC) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/tiers.md` · verified against `rig` 0.5.14 (cc75efdd).

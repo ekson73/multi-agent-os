@@ -1,9 +1,20 @@
-# Sandboxed seats — an OS-enforced boundary for seat-executed code
+# Sandboxed seats — historical field notes (superseded)
+
+> **STOP: historical evidence only, not a supported crew recipe.** External crews on a target repository
+> (any seat, any role, attended or unattended) must not be launched until the isolation design in
+> [#453](https://github.com/ekson73/multi-agent-os/issues/453) is validated. The current policy is
+> [`external-crew.md` §0](./external-crew.md#0-stop-external-crews-are-not-supported) and CANON C6.
+> Already-running external-target crews are diagnosis-only, with delegated containment teardown as the
+> sole permitted mutation. These synthetic observations do not validate that isolation design.
+>
+> All launch, configuration, probe and publishing instructions below are superseded. They are retained
+> only as historical evidence for that design work; they do not authorize an exception to the STOP.
+> Links to the former crew and trust-gate procedures are pinned to the original field-notes revision.
 
 > **Owned layer.** First-party OpenRig covers posture (`rig policy`, `applying-a-permission-policy`). It
 > records posture; the harness enforces it (CANON C4). This page covers the one harness mechanism that a
 > synthetic preflight showed can act as an **OS-enforced** boundary for code a seat runs: Claude Code's bash
-> sandbox. [`trust-gates.md`](./trust-gates.md) §4 requires that boundary whenever a credential cannot be
+> sandbox. [`trust-gates.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/trust-gates.md) §4 requires that boundary whenever a credential cannot be
 > removed from every seat-readable source.
 > **Checked against:** Claude Code 2.1.281 + `rig` 0.5.14 (cc75efdd) on macOS (Seatbelt), in a synthetic
 > preflight (2026-09-24 UTC) that used sentinel files only and never read a real credential. Linux (bubblewrap)
@@ -18,7 +29,7 @@ A seat that runs project code (package scripts, test runners, git hooks) runs it
 Permission rules gate the harness's *tools*; they do not gate what a script the seat started can read. So
 when any credential stays in a file or environment channel a seat can reach, launch needs this boundary. Risk
 acceptance never substitutes for it. If neither this boundary nor source removal is possible, the external-crew
-recipe is not usable unattended: stop and escalate ([`trust-gates.md`](./trust-gates.md) §4).
+recipe is not usable unattended: stop and escalate ([`trust-gates.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/trust-gates.md) §4).
 
 **Runtime scope.** This boundary is validated **only for Claude Code seats**. For Codex or any other runtime,
 its own sandbox, the projection of its project config and hooks (for Codex, `.codex/`) and its writable roots
@@ -27,7 +38,7 @@ is validated for that runtime.
 
 The bash sandbox does not cover MCP servers: every MCP server, whether user-scope, plugin-provided or projected
 from the target's `.mcp.json`, runs outside it with the operator's credentials. Two separate stops apply
-([`trust-gates.md`](./trust-gates.md) §4, MCP servers):
+([`trust-gates.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/trust-gates.md) §4, MCP servers):
 
 - a server whose executable or dependencies sit in a seat-writable location is an **unconditional launch
   stop**: removing a credential does not make mutable code that runs outside the sandbox safe;
@@ -38,7 +49,7 @@ from the target's `.mcp.json`, runs outside it with the operator's credentials. 
 
 ## 1. The boundary: settings that held [T3, show the diff]
 
-All of it lives in each desk's `.claude/settings.local.json` ([`external-crew.md`](./external-crew.md) step 5).
+All of it lives in each desk's `.claude/settings.local.json` ([`external-crew.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/external-crew.md) step 5).
 Render it from scratch before every launch; OpenRig then merges its own hooks and status line into the file.
 
 | Setting | Value that held | Why |
@@ -48,7 +59,7 @@ Render it from scratch before every launch; OpenRig then merges its own hooks an
 | `sandbox.allowUnsandboxedCommands` | `false` | removes the retry-outside-the-sandbox escape; a retry with `dangerouslyDisableSandbox` produced the same blocked results |
 | `sandbox.autoAllowBashIfSandboxed` | `false` | the seat's positive allowlist still decides what runs |
 | `sandbox.credentials.files` | `{path, mode: "deny"}` entries for the harness user settings and trust files, secret-manager, cloud, SSH and forge credential dirs, `~/.netrc`, shell histories, and OpenRig's own secret files | named credential files stay unreadable even if a later rule widens reads |
-| `sandbox.credentials.envVars` | `{name, mode: "deny"}` for every secret-like name from the inventory ([`trust-gates.md`](./trust-gates.md) §4) **plus** well-known credential names and the per-session activity-hook token OpenRig sets in the seat's tmux env | sandboxed commands do not see these names at all |
+| `sandbox.credentials.envVars` | `{name, mode: "deny"}` for every secret-like name from the inventory ([`trust-gates.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/trust-gates.md) §4) **plus** well-known credential names and the per-session activity-hook token OpenRig sets in the seat's tmux env | sandboxed commands do not see these names at all |
 | `sandbox.filesystem.denyRead` | `["~/"]` | a home-wide read block for sandboxed commands |
 | `sandbox.filesystem.allowRead` | narrow: the desk, the repository's common `.git`, git's config includes and config dir, the global excludes file (resolved through any symlink), the node/toolchain install dirs, the package-manager cache | what git and the package manager need, found by running them and widening one path at a time |
 | `sandbox.filesystem.allowWrite` | the repository's `.git/objects`, the seat's own worktree-admin and branch-ref globs, the package-manager cache | commits and installs |
@@ -168,7 +179,7 @@ origin received only the clean candidate.
 Reviewer read-only is **not** enforced by this sandbox: the reviewer's own units are sandbox-writable, and its
 Edit/Write denies do not bind Bash. That is unverified and tracked in
 [#451](https://github.com/ekson73/multi-agent-os/issues/451). Review integrity rests on the SHA binding in
-step 4 instead. Without it, do not launch ([`external-crew.md`](./external-crew.md) step 5).
+step 4 instead. Without it, do not launch ([`external-crew.md`](https://github.com/ekson73/multi-agent-os/blob/79decaaeef6a4733c8e2cb762c84ad4da3f918bb/skills/openrig-concierge/references/external-crew.md) step 5).
 
 ---
 Signed: Claude-RigOps-8f02-001 (sub-agent of the orchestrating session) · first authored 2026-09-24 (UTC) from a synthetic sandboxed-seat preflight (sentinel files only) · last revised: `git log -1 --format=%cI -- skills/openrig-concierge/references/sandboxed-seats.md` · checked against Claude Code 2.1.281 + `rig` 0.5.14 (cc75efdd) on macOS.

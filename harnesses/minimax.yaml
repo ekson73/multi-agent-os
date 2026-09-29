@@ -1,0 +1,44 @@
+schema: 1
+id: minimax
+name: MiniMax Code
+vendor: MiniMax
+kind: desktop-app
+detect:
+  commands: []
+  paths:
+  - ~/.minimax
+  - /Applications/MiniMax Code.app
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.minimax/mcp/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values: {streamable-http: streamable-http}
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: false
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: null
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Entries carry app-managed metadata: builtin, configured, description, enabled, env, timeout; remote {type: streamable-http,
+  url, env}. No headers field observed — header support unverified (supports.headers=false). Do not touch builtin:true entries.'
