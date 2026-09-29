@@ -70,7 +70,7 @@ case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
 case "$verdict" in
-  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained|misnumbered_items|header_count_mismatch|multiple_status_headers|malformed_header|unnumbered_ask_in_block) action="inject" ;;
+  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained|misnumbered_items|header_count_mismatch|multiple_status_headers|malformed_header|unnumbered_ask_in_block|duplicate_reply_token|unsurfaced_asks) action="inject" ;;
   ok) if [ "$items" -gt 0 ]; then action="notify"; fi ;;
 esac
 [ -n "$action" ] || { log "$verdict" false ""; exit 0; }
@@ -105,7 +105,13 @@ if [ "$action" = "notify" ]; then
 fi
 
 if [ -n "$key" ]; then
-  marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
+  # Hash the (length-prefixed, hence unambiguous) ids: two valid 128-char ids would
+  # otherwise exceed NAME_MAX (255) → mkdir fails → the turn is silently skipped
+  # (Codex, PR #463). python3 is already a hard dependency (checked above).
+  digest="$(printf '%s' "${#sid}.${sid}.${key}" | python3 -c 'import hashlib,sys;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' 2>/dev/null || true)"
+  case "$digest" in *[!0-9a-f]*|'') log "$verdict" false "marker_digest_failed"; exit 0 ;; esac
+  [ "${#digest}" -eq 64 ] || { log "$verdict" false "marker_digest_failed"; exit 0; }
+  marker="$STATE_DIR/${digest}.${action}.marker.d"
   if ! mkdir "$marker" 2>/dev/null; then
     if [ -d "$marker" ]; then log "$verdict" false "idempotent"; else log "$verdict" false "marker_claim_failed"; fi
     exit 0

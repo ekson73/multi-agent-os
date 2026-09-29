@@ -244,5 +244,60 @@ check "separate quoted paragraph after the block breaks last-thing" block_not_la
 > outro parágrafo citado, sem relação com o bloco
 T
 
+check "duplicate reply token within one item is ambiguous" duplicate_reply_token 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — região · `1A` us-east · `1A` eu-west
+T
+
+check "duplicate yes/no reply token (whitespace-normalized)" duplicate_reply_token 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1  sim`
+T
+
+check "distinct reply tokens stay ok" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — região · `1A` us-east · `1B` eu-west
+T
+
+check "two explicit asks in prose, block surfaces only one" unsurfaced_asks 2 <<'T'
+Should I merge PR #12 now?
+Should I also delete the old release branch?
+
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — merge do PR · responda `1 sim` / `1 não`
+T
+
+check "two explicit asks in one prose line (two sentences), one item" unsurfaced_asks 2 <<'T'
+Quer que eu faça o merge? Posso aplicar a limpeza da branch antiga também?
+
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — merge · responda `1 sim` / `1 não`
+T
+
+check "rhetorical bare questions do not count as asks" ok 0 <<'T'
+Por que o build falhou? Porque o cache expirou. O que mudou? Só o lockfile.
+
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — limpar cache · responda `1 sim` / `1 não`
+T
+
+check "each prose ask surfaced as its own item" ok 0 <<'T'
+Should I merge PR #12 now?
+Should I also delete the old release branch?
+
+> **🔔 PRECISA DE VOCÊ (2)**
+> 1. **🛑 AUTORIZAR** — merge do PR · responda `1 sim` / `1 não`
+> 2. **🛑 AUTORIZAR** — apagar branch antiga · responda `2 sim` / `2 não`
+T
+
+check "extra asks routed to overflow backlog count as surfaced" ok 0 <<'T'
+Should I merge PR #12 now?
+Should I also delete the old release branch?
+
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — merge do PR · responda `1 sim` / `1 não`
+> ➕ +1 registrado no backlog (não precisa de você agora)
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

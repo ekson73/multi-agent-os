@@ -57,7 +57,12 @@ checked, because an amnesic agent forgets conventions.
    (a malformed `⏳`/`➕` included) is scanned, and an ask there is `unnumbered_ask_in_block`.
    The block is contiguous: a blank line ends it, so anything after it — even another quote —
    is `block_not_last`.
-8. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
+9. **Every ask surfaced, every reply exact.** Each explicit ask in the prose ("should I…",
+   "quer que eu…", "posso aplicar…") must reach the block, as an item or counted in `➕ +N`;
+   more explicit-ask sentences than items + overflow is `unsurfaced_asks`. A bare `?` does not
+   count (it is often rhetorical: "Por que falhou? Porque…"). Within one item every reply token
+   is unique — `1A` offered twice is `duplicate_reply_token`.
+10. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
    goes in the block. The block is not a license to ask more.
 
 ### Template — items pending
@@ -110,7 +115,7 @@ circles as item markers.
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 55 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch (incl. a missing `(N)`), bare or incomplete `⏳` lines, a `⏳` explaining only its leading ref, malformed `⏳`/`➕` carrying asks, refs inside code spans, a quote after the block, truncated/duplicate headers, asks after a clear header or unnumbered inside the block, notify on a corrected continuation, notify-disabled not burning the marker, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 67 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch (incl. a missing `(N)`), bare or incomplete `⏳` lines, a `⏳` explaining only its leading ref, malformed `⏳`/`➕` carrying asks, refs inside code spans, a quote after the block, truncated/duplicate headers, asks after a clear header or unnumbered inside the block, notify on a corrected continuation, notify-disabled not burning the marker, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch, prose asks the block omits, duplicate reply tokens, max-length ids bounded by a hashed marker name). |
 
 Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
 `hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.
