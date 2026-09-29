@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added — portable spec–backlog–ticket reconciliation skill
 
-- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval and post-write read-back. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval, mandatory campaign-level independent adversarial review before H11/H10/H7 or other red-team-triggered writes (HOLD if HIGH and no verifier), and post-write read-back. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- `skills/README.md` now inventories all 91 tracked skills, including `session-to-vault` and this reconciler.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
