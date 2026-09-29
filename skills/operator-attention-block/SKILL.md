@@ -100,7 +100,7 @@ circles as item markers.
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 36 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 37 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
 
 Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
 `hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.
@@ -123,6 +123,8 @@ behavioral-binding there, and `attention-block-lint` can run in any CI or review
 
 ## Limits (stated, not hidden)
 
+- An ask written inside a blockquote *outside* the attention block is not scanned
+  (blockquotes are treated as quoted text). The check runs every turn, not on every line.
 - Detection is heuristic (question marks + a pt/en ask-phrase list). False positives cost one
   extra turn at most; false negatives are asks phrased without either signal.
 - The model cannot color terminal text; icons + bold + position are the whole visual budget.
