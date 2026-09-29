@@ -827,6 +827,10 @@ Same Phase 3 PRESERVE rules apply (git terms · status icons · session-name slu
 
 ### Attention closure (v1.9.1 — Pharos)
 
+**Scope: human markdown output only.** With `--format=json` or `--audience=agent` the
+machine contract (one parseable top-level JSON object) wins — no blockquote is appended;
+carry the same items as data in the JSON payload instead of as a closing blockquote.
+
 §9–§11 sit in the middle of a long recap, which is exactly where a human stops reading. The
 recap therefore ends with the `operator-attention-block` (*Pharos*) block: it restates every
 item from §9–§11 and the §16 recommendation that needs the human, as the last thing on
@@ -905,7 +909,7 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
 **`--format=json`** carries the metrics inside the recap's **single top-level JSON object** as an `execution_metrics` array — NOT as a standalone document that replaces the rest of the recap. The whole `--format=json` output is still one valid JSON document (`jq`/`JSON.parse` parse it in one pass); the fix that mattered is that the metrics are an **array under one key**, never two consecutive top-level objects. `--save --format=json` keeps its Phase-5 top-level `_meta`, and `--audience agent` still receives the full recap (objectives, gaps, pendings, risks, handoff, …) alongside `execution_metrics`. Each metric object keeps `state` first-class and `bar` as convenience, never source-of-truth; keys are en-US, versioned via the recap's `prompt_version`. **`execution_metrics` contains EXACTLY the two probe-measured metrics** — `prs_green` and `pr_agentic_convergence` — and no others: the `LLM-estimated` rows (`% Plan execution`, `% Principais completos`) are **human-only** and never enter this array (they have no probe denominator and no JSON contract of their own, per DDR Q1), so a consumer reads the array as those two ids, distinguishing an absent id from a measured hole (below) by `state`:
 ```json
 {
-  "prompt_version": "1.9.0",
+  "prompt_version": "1.9.1",
   "_meta": { "…": "top-level save envelope, Phase 5 — present only with --save" },
   "…": "…other recap sections (objectives, gaps, pendings, risks, handoff, …)…",
   "execution_metrics": [
@@ -917,7 +921,7 @@ Equivalent rule (documentation of the table, NOT a second code path): `filled = 
 **Degraded metric (a hole — denominator 0 / unmeasured / partial probe / `gh` absent / cold-start):** the metric object is STILL present in `execution_metrics` (so a consumer distinguishes "measured a hole" from "metric not in this recap"), but carries `state:"UNKNOWN"`, `bar:null`, and `null` for any unavailable `numerator`/`denominator`/`pct` — never a fabricated `0` (a real `0%` is denominator `> 0` with numerator `0`, which stays a measured object, `state` per the cutoffs). `UNKNOWN` is a PRESERVE-class token like `GREEN`/`WARN`/`RED` and never localized. Example, `gh` resolved one metric and could not measure the other:
 ```json
 {
-  "prompt_version": "1.9.0",
+  "prompt_version": "1.9.1",
   "execution_metrics": [
     {"metric":"prs_green","numerator":5,"denominator":6,"pct":83,"state":"WARN","bar":"[########--]"},
     {"metric":"pr_agentic_convergence","numerator":null,"denominator":null,"pct":null,"state":"UNKNOWN","bar":null}
