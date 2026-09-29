@@ -1,0 +1,48 @@
+schema: 1
+id: grok
+name: Grok CLI
+vendor: xAI
+kind: cli
+detect:
+  commands:
+  - grok
+  paths:
+  - ~/.grok
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.grok/config.toml
+    scope: user
+  - path: ./.grok/config.toml
+    scope: project
+  format: toml
+  key_path:
+  - mcp_servers
+  entry_style: grok-toml
+  transports:
+  - stdio
+  - streamable-http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli:
+    add: 'grok mcp add [-s user] [-t http] [-H ''K: V''] [-e K=V] <name> -- <command> | <url>'
+    list: grok mcp list
+    remove: grok mcp remove <name>
+extensions:
+  skills: ~/.grok/skills
+  plugins: ~/.grok/installed-plugins
+  marketplace: '[[marketplace.sources]] in config.toml'
+update:
+  version_cmd: grok --version
+  update_cmd: grok update
+docs_url: 'local: ~/.grok/docs/user-guide/07-mcp-servers.md'
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'Codex-like TOML but remote headers are an inline table `headers = { ... }` (not http_headers). Stdio: command, args,
+  env = {...}, enabled, startup_timeout_sec. No [mcp_servers.*] tables present yet. `grok mcp enable/disable` exist.'

@@ -92,6 +92,55 @@ it can stream topic-scoped, redacted text.
   `O_NOFOLLOW`. Doc-vs-CLI exit-code/version checks and source immutability are also
   covered. It is macOS-exercised; Linux is expected to work but untested.
 
+### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
+
+- `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
+  facts per AI-coding harness — detect, MCP config path, format, key path, entry style, transports,
+  header/env/disable support, CLI add/list/remove, extension surfaces, update command, docs URL,
+  `last_verified`, `confidence`. Low-confidence or `skip_reason` entries are plan-only.
+- `bin/harness-mcp-sync` (new; Python 3.11 stdlib + PyYAML): one vendor-neutral MCP SSOT →
+  every harness's native file. Modes explain · inventory · doctor · plan · apply · verify ·
+  restore · resolve · update. Dry-run by default, timestamped backups, atomic write + chmod 600, parse-back
+  validation with auto-restore, idempotent, ownership manifest in the state dir (no marker keys in
+  harness files), conflict on unmanaged same-name entries (`--adopt`), legacy removal only via
+  SSOT `replaces`, surgical TOML edits, fail-closed refusal of every write/restore into a git-visible
+  (tracked / untracked-unignored) file unless `--allow-git-visible` (then secret-carrying servers are still refused), refusal on comment-bearing JSONC/YAML, secret masking in every output. Pluggable `--resolver` for vault references.
+  Config + manifest atomicity via a salted, MAC'd write-ahead intent journal with reconcile on the
+  next run, an exclusive run lock, and `resolve` as the operator escape; threat model and design in
+  `docs/harness-mcp-sync-threat-model.md`.
+- `templates/harness-mcp-sync/ssot.schema.json` + `ssot.example.json` (placeholders only).
+- `bin/tests/harness-mcp-sync.test.sh` (+ `harness-mcp-sync.crash.py` crash injection): temp-HOME
+  fixtures; never touches real configs.
+- `skills/harness-concierge/` (new; soul-name Dragoman, named by `anima`): knowledge + routing skill
+  over the registry and executor; sibling of `claude-code-concierge`, which now hands non-Claude
+  harness MCP questions to it.
+
+### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
+
+- `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —
+  adds an always-on ASCII progress bar to recap-mode `## 4. $execution_metrics` for
+  the two probe-measured metrics `prs_green` and `pr_agentic_convergence` only
+  (`% Plan execution` / `% Principais completos` stay text, labelled `(LLM-estimated)`,
+  no bar — a bar is a measured-denominator privilege, per new anti-pattern #30). Bar
+  spec: `[####------]` 10 cells, glyphs `#`/`-`/`[`/`]`,
+  `filled = 0 if pct==0 else max(1, floor(pct/10))`, state `GREEN ≥90 / WARN 60-89 /
+  RED <60`, no emoji, no Unicode block, ANSI only in `console` under `[ -t 1 ]`, in `md`
+  inside a fence. The human line always carries `<label> <TOKEN> <pct>% (<n>/<total>)`;
+  `--format=json` carries the metrics as an `execution_metrics` array inside the single
+  recap object (not a standalone document — the rest of the recap and Phase-5 `_meta` are
+  preserved), each `{metric,numerator,denominator,pct,state,bar}` (a hole keeps its metric
+  object with `state:"UNKNOWN"`, `bar:null`, `null` numerics — never a faked `0`) as the machine
+  contract. Deterministic layer = a 12-row literal lookup table in the template (the
+  LLM copies a row, never computes — `pct` is already materialized by R3), so same-state
+  reruns are byte-reproducible; no bundled script. Adds a dedicated recap `$risks` section
+  (§12; old §12-16 renumbered to §13-17), a Phase 3b.6 bar spec + degradation/diagnostic
+  block, anti-patterns #30/#31, 7 edge cases, and new localizable bundle keys in
+  `translations/en-us.yml` + `translations/pt-br.yml` (state tokens / json keys / metric
+  ids / glyphs stay en-US PRESERVE-class). recap-only; no new flag; `triggers`/`evals`
+  unchanged. Self-heal M.O. is **N/A por artefato** (declarative skill, no `scripts/` dir).
+  Per the council-of-MoE Design Decision Record. `cycles_completed:0` +
+  `promotion_eligible:false` kept (ADR-017 R1 reset is a no-op).
+
 ### Added — `openrig-concierge` skill + `openrig-fleet-engineer` agent (#441)
 
 - `skills/openrig-concierge/` (new; soul-name Navarch) — the front desk and guarded operator for

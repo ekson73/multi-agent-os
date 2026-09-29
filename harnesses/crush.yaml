@@ -1,0 +1,49 @@
+schema: 1
+id: crush
+name: Crush
+vendor: Charm
+kind: cli
+detect:
+  commands:
+  - crush
+  paths:
+  - ~/.config/crush
+  - ~/.crush
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.config/crush/crush.json
+    scope: user
+  - path: ./crush.json
+    scope: project
+  format: json
+  key_path:
+  - mcp
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values:            # crush requires `type` on EVERY entry, stdio included (config.go MCPConfig.Type)
+      stdio: stdio
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: crush --version
+  update_cmd: brew upgrade crush
+docs_url: https://github.com/charmbracelet/crush#mcps
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Additional installed harness. Map key `mcp` (not mcpServers). Docs: {type: stdio|http|sse, command, args, env, url,
+  headers, disabled}. crush.json not present yet (docs-only).'
