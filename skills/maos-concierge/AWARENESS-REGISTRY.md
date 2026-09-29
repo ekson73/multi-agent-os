@@ -1,8 +1,8 @@
 # AWARENESS-REGISTRY.md — MAOS framework landscape (the concierge payload)
 
 > **Companion to** `SKILL.md` (maos-concierge). This is the `--mode=explain` + `--mode=guide` lookup table.
-> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-05-28 against MAOS v1.5.2.
-> **Convention**: this registry is *referenced*, not duplicated, by callers (per the framework-consumption "reference, don't copy" rule). Counts are point-in-time — `--mode=audit` re-derives from `ls` and flags drift.
+> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-09-11 against MAOS v1.22.1.
+> **Convention**: this registry is *referenced*, not duplicated, by callers (per the framework-consumption "reference, don't copy" rule). Counts are point-in-time — `--mode=audit` re-derives them and flags drift.
 
 ---
 
@@ -39,14 +39,16 @@ Tier 6  External reach        → maos-mcp-hub (6 typed Atlassian gateways)
 | `gitops-engineer` | K8s/GitOps declarative infra |
 | `consultants/*` | Thinking-archetype consultants (persona lenses) |
 
-## Skills (`skills/*/SKILL.md`) — ~31
+## Skills — curated routing highlights
+
+For the complete generated inventory and current count, read [`../README.md`](../README.md).
 
 | Cluster | Skills |
 |---|---|
 | Orchestration/delegation | `agent-select` · `agentic-delegation` · `delegate-governance` · `context-prep` · `auto-pilot` |
 | Conflict/merge/worktree | `anti-conflict` · `hierarchical-merge` · `worktree-policy` |
-| Observability | `audit` · `status-map` |
-| Lifecycle/freshness | `ttl-policy` · `morning-briefing` · `pulse` · `quiesce` |
+| Observability | `audit` · `status-map` · `verified-agentic-session-model` (verified standard bundle or passive AI-first portable sidecard) |
+| Lifecycle/freshness | `ttl-policy` · `morning-briefing` · `pulse` · `quiesce` · `verified-agentic-session-model` (next/transition/one-child lineage) |
 | Synthesis/convergence | `converge` · `consolidator` (agent) |
 | Governance hygiene | `rule-quality-tests` · `operator-quote-capture` · `response-compression` · `slm-routing` · `pii-masking` |
 | Creation/authoring | `skill-writer` · (forge agent) |
@@ -55,7 +57,7 @@ Tier 6  External reach        → maos-mcp-hub (6 typed Atlassian gateways)
 
 ## Commands (`commands/*.md`) — ~14
 
-`/sync` (framework sync) · `/audit` · `/agentic-status` · `/worktree` · `/delegate` · `/auto-pilot` · `/auto-shard` · `/mvv` · `/quiesce` · `/founder-playbook` · `/analyze` · `/code` · …
+`/sync` (framework sync) · `/audit` · `/agentic-status` · `/verified-agentic-session-model` · `/worktree` · `/delegate` · `/auto-pilot` · `/auto-shard` · `/mvv` · `/quiesce` · `/founder-playbook` · `/analyze` · `/code` · …
 
 ## Protocols & governances
 
@@ -69,6 +71,7 @@ Tier 6  External reach        → maos-mcp-hub (6 typed Atlassian gateways)
 | **GaaS/GaaC Delegation** | Spawn governance: init/dna/finalize prompts + provider-matrix (Ticket×VCS×Secrets×Observability) | `protocols/delegation/` · `plugin-scripts/gaac/delegate.sh` · `skills/delegate-governance` |
 | **The Forge** | Agent-creation discipline: 33 Socratic Questions + RBAD taxonomy (6 categories) + Goldilocks Principle (atomic ∧ generic) | `agents/forge.md` |
 | **Status Maps** | 9 ASCII template types for human-readable status; human-observability value | `statusmap/templates/` · `skills/status-map` |
+| **Human Artifact Agentic Sidecar** | Hard-trigger or transparent weighted gate for machine-first, human-first, or dual-native durable artifacts; fresh current-byte verification fails stale claims closed | `rules/human-artifact-agentic-sidecar.md` · `skills/verified-agentic-session-model` |
 | **maos-mcp-hub** | Universal MCP gateway — 6 typed Atlassian meta-tools (discover/jira/confluence/bitbucket/compass/common), 4-level progressive discovery, `_agent_feedback` hints | `mcp-tools/maos-mcp-hub/` |
 
 ## Core concepts (vocabulary the concierge teaches)
