@@ -11,6 +11,8 @@ Reconcile one repository's authoritative specification corpus to its backlog. Th
 
 Obtain the target repository and its owning project, intended ticket destination(s), authorized write scope, and whether this run is plan-only or apply. Discover these from repository configuration and the request; if authority, destination, or permissions remain ambiguous, provide a plan and ask only for the missing decision. Default to dry-run. A write requires explicit authorization for the named repository, destination, and proposed operations; authorization to inspect does not authorize mutation. Respect existing issue governance and project-specific instructions. Never transfer private source material into a different repository, organization, or tracker without explicit scope authorization. No provider SDK, new MCP service, or provider-specific mutation script is required: use the available native MCP/CLI with its documented pagination and write semantics.
 
+**Write dependency:** The bundled [red-team](../red-team/SKILL.md) decision procedure is required to evaluate every hard trigger before apply. A standalone installation without it is plan-only: HOLD all writes until that dependency and an authorized independent verifier are available. Never infer that omitted triggers are false.
+
 ## Procedure
 
 1. **Discover authority.** Inspect repository guidance/configuration and actual spec, backlog, and tracker artifacts. Establish the project boundary, authoritative source per requirement, accepted/current versus proposal/delta status, and existing issue-link convention. Do not assume any conventional directory exists. A candidate adapter activates only on observed files and their semantics:
