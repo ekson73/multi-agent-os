@@ -46,8 +46,8 @@ checked, because an amnesic agent forgets conventions.
    flags this as `dependency_unexplained`. `#N` references are always checked; ticket
    keys only for prefixes listed in `MAOS_ATTENTION_TICKET_PREFIXES` (so `UTF-8` is not a
    ticket).
-8. **Items numbered 1..N, and the header count `(N)` equals the item count.**
-9. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
+7. **Items numbered 1..N, and the header count `(N)` equals the item count.**
+8. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
    goes in the block. The block is not a license to ask more.
 
 ### Template — items pending
