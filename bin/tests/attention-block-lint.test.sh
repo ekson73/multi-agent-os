@@ -76,7 +76,7 @@ check "plain status, nothing asked" no_block_no_asks 0 <<'T'
 Disco em 88%, memória 51% livre.
 T
 
-check "legacy color circles are not items" empty_attention_block 2 <<'T'
+check "legacy color circles are not items" malformed_item 2 <<'T'
 > **🔔 PRECISA DE VOCÊ (1)**
 > 1. **🔴 AUTORIZAR** — x · `1 sim` / `1 não`
 T
@@ -94,6 +94,33 @@ T
 check "manual step needs no token" ok 0 <<'T'
 > **🔔 PRECISA DE VOCÊ (1)**
 > 1. **✋ AÇÃO MANUAL** — rotacionar a URL do Zapier
+T
+
+check "clear header followed by an item" inconsistent_clear_with_asks 2 <<'T'
+> **✅ NADA PRECISA DE VOCÊ**
+> 1. **🛑 AUTORIZAR** — x · `1 sim`
+T
+
+check "reply token bound to wrong item" malformed_item 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — x · `2 sim`
+T
+
+check "unknown marker in mixed block" malformed_item 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (2)**
+> 1. **🛑 AUTORIZAR** — x · `1 sim`
+> 2. **🔴 DECIDIR** — y · `2A`
+T
+
+check "item depends on PR with no status line" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — fazer X depois do merge do #463 · `1A` / `1B`
+T
+
+check "dependency explained on a wait line" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — fazer X depois do merge do #463 · `1A` / `1B`
+> ⏳ #463 — comigo (agente): 2ª rodada de revisão dos bots; merge automático quando verde · nada a fazer por você
 T
 
 echo "--- $pass passed, $fail failed"

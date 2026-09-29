@@ -70,7 +70,7 @@ case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
 case "$verdict" in
-  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item) action="inject" ;;
+  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained) action="inject" ;;
   ok) if [ "$items" -gt 0 ]; then action="notify"; fi ;;
 esac
 [ -n "$action" ] || { log "$verdict" false ""; exit 0; }
@@ -95,6 +95,18 @@ else
 fi
 
 marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
+# A digest key is NOT unique per turn (two prompts can end in the same "Should I
+# continue?"), so it only dedups within one Stop cycle: a digest marker older than
+# DIGEST_TTL seconds is stale and re-claimable. Loop-safety inside the cycle comes
+# from the stop_hook_active guard above. prompt_id markers stay permanent.
+DIGEST_TTL="${MAOS_ATTENTION_DIGEST_TTL:-600}"
+case "$DIGEST_TTL" in ''|*[!0-9]*) DIGEST_TTL=600 ;; esac
+if [ -d "$marker" ] && [ "${key#m.}" != "$key" ]; then
+  mt="$(stat -f %m "$marker" 2>/dev/null || stat -c %Y "$marker" 2>/dev/null || echo 0)"
+  now="$(date +%s)"
+  case "$mt" in ''|*[!0-9]*) mt=0 ;; esac
+  if [ $(( now - mt )) -ge "$DIGEST_TTL" ]; then rmdir "$marker" 2>/dev/null || true; fi
+fi
 if ! mkdir "$marker" 2>/dev/null; then
   if [ -d "$marker" ]; then log "$verdict" false "idempotent"; else log "$verdict" false "marker_claim_failed"; fi
   exit 0
@@ -127,6 +139,8 @@ This turn asks the operator for something (approval · decision · answer · man
 > 2. **🔶 DECIDIR** — <what> · \`2A\` <option> (recomendado) · \`2B\` <option>
 > 3. **✋ AÇÃO MANUAL** — <what the human must do by hand>
 > ➕ +N registrados em <backlog> (não precisam de você agora)   ← only if >3
+
+If an item depends on another artifact (a PR, a ticket), add a line \`> ⏳ #N — <owner>: <state> · <what the human must do, or "nada a fazer por você">\` so the dependency is never invisible.
 
 Rules: blank line before it, NO \`---\` above it · it is the LAST thing in the message (no prose after it) · ≤3 items · reply tokens prefixed with the item number · shape AND word, never color alone (🛑 blocking/security · 🔶 decision · ✋ manual). If after self-answering nothing actually needs him, replace it with the bare line: > **✅ NADA PRECISA DE VOCÊ**
 

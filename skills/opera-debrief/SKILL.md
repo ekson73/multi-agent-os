@@ -26,7 +26,7 @@ version: 0.3.0
 license: MIT
 allowed-tools: Read, Write, Edit, Glob, Bash, Skill
 metadata:
-  version: "0.2.0"
+  version: 0.3.0
   scope: AAIF cross-vendor
   family: content-lifecycle
   cross_link_slug: opera-debrief
