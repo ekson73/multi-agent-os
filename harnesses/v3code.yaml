@@ -1,0 +1,51 @@
+schema: 1
+id: v3code
+name: V3Code (VS Code fork)
+vendor: null
+kind: ide
+detect:
+  commands: []
+  paths:
+  - ~/Library/Application Support/V3Code/User
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/Library/Application Support/V3Code/User/mcp.json
+    scope: user
+    platform: darwin   # other-OS path not documented here yet
+  - path: ./.vscode/mcp.json
+    scope: workspace
+  format: jsonc
+  key_path:
+  - servers
+  entry_style: vscode-servers
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: null
+    list: null
+    remove: null
+extensions:
+  skills: null
+  plugins: extensions (code --install-extension)
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://code.visualstudio.com/docs/copilot/customization/mcp-servers
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: historically corrupted with control characters; re-check 2026-09-24 found 0 control chars and valid JSON — lift
+  only after operator confirms the fork's writer is fixed
+notes: 'Map key `servers` (not mcpServers); top-level `inputs` array holds promptString inputs referenced as ${input:id} —
+  preferred way to avoid literal secrets. Remote: {type: http|sse, url, headers}; stdio: {type: stdio, command, args, env,
+  envFile?}. No per-entry disable (UI). Format is JSONC tolerant; current file is plain JSON. 16 entries observed, all type/url
+  or type/command/args (no headers present).'

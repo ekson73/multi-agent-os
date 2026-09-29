@@ -87,7 +87,8 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
 - **Redaction (best-effort).** Private-key blocks, cloud/API/GitHub/Slack tokens, JWTs,
   `user:pass@` URLs, `Bearer`/`Basic` credentials and `key=value` pairs whose key names a
   secret are scrubbed before the prompt exists. It **cannot** be exhaustive — a script that
-  handles secrets should default `MAOS_SELFHEAL=0` and treat the relay as opt-in.
+  handles secrets should default `MAOS_SELFHEAL=0` and treat the relay as opt-in. Executables
+  that resolve or write secret material should instead follow the log-only exception below.
 - **UNTRUSTED fence with a nonce.** The log sits between `<<<UNTRUSTED-LOG-{nonce}` and
   `UNTRUSTED-LOG-{nonce}>>>` (exactly three `>`); the nonce is generated at fault time, so a log line cannot forge
   the closing delimiter. The harness is told the block is data, not instructions.
@@ -164,6 +165,15 @@ observed. **Only verified harnesses are in the default chain**; the rest run onl
 The four adopters above still run the **v1** block (and the word "Phoenix"). Migrating each to
 the stamped v2 block is a **gated follow-up**: `worktree-gate.sh` is a guardrail hook (mandatory
 independent red-team, `SHR_TIER_LOCK=propose`), so it is not batch-edited here.
+
+## Documented exception — executables that handle secrets never dispatch
+
+| Script | Behaviour on an unexpected fault | Why |
+|--------|----------------------------------|-----|
+| [`bin/harness-mcp-sync`](../bin/harness-mcp-sync) | **log-only, never dispatches** (`MAOS_SELFHEAL` is ignored) | It reads and writes AI-harness configs that may carry credentials. An auto-dispatched agent with HOME access could read every config the tool touches, so the "human reviews the diff" guarantee above is not enough. The fault log is kept (masked) for a human to hand to an agent deliberately. |
+
+Any future executable that resolves or writes secret material SHOULD follow this
+exception rather than the default relay, and be listed here.
 
 ## Instrumenting a new script
 

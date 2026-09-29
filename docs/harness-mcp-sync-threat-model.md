@@ -1,0 +1,660 @@
+# harness-mcp-sync — failure-class threat model (PDCA round 11)
+
+Scope: `bin/harness-mcp-sync`. This round fixes **classes of failure**, not single findings.
+Each class lists every instance found by auditing the executor, with the regression
+test that pins it (`bin/tests/harness-mcp-sync.test.sh`, block "PDCA round 11").
+Negative control: the new block fails 22 assertions against `8bd0c74` and passes on
+this head.
+
+## C-A — git environment trust
+
+**Threat.** The git-safety gate decides whether a secret may be written to a config
+file (a tracked or untracked file inside a git work tree is refused). The executor runs
+`git` as a subprocess, so every inherited `GIT_*` variable and every global/system config
+file can move the probe to another repository, another index or another work tree. The
+gate then answers "not in a repo" for a file that *is* tracked, and a secret lands in
+version control. Source: CodeRabbit Major 4107215664.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `_git()` (ls-files / check-ignore probes used by build_plan, doctor, verify) | `env=_git_env()`: drop every `GIT_*` variable, set `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null` | C-A unit, 9 variables |
+| `rev-parse --is-inside-work-tree` | same env | C-A unit |
+| end-to-end apply of a secret server under `GIT_DIR=<bogus>` | refused, file untouched, non-zero exit | C-A e2e |
+
+Covered variables: `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`,
+`GIT_ALTERNATE_OBJECT_DIRECTORIES`, `GIT_COMMON_DIR`, `GIT_CEILING_DIRECTORIES`,
+`GIT_CONFIG_COUNT/KEY_n/VALUE_n`, `GIT_CONFIG_GLOBAL`. The scrub is by prefix, so a
+variable git adds later is also dropped. `core.fsmonitor=false`, `core.hooksPath=/dev/null`
+and `stdin=DEVNULL` (earlier rounds) remain.
+
+**Stated trade-off.** Ignoring the global config also ignores a global
+`core.excludesFile`. A file ignored only by the operator's global excludes is therefore
+classified `untracked`, and a secret write to it is refused. This is stricter, not looser
+(fail-closed). Any git error still maps to `unknown`, which also refuses secrets.
+
+## C-B — multi-harness atomicity
+
+**Threat.** `apply` and `restore` loop over harnesses. If the manifest is persisted only
+once after the loop, a failure in the middle leaves configs already written (or restored)
+while the manifest still describes the old state. The next run then either adopts
+foreign entries or deletes owned ones. Source: Codex P1 4107275318; apply audited for
+the same shape.
+
+| Instance | Fix | Test |
+|---|---|---|
+| restore: manifest reconciled after the loop | reconcile and `save_manifest` per restored harness | C-B restore (later payload missing) |
+| restore: exception from one harness aborts the rest | per-harness try; failure is reported as `refused … file left unchanged`, exit non-zero | C-B restore |
+| apply: `save_manifest` fails after the config write | the write is rolled back from the backup, the manifest entry is reverted, the error re-raised | C-B apply (fault-injected) |
+
+## C-C — config shape strictness
+
+**Threat.** A managed path (`key_path`) whose value is an explicit `null`, a list or a
+scalar was treated as "absent" and overwritten with a fresh mapping. That silently
+destroys user data of an unexpected shape. Source: Codex P2 4107275343.
+
+| Instance | Fix | Test |
+|---|---|---|
+| JSON `"mcpServers": null` | `map_shape_error` flags any non-mapping at any level → malformed, untouched | C-C hnj |
+| YAML `extensions: null` | same | C-C hny |
+| nested path, first level `null` | same (checked per level) | C-C hn2 |
+| verify | reuses `map_shape_error` | covered by the same helper |
+
+## C-D — transport alias normalization
+
+**Threat.** The SSOT may spell a remote transport `http` while an adapter declares only
+`streamable-http` (or the reverse). The adapter lookup then misses and renders a spelling
+the harness does not accept, or apply and verify disagree. Source: Codex P2 4107275325.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `render_entry` (all styles; used by apply and verify) | `canonical_transport()`: if the transport is `http`/`streamable-http` and not declared, use the declared alias | C-D htsh, hthp |
+| both declared | unchanged | C-D htbo ×2 |
+| verify agrees with apply | same function | C-D verify assertions |
+
+## Out of scope (not changed this round)
+
+Registry authorship (trusted, reviewed data), the operator's own shell, and a local
+attacker with write access to `$HOME` are outside this model, as in earlier rounds.
+
+---
+
+# Round 12 — redesign: write-ahead intent journal (config + manifest atomicity)
+
+**Why a redesign.** Round 11 left six findings. Four of them (CodeRabbit 4107828365,
+4107828370; Codex 4107841820, and the C-B class itself) share one root cause: each
+mutation writes **two files in sequence** (the harness config, then `manifest.json`)
+with **no durable record of intent**. Any fault between the two writes, or during a
+rollback, leaves the pair inconsistent, and a later run cannot tell what happened.
+Point fixes (try/except around each save) keep moving the window instead of closing it.
+The fix is a write-ahead log: record intent durably first, mutate second, and make every
+later run able to finish or undo an interrupted one.
+
+## J1 — Artifacts
+
+| Artifact | Location | Content | Invariant |
+|---|---|---|---|
+| lock | `<state>/lock` | empty; `fcntl.flock` | exclusive for apply/restore/reconcile; shared for verify/doctor/plan |
+| journal | `<state>/journal/<run-id>.json`, 0600, dir 0700 | see J2 | written by atomic replace + `fsync(file)` + `fsync(dir)` on **every** state change |
+| closed journals | `<state>/journal/done/<run-id>.json` | same, final state | audit trail; never read for decisions |
+| backups | `<state>/backups/<run-id>/<hid>/` | payload + `meta.json` (existing) | fsync'd before the journal references them; **never deleted by reconcile** |
+
+`run-id` = the existing backup timestamp, so a journal and its backups share one name.
+All three live in the private state dir, which is already checked link-free and 0700.
+
+## J2 — Journal schema
+
+```json
+{"schema": 1, "run_id": "20260925T...Z", "op": "apply|restore", "state": "open|closed",
+ "salt_id": "<HMAC(salt, b'salt-id')[:16]>",
+ "entries": [{"hid": "...", "path": "/abs/config",
+              "pre": {"hash": "<hmac>|null", "mode": "0o600|null", "exists": true},
+              "post": {"hash": "<hmac>|null", "mode": "0o600|null", "exists": true},
+              "backup": "backups/<run-id>/<hid>",
+              "mf_before": {...} | null, "mf_after": {...} | null,
+              "state": "pending|config-written|rolling-back|manifest-committed|rolled-back|conflict|conflict-resolved",
+              "error": "<exception class name only>|null",
+              "mac": "<HMAC(salt, canonical(entry without mac))>"}],
+ "journal_mac": "<HMAC(salt, canonical({run_id, salt_id, op, [entry macs in order]}))>"}
+```
+
+- File hashes are `HMAC-SHA256(salt, bytes)` with the existing state salt. Plain SHA-256
+  of a file that holds a secret would let anyone who reads the journal confirm a guessed
+  secret; with the salt they cannot. The journal holds no config bytes and no secrets.
+- `mf_before` / `mf_after` are this path's manifest entry (already salted hashes).
+  Rollback restores **this path's entry only**, never the whole manifest, so harnesses
+  committed earlier in the same run are not disturbed.
+- Each entry `mac` covers the entry as currently written and is recomputed on every
+  state change; `journal_mac` is recomputed on every journal rewrite. Deleting, reordering
+  or swapping an entry therefore breaks the journal loudly instead of silently.
+- **Permission-only drift (Codex 4107841802).** apply treats a managed file whose mode is not
+  0600 as work even when no content changes: a journaled entry whose only write is `chmod 0600`
+  (S2 backup, S3 intent, S4 = chmod, S6 = observe the post triple, S7 manifest unchanged). It
+  follows the same reconcile table, because the observed triple includes the mode.
+- A permission-only repair is an entry with `pre.hash == post.hash` and
+  a different `mode`.
+
+## J3 — Commit protocol (per harness, in order)
+
+| Step | Action | Durable after the step |
+|---|---|---|
+| S0 | take exclusive lock; **reconcile** any open journal (J5) | lock held |
+| S1 | create journal (`state: open`, no entries) | journal file |
+| S2 | write backup payload + meta (fsync file + dir) | backup |
+| S3 | append entry `pending` (pre, post, backup, mf_before, mf_after) | intent |
+| S3b | re-run `config_changed` **immediately** before the write; changed → entry `rolled-back`, refuse "config changed since plan" | |
+| S4 | write config (atomic replace, fsync file + **dir**) | new config |
+| S5 | entry → `config-written` | |
+| S6 | parse-back validation; on failure → rollback (J4) | |
+| S7 | write manifest with `mf_after` for this path (atomic, fsync file + dir) | new manifest |
+| S8 | entry → `manifest-committed` | |
+| S9 | after all harnesses: journal `closed`, move to `done/` | |
+
+`atomic_write` gains the missing `fsync` of the parent directory; without it the rename
+itself is not durable across power loss.
+
+## J4 — In-process rollback (a step raises)
+
+1. **First** entry → `rolling-back` (durable). Then restore the config: if `pre.exists`
+   write the backup payload with `pre.mode` (only after its HMAC equals `pre.hash`), else
+   unlink the file and fsync the directory. Both are retry-safe: the unlink tolerates
+   `ENOENT`, and restoring bytes and mode that are already in place is a no-op. Then set the manifest entry to `mf_before`.
+   Then entry → `rolled-back`. `rolling-back` is what makes a failed rollback
+   distinguishable from "crash after S7": reconcile never rolls it forward.
+2. **The original error is always the reported error.** If the rollback itself fails
+   (e.g. ENOSPC, CodeRabbit 4107828365): the entry stays in its last durable state, the
+   journal stays `open`, the backup is kept, and the output names **both** errors plus the
+   backup path and "the next apply/restore reconciles this run". Exit non-zero.
+3. The remaining harnesses of the run are **not** attempted after a failed rollback
+   (state is not known-good); harnesses already `manifest-committed` stay committed.
+
+## J5 — Reconcile (start of every apply/restore, under the exclusive lock)
+
+For each open journal, for each entry not in a final state, observe `H` = HMAC of the
+config now (or `absent`) and `M` = the manifest entry now:
+
+`O` is the observed triple `(exists, hash, mode)`; `pre`/`post` are the recorded triples.
+Matching compares all three fields, so a permission-only entry (same hash, different
+mode) and a pre-absent file are both decided exactly.
+
+| Entry state | Observation | Decision |
+|---|---|---|
+| `pending` | `O == pre` | nothing was written → `rolled-back` (manifest entry set to `mf_before`) |
+| `pending` | `O == post` | crash after S4, before S5 → handle as `config-written` |
+| `config-written` | `O == post`, `M == mf_after` | crash after S7, before S8 → **roll forward**: `manifest-committed` |
+| `config-written` | `O == post`, `M != mf_after` | **roll back** (J4 step 1, starting with `rolling-back`) |
+| `config-written` | `O == pre` | impossible without a rollback, which always passes through `rolling-back` → `conflict` |
+| `rolling-back` | `O == post` or `O == pre` | **retry the rollback**, never roll forward (validation may have failed) |
+| `manifest-committed` | `M != mf_after` | re-assert `mf_after` (idempotent) |
+| any non-final | backup payload HMAC != `pre.hash` when a rollback needs it | `conflict` (a data problem; retrying cannot help) — report backup path and `resolve` |
+| any non-final | `O` ∉ {pre, post} (incl. deleted after write) | **foreign change** → touch nothing, entry `conflict`, journal stays open, exit non-zero, print backup path and the `resolve` command |
+
+Roll forward happens in exactly one case: the entry reached `config-written` (which is
+only recorded after S5, and S6 validation precedes S7) and both writes landed; only the
+bookkeeping is missing. Every other interrupted state rolls back. Every action is idempotent: re-running reconcile after a crash inside reconcile
+reaches the same state (restore to `pre` then comparing `H == pre` is a no-op; setting a
+manifest entry to a value it already has is a no-op). A journal closes only when every
+entry is final and not `conflict`.
+
+**Trust of the journal.** The journal is a state-dir file, so the round-3 N1 lesson
+applies: a path in it is honoured only if it is one of the harness's registry
+`config_paths` under `$HOME` (the same allow-list restore uses). A backup ref must
+resolve inside `<state>/backups/<run-id>/`. Anything else → `conflict`, nothing touched.
+A journal that does not parse, whose filename is not a valid run-id, whose in-file
+`run_id` differs from its filename, whose `salt_id` differs from the current salt, or
+whose entry `mac` does not verify → refuse to mutate (usage error naming the file and the
+`resolve` command); never guess. A backup ref must resolve inside
+`<state>/backups/<validated run-id>/`, the `journal_mac` must verify, every component checked link-free **at use time**,
+and its payload HMAC must equal `pre.hash` before it is written. The manifest carries the
+same `salt_id`; a lost or rotated salt is detected there and refused, never silently
+re-keyed. The manifest is tool-private and single-writer under the lock; a hand edit to
+it between runs is overwritten toward `mf_before`/`mf_after` by design.
+
+## J6 — Restore uses the same journal
+
+`restore <ts>` is an `op: restore` run with its own run-id:
+- S2 backs up the **current** config first (so the restore itself can be undone — the
+  missing piece in CodeRabbit 4107828370 and Codex 4107841820).
+- `post` = HMAC of the backup payload being restored; `mf_after` = the entry from the
+  backup's manifest snapshot (or absent); `mf_before` = the current entry.
+- Same steps, same rollback, same reconcile table.
+
+## J7 — Concurrency
+
+- apply / restore / reconcile: `LOCK_EX | LOCK_NB`. Busy → exit with "another run holds
+  the lock" (usage error); never wait silently, never run in parallel.
+- verify / doctor / inventory: `LOCK_SH | LOCK_NB`. (`plan` is advisory and takes no lock.) Busy → report "a mutating run is in
+  progress; results would be transient" and exit non-zero.
+- The existing `config_changed` re-read before each write still guards against the
+  harness itself rewriting its file; reconcile's `conflict` row covers the same race
+  across runs.
+
+## J8 — verify and doctor read the journal (read-only)
+
+- Any open journal → verify reports `interrupted <op> run <run-id>: <n> entries in state
+  <s>; the next apply/restore reconciles it` and exits non-zero. doctor lists the same
+  plus any `conflict` entry with its backup path.
+- Neither mode ever writes the journal, the manifest or a config.
+- Round-11 Codex verify gaps closed alongside: SSOT servers that should be rendered but
+  have no manifest record are reported (4107841810), and a secret-bearing config that is
+  git-visible (tracked / untracked / unknown) is reported (4107841816).
+
+## J8b — Operator escape: `resolve <run-id>`
+
+A persistent `conflict` or an unusable journal must not wedge the tool. `resolve <run-id>`
+(explicit mode, exclusive lock) never touches a config or the manifest: it marks the
+remaining entries `conflict-resolved`, moves the journal to `done/`, keeps all backups,
+and prints each entry's backup path. `resolve` deliberately does **not** verify
+`salt_id`, `mac`, `journal_mac` or parseability and does not reconcile: it acts on the
+validated run-id alone (if the journal parses, mark its non-final entries; either way
+move the file to `done/`). Only decision-making paths (reconcile) require full
+verification, so the escape hatch works for exactly the journals it exists to clear.
+**Guardrail:** because `resolve` reads unverified journal content, it never writes, restores or
+deletes a harness config or the manifest on the basis of that content. It only archives the
+journal to `done/` with a resolution record. Any config change afterwards goes through a normal,
+fully verified `apply` or `restore`. It requires one explicit run-id (no wildcard, no "all").
+
+**Salt recovery.** A lost or rotated salt blocks every mutation through the manifest's
+`salt_id`, which `resolve` does not clear. Recovery: move `manifest.json` and `journal/`
+aside, then re-run `apply --adopt` to rebuild ownership from the current configs.
+Backups taken under the old salt cannot be `restore`d (see C-E below); their bytes stay available for a manual copy. verify and doctor print this command whenever they
+report an open journal.
+
+## J9 — Failure points to inject (test plan)
+
+Apply: before S2 · after S2 · after S3 · inside S4 (before rename) · after S4 · after S5 ·
+S6 fails · rollback fails (ENOSPC) · inside S7 · after S7 · after S8 · before S9.
+Restore: the same points. Reconcile: crash inside reconcile then reconcile again
+(idempotency) · foreign change · tampered journal path · unparseable journal.
+Added from the red-team: crash after S1 (empty journal closes) · pre-absent file at every
+point (rollback unlinks) · permission-only entry at every point · S6 failure with rollback
+succeeding vs failing (the `rolling-back` case) · S3b config-changed · ENOSPC during
+journal writes (S3/S5/S8) · crash during the `done/` move · salt lost then reconcile ·
+tampered backup payload / symlinked backup component · tampered journal then `resolve` (configs
+byte-identical, journal archived) · `resolve` with a wildcard or "all" refused · permission-only
+entry interrupted mid-run · swapped pre/post hashes (MAC) ·
+filename/run_id mismatch · lock-busy for every locked mode · restore whose target parent
+dir is gone · `resolve` on a conflict. Each test asserts the three observable facts:
+config bytes (and mode), manifest entry, journal state.
+
+## J10 — Out of scope, stated
+
+A crash while `atomic_write` has created its temp file leaves a `.hms-*` file in the
+config directory; the config itself is unchanged. doctor reports such files; nothing
+deletes them automatically. The design does not defend against an attacker who can write
+the state dir *and* forge the salt; that attacker can already rewrite the manifest.
+Deleting a whole journal file needs no salt and is not detectable from the journal; it
+is caught one layer up, because the config then disagrees with its manifest entry and
+verify reports content drift.
+
+## J11 — Independent red-team of this design (kimi, 2026-09-25) and disposition
+
+Verdict **FAIL** (1 blocker, 7 majors). All folded above before any code:
+
+| # | Finding | Disposition |
+|---|---|---|
+| 1 BLOCKER | failed rollback looked like "crash after S7" → roll forward of an invalid config | `rolling-back` state (J4, J5) |
+| 2 MAJOR | pre-absent config wedged as `conflict` | triples with `exists`; rollback unlinks (J2, J4, J5) |
+| 3 MAJOR | salt loss silently re-keys every hash | `salt_id` in journal and manifest; mismatch refused (J2, J5) |
+| 4 MAJOR | backup payload restored unverified | HMAC == `pre.hash` + link-free at use time (J4, J5) |
+| 5 MAJOR | permission-only entry ambiguous | observe `(exists, hash, mode)` (J5) |
+| 6 MAJOR | persistent conflict wedges the tool | `resolve <run-id>` (J8b) |
+| 7 MAJOR | journal hashes unauthenticated | per-entry `mac` (J2, J5) |
+| 8 MAJOR | `error` field could hold secrets | exception class name only (J2) |
+| 9 MINOR | manifest hand edits silently reverted | documented: tool-private, single-writer (J5) |
+| 10 MINOR | wider harness-self-write window | S3b re-check right before S4 (J3) |
+| 11 MINOR | test-matrix gaps | added (J9) |
+| 12 MINOR | run-id trust / collision | filename == body, containment from validated id (J5); a new run-id that already has a backups dir is re-drawn |
+| 13 NIT | unbounded growth of `done/` and backups | deferred to a follow-up issue (opt-in prune); never-delete stays the default |
+| 14 NIT | inventory unlocked | `LOCK_SH` (J7) |
+| 15 NIT | plan lock makes scripting flaky | plan takes no lock (J7) |
+
+### J11b — Delta red-team (kimi, same session) and disposition
+
+Findings 1–8: all **CLOSED** by the text above. New findings from the fixes:
+
+| # | Finding | Disposition |
+|---|---|---|
+| N1 MAJOR | per-entry MAC does not protect the entry *set* (delete the `rolling-back` entry) | `journal_mac` over run_id, salt_id, op and the ordered entry macs (J2, J5) |
+| N2 MAJOR | `resolve` would refuse the very journals it must clear | `resolve` skips verification, acts on the run-id only (J8b) |
+| N3 MINOR | pre-absent rollback retry fails on ENOENT | unlink tolerates ENOENT; identical restore is a no-op (J4) |
+| N4 MINOR | bad backup payload during retry → retries forever | `conflict` row (J5) |
+| N5 NIT | MAC freshness unstated | recomputed on every state change / rewrite (J2) |
+| N6 NIT | salt-loss recovery undocumented | documented (J8b) |
+
+Economic stop (Convergence Engine, ≤3 rounds): the remaining items are pinned by
+J9 tests rather than a third design round; the implementation PR gets its own review.
+
+---
+
+# Round 13 — failure classes found in review of the journal PR
+
+Two classes. Each row lists an instance found by auditing every write path, the fix, and the
+regression test that pins it (`bin/tests/harness-mcp-sync.test.sh`, block "PDCA round 13").
+Negative control: the new block fails against `cb0c75d` and passes on this head.
+
+## C-E — restore write guarantees
+
+**Threat.** `restore` and every rollback write harness configs, the same way `apply` does. They
+must keep every invariant `apply` keeps. They did not: `apply` checks git before writing secret
+material, fsyncs every rename, and only ever records hashes keyed by the current salt. `restore`
+wrote backup bytes without the git check, deleted a config without flushing its directory, and
+copied ownership hashes from a backup taken under another salt. Sources: Codex P1 4108664581,
+Codex P2 4108664601, CodeRabbit Minor 4108748601.
+
+Invariants a config write must keep: **(I1)** no secret material lands in a git-visible file
+(tracked, untracked-not-ignored, or unknown); **(I2)** every write, delete and directory creation
+is durable before the journal records it; **(I3)** every manifest hash is keyed by the current
+salt; **(I4)** a file carrying secret material is never wider than 0600.
+
+| Write path | Invariant | Before | Fix | Test |
+|---|---|---|---|---|
+| `mode_restore` → `restore_from`, backup existed | I1 | wrote the bytes into any file | `restore_git_refusal()`: when git reports the target leak-prone and the backup may carry secret material (or cannot be parsed to check), the harness is refused before the journal entry; file untouched | C-E git: tracked + untracked refused, ignored allowed, secret-free backup allowed |
+| `restore_from`, backup existed=false (unlink) | I2 | `os.unlink` without a directory fsync | `fsync_dir(parent)` after the unlink | C-E fsync: unlink flushed |
+| `restore_from` / `apply` write / `rollback_entry`, missing parent dirs | I2 | `os.makedirs` without flushing the new entries | `makedirs_durable()`: creates each missing level 0700 and fsyncs its parent | C-E fsync: new parent dirs flushed |
+| `mkdir_private` (state dir, `backups/`, `backups/<run>`, `journal/`) | I2 | `os.makedirs` without flushing the new entries: a crash could drop a backup dir the journal points into (degrades to `conflict`) | uses `makedirs_durable()` (kimi DIY review P3, round 14) | kimi P3: every created level flushed |
+| `mode_restore` gate call (`restore_git_refusal`) | I1 | ran outside the per-harness guard: a config path that is now a directory, or a payload whose parse raises (e.g. `RecursionError`), aborted the whole restore as an internal error | moved inside the per-harness `try`; `doc_may_carry_secret` treats any parse exception as secret-bearing | kimi P3: hostile nesting → fail-closed |
+| `rollback_entry`, pre-absent, parent dir gone | I2 | `fsync_dir` raised `FileNotFoundError` → rollback reported failed | flush the nearest existing ancestor | C-E rollback: parent gone |
+| `mode_restore`, `mf_after` from the backup's manifest snapshot | I3 | copied hashes from any salt → stale ownership | snapshot with entries must carry the current `salt_id`; otherwise the whole restore is refused (exit 2) before any journal or backup dir is created | C-E salt: rotated + missing `salt_id` refused, nothing created |
+| `restore_from`, backup mode wider than 0600 | I4 | restored the recorded mode (e.g. 0644) with secret material | mode capped to `mode & 0600` when the backup may carry secret material | C-E mode: 0644 secret backup restored as 0600 |
+| `rollback_entry` (apply or restore run, incl. reconcile) | I1, I4 | restores the exact pre-run bytes and mode | unchanged by design: it returns the file to the state it had seconds before, so it adds no exposure that was not already there | existing J4/J5 tests |
+| `reconcile` manifest re-assert (`set_mf`) | I2, I3 | atomic, salt-bound (`bind_salt`, journal `salt_id`) | unchanged | existing J5 tests |
+
+`restore_git_refusal` scans the parsed backup for the same signals `apply` treats as secret
+material (`carries_secret()` on every mapping in the document: placeholders, non-empty
+header/env containers, secret-looking args, masked URLs). A backup that cannot be decoded or
+parsed is treated as secret-bearing (fail-closed). Restoring to "absent" (unlink) never adds
+material and is not gated. Bytes identical to the current file are not gated either: nothing new
+becomes visible.
+
+**Salt recovery (updated).** After a salt loss, backups taken under the old salt can no longer be
+`restore`d: their ownership hashes are keyed by the old salt and would be written as stale entries.
+Their config bytes stay in `backups/<ts>/<harness>/` for a manual copy; after copying, run
+`apply --adopt NAME` to rebuild ownership. This replaces the J8b sentence "everything under
+`backups/` stays valid for `restore`".
+
+## C-F — platform contract
+
+**Threat.** The executor imported `fcntl` unconditionally. On native Windows that import fails
+before any output, so the user gets a traceback instead of a reason. Source: Codex P1 4108664588.
+
+**Decision.** Native Windows is outside the supported contract (the lock, the private-dir checks
+and the `0600` modes all assume POSIX). Supported: macOS, Linux, and Windows through WSL.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `import fcntl` at module load | guarded import; `run()` exits 2 with "native Windows is not supported … use WSL" before parsing arguments or touching the state dir | C-F: fcntl unavailable → exit 2, message, no state dir |
+
+No Windows lock is implemented; adding one would widen the contract without a way to test it here.
+
+## C-G — argv is format-agnostic
+
+**Threat.** Secret detection for arguments keyed on the field name `args`. Adapters choose where
+argv lives: OpenCode renders `command: [cmd, "--token", "abc"]`. A short secret-named value there
+was invisible to the restore git gate and the 0600 cap (C-E I1/I4), to the redactor registration of
+parsed third-party configs, and to the preview mask. Source: Codex P1 5331599477.
+
+**Decision.** Any non-empty list of strings is a potential argv (`is_argv`). Over-inclusion only
+masks or refuses more, so the direction is fail-closed.
+
+| Instance | Fix | Test |
+|---|---|---|
+| `doc_may_carry_secret` (restore gate, mode cap) | every argv list goes through `carries_secret` | C-G: `command` argv is gated |
+| `register_secret_args` (parsed configs) | registers values from every argv list | C-G: `command` argv is registered |
+| `masked_preview` (plan/apply output) | masks every argv list, not only `parent == "args"` | C-G: `command` argv is masked |
+| `carries_secret` (root; callers: `verify` git check, `apply` git gate, restore gate) | scans every argv-shaped value of the entry, not only `args` (round 15, Codex P1: `verify` still reported `clean` for a tracked OpenCode config) | C-G root: `command` argv flagged |
+
+Round-14 lesson: the first C-G pass enumerated by the *key* (`"args"` occurrences) instead of by
+the *concept* (every caller of the secret predicate), so the `verify` caller was missed. Fixing the
+predicate itself closes every caller at once.
+
+**Reconcile robustness (round 15, Codex P2).** A journal target that has become a directory or is
+unreadable made `file_triple` raise before the reconcile guard, so every later run aborted as an
+internal error. It is now recorded as a `conflict` (human `resolve`), like any other outside change.
+Test: reconcile, target now a directory.
+
+The SSOT schema still names the field `args`; only the rendered and parsed shapes vary, and those
+are what the three consumers see.
+
+## Test hygiene
+
+J7 (lock) let the lock-holding process exit after a fixed sleep, so on a slow machine the
+remaining assertions could run with the lock already released. The holder now waits for a release
+file and the test checks it is still alive before releasing it (CodeRabbit Major, outside-diff).
+
+## Round 16 (Codex P2s on `c8414b5`)
+
+| Finding | Class | Fix | Test |
+|---|---|---|---|
+| plan-only harness with pending work exited 0 | exit-code honesty (drift ≠ convergence) | `not-applied` now sets `worst = EXIT_DRIFT`, same as a Git-safety refusal | R16a |
+| shared file kept a stale `harness` claimant | ownership | reused manifest entry takes `harness = r["id"]`; `verify` uses the selected claimant (`by_path[path]`) instead of the stored id | R16b |
+| unterminated `/*` silently swallowed to EOF | parser fail-closed | `strip_jsonc` raises `Refused`; with `--allow-comment-loss` the file is left untouched (e2e verified) | R16c |
+
+Enumeration by concept: every `not-applied` / refusal branch in `mode_apply` now sets `worst`; the only `strip_jsonc` caller (`parse_config`) is already inside `read_config`'s `except Refused`, so the new refusal surfaces as a per-harness error, not a traceback.
+
+## Round 17 (Codex on `be9b35d`) — new class C-H: URL credentials are key-agnostic
+
+Adapters store the endpoint under their own key (`url`, Gemini/Qwen `httpUrl`, Antigravity `serverUrl`,
+Goose `uri`). `carries_secret` only inspected `url`, so `https://host/mcp?token=…` under any other key
+read as clean — letting a restore write it into a Git-visible file and verify report it clean. Same
+lesson as C-G, one axis over: **detect by value shape, never by key name**.
+
+| Site | Fix | Test |
+|---|---|---|
+| `carries_secret` (root) | every string value is checked with `mask_url`; argv elements too | R17a |
+| `doc_may_carry_secret` string leaves | `mask_url(n) != n` added (nested URLs anywhere) | R17a |
+| output masking (`Redactor`) | already text-level `URL_RE` over all output — no change needed | — |
+
+Also in this round (P2): `shared_claimants()` is now the single claimant source for plan **and**
+verify (R17b), and verify reports pending plan-only work as drift so apply and verify agree (R17c;
+the no-write policy is unchanged). The pre-existing "verify after apply" drift-set assertion now
+expects `hlow` (plan-only) alongside the two git-refused fixtures.
+
+## Round 18 (Codex on `e7e8957`)
+
+**C-H follow-up — classify the decoded form.** `mask_url` matched `SECRET_PARAM_RE` against the raw
+query key, so `?api%5Fkey=a` (or double-encoded `api%255Fkey`) read as a non-secret name. Every
+classification point in `mask_url` now uses `_decoded()` (bounded repeated `unquote_plus`): query
+keys and path segments; output keeps the original spelling (R18a). `mask_url` is the only URL
+classifier, so `carries_secret`, `doc_may_carry_secret` and the `Redactor` inherit the fix.
+
+**Plan-only drift includes conflicts/refusals.** `plan_is_empty` counts writes/adoption only, so a
+conflict-only plan-only result read as converged. `plan_pending()` (writes, adoption, conflict or
+refusal) now drives both the apply exit code and the verify report (R18b).
+
+## Round 19 (Codex on `7f76865`)
+
+| Finding | Fix | Test |
+|---|---|---|
+| P1 fixed 4-pass decode let 5-layer encoding through | `_decoded()` iterates to a fixed point, bounded by input length (length never grows) | R19a |
+| JSONC `1/*c*/2` fused into `12` | removed block comment is replaced by a space (token boundary kept) | R19b |
+| owned entry hand-edited + SSOT now unrenderable → `nothing-to-do` | `skip` on a modified owned entry emits a conflict; entry kept | R19c |
+| plan-only harness with 0644 managed file exited 0 | pending mode repair is drift; no-write policy kept | R19d |
+| `secret:` documented but not a placeholder, and exempt from the literal heuristic | removed from the SKILL contract and from `literal_secretish` | R19e |
+
+Lesson (C-H, third instance): a fixed iteration cap is a key-name check in disguise — bound by the
+input, not by a guess.
+
+## Round 20 — cross-vendor audit of the whole secret-detection path (class C-I)
+
+After four consecutive Codex P1s, each one input shape at a time, the secret path was audited as a
+whole by an independent reviewer from a different vendor (kimi, read-only, every finding verified
+by executing the module). Root cause of the recurring findings: detection was built from
+**name/shape heuristics with incomplete coverage** — each gate knew some spellings of "secret".
+
+| # | Sev | Bypass class | Fix |
+|---|---|---|---|
+| F1 | P1 | camelCase names (`accessToken`) and innocent names (`?id=`) with a high-entropy value | query names classified after `_snake()`; any query value is also checked by value (entropy) |
+| F2 | P1 | 2-class secrets (hex) failed the 3-class literal heuristic → restore gate | `literal_secretish` also accepts `_secretish_segment` (2 classes, high entropy) |
+| F3 | P2 | no scheme: `//user:pw@host`, `user:pw@host:port` | `USERINFO_RE` in `mask_url` and in the output `Redactor` |
+| F4 | P2 | `/password v`, `+token v` flag prefixes | flag-name regexes accept `-`, `--`, `/`, `+` |
+| F5 | P3 | case-variant containers (`Headers`, `ENV`) | single `is_container()` predicate at every site |
+| F6 | P3 | 19-char high-entropy path segment | segment floor 20 → 16 |
+
+Principle now binding for this file: **a detector must be defined by the value, not by a list of
+names or a fixed number of passes**; name lists only ADD detection, never gate it. False-positive
+guards (ordinary query params, package specs, paths, short session ids) are part of R20.
+
+## Round 21 — C-J: structural fail-closed gate for Git-visible configs
+
+**Why the class changed.** Rounds 14-20 closed, one by one, secret shapes that the content
+heuristics missed (argv under any key, URL credentials under any key and any encoding depth,
+camelCase/acronym container keys, Windows-style flags, short hex, scheme-less userinfo). The
+Codex review of round 20 found five more variants of the same family (punctuation as a character
+class, `HTTPHeaders`, `/password:value`, a URL embedded inside an argv token, scheme-less userinfo
+before an IPv6 host). A detector that recognizes secrets by name or shape can never be complete,
+so it must not be the barrier that keeps a secret out of a commit.
+
+**Fix (structural).** A config that Git can see — tracked, untracked-but-not-ignored, or of
+unknown state — is **never written and never restored by default**, whatever the content. The
+refusal names the opt-in `--allow-git-visible` and the alternative (git-ignore the file).
+The one exception is **removal of a server this tool owns** (disabled, excluded or dropped from the
+SSOT): it is still applied, because deleting a managed entry only reduces exposure and refusing it
+would keep a credential the operator asked to remove; no new server content is written (round 33).
+
+**Defense in depth.** With `--allow-git-visible`, every server that the content check flags is
+still refused (the round 14-20 detectors stay active), and restore still refuses a backup that
+may carry secret material. Masking of output/logs keeps using the same detectors; there, a miss
+affects display only, never what reaches Git.
+
+| Finding (Codex, on 4e49146) | Disposition |
+|---|---|
+| 4116927279 punctuation class | subsumed by C-J for Git exposure; masking remains best-effort |
+| 4116927281 `HTTPHeaders` | subsumed by C-J |
+| 4116927285 `/password:value` | subsumed by C-J |
+| 4116927289 URL inside argv token | subsumed by C-J |
+| 4116927291 userinfo before `[::1]` | subsumed by C-J |
+
+**Tests.** C-J cases prove a value no detector recognizes never reaches a tracked or
+untracked-not-ignored config, that the refusal exits nonzero and names the flag, and that a
+secret-free restore into a tracked config is refused by default and allowed only with the flag.
+Negative control on 4e49146: 9 failures, all in the new/updated cases.
+
+**Binding principle.** Detection by name or shape informs masking; it never authorizes a write
+into a place that is shared through version control. Exposure is decided by location, not content.
+
+## Round 22 — snapshot consistency, stale ownership, TOML key semantics
+
+| Finding (Codex, on 258afd2) | Root cause | Fix |
+|---|---|---|
+| 4117011446 (P1) restore backup vs recorded pre-state | `backup_file()` and `file_triple()` read the config separately; a rewrite in between recorded `pre` ≠ backup, so restore overwrote the edit and any rollback failed | `backup_file()` reads bytes + mode from ONE open file and returns that snapshot as `pre` (all 3 callers); restore rechecks `file_triple == pre` right before writing (S3b) and refuses a rewrite observed up to that point, leaving it in place (best-effort: see round 23) |
+| 4117011451 (P2) stale ownership of an already-absent entry | removal planning only acted on names present in the file | new manifest-only `forget` action: owned + undesired + absent → the ownership record is dropped through the journaled no-write path; verify converges |
+| 4117011458 (P2) quoted TOML key with `\U` escape | quoted keys were decoded with `json.loads` | decoded with `tomllib` itself; an undecodable key is a `Refused`, never an internal error |
+
+Tests R22a/b/c; negative control on 258afd2: 6 failures. Suite 785/785.
+
+## Round 23 — manifest-only verify under C-J, final forget, narrowed guarantees
+
+| Finding (on 2615d11) | Fix |
+|---|---|
+| Codex 4117227895 (P1) manifest-only `verify` authorized a now-Git-visible config through `carries_secret()` alone | the C-J gate applies to `verify` too: a managed config that is Git-visible is drift by default; `--allow-git-visible` falls back to the content check |
+| Codex 4117227900 (P2) forgetting the final server of an absent file left an empty file record ("file missing" forever) | a file record with no owned server is removed from the manifest |
+| CodeRabbit 4117218571 compare-and-write is not atomic against external writers | **guarantee narrowed, not overstated.** The run lock serializes `harness-mcp-sync` processes only; a harness or user can still write between the S3b recheck and the atomic replace. That window is now microseconds (one stat+hash before `rename`) instead of the whole plan, and every write keeps a backup, so a lost edit is recoverable from `backups/` — but it is not excluded. Harnesses expose no file-lock protocol to honor. |
+| CodeRabbit 4117218581 masking of short inline literals | **qualified as best-effort.** Placeholder-resolved values are registered and masked at any length; an inline literal is masked only if a detector matches it. The SSOT contract (secrets by placeholder only) is what makes output clean; the lint enforces it for Git-visible targets. |
+
+Tests R23a/b; negative control on 2615d11: 5 failures. Suite 792/792.
+
+## Round 24 — stale manifest paths after a registry migration; pre-existing empty records
+
+| Finding (Codex, on 3593157) | Fix |
+|---|---|
+| 4117281371 (P1) a registry path migration left the old manifest-owned path unexamined; verify said clean even after the old credential-bearing file became Git-visible | `stale_records()` finds manifest paths no longer registered for their (selected) harness. verify reports them as stale ownership and applies the C-J gate to them. apply stays drift while the old file exists (never deleted or rewritten automatically) and drops the record once the file is gone |
+| 4117281377 (P2) an empty record left by an older version plus an absent config → apply `nothing-to-do`, verify `file missing` forever | a record that ends up with no owned server is cleanup work: dropped through the journaled no-write path |
+
+Tests R24a/b; negative control on 3593157: 6 failures. Suite 802/802.
+
+## Round 25 — stale liveness from the current target, not the restore allow-list
+
+Codex 4117313067 (P1, on 9e40270): `stale_records()` treated every registered `config_paths` entry
+as live, so an old path kept as a secondary fallback after a migration was never flagged, and the
+C-J gate never examined it. Liveness is now each harness's **current** `target_path()`, and
+`allowed_targets()` is left for restore only. Test R25; negative control on 9e40270: 3 failures.
+Suite 805/805.
+
+## Round 26 — stale liveness per record owner
+
+Codex 4117340767 (P1, on 7f42415): liveness was global (any harness's current target), so an
+owner that migrated A→B kept its A record alive whenever another, unselected harness also targets A.
+`verify --harness <owner>` then skipped A and the C-J gate never ran. Liveness is now per record:
+the record is live only when its **recorded owner's** current `target_path()` is that path. Test
+R26; negative control on 7f42415: 3 failures. Suite 808/808.
+
+## Round 27 — claimant handoff persistence; non-finite JSON constants
+
+| Finding (Codex, on 24dcf1c) | Fix |
+|---|---|
+| 4117390454 (P2) A owned a shared path and moved away while B kept targeting it with an unchanged server: `nothing-to-do` never recorded B, so the per-owner stale check flagged B's valid config forever | a claimant change is manifest-only work (journaled, file untouched): the new owner is recorded and apply/verify converge |
+| 4117390459 (P2) `NaN`/`Infinity` accepted by Python's `json` and round-tripped | configs parse with `parse_constant` rejecting non-finite constants (refused, file untouched), JSON output uses `allow_nan=False`, and the SSOT loader parses strictly too (defense in depth: the SSOT schema already rejects the only fields that could hold them, so that path has no separate test) |
+
+Tests R27a/b; negative control on 24dcf1c: 5 failures. Suite 813/813.
+
+## Round 28 — duplicate SSOT keys; repeated harness ids
+
+| Finding (Codex, on 858341e) | Fix |
+|---|---|
+| 4117446242 (P1) a duplicate SSOT key (a second, empty `servers`) silently won and scheduled removal of every managed server | the SSOT loader uses the same duplicate-pair detection as config parsing → usage error, nothing removed |
+| 4117446245 (P2) `--harness h,h` planned one config twice; the second result saw the first write as a concurrent change | ids deduplicated preserving order |
+
+Tests R28a/b; negative control on 858341e: 5 failures. Suite 818/818. (Round 27's suite count corrected to 813.)
+
+## Round 29 — an explicitly empty `--harness` filter widened to every harness
+
+**Finding (Codex 4117494399, P1).** `--harness "$UNSET"` passes `""`; `select_harnesses` treated a falsy spec as "no filter" and returned every registered harness, and restore's `only = set(ids) if args.harness else None` did the same. A scripted, single-harness intent silently became a fleet-wide write.
+
+**Fix.** The all-harness default is reserved for `spec is None` (flag omitted). A filter that is present but parses to zero ids (`""`, `" , "`) is a usage error (exit 2) before any plan or write; restore tests `args.harness is not None`. Principle: an *absent* selector and an *empty* selector are different inputs — only absence may mean "all".
+
+**Evidence.** R29 tests (plan/apply/restore × empty filter → exit 2 + reason); suite 824/824; negative control against `06aee67` fails 5 of the 6 new assertions.
+
+## Round 30 — immediate rollback destroyed a concurrent edit
+
+**Finding (Codex 4117524102, P2).** If a harness rewrote its config after our write landed but before parse-back or the manifest commit finished, the in-process rollback restored the backup (or unlinked a newly created file) regardless — silently erasing a state that was neither our recorded `pre` nor `post`. The crash-recovery path (`reconcile`) already treated that third state as a conflict; the immediate path did not.
+
+**Fix.** `rollback_entry` now observes the target first. Allowed states are `pre`, the planned `post`, and the triple observed immediately after our own `write_fn` (so a self-inflicted corrupted write still rolls back). Anything else marks the journal entry `conflict`, leaves the file untouched, and raises `RollbackConflict` naming the backup and `harness-mcp-sync resolve <run>`. Both the pre-existing and pre-absent (would-unlink) cases are covered.
+
+**Residual.** The window between that observation and the rollback write is not atomic; this is best-effort detection, consistent with the round-23 scoping of restore concurrency.
+
+**Evidence.** R30 tests (present/absent pre-state × concurrent edit injected at the manifest commit → nonzero exit, edit preserved, verify reports `conflict`); suite 828/828; negative control against `248fca9` fails all 4 new assertions.
+
+## Round 31 — verify blind to planning errors; skipped-and-absent ownership; snapshot provenance
+
+**Findings (Codex on `c65f261`, all P2).**
+- 4117749606: `verify --ssot` discarded `status: error` plan results (malformed config, non-mapping managed path), so it printed clean with exit 0 while `apply` refused the same config.
+- 4117749612: an owned server whose current disposition is `skip` (e.g. header-bearing remote on a harness without header support) was always "kept", even when already absent from the file — the stale ownership record was never forgotten and every later verify reported it missing.
+- 4117749614: round 30's `written` snapshot re-read the target after `write_fn()` returned, so an external rewrite in that gap was mistaken for our own bytes and a subsequent rollback erased it.
+
+**Fixes.** Verify records an issue for every planning error ("apply refuses this config"). Skipped entries are preserved only while they still exist; absent ones fall through to `forget`. Provenance of the post-write state now comes from `atomic_write` itself (it returns the triple of the bytes *it* wrote, no re-read); a writer that reports nothing leaves only `pre`/planned `post` as acceptable, so any other state is a conflict.
+
+**Evidence.** R31a/b/c tests; suite 833/833; negative control against `c65f261` fails all 5 new assertions.
+
+## Round 32 — Git visibility checked only at plan time; key-path migration left a managed copy behind
+
+**Findings (Codex on `25e5544`).**
+- 4117809383 (P1): the C-J gate probed Git state once, at plan time. If the target became tracked or unignored afterwards (during an external resolver, or while earlier harnesses were applied), `config_changed()` still passed on identical bytes and resolved credentials were written into a now Git-visible file with exit 0.
+- 4117809384 (P2): ownership records did not carry the adapter `key_path`. After a registry change of `mcp.key_path` on the same file, apply wrote the desired server under the new map and left the previously managed copy — credentials included — under the old one as an unrelated sibling; verify read only the new map and reported clean.
+
+**Fixes.** Immediately before each content write the Git state is re-probed, both as a pre-check and inside the journaled `changed_fn` (the last moment before `write_fn`); a transition into a Git-visible state refuses with the file untouched. Manifest records now persist `key_path`; a record whose owned servers were taken under a different path makes plan/apply/verify report an error until the old entries are handled by hand. Records written before this change carry no `key_path` and are not checked (they gain it on their next write).
+
+**Residual.** The window between the last Git probe and `os.replace` is not atomic (a repository could appear in that instant); detection is best-effort there, as for restore concurrency (round 23).
+
+**Evidence.** R32a/b tests; suite 840/840; negative control against `25e5544` fails all 7 new assertions.
+
+## Round 33 — restore re-probes Git at the last moment; removal exception documented
+
+**Findings (Codex on `21ab916`).**
+- 4117861623 (P1): the round-32 last-moment Git re-probe covered apply only. Restore ran `restore_git_refusal()` once, then created the journal and the pre-restore backup; its pre-write callback checked config bytes only, so a target that became Git-visible in that gap could receive a secret-bearing backup.
+- 4117861627 (P2): the "never written by default" guarantee omitted a real, intentional exception — removal of an owned server still rewrites a Git-visible config.
+
+**Fixes.** Restore's journaled `changed_fn` now re-runs the same Git/content gate as the first check, immediately before `write_fn`; a late refusal is reported with the gate's own reason and the file untouched. The removal exception is now stated in C-J (above) and in SKILL.md: deleting a managed entry only reduces exposure, and no new server content is written.
+
+**Evidence.** R33 test (repo appears after the first restore gate → refused, reason names the policy, file untouched); suite 843/843; negative control against `21ab916` fails all 3 new assertions.
+
+## Follow-ups #459 / #460 (post round 33)
+
+- **#459 — unbound populated manifest.** `bind_salt` accepted a manifest with ownership records but no
+  `salt_id`; with a replaced salt the next `apply` would silently re-key every ownership HMAC,
+  bypassing `--adopt` and the documented salt-recovery path. A manifest that holds `files` must now
+  carry a matching `salt_id`; otherwise mutation is refused with the recovery path. An empty manifest
+  (fresh state) is unaffected.
+- **#460 — verify on an unrenderable adapter.** A registry correction that moves a managed harness to an
+  unknown or unsupported `entry_style` made `verify --ssot` exit through `KeyError` in `render_entry`.
+  Verify now consults `static_blocker()` first and reports "adapter not renderable" as an issue (verify
+  does not read clean), leaving SSOT drift unchecked for that file — exactly what plan does (skip).
