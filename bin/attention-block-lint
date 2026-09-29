@@ -17,6 +17,7 @@ ask scan, the same exclusion set as question-batch-gate.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -225,8 +226,16 @@ def scan(text: str) -> dict:
     else:
         verdict = "ok"
 
+    # Digest of the block itself (whitespace-normalized): lets the Stop hook dedup a
+    # notification per distinct pending block when the harness omits prompt_id.
+    block_digest = None
+    if block_seen_at is not None:
+        norm = "\n".join(" ".join(l.split()) for l in lines[block_seen_at - 1:block_end])
+        block_digest = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+
     return {
         "verdict": verdict,
+        "block_digest": block_digest,
         "block": block_kind,
         "items": len(items),
         "red_items": sum(1 for x in items if x["severity"] in BLOCKING),

@@ -38,6 +38,20 @@ out="$(jq -cn --arg m 'Quer que eu siga?' --arg s "$L128" --arg p "${P128%b}c" '
 expect "distinct prompt_id is a distinct marker" 'printf "%s" "$out" | grep -q additionalContext'
 out="$(run $'Should I merge?\nShould I delete the branch?\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — merge · `1 sim`' p6)"
 expect "injects when block omits a prose ask (unsurfaced_asks)" 'printf "%s" "$out" | grep -q additionalContext'
+# Notify dedup WITHOUT prompt_id (~35% of real Stop events): one notify per distinct
+# pending block per session. Needs the real notify path → macOS + stub notifier.
+if [ "$(uname -s)" = "Darwin" ]; then
+  mkdir -p "$TMP/stub"; printf '#!/bin/sh\nexit 0\n' >"$TMP/stub/terminal-notifier"; chmod +x "$TMP/stub/terminal-notifier"
+  nrun() { jq -cn --arg m "$1" '{last_assistant_message:$m,session_id:"s20"}' | PATH="$TMP/stub:$PATH" MAOS_ATTENTION_NOTIFY=1 bash "$HOOK"; }
+  B1=$'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`'
+  B2=$'Pronto.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — y · `1 sim`'
+  nrun "$B1" >/dev/null; nrun "Outro texto antes.${B1#Pronto.}" >/dev/null
+  expect "no prompt_id: same pending block notifies once per session" '[ "$(grep -c "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl")" -eq 1 ] && tail -1 "$TMP/state/ledger.jsonl" | grep -q idempotent'
+  nrun "$B2" >/dev/null
+  expect "no prompt_id: changed pending block notifies again" '[ "$(grep -c "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl")" -eq 2 ]'
+else
+  pass=$((pass+2)); echo "skip notify-dedup (non-Darwin: notify unsupported)"
+fi
 mkdir -p "$TMP/bin"; for c in dirname mkdir date cat; do ln -sf "$(command -v $c)" "$TMP/bin/$c"; done
 out="$(PATH="$TMP/bin" /bin/bash "$HOOK" </dev/null)"; rc=$?
 expect "dep-missing still ledgered"  '[ $rc -eq 0 ] && grep -q "jq_missing" "$TMP/state/ledger.jsonl"'

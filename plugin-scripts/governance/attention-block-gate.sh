@@ -12,8 +12,11 @@
 #   2. any warning verdict of bin/attention-block-lint (see its WARN set) → inject
 #      additionalContext ONCE per Stop cycle so the
 #      agent restates the asks in the block before stopping.
-#   3. verdict ok + block has items → desktop notification (macOS), once per prompt,
-#      so an operator away from the terminal knows something waits for them.
+#   3. verdict ok + block has items → desktop notification (macOS) so an operator away
+#      from the terminal knows something waits for them. One-shot key: prompt_id when
+#      present (once per prompt); without prompt_id, the SHA-256 of the normalized
+#      block text (once per distinct pending block per session — an unchanged block
+#      re-shown on later turns does not notify again; an edited block does).
 #
 # SAFETY (same contract as question-batch-gate):
 #   * Never blocks: always exit 0, never exit 2.
@@ -66,6 +69,7 @@ result="$(printf '%s' "$msg" | "$LINT" --json 2>/dev/null || true)"
 verdict="$(printf '%s' "$result" | jq -r '.verdict // "lint_error"' 2>/dev/null || echo lint_error)"
 items="$(printf '%s' "$result" | jq -r '.items // 0' 2>/dev/null || echo 0)"
 reds="$(printf '%s' "$result" | jq -r '.red_items // 0' 2>/dev/null || echo 0)"
+bdig="$(printf '%s' "$result" | jq -r '.block_digest // ""' 2>/dev/null || true)"
 case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
@@ -95,6 +99,13 @@ else
   # carries a valid block must still notify the operator (Codex, PR #463).
   if [ "$cont" = "true" ] && [ "$action" = "inject" ]; then log "$verdict" false "continuation_no_prompt_id"; exit 0; fi
   key=""
+  # Notify: key on the pending block's own content, so a still-pending block does not
+  # re-notify on every such Stop (Kimi routed review, PR #463). Inject keeps no marker.
+  if [ "$action" = "notify" ]; then
+    case "$bdig" in *[!0-9a-f]*|'') log "$verdict" false "block_digest_missing"; exit 0 ;; esac
+    [ "${#bdig}" -eq 64 ] || { log "$verdict" false "block_digest_missing"; exit 0; }
+    key="b64.${bdig}"
+  fi
 fi
 
 # Availability BEFORE the marker claim: a disabled/unsupported notify must not burn the
