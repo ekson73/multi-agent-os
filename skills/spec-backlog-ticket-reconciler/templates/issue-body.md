@@ -1,0 +1,23 @@
+# <Pending outcome: verb + observable result>
+
+## Source of truth
+- Repository/project: <canonical repository identity and owning project>
+- Backlog unit ID: <stable unit identifier; omit only when no local unit exists>
+- Source entries (repeat for every explicitly grouped source; each has its own identity and scope):
+  - <source ID> — <exact repository-relative scoped path; section/anchor only for a subset, not a whole file/change; link to source revision if available> — <framework/artifact type, proposal/change or accepted baseline, observed revision/date> — <observed source status>
+- Grouping provenance: <authoritative backlog mapping to this unit and issue, if multiple source entries; otherwise single source>
+
+## Pending outcome
+<What remains to be achieved and why it matters. State the executable scope without copying the specification.>
+
+## Acceptance
+- <Observable condition and evidence linked to the source; include relevant boundaries.>
+
+## Dependencies
+- <Issue/source links or "none known"; identify blockers separately from contextual references.>
+
+## Gate
+<Approval, decision, proof, external dependency, or other condition before implementation/closure; "none identified" only after checking.>
+
+## Next step
+<One concrete action and responsible role, if known. Do not claim completion from this body.>
