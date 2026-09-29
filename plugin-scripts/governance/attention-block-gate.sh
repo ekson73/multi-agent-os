@@ -9,8 +9,8 @@
 #
 # WHAT it does, per turn:
 #   1. Lints `last_assistant_message`.
-#   2. verdict in {missing_block, inconsistent_clear_with_asks, empty_attention_block,
-#      block_not_last, over_cap} → inject additionalContext ONCE per prompt so the
+#   2. any warning verdict of bin/attention-block-lint (see its WARN set) → inject
+#      additionalContext ONCE per Stop cycle so the
 #      agent restates the asks in the block before stopping.
 #   3. verdict ok + block has items → desktop notification (macOS), once per prompt,
 #      so an operator away from the terminal knows something waits for them.
@@ -105,9 +105,9 @@ fi
 find "$STATE_DIR" -maxdepth 1 -type d -name '*.marker.d' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 
 if [ "$action" = "notify" ]; then
+  if [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ]; then log "$verdict" false "notify_disabled"; exit 0; fi
+  if [ "$(uname -s 2>/dev/null || true)" != "Darwin" ]; then log "$verdict" false "notify_unsupported_os"; exit 0; fi
   log "$verdict" true "notify"
-  if [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ]; then exit 0; fi
-  [ "$(uname -s 2>/dev/null || true)" = "Darwin" ] || exit 0
   title="🔔 ${items} item(ns) precisam de você"
   if [ "$reds" -gt 0 ]; then title="🛑 ${items} item(ns) precisam de você (${reds} bloqueante)"; fi
   body="Veja o bloco no fim da resposta do agente."

@@ -145,5 +145,10 @@ check "header count disagrees with items" header_count_mismatch 2 <<'T'
 > 1. **🛑 AUTORIZAR** — a · `1 sim`
 T
 
+check "unrelated code span next to reply token" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — rodar `make deploy` nos brokers · responda `1 sim`
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

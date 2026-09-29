@@ -107,8 +107,12 @@ def scan(text: str) -> dict:
                 n = num.group(1)
                 ok_shape = bool(ITEM_WELLFORMED.match(raw))
                 tokens = REPLY_TOKEN.findall(raw)
+                # Reply tokens are spans shaped like "<num>..." (`1 sim`, `2A`). At least one
+                # must carry THIS item's number and none may carry another's; spans that are
+                # not numbered (`make deploy`) are ordinary code and are ignored.
+                numbered = [t.strip("`") for t in tokens if re.match(r"`\d+(?:[A-Z]\b|\s|`)", t)]
                 ok_token = im.group(1) == "✋" or (
-                    bool(tokens) and all(t.strip("`").startswith(n) for t in tokens))
+                    bool(numbered) and all(re.match(re.escape(n) + r"(?:[A-Z]\b|\s|$)", t) for t in numbered))
                 deps = DEP_REF.findall(re.sub(r"`[^`]+`", "", raw))
                 items.append({"line": i, "severity": im.group(1),
                               "wellformed": ok_shape and ok_token, "deps": deps, "n": n})
