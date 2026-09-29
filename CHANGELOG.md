@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — canonical execution ticket body
+
+- The spec–backlog–ticket reconciler single issue template now includes explicit in/out scope, constraints and gates, a verification method with planned versus observed evidence, and an actionable next step. It serves both informal spec-as-prompt and ticket-as-spec usage while the source specification retains authority.
+
+### Added — portable spec–backlog–ticket reconciliation skill
+
+- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval, mandatory campaign-level independent adversarial review before H11/H10/H7 or other red-team-triggered writes (HOLD if HIGH and no verifier), and post-write read-back. Standalone installations without the sibling red-team skill are plan-only/HOLD for writes. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- Guarded reconciliation now requires one independent refuter for MEDIUM campaigns without a hard trigger, re-approval after material source/destination changes, and endpoint-documented atomic write protection for automatic full-body edits; otherwise it HOLDs the edit and returns a proposed manual merge diff. Safe native field-only/append operations remain eligible when they preserve unrelated content.
+- The reconciler now declares its cross-vendor spec-lifecycle metadata, model/agent invocation surface (no slash wrapper), BEING priority, qualitative sunset, references, MIT license and pending dogfood status; write gates are unchanged.
+- `skills/README.md` now inventories all 91 tracked skills, including `session-to-vault` and this reconciler.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
