@@ -150,5 +150,28 @@ check "unrelated code span next to reply token" ok 0 <<'T'
 > 1. **🛑 AUTORIZAR** — rodar `make deploy` nos brokers · responda `1 sim`
 T
 
+check "attention header without (N) is a mismatch" header_count_mismatch 2 <<'T'
+> **🔔 PRECISA DE VOCÊ**
+> 1. **🛑 AUTORIZAR** — a · `1 sim`
+T
+
+check "bare wait line (no owner/state/action) does not explain a dependency" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — mesclar depois do #463 · `1 sim` / `1 não`
+> ⏳ #463
+T
+
+check "wait line missing the human-action clause is not enough" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — mesclar depois do #463 · `1 sim` / `1 não`
+> ⏳ #463 — comigo (agente): em revisão dos bots
+T
+
+check "full wait line explains the dependency" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — mesclar depois do #463 · `1 sim` / `1 não`
+> ⏳ #463 — comigo (agente): em revisão dos bots · nada a fazer por você
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

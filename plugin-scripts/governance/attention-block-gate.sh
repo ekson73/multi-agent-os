@@ -95,6 +95,13 @@ else
   key=""
 fi
 
+# Availability BEFORE the marker claim: a disabled/unsupported notify must not burn the
+# per-turn marker, or re-enabling notifications would stay silent for that turn.
+if [ "$action" = "notify" ]; then
+  if [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ]; then log "$verdict" false "notify_disabled"; exit 0; fi
+  if [ "$(uname -s 2>/dev/null || true)" != "Darwin" ]; then log "$verdict" false "notify_unsupported_os"; exit 0; fi
+fi
+
 if [ -n "$key" ]; then
   marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
   if ! mkdir "$marker" 2>/dev/null; then
@@ -105,8 +112,6 @@ fi
 find "$STATE_DIR" -maxdepth 1 -type d -name '*.marker.d' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
 
 if [ "$action" = "notify" ]; then
-  if [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ]; then log "$verdict" false "notify_disabled"; exit 0; fi
-  if [ "$(uname -s 2>/dev/null || true)" != "Darwin" ]; then log "$verdict" false "notify_unsupported_os"; exit 0; fi
   log "$verdict" true "notify"
   title="🔔 ${items} item(ns) precisam de você"
   if [ "$reds" -gt 0 ]; then title="🛑 ${items} item(ns) precisam de você (${reds} bloqueante)"; fi

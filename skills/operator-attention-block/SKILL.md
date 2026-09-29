@@ -40,13 +40,14 @@ checked, because an amnesic agent forgets conventions.
 5. **Cap: 3 items.** More than 3 ⇒ persist the rest (ticket/backlog) and say so in the block.
    Alarm fatigue is real: a block that is always long stops being read.
 6. **No invisible dependencies.** If an item waits on another artifact (a PR, a ticket,
-   "after X merges"), the block carries a `⏳` line for it: owner, state, and whether the
-   human has anything to do. An item that says "after #463" while #463 appears nowhere
+   "after X merges"), the block carries a `⏳` line for it, in the checkable form
+   `⏳ <ref> — <owner>: <state> · <what you must do, or "nada a fazer por você">`. A line
+   that only mentions the ref, or lacks owner, state or the human action, does not count. An item that says "after #463" while #463 appears nowhere
    forces the human to go hunt for #463 — the needle problem, one level down. The linter
    flags this as `dependency_unexplained`. `#N` references are always checked; ticket
    keys only for prefixes listed in `MAOS_ATTENTION_TICKET_PREFIXES` (so `UTF-8` is not a
    ticket).
-7. **Items numbered 1..N, and the header count `(N)` equals the item count.**
+7. **Items numbered 1..N, and the attention header always carries `(N)` equal to the item count** (a header without `(N)` is a mismatch).
 8. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
    goes in the block. The block is not a license to ask more.
 
@@ -100,7 +101,7 @@ circles as item markers.
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 37 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 42 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch (incl. a missing `(N)`), bare or incomplete `⏳` lines, notify-disabled not burning the marker, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
 
 Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
 `hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.
