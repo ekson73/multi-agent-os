@@ -35,7 +35,7 @@ Then: register your session in `.worktrees/sessions.json` (append, never rewrite
 ## Phase 2 — Context-Prep & Worktree
 
 1. **Prepare the minimal context** you hand to any further sub-agent — see `skills/context-prep/SKILL.md`. Do not copy whole repos into prompts.
-2. **Create a worktree** for any write: `git worktree add .worktrees/{agent-hex}-{feature-kebab} -b {type}/{scope}-{agent-hex}` — see `skills/worktree-policy/SKILL.md`. Valid exceptions: READ-ONLY analysis and APPEND-ONLY to `tasks.md` / `sessions.json`.
+2. **Create a worktree** for any write: `git worktree add .worktrees/{agent-hex}-{feature-kebab} -b {type}/{scope}-{agent-hex} "origin/$BASE_REF"` (resolve, validate and **persist** `BASE_REF` first — creating from the current HEAD inherits whatever branch the main repo happens to be on) — see `skills/worktree-policy/SKILL.md`. Valid exceptions: READ-ONLY analysis and APPEND-ONLY to `tasks.md` / `sessions.json`.
 
 Branch naming: `feature/`, `bugfix/`, `hotfix/`, `docs/`, `refactor/`, `chore/` + scope + agent-hex. Direct commits to `main` are blocked by `plugin-scripts/governance/worktree-gate.sh`.
 

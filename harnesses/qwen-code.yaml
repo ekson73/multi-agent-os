@@ -1,0 +1,51 @@
+schema: 1
+id: qwen-code
+name: Qwen Code
+vendor: Alibaba
+kind: cli
+detect:
+  commands:
+  - qwen
+  paths:
+  - ~/.qwen
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.qwen/settings.json
+    scope: user
+  - path: ./.qwen/settings.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    url_field: {streamable-http: httpUrl, http: httpUrl, sse: url}
+    type_values: {stdio: null, streamable-http: null, http: null, sse: null}
+  transports:
+  - stdio
+  - sse
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: 'qwen mcp add [-s user] [-t http] [-H ''K: V''] [-e K=V] <name> <commandOrUrl> [args...]'
+    list: qwen mcp list
+    remove: qwen mcp remove <name>
+extensions:
+  skills: ~/.qwen/skills
+  plugins: ~/.qwen/extensions
+  marketplace: null
+update:
+  version_cmd: qwen --version
+  update_cmd: npm i -g @qwen-code/qwen-code
+docs_url: https://qwenlm.github.io/qwen-code-docs/
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Gemini CLI fork: same entry semantics (`httpUrl` = streamable HTTP, `url` = SSE, headers, env, trust). settings.json
+  observed but currently has NO mcpServers key (executor creates it). Also has approve/reject pending-server flow.'

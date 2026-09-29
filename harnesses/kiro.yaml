@@ -1,0 +1,51 @@
+schema: 1
+id: kiro
+name: Kiro (IDE + kiro-cli)
+vendor: Amazon
+kind: ide
+detect:
+  commands:
+  - kiro
+  - kiro-cli
+  paths:
+  - ~/.kiro
+  - /Applications/Kiro.app
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.kiro/settings/mcp.json
+    scope: user
+  - path: ./.kiro/settings/mcp.json
+    scope: workspace
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  - http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli:
+    add: kiro-cli mcp add --name <name> --command <cmd> [--args ...] [--env K=V] --scope global
+    list: kiro-cli mcp list
+    remove: kiro-cli mcp remove --name <name> --scope global
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: kiro-cli --version
+  update_cmd: 'kiro-cli update (IDE: in-app)'
+docs_url: https://kiro.dev/docs/mcp/configuration/
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null
+notes: 'IDE and kiro-cli share ~/.kiro/settings/mcp.json (one file — do not register twice). File also has a sibling `powers`
+  key. Remote: {type: http, url, headers, disabled, autoApprove:[...]}; stdio: {command, args, env, disabled, autoApprove,
+  timeout}. One entry uses legacy `transport` key. 11 entries observed. kiro-cli add flag spelling from docs; verify with
+  `kiro-cli mcp add --help`.'
