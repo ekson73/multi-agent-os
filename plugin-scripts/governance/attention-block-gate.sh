@@ -22,52 +22,79 @@
 #   * Path-safe: session_id/prompt_id are untrusted; strict allowlist + length bound.
 #   * Measurable: every invocation appends to ledger.jsonl (skips included).
 #   * Kill-switches: MAOS_ATTENTION_GATE=0 (whole hook) · MAOS_ATTENTION_NOTIFY=0 (notify only).
-set -uo pipefail 2>/dev/null || true
+set -euo pipefail
+
+# Shared governance scaffold (AGENTS.md hook convention). Sourcing failure must not
+# break a turn: this is an advisory Stop hook, so degrade to the pre-gate baseline.
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/lib"
+# shellcheck source=/dev/null
+source "${LIB_DIR}/common.sh" 2>/dev/null || exit 0
+# shellcheck source=/dev/null
+source "${LIB_DIR}/json-rpc.sh" 2>/dev/null || exit 0
 
 [ "${MAOS_ATTENTION_GATE:-1}" = "0" ] && exit 0
 [ -n "${HOME-}" ] || exit 0
-command -v jq >/dev/null 2>&1 || exit 0
-command -v python3 >/dev/null 2>&1 || exit 0
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)" || exit 0
-LINT="$SCRIPT_DIR/../../bin/attention-block-lint"
-[ -x "$LINT" ] || LINT="$(command -v attention-block-lint 2>/dev/null || true)"
-[ -n "$LINT" ] && [ -x "$LINT" ] || exit 0
-
+# Ledger FIRST, before any dependency check, so every invocation — including the
+# dependency-missing skips — leaves a row (a silent skip is indistinguishable from a
+# healthy quiet turn otherwise). printf only: jq may be the missing dependency.
 STATE_DIR="${MAOS_ATTENTION_STATE_DIR:-$HOME/.claude/state/attention-block-gate}"
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 LEDGER="$STATE_DIR/ledger.jsonl"
-
-payload="$(cat 2>/dev/null)" || exit 0
-msg="$(printf '%s' "$payload" | jq -r '.last_assistant_message // ""' 2>/dev/null)" || exit 0
-sid="$(printf '%s' "$payload" | jq -r '.session_id // ""' 2>/dev/null)" || sid=""
-pid="$(printf '%s' "$payload" | jq -r '.prompt_id  // ""' 2>/dev/null)" || pid=""
-
 log() { # verdict fired note
   printf '{"t":"%s","verdict":"%s","fired":%s,"note":"%s"}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" >>"$LEDGER" 2>/dev/null || true
 }
 
+command -v jq >/dev/null 2>&1 || { log "skipped" false "jq_missing"; exit 0; }
+command -v python3 >/dev/null 2>&1 || { log "skipped" false "python3_missing"; exit 0; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)"
+LINT="$SCRIPT_DIR/../../bin/attention-block-lint"
+[ -x "$LINT" ] || LINT="$(command -v attention-block-lint 2>/dev/null || true)"
+{ [ -n "$LINT" ] && [ -x "$LINT" ]; } || { log "skipped" false "lint_missing"; exit 0; }
+
+payload="$(cat 2>/dev/null || true)"
+msg="$(printf '%s' "$payload" | jq -r '.last_assistant_message // ""' 2>/dev/null || true)"
+sid="$(printf '%s' "$payload" | jq -r '.session_id // ""' 2>/dev/null || true)"
+pid="$(printf '%s' "$payload" | jq -r '.prompt_id  // ""' 2>/dev/null || true)"
+cont="$(printf '%s' "$payload" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
+
 [ -n "$msg" ] || { log "empty_message" false ""; exit 0; }
 
-result="$(printf '%s' "$msg" | "$LINT" --json 2>/dev/null)" || true
-verdict="$(printf '%s' "$result" | jq -r '.verdict // "lint_error"' 2>/dev/null)" || verdict="lint_error"
-items="$(printf '%s' "$result" | jq -r '.items // 0' 2>/dev/null)" || items=0
-reds="$(printf '%s' "$result" | jq -r '.red_items // 0' 2>/dev/null)" || reds=0
-case "$items$reds" in *[!0-9]*) items=0; reds=0 ;; esac
+result="$(printf '%s' "$msg" | "$LINT" --json 2>/dev/null || true)"
+verdict="$(printf '%s' "$result" | jq -r '.verdict // "lint_error"' 2>/dev/null || echo lint_error)"
+items="$(printf '%s' "$result" | jq -r '.items // 0' 2>/dev/null || echo 0)"
+reds="$(printf '%s' "$result" | jq -r '.red_items // 0' 2>/dev/null || echo 0)"
+case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
 case "$verdict" in
-  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap) action="inject" ;;
-  ok) [ "$items" -gt 0 ] && action="notify" ;;
+  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item) action="inject" ;;
+  ok) if [ "$items" -gt 0 ]; then action="notify"; fi ;;
 esac
 [ -n "$action" ] || { log "$verdict" false ""; exit 0; }
 
 safe_id() { case "$1" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac; [ "${#1}" -le 128 ]; }
-safe_id "$pid" || { log "$verdict" false "unsafe_or_absent_prompt_id"; exit 0; }
 safe_id "$sid" || { log "$verdict" false "unsafe_session_id"; exit 0; }
 
-marker="$STATE_DIR/${#sid}.${sid}.${#pid}.${pid}.${action}.marker.d"
+# Dedup key. The harness omits prompt_id intermittently (~35% of real Stop events,
+# measured by the sibling question-batch-gate), so a prompt_id-only guard would
+# silently miss a third of turns. Fallback key = digest of the message itself.
+# Loop-safety without prompt_id: never INJECT when this Stop is already a hook-driven
+# continuation (stop_hook_active=true) — the one reminder already happened.
+if safe_id "$pid"; then
+  key="p${#pid}.${pid}"
+else
+  if [ "$action" = "inject" ] && [ "$cont" = "true" ]; then
+    log "$verdict" false "continuation_no_prompt_id"; exit 0
+  fi
+  digest="$(printf '%s' "$msg" | shasum -a 256 2>/dev/null | cut -c1-32 || true)"
+  case "$digest" in ''|*[!0-9a-f]*) log "$verdict" false "digest_failed"; exit 0 ;; esac
+  key="m.${digest}"
+fi
+
+marker="$STATE_DIR/${#sid}.${sid}.${key}.${action}.marker.d"
 if ! mkdir "$marker" 2>/dev/null; then
   if [ -d "$marker" ]; then log "$verdict" false "idempotent"; else log "$verdict" false "marker_claim_failed"; fi
   exit 0
@@ -76,10 +103,10 @@ find "$STATE_DIR" -maxdepth 1 -type d -name '*.marker.d' -mtime +7 -exec rm -rf 
 
 if [ "$action" = "notify" ]; then
   log "$verdict" true "notify"
-  [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ] && exit 0
-  [ "$(uname -s 2>/dev/null)" = "Darwin" ] || exit 0
+  if [ "${MAOS_ATTENTION_NOTIFY:-1}" = "0" ]; then exit 0; fi
+  [ "$(uname -s 2>/dev/null || true)" = "Darwin" ] || exit 0
   title="🔔 ${items} item(ns) precisam de você"
-  [ "$reds" -gt 0 ] && title="🔴 ${items} item(ns) precisam de você (${reds} bloqueante)"
+  if [ "$reds" -gt 0 ]; then title="🛑 ${items} item(ns) precisam de você (${reds} bloqueante)"; fi
   body="Veja o bloco no fim da resposta do agente."
   if command -v terminal-notifier >/dev/null 2>&1; then
     terminal-notifier -title "Agente" -subtitle "$title" -message "$body" -sound default >/dev/null 2>&1 &

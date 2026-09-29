@@ -22,7 +22,7 @@ triggers:
   - recap with flair / with a light touch
   - debrief com pegada narrativa
   - narre como um caso (Sherlock·Watson·Moriarty)
-version: 0.2.0
+version: 0.3.0
 license: MIT
 allowed-tools: Read, Write, Edit, Glob, Bash, Skill
 metadata:
@@ -132,7 +132,12 @@ Ato … — <resolution>
 💡 Insights: <1-3 grounded takeaways>
 👉 Próximo passo: <one concrete CTA>
 ℹ️ Nota de fidelidade: <what was compressed/omitted; "nada inventado">
+
+> **🔔 PRECISA DE VOCÊ (N)**            ← always last; skills/operator-attention-block
+> 1. **🔶 DECIDIR** — <the CTA, if it needs the human> · `1 sim` / `1 não`
 ```
+If the CTA needs nothing from the human, close with the bare `> **✅ NADA PRECISA DE VOCÊ**`.
+The drama never goes inside the block — it stays plain and literal (tone-safety gate).
 **`--audience=agent`** (JSON-RPC consolidated, humour off):
 ```json
 {"jsonrpc":"2.0","method":"recap.opera","params":{
@@ -177,3 +182,4 @@ Deprecate when ANY: `content-recast` absorbs "Opera" as a first-class register (
 |---|---|---|
 | 0.1.0 | 2026-06-18 | Bootstrap. Narrative-warm register specialisation of `content-recast`: the **Opera register profile** SSOT (story-arc + dosed humour + situational wit + instigating-no-terror drama + insights + CTA + moral) with explicit intensity dials, a faithfulness gate (no invented drama + info-loss note) and a tone-safety gate (no alarm + wit never personal). Composes `postflight`/`morning-briefing` for facts (zero re-summarisation); dual-register output (human opera / agent JSON-RPC). Vendor-neutral, MIT, family-aware. |
 | 0.2.0 | 2026-06-18 | Add **`--lens=deductive`** (Holmes·Watson·Moriarty) — a sophistication tuning: recap as a *case* (scene→clues→deduction→reveal→lesson), less-technical/more-human, intuitive-logic made visible. Watson narrates + de-jargons (≤1 technical anchor/act, glossed); Holmes deduces; Moriarty = the problem personified (never a person, never terror). Reuses both gates unchanged; `--lens=classic` preserves v0.1.0. Origin: operator refinement (debate→converge with the cast as the debate participants). |
+| 0.3.0 | 2026-09-28 | Human output closes with the `operator-attention-block` (*Pharos*) block, so a CTA that needs the operator is never left inside the narrative. Pointer only. |
