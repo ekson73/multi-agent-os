@@ -23,7 +23,11 @@ import sys
 
 # Block header markers — keyed on the emoji, not the words, so the block is
 # detectable in any operator language (pt-BR "PRECISA DE VOCÊ", en "NEEDS YOU").
-BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)[^(\n]*(?:\((\d+)\))?")
+# Any line that STARTS like a header (emoji after `> **`) is claimed as a header; only a
+# COMPLETE one — non-empty label, optional (N), closing `**` — is valid. A truncated
+# `> **🔔 (1)` is flagged, never silently treated as "no block" (Codex, PR #463).
+HEADER_PREFIX = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)")
+BLOCK_HEADER = re.compile(r"^\s*>\s*\*\*\s*(🔔|✅)\s+([^*()\n]*[^\s*()][^*()\n]*?)\s*(?:\((\d+)\))?\s*\*\*(.*)$")
 ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)")
 # A well-formed item: icon + UPPERCASE verb in bold, then a separator and the ask.
 # Asking items (🛑 blocking, 🔶 decision) must also carry an exact reply token in a
@@ -41,6 +45,7 @@ import os as _os
 _PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
 DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
 WAIT_LINE = re.compile(r"^\s*>\s*⏳")
+OVERFLOW_LINE = re.compile(r"^\s*>\s*➕")
 # A CHECKABLE wait line: `> ⏳ <ref> — <owner>: <state> · <what the human must do>`.
 # A bare mention of the ref is not an explanation: owner, state and the human action
 # must all be present, or the dependency is still invisible (CodeRabbit, PR #463).
@@ -64,6 +69,11 @@ ASK_RE = re.compile("|".join(ASK_PHRASES), re.IGNORECASE)
 QUESTION_RE = re.compile(r"\?[)\"\]}*_`]*(\s|$)")
 
 
+def _is_ask(text: str) -> bool:
+    prose = re.sub(r"[*_`~]", "", text)
+    return bool(QUESTION_RE.search(prose + " ") or ASK_RE.search(prose))
+
+
 def scan(text: str) -> dict:
     lines = text.splitlines()
     fences = sum(1 for l in lines if re.match(r"^\s*(```|~~~)", l))
@@ -76,6 +86,9 @@ def scan(text: str) -> dict:
     signals = []
     waits = []
     header_count = None
+    headers = 0
+    malformed_header = False
+    stray = []  # ask-shaped quoted lines inside the block that are not numbered items
     last_nonblank = 0
 
     for i, raw in enumerate(lines, 1):
@@ -87,14 +100,22 @@ def scan(text: str) -> dict:
             continue
         if trust_fence and in_fence:
             continue
-        m = BLOCK_HEADER.match(raw)
-        if m:
+        if HEADER_PREFIX.match(raw):
+            headers += 1  # a second header must never reset away earlier items
+            m = BLOCK_HEADER.match(raw)
+            if not m:
+                malformed_header = True
+                m = HEADER_PREFIX.match(raw)
             in_block = True
             block_kind = "attention" if m.group(1) == "🔔" else "clear"
-            header_count = int(m.group(2)) if m.group(2) else None
+            header_count = int(m.group(3)) if m.lastindex and m.lastindex >= 3 and m.group(3) else None
             block_seen_at = i
-            items = []
-            waits = []
+            # Text after the closing `**` is still content: a clear status followed by
+            # "— Should I merge?" is an ask, not a clear line.
+            suffix = m.group(4) if m.lastindex and m.lastindex >= 4 else ""
+            if suffix and _is_ask(suffix):
+                target = signals if block_kind == "clear" else stray
+                target.append({"line": i, "text": raw.strip()[:120]})
             continue
         if in_block:
             if re.match(r"^\s*>", raw):
@@ -102,8 +123,14 @@ def scan(text: str) -> dict:
                     if WAIT_WELLFORMED.match(raw):
                         waits.append(raw)
                     continue
+                if OVERFLOW_LINE.match(raw):
+                    continue
                 num = ANY_NUMBERED.match(raw)
                 if not num:
+                    # Only ⏳ and ➕ are defined metadata; any other quoted line is scanned,
+                    # so an unnumbered ask cannot hide inside the block.
+                    if _is_ask(re.sub(r"^\s*>\s?", "", raw)):
+                        stray.append({"line": i, "text": raw.strip()[:120]})
                     continue
                 im = ITEM_LINE.match(raw)
                 if not im:  # a numbered line with an unknown/legacy marker
@@ -126,8 +153,7 @@ def scan(text: str) -> dict:
                 in_block = False  # block ended by prose
         if re.match(r"^\s*(>|\||#)", raw):
             continue
-        prose = re.sub(r"[*_`~]", "", raw)
-        if QUESTION_RE.search(prose + " ") or ASK_RE.search(prose):
+        if _is_ask(raw):
             signals.append({"line": i, "text": raw.strip()[:120]})
 
     at_end = block_seen_at is not None and not any(s["line"] > block_seen_at for s in signals)
@@ -139,10 +165,16 @@ def scan(text: str) -> dict:
 
     if block_seen_at is None:
         verdict = "missing_block" if signals else "no_block_no_asks"
+    elif headers > 1:
+        verdict = "multiple_status_headers"
+    elif malformed_header:
+        verdict = "malformed_header"
     elif block_kind == "clear" and (signals or items):
         verdict = "inconsistent_clear_with_asks"
     elif block_kind == "attention" and not items:
         verdict = "empty_attention_block"
+    elif stray:
+        verdict = "unnumbered_ask_in_block"
     elif trailing:
         verdict = "block_not_last"
     elif len(items) > 3:
@@ -173,7 +205,8 @@ def scan(text: str) -> dict:
 
 WARN = {"missing_block", "inconsistent_clear_with_asks", "empty_attention_block",
         "block_not_last", "over_cap", "malformed_item",
-        "dependency_unexplained", "misnumbered_items", "header_count_mismatch"}
+        "dependency_unexplained", "misnumbered_items", "header_count_mismatch",
+        "multiple_status_headers", "malformed_header", "unnumbered_ask_in_block"}
 
 
 def main(argv: list[str]) -> int:

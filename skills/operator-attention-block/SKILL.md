@@ -48,6 +48,12 @@ checked, because an amnesic agent forgets conventions.
    keys only for prefixes listed in `MAOS_ATTENTION_TICKET_PREFIXES` (so `UTF-8` is not a
    ticket).
 7. **Items numbered 1..N, and the attention header always carries `(N)` equal to the item count** (a header without `(N)` is a mismatch).
+8. **One complete header, one block.** Exactly one status header per message, written in full
+   (icon + label + optional `(N)` + closing `**`); a truncated header is `malformed_header`,
+   a second header is `multiple_status_headers`. Text after a clear header is still read — a
+   clear status followed by a question is inconsistent. Inside the block only numbered items
+   and the `⏳` / `➕` metadata lines are structural; an unnumbered ask there is
+   `unnumbered_ask_in_block`.
 8. **Self-answer first** (`harmonic` L10 / council-before-HITL): only the irreducible residue
    goes in the block. The block is not a license to ask more.
 
@@ -101,7 +107,7 @@ circles as item markers.
 |---|---|---|
 | Linter | `bin/attention-block-lint` | Deterministic: ask-shaped text vs. block presence/position/cap. `--json`, exit 2 on warning. |
 | Stop hook | `plugin-scripts/governance/attention-block-gate.sh` | Every turn: bad verdict ⇒ injects a one-shot reminder so the agent fixes the message before stopping; good block with items ⇒ macOS desktop notification. |
-| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 42 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch (incl. a missing `(N)`), bare or incomplete `⏳` lines, notify-disabled not burning the marker, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
+| Tests | `bin/tests/attention-block-lint.test.sh · tests/governance/test-attention-block-gate.sh` | 49 cases (buried asks pt/en, fences, quotes, trailing prose, cap, malformed/unbound items, unexplained dependencies, misnumbered items, header-count mismatch (incl. a missing `(N)`), bare or incomplete `⏳` lines, truncated/duplicate headers, asks after a clear header or unnumbered inside the block, notify on a corrected continuation, notify-disabled not burning the marker, missing `prompt_id`, dependency-missing ledger, path-safety, kill-switch). |
 
 Activation: **default-on** for every maos install (operator decision 2026-09-28) — wired in
 `hooks/hooks.json` Stop; opt out with `MAOS_ATTENTION_GATE=0`.

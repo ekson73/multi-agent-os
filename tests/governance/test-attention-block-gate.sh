@@ -27,6 +27,8 @@ out="$(jq -cn --arg m 'Quer que eu siga?' '{last_assistant_message:$m,session_id
 expect "same text on a LATER turn still gets the reminder" 'printf "%s" "$out" | grep -q additionalContext'
 out="$(jq -cn --arg m 'Outra: posso aplicar?' '{last_assistant_message:$m,session_id:"s9",stop_hook_active:true}' | bash "$HOOK")"
 expect "no re-inject on continuation w/o prompt_id" '[ -z "$out" ]'
+out="$(jq -cn --arg m $'Corrigido.\n\n> **🔔 PRECISA DE VOCÊ (1)**\n> 1. **🛑 AUTORIZAR** — x · `1 sim`' '{last_assistant_message:$m,session_id:"s10",stop_hook_active:true}' | bash "$HOOK")"
+expect "notify path still reached on corrected continuation w/o prompt_id" '[ -z "$out" ] && tail -1 "$TMP/state/ledger.jsonl" | grep -q "\"note\":\"notify_disabled\""'
 mkdir -p "$TMP/bin"; for c in dirname mkdir date cat; do ln -sf "$(command -v $c)" "$TMP/bin/$c"; done
 out="$(PATH="$TMP/bin" /bin/bash "$HOOK" </dev/null)"; rc=$?
 expect "dep-missing still ledgered"  '[ $rc -eq 0 ] && grep -q "jq_missing" "$TMP/state/ledger.jsonl"'

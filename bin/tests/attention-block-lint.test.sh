@@ -173,5 +173,40 @@ check "full wait line explains the dependency" ok 0 <<'T'
 > ⏳ #463 — comigo (agente): em revisão dos bots · nada a fazer por você
 T
 
+check "second clear header after an actionable block" multiple_status_headers 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — encerrar brokers · responda `1 sim` / `1 não`
+
+> **✅ NADA PRECISA DE VOCÊ**
+T
+
+check "clear header with an ask after it" inconsistent_clear_with_asks 2 <<'T'
+Pronto.
+
+> **✅ NOTHING NEEDS YOU** — Should I merge?
+T
+
+check "unnumbered quoted ask inside the block" unnumbered_ask_in_block 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1 não`
+> Should I also delete the backups?
+T
+
+check "non-ask quoted note inside the block stays ok" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — apagar logs · responda `1 sim` / `1 não`
+> detalhes completos na seção 9 acima
+T
+
+check "truncated header without label and closing bold" malformed_header 2 <<'T'
+> **🔔 (1)
+> 1. **🛑 AUTORIZAR** — x · `1 sim`
+T
+
+check "header missing the closing bold" malformed_header 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)
+> 1. **🛑 AUTORIZAR** — x · `1 sim`
+T
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
