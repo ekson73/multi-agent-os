@@ -70,7 +70,7 @@ case "$items$reds" in *[!0-9]*|'') items=0; reds=0 ;; esac
 
 action=""
 case "$verdict" in
-  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained|misnumbered_items|header_count_mismatch) action="inject" ;;
+  missing_block|inconsistent_clear_with_asks|empty_attention_block|block_not_last|over_cap|malformed_item|dependency_unexplained|misnumbered_items|header_count_mismatch|multiple_status_headers|malformed_header|unnumbered_ask_in_block) action="inject" ;;
   ok) if [ "$items" -gt 0 ]; then action="notify"; fi ;;
 esac
 [ -n "$action" ] || { log "$verdict" false ""; exit 0; }
@@ -91,7 +91,9 @@ else
   # continuation). Act on the first Stop, never on a continuation. No persistent
   # marker: a message-digest key would wrongly suppress a LATER turn that repeats
   # the same text (bot review, PR #463 rounds 2-3).
-  if [ "$cont" = "true" ]; then log "$verdict" false "continuation_no_prompt_id"; exit 0; fi
+  # The guard protects against RE-INJECTION only: a corrected continuation that now
+  # carries a valid block must still notify the operator (Codex, PR #463).
+  if [ "$cont" = "true" ] && [ "$action" = "inject" ]; then log "$verdict" false "continuation_no_prompt_id"; exit 0; fi
   key=""
 fi
 
@@ -138,7 +140,7 @@ This turn asks the operator for something (approval · decision · answer · man
 
 If an item depends on another artifact (a PR, a ticket), add a line \`> ⏳ #N — <owner>: <state> · <what the human must do, or "nada a fazer por você">\` so the dependency is never invisible.
 
-Rules: blank line before it, NO \`---\` above it · it is the LAST thing in the message (no prose after it) · ≤3 items · reply tokens prefixed with the item number · shape AND word, never color alone (🛑 blocking/security · 🔶 decision · ✋ manual). If after self-answering nothing actually needs him, replace it with the bare line: > **✅ NADA PRECISA DE VOCÊ**
+Rules: exactly ONE complete header · blank line before it, NO \`---\` above it · it is the LAST thing in the message (no prose after it) · ≤3 items · reply tokens prefixed with the item number · shape AND word, never color alone (🛑 blocking/security · 🔶 decision · ✋ manual). If after self-answering nothing actually needs him, replace it with the bare line: > **✅ NADA PRECISA DE VOCÊ**
 
 (Advisory only — nothing is blocked. Heuristic detection. One injection per prompt. Disable: MAOS_ATTENTION_GATE=0.)
 EOF

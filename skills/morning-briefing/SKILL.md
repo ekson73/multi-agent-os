@@ -827,7 +827,7 @@ Same Phase 3 PRESERVE rules apply (git terms · status icons · session-name slu
 
 ### Attention closure (v1.9.1 — Pharos)
 
-**Scope: human markdown output only.** With `--format=json` or `--audience=agent` the
+**Scope: every human format — `md` and `console`.** Only with `--format=json` or `--audience=agent` the
 machine contract (one parseable top-level JSON object) wins — no blockquote is appended;
 carry the same items as data in the JSON payload instead of as a closing blockquote.
 
