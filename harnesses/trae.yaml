@@ -1,0 +1,44 @@
+schema: 1
+id: trae
+name: Trae IDE
+vendor: ByteDance
+kind: ide
+detect:
+  commands:
+  - trae
+  paths:
+  - ~/Library/Application Support/Trae
+  - ~/.trae
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/Library/Application Support/Trae/User/mcp.json
+    scope: user
+    platform: darwin   # other-OS path not documented here yet
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  supports:
+    headers: false
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: ~/.trae/skills
+  plugins: ~/.trae/extensions
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://docs.trae.ai/ide/model-context-protocol
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'File observed (3 stdio entries: command, args, env, disabled, fromGalleryId). Remote-entry shape (url/headers) NOT
+  verified — transports limited to stdio until confirmed. Trae also keeps ModularData/ai-agent/MCPT (internal cache, do not
+  touch).'

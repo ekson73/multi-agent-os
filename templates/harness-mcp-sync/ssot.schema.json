@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "harness-mcp-sync/ssot.schema.json",
+  "title": "harness-mcp-sync SSOT (vendor-neutral MCP server definitions)",
+  "type": "object",
+  "required": ["schema", "servers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": 1 },
+    "servers": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[A-Za-z0-9_.@-]{1,128}$" },
+      "additionalProperties": { "$ref": "#/$defs/server" }
+    }
+  },
+  "$defs": {
+    "placeholderString": {
+      "type": "string",
+      "description": "May embed ${ENV_NAME} or op://... refs; resolved at plan/apply time via --resolver (default: ${NAME} from the environment only; op:// requires --resolver). Resolved values are never printed."
+    },
+    "server": {
+      "type": "object",
+      "required": ["transport"],
+      "additionalProperties": false,
+      "properties": {
+        "transport": { "enum": ["stdio", "streamable-http", "http", "sse"] },
+        "url": { "$ref": "#/$defs/placeholderString" },
+        "headers": { "type": "object", "additionalProperties": { "$ref": "#/$defs/placeholderString" } },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "$ref": "#/$defs/placeholderString" } },
+        "env": { "type": "object", "additionalProperties": { "$ref": "#/$defs/placeholderString" } },
+        "enabled": { "type": "boolean", "default": true },
+        "replaces": {
+          "type": "array", "items": { "type": "string" },
+          "description": "Legacy entry names this server supersedes; removed from a harness config only when this server's replacement entry is written or already identical there. An entry this tool does not own needs --adopt <legacy-name>."
+        },
+        "harnesses": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "include": { "type": "array", "items": { "type": "string" }, "default": ["*"] },
+            "exclude": { "type": "array", "items": { "type": "string" }, "default": [] }
+          },
+          "description": "fnmatch globs over harness ids."
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "transport": { "const": "stdio" } } },
+          "then": { "required": ["command"] }, "else": { "required": ["url"] } }
+      ]
+    }
+  }
+}

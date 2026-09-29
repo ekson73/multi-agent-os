@@ -1,0 +1,42 @@
+schema: 1
+id: claude-desktop
+name: Claude Desktop
+vendor: Anthropic
+kind: desktop-app
+detect:
+  commands: []
+  paths:
+  - ~/Library/Application Support/Claude
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/Library/Application Support/Claude/claude_desktop_config.json
+    scope: user
+    platform: darwin   # other-OS path not documented here yet
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  supports:
+    headers: false
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: ~/Library/Application Support/Claude/Claude Extensions (desktop extensions, .mcpb)
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://modelcontextprotocol.io/quickstart/user
+last_verified: '2026-09-24'
+confidence: high
+skip_reason: null   # stdio-only is enforced by transports: [stdio]; remote entries are skipped per server
+notes: 'stdio-only config file: remote servers are never written here (transports: [stdio]); they need the
+  `mcp-remote` stdio bridge or an in-app Connector. File observed with keys coworkUserFilesPath, globalShortcut, mcpServers (currently empty), preferences — preserve
+  siblings. Entry: {command, args:[...], env:{...}}; no disable flag (toggle in UI). Restart app to reload.'
