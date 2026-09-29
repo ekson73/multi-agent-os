@@ -1,0 +1,45 @@
+schema: 1
+id: zed
+name: Zed
+vendor: Zed Industries
+kind: ide
+detect:
+  commands:
+  - zed
+  paths:
+  - ~/.config/zed
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.config/zed/settings.json
+    scope: user
+  - path: ./.zed/settings.json
+    scope: project
+  format: jsonc
+  key_path:
+  - context_servers
+  entry_style: zed-context-servers
+  transports:
+  - stdio
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: enabled
+    disable_semantics: enabled-bool
+  cli: null
+extensions:
+  skills: null
+  plugins: Zed extensions (in-app)
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://zed.dev/docs/ai/mcp
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'settings.json is JSONC WITH comments — executor must preserve comments/ordering (no plain json round-trip). Observed
+  2 extension-provided entries: {enabled, settings:{<ext-specific keys>}}. Custom stdio (docs): {"source":"custom","command":"<bin>","args":[...],"env":{...}};
+  remote (docs): {"url":"...","headers":{...}}. Custom-entry shapes are docs-only, not observed.'
