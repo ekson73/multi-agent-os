@@ -1,0 +1,47 @@
+schema: 1
+id: copilot-cli
+name: GitHub Copilot CLI
+vendor: GitHub
+kind: cli
+detect:
+  commands:
+  - copilot
+  paths:
+  - ~/.copilot
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.copilot/mcp-config.json
+    scope: user
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values: {stdio: local}
+    extra: {tools: ['*']}
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: copilot --version
+  update_cmd: npm i -g @github/copilot
+docs_url: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'No `copilot mcp` subcommand (servers added via interactive /mcp add, or --additional-mcp-config at launch). Docs shape:
+  remote {type: http, url, headers, tools: ["*"]}; local {type: local (or stdio), command, args, env, tools: ["*"]}. `tools`
+  is required by the CLI — executor should emit tools:["*"]. Observed 3 entries with only command/args.'

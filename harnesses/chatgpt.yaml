@@ -1,0 +1,35 @@
+schema: 1
+id: chatgpt
+name: ChatGPT Desktop
+vendor: OpenAI
+kind: desktop-app
+detect:
+  commands: []
+  paths:
+  - /Applications/ChatGPT.app
+mcp:
+  supported: false
+  config_paths: []
+  format: null
+  key_path: null
+  entry_style: null
+  transports: []
+  supports:
+    headers: false
+    env: false
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: https://help.openai.com
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: no local MCP config file; connectors/apps are account-level (cloud) settings
+notes: 'Also installed: ChatGPT Atlas.app, ChatGPT Classic.app — same situation.'
