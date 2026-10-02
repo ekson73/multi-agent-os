@@ -107,9 +107,21 @@ def load_yaml(path: str) -> dict:
 
 def validate(doc: dict) -> list[str]:
     errs: list[str] = []
+    if not isinstance(doc, dict):
+        return [f"roadmap root must be a mapping, got {type(doc).__name__}"]
     if doc.get("version") != SCHEMA_VERSION:
         errs.append(f"version must be {SCHEMA_VERSION}, got {doc.get('version')!r}")
     nodes = doc.get("nodes") or []
+    # a schema-invalid `nodes: nope` (string) would iterate characters and call
+    # .get() on a str -> uncaught traceback; reject non-list / non-mapping here
+    # so --check / --json return a clean failure envelope (CI-gateable).
+    if not isinstance(nodes, list):
+        return errs + [f"'nodes' must be a list, got {type(nodes).__name__}"]
+    for n in nodes:
+        if not isinstance(n, dict):
+            errs.append(f"node must be a mapping, got {type(n).__name__}: {n!r}")
+    if any("must be a mapping" in e for e in errs):
+        return errs  # cannot safely traverse ids/parents once a node is malformed
     ids = set()
     for n in nodes:
         nid = n.get("id")
@@ -133,6 +145,12 @@ def validate(doc: dict) -> list[str]:
         for p in n.get("parents") or []:
             if p not in ids:
                 errs.append(f"node {nid}: parent references unknown node {p!r}")
+    # parent cycle — render_tree walks `parents` directly; a cycle there passes
+    # edge-only detect_cycle() and then recurses to RecursionError at render.
+    if not any("parent references unknown" in e for e in errs):
+        pcyc = _detect_parent_cycle(nodes)
+        if pcyc:
+            errs.append("parent CYCLE: " + " -> ".join(pcyc))
     for e in doc.get("edges") or []:
         if e.get("type") not in EDGE_TYPES:
             errs.append(f"edge {e!r}: unknown type {e.get('type')!r}")
@@ -142,19 +160,62 @@ def validate(doc: dict) -> list[str]:
     return errs
 
 
-def resolve_probe_manager(node: dict) -> str | None:
+def _detect_parent_cycle(nodes: list[dict]) -> list[str] | None:
+    """Cycle in the `parents` hierarchy (independent of dependency edges)."""
+    parent_of: dict[str, list[str]] = {
+        n["id"]: list(n.get("parents") or []) for n in nodes if n.get("id")
+    }
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {i: WHITE for i in parent_of}
+    stack: list[str] = []
+
+    def dfs(u: str) -> list[str] | None:
+        color[u] = GRAY
+        stack.append(u)
+        for p in parent_of.get(u, ()):
+            if color.get(p) == GRAY:
+                return stack[stack.index(p):] + [p]
+            if color.get(p) == WHITE:
+                r = dfs(p)
+                if r:
+                    return r
+        color[u] = BLACK
+        stack.pop()
+        return None
+
+    for i in parent_of:
+        if color[i] == WHITE:
+            c = dfs(i)
+            if c:
+                return c
+    return None
+
+
+def resolve_probe_manager(node: dict, doc: dict | None = None) -> str | None:
     """Which ticket-manager to probe this node's status against.
 
     ROUTING CONTRACT (coderabbit/copilot/codex converged): the node's own
     `ref.manager` is authoritative — a node can live in a Jira world yet point
     at a GitHub PR (e.g. a client item delivered by a PR on GitHub). The world's
     declared ticket-manager is only the DEFAULT when the ref carries no manager.
+
+    The default is read from the roadmap's OWN `worlds.<name>.ticket_manager`
+    when `doc` is passed, so an extended roadmap (a world the seed never named)
+    routes correctly instead of emitting a stale/null manager. WORLD_MANAGER is
+    only the last-resort fallback for the three seed worlds when no doc is given.
     """
     ref = node.get("ref")
     if isinstance(ref, dict) and ref.get("manager"):
         return str(ref["manager"])
     world = node.get("world")
-    return WORLD_MANAGER.get(world) if world else None
+    if not world:
+        return None
+    if doc:
+        worlds = doc.get("worlds") or {}
+        decl = worlds.get(world)
+        if isinstance(decl, dict) and decl.get("ticket_manager"):
+            return str(decl["ticket_manager"])
+    return WORLD_MANAGER.get(world)
 
 
 def _dep_graph(doc: dict) -> dict[str, set[str]]:
@@ -281,6 +342,19 @@ def render_tree(doc: dict, statuses: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
+def render_dependencies(doc: dict) -> str:
+    """The dependency EDGES, explicit — the parents tree shows containment, this
+    shows 'what depends on what'. Codex #5: an edge like `T1 depends-on DOR1`
+    must be visible in the human view, not only folded into the topo order.
+    """
+    edges = doc.get("edges") or []
+    if not edges:
+        return "(no dependency edges)"
+    arrow = {"depends-on": "depends on", "blocks": "blocks", "informs": "informs", "realizes": "realizes"}
+    lines = [f"  {e.get('from')} {arrow.get(e.get('type'), e.get('type'))} {e.get('to')}" for e in edges]
+    return "\n".join(lines)
+
+
 def render_lens(doc: dict, lens: str) -> str:
     lenses = doc.get("lenses") or {}
     return json.dumps({lens: lenses[lens]}, indent=2, ensure_ascii=False)
@@ -345,7 +419,7 @@ def main(argv: list[str]) -> int:
             m = dict(n)
             if n.get("id"):
                 m["effective_status"] = effective_status(n, statuses)
-                m["probe_manager"] = resolve_probe_manager(n)
+                m["probe_manager"] = resolve_probe_manager(n, doc)
             enriched.append(m)
         env = {
             "ok": True,
@@ -361,6 +435,8 @@ def main(argv: list[str]) -> int:
 
     print("ROADMAP N-TREE (parents -> children; status measured or declared)\n")
     print(render_tree(doc, statuses))
+    print("\nDEPENDENCY EDGES (what depends on what — drives the topo order):")
+    print(render_dependencies(doc))
     print("\nTOPOLOGICAL ORDER (dependency-respecting):")
     print("  " + " -> ".join(order))
     if args.lens:

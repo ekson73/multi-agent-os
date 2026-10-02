@@ -163,7 +163,7 @@ context compaction. This adds the missing SSOT + its projector, forged via
   → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
   (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
   node's ticket-manager/home by its world; never writes orchestration into a
-  client repo. Follows `eko-executable-scripts`. 24 tests green
+  client repo. Follows `eko-executable-scripts`. 32 tests green
   (`scripts/test_project_roadmap.py`).
 
 ### Fixed — roadmap-tree-projector review round (PR #439)
@@ -176,7 +176,16 @@ broken projection; correct the parse contract (PyYAML required, no faked
 fallback — anti-theater); route the status probe by `ref.manager` with the
 node's world as the default. P2: reject duplicate YAML keys (PyYAML last-wins
 → hard stop); require node `title`; list `roadmap-tree-projector` in
-`skills/README.md`. Tests 11 → 24.
+`skills/README.md`. A second re-review round (the rebase re-triggered a full
+review) added: parent-hierarchy CYCLE detection (an edge-only cycle check let a
+`parents` cycle pass `--check` then RecursionError at render); `resolve_probe_manager`
+now reads the roadmap's OWN `worlds.<name>.ticket_manager` so an added/extended
+world routes correctly instead of emitting `null`; a non-list `nodes` / non-mapping
+node is now a clean validation error (was an uncaught traceback with no JSON
+failure envelope); dependency EDGES are rendered explicitly in the human view
+(were only folded into the topo order); the Jira probe uses the positional
+`acli jira workitem view <KEY>` (the `--key` flag does not exist) and the GitHub
+probe passes `-R <ref.repo>`. Tests 11 → 24 → 32.
 - `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho

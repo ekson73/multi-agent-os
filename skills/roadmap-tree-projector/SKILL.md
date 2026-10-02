@@ -21,10 +21,10 @@ triggers:
   - raci the roadmap
   - eisenhower the roadmap
   - projete o roadmap
-version: 0.2.0
+version: 0.3.0
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob]
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   scope: AAIF cross-vendor
   family: orchestration
   cross_link_slug: roadmap-tree-projector
@@ -83,9 +83,12 @@ gitleaks + Trivy secrets) scans every commit; treat a finding as a hard stop.
    — self-locates `orchestration/roadmap.yaml`, validates the schema, and
    **fails on a dependency cycle** (non-zero exit, CI-gateable).
 2. **Measure status at the source** (cognitive + tools): for each node with a
-   `ref`, probe the ticket-manager its **world** declares —
-   `gh pr view <n> --json state,statusCheckRollup` (github),
-   `acli jira workitem view --key <KEY>` (jira),
+   `ref`, probe the ticket-manager **the node's `ref.manager` names**, falling
+   back to the manager the node's **world declares** (`worlds.<name>.ticket_manager`
+   in the SSOT) only when the ref carries none — a node can live in a Jira world
+   yet point at a GitHub PR, so the ref is authoritative:
+   `gh pr view <n> -R <ref.repo> --json state,statusCheckRollup` (github),
+   `acli jira workitem view <KEY>` (jira),
    Linear API/CLI (personal). Write the results as `id=status` lines to a status
    file. **Never** invent a status the probe did not return (anti-theater).
 3. **Project** (deterministic):
@@ -137,9 +140,10 @@ a pure module.
 2. **Non-Contradiction** — stores STRUCTURE (edges/lenses) that no sibling SSOT
    holds; points at Jira/ADR/PR content rather than duplicating it (DRY/SSOT).
 3. **Survival** — the graph invariants are locked by `test_project_roadmap.py`
-   (24 tests: validation incl. parents+title, cycle detection, topo order,
-   blocks-normalization, measured-status-in-JSON, exit codes on bad lens/parent,
-   world-contract routing, duplicate-YAML-key rejection).
+   (32 tests: validation incl. parents+title+node-type, cycle detection in BOTH
+   edges and the parent hierarchy, topo order, blocks-normalization,
+   measured-status-in-JSON, exit codes on bad lens/parent, world-contract routing
+   incl. declared-world fallback, duplicate-YAML-key rejection, explicit edge render).
 4. **Bounded-Responsibility** — projects + proposes; edits the SSOT only on
    confirmation; never writes orchestration into a client repo.
 5. **Explicit-Exception** — §0 BEING>Rules + HUMAN_DOMAIN escalation + privacy guard.
@@ -161,6 +165,7 @@ operator retraction (E4).
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 0.3.0 | 2026-10-02 | Re-review-round fixes (rebase re-triggered full review, PR #439). Parent-hierarchy CYCLE now detected (edge-only cycle check let a `parents` cycle pass `--check` then RecursionError at render); `resolve_probe_manager` reads the roadmap's OWN `worlds.<name>.ticket_manager` so an extended/added world routes correctly (was a hardcoded 3-world map → `null` for any other); non-list `nodes` / non-mapping node now a clean validation error (was an uncaught traceback with no JSON failure envelope); dependency EDGES rendered explicitly in the human view (were only folded into the topo order — `T1 depends-on DOR1` was invisible); Jira probe corrected to positional `acli jira workitem view <KEY>` (the `--key` flag does not exist) and GitHub probe passes `-R <ref.repo>`. Tests 24 → 32 green. |
 | 0.2.0 | 2026-09-23 | Review-round fixes (coderabbit/copilot/codex, PR #439). P1 silent-wrong: validate `parents` (typo'd parent now errors instead of dropping the node), fold measured status into the `--json` envelope (`effective_status`), non-zero exit on unknown `--lens`/bad parent (CI no longer reads success on a broken projection), corrected the parse contract (PyYAML required, no faked fallback — anti-theater), route the status probe by `ref.manager` with the node's world as default. P2: reject duplicate YAML keys (PyYAML last-wins → SystemExit), require `title`, add `roadmap-tree-projector` to `skills/README.md` inventory. Tests 11 → 24 green. |
 | 0.1.0 | 2026-09-23 | Bootstrap — durable roadmap SSOT (`orchestration/roadmap.yaml`) + hybrid projector (deterministic parse/validate/cycle-detect/topo-sort/render + cognitive status-classification/edge-suggestion) + world-aware status probing + `/roadmap-tree` wrapper. Forged via `agentic-tool-forge` (type=skill+command). 11 tests green. |
 

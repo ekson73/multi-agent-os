@@ -256,5 +256,90 @@ class TestDuplicateYamlKeys(unittest.TestCase):
             os.unlink(f.name)
 
 
+class TestParentCycle(unittest.TestCase):
+    # Re-review (coderabbit #9 / codex #12): a cycle in `parents` passed --check
+    # (edge-only detect_cycle) then RecursionError'd at render. Must be caught.
+    def test_parent_cycle_flagged(self):
+        doc = _doc(
+            [
+                {"id": "A", "kind": "goal", "title": "a", "parents": ["B"]},
+                {"id": "B", "kind": "item", "title": "b", "parents": ["A"]},
+            ],
+            [],
+        )
+        errs = pr.validate(doc)
+        self.assertTrue(any("parent CYCLE" in e for e in errs), errs)
+
+    def test_acyclic_parents_ok(self):
+        doc = _doc(
+            [
+                {"id": "A", "kind": "goal", "title": "a"},
+                {"id": "B", "kind": "item", "title": "b", "parents": ["A"]},
+            ],
+            [],
+        )
+        self.assertFalse(any("parent CYCLE" in e for e in pr.validate(doc)))
+
+
+class TestDeclaredWorldFallback(unittest.TestCase):
+    # Re-review (coderabbit #16 / codex #13): fallback must read the roadmap's
+    # OWN worlds.<name>.ticket_manager, not only the hardcoded seed map.
+    def test_extended_world_resolves_from_doc(self):
+        doc = {
+            "version": 1,
+            "worlds": {"acme": {"ticket_manager": "jira"}},
+            "nodes": [{"id": "X", "kind": "item", "title": "x", "world": "acme"}],
+            "edges": [],
+        }
+        node = doc["nodes"][0]
+        # without doc -> unknown world -> None (old behavior)
+        self.assertIsNone(pr.resolve_probe_manager(node))
+        # with doc -> reads declared ticket_manager
+        self.assertEqual(pr.resolve_probe_manager(node, doc), "jira")
+
+    def test_ref_manager_still_wins_over_declared_world(self):
+        doc = {
+            "version": 1,
+            "worlds": {"acme": {"ticket_manager": "jira"}},
+            "nodes": [],
+            "edges": [],
+        }
+        node = {"id": "P", "kind": "pr", "world": "acme", "ref": {"manager": "github", "pr": 1}}
+        self.assertEqual(pr.resolve_probe_manager(node, doc), "github")
+
+
+class TestNodesTypeGuard(unittest.TestCase):
+    # Re-review (codex #14): `nodes: nope` reached the loop, .get() on a char ->
+    # uncaught traceback; must be a clean validation error (JSON failure envelope).
+    def test_non_list_nodes_rejected(self):
+        doc = {"version": 1, "nodes": "nope", "edges": []}
+        errs = pr.validate(doc)
+        self.assertTrue(any("'nodes' must be a list" in e for e in errs), errs)
+
+    def test_non_mapping_node_rejected(self):
+        doc = {"version": 1, "nodes": ["justastring"], "edges": []}
+        errs = pr.validate(doc)
+        self.assertTrue(any("must be a mapping" in e for e in errs), errs)
+
+
+class TestDependencyRender(unittest.TestCase):
+    # Re-review (codex #5): a `depends-on` edge must be visible in the human
+    # view, not only folded into the topo order.
+    def test_edges_rendered_explicitly(self):
+        doc = _doc(
+            [
+                {"id": "DOR1", "kind": "dor", "title": "ready"},
+                {"id": "T1", "kind": "task", "title": "do it"},
+            ],
+            [{"from": "T1", "to": "DOR1", "type": "depends-on"}],
+        )
+        out = pr.render_dependencies(doc)
+        self.assertIn("T1 depends on DOR1", out)
+
+    def test_no_edges_message(self):
+        doc = _doc([{"id": "A", "kind": "goal", "title": "a"}], [])
+        self.assertIn("no dependency edges", pr.render_dependencies(doc))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
