@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23 and `harness-concierge` by hand 2026-09-24. **Current snapshot 2026-10-02**: the table lists 91 git-tracked top-level skills, including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-02**: the table lists 92 git-tracked top-level skills, including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (91)
+## Available Skills (92)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -82,6 +82,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `research-dossier` | `research-dossier/SKILL.md` | Turn finished research into a decision-ready visual dossier — html, md, json, and hand-offs to pdf/pptx/xlsx — routed through an intermediate represen |
 | `response-compression` | `response-compression/SKILL.md` | Controls output verbosity. |
 | `reveng` | `reveng/SKILL.md` | Use to REVERSE-ENGINEER source code into an OpenSpec SPEC model (the as-built behavioral contract) — e.g. |
+| `roadmap-tree-projector` | `roadmap-tree-projector/SKILL.md` | Use when you need to SEE the whole roadmap as a dependency graph — projects the N-Tree from a durable versioned SSOT (dependency EDGES + analysis LENSES) with status MEASURED at the source; hybrid + world-aware. |
 | `rule-quality-tests` | `rule-quality-tests/SKILL.md` | Use when creating new rules, modifying existing rules at MAJOR/MINOR version bump, OR when operator says "audit this rule" / "check rule quality" / "v |
 | `session-fission` | `session-fission/SKILL.md` | On-demand splitter for a tangled Claude session. |
 | `session-reentry` | `session-reentry/SKILL.md` | Cold/foreign-thread RE-ENTRY orchestrator (soul-name Anamnesis). |
@@ -110,6 +111,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
 - **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
+- **Roadmap & prioritization**: `roadmap-tree-projector` · `eisenhower-matrix` · `work-compass`
 
 ## Inter-dependency graph (core families)
 

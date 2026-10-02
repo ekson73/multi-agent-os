@@ -1,0 +1,138 @@
+# orchestration/roadmap.yaml — durable SSOT for the roadmap N-Tree
+#
+# WHY THIS FILE EXISTS
+#   Jira / ADR / OpenSpec store the NODES (content). Nothing stored the EDGES
+#   (dependency between nodes), the COMPUTED graph STATUS, or the analysis
+#   LENSES (SWOT / RACI / Eisenhower / DoR / DoD). Every recap re-drew them in
+#   ephemeral prose that is lost on compaction. This file is the missing SSOT
+#   for that structure. `skills/roadmap-tree-projector` PROJECTS the N-Tree from
+#   it and measures node status at the source (gh / acli / linear).
+#
+# DRY — THIS FILE HOLDS STRUCTURE, NOT CONTENT
+#   A node NEVER copies the body of its authoritative SSOT. It carries a POINTER
+#   (`ref:`) — a VKS id, a PR number, an ADR id, a Linear id, a session-key — and
+#   the projector reads the live content/status from that source at render time.
+#   Duplicating the content here would just create a second thing to drift.
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ PRIVACY GUARD — multi-agent-os is a PUBLIC repo.                          │
+# │ This file MUST NOT contain: PII, secrets/tokens, sensitive client names, │
+# │ client decision content, internal prod URLs. Only ABSTRACT pointers/ids  │
+# │ (VKS-3088, PR#351, session-key) and MECHANICS. The examples below are    │
+# │ GENERIC/REDACTED placeholders, not any real client roadmap.              │
+# │ CI (supply-chain-sentinel: gitleaks + Trivy secrets) scans every commit. │
+# └─────────────────────────────────────────────────────────────────────────┘
+
+version: 1
+
+# ── WORLDS ──────────────────────────────────────────────────────────────────
+# The operator works across N worlds with hard boundaries. A node's `world`
+# resolves WHERE its info lives and WHICH ticket-manager owns it. The projector
+# is world-aware: it never writes orchestration into a client repo, and it
+# probes each node's status against the ticket-manager its world declares.
+worlds:
+  personal:
+    # personal / eko-family / eko-system
+    ticket_manager: linear
+    repos: [multi-agent-os, akasha-*]
+    orchestration_home: true   # cross-world orchestration metadata lives HERE only
+  client-alpha:
+    # a client world — GENERIC placeholder, not a real client
+    ticket_manager: jira
+    jira_project: PROJ          # redacted project key
+    repos: [alpha-web]
+  integrator-beta:
+    ticket_manager: github
+    repos: [beta-service]
+
+# ── NODES ─────────────────────────────────────────────────────────────────
+# kinds: goal | objective | epic | item | task | pr | session | dor | dod
+# status is OPTIONAL and ADVISORY — the projector MEASURES it at the source via
+# `ref` and only falls back to a declared status when the source is unreachable.
+nodes:
+  - id: G1
+    kind: goal
+    world: personal
+    title: "Ship the roadmap N-Tree projector as a reusable asset"
+    ref: null                       # a goal may have no external SSOT
+
+  - id: OBJ1
+    kind: objective
+    world: personal
+    title: "Durable graph structure survives context compaction"
+    parents: [G1]
+
+  - id: DOR1
+    kind: dor
+    world: personal
+    title: "Definition of Ready: SSOT schema agreed + privacy guard defined"
+    parents: [OBJ1]
+
+  - id: E1
+    kind: epic
+    world: client-alpha
+    title: "Example client epic (redacted)"
+    ref: { manager: jira, key: "PROJ-1000" }   # POINTER only — content stays in Jira
+
+  - id: T1
+    kind: item
+    world: client-alpha
+    title: "Example delivery item (redacted)"
+    parents: [E1]
+    ref: { manager: jira, key: "PROJ-1001" }
+
+  - id: PR1
+    kind: pr
+    world: client-alpha
+    title: "Example PR delivering T1"
+    parents: [T1]
+    ref: { manager: github, repo: "org/alpha-web", pr: 100 }  # generic org/repo
+
+  - id: DOD1
+    kind: dod
+    world: client-alpha
+    title: "Definition of Done: PR merged + checks green + spec updated"
+    parents: [T1]
+
+  - id: S1
+    kind: session
+    world: personal
+    title: "Conductor session driving the delivery"
+    ref: { manager: session, key: "session-key-REDACTED" }
+
+# ── EDGES ───────────────────────────────────────────────────────────────────
+# The dependency ARESTAS that no other SSOT stores. `type`:
+#   depends-on  — from cannot start/finish until `to` is satisfied
+#   blocks      — inverse of depends-on (sugar; normalized to depends-on)
+#   informs     — soft: `to` should be consulted, not gating
+#   realizes    — `from` implements/delivers `to`
+edges:
+  - { from: OBJ1, to: G1,   type: realizes }
+  - { from: DOR1, to: OBJ1, type: realizes }
+  - { from: E1,   to: OBJ1, type: realizes }
+  - { from: T1,   to: E1,   type: realizes }
+  - { from: PR1,  to: T1,   type: realizes }
+  - { from: T1,   to: DOR1, type: depends-on }   # cannot start until Ready
+  - { from: DOD1, to: PR1,  type: depends-on }   # Done gated on the PR
+
+# ── LENSES ──────────────────────────────────────────────────────────────────
+# Analysis frames stored ONCE instead of re-drawn in prose each recap. The
+# projector renders whichever lens is asked for (--lens). Free-form per lens so
+# a new lens needs no schema change (forward-compatible).
+lenses:
+  swot:
+    strengths:   ["Structure survives compaction", "DRY — pointers not copies"]
+    weaknesses:  ["Needs the SSOT kept current by hand for non-probed fields"]
+    opportunities: ["Same projector serves every world"]
+    threats:     ["Stale edges if a node is retired without updating the graph"]
+  raci:
+    # role -> node-ids they are Responsible/Accountable/Consulted/Informed for
+    responsible: { operator: [G1], agent: [OBJ1, DOR1] }
+    accountable: { operator: [G1] }
+    consulted:   { }
+    informed:    { }
+  eisenhower:
+    # node-id -> quadrant: urgent-important | important | urgent | neither
+    E1: important
+    T1: urgent-important
+    PR1: urgent-important
