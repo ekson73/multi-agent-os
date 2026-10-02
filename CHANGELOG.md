@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `live-session-continuity-recovery` skill
+
+- `skills/live-session-continuity-recovery/SKILL.md` reconstructs the exact active thread with source-coverage and freshness attestation, correction-aware claim provenance, explicit-versus-inferred goals, bounded review, and one read-only OODA next action or HITL. It composes adjacent skills without a transcript parser, write-capable default, automatic session enumeration, or new adapter.
+
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
 - `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
