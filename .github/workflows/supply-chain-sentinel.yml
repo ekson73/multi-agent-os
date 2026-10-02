@@ -113,6 +113,34 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
 
+  gitleaks-config-contract:
+    name: gitleaks config contract (canary)
+    runs-on: ubuntu-latest
+    # The .gitleaks.toml rules carry the repo's only secret gate. This job runs
+    # tests/test-gitleaks-config.sh against a PINNED gitleaks so a config
+    # regression (a weakened rule, an over-broad allowlist, a disabled canary)
+    # fails CI instead of merging green. The gitleaks-action job above cannot do
+    # this — it scans content, it does not test that the RULES still fire.
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned gitleaks
+        run: |
+          set -euo pipefail
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL "$url" -o /tmp/gitleaks.tgz
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Run config contract (canary)
+        run: bash tests/test-gitleaks-config.sh
+
   lockfile-integrity:
     name: Lockfile committed & non-empty
     runs-on: ubuntu-latest

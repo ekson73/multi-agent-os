@@ -54,7 +54,7 @@ scan() {
   # EXIT trap: remove the fixture dir on normal completion AND early failure.
   trap 'rm -rf "$sbx"' RETURN
   printf '%s' "$body" > "$sbx/creds.env"
-  ( cd "$sbx" && git init -q && git config user.email t@t && git config user.name t \
+  ( cd "$sbx" && git init -q && git config user.email fixture@example.com && git config user.name fixture \
       && git add -A && git commit -qm fixture ) >/dev/null 2>&1
   out="$sbx/report.json"
   gitleaks detect --source "$sbx" --config "$CONFIG" --no-banner \
