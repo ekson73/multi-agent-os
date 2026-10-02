@@ -148,7 +148,7 @@ else bad "ANTI-BYPASS: a real secret near the placeholder was suppressed ($n_tra
 # pure reference URI stays suppressed.
 awsmix=$'db_password=CorrectHorse1aws:///foo#BAR\n'
 r_awsmix="$(scan "$awsmix")"
-if [ -n "$r_awsmix" ]; then ok "AWS-URI: real secret ending in a reference URI still fires"
+if has_secret "$r_awsmix" "CorrectHorse1aws:///foo#BAR"; then ok "AWS-URI: real secret ending in a reference URI still fires"
 else bad "AWS-URI: a real secret ending in aws:/// was suppressed (substring bypass)"; fi
 awspure=$'db_password=aws:///vek-sales/env/hml#VEK_DB_PASSWORD\n'
 r_awspure="$(scan "$awspure")"
