@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   findings dropped from 93 to the residue that is a **genuine** credential
   requiring rotation.
 
+### Added — `live-session-continuity-recovery` skill
+
+- `skills/live-session-continuity-recovery/SKILL.md` reconstructs the exact active thread with source-coverage and freshness attestation, correction-aware claim provenance, explicit-versus-inferred goals, bounded review, and one read-only OODA next action or HITL. It composes adjacent skills without a transcript parser, write-capable default, automatic session enumeration, or new adapter.
+- Training refinement: seven items / 1,800 characters are best-effort targets, not a hard cap (live output reached 1,975; manual correction reached 1,455). Count before sending where the host permits without persistence; preserve blocker status, report overflow, and label expanded reviews rather than omit material facts. Internal session handles remain private; only currently authorized non-sensitive record labels may disambiguate status, and the next action stays atomic.
+- Training refinement: evidence-gated objective qualifiers, steps/feedback, and read-only peer-WIP boundaries without changing the canonical hierarchy.
+
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
 - `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
