@@ -9,36 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed — gitleaks false-negative: entropy on value, not match (follow-up to #433)
 
-- `.gitleaks.toml` (v1.1.0 -> v1.2.0) — the `vek-db-password` and `vek-jwt-secret`
+- `.gitleaks.toml` (v1.1.0 -> v1.3.0) — the `vek-db-password` and `vek-jwt-secret`
   rules evaluated `entropy` against the **whole `name=value` match**, so the
   variable name diluted the score and a weak real credential slipped under the
   threshold (`entropy=3.5`/`3.0`). Measured: **0 of 5** weak credentials
   (a `DB_PASSWORD` set to a common dictionary word, etc.) were detected. Both
-  rules now capture the **value** in group 1, set `secretGroup = 1`, and apply a
-  low `entropy = 2.0` floor to the value — which keeps weak/repeated human
-  passwords (Shannon ~2.75) while dropping only pure-repeat junk
-  (an all-`x` string = 0.0). Entropy measures randomness, not intent, and
-  placeholders and weak passwords occupy the **same** entropy band (a
-  `password123`-style token at 3.278 outscores a real `Passw0rd` at 2.750), so
-  the split is: recall in the rule, precision in the allowlist — never an
-  entropy threshold to separate the two classes.
+  rules now capture the **value** in group 1 via `secretGroup = 1` and carry
+  **no entropy floor at all**. An entropy floor is a false-negative in disguise:
+  even a low floor of 2.0 drops a non-repeat weak secret such as `abababab`
+  (Shannon entropy 1.0), while — measured on this repo's full history — removing
+  the floor adds **zero** false positives, because the value char class already
+  excludes code/template punctuation. Entropy measures randomness, not intent,
+  and placeholders and weak passwords occupy the **same** band (a `password123`
+  token at 3.278 outscores a real `Passw0rd` at 2.750), so the split is: recall
+  in the rule, precision in the allowlist — never an entropy threshold.
 - The `vek-db-password` value char class also excludes shell/template/code
   punctuation (`$ { } ( ) , .`) so the rule matches a literal `KEY=secret` but
   no longer false-positives on code that *reads* a secret (`os.getenv(`,
   `os.getcwd()`, `${DB_PASS}`). Trade: a password containing a dot is not
   matched — accepted, because every code-reference false-positive vanishes.
 - A rule-scoped `[rules.allowlist]` exempts three documented non-credentials by
-  form or exact path: the AWS Secrets Manager **reference URI** shape
-  (`aws:///…#VAR` — a pointer, not a secret), a CI build-log capture, and a test
-  fixture. It is deliberately **not** a broad `docs/insights/` path allowlist,
-  because a sibling doc still holds a real credential that must keep firing.
+  form or exact path: the AWS Secrets Manager **reference URI** shape, tested
+  against the extracted value (`regexTarget = "secret"`) and **anchored `^…$`**
+  so a real password that merely *ends* in such a URI is not swallowed; plus a
+  CI build-log capture and a test fixture, each **path-anchored (`$`)** so a
+  suffixed sibling (`…​.bak`) stays scanned. It is deliberately **not** a broad
+  `docs/insights/` path allowlist, because a sibling doc still holds a real
+  credential that must keep firing.
 - `tests/test-gitleaks-config.sh` (new) — a TDD contract for the config, run
   against the real gitleaks binary: a **canary** (an armed fixture yielding 0
   findings fails the test — the gate must never be decorative), recall on weak
-  real credentials, precision on documented placeholders, an entropy-floor check
-  (only zero-entropy junk dropped), and an anti-over-suppression trap (a real
-  secret glued to a placeholder still fires). Full-history findings dropped from
-  93 to the residue that is a **genuine** credential requiring rotation.
+  real credentials, a **no-entropy-floor** assertion (low-entropy credentials
+  still fire), precision on documented placeholders, an anti-over-suppression
+  trap (a real secret glued to a placeholder still fires), and an AWS-URI
+  anti-substring-bypass pair. The helper fails hard on a scanner error (never
+  masking a crash as zero findings), compares the **complete** extracted secret
+  (no prefix free-riding), cleans fixtures via an `EXIT`/`RETURN` trap, and
+  treats a missing `gitleaks` binary as a failure, not a skip. Full-history
+  findings dropped from 93 to the residue that is a **genuine** credential
+  requiring rotation.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 

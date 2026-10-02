@@ -13,17 +13,20 @@
 #  * @impact   Pins, against the REAL gitleaks binary + the REAL committed
 #  *           .gitleaks.toml: (1) weak real creds DETECTED; (2) documented
 #  *           placeholders SUPPRESSED; (3) a real secret in an allowlist-shaped
-#  *           line/path STILL fires (anti-over-suppression); (4) entropy floor
-#  *           kills only zero-entropy junk; (5) canary — the armed fixture MUST
-#  *           produce findings, or the whole gate is decorative.
+#  *           line/path STILL fires (anti-over-suppression); (4) no entropy
+#  *           floor silently drops low-entropy credentials; (5) canary — the
+#  *           armed fixture MUST produce findings, or the whole gate is
+#  *           decorative.
 #  *
 #  *           Entropy measures randomness, not intent: placeholders and weak
 #  *           human passwords occupy the SAME entropy band (password123=3.278 >
-#  *           Passw0rd=2.750), so NO entropy threshold separates them. Recall
-#  *           lives in the rule (value-captured secretGroup + a low 2.0 floor
-#  *           that only drops pure-repeat junk); precision lives in the
-#  *           line-anchored, value-exact allowlist. Never raise the entropy
-#  *           floor to suppress a placeholder — add an anchored allowlist line.
+#  *           Passw0rd=2.750), AND a non-repeat weak secret like `abababab` has
+#  *           Shannon entropy 1.0 — so NO entropy threshold separates real from
+#  *           placeholder without hiding real credentials. Recall lives in the
+#  *           rule (value-captured secretGroup, NO entropy floor); precision
+#  *           lives in the line-anchored, value-exact allowlist. Never add an
+#  *           entropy floor to suppress a placeholder — add an anchored
+#  *           allowlist line.
 #  */
 set -euo pipefail
 
@@ -33,34 +36,66 @@ PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '  \033[31m✗\033[0m %s\n' "$1"; }
 
-command -v gitleaks >/dev/null || { echo "SKIP: gitleaks not installed"; exit 0; }
+command -v gitleaks >/dev/null || { echo "FAIL: gitleaks not installed — the secret gate cannot be verified"; exit 1; }
 [ -f "$CONFIG" ] || { echo "FAIL: $CONFIG not found"; exit 1; }
 
 # ── scan helper ──────────────────────────────────────────────────────────────
 # Builds a throwaway git repo from a heredoc body, scans full-history with the
 # REAL config, and echoes one "RULE\tLINE\tSECRET" row per finding.
+#
+# Exit-code discipline (CodeRabbit): gitleaks exits 1 for leaks AND for its own
+# errors (bad config, parse failure). We must NOT conflate a scanner CRASH with
+# "0 findings" — that is fail-open. So: exit 0 (clean) or 1 (leaks) is DATA;
+# any OTHER exit, or a missing/unreadable report, is a hard FAIL that aborts the
+# whole suite (set -e via the `return 1` surfacing) rather than passing silently.
 scan() {
-  local body="$1" sbx out
+  local body="$1" sbx out rc
   sbx="$(mktemp -d)"
+  # EXIT trap: remove the fixture dir on normal completion AND early failure.
+  trap 'rm -rf "$sbx"' RETURN
   printf '%s' "$body" > "$sbx/creds.env"
   ( cd "$sbx" && git init -q && git config user.email t@t && git config user.name t \
       && git add -A && git commit -qm fixture ) >/dev/null 2>&1
   out="$sbx/report.json"
-  # gitleaks exits non-zero when leaks are found; that is data here, not an error.
   gitleaks detect --source "$sbx" --config "$CONFIG" --no-banner \
-    --report-format json --report-path "$out" >/dev/null 2>&1 || true
+    --report-format json --report-path "$out" >/dev/null 2>&1
+  rc=$?
+  # 0 = clean, 1 = leaks found; anything else is a scanner error.
+  if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then
+    echo "SCANNER-ERROR: gitleaks exited $rc on a fixture scan" >&2
+    return 2
+  fi
+  # The report must exist and be valid JSON, or the scan did not complete.
+  if [ ! -r "$out" ]; then
+    echo "SCANNER-ERROR: report $out missing/unreadable (exit $rc)" >&2
+    return 2
+  fi
   python3 - "$out" <<'PY'
 import json,sys
-try: data=json.load(open(sys.argv[1]))
-except Exception: data=[]
+try:
+    data=json.load(open(sys.argv[1]))
+except Exception as e:
+    sys.stderr.write(f"SCANNER-ERROR: report not valid JSON: {e}\n")
+    sys.exit(2)
 for f in data:
     print(f"{f['RuleID']}\t{f['StartLine']}\t{f['Secret']}")
 PY
-  rm -rf "$sbx"
 }
 # count findings for a given rule id in a scan result
 count_rule() { grep -c "^$2" <<<"$1" || true; }
-has_secret() { grep -qF "	$2" <<<"$1"; }   # tab before value = Secret column
+# has_secret: TRUE only when the COMPLETE Secret column (3rd tab field) equals
+# $2 — a prefix like `changeme` must NOT match a row whose Secret is
+# `changemechangeme`, or the recall check for one value free-rides on another.
+has_secret() {
+  local result="$1" want="$2" line secret
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    secret="${line#*$'\t'}"      # strip RULE\t
+    secret="${secret#*$'\t'}"    # strip LINE\t  → leaves exact Secret
+    [ "$secret" = "$want" ] && return 0
+  done <<<"$result"
+  return 1
+}
 
 # ══ 1. CANARY — the armed fixture MUST produce findings ══════════════════════
 # If this fixture ever yields 0 findings, the rules are broken/disabled and
@@ -79,12 +114,16 @@ for v in changeme Passw0rdX password123 changemechangeme aB3xK9mP2qL7wE4rT; do
   else bad "RECALL: weak credential SILENTLY MISSED — $v"; fi
 done
 
-# ══ 3. ENTROPY FLOOR — only pure-repeat junk is dropped, nothing real ════════
-# xxxxxxxx has entropy 0.0 → dropped. changeme has 2.750 → kept (proven in §2).
-junk=$'DB_PASSWORD=xxxxxxxx\n'
-r_junk="$(scan "$junk")"
-if [ -z "$r_junk" ]; then ok "ENTROPY: zero-entropy junk (xxxxxxxx) correctly dropped"
-else bad "ENTROPY: xxxxxxxx produced a finding — floor too low"; fi
+# ══ 3. NO ENTROPY FLOOR — low-entropy credentials are NOT silently dropped ═══
+# A non-repeat weak secret (abababab, Shannon entropy 1.0) and a repeated one
+# (xxxxxxxx, entropy 0.0) are both credential-shaped and MUST fire — an entropy
+# floor would hide them. Placeholders are suppressed by the allowlist (§4), not
+# by entropy. This asserts the floor removal (F2) stays removed.
+lowent=$'DB_PASSWORD=abababab\nDB_PASSWORD=xxxxxxxx\n'
+r_lowent="$(scan "$lowent")"
+if has_secret "$r_lowent" "abababab" && has_secret "$r_lowent" "xxxxxxxx"; then
+  ok "NO-FLOOR: low-entropy creds (abababab=1.0, xxxxxxxx=0.0) still detected"
+else bad "NO-FLOOR: a low-entropy credential was silently dropped — entropy floor regressed"; fi
 
 # ══ 4. PRECISION — documented placeholders MUST be suppressed ════════════════
 # Exactly the forms the #433 allowlist covers: bare env, JSON, commented env.
@@ -101,6 +140,20 @@ r_trap="$(scan "$trap_cases")"
 n_trap="$(grep -c . <<<"$r_trap" || true)"
 if [ "${n_trap:-0}" -ge 2 ]; then ok "ANTI-BYPASS: real secret glued to placeholder still fires ($n_trap)"
 else bad "ANTI-BYPASS: a real secret near the placeholder was suppressed ($n_trap/2)"; fi
+
+# ══ 6. AWS-URI anti-bypass (F1) — real secret ENDING in a reference URI fires ═
+# The vek-db-password allowlist exempts a value that IS an aws:/// reference URI
+# (anchored ^…$ on the extracted secret). A real password that merely ENDS in
+# such a URI (CorrectHorse1!aws:///foo#BAR) must NOT be swallowed, while the
+# pure reference URI stays suppressed.
+awsmix=$'db_password=CorrectHorse1aws:///foo#BAR\n'
+r_awsmix="$(scan "$awsmix")"
+if [ -n "$r_awsmix" ]; then ok "AWS-URI: real secret ending in a reference URI still fires"
+else bad "AWS-URI: a real secret ending in aws:/// was suppressed (substring bypass)"; fi
+awspure=$'db_password=aws:///vek-sales/env/hml#VEK_DB_PASSWORD\n'
+r_awspure="$(scan "$awspure")"
+if [ -z "$r_awspure" ]; then ok "AWS-URI: pure reference URI correctly suppressed"
+else bad "AWS-URI: a legitimate SM reference URI produced a finding"; fi
 
 # ── summary ──────────────────────────────────────────────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
