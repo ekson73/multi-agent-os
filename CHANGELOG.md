@@ -7,6 +7,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
+
+- **TOCTOU closed (armed boundary).** Under `os-sandboxed` the profile now write-denies the state directory and every ancestor (literal), so the reviewer can no longer rename the directory away, write the real file through the new path and rename it back — a sequence that kept path and inode identical and left the change unreported (contract case 27). Cases 25-26 now accept "prevented" as well as "detected".
+- **Fail-open closed.** A symlinked state file was write-denied only by name while writes followed the link and the digest of a symlink stayed constant; such a file is now ignored for the run and replaced by an ephemeral empty state (contract case 28).
+- Both fixes are mutation-checked (removing either makes its case fail). Remaining limits are documented in `SKILL.md` (no kernel boundary ⇒ write-and-revert inside the window is unreported; detached reviewer descendants outlive the post-dispatch checks).
+
+### Security — `routed-pr-review`: a swapped state directory no longer slips past the armed-boundary skip
+
+- `skills/routed-pr-review/bin/routed-review.sh` — under an armed kernel
+  boundary the state content compare was skipped because the state FILE is
+  write-denied, but its parent and ancestor directories were not: a reviewer
+  could rename the parent and leave a decoy (symlink or same-path real tree)
+  with a forged entry, undetected (reproduced). The state directory's identity
+  (resolved path + device:inode) is now snapshotted and verified after
+  dispatch in every class; a change aborts as `violated:state-file`. +2 cases
+  (36/36); a mutation disabling the check turns both RED.
+
+### Fixed — `routed-pr-review` state check: no blind restore, no false alarm under an armed kernel
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the post-dispatch state
+  check restored the pre-run bytes on any change. A concurrent run recording a
+  failure during dispatch therefore aborted a valid review as
+  `violated:state-file` **and** had its record reverted (reproduced; also the
+  confused-deputy restore a security review flagged). Now: no restore — a
+  change aborts and the file is left for inspection; under an armed kernel
+  boundary the compare is skipped, because the profile now denies write,
+  rename-over and unlink of the state **file** itself (proven, with a mutation
+  check); the deny no longer covers the whole state directory; writers use a
+  mkdir mutex and same-directory atomic replace, and never write through a
+  symlink. +4 cases / +7 assertions (34/34).
+
+### Fixed — `routed-pr-review` gate: only APPROVED clears, tamper check cannot pass vacuously, reviewer env is an allowlist
+
+- `skills/routed-pr-review/bin/routed-review.sh` — three findings from a
+  routed review of #414, each reproduced before fixing:
+  - a bot `COMMENTED` review at the head counted as clearing a primary, and a
+    second bot that commented or requested changes at the same head was
+    ignored beside one approval. Now only `APPROVED` at the head clears; any
+    other latest state is pending.
+  - the export/live-repo tamper checks hashed with `shasum` and discarded its
+    errors: with a failing or missing tool both manifests were empty and the
+    check reported `clean`. The hash tool is resolved once (`shasum` or
+    `sha256sum`), a manifest must hold one digest per file, and failure aborts.
+  - the reviewer environment is now an allowlist (base vars, locale/proxy, the
+    reviewer vendors' credential prefixes, plus `ROUTED_REVIEW_ENV_ALLOW`);
+    repo tokens and `ROUTED_REVIEW_*` never reach the reviewer.
+- `CHANGELOG.md` — the #414 contract-test bullet had landed inside the released
+  `[1.22.1]` section; moved under the unreleased #414 entry.
+- `tests/contract.sh` — +4 cases / +5 assertions (27/27); rotation state moved to its own
+  subdir so a write-denied state dir cannot make a leak test pass falsely.
+
+### Security — `routed-pr-review` rotation state is isolated from, and not trusted by, the reviewer
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the reviewer process
+  inherited `ROUTED_REVIEW_STATE` and could write the rotation state file (the
+  kernel profile denied only the export and the live repo). A dogfood run
+  showed a reviewer-side write landing there. A reviewer steered by PR content
+  could therefore mark healthy families as limited/broken (directable
+  selection / persistent denial of review), and values from the file reached
+  shell arithmetic unvalidated. Now: `ROUTED_REVIEW_*` scrubbed from the
+  reviewer env; state dir write-denied in the sandbox profile; state file
+  snapshotted per candidate and verified after dispatch in every enforcement
+  class (change ⇒ `isolation_violated`, bytes restored); timestamps must be
+  strict UTC ISO-8601 and not in the future, `retry_after_sec` must be an
+  integer ≤ 86400, otherwise the entry is ignored; failure triage reads stderr
+  only. +3 cases / +4 assertions (22/22).
+
+### Fixed — `routed-pr-review` triages a failed reviewer: broken ≠ quota, then falls through
+
+- `skills/routed-pr-review/bin/routed-review.sh` — a reviewer that produced no
+  review was always recorded as rate-limited and the run exited `2`. An
+  ineligible-account CLI (`IneligibleTierError`, rc=2) was therefore re-picked
+  every time its 1h window expired and could never succeed. Failures are now
+  classified per `pr-review-protocol` §4.1(b): **quota** only on a positive
+  capacity signal (recorded as `last_limited_at`, as before); **broken** for
+  anything else (recorded as `broken_at` + a sanitized reason token, excluded
+  from auto-pick for `ROUTED_REVIEW_BROKEN_TTL_SEC`, default 24h); **timeout**
+  excluded for the run only. In auto mode the run falls through to the next
+  family and lists every `skipped_candidates` entry in the JSON; an explicit
+  `--reviewer` is classified (`failure_class`) and never swapped. The state-file
+  timestamps are now parsed as UTC (they were read as local time).
+- `skills/routed-pr-review/tests/contract.sh` — +4 cases / +7 assertions
+  (broken fallthrough, broken skip on the next run, quota positive control,
+  explicit reviewer not swapped). The harness now points
+  `ROUTED_REVIEW_STATE` at its sandbox; before, case 4 wrote to the operator's
+  real rotation state file.
+
 ### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
 
 - `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —
@@ -325,6 +412,8 @@ Cada correcao abaixo tem contraprova executada.
   bot-cleared set, vendor paths reading a tree not proven to be the stamped SHA,
   `--reviewer` bypassing the caller-exclusion invariant, and a mandatory secret
   scan that was silently skipped when `gitleaks` was absent. All fixed in-PR.
+
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
@@ -1233,7 +1322,6 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
 
 ### Added
-- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
 
 - `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
 - `docs/multi-host-packaging.md` install matrix + agent id notes
