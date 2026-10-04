@@ -63,7 +63,7 @@ def _decl_version(ln: str) -> str | None:
 
 
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
-_FM_VERSION = re.compile(r"(?i)^(?:version|vers\u00e3o)[ \t]*:[ \t]*(.*?)[ \t]*$")
+_FM_HEAD = re.compile(r"(?i)^(?:version|vers\u00e3o)[ \t]*:")
 _ATX = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 MAX_LINE = 4000          # claim extraction from prose input (skipped + counted when longer)
 MAX_BLOB_LINE = 1_000_000  # safety net for git blobs; every pass below is linear
@@ -106,7 +106,7 @@ _CREDS = (
     (re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}\b"), "[CREDENTIAL]"),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"), "[CREDENTIAL]"),
     (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[\"']?[ \t]*[=:][ \t]*"
-                r"(?:\"[^\"\n]*(?:\"|$)|'[^'\n]*(?:'|$)|\S+)"),
+                r"(?:\"(?:[^\"\\\n]|\\.|\\$)*(?:\"|$)|'(?:[^'\\\n]|\\.|\\$)*(?:'|$)|\S+)"),
      r"\1=[REDACTED]"),
 )
 _FALLBACK = (  # degraded masking: coarser than pii-masking, but never lets these shapes through
@@ -213,8 +213,32 @@ class AmbiguousStructure(Exception):
     """The Markdown structure cannot be read unambiguously; callers must answer UNRESOLVED."""
 
 
-_HTML_RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?=[\s>]|$)", re.IGNORECASE)
-_HTML_BLOCK = re.compile(r"^ {0,3}</?[A-Za-z][A-Za-z0-9-]*(?=[\s/>]|$)")
+_BLOCK_TAGS = frozenset(
+    "address article aside base basefont blockquote body caption center col colgroup dd details "
+    "dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 "
+    "head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option "
+    "p param section source summary table tbody td tfoot th thead title tr track ul".split()
+)
+# CommonMark HTML block types 1 and 3-5: raw until a closer, which may be on a later line
+_HTML_RAW = re.compile(
+    r"^ {0,3}(?:<(?P<t1>pre|script|style|textarea)(?=[\s>]|$)|(?P<t3><\?)|(?P<t4><![A-Za-z])|(?P<t5><!\[CDATA\[))",
+    re.IGNORECASE,
+)
+_RAW_CLOSERS = {"t3": re.compile(r"\?>"), "t4": re.compile(r">"), "t5": re.compile(r"\]\]>")}
+_TAG_NAME = re.compile(r"^ {0,3}</?([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)")
+
+
+def _html_block_start(core: str, para_open: bool) -> bool:
+    """CommonMark type 6 (known block tag, may interrupt a paragraph) or type 7 (a single
+    complete tag alone on the line, may NOT interrupt a paragraph). Anything else — notably an
+    inline tag followed by prose, e.g. `<kbd>Enter</kbd> to continue.` — is ordinary text."""
+    m = _TAG_NAME.match(core)
+    if not m:
+        return False
+    if m.group(1).lower() in _BLOCK_TAGS:
+        return True
+    t = core.strip()
+    return (not para_open and t.endswith(">") and t.count("<") == 1 and t.count(">") == 1)
 
 
 def _outside_fences(content: str) -> list[str]:
@@ -235,7 +259,10 @@ def _outside_fences(content: str) -> list[str]:
     in_comment = False
     span: int | None = None  # length of the open backtick run
     html_end: re.Pattern | str | None = None  # compiled closer for raw blocks, "blank" otherwise
+    prev = ""
     for raw in content.splitlines():
+        para_open = bool(prev.strip()) and not _ATX.match(prev)
+        prev = raw
         if len(raw) > MAX_BLOB_LINE:
             raise AmbiguousStructure("line longer than the safety bound")
         ln = raw
@@ -299,18 +326,30 @@ def _outside_fences(content: str) -> list[str]:
         if span is None and core.strip():
             mr = _HTML_RAW.match(core)
             if mr:
-                closer = re.compile(r"</%s\s*>" % mr.group(1), re.IGNORECASE)
+                if mr.group("t1"):
+                    closer = re.compile(r"</%s\s*>" % mr.group("t1"), re.IGNORECASE)
+                else:
+                    closer = _RAW_CLOSERS[mr.lastgroup]
                 if not closer.search(core[mr.end() :]):
                     html_end = closer
                 continue
-            if _HTML_BLOCK.match(core):
+            if _html_block_start(core, para_open):
                 html_end = "blank"
                 continue
         starts_in_span = span is not None
-        for run in re.findall(r"`+", core):
+        for mrun in re.finditer(r"`+", core):
+            run = len(mrun.group())
+            if span is None:  # a backslash escapes only OUTSIDE a code span
+                b, k = 0, mrun.start()
+                while k - 1 - b >= 0 and core[k - 1 - b] == "\\":
+                    b += 1
+                if b % 2 == 1:
+                    run -= 1
+                if run == 0:
+                    continue
             if span is None:
-                span = len(run)
-            elif len(run) == span:
+                span = run
+            elif run == span:
                 span = None
         if not starts_in_span:
             out.append(ln)
@@ -328,6 +367,25 @@ def _heading_tokens(content: str) -> tuple[set[str], bool]:
     return toks, bool(toks)
 
 
+def _fm_value(raw: str) -> str:
+    """Scalar value of a YAML `version:` line, in linear time (quote-aware, comment-aware)."""
+    v = raw.strip(" \t")
+    if v[:1] in ("\"", "'"):
+        j = v.find(v[0], 1)
+        tail = v[j + 1 :].strip(" \t") if j > 0 else "x"
+        if j < 0 or (tail and not tail.startswith("#")):
+            raise AmbiguousStructure("frontmatter version is not a clean version string")
+        v = v[1:j].strip(" \t")
+    else:
+        i = v.find("#")
+        while i != -1:
+            if i > 0 and v[i - 1] in " \t":
+                v = v[:i].rstrip(" \t")
+                break
+            i = v.find("#", i + 1)
+    return v[1:] if v[:1] in ("v", "V") else v
+
+
 def declared_versions(content: str) -> list[str]:
     """Versions a file (or section) declares for itself, ignoring code and comments.
 
@@ -339,13 +397,10 @@ def declared_versions(content: str) -> list[str]:
             return []  # unterminated frontmatter: nothing is authoritative -> UNRESOLVED upstream
         vals: list[str] = []
         for fl in lines[1:end]:
-            mf = _FM_VERSION.match(fl)
+            mf = _FM_HEAD.match(fl)
             if not mf:
                 continue
-            v = re.sub(r"[ \t]+#.*$", "", mf.group(1)).strip()
-            if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
-                v = v[1:-1].strip()
-            v = v[1:] if v[:1] in "vV" else v
+            v = _fm_value(fl[mf.end():])
             if not re.fullmatch(_SEMVER, v):  # whole value must be the version, not just a prefix
                 raise AmbiguousStructure("frontmatter version is not a clean version string")
             vals.append(v)

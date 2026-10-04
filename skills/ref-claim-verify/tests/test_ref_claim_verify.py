@@ -394,3 +394,59 @@ def test_a_long_line_that_is_itself_a_declaration_still_counts(repo):
 def test_blob_line_beyond_the_safety_bound_is_ambiguous(repo):
     with pytest.raises(rcv.AmbiguousStructure):
         rcv._outside_fences("x" * (rcv.MAX_BLOB_LINE + 1))
+
+
+# ── round-6 regressions (independent routed review of head bdafc9b) ──
+def test_inline_html_followed_by_prose_is_not_an_html_block(repo):
+    _commit(repo, {"ik.md": "Version: 1.2.3\n\n<kbd>Enter</kbd> to continue.\nVersion: 9.0.0\n"})
+    assert claims("`ik.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"   # conflict is seen, not hidden
+    _commit(repo, {"ih.md": "<kbd>Enter</kbd> to continue.\n## 4.1 Install\n"})
+    assert claims("`ih.md` §4.1", repo)[0]["verdict"] == "VERIFIED"       # heading not swallowed
+
+
+def test_standalone_tag_cannot_interrupt_a_paragraph_but_block_tags_can(repo):
+    _commit(repo, {"p7.md": 'Version: 1.2.3\ntext line\n<img src="a.png">\nVersion: 9.0.0\n'})
+    assert claims("`p7.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"   # <img> is inline here -> both seen
+    _commit(repo, {"p6.md": "Version: 1.2.3\ntext line\n<div>\nVersion: 9.0.0\n</div>\n"})
+    assert claims("`p6.md` v1.2.3", repo)[0]["verdict"] == "VERIFIED"      # <div> interrupts: 9.0.0 is raw HTML
+
+
+def test_frontmatter_version_is_parsed_in_linear_time():
+    import time
+    pad = " " * 400_000
+    for fm in ("---\nversion: 1.2.3" + pad + "x\n---\n", "---\nversion: 1.2.3" + pad + "# c\n---\n",
+               '---\nversion: "1.2.3' + pad + "\n---\n"):
+        t0 = time.perf_counter()
+        try:
+            rcv.declared_versions(fm)
+        except rcv.AmbiguousStructure:
+            pass
+        assert time.perf_counter() - t0 < 1.5
+
+
+def test_frontmatter_quote_and_comment_handling():
+    for good in ('version: "1.2.3"', "version: '1.2.3' # note", "version: 1.2.3 # note", "version: v1.2.3"):
+        assert rcv.declared_versions("---\n" + good + "\n---\n") == ["1.2.3"], good
+    for bad in ('version: "1.2.3" tail', 'version: "1.2.3', "version: 1.2.3 tail"):
+        with pytest.raises(rcv.AmbiguousStructure):
+            rcv.declared_versions("---\n" + bad + "\n---\n")
+
+
+def test_credential_value_with_escaped_quotes_is_fully_masked(repo):
+    import json
+    key = "pass" + "word"
+    frags = ['{"' + key + '": "alpha \\"bravo charlie\\" delta"}',
+             key + "='alpha \\'bravo charlie\\' delta'",
+             key + ': "alpha bravo\\']
+    for frag in frags:
+        out = rcv.mask(frag)
+        assert all(w not in out for w in ("alpha", "bravo", "charlie", "delta")), out
+    r = rcv.run("`x.md` " + frags[0], str(repo), ["HEAD"])
+    assert "charlie" not in json.dumps(r) and "delta" not in json.dumps(r)
+
+
+def test_escaped_backtick_is_literal_text_outside_code_spans(repo):
+    _commit(repo, {"eb.md": "Version: 1.2.3\n\n- Type \\` for a literal backtick.\n"})
+    assert claims("`eb.md` v1.2.3", repo)[0]["verdict"] == "VERIFIED"
+    _commit(repo, {"e2.md": "Version: 1.2.3\n\n- Type \\\\` opens a span.\n"})   # two backslashes: NOT an escape
+    assert claims("`e2.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"
