@@ -42,10 +42,10 @@ ESO   → For runtime secrets fetched from AWS Secrets Manager at pod startup
 ### 🚨 Critical Security Findings in vks-jss-sales-api
 
 ```properties
-# application-hml.properties — PLAINTEXT CREDENTIALS IN GIT:
-quarkus.datasource.password=${VEK_DB_PASSWORD:dJOCBLn06GapAmuzHveS8w}
+# application-hml.properties — PLAINTEXT CREDENTIALS IN GIT: (values redacted here; rotate at source)
+quarkus.datasource.password=${VEK_DB_PASSWORD:***}
 quarkus.redis.hosts=rediss://...:hl0vM6hlm31HDu2c@...amazonaws.com:6379
-vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:b571d5ca8981b6d5c9f8783ebc122261}
+vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
 ```
 
 > [!CAUTION]
