@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review` triages a failed reviewer: broken ≠ quota, then falls through
+
+- `skills/routed-pr-review/bin/routed-review.sh` — a reviewer that produced no
+  review was always recorded as rate-limited and the run exited `2`. An
+  ineligible-account CLI (`IneligibleTierError`, rc=2) was therefore re-picked
+  every time its 1h window expired and could never succeed. Failures are now
+  classified per `pr-review-protocol` §4.1(b): **quota** only on a positive
+  capacity signal (recorded as `last_limited_at`, as before); **broken** for
+  anything else (recorded as `broken_at` + a sanitized reason token, excluded
+  from auto-pick for `ROUTED_REVIEW_BROKEN_TTL_SEC`, default 24h); **timeout**
+  excluded for the run only. In auto mode the run falls through to the next
+  family and lists every `skipped_candidates` entry in the JSON; an explicit
+  `--reviewer` is classified (`failure_class`) and never swapped. The state-file
+  timestamps are now parsed as UTC (they were read as local time).
+- `skills/routed-pr-review/tests/contract.sh` — +5 cases / +7 assertions
+  (broken fallthrough, broken skip on the next run, quota positive control,
+  explicit reviewer not swapped). The harness now points
+  `ROUTED_REVIEW_STATE` at its sandbox; before, case 4 wrote to the operator's
+  real rotation state file.
+
 ### Added — morning-briefing v1.9.0 recap progress-bar + `$risks` section
 
 - `skills/morning-briefing/SKILL.md` (`prompt_version` `1.8.1` → `1.9.0`, MINOR) —

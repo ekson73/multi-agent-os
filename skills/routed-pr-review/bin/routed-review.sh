@@ -159,8 +159,67 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty' "$STATE_FILE" 2>/dev/null)"
   [ -n "$limited" ] || return 1
   retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
-  local reset; reset=$(( $(date -j -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null || echo 0) + retry ))
+  local reset; reset=$(( $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null || echo 0) + retry ))
   [ "$now" -lt "$reset" ]
+}
+
+# ---- Failure triage (pr-review-protocol §4.1(b) tier-2 usable vs tier-3 capacity)
+# A reviewer that produced no review failed for ONE of two reasons, and they
+# need OPPOSITE handling:
+#   quota  — a POSITIVELY identified capacity signal (429 / rate limit / usage
+#            limit / quota). Waiting fixes it → record last_limited_at, retry later.
+#   broken — anything else: ineligible account or tier, auth rejected, bad
+#            arguments, a crash. Waiting does NOT fix it → never queue it for a
+#            retry; mark it broken and keep it out of the pool until a human
+#            repairs the CLI/account.
+# The default is `broken`, not `quota`: classifying an unknown failure as quota
+# re-picks a candidate that can never succeed, every time its window expires.
+# A timeout is neither — the reviewer may be slow, not unusable — so it is
+# excluded for this run only and recorded nowhere.
+BROKEN_TTL="${ROUTED_REVIEW_BROKEN_TTL_SEC:-86400}"
+EXCLUDED=""          # families that already failed in THIS run (space-separated)
+SKIPPED_JSON="[]"    # evidence of every fallthrough, emitted in --json output
+
+is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL
+  [ -f "$STATE_FILE" ] || return 1
+  local at since
+  at="$(jq -r --arg b "$1" '.bots[$b].broken_at // empty' "$STATE_FILE" 2>/dev/null)"
+  [ -n "$at" ] || return 1
+  since="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${at%%.*}" +%s 2>/dev/null \
+        || date -u -d "$at" +%s 2>/dev/null || echo 0)"
+  [ "$(date +%s)" -lt $(( since + BROKEN_TTL )) ]
+}
+
+classify_failure() {  # $1=rc ; reads $WORK/err + $OUT_F ; prints quota|broken|timeout
+  [ "$1" = 124 ] && { printf 'timeout'; return; }
+  if cat "$WORK/err" "$OUT_F" 2>/dev/null \
+     | grep -qiE '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|quota|usage limit|too many requests|resource[ _]exhausted'; then
+    printf 'quota'
+  else
+    printf 'broken'
+  fi
+}
+
+failure_reason() {  # a SANITIZED token — never raw stderr, which may carry secrets
+  if grep -qiE 'ineligible|not eligible' "$WORK/err" 2>/dev/null; then printf 'ineligible'
+  elif grep -qiE 'unauthori[sz]ed|forbidden|(^|[^0-9])40[13]([^0-9]|$)|login|auth' "$WORK/err" 2>/dev/null; then printf 'auth'
+  elif grep -qiE 'unknown (option|flag|command)|usage:' "$WORK/err" 2>/dev/null; then printf 'invocation'
+  else printf 'unclassified-rc-%s' "$1"; fi
+}
+
+record_failure() {  # $1=bot $2=class $3=reason
+  [ "$2" = timeout ] && return 0
+  mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null || return 0
+  [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
+  local tmp filter; tmp="$(mktemp)"
+  # shellcheck disable=SC2016  # $b/$t/$r are jq variables, not shell ones
+  if [ "$2" = quota ]; then
+    filter='.bots[$b].last_limited_at=$t | .bots[$b].retry_after_sec=(.bots[$b].retry_after_sec // 3600) | .bots[$b].consecutive_limits=((.bots[$b].consecutive_limits // 0)+1)'
+  else
+    filter='.bots[$b].broken_at=$t | .bots[$b].broken_reason=$r'
+  fi
+  if jq --arg b "$1" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "$3" "$filter" \
+       "$STATE_FILE" > "$tmp" 2>/dev/null; then mv "$tmp" "$STATE_FILE"; else rm -f "$tmp"; fi
 }
 
 # ⛔ Validate an EXPLICIT --reviewer here, in the main shell — NOT inside
@@ -189,7 +248,9 @@ pick_reviewer() {
   for h in "${FAMILY_ORDER[@]}"; do
     [ "$h" = "$CALLER" ] && continue                      # verifier != generator
     command -v "$h" >/dev/null 2>&1 || continue
+    case " $EXCLUDED " in *" $h "*) continue ;; esac     # failed earlier in THIS run
     expired "$h" && { log "    skip $h (expired per state file)"; continue; }
+    is_broken "$h" && { log "    skip $h (marked broken — fix its CLI/account, then delete .bots.$h.broken_at in $STATE_FILE)"; continue; }
     printf '%s' "$h"; return 0
   done
   return 1
@@ -433,7 +494,6 @@ run_reviewer() {
   return $rc
 }
 
-ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 # ⛔ The comment will claim `Head reviewed: $HEAD_SHA`. That claim is only true
 # if the tree the reviewer actually read IS that commit. `--repo` is arbitrary,
 # so `$PWD` may be an unrelated checkout — the reviewer would then inspect other
@@ -445,6 +505,20 @@ cwd_is_head() {
   [ -z "$(git status --porcelain 2>/dev/null)" ] || return 1
 }
 
+reset_isolation() {  # before trying another candidate: a fresh export + profile
+  if [ -n "$EXPORT_DIR" ] && [ -d "$EXPORT_DIR" ]; then
+    chmod -R u+w "$EXPORT_DIR" 2>/dev/null; rm -rf "$EXPORT_DIR"
+  fi
+  EXPORT_DIR=""; SANDBOX_PROFILE=""; SBX=()
+  : > "$OUT_F"; : > "$WORK/err"
+}
+
+# Dispatch loop. An explicit --reviewer runs exactly once. In auto mode a
+# candidate that yields no review is triaged (quota vs broken vs timeout),
+# excluded for the rest of this run, and the pick falls through to the next
+# family — one broken CLI must not end the whole routed review.
+while :; do
+ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 snapshot_live_repo
 
 if [ "$ENFORCEMENT" = "os" ]; then
@@ -494,20 +568,38 @@ if [ "${TAMPER#violated}" != "$TAMPER" ]; then
 fi
 REVIEW_BYTES="$(wc -c < "$OUT_F" 2>/dev/null | tr -d ' ' || echo 0)"
 
-if [ "$REVIEW_BYTES" -lt 40 ]; then
-  # No substantive content => there is NO review. Never stamp an empty claim.
-  log "[D] reviewer produced ${REVIEW_BYTES}B (rc=$RC) — treating as NO REVIEW (anti-theater)"
-  [ -s "$WORK/err" ] && sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
-  # record the limit so rotation skips it next time
-  if [ -w "$(dirname "$STATE_FILE")" ] 2>/dev/null || mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null; then
-    [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
-    tmp="$(mktemp)"; jq --arg b "$CHOSEN" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '.bots[$b].last_limited_at=$t | .bots[$b].retry_after_sec=(.bots[$b].retry_after_sec // 3600) | .bots[$b].consecutive_limits=((.bots[$b].consecutive_limits // 0)+1)' \
-      "$STATE_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE" || rm -f "$tmp"
-  fi
-  [ "$JSON" -eq 1 ] && printf '{"status":"empty_review","reviewer":"%s","rc":%s,"diversity_limb":"unsatisfied","may_complete_c3":false}\n' "$CHOSEN" "$RC"
+if [ "$REVIEW_BYTES" -ge 40 ]; then break; fi
+
+# No substantive content => there is NO review. Never stamp an empty claim.
+FAIL_CLASS="$(classify_failure "$RC")"; FAIL_REASON="$(failure_reason "$RC")"
+log "[D] $CHOSEN produced ${REVIEW_BYTES}B (rc=$RC) — NO REVIEW (anti-theater); class=$FAIL_CLASS reason=$FAIL_REASON"
+# stderr is shown to the operator for diagnosis only; it is never persisted.
+[ -s "$WORK/err" ] && sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
+record_failure "$CHOSEN" "$FAIL_CLASS" "$FAIL_REASON"
+SKIPPED_JSON="$(printf '%s' "$SKIPPED_JSON" | jq -c --arg b "$CHOSEN" --arg c "$FAIL_CLASS" \
+  --arg r "$FAIL_REASON" --argjson rc "$RC" '. + [{reviewer:$b, class:$c, reason:$r, rc:$rc}]')"
+
+if [ "$REVIEWER" != "auto" ]; then
+  # The operator chose this reviewer: report it, never swap it silently.
+  [ "$JSON" -eq 1 ] && jq -nc --arg b "$CHOSEN" --arg c "$FAIL_CLASS" --arg r "$FAIL_REASON" \
+      --argjson rc "$RC" \
+      '{status:"empty_review",reviewer:$b,rc:$rc,failure_class:$c,failure_reason:$r,
+        diversity_limb:"unsatisfied",may_complete_c3:false}'
   exit 2
 fi
+
+EXCLUDED="$EXCLUDED $CHOSEN"
+reset_isolation
+CHOSEN="$(pick_reviewer)" || {
+  log "[C] no candidate left after the fallthrough — emitting honest diagnostic, NOT a review"
+  [ "$JSON" -eq 1 ] && jq -nc --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" \
+      --argjson sk "$SKIPPED_JSON" \
+      '{status:"no_reviewer",repo:$repo,pr:($pr|tonumber),head:$head,skipped_candidates:$sk,
+        diversity_limb:"unsatisfied",primary_verdict:"unknown",may_complete_c3:false}'
+  exit 2
+}
+log "[C] falling through to reviewer=$CHOSEN"
+done
 
 VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -1)"
 [ -n "$VERDICT_LINE" ] || VERDICT_LINE="VERDICT: (not emitted by reviewer — read the body)"
@@ -610,8 +702,8 @@ if [ "$JSON" -eq 1 ]; then
   jq -n --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" --arg rv "$CHOSEN" \
         --arg verdict "$VERDICT_LINE" --arg ps "$PRIMARY_STATUS" --arg c3 "$MAY_COMPLETE_C3" \
         --arg trunc "$TRUNCATED" --arg enf "$ENFORCEMENT" --arg tamper "$TAMPER" \
-        --argjson bytes "$REVIEW_BYTES" \
-    '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,
+        --argjson bytes "$REVIEW_BYTES" --argjson sk "$SKIPPED_JSON" \
+    '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,skipped_candidates:$sk,
       isolation:{mode:"fresh-process",read_only_enforcement:$enf,tamper_check:$tamper},
       review_bytes:$bytes,diff_truncated:$trunc,
       verdict:$verdict,diversity_limb:"satisfied",primary_verdict:$ps,

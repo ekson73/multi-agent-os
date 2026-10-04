@@ -228,8 +228,25 @@ pattern this harness exists to end.
 
 ## Anti-theater guarantees
 
-1. **Empty output is NOT a review.** Under 40 bytes ⇒ exit `2`, the bot is
-   recorded as limited in the rotation state file, and nothing is stamped.
+1. **Empty output is NOT a review.** Under 40 bytes ⇒ nothing is stamped, and
+   the failure is **triaged** before anything is recorded
+   (`pr-review-protocol` §4.1(b) tier-2 *usable* vs tier-3 *capacity*):
+   - **quota** — only on a *positive* capacity signal (429, rate limit, usage
+     limit, quota) ⇒ `last_limited_at` is recorded and rotation retries it
+     after the window;
+   - **broken** — anything else (ineligible account or tier, auth rejected,
+     bad arguments, a crash) ⇒ `broken_at` + a sanitized `broken_reason` token
+     are recorded and the CLI stays out of the pool for
+     `ROUTED_REVIEW_BROKEN_TTL_SEC` (default 24h) until it is repaired. Waiting
+     never fixes a broken candidate, so it is never queued as "retry later";
+   - **timeout** — the reviewer may only be slow; excluded for this run,
+     recorded nowhere.
+
+   In auto mode the run then **falls through** to the next family, and every
+   skipped candidate is listed in `skipped_candidates` in the JSON. An explicit
+   `--reviewer` is the operator's choice: it is classified (`failure_class`)
+   and exits `2`, never silently swapped. Raw stderr is shown for diagnosis but
+   never persisted — it may carry secrets.
 2. **Truncation is declared.** A diff over the cap is cut and `diff_truncated:
    yes` rides in the comment and the JSON.
 3. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
@@ -284,7 +301,7 @@ draft of this very section mis-stated two of them; corrected before commit):
 | # | condition | exit | behaviour |
 |---|---|---|---|
 | 1 | no harness left after family exclusion | `2` | JSON `status:no_reviewer`, `may_complete_c3:false`. **Never** falls back to the caller (verifier ≠ generator) |
-| 2 | reviewer produced <40 bytes | `2` | treated as **no review**; the bot **is** recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it next cycle (§3 never-hot-retry) |
+| 2 | reviewer produced <40 bytes | `2` (explicit `--reviewer`) · fall-through (auto) | treated as **no review**; triaged quota · broken · timeout (guarantee 1) and recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it (§3 never-hot-retry). In auto mode the next family is tried; `2` only when none is left |
 | 3 | isolation violated (either tamper check) | `1` | no stamp, no comment, `status:isolation_violated` |
 | 4 | `gitleaks` absent while `--post` given | `1` | refuses to post rather than posting an unscanned body |
 | 5 | review ran, gate does not clear C3 | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |

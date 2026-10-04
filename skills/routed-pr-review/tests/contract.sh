@@ -77,6 +77,17 @@ exit "${T_REVIEW_RC:-0}"
 STUB
 chmod +x "$STUB_BIN/kimi"
 
+# A second family whose FAILURE mode each case controls (stderr text + rc). It
+# lives in its own dir, prepended per-case via EXTRA_BIN, so it shadows any real
+# `gemini` on the host only where a case asks for it.
+GEM_BIN="$SANDBOX/gem"; mkdir -p "$GEM_BIN"
+cat > "$GEM_BIN/gemini" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "${T_GEMINI_ERR:-}" >&2
+exit "${T_GEMINI_RC:-2}"
+STUB
+chmod +x "$GEM_BIN/gemini"
+
 # ---------------------------------------------------------------- assertions
 # Run the REAL script against the stub PATH. Per-case fixtures are passed as an
 # env prefix (`T_REVIEWS=… sut`) — bash applies those to the function call, so
@@ -88,8 +99,9 @@ sut() {
   local p="${STUB_BIN}:${PATH}"
   [ -n "${EXTRA_BIN:-}" ] && p="${EXTRA_BIN}:${p}"
   [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
+  # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
-    && PATH="$p" T_HEAD="$HEAD_SHA" \
+    && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state-default.json}" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -200,6 +212,43 @@ ln -sf "$(command -v bash)" "$ONLY/bash"
 OUT="$(ONLY_BIN="$ONLY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "absent \`timeout\` aborts with a diagnostic instead of failing opaquely later" 1
 ok_grep "the diagnostic names the dependency and the remedy" 'timeout not found'
+
+# ── 10 ── a BROKEN candidate is not a quota-limited one (§4.1(b) tier-2/3).
+# Auto-pick chose a CLI whose account is ineligible: rc=2, no output, an
+# `IneligibleTierError` on stderr. That is not a capacity signal — waiting will
+# not fix it — so it must be excluded and the pick must fall through to the
+# next family, instead of the run dying and the bot being queued as "retry later".
+# ROUTED_REVIEW_CALLER=codex keeps a real host `codex` out of the pool.
+ELIG="IneligibleTierError: this account is not eligible for the requested tier"
+STATE="$SANDBOX/state-broken.json"
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "broken auto-pick candidate falls through to the next family" 3 '.reviewer' "kimi"
+check "the fallthrough is recorded in the evidence" 3 '.skipped_candidates[0].class' "broken"
+GOT="$(jq -r '[.bots.gemini.broken_at != null, .bots.gemini.last_limited_at == null] | all' "$STATE" 2>/dev/null)"
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "state marks it broken, NOT rate-limited" 0 '.v' "true"
+
+# ── 11 ── a broken mark keeps it out of the pool for the next run too.
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut 2>/dev/null)"; RC=$?
+check "a marked-broken candidate is skipped on the next pick" 3 '.skipped_candidates | length' "0"
+
+# ── 12 ── positive control: a real quota signal is still classified as quota.
+# Without this, case 10 could pass with a classifier that calls EVERYTHING broken.
+STATE="$SANDBOX/state-quota.json"
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="Error 429: rate limit exceeded, retry later" \
+       T_GEMINI_RC=1 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "a quota-limited candidate also falls through" 3 '.skipped_candidates[0].class' "quota"
+GOT="$(jq -r '[.bots.gemini.last_limited_at != null, .bots.gemini.broken_at == null] | all' "$STATE" 2>/dev/null)"
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "quota is recorded as rate-limited, NOT broken" 0 '.v' "true"
+
+# ── 13 ── an EXPLICIT --reviewer is the operator's choice: classify, never swap.
+STATE="$SANDBOX/state-explicit.json"
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
+       T_REVIEWS='[]' ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "explicit broken reviewer is NOT silently replaced" 2 '.failure_class' "broken"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
