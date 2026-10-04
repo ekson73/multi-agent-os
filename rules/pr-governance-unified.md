@@ -306,6 +306,8 @@ printf '%s\n' "$HEAD_AT_START" > "$(git rev-parse --git-dir)/REVIEWED_OID"
 
 Reviewers: Copilot, Qodo, CodeRabbit (bots) | GitHub UI (human) | Claude agent (AI)
 
+> **Veredito vinculado ao head (comando mecanizado):** `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary LOGIN,...] [--json]` executa, de forma determinística e fail-closed, a parte de *veredito por revisor* desta auditoria: lê todas as revisões (paginado), toma a mais recente de cada revisor, compara o `commit_id` **completo** com o `headRefOid` **completo** e marca cada um como `CURRENT`/`STALE`/`NONE`. Também lê a descrição dos status/check-runs do head — um bot que estourou a cota pode reportar `success` com "Review rate limited", um tique verde **sem** veredito. Exit `0` só quando todo revisor exigido tem `APPROVED`/`COMMENTED` no head atual e não há `CHANGES_REQUESTED` ativo nem sinal de rate limit; `3` bloqueia; `2` é erro de uso/API (nunca vira `0`). Ele **não** substitui (b)/(c): ler os corpos e os comentários inline continua obrigatório — o script responde *"o veredito descreve este commit?"*, não *"os achados foram dispostos?"*.
+
 ## Step 8: Analyze Review + Decide
 
 **Entrada obrigatória: 7(b) corpos E 7(c) inline — os dois endpoints.** Dispor de cada achado do
@@ -772,6 +774,7 @@ fi
 | CodeRabbit CLI | `coderabbit` / `cr` | Local code review (primary) | Local diff |
 | Qodo CLI | `qodo` | Local code review (fallback) | Local diff |
 | GitHub CLI | `gh` | PR ops, review data (primary) | GitHub API |
+| verdict-at-head | `bin/verdict-at-head` | Reviewer verdicts bound to the current head (CURRENT/STALE/NONE + rate-limit) | GitHub API (read-only) |
 | gog CLI | `gog` | Email search + archive | Both gmail accounts |
 | Gmail MCP | MCP server | Email read (fallback) | @gmail.com only |
 
