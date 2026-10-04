@@ -99,8 +99,9 @@ else
   # All pages, never the first 30 only (GitHub paginates reviews in 30s).
   gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews?per_page=100" > "$TMP/reviews.json" \
     || die "could not read reviews"
-  # Combined status carries the description (statusCheckRollup omits it).
-  gh api "repos/$REPO/commits/$HEAD_LIVE/status?per_page=100" > "$TMP/status.json" \
+  # Combined status carries the description (statusCheckRollup omits it); paginated:
+  # its `statuses` list is paged too, and a rate-limit description on page 2 must still block.
+  gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/status?per_page=100" > "$TMP/status.json" \
     || die "could not read commit status"
   gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/check-runs?per_page=100" > "$TMP/checks.json" \
     || die "could not read check runs"
@@ -121,19 +122,19 @@ RESULT="$(jq -n \
   def alnum: ascii_downcase | gsub("[^a-z0-9]";"");
   # Accept a flat array, or an array of pages (gh --paginate --slurp).
   def flatten_pages: if (type=="array" and length>0 and (.[0]|type)=="array") then add else . end;
-  def rate_limited_text: test("rate[ -_]?limit"; "i");
+  def rate_limited_text: test("rate[ _-]?limit"; "i");
 
   ($prf[0].headRefOid // "") as $head
   | if ($head | test("^[0-9a-f]{40}$") | not) then error("invalid headRefOid") else . end
   | ($revf[0] | flatten_pages
       | map(select(.submitted_at != null and .state != "PENDING" and .user.login != null))) as $reviews
   # Rate-limited signals on the head commit: statuses + check runs.
-  | ([ ($stf[0].statuses // [])[]
+  | ([ ($stf[0] | if type=="array" then (map(.statuses // []) | add // []) else (.statuses // []) end)[]
         | select((.description // "") | rate_limited_text)
         | {context: .context, state: .state, description: .description} ]
      + [ ($chf[0] | flatten_pages
           | if type=="object" then (.check_runs // []) else (map(.check_runs // []) | add // []) end)[]
-        | select(((.output.title // "") + " " + (.output.summary // "")) | rate_limited_text)
+        | select(((.output.title // "") + " " + (.output.summary // "") + " " + (.output.text // "")) | rate_limited_text)
         | {context: .name, state: (.conclusion // .status), description: (.output.title // "rate limited")} ]
     ) as $rl
   | ($reviews | group_by(.user.login | norm)) as $groups
@@ -162,6 +163,7 @@ RESULT="$(jq -n \
        ($req[] | select(.status=="NONE")  | "none:" + .login),
        ($req[] | select(.status=="STALE") | "stale:" + .login),
        ($req[] | select(.status=="CURRENT" and .state=="DISMISSED") | "dismissed:" + .login),
+       ($req[] | select(.status=="CURRENT" and .state!="DISMISSED" and .state!="APPROVED" and .state!="COMMENTED" and .state!="CHANGES_REQUESTED") | "no-verdict-state:" + .login + ":" + (.state // "null")),
        ($req[] | select(.rate_limited) | "rate-limited-reviewer:" + .login),
        ($all[] | select(.changes_requested_active) | "changes-requested:" + .login),
        ($rl[] | "rate-limited-check:" + .context)

@@ -154,5 +154,25 @@ out="$("$VAH" --fixture-dir "$d" 2>&1)"; rc=$?
 eq 3 "$rc" 'text mode keeps exit 3'
 has 'verdict: BLOCKED' "$out" 'text mode prints verdict'
 
+# 21. status pages: a rate-limit description on page 2 still blocks
+d="$(mk status-pages "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]")"
+printf '[{"statuses":[{"context":"ci","state":"success","description":"ok"}]},{"statuses":[{"context":"ReviewBot","state":"success","description":"Review rate limited"}]}]' > "$d/status.json"
+run "$d"; eq 3 "$rc" 'rate limit on status page 2 -> exit 3'
+
+# 22. unknown/malformed review state at head is not a verdict
+d="$(mk unknown-state "[$(rv alice WEIRD $HEAD 2026-10-01T10:00:00Z 1)]")"
+run "$d"; eq 3 "$rc" 'unknown review state at head -> exit 3'
+has 'no-verdict-state:alice' "$(field '.reasons|join(",")')" 'unknown state reported'
+
+# 23. rate limit only in check-run output.text
+d="$(mk rate-limited-text "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]" '[]' \
+  '[{"check_runs":[{"name":"Some Bot","conclusion":"neutral","output":{"title":"Done","summary":"","text":"Hit the rate limit for this account"}}]}]')"
+run "$d"; eq 3 "$rc" 'rate limit only in check-run output.text -> exit 3'
+
+# 24. regex is literal: "rateXlimit" is not a rate-limit signal
+d="$(mk regex-literal "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]" \
+  '[{"context":"ci","state":"success","description":"rateXlimit rate5limit"}]')"
+run "$d"; eq 0 "$rc" 'rateXlimit / rate5limit do not match (character class is literal)'
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
