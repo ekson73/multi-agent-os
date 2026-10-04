@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     repo tokens and `ROUTED_REVIEW_*` never reach the reviewer.
 - `CHANGELOG.md` — the #414 contract-test bullet had landed inside the released
   `[1.22.1]` section; moved under the unreleased #414 entry.
-- `tests/contract.sh` — +4 cases (27/27); rotation state moved to its own
+- `tests/contract.sh` — +4 cases / +5 assertions (27/27); rotation state moved to its own
   subdir so a write-denied state dir cannot make a leak test pass falsely.
 
 ### Security — `routed-pr-review` rotation state is isolated from, and not trusted by, the reviewer
@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   class (change ⇒ `isolation_violated`, bytes restored); timestamps must be
   strict UTC ISO-8601 and not in the future, `retry_after_sec` must be an
   integer ≤ 86400, otherwise the entry is ignored; failure triage reads stderr
-  only. +4 contract cases (22/22).
+  only. +3 cases / +4 assertions (22/22).
 
 ### Fixed — `routed-pr-review` triages a failed reviewer: broken ≠ quota, then falls through
 
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   family and lists every `skipped_candidates` entry in the JSON; an explicit
   `--reviewer` is classified (`failure_class`) and never swapped. The state-file
   timestamps are now parsed as UTC (they were read as local time).
-- `skills/routed-pr-review/tests/contract.sh` — +5 cases / +7 assertions
+- `skills/routed-pr-review/tests/contract.sh` — +4 cases / +7 assertions
   (broken fallthrough, broken skip on the next run, quota positive control,
   explicit reviewer not swapped). The harness now points
   `ROUTED_REVIEW_STATE` at its sandbox; before, case 4 wrote to the operator's
