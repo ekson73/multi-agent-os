@@ -82,6 +82,15 @@ def _load_pii():
 
 
 _PII = _load_pii()
+_CREDS = (
+    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{12,}\b"), "[CREDENTIAL]"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), "[CREDENTIAL]"),
+    (re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}\b"), "[CREDENTIAL]"),
+    (re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}\b"), "[CREDENTIAL]"),
+    (re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"), "[CREDENTIAL]"),
+    (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[ \t]*[=:][ \t]*\S+"),
+     r"\1=[REDACTED]"),
+)
 _FALLBACK = (  # degraded masking: coarser than pii-masking, but never lets these shapes through
     (re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+"), "[EMAIL]"),
     (re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b"), "[CPF]"),
@@ -92,7 +101,7 @@ MASKING_MODE = "pii-masking" if _PII is not None else "fallback"
 
 
 def _fallback_mask(line: str) -> str:
-    for rx, rep in _FALLBACK:
+    for rx, rep in _CREDS + _FALLBACK:
         line = rx.sub(rep, line)
     return line
 
@@ -187,37 +196,44 @@ class AmbiguousStructure(Exception):
 
 
 def _outside_fences(content: str) -> list[str]:
-    """Lines that are neither inside a fenced code block nor inside an HTML comment.
+    """Lines that are neither inside a fenced code block, an HTML comment nor a code span.
 
-    Fences follow CommonMark: the closer uses the same character, is at least as long as the
-    opener, is indented at most 3 spaces and carries no info string. Fences inside blockquotes
-    are tracked on the quote-stripped line. A comment opened inside a comment is ambiguous.
+    Fences follow CommonMark (same char, closer >= opener, indent <= 3, no info string; also
+    inside blockquotes). Comments are scanned sequentially: nesting, a stray closer or an
+    unterminated comment/fence is AMBIGUOUS (raise) — never silently accepted. Inline-code
+    mentions of `<!--` are not comments, but inside a real comment nothing is code.
+    Multi-line code spans (paragraph-scoped, CommonMark backtick-run matching) are dropped.
     """
     out: list[str] = []
     fence: tuple[str, int] | None = None
     in_comment = False
+    span: int | None = None  # length of the open backtick run, reset at blank lines
     for raw in content.splitlines():
         ln = raw
-        # Locate comment markers on a same-length copy where inline code spans are neutralised,
-        # so a doc that merely MENTIONS `<!--` in backticks is not read as a comment.
-        scan = _CODE_SPAN.sub(lambda m: m.group().replace("<", "_").replace(">", "_"), ln)
+        if not ln.strip():
+            span = None  # a paragraph break ends an unmatched code span (its backticks are literal)
         if in_comment:
-            if "<!--" in scan.split("-->", 1)[0]:
+            if "<!--" in ln.split("-->", 1)[0]:
                 raise AmbiguousStructure("nested HTML comment")
-            if "-->" in scan:
-                in_comment = False
-                cut = scan.index("-->") + 3
-                ln, scan = ln[cut:], scan[cut:]
-            else:
+            if "-->" not in ln:
                 continue
+            in_comment = False
+            ln = ln[ln.index("-->") + 3 :]
+        scan = _CODE_SPAN.sub(lambda m: m.group().replace("<", "_").replace(">", "_"), ln)
         while True:
             m = _COMMENT_PAIR.search(scan)
             if not m:
                 break
+            if "<!--" in scan[m.start() + 4 : m.end()]:
+                raise AmbiguousStructure("nested HTML comment")
             ln, scan = ln[: m.start()] + ln[m.end() :], scan[: m.start()] + scan[m.end() :]
         if "<!--" in scan:
+            if "<!--" in scan[scan.index("<!--") + 4 :]:
+                raise AmbiguousStructure("nested HTML comment")
             in_comment = True
             ln = ln[: scan.index("<!--")]
+        elif "-->" in scan:
+            raise AmbiguousStructure("stray HTML comment closer")
         core = _QUOTE.sub("", ln) if ln.lstrip().startswith(">") else ln
         if fence is not None:
             m = _CLOSE_FENCE.match(core)
@@ -228,7 +244,16 @@ def _outside_fences(content: str) -> list[str]:
         if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
             fence = (m.group(1)[0], len(m.group(1)))
             continue
-        out.append(ln)
+        starts_in_span = span is not None
+        for run in re.findall(r"`+", core):
+            if span is None:
+                span = len(run)
+            elif len(run) == span:
+                span = None
+        if not starts_in_span:
+            out.append(ln)
+    if in_comment or fence is not None:
+        raise AmbiguousStructure("unterminated comment or fence")
     return out
 
 
@@ -255,7 +280,14 @@ def declared_versions(content: str) -> list[str]:
         if found:
             return found
         content = "\n".join(lines[end + 1 :])
-    return sorted({a or b for a, b in _DECLARED.findall("\n".join(_outside_fences(content)))})
+    found_set: set[str] = set()
+    for ln in _outside_fences(content):
+        if "|" in ln:
+            continue  # a table row is not authoritative metadata
+        m = _DECLARED.match(ln)
+        if m:
+            found_set.add(m.group(1) or m.group(2))
+    return sorted(found_set)
 
 
 def _heading_windows(content: str, anchor: str) -> list[str]:

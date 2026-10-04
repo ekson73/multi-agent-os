@@ -91,7 +91,7 @@ When refs differ (base vs head of a PR) a claim is verified if ANY ref declares 
 
 1. **Read-only**: only `git rev-parse`, `git show`, `git cat-file`, `git grep`; list-form subprocess, no shell.
 2. **Input validation**: refs starting with `-` are rejected; paths with `..`, absolute or `~` prefixes are never read.
-3. **PII/secret protection**: every displayed string (excerpt, target, detail, evidence) goes through `skills/pii-masking` (CPF, email, BR phone) **and** a second coarse pass (international phone shapes, CPF, email); any 32+ char token becomes `[TOKEN]`. If `pii-masking` cannot load, only the coarse pass runs and the report declares `masking: fallback` — it never degrades to raw text. Raw values stay internal to the lookups.
+3. **PII/secret protection**: every displayed string (excerpt, target, detail, evidence) goes through `skills/pii-masking` (CPF, email, BR phone) **and** a second coarse pass (international phone shapes, CPF, email); any 32+ char token becomes `[TOKEN]`, and common credential shapes (AWS key ids, `gh*_` / `xox*` / `sk-` tokens, JWTs, `*secret|token|password|api_key = value`) become `[CREDENTIAL]`/`[REDACTED]` (best-effort, not exhaustive). If `pii-masking` cannot load, only the coarse pass runs and the report declares `masking: fallback` — it never degrades to raw text. Raw values stay internal to the lookups.
 4. **No false comfort**: absence of evidence is UNRESOLVED or MISMATCH, never VERIFIED.
 5. **Bounded work**: lines longer than 4000 characters are **skipped, not truncated** (a truncated line could mint a wrong claim) and are counted in `skipped_long_lines`; separators in the patterns are unambiguous (no quadratic backtracking).
 
@@ -100,7 +100,7 @@ When refs differ (base vs head of a PR) a claim is verified if ANY ref declares 
 - Recognises backtick-quoted paths and the version/section forms above; free-prose references ("see the guide") are not extracted.
 - A SECTION is matched against real Markdown (ATX `#`) headings outside code fences only.
 - It checks one repo per run; cross-repo claims need a second run with the other `--repo`.
-- Markdown is parsed heuristically (no full CommonMark engine). The design rule is conservative: any structural ambiguity yields `UNRESOLVED`, never `VERIFIED` — but `VERIFIED` is strong evidence the cited fact exists, not a proof; keep a human or cross-vendor review of the change itself.
+- Markdown is parsed heuristically (no full CommonMark engine). Four rounds of independent cross-vendor adversarial review found 24 parser/masking edge cases; all were fixed and pinned by regression tests, but the residual risk is non-zero. The design rule is conservative: any structural ambiguity yields `UNRESOLVED`, never `VERIFIED` — but `VERIFIED` is strong evidence the cited fact exists, not a proof; keep a human or cross-vendor review of the change itself.
 
 ## Composes (does not duplicate)
 

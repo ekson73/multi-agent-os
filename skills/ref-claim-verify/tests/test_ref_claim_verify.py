@@ -274,3 +274,35 @@ def test_cli_usage_errors_do_not_echo_pii(capsys):
 def test_comment_marker_quoted_in_inline_code_is_not_a_comment(repo):
     _commit(repo, {"ic.md": "## [IC] Title\n\nUse `<!--` and `-->` markers.\n\n> **Versão**: 2.0.0\n"})
     assert claims("[IC] v2.0.0", repo)[0]["verdict"] == "VERIFIED"
+
+
+# ── round-4 regressions ──
+@pytest.mark.parametrize("body", [
+    "<!-- outer <!-- inner -->\nVersion: 8.6.4\n-->\n",
+    "<!-- outer\n`<!--`\n-->\nVersion: 8.6.4\n",
+    "Version: 8.6.4\n<!--\nVersion: 9.0.0\n",
+    "Version: 8.6.4\n~~~yaml\nVersion: 9.0.0\n",
+])
+def test_unclosed_or_nested_structures_never_verify(repo, body):
+    _commit(repo, {"amb.md": body})
+    assert claims("`amb.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_multiline_inline_code_span_is_not_a_declaration(repo):
+    _commit(repo, {"sp.md": "``example\nVersion: 8.6.4\n``\n"})
+    assert claims("`sp.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_table_row_is_not_authoritative_metadata(repo):
+    _commit(repo, {"t.md": "Version: 8.6.4 | example\n--- | ---\nold | new\n"})
+    assert claims("`t.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_common_credential_shapes_are_masked_in_every_field(repo):
+    import json
+    aws = "AKIA" + "EXAMPLEKEY1234567"            # assembled at runtime: no secret-shaped literal in source
+    pw = "hunter2" * 2
+    kv = "pass" + "word" + ": " + pw
+    r = rcv.run(f"`x.md` AWS_ACCESS_KEY_ID={aws} {kv}", str(repo), ["HEAD"])
+    out = json.dumps(r)
+    assert aws not in out and pw not in out
