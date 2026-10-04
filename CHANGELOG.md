@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review` state check: no blind restore, no false alarm under an armed kernel
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the post-dispatch state
+  check restored the pre-run bytes on any change. A concurrent run recording a
+  failure during dispatch therefore aborted a valid review as
+  `violated:state-file` **and** had its record reverted (reproduced; also the
+  confused-deputy restore a security review flagged). Now: no restore — a
+  change aborts and the file is left for inspection; under an armed kernel
+  boundary the compare is skipped, because the profile now denies write,
+  rename-over and unlink of the state **file** itself (proven, with a mutation
+  check); the deny no longer covers the whole state directory; writers use a
+  mkdir mutex and same-directory atomic replace, and never write through a
+  symlink. +4 cases / +7 assertions (34/34).
+
 ### Fixed — `routed-pr-review` gate: only APPROVED clears, tamper check cannot pass vacuously, reviewer env is an allowlist
 
 - `skills/routed-pr-review/bin/routed-review.sh` — three findings from a

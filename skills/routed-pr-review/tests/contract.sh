@@ -79,6 +79,8 @@ cat > "$STUB_BIN/kimi" <<'STUB'
 # steered by PR content; these model what a prompt-injected one could try.
 [ -n "${T_LEAK_MARK:-}" ] && [ -n "${ROUTED_REVIEW_STATE:-}" ] && : > "$T_LEAK_MARK"
 [ -n "${T_GH_MARK:-}" ] && [ -n "${GH_TOKEN:-}" ] && : > "$T_GH_MARK"
+[ -n "${T_SLEEP:-}" ] && sleep "$T_SLEEP"
+[ -n "${T_TAMPER_MV:-}" ] && { printf 'x' > "$T_TAMPER_MV.tmp" 2>/dev/null; mv -f "$T_TAMPER_MV.tmp" "$T_TAMPER_MV" 2>/dev/null; rm -f "$T_TAMPER_MV" 2>/dev/null; }
 [ -n "${T_TAMPER_PATH:-}" ] && printf '%s' "${T_TAMPER_JSON:-}" > "$T_TAMPER_PATH" 2>/dev/null
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
@@ -110,7 +112,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -277,9 +279,11 @@ OUT="$(EXTRA_BIN="$BROKEN_SBX" T_TAMPER_PATH="$STATE" \
        T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a reviewer that writes rotation state aborts as isolation_violated" 1 '.detail' "violated:state-file"
-if cmp -s "$STATE" "$SANDBOX/state/state-tamper.orig"; then GOT=restored; else GOT=poisoned; fi
+# ⛔ No blind restore: rewriting the file from a snapshot would overwrite a
+# concurrent run's legitimate record (confused deputy). Detect, abort, leave it.
+if grep -q '"codex"' "$STATE"; then GOT=left-for-inspection; else GOT=overwritten; fi
 RC=0; OUT="{\"v\":\"$GOT\"}"
-check "the tampered state file is restored to its pre-run bytes" 0 '.v' "restored"
+check "the orchestrator does not blindly overwrite the state file" 0 '.v' "left-for-inspection"
 
 # ── 16 ── forged state entries are ignored, never obeyed (fail-closed).
 # A far-future broken_at would silence a family forever, and a non-numeric
@@ -324,6 +328,59 @@ OUT="$(GH_TOKEN=dummy-not-a-secret T_GH_MARK="$SANDBOX/ghleak" T_REVIEWS='[]' \
 if [ ! -e "$SANDBOX/ghleak" ]; then GOT=dropped; else GOT=leaked; fi
 RC=0; OUT="{\"v\":\"$GOT\"}"
 check "GH_TOKEN is not in the reviewer's allowlisted environment" 0 '.v' "dropped"
+
+# ── 21 ── a CONCURRENT routed-review writing state is not an isolation breach
+# when the kernel boundary is armed (the reviewer cannot write it, so any
+# change came from outside). Out-of-sandbox writer lands mid-dispatch.
+STATE="$SANDBOX/state/state-concurrent.json"; printf '{"bots":{}}' > "$STATE"
+( sleep 1; printf '{"bots":{"qwen":{"broken_at":"2026-01-01T00:00:00Z"}}}' > "$STATE" ) &
+OUT="$(T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+wait
+if command -v sandbox-exec >/dev/null 2>&1 \
+   && sandbox-exec -p '(version 1)(allow default)' /usr/bin/true 2>/dev/null; then
+  check "kernel armed: a concurrent writer does not abort a valid review" 3 '.status' "reviewed"
+  if grep -q qwen "$STATE"; then GOT=kept; else GOT=reverted; fi
+  RC=0; OUT="{\"v\":\"$GOT\"}"
+  check "kernel armed: the concurrent run's record survives" 0 '.v' "kept"
+else
+  printf '  \033[33mSKIP\033[0m  case 21 needs a working sandbox-exec on this host\n'
+fi
+
+# ── 22 ── without a kernel boundary a concurrent write is ambiguous: abort
+# (fail-closed) but NEVER revert the other run's record.
+STATE="$SANDBOX/state/state-concurrent2.json"; printf '{"bots":{}}' > "$STATE"
+( sleep 1; printf '{"bots":{"qwen":{"broken_at":"2026-01-01T00:00:00Z"}}}' > "$STATE" ) &
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+wait
+check "no kernel: a state change during dispatch aborts" 1 '.detail' "violated:state-file"
+if grep -q qwen "$STATE"; then GOT=kept; else GOT=reverted; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "no kernel: the concurrent record is not reverted" 0 '.v' "kept"
+
+# ── 23 ── a symlinked state file is refused (no write-through to its target).
+STATE="$SANDBOX/state/state-link.json"; printf '{"bots":{}}' > "$SANDBOX/linktarget.json"
+ln -sf "$SANDBOX/linktarget.json" "$STATE"
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+if grep -q gemini "$SANDBOX/linktarget.json"; then GOT=written-through; else GOT=refused; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "state writes never follow a symlink" 0 '.v' "refused"
+
+# ── 24 ── the armed kernel profile really denies the state FILE — direct write,
+# rename-over and unlink. This is what licenses skipping the compare in case 21.
+if command -v sandbox-exec >/dev/null 2>&1 \
+   && sandbox-exec -p '(version 1)(allow default)' /usr/bin/true 2>/dev/null; then
+  STATE="$SANDBOX/state/state-armed.json"; printf '{"bots":{}}' > "$STATE"; cp "$STATE" "$SANDBOX/armed.orig"
+  OUT="$(T_TAMPER_PATH="$STATE" T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
+         T_TAMPER_MV="$STATE" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "armed: a hostile reviewer's write to the state file is denied" 3 '.isolation.read_only_enforcement' "os-sandboxed"
+  if cmp -s "$STATE" "$SANDBOX/armed.orig"; then GOT=intact; else GOT=modified; fi
+  RC=0; OUT="{\"v\":\"$GOT\"}"
+  check "armed: write, rename-over and unlink of the state file all fail" 0 '.v' "intact"
+else
+  printf '  \033[33mSKIP\033[0m  case 24 needs a working sandbox-exec on this host\n'
+fi
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"

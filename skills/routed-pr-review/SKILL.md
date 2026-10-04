@@ -253,20 +253,29 @@ pattern this harness exists to end.
 2. **Truncation is declared.** A diff over the cap is cut and `diff_truncated:
    yes` rides in the comment and the JSON.
 3. **Rotation state is out of the reviewer's reach, and is never trusted.**
-   The reviewer is a model steered by the PR under review, so: the
-   reviewer environment is an **allowlist** (base vars, locale/proxy, the
-   reviewer vendors' credential prefixes, plus names in
-   `ROUTED_REVIEW_ENV_ALLOW`) — repo tokens and `ROUTED_REVIEW_*` never reach
-   it; the state
-   directory is write-denied when a kernel boundary arms; and in every class
-   the state file is snapshotted before dispatch and compared after — any
-   change aborts as `isolation_violated` (`violated:state-file`) and the
-   pre-run bytes are restored. Values read from the file are validated:
+   The reviewer is a model steered by the PR under review, so: its
+   environment is an **allowlist** (base vars, locale/proxy, the reviewer
+   vendors' credential prefixes, plus names in `ROUTED_REVIEW_ENV_ALLOW`) —
+   repo tokens and `ROUTED_REVIEW_*` never reach it; when a kernel boundary
+   arms, the state **file** is write-denied (write, rename-over and unlink all
+   fail — contract case 24), so a change during dispatch can only come from a
+   concurrent run and is not treated as a breach. In every other class the
+   file's digest is compared before/after dispatch: a change aborts as
+   `isolation_violated` (`violated:state-file`) and the file is **left as
+   found, never restored** — restoring would overwrite a concurrent run's
+   record and let a reviewer choose when the orchestrator writes. Writers are
+   serialized (mkdir mutex) and replace the file atomically; a symlinked state
+   file is never written through. Values read from the file are validated:
    malformed or future timestamps and non-numeric `retry_after_sec` are
    treated as "no state", so a forged entry can never remove a reviewer from
    the pool. Failure triage reads the CLI's stderr only, never model stdout.
-   (A concurrent run writing the same file mid-dispatch also trips the check —
-   fail-closed by design.)
+
+   **Known limits.** Without a kernel boundary (vendor CLIs, `os-perms-only`)
+   a concurrent run that writes the state during dispatch makes this run abort
+   (fail-closed false positive), and a reviewer that writes a *plausible* entry
+   there is detected but its entry is not undone — inspect the file after a
+   `violated:state-file`. A write reverted within the dispatch window leaves no
+   net change and is not reported.
 4. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
    any hit aborts the post.
 4. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output

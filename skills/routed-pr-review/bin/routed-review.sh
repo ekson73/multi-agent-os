@@ -234,17 +234,33 @@ failure_reason() {  # a SANITIZED token — never raw stderr, which may carry se
 
 record_failure() {  # $1=bot $2=class $3=reason
   [ "$2" = timeout ] && return 0
-  mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null || return 0
+  local dir; dir="$(dirname "$STATE_FILE")"
+  mkdir -p "$dir" 2>/dev/null || return 0
+  if [ -L "$STATE_FILE" ]; then log "    [warn] state file is a symlink — not writing through it"; return 0; fi
+  # Serialize writers (concurrent routed-review runs share this file): a
+  # mkdir mutex, bounded wait, stale lock reclaimed after 120s.
+  local lock="$STATE_FILE.lock" i=0
+  until mkdir "$lock" 2>/dev/null; do
+    i=$((i+1))
+    if [ "$i" -ge 50 ]; then
+      if [ -n "$(find "$lock" -maxdepth 0 -mmin +2 2>/dev/null)" ]; then rmdir "$lock" 2>/dev/null; i=0; continue; fi
+      log "    [warn] state lock busy — failure not recorded"; return 0
+    fi
+    sleep 0.1
+  done
   [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
-  local tmp filter; tmp="$(mktemp)"
+  local tmp filter; tmp="$(mktemp "$dir/.state.XXXXXX")" || { rmdir "$lock"; return 0; }
   # shellcheck disable=SC2016  # $b/$t/$r are jq variables, not shell ones
   if [ "$2" = quota ]; then
     filter='.bots[$b].last_limited_at=$t | .bots[$b].retry_after_sec=(.bots[$b].retry_after_sec // 3600) | .bots[$b].consecutive_limits=((.bots[$b].consecutive_limits // 0)+1)'
   else
     filter='.bots[$b].broken_at=$t | .bots[$b].broken_reason=$r'
   fi
+  # same-directory temp + mv = atomic replace; readers never see a half file
   if jq --arg b "$1" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "$3" "$filter" \
-       "$STATE_FILE" > "$tmp" 2>/dev/null; then mv "$tmp" "$STATE_FILE"; else rm -f "$tmp"; fi
+       "$STATE_FILE" > "$tmp" 2>/dev/null; then mv -f "$tmp" "$STATE_FILE"; else rm -f "$tmp"; fi
+  rmdir "$lock" 2>/dev/null
+  return 0
 }
 
 # ⛔ Validate an EXPLICIT --reviewer here, in the main shell — NOT inside
@@ -440,7 +456,10 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
     # the rotation state lives OUTSIDE both trees; a reviewer that can write it
     # can steer the next pick, so it is denied too
-    [ -d "$STATE_DIR" ] && printf '(deny file-write* (subpath "%s"))\n' "$(cd "$STATE_DIR" && pwd -P)"
+    # only the state FILE — denying its whole directory broke unrelated state
+    # that reviewer CLIs keep there
+    [ -d "$STATE_DIR" ] && printf '(deny file-write* (literal "%s/%s"))\n' \
+      "$(cd "$STATE_DIR" && pwd -P)" "$(basename "$STATE_FILE")"
   } > "$prof" || return 1
   # Two-step probe. A single step could NOT distinguish "sandbox-exec ran and
   # denied the write" from "sandbox-exec never ran at all" (invalid profile,
@@ -602,20 +621,23 @@ done < <(compgen -e)
 unset _v
 unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER ROUTED_REVIEW_ENV_ALLOW
 STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
-snapshot_state() {
-  rm -f "$WORK/state.before"
-  [ -f "$STATE_FILE" ] && cp -p "$STATE_FILE" "$WORK/state.before"
-  return 0
+# State integrity = digest before dispatch vs digest after. There is NO
+# restore: rewriting the file from a snapshot would overwrite whatever another
+# routed-review legitimately recorded in the meantime (and lets a reviewer
+# choose when the orchestrator writes — a confused deputy). A change is
+# reported and the run aborts; the file is left as found, for inspection.
+# Under an ARMED kernel boundary the reviewer cannot write the file at all, so
+# a change can only come from outside the sandbox (a concurrent run): the
+# check is skipped there instead of raising a false alarm.
+state_digest() {  # prints a digest of the state file (or of its absence/type)
+  if [ -L "$STATE_FILE" ]; then printf 'symlink'; return 0; fi
+  [ -e "$STATE_FILE" ] || { printf 'absent'; return 0; }
+  sha256_stdin < "$STATE_FILE" || printf 'unverifiable'
 }
+snapshot_state() { STATE_BEFORE="$(state_digest)"; }
 verify_state_untouched() {
-  if [ -f "$WORK/state.before" ]; then
-    cmp -s "$WORK/state.before" "$STATE_FILE" 2>/dev/null && return 0
-    cp -p "$WORK/state.before" "$STATE_FILE" 2>/dev/null
-  else
-    [ -e "$STATE_FILE" ] || return 0
-    rm -f "$STATE_FILE"
-  fi
-  log "[!] state-file check FAILED — the reviewer wrote rotation state; pre-run bytes restored"
+  [ "$(state_digest)" = "$STATE_BEFORE" ] && return 0
+  log "[!] state-file check FAILED — rotation state changed during dispatch; NOT restored (left for inspection: $STATE_FILE)"
   return 1
 }
 
@@ -659,7 +681,9 @@ TAMPER="n/a"
 case "$ENFORCEMENT" in
   *os*)
     TAMPER="clean"
-    verify_state_untouched || TAMPER="violated:state-file"
+    # armed kernel boundary: the reviewer cannot write the state file, so a
+    # change came from a concurrent run, not from the reviewer
+    [ "$ENFORCEMENT" = "os-sandboxed" ] || verify_state_untouched || TAMPER="violated:state-file"
     verify_export_untouched   || TAMPER="violated:export"
     verify_live_repo_untouched || TAMPER="violated:live-repo"
     ;;
