@@ -259,7 +259,11 @@ pattern this harness exists to end.
    repo tokens and `ROUTED_REVIEW_*` never reach it; when a kernel boundary
    arms, the state **file** is write-denied (write, rename-over and unlink all
    fail — contract case 24), so a change during dispatch can only come from a
-   concurrent run and is not treated as a breach. In every other class the
+   concurrent run and is not treated as a breach. The deny covers the file,
+   not the directories above it, so the identity of the state directory
+   (resolved path + device:inode) is checked in **every** class: a parent or
+   ancestor renamed and replaced during dispatch aborts as
+   `violated:state-file` (contract cases 25-26). In every other class the
    file's digest is compared before/after dispatch: a change aborts as
    `isolation_violated` (`violated:state-file`) and the file is **left as
    found, never restored** — restoring would overwrite a concurrent run's

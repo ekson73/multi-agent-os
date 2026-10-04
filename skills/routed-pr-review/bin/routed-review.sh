@@ -634,7 +634,23 @@ state_digest() {  # prints a digest of the state file (or of its absence/type)
   [ -e "$STATE_FILE" ] || { printf 'absent'; return 0; }
   sha256_stdin < "$STATE_FILE" || printf 'unverifiable'
 }
-snapshot_state() { STATE_BEFORE="$(state_digest)"; }
+# The armed profile denies the state FILE, but not the directory entries above
+# it: a reviewer can rename the parent and put a decoy (or a symlink to one)
+# in its place. So the identity of the containing directory — resolved path
+# plus device:inode — is checked in EVERY class, armed or not.
+state_dir_identity() {
+  local d="$STATE_DIR" id
+  [ -L "$d" ] && { printf 'symlink'; return 0; }
+  [ -d "$d" ] || { printf 'absent'; return 0; }
+  id="$(stat -f '%d:%i' "$d" 2>/dev/null || stat -c '%d:%i' "$d" 2>/dev/null)" || id="?"
+  printf '%s|%s' "$(cd "$d" 2>/dev/null && pwd -P)" "$id"
+}
+snapshot_state() { STATE_BEFORE="$(state_digest)"; STATE_DIR_BEFORE="$(state_dir_identity)"; }
+verify_state_dir_unmoved() {
+  [ "$(state_dir_identity)" = "$STATE_DIR_BEFORE" ] && return 0
+  log "[!] state-file check FAILED — the directory holding rotation state was moved or replaced during dispatch"
+  return 1
+}
 verify_state_untouched() {
   [ "$(state_digest)" = "$STATE_BEFORE" ] && return 0
   log "[!] state-file check FAILED — rotation state changed during dispatch; NOT restored (left for inspection: $STATE_FILE)"
@@ -684,10 +700,12 @@ case "$ENFORCEMENT" in
     # armed kernel boundary: the reviewer cannot write the state file, so a
     # change came from a concurrent run, not from the reviewer
     [ "$ENFORCEMENT" = "os-sandboxed" ] || verify_state_untouched || TAMPER="violated:state-file"
+    verify_state_dir_unmoved || TAMPER="violated:state-file"
     verify_export_untouched   || TAMPER="violated:export"
     verify_live_repo_untouched || TAMPER="violated:live-repo"
     ;;
   *) verify_state_untouched || TAMPER="violated:state-file"
+     verify_state_dir_unmoved || TAMPER="violated:state-file"
      verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
 esac
 if [ "${TAMPER#violated}" != "$TAMPER" ]; then

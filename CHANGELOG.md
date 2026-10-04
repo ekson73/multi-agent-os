@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security — `routed-pr-review`: a swapped state directory no longer slips past the armed-boundary skip
+
+- `skills/routed-pr-review/bin/routed-review.sh` — under an armed kernel
+  boundary the state content compare was skipped because the state FILE is
+  write-denied, but its parent and ancestor directories were not: a reviewer
+  could rename the parent and leave a decoy (symlink or same-path real tree)
+  with a forged entry, undetected (reproduced). The state directory's identity
+  (resolved path + device:inode) is now snapshotted and verified after
+  dispatch in every class; a change aborts as `violated:state-file`. +2 cases
+  (36/36); a mutation disabling the check turns both RED.
+
 ### Fixed — `routed-pr-review` state check: no blind restore, no false alarm under an armed kernel
 
 - `skills/routed-pr-review/bin/routed-review.sh` — the post-dispatch state

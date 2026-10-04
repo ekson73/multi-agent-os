@@ -80,6 +80,16 @@ cat > "$STUB_BIN/kimi" <<'STUB'
 [ -n "${T_LEAK_MARK:-}" ] && [ -n "${ROUTED_REVIEW_STATE:-}" ] && : > "$T_LEAK_MARK"
 [ -n "${T_GH_MARK:-}" ] && [ -n "${GH_TOKEN:-}" ] && : > "$T_GH_MARK"
 [ -n "${T_SLEEP:-}" ] && sleep "$T_SLEEP"
+if [ -n "${T_DIR_SWAP:-}" ]; then   # swap the state FILE's parent dir for a decoy
+  d="$(dirname "$T_DIR_SWAP")"; mkdir -p "$d.decoy"
+  printf '%s' "${T_TAMPER_JSON:-}" > "$d.decoy/$(basename "$T_DIR_SWAP")" 2>/dev/null
+  mv "$d" "$d.moved" 2>/dev/null && ln -s "$d.decoy" "$d" 2>/dev/null
+fi
+if [ -n "${T_ANC_SWAP:-}" ]; then   # swap a GRANDPARENT for a same-named real tree
+  d="$(dirname "$T_ANC_SWAP")"; g="$(dirname "$d")"
+  mv "$g" "$g.moved" 2>/dev/null && mkdir -p "$d" \
+    && printf '%s' "${T_TAMPER_JSON:-}" > "$T_ANC_SWAP" 2>/dev/null
+fi
 [ -n "${T_TAMPER_MV:-}" ] && { printf 'x' > "$T_TAMPER_MV.tmp" 2>/dev/null; mv -f "$T_TAMPER_MV.tmp" "$T_TAMPER_MV" 2>/dev/null; rm -f "$T_TAMPER_MV" 2>/dev/null; }
 [ -n "${T_TAMPER_PATH:-}" ] && printf '%s' "${T_TAMPER_JSON:-}" > "$T_TAMPER_PATH" 2>/dev/null
 printf '%s\n' "${T_REVIEW_BODY:-}"
@@ -112,7 +122,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -381,6 +391,23 @@ if command -v sandbox-exec >/dev/null 2>&1 \
 else
   printf '  \033[33mSKIP\033[0m  case 24 needs a working sandbox-exec on this host\n'
 fi
+
+# ── 25 ── the state file's PARENT directory cannot be swapped unnoticed.
+# The file itself is write-denied, but the directory entry holding it can be
+# renamed and replaced (here by a symlink to a decoy carrying a forged entry).
+# Skipping the content compare under an armed boundary must not skip this.
+STATE="$SANDBOX/swap/state.json"; mkdir -p "$SANDBOX/swap"; printf '{"bots":{}}' > "$STATE"
+OUT="$(T_DIR_SWAP="$STATE" \
+       T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a swapped state directory aborts as isolation_violated" 1 '.detail' "violated:state-file"
+
+# ── 26 ── same for an ANCESTOR swapped for a real (non-symlink) tree whose
+# resolved path is identical — only the directory's inode betrays it.
+STATE="$SANDBOX/anc/inner/state.json"; mkdir -p "$SANDBOX/anc/inner"; printf '{"bots":{}}' > "$STATE"
+OUT="$(T_ANC_SWAP="$STATE" T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an ancestor swapped for a same-path tree aborts as isolation_violated" 1 '.detail' "violated:state-file"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
