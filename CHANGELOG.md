@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
+
+- **TOCTOU closed (armed boundary).** Under `os-sandboxed` the profile now write-denies the state directory and every ancestor (literal), so the reviewer can no longer rename the directory away, write the real file through the new path and rename it back — a sequence that kept path and inode identical and left the change unreported (contract case 27). Cases 25-26 now accept "prevented" as well as "detected".
+- **Fail-open closed.** A symlinked state file was write-denied only by name while writes followed the link and the digest of a symlink stayed constant; such a file is now ignored for the run and replaced by an ephemeral empty state (contract case 28).
+- Both fixes are mutation-checked (removing either makes its case fail). Remaining limits are documented in `SKILL.md` (no kernel boundary ⇒ write-and-revert inside the window is unreported; detached reviewer descendants outlive the post-dispatch checks).
+
 ### Security — `routed-pr-review`: a swapped state directory no longer slips past the armed-boundary skip
 
 - `skills/routed-pr-review/bin/routed-review.sh` — under an armed kernel

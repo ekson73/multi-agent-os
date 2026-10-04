@@ -23,6 +23,13 @@
 set -uo pipefail
 
 STATE_FILE="${ROUTED_REVIEW_STATE:-$HOME/.claude/state/ai-review-bots.json}"
+# ⛔ A symlinked state file is not used: the kernel deny names a PATH, writes
+# follow the link to wherever it points, and nothing could vouch for the
+# target. Fail-closed: this run keeps no persistent rotation state.
+if [ -L "$STATE_FILE" ]; then
+  printf 'routed-review: state file %s is a symlink — ignoring it for this run (no persistent rotation state)\n' "$STATE_FILE" >&2
+  STATE_FILE="$(mktemp -d "${TMPDIR:-/tmp}/routed-review-state.XXXXXX")/state.json"
+fi
 PR=""; REPO=""; REVIEWER="auto"; POST=0; JSON=0; MAX_TURNS=12; TIMEOUT=600
 NO_PRIMARY_ATTESTED=0
 DIFF_CAP="${ROUTED_REVIEW_DIFF_CAP:-120000}"   # bytes of diff handed to the reviewer
@@ -460,6 +467,18 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
     # that reviewer CLIs keep there
     [ -d "$STATE_DIR" ] && printf '(deny file-write* (literal "%s/%s"))\n' \
       "$(cd "$STATE_DIR" && pwd -P)" "$(basename "$STATE_FILE")"
+    # …and the directory entries ABOVE it: without this a reviewer can rename
+    # the state directory (or an ancestor) away, write the real file through
+    # the new path and rename it back — same path, same inode, new content.
+    # A `literal` deny on a directory blocks renaming/removing THAT node only,
+    # never creating or editing files inside it.
+    if [ -d "$STATE_DIR" ]; then
+      local anc; anc="$(cd "$STATE_DIR" && pwd -P)"
+      while [ -n "$anc" ] && [ "$anc" != "/" ]; do
+        printf '(deny file-write* (literal "%s"))\n' "$anc"
+        anc="$(dirname "$anc")"
+      done
+    fi
   } > "$prof" || return 1
   # Two-step probe. A single step could NOT distinguish "sandbox-exec ran and
   # denied the write" from "sandbox-exec never ran at all" (invalid profile,

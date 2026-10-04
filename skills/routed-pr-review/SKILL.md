@@ -259,11 +259,15 @@ pattern this harness exists to end.
    repo tokens and `ROUTED_REVIEW_*` never reach it; when a kernel boundary
    arms, the state **file** is write-denied (write, rename-over and unlink all
    fail — contract case 24), so a change during dispatch can only come from a
-   concurrent run and is not treated as a breach. The deny covers the file,
-   not the directories above it, so the identity of the state directory
-   (resolved path + device:inode) is checked in **every** class: a parent or
-   ancestor renamed and replaced during dispatch aborts as
-   `violated:state-file` (contract cases 25-26). In every other class the
+   concurrent run and is not treated as a breach. The deny also names the
+   state directory and every ancestor, so none of them can be renamed away,
+   written through and renamed back (contract case 27); independently, the
+   identity of the state directory (resolved path + device:inode) is checked
+   in **every** class: a parent or ancestor replaced during dispatch is
+   prevented or aborts as `violated:state-file` (contract cases 25-26).
+   A **symlinked** state file is not used at all — the run falls back to an
+   ephemeral, empty state (no persistent rotation) rather than trust a target
+   nothing vouches for (contract case 28). In every other class the
    file's digest is compared before/after dispatch: a change aborts as
    `isolation_violated` (`violated:state-file`) and the file is **left as
    found, never restored** — restoring would overwrite a concurrent run's
@@ -279,7 +283,10 @@ pattern this harness exists to end.
    (fail-closed false positive), and a reviewer that writes a *plausible* entry
    there is detected but its entry is not undone — inspect the file after a
    `violated:state-file`. A write reverted within the dispatch window leaves no
-   net change and is not reported.
+   net change and is not reported. Containment ends when the reviewer process
+   exits: a descendant it detached is outside the post-dispatch checks. These
+   are accepted limits, not targets for further hardening here — the kernel
+   boundary (`os-sandboxed`) is the stronger class.
 4. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
    any hit aborts the post.
 4. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output

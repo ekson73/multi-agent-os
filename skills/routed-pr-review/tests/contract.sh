@@ -85,6 +85,12 @@ if [ -n "${T_DIR_SWAP:-}" ]; then   # swap the state FILE's parent dir for a dec
   printf '%s' "${T_TAMPER_JSON:-}" > "$d.decoy/$(basename "$T_DIR_SWAP")" 2>/dev/null
   mv "$d" "$d.moved" 2>/dev/null && ln -s "$d.decoy" "$d" 2>/dev/null
 fi
+if [ -n "${T_RENAME_WRITE:-}" ]; then   # rename parent away, write the real inode, rename back
+  d="$(dirname "$T_RENAME_WRITE")"
+  mv "$d" "$d.away" 2>/dev/null \
+    && printf '%s' "${T_TAMPER_JSON:-}" > "$d.away/$(basename "$T_RENAME_WRITE")" 2>/dev/null
+  mv "$d.away" "$d" 2>/dev/null
+fi
 if [ -n "${T_ANC_SWAP:-}" ]; then   # swap a GRANDPARENT for a same-named real tree
   d="$(dirname "$T_ANC_SWAP")"; g="$(dirname "$d")"
   mv "$g" "$g.moved" 2>/dev/null && mkdir -p "$d" \
@@ -122,7 +128,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -400,14 +406,44 @@ STATE="$SANDBOX/swap/state.json"; mkdir -p "$SANDBOX/swap"; printf '{"bots":{}}'
 OUT="$(T_DIR_SWAP="$STATE" \
        T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
-check "a swapped state directory aborts as isolation_violated" 1 '.detail' "violated:state-file"
+# prevented (original state intact at its path) or detected — both fail-closed.
+if [ "$(printf '%s' "$OUT" | jq -r '.detail' 2>/dev/null)" = "violated:state-file" ] \
+   || { [ ! -L "$STATE" ] && [ "$(cat "$STATE" 2>/dev/null)" = '{"bots":{}}' ]; }; then GOT=closed; else GOT=bypassed; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a swapped state directory is prevented or aborts as isolation_violated" 0 '.v' "closed"
 
 # ── 26 ── same for an ANCESTOR swapped for a real (non-symlink) tree whose
 # resolved path is identical — only the directory's inode betrays it.
 STATE="$SANDBOX/anc/inner/state.json"; mkdir -p "$SANDBOX/anc/inner"; printf '{"bots":{}}' > "$STATE"
 OUT="$(T_ANC_SWAP="$STATE" T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
-check "an ancestor swapped for a same-path tree aborts as isolation_violated" 1 '.detail' "violated:state-file"
+# prevented (original state intact at its path) or detected — both fail-closed.
+if [ "$(printf '%s' "$OUT" | jq -r '.detail' 2>/dev/null)" = "violated:state-file" ] \
+   || { [ ! -L "$STATE" ] && [ "$(cat "$STATE" 2>/dev/null)" = '{"bots":{}}' ]; }; then GOT=closed; else GOT=bypassed; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "an ancestor swap is prevented or aborts as isolation_violated" 0 '.v' "closed"
+
+# ── 27 ── (TOCTOU) rename the state dir away, write the REAL file through the
+# new path, rename it back: same inode, same path — content changed.
+STATE="$SANDBOX/rw/state.json"; mkdir -p "$SANDBOX/rw"; printf '{"bots":{}}' > "$STATE"; cp "$STATE" "$SANDBOX/rw.orig"
+OUT="$(T_RENAME_WRITE="$STATE" T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+if cmp -s "$STATE" "$SANDBOX/rw.orig"; then GOT=denied; else GOT=written; fi
+# prevented (content intact) or detected (violated) are both acceptable;
+# "written AND reviewed" is the bypass.
+if [ "$GOT" = denied ] || [ "$(printf '%s' "$OUT" | jq -r '.detail' 2>/dev/null)" = "violated:state-file" ]; then GOT=closed; else GOT=bypassed; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "rename-away / write / rename-back of the state dir is prevented or detected" 0 '.v' "closed"
+
+# ── 28 ── (fail-open) a SYMLINKED state file is not used at all: the deny
+# names the link, writes follow it, nothing vouches for the target. A forged
+# but well-formed entry behind the link must therefore not affect the pick.
+mkdir -p "$SANDBOX/sl"
+printf '{"bots":{"kimi":{"broken_at":"%s"}}}' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SANDBOX/sl-target.json"
+ln -sf "$SANDBOX/sl-target.json" "$SANDBOX/sl/state.json"; STATE="$SANDBOX/sl/state.json"
+OUT="$(EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "a symlinked state file is ignored (its entries never exclude a reviewer)" 3 '.reviewer' "kimi"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
