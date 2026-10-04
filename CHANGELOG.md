@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security — `routed-pr-review` rotation state is isolated from, and not trusted by, the reviewer
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the reviewer process
+  inherited `ROUTED_REVIEW_STATE` and could write the rotation state file (the
+  kernel profile denied only the export and the live repo). A dogfood run
+  showed a reviewer-side write landing there. A reviewer steered by PR content
+  could therefore mark healthy families as limited/broken (directable
+  selection / persistent denial of review), and values from the file reached
+  shell arithmetic unvalidated. Now: `ROUTED_REVIEW_*` scrubbed from the
+  reviewer env; state dir write-denied in the sandbox profile; state file
+  snapshotted per candidate and verified after dispatch in every enforcement
+  class (change ⇒ `isolation_violated`, bytes restored); timestamps must be
+  strict UTC ISO-8601 and not in the future, `retry_after_sec` must be an
+  integer ≤ 86400, otherwise the entry is ignored; failure triage reads stderr
+  only. +4 contract cases (22/22).
+
 ### Fixed — `routed-pr-review` triages a failed reviewer: broken ≠ quota, then falls through
 
 - `skills/routed-pr-review/bin/routed-review.sh` — a reviewer that produced no

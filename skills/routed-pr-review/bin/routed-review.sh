@@ -152,18 +152,31 @@ log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]
 CALLER="${ROUTED_REVIEW_CALLER:-}"
 declare -a FAMILY_ORDER=(codex gemini kimi qwen grok claude copilot pi jcode opencode kiro)
 
+# ⛔ The state file is DATA, never trusted input: a reviewer process, or anyone
+# who can write the file, controls its contents. Every value read from it is
+# validated before use, and anything malformed is treated as "no state" —
+# fail-closed means a forged entry can never REMOVE a reviewer from the pool,
+# and a non-numeric field can never reach shell arithmetic.
+ts_epoch() {  # $1=ISO-8601 UTC ; prints epoch, or nothing if malformed/future
+  printf '%s' "$1" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' || return 1
+  local e t; t="${1%Z}"; t="${t%%.*}Z"     # drop any fractional seconds
+  e="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$t" +%s 2>/dev/null \
+      || date -u -d "$1" +%s 2>/dev/null)" || return 1
+  printf '%s' "$e" | grep -qE '^[0-9]+$' || return 1
+  [ "$e" -le $(( $(date +%s) + 300 )) ] || return 1   # a future stamp is forged
+  printf '%s' "$e"
+}
+
 expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   [ -f "$STATE_FILE" ] || return 1
-  local now limited retry
-  now="$(date +%s)"
-  limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty' "$STATE_FILE" 2>/dev/null)"
+  local limited retry since
+  limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
   [ -n "$limited" ] || return 1
+  since="$(ts_epoch "$limited")" || return 1
   retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
-  # BSD `date -j` first, GNU `date -d` second: a single BSD form silently
-  # yielded 0 on Linux, which made every limited bot look already reset.
-  local reset; reset=$(( $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null \
-                          || date -u -d "$limited" +%s 2>/dev/null || echo 0) + retry ))
-  [ "$now" -lt "$reset" ]
+  printf '%s' "$retry" | grep -qE '^[0-9]{1,5}$' || return 1
+  [ "$retry" -le 86400 ] || return 1
+  [ "$(date +%s)" -lt $(( since + retry )) ]
 }
 
 # ---- Failure triage (pr-review-protocol §4.1(b) tier-2 usable vs tier-3 capacity)
@@ -180,22 +193,24 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
 # A timeout is neither — the reviewer may be slow, not unusable — so it is
 # excluded for this run only and recorded nowhere.
 BROKEN_TTL="${ROUTED_REVIEW_BROKEN_TTL_SEC:-86400}"
+printf '%s' "$BROKEN_TTL" | grep -qE '^[0-9]{1,6}$' || BROKEN_TTL=86400
 EXCLUDED=""          # families that already failed in THIS run (space-separated)
 SKIPPED_JSON="[]"    # evidence of every fallthrough, emitted in --json output
 
-is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL
+is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL (validated stamp only)
   [ -f "$STATE_FILE" ] || return 1
   local at since
-  at="$(jq -r --arg b "$1" '.bots[$b].broken_at // empty' "$STATE_FILE" 2>/dev/null)"
+  at="$(jq -r --arg b "$1" '.bots[$b].broken_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
   [ -n "$at" ] || return 1
-  since="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${at%%.*}" +%s 2>/dev/null \
-        || date -u -d "$at" +%s 2>/dev/null || echo 0)"
+  since="$(ts_epoch "$at")" || return 1
   [ "$(date +%s)" -lt $(( since + BROKEN_TTL )) ]
 }
 
-classify_failure() {  # $1=rc ; reads $WORK/err + $OUT_F ; prints quota|broken|timeout
+classify_failure() {  # $1=rc ; reads $WORK/err ONLY ; prints quota|broken|timeout
+  # stdout is model text, steerable by the PR under review — never let it pick
+  # the class. Only the CLI's own stderr channel counts.
   [ "$1" = 124 ] && { printf 'timeout'; return; }
-  if cat "$WORK/err" "$OUT_F" 2>/dev/null \
+  if cat "$WORK/err" 2>/dev/null \
      | grep -qiE '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|quota|usage limit|too many requests|resource[ _]exhausted'; then
     printf 'quota'
   else
@@ -393,6 +408,9 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
     printf '(version 1)\n(allow default)\n'
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$EXPORT_DIR" && pwd -P)"
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
+    # the rotation state lives OUTSIDE both trees; a reviewer that can write it
+    # can steer the next pick, so it is denied too
+    [ -d "$STATE_DIR" ] && printf '(deny file-write* (subpath "%s"))\n' "$(cd "$STATE_DIR" && pwd -P)"
   } > "$prof" || return 1
   # Two-step probe. A single step could NOT distinguish "sandbox-exec ran and
   # denied the write" from "sandbox-exec never ran at all" (invalid profile,
@@ -520,9 +538,37 @@ reset_isolation() {  # before trying another candidate: a fresh export + profile
 # candidate that yields no review is triaged (quota vs broken vs timeout),
 # excluded for the rest of this run, and the pick falls through to the next
 # family — one broken CLI must not end the whole routed review.
+# ⛔ The reviewer is a model steered by the PR under review. It must neither
+# learn where rotation state lives nor be able to change it unnoticed:
+#  - the ROUTED_REVIEW_* variables are scrubbed from the environment it inherits;
+#  - the state directory is write-denied by the kernel profile when one arms;
+#  - and in EVERY class the file is snapshotted before dispatch and compared
+#    after: any change aborts the run as an isolation violation and the
+#    pre-run bytes are restored. Detection is the floor where prevention is
+#    not available (os-perms-only, vendor CLIs).
+unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER
+STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
+snapshot_state() {
+  rm -f "$WORK/state.before"
+  [ -f "$STATE_FILE" ] && cp -p "$STATE_FILE" "$WORK/state.before"
+  return 0
+}
+verify_state_untouched() {
+  if [ -f "$WORK/state.before" ]; then
+    cmp -s "$WORK/state.before" "$STATE_FILE" 2>/dev/null && return 0
+    cp -p "$WORK/state.before" "$STATE_FILE" 2>/dev/null
+  else
+    [ -e "$STATE_FILE" ] || return 0
+    rm -f "$STATE_FILE"
+  fi
+  log "[!] state-file check FAILED — the reviewer wrote rotation state; pre-run bytes restored"
+  return 1
+}
+
 while :; do
 ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 snapshot_live_repo
+snapshot_state
 
 if [ "$ENFORCEMENT" = "os" ]; then
   log "[D] $CHOSEN has no vendor read-only flag -> enforcing outside the CLI"
@@ -559,10 +605,12 @@ TAMPER="n/a"
 case "$ENFORCEMENT" in
   *os*)
     TAMPER="clean"
+    verify_state_untouched || TAMPER="violated:state-file"
     verify_export_untouched   || TAMPER="violated:export"
     verify_live_repo_untouched || TAMPER="violated:live-repo"
     ;;
-  *) verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
+  *) verify_state_untouched || TAMPER="violated:state-file"
+     verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
 esac
 if [ "${TAMPER#violated}" != "$TAMPER" ]; then
   log "[D] ABORT ($TAMPER): isolation violated — no review will be stamped or reported as valid"

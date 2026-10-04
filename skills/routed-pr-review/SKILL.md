@@ -249,7 +249,19 @@ pattern this harness exists to end.
    never persisted — it may carry secrets.
 2. **Truncation is declared.** A diff over the cap is cut and `diff_truncated:
    yes` rides in the comment and the JSON.
-3. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
+3. **Rotation state is out of the reviewer's reach, and is never trusted.**
+   The reviewer is a model steered by the PR under review, so: the
+   `ROUTED_REVIEW_*` variables are scrubbed from its environment; the state
+   directory is write-denied when a kernel boundary arms; and in every class
+   the state file is snapshotted before dispatch and compared after — any
+   change aborts as `isolation_violated` (`violated:state-file`) and the
+   pre-run bytes are restored. Values read from the file are validated:
+   malformed or future timestamps and non-numeric `retry_after_sec` are
+   treated as "no state", so a forged entry can never remove a reviewer from
+   the pool. Failure triage reads the CLI's stderr only, never model stdout.
+   (A concurrent run writing the same file mid-dispatch also trips the check —
+   fail-closed by design.)
+4. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
    any hit aborts the post.
 4. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output
    (`cross-harness-red-team.md`).

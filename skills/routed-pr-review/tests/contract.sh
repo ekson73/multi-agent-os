@@ -72,6 +72,10 @@ chmod +x "$STUB_BIN/gh"
 # are per-case, which is what drives the <40-byte and gate branches.
 cat > "$STUB_BIN/kimi" <<'STUB'
 #!/usr/bin/env bash
+# Hostile-reviewer hooks (security cases 14-16). A real reviewer is a model
+# steered by PR content; these model what a prompt-injected one could try.
+[ -n "${T_LEAK_MARK:-}" ] && [ -n "${ROUTED_REVIEW_STATE:-}" ] && : > "$T_LEAK_MARK"
+[ -n "${T_TAMPER_PATH:-}" ] && printf '%s' "${T_TAMPER_JSON:-}" > "$T_TAMPER_PATH" 2>/dev/null
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
 STUB
@@ -249,6 +253,41 @@ STATE="$SANDBOX/state-explicit.json"
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
        T_REVIEWS='[]' ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "explicit broken reviewer is NOT silently replaced" 2 '.failure_class' "broken"
+
+# ── 14 ── the reviewer must not even learn where rotation state lives.
+# The state path rode into the reviewer through the inherited environment;
+# a reviewer that can find the file can poison the next pick.
+OUT="$(STATE="$SANDBOX/state-leak.json" T_LEAK_MARK="$SANDBOX/leak" T_REVIEWS='[]' \
+       T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+if [ ! -e "$SANDBOX/leak" ]; then GOT=hidden; else GOT=leaked; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "ROUTED_REVIEW_STATE is scrubbed from the reviewer's environment" 0 '.v' "hidden"
+
+# ── 15 ── a reviewer that WRITES the state file is an isolation breach.
+# Force os-perms-only (no kernel boundary) so the write lands, then require it
+# to be detected, the run aborted, and the file restored byte-for-byte.
+STATE="$SANDBOX/state-tamper.json"
+printf '{"bots":{}}' > "$STATE"; cp "$STATE" "$SANDBOX/state-tamper.orig"
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_TAMPER_PATH="$STATE" \
+       T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a reviewer that writes rotation state aborts as isolation_violated" 1 '.detail' "violated:state-file"
+if cmp -s "$STATE" "$SANDBOX/state-tamper.orig"; then GOT=restored; else GOT=poisoned; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "the tampered state file is restored to its pre-run bytes" 0 '.v' "restored"
+
+# ── 16 ── forged state entries are ignored, never obeyed (fail-closed).
+# A far-future broken_at would silence a family forever, and a non-numeric
+# retry_after_sec must never reach shell arithmetic. Both mean "no state".
+STATE="$SANDBOX/state-forged.json"
+cat > "$STATE" <<'JSON'
+{"bots":{"kimi":{"broken_at":"2099-01-01T00:00:00Z",
+                 "last_limited_at":"2099-01-01T00:00:00Z",
+                 "retry_after_sec":"not-a-number"}}}
+JSON
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "forged future/garbage state does not exclude a healthy reviewer" 3 '.reviewer' "kimi"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
