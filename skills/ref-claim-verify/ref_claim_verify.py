@@ -43,13 +43,30 @@ _VERSION = re.compile(
     r"[ \t]{0,3}(?:[,:][ \t]{0,3})?(?:v|version[ \t]{1,3}v?|vers\u00e3o[ \t]{1,3}v?)(?P<ver>%s)" % (_EXT, _SEMVER),
     re.IGNORECASE,
 )
-_DECLARED = re.compile(
-    r"(?im)^(?:>[ \t]*)?(?:\*\*)?(?:version|vers\u00e3o)(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?[ \t]*v?(" + _SEMVER + r")"
-    r"|^version[ \t]*:[ \t]*[\"']?v?(" + _SEMVER + r")"
-)
+_DECL_HEAD = re.compile(r"^(?:>[ \t]*)?(?:\*\*)?(?:version|vers\u00e3o)(?:\*\*)?[ \t]*:", re.IGNORECASE)
+
+
+def _decl_version(ln: str) -> str | None:
+    """Version declared by a `Version:` / `**Versão**:` line, parsed in linear time."""
+    m = _DECL_HEAD.match(ln)
+    if not m:
+        return None
+    rest = ln[m.end():].lstrip(" \t")
+    if rest.startswith("**"):
+        rest = rest[2:].lstrip(" \t")
+    elif rest[:1] in ("\"", "'"):
+        rest = rest[1:]
+    if rest[:1] in ("v", "V"):
+        rest = rest[1:]
+    mv = re.match(_SEMVER, rest)
+    return mv.group(0) if mv else None
+
+
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
-_ATX = re.compile(r"^ {0,3}#{1,6}[ \t]")
-MAX_LINE = 4000
+_FM_VERSION = re.compile(r"(?i)^(?:version|vers\u00e3o)[ \t]*:[ \t]*(.*?)[ \t]*$")
+_ATX = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
+MAX_LINE = 4000          # claim extraction from prose input (skipped + counted when longer)
+MAX_BLOB_LINE = 1_000_000  # safety net for git blobs; every pass below is linear
 _VERSION_LIKE = re.compile(r"\bv\d+\.\d+(?:\.[0-9A-Za-z]+)*(?:[-+][0-9A-Za-z.\-+]*)?", re.IGNORECASE)
 _LONG_TOKEN = re.compile(r"\b[A-Za-z0-9_\-]{32,}\b")
 
@@ -88,7 +105,8 @@ _CREDS = (
     (re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}\b"), "[CREDENTIAL]"),
     (re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}\b"), "[CREDENTIAL]"),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"), "[CREDENTIAL]"),
-    (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[ \t]*[=:][ \t]*\S+"),
+    (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[\"']?[ \t]*[=:][ \t]*"
+                r"(?:\"[^\"\n]*(?:\"|$)|'[^'\n]*(?:'|$)|\S+)"),
      r"\1=[REDACTED]"),
 )
 _FALLBACK = (  # degraded masking: coarser than pii-masking, but never lets these shapes through
@@ -195,23 +213,37 @@ class AmbiguousStructure(Exception):
     """The Markdown structure cannot be read unambiguously; callers must answer UNRESOLVED."""
 
 
+_HTML_RAW = re.compile(r"^ {0,3}<(pre|script|style|textarea)(?=[\s>]|$)", re.IGNORECASE)
+_HTML_BLOCK = re.compile(r"^ {0,3}</?[A-Za-z][A-Za-z0-9-]*(?=[\s/>]|$)")
+
+
 def _outside_fences(content: str) -> list[str]:
-    """Lines that are neither inside a fenced code block, an HTML comment nor a code span.
+    """Lines that are neither inside a fenced code block, an HTML comment/block nor a code span.
 
     Fences follow CommonMark (same char, closer >= opener, indent <= 3, no info string; also
-    inside blockquotes). Comments are scanned sequentially: nesting, a stray closer or an
-    unterminated comment/fence is AMBIGUOUS (raise) — never silently accepted. Inline-code
-    mentions of `<!--` are not comments, but inside a real comment nothing is code.
-    Multi-line code spans (paragraph-scoped, CommonMark backtick-run matching) are dropped.
+    inside blockquotes). Comments are scanned sequentially and linearly: nesting, a stray closer
+    or an unterminated comment/fence is AMBIGUOUS (raise) — never silently accepted. Inline-code
+    mentions of `<!--` are not comments, but inside a real comment nothing is code. Multi-line
+    code spans (CommonMark backtick-run matching) are dropped; a backtick run that never closes
+    before the paragraph ends, or a block construct inside an open span, is AMBIGUOUS. Raw HTML
+    blocks (`<pre>`/`<script>`/`<style>`/`<textarea>` until their closer; any other block tag
+    until a blank line) are not Markdown metadata and are dropped. A line longer than MAX_BLOB_LINE
+    is AMBIGUOUS (safety bound; every pass is linear below it).
     """
     out: list[str] = []
     fence: tuple[str, int] | None = None
     in_comment = False
-    span: int | None = None  # length of the open backtick run, reset at blank lines
+    span: int | None = None  # length of the open backtick run
+    html_end: re.Pattern | str | None = None  # compiled closer for raw blocks, "blank" otherwise
     for raw in content.splitlines():
+        if len(raw) > MAX_BLOB_LINE:
+            raise AmbiguousStructure("line longer than the safety bound")
         ln = raw
         if not ln.strip():
-            span = None  # a paragraph break ends an unmatched code span (its backticks are literal)
+            if span is not None:
+                raise AmbiguousStructure("backtick run never closed before the paragraph ended")
+            if html_end == "blank":
+                html_end = None
         if in_comment:
             if "<!--" in ln.split("-->", 1)[0]:
                 raise AmbiguousStructure("nested HTML comment")
@@ -220,13 +252,22 @@ def _outside_fences(content: str) -> list[str]:
             in_comment = False
             ln = ln[ln.index("-->") + 3 :]
         scan = _CODE_SPAN.sub(lambda m: m.group().replace("<", "_").replace(">", "_"), ln)
-        while True:
-            m = _COMMENT_PAIR.search(scan)
-            if not m:
+        pieces: list[str] = []
+        spieces: list[str] = []
+        i = 0
+        while True:  # linear: one forward pass with find(), pieces joined once
+            s0 = scan.find("<!--", i)
+            e0 = scan.find("-->", s0 + 4) if s0 >= 0 else -1
+            if s0 < 0 or e0 < 0:
+                pieces.append(ln[i:])
+                spieces.append(scan[i:])
                 break
-            if "<!--" in scan[m.start() + 4 : m.end()]:
+            if "<!--" in scan[s0 + 4 : e0]:
                 raise AmbiguousStructure("nested HTML comment")
-            ln, scan = ln[: m.start()] + ln[m.end() :], scan[: m.start()] + scan[m.end() :]
+            pieces.append(ln[i:s0])
+            spieces.append(scan[i:s0])
+            i = e0 + 3
+        ln, scan = "".join(pieces), "".join(spieces)
         if "<!--" in scan:
             if "<!--" in scan[scan.index("<!--") + 4 :]:
                 raise AmbiguousStructure("nested HTML comment")
@@ -240,10 +281,31 @@ def _outside_fences(content: str) -> list[str]:
             if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1]:
                 fence = None
             continue
+        if html_end is not None:
+            if isinstance(html_end, re.Pattern):
+                if html_end.search(core):
+                    html_end = None
+                continue
+            if core.strip():
+                continue  # inside a blank-terminated HTML block
         m = _OPEN_FENCE.match(core)
         if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            if span is not None:
+                raise AmbiguousStructure("fence inside an open code span")
             fence = (m.group(1)[0], len(m.group(1)))
             continue
+        if span is not None and (_ATX.match(ln) or _THEMATIC.match(ln)):
+            raise AmbiguousStructure("block construct inside an open code span")
+        if span is None and core.strip():
+            mr = _HTML_RAW.match(core)
+            if mr:
+                closer = re.compile(r"</%s\s*>" % mr.group(1), re.IGNORECASE)
+                if not closer.search(core[mr.end() :]):
+                    html_end = closer
+                continue
+            if _HTML_BLOCK.match(core):
+                html_end = "blank"
+                continue
         starts_in_span = span is not None
         for run in re.findall(r"`+", core):
             if span is None:
@@ -252,8 +314,8 @@ def _outside_fences(content: str) -> list[str]:
                 span = None
         if not starts_in_span:
             out.append(ln)
-    if in_comment or fence is not None:
-        raise AmbiguousStructure("unterminated comment or fence")
+    if in_comment or fence is not None or span is not None or isinstance(html_end, re.Pattern):
+        raise AmbiguousStructure("unterminated comment, fence, code span or HTML block")
     return out
 
 
@@ -275,18 +337,28 @@ def declared_versions(content: str) -> list[str]:
         end = next((j for j in range(1, min(len(lines), 200)) if lines[j].strip() == "---"), None)
         if end is None:
             return []  # unterminated frontmatter: nothing is authoritative -> UNRESOLVED upstream
-        fm = "\n".join(lines[1:end])
-        found = sorted({a or b for a, b in _DECLARED.findall(fm)})
-        if found:
-            return found
+        vals: list[str] = []
+        for fl in lines[1:end]:
+            mf = _FM_VERSION.match(fl)
+            if not mf:
+                continue
+            v = re.sub(r"[ \t]+#.*$", "", mf.group(1)).strip()
+            if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+                v = v[1:-1].strip()
+            v = v[1:] if v[:1] in "vV" else v
+            if not re.fullmatch(_SEMVER, v):  # whole value must be the version, not just a prefix
+                raise AmbiguousStructure("frontmatter version is not a clean version string")
+            vals.append(v)
+        if vals:
+            return sorted(set(vals))
         content = "\n".join(lines[end + 1 :])
     found_set: set[str] = set()
     for ln in _outside_fences(content):
         if "|" in ln:
             continue  # a table row is not authoritative metadata
-        m = _DECLARED.match(ln)
-        if m:
-            found_set.add(m.group(1) or m.group(2))
+        v = _decl_version(ln)
+        if v:
+            found_set.add(v)
     return sorted(found_set)
 
 

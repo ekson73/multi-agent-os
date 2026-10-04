@@ -306,3 +306,91 @@ def test_common_credential_shapes_are_masked_in_every_field(repo):
     r = rcv.run(f"`x.md` AWS_ACCESS_KEY_ID={aws} {kv}", str(repo), ["HEAD"])
     out = json.dumps(r)
     assert aws not in out and pw not in out
+
+
+# ── round-5 regressions (independent routed review of head d063222) ──
+def test_stray_backtick_cannot_hide_a_conflicting_declaration(repo):
+    _commit(repo, {"bt.md": "Version: 8.6.4\n`\nVersion: 9.0.0\n"})
+    assert claims("`bt.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_block_construct_inside_open_code_span_is_ambiguous(repo):
+    _commit(repo, {"bs.md": "Version: 8.6.4\n`\n# Heading\nVersion: 9.0.0\n`\n"})
+    assert claims("`bs.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+@pytest.mark.parametrize("fm", [
+    '---\nversion: "8.6.4 other"\n---\n',
+    "---\nversion: 8.6.4\nversion: unknown\n---\n",
+    "---\nversion:\n---\n",
+])
+def test_frontmatter_version_must_be_the_whole_value(repo, fm):
+    _commit(repo, {"fm.md": fm})
+    assert claims("`fm.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_frontmatter_clean_quoted_and_commented_versions_still_verify(repo):
+    _commit(repo, {"fq.md": '---\nversion: "v8.6.4" # release\n---\n'})
+    assert claims("`fq.md` v8.6.4", repo)[0]["verdict"] == "VERIFIED"
+
+
+def test_empty_atx_heading_closes_the_section_window(repo):
+    _commit(repo, {"eh.md": "## [AA]\n##\nVersion: 8.6.4\n"})
+    assert claims("[AA] v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+@pytest.mark.parametrize("body", [
+    "<pre>\nVersion: 8.6.4\n</pre>\n",
+    "<div>\nVersion: 8.6.4\n</div>\n",
+    "<script>\nVersion: 8.6.4\n</script>\n",
+])
+def test_version_inside_a_raw_html_block_is_not_metadata(repo, body):
+    _commit(repo, {"hb.md": body})
+    assert claims("`hb.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_unterminated_raw_html_block_is_ambiguous(repo):
+    _commit(repo, {"hu.md": "<pre>\nVersion: 8.6.4\n"})
+    assert claims("`hu.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_credential_with_quoted_json_key_and_quoted_value_with_spaces_is_masked(repo):
+    import json
+    key = "pass" + "word"
+    a = '"' + key + '": "hunter two three"'            # JSON style, value contains spaces
+    b = key + "='alpha beta gamma'"                      # single-quoted value with spaces
+    c = key + ': "unterminated omega delta'              # unterminated quote must not leak the tail
+    for frag in (a, b, c):
+        out = rcv.mask(frag)
+        assert all(w not in out for w in ("hunter", "two", "three", "alpha", "beta", "gamma", "omega", "delta")), out
+    r = rcv.run(f"`x.md` {a}", str(repo), ["HEAD"])
+    assert "hunter" not in json.dumps(r) and "three" not in json.dumps(r)
+
+
+def test_pathological_long_lines_are_processed_in_linear_time(repo):
+    import time
+    for line in ("<!--" * 200_000, "<!---->" * 100_000, "version:" + " " * 400_000 + "x", "`" * 300_000 + "x"):
+        t0 = time.perf_counter()
+        try:
+            rcv._outside_fences(line)
+            rcv.declared_versions(line)
+        except rcv.AmbiguousStructure:
+            pass
+        assert time.perf_counter() - t0 < 1.5, line[:12]
+
+
+def test_long_ordinary_lines_in_a_real_document_do_not_make_it_unresolvable(repo):
+    # real governance docs carry >4000-char lines; they must not turn the whole file ambiguous
+    _commit(repo, {"big.md": "## [BG]\n" + "word " * 3000 + "\n\nVersion: 8.6.4\n"})
+    assert claims("[BG] v8.6.4", repo)[0]["verdict"] == "VERIFIED"
+    assert claims("[BG] v9.9.9", repo)[0]["verdict"] == "MISMATCH"
+
+
+def test_a_long_line_that_is_itself_a_declaration_still_counts(repo):
+    _commit(repo, {"bd.md": "Version: 8.6.4\nVersion: 9.0.0 " + "y" * 5000 + "\n"})
+    assert claims("`bd.md` v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"   # conflict seen, not hidden
+
+
+def test_blob_line_beyond_the_safety_bound_is_ambiguous(repo):
+    with pytest.raises(rcv.AmbiguousStructure):
+        rcv._outside_fences("x" * (rcv.MAX_BLOB_LINE + 1))
