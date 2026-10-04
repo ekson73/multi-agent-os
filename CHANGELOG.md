@@ -20,12 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   even after later `COMMENTED` reviews (matches GitHub). The head is re-read at
   the end; a push during the read blocks.
 - Exit `0` CONVERGED · `3` BLOCKED · `2` usage/API/parse error (fail-closed, never `0`).
-- Tests: `bin/tests/verdict-at-head.test.sh` (46 assertions, offline fixtures:
+- Tests: `bin/tests/verdict-at-head.test.sh` (52 assertions, offline fixtures:
   stale approval, 12-char-prefix collision, stale vs superseded
   `CHANGES_REQUESTED`, rate-limited `success`, >30 reviews across pages,
   force-push, `--primary` NONE, malformed input, paged statuses, unknown
   review state, rate limit in `output.text`, literal regex).
 - Documented in `rules/pr-governance-unified.md` Step 7 + Tools Reference.
+- Rate-limit attribution to a reviewer uses normalized equality or vendor-token
+  equality (plus an exact alias table) — never a prefix: context `ci` no longer
+  marks reviewer `cicero`, and `Qodo Merge` now attributes to `qodo[bot]`. The
+  verdict itself was already fail-safe (any rate-limit signal blocks).
 - Script header cites its spec (Step 7) and states idempotency (read-only);
   the test suite fails fast on any fixture/setup failure (no `set -e`, because
   every case captures a non-zero exit of the script under test).

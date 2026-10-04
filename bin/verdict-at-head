@@ -126,6 +126,20 @@ RESULT="$(jq -n \
   --slurpfile chf "$TMP/checks.json" '
   def norm: ascii_downcase | sub("\\[bot\\]$";"");
   def alnum: ascii_downcase | gsub("[^a-z0-9]";"");
+  # First word of a normalized name: the vendor token ("Qodo Merge" -> "qodo",
+  # "qodo-code-review[bot]" -> "qodo", "ci" -> "ci").
+  def vendor_token: norm | [scan("[a-z0-9]+")] | (.[0] // "");
+  # Explicit aliases where a reviewer login and its status context differ in the
+  # vendor word itself. Exact keys only; never a prefix rule.
+  def login_alias: {"coderabbitai": "coderabbit"}[.] // .;
+  # Attribution of a rate-limited status/check to a reviewer: full normalized
+  # equality, or equality of vendor tokens (alias applied). NEVER a prefix match
+  # ("ci" must not attribute to "cicero"); a shared non-first word (e.g. "code")
+  # does not count either.
+  def attributes_to($login):
+    (alnum) as $c | (vendor_token) as $ct
+    | ($login | alnum) as $l | ($login | vendor_token | login_alias) as $lt
+    | ($c | length) > 0 and ($c == $l or ($ct | length) > 0 and $ct == $lt);
   # Accept a flat array, or an array of pages (gh --paginate --slurp).
   def flatten_pages: if (type=="array" and length>0 and (.[0]|type)=="array") then add else . end;
   def rate_limited_text: test("rate[ _-]?limit"; "i");
@@ -157,8 +171,7 @@ RESULT="$(jq -n \
            status: (if $latest.commit_id == $head then "CURRENT" else "STALE" end),
            decisive_state: ($dec.state // null),
            changes_requested_active: (($dec.state // "") == "CHANGES_REQUESTED"),
-           rate_limited: ([ $rl[] | (.context | alnum) as $c
-                            | select(($c | length) > 0 and ($login | alnum | startswith($c))) ] | length > 0)
+           rate_limited: ([ $rl[] | select(.context | attributes_to($login)) ] | length > 0)
          } ]) as $seen
   | ($seen | map(.login)) as $seen_logins
   | ($seen + [ $primary[] | select(. as $p | ($seen_logins | any(.[]; . == $p)) | not)

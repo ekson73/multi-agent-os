@@ -193,6 +193,28 @@ d="$(mk regex-literal "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]" \
   '[{"context":"ci","state":"success","description":"rateXlimit rate5limit"}]')"
 run "$d"; eq 0 "$rc" 'rateXlimit / rate5limit do not match (character class is literal)'
 
+# 25. attribution never uses a prefix: context "ci" must NOT mark reviewer "cicero"
+d="$(mk attr-ci "[$(rv cicero COMMENTED $HEAD 2026-10-01T10:00:00Z 1)]" \
+  '[{"context":"ci","state":"success","description":"Review rate limited"}]')"
+run "$d"; eq false "$(field '.reviewers[] | select(.login=="cicero") | .rate_limited')" 'context "ci" does not mark reviewer "cicero" (no prefix match)'
+eq 3 "$rc" 'unattributed rate limit still blocks (fail-safe verdict kept)'
+
+# 26. positive control: "Qodo Merge" IS attributed to qodo[bot] (token match after [bot] strip)
+d="$(mk attr-qodo "[$(rv 'qodo[bot]' COMMENTED $HEAD 2026-10-01T10:00:00Z 1)]" \
+  '[{"context":"Qodo Merge","state":"success","description":"Review rate limited"}]')"
+run "$d"; eq true "$(field '.reviewers[] | select(.login=="qodo") | .rate_limited')" 'context "Qodo Merge" detected on reviewer qodo[bot]'
+has 'rate-limited-reviewer:qodo' "$(field '.reasons|join(",")')" 'per-reviewer reason names qodo'
+
+# 27. a shared non-vendor token is not attribution: "code/snyk" must not mark "qodo-code-review"
+d="$(mk attr-shared-token "[$(rv 'qodo-code-review[bot]' COMMENTED $HEAD 2026-10-01T10:00:00Z 1)]" \
+  '[{"context":"code/snyk (acct)","state":"error","description":"rate limit reached"}]')"
+run "$d"; eq false "$(field '.reviewers[0].rate_limited')" 'shared token "code" does not attribute snyk to qodo-code-review'
+
+# 28. full normalized equality: "Amazon Q Developer" <-> amazon-q-developer[bot]
+d="$(mk attr-amazon "[$(rv 'amazon-q-developer[bot]' COMMENTED $HEAD 2026-10-01T10:00:00Z 1)]" \
+  '[{"context":"Amazon Q Developer","state":"success","description":"Review rate limited"}]')"
+run "$d"; eq true "$(field '.reviewers[0].rate_limited')" 'normalized equality attributes "Amazon Q Developer"'
+
 [ -f "$SETUP_FAIL" ] && abort "fixture write failed: $(tr '\n' ' ' < "$SETUP_FAIL")"
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
