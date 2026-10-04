@@ -33,7 +33,7 @@ from typing import Iterator
 VERIFIED, MISMATCH, UNRESOLVED = "VERIFIED", "MISMATCH", "UNRESOLVED"
 
 _EXT = r"(?:md|sh|py|json|ya?ml|toml|js|mjs|ts|txt|cfg|ini)"
-_SEMVER = r"\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z][0-9A-Za-z.\-+]*)?"
+_SEMVER = r"\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z][0-9A-Za-z.\-+]*)?(?![0-9A-Za-z_]|\.[0-9A-Za-z])"
 _PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./\-]+\.%s)(?::\d+)?(?:#[\w\-]+)?`" % _EXT)
 _SECTION = re.compile(
     r"`([A-Za-z0-9_./\-]+\.%s)`[ \t]{0,3}(?:[,\u2014(\-][ \t]{0,3})?\u00a7[ \t]?([A-Za-z0-9][A-Za-z0-9.\-]*)" % _EXT
@@ -50,7 +50,7 @@ _DECLARED = re.compile(
 _FENCE = re.compile(r"^ {0,3}(```|~~~)")
 _ATX = re.compile(r"^ {0,3}#{1,6}[ \t]")
 MAX_LINE = 4000
-_VERSION_LIKE = re.compile(r"\bv\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.\-+]*)?\b", re.IGNORECASE)
+_VERSION_LIKE = re.compile(r"\bv\d+\.\d+(?:\.[0-9A-Za-z]+)*(?:[-+][0-9A-Za-z.\-+]*)?", re.IGNORECASE)
 _LONG_TOKEN = re.compile(r"\b[A-Za-z0-9_\-]{32,}\b")
 
 
@@ -146,7 +146,7 @@ def exists_anywhere(repo: str, refs: list[str], path: str) -> list[str]:
 def iter_lines(text: str, diff: bool) -> Iterator[tuple[int, str]]:
     for n, line in enumerate(text.splitlines(), start=1):
         if len(line) > MAX_LINE:
-            line = line[:MAX_LINE]  # bounded work per line (ReDoS guard)
+            continue  # bounded work per line (ReDoS guard); never scan a truncated claim
         if diff:
             if line.startswith("+++") or not line.startswith("+"):
                 continue
@@ -173,17 +173,62 @@ def extract(text: str, diff: bool = False) -> list[Claim]:
 
 
 # ── verification ────────────────────────────────────────────────────────────────
+_OPEN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_CLOSE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
+_QUOTE = re.compile(r"^ {0,3}(?:> ?)+")
+_SETEXT = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
+_THEMATIC = re.compile(r"^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$")
+_COMMENT_PAIR = re.compile(r"<!--.*?-->")
+_CODE_SPAN = re.compile(r"`[^`\n]*`")
+
+
+class AmbiguousStructure(Exception):
+    """The Markdown structure cannot be read unambiguously; callers must answer UNRESOLVED."""
+
+
 def _outside_fences(content: str) -> list[str]:
-    """Lines of `content` that are NOT inside a fenced code block (``` or ~~~)."""
+    """Lines that are neither inside a fenced code block nor inside an HTML comment.
+
+    Fences follow CommonMark: the closer uses the same character, is at least as long as the
+    opener, is indented at most 3 spaces and carries no info string. Fences inside blockquotes
+    are tracked on the quote-stripped line. A comment opened inside a comment is ambiguous.
+    """
     out: list[str] = []
-    fence = None
-    for ln in content.splitlines():
-        m = _FENCE.match(ln)
-        if m:
-            fence = None if fence == m.group(1) else (fence or m.group(1))
+    fence: tuple[str, int] | None = None
+    in_comment = False
+    for raw in content.splitlines():
+        ln = raw
+        # Locate comment markers on a same-length copy where inline code spans are neutralised,
+        # so a doc that merely MENTIONS `<!--` in backticks is not read as a comment.
+        scan = _CODE_SPAN.sub(lambda m: m.group().replace("<", "_").replace(">", "_"), ln)
+        if in_comment:
+            if "<!--" in scan.split("-->", 1)[0]:
+                raise AmbiguousStructure("nested HTML comment")
+            if "-->" in scan:
+                in_comment = False
+                cut = scan.index("-->") + 3
+                ln, scan = ln[cut:], scan[cut:]
+            else:
+                continue
+        while True:
+            m = _COMMENT_PAIR.search(scan)
+            if not m:
+                break
+            ln, scan = ln[: m.start()] + ln[m.end() :], scan[: m.start()] + scan[m.end() :]
+        if "<!--" in scan:
+            in_comment = True
+            ln = ln[: scan.index("<!--")]
+        core = _QUOTE.sub("", ln) if ln.lstrip().startswith(">") else ln
+        if fence is not None:
+            m = _CLOSE_FENCE.match(core)
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1]:
+                fence = None
             continue
-        if fence is None:
-            out.append(ln)
+        m = _OPEN_FENCE.match(core)
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence = (m.group(1)[0], len(m.group(1)))
+            continue
+        out.append(ln)
     return out
 
 
@@ -197,54 +242,76 @@ def _heading_tokens(content: str) -> tuple[set[str], bool]:
 
 
 def declared_versions(content: str) -> list[str]:
-    """Versions a file declares for itself, ignoring fenced code (examples).
+    """Versions a file (or section) declares for itself, ignoring code and comments.
 
     YAML frontmatter, when present, is the authoritative declaration."""
     lines = content.splitlines()
     if lines and lines[0].strip() == "---":
-        for j in range(1, min(len(lines), 80)):
-            if lines[j].strip() == "---":
-                fm = "\n".join(lines[1:j])
-                found = sorted({a or b for a, b in _DECLARED.findall(fm)})
-                if found:
-                    return found
-                break
+        end = next((j for j in range(1, min(len(lines), 200)) if lines[j].strip() == "---"), None)
+        if end is None:
+            return []  # unterminated frontmatter: nothing is authoritative -> UNRESOLVED upstream
+        fm = "\n".join(lines[1:end])
+        found = sorted({a or b for a, b in _DECLARED.findall(fm)})
+        if found:
+            return found
+        content = "\n".join(lines[end + 1 :])
     return sorted({a or b for a, b in _DECLARED.findall("\n".join(_outside_fences(content)))})
 
 
-def _heading_window(content: str, anchor: str, span: int = 14) -> str:
-    """Text of the lines right after the first HEADING that carries the anchor.
+def _heading_windows(content: str, anchor: str) -> list[str]:
+    """Text after EVERY heading that carries the anchor, each ending at the next boundary.
 
-    A bare mention of the anchor in prose is deliberately ignored: its neighbouring
-    'version:' line would belong to some other section, so using it could mint a
-    false VERIFIED/MISMATCH. No heading -> empty window -> the claim stays UNRESOLVED.
+    Boundaries: another ATX heading, a Setext underline (the line above it is that
+    heading's title and is dropped), a thematic break. A bare mention of the anchor in
+    prose is ignored. Every matching heading is returned so duplicates can conflict.
     """
     lines = _outside_fences(content)
+    wins: list[str] = []
     for i, ln in enumerate(lines):
         if _ATX.match(ln) and anchor in ln:
-            win = []
-            for nxt in lines[i + 1 : i + 1 + span]:
-                if _ATX.match(nxt):
-                    break  # the next heading owns whatever follows
+            win: list[str] = []
+            for nxt in lines[i + 1 :]:
+                if _ATX.match(nxt) or _THEMATIC.match(nxt):
+                    break
+                if _SETEXT.match(nxt):
+                    if win:
+                        win.pop()  # that line was the title of the next (setext) heading
+                    break
                 win.append(nxt)
-            return "\n".join(win)
-    return ""
+            wins.append("\n".join(win))
+    return wins
 
 
-def _anchor_files(repo: str, refs: list[str], anchor: str) -> list[tuple[str, str]]:
-    """Return (ref, path) of tracked .md files whose heading line carries [ID]."""
+ANCHOR_FILE_CAP = 50
+
+
+def _anchor_files(repo: str, refs: list[str], anchor: str) -> tuple[list[tuple[str, str]], bool]:
+    """(ref, path) of tracked .md files whose heading carries [ID]; second item = cap exceeded."""
     hits: list[tuple[str, str]] = []
+    overflow = False
     for r in refs:
-        rc, out = _git(repo, "grep", "-l", "-F", anchor, r, "--", "*.md")
+        esc = "".join("\\" + ch if ch in "[]().*+?^$|{}\\" else ch for ch in anchor)
+        pat = r"^ {0,3}#{1,6}[ \t].*" + esc  # only files whose HEADING carries the anchor
+        rc, out = _git(repo, "grep", "-l", "-E", "-e", pat, r, "--", "*.md")
         if rc != 0:
             continue
-        for ln in out.splitlines()[:12]:
+        rows = out.splitlines()
+        overflow = overflow or len(rows) > ANCHOR_FILE_CAP
+        for ln in rows[:ANCHOR_FILE_CAP]:
             ref, _, path = ln.partition(":")
             hits.append((ref, path))
-    return hits
+    return hits, overflow
 
 
 def verify(c: Claim, repo: str, refs: list[str]) -> Claim:
+    try:
+        return _verify(c, repo, refs)
+    except AmbiguousStructure as e:
+        c.verdict, c.evidence = UNRESOLVED, f"ambiguous markdown structure ({e})"
+        return c
+
+
+def _verify(c: Claim, repo: str, refs: list[str]) -> Claim:
     if c.kind == "PATH":
         if not safe_path(c.target):
             c.verdict, c.evidence = UNRESOLVED, "path is outside the repo or unsafe"
@@ -268,24 +335,42 @@ def verify(c: Claim, repo: str, refs: list[str]) -> Claim:
         if not c.evidence:
             c.verdict, c.evidence = MISMATCH, f"file absent at all of {','.join(refs)}"
     elif c.kind == "VERSION":
-        per_ref: list[tuple[str, list[str]]] = []
+        by_ref: dict[str, set[str]] = {}
+        overflow = False
         if c.target.startswith("["):
-            for r, p in _anchor_files(repo, refs, c.target):
-                per_ref.append((r, declared_versions(_heading_window(blob(repo, r, p) or "", c.target))))
+            hits, overflow = _anchor_files(repo, refs, c.target)
+            for r, pth in hits:
+                for w in _heading_windows(blob(repo, r, pth) or "", c.target):
+                    by_ref.setdefault(r, set()).update(declared_versions(w))
         else:
             for r in refs:
-                per_ref.append((r, declared_versions(blob(repo, r, c.target) or "")))
-        c.declared = sorted({v for _, vs in per_ref for v in vs})
-        single = [(r, vs[0]) for r, vs in per_ref if len(vs) == 1]
-        if any(v == c.detail for _, v in single):
+                by_ref.setdefault(r, set()).update(declared_versions(blob(repo, r, c.target) or ""))
+        c.declared = sorted({v for vs in by_ref.values() for v in vs})
+        resolved = {r: next(iter(vs)) for r, vs in by_ref.items() if len(vs) == 1}
+        conflicted = [r for r, vs in by_ref.items() if len(vs) > 1]
+        if any(v == c.detail for v in resolved.values()) and not overflow:
             c.verdict, c.evidence = VERIFIED, f"declared {','.join(c.declared)}"
-        elif any(len(vs) > 1 for _, vs in per_ref) or not single:
-            why = "conflicting declarations in one file" if any(len(vs) > 1 for _, vs in per_ref) \
-                else "no heading carrying the anchor with a declared version"
-            c.verdict, c.evidence = UNRESOLVED, why
+        elif overflow:
+            c.verdict, c.evidence = UNRESOLVED, f"more than {ANCHOR_FILE_CAP} files mention the anchor"
+        elif conflicted:
+            c.verdict, c.evidence = UNRESOLVED, f"conflicting declarations at {','.join(conflicted)}"
+        elif not resolved:
+            c.verdict, c.evidence = UNRESOLVED, "no heading carrying the anchor with a declared version"
         else:
             c.verdict, c.evidence = MISMATCH, f"claimed v{c.detail}; declared {','.join(c.declared)}"
     return c
+
+
+def _mask_obj(o, key: str = ""):
+    if isinstance(o, str):
+        if key == "refs" and re.fullmatch(r"[0-9a-fA-F]{7,64}", o):
+            return o
+        return mask(o, 200)
+    if isinstance(o, list):
+        return [_mask_obj(x, key) for x in o]
+    if isinstance(o, dict):
+        return {k: (v if k == "masking" else _mask_obj(v, k)) for k, v in o.items()}
+    return o
 
 
 def run(text: str, repo: str, refs: list[str], diff: bool = False) -> dict:
@@ -297,21 +382,24 @@ def run(text: str, repo: str, refs: list[str], diff: bool = False) -> dict:
     seen = sum(len(_VERSION_LIKE.findall(ln)) for _, ln in iter_lines(text, diff))
     unparsed = max(0, seen - sum(1 for c in claims if c.kind == "VERSION"))
     code = 3 if counts[MISMATCH] else 2 if counts[UNRESOLVED] else 0
-    shown = []
-    for c in claims:
-        d = asdict(c)
-        for k in ("target", "detail", "evidence"):
-            d[k] = mask(d[k], 200)  # raw lookup values stay internal; every displayed string is masked
-        shown.append(d)
-    return {"refs": refs, "claims": shown, "counts": counts,
-            "exit": code, "masking": MASKING_MODE, "unparsed_version_mentions": unparsed,
-            "note": ("no verifiable claims found — this is NOT a pass of anything" if not claims else "")
-                    + (f" {unparsed} version-like mention(s) not tied to an anchor — review manually"
-                       if unparsed else "")}
+    skipped = sum(1 for ln in text.splitlines() if len(ln) > MAX_LINE)
+    rep = {"refs": refs, "claims": [asdict(c) for c in claims], "counts": counts,
+           "exit": code, "masking": MASKING_MODE, "unparsed_version_mentions": unparsed,
+           "skipped_long_lines": skipped,
+           "note": ("no verifiable claims found — this is NOT a pass of anything" if not claims else "")
+                   + (f" {unparsed} version-like mention(s) not tied to an anchor — review manually" if unparsed else "")
+                   + (f" {skipped} line(s) over {MAX_LINE} chars were skipped, not verified" if skipped else "")}
+    return _mask_obj(rep)  # raw lookup values stay internal; EVERY serialized string is masked
+
+
+class _MaskedParser(argparse.ArgumentParser):
+    def error(self, message):  # argparse echoes raw argv in diagnostics; never let it leak PII
+        print(f"ref-claim-verify: {mask(message)}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap = _MaskedParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("file", nargs="?", default="-", help="text file, or - for stdin")
     ap.add_argument("--repo", default=".")
     ap.add_argument("--ref", action="append", help="commit-ish to check against (repeatable; default HEAD). "
@@ -323,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
         text = sys.stdin.read() if a.file == "-" else pathlib.Path(a.file).read_text(errors="replace")
         rep = run(text, a.repo, a.ref or ["HEAD"], a.diff)
     except (OSError, ValueError) as e:
-        print(f"ref-claim-verify: {e}", file=sys.stderr)
+        print(f"ref-claim-verify: {mask(str(e))}", file=sys.stderr)
         return 1
     if a.json:
         print(json.dumps(rep, ensure_ascii=False, indent=2))

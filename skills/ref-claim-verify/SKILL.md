@@ -75,9 +75,9 @@ python3 skills/ref-claim-verify/ref_claim_verify.py body.md --repo /path/to/othe
 For a `[ID]` anchor the declared version is read only from the lines right after a **heading
 that carries the anchor, up to the next heading** — a declaration belongs to its own section and
 is never borrowed from the following one. A bare mention of the anchor in prose is ignored on purpose.
-Versions are compared **exactly** (`1.2.3` ≠ `1.2.3-rc.1`, `1.2` ≠ `1.2.9`). Fenced code blocks
-(examples) are ignored when looking for declarations or headings; YAML frontmatter, when present, is
-the authoritative declaration. Two different declarations in one file are `UNRESOLVED`, never a pass.
+Versions are compared **exactly** (`1.2.3` ≠ `1.2.3-rc.1`, `1.2` ≠ `1.2.9`). Fenced code blocks (CommonMark: same character, closer at least as long as the opener and indented at most 3 spaces, also inside blockquotes), HTML comments (inline-code mentions of `<!--` are not comments)
+and Setext/thematic-break boundaries are respected when looking for declarations or headings; the section runs to its real boundary, with no fixed line window; YAML frontmatter, when present, is
+the authoritative declaration (an unterminated frontmatter block is not authoritative). Version tokens must be complete (`8.6.4.2` never verifies `v8.6.4`). Nested HTML comments make a file's structure ambiguous -> `UNRESOLVED`. Two different declarations in one file, or the same anchor heading declaring different versions, are `UNRESOLVED`, never a pass.
 When refs differ (base vs head of a PR) a claim is verified if ANY ref declares it unambiguously.
 
 ## Verdicts and exit codes
@@ -93,13 +93,14 @@ When refs differ (base vs head of a PR) a claim is verified if ANY ref declares 
 2. **Input validation**: refs starting with `-` are rejected; paths with `..`, absolute or `~` prefixes are never read.
 3. **PII/secret protection**: every displayed string (excerpt, target, detail, evidence) goes through `skills/pii-masking` (CPF, email, BR phone) **and** a second coarse pass (international phone shapes, CPF, email); any 32+ char token becomes `[TOKEN]`. If `pii-masking` cannot load, only the coarse pass runs and the report declares `masking: fallback` — it never degrades to raw text. Raw values stay internal to the lookups.
 4. **No false comfort**: absence of evidence is UNRESOLVED or MISMATCH, never VERIFIED.
-5. **Bounded work**: lines longer than 4000 characters are truncated before scanning and separators in the patterns are unambiguous (no quadratic backtracking).
+5. **Bounded work**: lines longer than 4000 characters are **skipped, not truncated** (a truncated line could mint a wrong claim) and are counted in `skipped_long_lines`; separators in the patterns are unambiguous (no quadratic backtracking).
 
 ## Limits (honest)
 
 - Recognises backtick-quoted paths and the version/section forms above; free-prose references ("see the guide") are not extracted.
 - A SECTION is matched against real Markdown (ATX `#`) headings outside code fences only.
 - It checks one repo per run; cross-repo claims need a second run with the other `--repo`.
+- Markdown is parsed heuristically (no full CommonMark engine). The design rule is conservative: any structural ambiguity yields `UNRESOLVED`, never `VERIFIED` — but `VERIFIED` is strong evidence the cited fact exists, not a proof; keep a human or cross-vendor review of the change itself.
 
 ## Composes (does not duplicate)
 

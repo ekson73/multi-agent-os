@@ -180,3 +180,97 @@ def test_adversarial_whitespace_line_is_bounded(repo):
     for text in ("[X]" + " " * 200000 + "!", "`a.md`" + " " * 200000 + "§", "`a.md` " + "-" * 200000):
         t0 = time.time(); rcv.run(text, str(repo), ["HEAD"])
         assert time.time() - t0 < 1.5
+
+
+# ── round-2 regressions (second independent review) ──
+def test_shorter_fence_inside_longer_fence_does_not_close_it(repo):
+    _commit(repo, {"f.md": "````\n```\nVersion: 8.6.4\n````\n"})
+    assert claims("`f.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_setext_heading_is_a_section_boundary(repo):
+    _commit(repo, {"s.md": "## [ZX]\nOther artifact\n--------------\nVersion: 8.6.4\n"})
+    assert claims("[ZX] v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_over_long_lines_are_skipped_never_truncated_into_a_claim(repo):
+    _commit(repo, {"l.md": "Version: 2.7.4\n"})
+    pad = "`l.md` v2.7.4"
+    line = pad + "x" * (rcv.MAX_LINE - len(pad)) + "-rc.2"
+    r = rcv.run(line, str(repo), ["HEAD"])
+    assert r["claims"] == [] and r["skipped_long_lines"] == 1 and "skipped" in r["note"]
+
+
+def test_html_comment_is_not_a_heading_or_declaration(repo):
+    _commit(repo, {"h.md": "<!--\n# 8.6 hidden comment\nVersion: 8.6.4\n-->\n"})
+    assert claims("`h.md` §8.6", repo)[0]["verdict"] != "VERIFIED"
+    assert claims("`h.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_declared_field_and_whole_report_are_masked(repo):
+    import json
+    secret = "S" * 40
+    _commit(repo, {"d.md": f"Version: 2.7.4+{secret}\n"})
+    r = rcv.run("`d.md` v2.7.4", str(repo), ["HEAD"])
+    assert secret not in json.dumps(r)
+
+
+def test_duplicate_anchor_headings_with_conflicting_versions_are_unresolved(repo):
+    _commit(repo, {"dup.md": "## [ZX]\nVersion: 8.6.4\n## [ZX]\nVersion: 9.0.0\n"})
+    assert claims("[ZX] v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_files_that_only_mention_the_anchor_do_not_trip_the_overflow_cap(repo):
+    files = {f"m{i}.md": "prose that cites [QQ1] in passing\n" for i in range(rcv.ANCHOR_FILE_CAP + 10)}
+    files["real.md"] = "## [QQ1] Real\nVersion: 4.5.6\n"
+    _commit(repo, files)
+    assert claims("[QQ1] v4.5.6", repo)[0]["verdict"] == "VERIFIED"
+
+
+# ── round-3 regressions ──
+def test_indented_closer_does_not_close_a_fence(repo):
+    _commit(repo, {"i.md": "```yaml\n    ```\nVersion: 8.6.4\n```\n"})
+    assert claims("`i.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_fence_inside_blockquote_is_code(repo):
+    _commit(repo, {"q.md": "> ```yaml\n> Version: 8.6.4\n> ```\n"})
+    assert claims("`q.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_blockquote_declaration_outside_a_fence_still_counts(repo):
+    _commit(repo, {"b.md": "## [BQ]\n\n> **Vers\u00e3o**: 1.0.0\n"})
+    assert claims("[BQ] v1.0.0", repo)[0]["verdict"] == "VERIFIED"
+
+
+def test_unterminated_frontmatter_is_not_authoritative(repo):
+    _commit(repo, {"u.md": "---\nversion: 8.6.4\nname: unterminated\n"})
+    assert claims("`u.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_version_with_extra_components_is_not_truncated(repo):
+    _commit(repo, {"v.md": "Version: 8.6.4.2\n"})
+    assert claims("`v.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_conflicting_declaration_beyond_old_14_line_window_is_seen(repo):
+    _commit(repo, {"w2.md": "## [AA]\nVersion: 8.6.4\n" + "\n" * 14 + "Version: 9.0.0\n"})
+    assert claims("[AA] v8.6.4", repo)[0]["verdict"] == "UNRESOLVED"
+
+
+def test_nested_html_comment_is_ambiguous_not_verified(repo):
+    _commit(repo, {"n.md": "<!-- outer\n<!-- inner -->\nVersion: 8.6.4\n-->\n"})
+    assert claims("`n.md` v8.6.4", repo)[0]["verdict"] != "VERIFIED"
+
+
+def test_cli_usage_errors_do_not_echo_pii(capsys):
+    email = "alice" + "@" + "example" + ".test"
+    with pytest.raises(SystemExit) as exc:
+        rcv.main([f"--unknown={email}"])
+    err = capsys.readouterr().err
+    assert exc.value.code == 1 and email not in err and "unrecognized" in err
+
+
+def test_comment_marker_quoted_in_inline_code_is_not_a_comment(repo):
+    _commit(repo, {"ic.md": "## [IC] Title\n\nUse `<!--` and `-->` markers.\n\n> **Versão**: 2.0.0\n"})
+    assert claims("[IC] v2.0.0", repo)[0]["verdict"] == "VERIFIED"
