@@ -100,7 +100,8 @@ else
   gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews?per_page=100" > "$TMP/reviews.json" \
     || die "could not read reviews"
   # Combined status carries the description (statusCheckRollup omits it).
-  gh api "repos/$REPO/commits/$HEAD_LIVE/status?per_page=100" > "$TMP/status.json" \
+  # All pages: rate-limit signals may appear after the first 100 statuses.
+  gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/status?per_page=100" > "$TMP/status.json" \
     || die "could not read commit status"
   gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/check-runs?per_page=100" > "$TMP/checks.json" \
     || die "could not read check runs"
@@ -128,7 +129,7 @@ RESULT="$(jq -n \
   | ($revf[0] | flatten_pages
       | map(select(.submitted_at != null and .state != "PENDING" and .user.login != null))) as $reviews
   # Rate-limited signals on the head commit: statuses + check runs.
-  | ([ ($stf[0].statuses // [])[]
+  | ([ ($stf[0] | if type == "object" then [.] else flatten_pages end | map(.statuses // []) | add // [])[]
         | select((.description // "") | rate_limited_text)
         | {context: .context, state: .state, description: .description} ]
      + [ ($chf[0] | flatten_pages
