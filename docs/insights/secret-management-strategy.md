@@ -44,7 +44,7 @@ ESO   → For runtime secrets fetched from AWS Secrets Manager at pod startup
 ```properties
 # application-hml.properties — PLAINTEXT CREDENTIALS IN GIT: (values redacted here; rotate at source)
 quarkus.datasource.password=${VEK_DB_PASSWORD:***}
-quarkus.redis.hosts=rediss://...:hl0vM6hlm31HDu2c@...amazonaws.com:6379
+quarkus.redis.hosts=rediss://***@...amazonaws.com:6379
 vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
 ```
 
