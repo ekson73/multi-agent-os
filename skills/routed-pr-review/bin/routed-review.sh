@@ -113,7 +113,7 @@ log "    head=$HEAD_SHA  \"$PR_TITLE\""
 # Classify each CONFIGURED REVIEWER (a known bot) that has spoken on this PR.
 #
 # ⛔ Only KNOWN_BOTS count as primaries. A HUMAN review must never land in
-# CLEARED: a human `APPROVED`/`COMMENTED` would otherwise flip the state to
+# CLEARED: a human `APPROVED` would otherwise flip the state to
 # `all_cleared_for_head` while a configured bot is still pending — and on a
 # self-authored PR that is the author clearing their own gate. Humans are
 # reported separately, for information only.
@@ -135,10 +135,17 @@ QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r '
 # `all_cleared_for_head` branch (the only path to `exit 0`) was dead code.
 # Found by a routed kimi review of this very tool on PR #414; reproduced by
 # executing the shipped expression. Bind the head explicitly, like CLEARED does.
+# ⛔ Only `APPROVED` at the current head is a convergence verdict. `COMMENTED`
+# is commentary (a walkthrough, a summary, a question) and never clears a
+# primary. Every configured primary whose latest review is anything else —
+# COMMENTED, CHANGES_REQUESTED, DISMISSED, an unknown state, an earlier head or
+# no recorded head — is PENDING, so one approval beside a non-approving bot can
+# no longer complete C3. (A bot's CHANGES_REQUESTED does not always move
+# `reviewDecision`, so that field alone is not enough.)
 STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
-  [.reviews[]? | select(.sha != $head and .sha != "") | .who] | unique | join(",")')"
+  [.reviews[]? | select(.sha != $head or .verdict != "APPROVED") | .who] | unique | join(",")')"
 CLEARED="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
-  [.reviews[]? | select(.sha == $head and (.verdict == "APPROVED" or .verdict == "COMMENTED")) | .who] | unique | join(",")')"
+  [.reviews[]? | select(.sha == $head and .verdict == "APPROVED") | .who] | unique | join(",")')"
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
 CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if .reviewDecision == "CHANGES_REQUESTED" then "yes" else "no" end')"
 
@@ -365,6 +372,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# ⛔ The tamper checks compare hashes. A hashing tool that is missing or fails
+# prints nothing, both sides become empty, and `cmp` reports "identical" —
+# a check that verifies nothing while saying `clean`. So the tool is resolved
+# once, its failure is fatal, and a manifest must have one line per file.
+if command -v shasum >/dev/null 2>&1; then HASH_CMD=(shasum -a 256)
+elif command -v sha256sum >/dev/null 2>&1; then HASH_CMD=(sha256sum)
+else HASH_CMD=(); fi
+sha256_stdin() {  # prints the digest of stdin, or fails
+  [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
+  local d; d="$("${HASH_CMD[@]}" | cut -d' ' -f1)" || return 1
+  printf '%s' "$d" | grep -qE '^[0-9a-f]{64}$' || return 1
+  printf '%s' "$d"
+}
+build_manifest() {  # $1=dir $2=out ; fails unless every file got a digest
+  [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
+  local n m
+  n="$(cd "$1" && find . -type f | wc -l | tr -d ' ')"
+  [ "$n" = 0 ] && { : > "$2"; return 0; }
+  ( cd "$1" && find . -type f -print0 | sort -z | xargs -0 "${HASH_CMD[@]}" ) > "$2" 2>/dev/null || [ "$n" = 0 ] || return 1
+  m="$(grep -cE '^[0-9a-f]{64}  ' "$2" 2>/dev/null || true)"
+  [ "${m:-0}" = "$n" ]
+}
+
 build_readonly_export() {
   command -v tar >/dev/null 2>&1 || die "tar not found — required for read-only export"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -379,8 +409,8 @@ build_readonly_export() {
   git archive "$HEAD_SHA" | tar -x -C "$EXPORT_DIR" \
     || die "git archive failed — cannot build a read-only export"
   # manifest BEFORE locking, so the check covers content, not just mtimes
-  ( cd "$EXPORT_DIR" && find . -type f -print0 | sort -z \
-      | xargs -0 shasum -a 256 2>/dev/null ) > "$WORK/manifest.before"
+  build_manifest "$EXPORT_DIR" "$WORK/manifest.before" \
+    || die "integrity manifest could not be built (no working sha256 tool?) — refusing to run an unverifiable review"
   chmod -R a-w "$EXPORT_DIR" 2>/dev/null
   log "    export: $(wc -l < "$WORK/manifest.before" | tr -d ' ') files, chmod a-w, no .git"
 }
@@ -438,11 +468,12 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
 LIVE_BEFORE=""
 snapshot_live_repo() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | sha256_stdin)" \
+    || die "integrity manifest of the live repo could not be built (no working sha256 tool?)"
 }
 verify_live_repo_untouched() {
   [ -n "$LIVE_BEFORE" ] || return 0
-  local now; now="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+  local now; now="$(git status --porcelain 2>/dev/null | sha256_stdin)" || now="unverifiable"
   [ "$now" = "$LIVE_BEFORE" ] && return 0
   log "[!] live-repo check FAILED — the reviewer mutated the working tree outside its export"
   return 1
@@ -450,8 +481,8 @@ verify_live_repo_untouched() {
 verify_export_untouched() {
   [ -n "$EXPORT_DIR" ] || return 0
   chmod -R u+rX "$EXPORT_DIR" 2>/dev/null
-  ( cd "$EXPORT_DIR" && find . -type f -print0 | sort -z \
-      | xargs -0 shasum -a 256 2>/dev/null ) > "$WORK/manifest.after"
+  build_manifest "$EXPORT_DIR" "$WORK/manifest.after" || {
+    log "[!] tamper-check FAILED — post-run manifest could not be built"; return 1; }
   if cmp -s "$WORK/manifest.before" "$WORK/manifest.after"; then
     log "    tamper-check: export unmodified (manifest identical)"
     return 0
@@ -491,24 +522,24 @@ run_reviewer() {
       # `Head reviewed: $HEAD_SHA`. Both tamper checks stayed clean because nothing
       # was written, so the wrong-tree read was invisible. This is the exact defect
       # the codex branch avoids with `--cd`. Found by a routed kimi review on #414.
-      ( cd "$dir" && timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
         --max-turns "$MAX_TURNS" \
         --allowedTools "Read" "Grep" "Glob" \
         --add-dir "$dir" ) > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
-      timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
+      "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     kiro)                          # measured: `chat` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac
@@ -546,7 +577,30 @@ reset_isolation() {  # before trying another candidate: a fresh export + profile
 #    after: any change aborts the run as an isolation violation and the
 #    pre-run bytes are restored. Detection is the floor where prevention is
 #    not available (os-perms-only, vendor CLIs).
-unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER
+# The reviewer environment is an ALLOWLIST, not "everything minus a few":
+# base process vars, proxy/locale, and the reviewer vendors' own credential
+# prefixes. Everything else — repo tokens (GH_*/GITHUB_*), cloud keys, and the
+# ROUTED_REVIEW_* control vars — is dropped. ROUTED_REVIEW_ENV_ALLOW adds
+# explicit names (e.g. a vendor var outside the prefixes below); ROUTED_REVIEW_*
+# can never be re-admitted.
+REVIEWER_ENV=(env -i)
+_env_allowed() {
+  case "$1" in
+    ROUTED_REVIEW_*) return 1 ;;
+    PATH|HOME|USER|LOGNAME|SHELL|TERM|LANG|TMPDIR|TZ|COLORTERM|NO_COLOR) return 0 ;;
+    LC_*|XDG_*|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy) return 0 ;;
+    ANTHROPIC_*|CLAUDE_*|OPENAI_*|CODEX_*|GEMINI_*|GOOGLE_*|MOONSHOT_*|KIMI_*) return 0 ;;
+    DASHSCOPE_*|QWEN_*|XAI_*|GROK_*|OPENROUTER_*|OPENCODE_*|KIRO_*|JCODE_*) return 0 ;;
+  esac
+  case " ${ROUTED_REVIEW_ENV_ALLOW:-} " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+while IFS= read -r _v; do
+  printf '%s' "$_v" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || continue
+  _env_allowed "$_v" && REVIEWER_ENV+=("$_v=${!_v}")
+done < <(compgen -e)
+unset _v
+unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER ROUTED_REVIEW_ENV_ALLOW
 STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
 snapshot_state() {
   rm -f "$WORK/state.before"

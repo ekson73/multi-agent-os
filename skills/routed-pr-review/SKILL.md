@@ -54,7 +54,7 @@ Five phases:
 | phase | what | grounding |
 |---|---|---|
 | **A** resolve | PR, title, `headRefOid`, diff | `gh` |
-| **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head · stale/earlier-head · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
+| **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
 | **C** pick reviewer | capability-detect `command -v`, skip bots expired in `~/.claude/state/ai-review-bots.json`, **exclude the caller's own family** | `ai-code-review-bots-rotation.md` §2/§3 |
 | **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
 | **E** gate verdict | emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
@@ -120,6 +120,9 @@ the emitted evidence says exactly that instead of implying a sandbox.
 
 1. **export manifest** — `sha256` before locking, recompared after; catches
    writes *inside* the tree the reviewer was given.
+   A manifest must carry one digest per file and the hash tool must work — a
+   failing or missing `shasum`/`sha256sum` aborts the run instead of comparing
+   two empty manifests.
 2. **live-repo hash** — `git status --porcelain` digest before/after; catches an
    *escape*, i.e. a write to the working tree the reviewer was never given. The
    first check was blind to this by construction.
@@ -251,7 +254,10 @@ pattern this harness exists to end.
    yes` rides in the comment and the JSON.
 3. **Rotation state is out of the reviewer's reach, and is never trusted.**
    The reviewer is a model steered by the PR under review, so: the
-   `ROUTED_REVIEW_*` variables are scrubbed from its environment; the state
+   reviewer environment is an **allowlist** (base vars, locale/proxy, the
+   reviewer vendors' credential prefixes, plus names in
+   `ROUTED_REVIEW_ENV_ALLOW`) — repo tokens and `ROUTED_REVIEW_*` never reach
+   it; the state
    directory is write-denied when a kernel boundary arms; and in every class
    the state file is snapshotted before dispatch and compared after — any
    change aborts as `isolation_violated` (`violated:state-file`) and the

@@ -31,7 +31,10 @@ SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/rr-contract.XXXXXX")"
 trap 'rm -rf "$SANDBOX"' EXIT
 
 REPO_DIR="$SANDBOX/repo"; STUB_BIN="$SANDBOX/bin"
-mkdir -p "$REPO_DIR" "$STUB_BIN"
+# Rotation state lives in its OWN subdir: the script write-denies the state
+# directory to the reviewer, so marker files a hostile stub drops elsewhere in
+# $SANDBOX must not share it (else a leak test passes for the wrong reason).
+mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
 
 # A real one-commit repo: the script proves cwd == HEAD_SHA and can git-archive it.
 (
@@ -75,6 +78,7 @@ cat > "$STUB_BIN/kimi" <<'STUB'
 # Hostile-reviewer hooks (security cases 14-16). A real reviewer is a model
 # steered by PR content; these model what a prompt-injected one could try.
 [ -n "${T_LEAK_MARK:-}" ] && [ -n "${ROUTED_REVIEW_STATE:-}" ] && : > "$T_LEAK_MARK"
+[ -n "${T_GH_MARK:-}" ] && [ -n "${GH_TOKEN:-}" ] && : > "$T_GH_MARK"
 [ -n "${T_TAMPER_PATH:-}" ] && printf '%s' "${T_TAMPER_JSON:-}" > "$T_TAMPER_PATH" 2>/dev/null
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
@@ -105,7 +109,8 @@ sut() {
   [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
-    && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state-default.json}" \
+    && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
 }
 
@@ -224,7 +229,7 @@ ok_grep "the diagnostic names the dependency and the remedy" 'timeout not found'
 # next family, instead of the run dying and the bot being queued as "retry later".
 # ROUTED_REVIEW_CALLER=codex keeps a real host `codex` out of the pool.
 ELIG="IneligibleTierError: this account is not eligible for the requested tier"
-STATE="$SANDBOX/state-broken.json"
+STATE="$SANDBOX/state/state-broken.json"
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "broken auto-pick candidate falls through to the next family" 3 '.reviewer' "kimi"
@@ -240,7 +245,7 @@ check "a marked-broken candidate is skipped on the next pick" 3 '.skipped_candid
 
 # ── 12 ── positive control: a real quota signal is still classified as quota.
 # Without this, case 10 could pass with a classifier that calls EVERYTHING broken.
-STATE="$SANDBOX/state-quota.json"
+STATE="$SANDBOX/state/state-quota.json"
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="Error 429: rate limit exceeded, retry later" \
        T_GEMINI_RC=1 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "a quota-limited candidate also falls through" 3 '.skipped_candidates[0].class' "quota"
@@ -249,7 +254,7 @@ RC=0; OUT="{\"v\":\"$GOT\"}"
 check "quota is recorded as rate-limited, NOT broken" 0 '.v' "true"
 
 # ── 13 ── an EXPLICIT --reviewer is the operator's choice: classify, never swap.
-STATE="$SANDBOX/state-explicit.json"
+STATE="$SANDBOX/state/state-explicit.json"
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
        T_REVIEWS='[]' ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "explicit broken reviewer is NOT silently replaced" 2 '.failure_class' "broken"
@@ -257,7 +262,7 @@ check "explicit broken reviewer is NOT silently replaced" 2 '.failure_class' "br
 # ── 14 ── the reviewer must not even learn where rotation state lives.
 # The state path rode into the reviewer through the inherited environment;
 # a reviewer that can find the file can poison the next pick.
-OUT="$(STATE="$SANDBOX/state-leak.json" T_LEAK_MARK="$SANDBOX/leak" T_REVIEWS='[]' \
+OUT="$(STATE="$SANDBOX/state/state-leak.json" T_LEAK_MARK="$SANDBOX/leak" T_REVIEWS='[]' \
        T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 if [ ! -e "$SANDBOX/leak" ]; then GOT=hidden; else GOT=leaked; fi
 RC=0; OUT="{\"v\":\"$GOT\"}"
@@ -266,20 +271,20 @@ check "ROUTED_REVIEW_STATE is scrubbed from the reviewer's environment" 0 '.v' "
 # ── 15 ── a reviewer that WRITES the state file is an isolation breach.
 # Force os-perms-only (no kernel boundary) so the write lands, then require it
 # to be detected, the run aborted, and the file restored byte-for-byte.
-STATE="$SANDBOX/state-tamper.json"
-printf '{"bots":{}}' > "$STATE"; cp "$STATE" "$SANDBOX/state-tamper.orig"
+STATE="$SANDBOX/state/state-tamper.json"
+printf '{"bots":{}}' > "$STATE"; cp "$STATE" "$SANDBOX/state/state-tamper.orig"
 OUT="$(EXTRA_BIN="$BROKEN_SBX" T_TAMPER_PATH="$STATE" \
        T_TAMPER_JSON='{"bots":{"codex":{"broken_at":"2026-01-01T00:00:00Z"}}}' \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a reviewer that writes rotation state aborts as isolation_violated" 1 '.detail' "violated:state-file"
-if cmp -s "$STATE" "$SANDBOX/state-tamper.orig"; then GOT=restored; else GOT=poisoned; fi
+if cmp -s "$STATE" "$SANDBOX/state/state-tamper.orig"; then GOT=restored; else GOT=poisoned; fi
 RC=0; OUT="{\"v\":\"$GOT\"}"
 check "the tampered state file is restored to its pre-run bytes" 0 '.v' "restored"
 
 # ── 16 ── forged state entries are ignored, never obeyed (fail-closed).
 # A far-future broken_at would silence a family forever, and a non-numeric
 # retry_after_sec must never reach shell arithmetic. Both mean "no state".
-STATE="$SANDBOX/state-forged.json"
+STATE="$SANDBOX/state/state-forged.json"
 cat > "$STATE" <<'JSON'
 {"bots":{"kimi":{"broken_at":"2099-01-01T00:00:00Z",
                  "last_limited_at":"2099-01-01T00:00:00Z",
@@ -288,6 +293,37 @@ JSON
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "forged future/garbage state does not exclude a healthy reviewer" 3 '.reviewer' "kimi"
+
+# ── 17 ── a COMMENTED review is never a convergence verdict.
+# Only APPROVED at the current head clears a configured primary; COMMENTED is
+# commentary. Counting it as clearing let a bot's walkthrough complete C3.
+COMMENT_AT_HEAD="$(printf "$AT_HEAD" COMMENTED)"
+OUT="$(T_REVIEWS="$COMMENT_AT_HEAD" T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "COMMENTED at head does NOT clear C3" 3 '.may_complete_c3' "false"
+
+# ── 18 ── every configured primary must approve; one approval is not enough.
+# A second bot that commented, or requested changes without moving
+# reviewDecision, at the SAME head was invisible to the gate.
+MIXED='[{"author":{"login":"coderabbitai"},"state":"APPROVED","commit":{"oid":"'"$HEAD_SHA"'"}},
+        {"author":{"login":"qodo-merge"},"state":"CHANGES_REQUESTED","commit":{"oid":"'"$HEAD_SHA"'"}}]'
+OUT="$(T_REVIEWS="$MIXED" T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a non-approving primary at head blocks C3 even beside an approval" 3 '.may_complete_c3' "false"
+
+# ── 19 ── the tamper check must not pass vacuously.
+# With a hashing tool that prints nothing, both manifests were empty, `cmp`
+# found them equal and the check reported `clean` — verifying nothing.
+NOHASH="$SANDBOX/nohash"; mkdir -p "$NOHASH"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$NOHASH/shasum"; chmod +x "$NOHASH/shasum"
+OUT="$(EXTRA_BIN="$NOHASH" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a failing hash tool aborts instead of reporting a clean tamper check" 1
+ok_grep "the abort names the integrity check" 'manifest'
+
+# ── 20 ── the reviewer env is an ALLOWLIST: unrelated credentials never reach it.
+OUT="$(GH_TOKEN=dummy-not-a-secret T_GH_MARK="$SANDBOX/ghleak" T_REVIEWS='[]' \
+       T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+if [ ! -e "$SANDBOX/ghleak" ]; then GOT=dropped; else GOT=leaked; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "GH_TOKEN is not in the reviewer's allowlisted environment" 0 '.v' "dropped"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"

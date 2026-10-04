@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review` gate: only APPROVED clears, tamper check cannot pass vacuously, reviewer env is an allowlist
+
+- `skills/routed-pr-review/bin/routed-review.sh` — three findings from a
+  routed review of #414, each reproduced before fixing:
+  - a bot `COMMENTED` review at the head counted as clearing a primary, and a
+    second bot that commented or requested changes at the same head was
+    ignored beside one approval. Now only `APPROVED` at the head clears; any
+    other latest state is pending.
+  - the export/live-repo tamper checks hashed with `shasum` and discarded its
+    errors: with a failing or missing tool both manifests were empty and the
+    check reported `clean`. The hash tool is resolved once (`shasum` or
+    `sha256sum`), a manifest must hold one digest per file, and failure aborts.
+  - the reviewer environment is now an allowlist (base vars, locale/proxy, the
+    reviewer vendors' credential prefixes, plus `ROUTED_REVIEW_ENV_ALLOW`);
+    repo tokens and `ROUTED_REVIEW_*` never reach the reviewer.
+- `CHANGELOG.md` — the #414 contract-test bullet had landed inside the released
+  `[1.22.1]` section; moved under the unreleased #414 entry.
+- `tests/contract.sh` — +4 cases (27/27); rotation state moved to its own
+  subdir so a write-denied state dir cannot make a leak test pass falsely.
+
 ### Security — `routed-pr-review` rotation state is isolated from, and not trusted by, the reviewer
 
 - `skills/routed-pr-review/bin/routed-review.sh` — the reviewer process
@@ -361,6 +381,8 @@ Cada correcao abaixo tem contraprova executada.
   bot-cleared set, vendor paths reading a tree not proven to be the stamped SHA,
   `--reviewer` bypassing the caller-exclusion invariant, and a mandatory secret
   scan that was silently skipped when `gitleaks` was absent. All fixed in-PR.
+
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
@@ -1269,7 +1291,6 @@ front-door answering *"what should I focus on now? who asked me for what, by whe
 - Replace stale auto-generated "TypeScript PascalCase" body with accurate MAOS multi-harness contributor skill
 
 ### Added
-- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
 
 - `scripts/validate-skill-frontmatter.sh` + `npm run validate:skills`
 - `docs/multi-host-packaging.md` install matrix + agent id notes
