@@ -81,6 +81,13 @@ d="$(mk rate-limited-current "[$(rv 'coderabbitai[bot]' COMMENTED $HEAD 2026-10-
   '[{"context":"CodeRabbit","state":"success","description":"Review rate limited"}]')"
 run "$d"; eq 3 "$rc" 'rate limit at head blocks even with a current review'
 
+# 8b. a rate-limited status on a later API page still blocks
+p1="[]"
+p2="[{\"context\":\"CodeRabbit\",\"state\":\"success\",\"description\":\"Review rate limited\"}]"
+d="$(mk rate-limited-later-page "[$(rv 'coderabbitai[bot]' COMMENTED $HEAD 2026-10-01T10:00:00Z 1)]")"
+printf '[{"statuses":%s},{"statuses":%s}]' "$p1" "$p2" > "$d/status.json"
+run "$d"; eq 3 "$rc" 'rate limit on a later status page blocks'
+
 # 9. a non-rate-limit success status does not block
 d="$(mk ok-status "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]" \
   '[{"context":"CodeRabbit","state":"success","description":"Review completed"}]')"
