@@ -11,6 +11,12 @@
 #   answered by reading `latestReviews`/`reviewDecision`, which keep surfacing a
 #   clean verdict from an earlier commit after a later push. This makes the check
 #   deterministic, fail-closed and jq-parseable.
+# Spec: rules/pr-governance-unified.md Step 7 ("Veredito vinculado ao head") —
+#   this script mechanizes the per-reviewer verdict part of that audit only; it does
+#   not replace reading review bodies and inline comments (Step 7 b/c).
+# Idempotency: read-only — only GET requests (`gh pr view`, `gh api`), no writes,
+#   no local state beyond a private temp dir removed on exit. Re-running is safe;
+#   the result changes only if the PR changes between runs.
 # Fail-closed: any API/parse failure exits 2 (never 0); an unverifiable reviewer
 #   (STALE, NONE, rate-limited, dismissed) exits 3. There is no `|| echo 0` path.
 # Portability: POSIX Bash 3.2 + jq + gh. No secrets: auth is whatever `gh` already

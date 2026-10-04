@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   force-push, `--primary` NONE, malformed input, paged statuses, unknown
   review state, rate limit in `output.text`, literal regex).
 - Documented in `rules/pr-governance-unified.md` Step 7 + Tools Reference.
+- Script header cites its spec (Step 7) and states idempotency (read-only);
+  the test suite fails fast on any fixture/setup failure (no `set -e`, because
+  every case captures a non-zero exit of the script under test).
 
 ### Fixed — gitleaks false-negative: entropy on value, not match (follow-up to #433)
 

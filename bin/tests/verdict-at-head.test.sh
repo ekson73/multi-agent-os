@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 # Tests for bin/verdict-at-head — offline, fixture-driven (no network, no gh).
 # Bash 3.2-safe, self-contained. Run: bash bin/tests/verdict-at-head.test.sh
+# No `set -e` on purpose: every case captures a NON-ZERO exit code of the script
+#   under test (`out=$(...); rc=$?`), which `set -e` would abort on. Setup failures
+#   are made fatal explicitly instead: `abort` for top-level setup, and a sentinel
+#   file for fixture writes (they run inside `$(mk ...)` subshells, whose exit
+#   cannot stop the parent) — checked after every fixture and again at the end.
 set -uo pipefail
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+abort() { printf 'SETUP FAILURE: %s\n' "$1" >&2; exit 1; }
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)" || abort "cannot resolve test dir"
 VAH="$DIR/../verdict-at-head"
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/vah-test.XXXXXX")"
+[ -x "$VAH" ] || abort "script under test not executable: $VAH"
+command -v jq >/dev/null 2>&1 || abort "jq not found"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/vah-test.XXXXXX")" || abort "mktemp failed"
+[ -d "$WORK" ] || abort "work dir missing: $WORK"
 trap 'rm -rf "$WORK"' EXIT
+SETUP_FAIL="$WORK/.setup-failed"
 
 pass=0 ; fail=0
 ok() { pass=$((pass + 1)); printf '  \xe2\x9c\x93 %s\n' "$1"; }
@@ -24,15 +35,23 @@ rv() { printf '{"id":%s,"user":{"login":"%s"},"state":"%s","commit_id":"%s","sub
 
 # mk NAME REVIEWS_JSON [STATUSES_JSON] [CHECKS_JSON] -> fixture dir path
 mk() {
-  d="$WORK/$1"; mkdir -p "$d"
-  printf '{"headRefOid":"%s"}' "${HEADV:-$HEAD}" > "$d/pr.json"
-  printf '%s' "$2" > "$d/reviews.json"
-  printf '{"statuses":%s}' "${3:-[]}" > "$d/status.json"
-  [ -n "${4:-}" ] && printf '%s' "$4" > "$d/checks.json"
+  d="$WORK/$1"
+  { mkdir -p "$d" \
+    && printf '{"headRefOid":"%s"}' "${HEADV:-$HEAD}" > "$d/pr.json" \
+    && printf '%s' "$2" > "$d/reviews.json" \
+    && printf '{"statuses":%s}' "${3:-[]}" > "$d/status.json" \
+    && { [ -z "${4:-}" ] || printf '%s' "$4" > "$d/checks.json"; }
+  } || { printf '%s\n' "$1" >> "$SETUP_FAIL"; return 1; }
   printf '%s' "$d"
 }
 
-run() { out="$("$VAH" --json --fixture-dir "$@" 2>&1)"; rc=$?; }
+# Refuse to evaluate a case whose fixture could not be written.
+run() {
+  [ -f "$SETUP_FAIL" ] && abort "fixture write failed: $(tr '\n' ' ' < "$SETUP_FAIL")"
+  # Belt and braces: the sentinel itself may be unwritable; never run on a missing fixture.
+  [ -f "${1:-}/pr.json" ] || abort "fixture missing for case: [${1:-}]"
+  out="$("$VAH" --json --fixture-dir "$@" 2>&1)"; rc=$?
+}
 field() { printf '%s' "$out" | jq -r "$1"; }
 
 printf 'verdict-at-head.test.sh\n'
@@ -143,7 +162,7 @@ d="$(mk bad-head "[]")"; printf '{"headRefOid":"not-a-sha"}' > "$d/pr.json"
 run "$d"; eq 2 "$rc" 'invalid headRefOid -> exit 2'
 d="$(mk bad-json "[]")"; printf '{oops' > "$d/reviews.json"
 run "$d"; eq 2 "$rc" 'malformed reviews JSON -> exit 2'
-run "$WORK/does-not-exist"; eq 2 "$rc" 'missing fixture dir -> exit 2'
+out="$("$VAH" --json --fixture-dir "$WORK/does-not-exist" 2>&1)"; rc=$?; eq 2 "$rc" 'missing fixture dir -> exit 2'
 out="$("$VAH" --pr 1 2>&1)"; rc=$?; eq 2 "$rc" 'missing --repo -> exit 2'
 out="$("$VAH" --repo a/b --pr x 2>&1)"; rc=$?; eq 2 "$rc" 'non-numeric --pr -> exit 2'
 out="$("$VAH" --bogus 2>&1)"; rc=$?; eq 2 "$rc" 'unknown flag -> exit 2'
@@ -174,5 +193,6 @@ d="$(mk regex-literal "[$(rv alice APPROVED $HEAD 2026-10-01T10:00:00Z 1)]" \
   '[{"context":"ci","state":"success","description":"rateXlimit rate5limit"}]')"
 run "$d"; eq 0 "$rc" 'rateXlimit / rate5limit do not match (character class is literal)'
 
+[ -f "$SETUP_FAIL" ] && abort "fixture write failed: $(tr '\n' ' ' < "$SETUP_FAIL")"
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
