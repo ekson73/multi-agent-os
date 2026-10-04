@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
+
+- New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
+  Reads every review (paginated, all pages), keeps each reviewer's most recent
+  review, and compares its full `commit_id` with the full `headRefOid` —
+  `CURRENT` / `STALE` / `NONE`. A clean verdict issued on an older commit is the
+  classic trap of `latestReviews`/`reviewDecision`; this makes it a deterministic
+  check. Also reads the head commit's status and check-run descriptions: a
+  reviewer bot that hit its quota can report `success` with "Review rate
+  limited" — no verdict, never convergence. An active `CHANGES_REQUESTED` blocks
+  even after later `COMMENTED` reviews (matches GitHub). The head is re-read at
+  the end; a push during the read blocks.
+- Exit `0` CONVERGED · `3` BLOCKED · `2` usage/API/parse error (fail-closed, never `0`).
+- Tests: `bin/tests/verdict-at-head.test.sh` (52 assertions, offline fixtures:
+  stale approval, 12-char-prefix collision, stale vs superseded
+  `CHANGES_REQUESTED`, rate-limited `success`, >30 reviews across pages,
+  force-push, `--primary` NONE, malformed input, paged statuses, unknown
+  review state, rate limit in `output.text`, literal regex).
+- Documented in `rules/pr-governance-unified.md` Step 7 + Tools Reference.
+- Rate-limit attribution to a reviewer uses normalized equality or vendor-token
+  equality (plus an exact alias table) — never a prefix: context `ci` no longer
+  marks reviewer `cicero`, and `Qodo Merge` now attributes to `qodo[bot]`. The
+  verdict itself was already fail-safe (any rate-limit signal blocks).
+- Script header cites its spec (Step 7) and states idempotency (read-only);
+  the test suite fails fast on any fixture/setup failure (no `set -e`, because
+  every case captures a non-zero exit of the script under test).
+
 ### Fixed — gitleaks false-negative: entropy on value, not match (follow-up to #433)
 
 - `.gitleaks.toml` (v1.1.0 -> v1.3.0) — the `vek-db-password` and `vek-jwt-secret`
