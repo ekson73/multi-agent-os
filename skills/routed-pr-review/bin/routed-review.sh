@@ -23,6 +23,13 @@
 set -uo pipefail
 
 STATE_FILE="${ROUTED_REVIEW_STATE:-$HOME/.claude/state/ai-review-bots.json}"
+# ⛔ A symlinked state file is not used: the kernel deny names a PATH, writes
+# follow the link to wherever it points, and nothing could vouch for the
+# target. Fail-closed: this run keeps no persistent rotation state.
+if [ -L "$STATE_FILE" ]; then
+  printf 'routed-review: state file %s is a symlink — ignoring it for this run (no persistent rotation state)\n' "$STATE_FILE" >&2
+  STATE_FILE="$(mktemp -d "${TMPDIR:-/tmp}/routed-review-state.XXXXXX")/state.json"
+fi
 PR=""; REPO=""; REVIEWER="auto"; POST=0; JSON=0; MAX_TURNS=12; TIMEOUT=600
 NO_PRIMARY_ATTESTED=0
 DIFF_CAP="${ROUTED_REVIEW_DIFF_CAP:-120000}"   # bytes of diff handed to the reviewer
@@ -113,7 +120,7 @@ log "    head=$HEAD_SHA  \"$PR_TITLE\""
 # Classify each CONFIGURED REVIEWER (a known bot) that has spoken on this PR.
 #
 # ⛔ Only KNOWN_BOTS count as primaries. A HUMAN review must never land in
-# CLEARED: a human `APPROVED`/`COMMENTED` would otherwise flip the state to
+# CLEARED: a human `APPROVED` would otherwise flip the state to
 # `all_cleared_for_head` while a configured bot is still pending — and on a
 # self-authored PR that is the author clearing their own gate. Humans are
 # reported separately, for information only.
@@ -135,10 +142,17 @@ QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r '
 # `all_cleared_for_head` branch (the only path to `exit 0`) was dead code.
 # Found by a routed kimi review of this very tool on PR #414; reproduced by
 # executing the shipped expression. Bind the head explicitly, like CLEARED does.
+# ⛔ Only `APPROVED` at the current head is a convergence verdict. `COMMENTED`
+# is commentary (a walkthrough, a summary, a question) and never clears a
+# primary. Every configured primary whose latest review is anything else —
+# COMMENTED, CHANGES_REQUESTED, DISMISSED, an unknown state, an earlier head or
+# no recorded head — is PENDING, so one approval beside a non-approving bot can
+# no longer complete C3. (A bot's CHANGES_REQUESTED does not always move
+# `reviewDecision`, so that field alone is not enough.)
 STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
-  [.reviews[]? | select(.sha != $head and .sha != "") | .who] | unique | join(",")')"
+  [.reviews[]? | select(.sha != $head or .verdict != "APPROVED") | .who] | unique | join(",")')"
 CLEARED="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
-  [.reviews[]? | select(.sha == $head and (.verdict == "APPROVED" or .verdict == "COMMENTED")) | .who] | unique | join(",")')"
+  [.reviews[]? | select(.sha == $head and .verdict == "APPROVED") | .who] | unique | join(",")')"
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
 CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if .reviewDecision == "CHANGES_REQUESTED" then "yes" else "no" end')"
 
@@ -152,15 +166,108 @@ log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]
 CALLER="${ROUTED_REVIEW_CALLER:-}"
 declare -a FAMILY_ORDER=(codex gemini kimi qwen grok claude copilot pi jcode opencode kiro)
 
+# ⛔ The state file is DATA, never trusted input: a reviewer process, or anyone
+# who can write the file, controls its contents. Every value read from it is
+# validated before use, and anything malformed is treated as "no state" —
+# fail-closed means a forged entry can never REMOVE a reviewer from the pool,
+# and a non-numeric field can never reach shell arithmetic.
+ts_epoch() {  # $1=ISO-8601 UTC ; prints epoch, or nothing if malformed/future
+  printf '%s' "$1" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?Z$' || return 1
+  local e t; t="${1%Z}"; t="${t%%.*}Z"     # drop any fractional seconds
+  e="$(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "$t" +%s 2>/dev/null \
+      || date -u -d "$1" +%s 2>/dev/null)" || return 1
+  printf '%s' "$e" | grep -qE '^[0-9]+$' || return 1
+  [ "$e" -le $(( $(date +%s) + 300 )) ] || return 1   # a future stamp is forged
+  printf '%s' "$e"
+}
+
 expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   [ -f "$STATE_FILE" ] || return 1
-  local now limited retry
-  now="$(date +%s)"
-  limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty' "$STATE_FILE" 2>/dev/null)"
+  local limited retry since
+  limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
   [ -n "$limited" ] || return 1
+  since="$(ts_epoch "$limited")" || return 1
   retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
-  local reset; reset=$(( $(date -j -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null || echo 0) + retry ))
-  [ "$now" -lt "$reset" ]
+  printf '%s' "$retry" | grep -qE '^[0-9]{1,5}$' || return 1
+  [ "$retry" -le 86400 ] || return 1
+  [ "$(date +%s)" -lt $(( since + retry )) ]
+}
+
+# ---- Failure triage (pr-review-protocol §4.1(b) tier-2 usable vs tier-3 capacity)
+# A reviewer that produced no review failed for ONE of two reasons, and they
+# need OPPOSITE handling:
+#   quota  — a POSITIVELY identified capacity signal (429 / rate limit / usage
+#            limit / quota). Waiting fixes it → record last_limited_at, retry later.
+#   broken — anything else: ineligible account or tier, auth rejected, bad
+#            arguments, a crash. Waiting does NOT fix it → never queue it for a
+#            retry; mark it broken and keep it out of the pool until a human
+#            repairs the CLI/account.
+# The default is `broken`, not `quota`: classifying an unknown failure as quota
+# re-picks a candidate that can never succeed, every time its window expires.
+# A timeout is neither — the reviewer may be slow, not unusable — so it is
+# excluded for this run only and recorded nowhere.
+BROKEN_TTL="${ROUTED_REVIEW_BROKEN_TTL_SEC:-86400}"
+printf '%s' "$BROKEN_TTL" | grep -qE '^[0-9]{1,6}$' || BROKEN_TTL=86400
+EXCLUDED=""          # families that already failed in THIS run (space-separated)
+SKIPPED_JSON="[]"    # evidence of every fallthrough, emitted in --json output
+
+is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL (validated stamp only)
+  [ -f "$STATE_FILE" ] || return 1
+  local at since
+  at="$(jq -r --arg b "$1" '.bots[$b].broken_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
+  [ -n "$at" ] || return 1
+  since="$(ts_epoch "$at")" || return 1
+  [ "$(date +%s)" -lt $(( since + BROKEN_TTL )) ]
+}
+
+classify_failure() {  # $1=rc ; reads $WORK/err ONLY ; prints quota|broken|timeout
+  # stdout is model text, steerable by the PR under review — never let it pick
+  # the class. Only the CLI's own stderr channel counts.
+  [ "$1" = 124 ] && { printf 'timeout'; return; }
+  if cat "$WORK/err" 2>/dev/null \
+     | grep -qiE '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|quota|usage limit|too many requests|resource[ _]exhausted'; then
+    printf 'quota'
+  else
+    printf 'broken'
+  fi
+}
+
+failure_reason() {  # a SANITIZED token — never raw stderr, which may carry secrets
+  if grep -qiE 'ineligible|not eligible' "$WORK/err" 2>/dev/null; then printf 'ineligible'
+  elif grep -qiE 'unauthori[sz]ed|forbidden|(^|[^0-9])40[13]([^0-9]|$)|login|auth' "$WORK/err" 2>/dev/null; then printf 'auth'
+  elif grep -qiE 'unknown (option|flag|command)|usage:' "$WORK/err" 2>/dev/null; then printf 'invocation'
+  else printf 'unclassified-rc-%s' "$1"; fi
+}
+
+record_failure() {  # $1=bot $2=class $3=reason
+  [ "$2" = timeout ] && return 0
+  local dir; dir="$(dirname "$STATE_FILE")"
+  mkdir -p "$dir" 2>/dev/null || return 0
+  if [ -L "$STATE_FILE" ]; then log "    [warn] state file is a symlink — not writing through it"; return 0; fi
+  # Serialize writers (concurrent routed-review runs share this file): a
+  # mkdir mutex, bounded wait, stale lock reclaimed after 120s.
+  local lock="$STATE_FILE.lock" i=0
+  until mkdir "$lock" 2>/dev/null; do
+    i=$((i+1))
+    if [ "$i" -ge 50 ]; then
+      if [ -n "$(find "$lock" -maxdepth 0 -mmin +2 2>/dev/null)" ]; then rmdir "$lock" 2>/dev/null; i=0; continue; fi
+      log "    [warn] state lock busy — failure not recorded"; return 0
+    fi
+    sleep 0.1
+  done
+  [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
+  local tmp filter; tmp="$(mktemp "$dir/.state.XXXXXX")" || { rmdir "$lock"; return 0; }
+  # shellcheck disable=SC2016  # $b/$t/$r are jq variables, not shell ones
+  if [ "$2" = quota ]; then
+    filter='.bots[$b].last_limited_at=$t | .bots[$b].retry_after_sec=(.bots[$b].retry_after_sec // 3600) | .bots[$b].consecutive_limits=((.bots[$b].consecutive_limits // 0)+1)'
+  else
+    filter='.bots[$b].broken_at=$t | .bots[$b].broken_reason=$r'
+  fi
+  # same-directory temp + mv = atomic replace; readers never see a half file
+  if jq --arg b "$1" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "$3" "$filter" \
+       "$STATE_FILE" > "$tmp" 2>/dev/null; then mv -f "$tmp" "$STATE_FILE"; else rm -f "$tmp"; fi
+  rmdir "$lock" 2>/dev/null
+  return 0
 }
 
 # ⛔ Validate an EXPLICIT --reviewer here, in the main shell — NOT inside
@@ -189,7 +296,9 @@ pick_reviewer() {
   for h in "${FAMILY_ORDER[@]}"; do
     [ "$h" = "$CALLER" ] && continue                      # verifier != generator
     command -v "$h" >/dev/null 2>&1 || continue
+    case " $EXCLUDED " in *" $h "*) continue ;; esac     # failed earlier in THIS run
     expired "$h" && { log "    skip $h (expired per state file)"; continue; }
+    is_broken "$h" && { log "    skip $h (marked broken — fix its CLI/account, then delete .bots.$h.broken_at in $STATE_FILE)"; continue; }
     printf '%s' "$h"; return 0
   done
   return 1
@@ -286,6 +395,29 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# ⛔ The tamper checks compare hashes. A hashing tool that is missing or fails
+# prints nothing, both sides become empty, and `cmp` reports "identical" —
+# a check that verifies nothing while saying `clean`. So the tool is resolved
+# once, its failure is fatal, and a manifest must have one line per file.
+if command -v shasum >/dev/null 2>&1; then HASH_CMD=(shasum -a 256)
+elif command -v sha256sum >/dev/null 2>&1; then HASH_CMD=(sha256sum)
+else HASH_CMD=(); fi
+sha256_stdin() {  # prints the digest of stdin, or fails
+  [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
+  local d; d="$("${HASH_CMD[@]}" | cut -d' ' -f1)" || return 1
+  printf '%s' "$d" | grep -qE '^[0-9a-f]{64}$' || return 1
+  printf '%s' "$d"
+}
+build_manifest() {  # $1=dir $2=out ; fails unless every file got a digest
+  [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
+  local n m
+  n="$(cd "$1" && find . -type f | wc -l | tr -d ' ')"
+  [ "$n" = 0 ] && { : > "$2"; return 0; }
+  ( cd "$1" && find . -type f -print0 | sort -z | xargs -0 "${HASH_CMD[@]}" ) > "$2" 2>/dev/null || [ "$n" = 0 ] || return 1
+  m="$(grep -cE '^[0-9a-f]{64}  ' "$2" 2>/dev/null || true)"
+  [ "${m:-0}" = "$n" ]
+}
+
 build_readonly_export() {
   command -v tar >/dev/null 2>&1 || die "tar not found — required for read-only export"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -300,8 +432,8 @@ build_readonly_export() {
   git archive "$HEAD_SHA" | tar -x -C "$EXPORT_DIR" \
     || die "git archive failed — cannot build a read-only export"
   # manifest BEFORE locking, so the check covers content, not just mtimes
-  ( cd "$EXPORT_DIR" && find . -type f -print0 | sort -z \
-      | xargs -0 shasum -a 256 2>/dev/null ) > "$WORK/manifest.before"
+  build_manifest "$EXPORT_DIR" "$WORK/manifest.before" \
+    || die "integrity manifest could not be built (no working sha256 tool?) — refusing to run an unverifiable review"
   chmod -R a-w "$EXPORT_DIR" 2>/dev/null
   log "    export: $(wc -l < "$WORK/manifest.before" | tr -d ' ') files, chmod a-w, no .git"
 }
@@ -329,6 +461,24 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
     printf '(version 1)\n(allow default)\n'
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$EXPORT_DIR" && pwd -P)"
     printf '(deny file-write* (subpath "%s"))\n' "$(cd "$repo_root" && pwd -P)"
+    # the rotation state lives OUTSIDE both trees; a reviewer that can write it
+    # can steer the next pick, so it is denied too
+    # only the state FILE — denying its whole directory broke unrelated state
+    # that reviewer CLIs keep there
+    [ -d "$STATE_DIR" ] && printf '(deny file-write* (literal "%s/%s"))\n' \
+      "$(cd "$STATE_DIR" && pwd -P)" "$(basename "$STATE_FILE")"
+    # …and the directory entries ABOVE it: without this a reviewer can rename
+    # the state directory (or an ancestor) away, write the real file through
+    # the new path and rename it back — same path, same inode, new content.
+    # A `literal` deny on a directory blocks renaming/removing THAT node only,
+    # never creating or editing files inside it.
+    if [ -d "$STATE_DIR" ]; then
+      local anc; anc="$(cd "$STATE_DIR" && pwd -P)"
+      while [ -n "$anc" ] && [ "$anc" != "/" ]; do
+        printf '(deny file-write* (literal "%s"))\n' "$anc"
+        anc="$(dirname "$anc")"
+      done
+    fi
   } > "$prof" || return 1
   # Two-step probe. A single step could NOT distinguish "sandbox-exec ran and
   # denied the write" from "sandbox-exec never ran at all" (invalid profile,
@@ -356,11 +506,12 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
 LIVE_BEFORE=""
 snapshot_live_repo() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | sha256_stdin)" \
+    || die "integrity manifest of the live repo could not be built (no working sha256 tool?)"
 }
 verify_live_repo_untouched() {
   [ -n "$LIVE_BEFORE" ] || return 0
-  local now; now="$(git status --porcelain 2>/dev/null | shasum -a 256 | cut -d' ' -f1)"
+  local now; now="$(git status --porcelain 2>/dev/null | sha256_stdin)" || now="unverifiable"
   [ "$now" = "$LIVE_BEFORE" ] && return 0
   log "[!] live-repo check FAILED — the reviewer mutated the working tree outside its export"
   return 1
@@ -368,8 +519,8 @@ verify_live_repo_untouched() {
 verify_export_untouched() {
   [ -n "$EXPORT_DIR" ] || return 0
   chmod -R u+rX "$EXPORT_DIR" 2>/dev/null
-  ( cd "$EXPORT_DIR" && find . -type f -print0 | sort -z \
-      | xargs -0 shasum -a 256 2>/dev/null ) > "$WORK/manifest.after"
+  build_manifest "$EXPORT_DIR" "$WORK/manifest.after" || {
+    log "[!] tamper-check FAILED — post-run manifest could not be built"; return 1; }
   if cmp -s "$WORK/manifest.before" "$WORK/manifest.after"; then
     log "    tamper-check: export unmodified (manifest identical)"
     return 0
@@ -409,31 +560,30 @@ run_reviewer() {
       # `Head reviewed: $HEAD_SHA`. Both tamper checks stayed clean because nothing
       # was written, so the wrong-tree read was invisible. This is the exact defect
       # the codex branch avoids with `--cd`. Found by a routed kimi review on #414.
-      ( cd "$dir" && timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
         --max-turns "$MAX_TURNS" \
         --allowedTools "Read" "Grep" "Glob" \
         --add-dir "$dir" ) > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
-      timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
+      "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     kiro)                          # measured: `chat` subcommand
-      ( cd "$dir" && timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac
   return $rc
 }
 
-ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 # ⛔ The comment will claim `Head reviewed: $HEAD_SHA`. That claim is only true
 # if the tree the reviewer actually read IS that commit. `--repo` is arbitrary,
 # so `$PWD` may be an unrelated checkout — the reviewer would then inspect other
@@ -445,7 +595,91 @@ cwd_is_head() {
   [ -z "$(git status --porcelain 2>/dev/null)" ] || return 1
 }
 
+reset_isolation() {  # before trying another candidate: a fresh export + profile
+  if [ -n "$EXPORT_DIR" ] && [ -d "$EXPORT_DIR" ]; then
+    chmod -R u+w "$EXPORT_DIR" 2>/dev/null; rm -rf "$EXPORT_DIR"
+  fi
+  EXPORT_DIR=""; SANDBOX_PROFILE=""; SBX=()
+  : > "$OUT_F"; : > "$WORK/err"
+}
+
+# Dispatch loop. An explicit --reviewer runs exactly once. In auto mode a
+# candidate that yields no review is triaged (quota vs broken vs timeout),
+# excluded for the rest of this run, and the pick falls through to the next
+# family — one broken CLI must not end the whole routed review.
+# ⛔ The reviewer is a model steered by the PR under review. It must neither
+# learn where rotation state lives nor be able to change it unnoticed:
+#  - the ROUTED_REVIEW_* variables are scrubbed from the environment it inherits;
+#  - the state directory is write-denied by the kernel profile when one arms;
+#  - and in EVERY class the file is snapshotted before dispatch and compared
+#    after: any change aborts the run as an isolation violation and the
+#    pre-run bytes are restored. Detection is the floor where prevention is
+#    not available (os-perms-only, vendor CLIs).
+# The reviewer environment is an ALLOWLIST, not "everything minus a few":
+# base process vars, proxy/locale, and the reviewer vendors' own credential
+# prefixes. Everything else — repo tokens (GH_*/GITHUB_*), cloud keys, and the
+# ROUTED_REVIEW_* control vars — is dropped. ROUTED_REVIEW_ENV_ALLOW adds
+# explicit names (e.g. a vendor var outside the prefixes below); ROUTED_REVIEW_*
+# can never be re-admitted.
+REVIEWER_ENV=(env -i)
+_env_allowed() {
+  case "$1" in
+    ROUTED_REVIEW_*) return 1 ;;
+    PATH|HOME|USER|LOGNAME|SHELL|TERM|LANG|TMPDIR|TZ|COLORTERM|NO_COLOR) return 0 ;;
+    LC_*|XDG_*|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy) return 0 ;;
+    ANTHROPIC_*|CLAUDE_*|OPENAI_*|CODEX_*|GEMINI_*|GOOGLE_*|MOONSHOT_*|KIMI_*) return 0 ;;
+    DASHSCOPE_*|QWEN_*|XAI_*|GROK_*|OPENROUTER_*|OPENCODE_*|KIRO_*|JCODE_*) return 0 ;;
+  esac
+  case " ${ROUTED_REVIEW_ENV_ALLOW:-} " in *" $1 "*) return 0 ;; esac
+  return 1
+}
+while IFS= read -r _v; do
+  printf '%s' "$_v" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || continue
+  _env_allowed "$_v" && REVIEWER_ENV+=("$_v=${!_v}")
+done < <(compgen -e)
+unset _v
+unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER ROUTED_REVIEW_ENV_ALLOW
+STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
+# State integrity = digest before dispatch vs digest after. There is NO
+# restore: rewriting the file from a snapshot would overwrite whatever another
+# routed-review legitimately recorded in the meantime (and lets a reviewer
+# choose when the orchestrator writes — a confused deputy). A change is
+# reported and the run aborts; the file is left as found, for inspection.
+# Under an ARMED kernel boundary the reviewer cannot write the file at all, so
+# a change can only come from outside the sandbox (a concurrent run): the
+# check is skipped there instead of raising a false alarm.
+state_digest() {  # prints a digest of the state file (or of its absence/type)
+  if [ -L "$STATE_FILE" ]; then printf 'symlink'; return 0; fi
+  [ -e "$STATE_FILE" ] || { printf 'absent'; return 0; }
+  sha256_stdin < "$STATE_FILE" || printf 'unverifiable'
+}
+# The armed profile denies the state FILE, but not the directory entries above
+# it: a reviewer can rename the parent and put a decoy (or a symlink to one)
+# in its place. So the identity of the containing directory — resolved path
+# plus device:inode — is checked in EVERY class, armed or not.
+state_dir_identity() {
+  local d="$STATE_DIR" id
+  [ -L "$d" ] && { printf 'symlink'; return 0; }
+  [ -d "$d" ] || { printf 'absent'; return 0; }
+  id="$(stat -f '%d:%i' "$d" 2>/dev/null || stat -c '%d:%i' "$d" 2>/dev/null)" || id="?"
+  printf '%s|%s' "$(cd "$d" 2>/dev/null && pwd -P)" "$id"
+}
+snapshot_state() { STATE_BEFORE="$(state_digest)"; STATE_DIR_BEFORE="$(state_dir_identity)"; }
+verify_state_dir_unmoved() {
+  [ "$(state_dir_identity)" = "$STATE_DIR_BEFORE" ] && return 0
+  log "[!] state-file check FAILED — the directory holding rotation state was moved or replaced during dispatch"
+  return 1
+}
+verify_state_untouched() {
+  [ "$(state_digest)" = "$STATE_BEFORE" ] && return 0
+  log "[!] state-file check FAILED — rotation state changed during dispatch; NOT restored (left for inspection: $STATE_FILE)"
+  return 1
+}
+
+while :; do
+ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 snapshot_live_repo
+snapshot_state
 
 if [ "$ENFORCEMENT" = "os" ]; then
   log "[D] $CHOSEN has no vendor read-only flag -> enforcing outside the CLI"
@@ -482,10 +716,16 @@ TAMPER="n/a"
 case "$ENFORCEMENT" in
   *os*)
     TAMPER="clean"
+    # armed kernel boundary: the reviewer cannot write the state file, so a
+    # change came from a concurrent run, not from the reviewer
+    [ "$ENFORCEMENT" = "os-sandboxed" ] || verify_state_untouched || TAMPER="violated:state-file"
+    verify_state_dir_unmoved || TAMPER="violated:state-file"
     verify_export_untouched   || TAMPER="violated:export"
     verify_live_repo_untouched || TAMPER="violated:live-repo"
     ;;
-  *) verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
+  *) verify_state_untouched || TAMPER="violated:state-file"
+     verify_state_dir_unmoved || TAMPER="violated:state-file"
+     verify_live_repo_untouched || TAMPER="violated:live-repo" ;;
 esac
 if [ "${TAMPER#violated}" != "$TAMPER" ]; then
   log "[D] ABORT ($TAMPER): isolation violated — no review will be stamped or reported as valid"
@@ -494,20 +734,38 @@ if [ "${TAMPER#violated}" != "$TAMPER" ]; then
 fi
 REVIEW_BYTES="$(wc -c < "$OUT_F" 2>/dev/null | tr -d ' ' || echo 0)"
 
-if [ "$REVIEW_BYTES" -lt 40 ]; then
-  # No substantive content => there is NO review. Never stamp an empty claim.
-  log "[D] reviewer produced ${REVIEW_BYTES}B (rc=$RC) — treating as NO REVIEW (anti-theater)"
-  [ -s "$WORK/err" ] && sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
-  # record the limit so rotation skips it next time
-  if [ -w "$(dirname "$STATE_FILE")" ] 2>/dev/null || mkdir -p "$(dirname "$STATE_FILE")" 2>/dev/null; then
-    [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
-    tmp="$(mktemp)"; jq --arg b "$CHOSEN" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      '.bots[$b].last_limited_at=$t | .bots[$b].retry_after_sec=(.bots[$b].retry_after_sec // 3600) | .bots[$b].consecutive_limits=((.bots[$b].consecutive_limits // 0)+1)' \
-      "$STATE_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$STATE_FILE" || rm -f "$tmp"
-  fi
-  [ "$JSON" -eq 1 ] && printf '{"status":"empty_review","reviewer":"%s","rc":%s,"diversity_limb":"unsatisfied","may_complete_c3":false}\n' "$CHOSEN" "$RC"
+if [ "$REVIEW_BYTES" -ge 40 ]; then break; fi
+
+# No substantive content => there is NO review. Never stamp an empty claim.
+FAIL_CLASS="$(classify_failure "$RC")"; FAIL_REASON="$(failure_reason "$RC")"
+log "[D] $CHOSEN produced ${REVIEW_BYTES}B (rc=$RC) — NO REVIEW (anti-theater); class=$FAIL_CLASS reason=$FAIL_REASON"
+# stderr is shown to the operator for diagnosis only; it is never persisted.
+[ -s "$WORK/err" ] && sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
+record_failure "$CHOSEN" "$FAIL_CLASS" "$FAIL_REASON"
+SKIPPED_JSON="$(printf '%s' "$SKIPPED_JSON" | jq -c --arg b "$CHOSEN" --arg c "$FAIL_CLASS" \
+  --arg r "$FAIL_REASON" --argjson rc "$RC" '. + [{reviewer:$b, class:$c, reason:$r, rc:$rc}]')"
+
+if [ "$REVIEWER" != "auto" ]; then
+  # The operator chose this reviewer: report it, never swap it silently.
+  [ "$JSON" -eq 1 ] && jq -nc --arg b "$CHOSEN" --arg c "$FAIL_CLASS" --arg r "$FAIL_REASON" \
+      --argjson rc "$RC" \
+      '{status:"empty_review",reviewer:$b,rc:$rc,failure_class:$c,failure_reason:$r,
+        diversity_limb:"unsatisfied",may_complete_c3:false}'
   exit 2
 fi
+
+EXCLUDED="$EXCLUDED $CHOSEN"
+reset_isolation
+CHOSEN="$(pick_reviewer)" || {
+  log "[C] no candidate left after the fallthrough — emitting honest diagnostic, NOT a review"
+  [ "$JSON" -eq 1 ] && jq -nc --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" \
+      --argjson sk "$SKIPPED_JSON" \
+      '{status:"no_reviewer",repo:$repo,pr:($pr|tonumber),head:$head,skipped_candidates:$sk,
+        diversity_limb:"unsatisfied",primary_verdict:"unknown",may_complete_c3:false}'
+  exit 2
+}
+log "[C] falling through to reviewer=$CHOSEN"
+done
 
 VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -1)"
 [ -n "$VERDICT_LINE" ] || VERDICT_LINE="VERDICT: (not emitted by reviewer — read the body)"
@@ -610,8 +868,8 @@ if [ "$JSON" -eq 1 ]; then
   jq -n --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" --arg rv "$CHOSEN" \
         --arg verdict "$VERDICT_LINE" --arg ps "$PRIMARY_STATUS" --arg c3 "$MAY_COMPLETE_C3" \
         --arg trunc "$TRUNCATED" --arg enf "$ENFORCEMENT" --arg tamper "$TAMPER" \
-        --argjson bytes "$REVIEW_BYTES" \
-    '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,
+        --argjson bytes "$REVIEW_BYTES" --argjson sk "$SKIPPED_JSON" \
+    '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,skipped_candidates:$sk,
       isolation:{mode:"fresh-process",read_only_enforcement:$enf,tamper_check:$tamper},
       review_bytes:$bytes,diff_truncated:$trunc,
       verdict:$verdict,diversity_limb:"satisfied",primary_verdict:$ps,

@@ -54,7 +54,7 @@ Five phases:
 | phase | what | grounding |
 |---|---|---|
 | **A** resolve | PR, title, `headRefOid`, diff | `gh` |
-| **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head · stale/earlier-head · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
+| **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
 | **C** pick reviewer | capability-detect `command -v`, skip bots expired in `~/.claude/state/ai-review-bots.json`, **exclude the caller's own family** | `ai-code-review-bots-rotation.md` §2/§3 |
 | **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
 | **E** gate verdict | emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
@@ -120,6 +120,9 @@ the emitted evidence says exactly that instead of implying a sandbox.
 
 1. **export manifest** — `sha256` before locking, recompared after; catches
    writes *inside* the tree the reviewer was given.
+   A manifest must carry one digest per file and the hash tool must work — a
+   failing or missing `shasum`/`sha256sum` aborts the run instead of comparing
+   two empty manifests.
 2. **live-repo hash** — `git status --porcelain` digest before/after; catches an
    *escape*, i.e. a write to the working tree the reviewer was never given. The
    first check was blind to this by construction.
@@ -228,11 +231,63 @@ pattern this harness exists to end.
 
 ## Anti-theater guarantees
 
-1. **Empty output is NOT a review.** Under 40 bytes ⇒ exit `2`, the bot is
-   recorded as limited in the rotation state file, and nothing is stamped.
+1. **Empty output is NOT a review.** Under 40 bytes ⇒ nothing is stamped, and
+   the failure is **triaged** before anything is recorded
+   (`pr-review-protocol` §4.1(b) tier-2 *usable* vs tier-3 *capacity*):
+   - **quota** — only on a *positive* capacity signal (429, rate limit, usage
+     limit, quota) ⇒ `last_limited_at` is recorded and rotation retries it
+     after the window;
+   - **broken** — anything else (ineligible account or tier, auth rejected,
+     bad arguments, a crash) ⇒ `broken_at` + a sanitized `broken_reason` token
+     are recorded and the CLI stays out of the pool for
+     `ROUTED_REVIEW_BROKEN_TTL_SEC` (default 24h) until it is repaired. Waiting
+     never fixes a broken candidate, so it is never queued as "retry later";
+   - **timeout** — the reviewer may only be slow; excluded for this run,
+     recorded nowhere.
+
+   In auto mode the run then **falls through** to the next family, and every
+   skipped candidate is listed in `skipped_candidates` in the JSON. An explicit
+   `--reviewer` is the operator's choice: it is classified (`failure_class`)
+   and exits `2`, never silently swapped. Raw stderr is shown for diagnosis but
+   never persisted — it may carry secrets.
 2. **Truncation is declared.** A diff over the cap is cut and `diff_truncated:
    yes` rides in the comment and the JSON.
-3. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
+3. **Rotation state is out of the reviewer's reach, and is never trusted.**
+   The reviewer is a model steered by the PR under review, so: its
+   environment is an **allowlist** (base vars, locale/proxy, the reviewer
+   vendors' credential prefixes, plus names in `ROUTED_REVIEW_ENV_ALLOW`) —
+   repo tokens and `ROUTED_REVIEW_*` never reach it; when a kernel boundary
+   arms, the state **file** is write-denied (write, rename-over and unlink all
+   fail — contract case 24), so a change during dispatch can only come from a
+   concurrent run and is not treated as a breach. The deny also names the
+   state directory and every ancestor, so none of them can be renamed away,
+   written through and renamed back (contract case 27); independently, the
+   identity of the state directory (resolved path + device:inode) is checked
+   in **every** class: a parent or ancestor replaced during dispatch is
+   prevented or aborts as `violated:state-file` (contract cases 25-26).
+   A **symlinked** state file is not used at all — the run falls back to an
+   ephemeral, empty state (no persistent rotation) rather than trust a target
+   nothing vouches for (contract case 28). In every other class the
+   file's digest is compared before/after dispatch: a change aborts as
+   `isolation_violated` (`violated:state-file`) and the file is **left as
+   found, never restored** — restoring would overwrite a concurrent run's
+   record and let a reviewer choose when the orchestrator writes. Writers are
+   serialized (mkdir mutex) and replace the file atomically; a symlinked state
+   file is never written through. Values read from the file are validated:
+   malformed or future timestamps and non-numeric `retry_after_sec` are
+   treated as "no state", so a forged entry can never remove a reviewer from
+   the pool. Failure triage reads the CLI's stderr only, never model stdout.
+
+   **Known limits.** Without a kernel boundary (vendor CLIs, `os-perms-only`)
+   a concurrent run that writes the state during dispatch makes this run abort
+   (fail-closed false positive), and a reviewer that writes a *plausible* entry
+   there is detected but its entry is not undone — inspect the file after a
+   `violated:state-file`. A write reverted within the dispatch window leaves no
+   net change and is not reported. Containment ends when the reviewer process
+   exits: a descendant it detached is outside the post-dispatch checks. These
+   are accepted limits, not targets for further hardening here — the kernel
+   boundary (`os-sandboxed`) is the stronger class.
+4. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
    any hit aborts the post.
 4. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output
    (`cross-harness-red-team.md`).
@@ -284,7 +339,7 @@ draft of this very section mis-stated two of them; corrected before commit):
 | # | condition | exit | behaviour |
 |---|---|---|---|
 | 1 | no harness left after family exclusion | `2` | JSON `status:no_reviewer`, `may_complete_c3:false`. **Never** falls back to the caller (verifier ≠ generator) |
-| 2 | reviewer produced <40 bytes | `2` | treated as **no review**; the bot **is** recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it next cycle (§3 never-hot-retry) |
+| 2 | reviewer produced <40 bytes | `2` (explicit `--reviewer`) · fall-through (auto) | treated as **no review**; triaged quota · broken · timeout (guarantee 1) and recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it (§3 never-hot-retry). In auto mode the next family is tried; `2` only when none is left |
 | 3 | isolation violated (either tamper check) | `1` | no stamp, no comment, `status:isolation_violated` |
 | 4 | `gitleaks` absent while `--post` given | `1` | refuses to post rather than posting an unscanned body |
 | 5 | review ran, gate does not clear C3 | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
