@@ -159,7 +159,10 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty' "$STATE_FILE" 2>/dev/null)"
   [ -n "$limited" ] || return 1
   retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
-  local reset; reset=$(( $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null || echo 0) + retry ))
+  # BSD `date -j` first, GNU `date -d` second: a single BSD form silently
+  # yielded 0 on Linux, which made every limited bot look already reset.
+  local reset; reset=$(( $(date -j -u -f "%Y-%m-%dT%H:%M:%SZ" "${limited%%.*}" +%s 2>/dev/null \
+                          || date -u -d "$limited" +%s 2>/dev/null || echo 0) + retry ))
   [ "$now" -lt "$reset" ]
 }
 
