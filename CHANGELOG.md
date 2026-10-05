@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `ref-claim-verify` skill: verify cross-reference claims against the source
+
+- `skills/ref-claim-verify/` — read-only, stdlib-only, offline checker for the citations a doc,
+  PR body or diff makes about other artifacts: a cited **path** exists at a base/head ref, a
+  **section** (`file §4.1`) has a matching heading, a **version** (`[ID] v1.2.3` or `` `file` v1.2.3 ``)
+  equals the artifact's own declared version. Verdicts `VERIFIED` / `MISMATCH` / `UNRESOLVED`
+  (UNRESOLVED is never a pass); exit codes 0/2/3/1. Motivation: review bots approved a doc line
+  citing a version no ref declared. Dogfooded on that very PR: reproduces the defect (`claimed
+  v3.1.0; declared 3.0.0`, exit 3). Excerpts are masked by reusing `pii-masking` (fallback masks
+  CPF/email/phone and declares `masking: fallback`); a recall guard counts version-like mentions
+  not tied to an anchor so silence cannot hide a parsing gap. 18 tests.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
