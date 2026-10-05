@@ -105,9 +105,13 @@ _CREDS = (
     (re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}\b"), "[CREDENTIAL]"),
     (re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}\b"), "[CREDENTIAL]"),
     (re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b"), "[CREDENTIAL]"),
-    (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|passw(?:or)?d|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[\"']?[ \t]*[=:][ \t]*"
+    (re.compile(r"(?i)\b([A-Za-z0-9_]*(?:secret|token|pass(?:w(?:or)?d)?|pwd|passphrase|private[_-]?key|credentials?|senha|api[_-]?key|access[_-]?key[_-]?id)[A-Za-z0-9_]*)[\"']?[ \t]*(?:=>|[=:])[ \t]*"
                 r"(?:\"(?:[^\"\\\n]|\\.|\\$)*(?:\"|$)|'(?:[^'\\\n]|\\.|\\$)*(?:'|$)|\S+)"),
      r"\1=[REDACTED]"),
+    (re.compile(r"(?i)\b((?:proxy-)?authorization|auth)\b[\"']?[ \t]*[=:][ \t]*(?:(?:bearer|basic|token)[ \t]+)?\S+"), r"\1=[REDACTED]"),
+    (re.compile(r"(?i)(--(?:password|passwd|token|secret|api-key)(?:=|[ \t]+))\S+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)(\b[a-z][a-z0-9+.\-]*://[^\s/:@]*:)[^\s/@]+@"), r"\1[REDACTED]@"),
+    (re.compile(r"(?is)(<(?:password|passwd|secret|token|api[_-]?key)[^>]*>)[^<]*(</)"), r"\1[REDACTED]\2"),
 )
 _FALLBACK = (  # degraded masking: coarser than pii-masking, but never lets these shapes through
     (re.compile(r"[\w.+\-]+@[\w\-]+\.[\w.\-]+"), "[EMAIL]"),
@@ -124,7 +128,11 @@ def _fallback_mask(line: str) -> str:
     return line
 
 
+MAX_MASK_INPUT = 1000  # bounds regex work; only the first `limit` chars are ever displayed
+
+
 def mask(line: str, limit: int = 160) -> str:
+    line = line[:MAX_MASK_INPUT]
     out = line
     if _PII is not None:
         try:
@@ -213,32 +221,58 @@ class AmbiguousStructure(Exception):
     """The Markdown structure cannot be read unambiguously; callers must answer UNRESOLVED."""
 
 
-_BLOCK_TAGS = frozenset(
-    "address article aside base basefont blockquote body caption center col colgroup dd details "
-    "dialog dir div dl dt fieldset figcaption figure footer form frame frameset h1 h2 h3 h4 h5 h6 "
-    "head header hr html iframe legend li link main menu menuitem nav noframes ol optgroup option "
-    "p param section source summary table tbody td tfoot th thead title tr track ul".split()
-)
-# CommonMark HTML block types 1 and 3-5: raw until a closer, which may be on a later line
+# Raw HTML is only partly emulated. CommonMark types 1-5 (`<pre|script|style|textarea`, `<?`, `<!X`,
+# CDATA) are raw until an exact closer and are dropped. Everything else that can start an HTML block
+# (types 6/7: block tags, standalone tags, malformed tags, a tag left open at the line break) is a
+# long tail a line scanner cannot get right (paragraph/container interactions), so the lines up to the
+# next blank line (or the end of the blockquote) are TAINTED: kept, marked, and AMBIGUOUS only if a
+# tainted line looks like metadata (heading, thematic/setext line, `Version:` declaration).
+TAINT = "\x00"
+_HTML_START = re.compile(r"^ {0,3}<[A-Za-z/!?]")
+_AUTOLINK = re.compile(r"^ {0,3}<(?:[A-Za-z][A-Za-z0-9+.\-]{1,31}:[^\s<>]*|[^\s<>@]+@[^\s<>]+)>")
+_BLOCK_COMMENT = re.compile(r"^ {0,3}<!--")
 _HTML_RAW = re.compile(
     r"^ {0,3}(?:<(?P<t1>pre|script|style|textarea)(?=[\s>]|$)|(?P<t3><\?)|(?P<t4><![A-Za-z])|(?P<t5><!\[CDATA\[))",
     re.IGNORECASE,
 )
-_RAW_CLOSERS = {"t3": re.compile(r"\?>"), "t4": re.compile(r">"), "t5": re.compile(r"\]\]>")}
-_TAG_NAME = re.compile(r"^ {0,3}</?([A-Za-z][A-Za-z0-9-]*)(?=[\s/>]|$)")
+_RAW_CLOSERS = {
+    "t1": re.compile(r"</(?:pre|script|style|textarea)>", re.IGNORECASE),
+    "t3": re.compile(r"\?>"),
+    "t4": re.compile(r">"),
+    "t5": re.compile(r"\]\]>"),
+}
 
 
-def _html_block_start(core: str, para_open: bool) -> bool:
-    """CommonMark type 6 (known block tag, may interrupt a paragraph) or type 7 (a single
-    complete tag alone on the line, may NOT interrupt a paragraph). Anything else — notably an
-    inline tag followed by prose, e.g. `<kbd>Enter</kbd> to continue.` — is ordinary text."""
-    m = _TAG_NAME.match(core)
-    if not m:
-        return False
-    if m.group(1).lower() in _BLOCK_TAGS:
+def _html_ambiguous(core: str, scan: str) -> bool:
+    """True when the line may begin an HTML block, or leaves a tag open across the line break."""
+    if _HTML_START.match(core) and not _AUTOLINK.match(core):
         return True
-    t = core.strip()
-    return (not para_open and t.endswith(">") and t.count("<") == 1 and t.count(">") == 1)
+    i = scan.rfind("<")
+    if i < 0:
+        return False
+    nxt = scan[i + 1 : i + 2]
+    return (nxt.isalpha() or nxt in ("/", "!", "?")) and ">" not in scan[i:]
+
+
+def _qdepth(ln: str) -> int:
+    m = _QUOTE.match(ln)
+    return m.group().count(">") if m else 0
+
+
+def _metadata_like(body: str) -> bool:
+    return bool(_ATX.match(body) or _THEMATIC.match(body) or _SETEXT.match(body) or _decl_version(body))
+
+
+def _resolve(lines: list[str]) -> list[str]:
+    """Drop tainted lines, unless one looks like metadata (then the answer is AMBIGUOUS)."""
+    out: list[str] = []
+    for ln in lines:
+        if ln.startswith(TAINT):
+            if _metadata_like(ln[1:]):
+                raise AmbiguousStructure("metadata-like line inside possible raw HTML")
+            continue
+        out.append(ln)
+    return out
 
 
 def _outside_fences(content: str) -> list[str]:
@@ -249,28 +283,27 @@ def _outside_fences(content: str) -> list[str]:
     or an unterminated comment/fence is AMBIGUOUS (raise) — never silently accepted. Inline-code
     mentions of `<!--` are not comments, but inside a real comment nothing is code. Multi-line
     code spans (CommonMark backtick-run matching) are dropped; a backtick run that never closes
-    before the paragraph ends, or a block construct inside an open span, is AMBIGUOUS. Raw HTML
-    blocks (`<pre>`/`<script>`/`<style>`/`<textarea>` until their closer; any other block tag
-    until a blank line) are not Markdown metadata and are dropped. A line longer than MAX_BLOB_LINE
-    is AMBIGUOUS (safety bound; every pass is linear below it).
+    before the paragraph ends, or a block construct inside an open span, is AMBIGUOUS. A line that can
+    start a raw HTML block (or leaves a tag open at the line break), and text after a block-level
+    comment's closer, are TAINTED until the next blank line. A line longer than MAX_BLOB_LINE
+    is AMBIGUOUS (safety bound; every pass is linear below it). Lines of possible raw HTML come back
+    prefixed with TAINT; consumers must pass the result through `_resolve` (or handle TAINT).
     """
     out: list[str] = []
     fence: tuple[str, int] | None = None
     in_comment = False
     span: int | None = None  # length of the open backtick run
-    html_end: re.Pattern | str | None = None  # compiled closer for raw blocks, "blank" otherwise
-    prev = ""
+    block_comment = False  # the open comment started at a line start (a CommonMark HTML block)
+    taint: int | None = None  # quote depth of an open possible-HTML region
+    raw_end: tuple[re.Pattern, int] | None = None  # closer + quote depth of a raw (type 1-5) block
     for raw in content.splitlines():
-        para_open = bool(prev.strip()) and not _ATX.match(prev)
-        prev = raw
+        force_taint = False
         if len(raw) > MAX_BLOB_LINE:
             raise AmbiguousStructure("line longer than the safety bound")
         ln = raw
         if not ln.strip():
             if span is not None:
                 raise AmbiguousStructure("backtick run never closed before the paragraph ended")
-            if html_end == "blank":
-                html_end = None
         if in_comment:
             if "<!--" in ln.split("-->", 1)[0]:
                 raise AmbiguousStructure("nested HTML comment")
@@ -278,7 +311,12 @@ def _outside_fences(content: str) -> list[str]:
                 continue
             in_comment = False
             ln = ln[ln.index("-->") + 3 :]
+            if block_comment and ln.strip():
+                force_taint = True  # the closer's line belongs to the HTML block, not to Markdown
+            block_comment = False
         scan = _CODE_SPAN.sub(lambda m: m.group().replace("<", "_").replace(">", "_"), ln)
+        lead = _QUOTE.sub("", ln) if ln.lstrip().startswith(">") else ln
+        at_start = bool(_BLOCK_COMMENT.match(lead))
         pieces: list[str] = []
         spieces: list[str] = []
         i = 0
@@ -294,27 +332,37 @@ def _outside_fences(content: str) -> list[str]:
             pieces.append(ln[i:s0])
             spieces.append(scan[i:s0])
             i = e0 + 3
+            if at_start and not any(p.strip() for p in pieces) and scan[i:].strip():
+                force_taint = True
+            at_start = False
         ln, scan = "".join(pieces), "".join(spieces)
         if "<!--" in scan:
             if "<!--" in scan[scan.index("<!--") + 4 :]:
                 raise AmbiguousStructure("nested HTML comment")
             in_comment = True
+            block_comment = at_start and not any(p.strip() for p in pieces[:-1])
             ln = ln[: scan.index("<!--")]
         elif "-->" in scan:
             raise AmbiguousStructure("stray HTML comment closer")
         core = _QUOTE.sub("", ln) if ln.lstrip().startswith(">") else ln
+        depth = _qdepth(ln)
         if fence is not None:
             m = _CLOSE_FENCE.match(core)
             if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1]:
                 fence = None
             continue
-        if html_end is not None:
-            if isinstance(html_end, re.Pattern):
-                if html_end.search(core):
-                    html_end = None
+        if raw_end is not None:
+            if depth < raw_end[1]:
+                raise AmbiguousStructure("raw HTML block interrupted by the end of its container")
+            if raw_end[0].search(core):
+                raw_end = None
+            continue
+        if taint is not None:
+            if not core.strip() or depth < taint:
+                taint = None
+            else:
+                out.append(TAINT + ln)
                 continue
-            if core.strip():
-                continue  # inside a blank-terminated HTML block
         m = _OPEN_FENCE.match(core)
         if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
             if span is not None:
@@ -326,15 +374,13 @@ def _outside_fences(content: str) -> list[str]:
         if span is None and core.strip():
             mr = _HTML_RAW.match(core)
             if mr:
-                if mr.group("t1"):
-                    closer = re.compile(r"</%s\s*>" % mr.group("t1"), re.IGNORECASE)
-                else:
-                    closer = _RAW_CLOSERS[mr.lastgroup]
+                closer = _RAW_CLOSERS[mr.lastgroup]
                 if not closer.search(core[mr.end() :]):
-                    html_end = closer
+                    raw_end = (closer, depth)
                 continue
-            if _html_block_start(core, para_open):
-                html_end = "blank"
+            if _html_ambiguous(core, _CODE_SPAN.sub("", core)):
+                taint = depth
+                out.append(TAINT + ln)
                 continue
         starts_in_span = span is not None
         for mrun in re.finditer(r"`+", core):
@@ -352,15 +398,15 @@ def _outside_fences(content: str) -> list[str]:
             elif run == span:
                 span = None
         if not starts_in_span:
-            out.append(ln)
-    if in_comment or fence is not None or span is not None or isinstance(html_end, re.Pattern):
-        raise AmbiguousStructure("unterminated comment, fence, code span or HTML block")
+            out.append(TAINT + ln if force_taint else ln)
+    if in_comment or fence is not None or span is not None or raw_end is not None:
+        raise AmbiguousStructure("unterminated comment, fence, code span or raw HTML block")
     return out
 
 
 def _heading_tokens(content: str) -> tuple[set[str], bool]:
     toks: set[str] = set()
-    for ln in _outside_fences(content):
+    for ln in _resolve(_outside_fences(content)):
         if _ATX.match(ln):
             for t in re.findall(r"(?:\u00a7[ \t]?)?([A-Za-z]?\d+(?:\.\d+)*[A-Za-z]?)", ln):
                 toks.add(t.strip())
@@ -408,7 +454,7 @@ def declared_versions(content: str) -> list[str]:
             return sorted(set(vals))
         content = "\n".join(lines[end + 1 :])
     found_set: set[str] = set()
-    for ln in _outside_fences(content):
+    for ln in _resolve(_outside_fences(content)):
         if "|" in ln:
             continue  # a table row is not authoritative metadata
         v = _decl_version(ln)
@@ -427,9 +473,17 @@ def _heading_windows(content: str, anchor: str) -> list[str]:
     lines = _outside_fences(content)
     wins: list[str] = []
     for i, ln in enumerate(lines):
+        if ln.startswith(TAINT):
+            if _ATX.match(ln[1:]) and anchor in ln:
+                raise AmbiguousStructure("anchor heading inside possible raw HTML")
+            continue
         if _ATX.match(ln) and anchor in ln:
             win: list[str] = []
             for nxt in lines[i + 1 :]:
+                if nxt.startswith(TAINT):
+                    if _metadata_like(nxt[1:]):
+                        raise AmbiguousStructure("metadata-like line inside possible raw HTML")
+                    continue
                 if _ATX.match(nxt) or _THEMATIC.match(nxt):
                     break
                 if _SETEXT.match(nxt):

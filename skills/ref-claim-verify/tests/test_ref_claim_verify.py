@@ -397,18 +397,62 @@ def test_blob_line_beyond_the_safety_bound_is_ambiguous(repo):
 
 
 # ── round-6 regressions (independent routed review of head bdafc9b) ──
-def test_inline_html_followed_by_prose_is_not_an_html_block(repo):
-    _commit(repo, {"ik.md": "Version: 1.2.3\n\n<kbd>Enter</kbd> to continue.\nVersion: 9.0.0\n"})
-    assert claims("`ik.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"   # conflict is seen, not hidden
-    _commit(repo, {"ih.md": "<kbd>Enter</kbd> to continue.\n## 4.1 Install\n"})
-    assert claims("`ih.md` §4.1", repo)[0]["verdict"] == "VERIFIED"       # heading not swallowed
+def test_line_leading_html_is_ambiguous_never_guessed(repo):
+    # round 7: CommonMark HTML blocks are not emulated; anything that can start one => UNRESOLVED
+    cases = {
+        "k1.md": "Version: 1.2.3\n\n<kbd>Enter</kbd> to continue.\nVersion: 9.0.0\n",
+        "k2.md": "Version: 1.2.3\n\n<kbd =>\nVersion: 9.0.0\n",
+        "k3.md": "Version: 1.2.3\n\n> <div>\n>\nVersion: 9.0.0\n",
+        "k4.md": '~~~\nexample\n~~~\n<img src="a.png">\nVersion: 1.2.3\n',
+        "k5.md": "<script>\n</script >\nVersion: 1.2.3\n</script>\n",
+        "k6.md": "Version: 1.2.3\n\n<pre>\n</script>\nVersion: 9.0.0\n</pre>\n",
+        "k7.md": "Version: 1.2.3\n\n<div>\nVersion: 9.0.0\n\nVersion: 8.0.0\n",
+        "k8.md": "Version: 1.2.3\n\nfoo <a\nVersion: 9.0.0 b>\n",
+    }
+    _commit(repo, cases)
+    for name in cases:
+        assert claims(f"`{name}` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED", name
 
 
-def test_standalone_tag_cannot_interrupt_a_paragraph_but_block_tags_can(repo):
-    _commit(repo, {"p7.md": 'Version: 1.2.3\ntext line\n<img src="a.png">\nVersion: 9.0.0\n'})
-    assert claims("`p7.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"   # <img> is inline here -> both seen
-    _commit(repo, {"p6.md": "Version: 1.2.3\ntext line\n<div>\nVersion: 9.0.0\n</div>\n"})
-    assert claims("`p6.md` v1.2.3", repo)[0]["verdict"] == "VERIFIED"      # <div> interrupts: 9.0.0 is raw HTML
+def test_block_comment_closer_line_content_is_not_metadata(repo):
+    _commit(repo, {"bc.md": "<!-- note -->Version: 1.2.3\n"})
+    assert claims("`bc.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"
+    _commit(repo, {"bm.md": "<!-- a\nb -->Version: 1.2.3\n"})
+    assert claims("`bm.md` v1.2.3", repo)[0]["verdict"] == "UNRESOLVED"
+    _commit(repo, {"ok.md": "<!-- note -->\nVersion: 1.2.3\n"})   # comment alone on its line: fine
+    assert claims("`ok.md` v1.2.3", repo)[0]["verdict"] == "VERIFIED"
+
+
+def test_autolinks_and_inline_code_are_not_html(repo):
+    _commit(repo, {"al.md": "See <https://example.com/x> for more.\n<https://example.com/y>\nVersion: 1.2.3\nUse `<div>` here.\n"})
+    assert claims("`al.md` v1.2.3", repo)[0]["verdict"] == "VERIFIED"
+
+
+def test_more_credential_forms_are_masked_and_mask_input_is_bounded():
+    sec = "hunter" + "2" + "secret"   # assembled at runtime: no literal secret in the file
+    forms = (
+        "Authorization: Bearer abcDEF123456 trailing",
+        "export DB_PASS=%s",
+        "pwd=%s",
+        "passphrase: %s",
+        "private_key: %s",
+        "credentials=%s",
+        "auth=%s",
+        "senha: %s",
+        "curl https://user:%s@host/x",
+        "<password>%s</password>",
+        "run --password %s now",
+        "token => %s",
+    )
+    for tpl in forms:
+        raw = tpl % sec if "%s" in tpl else tpl
+        out = rcv.mask(raw)
+        assert sec not in out and "abcDEF123456" not in out, tpl
+    assert "Author: Jane" in rcv.mask("Author: Jane")          # 'author' is not 'auth'
+    import time
+    t0 = time.time()
+    rcv.mask("a=" + "'" * 200000 + "\\" * 200000)
+    assert time.time() - t0 < 1.5
 
 
 def test_frontmatter_version_is_parsed_in_linear_time():
