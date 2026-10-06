@@ -98,7 +98,10 @@ PROBLEM DETECTED
   → Map to Category 1-6
   │
 [2. Agent EXISTS in registry?]
-  → YES: Reuse. DO NOT create duplicate.
+  → YES, and the request is NOT an organizational role: Reuse. DO NOT
+    create duplicate.
+  → YES for an organizational role: a matching name is not enough —
+    still run [2b] (coverage + role contract) before reusing it.
   → NO: Continue to [2b]. (No agent literally named for the role is the
     normal case for an organizational role — do not jump to [3] yet.)
   │
