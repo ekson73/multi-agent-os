@@ -18,8 +18,8 @@
 - **Specialty is an attribute, not a role.** `executor` + `specialty: dev · ops · content` — never one role per
   specialty (`developer`, `writer`…). New specialties then need no rename and no new queue.
 - **Latent roles keep their final name.** Name a not-yet-active role now (`project-lead`, `sre`); Anima names it
-  only, it never sets its status. Its contract is drafted `proposed`; if the owner approves it as latent with a
-  trigger, activation must not force a re-baptism.
+  only, it never sets its status. Its contract is drafted `latent` (no authority) and only the owner's ratification
+  makes it `active`; that activation must not force a re-baptism.
 - **Units: `lane/<noun>` for a queue + policy scope with no head** (`lane/revenue`, `lane/delivery`). Do not name a
   "department" or "cell"/"pod"/"squad" that has no decision of its own — that is an org chart for show.
 - **Entity as a graph.** Name the **edges** where the intelligence lives — `decide` · `verify` · `remember` ·
@@ -52,7 +52,7 @@ independent verifier, two latent roles, and four human approval points.
 - Orchestrator → `ceo` (operator's and market's word; the "cannot approve spend" limit goes in the contract).
 - Executors → `executor` + `specialty` (rejected `developer`/`ops-engineer`/`writer` — three queues for one role).
 - Verifier → `verifier` (rejected `reviewer`: implies cooperative review, loses "accepts evidence").
-- Not-yet-needed roles (contracts drafted `proposed`) → `project-lead`, `sre` (rejected `ops`: collides with
+- Not-yet-needed roles (contracts kept `latent`) → `project-lead`, `sre` (rejected `ops`: collides with
   `specialty: ops`).
 - Human approval points `G0–G3` → **`HG0–HG3`** (the `G` series was already owned by merge gates).
 - No soul-names on any role; units = `lane/revenue`, `lane/delivery`.

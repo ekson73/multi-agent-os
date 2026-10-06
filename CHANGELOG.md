@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `agents/forge.md` v1.1.0: new section "Organizational Roles — Contract + Binding" and a REUSE + binding
   step [2b] in the decision framework (org-role check before "create new agent"). An org role already covered
-  ≥50% by existing agents becomes a contract (`decide` · `out_of_domain` · `reports_to` · `binding` · `status`/`trigger`) bound to them, not a new
-  agent. Adds: knowledge ≠ authority (knowledge gaps → research/uplift/council first; residue and authority gaps → human), latent roles with a
+  ≥50% by existing agents becomes a contract (`role` · `status` · `owner` · `tier` · `decide` · `out_of_domain` · `reports_to` · `binding` ·
+  `holder` · `trigger` · `proposal_cap`) bound to them, not a new agent. Adds: knowledge ≠ authority (knowledge gaps → research/uplift/council first; residue and authority gaps → human), latent roles with a
   deterministic trigger, verifier independence by reporting line, lanes without a head, propose ≠ approve for spend,
   traits only with a falsifiable metric, specialty as attribute, rejection of the executor↔verifier "cell".
 - `skills/agentic-tool-forge` v1.3.0: `role contract (binding)` row in the type-decision router (pointer to the
@@ -62,6 +62,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Latent activation needs the independent resolver to confirm the trigger evidence. "Contract prevails" now holds
   on every path, including a direct `evolve <agent>`; the <50% new-agent branch also drafts a `proposed` contract;
   role registry location defined; `--type`/`--no-confirm` limits stated at every mention in the forge skill.
+  (The resolver and latent-activation parts of this bullet are superseded by the next one.)
+- Fourth adversarial-review fixes (GLM-5.3, red-team H6) — redesign, not patch: the autonomous activation loop is
+  removed. Every role contract is born `latent` (no authority; every decision goes to the human) and becomes
+  `active` only by the owner's explicit ratification recorded outside the file; agents only propose activation, and
+  a `trigger` only prompts that proposal. The self-declared "independent resolver" is gone. `status` and `role`
+  join the `authority_digest` (eleven fields), so a record over a latent draft never certifies `active` and cannot
+  be replayed onto another role. The authority gate is one rule: record exists, owner-authored, digest matches the
+  current file, file says `active`; the holder cites `approval_ref` + digest in the audit trail of every `decide`
+  action. Canonicalization pinned (duplicate YAML keys rejected, NFC, UTF-8 without `\u` escapes); a later owner
+  record revokes. Known limits (spec not tooling, `binding` pins names not content, no TTL, host-dependent owner
+  identity) are stated in `agents/forge.md`.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
