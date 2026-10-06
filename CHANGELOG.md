@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tied to a verifiable function, specialty as attribute, `lane/<noun>`, entity-as-graph edges, en-US search
   surfaces, occupied letter+digit series sweep). Routing row in `kb/_index.md` and the §6 table.
 - Before/after: static coverage smoke-set, 0/15 → 15/15 (see PR body for method and limits).
+- Review fixes: role-contract `status` example is now a single valid YAML value; `agentic-tool-forge` step 2
+  routes organizational-role requests to the role contract instead of stopping at EXTEND; the Paperclip source
+  note now matches the page (CEO is the only agent with `reportsTo: null`; board approval is separate oversight).
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 

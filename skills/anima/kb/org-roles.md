@@ -53,5 +53,6 @@ independent verifier, two latent roles, and four human approval points.
 ## Sources
 - Anthropic, *Multi-agent coordination patterns* (orchestrator–subagent, generator–verifier) —
   https://claude.com/blog/multi-agent-coordination-patterns
-- Paperclip docs, *Org structure* (human board at the top; CEO as the first agent, reporting only to the board) —
+- Paperclip docs, *Org structure* (strict tree; the CEO is the only agent with `reportsTo: null`; the board
+  approves the CEO's strategic breakdown and new-agent hires separately — oversight, not a reporting line) —
   https://mintlify.com/paperclipai/paperclip/concepts/org-structure
