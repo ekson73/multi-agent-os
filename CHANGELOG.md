@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `agentic-tool-forge` step 2 org-role exception: coverage for a role is measured over the union of the tools the
   contract would bind (not a single best candidate), and the <50% case is stated explicitly (continue normally),
   matching `agents/forge.md` [2b].
+- Adversarial-review fixes (GLM-5.3, independent family): a role contract is now only a **draft** — born
+  `status: proposed` with `tier`/`approved_by`/`approved_at` unset; only the human owner approves it, writes `tier`
+  and moves it to `latent` (default) or `active`; a contract whose `tier` or status was written by an agent is
+  invalid. [2b] persists the proposed contract via [5] (role registry, not `agents/`) before STOP, defines an org
+  role by position (reporting line / decision domain, not RBAD category), and sends a same-named <50% agent to
+  EVOLVE instead of creating a twin. HUMAN_DOMAIN/out-of-domain decisions go to the human directly (research-first
+  only for knowledge gaps inside `decide`); the spend cap is a ceiling on proposals, not a budget; trigger
+  activation of an approved latent role is logged and revertible. Anima `kb/org-roles.md`: irreversible/HUMAN_DOMAIN
+  tiers are board/human-only; an agent holding a human-sounding title is identified as an agent.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
