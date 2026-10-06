@@ -146,8 +146,8 @@ decide: [ "<what this role decides alone, with audit trail>" ]
 out_of_domain: [ "<what escalates to the human owner/board>" ]
 reports_to: <role>            # verifiers: board/owner, never the orchestrator
 binding: [ "<existing agent or skill>" ]
-status: active | latent        # latent requires `trigger`
-trigger: "<deterministic activation condition>"
+status: active                 # one value: active OR latent
+# trigger: "<deterministic activation condition>"   # required only when status: latent
 ```
 
 ## 33 Socratic Questions
