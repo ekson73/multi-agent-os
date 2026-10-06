@@ -213,7 +213,7 @@ Each object-class routes a discipline adapter in `kb/` carrying that domain's co
 | `kb/databases.md` | DB · schema · table · column · index · constraint · relationship (machine register; snake_case · `<table>_id` · `pk_`/`fk_` · reserved-words · length limits per engine) |
 | `kb/agentic-tools.md` | skill · command · agent · subagent · mcp · plugin · marketplace · rule (agent register; delegated FROM `agentic-tool-forge`; kebab · ≤6w · family-align · no-personal-names) |
 | `kb/brand-product.md` | product · brand · startup · app · domain · package (human register; Diamond Framework + sound-symbolism — feeds the §3.2 resonance aspects + availability/trademark pre-screen — *borrowed + cited*, see file) |
-| `kb/org-roles.md` | organizational role · level · tier · gate · lane · edge · tag (agent/machine register; market-recognizable roles with **no soul-name unless it maps to a verifiable function** · specialty as attribute · `lane/<noun>` · entity-as-graph edges · en-US search surfaces · **sweep occupied letter+digit series** before naming one) |
+| `kb/org-roles.md` | organizational role · decision level · authorization tier · human gate · lane · relation edge · tag · role instance id (agent/machine register; market-recognizable roles with **no soul-name unless it maps to a verifiable function** · specialty as attribute · `lane/<noun>` · entity-as-graph edges · en-US search surfaces · **sweep occupied letter+digit series** before naming one) |
 | `kb/_index.md` | the 33-Q table · routing rules · the **self-extend protocol** below |
 
 **Self-extend protocol** (operator directive — learn-and-persist on a new domain): when a request's object-class
