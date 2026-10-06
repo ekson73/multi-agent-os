@@ -42,6 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only for knowledge gaps inside `decide`); the spend cap is a ceiling on proposals, not a budget; trigger
   activation of an approved latent role is logged and revertible. Anima `kb/org-roles.md`: irreversible/HUMAN_DOMAIN
   tiers are board/human-only; an agent holding a human-sounding title is identified as an agent.
+- Second adversarial-review fixes (GLM-5.3, red-team H6): approval of a role contract is now proven by a record
+  **outside** the contract file (`approval_ref`: an owner `APPROVED` PR review, a ticket approval transition, or a
+  presence-gated signed commit); `status`/`tier`/`approved_by` inside the file are claims, not proof. One rule
+  decides the effective status: `approval_ref` resolves, is authored by the owner's identity (not one the agent
+  operates) and covers this exact content at the current commit → approved status; otherwise `proposed`
+  (fail-closed, including when agent and owner share one account). Latent activation is no longer a status write:
+  it is derived from the approval plus a logged trigger entry, which removes the conflict between the trigger and
+  the agent-written-status rule. Same-name EVOLVE also drafts a `proposed` contract and cannot widen authority;
+  `--type`/`--no-confirm` cannot bypass the role contract. Anima `kb/org-roles.md` no longer tells Anima to mark a
+  role `latent` (it names, never sets status).
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
