@@ -123,7 +123,10 @@ PROBLEM DETECTED
         The evolution also drafts its role contract as `proposed`;
         the evolved profile gains no authority beyond the contract's
         approved content (the contract prevails over the profile).
-      → NO (<50%) otherwise: Continue to [3] — a new agent is justified.
+      → NO (<50%) otherwise: Continue to [3] — a new agent is justified,
+        and [5] also drafts its role contract as `proposed`. Neither the
+        new role nor the new agent has any authority until that contract
+        passes the effective status rule (see "Owner approval").
   │
 [3. Goldilocks Check]
   → "Would another person recognize this professional title?"
@@ -136,8 +139,12 @@ PROBLEM DETECTED
 [5. Synthesize Spec + Persist]
   → Generate file in YAML frontmatter format
   → Save to appropriate location (role contract: the role registry,
-    `status: proposed`, never `agents/`)
-  → Register in Agent Registry
+    `status: proposed`, never `agents/`). The role registry is the
+    directory the host designates for role contracts, one file per role;
+    if the host has none, propose `roles/<role-slug>.md` and confirm it
+    with the operator.
+  → Register: an agent in the Agent Registry; a role contract in the
+    role registry (its file there is the registration)
 ```
 
 ## Organizational Roles — Contract + Binding
@@ -153,13 +160,14 @@ specialist or tool agent with neither is not an organizational role and follows 
 | Concept | Rule |
 |---------|------|
 | **REUSE + binding** | A role = contract (decision domain, limits, authorization tier) bound to one or more existing agents/skills. Verdict alongside reuse / evolve / create. Create a new agent only when existing coverage is <50%. |
-| **Owner approval (lifecycle)** | Forge only *drafts* a contract: it is born `status: proposed`, `tier` unset, and has no effect. Only the human owner approves it. **The proof of approval lives outside the contract file**: `approval_ref` points to a record the owner made with an identity the agent does not hold — an `APPROVED` review of the PR that sets `status`/`tier`, an approval transition on a tracker ticket, or a commit signed with a key whose use needs the owner's presence. Text inside the contract (`status`, `tier`, `approved_by`, `approved_at`) is a claim, never proof. **Effective status rule (the only one):** whoever reads the contract resolves `approval_ref` and checks that (a) the record exists, (b) its author is the owner's identity, not an identity the agent operates, and (c) it approves this exact content (`tier`, `decide`, `out_of_domain`, `trigger`) at the current commit. All three pass → the effective status is the approved one (`latent` by default, or `active`). Any of them fails, or `approval_ref` is missing → the effective status is `proposed`, whatever the file says (fail-closed). When the agent and the owner share one account, no record from that account proves a human: the contract stays `proposed` until the owner approves from an identity the agent cannot use. An agent never creates, edits or signs an approval record. |
+| **Owner approval (lifecycle)** | Forge only *drafts* a contract: it is born `status: proposed`, `tier` unset, and has no effect. Only the human owner approves it. **Owner:** the `owner` field names the approving authority by role (e.g. `board`), never by a person's name, and is never an agent or the role's `holder`. The identities allowed to act for that role are resolved from a source the agent cannot write (e.g. CODEOWNERS on a protected branch, the repository's admin list, the tracker project's admins), never from the contract. A missing `owner`, or one that resolves to an agent identity, leaves the contract `proposed`. **The proof of approval lives outside the contract file**: `approval_ref` points to a record the owner made with one of those identities — an `APPROVED` review of the PR that sets `status`/`tier`, an approval transition on a tracker ticket, or a commit signed with a key whose use needs the owner's presence. Text inside the contract (`status`, `tier`, `approved_by`, `approved_at`) is a claim, never proof. **Authority digest:** the approval covers every field that carries authority — the closed list `owner`, `tier`, `decide`, `out_of_domain`, `reports_to`, `binding`, `holder`, `trigger`, `proposal_cap` (a missing field counts as `null`). `authority_digest` is the `sha256` of those nine fields serialized as canonical JSON (keys sorted, separators `,` and `:` with no spaces, UTF-8). The approval record must quote it. Changing any of the nine fields (for example pointing a verifier's `reports_to` at the orchestrator) changes the digest and voids the approval. A field outside the list grants no authority; adding an authority-bearing field means extending this list in this file, reviewed as such. **Effective status rule (the only one):** the resolver resolves `approval_ref` and checks that (a) the record exists, (b) its author is one of the owner identities resolved above, and (c) the digest it quotes equals the digest recomputed from the current file. All three pass → the effective status is the approved one (`latent` by default, or `active`). Any of them fails, or `approval_ref` is missing → the effective status is `proposed`, whatever the file says (fail-closed). **Resolver independence:** the resolver is never the role's `holder`, an agent that reports to the role (directly or transitively), or the agent that drafted or evolved the contract; a status any of them computes counts as `proposed`. With no independent resolver available, the contract stays `proposed`. When the agent and the owner share one account, no record from that account proves a human: the contract stays `proposed` until the owner approves from an identity the agent cannot use. An agent never creates, edits or signs an approval record. |
 | **Decision domain** | Every decision-bearing role declares `decide` (what it decides alone, with an audit trail) and `out_of_domain` (what goes up to the human/board). A role without them is not ready. `decide` is always a subset of the role's authorization-tier ceiling and **never** contains irreversible actions, spend/cost, secrets or credentials, production/deploy, real personal data, cross-org actions, ethics/policy calls, or personal/relational decisions (HUMAN_DOMAIN) — those are always `out_of_domain` (board/human). A contract cannot widen its own `decide`; widening it is an organizational act that needs the owner's approval. |
+| **Contract prevails** | A role acts only within its contract's approved content (the fields the `authority_digest` covers). That applies on every path — REUSE + binding, EVOLVE, a new agent, or a direct `evolve <agent>` — and the contract prevails over any agent profile, binding, or router output. A role without a contract whose effective status is approved has no decision authority. |
 | **Knowledge ≠ authority** | A pure knowledge gap inside `decide` never goes to the human **first**: research, uplift, and a council come first; the residue that survives them goes to the human. Any decision outside `decide` (human-only, HUMAN_DOMAIN, irreversible, absolute-guardrail) goes to the human **directly** — research-first never delays that escalation. |
-| **Latent role** | A role that is not needed yet is approved as latent with a deterministic activation trigger; the trigger is part of the content the `approval_ref` covers. Activation is not a status write: the effective status of a latent role becomes `active` when a logged activation entry (when, which trigger evidence) exists for a trigger the approval covers. An agent may write only that log entry; it never edits `status`, `tier` or the trigger. The owner can revert by removing or overruling the entry. A trigger never activates a contract whose effective status is `proposed`. Creating a new role is an organizational act that needs the owner's approval. |
+| **Latent role** | A role that is not needed yet is approved as latent with a deterministic activation trigger; the trigger is part of the content the `approval_ref` covers. Activation is not a status write: the effective status of a latent role becomes `active` only when an activation entry (when, which trigger evidence) is logged in the location the approved `trigger` names **and** the independent resolver (see "Owner approval") re-checks the trigger condition against that evidence and confirms it. Evidence the resolver cannot verify leaves the role `latent`. An agent may write only that log entry; it never edits `status`, `tier` or the trigger. The owner can revert by removing or overruling the entry. A trigger never activates a contract whose effective status is `proposed`. Creating a new role, by binding or by a new agent, is an organizational act: the role has no authority until its contract passes the effective status rule. |
 | **Independence by reporting line** | A verification role reports to the board/owner, never to the orchestrator whose output it checks. Same model family is acceptable only as a separate instance plus a deterministic oracle (tests, schema, scanner). |
 | **Lane, not department** | A unit with no decision of its own is a **lane**: a queue plus a policy scope, with no head. A department without a decision domain is theater. |
-| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it; every spend needs the human's approval, and spend is never in `decide`. The human owner may also set, as part of the approved content, a deterministic cap on what a role may *propose* (proposals above it are rejected before reaching the human); the cap is a ceiling on proposals, not a pre-approved budget. |
+| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it; every spend needs the human's approval, and spend is never in `decide`. The human owner may also set, as part of the approved content, a deterministic cap on what a role may *propose* (`proposal_cap`, covered by the `authority_digest`; proposals above it are rejected before reaching the human); the cap is a ceiling on proposals, not a pre-approved budget. |
 | **Trait only with a falsifiable metric** | An archetype, persona, or trait enters a role spec only if a metric could refute it. Otherwise cut it. |
 | **Specialty is an attribute** | `executor` + `specialty` (dev · ops · content), not three roles. Fewer queues, fewer specs. |
 | **Reject the "cell"** | An executor↔verifier pair is a flow edge (change → checks → verifier), not an organizational unit. Grouping them puts the verifier "on the author's team" and weakens independence. |
@@ -170,7 +178,8 @@ Role contract fields (add to the spec frontmatter for decision-bearing roles):
 ```yaml
 status: proposed               # a claim, not proof — effective status is computed from approval_ref (see "Owner approval")
 tier: null                     # ceiling for `decide`; ONLY the human owner sets it, in the approved content
-approval_ref: null             # owner's approval record OUTSIDE this file (PR review / ticket transition / presence-gated signed commit); missing or unverifiable ⇒ effective status `proposed`
+owner: board                   # approving authority BY ROLE (never a person's name, never an agent or the holder); identities resolved from a source the agent cannot write
+approval_ref: null             # owner's approval record OUTSIDE this file (PR review / ticket transition / presence-gated signed commit) quoting the authority_digest; missing or unverifiable ⇒ effective status `proposed`
 approved_by: null              # informational; never proof of approval
 approved_at: null              # informational; ISO 8601
 decide: [ "<what this role decides alone, with audit trail>" ]   # subset of `tier` ceiling; never irreversible/spend/secrets/prod/personal-data/cross-org/ethics/personal (HUMAN_DOMAIN)
@@ -178,7 +187,9 @@ out_of_domain: [ "<what escalates to the human owner/board>" ]
 reports_to: <role>            # verifiers: board/owner, never the orchestrator
 binding: [ "<existing agent or skill>" ]
 holder: agent                  # agent | human — an agent holding a human-sounding title discloses it is an AI
-# trigger: "<deterministic activation condition>"   # required when the owner approves it as latent
+# trigger: "<deterministic activation condition; where the activation entry is logged>"   # required when the owner approves it as latent
+proposal_cap: null             # optional ceiling on what this role may propose (not a budget)
+# authority_digest = sha256(canonical JSON of owner, tier, decide, out_of_domain, reports_to, binding, holder, trigger, proposal_cap); quoted by the approval record, never trusted from this file
 ```
 
 ## 33 Socratic Questions
@@ -357,7 +368,7 @@ Step 4: FEEDBACK LOOP
 |---------|-------------|
 | `create <domain>` | Create new agent (executes 33 questions + bootstrap) |
 | `evaluate <agent>` | Evaluate existing agent performance (KPIs) |
-| `evolve <agent>` | Improve profile based on feedback (for an organizational-role agent, never widens authority beyond its owner-approved role contract) |
+| `evolve <agent>` | Improve profile based on feedback. For an agent that holds an organizational role, run [2b] first; the evolved agent never gains authority beyond its role contract's approved content, and without an approved contract it has none |
 | `audit` | Complete post-mortem of current cycle |
 | `list` | List existing agents (global + project) |
 | `compare <a> <b>` | Compare scope of two agents (detect overlap) |
