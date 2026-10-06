@@ -20,10 +20,10 @@ triggers:
   - converta isto em uma ferramenta
   - research then build the best tool
   - which artifact type should this be
-version: 1.2.0
+version: 1.3.0
 allowed-tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task, Skill
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   scope: AAIF cross-vendor
   family: agentic-tool-lifecycle
   lifecycle-stage: forge
@@ -98,6 +98,7 @@ Pick the **most atomic type that fully delivers** the intent (Goldilocks). Defau
 | **skill** | Recurring multi-step workflow w/ embedded logic + optional params; model- or `/`-invoked; portable. | `skills/<name>/SKILL.md` |
 | **command** | Ergonomic `/x` entry point — usually a thin wrapper over a skill. | `commands/<name>.md` |
 | **agent / subagent** | A role-persona to *delegate* isolated work to (RBAD role; own system prompt + tools). | `agents/<name>.md` |
+| **role contract (binding)** | An *organizational* role (CEO, account manager, verifier…) that existing agents/skills already cover ≥50% — emit a contract (`decide` · `out_of_domain` · `reports_to` · `binding` · `status`/`trigger`) bound to them, **no new agent**. Rules: `agents/forge.md` §"Organizational Roles". | the role's spec/registry, not `agents/` |
 | **rule / hook** | An auto-loaded behavioral policy (rule) or lifecycle enforcement (hook). | `rules/<name>.md` · `hooks/` |
 | **mcp server** | Wrap an external API/service/transport as callable tools/resources. | mcp server dir + manifest |
 | **plugin** | Bundle ≥2 components (commands/agents/skills/hooks/mcp) for distribution. | plugin dir + `plugin.json` |
@@ -160,6 +161,7 @@ Deprecate when ANY: the lifecycle family absorbs forge into a unified `agentic-t
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 1.3.0 | 2026-10-06 | **MINOR — organizational-role verdict (TRAIN).** Adds the `role contract (binding)` row to the Type-decision router: for an org role already covered ≥50% by existing agents/skills, the output is a contract bound to them, not a new agent (rules live in `agents/forge.md` §"Organizational Roles" — pointer, no duplication). Evaluated with a static coverage smoke-set before/after (see PR). |
 | 1.2.0 | 2026-08-18 | **MINOR — Prisma-grounded create-vs-update gate.** Phase-2 `NO_CANDIDATE` (≥50% ⇒ EXTEND): the threshold stays, but contested/`--with-prisma` calls now decompose the intent into a value-tree (`decompose-abstract-to-measurable`) — one leaf per deliverable capability, D-covered/not per best existing candidate, deterministic roll-up `coverage = covered/total` — replacing the eyeball with reproducible evidence (fast heuristic retained for clear calls — KISS/proportionality). Dogfood: this round's own eisenhower-matrix decision ran exactly this test (existing v0.1.x spec + PR #368 draft ≥50% ⇒ HARMONIZE/EXTEND, not create — the shipped v0.2.0 is the extend). Aligns with `anima` v1.2.0 (§4.5 Prisma composition + §5 360° sweep). |
 | 1.1.1 | 2026-08-18 | **Boundary vs `refine-braindump-to-prompt` (Lapidary) + closed one-directional cross-ref gap.** Comparative audit (`refine-braindump-to-prompt` vs the `agentic-tool-*` family) found Lapidary named this forge as a hand-off target 3× (its "When NOT to use", its output-target orthogonality note, its "Relationship to siblings" table) while this forge never referenced Lapidary back nor distinguished itself from Lapidary's own `--output-target=agentic-tool:*` sink — which can write directly into a skill/command/agent's body WITHOUT this forge's dedup/naming/type-decision/invocation-surface-gate/DNA-geracional-inheritance/artifact-registry-record, risking the exact skill-without-`/`-wrapper regression this forge's own v1.1.0 was built to prevent. Fixes: (1) replaced the stale "just wanting better-worded prose for one turn (write the prompt inline)" hand-off with an explicit route to `refine-braindump-to-prompt` for the messy-braindump-needing-REFINE+RED-TEAM-but-not-a-recurring-tool case; (2) added a boundary note under "When NOT to use" naming Lapidary's sink and what it does NOT run; (3) added Lapidary + `transmute` (the conductor that correctly delegates any `cast:agentic-tool` to this forge, confirmed via its own Cast-router table) to §Refs. Non-fixed, flagged finding (out of scope for this PATCH, enqueued): `agentic-tool-pipeline` (v0.1.0) and `transmute` (v0.2.0) are both self-described "thin conductors that compose forge/intake/evaluator/trainer and reimplement nothing," with zero mutual cross-reference — likely organic-growth redundancy warranting its own dedicated investigation before any merge/deprecation. Zero behavioral change to the pipeline itself (docs/boundary-completeness only). |
 | 1.1.0 | 2026-06-18 | **Invocation-surface gate** (new § after Type-decision router) — elevates the wrapper from a passive *mention* ("optional", "when both invocation styles are wanted") to an explicit **gate + author-step check**, separating the orthogonal axes WHAT-the-tool-is (type) vs HOW-it's-fired (surface). Rule: a `skill`/`agent` meant to be human-`/slash`-invokable MUST ship `commands/<name>.md` in the same deliverable; skill-without-wrapper = auto-trigger/`plugin:name`-only, so `/name` does nothing. Wires the gate into phase 3 (decide) + phase 7 (forge, wrapper-check gotcha). Root-cause fix for an empirical skill-landed-slash-less miss (the `/name`-never-appeared symptom). DRY: lives inside the genesis skill (SSOT), not a new rule/memory. Stale user-scope copy (`~/.claude/skills/agentic-tool-forge` v0.1.1) should re-sync from this SSOT — not edited in parallel. |
