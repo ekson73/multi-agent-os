@@ -99,10 +99,16 @@ PROBLEM DETECTED
   │
 [2. Agent EXISTS in registry?]
   → YES: Reuse. DO NOT create duplicate.
-  → Request is an ORGANIZATIONAL ROLE (Cat 1-2: CEO, account manager,
-    verifier...) and existing agents cover ≥50%? → REUSE + binding
-    (contract bound to existing agents — no new agent; see section below).
+  → NO: Continue to [2b]. (No agent literally named for the role is the
+    normal case for an organizational role — do not jump to [3] yet.)
+  │
+[2b. Is the request an ORGANIZATIONAL ROLE? (CEO, account manager,
+     verifier, executor... — any RBAD category)]
   → NO: Continue to [3].
+  → YES: Do existing agents/skills cover ≥50% of the role's capabilities?
+      → YES: REUSE + binding — emit a role contract bound to them,
+        no new agent (see section below). STOP.
+      → NO (<50%): Continue to [3] — a new agent is justified.
   │
 [3. Goldilocks Check]
   → "Would another person recognize this professional title?"
@@ -118,18 +124,19 @@ PROBLEM DETECTED
   → Register in Agent Registry
 ```
 
-## Organizational Roles (RBAD Cat 1-2) — Contract + Binding
+## Organizational Roles — Contract + Binding
 
 When the request is an organizational role or an org chart ("we need a CEO agent",
 "build the team"), the right output is usually a **role contract bound to existing
 agents**, not a new agent. Question 4 ("does another agent already cover this?")
-becomes the deciding question.
+becomes the deciding question. This applies to any organizational role, whatever its RBAD
+category (an account manager or an executor is no less a role than a CEO).
 
 | Concept | Rule |
 |---------|------|
 | **REUSE + binding** | A role = contract (decision domain, limits, authorization tier) bound to one or more existing agents/skills. Verdict alongside reuse / evolve / create. Create a new agent only when existing coverage is <50%. |
-| **Decision domain** | Every decision-bearing role declares `decide` (what it decides alone, with an audit trail) and `out_of_domain` (what goes up to the human/board). A role without them is not ready. |
-| **Knowledge ≠ authority** | A knowledge gap leads to research, uplift, or a council — never to human escalation. Only an authority gap (decision outside `decide`) escalates. |
+| **Decision domain** | Every decision-bearing role declares `decide` (what it decides alone, with an audit trail) and `out_of_domain` (what goes up to the human/board). A role without them is not ready. `decide` is always a subset of the role's authorization-tier ceiling and **never** contains irreversible actions, spend/cost, secrets or credentials, production/deploy, real personal data, or cross-org actions — those are always `out_of_domain` (board/human). A contract cannot widen its own `decide`; widening it is an organizational act that needs the owner's approval. |
+| **Knowledge ≠ authority** | A knowledge gap never goes to the human **first**: research, uplift, and a council come first. The residue that survives uplift and council, and any decision outside `decide` (including human-only, irreversible, and absolute-guardrail matters), still goes to the human. |
 | **Latent role** | A role that is not needed yet is declared latent with a deterministic activation trigger. Activating an existing latent role is a management act; creating a new role is an organizational act that needs the owner's approval. |
 | **Independence by reporting line** | A verification role reports to the board/owner, never to the orchestrator whose output it checks. Same model family is acceptable only as a separate instance plus a deterministic oracle (tests, schema, scanner). |
 | **Lane, not department** | A unit with no decision of its own is a **lane**: a queue plus a policy scope, with no head. A department without a decision domain is theater. |
@@ -142,7 +149,7 @@ becomes the deciding question.
 Role contract fields (add to the spec frontmatter for decision-bearing roles):
 
 ```yaml
-decide: [ "<what this role decides alone, with audit trail>" ]
+decide: [ "<what this role decides alone, with audit trail>" ]   # subset of tier ceiling; never irreversible/spend/secrets/prod/personal-data/cross-org
 out_of_domain: [ "<what escalates to the human owner/board>" ]
 reports_to: <role>            # verifiers: board/owner, never the orchestrator
 binding: [ "<existing agent or skill>" ]

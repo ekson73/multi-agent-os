@@ -27,7 +27,8 @@
   even when the request arrived in another language (quote the original label next to it, never as the slug).
 - **Instance ids derive from the role slug:** `<role-slug>-<nn>` (`executor-01`, `ceo-01`) — the role stays the SSOT.
 - **Levels and tiers: verb or noun of what they unlock** (`l0-policy` · `l3-execution`; `z0-read` ·
-  `z1-local-write` · `z4-irreversible`).
+  `z1-local-write` · `z4-irreversible`). These are illustrative excerpts (intermediate values omitted, hence the
+  `z1`→`z4` gap), not adopted series — run the sweep below before adopting any letter+digit series.
 
 ## Reserved/limits — occupied short series (sweep before reuse)
 Short **letter+digit series** are the most collision-prone names in a governance corpus: `G1–G8`, `T1–T4`, `A0–A4`

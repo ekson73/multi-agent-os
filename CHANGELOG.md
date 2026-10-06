@@ -9,10 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed — TRAIN: Forge and Anima learn organizational roles
 
-- `agents/forge.md` v1.1.0: new section "Organizational Roles (RBAD Cat 1-2) — Contract + Binding" and a
-  REUSE + binding branch in the decision framework. An org role already covered ≥50% by existing agents becomes a
-  contract (`decide` · `out_of_domain` · `reports_to` · `binding` · `status`/`trigger`) bound to them, not a new
-  agent. Adds: knowledge ≠ authority (knowledge gaps → research, only authority gaps → human), latent roles with a
+- `agents/forge.md` v1.1.0: new section "Organizational Roles — Contract + Binding" and a REUSE + binding
+  step [2b] in the decision framework (org-role check before "create new agent"). An org role already covered
+  ≥50% by existing agents becomes a contract (`decide` · `out_of_domain` · `reports_to` · `binding` · `status`/`trigger`) bound to them, not a new
+  agent. Adds: knowledge ≠ authority (knowledge gaps → research/uplift/council first; residue and authority gaps → human), latent roles with a
   deterministic trigger, verifier independence by reporting line, lanes without a head, propose ≠ approve for spend,
   traits only with a falsifiable metric, specialty as attribute, rejection of the executor↔verifier "cell".
 - `skills/agentic-tool-forge` v1.3.0: `role contract (binding)` row in the type-decision router (pointer to the
@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Review fixes: role-contract `status` example is now a single valid YAML value; `agentic-tool-forge` step 2
   routes organizational-role requests to the role contract instead of stopping at EXTEND; the Paperclip source
   note now matches the page (CEO is the only agent with `reportsTo: null`; board approval is separate oversight).
+- Routed-review fixes (independent reviewer, different model family): the org-role branch is now its own step [2b]
+  evaluated before Goldilocks/creation, so a role with no same-named agent is not routed to "create new agent";
+  `decide` is bounded (subset of the tier ceiling, never irreversible/spend/secrets/prod/personal-data/cross-org,
+  not self-widening); a knowledge gap goes to research/uplift/council first, but the surviving residue and anything
+  outside `decide` still reach the human; the section no longer claims to cover only RBAD Cat 1-2; Anima's §6 row
+  uses the same routing tokens as `kb/_index.md`; level/tier series in `kb/org-roles.md` are marked illustrative.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
