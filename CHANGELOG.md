@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — TRAIN: Forge and Anima learn organizational roles
+
+- `agents/forge.md` v1.1.0: new section "Organizational Roles (RBAD Cat 1-2) — Contract + Binding" and a
+  REUSE + binding branch in the decision framework. An org role already covered ≥50% by existing agents becomes a
+  contract (`decide` · `out_of_domain` · `reports_to` · `binding` · `status`/`trigger`) bound to them, not a new
+  agent. Adds: knowledge ≠ authority (knowledge gaps → research, only authority gaps → human), latent roles with a
+  deterministic trigger, verifier independence by reporting line, lanes without a head, propose ≠ approve for spend,
+  traits only with a falsifiable metric, specialty as attribute, rejection of the executor↔verifier "cell".
+- `skills/agentic-tool-forge` v1.3.0: `role contract (binding)` row in the type-decision router (pointer to the
+  Forge section, no duplication).
+- `skills/anima` v1.3.0: new `kb/org-roles.md` adapter via the self-extend protocol (roles without soul-names unless
+  tied to a verifiable function, specialty as attribute, `lane/<noun>`, entity-as-graph edges, en-US search
+  surfaces, occupied letter+digit series sweep). Routing row in `kb/_index.md` and the §6 table.
+- Before/after: static coverage smoke-set, 0/15 → 15/15 (see PR body for method and limits).
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
