@@ -52,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it is derived from the approval plus a logged trigger entry, which removes the conflict between the trigger and
   the agent-written-status rule. Same-name EVOLVE also drafts a `proposed` contract and cannot widen authority;
   `--type`/`--no-confirm` cannot bypass the role contract. Anima `kb/org-roles.md` no longer tells Anima to mark a
-  role `latent` (it names, never sets status).
+  role `latent` (it names, never sets status). (The `proposed` status and the derived latent activation are
+  superseded by the fourth bullet below.)
 - Third adversarial-review fixes (GLM-5.3, red-team H6): the approval now covers every authority-bearing field —
   the closed list `owner` · `tier` · `decide` · `out_of_domain` · `reports_to` · `binding` · `holder` · `trigger` ·
   `proposal_cap` — through an `authority_digest` (sha256 of canonical JSON) that the external approval record must
@@ -62,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Latent activation needs the independent resolver to confirm the trigger evidence. "Contract prevails" now holds
   on every path, including a direct `evolve <agent>`; the <50% new-agent branch also drafts a `proposed` contract;
   role registry location defined; `--type`/`--no-confirm` limits stated at every mention in the forge skill.
-  (The resolver and latent-activation parts of this bullet are superseded by the next one.)
+  (The resolver, latent-activation and `proposed`-status parts of this bullet are superseded by the next one.)
 - Fourth adversarial-review fixes (GLM-5.3, red-team H6) — redesign, not patch: the autonomous activation loop is
   removed. Every role contract is born `latent` (no authority; every decision goes to the human) and becomes
   `active` only by the owner's explicit ratification recorded outside the file; agents only propose activation, and
@@ -73,6 +74,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action. Canonicalization pinned (duplicate YAML keys rejected, NFC, UTF-8 without `\u` escapes); a later owner
   record revokes. Known limits (spec not tooling, `binding` pins names not content, no TTL, host-dependent owner
   identity) are stated in `agents/forge.md`.
+- Fifth adversarial-review fixes (GLM-5.3, red-team H6): the authority gate gains check (e) — no later owner record
+  revokes or supersedes the cited ratification, searched outside the contract file — so restoring old field values
+  (which reproduces an old digest) cannot revive a revoked contract. The citation now pins the contract file's commit
+  SHA and (c) checks the digest at that commit, which must still be the current version. The owner identity rule
+  again excludes any identity the agent operates. Wording: an agent-written `status: active` in a PR is inert until
+  the owner's record covers it; skipping role detection means no contract, not a latent one. New known limits:
+  YAML typing/anchors/tags not pinned (fail-closed), digest binds the slug not the path, the gate does not re-check
+  `decide` ⊆ `tier` or HUMAN_DOMAIN exclusion (owner review duty).
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
