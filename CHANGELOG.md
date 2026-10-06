@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not self-widening); a knowledge gap goes to research/uplift/council first, but the surviving residue and anything
   outside `decide` still reach the human; the section no longer claims to cover only RBAD Cat 1-2; Anima's §6 row
   uses the same routing tokens as `kb/_index.md`; level/tier series in `kb/org-roles.md` are marked illustrative.
+- `agentic-tool-forge` step 2 org-role exception: coverage for a role is measured over the union of the tools the
+  contract would bind (not a single best candidate), and the <50% case is stated explicitly (continue normally),
+  matching `agents/forge.md` [2b].
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
