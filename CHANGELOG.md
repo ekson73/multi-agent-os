@@ -33,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `agentic-tool-forge` step 2 org-role exception: coverage for a role is measured over the union of the tools the
   contract would bind (not a single best candidate), and the <50% case is stated explicitly (continue normally),
   matching `agents/forge.md` [2b].
-- Adversarial-review fixes (GLM-5.3, independent family): a role contract is now only a **draft** — born
+- Adversarial-review fixes (GLM-5.3, independent family; the in-file approval model below is superseded by the
+  next two bullets — approval is proven outside the contract file): a role contract is now only a **draft** — born
   `status: proposed` with `tier`/`approved_by`/`approved_at` unset; only the human owner approves it, writes `tier`
   and moves it to `latent` (default) or `active`; a contract whose `tier` or status was written by an agent is
   invalid. [2b] persists the proposed contract via [5] (role registry, not `agents/`) before STOP, defines an org
@@ -52,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the agent-written-status rule. Same-name EVOLVE also drafts a `proposed` contract and cannot widen authority;
   `--type`/`--no-confirm` cannot bypass the role contract. Anima `kb/org-roles.md` no longer tells Anima to mark a
   role `latent` (it names, never sets status).
+- Third adversarial-review fixes (GLM-5.3, red-team H6): the approval now covers every authority-bearing field —
+  the closed list `owner` · `tier` · `decide` · `out_of_domain` · `reports_to` · `binding` · `holder` · `trigger` ·
+  `proposal_cap` — through an `authority_digest` (sha256 of canonical JSON) that the external approval record must
+  quote; changing any of them (e.g. a verifier's `reports_to`) voids the approval. New `owner` field (approving
+  authority by role, never a person or an agent; identities resolved from a source the agent cannot write) and a
+  resolver-independence rule (never the holder, a subordinate, or the drafting agent; otherwise `proposed`).
+  Latent activation needs the independent resolver to confirm the trigger evidence. "Contract prevails" now holds
+  on every path, including a direct `evolve <agent>`; the <50% new-agent branch also drafts a `proposed` contract;
+  role registry location defined; `--type`/`--no-confirm` limits stated at every mention in the forge skill.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
