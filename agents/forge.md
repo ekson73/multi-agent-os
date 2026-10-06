@@ -105,13 +105,22 @@ PROBLEM DETECTED
   → NO: Continue to [2b]. (No agent literally named for the role is the
     normal case for an organizational role — do not jump to [3] yet.)
   │
-[2b. Is the request an ORGANIZATIONAL ROLE? (CEO, account manager,
-     verifier, executor... — any RBAD category)]
+[2b. Is the request an ORGANIZATIONAL ROLE? — a position in an org
+     chart: it has a reporting line (`reports_to`) and/or a decision
+     domain (CEO, account manager, verifier, executor...). The RBAD
+     category is NOT the test: a specialist/tool agent with no
+     reporting line and no decision domain is NOT an org role.]
   → NO: Continue to [3].
   → YES: Do existing agents/skills cover ≥50% of the role's capabilities?
-      → YES: REUSE + binding — emit a role contract bound to them,
-        no new agent (see section below). STOP.
-      → NO (<50%): Continue to [3] — a new agent is justified.
+      → YES: REUSE + binding — draft a role contract bound to them,
+        no new agent (see section below). The draft is born
+        `status: proposed` with `tier` unset; only the human owner
+        approves it, sets `tier`, and moves it to `latent`/`active`.
+        Go to [5] to persist the proposed contract (role registry,
+        not `agents/`), then STOP.
+      → NO (<50%) and an agent already carries the role's name:
+        EVOLVE that agent (`evolve <agent>`), do not create a twin.
+      → NO (<50%) otherwise: Continue to [3] — a new agent is justified.
   │
 [3. Goldilocks Check]
   → "Would another person recognize this professional title?"
@@ -123,7 +132,8 @@ PROBLEM DETECTED
   │
 [5. Synthesize Spec + Persist]
   → Generate file in YAML frontmatter format
-  → Save to appropriate location
+  → Save to appropriate location (role contract: the role registry,
+    `status: proposed`, never `agents/`)
   → Register in Agent Registry
 ```
 
@@ -133,17 +143,20 @@ When the request is an organizational role or an org chart ("we need a CEO agent
 "build the team"), the right output is usually a **role contract bound to existing
 agents**, not a new agent. Question 4 ("does another agent already cover this?")
 becomes the deciding question. This applies to any organizational role, whatever its RBAD
-category (an account manager or an executor is no less a role than a CEO).
+category (an account manager or an executor is no less a role than a CEO). The test is
+the position, not the category: a role has a reporting line and/or a decision domain; a
+specialist or tool agent with neither is not an organizational role and follows [3].
 
 | Concept | Rule |
 |---------|------|
 | **REUSE + binding** | A role = contract (decision domain, limits, authorization tier) bound to one or more existing agents/skills. Verdict alongside reuse / evolve / create. Create a new agent only when existing coverage is <50%. |
+| **Owner approval (lifecycle)** | Forge only *drafts* a contract: it is born `status: proposed`, `tier` unset, and has no effect. Only the human owner approves it — writing `tier`, `approved_by` (a human, never the emitting agent) and `approved_at`, and moving it to `latent` (default) or `active`. A contract whose `tier` or non-`proposed` status was written by an agent, or whose `approved_by` is empty or an agent, is **invalid** and must be treated as `proposed`. |
 | **Decision domain** | Every decision-bearing role declares `decide` (what it decides alone, with an audit trail) and `out_of_domain` (what goes up to the human/board). A role without them is not ready. `decide` is always a subset of the role's authorization-tier ceiling and **never** contains irreversible actions, spend/cost, secrets or credentials, production/deploy, real personal data, cross-org actions, ethics/policy calls, or personal/relational decisions (HUMAN_DOMAIN) — those are always `out_of_domain` (board/human). A contract cannot widen its own `decide`; widening it is an organizational act that needs the owner's approval. |
-| **Knowledge ≠ authority** | A knowledge gap never goes to the human **first**: research, uplift, and a council come first. The residue that survives uplift and council, and any decision outside `decide` (including human-only, irreversible, and absolute-guardrail matters), still goes to the human. |
-| **Latent role** | A role that is not needed yet is declared latent with a deterministic activation trigger. Activating an existing latent role is a management act; creating a new role is an organizational act that needs the owner's approval. |
+| **Knowledge ≠ authority** | A pure knowledge gap inside `decide` never goes to the human **first**: research, uplift, and a council come first; the residue that survives them goes to the human. Any decision outside `decide` (human-only, HUMAN_DOMAIN, irreversible, absolute-guardrail) goes to the human **directly** — research-first never delays that escalation. |
+| **Latent role** | A role that is not needed yet is declared latent with a deterministic activation trigger. The trigger is part of what the owner approves. When it fires, the approved latent role becomes `active`; the activation is logged (when, which trigger evidence) and the owner can revert it. A trigger never activates a `proposed` contract. Creating a new role is an organizational act that needs the owner's approval. |
 | **Independence by reporting line** | A verification role reports to the board/owner, never to the orchestrator whose output it checks. Same model family is acceptable only as a separate instance plus a deterministic oracle (tests, schema, scanner). |
 | **Lane, not department** | A unit with no decision of its own is a **lane**: a queue plus a policy scope, with no head. A department without a decision domain is theater. |
-| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it. Anchor with a deterministic spend cap set by the human owner. |
+| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it; every spend needs the human's approval, and spend is never in `decide`. The human owner may also set a deterministic cap on what a role may *propose* (proposals above it are rejected before reaching the human); the cap is a ceiling on proposals, not a pre-approved budget. |
 | **Trait only with a falsifiable metric** | An archetype, persona, or trait enters a role spec only if a metric could refute it. Otherwise cut it. |
 | **Specialty is an attribute** | `executor` + `specialty` (dev · ops · content), not three roles. Fewer queues, fewer specs. |
 | **Reject the "cell"** | An executor↔verifier pair is a flow edge (change → checks → verifier), not an organizational unit. Grouping them puts the verifier "on the author's team" and weakens independence. |
@@ -152,13 +165,16 @@ category (an account manager or an executor is no less a role than a CEO).
 Role contract fields (add to the spec frontmatter for decision-bearing roles):
 
 ```yaml
-tier: <authorization-tier id>  # ceiling for `decide`; set by the human owner
+status: proposed               # proposed (Forge output) → latent (default on owner approval) → active
+tier: null                     # ceiling for `decide`; ONLY the human owner writes it on approval
+approved_by: null              # human owner id; never the emitting agent
+approved_at: null              # ISO 8601, written with approved_by
 decide: [ "<what this role decides alone, with audit trail>" ]   # subset of `tier` ceiling; never irreversible/spend/secrets/prod/personal-data/cross-org/ethics/personal (HUMAN_DOMAIN)
 out_of_domain: [ "<what escalates to the human owner/board>" ]
 reports_to: <role>            # verifiers: board/owner, never the orchestrator
 binding: [ "<existing agent or skill>" ]
-status: active                 # one value: active OR latent
-# trigger: "<deterministic activation condition>"   # required only when status: latent
+holder: agent                  # agent | human — an agent holding a human-sounding title discloses it is an AI
+# trigger: "<deterministic activation condition>"   # required when the owner approves it as latent
 ```
 
 ## 33 Socratic Questions

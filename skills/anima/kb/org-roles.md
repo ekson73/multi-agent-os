@@ -12,7 +12,9 @@
   `account-manager`) over an invented one.
 - **The name must not imply authority the role lacks.** If a market title carries a power the role does not have
   (e.g. a `ceo` that cannot approve spend), keep the title and state the limit in the role contract — do not rename
-  to dodge it, and do not leave the implied power unstated.
+  to dodge it, and do not leave the implied power unstated. An agent holding a human-sounding title (`ceo`,
+  `account-manager`) is identified as an agent wherever a person could mistake it for a human (contract field
+  `holder: agent`; external-facing messages disclose that an AI is acting).
 - **Specialty is an attribute, not a role.** `executor` + `specialty: dev · ops · content` — never one role per
   specialty (`developer`, `writer`…). New specialties then need no rename and no new queue.
 - **Latent roles keep their final name.** Name a not-yet-active role now (`project-lead`, `sre`) and mark it
@@ -28,7 +30,9 @@
 - **Instance ids derive from the role slug:** `<role-slug>-<nn>` (`executor-01`, `ceo-01`) — the role stays the SSOT.
 - **Levels and tiers: verb or noun of what they unlock** (`l0-policy` · `l3-execution`; `z0-read` ·
   `z1-local-write` · `z4-irreversible`). These are illustrative excerpts (intermediate values omitted, hence the
-  `z1`→`z4` gap), not adopted series — run the sweep below before adopting any letter+digit series.
+  `z1`→`z4` gap), not adopted series — run the sweep below before adopting any letter+digit series. A tier that
+  unlocks irreversible or HUMAN_DOMAIN actions (`z4-irreversible` here) is **board/human-only**: it names a human
+  gate and is never assignable as an agent role's `tier` ceiling.
 
 ## Reserved/limits — occupied short series (sweep before reuse)
 Short **letter+digit series** are the most collision-prone names in a governance corpus: `G1–G8`, `T1–T4`, `A0–A4`
