@@ -11,7 +11,7 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 >
 > **Version**: 1.2.0 (2026-10-07 — §4.1 authority inheritance; 1.1.0 = 2026-08-16 rubric-driven MINOR; 1.0.0 = 2026-05-17 community promotion).
 >
-> **Scope**: this skill is the community single source of truth for delegation discipline. Files that need a delegation rule link it instead of stating their own.
+> **Scope**: this skill is the community single source of truth for delegation discipline. Files that need a delegation rule link it; they may repeat its values verbatim, never state different ones.
 >
 > **Harmonization principle (verbatim, agnostic of source)**: "the delegated subordinate is the parent's full responsibility · the tree returns to the root · audit the output · zero drift."
 
@@ -26,7 +26,7 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 | 5 | **NOT in HUMAN_DOMAIN** | Task is outside the escalation list (operator-personal / irreversible / cross-org / secrets / PII / etc.) |
 | 6 | **Time-budget allows verification** | Audit time ≤ delegation time (else delegation is not worth the cost) |
 
-**6/6 PASS → delegate. ≥ 1 FAIL → escalate (agentic council first, per §4.1; the residue goes to the human), or execute inline only where §4.1 allows it (a leaf, or the root under a recorded exception). A criterion-5 FAIL (HUMAN_DOMAIN) always escalates — nobody executes it inline.**
+**6/6 PASS → delegate. ≥ 1 FAIL → escalate (agentic council first, per §4.1; the residue goes to the human), or execute inline only where §4.1 allows it (a leaf or mid delegate doing its own assigned task, or the root under a recorded exception). A criterion-5 FAIL (HUMAN_DOMAIN) always escalates — nobody executes it inline.**
 
 ## 2. Briefing components — WHAT to brief (11 mandatory items)
 
@@ -79,12 +79,12 @@ Every spawn MUST include all 11. Skipping any item is the under-briefing anti-pa
 
 | Code | Exception |
 |---|---|
-| E1 | A child is stuck or failed twice; the root may repair the delegation (other agent, briefing, model), not absorb the task |
+| E1 | A child is stuck or failed twice; the root may repair the delegation (other agent, briefing, model), not absorb the task (a repair trigger; the §4 escalation count is unchanged) |
 | E2 | An objective emergency where delegation latency causes damage (data loss in progress, a guardrail breach, an outage) |
 | E3 | Bootstrap: no tool or agent exists to delegate to (create the first one, then delegate) |
 | E4 | A one-lookup micro-action whose result is small |
 
-The list is closed. An exception changes **who executes**, never **what is authorized**. Executing directly is the default for a **leaf** (a delegate with no remaining depth), not for the root.
+The list is closed. An exception changes **who executes**, never **what is authorized**. Executing directly is the default for a **leaf** (a delegate with no remaining depth), not for the root. A mid delegate (depth left) may execute its own assigned task itself or delegate parts of it; the root posture applies only to the root.
 
 **Authority inheritance.** A delegator may delegate execution **and** authorization. Delegated authority is always a **subset** of the delegator's own:
 

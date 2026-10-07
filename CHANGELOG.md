@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no authorization grant; invalid grants fail closed.
   Enforcement is stated as prompt-level (no spawn-boundary check yet). §7 now
   points to the table instead of repeating it.
+- Mid delegates (depth left) may execute their own assigned task or delegate
+  parts of it; only the root follows the delegate-first posture.
 - One depth cap (2). Files that stated another value now use 2 and link the
   SSOT §8: `agents/orchestrator.md`, `commands/delegate.md`, `agents/README.md`,
   `skills/auto-pilot` ("manual mode allows ≤ 3"), and Sentinel

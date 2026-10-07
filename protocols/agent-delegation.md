@@ -42,7 +42,7 @@ PROBLEM DETECTED
 ## When to Delegate vs. Resolve Directly
 
 ```
-RESOLVE DIRECTLY (leaf agents only — the root delegates even simple
+RESOLVE DIRECTLY (leaf/mid delegates doing their own slice — the root delegates even simple
 work unless it records an exception, see skills/agentic-delegation §4.1):
   ✓ Problem within clear scope of current agent
   ✓ Obvious solution in <15 min
