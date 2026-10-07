@@ -76,6 +76,8 @@ cmd_check() {
 # PII patterns (email · BR phone · CPF). Metadata-only manifests should match none.
 PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\+?55[ (]*[0-9]{2}[) ]*9?[0-9]{4}-?[0-9]{4}|[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}'
 
+# gitleaks semantics: rc 0 = clean (no hit); any other rc = leak OR scan error. Both are treated
+# as a hit on purpose (fail-closed): a file the scanner could not clear is never persisted.
 secret_hit() { "$SCANNER" dir "$1" --no-banner >/dev/null 2>&1 && return 1 || return 0; }
 pii_hit()    { grep -qE "$PII_RE" "$1"; }
 
@@ -151,9 +153,12 @@ cmd_clip() {
   if [ -z "$CLIP_COPY_CMD" ] || ! command -v "$1" >/dev/null 2>&1; then
     printf '{"status":"unverified","reason":"no-clipboard-tool","hint":"%s"}\n' "$hint"; exit 4
   fi
+  if [ -z "$CLIP_PASTE_CMD" ]; then
+    printf '{"status":"unverified","reason":"no-readback-tool","hint":"%s"}\n' "$hint"; exit 4
+  fi
   local back; back="$(mktemp)"
   # shellcheck disable=SC2086
-  if $CLIP_COPY_CMD < "$file" 2>/dev/null && [ -n "$CLIP_PASTE_CMD" ] && $CLIP_PASTE_CMD > "$back" 2>/dev/null \
+  if $CLIP_COPY_CMD < "$file" 2>/dev/null && $CLIP_PASTE_CMD > "$back" 2>/dev/null \
      && cmp -s "$file" "$back"; then
     rm -f "$back"
     printf '{"status":"verified","bytes":%s}\n' "$(wc -c < "$file" | tr -d ' ')"

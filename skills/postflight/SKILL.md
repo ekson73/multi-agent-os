@@ -440,7 +440,7 @@ postflight P1: branch=main tree=DIRTY → SWEEP DEFERRED (uncommitted tracked ch
 - `skills/postflight/references/close-out-manifest-protocol.md` + `bin/close-out-manifest.sh` — the **P0 GATE + P3.7 MANIFEST** SSOT + executor for multi-agent sessions (fail-closed delegate gate · one self-locating manifest · durable persist behind secret+PII scans with a runtime positive control · cmp-verified clipboard). `bin/tests/close-out-manifest.test.sh` is its safety-contract suite.
 - `commands/signoff.md` + `skills/signoff/SKILL.md` — the operator-facing **sign-off / encerramento** verb (`/maos:signoff`) that composes `[quiesce →] postflight full --broadcast --spawn` under an OODA framing; the one place BROADCAST is default-ON.
 - `commands/worktree.md` (surfaces `reap`) · `bin/reap-sessions.sh` (the safe executor P1 SWEEP delegates stale/orphan worktree+branch pruning to — dry-run default, never-clobber) · `bin/dogfood-mark` — worktree cleanup + dogfood-cycle ledger.
-- `commands/postflight.md` → `/maos:postflight` (ergonomic entry point; surfaces `--spawn`/`--no-spawn`/`--dry-run`).
+- `/maos:postflight` — the skill is invoked directly (the thin `commands/postflight.md` wrapper was removed in #407, since skills are already `/`-invokable); `--spawn`/`--no-spawn`/`--dry-run` are passed as arguments.
 - `plugin-scripts/governance/postflight-precompact.sh` — PreCompact hook (deterministic seed snapshot; never blocks; **never spawns**).
 
 ## License
