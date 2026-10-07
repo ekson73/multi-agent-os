@@ -32,7 +32,11 @@ Three findings made that gate unfit to ship:
 - The gate, the digest, the A2 rule and the fields `approval_ref`, `approved_by`, `approved_at`, `trigger` and
   `authority_digest` are removed from the contract. They are listed as reserved in the template.
 - `tests/governance/test-roles-latent-only.sh` checks contract **form and loaded value**, and refuses when in
-  doubt. It reads the YAML template in `agents/forge.md` and, recursively, the registry `roles/`. Under `roles/` the
+  doubt. It is a **best-effort lint that fails closed, not a guarantee**: the YAML surface (escapes, tags,
+  constructs, parser differences) has no end, and each review round found a new bypass of the same kind. The
+  guarantee that no contract grants authority is the gate this ADR defers. It reads the YAML template in
+  `agents/forge.md` (fences ```` ```yaml ```` or `~~~yaml`, case-insensitive; a fence left open to end of file still
+  counts) and, recursively, the registry `roles/`. Under `roles/` the
   only accepted file is a regular file named `*.md` (lowercase), UTF-8 without BOM and without CR, NEL, LS or PS
   characters, at most 64 KiB, whose line 1 is `---`, with one frontmatter closed by `---` and a body without
   fences, document separators, `<contract key>:` (quoted or not) or a line that starts with `?` or `:` (explicit
@@ -40,12 +44,15 @@ Three findings made that gate unfit to ship:
   in it at any depth. Anything else fails: symlinks, other extensions (`.yml`, `.YML`, `.Md`,
   `.gitkeep`), missing or unclosed frontmatter, a file that is not valid UTF-8 (the checker crashes, and the crash
   counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), with duplicate keys,
-  anchors and aliases refused (this also closes merge keys and exponential alias expansion); YAML that does not load
-  fails, and each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
+  anchors and aliases refused (this closes exponential alias expansion; the merge key `<<` is refused as a side effect
+  of the duplicate-key constructor, which cannot build it). In the frontmatter, YAML the strict loader refuses fails.
+  In the body and in template blocks, when the strict loader refuses, the text is re-read with `yaml.safe_load_all`
+  and the result is walked as nested: `role`/`status`/`tier` anywhere, a filled reserved field or a true activation
+  key fails; only text that not even `safe_load` reads has no value to walk. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
   `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root (depth is counted, so an empty
   key `""` cannot make a nested mapping pass as the root); `!!omap`, `!!pairs` and `!!set` are refused; at any depth, inside mappings and
   lists, reserved fields are null and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`) are
-  null or false. Without `python3` and PyYAML the test fails; it never falls back to a weaker check. Fixtures build
+  null or false. Without `python3` and PyYAML, or without `perl` (used for the time limit), the test fails; it never falls back to a weaker check. Fixtures build
   a real `roles/` tree for each refused form and for a valid one. In the three guidance files the test also flags
   the word form of a transition to `active`.
 - Refusing in doubt has a price: a file with CRLF or a BOM, `roles/.gitkeep`, body prose containing `role:` or
@@ -54,7 +61,8 @@ Three findings made that gate unfit to ship:
   not loosened for it.
 - What the test does **not** detect: natural-language activation ("the role goes live"); an unlisted key such as
   `is_active: true` or `Active: true`, or a non-string key that YAML 1.1 produces (`yes:` becomes a boolean);
-  a key with a space, a homoglyph or an invisible character (no Unicode normalization); a different reading of the
+  a key with a space, a homoglyph or an invisible character (no Unicode normalization); a tag that PyYAML nulls or
+  retypes (`approval_ref: !!null rec-1` becomes null; a `!!binary` key becomes bytes); a different reading of the
   same text by a consumer that uses another YAML parser; contracts kept in a registry
   the host designates outside `roles/` (`agents/forge.md` allows one); `roles/` does not exist in this repo, so
   only the fixtures exercise the registry check; required template fields (role, owner, decide) are not checked. It does not run in CI today (no workflow
