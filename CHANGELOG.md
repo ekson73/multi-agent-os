@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   points to the table instead of repeating it.
 - `council-gate` P0 also needs the invoker's task to be shown within its
   parent's authority; otherwise it goes back to the parent.
+- The BEING > Rules escape clause (`rule-quality-tests`) never relaxes §4.1;
+  it can only make an agent stricter or stop. For a root invoker of
+  `council-gate`, the operator's grant stands in for the parent's authority.
+  The closed exception list notes the no-delegation-runtime case.
 - Mid delegates (depth left) may execute their own assigned task or delegate
   parts of it; only the root follows the delegate-first posture.
 - One depth cap (2). Files that stated another value now use 2 and link the
@@ -45,13 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `tests/governance/test-delegation-authority-ssot.sh`, run by
   `tests/validate-plugin.sh`: fails if another file restates a different depth
   cap (several phrasings, in tool dirs, `rules/`, `.claude/`, `.agents/` and
-  root guidance files, Codex `.codex` instructions), if a rendered value (config table, `current/max`
+  root guidance files, Codex `.codex` and Copilot instructions), if a rendered value (config table, `current/max`
   display) shows another cap, if Sentinel's value or `valid_range` (parsed as
   JSON, 1 ≤ min ≤ max ≤ cap) disagrees or the config is missing, if the SSOT
   loses its normative clauses or gains a personal-layer reference, if any file
   that states a depth cap does not link the SSOT, or if a listed widening
   phrase appears (matched across line breaks).
-  Thirty-two mutation fixtures (plus a control) prove each check catches the
+  Thirty-six mutation fixtures (plus a control) prove each check catches the
   contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
   briefing or payload) and that a parent grants only from a scope it can show,
