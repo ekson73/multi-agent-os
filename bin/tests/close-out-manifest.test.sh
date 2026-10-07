@@ -25,7 +25,9 @@ bad() { FAIL=$((FAIL+1)); printf '  ❌ %s\n     got: %s\n' "$1" "${2:-<empty>}"
 
 TMP="$(mktemp -d)"
 # manifests are checked from a durable (non-temp) dir: a manifest_path under a temp root is refused
-MDIR="$(mktemp -d "$SCRIPT_DIR/.cm-fixture.XXXXXX")"
+# ... and outside the checkout, so a checkout that itself lives under a temp root still works
+MDIR_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}"; mkdir -p "$MDIR_ROOT"
+MDIR="$(mktemp -d "$MDIR_ROOT/close-out-manifest-test.XXXXXX")"
 trap 'rm -rf "$TMP" "$MDIR"' EXIT
 
 [ -x "$CM" ] || { echo "  ❌ $CM missing or not executable"; exit 1; }
@@ -432,6 +434,38 @@ if [ "$U8" -eq 0 ]; then ok "non-UTF-8 path yields valid UTF-8 JSON"; else bad "
 UT="$(printf 't\303\255tulo.md')"; printf 'clean\n' > "$TMP/u8/$UT"
 OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/u8d" --src "$TMP/u8/$UT" 2>/dev/null)"
 if printf '%s' "$OUT" | grep -qF "$UT"; then ok "valid UTF-8 path kept verbatim"; else bad "valid UTF-8 must pass through" "$OUT"; fi
+
+# ── routed review (codex) round on 0777f3b0 ──────────────────────────────────
+# R1 a PII scanner that errors is never read as clean: awk failing on staged views ⇒ no copy
+mkdir -p "$TMP/rr1bin" "$TMP/rr1"; REAL_AWK="$(command -v awk)"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *.norm|*.flat) exit 127 ;; esac; done\nexec "%s" "$@"\n' "$REAL_AWK" > "$TMP/rr1bin/awk"; chmod +x "$TMP/rr1bin/awk"
+printf 'doc %s end\n' "$CPF" > "$TMP/rr1/a.md"
+OUT="$(PATH="$TMP/rr1bin:$PATH" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/rr1d" --src "$TMP/rr1/a.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ] && [ ! -e "$TMP/rr1d/a.md" ]; then ok "PII scanner error blocks persistence (fail-closed)"; else bad "PII scanner error must block" "rc=$RC out=$OUT"; fi
+
+# R2 indexed paths are checked at their real destination: /private/var/tmp and a symlink into temp refused
+printf 'x\n' > "$TMP/rr2-target.md"; ln -s "$TMP/rr2-target.md" "$MDIR/rr2-link.md"
+{ cat "$TMP/m.md"; printf -- '- report: `%s`\n' "$MDIR/rr2-link.md"; } > "$TMP/m-rr2a.md"
+OUT="$(chk "$TMP/m-rr2a.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-link'; then ok "durable-looking symlink into temp refused"; else bad "symlink into temp must be ephemeral-link" "rc=$RC out=$OUT"; fi
+if [ -d /private/var/tmp ]; then
+  { cat "$TMP/m.md"; printf -- '- report: `/private/var/tmp`\n'; } > "$TMP/m-rr2b.md"
+  OUT="$(chk "$TMP/m-rr2b.md" 2>/dev/null)"; RC=$?
+  if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-link:/private/var/tmp'; then ok "/private/var/tmp refused"; else bad "/private/var/tmp must be ephemeral-link" "rc=$RC out=$OUT"; fi
+else echo "  ⏭  /private/var/tmp absent — case skipped"; fi
+
+# R3 the last line is checked even without a trailing newline
+D3="$MDIR/m-rr3.md"
+{ sed "s#^manifest_path: .*#manifest_path: $D3#" "$TMP/m.md"; printf -- '- report: `/nonexistent-close-out-report`'; } > "$D3"
+OUT="$(bash "$CM" check --manifest "$D3" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'broken-link:/nonexistent-close-out-report'; then ok "unterminated last line still checked"; else bad "unterminated last line must be checked" "rc=$RC out=$OUT"; fi
+
+# R4 the durable fixture dir lives outside the checkout and outside temp roots
+case "$MDIR" in "$SCRIPT_DIR"/*|/tmp/*|/private/tmp/*|/var/tmp/*|/private/var/*|"${TMPDIR:-/tmp}"*) bad "fixture dir must be durable and outside the checkout" "$MDIR" ;; *) ok "fixture dir outside checkout and temp roots" ;; esac
+
+# R5 a configured read-back command that does not exist ⇒ no-readback-tool
+OUT="$(MAOS_CLIP_COPY="$TMP/fakecopy" MAOS_CLIP_PASTE=/nonexistent-close-out-paste bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q '"reason":"no-readback-tool"'; then ok "missing read-back executable ⇒ no-readback-tool"; else bad "missing read-back executable must be no-readback-tool" "rc=$RC out=$OUT"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"

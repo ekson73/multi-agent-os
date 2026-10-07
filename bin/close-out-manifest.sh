@@ -215,16 +215,15 @@ cmd_check() {
   [ -z "$tr" ] || [ -f "${tr/#\~/$HOME}" ] || missing="${missing}transcript-missing;"
   # FEAT-17/22: every backticked absolute path must exist and be durable, unless its line
   # declares it "(ephemeral)"
-  local line p
-  EPH_T="${TMPDIR:-/tmp}"; EPH_T="${EPH_T%/}" # the session temp root is ephemeral too
-  while IFS= read -r line; do
+  local line p x
+  while IFS= read -r line || [ -n "$line" ]; do # the last line counts even without a newline
     { printf '%s\n' "$line" | grep -oE '`(/|~/)[^`]*`' || true; } | tr -d '`' | while IFS= read -r p; do
       case "$line" in *"(ephemeral)"*) continue ;; esac
-      case "$p" in
-        /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|*/scratchpad*) printf 'ephemeral-link:%s;' "$p" ;;
-        "$EPH_T"|"$EPH_T"/*) printf 'ephemeral-link:%s;' "$p" ;;
-        *) [ -e "${p/#\~/$HOME}" ] || printf 'broken-link:%s;' "$p" ;;
-      esac
+      x="${p/#\~/$HOME}"
+      # judged at the spelled path AND its real destination (symlinks followed)
+      if is_ephemeral "$x" || is_ephemeral "$(canon "$x")"; then printf 'ephemeral-link:%s;' "$p"
+      elif [ ! -e "$x" ]; then printf 'broken-link:%s;' "$p"
+      fi
     done
   done < "$manifest" > "$WORK_LINKS"
   missing="${missing}$(cat "$WORK_LINKS")"
@@ -321,9 +320,19 @@ cpf_bare_hit() {
     }
   } END { exit hit ? 0 : 1 }' "$1"
 }
-pii_hit() {
-  grep -qE "$PII_RE" "$1.norm" || grep -qE "$PII_RE" "$1.flat" || cpf_bare_hit "$1.norm" || cpf_bare_hit "$1.flat"
+# rc 0 = hit · 1 = clean · 2 = scanner error. Only an explicit "no match" (rc 1) of EVERY
+# engine on EVERY view counts as clean; anything else is never read as clean (fail-closed).
+pii_scan() {
+  local f rc
+  for f in "$1.norm" "$1.flat"; do
+    rc=0; grep -qE "$PII_RE" "$f" || rc=$?
+    [ "$rc" -eq 0 ] && return 0; [ "$rc" -eq 1 ] || return 2
+    rc=0; cpf_bare_hit "$f" || rc=$?
+    [ "$rc" -eq 0 ] && return 0; [ "$rc" -eq 1 ] || return 2
+  done
+  return 1
 }
+pii_hit() { pii_scan "$1"; }
 is_binary() { ! tr -d '\000' < "$1" | cmp -s - "$1"; }
 
 cmd_persist() {
@@ -349,18 +358,30 @@ cmd_persist() {
   # positive controls, assembled at runtime (no key/PII literal in this file), scanned through
   # the exact same staging + invocation path as the sources
   local p="gh""p_" at="@"
-  local rnd; rnd="$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')" # bounded read: no SIGPIPE
+  local prc rnd; rnd="$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')" # bounded read: no SIGPIPE
   printf 'k = "%s%s"\n' "$p" "${rnd:0:36}" > "$STAGE/ctl"
   views "$STAGE/ctl"
   secret_hit "$STAGE/ctl" || die "persist: secret scanner is blind to the positive control — refusing (fail-closed)" 3
   printf 'c: probe%sexample.org\n' "$at" > "$STAGE/ctl"
   views "$STAGE/ctl"
   pii_hit "$STAGE/ctl" || die "persist: PII scan is blind to the positive control — refusing (fail-closed)" 3
+  # bare-CPF control: 9 random digits + computed check digits, so the checksum engine is proven too
+  local cb="12" d k sum=0 c1 c2 # fixed distinct prefix: never the all-equal-digits exclusion
+  for k in 3 4 5 6 7 8 9; do cb="$cb$((RANDOM % 9 + 1))"; done
+  for k in 0 1 2 3 4 5 6 7 8; do d="${cb:$k:1}"; sum=$((sum + d * (10 - k))); done
+  c1=$(( (sum * 10) % 11 % 10 )); sum=0
+  for k in 0 1 2 3 4 5 6 7 8; do d="${cb:$k:1}"; sum=$((sum + d * (11 - k))); done
+  c2=$(( (sum + c1 * 2) * 10 % 11 % 10 ))
+  printf 'id %s%s%s\n' "$cb" "$c1" "$c2" > "$STAGE/ctl"
+  views "$STAGE/ctl"
+  pii_hit "$STAGE/ctl" || die "persist: CPF checksum scan is blind to the positive control — refusing (fail-closed)" 3
   # negative control: a known-clean staged file must scan clean, otherwise the scanner is
   # erroring on everything (crash, bad args, bad config) — report that as rc 3, not as a leak
   printf 'plain text\n' > "$STAGE/ctl"
   views "$STAGE/ctl"
   ! secret_hit "$STAGE/ctl" || die "persist: secret scanner fails on a clean control — scanner error, refusing (fail-closed)" 3
+  prc=0; pii_scan "$STAGE/ctl" || prc=$?
+  [ "$prc" -eq 1 ] || die "persist: PII scan does not report a clean control as clean — scanner error, refusing (fail-closed)" 3
   rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
 
   local s base target status i=0 staged tmp bak seen=() x dup
@@ -383,7 +404,8 @@ cmd_persist() {
     else
       views "$staged"
       if secret_hit "$staged"; then status="refused-secret"; refused=1
-      elif pii_hit "$staged"; then status="refused-pii"; refused=1
+      elif { prc=0; pii_scan "$staged" || prc=$?; [ "$prc" -ne 1 ]; }; then
+        refused=1; if [ "$prc" -eq 0 ]; then status="refused-pii"; else status="refused-pii-scan-error"; fi
       elif [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
         status="refused-dest-not-regular"; refused=1 # symlink/dir: cmp would follow it, mv would descend
       elif [ -f "$target" ] && cmp -s "$staged" "$target"; then status="unchanged"
@@ -444,7 +466,9 @@ cmd_clip() {
   if [ -z "$CLIP_COPY_CMD" ] || ! command -v "$1" >/dev/null 2>&1; then
     printf '{"status":"unverified","reason":"no-clipboard-tool","hint":"%s"}\n' "$hint"; exit 4
   fi
-  if [ -z "$CLIP_PASTE_CMD" ]; then
+  # shellcheck disable=SC2086
+  set -- $CLIP_PASTE_CMD
+  if [ -z "$CLIP_PASTE_CMD" ] || ! command -v "$1" >/dev/null 2>&1; then
     printf '{"status":"unverified","reason":"no-readback-tool","hint":"%s"}\n' "$hint"; exit 4
   fi
   # read-back streams straight into cmp: the handoff content never touches a temp file
