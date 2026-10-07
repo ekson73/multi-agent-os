@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it can only make an agent stricter or stop. For a root invoker of
   `council-gate`, the operator's grant stands in for the parent's authority.
   The closed exception list notes the no-delegation-runtime case.
+- `sentinel/schema/alert_schema.json` example shows `max_allowed` 2; the
+  test checks Sentinel schema examples and runs its fixtures in parallel.
 - Mid delegates (depth left) may execute their own assigned task or delegate
   parts of it; only the root follows the delegate-first posture.
 - One depth cap (2). Files that stated another value now use 2 and link the
@@ -55,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loses its normative clauses or gains a personal-layer reference, if any file
   that states a depth cap does not link the SSOT, or if a listed widening
   phrase appears (matched across line breaks).
-  Thirty-six mutation fixtures (plus a control) prove each check catches the
+  Thirty-seven mutation fixtures (plus a control) prove each check catches the
   contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
   briefing or payload) and that a parent grants only from a scope it can show,

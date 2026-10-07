@@ -152,6 +152,10 @@ PYEOF
     else
         bad "sentinel/config.json missing (the depth cap must be machine-readable)"
     fi
+    sch_bad="$(grep -rnoE '"max_allowed"[[:space:]]*:[[:space:]]*[0-9.eE+-]+' "$ROOT/sentinel/schema" 2>/dev/null \
+        | grep -vE ":[[:space:]]*$CAP\$" || true)"
+    [ -z "$sch_bad" ] && ok "sentinel/schema examples show max_allowed $CAP" \
+        || bad "sentinel/schema example differs from cap $CAP: $sch_bad"
     for f in sentinel/detection_rules.md sentinel/README.md \
              statusmap/templates/DELEGATION_PRE.md statusmap/templates/statusmap_templates.md; do
         [ -f "$ROOT/$f" ] || continue
@@ -251,20 +255,26 @@ if [ "$QUIET" != 1 ]; then
         [ -e "$ROOT/$p" ] && COPY="$COPY $p"
     done
     trap 'rm -rf "$FIX"' EXIT
-    mutate() {  # mutate <label> <file> <sed-expression|append:TEXT>
-        local label="$1" rel="$2" expr="$3" t="$FIX/t"
-        rm -rf "$t"; mkdir -p "$t"
-        (cd "$ROOT" && tar -cf - $COPY) | tar -xf - -C "$t"
-        case "$expr" in
-            append:*) printf '\n%s\n' "${expr#append:}" >> "$t/$rel" ;;
-            delete) rm -f "$t/$rel" ;;
-            *) sed -i.bak "$expr" "$t/$rel" && rm -f "$t/$rel.bak" ;;
-        esac
-        if DAS_QUIET=1 bash "$SELF" "$t" >/dev/null 2>&1; then
-            bad "fixture not detected: $label"
-        else
-            ok "fixture detected: $label"
-        fi
+    # Fixtures run in parallel (bounded), each in its own copy; results are
+    # collected in declaration order afterwards.
+    NFIX=0
+    MAXJ="${DAS_JOBS:-8}"
+    mutate() {  # mutate <label> <file> <sed-expression|append:TEXT|delete>
+        NFIX=$((NFIX + 1))
+        local n="$NFIX" label="$1" rel="$2" expr="$3"
+        while [ "$(jobs -rp | wc -l)" -ge "$MAXJ" ]; do sleep 0.2; done
+        (
+            t="$FIX/t$n"; mkdir -p "$t"
+            (cd "$ROOT" && tar -cf - $COPY) | tar -xf - -C "$t"
+            case "$expr" in
+                append:*) printf '\n%s\n' "${expr#append:}" >> "$t/$rel" ;;
+                delete) rm -f "$t/$rel" ;;
+                *) sed -i.bak "$expr" "$t/$rel" && rm -f "$t/$rel.bak" ;;
+            esac
+            if DAS_QUIET=1 bash "$SELF" "$t" >/dev/null 2>&1; then r=pass; else r=fail; fi
+            printf '%s\t%s\n' "$r" "$label" > "$FIX/r$n"
+            rm -rf "$t"
+        ) &
     }
     # control: an unmodified copy must pass, else the fixtures prove nothing
     rm -rf "$FIX/c"; mkdir -p "$FIX/c"
@@ -310,7 +320,19 @@ behave exactly as in v1.0; they need not apply#'
     mutate "SSOT loses task-bound return"    skills/agentic-delegation/SKILL.md 's#; when the child cannot confirm that, the task is returned to the parent##'
     mutate "SSOT loses escape-clause limit"  skills/agentic-delegation/SKILL.md 's#The escape clause never relaxes §4.1#The escape clause may relax §4.1#'
     mutate "council-gate P0 loses parent bound" skills/council-gate/SKILL.md 's#, and that task itself is shown to be within its parent.s authority##'
+    mutate "Sentinel schema example max 3"   sentinel/schema/alert_schema.json 's/"max_allowed": 2/"max_allowed": 3/'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
+    wait
+    i=1
+    while [ "$i" -le "$NFIX" ]; do
+        if [ ! -f "$FIX/r$i" ]; then
+            bad "fixture $i produced no result"
+        else
+            IFS="$(printf '\t')" read -r r label < "$FIX/r$i"
+            if [ "$r" = pass ]; then bad "fixture not detected: $label"; else ok "fixture detected: $label"; fi
+        fi
+        i=$((i + 1))
+    done
 fi
 
 [ "$QUIET" = 1 ] || echo ""
