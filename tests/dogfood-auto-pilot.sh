@@ -153,6 +153,29 @@ if [ -z "$readers" ]; then
 else
     fail "runtime readers of v1.2 fields found — extend this test to cover them: $readers"
 fi
+
+# 3f. the depth rule is the fail-closed form (no undefined "disagree" case), and
+#     the payload points to the §4.1 Known weakness; a reverted copy must fail
+dna_depth_rule_ok() {  # <file> -> 0 when the current rule text is present
+    local f="$1" flat
+    flat=$(tr '\n' ' ' < "$f" | tr -s ' ')
+    echo "$flat" | grep -qF 'Delegate only if `depth_remaining` ≥ 1 and `depth` < cap; else leaf.' \
+      && echo "$flat" | grep -qF '§4.1 Known weakness' \
+      && ! echo "$flat" | grep -qiE 'if they disagree|Stricter of it and'
+}
+if dna_depth_rule_ok "$DNA_PROMPT"; then
+    pass "DNA depth rule is fail-closed (depth_remaining ≥ 1 and depth < cap) and points to §4.1 Known weakness"
+else
+    fail "DNA depth rule text drifted (expected 'Delegate only if depth_remaining ≥ 1 and depth < cap; else leaf.')"
+fi
+FIXT=$(mktemp)
+sed -e 's#Delegate only if#Stricter of it and `depth` applies; if they disagree, leaf. Delegate only if#' "$DNA_PROMPT" > "$FIXT"
+if dna_depth_rule_ok "$FIXT"; then
+    fail "fixture: reverted 'disagree' wording was NOT detected"
+else
+    pass "fixture: reverted 'disagree' wording is detected"
+fi
+rm -f "$FIXT"
 echo ""
 
 # ---------------------------------------------------------------------------

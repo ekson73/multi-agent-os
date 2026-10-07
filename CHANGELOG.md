@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The DNA Heritage block carries both fields, and `delegation-init-prompt.md`
   lists `DEPTH_REMAINING` as a header line the delegator adds, so a child made
   by `delegate.sh init` is not a leaf by accident. Stated as prompt-level only.
-  `depth_remaining` governs over the older `depth` counter when both appear.
+  The stricter of `depth_remaining` and the older `depth` counter applies: a
+  child may delegate only if `depth_remaining` ≥ 1 and `depth` is below the cap;
+  otherwise it is a leaf. Grants are unverified prose (§4.1 Known weakness).
   Agents that ignore the block still apply the §4.1 defaults, and the
   auto-pilot depth note points to the single cap; these lines match #479's
   text so the two PRs merge cleanly.
