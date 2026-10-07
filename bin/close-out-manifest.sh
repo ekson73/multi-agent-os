@@ -76,10 +76,29 @@ cmd_check() {
 # PII patterns (email · BR phone · CPF). Metadata-only manifests should match none.
 PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\+?55[ (]*[0-9]{2}[) ]*9?[0-9]{4}-?[0-9]{4}|[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}'
 
-# gitleaks semantics: rc 0 = clean (no hit); any other rc = leak OR scan error. Both are treated
-# as a hit on purpose (fail-closed): a file the scanner could not clear is never persisted.
-secret_hit() { "$SCANNER" dir "$1" --no-banner >/dev/null 2>&1 && return 1 || return 0; }
-pii_hit()    { grep -qE "$PII_RE" "$1"; }
+# Scanning model (parser-differential hardening): every source is first copied into a private
+# staging dir, and ONLY the staged bytes are scanned and then promoted — the origin is never read
+# twice, so a change made during the scan (TOCTOU) cannot reach the destination. Three views of
+# the staged bytes are scanned: raw, CRLF-normalised, and line-joined (catches a secret split
+# across lines). The scanner runs isolated: inherited config env vars dropped, cwd = staging,
+# in-content allow directives ignored, ignore-file pointed at an empty dir — no input can opt
+# itself out. gitleaks rc 0 = clean; ANY other rc = leak OR scan error, both treated as a hit
+# (fail-closed).
+scan_one() {
+  ( cd "$STAGE" && env -u GITLEAKS_CONFIG -u GITLEAKS_CONFIG_TOML \
+      "$SCANNER" dir "$1" --no-banner --ignore-gitleaks-allow --gitleaks-ignore-path "$NOIGN" ) >/dev/null 2>&1
+}
+views() { # $1 = staged file; writes $1.norm and $1.flat
+  tr -d '\r' < "$1" > "$1.norm"
+  sed 's/^[[:space:]]*//;s/[[:space:]]*$//' "$1.norm" | tr -d '\n' > "$1.flat"
+}
+secret_hit() { # rc 0 = hit on any view
+  local v
+  for v in "$1" "$1.norm" "$1.flat"; do scan_one "$v" || return 0; done
+  return 1
+}
+pii_hit() { grep -qE "$PII_RE" "$1.norm" || grep -qE "$PII_RE" "$1.flat"; }
+is_binary() { ! tr -d '\000' < "$1" | cmp -s - "$1"; }
 
 cmd_persist() {
   local dest="" apply=0 srcs=() refused=0
@@ -97,28 +116,43 @@ cmd_persist() {
   SCANNER="${MAOS_SECRET_SCANNER:-gitleaks}"
   command -v "$SCANNER" >/dev/null 2>&1 || die "persist: secret scanner '$SCANNER' not found — refusing (fail-closed)" 3
 
-  # positive controls, assembled at runtime (no key/PII literal in this file)
-  local ctl; ctl="$(mktemp -d)"
-  trap 'rm -rf "$ctl"' RETURN
-  local p="gh""p_" at="@"
-  printf 'k = "%s%s"\n' "$p" "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 36)" > "$ctl/secret.txt"
-  printf 'c: probe%sexample.org\n' "$at" > "$ctl/pii.txt"
-  secret_hit "$ctl/secret.txt" || die "persist: secret scanner is blind to the positive control — refusing (fail-closed)" 3
-  pii_hit "$ctl/pii.txt" || die "persist: PII scan is blind to the positive control — refusing (fail-closed)" 3
+  local root; root="$(mktemp -d)" || die "persist: cannot create staging dir" 1
+  trap 'rm -rf "$root"' RETURN
+  chmod 700 "$root"
+  STAGE="$root/stage"; NOIGN="$root/noignore"
+  mkdir -m 700 "$STAGE" "$NOIGN" || die "persist: cannot create staging dir" 1
 
-  local s base target status
+  # positive controls, assembled at runtime (no key/PII literal in this file), scanned through
+  # the exact same staging + invocation path as the sources
+  local p="gh""p_" at="@"
+  printf 'k = "%s%s"\n' "$p" "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 36)" > "$STAGE/ctl"
+  views "$STAGE/ctl"
+  secret_hit "$STAGE/ctl" || die "persist: secret scanner is blind to the positive control — refusing (fail-closed)" 3
+  printf 'c: probe%sexample.org\n' "$at" > "$STAGE/ctl"
+  views "$STAGE/ctl"
+  pii_hit "$STAGE/ctl" || die "persist: PII scan is blind to the positive control — refusing (fail-closed)" 3
+  rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
+
+  local s base target status i=0 staged
   for s in "${srcs[@]}"; do
+    i=$((i + 1))
     [ -f "$s" ] && [ ! -L "$s" ] || { printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue; }
-    base="$(basename "$s")"; target="$dest/$base"
-    if secret_hit "$s"; then status="refused-secret"; refused=1
-    elif pii_hit "$s"; then status="refused-pii"; refused=1
-    elif [ -f "$target" ] && cmp -s "$s" "$target"; then status="unchanged"
-    elif [ "$apply" -eq 1 ]; then
-      mkdir -p "$dest"
-      cp "$s" "$target.tmp.$$" && mv -f "$target.tmp.$$" "$target"
-      cmp -s "$s" "$target" || die "persist: post-copy verify failed for $base" 1
-      status="copied"
-    else status="would-copy"
+    base="$(basename -- "$s")"; target="$dest/$base"
+    staged="$STAGE/f$i"
+    cp -- "$s" "$staged" || die "persist: cannot stage $base" 1
+    if is_binary "$staged"; then status="refused-binary"; refused=1
+    else
+      views "$staged"
+      if secret_hit "$staged"; then status="refused-secret"; refused=1
+      elif pii_hit "$staged"; then status="refused-pii"; refused=1
+      elif [ -f "$target" ] && cmp -s "$staged" "$target"; then status="unchanged"
+      elif [ "$apply" -eq 1 ]; then
+        mkdir -p -- "$dest"
+        cp -- "$staged" "$target.tmp.$$" && mv -f -- "$target.tmp.$$" "$target"
+        cmp -s "$staged" "$target" || die "persist: post-copy verify failed for $base" 1
+        status="copied"
+      else status="would-copy"
+      fi
     fi
     printf '{"src":"%s","dest":"%s","status":"%s"}\n' "$(jstr "$s")" "$(jstr "$target")" "$status"
   done
