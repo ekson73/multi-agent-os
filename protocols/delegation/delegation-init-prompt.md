@@ -103,6 +103,9 @@ The CLI prepends a header with detected values before cat-ing this file. Expecte
 - `WORKTREE`: `<path>` or `(main — RO only)`
 - `AGENT_HEX`: 4 hex chars for this delegation (sub-agent seq, not orchestrator prime)
 - `PARENT_SESSION`: orchestrator session id
+- `DEPTH_REMAINING`: added by the delegator, not the CLI — its own value − 1
+  (the root uses cap − 1; `skills/agentic-delegation` §4.1). If absent, the child
+  is a leaf.
 
 The delegated agent echoes these back in the first line of its output (one line, key=value) to confirm inheritance.
 

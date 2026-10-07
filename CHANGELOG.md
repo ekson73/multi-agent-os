@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — DNA payload v1.2: optional `depth_remaining` and `authority_scope`
+
+- `protocols/delegation/delegation-dna-prompt.md` adds two optional lines to the
+  auto-pilot DNA block: `depth_remaining` (0 = leaf) and `authority_scope` (a
+  subset of the parent's, never widened). Every parent passes
+  `depth_remaining` (the root passes cap − 1); absent = leaf; a value not lower
+  than the parent's is invalid = leaf. A scope counts only if the parent wrote
+  it; absent scope = no authorization grant; a scope exceeding, contradicting
+  or not confirmable against the parent's is treated as absent (fail-closed).
+  The DNA Heritage block carries both fields, and `delegation-init-prompt.md`
+  lists `DEPTH_REMAINING` as a header line the delegator adds, so a child made
+  by `delegate.sh init` is not a leaf by accident. Stated as prompt-level only.
+  The stricter of `depth_remaining` and the older `depth` counter applies: a
+  child may delegate only if `depth_remaining` ≥ 1 and `depth` is below the cap;
+  otherwise it is a leaf. Grants are unverified prose (§4.1 Known weakness).
+  Agents that ignore the block still apply the §4.1 defaults, and the
+  auto-pilot depth note points to the single cap; these lines match #479's
+  text so the two PRs merge cleanly.
+  `delegate-governance` tells the delegator to add `DEPTH_REMAINING` (and
+  `AUTHORITY_SCOPE` when granting) after the `delegate.sh init` header, so the
+  canonical init path does not make every child a leaf.
+  Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
+  first).
+  `skills/auto-pilot` lists the two optional lines where it describes the block.
+- `tests/dogfood-auto-pilot.sh` cycle 3 greps the spec text for the fields and
+  their fail-closed wording (it does not test semantics), checks that `delegate.sh dna` output still carries the v1.1 and v1.2
+  template lines (spec text, not live values), and
+  that no runtime script parses the fields (if one ever does, the test says so).
+
 ### Changed — delegation rules have one home: `skills/agentic-delegation` 1.2.0
 
 - New §4.1 "Root posture and authority inheritance": the root orchestrates and

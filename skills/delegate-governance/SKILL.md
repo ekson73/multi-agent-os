@@ -48,6 +48,7 @@ CLI emitter: `plugin-scripts/gaac/delegate.sh <init|dna|finalize> [--ticket KEY]
 
 1. **Before spawning a sub-agent**:
    - Run `plugin-scripts/gaac/delegate.sh init --ticket=$TICKET` — its stdout is the prompt prefix for the sub-agent. The header lines (detected ticket / VCS providers, worktree, agent-hex) are authoritative; do not second-guess them.
+   - Add `DEPTH_REMAINING: <your own value − 1>` after the init header (the root uses cap − 1; `skills/agentic-delegation` §4.1). Without it the child is a leaf. When you grant authority, also add `AUTHORITY_SCOPE: <a subset of yours>`.
    - Concat your task-specific body after the init block.
 2. **Mid-flight** (optional but recommended for long chains):
    - Send the dna prompt via `delegate.sh dna` as a context refresh if the sub-agent drifted or the chain has > 5 tool calls.
