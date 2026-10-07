@@ -9,87 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed — TRAIN: Forge and Anima learn organizational roles
 
-- `agents/forge.md` v1.1.0: new section "Organizational Roles — Contract + Binding" and a REUSE + binding
-  step [2b] in the decision framework (org-role check before "create new agent"). An org role already covered
-  ≥50% by existing agents becomes a contract (`role` · `status` · `owner` · `tier` · `decide` · `out_of_domain` · `reports_to` · `binding` ·
-  `holder` · `trigger` · `proposal_cap`) bound to them, not a new agent. Adds: knowledge ≠ authority (knowledge gaps → research/uplift/council first; residue and authority gaps → human), latent roles with a
-  deterministic trigger, verifier independence by reporting line, lanes without a head, propose ≠ approve for spend,
-  traits only with a falsifiable metric, specialty as attribute, rejection of the executor↔verifier "cell".
-- `skills/agentic-tool-forge` v1.3.0: `role contract (binding)` row in the type-decision router (pointer to the
-  Forge section, no duplication).
-- `skills/anima` v1.3.0: new `kb/org-roles.md` adapter via the self-extend protocol (roles without soul-names unless
-  tied to a verifiable function, specialty as attribute, `lane/<noun>`, entity-as-graph edges, en-US search
-  surfaces, occupied letter+digit series sweep). Routing row in `kb/_index.md` and the §6 table.
-- Before/after: static coverage smoke-set, 0/15 → 15/15 (see PR body for method and limits).
-- Review fixes: role-contract `status` example is now a single valid YAML value; `agentic-tool-forge` step 2
-  routes organizational-role requests to the role contract instead of stopping at EXTEND; the Paperclip source
-  note now matches the page (CEO is the only agent with `reportsTo: null`; board approval is separate oversight).
-- Routed-review fixes (independent reviewer, different model family): the org-role branch is now its own step [2b]
-  evaluated before Goldilocks/creation, so a role with no same-named agent is not routed to "create new agent";
-  `decide` is bounded (subset of the tier ceiling, never irreversible/spend/secrets/prod/personal-data/cross-org,
-  not self-widening); a knowledge gap goes to research/uplift/council first, but the surviving residue and anything
-  outside `decide` still reach the human; the section no longer claims to cover only RBAD Cat 1-2; Anima's §6 row
-  uses the same routing tokens as `kb/_index.md`; level/tier series in `kb/org-roles.md` are marked illustrative.
-- `agentic-tool-forge` step 2 org-role exception: coverage for a role is measured over the union of the tools the
-  contract would bind (not a single best candidate), and the <50% case is stated explicitly (continue normally),
-  matching `agents/forge.md` [2b].
-- Adversarial-review fixes (GLM-5.3, independent family; the in-file approval model below is superseded by the
-  next two bullets — approval is proven outside the contract file): a role contract is now only a **draft** — born
-  `status: proposed` with `tier`/`approved_by`/`approved_at` unset; only the human owner approves it, writes `tier`
-  and moves it to `latent` (default) or `active`; a contract whose `tier` or status was written by an agent is
-  invalid. [2b] persists the proposed contract via [5] (role registry, not `agents/`) before STOP, defines an org
-  role by position (reporting line / decision domain, not RBAD category), and sends a same-named <50% agent to
-  EVOLVE instead of creating a twin. HUMAN_DOMAIN/out-of-domain decisions go to the human directly (research-first
-  only for knowledge gaps inside `decide`); the spend cap is a ceiling on proposals, not a budget; trigger
-  activation of an approved latent role is logged and revertible. Anima `kb/org-roles.md`: irreversible/HUMAN_DOMAIN
-  tiers are board/human-only; an agent holding a human-sounding title is identified as an agent.
-- Second adversarial-review fixes (GLM-5.3, red-team H6): approval of a role contract is now proven by a record
-  **outside** the contract file (`approval_ref`: an owner `APPROVED` PR review, a ticket approval transition, or a
-  presence-gated signed commit); `status`/`tier`/`approved_by` inside the file are claims, not proof. One rule
-  decides the effective status: `approval_ref` resolves, is authored by the owner's identity (not one the agent
-  operates) and covers this exact content at the current commit → approved status; otherwise `proposed`
-  (fail-closed, including when agent and owner share one account). Latent activation is no longer a status write:
-  it is derived from the approval plus a logged trigger entry, which removes the conflict between the trigger and
-  the agent-written-status rule. Same-name EVOLVE also drafts a `proposed` contract and cannot widen authority;
-  `--type`/`--no-confirm` cannot bypass the role contract. Anima `kb/org-roles.md` no longer tells Anima to mark a
-  role `latent` (it names, never sets status). (The `proposed` status and the derived latent activation are
-  superseded by the fourth bullet below.)
-- Third adversarial-review fixes (GLM-5.3, red-team H6): the approval now covers every authority-bearing field —
-  the closed list `owner` · `tier` · `decide` · `out_of_domain` · `reports_to` · `binding` · `holder` · `trigger` ·
-  `proposal_cap` — through an `authority_digest` (sha256 of canonical JSON) that the external approval record must
-  quote; changing any of them (e.g. a verifier's `reports_to`) voids the approval. New `owner` field (approving
-  authority by role, never a person or an agent; identities resolved from a source the agent cannot write) and a
-  resolver-independence rule (never the holder, a subordinate, or the drafting agent; otherwise `proposed`).
-  Latent activation needs the independent resolver to confirm the trigger evidence. "Contract prevails" now holds
-  on every path, including a direct `evolve <agent>`; the <50% new-agent branch also drafts a `proposed` contract;
-  role registry location defined; `--type`/`--no-confirm` limits stated at every mention in the forge skill.
-  (The resolver, latent-activation and `proposed`-status parts of this bullet are superseded by the next one.)
-- Fourth adversarial-review fixes (GLM-5.3, red-team H6) — redesign, not patch: the autonomous activation loop is
-  removed. Every role contract is born `latent` (no authority; every decision goes to the human) and becomes
-  `active` only by the owner's explicit ratification recorded outside the file; agents only propose activation, and
-  a `trigger` only prompts that proposal. The self-declared "independent resolver" is gone. `status` and `role`
-  join the `authority_digest` (eleven fields), so a record over a latent draft never certifies `active` and cannot
-  be replayed onto another role. The authority gate is one rule: record exists, owner-authored, digest matches the
-  current file, file says `active`; the holder cites `approval_ref` + digest in the audit trail of every `decide`
-  action. Canonicalization pinned (duplicate YAML keys rejected, NFC, UTF-8 without `\u` escapes); a later owner
-  record revokes. Known limits (spec not tooling, `binding` pins names not content, no TTL, host-dependent owner
-  identity) are stated in `agents/forge.md`.
-- Fifth adversarial-review fixes (GLM-5.3, red-team H6): the authority gate gains check (e) — no later owner record
-  revokes or supersedes the cited ratification, searched outside the contract file — so restoring old field values
-  (which reproduces an old digest) cannot revive a revoked contract. The citation now pins the contract file's commit
-  SHA and (c) checks the digest at that commit, which must still be the current version. The owner identity rule
-  again excludes any identity the agent operates. Wording: an agent-written `status: active` in a PR is inert until
-  the owner's record covers it; skipping role detection means no contract, not a latent one. New known limits:
-  YAML typing/anchors/tags not pinned (fail-closed), digest binds the slug not the path, the gate does not re-check
-  `decide` ⊆ `tier` or HUMAN_DOMAIN exclusion (owner review duty).
-- Sixth adversarial-review fixes (GLM-5.3, red-team H6): check (e) is now executable. A record supersedes the
-  ratification when it names the same `role` and is later by the host's timestamp (revoke, another digest, or a
-  change request); revocation has one canonical form (`revoke` + `role` in any ratification channel); all three
-  channels are searched and records that cannot be ordered count as superseding. Ratification records quote the
-  `role` in clear. "Current" in (c) is the file at the tip of the role registry's default branch. An
-  agent-operated identity is any account any agent in the organization can use; any account that is not a human
-  owner identity counts as one (fail-closed); owner identities are resolved when the gate is checked. New known
-  limit: (e) depends on the host retaining owner records.
+- `agents/forge.md` v1.1.0, `skills/agentic-tool-forge` v1.3.0, `skills/anima` v1.3.0: an organizational role
+  already covered ≥50% by existing agents becomes a **role contract bound to them**, not a new agent (step [2b] in
+  the Forge decision framework, a `role contract (binding)` row in the forge router, and a new Anima adapter
+  `kb/org-roles.md` for naming roles, lanes, edges and tiers). Every contract has `status: latent`, the only
+  admitted value; the file's `status` never grants authority and every decision of the role goes to the human.
+  Activation is out of scope: the ratification gate drafted during review (owner record, `authority_digest`, checks
+  (a)–(e)) was removed because nothing executed it and its identity rule had a revocation hole; what a future gate
+  must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
+  `tests/governance/test-roles-latent-only.sh` fails if a contract surface describes a transition out of `latent`.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
