@@ -116,6 +116,7 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 | Script | Behaviour on an unexpected fault | Why |
 |--------|----------------------------------|-----|
 | [`bin/harness-mcp-sync`](../bin/harness-mcp-sync) | **log-only, never dispatches** (`MAOS_SELFHEAL` is ignored) | It reads and writes AI-harness configs that may carry credentials. An auto-dispatched agent with HOME access could read every config the tool touches, so the "human reviews the diff" guarantee above is not enough. The fault log is kept (masked) for a human to hand to an agent deliberately. |
+| [`bin/close-out-manifest.sh`](../bin/close-out-manifest.sh) | **log-only, never dispatches** — an `ERR` trap prints only the line and exit code; refusals (rc 2-5) are expected outcomes, not faults | It scans and stages session reports that may hold secrets or personal data. The fault line never carries report content, and no agent is dispatched with access to the staging dir. |
 
 Any future executable that resolves or writes secret material SHOULD follow this
 exception rather than the default relay, and be listed here.

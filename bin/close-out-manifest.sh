@@ -66,6 +66,15 @@ cleanup() {
   exit "$rc"
 }
 trap cleanup EXIT
+# Self-heal: documented log-only exception (docs/self-heal-relay.md) — this tool handles reports
+# that may carry secrets/PII, so an unexpected fault is reported on stderr (line + rc only, never
+# arguments or content) and is NEVER relayed to an agent. Intentional gate/refusal exits use
+# `exit`/`die`, which do not raise ERR.
+set -E
+on_fault() {
+  printf 'close-out-manifest: unexpected fault at line %s (rc %s) — log-only, no self-heal dispatch\n' "$1" "$2" >&2
+}
+trap 'on_fault "$LINENO" "$?"' ERR
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
@@ -139,14 +148,20 @@ cmd_check() {
   # FEAT-2: a pending delegate may only be closed over as an operator-authorised PARTIAL
   local gate partial=false
   gate="$(field "$manifest" "Delegates gate" delegates_gate)"
-  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" "Delegates gate" partial_authorized_by)" ]; then partial=true
+  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" "Delegates gate" partial_authorized_by)" ]; then
+    partial=true
+    grep -m1 -E '^#[[:space:]]' "$manifest" | grep -qE '^#[[:space:]]+PARTIAL' || missing="${missing}partial-title;"
   elif [ "$gate" != "PASS" ]; then missing="${missing}delegates_gate!=PASS;"
   fi
   local k
   for k in session_id link command; do
     [ -n "$(field "$manifest" Recovery "$k")" ] || missing="${missing}field:${k};"
   done
-  [ -n "$(field "$manifest" Self-location manifest_path)" ] || missing="${missing}field:manifest_path;"
+  local mp; mp="$(field "$manifest" Self-location manifest_path)"; mp="${mp/#\~/$HOME}"
+  if [ -z "$mp" ]; then missing="${missing}field:manifest_path;"
+  elif ! { [ -f "$mp" ] && { [ "$mp" -ef "$manifest" ] || cmp -s "$mp" "$manifest"; }; }; then
+    missing="${missing}manifest-path-mismatch;" # must resolve to the manifest being checked
+  fi
   for k in "Instruction tree" "HITL decisions" "Roadmap" "Artifact index"; do
     if grep -qiE "^##[[:space:]]+$k[[:space:]]*$" "$manifest" && section_body_empty "$manifest" "$k"; then
       missing="${missing}empty-section:${k};"
@@ -219,7 +234,17 @@ EOF
 }
 
 # PII patterns (email · BR phone · CPF). Metadata-only manifests should match none.
-PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\+?55[ (]*[0-9]{2}[) ]*9?[0-9]{4}-?[0-9]{4}|[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}'
+# Phones: with the +55/55 prefix any spacing; without it, a formatted domestic number — DDD in
+# parentheses, or separated from the subscriber number, or a separator before the last 4 digits.
+# DDD digits are 1-9 (no Brazilian area code has a 0); mobile = 9 + 8 digits, landline 2-5 + 7.
+# A bare 10-11 digit run with no formatting is not matched on purpose (timestamps, ids).
+PHONE_SUB='(9[0-9]{4}|[2-5][0-9]{3})'
+PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'\
+'|(\+?55[ .-]*\(?[1-9][1-9]\)?[ .-]*'"$PHONE_SUB"'[ .-]?[0-9]{4})'\
+'|((^|[^0-9])\([1-9][1-9]\) ?'"$PHONE_SUB"'[ .-]?[0-9]{4}([^0-9]|$))'\
+'|((^|[^0-9])[1-9][1-9][ .-]'"$PHONE_SUB"'[ .-]?[0-9]{4}([^0-9]|$))'\
+'|((^|[^0-9])[1-9][1-9][ .-]?'"$PHONE_SUB"'[ .-][0-9]{4}([^0-9]|$))'\
+'|[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}'
 
 # Scanning model (parser-differential hardening): every source is first copied into a private
 # staging dir, and ONLY the staged bytes are scanned and then promoted — the origin is never read
@@ -268,7 +293,8 @@ cmd_persist() {
   # positive controls, assembled at runtime (no key/PII literal in this file), scanned through
   # the exact same staging + invocation path as the sources
   local p="gh""p_" at="@"
-  printf 'k = "%s%s"\n' "$p" "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 36)" > "$STAGE/ctl"
+  local rnd; rnd="$(head -c 4096 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9')" # bounded read: no SIGPIPE
+  printf 'k = "%s%s"\n' "$p" "${rnd:0:36}" > "$STAGE/ctl"
   views "$STAGE/ctl"
   secret_hit "$STAGE/ctl" || die "persist: secret scanner is blind to the positive control — refusing (fail-closed)" 3
   printf 'c: probe%sexample.org\n' "$at" > "$STAGE/ctl"
@@ -281,15 +307,23 @@ cmd_persist() {
   ! secret_hit "$STAGE/ctl" || die "persist: secret scanner fails on a clean control — scanner error, refusing (fail-closed)" 3
   rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
 
-  local s base target status i=0 staged tmp
+  local s base target status i=0 staged tmp bak seen="
+"
   for s in "${srcs[@]}"; do
     i=$((i + 1))
-    [ -f "$s" ] && [ ! -L "$s" ] || { printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue; }
+    [ -f "$s" ] && [ ! -L "$s" ] || { refused=1; printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue; }
     base="$(basename -- "$s")"; target="$dest/$base"
+    case "$seen" in *"
+$base
+"*) # two sources, one destination name
+      refused=1; printf '{"src":"%s","dest":"%s","status":"refused-basename-collision"}\n' "$(jstr "$s")" "$(jstr "$target")"; continue ;;
+    esac
+    seen="${seen}${base}
+"
     staged="$STAGE/f$i"
     cp -- "$s" "$staged" || die "persist: cannot stage $base" 1
     if [ ! -f "$s" ] || [ -L "$s" ]; then # source swapped during the copy
-      rm -f -- "$staged"
+      rm -f -- "$staged"; refused=1
       printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue
     fi
     if is_binary "$staged"; then status="refused-binary"; refused=1
@@ -304,11 +338,13 @@ cmd_persist() {
         mkdir -p -- "$dest"
         # the rename temp sits next to the target (same filesystem ⇒ atomic mv) and holds only
         # already-scanned staged bytes; it is registered so any failure path removes it
-        tmp="$dest/.$base.cm-tmp.$$"; DEST_TMPS+=("$tmp")
+        tmp="$(mktemp "$dest/.$base.cm-tmp.XXXXXX")" || die "persist: cannot create temp for $base" 1
+        DEST_TMPS+=("$tmp") # created exclusively by mktemp: a planted name is never written through
         cp -- "$staged" "$tmp" || die "persist: cannot write $base" 1
         # never lose the previous version: a differing target is kept as a timestamped backup
         if [ -f "$target" ]; then
-          cp -p -- "$target" "$target.bak.$(date -u +%Y%m%dT%H%M%SZ)" || die "persist: cannot back up $base" 1
+          bak="$(mktemp "$target.bak.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")" || die "persist: cannot back up $base" 1
+          cp -p -- "$target" "$bak" || die "persist: cannot back up $base" 1
         fi
         mv -f -- "$tmp" "$target" || die "persist: cannot promote $base" 1
         cmp -s "$staged" "$target" || die "persist: post-copy verify failed for $base" 1
@@ -322,8 +358,11 @@ cmd_persist() {
 }
 
 detect_clip() { # sets CLIP_COPY_CMD / CLIP_PASTE_CMD as space-joined commands
-  if [ -n "${MAOS_CLIP_COPY:-}" ] || [ -n "${MAOS_CLIP_PASTE:-}" ]; then
-    CLIP_COPY_CMD="${MAOS_CLIP_COPY:-}"; CLIP_PASTE_CMD="${MAOS_CLIP_PASTE:-}"; return
+  CLIP_INCOMPLETE=0
+  if [ -n "${MAOS_CLIP_COPY:-}" ] && [ -n "${MAOS_CLIP_PASTE:-}" ]; then
+    CLIP_COPY_CMD="$MAOS_CLIP_COPY"; CLIP_PASTE_CMD="$MAOS_CLIP_PASTE"; return
+  elif [ -n "${MAOS_CLIP_COPY:-}" ] || [ -n "${MAOS_CLIP_PASTE:-}" ]; then
+    CLIP_INCOMPLETE=1; CLIP_COPY_CMD=""; CLIP_PASTE_CMD=""; return # half an override is refused
   fi
   if   command -v pbcopy  >/dev/null 2>&1; then CLIP_COPY_CMD="pbcopy";                    CLIP_PASTE_CMD="pbpaste"
   elif command -v wl-copy >/dev/null 2>&1; then CLIP_COPY_CMD="wl-copy";                   CLIP_PASTE_CMD="wl-paste -n"
@@ -344,6 +383,9 @@ cmd_clip() {
   [ -n "$file" ] && [ -f "$file" ] || die "clip: file not found: ${file:-<none>}"
   local hint="fallback: paste-mcp (create_item with the file content), then confirm by read_item"
   detect_clip
+  if [ "$CLIP_INCOMPLETE" -eq 1 ]; then
+    printf '{"status":"unverified","reason":"incomplete-clip-override","detail":"set MAOS_CLIP_COPY and MAOS_CLIP_PASTE together, or neither","hint":"%s"}\n' "$hint"; exit 4
+  fi
   # shellcheck disable=SC2086  # commands are intentionally word-split (fixed, non-user tokens)
   set -- $CLIP_COPY_CMD
   if [ -z "$CLIP_COPY_CMD" ] || ! command -v "$1" >/dev/null 2>&1; then
