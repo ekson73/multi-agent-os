@@ -89,7 +89,8 @@ mkwork() {
 # must not end the record or forge a second one)
 jstr() {
   printf '%s\n' "$1" | LC_ALL=C awk '
-    BEGIN { ORS = ""; for (i = 1; i < 32; i++) ord[sprintf("%c", i)] = i }
+    BEGIN { ORS = ""; for (i = 1; i < 32; i++) ord[sprintf("%c", i)] = i
+            ord[sprintf("%c", 127)] = 127; for (i = 128; i < 256; i++) hi[sprintf("%c", i)] = i }
     {
       if (NR > 1) printf "\\n"
       n = length($0)
@@ -100,7 +101,17 @@ jstr() {
         else if (ch == "\t") printf "\\t"
         else if (ch == "\r") printf "\\r"
         else if (ch in ord) printf "\\u%04x", ord[ch]
-        else printf "%s", ch
+        else if (!(ch in hi)) printf "%s", ch
+        else { # a byte >= 0x80: emit a well-formed UTF-8 sequence verbatim, else U+FFFD
+          b = hi[ch]; need = (b >= 194 && b <= 223) ? 1 : (b >= 224 && b <= 239) ? 2 : (b >= 240 && b <= 244) ? 3 : -1
+          ok = (need > 0 && i + need <= n)
+          for (k = 1; ok && k <= need; k++) { c = substr($0, i + k, 1); if (!(c in hi) || hi[c] > 191) ok = 0 }
+          if (ok && b == 224 && hi[substr($0, i + 1, 1)] < 160) ok = 0   # overlong
+          if (ok && b == 237 && hi[substr($0, i + 1, 1)] > 159) ok = 0   # surrogate
+          if (ok && b == 240 && hi[substr($0, i + 1, 1)] < 144) ok = 0   # overlong
+          if (ok && b == 244 && hi[substr($0, i + 1, 1)] > 143) ok = 0   # > U+10FFFF
+          if (ok) { printf "%s", substr($0, i, need + 1); i += need } else printf "\\ufffd"
+        }
       }
     }'
 }
@@ -127,6 +138,25 @@ section_body_empty() { # rc 0 when "## <section>" has no non-blank line before t
     END { exit found ? 1 : 0 }' "$1"
 }
 
+canon() { # physical path of an existing file (symlinks resolved), else empty
+  local d f="$1" n=0
+  while [ -L "$f" ] && [ "$n" -lt 40 ]; do
+    d="$(cd "$(dirname -- "$f")" && pwd -P)" || return 0
+    f="$(readlink -- "$f")"; case "$f" in /*) ;; *) f="$d/$f" ;; esac; n=$((n + 1))
+  done
+  [ -e "$f" ] || return 0
+  d="$(cd "$(dirname -- "$f")" && pwd -P)" && printf '%s/%s' "$d" "${f##*/}"
+}
+is_ephemeral() { # temp/scratch roots, including the canonical session temp root
+  local t="${TMPDIR:-/tmp}" tc; t="${t%/}"; tc="$(cd "$t" 2>/dev/null && pwd -P)"
+  case "$1" in
+    "") return 1 ;;
+    /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|/private/var/tmp|/private/var/tmp/*|*/scratchpad*) return 0 ;;
+    "$t"|"$t"/*) return 0 ;;
+  esac
+  [ -n "$tc" ] && case "$1" in "$tc"|"$tc"/*) return 0 ;; esac
+  return 1
+}
 cmd_check() {
   local manifest="" missing="" strict=0
   while [ $# -gt 0 ]; do
@@ -159,6 +189,8 @@ cmd_check() {
   done
   local mp; mp="$(field "$manifest" Self-location manifest_path)"; mp="${mp/#\~/$HOME}"
   if [ -z "$mp" ]; then missing="${missing}field:manifest_path;"
+  elif is_ephemeral "$mp" || is_ephemeral "$(canon "$mp")"; then
+    missing="${missing}ephemeral-manifest-path;" # a close-out artifact must survive temp cleanup
   elif ! { [ -f "$mp" ] && { [ "$mp" -ef "$manifest" ] || cmp -s "$mp" "$manifest"; }; }; then
     missing="${missing}manifest-path-mismatch;" # must resolve to the manifest being checked
   fi
@@ -331,19 +363,16 @@ cmd_persist() {
   ! secret_hit "$STAGE/ctl" || die "persist: secret scanner fails on a clean control — scanner error, refusing (fail-closed)" 3
   rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
 
-  local s base target status i=0 staged tmp bak seen="
-"
+  local s base target status i=0 staged tmp bak seen=() x dup
   for s in "${srcs[@]}"; do
     i=$((i + 1))
     [ -f "$s" ] && [ ! -L "$s" ] || { refused=1; printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue; }
-    base="$(basename -- "$s")"; target="$dest/$base"
-    case "$seen" in *"
-$base
-"*) # two sources, one destination name
-      refused=1; printf '{"src":"%s","dest":"%s","status":"refused-basename-collision"}\n' "$(jstr "$s")" "$(jstr "$target")"; continue ;;
-    esac
-    seen="${seen}${base}
-"
+    base="${s##*/}"; target="$dest/$base" # no $(...): keeps a trailing newline byte
+    dup=0; for x in ${seen[@]+"${seen[@]}"}; do [ "$x" = "$base" ] && dup=1; done # exact bytes, no delimiter
+    if [ "$dup" -eq 1 ]; then # two sources, one destination name
+      refused=1; printf '{"src":"%s","dest":"%s","status":"refused-basename-collision"}\n' "$(jstr "$s")" "$(jstr "$target")"; continue
+    fi
+    seen+=("$base")
     staged="$STAGE/f$i"
     cp -- "$s" "$staged" || die "persist: cannot stage $base" 1
     if [ ! -f "$s" ] || [ -L "$s" ]; then # source swapped during the copy
