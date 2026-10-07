@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# close-out-manifest.sh — postflight P3.7 MANIFEST executor (v0.1.0)
+# close-out-manifest.sh — postflight P3.7 MANIFEST executor (v0.2.0)
 #
 # /** The deterministic half of the multi-agent close-out
 #  *  (skills/postflight/references/close-out-manifest-protocol.md). The live agent
@@ -10,6 +10,7 @@
 #  *    persist — copy ephemeral reports (e.g. a scratchpad) to a durable dir, only
 #  *              after a secret scan + a PII scan, each proven to SEE a positive
 #  *              control assembled at runtime (a blind scanner never reports clean)
+#  *    anchor  — read-only git anchor: branch@HEAD · UTC, dirty files named, worktrees
 #  *    clip    — copy the manifest to the clipboard and VERIFY it by read-back cmp;
 #  *              unverifiable ⇒ rc 4 + the paste-MCP fallback hint (never fake success)
 #  *  @exit 0 ok · 1 usage/IO error · 2 check failed · 3 scanner blind/missing ·
@@ -20,14 +21,15 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 usage() {
   cat <<'EOF'
 Usage:
-  close-out-manifest.sh check   --manifest <file>
+  close-out-manifest.sh check   --manifest <file> [--strict]
   close-out-manifest.sh persist --dest <dir> --src <file> [--src <file> ...] [--apply]
   close-out-manifest.sh clip    --file <file>
+  close-out-manifest.sh anchor  --repo <dir>
   close-out-manifest.sh --help | --version
 
 Env:
@@ -77,37 +79,106 @@ mkwork() {
 jstr() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 
 REQUIRED_SECTIONS="Delegates gate|Instruction tree|HITL decisions|Roadmap|Artifact index|Recovery|Self-location"
+# opt-in (check --strict): after-action review (FEAT-4), resume check for the receiving session
+# (FEAT-19/20) and an explicit not-done list (FEAT-32) — off by default so the default close-out
+# is neither slower nor noisier
+STRICT_SECTIONS="After-action review|Resume check|Not done"
 
 field() { # field <file> <key> → value after "key:" (trimmed), first match
   sed -n "s/^[[:space:]]*$2:[[:space:]]*//p" "$1" | head -1 | sed 's/[[:space:]]*$//'
 }
 
 cmd_check() {
-  local manifest="" missing=""
+  local manifest="" missing="" strict=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --manifest) [ $# -ge 2 ] || die "--manifest needs a value"; manifest="$2"; shift 2 ;;
+      --strict)   strict=1; shift ;;
       *) die "check: unknown arg $1" ;;
     esac
   done
   [ -n "$manifest" ] && [ -f "$manifest" ] || die "check: manifest not found: ${manifest:-<none>}"
+  mkwork; WORK_LINKS="$WORK/links"
 
-  local IFS='|' s
-  for s in $REQUIRED_SECTIONS; do
+  local IFS='|' s sections="$REQUIRED_SECTIONS"
+  [ "$strict" -eq 0 ] || sections="$REQUIRED_SECTIONS|$STRICT_SECTIONS"
+  for s in $sections; do
     grep -qiE "^##[[:space:]]+$s[[:space:]]*$" "$manifest" || missing="${missing}section:${s};"
   done
   unset IFS
-  [ "$(field "$manifest" delegates_gate)" = "PASS" ] || missing="${missing}delegates_gate!=PASS;"
+  # FEAT-2: a pending delegate may only be closed over as an operator-authorised PARTIAL
+  local gate partial=false
+  gate="$(field "$manifest" delegates_gate)"
+  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" partial_authorized_by)" ]; then partial=true
+  elif [ "$gate" != "PASS" ]; then missing="${missing}delegates_gate!=PASS;"
+  fi
   local k
   for k in session_id link command manifest_path; do
     [ -n "$(field "$manifest" "$k")" ] || missing="${missing}field:${k};"
   done
+  # FEAT-16: the recovery triple must hold together, not just be present
+  local sid link cmd tr
+  sid="$(field "$manifest" session_id)"; link="$(field "$manifest" link)"; cmd="$(field "$manifest" command)"
+  case "$link" in ""|http://*|https://*) ;; *) missing="${missing}link-not-url;" ;; esac
+  if [ -n "$sid" ] && [ -n "$cmd" ]; then
+    case "$cmd" in *"$sid"*) ;; *) missing="${missing}command-lacks-session-id;" ;; esac
+  fi
+  tr="$(field "$manifest" transcript_path)"
+  [ -z "$tr" ] || [ -f "${tr/#\~/$HOME}" ] || missing="${missing}transcript-missing;"
+  # FEAT-17/22: every backticked absolute path must exist and be durable, unless its line
+  # declares it "(ephemeral)"
+  local line p
+  EPH_T="${TMPDIR:-/tmp}"; EPH_T="${EPH_T%/}" # the session temp root is ephemeral too
+  while IFS= read -r line; do
+    { printf '%s\n' "$line" | grep -oE '`(/|~/)[^`]*`' || true; } | tr -d '`' | while IFS= read -r p; do
+      case "$line" in *"(ephemeral)"*) continue ;; esac
+      case "$p" in
+        /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|*/scratchpad*) printf 'ephemeral-link:%s;' "$p" ;;
+        "$EPH_T"|"$EPH_T"/*) printf 'ephemeral-link:%s;' "$p" ;;
+        *) [ -e "${p/#\~/$HOME}" ] || printf 'broken-link:%s;' "$p" ;;
+      esac
+    done
+  done < "$manifest" > "$WORK_LINKS"
+  missing="${missing}$(cat "$WORK_LINKS")"
 
   if [ -n "$missing" ]; then
     printf '{"status":"fail","missing":"%s"}\n' "$(jstr "$missing")"
     exit 2
   fi
-  printf '{"status":"pass","manifest":"%s"}\n' "$(jstr "$manifest")"
+  printf '{"status":"pass","partial":%s,"manifest":"%s"}\n' "$partial" "$(jstr "$manifest")"
+}
+
+# FEAT-34: git anchor — branch@HEAD + UTC, every uncommitted file named, worktrees listed.
+# Read-only: it never stages, stashes or discards anything. rc 0 clean · 2 dirty · 1 not a repo.
+cmd_anchor() {
+  local repo=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) [ $# -ge 2 ] || die "--repo needs a value"; repo="$2"; shift 2 ;;
+      *) die "anchor: unknown arg $1" ;;
+    esac
+  done
+  [ -n "$repo" ] && git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    || die "anchor: not a git work tree: ${repo:-<none>}" 1
+  mkwork
+  local branch head stamp dirty="" wts="" l sep=""
+  branch="$(git -C "$repo" branch --show-current)"; [ -n "$branch" ] || branch="(detached)"
+  head="$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo '(no-commits)')"
+  stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local st; st="$WORK/anchor.status"
+  git -C "$repo" status --porcelain=v1 -z --untracked-files=all > "$st"
+  while IFS= read -r -d '' l; do # -z: names never quoted (spaces, non-ASCII)
+    [ -n "$l" ] || continue; dirty="${dirty}${sep}\"$(jstr "$l")\""; sep=","
+  done < "$st"
+  sep=""
+  while IFS= read -r l; do
+    case "$l" in "worktree "*) wts="${wts}${sep}\"$(jstr "${l#worktree }")\""; sep="," ;; esac
+  done <<EOF
+$(git -C "$repo" worktree list --porcelain)
+EOF
+  printf '{"anchor":"%s@%s · %s","dirty":[%s],"worktrees":[%s]}\n' \
+    "$(jstr "$branch")" "$head" "$stamp" "$dirty" "$wts"
+  [ -z "$dirty" ] || exit 2
 }
 
 # PII patterns (email · BR phone · CPF). Metadata-only manifests should match none.
@@ -196,6 +267,10 @@ cmd_persist() {
         # already-scanned staged bytes; it is registered so any failure path removes it
         tmp="$dest/.$base.cm-tmp.$$"; DEST_TMPS+=("$tmp")
         cp -- "$staged" "$tmp" || die "persist: cannot write $base" 1
+        # never lose the previous version: a differing target is kept as a timestamped backup
+        if [ -f "$target" ]; then
+          cp -p -- "$target" "$target.bak.$(date -u +%Y%m%dT%H%M%SZ)" || die "persist: cannot back up $base" 1
+        fi
         mv -f -- "$tmp" "$target" || die "persist: cannot promote $base" 1
         cmp -s "$staged" "$target" || die "persist: post-copy verify failed for $base" 1
         status="copied"
@@ -250,6 +325,7 @@ cmd_clip() {
 case "${1:-}" in
   check)   shift; cmd_check "$@" ;;
   persist) shift; cmd_persist "$@" ;;
+  anchor)  shift; cmd_anchor "$@" ;;
   clip)    shift; cmd_clip "$@" ;;
   --version) echo "close-out-manifest.sh $VERSION" ;;
   -h|--help|"") usage ;;

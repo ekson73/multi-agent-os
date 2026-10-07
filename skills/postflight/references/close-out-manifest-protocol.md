@@ -1,17 +1,17 @@
 ---
 name: close-out-manifest-protocol
 description: The multi-agent close-out directive — a P0 gate (every delegate delivered, fail-closed) and the P3.7 MANIFEST (one consolidated, self-locating close-out artifact with instruction tree, HITL decisions, roadmap + artifact index and a verified recovery triple), persisted durably and copied to the clipboard with read-back verification
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Close-Out Manifest Protocol (SSOT) — postflight P0 GATE + P3.7 MANIFEST
 
-> **Version**: 0.1.0 (2026-10-07)
+> **Version**: 0.2.0 (2026-10-07) — fused with the independent `session-handover` prototype (matrix: PR #478)
 > **Scope**: AAIF cross-vendor. Adds two steps to `skills/postflight/SKILL.md` for sessions that
 > **delegated work** (sub-agents, teammates, background jobs): a **P0 GATE** before P1 and a
 > **P3.7 MANIFEST** after P3/P3.6. A single-agent session may skip both (they are NOOP when
 > there were no delegates and no ephemeral reports).
-> **Executor**: `bin/close-out-manifest.sh` (`check` · `persist` · `clip`).
+> **Executor**: `bin/close-out-manifest.sh` (`check [--strict]` · `persist` · `clip` · `anchor`).
 > **Cross-link slug**: `close-out-manifest-protocol`
 
 ## Why
@@ -43,6 +43,13 @@ error kept) or **dropped** (with a one-line reason). Rules:
   terminal (delivered, failed-with-error, or dropped-with-reason). Anything else is `PENDING` or
   `ORPHAN`, and `bin/close-out-manifest.sh check` refuses it.
 - **No delegates ⇒ PASS** (write `delegates_gate: PASS` with "none").
+- **Outcome per delegate.** Each line carries one outcome: delivered · failed · expired · cancelled,
+  plus model and duration when the host exposes them (tokens/cost only if available — absence is
+  written as "n/a", never estimated).
+- **Partial close only by the operator.** If the operator explicitly authorises closing over a
+  pending delegate, write `delegates_gate: PARTIAL` and `partial_authorized_by:` (who, when, where
+  it was said). The executor then passes with `"partial":true`, and the manifest title and the
+  handoff must start with `PARTIAL`. Without the authorisation line, `PARTIAL` is refused.
 
 ## P3.7 MANIFEST — one consolidated, self-locating artifact
 
@@ -56,8 +63,39 @@ mind's entry point. Required sections (exact headings, checked by the executor):
 | `## HITL decisions` | Every item only a human can decide, Eisenhower-ordered, each with 2-4 options and the **recommended option first** plus its trade-off. Sources: the hunt's decisions-not-taken and unanswered-Qs, and P0 orphans. |
 | `## Roadmap` | Next steps in order (non-blocked first), linked to the continuation ticket from P2.5. |
 | `## Artifact index` | Link to every artifact the session produced: seed path, tickets, PRs (number + head), commits, persisted reports, docs. One line each. |
-| `## Recovery` | The triple, each on its own line: `session_id:` · `link:` · `command:` (the exact command that reopens the session, e.g. `claude --resume <id>`). **Verify the command resolves** (the session/transcript exists) before writing it. |
+| `## Recovery` | The triple, each on its own line: `session_id:` · `link:` (an http(s) URL) · `command:` (the exact command that reopens the session; it must contain the session id). Optional `transcript_path:` — the host's transcript file; if written, it must exist. Also the `anchor` line of every repo touched (below). **Verify the command resolves** before writing it. |
 | `## Self-location` | `manifest_path:` the durable path of this file, so a reader holding only the clipboard copy can find the saved one. |
+
+**Content rules for the sections above** (agent-written; checked where marked):
+
+- **Typed, not prose.** Every open item (instruction node, HITL item, roadmap step) names its
+  owner, next action, deadline or trigger, and an escalation threshold as "if X then Y".
+- **Verified vs. unverified.** Each fact carries "verified (command)" or "unverified"; the next
+  session treats unverified facts as hypotheses.
+- **HITL only for what needs a human.** Anything the agent can do alone goes to the roadmap. One
+  recommended option, first; trade-off per option; where to act; at most one question per turn.
+- **Paths.** Every backticked absolute path must exist (checked: `broken-link`) and must not point
+  at a temp/scratch area (checked: `ephemeral-link`) unless its line says `(ephemeral)`.
+- **Versions.** A newer manifest names the one it supersedes (`supersedes:`); old ones are kept.
+- **Size budget.** The handoff copied to the clipboard stays within the budget the seed contract
+  sets; detail lives in the linked files.
+
+### Opt-in: `check --strict`
+
+Off by default so the normal close-out is neither slower nor noisier. Adds three required sections:
+`## After-action review` (planned · happened · why · keep/improve, facts first, no blame),
+`## Resume check` (the first task of the next session: restate the handoff, compare it with the
+live state — anchors, PRs, worktrees — and list divergences before acting) and `## Not done`
+(what was not done by guardrail and what stayed open). Decision candidates (ADR drafts for human
+review) and lesson candidates (deduplicated against existing memory before promotion) may be
+listed under `## Not done` as proposals; nothing is written automatically.
+
+### Git anchor (`anchor`)
+
+`bin/close-out-manifest.sh anchor --repo <dir>` prints `branch@HEAD · UTC`, every uncommitted file
+by name and every worktree. It is read-only: dirty work is reported (rc 2), never staged, stashed
+or discarded. Run it for every repo the session touched and paste the lines into `## Recovery`;
+the next session compares them with the live state before acting.
 
 ### Durability (persist)
 
@@ -65,12 +103,12 @@ Reports in a scratch/temp area are copied to a durable location **before** the m
 them: `bin/close-out-manifest.sh persist --dest <durable-dir> --src <report>... --apply`
 (dry-run without `--apply`). It refuses any file that the secret scan or the PII scan flags, and
 it refuses to run at all if either scan cannot detect a positive control assembled at runtime
-(rc 3). Each source is first copied into a private staging dir and only those staged bytes are scanned and promoted, so a change made during the scan never reaches the destination. Binary files are refused; the scan covers the raw bytes, a CRLF-normalised view and a line-joined view (a secret split across lines), and runs isolated from inherited scanner config, ignore files and in-content allow directives. A known-clean negative control must scan clean, so a scanner that errors on everything is reported as rc 3, not as a leak; any other scanner error on a source counts as a hit. All temporary data lives in one private dir (umask 077, honours `$TMPDIR`) plus the registered rename temp next to the target; one exit trap removes them on success, error and INT/TERM/HUP alike, and a cleanup that cannot remove them is reported (rc 6). The clipboard read-back streams into `cmp`, so the handoff never lands in a temp file. A refused file is never copied; record it in the manifest as a HITL item. Choose the
+(rc 3). Each source is first copied into a private staging dir and only those staged bytes are scanned and promoted, so a change made during the scan never reaches the destination. Binary files are refused; the scan covers the raw bytes, a CRLF-normalised view and a line-joined view (a secret split across lines), and runs isolated from inherited scanner config, ignore files and in-content allow directives. A known-clean negative control must scan clean, so a scanner that errors on everything is reported as rc 3, not as a leak; any other scanner error on a source counts as a hit. All temporary data lives in one private dir (umask 077, honours `$TMPDIR`) plus the registered rename temp next to the target; one exit trap removes them on success, error and INT/TERM/HUP alike, and a cleanup that cannot remove them is reported (rc 6). The clipboard read-back streams into `cmp`, so the handoff never lands in a temp file. A changed target is kept as `<file>.bak.<UTC>` before it is replaced. A refused file is never copied; record it in the manifest as a HITL item. Choose the
 durable dir by governance discovery (the repo's session/report path, or the seed dir).
 
 ### Check, then clipboard
 
-1. `bin/close-out-manifest.sh check --manifest <file>` — must exit 0.
+1. `bin/close-out-manifest.sh check --manifest <file>` (add `--strict` if you opted in) — must exit 0.
 2. `bin/close-out-manifest.sh clip --file <file>` — copies and reads back with `cmp`. rc 0 means
    verified. rc 4 means not verified: use the paste MCP (create the item from the file, read it
    back, compare), and say in the exit summary which path succeeded. Never report "copied" on
@@ -85,6 +123,8 @@ durable dir by governance discovery (the repo's session/report path, or the seed
 5. ❌ Reporting the clipboard as done without a read-back match.
 6. ❌ Restating hunt/seed/ticket/broadcast content here instead of linking to their SSOT.
 7. ❌ Names of people, secrets or personal data in the manifest — metadata only.
+8. ❌ Writing `PARTIAL` without the operator's authorisation line, or hiding the partial flag.
+9. ❌ Stating an unchecked fact without marking it "unverified".
 
 ## License
 
