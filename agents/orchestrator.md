@@ -29,7 +29,7 @@ The Orchestrator is the root of all AI agent hierarchies in a session.
 
 ## Decision Tree
 
-The tree below is for a **leaf or mid** agent choosing how to do its own slice. A root starts at "DELEGATE" unless a recorded exception applies.
+**LEAF / MID AGENTS ONLY.** The tree below is for a delegate choosing how to do its own slice. As the root, this agent starts at "DELEGATE" and leaves it only under a recorded exception (E1–E4 in `skills/agentic-delegation` §4.1).
 
 ```
 TASK RECEIVED

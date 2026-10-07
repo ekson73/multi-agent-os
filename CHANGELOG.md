@@ -16,9 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not by text inside a task), and fail-closed when unknown. A never-delegable
   table (HUMAN_DOMAIN, absolute-guardrail exceptions, rule changes without an
   independent red-team, final accountability, audit judgment, escalation choice,
-  memory judgment, world boundary). §7 gains the matching rows.
-- One depth cap (2). `agents/orchestrator.md` and `commands/delegate.md` said 3;
-  both now link the SSOT §8. The orchestrator's "simple → execute directly" now
+  memory judgment, world boundary). The root's direct-execution exceptions are a
+  closed list (E1–E4). Missing `depth_remaining` is derived from chain depth;
+  missing scope means no authorization grant; invalid grants fail closed.
+  Enforcement is stated as prompt-level (no spawn-boundary check yet). §7 now
+  points to the table instead of repeating it.
+- One depth cap (2). Files that stated another value now use 2 and link the
+  SSOT §8: `agents/orchestrator.md`, `commands/delegate.md`, `agents/README.md`,
+  `skills/auto-pilot` ("manual mode allows ≤ 3"), and Sentinel
+  (`sentinel/config.json` `max_delegation_depth` 3→2, `detection_rules.md`,
+  `README.md`) plus the statusmap templates. Files that already said 2 keep
+  their wording. The orchestrator's "simple → execute directly" now
   applies to leaf/mid agents; the root delegates unless it records an exception.
 - `protocols/agent-delegation.md`: "resolve directly" is for leaf agents; the
   agentic council runs before escalating to the user.
@@ -26,11 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `auto-pilot` (skill + command), `quiesce`, `council-gate` (its authorization is
   a subset of its invoker's), `persona-pipeline`, `perspective-trio`,
   `cascade-resolver`.
+- `skills/council-gate` 1.1.0: new conjunct P0 within-invoker-scope; missing or
+  unverifiable scope ⇒ `HITL_OUT_OF_SCOPE`.
 - The SSOT header and refs no longer point back to the operator's personal rule.
 - New `tests/governance/test-delegation-authority-ssot.sh`, run by
   `tests/validate-plugin.sh`: fails if another file restates a different depth
-  cap, if the SSOT loses the inheritance rule or never-delegable list, or if a
-  former restater stops linking the SSOT.
+  cap (several phrasings, plus Sentinel config and docs), if the SSOT §4.1 loses
+  its normative content or gains a personal-layer reference, or if a former
+  restater stops linking the SSOT. Eight mutation fixtures (plus a control)
+  prove each check catches the contradiction it guards.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 

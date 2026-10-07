@@ -85,18 +85,18 @@ Both Analyst instances received essentially the same task.
 **Severity**: HIGH
 **Auto-block**: Yes
 
-**Description**: Detects when delegation depth exceeds maximum allowed (default: 3).
+**Description**: Detects when delegation depth exceeds maximum allowed (default: 2 — the cap in `skills/agentic-delegation` §8).
 
 **Condition**:
 ```python
-def check_depth(delegation_depth, max_depth=3):
+def check_depth(delegation_depth, max_depth=2):
     if delegation_depth > max_depth:
         return ALERT(f"Depth violation: {delegation_depth} > {max_depth}")
     return PASS
 ```
 
 **Triggers**:
-- delegation_depth > 3
+- delegation_depth > 2
 
 **Action**:
 1. BLOCK further delegation
@@ -509,7 +509,7 @@ Default thresholds can be adjusted:
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| `max_delegation_depth` | 3 | 2-5 | Maximum chain depth |
+| `max_delegation_depth` | 2 | 2-5 | Maximum chain depth |
 | `task_similarity_threshold` | 0.85 | 0.7-0.95 | Loop detection sensitivity |
 | `task_relevance_threshold` | 0.50 | 0.3-0.7 | Drift detection sensitivity |
 | `stagnation_timeout_ms` | 300000 | 60000-600000 | Stagnation threshold |

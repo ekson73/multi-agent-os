@@ -129,8 +129,8 @@ per the project escalation rule), and `escalation_triggers` (inherits the
 
 ## Anti-loop invariants
 
-Reused from `agents/orchestrator.md` §Anti-Loop Detection, with depth
-tightened to ≤ 2 for unattended runs (orchestrator's manual mode allows ≤ 3):
+Reused from `agents/orchestrator.md` §Anti-Loop Detection; the depth cap is
+the single cap in `skills/agentic-delegation` §8 (2), attended or not:
 
 1. **Task Similarity** — sub-task same as parent → STOP.
 2. **Delegation Depth** — depth > 2 → STOP (Sentinel RULE-002).

@@ -1,6 +1,6 @@
 ---
 name: council-gate
-version: "1.0.0"
+version: "1.1.0"
 allowed-tools: [Task, Read, Bash, Skill, Grep]
 description: |
   Pre-HITL democratic council-authorization gate (soul-name Boule). Everything destined
@@ -125,9 +125,10 @@ After the council converges but **before** authorization is granted, an **indepe
 The council can authorize only within the authority its invoker already holds: its authorization is a subset of the delegator's and never widens it, and it never reaches the never-delegable list (`skills/agentic-delegation` §4.1).
 
 ```text
-AUTHORIZE_EXECUTED ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
+AUTHORIZE_EXECUTED ⟺ P0 within-invoker-scope ∧ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```
 
+- **P0** = the action is inside the authority the invoker verifiably holds (`skills/agentic-delegation` §4.1). Missing or unverifiable scope ⇒ P0 is false. Record the scope evidence in the verdict and re-check it before executing.
 - **P1** = the §5.1 Layer-1 clear (unconditional — confidence never opens it).
 - **P3** `autonomy_score` per `[C17]` §1.2 6-factor; if <0.90 attempt Score-Uplift (`[C17]` §1.4, ≤3) first.
 - **P4** = council convergence (§5.2) **AND** red-team survival (§5.2.5) — both, per the §2.3 triple-check.
@@ -136,11 +137,11 @@ AUTHORIZE_EXECUTED ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 s
 ### §6.3 — Decision-capture (every terminal verdict) + execute (only if armed)
 
 **Verdict classification (P-predicate → verdict):**
-- `AUTHORIZE_EXECUTED` ⟺ **P1 ∧ P2 ∧ P3 ∧ P4 ∧ P5** (full predicate — safe-class holds AND armed).
-- `AUTHORIZE_CONSULTATIVE` ⟺ **P1 ∧ P2 ∧ P3 ∧ P4 ∧ ¬P5** (the safe-class holds, but not armed — the default posture, §1).
-- `HITL_*` ⟺ the **safe-class predicate P1–P4 fails** (Layer-1 block · ¬reversible · score < 0.90 after uplift · ¬council-convergent / red-team-refuted). P5 is irrelevant here — an un-cleared action never authorizes, armed or not.
+- `AUTHORIZE_EXECUTED` ⟺ **P0 ∧ P1 ∧ P2 ∧ P3 ∧ P4 ∧ P5** (full predicate — safe-class holds AND armed).
+- `AUTHORIZE_CONSULTATIVE` ⟺ **P0 ∧ P1 ∧ P2 ∧ P3 ∧ P4 ∧ ¬P5** (the safe-class holds, but not armed — the default posture, §1).
+- `HITL_*` ⟺ the **safe-class predicate P0–P4 fails** (out of the invoker's scope · Layer-1 block · ¬reversible · score < 0.90 after uplift · ¬council-convergent / red-team-refuted). P5 is irrelevant here — an un-cleared action never authorizes, armed or not.
 
-The **safe class is P1–P4**; **P5 (armed) is the *only* difference** between executed and consultative. On **any** terminal verdict run `maos:decision-capture` (`agentic-decide`) **first**: record the **verdict** · **why** · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. Metron needs the record whether or not it executed (authorize-rate + regret-rate), and this guarantees **every emitted `audit_ref` (§8) is backed by a real record** — no dangling ref on the default unarmed path. **Only on AUTHORIZE + ARMED** does the gate then **execute the action** — and it executes it **through the caller under the caller's existing guardrails** (the same hooks + the §5.1 Layer-1 deny-set), never by expanding its own shell surface (see the §5.1 execution-surface constraint). A `HITL_*` verdict emits `audit_ref: null` (nothing was authorized to capture beyond the escalation itself).
+The **safe class is P0–P4**; **P5 (armed) is the *only* difference** between executed and consultative. On **any** terminal verdict run `maos:decision-capture` (`agentic-decide`) **first**: record the **verdict** · **why** · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. Metron needs the record whether or not it executed (authorize-rate + regret-rate), and this guarantees **every emitted `audit_ref` (§8) is backed by a real record** — no dangling ref on the default unarmed path. **Only on AUTHORIZE + ARMED** does the gate then **execute the action** — and it executes it **through the caller under the caller's existing guardrails** (the same hooks + the §5.1 Layer-1 deny-set), never by expanding its own shell surface (see the §5.1 execution-surface constraint). A `HITL_*` verdict emits `audit_ref: null` (nothing was authorized to capture beyond the escalation itself).
 
 ## §7 — HITL fallback = contestable evidence, NOT a persuasive verdict
 When the predicate fails (Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
@@ -157,14 +158,14 @@ Never hand over a bare proposed action; never hand over a lone slick justificati
   "layer1": { "cleared": true, "deny_set_hits": [] },
   "council": { "seats": ["governance-auditor","data-privacy-officer","..."], "convergent": true, "verifier_independent": true },
   "red_team": { "ran": true, "refuted": false, "refutation": null },
-  "predicate": { "P1_layer1_clear": true, "P2_reversible": true, "P3_score": 0.93, "P4_convergent_and_survived": true, "P5_armed": false },
+  "predicate": { "P0_in_scope": true, "scope_evidence": "<grant source>", "P1_layer1_clear": true, "P2_reversible": true, "P3_score": 0.93, "P4_convergent_and_survived": true, "P5_armed": false },
   "verdict": "AUTHORIZE_CONSULTATIVE",
   "action_taken": "none_awaiting_1touch_confirm",
   "hitl": null,
   "audit_ref": "decision-capture:<id>"
 }
 ```
-`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_RED_TEAM_REFUTED` (§5.2.5) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN`. Every `AUTHORIZE_*` verdict carries a **real `audit_ref`** (a `decision-capture` record made in §6.3, armed OR consultative); `HITL_*` verdicts carry **`audit_ref: null`**.
+`verdict` ∈ `AUTHORIZE_EXECUTED` (armed) · `AUTHORIZE_CONSULTATIVE` (unarmed) · `HITL_HARD_BLOCK` (Layer-1) · `HITL_RED_TEAM_REFUTED` (§5.2.5) · `HITL_LOW_CONFIDENCE` · `HITL_HUMAN_DOMAIN` · `HITL_OUT_OF_SCOPE` (P0). Every `AUTHORIZE_*` verdict carries a **real `audit_ref`** (a `decision-capture` record made in §6.3, armed OR consultative); `HITL_*` verdicts carry **`audit_ref: null`**.
 
 ## §9 — Falsifiability (Metron)
 Emit signals for `agentic-observability-protocol`: **authorize-rate** (≈100% ⇒ rubber-stamp discriminator → tighten convergence threshold) · **authorize-then-regret** (S3/S4 → raise the bar) · **red-team-catch-rate → 0** (the red-team never refutes ⇒ it is not adversarial enough → strengthen the adversarial lens; a never-catching red-team is theater) · **guardrail-violation-while-authorized = S5 HARD-ZERO** (P0 → disarm + HITL + rule review).
@@ -204,3 +205,4 @@ Self-Application ✅ (composes existing primitives, adds no engine — Strata/Go
 | 1.0.0 (PDCA-revised · Round-3) | 2026-07-14 | **Council-roster expansion** (harmonized with rule Round-3; operator directive *"improve autonomy / expansão"*). §5.2 seat map expanded 6→13 to the full SDLC roster (composites explicit: `agile-product-lead`=PO/PM/SM/BA · `prompt-context-engineer`=prompt+context+harness; cross-plugin seats tiered — SA `architecture:architect` · TESTER `architecture:test-generator` · devops-alt `cloud-infrastructure:*` = **verified-enabled this session**, UX `ux-design:*` flagged **NOT-enabled this session** per Mente Tomé; aligned to `multi-agent-os/agents/README.md` Role Coverage Map) + **stakes-scaled seat-selection** (anti-over-council — parameterizes `persona-pipeline` depth, no full board for a typo) + **autonomy note** (wider competent roster ⇒ fewer HITL, *bounded by unchanged safety* + Metron authorize-rate watch; realized gain needs the rule §5.5.1 D1/D2 wiring, operator-gated). Gaps (Neon · generic-Postgres · Aurora-DBA · broad-ai-eng · **loop-eng**) → rule Deferred D4 (no forge — Gordian/Strata). No new agent · no Jira (Two-Worlds — tracker GH #237/#256) · no version bump (pre-merge). Byte-consistent with rule §4.4. |
 | 1.0.0 (PDCA-revised · Round-3b) | 2026-07-14 | **LGPD/GDPR solely-automated-decision carve-out** (harmonized with rule Round-3b; operator re-issue with `[lgpd, gdpr,` foregrounded). §5.1 adds the **GDPR-Art.22 / LGPD-Art.20 deny-set bullet** — a decision with legal/significant effect on a natural person (credit/hiring/benefit/access/suspension/content-moderation) → HARD → **mandatory-HITL**; a converged council + red-team is **still "solely automated"** (SCHUFA CJEU C-634/21 rubber-stamp doctrine) → it is NOT the Art.22(3) human-intervention safeguard; the Art.22(2) exceptions (consent/contract/law) are **operator-HITL-only, never council-invocable**; GDPR = stricter floor (LGPD Art.20 §3 human-reviewer vetoed). §5.2 makes privacy/LGPD/GDPR a **STANDING lens** (evaluated regardless of `--stakes`). §11 anti-pattern #10. Byte-harmonized with rule §2.1/§4.5/§9/§10/§11. No new agent · no Jira (Two-Worlds ⛔) · no version bump (pre-merge). |
 | 1.0.0 (PDCA-revised · Round-3b · CodeRabbit) | 2026-07-14 | **Fourth PDCA cycle** — CodeRabbit re-reviewed `1e75fb2` (2 actionable). Addressed (real, Mente Tomé): **§5.1 `bin/convergence-guard` de-mis-categorized** (CR Major, functional-correctness) — removed from the Layer-1 deny-set enforcer list (it is the **Layer-2/P4** convergence gate, already in §5.2); §5.2 + the §5.1 NB now make explicit that a Layer-1 match is `HITL_HARD_BLOCK` vs a Layer-2 `convergence-guard` REFUSE is `HITL_LOW_CONFIDENCE` (audit records which layer). **§1 + §6 unarmed verdict token `AUTHORIZE` → `AUTHORIZE_CONSULTATIVE`** (CR Major — the defined §6.3 verdict, no bare/undefined token; the §6 predicate header relabeled `AUTHORIZE` → `AUTHORIZE_EXECUTED` since it carries ∧P5); **command `commands/council-gate.md` §29** unarmed `AUTHORIZE` → `AUTHORIZE_CONSULTATIVE`. **§5.1 Art.22 bullet de-categoricalized** (harmonized with rule #236's CR-flagged fix) — the categorical legal conclusions reframed as the gate's conservative deny-by-default *operating assumption* (SCHUFA = design rationale) + explicit "what the gate does NOT decide" routing legal-applicability/exceptions to the operator's **DPO/legal** (`data-privacy-officer` seat surfaces, never establishes); deny-by-default unchanged. (snyk red = quota FP, ignored per operator.) Byte-harmonized with rule §2.1. No version bump (pre-merge). |
+| 1.1.0 | 2026-10-07 | MINOR — new conjunct **P0 within-invoker-scope**: the council authorizes only inside the authority its invoker verifiably holds (`skills/agentic-delegation` §4.1); missing or unverifiable scope ⇒ P0 false ⇒ `HITL_OUT_OF_SCOPE`. Safe class is now P0–P4; the `--json` predicate carries `P0_in_scope` + `scope_evidence`. Stricter only. |

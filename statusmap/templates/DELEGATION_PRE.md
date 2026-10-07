@@ -68,7 +68,7 @@
 | `target_agent` | Sim | ID do agente que recebe |
 | `task_summary` | Sim | Resumo da tarefa (1 linha) |
 | `depth` | Sim | Nivel atual de delegacao |
-| `max_depth` | Sim | Maximo permitido (default: 3) |
+| `max_depth` | Sim | Maximo permitido (default: 2, ver `skills/agentic-delegation` §8) |
 | `loop_status` | Sim | ✓ PASS ou ✗ BLOCKED |
 | `delegation_chain` | Sim | Cadeia de delegacoes ate aqui |
 | `context_files` | Nao | Arquivos relevantes para a tarefa |

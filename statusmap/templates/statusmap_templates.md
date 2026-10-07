@@ -223,7 +223,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 | `active` | Yes | Active sub-agents |
 | `pending` | Yes | Pending delegations |
 | `depth` | Yes | Current delegation depth |
-| `max_depth` | Yes | Max allowed depth (usually 3) |
+| `max_depth` | Yes | Max allowed depth (default 2, see `skills/agentic-delegation` §8) |
 | `score` | Yes | Sentinel health score |
 | `alerts` | Yes | Active alerts count |
 | `hooks_status` | Yes | enabled/disabled |
