@@ -192,10 +192,11 @@ proposal_cap: null             # optional ceiling on what this role may propose 
 Known limits (out of scope for this section, stated so nobody reads more into it):
 
 - **Specification, not tooling.** Nothing in this repo reads a role contract. `latent` is enforced by this text and by
-  the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract structure by allowlist
-  (`status` exactly `latent`, `tier` null, reserved fields empty) in the template and under `roles/`, and flags the
-  literal word form of an activation in the guidance files. It does not understand natural language, and it
-  guards the text; it cannot stop an agent that ignores it.
+  the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract form in the template and
+  under `roles/` and refuses when in doubt (only `.md` files with one frontmatter are accepted there; ADR-019 lists
+  the accepted form), and flags the literal word form of an activation in the guidance files. It does not
+  understand natural language, does not read a registry outside `roles/`, does not run in CI, and guards the
+  text; it cannot stop an agent that ignores it.
 - **No activation path.** A role whose work is needed today still sends every decision to the human. Activating
   roles requires the gate described in `docs/adrs/ADR-019-role-activation-gate-deferred.md`, built as tooling first.
 - **`binding` pins names, not content.** A contract names the agents a role is bound to, not their files; a
