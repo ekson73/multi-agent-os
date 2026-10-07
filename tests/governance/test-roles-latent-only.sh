@@ -8,14 +8,17 @@
 #
 # Onde mede:
 #   - o template YAML de agents/forge.md (frontmatter e fences ```yaml ou
-#     ~~~yaml, sem diferenciar maiusculas; fence aberta ate o fim do arquivo
+#     ~~~yaml com 3 ou mais caracteres, sem diferenciar maiusculas, inclusive
+#     dentro de citacao `>` ou apos marcador de lista; fecha com fence do mesmo
+#     caractere e comprimento >= abertura; fence aberta ate o fim do arquivo
 #     tambem conta como bloco);
 #   - o registro `roles/` (recursivo), onde a forma aceita e estrita.
 #
 # Sob `roles/`, so passa um arquivo regular com nome terminado em `.md`
 # (minusculo), em UTF-8 sem BOM, sem CR/NEL/LS/PS, cuja linha 1 e `---`, com um
 # unico frontmatter fechado por `---`, e cujo corpo nao tem fence (``` ou ~~~,
-# com ou sem tag), nem separador de documento (`---` ou `...` sozinho na linha),
+# com ou sem tag), nem separador de documento (`---` ou `...` no inicio da
+# linha, sozinho ou seguido de espaco, ex.: `--- # comentario`),
 # nem chave de contrato seguida de `:`, com ou sem aspas (role, status, tier,
 # campos reservados, chaves de ativacao), nem linha iniciada por `?` ou `:`
 # (chave/valor explicito do YAML). O corpo tambem e lido como YAML; se carregar
@@ -30,10 +33,14 @@
 # exponencial; a merge key `<<` tambem e recusada, porque o construtor de
 # chaves duplicadas nao sabe construi-la) e bloco maior que 64 KiB recusado.
 # No frontmatter, YAML que o carregador estrito recusa e violacao. No corpo e
-# nos blocos do template, quando o estrito recusa, o texto e relido com
-# yaml.safe_load_all e o resultado e percorrido como aninhado: role, status ou
-# tier em qualquer lugar, reservado preenchido ou ativacao verdadeira viram
-# violacao; so o que nem o safe_load le fica sem valor para percorrer.
+# nos blocos do template, quando o estrito recusa: chave de contrato duplicada e
+# violacao; depois o texto e relido com yaml.safe_load_all, documento a
+# documento, e cada documento lido (inclusive os anteriores a um documento que
+# falha) e percorrido como aninhado: role, status ou tier em qualquer lugar,
+# reservado preenchido ou ativacao verdadeira viram violacao. No corpo sob
+# `roles/`, texto que nem o safe_load le ate o fim tambem e violacao (falha
+# fechada). No template, texto ilegivel sem chave de contrato citada passa (ver
+# limites).
 # Sobre o valor carregado:
 #   - a raiz e um mapa; `status` vale a string `latent`; `tier`, se existir,
 #     e null;
@@ -53,7 +60,9 @@
 #
 # Padrao: recusar na duvida. Falsos positivos aceitos: arquivo com CRLF ou BOM,
 # `roles/.gitkeep`, prosa no corpo com "role:" ou iniciada por `?`/`:`,
-# `active: "false"` (string, nao booleano), ancora/alias mesmo inofensivos, e,
+# `active: "false"` (string, nao booleano), ancora/alias mesmo inofensivos,
+# corpo sob `roles/` que o YAML nao consegue ler (prosa com `: ` no meio da
+# linha, por exemplo), linha do corpo iniciada por `--- `, e,
 # nos arquivos de orientacao, a palavra `active` entre crases em prosa (ex.:
 # "nunca use `active`"). Um caso legitimo se reescreve na forma aceita; o teste nao afrouxa.
 #
@@ -76,6 +85,15 @@
 #     passo 3 le 0 arquivos e o registro so e exercitado pelas fixtures;
 #   - o teste nao exige campos do template (role, owner, decide...): mede so as
 #     chaves que concedem ou sinalizam autoridade;
+#   - no template, so blocos em fence sao lidos: YAML fora de fence (alem do
+#     frontmatter) nao e inspecionado; um bloco que nem o safe_load le e nao cita
+#     chave de contrato passa; fence indentada em lista aninhada so e reconhecida
+#     pelo prefixo da propria linha;
+#   - outro parser que fique com o PRIMEIRO valor de uma chave duplicada que nao
+#     seja de contrato pode ler o texto de outro jeito (so a duplicata de chave de
+#     contrato e recusada no corpo e no template);
+#   - nenhuma sonda esconde o perl do PATH: a checagem de perl ausente foi
+#     verificada a mao (rc=1), nao por mutante;
 #   - nenhum workflow de CI roda este teste hoje; ele roda por
 #     tests/governance/run-all.sh ou a mao.
 #
@@ -113,7 +131,7 @@ BODY_KEY = re.compile(r"(^|[\s{,\[?\"'])(" + "|".join(sorted(CONTRACT_KEYS)) + r
 EXPLICIT = re.compile(r"^\s*[?:](\s|$)")  # chave/valor explicito do YAML no corpo
 MAX_BYTES = 64 * 1024
 FENCE = re.compile(r"^\s*(```|~~~)")
-DOC_SEP = re.compile(r"^(---|\.\.\.)\s*$")
+DOC_SEP = re.compile(r"^(---|\.\.\.)(\s|$)")  # tambem `--- # comentario` e `--- {..}`
 # Quebras de linha que o YAML reconhece alem de \n, e o BOM: recusados.
 RAW = {"\r": "CR", "\x85": "NEL", " ": "LS", " ": "PS", "﻿": "BOM"}
 
@@ -126,12 +144,17 @@ class Loader(yaml.SafeLoader):
             raise yaml.composer.ComposerError(None, None, "ancora recusada", self.peek_event().start_mark)
         return super().compose_node(parent, index)
 
+class DuplicateKey(yaml.constructor.ConstructorError):
+    def __init__(self, key, mark):
+        super().__init__(None, None, f"chave duplicada {key!r}", mark)
+        self.key = key
+
 def no_duplicates(loader, node, deep=False):
     seen = set()
     for knode, _ in node.value:
         k = loader.construct_object(knode, deep=deep)
         if k in seen:
-            raise yaml.constructor.ConstructorError(None, None, f"chave duplicada {k!r}", knode.start_mark)
+            raise DuplicateKey(k, knode.start_mark)
         seen.add(k)
     return loader.construct_mapping(node, deep)
 
@@ -161,17 +184,24 @@ def walk(o, path, out, where, depth=0, seen=None):
         for i, x in enumerate(o):
             walk(x, f"{path}[{i}]", out, where, depth + 1, seen)
 
-def lenient(text, where, label):
-    # Recurso quando o carregador estrito recusa: o que yaml.safe_load_all ler e
-    # percorrido como se estivesse aninhado (profundidade 1), entao role/status/tier
-    # em qualquer lugar, reservado preenchido ou ativacao verdadeira viram violacao.
-    # Se nem o safe_load le, nao ha valor YAML para percorrer.
-    try:
-        docs = list(yaml.safe_load_all(text))
-    except yaml.YAMLError:
-        return []
+def lenient(text, where, label, strict_error, load_error_is_violation):
+    # Recurso quando o carregador estrito recusa. Duplicata de chave de contrato e
+    # violacao (outro parser pode ficar com o primeiro valor). Depois, cada documento
+    # que yaml.safe_load_all entrega e percorrido como se estivesse aninhado
+    # (profundidade 1), inclusive os lidos antes de um documento que falha.
     out = []
-    for d in docs:
+    if isinstance(strict_error, DuplicateKey) and strict_error.key in CONTRACT_KEYS:
+        out.append(f"{where}: {label}: chave de contrato duplicada {strict_error.key!r}")
+    docs = yaml.safe_load_all(text)
+    while True:
+        try:
+            d = next(docs)
+        except StopIteration:
+            break
+        except yaml.YAMLError as e:
+            if load_error_is_violation:
+                out.append(f"{where}: {label}: YAML que nem o safe_load le ({str(e).splitlines()[0]})")
+            break
         if isinstance(d, (dict, list, tuple, set, frozenset)):
             walk(d, label, out, where, 1)
     return out
@@ -188,7 +218,7 @@ def check_yaml(text, where, require_contract):
         # No template, um bloco que o carregador estrito recusa so passa se nao
         # citar chave de contrato e se o que o safe_load ler nao tiver violacao.
         if not require_contract and not BODY_KEY.search(text):
-            return lenient(text, where, "bloco(safe_load)")
+            return lenient(text, where, "bloco(safe_load)", e, False)
         return [f"{where}: YAML invalido ({str(e).splitlines()[0]})"]
     is_contract = require_contract or (isinstance(data, dict) and any(k in data for k in ROOT_ONLY))
     if not is_contract:
@@ -212,17 +242,24 @@ def template_blocks(text):
             j += 1
         yield "\n".join(lines[1:j])
         i = j + 1
-    cur, mark = None, None
+    cur, mark, quotes = None, None, 0
     for k in range(i, len(lines)):
-        s = lines[k].strip()
-        m = re.match(r"^(```|~~~)\s*ya?ml\b", s, re.I)
-        if cur is None and m:
-            cur, mark = [], m.group(1)
-        elif cur is not None and s.startswith(mark):
+        line = lines[k]
+        if cur is not None:
+            for _ in range(quotes):  # tira o `>` da citacao em que a fence abriu
+                line = re.sub(r"^\s*>\s?", "", line, count=1)
+        s = line.strip()
+        if cur is None:
+            # Prefixos de container antes da fence: citacao `>` e marcador de lista.
+            pre = re.match(r"^((?:\s*>\s?|\s*(?:[-*+]|\d+[.)])\s+)*)", s).group(1)
+            m = re.match(r"^(`{3,}|~{3,})\s*ya?ml\b", s[len(pre):].strip(), re.I)
+            if m:
+                cur, mark, quotes = [], m.group(1), pre.count(">")
+        elif re.match("^" + re.escape(mark[0]) + "{" + str(len(mark)) + r",}\s*$", s):
             yield "\n".join(cur)
             cur = None
-        elif cur is not None:
-            cur.append(lines[k])
+        else:
+            cur.append(line)
     if cur is not None:  # fence aberta ate o fim do arquivo: o bloco conta
         yield "\n".join(cur)
 
@@ -264,11 +301,12 @@ def registry(path):
     body = "\n".join(lines[j + 1:])
     try:
         docs = list(yaml.load_all(body, Loader=Loader))
-    except yaml.YAMLError:
+    except yaml.YAMLError as e:
         # O carregador estrito recusou (ancora, alias, chave duplicada, merge key):
-        # o corpo e lido com safe_load e percorrido, nunca pulado.
+        # o corpo e lido com safe_load e percorrido, nunca pulado; um corpo que nem
+        # o safe_load le inteiro e violacao (falha fechada).
         docs = []
-        out += lenient(body, path, "corpo(safe_load)")
+        out += lenient(body, path, "corpo(safe_load)", e, True)
     for d in docs:
         if isinstance(d, (dict, list, tuple, set)):
             inner = []
@@ -391,7 +429,8 @@ case "$(structural --template "$tmp/tpl.md")" in
   *) fail "template: bloco invalido com chave entre aspas foi pulado";;
 esac
 
-# Template: bloco que so o safe_load le, e as formas de fence que o markdown aceita.
+# Template: bloco que so o safe_load le, e as formas de fence medidas aqui (3+ crases
+# ou tis, maiusculas, citacao `>`, marcador de lista, aberta ate o fim do arquivo).
 tplcase() { # <nome> <conteudo do arquivo>
   printf '%s\n' "$2" > "$tmp/tpl-$1.md"
   local out; out="$(structural --template "$tmp/tpl-$1.md")"
@@ -405,6 +444,18 @@ tplcase ancora-escape  $'```yaml\n"\\u0073tatus": &a active\n```'
 tplcase fence-aberta   $'```yaml\napproval_ref: granted'
 tplcase fence-YAML     $'```YAML\napproval_ref: granted\n```'
 tplcase fence-til      $'~~~yaml\napproval_ref: granted\n~~~'
+tplcase fence-4-crases $'````yaml\napproval_ref: granted\n````'
+tplcase fence-4-tis    $'~~~~yaml\napproval_ref: granted\n~~~~'
+tplcase fence-lista    $'- ```yaml\n  approval_ref: granted\n  ```'
+tplcase fence-citacao  $'> ```yaml\n> "\\u0061pproval_ref": granted\n> ```'
+tplcase docsep-coment  $'```yaml\n"\\u0061ctive": true\n--- # dois\nx: !!python/name:builtins.str\n```'
+tplcase dup-protegida  $'```yaml\n"\\u0061ctive": true\n"\\u0061ctive": false\n```'
+# Bloco sem chave de contrato, com alias ciclico: o estrito recusa, o safe_load le um
+# no que aponta para si mesmo; o percurso nao pode entrar em laco nem acusar nada.
+printf '%s\n' '```yaml' 'x: &a [*a]' '```' > "$tmp/tpl-ciclo.md"
+out="$(structural --template "$tmp/tpl-ciclo.md")"
+if [ -z "$out" ]; then pass "template com alias ciclico: lido sem laco, 0 violacoes"
+else fail "template com alias ciclico: [$out]"; fi
 
 # Fixtures ponta a ponta: cada uma monta uma arvore com roles/ e passa pela
 # mesma descoberta (registry_scan) usada no passo 3.
@@ -464,6 +515,10 @@ mkfx corpo-merge     cto.md         "$VALID_FM"$'\n<<: {"\\u0061ctive": true}'
 mkfx corpo-dup-reserv cto.md        "$VALID_FM"$'\n"\\u0061pproval_ref": granted\nx: 1\nx: 2'
 mkfx corpo-status-anc cto.md        "$VALID_FM"$'\n"\\u0073tatus": &s active'
 mkfx corpo-escape-role cto.md       "$VALID_FM"$'\n"\\u0072ole": cto'
+mkfx corpo-docsep-coment cto.md     "$VALID_FM"$'\ntexto\n--- # comentario\nmais texto'
+mkfx corpo-tag-ilegivel cto.md      "$VALID_FM"$'\n"\\u0061ctive": true\nx: !!python/name:builtins.str'
+mkfx corpo-dup-protegida cto.md     "$VALID_FM"$'\n"\\u0061ctive": true\n"\\u0061ctive": false'
+mkfx corpo-lista-dup  cto.md        "$VALID_FM"$'\n- {x: 1, x: 2, "\\u0061ctive": true}'
 mkfx ancora-sem-alias cto.md        "${VALID_FM%---}"$'meta: &m {k: v}\n---'
 mkfx grande-limite   cto.md         "$VALID_FM"$'\n'"$(printf 'x%.0s' $(seq 1 $((65535 - ${#VALID_FM}))))"
 mkfx valido          limite.md      "$VALID_FM"$'\n'"$(printf 'x%.0s' $(seq 1 $((65534 - ${#VALID_FM}))))"

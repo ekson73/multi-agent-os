@@ -46,9 +46,14 @@ Three findings made that gate unfit to ship:
   counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), with duplicate keys,
   anchors and aliases refused (this closes exponential alias expansion; the merge key `<<` is refused as a side effect
   of the duplicate-key constructor, which cannot build it). In the frontmatter, YAML the strict loader refuses fails.
-  In the body and in template blocks, when the strict loader refuses, the text is re-read with `yaml.safe_load_all`
-  and the result is walked as nested: `role`/`status`/`tier` anywhere, a filled reserved field or a true activation
-  key fails; only text that not even `safe_load` reads has no value to walk. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
+  In the body and in template blocks, when the strict loader refuses, a duplicated contract key fails; then the text
+  is re-read with `yaml.safe_load_all` one document at a time, and every document it yields (including those before
+  a document that fails) is walked as nested: `role`/`status`/`tier` anywhere, a filled reserved field or a true
+  activation key fails. Under `roles/`, a body that not even `safe_load` reads to the end also fails (fail closed);
+  in the template, an unreadable block that names no contract key passes (declared limit). A body line starting with
+  `---` or `...` followed by a space (e.g. `--- # comment`) counts as a document separator. Template fences are
+  read with 3 or more backticks or tildes, case-insensitively, inside a `>` quote or after a list marker, and a fence
+  left open to end of file still counts; YAML outside fences in the template is not inspected. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
   `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root (depth is counted, so an empty
   key `""` cannot make a nested mapping pass as the root); `!!omap`, `!!pairs` and `!!set` are refused; at any depth, inside mappings and
   lists, reserved fields are null and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`) are
