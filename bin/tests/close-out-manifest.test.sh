@@ -71,7 +71,8 @@ echo "── close-out-manifest: check — fusion with session-handover (FEAT-2/
 sed 's/^delegates_gate: PASS/delegates_gate: PARTIAL/' "$TMP/m.md" > "$TMP/m-part.md"
 bash "$CM" check --manifest "$TMP/m-part.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "PARTIAL without operator authorisation ⇒ rc 2"; else bad "unauthorised PARTIAL should fail" "rc=$RC"; fi
-printf 'partial_authorized_by: operator in-session 2026-10-07\n' >> "$TMP/m-part.md"
+sed 's/^delegates_gate: PASS/delegates_gate: PARTIAL\
+partial_authorized_by: operator in-session 2026-10-07/' "$TMP/m.md" > "$TMP/m-part.md"
 OUT="$(bash "$CM" check --manifest "$TMP/m-part.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q '"partial":true'; then ok "authorised PARTIAL passes and is flagged partial"; else bad "authorised PARTIAL should pass flagged" "rc=$RC out=$OUT"; fi
 
@@ -82,17 +83,28 @@ if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'command-lacks-session-id'; t
 sed 's#^link: .*#link: not-a-url#' "$TMP/m.md" > "$TMP/m-link.md"
 bash "$CM" check --manifest "$TMP/m-link.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "non-URL session link ⇒ rc 2"; else bad "session link must be a URL" "rc=$RC"; fi
-{ cat "$TMP/m.md"; printf 'transcript_path: %s/nope.jsonl\n' "$TMP"; } > "$TMP/m-tr.md"
+sed "s#^command: \\(.*\\)#command: \\1\\
+transcript_path: $TMP/nope.jsonl#" "$TMP/m.md" > "$TMP/m-tr.md"
 OUT="$(bash "$CM" check --manifest "$TMP/m-tr.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'transcript-missing'; then ok "declared transcript path that does not exist ⇒ rc 2"; else bad "missing transcript should fail" "rc=$RC out=$OUT"; fi
 
+# review: fields count only inside their own section (Recovery / Delegates gate / Self-location)
+sed -e '/^command: /d' -e 's/^- next: step one/- next: step one\
+command: npm test/' "$TMP/m.md" > "$TMP/m-scope.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-scope.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'field:command'; then ok "recovery field outside ## Recovery does not count"; else bad "out-of-section field must not satisfy Recovery" "rc=$RC out=$OUT"; fi
+# review: the four content sections must not be empty
+awk '/^## Roadmap/{print; skip=1; next} /^## /{skip=0} !skip' "$TMP/m.md" > "$TMP/m-empty.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-empty.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'empty-section:Roadmap'; then ok "empty Roadmap section ⇒ rc 2"; else bad "empty section must fail" "rc=$RC out=$OUT"; fi
+
 # FEAT-17/22: indexed local paths must exist and must not be ephemeral unless declared so
-printf 'x\n' > "$TMP/real.md"; mkdir -p "$TMP/w"   # TMPDIR moved aside: $TMP is not the temp root here
-{ cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$TMP/real.md"; } > "$TMP/m-ok.md"
-TMPDIR="$TMP/w" bash "$CM" check --manifest "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
+# durable paths that need no write: this suite's own directory (a repo path, not a temp area)
+{ cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$SCRIPT_DIR"; } > "$TMP/m-ok.md"
+bash "$CM" check --manifest "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "existing indexed path passes"; else bad "existing indexed path should pass" "rc=$RC"; fi
-{ cat "$TMP/m.md"; printf -- '- gone: `%s/missing.md`\n' "$TMP"; } > "$TMP/m-broken.md"
-OUT="$(TMPDIR="$TMP/w" bash "$CM" check --manifest "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
+{ cat "$TMP/m.md"; printf -- '- gone: `%s/does-not-exist.md`\n' "$SCRIPT_DIR"; } > "$TMP/m-broken.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'broken-link'; then ok "broken indexed path ⇒ rc 2"; else bad "broken path should fail" "rc=$RC out=$OUT"; fi
 { cat "$TMP/m.md"; printf -- '- note: `/tmp`\n'; } > "$TMP/m-eph.md"
 OUT="$(bash "$CM" check --manifest "$TMP/m-eph.md" 2>/dev/null)"; RC=$?
@@ -205,6 +217,21 @@ if command -v gitleaks >/dev/null 2>&1; then
   B="$(ls "$TMP/dbk" | grep '^r\.md\.bak\.' | head -1)"
   if [ "$RC" -eq 0 ] && [ -n "$B" ] && [ "$(cat "$TMP/dbk/$B")" = "old" ] && [ "$(cat "$TMP/dbk/r.md")" = "new" ]; then ok "changed target backed up before replace"; else bad "previous target should be kept as .bak" "rc=$RC files=$(ls "$TMP/dbk" | tr '\n' ' ')"; fi
 fi
+
+# review: destination that is a symlink or a directory is refused, nothing hidden left behind
+mkdir -p "$TMP/ds" "$TMP/dsrc" "$TMP/elsewhere"; printf 'same\n' > "$TMP/dsrc/r.md"; printf 'same\n' > "$TMP/elsewhere/r.md"
+ln -s "$TMP/elsewhere/r.md" "$TMP/ds/r.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/ds" --src "$TMP/dsrc/r.md" --apply 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-dest-not-regular' && [ -L "$TMP/ds/r.md" ]; then ok "symlink destination refused (not reported unchanged)"; else bad "symlink destination must be refused" "rc=$RC out=$OUT"; fi
+mkdir -p "$TMP/dd/r.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dd" --src "$TMP/dsrc/r.md" --apply 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-dest-not-regular' && [ -z "$(ls -A "$TMP/dd/r.md")" ] && [ -z "$(ls -A "$TMP/dd" | grep -v '^r.md$')" ]; then ok "directory destination refused, no hidden temp"; else bad "directory destination must be refused cleanly" "rc=$RC out=$OUT dd=$(ls -A "$TMP/dd" "$TMP/dd/r.md" | tr '\n' ' ')"; fi
+# review: control characters in a path are escaped, one valid JSON line per source
+NL="$TMP/nl"; mkdir -p "$NL"; printf 'clean\n' > "$NL/a
+b.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dnl" --src "$NL/a
+b.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ] && [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = "1" ] && printf '%s' "$OUT" | grep -q 'a\\nb.md'; then ok "newline in a path escaped as \\n (one JSON line)"; else bad "control chars must be JSON-escaped" "rc=$RC out=$OUT"; fi
 
 # a scanner that errors on everything ⇒ scanner failure rc 3, never mislabelled as refused-secret
 mkdir -p "$TMP/b9"; printf 'clean\n' > "$TMP/b9/ok.md"

@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default, idempotent); clipboard copy verified by `cmp` read-back (rc 4 ⇒ paste-MCP fallback,
   never a fake success). `persist` scans and promotes only the bytes it staged privately (no read-twice TOCTOU), refuses binary files, scans raw + CRLF-normalised + line-joined views, and isolates the scanner from inherited config, ignore files and in-content allow directives. No residue on any exit path: one private temp dir plus registered rename temps, removed by a single EXIT/INT/TERM/HUP trap; a failed cleanup is rc 6; clipboard read-back streams into `cmp`.
 - Fusion with the independent `session-handover` prototype (protocol 0.2.0, executor 0.2.0): operator-authorised `PARTIAL` gate, recovery triple coherence (command carries the id, URL link, optional transcript must exist), broken/ephemeral indexed paths refused, read-only `anchor` subcommand (branch@HEAD, dirty files, worktrees), typed open items and verified/unverified facts, a timestamped `.bak` before a changed target is replaced, and an opt-in `check --strict` (after-action review, resume check, not done). Default behaviour unchanged in cost.
-- Tests: `bin/tests/close-out-manifest.test.sh` (43 assertions, bash 3.2-safe); wired into
+- Tests: `bin/tests/close-out-manifest.test.sh` (48 assertions, bash 3.2-safe); wired into
   `tests/validate-plugin.sh`.
 - `skills/postflight/SKILL.md` 0.10.1 → 0.11.0: Core Rule, responsibilities table, algorithm
   steps 0.5 / 3.7, anti-patterns 19-20, related artifacts.
