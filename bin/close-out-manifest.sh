@@ -76,7 +76,25 @@ mkwork() {
   WORK="$(mktemp -d "${TMPDIR:-/tmp}/close-out-manifest.XXXXXX")" || die "cannot create private work dir" 1
   chmod 700 "$WORK"
 }
-jstr() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+# JSON string body: escapes backslash, quote and EVERY control character (a newline in a path
+# must not end the record or forge a second one)
+jstr() {
+  printf '%s\n' "$1" | LC_ALL=C awk '
+    BEGIN { ORS = ""; for (i = 1; i < 32; i++) ord[sprintf("%c", i)] = i }
+    {
+      if (NR > 1) printf "\\n"
+      n = length($0)
+      for (i = 1; i <= n; i++) {
+        ch = substr($0, i, 1)
+        if (ch == "\\") printf "\\\\"
+        else if (ch == "\"") printf "\\\""
+        else if (ch == "\t") printf "\\t"
+        else if (ch == "\r") printf "\\r"
+        else if (ch in ord) printf "\\u%04x", ord[ch]
+        else printf "%s", ch
+      }
+    }'
+}
 
 REQUIRED_SECTIONS="Delegates gate|Instruction tree|HITL decisions|Roadmap|Artifact index|Recovery|Self-location"
 # opt-in (check --strict): after-action review (FEAT-4), resume check for the receiving session
@@ -84,8 +102,20 @@ REQUIRED_SECTIONS="Delegates gate|Instruction tree|HITL decisions|Roadmap|Artifa
 # is neither slower nor noisier
 STRICT_SECTIONS="After-action review|Resume check|Not done"
 
-field() { # field <file> <key> → value after "key:" (trimmed), first match
-  sed -n "s/^[[:space:]]*$2:[[:space:]]*//p" "$1" | head -1 | sed 's/[[:space:]]*$//'
+field() { # field <file> <section> <key> → value after "key:" inside "## <section>" only
+  awk -v sec="$2" -v key="$3" '
+    /^##[[:space:]]/ { h = $0; sub(/^##[[:space:]]+/, "", h); sub(/[[:space:]]+$/, "", h)
+                       insec = (tolower(h) == tolower(sec)); next }
+    insec { l = $0; sub(/^[[:space:]]+/, "", l)
+            if (index(l, key ":") == 1) { v = substr(l, length(key) + 2)
+              sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); print v; exit } }' "$1"
+}
+section_body_empty() { # rc 0 when "## <section>" has no non-blank line before the next heading
+  awk -v sec="$2" '
+    /^##[[:space:]]/ { h = $0; sub(/^##[[:space:]]+/, "", h); sub(/[[:space:]]+$/, "", h)
+                       insec = (tolower(h) == tolower(sec)); next }
+    insec && $0 ~ /[^[:space:]]/ { found = 1; exit }
+    END { exit found ? 1 : 0 }' "$1"
 }
 
 cmd_check() {
@@ -108,22 +138,29 @@ cmd_check() {
   unset IFS
   # FEAT-2: a pending delegate may only be closed over as an operator-authorised PARTIAL
   local gate partial=false
-  gate="$(field "$manifest" delegates_gate)"
-  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" partial_authorized_by)" ]; then partial=true
+  gate="$(field "$manifest" "Delegates gate" delegates_gate)"
+  if [ "$gate" = "PARTIAL" ] && [ -n "$(field "$manifest" "Delegates gate" partial_authorized_by)" ]; then partial=true
   elif [ "$gate" != "PASS" ]; then missing="${missing}delegates_gate!=PASS;"
   fi
   local k
-  for k in session_id link command manifest_path; do
-    [ -n "$(field "$manifest" "$k")" ] || missing="${missing}field:${k};"
+  for k in session_id link command; do
+    [ -n "$(field "$manifest" Recovery "$k")" ] || missing="${missing}field:${k};"
+  done
+  [ -n "$(field "$manifest" Self-location manifest_path)" ] || missing="${missing}field:manifest_path;"
+  for k in "Instruction tree" "HITL decisions" "Roadmap" "Artifact index"; do
+    if grep -qiE "^##[[:space:]]+$k[[:space:]]*$" "$manifest" && section_body_empty "$manifest" "$k"; then
+      missing="${missing}empty-section:${k};"
+    fi
   done
   # FEAT-16: the recovery triple must hold together, not just be present
   local sid link cmd tr
-  sid="$(field "$manifest" session_id)"; link="$(field "$manifest" link)"; cmd="$(field "$manifest" command)"
+  sid="$(field "$manifest" Recovery session_id)"; link="$(field "$manifest" Recovery link)"
+  cmd="$(field "$manifest" Recovery command)"
   case "$link" in ""|http://*|https://*) ;; *) missing="${missing}link-not-url;" ;; esac
   if [ -n "$sid" ] && [ -n "$cmd" ]; then
     case "$cmd" in *"$sid"*) ;; *) missing="${missing}command-lacks-session-id;" ;; esac
   fi
-  tr="$(field "$manifest" transcript_path)"
+  tr="$(field "$manifest" Recovery transcript_path)"
   [ -z "$tr" ] || [ -f "${tr/#\~/$HOME}" ] || missing="${missing}transcript-missing;"
   # FEAT-17/22: every backticked absolute path must exist and be durable, unless its line
   # declares it "(ephemeral)"
@@ -260,6 +297,8 @@ cmd_persist() {
       views "$staged"
       if secret_hit "$staged"; then status="refused-secret"; refused=1
       elif pii_hit "$staged"; then status="refused-pii"; refused=1
+      elif [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
+        status="refused-dest-not-regular"; refused=1 # symlink/dir: cmp would follow it, mv would descend
       elif [ -f "$target" ] && cmp -s "$staged" "$target"; then status="unchanged"
       elif [ "$apply" -eq 1 ]; then
         mkdir -p -- "$dest"
