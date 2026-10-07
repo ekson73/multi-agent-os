@@ -24,7 +24,9 @@ ok()  { PASS=$((PASS+1)); printf '  ✅ %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '  ❌ %s\n     got: %s\n' "$1" "${2:-<empty>}"; }
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+# manifests are checked from a durable (non-temp) dir: a manifest_path under a temp root is refused
+MDIR="$(mktemp -d "$SCRIPT_DIR/.cm-fixture.XXXXXX")"
+trap 'rm -rf "$TMP" "$MDIR"' EXIT
 
 [ -x "$CM" ] || { echo "  ❌ $CM missing or not executable"; exit 1; }
 
@@ -51,10 +53,10 @@ EOF
 }
 
 # chk: point manifest_path at the file under test (self-location must resolve), then check it
-chk() {
-  local f="$1"; shift
-  sed "s#^manifest_path: .*#manifest_path: $f#" "$f" > "$f.loc" && mv "$f.loc" "$f"
-  bash "$CM" check --manifest "$f" "$@"
+chk() { # check a durable copy whose manifest_path points at itself
+  local f="$1" d; shift; d="$MDIR/${f##*/}"
+  sed "s#^manifest_path: .*#manifest_path: $d#" "$f" > "$d"
+  bash "$CM" check --manifest "$d" "$@"
 }
 
 echo "── close-out-manifest: check"
@@ -401,6 +403,35 @@ fi
 mkdir -p "$TMP/uf2"; printf 'call (%s) %s-%s\n' "$D1" "$P9" "$P4" > "$TMP/uf2/p.md"
 ERR="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/uf2d" --src "$TMP/uf2/p.md" 2>&1 >/dev/null)"; RC=$?
 if [ "$RC" -eq 5 ] && ! printf '%s' "$ERR" | grep -q 'unexpected fault'; then ok "refusal is not a fault"; else bad "refusal must not trip the fault report" "rc=$RC err=$ERR"; fi
+
+# review: a manifest_path under a temp root is refused, even when it names the checked file
+sed "s#^manifest_path: .*#manifest_path: $TMP/m-eph.md#" "$TMP/m.md" > "$TMP/m-eph.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-eph.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-manifest-path'; then ok "manifest_path under a temp root refused"; else bad "ephemeral manifest_path must be refused" "rc=$RC out=$OUT"; fi
+ln -s "$TMP/m-eph.md" "$MDIR/link.md"
+sed "s#^manifest_path: .*#manifest_path: $MDIR/link.md#" "$TMP/m.md" > "$TMP/m-eph.md"
+OUT="$(bash "$CM" check --manifest "$MDIR/link.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-manifest-path'; then ok "durable-looking symlink into a temp root refused"; else bad "symlink to ephemeral manifest must be refused" "rc=$RC out=$OUT"; fi
+
+# review: a basename ending in a newline keeps all its bytes (no truncation, no false collision)
+NL="$(printf 'r.md\nx')"; NL="${NL%x}"
+mkdir -p "$TMP/nl"; printf 'clean\n' > "$TMP/nl/$NL"; printf 'other\n' > "$TMP/nl/r.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/nld" --src "$TMP/nl/$NL" --src "$TMP/nl/r.md" --apply 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ] && [ -f "$TMP/nld/$NL" ] && cmp -s "$TMP/nl/r.md" "$TMP/nld/r.md"; then ok "trailing-newline basename preserved"; else bad "trailing-newline basename must be preserved" "rc=$RC out=$OUT"; fi
+
+# review: non-UTF-8 bytes in a path still yield valid UTF-8 JSON
+BADN="$(printf 'q\377.md')"; mkdir -p "$TMP/u8"; printf 'clean\n' 2>/dev/null > "$TMP/u8/$BADN" || true
+[ -f "$TMP/u8/$BADN" ] || echo "  ⏭  filesystem refuses non-UTF-8 names (APFS) — testing the path string only"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/u8d" --src "$TMP/u8/$BADN" 2>/dev/null)"
+if command -v python3 >/dev/null 2>&1; then
+  printf '%s' "$OUT" | python3 -c 'import sys,json; json.loads(sys.stdin.buffer.read().decode("utf-8"))' 2>/dev/null; U8=$?
+else # no parser: the raw invalid byte must be gone and replaced by the escape
+  ! printf '%s' "$OUT" | LC_ALL=C grep -q "$(printf '\377')" && printf '%s' "$OUT" | grep -qF '\ufffd'; U8=$?
+fi
+if [ "$U8" -eq 0 ]; then ok "non-UTF-8 path yields valid UTF-8 JSON"; else bad "JSON must stay valid UTF-8" "$OUT"; fi
+UT="$(printf 't\303\255tulo.md')"; printf 'clean\n' > "$TMP/u8/$UT"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/u8d" --src "$TMP/u8/$UT" 2>/dev/null)"
+if printf '%s' "$OUT" | grep -qF "$UT"; then ok "valid UTF-8 path kept verbatim"; else bad "valid UTF-8 must pass through" "$OUT"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"

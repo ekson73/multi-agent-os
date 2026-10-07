@@ -33,3 +33,6 @@ out/
 !.kiro/agents/
 # mcp.json pode conter tokens no bloco env — NUNCA commitar
 .kiro/settings/
+
+# close-out-manifest test fixtures (removed by the suite trap)
+bin/tests/.cm-fixture.*
