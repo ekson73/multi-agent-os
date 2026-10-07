@@ -19,10 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
   `tests/governance/test-roles-latent-only.sh` checks contract form in the template and under `roles/`
   and refuses when in doubt: under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
-  fences, extra documents, symlinks, CR/NEL or BOM. The frontmatter is loaded with `yaml.safe_load` (duplicate keys
-  refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root, and at any depth reserved
+  fences, extra documents, symlinks, CR/NEL or BOM, files over 64 KiB, or contract keys in the body (quoted keys,
+  explicit `?`/`:` keys, and the body loaded as YAML are all checked). The frontmatter is loaded with `yaml.safe_load`
+  (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
   fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
-  tree per refused form. It does not detect natural-language activation, unlisted keys, a different YAML parser's
+  tree per refused form. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, a different YAML parser's
   reading, or a registry outside `roles/`, and no CI workflow runs it yet.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head

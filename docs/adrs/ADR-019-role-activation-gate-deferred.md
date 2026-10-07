@@ -34,23 +34,30 @@ Three findings made that gate unfit to ship:
 - `tests/governance/test-roles-latent-only.sh` checks contract **form and loaded value**, and refuses when in
   doubt. It reads the YAML template in `agents/forge.md` and, recursively, the registry `roles/`. Under `roles/` the
   only accepted file is a regular file named `*.md` (lowercase), UTF-8 without BOM and without CR, NEL, LS or PS
-  characters, whose line 1 is `---`, with one frontmatter closed by `---` and a body without fences, document
-  separators or `<contract key>:`. Anything else fails: symlinks, other extensions (`.yml`, `.YML`, `.Md`,
+  characters, at most 64 KiB, whose line 1 is `---`, with one frontmatter closed by `---` and a body without
+  fences, document separators, `<contract key>:` (quoted or not) or a line that starts with `?` or `:` (explicit
+  YAML key or value). The body is also loaded as YAML; if it loads as a mapping or list, no contract key may appear
+  in it at any depth. Anything else fails: symlinks, other extensions (`.yml`, `.YML`, `.Md`,
   `.gitkeep`), missing or unclosed frontmatter, a file that is not valid UTF-8 (the checker crashes, and the crash
-  counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), duplicate keys refused;
-  YAML that does not load fails. On the loaded value: the root is a mapping, `status` is the string `latent`,
-  `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root; at any depth, inside mappings and
+  counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), with duplicate keys,
+  anchors and aliases refused (this also closes merge keys and exponential alias expansion); YAML that does not load
+  fails, and each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
+  `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root (depth is counted, so an empty
+  key `""` cannot make a nested mapping pass as the root); `!!omap`, `!!pairs` and `!!set` are refused; at any depth, inside mappings and
   lists, reserved fields are null and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`) are
   null or false. Without `python3` and PyYAML the test fails; it never falls back to a weaker check. Fixtures build
   a real `roles/` tree for each refused form and for a valid one. In the three guidance files the test also flags
   the word form of a transition to `active`.
-- Refusing in doubt has a price: a file with CRLF or a BOM, `roles/.gitkeep`, body prose containing `role:`, and
-  `active: "false"` (a string, not a boolean) fail. A legitimate case is written in the accepted form; the test is
+- Refusing in doubt has a price: a file with CRLF or a BOM, `roles/.gitkeep`, body prose containing `role:` or
+  starting with `?` or `:`, `active: "false"` (a string, not a boolean), any anchor or alias, and, in the guidance
+  files, the word `active` in backticks in prose fail. A legitimate case is written in the accepted form; the test is
   not loosened for it.
 - What the test does **not** detect: natural-language activation ("the role goes live"); an unlisted key such as
   `is_active: true` or `Active: true`, or a non-string key that YAML 1.1 produces (`yes:` becomes a boolean);
-  a different reading of the same text by a consumer that uses another YAML parser; contracts kept in a registry
-  the host designates outside `roles/` (`agents/forge.md` allows one). It does not run in CI today (no workflow
+  a key with a space, a homoglyph or an invisible character (no Unicode normalization); a different reading of the
+  same text by a consumer that uses another YAML parser; contracts kept in a registry
+  the host designates outside `roles/` (`agents/forge.md` allows one); `roles/` does not exist in this repo, so
+  only the fixtures exercise the registry check; required template fields (role, owner, decide) are not checked. It does not run in CI today (no workflow
   calls `tests/governance/run-all.sh`). The scope stays narrow because several `SKILL.md` files use
   `status: active` for skill lifecycle, which is unrelated to roles.
 

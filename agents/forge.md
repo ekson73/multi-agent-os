@@ -194,8 +194,8 @@ Known limits (out of scope for this section, stated so nobody reads more into it
 - **Specification, not tooling.** Nothing in this repo reads a role contract. `latent` is enforced by this text and by
   the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract form in the template and
   under `roles/` and refuses when in doubt (only `.md` files with one frontmatter are accepted there; the
-  frontmatter is loaded with `yaml.safe_load` and checked at every depth; ADR-019 lists the accepted form), and flags the literal word form of an activation in the guidance files. It does not
-  understand natural language, does not read a registry outside `roles/`, does not run in CI, and guards the
+  frontmatter is loaded with `yaml.safe_load`, without anchors or `!!omap`/`!!pairs`/`!!set`, and checked at every depth; the body may not carry contract keys; ADR-019 lists the accepted form), and flags the literal word form of an activation in the guidance files. It does not
+  understand natural language or Unicode look-alike keys, does not read a registry outside `roles/`, does not run in CI, and guards the
   text; it cannot stop an agent that ignores it.
 - **No activation path.** A role whose work is needed today still sends every decision to the human. Activating
   roles requires the gate described in `docs/adrs/ADR-019-role-activation-gate-deferred.md`, built as tooling first.
