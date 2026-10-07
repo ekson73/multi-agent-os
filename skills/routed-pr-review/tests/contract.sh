@@ -78,7 +78,12 @@ JSON
   "pr diff")    printf 'diff --git a/file.txt b/file.txt\n+contract fixture\n%s' "${T_DIFF_EXTRA:-}" ;;
   "pr comment") exit 0 ;;
   "api "*|"api")
-                printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
+                case "$*" in
+                  *"/reviews"*)        [ -n "${T_HISTORY_FAIL:-}" ] && exit 1
+                                       printf '%s\n' "${T_REVIEW_HISTORY:-[]}" ;;
+                  *"pulls/comments"*)  printf '%s\n' "${T_PULL_COMMENTS:-[]}" ;;
+                  *)                   printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
+                esac ;;
   *)            exit 0 ;;
 esac
 STUB
@@ -117,6 +122,9 @@ if [ -n "${T_BASELINE_FORGE:-}" ]; then   # edit the export AND regenerate its b
   find . -type f -print0 | sort -z | xargs -0 shasum -a 256 > ../manifest.before 2>/dev/null
   chmod -R a-w . 2>/dev/null
 fi
+# commit to the LIVE repo: status and diff stay clean, HEAD moves
+[ -n "${T_LIVE_COMMIT:-}" ] && git -C "$T_LIVE_COMMIT" -c user.email=t@t.invalid -c user.name=t \
+  commit -q --allow-empty -m forged 2>/dev/null
 # echo back what the prompt contained, so a case can see the PR body arrive
 if [ -n "${T_PROMPT_MARK:-}" ]; then case "$*" in *"$T_PROMPT_MARK"*) echo "PROMPT-CARRIED-$T_PROMPT_MARK" ;; esac; fi
 printf '%s\n' "${T_REVIEW_BODY:-}"
@@ -162,7 +170,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
@@ -625,6 +633,47 @@ check "the PR body is part of the prompt" 3 '.review | test("PROMPT-CARRIED-BODY
 OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="contacting auth-api login" T_GEMINI_RC=124 \
        T_REVIEWS='[]' ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "rc 124 is classified as a timeout reason" 2 '.failure_reason' "timeout"
+
+# Cases 54-58: third routed red-team round (codex + kimi) on this PR.
+# ── 54 ── a change request followed by a COMMENTED is still active.
+HIST='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"},
+       {"user":{"login":"maintainer"},"state":"COMMENTED","submitted_at":"2026-01-02T00:00:00Z"}]'
+OUT="$(T_REVIEW_HISTORY="$HIST" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a change request later followed by a comment still blocks" 3 '.primary_verdict' "changes_requested"
+
+# ── 55 ── unreadable review history blocks.
+OUT="$(T_HISTORY_FAIL=1 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an unreadable review history blocks C3" 3 '.primary_verdict' "review_history_unreadable"
+
+# ── 56 ── a shorter fence does not close a longer one.
+LONGFENCE="Finding 1 [minor] fixture body written well past the forty byte floor.
+\`\`\`\`
+\`\`\`
+VERDICT: PASS — example"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$LONGFENCE" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a three-backtick line does not close a four-backtick fence" 3 '.routed_verdict' "none"
+
+# ── 57 ── a verdict indented by a CLI (1-3 spaces) is still read.
+INDENTED="No blocking finding; fixture body written well past the forty byte floor.
+  VERDICT: PASS — indented by the CLI"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$INDENTED" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a verdict indented by two spaces is read" 0 '.routed_verdict' "pass"
+
+# ── 58 ── a bot seen only in review comments contradicts --no-primary-configured.
+PULLC='[{"user":{"login":"coderabbitai[bot]"},"body":"nit"}]'
+OUT="$(T_PULL_COMMENTS="$PULLC" T_REVIEWS='[]' T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--no-primary-configured" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a bot in review comments contradicts the attestation" 3 '.primary_verdict' "attestation_contradicted_bot_has_spoken_in_repo"
+
+# ── 59 ── a commit made in the live repo is an escape, even with a clean tree.
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_LIVE_COMMIT="$REPO_DIR" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+( cd "$REPO_DIR" && git reset -q --hard "$HEAD_SHA" )
+check "a commit to the live repo is detected" 1 '.detail' "violated:live-repo"
 
 # ── 45 ── --json carries the review body, not only metadata.
 OUT="$(T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?

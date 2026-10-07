@@ -182,6 +182,18 @@ embeds the diff) on stdin. The other harnesses still receive it as an argument,
 which other local users can read via `ps`. On a shared host, prefer `claude` or
 `codex`, or treat the diff as visible to that host.
 
+⚠️ **Known limit — host hooks and config.** "No delegator history" holds for
+the conversation, not for the reviewer CLI's own configuration: a CLI that
+loads the host's prompt hooks can inject local context (observed with `kimi`,
+whose output then carried a host memory preamble). Review the output before
+posting on a public repository, or run the reviewer under a profile without
+host hooks.
+
+⚠️ **Requirement — run inside a git work tree.** The export is built with
+`git archive`, so the caller's cwd must be inside a git repository, even with
+`--repo`. If the head commit is missing, it is fetched from `--repo` into that
+repository's object store.
+
 Two native review paths were found during the probe and are **not** wrapped by
 this tool: `qwen review run` and `opencode pr <N>`. They are recorded as
 candidates for a later cycle rather than silently duplicated.
@@ -205,7 +217,7 @@ a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**53 cases · 64 assertions** (several cases assert an exit code *and* a field or
+**59 cases · 70 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
@@ -343,7 +355,7 @@ its own.
 | rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | external | **reused** in phase C |
 | gate semantics | `pr-review-protocol.md` §4.1 | external | **implemented**, not amended; restated inline above |
 | isolation shape | `cross-harness-red-team.md` | external | **reused** in phase D |
-| in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +22/−1 lines (measured with `git diff --numstat`) declaring its correlated-verifier boundary and routing here (16 → 38 lines) |
+| in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +22/−1 lines (measured with `git diff --numstat`) declaring its correlated-verifier boundary and routing here (17 → 38 lines) |
 
 Net-new is exactly one thing: **an executable dispatcher that makes isolation and
 gate-honesty mechanical instead of remembered.**
