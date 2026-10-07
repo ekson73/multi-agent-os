@@ -875,7 +875,9 @@ for H in '[{"state":"CHANGES_REQUESTED_V2"}]' '[{"state":""}]' \
 done
 
 # ── 83 ── same-second APPROVED + CHANGES_REQUESTED: the change request wins.
-TIE="[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},$CR_OK]"
+# CHANGES_REQUESTED listed FIRST: jq max_by keeps the last maximal element, so
+# an order-dependent reducer would let the later APPROVED win the tie.
+TIE="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"
 OUT="$(T_REVIEW_HISTORY="$TIE" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a same-second tie with a change request blocks C3" 3 '.primary_verdict' "changes_requested"
