@@ -206,7 +206,12 @@ for clause in 'means \*\*no authorization grant\*\*' \
               'when the child cannot confirm that, the task is returned to the parent' \
               'The child treats any value it cannot confirm as invalid' \
               'The escape clause never relaxes §4.1' \
-              'covers only \*\*reversible\*\* actions the parent could itself execute' \
+              'covers only \*\*reversible\*\* actions the parent is itself authorized to execute' \
+              'Anything irreversible goes back to the parent' \
+              'Known weakness \(open\)' \
+              'every grant carries `authority_origin`' \
+              'A grant without `authority_origin` counts as missing' \
+              'it refuses, returns the action to its parent with the reason' \
               'records where the grant came from' \
               'the lower one applies'; do
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
@@ -246,6 +251,49 @@ if [ -n "$widen_hits" ]; then
     [ "$QUIET" = 1 ] || printf '%s\n' "$widen_hits" | sed "s|$ROOT/|      |"
 else
     ok "no file lets delegated authority widen"
+fi
+
+# ── 4c. authorization delegation is always bounded and has an origin ────────
+# A file that says a delegator "may delegate ... authorization" must, in the same
+# paragraph, bound it (subset / ⊆) and name where it comes from (origin /
+# authority_origin / issued). Positive control: the SSOT itself must match.
+c3_out="$(python3 - "${SCAN[@]:-$ROOT/skills}" <<'PYEOF'
+import os, re, sys
+claim = re.compile(r"may delegate[^.]{0,40}authori[sz]ation", re.I)
+bound = re.compile(r"subset|⊆", re.I)
+origin = re.compile(r"authority_origin|origin|issued", re.I)
+files = []
+for a in sys.argv[1:]:
+    if os.path.isdir(a):
+        for d, _, fs in os.walk(a):
+            files += [os.path.join(d, f) for f in fs if f.endswith(".md")]
+    elif a.endswith(".md"):
+        files.append(a)
+seen = 0
+for f in sorted(files):
+    try:
+        paras = re.split(r"\n\s*\n", open(f, encoding="utf-8", errors="replace").read())
+    except OSError:
+        continue
+    for i, p in enumerate(paras):
+        if not claim.search(p):
+            continue
+        seen += 1
+        ctx = " ".join(paras[i:i + 3])  # the claim paragraph plus its list
+        if not (bound.search(ctx) and origin.search(ctx)):
+            print("BAD %s: %s" % (f, claim.search(p).group(0)))
+print("SEEN %d" % seen)
+PYEOF
+)"
+c3_bad="$(printf '%s\n' "$c3_out" | grep '^BAD ' || true)"
+c3_seen="$(printf '%s\n' "$c3_out" | sed -n 's/^SEEN //p')"
+if [ -n "$c3_bad" ]; then
+    bad "authorization delegated without a subset bound or an origin:"
+    [ "$QUIET" = 1 ] || printf '%s\n' "$c3_bad" | sed "s|$ROOT/|      |"
+elif [ "${c3_seen:-0}" -lt 1 ]; then
+    bad "positive control: no 'may delegate ... authorization' found (the SSOT should state it)"
+else
+    ok "every 'may delegate ... authorization' is bounded and names an origin ($c3_seen found)"
 fi
 
 # ── 5. mutation fixtures (only on the real tree, never recursively) ──────────
@@ -325,6 +373,11 @@ behave exactly as in v1.0; they need not apply#'
     mutate "council-gate P0 loses parent bound" skills/council-gate/SKILL.md 's#, and that task itself is shown to be within its parent.s authority##'
     mutate "Sentinel schema example max 3"   sentinel/schema/alert_schema.json 's/"max_allowed": 2/"max_allowed": 3/'
     mutate "SSOT loses reversible-only grant" skills/agentic-delegation/SKILL.md 's#covers only \*\*reversible\*\* actions#covers any actions#'
+    mutate "SSOT loses irreversible-goes-back" skills/agentic-delegation/SKILL.md 's#Anything irreversible goes back to the parent\.##'
+    mutate "SSOT loses Known weakness note"  skills/agentic-delegation/SKILL.md 's#\*\*Known weakness (open)\.\*\*#**Note.**#'
+    mutate "SSOT loses authority_origin"     skills/agentic-delegation/SKILL.md 's#authority_origin#grant_source#g'
+    mutate "SSOT reverts to 'could itself'"  skills/agentic-delegation/SKILL.md 's#is itself authorized to execute#could itself execute#'
+    mutate "authorization delegated, unbounded" agents/orchestrator.md 'append:A delegator may delegate its authorization to any child.'
     mutate "SSOT loses lower-cap rule"       skills/agentic-delegation/SKILL.md 's#, the lower one applies#, the higher one applies#'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
     wait
