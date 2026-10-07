@@ -113,20 +113,19 @@ PROBLEM DETECTED
   → NO: Continue to [3].
   → YES: Do existing agents/skills cover ≥50% of the role's capabilities?
       → YES: REUSE + binding — draft a role contract bound to them,
-        no new agent (see section below). The draft is born
-        `status: latent` with `tier` unset and grants no authority;
-        it becomes `active` only by the owner's explicit ratification
-        (see "Ratification"). Go to [5] to persist the latent contract
+        no new agent (see section below). The contract is
+        `status: latent` with `tier` unset and grants no authority
+        (see "Status"). Go to [5] to persist the latent contract
         (role registry, not `agents/`), then STOP.
       → NO (<50%) and an agent already carries the role's name:
         EVOLVE that agent (`evolve <agent>`), do not create a twin.
         The evolution also drafts its role contract as `latent`;
-        the evolved profile gains no authority beyond the contract's
-        ratified content (the contract prevails over the profile).
+        the evolved profile gains no decision authority (the contract
+        prevails over the profile, and a latent contract grants none).
       → NO (<50%) otherwise: Continue to [3] — a new agent is justified,
         and [5] also drafts its role contract as `latent`. Neither the
-        new role nor the new agent has any authority until the owner
-        ratifies that contract `active` (see "Ratification").
+        new role nor the new agent has decision authority: every
+        decision of the role goes to the human (see "Status").
   │
 [3. Goldilocks Check]
   → "Would another person recognize this professional title?"
@@ -160,15 +159,14 @@ specialist or tool agent with neither is not an organizational role and follows 
 | Concept | Rule |
 |---------|------|
 | **REUSE + binding** | A role = contract (decision domain, limits, authorization tier) bound to one or more existing agents/skills. Verdict alongside reuse / evolve / create. Create a new agent only when existing coverage is <50%. |
-| **Ratification (lifecycle)** | Forge only *drafts* a contract. Every contract is born `status: latent` with `tier` unset, and a latent contract grants no authority: every decision of the role goes to the human. No contract activates itself — not by trigger, rule, agent or resolver. Only the human owner moves it to `active`, by an **explicit ratification recorded outside the contract file** (`approval_ref`): an `APPROVED` review of the PR that sets `status: active`, an approval transition on a tracker ticket, or a commit signed with a key whose use needs the owner's presence. **Owner:** the `owner` field names the ratifying authority by role (e.g. `board`), never a person's name, never an agent or the role's `holder`; the identities allowed to act for it are resolved from a source the agent cannot write (CODEOWNERS on a protected branch, the repository's admin list, the tracker project's admins), never from the contract, and never an identity the agent operates. An identity the agent operates is any account whose credentials any agent in the organization can use (tokens in its environment, bot, app or service accounts); any account that is not a human owner identity in that source counts as agent-operated (fail-closed). The owner identities are resolved when the gate is checked, not when the record was made. If the agent and the owner share one account, no record from that account proves a human, and the contract stays `latent`. The agent only *proposes* activation (it opens the PR or the ticket); it never creates, edits or signs a ratification record and never chooses `tier`. A `status: active` that appears in an agent-opened PR is inert: it takes effect only through the owner's record over that exact content (the digest). Text inside the contract (`status`, `tier`, `approved_by`, `approved_at`) is a claim, never proof. |
-| **Decision domain** | Every decision-bearing role declares `decide` (what it decides alone, with an audit trail) and `out_of_domain` (what goes up to the human/board). A role without them is not ready. `decide` is always a subset of the role's authorization-tier ceiling and **never** contains irreversible actions, spend/cost, secrets or credentials, production/deploy, real personal data, cross-org actions, ethics/policy calls, or personal/relational decisions (HUMAN_DOMAIN) — those are always `out_of_domain` (board/human). A contract cannot widen its own `decide`; widening it is an organizational act that needs a new ratification. |
-| **Authority digest + gate** | The ratification covers every field that carries authority — the closed list `role`, `status`, `owner`, `tier`, `decide`, `out_of_domain`, `reports_to`, `binding`, `holder`, `trigger`, `proposal_cap` (a missing field counts as `null`; `role` is the contract's slug, so a record cannot be replayed onto another role's file). `authority_digest` is the `sha256` of those eleven fields as canonical JSON: the YAML is parsed rejecting duplicate keys (a duplicate makes the contract invalid, i.e. `latent`), strings are Unicode NFC, keys are sorted, separators are `,` and `:` with no spaces, and non-ASCII stays as UTF-8 (no `\u` escapes). The ratification record must quote the digest and the `role` slug in clear. Because `status` is inside it, a record over a latent draft never certifies `active`, and changing any of the eleven fields voids the ratification. A field outside the list grants no authority; adding one means extending this list in this file, reviewed as such. **The gate (the only rule):** the holder acts under `decide` only when (a) `approval_ref` resolves to a record, (b) its author is one of the owner identities and not an identity the agent operates, (c) the digest it quotes equals the digest recomputed from the contract file at the commit the citation pins, and that commit's version of the file is still the current one ("current" = the file at the tip of the default branch of the repository that holds the role registry, read when the gate is checked), (d) that file says `status: active`, and (e) no later record by an owner identity supersedes the cited ratification. A record supersedes it when it names the same `role` and is later — whether it revokes the role, ratifies another digest, or requests changes. "Later" is the timestamp the host recorded, never one the record claims. Revocation has one canonical form, a record in any of the three ratification channels that names the `role` and says `revoke`. All three channels are searched, outside the contract file (the PR reviews and comments, the tracker tickets, the signed history); if records in two channels cannot be ordered, the cited ratification counts as superseded. The holder cites `approval_ref`, the digest, the commit SHA of the contract file, and where (e) was searched with its result, in the audit trail of every such action, so anyone can re-run the check afterwards; the agent's statement that it checked is not evidence, the cited record is. Any check fails, the record is missing, or it cannot be verified → the contract is `latent` and the decision goes to the human. Restoring the eleven fields to earlier values reproduces an earlier digest but not an earlier authority: (e) still finds the owner's later revocation. |
-| **Contract prevails** | A role acts only within its ratified contract (the fields the `authority_digest` covers). That applies on every path — REUSE + binding, EVOLVE, a new agent, or a direct `evolve <agent>` — and the contract prevails over any agent profile, binding, or router output. A role whose contract does not pass the authority gate has no decision authority. |
-| **Knowledge ≠ authority** | A pure knowledge gap inside `decide` never goes to the human **first**: research, uplift, and a council come first; the residue that survives them goes to the human. Any decision outside `decide` (human-only, HUMAN_DOMAIN, irreversible, absolute-guardrail) goes to the human **directly** — research-first never delays that escalation. |
-| **Latent role** | A role that is not needed yet stays `latent` (the default) and may carry a deterministic `trigger`. The trigger never activates anything: when it fires, the agent *proposes* activation to the owner (opens the PR or ticket that would set `status: active`), and the role stays without authority until the owner ratifies it. Creating a new role, by binding or by a new agent, is an organizational act: the role has no authority until its contract passes the authority gate. |
+| **Status (lifecycle)** | Forge only *drafts* a contract. Every contract has `status: latent`, the only value this version admits, with `tier` unset. A latent contract grants no authority: every decision of the role goes to the human. **The file's `status` never grants authority** — nor does any other text inside the contract (`tier`, `owner`, `decide`); a contract file is a description, never a permission. This version defines no way out of `latent`: no ratification record, digest, trigger, resolver or agent changes it. Activation is deliberately out of scope until a gate exists as executable tooling (`docs/adrs/ADR-019-role-activation-gate-deferred.md` states what that gate must satisfy). **Owner:** the `owner` field names, by role (e.g. `board`), the human authority the role's decisions go to — never a person's name, never an agent or the role's `holder`. |
+| **Decision domain** | Every decision-bearing role declares `decide` (the domain it is designed to hold) and `out_of_domain` (what always goes up to the human/board). A role without them is not ready. While the contract is `latent` (always, in this version) `decide` grants nothing: it documents scope, it does not authorize. `decide` never contains irreversible actions, spend/cost, secrets or credentials, production/deploy, real personal data, cross-org actions, ethics/policy calls, or personal/relational decisions (HUMAN_DOMAIN) — those are always `out_of_domain` (board/human). A contract cannot widen its own `decide`; widening it is an organizational act decided by the human. |
+| **Contract prevails** | The contract prevails over any agent profile, binding, or router output, on every path — REUSE + binding, EVOLVE, a new agent, or a direct `evolve <agent>`. Because every contract is `latent`, no role holds decision authority: what the role would decide goes to the human. |
+| **Knowledge ≠ authority** | A pure knowledge gap inside `decide` is researched **before** it reaches the human: research, uplift, and a council come first, and the human receives the decision together with what survived them (while the contract is `latent`, the decision itself is always the human's). Any decision outside `decide` (human-only, HUMAN_DOMAIN, irreversible, absolute-guardrail) goes to the human **directly** — research-first never delays that escalation. |
+| **Latent role** | Every role is `latent` in this version, including roles that are not needed yet. An agent may *suggest* to the human that a role is needed; the suggestion changes nothing in the contract. Creating a new role, by binding or by a new agent, is an organizational act: the role has no authority. |
 | **Independence by reporting line** | A verification role reports to the board/owner, never to the orchestrator whose output it checks. Same model family is acceptable only as a separate instance plus a deterministic oracle (tests, schema, scanner). |
 | **Lane, not department** | A unit with no decision of its own is a **lane**: a queue plus a policy scope, with no head. A department without a decision domain is theater. |
-| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it; every spend needs the human's approval, and spend is never in `decide`. The human owner may also set, as part of the ratified content, a deterministic cap on what a role may *propose* (`proposal_cap`, covered by the `authority_digest`; proposals above it are rejected before reaching the human); the cap is a ceiling on proposals, not a pre-approved budget. |
+| **Propose ≠ approve (money)** | An agentic C-suite role may propose spend, never approve it; every spend needs the human's approval, and spend is never in `decide`. The human owner may also set a deterministic cap on what a role may *propose* (`proposal_cap`; proposals above it are rejected before reaching the human); the cap is a ceiling on proposals, not a pre-approved budget. |
 | **Trait only with a falsifiable metric** | An archetype, persona, or trait enters a role spec only if a metric could refute it. Otherwise cut it. |
 | **Specialty is an attribute** | `executor` + `specialty` (dev · ops · content), not three roles. Fewer queues, fewer specs. |
 | **Reject the "cell"** | An executor↔verifier pair is a flow edge (change → checks → verifier), not an organizational unit. Grouping them puts the verifier "on the author's team" and weakens independence. |
@@ -177,45 +175,31 @@ specialist or tool agent with neither is not an organizational role and follows 
 Role contract fields (add to the spec frontmatter for decision-bearing roles):
 
 ```yaml
-role: <role-slug>              # the contract's identity; covered by the digest so a ratification cannot be replayed onto another role
-status: latent                 # every contract is born latent (no authority); only the owner's ratification makes it `active`
-tier: null                     # ceiling for `decide`; ONLY the human owner sets it, in the ratified content
-owner: board                   # ratifying authority BY ROLE (never a person's name, never an agent or the holder); identities resolved from a source the agent cannot write
-approval_ref: null             # owner's ratification record OUTSIDE this file (PR review / ticket transition / presence-gated signed commit) quoting the authority_digest; the citation pins the contract file's commit SHA; missing, unverifiable or later revoked ⇒ latent
-approved_by: null              # informational; never proof
-approved_at: null              # informational; ISO 8601
-decide: [ "<what this role decides alone, with audit trail>" ]   # subset of `tier` ceiling; never irreversible/spend/secrets/prod/personal-data/cross-org/ethics/personal (HUMAN_DOMAIN)
-out_of_domain: [ "<what escalates to the human owner/board>" ]
+role: <role-slug>              # the contract's identity
+status: latent                 # the ONLY admitted value; the file's status never grants authority
+tier: null                     # stays unset in this version; ONLY the human owner may ever set it
+owner: board                   # human authority BY ROLE that the role's decisions go to (never a person's name, never an agent or the holder)
+decide: [ "<the domain this role is designed to hold>" ]   # documents scope, grants nothing while latent; never irreversible/spend/secrets/prod/personal-data/cross-org/ethics/personal (HUMAN_DOMAIN)
+out_of_domain: [ "<what always escalates to the human owner/board>" ]
 reports_to: <role>            # verifiers: board/owner, never the orchestrator
 binding: [ "<existing agent or skill>" ]
 holder: agent                  # agent | human — an agent holding a human-sounding title discloses it is an AI
-# trigger: "<deterministic condition under which the agent PROPOSES activation to the owner>"   # never activates by itself
 proposal_cap: null             # optional ceiling on what this role may propose (not a budget)
-# authority_digest = sha256(canonical JSON of role, status, owner, tier, decide, out_of_domain, reports_to, binding, holder, trigger, proposal_cap); quoted by the ratification record, never trusted from this file
+# Reserved, not defined in this version: approval_ref, approved_by, approved_at, trigger, authority_digest.
+# Do not add them; ADR-019 lists what an activation gate must satisfy before any of them returns.
 ```
 
 Known limits (out of scope for this section, stated so nobody reads more into it):
 
-- **Specification, not tooling.** Nothing in this repo computes the digest or resolves `approval_ref`. The gate is
-  enforced by the holder citing the record and by anyone re-checking it afterwards: an agent that acts without the
-  citation acts without authority, and that is detectable after the fact, not prevented beforehand.
-- **`binding` pins names, not content.** The ratification fixes which agents a role is bound to, not their files;
-  a material change to a bound agent should go back to the owner for re-ratification, but nothing forces it.
-- **No expiry.** A ratification ends only when a later owner record revokes or supersedes it (gate check (e)); there is no TTL.
-- **(e) relies on the host's retention.** Owner records are treated as append-only, but nothing in this repo enforces that: a
-  host that lets a review, comment, ticket transition or signed commit be deleted or rewritten can hide a revocation.
-  Hosts that run this gate should protect those records (branch protection with no force-push, no review dismissal
-  or deletion by the agent's identities); a record found edited after the fact counts as a revocation.
-- **Canonicalization is not a full schema.** YAML scalar typing (e.g. `yes` vs `true`), anchors and tags are not
-  pinned; two parsers can disagree and produce different digests. That fails closed (no match ⇒ `latent`), but the
-  owner and the re-checker should use the same parser and plain YAML (no anchors, no tags, quoted strings).
-- **The digest binds the `role` slug, not the file path or the registry.** Moving or copying a contract file keeps
-  its digest; (c) is what ties the check to one file at one commit.
-- **The gate does not re-check content rules.** It verifies the owner ratified this content; it does not re-check that
-  `decide` stays within `tier` or excludes HUMAN_DOMAIN. Those are the owner's review duties before ratifying.
-- **Owner identity depends on the host.** If the host does not protect the source of owner identities (e.g. no
-  branch protection behind CODEOWNERS), no record qualifies and every contract stays `latent` — fail-closed, but
-  nothing can be ratified until the host is fixed.
+- **Specification, not tooling.** Nothing in this repo reads a role contract. `latent` is enforced by this text and by
+  the regression test `tests/governance/test-roles-latent-only.sh`, which fails if a contract surface defines,
+  permits or describes a transition out of `latent`. The test guards the text; it cannot stop an agent that ignores it.
+- **No activation path.** A role whose work is needed today still sends every decision to the human. Activating
+  roles requires the gate described in `docs/adrs/ADR-019-role-activation-gate-deferred.md`, built as tooling first.
+- **`binding` pins names, not content.** A contract names the agents a role is bound to, not their files; a
+  material change to a bound agent is not tracked by the contract.
+- **The contract does not re-check content rules.** Nothing verifies that `decide` excludes HUMAN_DOMAIN; that is a
+  review duty of whoever drafts or edits the contract.
 
 ## 33 Socratic Questions
 
@@ -393,7 +377,7 @@ Step 4: FEEDBACK LOOP
 |---------|-------------|
 | `create <domain>` | Create new agent (executes 33 questions + bootstrap) |
 | `evaluate <agent>` | Evaluate existing agent performance (KPIs) |
-| `evolve <agent>` | Improve profile based on feedback. For an agent that holds an organizational role, run [2b] first; the evolved agent never gains authority beyond its ratified role contract, and without one that passes the authority gate it has none |
+| `evolve <agent>` | Improve profile based on feedback. For an agent that holds an organizational role, run [2b] first; the evolved agent gains no decision authority, because its role contract is `latent` |
 | `audit` | Complete post-mortem of current cycle |
 | `list` | List existing agents (global + project) |
 | `compare <a> <b>` | Compare scope of two agents (detect overlap) |

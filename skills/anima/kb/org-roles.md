@@ -17,9 +17,9 @@
   `holder: agent`; external-facing messages disclose that an AI is acting).
 - **Specialty is an attribute, not a role.** `executor` + `specialty: dev · ops · content` — never one role per
   specialty (`developer`, `writer`…). New specialties then need no rename and no new queue.
-- **Latent roles keep their final name.** Name a not-yet-active role now (`project-lead`, `sre`); Anima names it
-  only, it never sets its status. Its contract is drafted `latent` (no authority) and only the owner's ratification
-  makes it `active`; that activation must not force a re-baptism.
+- **Latent roles keep their final name.** Name a role now with its final name (`project-lead`, `sre`); Anima names
+  it only, it never sets its status. Its contract is `latent` (no authority), and any future change of status must
+  not force a re-baptism.
 - **Units: `lane/<noun>` for a queue + policy scope with no head** (`lane/revenue`, `lane/delivery`). Do not name a
   "department" or "cell"/"pod"/"squad" that has no decision of its own — that is an org chart for show.
 - **Entity as a graph.** Name the **edges** where the intelligence lives — `decide` · `verify` · `remember` ·
