@@ -122,7 +122,7 @@
             {
               "current_depth": 3,
               "max_allowed": 2,
-              "delegation_chain": ["Orch", "PM", "Analyst", "Dev", "QA"]
+              "delegation_chain": ["Orch", "PM", "Analyst", "Dev"]
             },
             {
               "retry_count": 7,

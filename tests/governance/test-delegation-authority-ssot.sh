@@ -205,7 +205,10 @@ for clause in 'means \*\*no authorization grant\*\*' \
               'comes from the immediate parent' \
               'when the child cannot confirm that, the task is returned to the parent' \
               'The child treats any value it cannot confirm as invalid' \
-              'The escape clause never relaxes §4.1'; do
+              'The escape clause never relaxes §4.1' \
+              'covers only \*\*reversible\*\* actions the parent could itself execute' \
+              'records where the grant came from' \
+              'the lower one applies'; do
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
         || bad "SSOT lost clause: $clause"
 done
@@ -321,6 +324,8 @@ behave exactly as in v1.0; they need not apply#'
     mutate "SSOT loses escape-clause limit"  skills/agentic-delegation/SKILL.md 's#The escape clause never relaxes §4.1#The escape clause may relax §4.1#'
     mutate "council-gate P0 loses parent bound" skills/council-gate/SKILL.md 's#, and that task itself is shown to be within its parent.s authority##'
     mutate "Sentinel schema example max 3"   sentinel/schema/alert_schema.json 's/"max_allowed": 2/"max_allowed": 3/'
+    mutate "SSOT loses reversible-only grant" skills/agentic-delegation/SKILL.md 's#covers only \*\*reversible\*\* actions#covers any actions#'
+    mutate "SSOT loses lower-cap rule"       skills/agentic-delegation/SKILL.md 's#, the lower one applies#, the higher one applies#'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
     wait
     i=1
