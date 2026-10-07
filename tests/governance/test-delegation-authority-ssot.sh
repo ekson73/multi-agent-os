@@ -129,6 +129,9 @@ def find(o):
     return None
 try:
     blk = find(json.load(open(sys.argv[1])))
+    val = blk["max_delegation_depth"]
+    if type(val) is not int or val != cap:
+        print("max_delegation_depth=%r is not the integer %d" % (val, cap)); sys.exit()
     vr = blk["valid_range"]
     lo, hi = vr["min"], vr["max"]
     ok = all(type(x) is int for x in (lo, hi)) and 1 <= lo <= hi <= cap
@@ -138,7 +141,7 @@ except Exception as e:
 PYEOF
 )"
         if [ "$rcheck" = "ok" ]; then
-            ok "sentinel/config.json valid_range within 1..$CAP"
+            ok "sentinel/config.json cap is the integer $CAP and valid_range within 1..$CAP"
         else
             bad "sentinel/config.json valid_range: $rcheck (need 1 <= min <= max <= $CAP)"
         fi
@@ -187,11 +190,13 @@ for clause in 'means \*\*no authorization grant\*\*' \
               'A criterion-5 FAIL \(HUMAN_DOMAIN\) always escalates' \
               'out-of-scope results are advice only' \
               'A child that receives none is a leaf' \
-              'cannot confirm its grant is a subset'; do
+              'cannot confirm its grant is a subset' \
+              'does not take that action and returns it to its parent' \
+              'comes from the immediate parent'; do
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
         || bad "SSOT lost clause: $clause"
 done
-WIDEN="(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
+WIDEN="do not (read|parse) the block behave exactly as before|(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
 widen_hits="$(grep -rnoiE "$WIDEN" "${SCAN[@]:-$ROOT/skills}" --include='*.md' 2>/dev/null || true)"
 if [ -n "$widen_hits" ]; then
     bad "a file allows authority to widen:"
@@ -253,6 +258,9 @@ if [ "$QUIET" != 1 ]; then
     mutate "child adopts task-requested authority" agents/orchestrator.md 'append:A child may adopt any authority requested by its task.'
     mutate "Sentinel valid_range max unreadable" sentinel/config.json 's/"max": 2/"max": "unknown"/'
     mutate "SSOT re-adds depth derivation"   skills/agentic-delegation/SKILL.md 's/A child that receives none is a leaf/A child that receives none derives it/'
+    mutate "Sentinel cap written as 2e1"     sentinel/config.json 's/"max_delegation_depth": 2,/"max_delegation_depth": 2e1,/'
+    mutate "Sentinel cap written as 2.5"     sentinel/config.json 's/"max_delegation_depth": 2,/"max_delegation_depth": 2.5,/'
+    mutate "auto-pilot bypass sentence back" skills/auto-pilot/SKILL.md 'append:Agents that do not read the block behave exactly as before.'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 
