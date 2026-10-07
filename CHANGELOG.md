@@ -82,6 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the owner's record covers it; skipping role detection means no contract, not a latent one. New known limits:
   YAML typing/anchors/tags not pinned (fail-closed), digest binds the slug not the path, the gate does not re-check
   `decide` ⊆ `tier` or HUMAN_DOMAIN exclusion (owner review duty).
+- Sixth adversarial-review fixes (GLM-5.3, red-team H6): check (e) is now executable. A record supersedes the
+  ratification when it names the same `role` and is later by the host's timestamp (revoke, another digest, or a
+  change request); revocation has one canonical form (`revoke` + `role` in any ratification channel); all three
+  channels are searched and records that cannot be ordered count as superseding. Ratification records quote the
+  `role` in clear. "Current" in (c) is the file at the tip of the role registry's default branch. An
+  agent-operated identity is any account any agent in the organization can use; any account that is not a human
+  owner identity counts as one (fail-closed); owner identities are resolved when the gate is checked. New known
+  limit: (e) depends on the host retaining owner records.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
