@@ -173,6 +173,66 @@ if [ "$RC" -eq 4 ]; then ok "no clipboard tool ⇒ rc 4 (no fake success)"; else
 OUT="$(MAOS_CLIP_COPY="$TMP/fakecopy" MAOS_CLIP_PASTE= bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
 if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'no-readback-tool'; then ok "copy without read-back tool ⇒ rc 4 no-readback-tool"; else bad "missing read-back tool should be rc 4 no-readback-tool" "rc=$RC out=$OUT"; fi
 
+echo "── close-out-manifest: no residue on failure paths (temps, signals, cleanup)"
+# each case gets its own TMPDIR so residue is attributable; a clean exit leaves it empty
+clean_dir() { [ -d "$1" ] && [ -z "$(ls -A "$1")" ]; }
+newtmp() { rm -rf "$TMP/$1"; mkdir -p "$TMP/$1"; printf '%s' "$TMP/$1"; }
+# BSD mktemp ignores $TMPDIR without a template, so a script that forgets one writes to the
+# system temp root instead: also look there, for files newer than a marker holding a needle
+SYS_T="$(dirname "$(mktemp -u)")"
+leaked() { # leaked <marker> <needle> → rc 0 if a newer file under the system temp root holds it
+  find "$SYS_T" -maxdepth 3 -type f -newer "$1" 2>/dev/null | while IFS= read -r f; do
+    grep -qF "$2" "$f" 2>/dev/null && { echo "$f"; break; }
+  done | grep -q .
+}
+
+# R1 blind positive control (die path) leaves no staged control behind
+T1="$(newtmp r1)"; mkdir -p "$TMP/r1src"; printf 'clean\n' > "$TMP/r1src/a.md"
+touch "$TMP/r1.mark"; sleep 1
+TMPDIR="$T1" MAOS_SECRET_SCANNER=true bash "$CM" persist --dest "$TMP/dr1" --src "$TMP/r1src/a.md" --apply >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 3 ] && clean_dir "$T1" && ! leaked "$TMP/r1.mark" "probe""@""example.org"; then ok "blind control: no residue in TMPDIR"; else bad "blind control left residue" "rc=$RC left=$(ls -A "$T1" 2>/dev/null | tr '\n' ' ')"; fi
+
+# R2 failing rename leaves no temp in the destination nor in TMPDIR
+T2="$(newtmp r2)"; mkdir -p "$TMP/r2bin" "$TMP/r2src"; printf 'clean\n' > "$TMP/r2src/a.md"
+printf '#!/bin/sh\nexit 1\n' > "$TMP/r2bin/mv"; chmod +x "$TMP/r2bin/mv"
+PATH="$TMP/r2bin:$PATH" TMPDIR="$T2" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dr2" --src "$TMP/r2src/a.md" --apply >/dev/null 2>&1; RC=$?
+if [ "$RC" -ne 0 ] && clean_dir "$T2" && { [ ! -d "$TMP/dr2" ] || clean_dir "$TMP/dr2"; }; then ok "failed rename: no residue in destination or TMPDIR"; else bad "failed rename left residue" "rc=$RC dest=$(ls -A "$TMP/dr2" 2>/dev/null | tr '\n' ' ') tmp=$(ls -A "$T2" 2>/dev/null | tr '\n' ' ')"; fi
+
+# R3 SIGINT in the middle of a scan: rc 130 and nothing left behind
+T3="$(newtmp r3)"; mkdir -p "$TMP/r3src"; printf 'clean\n' > "$TMP/r3src/a.md"
+cat > "$TMP/intscan" <<'EOF'
+#!/usr/bin/env bash
+# interrupt the close-out-manifest process: walk up until we find it, never signal anything else
+p="$PPID"
+for _ in 1 2 3; do
+  case "$(ps -o command= -p "$p" 2>/dev/null)" in *"$CM_UNDER_TEST"*) kill -INT "$p"; break ;; esac
+  p="$(ps -o ppid= -p "$p" | tr -d ' ')"
+done
+exit 1
+EOF
+chmod +x "$TMP/intscan"
+CM_UNDER_TEST="$CM" TMPDIR="$T3" MAOS_SECRET_SCANNER="$TMP/intscan" bash "$CM" persist --dest "$TMP/dr3" --src "$TMP/r3src/a.md" --apply >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 130 ] && clean_dir "$T3" && [ ! -e "$TMP/dr3/a.md" ]; then ok "SIGINT mid-scan: rc 130, no residue"; else bad "SIGINT mid-scan left residue or wrong rc" "rc=$RC left=$(ls -A "$T3" 2>/dev/null | tr '\n' ' ')"; fi
+
+# R4 clip read-back never writes the handoff content to a temp file, even when terminated
+# (TERM, not INT: bash swallows an INT that arrives while a child exits normally)
+T4="$(newtmp r4)"; N4="handoff-$$-$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 12)"; printf '%s\n' "$N4" > "$TMP/r4.md"; touch "$TMP/r4.mark"; sleep 1
+cat > "$TMP/intpaste" <<EOF
+#!/usr/bin/env bash
+cat "$TMP/r4.md"
+case "\$(ps -o command= -p "\$PPID" 2>/dev/null)" in *"\$CM_UNDER_TEST"*) kill -TERM "\$PPID" ;; esac
+EOF
+chmod +x "$TMP/intpaste"
+CM_UNDER_TEST="$CM" TMPDIR="$T4" MAOS_CLIP_COPY=true MAOS_CLIP_PASTE="$TMP/intpaste" bash "$CM" clip --file "$TMP/r4.md" >/dev/null 2>&1; RC=$?
+if clean_dir "$T4" && ! leaked "$TMP/r4.mark" "$N4"; then ok "clip read-back leaves no temp (rc=$RC)"; else bad "clip read-back left handoff content in TMPDIR" "rc=$RC left=$(ls -A "$T4" | tr '\n' ' ')"; fi
+
+# R5 a cleanup that cannot remove its temps is reported (stderr + rc 6), never hidden
+T5="$(newtmp r5)"; mkdir -p "$TMP/r5bin" "$TMP/r5src"; printf 'clean\n' > "$TMP/r5src/a.md"
+printf '#!/bin/sh\nexit 1\n' > "$TMP/r5bin/rm"; chmod +x "$TMP/r5bin/rm"
+OUT="$(PATH="$TMP/r5bin:$PATH" TMPDIR="$T5" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dr5" --src "$TMP/r5src/a.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 6 ] && printf '%s' "$OUT" | grep -q 'cleanup failed'; then ok "failed cleanup reported as rc 6"; else bad "failed cleanup must be rc 6 + stderr" "rc=$RC out=$OUT"; fi
+rm -rf "$T5"
+
 echo ""
 echo "  pass=$PASS fail=$FAIL"
 [ "$FAIL" -eq 0 ]
