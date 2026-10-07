@@ -8,6 +8,8 @@ version: 1.0.0
 
 Unified entry point for the delegation framework. Routes to one of three invariant meta-prompts + a provider selection matrix, so delegator and delegated agents stop re-inventing governance per call.
 
+Who may delegate what — root posture, authority inheritance (a subset of the delegator's, never widened), the never-delegable list and the depth cap — lives in `skills/agentic-delegation` (§4.1, §7, §8); this skill only emits the prompts.
+
 ## When to use this skill
 
 - Before a `Task` tool call that spawns a sub-agent.

@@ -120,6 +120,8 @@ defined in `protocols/delegation/delegation-dna-prompt.md` to the prompt.
 Agents that do not read the block behave exactly as before — the addition
 is opt-in and backward-compatible.
 
+Each child's authority is a subset of its parent's and never widens on recursion (`skills/agentic-delegation` §4.1, §8).
+
 The block carries: `parent_agent_id`, `depth` (hard-capped at 2), `mode`,
 `autonomy_band`, `goal_root` (one-line), `attempts_remaining` (starts at 6
 per the project escalation rule), and `escalation_triggers` (inherits the

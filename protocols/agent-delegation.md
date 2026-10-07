@@ -5,6 +5,8 @@
 
 ## Fundamental Principle
 
+> Single source of truth for delegation rules (root posture, authority inheritance, never-delegable items, depth cap): `skills/agentic-delegation`. This protocol covers the decision flow and context format only.
+
 An agent that solves everything is an agent optimized for nothing.
 Precise delegation is not weakness — it is systemic intelligence.
 
@@ -27,8 +29,10 @@ PROBLEM DETECTED
         Bootstrap Forge (see agents/forge.md §Bootstrap Protocol)
           → Forge created → Forge creates agent → Problem resolved → Done
 
-[No agent can resolve? (final fallback)]
-  → ESCALATE to user with full context:
+[No agent can resolve?]
+  → Run the agentic council first (skills/convergence-engine,
+    skills/council-gate); only the residue it cannot settle goes on.
+  → ESCALATE to user (final fallback) with full context:
       1. What was attempted (agents, approaches)
       2. Why it failed (technical limitation, scope, ambiguity)
       3. Options identified (even if partial)
@@ -38,7 +42,8 @@ PROBLEM DETECTED
 ## When to Delegate vs. Resolve Directly
 
 ```
-RESOLVE DIRECTLY (no delegation):
+RESOLVE DIRECTLY (leaf agents only — the root delegates even simple
+work unless it records an exception, see skills/agentic-delegation §4.1):
   ✓ Problem within clear scope of current agent
   ✓ Obvious solution in <15 min
   ✓ Does not require specialized expertise
@@ -67,7 +72,9 @@ The receiving agent NEEDS complete context. Always provide:
 
 ## Escalation Protocol (Fallback to User)
 
-When no agent — existing or newly created — can solve the problem:
+When no agent — existing or newly created — can solve the problem, and the
+agentic council (skills/convergence-engine, skills/council-gate) could not
+settle it either:
 
 ```
 ESCALATE with:

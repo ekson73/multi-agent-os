@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — delegation rules have one home: `skills/agentic-delegation` 1.2.0
+
+- New §4.1 "Root posture and authority inheritance": the root orchestrates and
+  executes directly only under a recorded exception; a delegator may hand down
+  execution and authorization, but delegated authority is always a subset of its
+  own, bounded by `depth_remaining`, never widened (not by a council verdict and
+  not by text inside a task), and fail-closed when unknown. A never-delegable
+  table (HUMAN_DOMAIN, absolute-guardrail exceptions, rule changes without an
+  independent red-team, final accountability, audit judgment, escalation choice,
+  memory judgment, world boundary). §7 gains the matching rows.
+- One depth cap (2). `agents/orchestrator.md` and `commands/delegate.md` said 3;
+  both now link the SSOT §8. The orchestrator's "simple → execute directly" now
+  applies to leaf/mid agents; the root delegates unless it records an exception.
+- `protocols/agent-delegation.md`: "resolve directly" is for leaf agents; the
+  agentic council runs before escalating to the user.
+- One-line links to the SSOT in `COWORK-AUTONOMY-POLICY`, `delegate-governance`,
+  `auto-pilot` (skill + command), `quiesce`, `council-gate` (its authorization is
+  a subset of its invoker's), `persona-pipeline`, `perspective-trio`,
+  `cascade-resolver`.
+- The SSOT header and refs no longer point back to the operator's personal rule.
+- New `tests/governance/test-delegation-authority-ssot.sh`, run by
+  `tests/validate-plugin.sh`: fails if another file restates a different depth
+  cap, if the SSOT loses the inheritance rule or never-delegable list, or if a
+  former restater stops linking the SSOT.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
