@@ -88,6 +88,8 @@ Substitution does NOT waive accountability — the agent (and its parent) remain
 for the substituted decision. Audit-trail the substitution (commit message / PR comment /
 session record), citing the score and that the carve-outs were checked clean.
 
+Authority a cowork agent hands down when it delegates is a subset of its own and never widens; the never-delegable list applies at every depth (`skills/agentic-delegation` §4.1).
+
 ## Sunset
 
 Re-validate when: the default HIGH band changes · the human-substitution bar is operator-

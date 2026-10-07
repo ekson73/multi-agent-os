@@ -117,7 +117,7 @@ O arquivo `templates/statusmap_templates.md` contem para CADA template:
 │ QUICK STATUS │ 2026-01-06 12:45:00 │ Claude-Orch-Prime-20260106-c614       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ GIT:      main [OK] │ 3M 2U │ ahead 0                                      │
-│ AGENTS:   1 active  │ 0 pending │ depth: 1/3                               │
+│ AGENTS:   1 active  │ 0 pending │ depth: 1/2                               │
 │ SENTINEL: 98/100    │ 0 alerts  │ hooks: enabled                           │
 │ NEXT:     Create templates (HIGH)                                          │
 └─────────────────────────────────────────────────────────────────────────────┘

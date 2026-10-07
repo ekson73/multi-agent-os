@@ -158,7 +158,7 @@ Cascade 2/<MAX> | role=<X> | score: <prev>→<new> (Δ<delta>) | rec=<rec> | tok
 - Cumulative cascade budget ≤14k
 - Wall-clock budget ≤10min per issue
 - Diversity validator: reject duplicate roles within cascade
-- Recursion depth ≤2 (cascade attempts CANNOT spawn cascade themselves)
+- Recursion depth ≤2 (cascade attempts CANNOT spawn cascade themselves); each attempt gets a subset of the parent's authority (`skills/agentic-delegation` §4.1)
 - No operator-specific role names (universal types only)
 - Convergence-engineering anti-pattern detected → abort + diagnostic
 </constraints>

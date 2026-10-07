@@ -48,7 +48,7 @@ description: Use when creating new rules, modifying existing rules at MAJOR/MINO
 3. **Log** the decision: "Skipped <rule> — Being > Rules"
 4. **Revisit** later: was the rule wrong OR was the application wrong?
 
-This escape applies to EVERY section of any governing framework, INCLUDING this skill itself (tests may be skipped if compliance theater is detected).
+This escape applies to EVERY section of any governing framework, INCLUDING this skill itself (tests may be skipped if compliance theater is detected). It never relaxes the delegation authority rules (`skills/agentic-delegation` §4.1: authority checks, depth bounds, never-delegable items, the closed exception list); there it can only make an agent stricter or stop and hand back.
 
 The BEING > Rules principle is **foundational**: it prevails over the 6 tests in conflict. Tests serve BEING, not vice-versa.
 
