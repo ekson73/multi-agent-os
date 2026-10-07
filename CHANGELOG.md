@@ -11,12 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `protocols/delegation/delegation-dna-prompt.md` adds two optional lines to the
   auto-pilot DNA block: `depth_remaining` (0 = leaf) and `authority_scope` (a
-  subset of the parent's, never widened). A parent with a reduced budget must
-  pass `depth_remaining`; when absent it is derived from `depth`, never above
-  the parent's value − 1. A scope counts only if the parent wrote it; absent
-  scope = no authorization grant; a value exceeding the parent's is treated as
-  absent (fail-closed). Stated as prompt-level only. Rules live in
-  `skills/agentic-delegation` §4.1 (lands with #479; merge #479 first).
+  subset of the parent's, never widened). Every parent passes
+  `depth_remaining` (the root passes cap − 1); absent = leaf; a value not lower
+  than the parent's is invalid = leaf. A scope counts only if the parent wrote
+  it; absent scope = no authorization grant; a scope exceeding, contradicting
+  or not confirmable against the parent's is treated as absent (fail-closed).
+  The DNA Heritage block carries both fields, and `delegation-init-prompt.md`
+  lists `DEPTH_REMAINING` as a header line the delegator adds, so a child made
+  by `delegate.sh init` is not a leaf by accident. Stated as prompt-level only.
+  Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
+  first).
   `skills/auto-pilot` lists the two optional lines where it describes the block.
 - `tests/dogfood-auto-pilot.sh` cycle 3 checks the fields, their optional and
   fail-closed semantics, that `delegate.sh dna` still emits the v1.1 header, and

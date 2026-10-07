@@ -120,7 +120,7 @@ done
 # 3b. both are documented as optional, and absence is fail-closed (leaf, no extra authority)
 if grep -q "DNA Payload v1.2" "$DNA_PROMPT" \
    && grep -qi "optional" "$DNA_PROMPT" \
-   && grep -qi "with neither, leaf" "$DNA_PROMPT" \
+   && grep -qi "If absent, leaf" "$DNA_PROMPT" \
    && grep -qi "treated as absent (fail-closed)" "$DNA_PROMPT"; then
     pass "v1.2 fields documented as optional with fail-closed absence"
 else
