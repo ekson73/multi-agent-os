@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Agents that ignore the block still apply the §4.1 defaults, and the
   auto-pilot depth note points to the single cap; these lines match #479's
   text so the two PRs merge cleanly.
+  `delegate-governance` tells the delegator to add `DEPTH_REMAINING` (and
+  `AUTHORITY_SCOPE` when granting) after the `delegate.sh init` header, so the
+  canonical init path does not make every child a leaf.
   Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
   first).
   `skills/auto-pilot` lists the two optional lines where it describes the block.

@@ -160,7 +160,7 @@ its absence.
 Optional, same block:
 
 ```
-depth_remaining: <int ≥ 0; at most parent − 1>
+depth_remaining: <int ≥ 0; at most the parent's own value − 1>
 authority_scope: <what this child may decide; a subset of the parent's>
 ```
 
