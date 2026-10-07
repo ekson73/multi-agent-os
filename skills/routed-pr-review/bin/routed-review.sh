@@ -145,13 +145,19 @@ log "    head=$HEAD_SHA  \"$PR_TITLE\""
 # made any human whose login contains `claude`, `qodo`, `snyk`… a "primary",
 # and a human APPROVED would then land in CLEARED (the exact hazard above).
 KNOWN_BOTS_RE='^(coderabbitai|qodo-code-review|qodo-merge|qodo-merge-pro|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk-bot|snyk-io)(\[bot\])?$'
-# Logins the operator declared with --primary are primaries too, even when they
-# are not on the list above (another review bot). The login charset was
-# validated at parse time, so the alternation is safe to embed.
+# ⛔ When the operator declares --primary, THAT list is the configured set, and
+# primaries are classified against it alone. The earlier version unioned it
+# with the built-in list, so a bot the operator did not declare (a stale
+# walkthrough, a quota notice) still blocked convergence, while the CLI contract
+# says --primary defines the configured set. Undeclared bots are reported as
+# non-primary reviewers; an active CHANGES_REQUESTED from ANY reviewer still
+# blocks below (CHANGES_REQ reads every reviewer). Without --primary the
+# built-in list is used, and the gate HOLDS anyway (configured set undeclared).
+# The login charset was validated at parse time, so the alternation is safe.
 PRIMARY_RE="$KNOWN_BOTS_RE"
 if [ -n "$PRIMARIES" ]; then
   _declared="$(printf '%s' "$PRIMARIES" | tr ',' '\n' | sed -e 's/\[bot\]$//' | paste -sd '|' -)"
-  PRIMARY_RE="^(coderabbitai|qodo-code-review|qodo-merge|qodo-merge-pro|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk-bot|snyk-io|${_declared})(\\[bot\\])?\$"
+  PRIMARY_RE="^(${_declared})(\\[bot\\])?\$"
 fi
 # Computes every primary-derived variable from $PR_JSON. Called in Phase B and
 # again in Phase E, so an approval withdrawn during the review is seen.
@@ -223,7 +229,7 @@ fi
 compute_primaries
 
 log "[B] primaries(bots only) — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] declared-not-cleared:[${UNCLEARED_DECLARED:--}] changes_requested:$CHANGES_REQ"
-log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]"
+log "    non-primary reviewers (informational, never a primary): [${HUMAN_REVIEWS:--}]"
 
 # ------------------------------------------- Phase C: pick isolated reviewer
 # Cross-family preference: never route to the SAME provider family as the caller
@@ -288,6 +294,8 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   since="$(ts_epoch "$limited")" || return 1
   retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
   printf '%s' "$retry" | grep -qE '^[0-9]{1,5}$' || return 1
+  # base 10 explicitly: "09" from an untrusted state file is octal to bash
+  retry=$((10#$retry))
   [ "$retry" -le 86400 ] || return 1
   [ "$(date +%s)" -lt $(( since + retry )) ]
 }
@@ -308,6 +316,10 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
 BROKEN_TTL="${ROUTED_REVIEW_BROKEN_TTL_SEC:-86400}"
 printf '%s' "$BROKEN_TTL" | grep -qE '^[0-9]{1,6}$' || BROKEN_TTL=86400
 EXCLUDED=""          # families that already failed in THIS run (space-separated)
+ATTEMPTS=1           # reviewers dispatched in THIS run (never inherited from env)
+MAX_ATTEMPTS="${ROUTED_REVIEW_MAX_ATTEMPTS:-6}"
+case "$MAX_ATTEMPTS" in ""|*[!0-9]*) MAX_ATTEMPTS=6 ;; esac
+MAX_ATTEMPTS=$((10#$MAX_ATTEMPTS)); [ "$MAX_ATTEMPTS" -ge 1 ] || MAX_ATTEMPTS=6
 SKIPPED_JSON="[]"    # evidence of every fallthrough, emitted in --json output
 
 is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL (validated stamp only)
@@ -349,11 +361,29 @@ record_failure() {  # $1=bot $2=class $3=reason
   if [ -L "$STATE_FILE" ]; then log "    [warn] state file is a symlink — not writing through it"; return 0; fi
   # Serialize writers (concurrent routed-review runs share this file): a
   # mkdir mutex, bounded wait, stale lock reclaimed after 120s.
-  local lock="$STATE_FILE.lock" i=0
+  # ⛔ The lock must be a DIRECTORY. A stale regular file (or symlink) at the
+  # lock path made `mkdir` fail forever while `rmdir` could not reclaim it, and
+  # the old loop reset its counter on every "reclaim" — an unbounded spin.
+  # A non-directory is refused outright, and a stale lock is reclaimed at most
+  # once; total attempts are capped.
+  local lock="$STATE_FILE.lock" i=0 tries=0 reclaimed=0
+  if [ -e "$lock" ] || [ -L "$lock" ]; then
+    if [ -L "$lock" ] || [ ! -d "$lock" ]; then
+      log "    [warn] state lock path is not a directory — failure not recorded"; return 0
+    fi
+  fi
   until mkdir "$lock" 2>/dev/null; do
-    i=$((i+1))
+    i=$((i+1)); tries=$((tries+1))
+    if [ -L "$lock" ] || { [ -e "$lock" ] && [ ! -d "$lock" ]; }; then
+      log "    [warn] state lock path is not a directory — failure not recorded"; return 0
+    fi
+    if [ "$tries" -ge 120 ]; then
+      log "    [warn] state lock not acquired after $tries attempts — failure not recorded"; return 0
+    fi
     if [ "$i" -ge 50 ]; then
-      if [ -n "$(find "$lock" -maxdepth 0 -mmin +2 2>/dev/null)" ]; then rmdir "$lock" 2>/dev/null; i=0; continue; fi
+      if [ "$reclaimed" -eq 0 ] && [ -n "$(find "$lock" -maxdepth 0 -type d -mmin +2 2>/dev/null)" ]; then
+        reclaimed=1; rmdir "$lock" 2>/dev/null; i=0; continue
+      fi
       log "    [warn] state lock busy — failure not recorded"; return 0
     fi
     sleep 0.1
@@ -537,7 +567,6 @@ build_manifest() {  # $1=dir $2=out ; fails unless every file got a digest
 }
 
 build_readonly_export() {
-  command -v tar >/dev/null 2>&1 || die "tar not found — required for read-only export"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || die "not inside a git work tree — cannot build a read-only export"
   # Fetch from the repository --repo names, not whatever `origin` happens to
@@ -549,8 +578,22 @@ build_readonly_export() {
     || die "head $HEAD_SHA still absent after fetch"
   EXPORT_DIR="$WORK/tree"
   mkdir -p "$EXPORT_DIR"
-  git archive "$HEAD_SHA" | tar -x -C "$EXPORT_DIR" \
-    || die "git archive failed — cannot build a read-only export"
+  # ⛔ NOT `git archive`: it honours `export-ignore` / `export-subst` from the
+  # tree's .gitattributes, so a PR could hide a file from its own reviewer (or
+  # rewrite placeholders) just by marking it. A throwaway index + checkout-index
+  # writes every tracked path of HEAD_SHA, and neither attribute applies there.
+  local idx="$WORK/export.index"
+  GIT_INDEX_FILE="$idx" git read-tree "$HEAD_SHA" 2>/dev/null \
+    || die "read-tree failed — cannot build a read-only export"
+  GIT_INDEX_FILE="$idx" git -c core.autocrlf=false -c core.symlinks=true \
+      checkout-index -a -f --prefix="$EXPORT_DIR/" 2>/dev/null \
+    || die "checkout-index failed — cannot build a read-only export"
+  rm -f "$idx"
+  local _want _got
+  _want="$(git ls-tree -r --full-tree "$HEAD_SHA" | awk '$2=="blob"' | wc -l | tr -d ' ')"
+  _got="$( (cd "$EXPORT_DIR" && find . \( -type f -o -type l \)) | wc -l | tr -d ' ')"
+  [ "$_want" = "$_got" ] \
+    || die "export incomplete ($_got of $_want tracked files) — refusing a partial review"
   # manifest BEFORE locking, so the check covers content, not just mtimes
   build_manifest "$EXPORT_DIR" "$WORK/manifest.before" \
     || die "integrity manifest could not be built (no working sha256 tool?) — refusing to run an unverifiable review"
@@ -896,8 +939,12 @@ if [ "$RC" -eq 0 ] && [ "$REVIEW_BYTES" -ge 40 ]; then break; fi
 # No clean, substantive output => there is NO review. Never stamp an empty claim.
 FAIL_CLASS="$(classify_failure "$RC")"; FAIL_REASON="$(failure_reason "$RC")"
 log "[D] $CHOSEN produced ${REVIEW_BYTES}B (rc=$RC) — NO REVIEW (anti-theater); class=$FAIL_CLASS reason=$FAIL_REASON"
-# stderr is shown to the operator for diagnosis only; it is never persisted.
-[ -s "$WORK/err" ] && sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
+# ⛔ Raw reviewer stderr may carry a credential, and the caller's stderr is
+# persisted wherever it is captured (CI logs). Only the sanitized token above is
+# emitted by default; raw lines need an explicit local opt-in.
+if [ -s "$WORK/err" ] && [ "${ROUTED_REVIEW_DEBUG_STDERR:-0}" = 1 ]; then
+  sed 's/^/    stderr: /' "$WORK/err" | head -5 >&2
+fi
 record_failure "$CHOSEN" "$FAIL_CLASS" "$FAIL_REASON"
 SKIPPED_JSON="$(printf '%s' "$SKIPPED_JSON" | jq -c --arg b "$CHOSEN" --arg c "$FAIL_CLASS" \
   --arg r "$FAIL_REASON" --argjson rc "$RC" '. + [{reviewer:$b, class:$c, reason:$r, rc:$rc}]')"
@@ -912,6 +959,17 @@ if [ "$REVIEWER" != "auto" ]; then
 fi
 
 EXCLUDED="$EXCLUDED $CHOSEN"
+# Bounded rotation: at most MAX_ATTEMPTS different reviewers per run (the
+# agentic-delegation §8 ceiling of 6). Past it, the honest diagnostic below.
+ATTEMPTS=$((ATTEMPTS + 1))
+if [ "$ATTEMPTS" -gt "$MAX_ATTEMPTS" ]; then
+  log "[C] attempt ceiling ($MAX_ATTEMPTS) reached — emitting honest diagnostic, NOT a review"
+  [ "$JSON" -eq 1 ] && jq -nc --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" \
+      --argjson sk "$SKIPPED_JSON" \
+      '{status:"no_reviewer",reason:"attempt_ceiling",repo:$repo,pr:($pr|tonumber),head:$head,skipped_candidates:$sk,
+        diversity_limb:"unsatisfied",primary_verdict:"unknown",may_complete_c3:false}'
+  exit 2
+fi
 reset_isolation
 CHOSEN="$(pick_reviewer)" || {
   log "[C] no candidate left after the fallthrough — emitting honest diagnostic, NOT a review"
@@ -1070,7 +1128,7 @@ COMMENT_F="$WORK/comment.md"
   printf 'Head reviewed: `%s`\n' "$HEAD_SHA"
   printf 'Context isolation: fresh OS process, no delegator history.\n'
   printf 'Read-only enforcement: `%s` (%s)\n' "$ENFORCEMENT" \
-    "$(case "$ENFORCEMENT" in vendor+os*) printf 'CLI sandbox/tool restriction over a disposable git-archive export of the head' ;; *) printf 'disposable git-archive export, chmod a-w, no .git' ;; esac)"
+    "$(case "$ENFORCEMENT" in vendor+os*) printf 'CLI sandbox/tool restriction over a disposable export of every tracked path of the head' ;; *) printf 'disposable export of every tracked path, chmod a-w, no .git' ;; esac)"
   printf 'Post-run tamper check: `%s`\n' "$TAMPER"
   printf 'Diff truncated: %s\n\n' "$TRUNCATED"
   printf '%s\n\n' "$VERDICT_LINE"

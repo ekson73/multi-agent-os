@@ -35,6 +35,7 @@ writes but does not prevent them), and it reports what a routed review does and 
 
 Your review criteria remain the reusable part; the isolation is what you cannot
 provide about yourself.
+
 ---
 
 *Signed: `Claude-Dev-0414-001` (Claude Opus 5) | 2026-09-03T15:33:49-03:00*

@@ -189,9 +189,12 @@ whose output then carried a host memory preamble). Review the output before
 posting on a public repository, or run the reviewer under a profile without
 host hooks.
 
-⚠️ **Requirement — run inside a git work tree.** The export is built with
-`git archive`, so the caller's cwd must be inside a git repository, even with
-`--repo`. If the head commit is missing, it is fetched from `--repo` into that
+⚠️ **Requirement — run inside a git work tree.** The export is built from a
+throwaway index (`read-tree` + `checkout-index`), so the caller's cwd must be
+inside a git repository, even with `--repo`. It is deliberately **not** `git
+archive`: that honours `export-ignore`/`export-subst` from the PR's own
+`.gitattributes`, which would let a change hide a file from its reviewer. The
+export is checked to contain every tracked path of the head. If the head commit is missing, it is fetched from `--repo` into that
 repository's object store.
 
 Two native review paths were found during the probe and are **not** wrapped by
@@ -213,11 +216,11 @@ These run the **real script end-to-end** against a stub `PATH`, so they assert
 the path.
 
 No network, no real reviewer, no real `gh`: a temp one-commit git repo supplies
-a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
+a genuine `HEAD_SHA` (the script fetches and exports it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**59 cases · 70 assertions** (several cases assert an exit code *and* a field or
+**67 cases · 80 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
@@ -279,10 +282,14 @@ pattern this harness exists to end.
      recorded nowhere.
 
    In auto mode the run then **falls through** to the next family, and every
-   skipped candidate is listed in `skipped_candidates` in the JSON. An explicit
+   skipped candidate is listed in `skipped_candidates` in the JSON. The
+   rotation is bounded: at most 6 reviewers are dispatched per run (the
+   `agentic-delegation` §8 ceiling; `ROUTED_REVIEW_MAX_ATTEMPTS` overrides it),
+   after which the run exits `2` with `reason:"attempt_ceiling"`. An explicit
    `--reviewer` is the operator's choice: it is classified (`failure_class`)
-   and exits `2`, never silently swapped. Raw stderr is shown for diagnosis but
-   never persisted — it may carry secrets.
+   and exits `2`, never silently swapped. Raw stderr may carry secrets,
+   so only the sanitized failure token is printed; the raw lines need an
+   explicit local opt-in (`ROUTED_REVIEW_DEBUG_STDERR=1`).
 2. **Truncation is declared.** A diff over the cap is cut and `diff_truncated:
    yes` rides in the comment and the JSON.
 3. **Rotation state is out of the reviewer's reach, and is never trusted.**
