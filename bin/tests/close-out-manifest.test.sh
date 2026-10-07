@@ -120,11 +120,12 @@ OUT="$(chk "$TMP/m-pt.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'partial-title'; then ok "PARTIAL without PARTIAL title ⇒ rc 2"; else bad "PARTIAL must be in the title" "rc=$RC out=$OUT"; fi
 
 # FEAT-17/22: indexed local paths must exist and must not be ephemeral unless declared so
-# durable paths that need no write: this suite's own directory (a repo path, not a temp area)
-{ cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$SCRIPT_DIR"; } > "$TMP/m-ok.md"
+# durable paths: the fixture dir (outside the checkout and outside temp roots, so the suite
+# also passes when the checkout itself lives under $TMPDIR)
+{ cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$MDIR"; } > "$TMP/m-ok.md"
 chk "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "existing indexed path passes"; else bad "existing indexed path should pass" "rc=$RC"; fi
-{ cat "$TMP/m.md"; printf -- '- gone: `%s/does-not-exist.md`\n' "$SCRIPT_DIR"; } > "$TMP/m-broken.md"
+{ cat "$TMP/m.md"; printf -- '- gone: `%s/does-not-exist.md`\n' "$MDIR"; } > "$TMP/m-broken.md"
 OUT="$(chk "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'broken-link'; then ok "broken indexed path ⇒ rc 2"; else bad "broken path should fail" "rc=$RC out=$OUT"; fi
 { cat "$TMP/m.md"; printf -- '- note: `/tmp`\n'; } > "$TMP/m-eph.md"
@@ -366,12 +367,18 @@ for _ in 1 2 3 4; do
   case "$(ps -o command= -p "$p" 2>/dev/null)" in *"$CM_UNDER_TEST"*) top="$p" ;; *) [ -n "$top" ] && break ;; esac
   p="$(ps -o ppid= -p "$p" | tr -d ' ')"
 done
-[ -n "$top" ] && kill -INT "$top"
+[ -n "$top" ] && kill -INT "$top" && exit 1
+: > "$INTSCAN_NOPID" # could not find the process to interrupt: the harness, not the script, failed
 exit 1
 EOF
 chmod +x "$TMP/intscan"
-CM_UNDER_TEST="$CM" TMPDIR="$T3" MAOS_SECRET_SCANNER="$TMP/intscan" bash "$CM" persist --dest "$TMP/dr3" --src "$TMP/r3src/a.md" --apply >/dev/null 2>&1; RC=$?
-if [ "$RC" -eq 130 ] && clean_dir "$T3" && [ ! -e "$TMP/dr3/a.md" ]; then ok "SIGINT mid-scan: rc 130, no residue"; else bad "SIGINT mid-scan left residue or wrong rc" "rc=$RC left=$(ls -A "$T3" 2>/dev/null | tr '\n' ' ')"; fi
+if ! command -v ps >/dev/null 2>&1 || [ -z "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" ]; then
+  echo "  ⏭  ps absent or unusable — SIGINT case skipped"
+else
+  CM_UNDER_TEST="$CM" INTSCAN_NOPID="$TMP/intscan.nopid" TMPDIR="$T3" MAOS_SECRET_SCANNER="$TMP/intscan" bash "$CM" persist --dest "$TMP/dr3" --src "$TMP/r3src/a.md" --apply >/dev/null 2>&1; RC=$?
+  if [ -e "$TMP/intscan.nopid" ]; then echo "  ⏭  ps did not resolve the script pid — SIGINT case skipped"
+  elif [ "$RC" -eq 130 ] && clean_dir "$T3" && [ ! -e "$TMP/dr3/a.md" ]; then ok "SIGINT mid-scan: rc 130, no residue"; else bad "SIGINT mid-scan left residue or wrong rc" "rc=$RC left=$(ls -A "$T3" 2>/dev/null | tr '\n' ' ')"; fi
+fi
 
 # R4 clip read-back never writes the handoff content to a temp file, even when terminated
 # (TERM, not INT: bash swallows an INT that arrives while a child exits normally)
@@ -441,7 +448,15 @@ mkdir -p "$TMP/rr1bin" "$TMP/rr1"; REAL_AWK="$(command -v awk)"
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *.norm|*.flat) exit 127 ;; esac; done\nexec "%s" "$@"\n' "$REAL_AWK" > "$TMP/rr1bin/awk"; chmod +x "$TMP/rr1bin/awk"
 printf 'doc %s end\n' "$CPF" > "$TMP/rr1/a.md"
 OUT="$(PATH="$TMP/rr1bin:$PATH" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/rr1d" --src "$TMP/rr1/a.md" --apply 2>&1)"; RC=$?
-if [ "$RC" -ne 0 ] && [ ! -e "$TMP/rr1d/a.md" ]; then ok "PII scanner error blocks persistence (fail-closed)"; else bad "PII scanner error must block" "rc=$RC out=$OUT"; fi
+if [ "$RC" -ne 0 ] && [ ! -e "$TMP/rr1d/a.md" ]; then ok "PII engine broken everywhere: the positive control blocks (rc 3)"; else bad "PII scanner error must block" "rc=$RC out=$OUT"; fi
+# R1b isolates the source-scan branch: the engine works on the controls (they pass) and
+# errors only on the real source, whose text holds no PII-regex match ⇒ the awk rc decides
+mkdir -p "$TMP/rr1bbin"
+# shellcheck disable=SC2016  # the shim's $@ / $a must reach the generated script unexpanded
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in */ctl.norm|*/ctl.flat) ;; *.norm|*.flat) exit 2 ;; esac; done\nexec "%s" "$@"\n' "$REAL_AWK" > "$TMP/rr1bbin/awk"; chmod +x "$TMP/rr1bbin/awk"
+printf 'plain notes, nothing personal\n' > "$TMP/rr1/b.md"
+OUT="$(PATH="$TMP/rr1bbin:$PATH" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/rr1bd" --src "$TMP/rr1/b.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -ne 0 ] && [ ! -e "$TMP/rr1bd/b.md" ] && printf '%s' "$OUT" | grep -q 'refused-pii-scan-error'; then ok "PII scanner error on the source (controls ok) ⇒ refused-pii-scan-error"; else bad "PII scan error on the source must be refused, never read as clean" "rc=$RC out=$OUT"; fi
 
 # R2 indexed paths are checked at their real destination: /private/var/tmp and a symlink into temp refused
 printf 'x\n' > "$TMP/rr2-target.md"; ln -s "$TMP/rr2-target.md" "$MDIR/rr2-link.md"
