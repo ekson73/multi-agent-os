@@ -120,6 +120,19 @@ exit "${T_GEMINI_RC:-2}"
 STUB
 chmod +x "$GEM_BIN/gemini"
 
+# A `codex` that, like the real CLI, refuses to run outside a git repository
+# unless it gets --skip-git-repo-check. The reviewer reads a git-less export.
+CODEX_BIN="$SANDBOX/codex"; mkdir -p "$CODEX_BIN"
+cat > "$CODEX_BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+case " $* " in *" --skip-git-repo-check "*) ;; *)
+  echo "Not inside a trusted directory and --skip-git-repo-check was not specified." >&2; exit 1 ;;
+esac
+cat >/dev/null
+printf '%s\n' "${T_REVIEW_BODY:-}"
+STUB
+chmod +x "$CODEX_BIN/codex"
+
 # ---------------------------------------------------------------- assertions
 # Run the REAL script against the stub PATH. Per-case fixtures are passed as an
 # env prefix (`T_REVIEWS=… sut`) — bash applies those to the function call, so
@@ -516,6 +529,11 @@ check "an approval at head supersedes the same bot's old quota comment" 0 '.may_
 # ── 40 ── --primary and --no-primary-configured are contradictory.
 OUT="$(EXTRA_ARGS="--primary coderabbitai --no-primary-configured" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "contradictory primary flags are refused" 1
+
+# ── 41 ── codex reviews the git-less export (found by the H6 red-team run).
+OUT="$(EXTRA_BIN="$CODEX_BIN" RV=codex T_REVIEWS='[]' T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "codex runs in the export without a .git" 3 '.routed_verdict' "pass"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"

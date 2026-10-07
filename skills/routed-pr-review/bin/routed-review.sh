@@ -652,8 +652,9 @@ run_reviewer() {
         --allowedTools "Read" "Grep" "Glob" \
         --add-dir "$dir" ) < "$PROMPT_F" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
-      # `-` = read the instructions from stdin (keeps the diff out of argv)
-      "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" - \
+      # `-` = read the instructions from stdin (keeps the diff out of argv).
+      # The export has no .git, so codex needs --skip-git-repo-check to run there.
+      "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" codex exec --sandbox read-only --skip-git-repo-check --cd "$dir" - \
         < "$PROMPT_F" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
       ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
