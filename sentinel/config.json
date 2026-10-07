@@ -19,8 +19,8 @@
       }
     },
     "depth": {
-      "max_delegation_depth": 3,
-      "description": "Maximum allowed delegation chain depth",
+      "max_delegation_depth": 2,
+      "description": "Maximum allowed delegation chain depth (SSOT: skills/agentic-delegation §8)",
       "valid_range": {
         "min": 2,
         "max": 5

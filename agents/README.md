@@ -158,7 +158,7 @@ Note: The frontmatter `name` is a conceptual identifier. Use actual Task tool ty
 Orchestrator (root)
 ├── Sentinel Monitor (background)
 ├── Sub-Agent 1
-│   └── Sub-Sub-Agent 1.1 (max depth 3)
+│   └── Sub-Sub-Agent 1.1 (max depth 2 — `skills/agentic-delegation` §8)
 ├── Sub-Agent 2
 └── Consolidator (synthesis)
 ```
