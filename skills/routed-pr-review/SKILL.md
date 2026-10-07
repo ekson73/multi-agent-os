@@ -162,7 +162,7 @@ the isolation claim instead of believing it.
 
 | harness | invocation | enforcement class | evidence |
 |---|---|---|---|
-| `codex` | `codex exec --sandbox read-only --cd DIR -` (prompt on stdin) | `vendor+os` — sandbox | proven (`--cd` and stdin `-` measured) |
+| `codex` | `codex exec --sandbox read-only --skip-git-repo-check --cd DIR -` (prompt on stdin; the export has no `.git`) | `vendor+os` — sandbox | proven (`--cd` and stdin `-` measured) |
 | `claude` | `cd DIR && claude -p --max-turns N --allowedTools Read Grep Glob --add-dir DIR` (prompt on stdin) | `vendor+os` — tool allowlist **+ cwd** | proven; the `cd` is load-bearing — `--add-dir` grants access but never moves the working directory, so without it the reviewer read the caller's `$PWD` while the stamp asserted `HEAD_SHA` (found by a routed `kimi` review of this tool on #414) |
 | `grok` | `grok -p` (cwd-scoped) | `os` — locked export (`--allow-rule` exists but is **not passed**) | measured |
 | `gemini` | `gemini -p` (cwd-scoped) | `os` — locked export | measured |
@@ -205,7 +205,7 @@ a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**40 cases · 51 assertions** (several cases assert an exit code *and* a field or
+**41 cases · 52 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.

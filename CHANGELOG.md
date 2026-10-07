@@ -31,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   live-repo check hashes content, not status lines; `claude` and `codex` get the
   prompt on stdin; `gtimeout` is accepted where `timeout` is missing; the PR
   head is fetched from `--repo`; `kiro` is invoked as `kiro-cli`.
-- `tests/contract.sh` — +12 cases (29-40), 40 cases / 51 assertions.
+- `codex` gets `--skip-git-repo-check`, since the export has no `.git` (found by the H6 red-team run on this PR).
+- `tests/contract.sh` — +13 cases (29-41), 41 cases / 52 assertions.
 
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 
