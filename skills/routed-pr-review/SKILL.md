@@ -54,10 +54,10 @@ Five phases:
 | phase | what | grounding |
 |---|---|---|
 | **A** resolve | PR, title, `headRefOid`, diff | `gh` |
-| **B** primary probe | classify every known review bot (**exact** login match, never a substring) that has spoken on this PR: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled (unless the same bot has since approved this head) · changes-requested. The configured set comes from `--primary`; a declared primary that has not spoken is **pending**. Absence is never inferred — it is an operator attestation (`--no-primary-configured`) | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
+| **B** primary probe | classify every known review bot (**exact** login match, never a substring) that has spoken on this PR: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled (unless the same bot has since approved this head) · changes-requested. The configured set comes from `--primary` (a declared login counts even if it is not a built-in bot); a declared primary that has not spoken is **pending**. An active `CHANGES_REQUESTED` from **any** reviewer, human included, blocks. Absence is never inferred — it is an operator attestation (`--no-primary-configured`) | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
 | **C** pick reviewer | capability-detect `command -v`, skip bots expired or broken in the rotation state file (`ROUTED_REVIEW_STATE`), **exclude the caller's provider family** (not just its binary name) | `ai-code-review-bots-rotation.md` §2/§3 |
 | **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
-| **E** gate verdict | re-read the PR head; emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
+| **E** gate verdict | re-read the PR (head **and** reviews) and recompute the primaries; take the routed verdict only from the terminal line; emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
 
 ## The gate contract — the part that matters most
 
@@ -205,7 +205,7 @@ a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**41 cases · 52 assertions** (several cases assert an exit code *and* a field or
+**48 cases · 59 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
