@@ -162,11 +162,15 @@ cmd_check() {
   elif ! { [ -f "$mp" ] && { [ "$mp" -ef "$manifest" ] || cmp -s "$mp" "$manifest"; }; }; then
     missing="${missing}manifest-path-mismatch;" # must resolve to the manifest being checked
   fi
-  for k in "Instruction tree" "HITL decisions" "Roadmap" "Artifact index"; do
+  local content="Instruction tree|HITL decisions|Roadmap|Artifact index"
+  [ "$strict" -eq 0 ] || content="$content|$STRICT_SECTIONS"
+  local IFS='|'
+  for k in $content; do
     if grep -qiE "^##[[:space:]]+$k[[:space:]]*$" "$manifest" && section_body_empty "$manifest" "$k"; then
       missing="${missing}empty-section:${k};"
     fi
   done
+  unset IFS
   # FEAT-16: the recovery triple must hold together, not just be present
   local sid link cmd tr
   sid="$(field "$manifest" Recovery session_id)"; link="$(field "$manifest" Recovery link)"
@@ -267,7 +271,27 @@ secret_hit() { # rc 0 = hit on any view
   for v in "$1" "$1.norm" "$1.flat"; do scan_one "$v" || return 0; done
   return 1
 }
-pii_hit() { grep -qE "$PII_RE" "$1.norm" || grep -qE "$PII_RE" "$1.flat"; }
+# Unformatted CPF: an isolated run of exactly 11 digits whose two check digits are valid
+# (checksum keeps ids and timestamps out; all-equal digits are not a real CPF).
+cpf_bare_hit() {
+  awk '{
+    line = $0
+    while (match(line, /[0-9]+/)) {
+      d = substr(line, RSTART, RLENGTH); line = substr(line, RSTART + RLENGTH)
+      if (length(d) != 11) continue
+      same = 1; for (i = 2; i <= 11; i++) if (substr(d, i, 1) != substr(d, 1, 1)) same = 0
+      if (same) continue
+      s = 0; for (i = 1; i <= 9; i++) s += substr(d, i, 1) * (11 - i)
+      c1 = (s * 10) % 11; if (c1 == 10) c1 = 0
+      s = 0; for (i = 1; i <= 9; i++) s += substr(d, i, 1) * (12 - i); s += c1 * 2
+      c2 = (s * 10) % 11; if (c2 == 10) c2 = 0
+      if (c1 == substr(d, 10, 1) && c2 == substr(d, 11, 1)) { hit = 1; exit }
+    }
+  } END { exit hit ? 0 : 1 }' "$1"
+}
+pii_hit() {
+  grep -qE "$PII_RE" "$1.norm" || grep -qE "$PII_RE" "$1.flat" || cpf_bare_hit "$1.norm" || cpf_bare_hit "$1.flat"
+}
 is_binary() { ! tr -d '\000' < "$1" | cmp -s - "$1"; }
 
 cmd_persist() {
