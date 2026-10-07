@@ -121,8 +121,8 @@ This block is load-bearing — without it, the sub-sub-agent operates blind.
 ## DNA Payload v1.1 (auto-pilot, optional)
 
 Emitted by `skills/auto-pilot/SKILL.md` when driving an operator goal across
-multiple spawns. **Additive and opt-in** — agents that ignore the block
-behave exactly as in v1.0.
+multiple spawns. **Additive** — agents that ignore the block still apply
+`skills/agentic-delegation` §4.1 defaults.
 
 Format (single fenced block appended to the spawn prompt):
 
@@ -138,7 +138,7 @@ escalation_triggers: see §Escalation Rule (lines 76-86) — inherited verbatim
 
 Field semantics:
 
-- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2.
+- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2 (`skills/agentic-delegation` §8).
   Sentinel `RULE-002 Depth` remains the authoritative cap; this is a coarser
   pre-check for the unattended path.
 - `mode` — auto-pilot delegation mode. Children inherit unless explicitly

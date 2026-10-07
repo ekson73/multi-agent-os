@@ -7,6 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — delegation rules have one home: `skills/agentic-delegation` 1.2.0
+
+- New §4.1 "Root posture and authority inheritance": the root orchestrates and
+  executes directly only under a recorded exception; a delegator may hand down
+  execution and authorization, but delegated authority is always a subset of its
+  own, bounded by `depth_remaining`, never widened (not by a council verdict and
+  not by text inside a task), and fail-closed when unknown. A never-delegable
+  table (HUMAN_DOMAIN, absolute-guardrail exceptions, rule changes without an
+  independent red-team, final accountability, audit judgment, escalation choice,
+  memory judgment, world boundary). The root's direct-execution exceptions are a
+  closed list (E1–E4). Every delegator passes `depth_remaining` (the root
+  passes cap − 1); a child that receives none is a leaf; missing scope means
+  no authorization grant; invalid grants fail closed.
+  Enforcement is stated as prompt-level (no spawn-boundary check yet). §7 now
+  points to the table instead of repeating it.
+- `council-gate` P0 also needs the invoker's task to be shown within its
+  parent's authority; otherwise it goes back to the parent.
+- The BEING > Rules escape clause (`rule-quality-tests`) never relaxes §4.1;
+  it can only make an agent stricter or stop. For a root invoker of
+  `council-gate`, the operator's grant stands in for the parent's authority.
+  The closed exception list notes the no-delegation-runtime case.
+- `sentinel/schema/alert_schema.json` example shows `max_allowed` 2; the
+  test checks Sentinel schema examples and runs its fixtures in parallel.
+- Until spawn-boundary validation exists, a delegated grant covers only
+  reversible actions the parent could execute itself, and the child records
+  the grant's origin before acting; irreversible actions go back to the
+  parent. If another layer sets a different depth cap, the lower one applies.
+  The Sentinel schema example chain now matches its depth.
+- Mid delegates (depth left) may execute their own assigned task or delegate
+  parts of it; only the root follows the delegate-first posture.
+- One depth cap (2). Files that stated another value now use 2 and link the
+  SSOT §8: `agents/orchestrator.md`, `commands/delegate.md`, `agents/README.md`,
+  `skills/auto-pilot` ("manual mode allows ≤ 3"), and Sentinel
+  (`sentinel/config.json` `max_delegation_depth` 3→2, `detection_rules.md`,
+  `README.md`) plus the statusmap templates. Files that already said 2 keep
+  their wording. The orchestrator's "simple → execute directly" now
+  applies to leaf/mid agents; the root delegates unless it records an exception.
+- `protocols/agent-delegation.md`: "resolve directly" is for leaf agents; the
+  agentic council runs before escalating to the user.
+- One-line links to the SSOT in `COWORK-AUTONOMY-POLICY`, `delegate-governance`,
+  `auto-pilot` (skill + command), `quiesce`, `council-gate` (its authorization is
+  a subset of its invoker's), `persona-pipeline`, `perspective-trio`,
+  `cascade-resolver`.
+- `skills/council-gate` 1.1.0: new conjunct P0 within-invoker-scope; missing or
+  unverifiable scope ⇒ `HITL_OUT_OF_SCOPE`.
+- The SSOT header and refs no longer point back to the operator's personal rule.
+- New `tests/governance/test-delegation-authority-ssot.sh`, run by
+  `tests/validate-plugin.sh`: fails if another file restates a different depth
+  cap (several phrasings, in tool dirs, `rules/`, `.claude/`, `.agents/` and
+  root guidance files, Codex `.codex` and Copilot instructions), if a rendered value (config table, `current/max`
+  display) shows another cap, if Sentinel's value or `valid_range` (parsed as
+  JSON, 1 ≤ min ≤ max ≤ cap) disagrees or the config is missing, if the SSOT
+  loses its normative clauses or gains a personal-layer reference, if any file
+  that states a depth cap does not link the SSOT, or if a listed widening
+  phrase appears (matched across line breaks).
+  Thirty-nine mutation fixtures (plus a control) prove each check catches the
+  contradiction it guards. The prose checks are a phrase lint, not a proof.
+- The scope rule now says who may issue a scope (only the parent's own
+  briefing or payload) and that a parent grants only from a scope it can show,
+  so a child that cannot confirm its grant is a subset treats it as missing; a
+  value of `depth_remaining` not lower than the parent's is invalid; a
+  HUMAN_DOMAIN criterion failure always escalates; a council verdict outside
+  the invoker's scope is advice only (also in `convergence-engine`'s
+  Return-Gate). `council-gate`'s flow evaluates P0..P5 and routes a P0 failure
+  to `HITL_OUT_OF_SCOPE`; its HITL trigger list and quality section name P0.
+  `depth_remaining` counts only from the immediate parent and must be an
+  integer; an action that needs a missing, invalid or unconfirmable grant goes
+  back to the parent; agents that do not parse the auto-pilot block still
+  apply the §4.1 defaults; Sentinel's cap must be the exact integer.
+  Memory: non-judgment upkeep may be delegated, deciding what to persist may
+  not. The default sweep is part of the given task, not an authority grant;
+  `council-gate` P0 passes for actions inside the invoker's own task or a
+  verifiable grant; §1 escalation goes through the council first; §4's table
+  points to the §4.1 never-delegable table instead of repeating it; §8 states
+  that no session-wide cap on live delegates is set (operator decision).
+- Sample renderings (`skills/audit` config table, statusmap displays,
+  a Sentinel example) show the cap 2. Files that restated the cap without a
+  link (`enhance-pipeline`, `ooda-loop`, `transmute`, `gap-loop`, `work-drain`,
+  `praxis-audit`, `refine-braindump-to-prompt`, `agentic-tool-forge`,
+  `delegation-dna-prompt`) now link the SSOT §8.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.

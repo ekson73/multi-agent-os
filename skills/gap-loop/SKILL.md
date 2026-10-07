@@ -228,7 +228,7 @@ The four self-* flags map onto EXISTING primitives (invoke, don't invent); they 
 
 - `--max-iterations` (default 6) caps loop rounds; same-panel re-run is FORBIDDEN (rotate or escalate).
 - Worktree discipline always on (`skills/worktree-policy`); never commit to main.
-- Delegation depth <= 2; Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
+- Delegation depth <= 2 (`skills/agentic-delegation` §8); Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
 - VALIDATE experts MUST differ from RESOLVE experts (verifier != generator — `convergence-engine` master condition).
 - Exactly ONE STOP marker per turn.
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets/PII, force-push protected, prod/irreversible,
