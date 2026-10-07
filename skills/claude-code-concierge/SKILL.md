@@ -31,6 +31,7 @@ evals:
     - "Run the actual multi-agent orchestration (route to auto-pilot / orchestrator)"
     - "Onboard onto the MAOS framework, ASH, or OpenClaw (route to maos-concierge / walkthrough-concierge / openclaw-concierge)"
     - "Reach Atlassian / Jira / Confluence (route to maos-mcp-hub gateways)"
+    - "Configure the same MCP server in Codex/Gemini/Cursor/Kiro/other non-Claude harnesses (route to harness-concierge — sibling Dragoman)"
     - "Reimplement or wrap an existing skill / MCP (DRY — they exist; I orient)"
 ---
 
@@ -92,6 +93,7 @@ Detect which platform surfaces are present before orienting/installing. Degrade 
 | **Session lifecycle (start/recap/converge/handoff)** | — | — | session hygiene | `preflight`·`morning-briefing`·`pulse`·`quiesce`·`postflight`·`recap` |
 | **See my whole state (sessions/MCPs/plugins/worktrees)** | — | — | human observability | `--dashboard` |
 | **Verify my config is healthy** | — | — | read-only audit | `--health-check` |
+| **MCP/config for ANOTHER harness, or one MCP SSOT across many harnesses** | per harness | — | harness registry + dated facts | `harness-concierge` (sibling Dragoman) → `bin/harness-mcp-sync` |
 
 ## The 8 Modes (flag-surface)
 

@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory refresh 2026-08-25**: table below is generated from each skill's frontmatter `description` (87 skills; `openrig-concierge` added by hand 2026-09-23). Dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies).
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-02**: the table lists 92 git-tracked top-level skills, including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (88)
+## Available Skills (92)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -51,9 +51,11 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `founder-stage-scale` | `founder-stage-scale/SKILL.md` | Scale-stage discipline for an AI-native startup: build systematic, mature-org growth and a defensible moat while keeping the lean AI-centered structur |
 | `gap-loop` | `gap-loop/SKILL.md` | Harness-agnostic, self-driven, self-scored condition-loop that drives a GAP-REGISTER (G1..Gn) to convergence — loops until [every gap dispositioned (f |
 | `goal-recovery` | `goal-recovery/SKILL.md` | Recover a work session's real INTENT from its own live/context state — motivations, DoR, context, scope, and the objective tree {originating, primary, |
+| `harness-concierge` | `harness-concierge/SKILL.md` | Researched expert on ~40 AI-coding harnesses (MCP config paths/formats/CLIs); drives `bin/harness-mcp-sync` to plan/apply/verify one MCP SSOT across all of them. Soul-name Dragoman |
 | `hierarchical-merge` | `hierarchical-merge/SKILL.md` | Enforce hierarchical merge protocol - branches merge to parent, not directly to main |
 | `ichnos` | `ichnos/SKILL.md` | Use to apply Google-Analytics-style usage analytics to our OWN agentic-tools corpus — attribution (how was a skill actually reached: a direct /command |
 | `lens-dispatch` | `lens-dispatch/SKILL.md` | Deterministic dispatcher of cognitive lens-stacks per work-graph node. |
+| `live-session-continuity-recovery` | `live-session-continuity-recovery/SKILL.md` | Reconstruct the exact active conversation's intent and current work state with source-coverage checks, ordered corrections, evidence, a bounded review, and one next action after context loss. |
 | `maos-concierge` | `maos-concierge/SKILL.md` | Concierge / onboarding / guide / router / capability-detector / governance-anchor for the ENTIRE Multi-Agent OS (MAOS) framework — its agents, skills, |
 | `memory-gateway` | `memory-gateway/SKILL.md` | Use when creating, updating, superseding, archiving, reading, searching, or walking the persistent memory corpus. |
 | `morning-briefing` | `morning-briefing/SKILL.md` | Deterministic SitRep briefing of operator work state (repos/PRs/tasks/memory) for fast context restore. |
@@ -80,9 +82,11 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `research-dossier` | `research-dossier/SKILL.md` | Turn finished research into a decision-ready visual dossier — html, md, json, and hand-offs to pdf/pptx/xlsx — routed through an intermediate represen |
 | `response-compression` | `response-compression/SKILL.md` | Controls output verbosity. |
 | `reveng` | `reveng/SKILL.md` | Use to REVERSE-ENGINEER source code into an OpenSpec SPEC model (the as-built behavioral contract) — e.g. |
+| `roadmap-tree-projector` | `roadmap-tree-projector/SKILL.md` | Use when you need to SEE the whole roadmap as a dependency graph — projects the N-Tree from a durable versioned SSOT (dependency EDGES + analysis LENSES) with status MEASURED at the source; hybrid + world-aware. |
 | `rule-quality-tests` | `rule-quality-tests/SKILL.md` | Use when creating new rules, modifying existing rules at MAJOR/MINOR version bump, OR when operator says "audit this rule" / "check rule quality" / "v |
 | `session-fission` | `session-fission/SKILL.md` | On-demand splitter for a tangled Claude session. |
 | `session-reentry` | `session-reentry/SKILL.md` | Cold/foreign-thread RE-ENTRY orchestrator (soul-name Anamnesis). |
+| `session-to-vault` | `session-to-vault/SKILL.md` | Preserve an agent session's history as a durable, dated, tagged note in a markdown vault, optionally casting it into a human-readable medium; does not reseed the session or decide what to do next. |
 | `signoff` | `signoff/SKILL.md` | The operator's END-OF-SESSION SIGN-OFF (encerramento) verb — invoked when you are DONE and want the session closed out AND its pending work left disco |
 | `skill-writer` | `skill-writer/SKILL.md` | Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). |
 | `slm-routing` | `slm-routing/SKILL.md` | Declarative decision rubric for routing AI work between a small local language model (SLM) and a remote frontier LLM. |
@@ -102,11 +106,12 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 ## Skill families (by name-cluster)
 
 - **Agentic-tool lifecycle**: `agentic-tool-forge` (genesis) · `agentic-tool-intake` (adopt-or-not) · `agentic-tool-evaluator` (score/QA) · `agentic-tool-trainer` (improve/distill) · `agentic-tool-pipeline` (conductor)
-- **Session lifecycle**: `preflight` → `morning-briefing` → `postflight` (+ `quiesce` · `signoff` · `sync-to-git` · `session-fission` · `session-reentry` · `reactivate` · `context-prep`)
-- **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
+- **Session lifecycle**: `preflight` → `morning-briefing` → `postflight` (+ `quiesce` · `signoff` · `sync-to-git` · `session-fission` · `session-reentry` · `live-session-continuity-recovery` · `session-to-vault` · `reactivate` · `context-prep`)
+- **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
-- **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `auto-pilot`
+- **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
+- **Roadmap & prioritization**: `roadmap-tree-projector` · `eisenhower-matrix` · `work-compass`
 
 ## Inter-dependency graph (core families)
 
