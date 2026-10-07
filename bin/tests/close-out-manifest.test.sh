@@ -50,76 +50,94 @@ manifest_path: /durable/close-out-manifest.md
 EOF
 }
 
+# chk: point manifest_path at the file under test (self-location must resolve), then check it
+chk() {
+  local f="$1"; shift
+  sed "s#^manifest_path: .*#manifest_path: $f#" "$f" > "$f.loc" && mv "$f.loc" "$f"
+  bash "$CM" check --manifest "$f" "$@"
+}
+
 echo "── close-out-manifest: check"
 full_manifest > "$TMP/m.md"
-if bash "$CM" check --manifest "$TMP/m.md" >/dev/null 2>&1; then ok "complete manifest passes"; else bad "complete manifest should pass" "rc=$?"; fi
+if chk "$TMP/m.md" >/dev/null 2>&1; then ok "complete manifest passes"; else bad "complete manifest should pass" "rc=$?"; fi
 
 grep -v '^## Artifact index' "$TMP/m.md" > "$TMP/m-noidx.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-noidx.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-noidx.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'Artifact index'; then ok "missing section ⇒ rc 2 and named"; else bad "missing section should fail rc 2" "rc=$RC out=$OUT"; fi
 
 sed 's/^command: .*/command:/' "$TMP/m.md" > "$TMP/m-nocmd.md"
-bash "$CM" check --manifest "$TMP/m-nocmd.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-nocmd.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "empty recovery command ⇒ rc 2"; else bad "empty recovery command should fail" "rc=$RC"; fi
 
 sed 's/^delegates_gate: PASS/delegates_gate: PENDING/' "$TMP/m.md" > "$TMP/m-gate.md"
-bash "$CM" check --manifest "$TMP/m-gate.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-gate.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "delegates gate not PASS ⇒ fail closed"; else bad "non-PASS gate should fail" "rc=$RC"; fi
 
 echo "── close-out-manifest: check — fusion with session-handover (FEAT-2/16/17/22/34)"
 # FEAT-2: closing with a pending delegate only as an operator-authorised PARTIAL
 sed 's/^delegates_gate: PASS/delegates_gate: PARTIAL/' "$TMP/m.md" > "$TMP/m-part.md"
-bash "$CM" check --manifest "$TMP/m-part.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-part.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "PARTIAL without operator authorisation ⇒ rc 2"; else bad "unauthorised PARTIAL should fail" "rc=$RC"; fi
-sed 's/^delegates_gate: PASS/delegates_gate: PARTIAL\
+sed -e 's/^# Close-out manifest/# PARTIAL Close-out manifest/' -e 's/^delegates_gate: PASS/delegates_gate: PARTIAL\
 partial_authorized_by: operator in-session 2026-10-07/' "$TMP/m.md" > "$TMP/m-part.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-part.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-part.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q '"partial":true'; then ok "authorised PARTIAL passes and is flagged partial"; else bad "authorised PARTIAL should pass flagged" "rc=$RC out=$OUT"; fi
 
 # FEAT-16: the recovery triple must hold together
 sed 's/^command: .*/command: claude --resume some-other-id/' "$TMP/m.md" > "$TMP/m-cmdid.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-cmdid.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-cmdid.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'command-lacks-session-id'; then ok "command without the session id ⇒ rc 2"; else bad "command must carry the session id" "rc=$RC out=$OUT"; fi
 sed 's#^link: .*#link: not-a-url#' "$TMP/m.md" > "$TMP/m-link.md"
-bash "$CM" check --manifest "$TMP/m-link.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-link.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "non-URL session link ⇒ rc 2"; else bad "session link must be a URL" "rc=$RC"; fi
 sed "s#^command: \\(.*\\)#command: \\1\\
 transcript_path: $TMP/nope.jsonl#" "$TMP/m.md" > "$TMP/m-tr.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-tr.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-tr.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'transcript-missing'; then ok "declared transcript path that does not exist ⇒ rc 2"; else bad "missing transcript should fail" "rc=$RC out=$OUT"; fi
 
 # review: fields count only inside their own section (Recovery / Delegates gate / Self-location)
 sed -e '/^command: /d' -e 's/^- next: step one/- next: step one\
 command: npm test/' "$TMP/m.md" > "$TMP/m-scope.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-scope.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-scope.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'field:command'; then ok "recovery field outside ## Recovery does not count"; else bad "out-of-section field must not satisfy Recovery" "rc=$RC out=$OUT"; fi
 # review: the four content sections must not be empty
 awk '/^## Roadmap/{print; skip=1; next} /^## /{skip=0} !skip' "$TMP/m.md" > "$TMP/m-empty.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-empty.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-empty.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'empty-section:Roadmap'; then ok "empty Roadmap section ⇒ rc 2"; else bad "empty section must fail" "rc=$RC out=$OUT"; fi
+
+# review: manifest_path must resolve to the checked manifest
+full_manifest > "$TMP/m-stale.md"   # keeps the fixture's /durable/... path, which does not exist
+OUT="$(bash "$CM" check --manifest "$TMP/m-stale.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'manifest-path-mismatch'; then ok "stale manifest_path ⇒ rc 2"; else bad "manifest_path must resolve to the checked file" "rc=$RC out=$OUT"; fi
+# review: a PARTIAL close must say so in the title
+sed -e 's/^delegates_gate: PASS/delegates_gate: PARTIAL\
+partial_authorized_by: operator in-session 2026-10-07/' "$TMP/m.md" > "$TMP/m-pt.md"
+OUT="$(chk "$TMP/m-pt.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'partial-title'; then ok "PARTIAL without PARTIAL title ⇒ rc 2"; else bad "PARTIAL must be in the title" "rc=$RC out=$OUT"; fi
 
 # FEAT-17/22: indexed local paths must exist and must not be ephemeral unless declared so
 # durable paths that need no write: this suite's own directory (a repo path, not a temp area)
 { cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$SCRIPT_DIR"; } > "$TMP/m-ok.md"
-bash "$CM" check --manifest "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "existing indexed path passes"; else bad "existing indexed path should pass" "rc=$RC"; fi
 { cat "$TMP/m.md"; printf -- '- gone: `%s/does-not-exist.md`\n' "$SCRIPT_DIR"; } > "$TMP/m-broken.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'broken-link'; then ok "broken indexed path ⇒ rc 2"; else bad "broken path should fail" "rc=$RC out=$OUT"; fi
 { cat "$TMP/m.md"; printf -- '- note: `/tmp`\n'; } > "$TMP/m-eph.md"
-OUT="$(bash "$CM" check --manifest "$TMP/m-eph.md" 2>/dev/null)"; RC=$?
+OUT="$(chk "$TMP/m-eph.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-link'; then ok "undeclared ephemeral path ⇒ rc 2"; else bad "ephemeral path should fail" "rc=$RC out=$OUT"; fi
 { cat "$TMP/m.md"; printf -- '- scratch (ephemeral): `/tmp`\n'; } > "$TMP/m-eph2.md"
-bash "$CM" check --manifest "$TMP/m-eph2.md" >/dev/null 2>&1; RC=$?
+chk "$TMP/m-eph2.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "declared ephemeral path passes"; else bad "declared ephemeral path should pass" "rc=$RC"; fi
 
 # opt-in --strict adds After-action review / Resume check / Not done; default unchanged
-bash "$CM" check --manifest "$TMP/m.md" --strict >/dev/null 2>&1; RC=$?
+chk "$TMP/m.md" --strict >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "--strict requires the opt-in sections"; else bad "--strict should require extra sections" "rc=$RC"; fi
 { cat "$TMP/m.md"; printf '## After-action review\nplanned/happened/why\n## Resume check\ncompare anchor first\n## Not done\nnone (verified)\n'; } > "$TMP/m-strict.md"
-bash "$CM" check --manifest "$TMP/m-strict.md" --strict >/dev/null 2>&1; RC=$?
+chk "$TMP/m-strict.md" --strict >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "--strict passes with the opt-in sections"; else bad "--strict with sections should pass" "rc=$RC"; fi
 
+if command -v git >/dev/null 2>&1; then
 # FEAT-34: git anchor names branch@HEAD and every uncommitted file, never touches them
 G="$TMP/g"; git init -q "$G" && git -C "$G" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
 printf 'wip\n' > "$G/wip file.txt"
@@ -128,6 +146,9 @@ if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q '"dirty":\["?? wip file.txt"\
 rm -f "$G/wip file.txt"
 OUT="$(bash "$CM" anchor --repo "$G" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -qE '"anchor":"[^"]+@[0-9a-f]{7,}'; then ok "clean anchor ⇒ rc 0 with branch@HEAD"; else bad "clean anchor should be rc 0" "rc=$RC out=$OUT"; fi
+else
+  echo "  ⏭  git absent — anchor cases skipped"
+fi
 bash "$CM" anchor --repo "$TMP/scratch" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 1 ]; then ok "anchor on a non-repo ⇒ rc 1"; else bad "non-repo anchor should be rc 1" "rc=$RC"; fi
 
@@ -233,6 +254,29 @@ OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dnl" --src "$NL
 b.md" 2>/dev/null)"; RC=$?
 if [ "$RC" -eq 0 ] && [ "$(printf '%s\n' "$OUT" | wc -l | tr -d ' ')" = "1" ] && printf '%s' "$OUT" | grep -q 'a\\nb.md'; then ok "newline in a path escaped as \\n (one JSON line)"; else bad "control chars must be JSON-escaped" "rc=$RC out=$OUT"; fi
 
+# review: a source that cannot be persisted fails the run (rc 5), it is never silently skipped
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dms" --src "$TMP/nope.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'skipped-not-regular-file'; then ok "missing source ⇒ rc 5"; else bad "missing source must not exit 0" "rc=$RC out=$OUT"; fi
+# review: two sources with the same basename must not overwrite each other
+mkdir -p "$TMP/ca" "$TMP/cb"; printf 'from a\n' > "$TMP/ca/report.md"; printf 'from b\n' > "$TMP/cb/report.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dcol" --src "$TMP/ca/report.md" --src "$TMP/cb/report.md" --apply 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-basename-collision' && [ "$(cat "$TMP/dcol/report.md")" = "from a" ]; then ok "basename collision refused, first report kept"; else bad "basename collision must be refused" "rc=$RC out=$OUT"; fi
+# review: domestic Brazilian phone formats are PII (synthetic numbers, built at runtime)
+D1="1""1"; P9="9""1234"; P4="56""78"
+for ph in "($D1) $P9-$P4" "$D1 $P9-$P4" "$D1 $P9 $P4" "($D1)$P9$P4" "+55 $D1 $P9-$P4" "($D1) 3""123-$P4"; do
+  mkdir -p "$TMP/ph"; printf 'call %s\n' "$ph" > "$TMP/ph/p.md"
+  OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dph" --src "$TMP/ph/p.md" 2>/dev/null)"; RC=$?
+  if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-pii'; then ok "phone '$ph' refused as PII"; else bad "phone '$ph' must be PII" "rc=$RC out=$OUT"; fi
+done
+# ... while a bare 10-digit run (timestamp) is not
+printf 'ts 1759842000\n' > "$TMP/ph/t.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dph" --src "$TMP/ph/t.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ]; then ok "bare epoch timestamp is not PII"; else bad "timestamp should not be PII" "rc=$RC out=$OUT"; fi
+# review: two replacements in the same second keep both previous versions
+mkdir -p "$TMP/bb" "$TMP/dbb"; printf 'v0\n' > "$TMP/dbb/r.md"
+printf 'v1\n' > "$TMP/bb/r.md"; MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dbb" --src "$TMP/bb/r.md" --apply >/dev/null 2>&1
+printf 'v2\n' > "$TMP/bb/r.md"; MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dbb" --src "$TMP/bb/r.md" --apply >/dev/null 2>&1
+if cat "$TMP/dbb"/r.md.bak.* 2>/dev/null | sort | tr '\n' ' ' | grep -q 'v0 v1'; then ok "rapid double replace keeps both backups"; else bad "a backup was overwritten" "$(ls "$TMP/dbb" | tr '\n' ' ')"; fi
 # a scanner that errors on everything ⇒ scanner failure rc 3, never mislabelled as refused-secret
 mkdir -p "$TMP/b9"; printf 'clean\n' > "$TMP/b9/ok.md"
 OUT="$(MAOS_SECRET_SCANNER=false bash "$CM" persist --dest "$TMP/db9" --src "$TMP/b9/ok.md" --apply 2>&1)"; RC=$?
@@ -259,7 +303,9 @@ OUT="$(MAOS_CLIP_COPY=/nonexistent/copy MAOS_CLIP_PASTE=/nonexistent/paste bash 
 if [ "$RC" -eq 4 ]; then ok "no clipboard tool ⇒ rc 4 (no fake success)"; else bad "missing tool should be rc 4" "rc=$RC"; fi
 
 OUT="$(MAOS_CLIP_COPY="$TMP/fakecopy" MAOS_CLIP_PASTE= bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
-if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'no-readback-tool'; then ok "copy without read-back tool ⇒ rc 4 no-readback-tool"; else bad "missing read-back tool should be rc 4 no-readback-tool" "rc=$RC out=$OUT"; fi
+if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'incomplete-clip-override'; then ok "copy override without paste override ⇒ rc 4 incomplete-clip-override"; else bad "half a clipboard override must be refused clearly" "rc=$RC out=$OUT"; fi
+OUT="$(MAOS_CLIP_COPY= MAOS_CLIP_PASTE="$TMP/fakepaste" bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'incomplete-clip-override'; then ok "paste override without copy override ⇒ rc 4 incomplete-clip-override"; else bad "half a clipboard override must be refused clearly (paste only)" "rc=$RC out=$OUT"; fi
 
 echo "── close-out-manifest: no residue on failure paths (temps, signals, cleanup)"
 # each case gets its own TMPDIR so residue is attributable; a clean exit leaves it empty
@@ -291,11 +337,13 @@ T3="$(newtmp r3)"; mkdir -p "$TMP/r3src"; printf 'clean\n' > "$TMP/r3src/a.md"
 cat > "$TMP/intscan" <<'EOF'
 #!/usr/bin/env bash
 # interrupt the close-out-manifest process: walk up until we find it, never signal anything else
-p="$PPID"
-for _ in 1 2 3; do
-  case "$(ps -o command= -p "$p" 2>/dev/null)" in *"$CM_UNDER_TEST"*) kill -INT "$p"; break ;; esac
+# (a scan subshell shares the script's command line: signal the TOPMOST matching ancestor)
+p="$PPID"; top=""
+for _ in 1 2 3 4; do
+  case "$(ps -o command= -p "$p" 2>/dev/null)" in *"$CM_UNDER_TEST"*) top="$p" ;; *) [ -n "$top" ] && break ;; esac
   p="$(ps -o ppid= -p "$p" | tr -d ' ')"
 done
+[ -n "$top" ] && kill -INT "$top"
 exit 1
 EOF
 chmod +x "$TMP/intscan"
@@ -320,6 +368,20 @@ printf '#!/bin/sh\nexit 1\n' > "$TMP/r5bin/rm"; chmod +x "$TMP/r5bin/rm"
 OUT="$(PATH="$TMP/r5bin:$PATH" TMPDIR="$T5" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dr5" --src "$TMP/r5src/a.md" 2>&1)"; RC=$?
 if [ "$RC" -eq 6 ] && printf '%s' "$OUT" | grep -q 'cleanup failed'; then ok "failed cleanup reported as rc 6"; else bad "failed cleanup must be rc 6 + stderr" "rc=$RC out=$OUT"; fi
 rm -rf "$T5"
+
+# review: an unexpected fault is reported log-only (line + rc), with no report content
+mkdir -p "$TMP/uf/src" "$TMP/uf/ro"; printf 'body-%s\n' "uniq7" > "$TMP/uf/src/a.md"; chmod 555 "$TMP/uf/ro"
+if [ -w "$TMP/uf/ro" ]; then # root ignores the mode bits: no fault can be induced this way
+  chmod 755 "$TMP/uf/ro"; echo "  ⏭  read-only dir is writable (root) — fault case skipped"
+else
+ERR="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/uf/ro/sub" --src "$TMP/uf/src/a.md" --apply 2>&1 >/dev/null)"; RC=$?
+chmod 755 "$TMP/uf/ro"
+if [ "$RC" -ne 0 ] && printf '%s' "$ERR" | grep -q 'unexpected fault at line' && ! printf '%s' "$ERR" | grep -q 'uniq7'; then ok "unexpected fault reported log-only, no content"; else bad "unexpected fault must be reported log-only" "rc=$RC err=$ERR"; fi
+fi
+# ... and a legitimate refusal is not reported as a fault
+mkdir -p "$TMP/uf2"; printf 'call (%s) %s-%s\n' "$D1" "$P9" "$P4" > "$TMP/uf2/p.md"
+ERR="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/uf2d" --src "$TMP/uf2/p.md" 2>&1 >/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && ! printf '%s' "$ERR" | grep -q 'unexpected fault'; then ok "refusal is not a fault"; else bad "refusal must not trip the fault report" "rc=$RC err=$ERR"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"
