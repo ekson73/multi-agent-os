@@ -1,0 +1,47 @@
+schema: 1
+id: roo-code
+name: Roo Code (VS Code extension)
+vendor: Roo Code
+kind: extension
+detect:
+  commands: []
+  paths:
+  - ~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json
+    scope: user
+    platform: darwin   # other-OS path not documented here yet
+  - path: ./.roo/mcp.json
+    scope: project
+  format: json
+  key_path:
+  - mcpServers
+  entry_style: mcpservers-json
+  entry_overrides:
+    type_values: {streamable-http: streamable-http}
+  transports:
+  - stdio
+  - sse
+  - streamable-http
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: VS Code extension auto-update
+docs_url: https://docs.roocode.com/features/mcp/using-mcp-in-roo
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Additional installed MCP-capable harness (not in original list). Observed 3 stdio entries {command,args,env,disabled,alwaysAllow}.
+  Remote (docs): {type: streamable-http, url, headers}.'
