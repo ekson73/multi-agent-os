@@ -355,7 +355,7 @@ its own.
 | rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | external | **reused** in phase C |
 | gate semantics | `pr-review-protocol.md` §4.1 | external | **implemented**, not amended; restated inline above |
 | isolation shape | `cross-harness-red-team.md` | external | **reused** in phase D |
-| in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +22/−1 lines (measured with `git diff --numstat`) declaring its correlated-verifier boundary and routing here (17 → 38 lines) |
+| in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +24/−1 lines (measured with `git diff --numstat`) declaring its correlated-verifier boundary and routing here (17 → 40 lines) |
 
 Net-new is exactly one thing: **an executable dispatcher that makes isolation and
 gate-honesty mechanical instead of remembered.**
