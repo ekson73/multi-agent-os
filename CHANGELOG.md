@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: open P1/P2 findings from the codex connector on #414
+
+- **`--primary` is the configured set.** When declared, primaries are classified
+  against that list alone; an undeclared bot's stale or commented review no
+  longer blocks C3 (an active `CHANGES_REQUESTED` from any reviewer still does).
+- **The export ignores `export-ignore`.** The reviewer's tree is built from a
+  throwaway index (`read-tree` + `checkout-index`), not `git archive`, so a PR
+  cannot hide a file from its own reviewer through `.gitattributes`; the export
+  is checked to hold every tracked path of the head.
+- **No spin on a non-directory lock.** A regular file or symlink at the state
+  lock path is refused, a stale lock is reclaimed at most once, and attempts
+  are capped.
+- **Leading-zero retry values** from the state file are read as decimal.
+- **Raw reviewer stderr is withheld** by default (it may carry a secret); only
+  the sanitized failure token is printed. `ROUTED_REVIEW_DEBUG_STDERR=1` opts in.
+- Contract: the concurrent-writer cases are triggered by the reviewer's start
+  marker instead of a wall-clock timer (the flaky case 22); five new cases.
+
 ### Fixed — `routed-pr-review`: gate, diversity and isolation follow-ups from the #414 review rounds
 
 - **Declared primaries.** `--primary L1,L2` names the configured primary
@@ -26,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Exact bot matching.** Review bots are matched by exact login, so a human
   whose name contains a bot name no longer counts; a quota signal from a bot
   that has since approved the head is ignored.
-- **Isolation.** Every reviewer now reads a `git archive` export of the head
+- **Isolation.** Every reviewer now reads a read-only export of the head
   (the cwd shortcut is gone); symlinks are part of the tamper manifest; the
   live-repo check hashes content, not status lines; `claude` and `codex` get the
   prompt on stdin; `gtimeout` is accepted where `timeout` is missing; the PR

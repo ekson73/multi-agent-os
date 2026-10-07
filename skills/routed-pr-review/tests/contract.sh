@@ -42,6 +42,9 @@ mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
   git init -q . 2>/dev/null
   git config user.email t@t; git config user.name t; git config commit.gpgsign false
   echo hello > file.txt
+  # A path the PR marks export-ignore must still reach the reviewer (case 63).
+  echo 'hidden.txt export-ignore' > .gitattributes
+  echo concealed > hidden.txt
   git add -A && git commit -qm "seed"
 ) || { echo "FATAL: could not build temp repo" >&2; exit 1; }
 HEAD_SHA="$(cd "$REPO_DIR" && git rev-parse HEAD)"
@@ -97,6 +100,7 @@ cat > "$STUB_BIN/kimi" <<'STUB'
 # steered by PR content; these model what a prompt-injected one could try.
 [ -n "${T_LEAK_MARK:-}" ] && [ -n "${ROUTED_REVIEW_STATE:-}" ] && : > "$T_LEAK_MARK"
 [ -n "${T_GH_MARK:-}" ] && [ -n "${GH_TOKEN:-}" ] && : > "$T_GH_MARK"
+[ -n "${T_START_MARK:-}" ] && : > "$T_START_MARK"
 [ -n "${T_SLEEP:-}" ] && sleep "$T_SLEEP"
 if [ -n "${T_DIR_SWAP:-}" ]; then   # swap the state FILE's parent dir for a decoy
   d="$(dirname "$T_DIR_SWAP")"; mkdir -p "$d.decoy"
@@ -126,6 +130,8 @@ fi
 [ -n "${T_LIVE_COMMIT:-}" ] && git -C "$T_LIVE_COMMIT" -c user.email=t@t.invalid -c user.name=t \
   commit -q --allow-empty -m forged 2>/dev/null
 # echo back what the prompt contained, so a case can see the PR body arrive
+# report whether a given path is visible in the reviewer's cwd (the export)
+[ -n "${T_SEE_FILE:-}" ] && [ -f "$T_SEE_FILE" ] && echo "SAW-$T_SEE_FILE"
 if [ -n "${T_PROMPT_MARK:-}" ]; then case "$*" in *"$T_PROMPT_MARK"*) echo "PROMPT-CARRIED-$T_PROMPT_MARK" ;; esac; fi
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
@@ -170,8 +176,8 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT" \
-       bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK" \
+       ${SUT_WRAP:-} bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
 check() {  # check <name> <expected-rc> [<jq-filter> <expected-value>]
@@ -391,12 +397,21 @@ if [ ! -e "$SANDBOX/ghleak" ]; then GOT=dropped; else GOT=leaked; fi
 RC=0; OUT="{\"v\":\"$GOT\"}"
 check "GH_TOKEN is not in the reviewer's allowlisted environment" 0 '.v' "dropped"
 
+# Concurrent writer triggered by the fake reviewer's start marker, not by a
+# wall-clock timer: on a slow host a timer could fire before the baseline was
+# taken and fold the write into it (a flaky false pass/fail).
+concurrent_writer() {  # $1=state file $2=marker
+  rm -f "$2"
+  ( i=0; until [ -e "$2" ] || [ "$i" -ge 600 ]; do sleep 0.1; i=$((i+1)); done
+    printf '{"bots":{"qwen":{"broken_at":"2026-01-01T00:00:00Z"}}}' > "$1" ) &
+}
+
 # ── 21 ── a CONCURRENT routed-review writing state is not an isolation breach
 # when the kernel boundary is armed (the reviewer cannot write it, so any
 # change came from outside). Out-of-sandbox writer lands mid-dispatch.
 STATE="$SANDBOX/state/state-concurrent.json"; printf '{"bots":{}}' > "$STATE"
-( sleep 1; printf '{"bots":{"qwen":{"broken_at":"2026-01-01T00:00:00Z"}}}' > "$STATE" ) &
-OUT="$(T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+concurrent_writer "$STATE" "$SANDBOX/start.mark"
+OUT="$(T_START_MARK="$SANDBOX/start.mark" T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 wait
 if command -v sandbox-exec >/dev/null 2>&1 \
    && sandbox-exec -p '(version 1)(allow default)' /usr/bin/true 2>/dev/null; then
@@ -411,8 +426,8 @@ fi
 # ── 22 ── without a kernel boundary a concurrent write is ambiguous: abort
 # (fail-closed) but NEVER revert the other run's record.
 STATE="$SANDBOX/state/state-concurrent2.json"; printf '{"bots":{}}' > "$STATE"
-( sleep 1; printf '{"bots":{"qwen":{"broken_at":"2026-01-01T00:00:00Z"}}}' > "$STATE" ) &
-OUT="$(EXTRA_BIN="$BROKEN_SBX" T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+concurrent_writer "$STATE" "$SANDBOX/start.mark"
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_START_MARK="$SANDBOX/start.mark" T_SLEEP=3 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
        ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 wait
 check "no kernel: a state change during dispatch aborts" 1 '.detail' "violated:state-file"
@@ -699,6 +714,58 @@ CUSTOM='[{"author":{"login":"custom-review-bot[bot]"},"state":"APPROVED","commit
 OUT="$(T_REVIEWS="$CUSTOM" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary custom-review-bot" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a declared custom primary approving the head clears" 0 '.primary_verdict' "all_cleared_for_head"
+
+# Cases 62-64: open P1 findings from the codex connector on this PR.
+# ── 62 ── --primary defines the configured set: an UNDECLARED bot's
+# non-approving review (here a COMMENTED walkthrough) does not block. An active
+# CHANGES_REQUESTED from any reviewer still blocks (case 3).
+UNDECL='[{"author":{"login":"coderabbitai"},"state":"APPROVED","commit":{"oid":"'"$HEAD_SHA"'"}},{"author":{"login":"amazon-q-developer"},"state":"COMMENTED","commit":{"oid":"'"$HEAD_SHA"'"}}]'
+OUT="$(T_REVIEWS="$UNDECL" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an undeclared bot does not block when --primary is declared" 0 '.primary_verdict' "all_cleared_for_head"
+
+# ── 63 ── a path the PR marks export-ignore still reaches the reviewer.
+OUT="$(T_SEE_FILE=hidden.txt T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an export-ignore path is still in the reviewer's export" 3 '.review | test("SAW-hidden.txt")' "true"
+
+# ── 64 ── a stale lock that is a regular FILE does not hang the run.
+STATE="$SANDBOX/state/state-filelock.json"; printf '{"bots":{}}' > "$STATE"
+: > "$STATE.lock"; touch -t 202001010000 "$STATE.lock"
+# The run is bounded (SUT_WRAP): before the fix this case spun forever.
+TO_BIN="$(command -v timeout || command -v gtimeout)"
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="401 unauthorized" T_GEMINI_RC=2 \
+       T_REVIEWS='[]' SUT_WRAP="$TO_BIN 60" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a non-directory stale lock is refused, not spun on" 2 '.failure_class' "broken"
+if [ -f "$STATE.lock" ] && [ ! -d "$STATE.lock" ]; then GOT=left-alone; else GOT=touched; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "the non-directory lock is refused, not removed or replaced" 0 '.v' "left-alone"
+rm -f "$STATE.lock"
+
+# Cases 65-66: open P2 findings from the codex connector on this PR.
+# ── 65 ── a leading-zero retry value in the untrusted state file is decimal.
+STATE="$SANDBOX/state/state-octal.json"
+NOWTS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+printf '{"bots":{"gemini":{"last_limited_at":"%s","retry_after_sec":"09"}}}' "$NOWTS" > "$STATE"
+# caller=codex keeps a real host codex out; gemini (stub) is the expired one.
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=auto T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "an expired leading-zero retry skips that reviewer" 3 '.reviewer' "kimi"
+if grep -q 'value too great for base' "$SANDBOX/err"; then GOT=crashed; else GOT=decimal; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a leading-zero retry string is read as decimal, not octal" 0 '.v' "decimal"
+
+# ── 66 ── raw reviewer stderr is not echoed by default (it may carry a secret).
+OUT="$(STATE="$SANDBOX/state/state-stderr.json" EXTRA_BIN="$GEM_BIN" RV=gemini \
+       T_GEMINI_ERR="Authorization: Bearer tok_FIXTURE_SECRET_9f3" T_GEMINI_RC=2 \
+       T_REVIEWS='[]' ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+if grep -q 'tok_FIXTURE_SECRET_9f3' "$SANDBOX/err"; then GOT=echoed; else GOT=withheld; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "raw reviewer stderr is withheld unless debug is opted in" 0 '.v' "withheld"
+
+# ── 67 ── the rotation is bounded: past the attempt ceiling, an honest exit 2.
+OUT="$(STATE="$SANDBOX/state/state-ceiling.json" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
+       ROUTED_REVIEW_MAX_ATTEMPTS=1 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "the rotation stops at the attempt ceiling" 2 '.reason' "attempt_ceiling"
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
