@@ -65,7 +65,7 @@ Reports in a scratch/temp area are copied to a durable location **before** the m
 them: `bin/close-out-manifest.sh persist --dest <durable-dir> --src <report>... --apply`
 (dry-run without `--apply`). It refuses any file that the secret scan or the PII scan flags, and
 it refuses to run at all if either scan cannot detect a positive control assembled at runtime
-(rc 3). Each source is first copied into a private staging dir and only those staged bytes are scanned and promoted, so a change made during the scan never reaches the destination. Binary files are refused; the scan covers the raw bytes, a CRLF-normalised view and a line-joined view (a secret split across lines), and runs isolated from inherited scanner config, ignore files and in-content allow directives. Any scanner error counts as a hit. A refused file is never copied; record it in the manifest as a HITL item. Choose the
+(rc 3). Each source is first copied into a private staging dir and only those staged bytes are scanned and promoted, so a change made during the scan never reaches the destination. Binary files are refused; the scan covers the raw bytes, a CRLF-normalised view and a line-joined view (a secret split across lines), and runs isolated from inherited scanner config, ignore files and in-content allow directives. A known-clean negative control must scan clean, so a scanner that errors on everything is reported as rc 3, not as a leak; any other scanner error on a source counts as a hit. A refused file is never copied; record it in the manifest as a HITL item. Choose the
 durable dir by governance discovery (the repo's session/report path, or the seed dir).
 
 ### Check, then clipboard
