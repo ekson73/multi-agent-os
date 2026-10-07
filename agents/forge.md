@@ -177,7 +177,7 @@ Role contract fields (add to the spec frontmatter for decision-bearing roles):
 ```yaml
 role: <role-slug>              # the contract's identity
 status: latent                 # the ONLY admitted value; the file's status never grants authority
-tier: null                     # stays unset in this version; ONLY the human owner may ever set it
+tier: null                     # must stay null in this version; a tier value grants nothing
 owner: board                   # human authority BY ROLE that the role's decisions go to (never a person's name, never an agent or the holder)
 decide: [ "<the domain this role is designed to hold>" ]   # documents scope, grants nothing while latent; never irreversible/spend/secrets/prod/personal-data/cross-org/ethics/personal (HUMAN_DOMAIN)
 out_of_domain: [ "<what always escalates to the human owner/board>" ]
@@ -192,8 +192,10 @@ proposal_cap: null             # optional ceiling on what this role may propose 
 Known limits (out of scope for this section, stated so nobody reads more into it):
 
 - **Specification, not tooling.** Nothing in this repo reads a role contract. `latent` is enforced by this text and by
-  the regression test `tests/governance/test-roles-latent-only.sh`, which fails if a contract surface defines,
-  permits or describes a transition out of `latent`. The test guards the text; it cannot stop an agent that ignores it.
+  the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract structure by allowlist
+  (`status` exactly `latent`, `tier` null, reserved fields empty) in the template and under `roles/`, and flags the
+  literal word form of an activation in the guidance files. It does not understand natural language, and it
+  guards the text; it cannot stop an agent that ignores it.
 - **No activation path.** A role whose work is needed today still sends every decision to the human. Activating
   roles requires the gate described in `docs/adrs/ADR-019-role-activation-gate-deferred.md`, built as tooling first.
 - **`binding` pins names, not content.** A contract names the agents a role is bound to, not their files; a

@@ -1,10 +1,9 @@
 # ADR-019: role contracts stay `latent`; the activation gate is deferred until it exists as tooling
 
 - **Status**: Accepted (scope of PR #476); the gate itself is **Proposed**, not built
-- **Date**: 2026-10-07
-- **Deciders**: root orchestrator of the session, on the record of 11 Socratic specialists, an independent red-team
-  from two other model families (`codex exec`, `kimi -p`) and a council verifier. Merge of PR #476 still needs the
-  operator's ratification (governance edit) and a new cross-family red-team on its final head.
+- **Date**: 2026-10-07 (written while closing PR #476; the PR's changelog entries carry its opening date, 2026-10-06)
+- **Deciders**: proposed by the agent session that executed PR #476; accepted only when the repository owner merges
+  that PR (it edits governance text, so the merge is the owner's decision).
 - **Scope**: `agents/forge.md` §"Organizational Roles", `skills/agentic-tool-forge/SKILL.md` (step 2 and the
   `role contract (binding)` router row), `skills/anima/kb/org-roles.md`.
 
@@ -22,8 +21,9 @@ Three findings made that gate unfit to ship:
    and check (e) only counted revocations "by an owner identity". If the person who revoked later left the admin
    list, the revocation stopped counting and the older ratification became valid again. The same paragraph claimed
    the opposite, so the text contradicted itself.
-3. **The gate never opens on this host.** One account operates both the agents and the owner role, and `main` has
-   no branch protection, so no record could qualify. The capability existed only on paper.
+3. **It depends on host preconditions the text did not check.** A gate of this kind means something only on a host
+   that stops one account from approving its own change. Where the same account can act for the agents and for the
+   owner, no record proves a human, so the capability can exist only on paper.
 
 ## Decision
 
@@ -31,9 +31,13 @@ Three findings made that gate unfit to ship:
   role goes to the human.
 - The gate, the digest, the A2 rule and the fields `approval_ref`, `approved_by`, `approved_at`, `trigger` and
   `authority_digest` are removed from the contract. They are listed as reserved in the template.
-- `tests/governance/test-roles-latent-only.sh` fails if any contract surface defines, permits or describes a
-  transition out of `latent`. Its scope is the three contract files above, because several `SKILL.md` files use
-  `status: active` for skill lifecycle, which is unrelated to roles.
+- `tests/governance/test-roles-latent-only.sh` checks contract **structure** by allowlist, in the template of
+  `agents/forge.md` and in every file under `roles/`: `status` appears once and is exactly `latent`; `tier` is `null`;
+  the reserved fields are empty or null at any indentation and have no children; no activation key (`active`,
+  `enabled`, `armed`, `effective`, `activated`) holds a truthy value. In the three guidance files it also flags the
+  word form of a transition to `active`. It does **not** understand natural language: a sentence such as "the role
+  goes live" is not detected. The scope stays narrow because several `SKILL.md` files use `status: active` for skill
+  lifecycle, which is unrelated to roles.
 
 ## Requirements for any future activation gate
 
@@ -44,9 +48,10 @@ A gate may come back only in a new PR, reviewed as a governance change, and only
 2. **Identity frozen at record time.** The verifier stores who authored each ratification and each revocation, and
    whether that identity was an owner, at the moment the record was made. A later change to the owner list never
    revives a revoked ratification and never invalidates a valid revocation.
-3. **Host preconditions, checked by the verifier.** A human owner account that no agent can operate; code-owner
-   review on the role registry; protected default branch without force-push; signed ratification records. If any
-   precondition is missing, every contract stays `latent` and the verifier says which one failed.
+3. **Host preconditions, checked by the verifier.** The host must prevent one account from approving its own
+   change: a human owner account that no agent can operate, code-owner review on the role registry, a protected
+   default branch without force-push, and signed ratification records. If any precondition is missing, every contract
+   stays `latent` and the verifier says which one failed.
 4. **Append-only trail with declared retention.** Ratification and revocation records are kept append-only. The
    retention period, the identities stored and the legal basis are declared before the first record exists (the trail
    holds personal identifiers, so privacy law applies).
@@ -57,15 +62,13 @@ A gate may come back only in a new PR, reviewed as a governance change, and only
    and against the HUMAN_DOMAIN exclusion list.
 7. **Fixtures shipped with the verifier.** Executable fixtures covering at least: A1 an agent-authored ratification
    is rejected; A2 a revocation still counts after its author leaves the owner list; A3 restoring old field values
-   does not revive a revoked contract; A4 two records that cannot be ordered count as superseding; B3 arming a
-   planned role (e.g. ombuds, values-guardian, org-designer) on a host that fails a precondition stays `latent`.
+   does not revive a revoked contract; A4 two records that cannot be ordered count as superseding; B3 a ratification
+   on a host that fails a precondition leaves the contract `latent`.
 
-## Intended consumer
+## Consumers
 
-An operator planning effort outside this repository plans roles that would use this gate (its pending item is to
-create and arm an ombuds, a values guardian and an org designer). No script, hook or skill reads a role contract's `status` today. Arming those
-roles therefore depends on this ADR being implemented; until then they stay `latent`, as they effectively were,
-because the removed gate could not open on this host.
+No script, hook or skill in this repository reads a role contract's `status`. A consumer that wants to arm roles
+depends on this ADR being implemented first.
 
 ## Limits of the evidence behind this decision
 
@@ -75,8 +78,8 @@ because the removed gate could not open on this host.
 - The value of a latent-only contract was not measured. The 15-case smoke test
   (`tests/governance/test-org-roles-coverage.sh`) checks that guidance is present in the text, not that it is useful.
   Closing PR #476 and redoing it smaller remains a valid choice for the operator.
-- The search for consumers covered this repository, the user's agent configuration, two plugin repositories and
-  the planning vault. A negative result there does not prove that no consumer exists elsewhere.
+- The search for consumers covered this repository and a few related ones. A negative result does not prove that no
+  consumer exists elsewhere.
 
 ## Alternatives rejected
 
