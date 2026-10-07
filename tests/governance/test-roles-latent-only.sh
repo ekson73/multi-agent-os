@@ -10,29 +10,39 @@
 # (minusculo), em UTF-8 sem BOM, sem CR/NEL/LS/PS, cuja linha 1 e `---`, com um
 # unico frontmatter fechado por `---`, e cujo corpo nao tem fence (``` ou ~~~,
 # com ou sem tag), nem separador de documento (`---` ou `...` sozinho na linha),
-# nem chave de contrato seguida de `:` (role, status, tier, campos reservados,
-# chaves de ativacao). Qualquer outra forma e violacao: link simbolico, outra
+# nem chave de contrato seguida de `:`, com ou sem aspas (role, status, tier,
+# campos reservados, chaves de ativacao), nem linha iniciada por `?` ou `:`
+# (chave/valor explicito do YAML). O corpo tambem e lido como YAML; se carregar
+# como mapa ou lista, nenhuma chave de contrato pode aparecer nele, em qualquer
+# profundidade. Arquivo maior que 64 KiB falha. Qualquer outra forma e violacao: link simbolico, outra
 # extensao (.yml, .YML, .Md, .gitkeep), frontmatter ausente ou nao fechado,
 # arquivo que nao decodifica como UTF-8 (o verificador cai, e a queda conta
 # como falha).
 #
 # O frontmatter (e o template, e as sondas) e lido com yaml.safe_load, com
-# chave duplicada recusada; YAML que nao carrega e violacao. Sobre o valor
-# carregado:
+# chave duplicada recusada, ancora e alias recusados (fecha merge key e
+# expansao exponencial) e bloco maior que 64 KiB recusado; YAML que nao carrega
+# e violacao. Sobre o valor carregado:
 #   - a raiz e um mapa; `status` vale a string `latent`; `tier`, se existir,
 #     e null;
-#   - `role`, `status` e `tier` so aparecem na raiz;
+#   - `role`, `status` e `tier` so aparecem na raiz (a profundidade e contada,
+#     entao uma chave vazia `""` nao faz um mapa aninhado passar por raiz);
+#   - `!!omap`, `!!pairs` e `!!set` (que viram tupla ou set) sao recusados;
 #   - em qualquer profundidade, dentro de mapas e de listas: campos reservados
 #     (approval_ref, approved_by, approved_at, trigger, authority_digest) valem
 #     null; chaves de ativacao (active, enabled, armed, effective, activated)
 #     valem null ou false.
 # Sem python3 com PyYAML o teste falha; nunca cai para uma checagem mais fraca.
+# Cada chamada ao verificador tem limite de 30 s (alarme); estourar conta como
+# falha. Esse limite e uma protecao extra: nenhuma sonda o mede hoje.
 # No template de agents/forge.md, um bloco que nao carrega como YAML so conta
 # como violacao se citar chave de contrato (a outra fence e um modelo de agente).
 #
 # Padrao: recusar na duvida. Falsos positivos aceitos: arquivo com CRLF ou BOM,
-# `roles/.gitkeep`, prosa no corpo com "role:", `active: "false"` (string, nao
-# booleano). Um caso legitimo se reescreve na forma aceita; o teste nao afrouxa.
+# `roles/.gitkeep`, prosa no corpo com "role:" ou iniciada por `?`/`:`,
+# `active: "false"` (string, nao booleano), ancora/alias mesmo inofensivos, e,
+# nos arquivos de orientacao, a palavra `active` entre crases em prosa (ex.:
+# "nunca use `active`"). Um caso legitimo se reescreve na forma aceita; o teste nao afrouxa.
 #
 # Nos tres arquivos de orientacao, procura a FORMA `active` de uma transicao
 # (`active` citado, `status: active`, verbo + active).
@@ -44,8 +54,13 @@
 #     como chave nao-string que o YAML 1.1 produz (ex.: `yes:` vira booleano);
 #   - o teste mede o valor que yaml.safe_load (PyYAML, YAML 1.1) produz; um
 #     consumidor com outro parser pode ler o mesmo texto de outro jeito;
+#   - chave com espaco, homoglifo ou caractere invisivel (ex.: `active ` ou
+#     `аctive` com "а" cirilico) passa: nao ha normalizacao Unicode;
 #   - so `roles/` e o template sao lidos: um registro que o host designe fora
-#     de `roles/` nao e verificado;
+#     de `roles/` nao e verificado; neste repo `roles/` nao existe, entao o
+#     passo 3 le 0 arquivos e o registro so e exercitado pelas fixtures;
+#   - o teste nao exige campos do template (role, owner, decide...): mede so as
+#     chaves que concedem ou sinalizam autoridade;
 #   - nenhum workflow de CI roda este teste hoje; ele roda por
 #     tests/governance/run-all.sh ou a mao.
 #
@@ -79,14 +94,22 @@ RESERVED = {"approval_ref", "approved_by", "approved_at", "trigger", "authority_
 BOOL_KEYS = {"active", "enabled", "armed", "effective", "activated"}
 ROOT_ONLY = {"role", "status", "tier"}
 CONTRACT_KEYS = ROOT_ONLY | RESERVED | BOOL_KEYS
-BODY_KEY = re.compile(r"(^|[\s{,\[])(" + "|".join(sorted(CONTRACT_KEYS)) + r")\s*:")
+BODY_KEY = re.compile(r"(^|[\s{,\[?\"'])(" + "|".join(sorted(CONTRACT_KEYS)) + r")[\"']?\s*:")
+EXPLICIT = re.compile(r"^\s*[?:](\s|$)")  # chave/valor explicito do YAML no corpo
+MAX_BYTES = 64 * 1024
 FENCE = re.compile(r"^\s*(```|~~~)")
 DOC_SEP = re.compile(r"^(---|\.\.\.)\s*$")
 # Quebras de linha que o YAML reconhece alem de \n, e o BOM: recusados.
 RAW = {"\r": "CR", "\x85": "NEL", " ": "LS", " ": "PS", "﻿": "BOM"}
 
 class Loader(yaml.SafeLoader):
-    pass
+    # Ancora/alias recusados: fecha merge key e expansao exponencial (billion laughs).
+    def compose_node(self, parent, index):
+        if self.check_event(yaml.events.AliasEvent):
+            raise yaml.composer.ComposerError(None, None, "alias recusado", self.peek_event().start_mark)
+        if getattr(self.peek_event(), "anchor", None):
+            raise yaml.composer.ComposerError(None, None, "ancora recusada", self.peek_event().start_mark)
+        return super().compose_node(parent, index)
 
 def no_duplicates(loader, node, deep=False):
     seen = set()
@@ -99,23 +122,27 @@ def no_duplicates(loader, node, deep=False):
 
 Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
 
-def walk(o, path, out, where):
-    if isinstance(o, dict):
+def walk(o, path, out, where, depth=0):
+    if isinstance(o, (tuple, set, frozenset)):
+        out.append(f"{where}: `{path}` usa !!omap/!!pairs/!!set (recusado)")
+    elif isinstance(o, dict):
         for k, v in o.items():
-            p = f"{path}.{k}" if path else str(k)
+            p = f"{path}.{k}" if path else repr(k)
             if k in RESERVED and v is not None:
                 out.append(f"{where}: campo reservado `{p}` = {v!r} (so null)")
             if k in BOOL_KEYS and not (v is None or v is False):
                 out.append(f"{where}: chave de ativacao `{p}` = {v!r} (so null ou false)")
-            if k in ROOT_ONLY and path:
+            if k in ROOT_ONLY and depth > 0:
                 out.append(f"{where}: `{p}` fora da raiz do contrato")
-            walk(v, p, out, where)
+            walk(v, p, out, where, depth + 1)
     elif isinstance(o, list):
         for i, x in enumerate(o):
-            walk(x, f"{path}[{i}]", out, where)
+            walk(x, f"{path}[{i}]", out, where, depth + 1)
 
 def check_yaml(text, where, require_contract):
     out = [f"{where}: caractere {name} recusado" for ch, name in RAW.items() if ch in text]
+    if len(text.encode("utf-8")) > MAX_BYTES:
+        out.append(f"{where}: maior que {MAX_BYTES} bytes")
     if out:
         return out
     try:
@@ -163,6 +190,8 @@ def registry(path):
         return [f"{path}: link simbolico sob roles/ (so arquivo regular)"]
     if not os.path.isfile(path):
         return [f"{path}: nao e arquivo regular"]
+    if os.path.getsize(path) > MAX_BYTES:
+        return [f"{path}: maior que {MAX_BYTES} bytes"]
     if not os.path.basename(path).endswith(".md"):
         return [f"{path}: extensao recusada (so `.md` minusculo; .yml, .YML, .Md, .gitkeep e outras falham)"]
     with open(path, "rb") as fh:
@@ -187,6 +216,20 @@ def registry(path):
             out.append(f"{path}:{k + 1}: separador de documento no corpo")
         elif BODY_KEY.search(s):
             out.append(f"{path}:{k + 1}: chave de contrato fora do frontmatter")
+        elif EXPLICIT.match(s):
+            out.append(f"{path}:{k + 1}: chave ou valor explicito (`?`/`:`) no corpo")
+    # O corpo tambem e lido como YAML: se carregar como mapa ou lista, nenhuma
+    # chave de contrato pode aparecer nele, em qualquer profundidade.
+    body = "\n".join(lines[j + 1:])
+    try:
+        docs = list(yaml.load_all(body, Loader=Loader))
+    except yaml.YAMLError:
+        docs = []
+    for d in docs:
+        if isinstance(d, (dict, list, tuple, set)):
+            inner = []
+            walk(d, "corpo", inner, path, 1)
+            out += inner
     return out
 
 mode, args = sys.argv[1], sys.argv[2:]
@@ -209,7 +252,7 @@ PY
 # Erro do verificador vira violacao: um crash nunca pode passar como "ok".
 structural() {
   local out rc
-  out="$(python3 -I -c "$CHECKER" "$@" 2>&1)"; rc=$?
+  out="$(perl -e 'alarm shift; exec @ARGV' 30 python3 -I -c "$CHECKER" "$@" 2>&1)"; rc=$?
   [ -n "$out" ] && printf '%s\n' "$out"
   [ "$rc" -eq 0 ] || printf 'verificador estrutural falhou (rc=%s)\n' "$rc"
 }
@@ -277,6 +320,13 @@ probe "active: nUlL"            $'role: x\nstatus: latent\nactive: nUlL'
 probe "status duplicado, ultimo latent" $'role: x\nstatus: active\nstatus: latent'
 probe "CR recusado mesmo inofensivo" $'role: x\nstatus: latent # c\ractive: false'
 probe "status aninhado"         $'role: x\nstatus: latent\nmeta:\n  status: active'
+probe "!!omap aninhado"         $'role: x\nstatus: latent\nmeta: !!omap\n  - approved_by: board'
+probe "!!pairs aninhado"        $'role: x\nstatus: latent\nmeta: !!pairs\n  - active: true'
+probe "!!set aninhado"          $'role: x\nstatus: latent\nmeta: !!set\n  ? approval_ref'
+probe "chave vazia na raiz"     $'role: x\nstatus: latent\n"":\n  status: active'
+probe "ancora e alias"          $'role: x\nstatus: latent\nbase: &b {k: v}\nmeta: *b'
+probe "billion laughs"          $'role: x\nstatus: latent\na: &a [x, x]\nb: &b [*a, *a]\nc: &c [*b, *b]'
+probe "bloco maior que 64 KiB"  "role: x"$'\n'"status: latent"$'\n'"notes: $(printf 'x%.0s' $(seq 1 66000))"
 
 ok_hits="$(printf '%s\n' $'role: x\nstatus: latent # comment\ntier: null\napproval_ref: null\napproved_by: ~\ntrigger:\nactive: false\nenabled: NULL\nproposal_cap: null\nbinding: [ "agent-a" ]\nnotes: |\n  free text\nitems:\n  - plain item' | structural --block | wc -l | tr -d ' ')"
 if [ "$ok_hits" -eq 0 ]; then pass "contrato valido nao gera violacao"; else fail "falso positivo no contrato valido ($ok_hits)"; fi
@@ -286,6 +336,13 @@ mkdir -p "$tmp/crash/roles"; printf '\377\376status: active\n' > "$tmp/crash/rol
 case "$(registry_scan "$tmp/crash")" in
   *"verificador estrutural falhou"*) pass "queda do verificador conta como falha";;
   *) fail "queda do verificador nao virou falha";;
+esac
+
+# Bloco YAML invalido no template que cita chave de contrato entre aspas falha.
+printf '%s\n' '# t' '```yaml' '"approval_ref": granted' 'bad: [' '```' > "$tmp/tpl.md"
+case "$(structural --template "$tmp/tpl.md")" in
+  *"YAML invalido"*) pass "template: bloco invalido com chave entre aspas recusado";;
+  *) fail "template: bloco invalido com chave entre aspas foi pulado";;
 esac
 
 # Fixtures ponta a ponta: cada uma monta uma arvore com roles/ e passa pela
@@ -326,6 +383,21 @@ mkfx active-nulL     cto.md         "${VALID_FM%---}"$'active: nUlL\n---'
 mkfx crlf            cto.md         "${VALID_FM//$'\n'/$'\r\n'}"
 mkfx bom             cto.md         $'\xef\xbb\xbf'"$VALID_FM"
 mkfx gitkeep         .gitkeep       ''
+mkfx omap            cto.md         "${VALID_FM%---}"$'meta: !!omap\n  - approved_by: board\n  - enabled: true\n---'
+mkfx pairs           cto.md         "${VALID_FM%---}"$'meta: !!pairs\n  - approval_ref: rec-1\n  - active: true\n---'
+mkfx set             cto.md         "${VALID_FM%---}"$'meta: !!set\n  ? approved_by\n---'
+mkfx chave-vazia     cto.md         "${VALID_FM%---}"$'"":\n  status: active\n---'
+mkfx corpo-aspas     cto.md         "$VALID_FM"$'\n"active": true\n- x'
+mkfx corpo-aspas-s   cto.md         "$VALID_FM"$'\n\'approval_ref\': rec-1\n- x'
+mkfx corpo-explicita cto.md         "$VALID_FM"$'\n? active\n: true\n- x'
+mkfx corpo-escape    cto.md         "$VALID_FM"$'\n"\\u0061ctive": true'
+mkfx corpo-flow      cto.md         "$VALID_FM"$'\n{active: true}'
+mkfx fence-isolada   cto.md         "$VALID_FM"$'\n```\nplain text\n```'
+mkfx docsep-pontos   cto.md         "$VALID_FM"$'\nplain text\n...'
+mkfx docsep-tracos   cto.md         "$VALID_FM"$'\nplain text\n---\nmore text'
+mkfx alias           cto.md         "${VALID_FM%---}"$'base: &b {k: v}\nmeta: *b\n---'
+mkfx billion-laughs  cto.md         "${VALID_FM%---}"$'a: &a [x, x]\nb: &b [*a, *a]\nc: &c [*b, *b]\n---'
+mkfx grande          cto.md         "$VALID_FM"$'\n'"$(printf 'x%.0s' $(seq 1 66000))"
 mkdir -p "$tmp/fx/symlink/roles"; printf '%s\n' "$VALID_FM" > "$tmp/fx/symlink/alvo.md"
 ln -s ../alvo.md "$tmp/fx/symlink/roles/cto.md"
 
