@@ -322,7 +322,8 @@ is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL (validated stamp o
 classify_failure() {  # $1=rc ; reads $WORK/err ONLY ; prints quota|broken|timeout
   # stdout is model text, steerable by the PR under review — never let it pick
   # the class. Only the CLI's own stderr channel counts.
-  [ "$1" = 124 ] && { printf 'timeout'; return; }
+  # 124 = timed out; 137 = timed out and killed after `timeout -k`
+  case "$1" in 124|137) printf 'timeout'; return ;; esac
   if cat "$WORK/err" 2>/dev/null \
      | grep -qiE '(^|[^0-9])429([^0-9]|$)|rate[ _-]?limit|quota|usage limit|too many requests|resource[ _]exhausted'; then
     printf 'quota'
@@ -334,7 +335,7 @@ classify_failure() {  # $1=rc ; reads $WORK/err ONLY ; prints quota|broken|timeo
 failure_reason() {  # a SANITIZED token — never raw stderr, which may carry secrets
   # A timeout is a timeout: model chatter on stderr ("auth-api", "login") must
   # not relabel it.
-  if [ "$1" = 124 ]; then printf 'timeout'
+  if [ "$1" = 124 ] || [ "$1" = 137 ]; then printf 'timeout'
   elif grep -qiE 'ineligible|not eligible' "$WORK/err" 2>/dev/null; then printf 'ineligible'
   elif grep -qiE 'unauthori[sz]ed|forbidden|(^|[^0-9])40[13]([^0-9]|$)|login|auth' "$WORK/err" 2>/dev/null; then printf 'auth'
   elif grep -qiE 'unknown (option|flag|command)|usage:' "$WORK/err" 2>/dev/null; then printf 'invocation'
@@ -935,7 +936,10 @@ LAST_LINE="$(awk 'NF { l = $0 } END { print l }' "$OUT_F" | sed -e 's/[[:space:]
 IN_FENCE="$(awk '
   { line = $0; sub(/^ {0,3}/, "", line) }
   !open && match(line, /^(````*|~~~~*)/) { open = 1; ch = substr(line, 1, 1); len = RLENGTH; next }
-  open && match(line, /^(````*|~~~~*)[[:space:]]*$/) && substr(line, 1, 1) == ch && RLENGTH >= len { open = 0 }
+  open && match(line, /^(````*|~~~~*)/) {
+    n = RLENGTH; rest = substr(line, n + 1)
+    if (substr(line, 1, 1) == ch && n >= len && rest ~ /^[[:space:]]*$/) open = 0
+  }
   END { print open + 0 }' "$OUT_F" 2>/dev/null)"
 if [ "${IN_FENCE:-1}" = 0 ] \
    && printf '%s' "$LAST_LINE" | grep -qE '^VERDICT: (PASS|REQUEST_CHANGES)([[:space:]]*$|[[:space:]]+(—|-|–)[[:space:]])'; then

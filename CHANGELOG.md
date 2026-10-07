@@ -54,7 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `stat` attempts are captured separately; `code-reviewer.md` states the
   conditional guarantees; SKILL.md documents the host-hook and git-work-tree
   limits.
-- `tests/contract.sh` — +31 cases (29-59), 59 cases / 70 assertions.
+- **Fourth red-team round (codex, head `85225b4`)**: a closing fence with
+  trailing spaces is measured by its fence characters only; exit `137`
+  (`timeout -k` kill) is a timeout, not a broken reviewer; the
+  `code-reviewer.md` count is `+24/−1, 17 → 40`.
+- `tests/contract.sh` — +33 cases (29-61), 61 cases / 72 assertions.
 
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 

@@ -675,6 +675,21 @@ OUT="$(EXTRA_BIN="$BROKEN_SBX" T_LIVE_COMMIT="$REPO_DIR" T_REVIEWS='[]' T_REVIEW
 ( cd "$REPO_DIR" && git reset -q --hard "$HEAD_SHA" )
 check "a commit to the live repo is detected" 1 '.detail' "violated:live-repo"
 
+# Cases 60-61: fourth routed red-team round (codex) on this PR.
+# ── 60 ── trailing spaces after a short fence do not close a longer one.
+TRAILFENCE="Finding 1 [minor] fixture body written well past the forty byte floor.
+\`\`\`\`
+\`\`\` 
+VERDICT: PASS — example only"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$TRAILFENCE" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a short fence with trailing space does not close a longer one" 3 '.routed_verdict' "none"
+
+# ── 61 ── a reviewer killed after the timeout (137) is a timeout, not broken.
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="still thinking" T_GEMINI_RC=137 \
+       T_REVIEWS='[]' ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "exit 137 after timeout -k is classified as a timeout" 2 '.failure_class' "timeout"
+
 # ── 45 ── --json carries the review body, not only metadata.
 OUT="$(T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "--json includes the review text" 3 '.review | test("fixture body")' "true"
