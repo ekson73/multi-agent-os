@@ -7,30 +7,32 @@
 #   - o registro `roles/` (recursivo), onde a forma aceita e estrita.
 #
 # Sob `roles/`, so passa um arquivo regular com nome terminado em `.md`
-# (minusculo), cuja linha 1 e `---`, com um unico frontmatter fechado por `---`,
-# e cujo corpo nao tem fence (``` ou ~~~, com ou sem tag), nem separador de
-# documento (`---` ou `...` sozinho na linha), nem chave de contrato seguida de
-# `:` (role, status, tier, campos reservados, chaves de ativacao). Qualquer
-# outra forma e violacao: link simbolico, outra extensao (inclusive .yml, .YML,
-# .Md), frontmatter ausente ou nao fechado, arquivo que nao decodifica como
-# UTF-8 (o verificador cai, e a queda conta como falha).
+# (minusculo), em UTF-8 sem BOM, sem CR/NEL/LS/PS, cuja linha 1 e `---`, com um
+# unico frontmatter fechado por `---`, e cujo corpo nao tem fence (``` ou ~~~,
+# com ou sem tag), nem separador de documento (`---` ou `...` sozinho na linha),
+# nem chave de contrato seguida de `:` (role, status, tier, campos reservados,
+# chaves de ativacao). Qualquer outra forma e violacao: link simbolico, outra
+# extensao (.yml, .YML, .Md, .gitkeep), frontmatter ausente ou nao fechado,
+# arquivo que nao decodifica como UTF-8 (o verificador cai, e a queda conta
+# como falha).
 #
-# Dentro do contrato (frontmatter em roles/, template, sondas):
-#   - cada linha e `chave: valor`, `- item` ou comentario; outra linha e
-#     violacao (flow mapping solto, merge key `<<`, chave entre aspas);
-#   - nenhum valor usa flow mapping `{...}`, bloco literal `|`/`>`, ancora,
-#     alias ou tag; campo de contrato nao usa flow sequence `[...]`;
-#   - `status` aparece uma vez e vale `latent`;
-#   - `tier` vale exatamente `null`;
-#   - campos reservados (approval_ref, approved_by, approved_at, trigger,
-#     authority_digest) e chaves de ativacao (active, enabled, armed,
-#     effective, activated) em qualquer indentacao: vazios, `null` ou `~`
-#     (ativacao tambem aceita false/no/off) e sem filhos na linha seguinte.
+# O frontmatter (e o template, e as sondas) e lido com yaml.safe_load, com
+# chave duplicada recusada; YAML que nao carrega e violacao. Sobre o valor
+# carregado:
+#   - a raiz e um mapa; `status` vale a string `latent`; `tier`, se existir,
+#     e null;
+#   - `role`, `status` e `tier` so aparecem na raiz;
+#   - em qualquer profundidade, dentro de mapas e de listas: campos reservados
+#     (approval_ref, approved_by, approved_at, trigger, authority_digest) valem
+#     null; chaves de ativacao (active, enabled, armed, effective, activated)
+#     valem null ou false.
+# Sem python3 com PyYAML o teste falha; nunca cai para uma checagem mais fraca.
+# No template de agents/forge.md, um bloco que nao carrega como YAML so conta
+# como violacao se citar chave de contrato (a outra fence e um modelo de agente).
 #
-# Padrao: recusar na duvida. Formas YAML validas que um leitor humano acharia
-# inofensivas tambem falham (ex.: `notes: |`, `tier: NULL`, `tier: ~`, prosa no
-# corpo com "role:"). Um caso legitimo se declara reescrevendo na forma aceita
-# (block style, `tier: null`, prosa sem `chave:`), nunca afrouxando o teste.
+# Padrao: recusar na duvida. Falsos positivos aceitos: arquivo com CRLF ou BOM,
+# `roles/.gitkeep`, prosa no corpo com "role:", `active: "false"` (string, nao
+# booleano). Um caso legitimo se reescreve na forma aceita; o teste nao afrouxa.
 #
 # Nos tres arquivos de orientacao, procura a FORMA `active` de uma transicao
 # (`active` citado, `status: active`, verbo + active).
@@ -38,7 +40,10 @@
 # LIMITES declarados:
 #   - o teste NAO entende linguagem natural: "the role is activated by the
 #     owner" ou "the role goes live" em prosa nao e detectado;
-#   - chave nao listada (ex.: `is_active: true`) passa, se a forma for valida;
+#   - chave nao listada passa (ex.: `is_active: true`, `Active: true`), assim
+#     como chave nao-string que o YAML 1.1 produz (ex.: `yes:` vira booleano);
+#   - o teste mede o valor que yaml.safe_load (PyYAML, YAML 1.1) produz; um
+#     consumidor com outro parser pode ler o mesmo texto de outro jeito;
 #   - so `roles/` e o template sao lidos: um registro que o host designe fora
 #     de `roles/` nao e verificado;
 #   - nenhum workflow de CI roda este teste hoje; ele roda por
@@ -68,80 +73,79 @@ GUIDANCE_FILES=(
 # Imprime uma violacao por linha.
 CHECKER="$(cat <<'PY'
 import os, re, sys
+import yaml
 
 RESERVED = {"approval_ref", "approved_by", "approved_at", "trigger", "authority_digest"}
 BOOL_KEYS = {"active", "enabled", "armed", "effective", "activated"}
-CONTRACT_KEYS = {"role", "status", "tier"} | RESERVED | BOOL_KEYS
-EMPTY = {"", "null", "~"}
-KEY = re.compile(r"^(\s*)(-\s+)?([A-Za-z_][A-Za-z0-9_-]*)\s*:(.*)$")
-ITEM = re.compile(r"^\s*-(\s.*)?$")
+ROOT_ONLY = {"role", "status", "tier"}
+CONTRACT_KEYS = ROOT_ONLY | RESERVED | BOOL_KEYS
 BODY_KEY = re.compile(r"(^|[\s{,\[])(" + "|".join(sorted(CONTRACT_KEYS)) + r")\s*:")
 FENCE = re.compile(r"^\s*(```|~~~)")
 DOC_SEP = re.compile(r"^(---|\.\.\.)\s*$")
+# Quebras de linha que o YAML reconhece alem de \n, e o BOM: recusados.
+RAW = {"\r": "CR", "\x85": "NEL", " ": "LS", " ": "PS", "﻿": "BOM"}
 
-def value(raw):
-    v = raw.split(" #", 1)[0].strip()
-    if v.startswith("#"):
-        v = ""
-    return v
+class Loader(yaml.SafeLoader):
+    pass
 
-def strip_quotes(v):
-    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
-        return v[1:-1]
-    return v
+def no_duplicates(loader, node, deep=False):
+    seen = set()
+    for knode, _ in node.value:
+        k = loader.construct_object(knode, deep=deep)
+        if k in seen:
+            raise yaml.constructor.ConstructorError(None, None, f"chave duplicada {k!r}", knode.start_mark)
+        seen.add(k)
+    return loader.construct_mapping(node, deep)
 
-def check_block(lines, where, require_contract):
-    out, rows = [], []
-    for n, line in lines:
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        rows.append((n, line, KEY.match(line)))
-    statuses = [(n, value(m.group(4))) for n, l, m in rows if m and m.group(3) == "status"]
-    if not (require_contract or statuses or any(m and m.group(3) in CONTRACT_KEYS for _, _, m in rows)):
+Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+
+def walk(o, path, out, where):
+    if isinstance(o, dict):
+        for k, v in o.items():
+            p = f"{path}.{k}" if path else str(k)
+            if k in RESERVED and v is not None:
+                out.append(f"{where}: campo reservado `{p}` = {v!r} (so null)")
+            if k in BOOL_KEYS and not (v is None or v is False):
+                out.append(f"{where}: chave de ativacao `{p}` = {v!r} (so null ou false)")
+            if k in ROOT_ONLY and path:
+                out.append(f"{where}: `{p}` fora da raiz do contrato")
+            walk(v, p, out, where)
+    elif isinstance(o, list):
+        for i, x in enumerate(o):
+            walk(x, f"{path}[{i}]", out, where)
+
+def check_yaml(text, where, require_contract):
+    out = [f"{where}: caractere {name} recusado" for ch, name in RAW.items() if ch in text]
+    if out:
         return out
-    if len(statuses) != 1:
-        out.append(f"{where}: `status` aparece {len(statuses)} vezes (esperado 1)")
-    for n, v in statuses:
-        if strip_quotes(v) != "latent":
-            out.append(f"{where}:{n}: status = {v!r} (so `latent` e admitido)")
-    for i, (n, line, m) in enumerate(rows):
-        if not m:
-            if ITEM.match(line):
-                if "{" in line:
-                    out.append(f"{where}:{n}: flow mapping em item de lista")
-                continue
-            out.append(f"{where}:{n}: linha nao reconhecida (so `chave: valor`, `- item` ou comentario): {line.strip()[:60]!r}")
-            continue
-        key, v = m.group(3), value(m.group(4))
-        if v[:1] in ("|", ">"):
-            out.append(f"{where}:{n}: bloco literal em `{key}` (recusado na duvida)")
-        if v[:1] in ("&", "*", "!"):
-            out.append(f"{where}:{n}: ancora/alias/tag em `{key}`")
-        if "{" in v:
-            out.append(f"{where}:{n}: flow mapping em `{key}`")
-        if key in CONTRACT_KEYS and v.startswith("["):
-            out.append(f"{where}:{n}: flow sequence no campo de contrato `{key}`")
-        if key == "tier" and v != "null":
-            out.append(f"{where}:{n}: tier = {v!r} (so `null` literal e admitido)")
-        if key in BOOL_KEYS and strip_quotes(v).lower() not in EMPTY | {"false", "no", "off"}:
-            out.append(f"{where}:{n}: chave de ativacao `{key}` = {v!r}")
-        if key in RESERVED and v not in EMPTY:
-            out.append(f"{where}:{n}: campo reservado `{key}` = {v!r} (so vazio/null)")
-        if key in RESERVED | BOOL_KEYS and i + 1 < len(rows):
-            nl = rows[i + 1][1]
-            if len(nl) - len(nl.lstrip()) > len(m.group(1)):
-                out.append(f"{where}:{n}: `{key}` tem filhos")
+    try:
+        data = yaml.load(text, Loader=Loader)
+    except yaml.YAMLError as e:
+        # No template, um bloco que nao e YAML so conta se cita chave de contrato.
+        if not require_contract and not BODY_KEY.search(text):
+            return []
+        return [f"{where}: YAML invalido ({str(e).splitlines()[0]})"]
+    is_contract = require_contract or (isinstance(data, dict) and any(k in data for k in ROOT_ONLY))
+    if not is_contract:
+        walk(data, "", out, where)
+        return out
+    if not isinstance(data, dict):
+        return [f"{where}: contrato nao e um mapa YAML"]
+    if data.get("status") != "latent" or not isinstance(data.get("status"), str):
+        out.append(f"{where}: status = {data.get('status')!r} (so `latent` e admitido)")
+    if "tier" in data and data["tier"] is not None:
+        out.append(f"{where}: tier = {data['tier']!r} (so null e admitido)")
+    walk(data, "", out, where)
     return out
 
 def template_blocks(text):
-    # frontmatter + fences ```yaml de um arquivo de orientacao (template)
     lines = text.split("\n")
     i = 0
     if lines and lines[0].strip() == "---":
         j = 1
         while j < len(lines) and lines[j].strip() != "---":
             j += 1
-        yield [(k + 1, lines[k]) for k in range(1, j)]
+        yield "\n".join(lines[1:j])
         i = j + 1
     cur = None
     for k in range(i, len(lines)):
@@ -149,10 +153,10 @@ def template_blocks(text):
         if cur is None and re.match(r"^```\s*ya?ml\b", s):
             cur = []
         elif cur is not None and s.startswith("```"):
-            yield cur
+            yield "\n".join(cur)
             cur = None
         elif cur is not None:
-            cur.append((k + 1, lines[k]))
+            cur.append(lines[k])
 
 def registry(path):
     if os.path.islink(path):
@@ -160,9 +164,12 @@ def registry(path):
     if not os.path.isfile(path):
         return [f"{path}: nao e arquivo regular"]
     if not os.path.basename(path).endswith(".md"):
-        return [f"{path}: extensao recusada (so `.md` minusculo; .yml, .YML, .Md e outras falham)"]
+        return [f"{path}: extensao recusada (so `.md` minusculo; .yml, .YML, .Md, .gitkeep e outras falham)"]
     with open(path, "rb") as fh:
         text = fh.read().decode("utf-8")  # sem tratamento: arquivo ilegivel derruba o verificador
+    bad = [f"{path}: caractere {name} recusado" for ch, name in RAW.items() if ch in text]
+    if bad:
+        return bad
     lines = text.split("\n")
     if lines[0] != "---":
         return [f"{path}:1: linha 1 deve ser `---` (frontmatter)"]
@@ -171,7 +178,7 @@ def registry(path):
         j += 1
     if j >= len(lines):
         return [f"{path}: frontmatter nao fechado"]
-    out = check_block([(k + 1, lines[k]) for k in range(1, j)], path, True)
+    out = check_yaml("\n".join(lines[1:j]), path, True)
     for k in range(j + 1, len(lines)):
         s = lines[k]
         if FENCE.match(s):
@@ -184,14 +191,13 @@ def registry(path):
 
 mode, args = sys.argv[1], sys.argv[2:]
 if mode == "--block":
-    text = sys.stdin.read()
-    out = check_block([(i + 1, l) for i, l in enumerate(text.split("\n"))], "fixture", True)
+    out = check_yaml(sys.stdin.read(), "fixture", True)
 elif mode == "--template":
     out = []
     for path in args:
         with open(path, encoding="utf-8") as fh:
             for b in template_blocks(fh.read()):
-                out += check_block(b, path, False)
+                out += check_yaml(b, path, False)
 elif mode == "--registry":
     out = [v for path in args for v in registry(path)]
 else:
@@ -203,7 +209,7 @@ PY
 # Erro do verificador vira violacao: um crash nunca pode passar como "ok".
 structural() {
   local out rc
-  out="$(python3 -c "$CHECKER" "$@" 2>&1)"; rc=$?
+  out="$(python3 -I -c "$CHECKER" "$@" 2>&1)"; rc=$?
   [ -n "$out" ] && printf '%s\n' "$out"
   [ "$rc" -eq 0 ] || printf 'verificador estrutural falhou (rc=%s)\n' "$rc"
 }
@@ -227,7 +233,8 @@ VERBS='to|become|becomes|becoming|make|makes|made|move|moves|moved|set|sets|rati
 TRANSITION_RE="(\`active\`|status:[[:space:]]*[\"']?active${END}|(${VERBS})[[:space:]]+((it|that contract|the contract|the role)[[:space:]]+)?(to[[:space:]]+)?[\"'\`]?active${END})"
 transition() { grep -n -i -E -- "$TRANSITION_RE" "$1" 2>/dev/null; }
 
-command -v python3 >/dev/null 2>&1 || { fail "python3 ausente: verificador estrutural nao roda"; echo "  Status: FAILED"; exit 1; }
+# Sem python3 ou sem PyYAML o teste falha (fail-closed); nunca contorna.
+python3 -I -c 'import yaml' >/dev/null 2>&1 || { fail "python3 com PyYAML ausente: verificador estrutural nao roda"; echo "  Status: FAILED"; exit 1; }
 
 # ── 0. Os detectores detectam (anti-vacuo) ───────────────────────────────────
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -258,9 +265,20 @@ probe "flow mapping solto"      $'{role: x, status: active}'
 probe "flow mapping aninhado"   $'role: x\nstatus: latent\nmeta: {approved_by: board}'
 probe "flow com ativacao"       $'role: x\nstatus: latent\nflags: {enabled: true}'
 probe "merge key"               $'role: x\nstatus: latent\n<<: *base'
-probe "bloco literal"           $'role: x\nstatus: latent\nnotes: |\n  enabled: true'
+probe "status com continuacao"   $'role: x\nstatus: latent\n  - active'
+probe "reservado lista sem indent" $'role: x\nstatus: latent\napproval_ref:\n- granted'
+probe "CR em comentario"        $'role: x\nstatus: latent # c\ractive: true'
+probe "flow seq com par"        $'role: x\nstatus: latent\nflags: [active: true]'
+probe "lista aninhada"          $'role: x\nstatus: latent\nx:\n  - - approval_ref: rec-1'
+probe "item flow seq"           $'role: x\nstatus: latent\nmeta:\n- [enabled: true]'
+probe "item chave entre aspas"  $'role: x\nstatus: latent\nmeta:\n- "active": true'
+probe 'active: "false"'         $'role: x\nstatus: latent\nactive: "false"'
+probe "active: nUlL"            $'role: x\nstatus: latent\nactive: nUlL'
+probe "status duplicado, ultimo latent" $'role: x\nstatus: active\nstatus: latent'
+probe "CR recusado mesmo inofensivo" $'role: x\nstatus: latent # c\ractive: false'
+probe "status aninhado"         $'role: x\nstatus: latent\nmeta:\n  status: active'
 
-ok_hits="$(printf '%s\n' $'role: x\nstatus: latent # comment\ntier: null\napproval_ref: null\napproved_by: ~\ntrigger:\nproposal_cap: null\nbinding: [ "agent-a" ]\nnotes:\n  - plain item' | structural --block | wc -l | tr -d ' ')"
+ok_hits="$(printf '%s\n' $'role: x\nstatus: latent # comment\ntier: null\napproval_ref: null\napproved_by: ~\ntrigger:\nactive: false\nenabled: NULL\nproposal_cap: null\nbinding: [ "agent-a" ]\nnotes: |\n  free text\nitems:\n  - plain item' | structural --block | wc -l | tr -d ' ')"
 if [ "$ok_hits" -eq 0 ]; then pass "contrato valido nao gera violacao"; else fail "falso positivo no contrato valido ($ok_hits)"; fi
 
 # Sonda do verificador que cai: arquivo que nao decodifica como UTF-8.
@@ -294,6 +312,20 @@ mkfx fm-aberto       cto.md         $'---\nrole: cto\nstatus: latent'
 mkfx tier-lista      cto.md         "${VALID_FM/tier: null/tier: []}"
 mkfx tier-mapa       cto.md         "${VALID_FM/tier: null/tier: \{\}}"
 mkfx tier-vazio      cto.md         "${VALID_FM/tier: null/tier: \"\"}"
+FM_HEAD=$'---\nrole: cto\ntier: null\nowner: board'
+mkfx status-continua cto.md         "$FM_HEAD"$'\nstatus: latent\n  - active\n---'
+mkfx reserv-lista    cto.md         "${VALID_FM%---}"$'trigger:\n- granted\n---'
+mkfx cr-comentario   cto.md         "$FM_HEAD"$'\nstatus: latent # c\ractive: true\n---'
+mkfx nel-comentario  cto.md         "$FM_HEAD"$'\nstatus: latent # c\xc2\x85active: true\n---'
+mkfx flow-seq-par    cto.md         "${VALID_FM%---}"$'flags: [active: true]\n---'
+mkfx lista-aninhada  cto.md         "${VALID_FM%---}"$'x:\n  - - approval_ref: rec-1\n---'
+mkfx item-flow-seq   cto.md         "${VALID_FM%---}"$'meta:\n- [enabled: true]\n---'
+mkfx item-aspas      cto.md         "${VALID_FM%---}"$'meta:\n- "active": true\n---'
+mkfx active-string   cto.md         "${VALID_FM%---}"$'active: "false"\n---'
+mkfx active-nulL     cto.md         "${VALID_FM%---}"$'active: nUlL\n---'
+mkfx crlf            cto.md         "${VALID_FM//$'\n'/$'\r\n'}"
+mkfx bom             cto.md         $'\xef\xbb\xbf'"$VALID_FM"
+mkfx gitkeep         .gitkeep       ''
 mkdir -p "$tmp/fx/symlink/roles"; printf '%s\n' "$VALID_FM" > "$tmp/fx/symlink/alvo.md"
 ln -s ../alvo.md "$tmp/fx/symlink/roles/cto.md"
 
