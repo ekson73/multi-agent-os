@@ -257,14 +257,14 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║  Agent Type:     PO (Product Owner)                                          ║
 ║  Agent ID:       Claude-PO-c614-003                                          ║
-║  Depth:          1 → 2 (within limit 3)                              [OK]    ║
+║  Depth:          1 → 2 (within limit 2)                              [OK]    ║
 ║  Specialization: Backlog analysis, MVP criteria                              ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  RISK ASSESSMENT                                                             ║
 ╟──────────────────────────────────────────────────────────────────────────────╢
 ║  Loop Risk:      NONE (first delegation of this task)                [OK]    ║
-║  Depth Risk:     LOW (2/3 depth)                                     [OK]    ║
+║  Depth Risk:     LOW (2/2 depth)                                     [OK]    ║
 ║  Scope Risk:     LOW (clear boundaries defined)                      [OK]    ║
 ║  Time Risk:      NONE (45s well within 5min limit)                   [OK]    ║
 ║                                                                              ║
