@@ -41,7 +41,12 @@ mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
   cd "$REPO_DIR"
   git init -q . 2>/dev/null
   git config user.email t@t; git config user.name t; git config commit.gpgsign false
+  # The PR base: the diff is built locally from merge-base(base, head)..head.
+  echo base-only > base.txt
+  git add -A && git commit -qm "base"
   echo hello > file.txt
+  # A line only the pinned head carries: the reviewer must see it (case 79).
+  echo PINNED_HEAD_LINE_79 > head-marker.txt
   # A path the PR marks export-ignore must still reach the reviewer (case 63).
   echo 'hidden.txt export-ignore' > .gitattributes
   echo concealed > hidden.txt
@@ -56,6 +61,7 @@ mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
   git add -A && git commit -qm "seed"
 ) || { echo "FATAL: could not build temp repo" >&2; exit 1; }
 HEAD_SHA="$(cd "$REPO_DIR" && git rev-parse HEAD)"
+BASE_SHA="$(cd "$REPO_DIR" && git rev-parse HEAD~1)"
 
 # `gh` stub. Behaviour is driven entirely by T_* env vars so each case is data,
 # not code. It answers exactly the four call shapes the script makes.
@@ -92,6 +98,8 @@ case "$1 ${2:-}" in
   "comments": ${T_COMMENTS:-[]} }
 JSON
     ;;
+  # The LIVE diff. The script must never read it (case 79): a base switched
+  # and restored between two snapshots would hand the reviewer these bytes.
   "pr diff")    printf 'diff --git a/file.txt b/file.txt\n+contract fixture\n%s' "${T_DIFF_EXTRA:-}" ;;
   "pr comment") exit 0 ;;
   "api "*|"api")
@@ -192,7 +200,7 @@ sut() {
   [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
-    && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
+    && PATH="$p" T_HEAD="${T_HEAD:-$HEAD_SHA}" T_BASE="${T_BASE:-$BASE_SHA}" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
        ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE" \
        ${SUT_WRAP:-} bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
@@ -846,6 +854,54 @@ for L in ok-link sub/up-link; do
   OUT="$(T_LINK_PROBE="$L" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   check "guard: in-tree link $L is kept as a link" 3 ".review | contains(\"ISLINK-$L\")" "true"
 done
+
+# Cases 79-84: the two P1 of the codex pass on 6466b11 + the symlink-prefix alert.
+# ── 79 ── the reviewed diff is built from the PINNED pair, never downloaded.
+# The stub's live diff carries a substitution marker (what a base switched and
+# restored between snapshots would serve); the pinned head carries its own line.
+OUT="$(T_DIFF_EXTRA="SUBSTITUTED_LIVE_DIFF_79" T_PROMPT_MARK="SUBSTITUTED_LIVE_DIFF_79" \
+       T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "the live PR diff never reaches the reviewer" 3 '.review | contains("PROMPT-CARRIED-SUBSTITUTED")' "false"
+OUT="$(T_PROMPT_MARK="PINNED_HEAD_LINE_79" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "the reviewer gets the diff of the pinned base..head" 3 '.review | contains("PROMPT-CARRIED-PINNED_HEAD_LINE_79")' "true"
+
+# ── 80-82 ── a review history the gate cannot read is UNKNOWN, never clean.
+CR_OK='{"user":{"login":"alice"},"state":"CHANGES_REQUESTED","submitted_at":"2026-10-07T10:00:00Z"}'
+for H in '[{"state":"CHANGES_REQUESTED_V2"}]' '[{"state":""}]' \
+         "[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"not-a-timestamp\"}]"; do
+  OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+         EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "an unreadable history record blocks C3 (${H:0:40})" 3 '.primary_verdict' "review_history_unreadable"
+done
+
+# ── 83 ── same-second APPROVED + CHANGES_REQUESTED: the change request wins.
+TIE="[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},$CR_OK]"
+OUT="$(T_REVIEW_HISTORY="$TIE" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a same-second tie with a change request blocks C3" 3 '.primary_verdict' "changes_requested"
+
+# ── 84 ── a link on the PATH of another entry is refused, never written through.
+# A malformed tree names `x` twice (a link and a directory). `x` resolves to
+# the run's TMPDIR, so before the fix `x/y` was created THERE, outside the export.
+TMP84="$SANDBOX/tmp84"; mkdir -p "$TMP84"
+SHA84="$(cd "$REPO_DIR" && {
+  u="$(printf '../..' | git hash-object -w --stdin)"
+  x="$(printf 's/t/u/../..' | git hash-object -w --stdin)"
+  y="$(printf 'file.txt' | git hash-object -w --stdin)"
+  t2="$(printf '120000 blob %s\tu\n' "$u" | git mktree)"
+  t1="$(printf '040000 tree %s\tt\n' "$t2" | git mktree)"
+  xd="$(printf '120000 blob %s\ty\n' "$y" | git mktree)"
+  root="$(printf '040000 tree %s\ts\n120000 blob %s\tx\n040000 tree %s\tx\n' "$t1" "$x" "$xd" | git mktree --missing)"
+  git commit-tree "$root" -p "$BASE_SHA" -m malformed84; } 2>/dev/null)"
+if [ -n "$SHA84" ]; then
+  OUT="$(TMPDIR="$TMP84" T_HEAD="$SHA84" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  if [ -e "$TMP84/y" ] || [ -L "$TMP84/y" ]; then GOT=escaped; else GOT=contained; fi
+  RC=0; OUT="{\"v\":\"$GOT\"}"
+  check "a link on another entry's path is never written through" 0 '.v' "contained"
+  ok_grep "the refusal names the link on the path" 'sits on the path of another tracked entry'
+else
+  FAIL=$((FAIL+1)); FAILED_NAMES+=("case84-fixture"); echo "  FAIL  case 84 fixture could not be built"
+fi
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
