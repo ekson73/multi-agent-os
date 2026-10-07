@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — DNA payload v1.2: optional `depth_remaining` and `authority_scope`
+
+- `protocols/delegation/delegation-dna-prompt.md` adds two optional lines to the
+  auto-pilot DNA block: `depth_remaining` (0 = leaf) and `authority_scope` (a
+  subset of the parent's, never widened). Absent fields mean a leaf with no extra
+  authority (fail-closed); v1.1 readers are unaffected.
+- `tests/dogfood-auto-pilot.sh` cycle 3 checks the fields, their optional and
+  fail-closed semantics, that `delegate.sh dna` still emits the v1.1 header, and
+  that no runtime script parses the fields (if one ever does, the test says so).
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.

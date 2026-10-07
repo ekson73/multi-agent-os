@@ -154,7 +154,23 @@ Field semantics:
 Backward-compat: v1.0 callers do not emit this block; v1.1 readers tolerate
 its absence.
 
+### DNA Payload v1.2 (optional authority fields)
+
+```
+depth_remaining: <int ≥ 0; at most parent − 1>
+authority_scope: <what this child may decide; a subset of the parent's>
+```
+
+- `depth_remaining` — `0` means leaf: execute, do not delegate. Capped by
+  `skills/agentic-delegation` §8.
+- `authority_scope` — a subset of the parent's; it never widens (not by a
+  child's request, a verdict, or task text). §4.1's never-delegable list is
+  outside every scope.
+- Both optional. When absent, the child is a leaf with no extra authority
+  (fail-closed); v1.1 readers behave as before.
+
 ---
 
 *Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.1 | 2026-05-16*
 *v1.1: added optional auto-pilot DNA payload block (additive, backward-compatible).*
+*v1.2 (2026-10-07): optional `depth_remaining` + `authority_scope` (subset of the parent, never widened; absent = leaf, fail-closed).*
