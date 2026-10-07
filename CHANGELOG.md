@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — postflight 0.11.0: P0 GATE + P3.7 MANIFEST for multi-agent close-out
+
+- New SSOT `skills/postflight/references/close-out-manifest-protocol.md`: a fail-closed
+  **P0 GATE** (every delegate delivered / failed / dropped before closing; unknown state
+  blocks; orphans become seed risks + HITL items) and a **P3.7 MANIFEST** (one self-locating
+  close-out file: delegates gate · instruction N-tree with status synced 1:1 to the todo-list ·
+  HITL decisions recommended-first · roadmap · artifact index · recovery triple
+  `[session_id, link, command]` · self-location). References the hunt / seed / ticket-sync /
+  broadcast SSOTs instead of restating them.
+- New executor `bin/close-out-manifest.sh` (`check` · `persist` · `clip`): structural check of
+  the manifest; durable copy of scratch reports only after a secret scan and a PII scan, each
+  proven to detect a positive control assembled at runtime (blind scanner ⇒ rc 3, dry-run
+  default, idempotent); clipboard copy verified by `cmp` read-back (rc 4 ⇒ paste-MCP fallback,
+  never a fake success).
+- Tests: `bin/tests/close-out-manifest.test.sh` (13 assertions, bash 3.2-safe); wired into
+  `tests/validate-plugin.sh`.
+- `skills/postflight/SKILL.md` 0.10.1 → 0.11.0: Core Rule, responsibilities table, algorithm
+  steps 0.5 / 3.7, anti-patterns 19-20, related artifacts.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
