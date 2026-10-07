@@ -140,6 +140,8 @@ If autonomy_score ≥ HIGH: parent posts review state matching recommendation
 If autonomy_score MEDIUM: parent posts Comment-Only review with synthesis + override window
 If autonomy_score LOW or no-consensus: parent triggers cascade-resolver (REFINE) or HITL
 ```
+
+Personas spawned here inherit the parent's `depth_remaining` minus one and a subset of its authority (`skills/agentic-delegation` §4.1).
 </output-format>
 
 <constraints>

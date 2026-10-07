@@ -25,9 +25,11 @@ The Orchestrator is the root of all AI agent hierarchies in a session.
 
 ## Delegation Principle
 
-> "Delegate when the task requires specialized skills, context isolation, or parallel execution. Execute directly when the overhead of delegation exceeds the benefit."
+> As the **root**, the orchestrator delegates — including simple tasks — and keeps planning, auditing and deciding. It executes directly only under an exception it records. Executing directly is the default for a **leaf** (a delegate with no remaining depth). Authority it hands down is a subset of its own and never widens. Rules and the never-delegable list: `skills/agentic-delegation` §4.1, §7, §8 (single source of truth — this file does not restate them).
 
 ## Decision Tree
+
+The tree below is for a **leaf or mid** agent choosing how to do its own slice. A root starts at "DELEGATE" unless a recorded exception applies.
 
 ```
 TASK RECEIVED
@@ -52,7 +54,7 @@ EXECUTE SEQUENTIALLY
 
 Before delegating, always check:
 1. **Task Similarity** — Is sub-task same as parent? → STOP
-2. **Delegation Depth** — depth > 3? → STOP
+2. **Delegation Depth** — no `depth_remaining` left? → STOP (cap: `skills/agentic-delegation` §8)
 3. **Agent Repetition** — Same agent in chain? → STOP
 4. **Output Stagnation** — Same output as input? → STOP
 

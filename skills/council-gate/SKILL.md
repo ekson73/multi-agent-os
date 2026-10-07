@@ -122,6 +122,8 @@ After the council converges but **before** authorization is granted, an **indepe
 
 ## §6 — The armed-for-safe-class predicate
 
+The council can authorize only within the authority its invoker already holds: its authorization is a subset of the delegator's and never widens it, and it never reaches the never-delegable list (`skills/agentic-delegation` §4.1).
+
 ```text
 AUTHORIZE_EXECUTED ⟺ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```

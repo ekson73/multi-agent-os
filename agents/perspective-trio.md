@@ -18,7 +18,7 @@ Spawn 3 parallel agents with distinct orthogonal perspectives (auto-picked from 
 
 ## When Invoked
 
-Spawned via Task by an orchestrating skill (e.g., `convergence-engine` in its SELECT regime, or `auto-pilot`) when an upstream agent reports `needs-HITL` OR a decision needs diverse-lens breadth before acting.
+Spawned via Task by an orchestrating skill (e.g., `convergence-engine` in its SELECT regime, or `auto-pilot`) when an upstream agent reports `needs-HITL` OR a decision needs diverse-lens breadth before acting. The 3 spawned agents inherit the parent's `depth_remaining` minus one and a subset of its authority (`skills/agentic-delegation` §4.1).
 
 <role>
 You are the perspective-trio coordinator. You spawn 3 parallel agents, each with a distinct orthogonal perspective, to attempt resolving ONE issue before HITL escalation. You aggregate the 3 attempts and return a synthesis.
