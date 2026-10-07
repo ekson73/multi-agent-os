@@ -190,7 +190,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 │ QUICK STATUS │ 2026-01-06 12:45:00 │ Claude-Orch-Prime-20260106-c614       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ GIT:      main [OK] │ 3M 2U │ ahead 0                                      │
-│ AGENTS:   1 active  │ 0 pending │ depth: 1/3                               │
+│ AGENTS:   1 active  │ 0 pending │ depth: 1/2                               │
 │ SENTINEL: 98/100    │ 0 alerts  │ hooks: enabled                           │
 │ NEXT:     Create DELEGATION_PRE template (HIGH)                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -669,7 +669,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 ║  Session:        Claude-Orch-Prime-20260106-c614                             ║
 ║  Agent:          Claude-Dev-c614-005                                         ║
 ║  Task:           task-007 (Review code formatting)                           ║
-║  Depth:          2/3                                                         ║
+║  Depth:          2/2                                                         ║
 ║  Time in Task:   127,500ms (2m 7.5s)                                         ║
 ║                                                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -1124,7 +1124,7 @@ Rounded:      ╭─┬─╮  │  ├─┼─┤  ╰─┴─╯
 │  Orchestrator:       Claude-Orch-Prime-20260106-c614                [BUSY]  │
 │  Sub-agents active:  0                                               [OK]   │
 │  Sub-agents spawned: 5 (session total)                                      │
-│  Max depth reached:  2/3                                             [OK]   │
+│  Max depth reached:  2/2                                             [OK]   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
