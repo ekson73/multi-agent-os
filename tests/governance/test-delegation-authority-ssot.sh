@@ -80,8 +80,9 @@ else
     for d in agents skills commands protocols sentinel statusmap rules .claude .agents .codex; do
         [ -d "$ROOT/$d" ] && SCAN+=("$ROOT/$d")
     done
-    for f in AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
-        [ -f "$ROOT/$f" ] && SCAN+=("$ROOT/$f")
+    for f in AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md \
+             .github/copilot-instructions.md .github/instructions; do
+        [ -e "$ROOT/$f" ] && SCAN+=("$ROOT/$f")
     done
     hits="$(grep -rnoiE "$RE" "${SCAN[@]}" --include='*.md' --include='*.toml' 2>/dev/null || true)"
     drift=0
@@ -197,9 +198,19 @@ for clause in 'means \*\*no authorization grant\*\*' \
               'A child that receives none is a leaf' \
               'cannot confirm its grant is a subset' \
               'does not take that action and returns it to its parent' \
-              'comes from the immediate parent'; do
+              'comes from the immediate parent' \
+              'when the child cannot confirm that, the task is returned to the parent' \
+              'The child treats any value it cannot confirm as invalid' \
+              'The escape clause never relaxes §4.1'; do
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
         || bad "SSOT lost clause: $clause"
+done
+CG="$ROOT/skills/council-gate/SKILL.md"
+for clause in 'that task itself is shown to be within its parent.s authority' \
+              'operator.s grant stands in for the parent.s authority' \
+              'HITL_OUT_OF_SCOPE'; do
+    tr '\n' ' ' < "$CG" 2>/dev/null | grep -qE -- "$clause" && ok "council-gate clause: $clause" \
+        || bad "council-gate lost clause: $clause"
 done
 WIDEN="(do not (read|parse)|ignores?) the block[^.]{0,40}(exactly as|as before|as in v1)|(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
 # whitespace-normalized per file, so a phrase broken across lines still matches
@@ -235,7 +246,8 @@ if [ "$QUIET" != 1 ]; then
     FIX="$(mktemp -d)"
     COPY=""
     for p in agents skills commands protocols sentinel statusmap rules .claude .agents .codex \
-             AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
+             AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md \
+             .github/copilot-instructions.md .github/instructions; do
         [ -e "$ROOT/$p" ] && COPY="$COPY $p"
     done
     trap 'rm -rf "$FIX"' EXIT
@@ -268,7 +280,7 @@ if [ "$QUIET" != 1 ]; then
     mutate "Sentinel config cap 3"           sentinel/config.json 's/"max_delegation_depth": [0-9]*/"max_delegation_depth": 3/'
     mutate "SSOT loses 'never widens'"       skills/agentic-delegation/SKILL.md 's/never widens/may widen/g'
     mutate "SSOT loses fail-closed"          skills/agentic-delegation/SKILL.md 's/fail-closed/best-effort/g'
-    mutate "SSOT exception list reopened"    skills/agentic-delegation/SKILL.md 's/The list is closed\./Other exceptions may apply./'
+    mutate "SSOT exception list reopened"    skills/agentic-delegation/SKILL.md 's/The list is closed[.;]/Other exceptions may apply./'
     mutate "'Max recursion depth: **3**' elsewhere" skills/quiesce/SKILL.md 'append:- Max recursion depth: **3**'
     mutate "'depth: <int, hard-cap 3>'"      protocols/delegation/delegation-dna-prompt.md 's/depth: <int, hard-cap 2>/depth: <int, hard-cap 3>/'
     mutate "bare 'depth ≤ 3' in a skill"     skills/work-drain/SKILL.md 's/depth ≤ 2 (/depth ≤ 3 (/'
@@ -294,6 +306,10 @@ behave exactly as in v1.0; they need not apply#'
     mutate "Sentinel config deleted"         sentinel/config.json delete
     mutate "depth cap in .codex/AGENTS.md"   .codex/AGENTS.md 'append:Delegation depth ≤ 3.'
     mutate "depth cap in Codex agent TOML"   .codex/agents/explorer.toml 's#^Stay in exploration mode\.#Stay in exploration mode. Delegation depth ≤ 3.#'
+    mutate "depth cap in Copilot instructions" .github/copilot-instructions.md 'append:Delegation depth ≤ 3.'
+    mutate "SSOT loses task-bound return"    skills/agentic-delegation/SKILL.md 's#; when the child cannot confirm that, the task is returned to the parent##'
+    mutate "SSOT loses escape-clause limit"  skills/agentic-delegation/SKILL.md 's#The escape clause never relaxes §4.1#The escape clause may relax §4.1#'
+    mutate "council-gate P0 loses parent bound" skills/council-gate/SKILL.md 's#, and that task itself is shown to be within its parent.s authority##'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 
