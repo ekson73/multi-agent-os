@@ -189,12 +189,18 @@ whose output then carried a host memory preamble). Review the output before
 posting on a public repository, or run the reviewer under a profile without
 host hooks.
 
-⚠️ **Requirement — run inside a git work tree.** The export is built from a
-throwaway index (`read-tree` + `checkout-index`), so the caller's cwd must be
-inside a git repository, even with `--repo`. It is deliberately **not** `git
-archive`: that honours `export-ignore`/`export-subst` from the PR's own
-`.gitattributes`, which would let a change hide a file from its reviewer. The
-export is checked to contain every tracked path of the head. If the head commit is missing, it is fetched from `--repo` into that
+⚠️ **Requirement — run inside a git work tree.** The export writes every tracked
+blob of the head **raw** from the object store (`git cat-file blob`), so the
+caller's cwd must be inside a git repository, even with `--repo`. It is
+deliberately **neither** `git archive` (it honours `export-ignore`/`export-subst`,
+which would let a change hide a file from its reviewer) **nor** `checkout-index`
+(it applies smudge filters, `ident` and eol conversion, so the reviewer would read
+bytes that are not the commit). Every exported file is re-hashed with
+`git hash-object --no-filters` and must equal its blob, or the run stops; the
+export is checked to contain every tracked path of the head. A symlink whose
+target is absolute or leaves the export is replaced by a text marker, so the
+reviewer can never follow it to a host file. Head **and base** are pinned in
+Phase A and re-checked after the diff, after the review and before posting. If the head commit is missing, it is fetched from `--repo` into that
 repository's object store.
 
 Two native review paths were found during the probe and are **not** wrapped by
@@ -220,7 +226,7 @@ a genuine `HEAD_SHA` (the script fetches and exports it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**67 cases · 80 assertions** (several cases assert an exit code *and* a field or
+**78 cases · 93 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.

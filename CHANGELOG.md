@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: four P1 of the final codex red-team round on #414
+
+- **The base is pinned.** Head and base are fixed in Phase A and re-read after
+  the diff (moved ⇒ refused), after the review (moved ⇒ cannot complete C3) and
+  before posting (moved ⇒ not posted).
+- **The export holds raw blobs.** Files are written with `git cat-file blob`,
+  not `checkout-index` (which applied smudge filters, `ident` and eol
+  conversion), and each is checked with `git hash-object --no-filters`.
+- **An unreadable review history blocks.** `null`, `{}` or a malformed reviews
+  answer is `unknown`, never "no change request".
+- **Symlinks cannot reach the host.** Absolute or escaping targets become text
+  markers; in-tree links are kept.
+
 ### Fixed — `routed-pr-review`: open P1/P2 findings from the codex connector on #414
 
 - **`--primary` is the configured set.** When declared, primaries are classified

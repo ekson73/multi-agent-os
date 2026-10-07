@@ -45,6 +45,14 @@ mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
   # A path the PR marks export-ignore must still reach the reviewer (case 63).
   echo 'hidden.txt export-ignore' > .gitattributes
   echo concealed > hidden.txt
+  # Raw-blob export (cases 73-74): `ident` would expand $Id$ on a checkout.
+  echo 'idf.txt ident' >> .gitattributes
+  printf '%s\n' '$Id$' > idf.txt
+  # Symlink containment (cases 75-78): absolute, escaping, and two in-tree links.
+  ln -s /etc/hosts abs-link
+  ln -s ../../../../../../../../etc/hosts esc-link
+  ln -s file.txt ok-link
+  mkdir -p sub && ln -s ../file.txt sub/up-link
   git add -A && git commit -qm "seed"
 ) || { echo "FATAL: could not build temp repo" >&2; exit 1; }
 HEAD_SHA="$(cd "$REPO_DIR" && git rev-parse HEAD)"
@@ -59,16 +67,22 @@ case "$1 ${2:-}" in
     # the first returns the new head.
     # T_REVIEWS_AFTER does the same for the reviews (an approval withdrawn
     # or a change request submitted while the reviewer ran).
-    H="$T_HEAD"; R="${T_REVIEWS:-[]}"
+    # T_BASE_AFTER does the same for the base. The switch happens once
+    # T_SWITCH_AT earlier `pr view` calls were served (default 1): the script
+    # reads the PR in Phase A, again right after the diff, again in Phase E,
+    # and once more before posting.
+    H="$T_HEAD"; R="${T_REVIEWS:-[]}"; B="${T_BASE:-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"
     if [ -n "${T_COUNT:-}" ]; then
-      if [ -e "$T_COUNT" ]; then
+      n=0; [ -s "$T_COUNT" ] && n="$(cat "$T_COUNT")"
+      if [ "$n" -ge "${T_SWITCH_AT:-1}" ]; then
         [ -n "${T_HEAD_AFTER:-}" ] && H="$T_HEAD_AFTER"
         [ -n "${T_REVIEWS_AFTER:-}" ] && R="$T_REVIEWS_AFTER"
+        [ -n "${T_BASE_AFTER:-}" ] && B="$T_BASE_AFTER"
       fi
-      : > "$T_COUNT"
+      printf '%s' "$((n + 1))" > "$T_COUNT"
     fi
     cat <<JSON
-{ "number": 1, "title": "contract fixture", "headRefOid": "${H}",
+{ "number": 1, "title": "contract fixture", "headRefOid": "${H}", "baseRefOid": "${B}",
   "body": "${T_PR_BODY:-}", "commits": [{"oid": "abcdef0123", "messageHeadline": "${T_COMMIT_MSG:-fixture commit}", "messageBody": ""}],
   "headRefName": "feat/x", "baseRefName": "main", "url": "https://example.invalid/pr/1",
   "author": {"login": "someone"},
@@ -132,6 +146,9 @@ fi
 # echo back what the prompt contained, so a case can see the PR body arrive
 # report whether a given path is visible in the reviewer's cwd (the export)
 [ -n "${T_SEE_FILE:-}" ] && [ -f "$T_SEE_FILE" ] && echo "SAW-$T_SEE_FILE"
+# print a file's bytes, or report that a path is still a symlink in the export
+[ -n "${T_CAT_FILE:-}" ] && cat "$T_CAT_FILE" 2>/dev/null
+[ -n "${T_LINK_PROBE:-}" ] && [ -L "$T_LINK_PROBE" ] && echo "ISLINK-$T_LINK_PROBE"
 if [ -n "${T_PROMPT_MARK:-}" ]; then case "$*" in *"$T_PROMPT_MARK"*) echo "PROMPT-CARRIED-$T_PROMPT_MARK" ;; esac; fi
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
@@ -176,7 +193,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE" \
        ${SUT_WRAP:-} bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
@@ -542,7 +559,8 @@ OUT="$(T_REVIEWS='[]' T_REVIEW_BODY="$PASS_BODY" T_REVIEW_RC=1 ROUTED_REVIEW_CAL
 check "a reviewer that exits non-zero produces NO review" 2 '.status' "empty_review"
 
 # ── 36 ── a push during the review voids the convergence claim.
-OUT="$(T_COUNT="$SANDBOX/count" T_HEAD_AFTER=1111111111111111111111111111111111111111 \
+rm -f "$SANDBOX/count"
+OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_HEAD_AFTER=1111111111111111111111111111111111111111 \
        T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 rm -f "$SANDBOX/count"
@@ -766,6 +784,68 @@ check "raw reviewer stderr is withheld unless debug is opted in" 0 '.v' "withhel
 OUT="$(STATE="$SANDBOX/state/state-ceiling.json" EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" T_GEMINI_RC=2 \
        ROUTED_REVIEW_MAX_ATTEMPTS=1 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "the rotation stops at the attempt ceiling" 2 '.reason' "attempt_ceiling"
+
+# Cases 68-78: the four P1 of the final codex red-team round on this PR.
+B2=cccccccccccccccccccccccccccccccccccccccc
+# ── 68 ── P1-1: a base that moves during the review voids the verdict.
+rm -f "$SANDBOX/count"
+OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_BASE_AFTER="$B2" \
+       T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+rm -f "$SANDBOX/count"
+check "a base that moved during the review blocks C3" 3 '.primary_verdict' "base_moved_during_review:$B2"
+
+# ── 69 ── P1-1: a base that moves between Phase A and the diff is refused.
+OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=1 T_BASE_AFTER="$B2" \
+       T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+rm -f "$SANDBOX/count"
+check "a base that moved before the review is refused" 1 '.status' "pr_moved_before_review"
+
+# ── 70 ── P1-1: a PR that moves after the verdict is never posted to.
+OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=3 T_BASE_AFTER="$B2" \
+       T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai --post" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+rm -f "$SANDBOX/count"
+check "a PR that moved before posting is not posted to" 1
+ok_grep "the refusal to post names the move" 'moved after the verdict'
+
+# ── 71-72 ── P1-3: a review history that is null or {} is UNKNOWN, never clean.
+for H in 'null' '{}'; do
+  OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+         EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "a review history of $H blocks C3 as unreadable" 3 '.primary_verdict' "review_history_unreadable"
+done
+
+# ── 73 ── P1-2: the export holds the RAW blob — no ident/smudge/eol conversion.
+OUT="$(T_CAT_FILE=idf.txt T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "the export carries raw blob bytes (ident not expanded)" 3 \
+  '(.review | contains("$Id$")) and (.review | contains("$Id:") | not)' "true"
+
+# ── 74 ── P1-2: an exported file that differs from its blob aborts the run.
+CORRUPT_BIN="$SANDBOX/corrupt"; mkdir -p "$CORRUPT_BIN"; REAL_GIT="$(command -v git)"
+cat > "$CORRUPT_BIN/git" <<STUB
+#!/usr/bin/env bash
+if [ "\$1" = cat-file ] && [ "\${2:-}" = blob ]; then "$REAL_GIT" "\$@"; printf 'X'; exit 0; fi
+exec "$REAL_GIT" "\$@"
+STUB
+chmod +x "$CORRUPT_BIN/git"
+OUT="$(EXTRA_BIN="$CORRUPT_BIN" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an export that diverges from its blobs is refused" 1
+ok_grep "the refusal names the divergence" 'diverges from the committed blobs'
+
+# ── 75-76 ── P1-4: absolute and escaping symlinks become markers, never links.
+for L in abs-link esc-link; do
+  OUT="$(T_CAT_FILE="$L" T_LINK_PROBE="$L" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "$L is replaced by a marker, not followed" 3 \
+    '(.review | contains("symlink not exported")) and (.review | contains("ISLINK-") | not)' "true"
+done
+
+# ── 77-78 ── guards (pass before AND after the fix): in-tree links stay links.
+for L in ok-link sub/up-link; do
+  OUT="$(T_LINK_PROBE="$L" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "guard: in-tree link $L is kept as a link" 3 ".review | contains(\"ISLINK-$L\")" "true"
+done
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
