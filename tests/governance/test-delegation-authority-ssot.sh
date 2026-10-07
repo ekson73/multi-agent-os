@@ -100,7 +100,10 @@ EOF
     # rendered values (config tables, "current/max" status displays): value
     # check only — examples need not link the SSOT, but must show the cap.
     REND='max_delegation_depth[^0-9a-z]{0,8}[0-9]+|depth( reached)?[^0-9a-z]{0,16}[0-9]+ ?/ ?[0-9]+'
-    rend_bad="$(grep -rnoiE "$REND" "${SCAN[@]}" --include='*.md' 2>/dev/null | grep -vE "[^0-9]$CAP\$" || true)"
+    REND="$REND|[0-9]+ ?/ ?[0-9]+ depth|depth[^.|]{0,30}within limit[[:space:]]*[0-9]+"
+    # "N/M depth" ends in "depth": normalize each hit to its max value first
+    rend_bad="$(grep -rnoiE "$REND" "${SCAN[@]}" --include='*.md' 2>/dev/null \
+        | sed -E 's#([0-9]+) ?/ ?([0-9]+) depth$#\1/\2#' | grep -vE "[^0-9]$CAP\$" || true)"
     if [ -n "$rend_bad" ]; then
         bad "a rendered depth value shows a max other than $CAP:"
         [ "$QUIET" = 1 ] || printf '%s\n' "$rend_bad" | sed "s|$ROOT/|      |"
@@ -261,6 +264,8 @@ if [ "$QUIET" != 1 ]; then
     mutate "Sentinel cap written as 2e1"     sentinel/config.json 's/"max_delegation_depth": 2,/"max_delegation_depth": 2e1,/'
     mutate "Sentinel cap written as 2.5"     sentinel/config.json 's/"max_delegation_depth": 2,/"max_delegation_depth": 2.5,/'
     mutate "auto-pilot bypass sentence back" skills/auto-pilot/SKILL.md 'append:Agents that do not read the block behave exactly as before.'
+    mutate "statusmap '(2/3 depth)' order"   statusmap/templates/statusmap_templates.md 's#LOW (2/2 depth)#LOW (2/3 depth)#'
+    mutate "statusmap 'within limit 3'"      statusmap/templates/statusmap_templates.md 's#(within limit 2)#(within limit 3)#'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 

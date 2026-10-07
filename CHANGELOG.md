@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JSON, 1 ≤ min ≤ max ≤ cap) disagrees, if the SSOT loses its normative
   clauses or gains a personal-layer reference, if any file that states a depth
   cap does not link the SSOT, or if a listed widening phrase appears.
-  Twenty-six mutation fixtures (plus a control) prove each check catches the
+  Twenty-eight mutation fixtures (plus a control) prove each check catches the
   contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
   briefing or payload) and that a parent grants only from a scope it can show,
@@ -61,7 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   back to the parent; agents that do not parse the auto-pilot block still
   apply the §4.1 defaults; Sentinel's cap must be the exact integer.
   Memory: non-judgment upkeep may be delegated, deciding what to persist may
-  not. Sample renderings (`skills/audit` config table, statusmap displays,
+  not. The default sweep is part of the given task, not an authority grant;
+  `council-gate` P0 passes for actions inside the invoker's own task or a
+  verifiable grant; §1 escalation goes through the council first; §4's table
+  points to the §4.1 never-delegable table instead of repeating it; §8 states
+  that no session-wide cap on live delegates is set (operator decision). Sample renderings (`skills/audit` config table, statusmap displays,
   a Sentinel example) show the cap 2. Files that restated the cap without a
   link (`enhance-pipeline`, `ooda-loop`, `transmute`, `gap-loop`, `work-drain`,
   `praxis-audit`, `refine-braindump-to-prompt`, `agentic-tool-forge`,

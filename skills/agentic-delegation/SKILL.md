@@ -26,7 +26,7 @@ description: Use when about to spawn a subagent/skill/task (Task tool, Agent too
 | 5 | **NOT in HUMAN_DOMAIN** | Task is outside the escalation list (operator-personal / irreversible / cross-org / secrets / PII / etc.) |
 | 6 | **Time-budget allows verification** | Audit time ≤ delegation time (else delegation is not worth the cost) |
 
-**6/6 PASS → delegate. ≥ 1 FAIL → escalate, or execute inline only where §4.1 allows it (a leaf, or the root under a recorded exception). A criterion-5 FAIL (HUMAN_DOMAIN) always escalates — nobody executes it inline.**
+**6/6 PASS → delegate. ≥ 1 FAIL → escalate (agentic council first, per §4.1; the residue goes to the human), or execute inline only where §4.1 allows it (a leaf, or the root under a recorded exception). A criterion-5 FAIL (HUMAN_DOMAIN) always escalates — nobody executes it inline.**
 
 ## 2. Briefing components — WHAT to brief (11 mandatory items)
 
@@ -68,10 +68,7 @@ Every spawn MUST include all 11. Skipping any item is the under-briefing anti-pa
 | Responsibility | Who |
 |---|---|
 | Execution (the work) | Subagent (delegated) |
-| Audit of the output | **Parent** (NOT delegated) |
-| Final signoff | **Parent** (NOT delegated) |
-| Escalation decision | **Parent** (NOT delegated) |
-| Memory judgment (what to persist or promote) | **Parent** (non-judgment upkeep, e.g. pruning stale entries, may be delegated; deciding what to persist or promote may not; user-scope persistence needs operator confirmation) |
+| Everything in the §4.1 never-delegable table (audit, final signoff, escalation, memory judgment, …) | **Parent** (see §4.1) |
 | BEING > Rules preservation | **Parent** (recursively across the delegation tree) |
 
 **6-failure rule**: if a subordinate fails 6× with different approaches, the parent runs the §4.1 council step and then escalates the residue to the operator with: complete context + 6 attempts + hypotheses + recommendations + evidence.
@@ -112,7 +109,7 @@ The list is closed. An exception changes **who executes**, never **what is autho
 
 **Before escalating to the human**, run the agentic council (`skills/convergence-engine`, `skills/council-gate`); only the irreducible residue goes to the human. A council result never authorizes an action outside the invoker's scope; out-of-scope results are advice only.
 
-**Default sweep on delegated work.** Unless the briefing narrows it, delegated work carries the sweep: analyze, criticize, find and fix bugs, gaps, warnings, failures, errors, security issues and inconsistencies, improve, harmonize, sanitize.
+**Default sweep on delegated work.** Unless the briefing narrows it, delegated work carries the sweep, as part of the task it was given (it is not an authority grant: anything beyond the task still needs one): analyze, criticize, find and fix bugs, gaps, warnings, failures, errors, security issues and inconsistencies, improve, harmonize, sanitize.
 
 ## 5. Modes — recursive sequential OR parallel
 
@@ -145,6 +142,7 @@ The full list is the §4.1 never-delegable table; it applies at every depth. Two
 
 - Max recursion depth: **2**
 - Max parallel delegations: **3**
+- No session-wide cap on live delegates is set here; choosing one is an operator decision (open item).
 - Time-box per delegation: **specified upfront** (default 15 min)
 - Audit time ≤ delegation time
 - Max failure attempts: **6** before escalation

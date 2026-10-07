@@ -73,7 +73,7 @@ intake -> 33-socratic interrogation (§4)
       -> RED-TEAM refutation (§5.2.5)             --refuted-->  P4 FAILS -> HITL (§7)   [the missed-facet catch]
                                                   --survives-->
       -> evaluate predicate P0..P5 (§6)
-                    P0 fails (scope missing, unverifiable, or exceeded) -> HITL_OUT_OF_SCOPE (§6)
+                    P0 fails (beyond the task without a verifiable grant) -> HITL_OUT_OF_SCOPE (§6)
                     predicate PASS + ARMED        -> execute + decision-capture (§6.3)
                     predicate PASS + UNARMED       -> emit verdict + 1-touch confirm (§1)
                     predicate FAIL, score recoverable -> Score-Uplift (<=3) -> re-loop <= n*
@@ -129,7 +129,7 @@ The council can authorize only within the authority its invoker already holds: i
 AUTHORIZE_EXECUTED ⟺ P0 within-invoker-scope ∧ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```
 
-- **P0** = the action is inside the authority the invoker verifiably holds (`skills/agentic-delegation` §4.1). Missing or unverifiable scope ⇒ P0 is false. Record the scope evidence in the verdict and re-check it before executing.
+- **P0** = the action is inside the invoker's own assigned task or a grant it verifiably holds (`skills/agentic-delegation` §4.1). A missing or unverifiable scope makes P0 false for any action beyond that task. Record the scope evidence in the verdict and re-check it before executing.
 - **P1** = the §5.1 Layer-1 clear (unconditional — confidence never opens it).
 - **P3** `autonomy_score` per `[C17]` §1.2 6-factor; if <0.90 attempt Score-Uplift (`[C17]` §1.4, ≤3) first.
 - **P4** = council convergence (§5.2) **AND** red-team survival (§5.2.5) — both, per the §2.3 triple-check.
