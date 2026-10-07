@@ -48,10 +48,11 @@ die() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
 umask 077
 WORK=""
 DEST_TMPS=()
+PENDING_BAK="" # a backup being written: removed on any exit until it is a complete copy
 cleanup() {
   local rc=$? ok=1 f
   trap - EXIT INT TERM HUP
-  for f in ${DEST_TMPS[@]+"${DEST_TMPS[@]}"}; do
+  for f in ${DEST_TMPS[@]+"${DEST_TMPS[@]}"} ${PENDING_BAK:+"$PENDING_BAK"}; do
     rm -f -- "$f" 2>/dev/null || ok=0
     [ ! -e "$f" ] || ok=0
   done
@@ -147,11 +148,13 @@ canon() { # physical path of an existing file (symlinks resolved), else empty
   [ -e "$f" ] || return 0
   d="$(cd "$(dirname -- "$f")" && pwd -P)" && printf '%s/%s' "$d" "${f##*/}"
 }
-is_ephemeral() { # temp/scratch roots, including the canonical session temp root
+is_ephemeral() { # temp/scratch roots, including the canonical session temp root and macOS per-user temp
   local t="${TMPDIR:-/tmp}" tc; t="${t%/}"; tc="$(cd "$t" 2>/dev/null && pwd -P)"
   case "$1" in
     "") return 1 ;;
     /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|/private/var/tmp|/private/var/tmp/*|*/scratchpad*) return 0 ;;
+    # macOS per-user temp (/var/folders/<x>/<y>/T): ephemeral even when $TMPDIR points elsewhere
+    /var/folders/*/T|/var/folders/*/T/*|/private/var/folders/*/T|/private/var/folders/*/T/*) return 0 ;;
     "$t"|"$t"/*) return 0 ;;
   esac
   [ -n "$tc" ] && case "$1" in "$tc"|"$tc"/*) return 0 ;; esac
@@ -172,7 +175,7 @@ cmd_check() {
   local IFS='|' s sections="$REQUIRED_SECTIONS"
   [ "$strict" -eq 0 ] || sections="$REQUIRED_SECTIONS|$STRICT_SECTIONS"
   for s in $sections; do
-    grep -qiE "^##[[:space:]]+$s[[:space:]]*$" "$manifest" || missing="${missing}section:${s};"
+    grep -qiE "^##[[:space:]]+${s}[[:space:]]*$" "$manifest" || missing="${missing}section:${s};"
   done
   unset IFS
   # FEAT-2: a pending delegate may only be closed over as an operator-authorised PARTIAL
@@ -198,7 +201,7 @@ cmd_check() {
   [ "$strict" -eq 0 ] || content="$content|$STRICT_SECTIONS"
   local IFS='|'
   for k in $content; do
-    if grep -qiE "^##[[:space:]]+$k[[:space:]]*$" "$manifest" && section_body_empty "$manifest" "$k"; then
+    if grep -qiE "^##[[:space:]]+${k}[[:space:]]*$" "$manifest" && section_body_empty "$manifest" "$k"; then
       missing="${missing}empty-section:${k};"
     fi
   done
@@ -272,7 +275,8 @@ EOF
 # Phones: with the +55/55 prefix any spacing; without it, a formatted domestic number — DDD in
 # parentheses, or separated from the subscriber number, or a separator before the last 4 digits.
 # DDD digits are 1-9 (no Brazilian area code has a 0); mobile = 9 + 8 digits, landline 2-5 + 7.
-# A bare 10-11 digit run with no formatting is not matched on purpose (timestamps, ids).
+# A bare 10-11 digit run with no formatting is not matched as a PHONE on purpose (timestamps,
+# ids); an isolated 11-digit run IS matched as a CPF when its check digits are valid (cpf_bare_hit).
 PHONE_SUB='(9[0-9]{4}|[2-5][0-9]{3})'
 PII_RE='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'\
 '|(\+?55[ .-]*\(?[1-9][1-9]\)?[ .-]*'"$PHONE_SUB"'[ .-]?[0-9]{4})'\
@@ -347,6 +351,13 @@ cmd_persist() {
   done
   [ -n "$dest" ] || die "persist: --dest required"
   [ "${#srcs[@]}" -gt 0 ] || die "persist: at least one --src required"
+  # the point of persist is durability: a destination under a temp root (spelled, or the real
+  # path of its nearest existing ancestor, symlinks followed) is refused before anything runs
+  local da="${dest/#\~/$HOME}"
+  while [ ! -e "$da" ] && [ "$da" != "/" ] && [ "$da" != "." ]; do da="$(dirname -- "$da")"; done
+  if is_ephemeral "${dest/#\~/$HOME}" || is_ephemeral "$(canon "$da")"; then
+    die "persist: --dest is under a temp/scratch root — refusing (a durable copy must survive temp cleanup)" 1
+  fi
 
   SCANNER="${MAOS_SECRET_SCANNER:-gitleaks}"
   command -v "$SCANNER" >/dev/null 2>&1 || die "persist: secret scanner '$SCANNER' not found — refusing (fail-closed)" 3
@@ -419,7 +430,9 @@ cmd_persist() {
         # never lose the previous version: a differing target is kept as a timestamped backup
         if [ -f "$target" ]; then
           bak="$(mktemp "$target.bak.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")" || die "persist: cannot back up $base" 1
+          PENDING_BAK="$bak" # an incomplete backup is residue: the EXIT trap removes it
           cp -p -- "$target" "$bak" || die "persist: cannot back up $base" 1
+          PENDING_BAK="" # complete: kept on purpose (never lose the previous version)
         fi
         mv -f -- "$tmp" "$target" || die "persist: cannot promote $base" 1
         cmp -s "$staged" "$target" || die "persist: post-copy verify failed for $base" 1
