@@ -135,7 +135,8 @@ else
 fi
 
 # 3d. consumers unaffected: delegate.sh still emits the doc verbatim, and the
-#     v1.1 header + every v1.1 field is still there (old readers keep working)
+#     v1.1 template line parent_agent_id (one v1.1 field, as a proxy) and the
+#     v1.2 depth_remaining line are still there (old readers keep working)
 if DNA_OUT=$(bash "$DELEGATE" dna 2>/dev/null) \
    && echo "$DNA_OUT" | grep -q "^parent_agent_id:" \
    && echo "$DNA_OUT" | grep -q "^depth_remaining:"; then
