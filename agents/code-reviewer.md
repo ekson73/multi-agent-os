@@ -27,8 +27,10 @@ it is **not sufficient** wherever a gate requires `verifier != generator`.
 When independence is the actual requirement — a merge gate, a red-team cycle, or
 a review whose primary bot is quota-blocked — do not self-certify. Hand off to
 `skills/routed-pr-review/` (soul-name Euthyna), which dispatches a reviewer in a
-**fresh OS process from a different vendor family** with enforced read-only
-access, and reports what a routed review does and does not satisfy under
+**fresh OS process**, preferring a different provider family, over a read-only
+export of the head. Its guarantees are conditional and reported per run
+(diversity can be `unverified`; enforcement can be `os-perms-only`, which detects
+writes but does not prevent them), and it reports what a routed review does and does not satisfy under
 `pr-review-protocol.md` §4.1(e).
 
 Your review criteria remain the reusable part; the isolation is what you cannot

@@ -201,9 +201,24 @@ HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(","
 # ⛔ An active CHANGES_REQUESTED from ANY reviewer — human or bot, any head —
 # blocks. `reviewDecision` alone misses one when the branch rules do not count
 # that reviewer, and humans are otherwise reduced to names above.
+# ⛔ `latestReviews` keeps only each reviewer's LAST review, so a change request
+# followed by a COMMENTED vanishes from it while it is still active. The full
+# history is read and each reviewer's last DECISIVE state (APPROVED,
+# CHANGES_REQUESTED, DISMISSED) is kept. Unreadable history blocks.
 CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if (.reviewDecision == "CHANGES_REQUESTED")
     or ([.latestReviews[]? | select(.state == "CHANGES_REQUESTED")] | length > 0)
   then "yes" else "no" end')"
+if [ "$CHANGES_REQ" = no ]; then
+  if _hist="$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" 2>/dev/null)" && [ -n "$_hist" ]; then
+    CHANGES_REQ="$(printf '%s' "$_hist" | jq -s -r '
+      [.[][]? | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")]
+      | group_by(.user.login) | map(max_by(.submitted_at) | .state)
+      | if any(. == "CHANGES_REQUESTED") then "yes" else "no" end' 2>/dev/null)" || CHANGES_REQ="unknown"
+    [ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
+  else
+    CHANGES_REQ="unknown"
+  fi
+fi
 }
 compute_primaries
 
@@ -621,6 +636,9 @@ LIVE_BEFORE=""
 # the status (paths + codes), the tracked diff, and the digest of every
 # untracked, non-ignored file.
 live_repo_state() {
+  # HEAD and the checked-out ref too: a reviewer that edits a tracked file and
+  # COMMITS it leaves status and diff clean, but moves HEAD.
+  git rev-parse -q --verify HEAD 2>/dev/null; git symbolic-ref -q HEAD 2>/dev/null
   git status --porcelain=v1 -z --untracked-files=all 2>/dev/null
   git diff --binary HEAD 2>/dev/null
   git ls-files -z -o --exclude-standard 2>/dev/null | while IFS= read -r -d '' f; do
@@ -692,7 +710,7 @@ run_reviewer() {
       # ⛔ `--allowedTools` only GRANTS permission; it does not remove tools, and
       # inherited settings could still allow writes. `--tools` restricts the
       # available set itself, and `--strict-mcp-config` loads no MCP servers.
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} claude -p \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} claude -p \
         --max-turns "$MAX_TURNS" \
         --tools "Read,Grep,Glob" --strict-mcp-config \
         --allowedTools "Read" "Grep" "Glob" \
@@ -700,19 +718,19 @@ run_reviewer() {
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
       # `-` = read the instructions from stdin (keeps the diff out of argv).
       # The export has no .git, so codex needs --skip-git-repo-check to run there.
-      "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" codex exec --sandbox read-only --skip-git-repo-check --cd "$dir" - \
+      "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" codex exec --sandbox read-only --skip-git-repo-check --cd "$dir" - \
         < "$PROMPT_F" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     kiro-cli)                      # measured: `kiro-cli chat --no-interactive`, read-only tool trust
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro-cli chat --no-interactive --trust-tools=fs_read "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" -k 30 "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro-cli chat --no-interactive --trust-tools=fs_read "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac
@@ -785,7 +803,12 @@ state_dir_identity() {
   local d="$STATE_DIR" id
   [ -L "$d" ] && { printf 'symlink'; return 0; }
   [ -d "$d" ] || { printf 'absent'; return 0; }
-  id="$(stat -f '%d:%i' "$d" 2>/dev/null || stat -c '%d:%i' "$d" 2>/dev/null)" || id="?"
+  # Each attempt is captured on its own: GNU `stat -f` means "filesystem" and
+  # prints changing free-block counts before failing, which would pollute a
+  # combined substitution.
+  if id="$(stat -c '%d:%i' "$d" 2>/dev/null)" && [ -n "$id" ]; then :
+  elif id="$(stat -f '%d:%i' "$d" 2>/dev/null)" && [ -n "$id" ]; then :
+  else id="?"; fi
   printf '%s|%s' "$(cd "$d" 2>/dev/null && pwd -P)" "$id"
 }
 snapshot_state() { STATE_BEFORE="$(state_digest)"; STATE_DIR_BEFORE="$(state_dir_identity)"; }
@@ -905,9 +928,16 @@ done
 # must not decide the gate; anything else is "no verdict" (fail-closed).
 # The token must be exact (`PASS`, not `PASSING`), and a terminal line inside an
 # unclosed code fence is an example, not a decision.
-LAST_LINE="$(awk 'NF { l = $0 } END { print l }' "$OUT_F" | sed -e 's/[[:space:]]*$//')"
-OPEN_FENCES="$(grep -acE '^[[:space:]]*(```|~~~)' "$OUT_F" 2>/dev/null || true)"
-if [ $(( ${OPEN_FENCES:-0} % 2 )) -eq 0 ] \
+# Up to 3 leading spaces are allowed (some CLIs indent their output); 4+ is a
+# markdown code block. Fences are tracked CommonMark-style: a fence closes only
+# with the same character and at least the opening length.
+LAST_LINE="$(awk 'NF { l = $0 } END { print l }' "$OUT_F" | sed -e 's/[[:space:]]*$//' -e 's/^ \{0,3\}//')"
+IN_FENCE="$(awk '
+  { line = $0; sub(/^ {0,3}/, "", line) }
+  !open && match(line, /^(````*|~~~~*)/) { open = 1; ch = substr(line, 1, 1); len = RLENGTH; next }
+  open && match(line, /^(````*|~~~~*)[[:space:]]*$/) && substr(line, 1, 1) == ch && RLENGTH >= len { open = 0 }
+  END { print open + 0 }' "$OUT_F" 2>/dev/null)"
+if [ "${IN_FENCE:-1}" = 0 ] \
    && printf '%s' "$LAST_LINE" | grep -qE '^VERDICT: (PASS|REQUEST_CHANGES)([[:space:]]*$|[[:space:]]+(—|-|–)[[:space:]])'; then
   VERDICT_LINE="$LAST_LINE"
 else
@@ -935,7 +965,11 @@ fi
 # loudly), but it can never grant one.
 repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none seen · 2 = probe failed
   local out
-  out="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null \
+  # Bots speak in issue comments AND in review comments; probe both.
+  local ic pc
+  ic="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null)" || return 2
+  pc="$(gh api --paginate "repos/$REPO/pulls/comments?per_page=100" 2>/dev/null)" || return 2
+  out="$(printf '%s\n%s\n' "$ic" "$pc" \
         | jq -s --arg re "$KNOWN_BOTS_RE" \
             '[.[][]? | select(.user.login | test($re; "i")) | .user.login] | unique | length' 2>/dev/null)" || return 2
   [ -n "$out" ] || return 2
@@ -956,6 +990,8 @@ HEAD_NOW="$(printf '%s' "$PR_JSON" | jq -r '.headRefOid // empty' 2>/dev/null)"
 MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pending_or_unknown"
 if [ "$CHANGES_REQ" = "yes" ]; then
   PRIMARY_STATUS="changes_requested"      # §4.1(e): routing never dismisses this
+elif [ "$CHANGES_REQ" = "unknown" ]; then
+  PRIMARY_STATUS="review_history_unreadable"
 elif [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] && [ -n "$CLEARED" ]; then
   # CLEARED is bot-only (phase B); a human approval can never land here.
   # ⛔ "every bot that SPOKE approved" is not "every CONFIGURED primary

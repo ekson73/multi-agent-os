@@ -45,7 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   write-protects the baseline and the work-dir node; the verdict token must be
   exact and outside an unclosed code fence; the PR body and commit messages are
   in the prompt; a timeout's reason is `timeout`.
-- `tests/contract.sh` — +25 cases (29-53), 53 cases / 64 assertions.
+- **Third red-team round (codex + kimi, head `a579013`)**: an active change
+  request is read from the full review history (a later COMMENTED no longer
+  hides it; unreadable history blocks); fences are tracked by character and
+  length; a verdict indented by up to 3 spaces is read; the attestation probe
+  also reads review comments; the live-repo snapshot includes HEAD, so a commit
+  is an escape; `timeout -k 30` kills a reviewer that ignores SIGTERM; GNU/BSD
+  `stat` attempts are captured separately; `code-reviewer.md` states the
+  conditional guarantees; SKILL.md documents the host-hook and git-work-tree
+  limits.
+- `tests/contract.sh` — +31 cases (29-59), 59 cases / 70 assertions.
 
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 

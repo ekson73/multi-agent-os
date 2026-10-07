@@ -10,7 +10,7 @@
 # Usage: wrappers/invoke.sh --pr 42 [--post] [--json] [any dispatcher flag]
 set -u
 
-DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 DISPATCH="$DIR/bin/routed-review.sh"
 [ -x "$DISPATCH" ] || { printf 'invoke: %s not executable\n' "$DISPATCH" >&2; exit 1; }
 
