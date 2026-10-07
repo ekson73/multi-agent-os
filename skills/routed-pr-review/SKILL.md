@@ -35,7 +35,7 @@ agent does next:
   refine rounds *including the two passes that existed to catch it*, and fell in
   cycle 1 of a fresh-process critic.
 
-Empirical origin: `2026-09-03`, `ekson73/eko-engram#42`. CodeRabbit stalled on an
+Empirical origin: `2026-09-03`, a documentation PR in a separate repository. CodeRabbit stalled on an
 exhausted hourly quota. A delegated reviewer with isolated context found **two
 real defects that had already been published** — a path fabricated by a `sed` on a
 bare stem, and an `id:` field whose convention had been measured from too narrow a
@@ -54,10 +54,10 @@ Five phases:
 | phase | what | grounding |
 |---|---|---|
 | **A** resolve | PR, title, `headRefOid`, diff | `gh` |
-| **B** primary probe | classify every reviewer that has *ever* spoken on this repo: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled · changes-requested. Absence is proven by **positive evidence only** | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
-| **C** pick reviewer | capability-detect `command -v`, skip bots expired in `~/.claude/state/ai-review-bots.json`, **exclude the caller's own family** | `ai-code-review-bots-rotation.md` §2/§3 |
+| **B** primary probe | classify every known review bot (**exact** login match, never a substring) that has spoken on this PR: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled (unless the same bot has since approved this head) · changes-requested. The configured set comes from `--primary`; a declared primary that has not spoken is **pending**. Absence is never inferred — it is an operator attestation (`--no-primary-configured`) | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
+| **C** pick reviewer | capability-detect `command -v`, skip bots expired or broken in the rotation state file (`ROUTED_REVIEW_STATE`), **exclude the caller's provider family** (not just its binary name) | `ai-code-review-bots-rotation.md` §2/§3 |
 | **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
-| **E** gate verdict | emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
+| **E** gate verdict | re-read the PR head; emit what this *does* and *does not* satisfy; optionally post the canonical stamp | `pr-review-protocol.md` §4.1(e) |
 
 ## The gate contract — the part that matters most
 
@@ -69,11 +69,23 @@ unambiguous and this tool implements it rather than arguing with it:
 | C3 *diversity* (independent cross-brand opinion) | **satisfies** |
 | A configured primary's verdict on the current head | **never satisfies** |
 | Dismissing an active `CHANGES_REQUESTED` | **never** |
-| Completing convergence alone | only where **no** primary is configured (positively evidenced) **or** every primary has already cleared |
+| Completing convergence alone | only when **all** hold: every `--primary` approved the current head (or `--no-primary-configured` was attested and not contradicted) · the routed verdict is `PASS` · diversity is `satisfied` (declared caller, single-provider reviewer of another family) · the diff was not truncated · the PR head did not move during the review |
 
 `may_complete_c3` is computed, not asserted, and the exit code carries it:
-`0` = review produced and may complete C3 · `3` = review produced **but a primary
-is still pending** · `2` = no reviewer available / empty output · `1` = error.
+`0` = review produced and may complete C3 · `3` = review produced **but the gate
+does not clear** (a primary pending, a routed `REQUEST_CHANGES`, unverified
+diversity, truncation or a moved head) · `2` = no reviewer available / no clean
+output · `1` = error.
+
+### Provider families — diversity is about the model, not the binary
+
+`ROUTED_REVIEW_CALLER` takes a harness name or a family (`anthropic`, `openai`,
+`google`, `moonshot`, `alibaba`, `xai`). A candidate in the caller's family is
+skipped (auto) or refused (explicit `--reviewer`). `copilot`, `pi`, `jcode`,
+`opencode` and `kiro-cli` can run models from several providers, so they may
+review, but their diversity is `unverified:reviewer-provider-ambiguous`. An
+undeclared or multi-provider caller likewise yields `unverified:*`. Only
+`satisfied` can complete C3.
 
 **A `Reviewed-By:` stamp is a claim, not evidence** (§4.1(e)). The comment
 therefore always embeds the reviewer's *actual output* and the head SHA it
@@ -104,8 +116,7 @@ strength of that confinement is named honestly, because permissions alone are
 
 | class | when | guarantee |
 |---|---|---|
-| `vendor` | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`) | the CLI confines itself; cwd = live repo, but only after cwd is **proven** to be `HEAD_SHA` and clean |
-| `vendor+os` | vendor CLI, cwd **not** provably `HEAD_SHA` | export built anyway so the `Head reviewed:` stamp stays true |
+| `vendor+os` | `codex` (`--sandbox read-only`), `claude` (`--allowedTools`) | the CLI confines itself **and** reads a disposable export of `HEAD_SHA` — never the live checkout, which cannot be proven equal to the commit (sparse checkouts, ignored or untracked files, another repo) |
 | `os-sandboxed` | any other harness, host has `sandbox-exec` | **kernel** `file-write*` deny on the export *and* the repo root, profile **probe-verified before use**, over the disposable `chmod a-w` export |
 | `os-perms-only` | any other harness, **no** kernel boundary on host | writes are **DETECTED, not PREVENTED** — see below |
 
@@ -123,9 +134,11 @@ the emitted evidence says exactly that instead of implying a sandbox.
    A manifest must carry one digest per file and the hash tool must work — a
    failing or missing `shasum`/`sha256sum` aborts the run instead of comparing
    two empty manifests.
-2. **live-repo hash** — `git status --porcelain` digest before/after; catches an
-   *escape*, i.e. a write to the working tree the reviewer was never given. The
-   first check was blind to this by construction.
+   Symlinks are recorded by their target text, so swapping one is visible.
+2. **live-repo hash** — digest of the status, the tracked diff and every
+   untracked file's content, before/after; catches an *escape*, i.e. a write to
+   the working tree the reviewer was never given. Content, not status codes: in
+   an already-dirty checkout a further edit keeps the same status line.
 
 Either check failing ⇒ exit `1` with `isolation_violated:<which>`, and
 **nothing is stamped or reported as a valid review**. The enforcement class and
@@ -149,8 +162,8 @@ the isolation claim instead of believing it.
 
 | harness | invocation | enforcement class | evidence |
 |---|---|---|---|
-| `codex` | `codex exec --sandbox read-only --cd DIR` | `vendor` — sandbox | proven (`--cd` measured) |
-| `claude` | `cd DIR && claude -p … --max-turns N --allowedTools Read Grep Glob --add-dir DIR` | `vendor` — tool allowlist **+ cwd** | proven; the `cd` is load-bearing — `--add-dir` grants access but never moves the working directory, so without it the reviewer read the caller's `$PWD` while the stamp asserted `HEAD_SHA` (found by a routed `kimi` review of this tool on #414) |
+| `codex` | `codex exec --sandbox read-only --cd DIR -` (prompt on stdin) | `vendor+os` — sandbox | proven (`--cd` and stdin `-` measured) |
+| `claude` | `cd DIR && claude -p --max-turns N --allowedTools Read Grep Glob --add-dir DIR` (prompt on stdin) | `vendor+os` — tool allowlist **+ cwd** | proven; the `cd` is load-bearing — `--add-dir` grants access but never moves the working directory, so without it the reviewer read the caller's `$PWD` while the stamp asserted `HEAD_SHA` (found by a routed `kimi` review of this tool on #414) |
 | `grok` | `grok -p` (cwd-scoped) | `os` — locked export (`--allow-rule` exists but is **not passed**) | measured |
 | `gemini` | `gemini -p` (cwd-scoped) | `os` — locked export | measured |
 | `qwen` | `qwen -p` (also native `qwen review run`) | `os` — locked export | measured |
@@ -159,10 +172,15 @@ the isolation claim instead of believing it.
 | `pi` | `pi --print` | `os` — locked export | measured |
 | `jcode` | `jcode run` | `os` — locked export | measured |
 | `opencode` | `opencode run` (also native `opencode pr <N>`) | `os` — locked export | measured |
-| `kiro` | `kiro chat` | `os` — locked export | measured |
+| `kiro-cli` | `kiro-cli chat --no-interactive --trust-tools=fs_read` | `os` — locked export | measured |
 
 `os` = the disposable `chmod a-w` export from Axis 2, with a post-run manifest
 tamper check. No row may claim read-only without one of the two mechanisms.
+
+⚠️ **Known limit — prompt in argv.** `claude` and `codex` take the prompt (which
+embeds the diff) on stdin. The other harnesses still receive it as an argument,
+which other local users can read via `ps`. On a shared host, prefer `claude` or
+`codex`, or treat the diff as visible to that host.
 
 Two native review paths were found during the probe and are **not** wrapped by
 this tool: `qwen review run` and `opencode pr <N>`. They are recorded as
@@ -187,9 +205,10 @@ a genuine `HEAD_SHA` (the script fetches and archives it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**9 cases · 11 assertions** (cases 5 and 9 each assert an exit code *and* that
-the diagnostic names its reason — a silent correct exit is not enough). The run
-prints one line per assertion; that is why the count below is 11, not 9.
+**40 cases · 51 assertions** (several cases assert an exit code *and* a field or
+that the diagnostic names its reason — a silent correct exit is not enough). The
+run prints one line per assertion. The table lists the founding nine; every later
+case states its own contract and the defect it guards in `tests/contract.sh`.
 
 | # | Contract asserted | Guards against |
 |---|---|---|
@@ -216,10 +235,11 @@ prints one line per assertion; that is why the count below is 11, not 9.
   then wrapped every dispatch in a profile just proven not to work. Now built
   into a local and published only on success.
 - **Run 2, case 8 again → defect #22, the worst of the three.** With the leak
-  fixed, `SBX` is legitimately empty — and under `set -u`, **bash 3.2 (the macOS
-  default) aborts when an empty array is expanded**. The entire documented
-  `os-perms-only` fallback class therefore crashed on every dispatch, on every
-  host without a working `sandbox-exec` — all of Linux. It never surfaced here
+  fixed, `SBX` is legitimately empty — and under `set -u`, **bash older than
+  4.4 (3.2 is the macOS default) aborts when an empty array is expanded**. The
+  entire documented `os-perms-only` fallback class therefore crashed on every
+  dispatch, on every host that both lacks a working `sandbox-exec` and runs
+  bash < 4.4. It never surfaced here
   because this host arms the kernel boundary. Fixed with the
   `${SBX[@]+"${SBX[@]}"}` idiom at all 4 sites.
 
@@ -231,7 +251,8 @@ pattern this harness exists to end.
 
 ## Anti-theater guarantees
 
-1. **Empty output is NOT a review.** Under 40 bytes ⇒ nothing is stamped, and
+1. **Empty or failed output is NOT a review.** Under 40 bytes, or a non-zero
+   exit with any amount of output ⇒ nothing is stamped, and
    the failure is **triaged** before anything is recorded
    (`pr-review-protocol` §4.1(b) tier-2 *usable* vs tier-3 *capacity*):
    - **quota** — only on a *positive* capacity signal (429, rate limit, usage
@@ -287,14 +308,16 @@ pattern this harness exists to end.
    exits: a descendant it detached is outside the post-dispatch checks. These
    are accepted limits, not targets for further hardening here — the kernel
    boundary (`os-sandboxed`) is the stronger class.
-4. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
+4. **The output cannot break out of its block.** The reviewer's text is wrapped
+   in a fence longer than any backtick run it contains.
+5. **Secrets are absolute.** `gitleaks` scans the comment body *before* posting;
    any hit aborts the post.
-4. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output
+6. **Timeout floor 500s.** A 280s cap once burned `$4.7` for zero output
    (`cross-harness-red-team.md`).
-5. **The prompt rewards refutation**, requires `file:line` citations, mandates
+7. **The prompt rewards refutation**, requires `file:line` citations, mandates
    "could not verify" over guessing, and classifies a PR-body claim unsupported
    by the diff as at least *major*.
-6. **The isolation claim is audited, not asserted.** For every `os`-class
+8. **The isolation claim is audited, not asserted.** For every `os`-class
    reviewer the export manifest is recompared after the run; drift ⇒ exit `1`
    `isolation_violated` and no stamp. The enforcement class and tamper result
    are emitted, so a consumer never has to take "read-only" on faith.
@@ -304,9 +327,9 @@ pattern this harness exists to end.
 Strata / DRY — the forge crossed these before creating anything.
 
 ⚠️ **Where these sources live.** The four `.md` sources below are **NOT in this
-repository** — they are user-scope artifacts on the operator's machine
-(`~/.claude/rules/` and an Obsidian vault). A reader of this repo alone cannot
-open them, and an isolated reviewer correctly reported them as unresolvable.
+repository** — they are host-side governance notes outside the plugin. A reader
+of this repo alone cannot open them, and an isolated reviewer correctly reported
+them as unresolvable.
 They are cited as *provenance*, never as repo paths. The governance semantics
 they carry are restated inline in this file precisely so this skill stands on
 its own.
@@ -314,12 +337,12 @@ its own.
 | capability | source | where it lives | disposition |
 |---|---|---|---|
 | review criteria (what to look for) | `code-review-excellence`, `code-reviewer`, `silent-failure-hunter`, `pr-test-analyzer` + 5 more | installed skills (host) | **reused** — no new criteria authored |
-| severity ladder `[blocking\|major\|minor\|nit]` in the reviewer prompt | extends `pr-review-protocol.md` (which uses `blocking` + `major`) | `~/.claude/rules/`, external | ⚠️ **partly authored** — `minor`/`nit` are mine. Measured 2026-09-03: the cited rule contains `nit` **zero** times. An earlier revision of this table claimed "no new criteria authored" across both rows; that was a false claim of the same class this tool's own prompt rates *at least major*, self-caught by Socratic Q13 |
+| severity ladder `[blocking\|major\|minor\|nit]` in the reviewer prompt | extends `pr-review-protocol.md` (which uses `blocking` + `major`) | external | ⚠️ **partly authored** — `minor`/`nit` are mine. Measured 2026-09-03: the cited rule contains `nit` **zero** times. An earlier revision of this table claimed "no new criteria authored" across both rows; that was a false claim of the same class this tool's own prompt rates *at least major*, self-caught by Socratic Q13 |
 | finding classes `[correctness\|security\|silent-failure\|governance\|test-gap]` | named after the installed skills above | installed skills (host) | **derived** — one class per source skill, not independently invented |
-| bot-message taxonomy (rate-limit vs plan vs informational) | `review-bot-quota-recovery.md` | vault, external | **reused** in phase B |
-| rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | `~/.claude/rules/`, external | **reused** in phase C |
-| gate semantics | `pr-review-protocol.md` §4.1 | `~/.claude/rules/`, external | **implemented**, not amended; restated inline above |
-| isolation shape | `cross-harness-red-team.md` | vault, external | **reused** in phase D |
+| bot-message taxonomy (rate-limit vs plan vs informational) | `review-bot-quota-recovery.md` | external | **reused** in phase B |
+| rotation + state file + never-hot-retry | `ai-code-review-bots-rotation.md` | external | **reused** in phase C |
+| gate semantics | `pr-review-protocol.md` §4.1 | external | **implemented**, not amended; restated inline above |
+| isolation shape | `cross-harness-red-team.md` | external | **reused** in phase D |
 | in-harness stub | `agents/code-reviewer.md` | **this repo** | **behaviour unchanged**; +18 lines appended declaring its correlated-verifier boundary and routing here (17 → 34 lines) |
 
 Net-new is exactly one thing: **an executable dispatcher that makes isolation and
@@ -327,11 +350,21 @@ gate-honesty mechanical instead of remembered.**
 
 ## Q20/Q21 — revert and fallback
 
-**Revert.** The only external side effect is one PR comment (`--post`); without
-that flag nothing leaves the process. To revert: `gh pr comment --delete-last`
-(or delete by id). The dispatcher never pushes, never merges, never edits code,
-and never writes outside `$WORK`/the disposable export — so there is no
-repository state to roll back.
+**Revert.** Two kinds of side effect, kept apart:
+
+- **Repository / PR:** the only one is a PR comment (`--post`). Revert with
+  `gh pr comment --delete-last` (or delete by id). The dispatcher never pushes,
+  never merges and never edits code, so there is no repository state to roll
+  back.
+- **Operator state:** a reviewer that fails is recorded in the rotation state
+  file (`ROUTED_REVIEW_STATE`, default `$HOME/.claude/state/ai-review-bots.json`)
+  as `last_limited_at` (quota) or `broken_at` (broken). That is intended
+  persistence, not a leak. To undo it, delete the bot's entry from that file;
+  there is no automatic rollback. A run never restores the file from a
+  snapshot (see guarantee 3).
+
+Everything else is written under `$WORK` and the disposable export, both
+removed on exit.
 
 **Fallback ladder** — exit codes read off the code, not intended (an earlier
 draft of this very section mis-stated two of them; corrected before commit):
@@ -339,10 +372,10 @@ draft of this very section mis-stated two of them; corrected before commit):
 | # | condition | exit | behaviour |
 |---|---|---|---|
 | 1 | no harness left after family exclusion | `2` | JSON `status:no_reviewer`, `may_complete_c3:false`. **Never** falls back to the caller (verifier ≠ generator) |
-| 2 | reviewer produced <40 bytes | `2` (explicit `--reviewer`) · fall-through (auto) | treated as **no review**; triaged quota · broken · timeout (guarantee 1) and recorded in `~/.claude/state/ai-review-bots.json` so rotation *skips* it (§3 never-hot-retry). In auto mode the next family is tried; `2` only when none is left |
+| 2 | reviewer produced <40 bytes, or exited non-zero | `2` (explicit `--reviewer`) · fall-through (auto) | treated as **no review**; triaged quota · broken · timeout (guarantee 1) and recorded in the rotation state file so rotation *skips* it (§3 never-hot-retry). In auto mode the next family is tried; `2` only when none is left |
 | 3 | isolation violated (either tamper check) | `1` | no stamp, no comment, `status:isolation_violated` |
 | 4 | `gitleaks` absent while `--post` given | `1` | refuses to post rather than posting an unscanned body |
-| 5 | review ran, gate does not clear C3 | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
+| 5 | review ran, gate does not clear C3 (primary pending, routed `REQUEST_CHANGES`, unverified diversity, truncation, moved head) | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
 | 6 | review ran, C3 cleared | `0` | — |
 
 Below the ladder, `ai-code-review-bots-rotation` §5 still licenses the
@@ -384,4 +417,5 @@ lacked an implementation.
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review`, cycle-4 regressions encoded) | 2026-09-03T22:07:45-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-0414-001` (Claude Opus 5, branch `feat/routed-pr-review`, cycle-4 regressions encoded) | 2026-09-03T22:07:45-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-0414-002` (Claude Sonnet 5.5, convergence round: provider families, declared primaries, routed verdict gate, head re-check) | 2026-10-07T11:30:00-03:00*
