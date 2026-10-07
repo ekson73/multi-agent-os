@@ -120,7 +120,8 @@ done
 # 3b. both are documented as optional, and absence is fail-closed (leaf, no extra authority)
 if grep -q "DNA Payload v1.2" "$DNA_PROMPT" \
    && grep -qi "optional" "$DNA_PROMPT" \
-   && grep -qi "absent.*leaf\|leaf.*absent" "$DNA_PROMPT"; then
+   && grep -qi "with neither, leaf" "$DNA_PROMPT" \
+   && grep -qi "treated as absent (fail-closed)" "$DNA_PROMPT"; then
     pass "v1.2 fields documented as optional with fail-closed absence"
 else
     fail "v1.2 optional/fail-closed semantics not documented"
@@ -136,11 +137,11 @@ fi
 # 3d. consumers unaffected: delegate.sh still emits the doc verbatim, and the
 #     v1.1 header + every v1.1 field is still there (old readers keep working)
 if DNA_OUT=$(bash "$DELEGATE" dna 2>/dev/null) \
-   && echo "$DNA_OUT" | grep -q "DNA Payload v1.1" \
+   && echo "$DNA_OUT" | grep -q "^parent_agent_id:" \
    && echo "$DNA_OUT" | grep -q "^depth_remaining:"; then
-    pass "delegate.sh dna emits v1.1 header and v1.2 fields"
+    pass "delegate.sh dna emits the v1.1 fields and the v1.2 fields"
 else
-    fail "delegate.sh dna output lost the v1.1 header or the v1.2 fields"
+    fail "delegate.sh dna output lost a v1.1 field or the v1.2 fields"
 fi
 
 # 3e. no runtime script parses the payload fields (they are prompt text, not a wire format);

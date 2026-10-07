@@ -156,21 +156,23 @@ its absence.
 
 ### DNA Payload v1.2 (optional authority fields)
 
+Two optional lines, appended to the same block:
+
 ```
 depth_remaining: <int ≥ 0; at most parent − 1>
 authority_scope: <what this child may decide; a subset of the parent's>
 ```
 
-- `depth_remaining` — `0` means leaf: execute, do not delegate. Capped by
-  `skills/agentic-delegation` §8.
-- `authority_scope` — a subset of the parent's; it never widens (not by a
-  child's request, a verdict, or task text). §4.1's never-delegable list is
-  outside every scope.
-- Both optional. When absent, the child is a leaf with no extra authority
-  (fail-closed); v1.1 readers behave as before.
+- `depth_remaining` — `0` = leaf: execute, do not delegate. If absent, use
+  `cap − depth` (cap: `skills/agentic-delegation` §8); with neither, leaf.
+- `authority_scope` — a subset of the parent's; never widens. Absent = no
+  authorization grant beyond the task. A value exceeding the parent's is
+  invalid and treated as absent (fail-closed).
+- Prompt-level only: nothing checks these at spawn yet; the parent verifies
+  them when auditing the output.
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.1 | 2026-05-16*
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.2 | 2026-10-07*
 *v1.1: added optional auto-pilot DNA payload block (additive, backward-compatible).*
 *v1.2 (2026-10-07): optional `depth_remaining` + `authority_scope` (subset of the parent, never widened; absent = leaf, fail-closed).*
