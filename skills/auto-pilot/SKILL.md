@@ -117,8 +117,11 @@ absolutes (secrets, destrutivo-não-merge, HUMAN_DOMAIN) never enter the calculu
 
 When auto-pilot spawns a child, it appends the **DNA Payload v1.1** block
 defined in `protocols/delegation/delegation-dna-prompt.md` to the prompt.
-Agents that do not read the block behave exactly as before — the addition
-is opt-in and backward-compatible.
+Agents that do not parse the block still apply the defaults of
+`skills/agentic-delegation` §4.1 (no `depth_remaining` = leaf, no scope = no
+grant); the block format is backward-compatible, the rules are not optional.
+
+Each child's authority is a subset of its parent's and never widens on recursion (`skills/agentic-delegation` §4.1, §8).
 
 The block carries: `parent_agent_id`, `depth` (hard-capped at 2), `mode`,
 `autonomy_band`, `goal_root` (one-line), `attempts_remaining` (starts at 6
@@ -131,8 +134,8 @@ fields are optional only for parsers: v1.1 readers still accept the block.
 
 ## Anti-loop invariants
 
-Reused from `agents/orchestrator.md` §Anti-Loop Detection, with depth
-tightened to ≤ 2 for unattended runs (orchestrator's manual mode allows ≤ 3):
+Reused from `agents/orchestrator.md` §Anti-Loop Detection; the depth cap is
+the single cap in `skills/agentic-delegation` §8 (2), attended or not:
 
 1. **Task Similarity** — sub-task same as parent → STOP.
 2. **Delegation Depth** — depth > 2 → STOP (Sentinel RULE-002).
