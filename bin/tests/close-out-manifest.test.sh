@@ -136,6 +136,9 @@ if [ "$RC" -eq 2 ]; then ok "--strict requires the opt-in sections"; else bad "-
 { cat "$TMP/m.md"; printf '## After-action review\nplanned/happened/why\n## Resume check\ncompare anchor first\n## Not done\nnone (verified)\n'; } > "$TMP/m-strict.md"
 chk "$TMP/m-strict.md" --strict >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 0 ]; then ok "--strict passes with the opt-in sections"; else bad "--strict with sections should pass" "rc=$RC"; fi
+{ cat "$TMP/m.md"; printf '## After-action review\n\n## Resume check\n\n## Not done\n\n'; } > "$TMP/m-strict-empty.md"
+OUT="$(chk "$TMP/m-strict-empty.md" --strict 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'empty-section:Not done'; then ok "--strict refuses empty opt-in sections"; else bad "--strict must refuse empty opt-in sections" "rc=$RC out=$OUT"; fi
 
 if command -v git >/dev/null 2>&1; then
 # FEAT-34: git anchor names branch@HEAD and every uncommitted file, never touches them
@@ -263,6 +266,22 @@ OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dcol" --src "$T
 if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-basename-collision' && [ "$(cat "$TMP/dcol/report.md")" = "from a" ]; then ok "basename collision refused, first report kept"; else bad "basename collision must be refused" "rc=$RC out=$OUT"; fi
 # review: domestic Brazilian phone formats are PII (synthetic numbers, built at runtime)
 D1="1""1"; P9="9""1234"; P4="56""78"
+cpf_digits() { # 9 base digits -> 11-digit CPF with valid check digits (synthetic, runtime)
+  local b="$1" i s d1 d2
+  s=0; for i in 0 1 2 3 4 5 6 7 8; do s=$((s + ${b:$i:1} * (10 - i))); done
+  d1=$(( (s * 10) % 11 )); [ "$d1" -eq 10 ] && d1=0
+  s=0; for i in 0 1 2 3 4 5 6 7 8; do s=$((s + ${b:$i:1} * (11 - i))); done; s=$((s + d1 * 2))
+  d2=$(( (s * 10) % 11 )); [ "$d2" -eq 10 ] && d2=0
+  printf '%s%s%s' "$b" "$d1" "$d2"
+}
+CPF="$(cpf_digits "$(printf '%s%s%s' 314 159 265)")"
+mkdir -p "$TMP/cpf"; printf 'doc %s end\n' "$CPF" > "$TMP/cpf/a.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/cpfd" --src "$TMP/cpf/a.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q refused-pii; then ok "unformatted CPF with valid checksum refused"; else bad "unformatted CPF must be refused" "rc=$RC out=$OUT"; fi
+BAD="${CPF:0:10}$(( (${CPF:10:1} + 1) % 10 ))"
+printf 'id %s end\n' "$BAD" > "$TMP/cpf/b.md"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/cpfd" --src "$TMP/cpf/b.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ]; then ok "11-digit id with invalid CPF checksum not flagged"; else bad "invalid-checksum 11-digit id must pass" "rc=$RC out=$OUT"; fi
 for ph in "($D1) $P9-$P4" "$D1 $P9-$P4" "$D1 $P9 $P4" "($D1)$P9$P4" "+55 $D1 $P9-$P4" "($D1) 3""123-$P4"; do
   mkdir -p "$TMP/ph"; printf 'call %s\n' "$ph" > "$TMP/ph/p.md"
   OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/dph" --src "$TMP/ph/p.md" 2>/dev/null)"; RC=$?
