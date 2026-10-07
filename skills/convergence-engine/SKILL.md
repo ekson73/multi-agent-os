@@ -136,7 +136,7 @@ The engine is a **router + bounds** over these — itself an instance of *native
 
 ## Return-Gate application (self-resolve before asking)
 
-Before returning [options · decisions · questions] to the operator: (1) **rank** by recommendation; (2) **impact-score** each (6-factor autonomy gate); (3) **diverse-validate** (`persona-pipeline` + the multi-axis panel); (4) **gate** — top item HIGH (≥0.85) ∧ reversible ∧ ¬HUMAN_DOMAIN → **decide + act + report** (skip the ask); else **score-uplift** (`cascade-resolver`, ≤ n*) → regenerate ranked items → **re-loop bounded**; (5) **exit** — HIGH self-resolution → act; OR genuine residue → **ask** (tool-over-prose, recommended-first). **Escapes (do NOT suppress the ask)**: HUMAN_DOMAIN · a genuine operator-preference the agent lacks + can't self-verify · irreversible/high-blast · duly-justified.
+Before returning [options · decisions · questions] to the operator: (1) **rank** by recommendation; (2) **impact-score** each (6-factor autonomy gate); (3) **diverse-validate** (`persona-pipeline` + the multi-axis panel); (4) **gate** — top item HIGH (≥0.85) ∧ reversible ∧ ¬HUMAN_DOMAIN ∧ inside the invoker's authority scope (`skills/agentic-delegation` §4.1; out of scope = advice only) → **decide + act + report** (skip the ask); else **score-uplift** (`cascade-resolver`, ≤ n*) → regenerate ranked items → **re-loop bounded**; (5) **exit** — HIGH self-resolution → act; OR genuine residue → **ask** (tool-over-prose, recommended-first). **Escapes (do NOT suppress the ask)**: HUMAN_DOMAIN · a genuine operator-preference the agent lacks + can't self-verify · irreversible/high-blast · duly-justified.
 
 ## Viability bar (settled)
 

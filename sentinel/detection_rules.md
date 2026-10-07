@@ -509,7 +509,7 @@ Default thresholds can be adjusted:
 
 | Parameter | Default | Range | Description |
 |-----------|---------|-------|-------------|
-| `max_delegation_depth` | 2 | 2-5 | Maximum chain depth |
+| `max_delegation_depth` | 2 | 1-2 (raising above 2 is an operator decision) | Maximum chain depth |
 | `task_similarity_threshold` | 0.85 | 0.7-0.95 | Loop detection sensitivity |
 | `task_relevance_threshold` | 0.50 | 0.3-0.7 | Drift detection sensitivity |
 | `stagnation_timeout_ms` | 300000 | 60000-600000 | Stagnation threshold |

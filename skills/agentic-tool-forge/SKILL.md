@@ -124,7 +124,7 @@ Type (§above) answers *what the tool is*; this gate answers *how it gets trigge
 Evaluate candidates on: **taxonomic** (fits an existing family/namespace?) · **semantic** (says what it does) · **ontological** (its category of being) · **epistemological** (matches how it's already known/referred to — zero drift) · **etymological** (root meaning + historicity). Prefer kebab-case, ≤6 words, role-typed, **no operator-personal names**, family-aligned. Output the winner + 1-line rationale + the runner-up rejected.
 
 ## DNA-geracional inheritance
-Every forged tool inherits this forge's DNA so it is itself governable: a §0 BEING>Rules clause · the relevant gates · a DUED sunset · a cross-link slug + Refs · house-style frontmatter. A forged *forge-like* tool may itself forge (recursion depth ≤2; beyond → escalate).
+Every forged tool inherits this forge's DNA so it is itself governable: a §0 BEING>Rules clause · the relevant gates · a DUED sunset · a cross-link slug + Refs · house-style frontmatter. A forged *forge-like* tool may itself forge (recursion depth ≤2 (`skills/agentic-delegation` §8); beyond → escalate).
 
 ## Machine output (`--json`)
 For agent-to-agent use (AAIF, aligns with the lifecycle family envelope), `--json` emits:

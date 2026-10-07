@@ -30,4 +30,4 @@ Ships **consultative**. `--armed` is honored ONLY under an operator-ratified sta
 
 ## Governance SSOT
 
-`~/.claude/rules/council-gate.md` — the constitutional rule (a **user-scope** rule auto-loaded from `~/.claude/rules/`, versioned in `ekson73/akasha-claude` PR #236; a deliberate cross-layer dependency, not a file in this plugin repo) + `skills/council-gate/SKILL.md` (the executable protocol). Composes `maos:{persona-pipeline,perspective-trio,cascade-resolver,convergence-engine,governance-auditor,decision-capture}` + `bin/convergence-guard`. Cross-link: `[[council-gate]]`.
+`~/.claude/rules/council-gate.md` — the constitutional rule (a **user-scope** rule auto-loaded from `~/.claude/rules/`, versioned in `ekson73/akasha-claude` PR #236; a deliberate cross-layer dependency, not a file in this plugin repo; the skill adds a stricter conjunct P0 within-invoker-scope that the rule does not list yet) + `skills/council-gate/SKILL.md` (the executable protocol). Composes `maos:{persona-pipeline,perspective-trio,cascade-resolver,convergence-engine,governance-auditor,decision-capture}` + `bin/convergence-guard`. Cross-link: `[[council-gate]]`.

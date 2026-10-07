@@ -65,10 +65,20 @@ else
     # Agent delegation/recursion depth statements, several phrasings. Navigation
     # depth (--depth / --max-depth of a file or graph walk) is out of scope.
     RE='(delegation|recursion) depth[^0-9]{0,25}(≤|<=|>|hard-?cap(ped)?( at)?)[[:space:]]*[0-9]+'
-    RE="$RE|max(imum)? (delegation )?depth[^0-9a-z]{0,6}[0-9]+"
+    RE="$RE|max(imum)? (recursion |delegation )?depth[^0-9a-z]{0,6}[0-9]+"
     RE="$RE|depth[^.|]{0,40}allows[[:space:]]*(≤|<=)[[:space:]]*[0-9]+"
-    hits="$(grep -rnoiE "$RE" "$ROOT/agents" "$ROOT/skills" "$ROOT/commands" "$ROOT/protocols" \
-              "$ROOT/sentinel" "$ROOT/statusmap" --include='*.md' 2>/dev/null || true)"
+    RE="$RE|depth[^\`]{0,15}hard-?cap(ped)?( at)?[[:space:]]*[0-9]+"
+    RE="$RE|(^|[^-a-z_])depth[[:space:]]*(≤|<=)[[:space:]]*[0-9]+"
+    # Normative surfaces: tool dirs, rules/ and the root guidance files.
+    # CHANGELOG.md and docs/ are history/research, not rules.
+    SCAN=()
+    for d in agents skills commands protocols sentinel statusmap rules; do
+        [ -d "$ROOT/$d" ] && SCAN+=("$ROOT/$d")
+    done
+    for f in AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
+        [ -f "$ROOT/$f" ] && SCAN+=("$ROOT/$f")
+    done
+    hits="$(grep -rnoiE "$RE" "${SCAN[@]}" --include='*.md' 2>/dev/null || true)"
     drift=0
     while IFS= read -r line; do
         [ -n "$line" ] || continue
@@ -87,6 +97,14 @@ EOF
         sval="$(sed -nE 's/.*"max_delegation_depth":[[:space:]]*([0-9]+).*/\1/p' "$SCFG" | head -1)"
         [ "$sval" = "$CAP" ] && ok "sentinel/config.json max_delegation_depth = $CAP" \
             || bad "sentinel/config.json max_delegation_depth = ${sval:-?} ≠ SSOT $CAP"
+        # the allowed range must not let a config raise the cap above the SSOT
+        rmax="$(tr -d '\n' < "$SCFG" | grep -oE '"max_delegation_depth"[^}]*"valid_range"[^}]*' \
+                | grep -oE '"max"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | head -1)"
+        if [ -n "$rmax" ] && [ "$rmax" -gt "$CAP" ]; then
+            bad "sentinel/config.json valid_range max $rmax > SSOT $CAP"
+        else
+            ok "sentinel/config.json valid_range does not exceed $CAP"
+        fi
     fi
     for f in sentinel/detection_rules.md sentinel/README.md \
              statusmap/templates/DELEGATION_PRE.md statusmap/templates/statusmap_templates.md; do
@@ -114,15 +132,48 @@ for f in agents/orchestrator.md commands/delegate.md protocols/agent-delegation.
         bad "$f does not link skills/agentic-delegation"
     fi
 done
+# inverted: any file that states a depth cap must point at the SSOT
+if [ -n "${CAP:-}" ]; then
+    unlinked=""
+    for f in $(printf '%s\n' "$hits" | cut -d: -f1 | sort -u); do
+        [ "$f" = "$SSOT" ] && continue
+        grep -q 'agentic-delegation' "$f" || unlinked="$unlinked ${f#"$ROOT"/}"
+    done
+    [ -z "$unlinked" ] && ok "every file stating a depth cap links the SSOT" \
+        || bad "states a depth cap without linking skills/agentic-delegation:$unlinked"
+fi
+
+# ── 4b. exact normative clauses (SSOT) and forbidden widening phrases (all) ──
+for clause in 'means \*\*no authorization grant\*\*' \
+              'A scope counts only if the parent issued it' \
+              'An invalid value [^.]*makes the child a leaf' \
+              'A criterion-5 FAIL \(HUMAN_DOMAIN\) always escalates' \
+              'out-of-scope results are advice only'; do
+    printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
+        || bad "SSOT lost clause: $clause"
+done
+WIDEN="inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
+widen_hits="$(grep -rnoiE "$WIDEN" "${SCAN[@]:-$ROOT/skills}" --include='*.md' 2>/dev/null || true)"
+if [ -n "$widen_hits" ]; then
+    bad "a file allows authority to widen:"
+    [ "$QUIET" = 1 ] || printf '%s\n' "$widen_hits" | sed "s|$ROOT/|      |"
+else
+    ok "no file lets delegated authority widen"
+fi
 
 # ── 5. mutation fixtures (only on the real tree, never recursively) ──────────
 if [ "$QUIET" != 1 ]; then
     FIX="$(mktemp -d)"
+    COPY=""
+    for p in agents skills commands protocols sentinel statusmap rules \
+             AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
+        [ -e "$ROOT/$p" ] && COPY="$COPY $p"
+    done
     trap 'rm -rf "$FIX"' EXIT
     mutate() {  # mutate <label> <file> <sed-expression|append:TEXT>
         local label="$1" rel="$2" expr="$3" t="$FIX/t"
         rm -rf "$t"; mkdir -p "$t"
-        (cd "$ROOT" && tar -cf - agents skills commands protocols sentinel statusmap) | tar -xf - -C "$t"
+        (cd "$ROOT" && tar -cf - $COPY) | tar -xf - -C "$t"
         case "$expr" in
             append:*) printf '\n%s\n' "${expr#append:}" >> "$t/$rel" ;;
             *) sed -i.bak "$expr" "$t/$rel" && rm -f "$t/$rel.bak" ;;
@@ -135,7 +186,7 @@ if [ "$QUIET" != 1 ]; then
     }
     # control: an unmodified copy must pass, else the fixtures prove nothing
     rm -rf "$FIX/c"; mkdir -p "$FIX/c"
-    (cd "$ROOT" && tar -cf - agents skills commands protocols sentinel statusmap) | tar -xf - -C "$FIX/c"
+    (cd "$ROOT" && tar -cf - $COPY) | tar -xf - -C "$FIX/c"
     if DAS_QUIET=1 bash "$SELF" "$FIX/c" >/dev/null 2>&1; then
         ok "fixture control: unmodified copy passes"
     else
@@ -148,6 +199,15 @@ if [ "$QUIET" != 1 ]; then
     mutate "SSOT loses 'never widens'"       skills/agentic-delegation/SKILL.md 's/never widens/may widen/g'
     mutate "SSOT loses fail-closed"          skills/agentic-delegation/SKILL.md 's/fail-closed/best-effort/g'
     mutate "SSOT exception list reopened"    skills/agentic-delegation/SKILL.md 's/The list is closed\./Other exceptions may apply./'
+    mutate "'Max recursion depth: **3**' elsewhere" skills/quiesce/SKILL.md 'append:- Max recursion depth: **3**'
+    mutate "'depth: <int, hard-cap 3>'"      protocols/delegation/delegation-dna-prompt.md 's/depth: <int, hard-cap 2>/depth: <int, hard-cap 3>/'
+    mutate "bare 'depth ≤ 3' in a skill"     skills/work-drain/SKILL.md 's/depth ≤ 2 (/depth ≤ 3 (/'
+    mutate "Sentinel valid_range max 5"      sentinel/config.json 's/"max": 2/"max": 5/'
+    mutate "cap restated without SSOT link"  skills/agentic-tool-forge/SKILL.md 's/ (`skills\/agentic-delegation` §8)//'
+    mutate "child inherits parent's full scope" agents/orchestrator.md "append:A child inherits the parent's full scope."
+    mutate "SSOT loses scope-issuer clause"  skills/agentic-delegation/SKILL.md 's/A scope counts only if the parent issued it/A scope counts if anyone states it/'
+    mutate "SSOT loses criterion-5 escalate" skills/agentic-delegation/SKILL.md 's/always escalates/may run inline/'
+    mutate "depth cap in rules/"             rules/core-directive.md 'append:Delegation depth ≤ 3.'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 

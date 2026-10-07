@@ -39,10 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The SSOT header and refs no longer point back to the operator's personal rule.
 - New `tests/governance/test-delegation-authority-ssot.sh`, run by
   `tests/validate-plugin.sh`: fails if another file restates a different depth
-  cap (several phrasings, plus Sentinel config and docs), if the SSOT §4.1 loses
-  its normative content or gains a personal-layer reference, or if a former
-  restater stops linking the SSOT. Eight mutation fixtures (plus a control)
-  prove each check catches the contradiction it guards.
+  cap (several phrasings, in tool dirs, `rules/` and root guidance files, plus
+  Sentinel's config value and `valid_range`), if the SSOT loses its normative
+  clauses or gains a personal-layer reference, if any file that states a depth
+  cap does not link the SSOT, or if any file lets delegated authority widen.
+  Seventeen mutation fixtures (plus a control) prove each check catches the
+  contradiction it guards.
+- The scope rule now says who may issue a scope (only the parent's own
+  briefing or payload), derived `depth_remaining` is bounded by the parent's
+  value, a HUMAN_DOMAIN criterion failure always escalates, and a council
+  verdict outside the invoker's scope is advice only (also in
+  `convergence-engine`'s Return-Gate). Files that restated the cap without a
+  link (`enhance-pipeline`, `ooda-loop`, `transmute`, `gap-loop`, `work-drain`,
+  `praxis-audit`, `refine-braindump-to-prompt`, `agentic-tool-forge`,
+  `delegation-dna-prompt`) now link the SSOT §8.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
