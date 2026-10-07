@@ -46,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JSON, 1 ≤ min ≤ max ≤ cap) disagrees, if the SSOT loses its normative
   clauses or gains a personal-layer reference, if any file that states a depth
   cap does not link the SSOT, or if a listed widening phrase appears.
-  Twenty-three mutation fixtures (plus a control) prove each check catches the
+  Twenty-six mutation fixtures (plus a control) prove each check catches the
   contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
   briefing or payload) and that a parent grants only from a scope it can show,
@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the invoker's scope is advice only (also in `convergence-engine`'s
   Return-Gate). `council-gate`'s flow evaluates P0..P5 and routes a P0 failure
   to `HITL_OUT_OF_SCOPE`; its HITL trigger list and quality section name P0.
+  `depth_remaining` counts only from the immediate parent and must be an
+  integer; an action that needs a missing, invalid or unconfirmable grant goes
+  back to the parent; agents that do not parse the auto-pilot block still
+  apply the §4.1 defaults; Sentinel's cap must be the exact integer.
   Memory: non-judgment upkeep may be delegated, deciding what to persist may
   not. Sample renderings (`skills/audit` config table, statusmap displays,
   a Sentinel example) show the cap 2. Files that restated the cap without a
