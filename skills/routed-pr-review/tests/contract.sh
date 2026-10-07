@@ -52,8 +52,14 @@ cat > "$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 case "$1 ${2:-}" in
   "pr view")
+    # T_HEAD_AFTER simulates a push during the review: every `pr view` after
+    # the first returns the new head.
+    H="$T_HEAD"
+    if [ -n "${T_HEAD_AFTER:-}" ] && [ -n "${T_COUNT:-}" ]; then
+      [ -e "$T_COUNT" ] && H="$T_HEAD_AFTER"; : > "$T_COUNT"
+    fi
     cat <<JSON
-{ "number": 1, "title": "contract fixture", "headRefOid": "${T_HEAD}",
+{ "number": 1, "title": "contract fixture", "headRefOid": "${H}",
   "headRefName": "feat/x", "baseRefName": "main", "url": "https://example.invalid/pr/1",
   "author": {"login": "someone"},
   "mergeStateStatus": "${T_MERGESTATE:-UNSTABLE}",
@@ -62,7 +68,7 @@ case "$1 ${2:-}" in
   "comments": ${T_COMMENTS:-[]} }
 JSON
     ;;
-  "pr diff")    printf 'diff --git a/file.txt b/file.txt\n+contract fixture\n' ;;
+  "pr diff")    printf 'diff --git a/file.txt b/file.txt\n+contract fixture\n%s' "${T_DIFF_EXTRA:-}" ;;
   "pr comment") exit 0 ;;
   "api "*|"api")
                 printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
@@ -129,7 +135,7 @@ sut() {
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
        ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE" \
-       bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json 2>"$SANDBOX/err" )
+       bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
 check() {  # check <name> <expected-rc> [<jq-filter> <expected-value>]
@@ -160,6 +166,8 @@ AT_HEAD='[{"author":{"login":"coderabbitai"},"state":"%s","commit":{"oid":"'"$HE
 OLD_SHA='[{"author":{"login":"coderabbitai"},"state":"APPROVED","commit":{"oid":"0000000000000000000000000000000000000000"}}]'
 BODY="Finding 1 [major] the fixture body is deliberately well past the forty byte floor.
 VERDICT: REQUEST_CHANGES — substantive."
+PASS_BODY="No blocking finding; the fixture body is deliberately past the forty byte floor.
+VERDICT: PASS — nothing blocking."
 
 echo "routed-pr-review — gate contract"
 echo "  SUT: $SUT"
@@ -171,9 +179,9 @@ echo
 # `.reviews[]` element, so `select(.sha != .head)` was `!= null` = always true;
 # every review counted stale and this path was dead code. Four cycles of
 # line-level verification never caught it because every line was correct.
-OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_DECISION=APPROVED T_REVIEW_BODY="$BODY" \
-       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
-check "exit 0 reachable when a configured primary cleared THIS head" 0 '.may_complete_c3' "true"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_DECISION=APPROVED T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "exit 0 reachable when every DECLARED primary cleared THIS head" 0 '.may_complete_c3' "true"
 
 # ── 2 ── an approval at an OLDER sha must not clear the gate (no false-green).
 OUT="$(T_REVIEWS="$OLD_SHA" T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
@@ -444,6 +452,70 @@ ln -sf "$SANDBOX/sl-target.json" "$SANDBOX/sl/state.json"; STATE="$SANDBOX/sl/st
 OUT="$(EXTRA_BIN="$GEM_BIN" RV=auto T_GEMINI_ERR="$ELIG" \
        T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
 check "a symlinked state file is ignored (its entries never exclude a reviewer)" 3 '.reviewer' "kimi"
+
+# ── 29 ── the configured set must be DECLARED: a bot that has not reviewed yet
+# is invisible, so "every bot that spoke approved" never completes C3 alone.
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "spoken approvals without --primary do NOT complete C3" 3 '.primary_verdict' "spoken_primaries_cleared_configured_set_undeclared"
+
+# ── 30 ── a declared primary that never spoke is pending, not cleared.
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai,qodo-code-review" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a silent declared primary blocks C3" 3 '.primary_verdict' "declared_primary_pending:qodo-code-review"
+
+# ── 31 ── the routed reviewer's own REQUEST_CHANGES blocks convergence.
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a routed REQUEST_CHANGES never completes C3" 3 '.routed_verdict' "request_changes"
+
+# ── 32 ── an undeclared caller earns no diversity credit.
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" sut)"; RC=$?
+check "an undeclared caller leaves diversity unverified" 3 '.diversity_limb' "unverified:caller-undeclared"
+
+# ── 33 ── a multi-provider harness may review, but its diversity is unproven.
+MULTI_BIN="$SANDBOX/multi"; mkdir -p "$MULTI_BIN"; cp "$STUB_BIN/kimi" "$MULTI_BIN/copilot"
+OUT="$(EXTRA_BIN="$MULTI_BIN" RV=copilot T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a multi-provider reviewer leaves diversity unverified" 3 '.diversity_limb' "unverified:reviewer-provider-ambiguous"
+
+# ── 34 ── the family, not the binary name, is what must differ.
+OUT="$(RV=kimi ROUTED_REVIEW_CALLER=moonshot sut)"; RC=$?
+check "a reviewer in the caller's provider family is REFUSED" 1
+ok_grep "the refusal names the shared family" 'same provider family'
+
+# ── 35 ── a non-zero exit is not a review, even with a long stdout.
+OUT="$(T_REVIEWS='[]' T_REVIEW_BODY="$PASS_BODY" T_REVIEW_RC=1 ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a reviewer that exits non-zero produces NO review" 2 '.status' "empty_review"
+
+# ── 36 ── a push during the review voids the convergence claim.
+OUT="$(T_COUNT="$SANDBOX/count" T_HEAD_AFTER=1111111111111111111111111111111111111111 \
+       T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+rm -f "$SANDBOX/count"
+check "a head that moved during the review blocks C3" 3 '.primary_verdict' "head_moved_during_review:1111111111111111111111111111111111111111"
+
+# ── 37 ── a truncated diff is a partial opinion.
+OUT="$(ROUTED_REVIEW_DIFF_CAP=10 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a truncated diff never completes C3" 3 '.diversity_limb' "partial:diff-truncated"
+
+# ── 38 ── bot logins match EXACTLY: a human whose login contains a bot name
+# is not a primary, so their APPROVED clears nothing.
+HUMANISH='[{"author":{"login":"claudette"},"state":"APPROVED","commit":{"oid":"'"$HEAD_SHA"'"}}]'
+OUT="$(T_REVIEWS="$HUMANISH" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary claude" ROUTED_REVIEW_CALLER=codex sut)"; RC=$?
+check "a human login containing a bot name is never a primary" 3 '.primary_verdict' "declared_primary_pending:claude"
+
+# ── 39 ── a recovered bot's old quota comment does not block its current approval.
+QUOTA_C='[{"author":{"login":"coderabbitai"},"body":"Review rate limit exceeded, next review in 50 min"}]'
+OUT="$(T_COMMENTS="$QUOTA_C" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "an approval at head supersedes the same bot's old quota comment" 0 '.may_complete_c3' "true"
+
+# ── 40 ── --primary and --no-primary-configured are contradictory.
+OUT="$(EXTRA_ARGS="--primary coderabbitai --no-primary-configured" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "contradictory primary flags are refused" 1
 
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"

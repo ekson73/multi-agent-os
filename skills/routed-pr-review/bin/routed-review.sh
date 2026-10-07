@@ -32,6 +32,7 @@ if [ -L "$STATE_FILE" ]; then
 fi
 PR=""; REPO=""; REVIEWER="auto"; POST=0; JSON=0; MAX_TURNS=12; TIMEOUT=600
 NO_PRIMARY_ATTESTED=0
+PRIMARIES=""   # operator-declared configured primary reviewers (comma list)
 DIFF_CAP="${ROUTED_REVIEW_DIFF_CAP:-120000}"   # bytes of diff handed to the reviewer
 
 die() { printf 'routed-review: %s\n' "$*" >&2; exit 1; }
@@ -44,7 +45,12 @@ Usage: routed-review.sh --pr N [options]
   --pr N              PR number (required)
   --repo OWNER/NAME   default: current repo via gh
   --reviewer NAME     auto (default) | claude | codex | gemini | kimi | qwen
-                      | grok | pi | copilot | jcode | opencode | kiro
+                      | grok | pi | copilot | jcode | opencode | kiro-cli
+  --primary L1,L2     the CONFIGURED primary reviewers (bot logins) of this repo.
+                      Each one must have APPROVED the current head before a
+                      routed review may complete convergence. Without it the tool
+                      cannot know which configured primary has not spoken yet, so
+                      it never reports `all_cleared_for_head` (fail-closed).
   --post              post the review as a PR comment with the §4.1(b) stamp
   --json              machine-readable verdict on stdout
   --timeout SEC       per-reviewer wall clock (default 600; never below 500 —
@@ -79,6 +85,7 @@ while [ $# -gt 0 ]; do
     --reviewer) need_val "$1" "${2-}"; REVIEWER="$2"; shift 2 ;;
     --timeout)  need_val "$1" "${2-}"; TIMEOUT="$2";  shift 2 ;;
     --max-turns) need_val "$1" "${2-}"; MAX_TURNS="$2"; shift 2 ;;
+    --primary)  need_val "$1" "${2-}"; PRIMARIES="$2"; shift 2 ;;
     --no-primary-configured) NO_PRIMARY_ATTESTED=1; shift ;;
     --post) POST=1; shift ;;
     --json) JSON=1; shift ;;
@@ -90,6 +97,12 @@ done
 case "$PR" in ''|*[!0-9]*) die "--pr must be a positive integer (got '$PR')" ;; esac
 case "$TIMEOUT" in ''|*[!0-9]*) die "--timeout must be an integer (got '$TIMEOUT')" ;; esac
 case "$MAX_TURNS" in ''|*[!0-9]*) die "--max-turns must be an integer (got '$MAX_TURNS')" ;; esac
+[ -n "$PRIMARIES" ] && [ "$NO_PRIMARY_ATTESTED" -eq 1 ] \
+  && die "--primary and --no-primary-configured contradict each other — pass one"
+if [ -n "$PRIMARIES" ]; then
+  printf '%s' "$PRIMARIES" | grep -qE '^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?(,[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?)*$' \
+    || die "--primary must be a comma-separated list of logins (got '$PRIMARIES')"
+fi
 
 [ -n "$PR" ] || { usage >&2; die "--pr is required"; }
 command -v gh  >/dev/null 2>&1 || die "gh CLI not found — required to read the PR"
@@ -98,8 +111,10 @@ command -v jq  >/dev/null 2>&1 || die "jq not found — required to parse gh JSO
 # probes; stock macOS ships without it. Unchecked, its absence surfaced as an
 # opaque per-harness failure instead of a one-line diagnostic. Found by a routed
 # kimi review on #414 (cycle 4) — gh/jq/tar were checked, this one was not.
-command -v timeout >/dev/null 2>&1 \
-  || die "timeout not found — required to bound every reviewer dispatch (brew install coreutils, or alias gtimeout)"
+# Resolved ONCE: GNU `timeout`, or Homebrew coreutils' `gtimeout` on macOS.
+if command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD=timeout
+elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD=gtimeout
+else die "timeout not found (neither timeout nor gtimeout) — required to bound every reviewer dispatch (brew install coreutils)"; fi
 [ "$TIMEOUT" -ge 500 ] 2>/dev/null || { log "[warn] raising --timeout $TIMEOUT -> 500 (measured floor)"; TIMEOUT=500; }
 
 [ -n "$REPO" ] || REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
@@ -124,18 +139,18 @@ log "    head=$HEAD_SHA  \"$PR_TITLE\""
 # `all_cleared_for_head` while a configured bot is still pending — and on a
 # self-authored PR that is the author clearing their own gate. Humans are
 # reported separately, for information only.
-KNOWN_BOTS='coderabbitai|qodo|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk'
-PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" '
-  ([.latestReviews[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i"))
+# ⛔ EXACT, anchored logins — never a substring. `test("claude")` unanchored
+# made any human whose login contains `claude`, `qodo`, `snyk`… a "primary",
+# and a human APPROVED would then land in CLEARED (the exact hazard above).
+KNOWN_BOTS_RE='^(coderabbitai|qodo-code-review|qodo-merge|qodo-merge-pro|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk-bot|snyk-io)(\[bot\])?$'
+PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" --arg re "$KNOWN_BOTS_RE" '
+  ([.latestReviews[]? | select(.author.login | test($re; "i"))
      | {who: .author.login, sha: (.commit.oid // ""), verdict: .state}]) as $rv
-  | ([.latestReviews[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i") | not)
+  | ([.latestReviews[]? | select(.author.login | test($re; "i") | not)
      | .author.login]) as $humans
-  | ([.comments[]? | select(.author.login | test("'"$KNOWN_BOTS"'"; "i")) | {who: .author.login, body: (.body[0:400])}]) as $cm
+  | ([.comments[]? | select(.author.login | test($re; "i")) | {who: .author.login, body: (.body[0:400])}]) as $cm
   | {reviews: $rv, human_reviews: ($humans | unique), bot_comments: $cm, head: $head}')"
 
-# quota / plan signals, per review-bot-quota-recovery taxonomy
-QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r '
-  [.bot_comments[]? | select(.body | test("rate limit|rate-limited|Review limit reached|next review|paused for this user|requires Pro|quota|usage limit"; "i")) | .who] | unique | join(",")')"
 # ⛔ `.head` does NOT exist inside a `.reviews[]` element — it is a SIBLING of the
 # array, so `.sha != .head` reduced to `.sha != null` = always true. Every review
 # was classified stale, `STALE_OR_PENDING` never emptied, and the
@@ -153,18 +168,67 @@ STALE_OR_PENDING="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" 
   [.reviews[]? | select(.sha != $head or .verdict != "APPROVED") | .who] | unique | join(",")')"
 CLEARED="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg head "$HEAD_SHA" '
   [.reviews[]? | select(.sha == $head and .verdict == "APPROVED") | .who] | unique | join(",")')"
+# quota / plan signals, per review-bot-quota-recovery taxonomy. A bot that has
+# since APPROVED the current head recovered: its old quota comment is history,
+# not a current block.
+QUOTA_HITS="$(printf '%s' "$PRIMARY_STATE" | jq -r --arg cleared "$CLEARED" '
+  ($cleared | split(",") | map(ascii_downcase | sub("\\[bot\\]$"; ""))) as $ok
+  | [.bot_comments[]? | select(.body | test("rate limit|rate-limited|Review limit reached|next review|paused for this user|requires Pro|quota|usage limit"; "i"))
+     | .who | select((ascii_downcase | sub("\\[bot\\]$"; "")) as $w | ($ok | index($w)) | not)] | unique | join(",")')"
+# Operator-declared primaries that have NOT approved the current head (silent
+# ones included — silence is pending, never cleared).
+UNCLEARED_DECLARED=""
+if [ -n "$PRIMARIES" ]; then
+  UNCLEARED_DECLARED="$(jq -rn --arg want "$PRIMARIES" --arg cleared "$CLEARED" '
+    def norm: ascii_downcase | sub("\\[bot\\]$"; "");
+    ($cleared | split(",") | map(norm)) as $ok
+    | [$want | split(",")[] | select((norm) as $w | ($ok | index($w)) | not)] | join(",")')"
+fi
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
 CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if .reviewDecision == "CHANGES_REQUESTED" then "yes" else "no" end')"
 
-log "[B] primaries(bots only) — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] changes_requested:$CHANGES_REQ"
+log "[B] primaries(bots only) — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] declared-not-cleared:[${UNCLEARED_DECLARED:--}] changes_requested:$CHANGES_REQ"
 log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]"
 
 # ------------------------------------------- Phase C: pick isolated reviewer
-# Cross-family preference: never route to the SAME vendor family as the caller
+# Cross-family preference: never route to the SAME provider family as the caller
 # (same-brand re-runs share blind spots — §4.1(b)). The caller declares itself
-# via ROUTED_REVIEW_CALLER; unset = no exclusion.
+# via ROUTED_REVIEW_CALLER (a harness name or a provider family).
+#
+# ⛔ Diversity is a property of the MODEL PROVIDER, not of the executable name.
+# `claude` vs `copilot` are different binaries, but copilot / pi / opencode /
+# jcode / kiro-cli can each run a Claude model. Those multi-provider harnesses
+# may still review, but their diversity is UNVERIFIED and can never complete C3.
+# The same holds when the caller is undeclared or itself multi-provider: no
+# exclusion can be proven, so no diversity credit is given (fail-closed).
 CALLER="${ROUTED_REVIEW_CALLER:-}"
-declare -a FAMILY_ORDER=(codex gemini kimi qwen grok claude copilot pi jcode opencode kiro)
+declare -a FAMILY_ORDER=(codex gemini kimi qwen grok claude copilot pi jcode opencode kiro-cli)
+family_of() {  # $1=harness or family -> provider family | multi | unknown
+  case "$1" in
+    claude|anthropic) printf 'anthropic' ;;
+    codex|openai)     printf 'openai' ;;
+    gemini|google)    printf 'google' ;;
+    kimi|moonshot)    printf 'moonshot' ;;
+    qwen|alibaba)     printf 'alibaba' ;;
+    grok|xai)         printf 'xai' ;;
+    copilot|pi|jcode|opencode|kiro-cli|kiro|multi) printf 'multi' ;;
+    *)                printf 'unknown' ;;
+  esac
+}
+CALLER_FAMILY="$(family_of "$CALLER")"
+same_family() {  # $1=candidate harness ; 0 = correlated with the caller
+  [ -n "$CALLER" ] || return 1
+  [ "$1" = "$CALLER" ] && return 0
+  local f; f="$(family_of "$1")"
+  case "$f" in multi|unknown) return 1 ;; esac
+  [ "$f" = "$CALLER_FAMILY" ]
+}
+diversity_of() {  # $1=chosen harness -> satisfied | unverified:<why>
+  if [ -z "$CALLER" ]; then printf 'unverified:caller-undeclared'
+  elif [ "$CALLER_FAMILY" = multi ] || [ "$CALLER_FAMILY" = unknown ]; then printf 'unverified:caller-provider-ambiguous'
+  elif [ "$(family_of "$1")" = multi ] || [ "$(family_of "$1")" = unknown ]; then printf 'unverified:reviewer-provider-ambiguous'
+  else printf 'satisfied'; fi
+}
 
 # ⛔ The state file is DATA, never trusted input: a reviewer process, or anyone
 # who can write the file, controls its contents. Every value read from it is
@@ -284,8 +348,8 @@ if [ "$REVIEWER" != "auto" ]; then
   # same-family review the skill forbids, and the emitted comment would still
   # account it as "C3 diversity satisfied" — fabricated diversity evidence,
   # the §4.1(e) failure this tool exists to prevent.
-  if [ -n "$CALLER" ] && [ "$REVIEWER" = "$CALLER" ]; then
-    die "refusing --reviewer '$REVIEWER': identical to ROUTED_REVIEW_CALLER — that is a correlated verifier, not an independent one. Pick another family, or unset the caller only if you can justify it."
+  if same_family "$REVIEWER"; then
+    die "refusing --reviewer '$REVIEWER': same provider family as ROUTED_REVIEW_CALLER ($CALLER_FAMILY) — that is a correlated verifier, not an independent one. Pick another family."
   fi
 fi
 
@@ -294,7 +358,7 @@ pick_reviewer() {
   if [ "$REVIEWER" != "auto" ]; then printf '%s' "$REVIEWER"; return 0; fi
   local h
   for h in "${FAMILY_ORDER[@]}"; do
-    [ "$h" = "$CALLER" ] && continue                      # verifier != generator
+    same_family "$h" && continue                          # verifier != generator
     command -v "$h" >/dev/null 2>&1 || continue
     case " $EXCLUDED " in *" $h "*) continue ;; esac     # failed earlier in THIS run
     expired "$h" && { log "    skip $h (expired per state file)"; continue; }
@@ -412,19 +476,29 @@ build_manifest() {  # $1=dir $2=out ; fails unless every file got a digest
   [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
   local n m
   n="$(cd "$1" && find . -type f | wc -l | tr -d ' ')"
-  [ "$n" = 0 ] && { : > "$2"; return 0; }
-  ( cd "$1" && find . -type f -print0 | sort -z | xargs -0 "${HASH_CMD[@]}" ) > "$2" 2>/dev/null || [ "$n" = 0 ] || return 1
-  m="$(grep -cE '^[0-9a-f]{64}  ' "$2" 2>/dev/null || true)"
-  [ "${m:-0}" = "$n" ]
+  if [ "$n" = 0 ]; then : > "$2"
+  else
+    ( cd "$1" && find . -type f -print0 | sort -z | xargs -0 "${HASH_CMD[@]}" ) > "$2" 2>/dev/null || return 1
+    m="$(grep -cE '^[0-9a-f]{64}  ' "$2" 2>/dev/null || true)"
+    [ "${m:-0}" = "$n" ] || return 1
+  fi
+  # Symlinks are tree content too: swapping one for another symlink changes
+  # what the reviewer reads, and `-type f` never sees it. Record each link's
+  # target text (never followed).
+  ( cd "$1" && find . -type l -print0 | sort -z | while IFS= read -r -d '' l; do
+      printf 'L %s -> %s\n' "$l" "$(readlink "$l")"
+    done ) >> "$2" || return 1
 }
 
 build_readonly_export() {
   command -v tar >/dev/null 2>&1 || die "tar not found — required for read-only export"
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || die "not inside a git work tree — cannot build a read-only export"
+  # Fetch from the repository --repo names, not whatever `origin` happens to
+  # be: invoked from an unrelated checkout, `origin` is a different repo.
   git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null \
-    || git fetch origin "pull/$PR/head" --quiet 2>/dev/null \
-    || die "head $HEAD_SHA not fetchable — cannot build a read-only export"
+    || git fetch "https://github.com/$REPO.git" "pull/$PR/head" --quiet 2>/dev/null \
+    || die "head $HEAD_SHA not fetchable from $REPO — cannot build a read-only export"
   git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null \
     || die "head $HEAD_SHA still absent after fetch"
   EXPORT_DIR="$WORK/tree"
@@ -435,7 +509,7 @@ build_readonly_export() {
   build_manifest "$EXPORT_DIR" "$WORK/manifest.before" \
     || die "integrity manifest could not be built (no working sha256 tool?) — refusing to run an unverifiable review"
   chmod -R a-w "$EXPORT_DIR" 2>/dev/null
-  log "    export: $(wc -l < "$WORK/manifest.before" | tr -d ' ') files, chmod a-w, no .git"
+  log "    export: $(wc -l < "$WORK/manifest.before" | tr -d ' ') entries, chmod a-w, no .git"
 }
 
 # A real kernel boundary where the host offers one. macOS ships `sandbox-exec`
@@ -504,14 +578,25 @@ build_sandbox_profile() {   # 0 = a kernel boundary is available and armed
 # most importantly into the live repository — was invisible to it. Capture the
 # live tree's state too, so an escape is detected rather than assumed away.
 LIVE_BEFORE=""
+# CONTENT, not status codes: in an already-dirty checkout a further edit to a
+# modified file keeps the same `git status --porcelain` line. So the snapshot is
+# the status (paths + codes), the tracked diff, and the digest of every
+# untracked, non-ignored file.
+live_repo_state() {
+  git status --porcelain=v1 -z --untracked-files=all 2>/dev/null
+  git diff --binary HEAD 2>/dev/null
+  git ls-files -z -o --exclude-standard 2>/dev/null | while IFS= read -r -d '' f; do
+    printf '%s\0' "$f"; [ -f "$f" ] && "${HASH_CMD[@]}" < "$f" 2>/dev/null
+  done
+}
 snapshot_live_repo() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-  LIVE_BEFORE="$(git status --porcelain 2>/dev/null | sha256_stdin)" \
+  LIVE_BEFORE="$(live_repo_state | sha256_stdin)" \
     || die "integrity manifest of the live repo could not be built (no working sha256 tool?)"
 }
 verify_live_repo_untouched() {
   [ -n "$LIVE_BEFORE" ] || return 0
-  local now; now="$(git status --porcelain 2>/dev/null | sha256_stdin)" || now="unverifiable"
+  local now; now="$(live_repo_state | sha256_stdin)" || now="unverifiable"
   [ "$now" = "$LIVE_BEFORE" ] && return 0
   log "[!] live-repo check FAILED — the reviewer mutated the working tree outside its export"
   return 1
@@ -556,43 +641,35 @@ run_reviewer() {
     claude)   # proven: cross-harness-red-team (claude-code 2.1.235)
       # ⛔ `--add-dir` GRANTS access to a directory; it does NOT move the working
       # directory. Without the `cd`, Read/Grep/Glob open the CALLER's $PWD first —
-      # the very checkout that just failed `cwd_is_head` — while the comment stamps
+      # a checkout that is not the reviewed commit — while the comment stamps
       # `Head reviewed: $HEAD_SHA`. Both tamper checks stayed clean because nothing
       # was written, so the wrong-tree read was invisible. This is the exact defect
       # the codex branch avoids with `--cd`. Found by a routed kimi review on #414.
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" claude -p "$(cat "$PROMPT_F")" \
+      # The prompt (which embeds the diff) goes on STDIN, not argv: argv is
+      # world-readable via `ps` on a shared host.
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" claude -p \
         --max-turns "$MAX_TURNS" \
         --allowedTools "Read" "Grep" "Glob" \
-        --add-dir "$dir" ) > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
+        --add-dir "$dir" ) < "$PROMPT_F" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     codex)    # proven: ai-code-review-bots-rotation §1 (council CRITIC)
-      "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" "$(cat "$PROMPT_F")" \
-        > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
+      # `-` = read the instructions from stdin (keeps the diff out of argv)
+      "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" codex exec --sandbox read-only --cd "$dir" - \
+        < "$PROMPT_F" > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     grok)     # measured: -p non-interactive. --allow-rule NOT passed => os-class.
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} grok -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     gemini|qwen|kimi|copilot|pi)   # measured: -p/--prompt non-interactive
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" -p "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     jcode|opencode)                # measured: `run` subcommand
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} "$h" run "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
-    kiro)                          # measured: `chat` subcommand
-      ( cd "$dir" && "${REVIEWER_ENV[@]}" timeout "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro chat "$(cat "$PROMPT_F")" ) \
+    kiro-cli)                      # measured: `kiro-cli chat --no-interactive`, read-only tool trust
+      ( cd "$dir" && "${REVIEWER_ENV[@]}" "$TIMEOUT_CMD" "$TIMEOUT" ${SBX[@]+"${SBX[@]}"} kiro-cli chat --no-interactive --trust-tools=fs_read "$(cat "$PROMPT_F")" ) \
         > "$OUT_F" 2>"$WORK/err" || rc=$? ;;
     *) die "no invocation shape for '$h' — add one to run_reviewer() with its evidence class" ;;
   esac
   return $rc
-}
-
-# ⛔ The comment will claim `Head reviewed: $HEAD_SHA`. That claim is only true
-# if the tree the reviewer actually read IS that commit. `--repo` is arbitrary,
-# so `$PWD` may be an unrelated checkout — the reviewer would then inspect other
-# files while the stamp asserts this SHA. Never trust cwd: prove it, else export.
-cwd_is_head() {
-  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-  [ "$(git rev-parse HEAD 2>/dev/null)" = "$HEAD_SHA" ] || return 1
-  # a dirty tree is not that commit either
-  [ -z "$(git status --porcelain 2>/dev/null)" ] || return 1
 }
 
 reset_isolation() {  # before trying another candidate: a fresh export + profile
@@ -693,13 +770,12 @@ if [ "$ENFORCEMENT" = "os" ]; then
     ENFORCEMENT="os-perms-only"
     log "    [warn] no kernel boundary on this host -> os-perms-only: writes are DETECTED, not PREVENTED"
   fi
-elif cwd_is_head; then
-  SAFE_DIR="$PWD"
-  log "[D] cwd proven at $HEAD_SHA and clean -> vendor sandbox over the live tree"
 else
-  # vendor-sandboxed but cwd is NOT the reviewed commit: export anyway so the
-  # `Head reviewed:` stamp stays true. Enforcement is then belt-and-braces.
-  log "[D] cwd is NOT $HEAD_SHA (or is dirty) -> exporting so the head stamp stays true"
+  # Vendor-sandboxed CLIs ALSO read an exact export of $HEAD_SHA. The live
+  # checkout can never be proven to equal the commit (sparse checkouts, ignored
+  # or untracked files, a different repo than --repo), and the comment stamps
+  # `Head reviewed: $HEAD_SHA` — so the reviewer reads exactly that tree.
+  log "[D] exporting $HEAD_SHA so the head stamp is true by construction"
   build_readonly_export
   SAFE_DIR="$EXPORT_DIR"
   ENFORCEMENT="vendor+os"
@@ -734,9 +810,12 @@ if [ "${TAMPER#violated}" != "$TAMPER" ]; then
 fi
 REVIEW_BYTES="$(wc -c < "$OUT_F" 2>/dev/null | tr -d ' ' || echo 0)"
 
-if [ "$REVIEW_BYTES" -ge 40 ]; then break; fi
+# A review needs BOTH a clean exit and substantive output. A CLI that exits
+# non-zero after printing (auth/config errors, a crash mid-answer) did not
+# produce a review — stamping its stdout would publish an error as a verdict.
+if [ "$RC" -eq 0 ] && [ "$REVIEW_BYTES" -ge 40 ]; then break; fi
 
-# No substantive content => there is NO review. Never stamp an empty claim.
+# No clean, substantive output => there is NO review. Never stamp an empty claim.
 FAIL_CLASS="$(classify_failure "$RC")"; FAIL_REASON="$(failure_reason "$RC")"
 log "[D] $CHOSEN produced ${REVIEW_BYTES}B (rc=$RC) — NO REVIEW (anti-theater); class=$FAIL_CLASS reason=$FAIL_REASON"
 # stderr is shown to the operator for diagnosis only; it is never persisted.
@@ -791,9 +870,9 @@ VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -
 # loudly), but it can never grant one.
 repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none seen · 2 = probe failed
   local out
-  out="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" \
-          --jq '[.[] | select(.user.login | test("'"$KNOWN_BOTS"'"; "i")) | .user.login]' 2>/dev/null \
-        | jq -s 'add // [] | unique | length' 2>/dev/null)" || return 2
+  out="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null \
+        | jq -s --arg re "$KNOWN_BOTS_RE" \
+            '[.[][]? | select(.user.login | test($re; "i")) | .user.login] | unique | length' 2>/dev/null)" || return 2
   [ -n "$out" ] || return 2
   [ "$out" -gt 0 ] 2>/dev/null && return 0 || return 1
 }
@@ -803,7 +882,19 @@ if [ "$CHANGES_REQ" = "yes" ]; then
   PRIMARY_STATUS="changes_requested"      # §4.1(e): routing never dismisses this
 elif [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] && [ -n "$CLEARED" ]; then
   # CLEARED is bot-only (phase B); a human approval can never land here.
-  PRIMARY_STATUS="all_cleared_for_head"; MAY_COMPLETE_C3="true"
+  # ⛔ "every bot that SPOKE approved" is not "every CONFIGURED primary
+  # approved": a configured bot that has not reviewed yet is invisible here.
+  # Only an operator-declared --primary list closes that gap.
+  if [ -z "$PRIMARIES" ]; then
+    PRIMARY_STATUS="spoken_primaries_cleared_configured_set_undeclared"
+    log "    every bot that reviewed approved this head, but the configured set is undeclared (pass --primary)"
+  elif [ -n "$UNCLEARED_DECLARED" ]; then
+    PRIMARY_STATUS="declared_primary_pending:$UNCLEARED_DECLARED"
+  else
+    PRIMARY_STATUS="all_cleared_for_head"; MAY_COMPLETE_C3="true"
+  fi
+elif [ -n "$PRIMARIES" ]; then
+  PRIMARY_STATUS="declared_primary_pending:${UNCLEARED_DECLARED:-$PRIMARIES}"
 elif [ -z "$CLEARED" ] && [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] \
   && [ "$(printf '%s' "$PRIMARY_STATE" | jq -r '.bot_comments | length')" = "0" ]; then
   if [ "$NO_PRIMARY_ATTESTED" -eq 1 ]; then
@@ -823,7 +914,33 @@ elif [ -z "$CLEARED" ] && [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] \
   fi
 fi
 
-log "[E] diversity_limb=satisfied  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
+# The routed reviewer's OWN verdict also gates. A REQUEST_CHANGES (or no
+# verdict at all) is a finding against the change; it can inform the work but
+# never complete convergence.
+ROUTED_VERDICT="none"
+case "$VERDICT_LINE" in
+  "VERDICT: PASS | REQUEST_CHANGES"*) ROUTED_VERDICT="none" ;;   # template echoed, no decision
+  "VERDICT: PASS"*)            ROUTED_VERDICT="pass" ;;
+  "VERDICT: REQUEST_CHANGES"*) ROUTED_VERDICT="request_changes" ;;
+esac
+[ "$ROUTED_VERDICT" = pass ] || MAY_COMPLETE_C3="false"
+
+# Diversity is earned, not assumed (see family_of). A truncated diff means the
+# reviewer did not see the whole change, so its opinion is partial.
+DIVERSITY="$(diversity_of "$CHOSEN")"
+[ "$TRUNCATED" = yes ] && [ "$DIVERSITY" = satisfied ] && DIVERSITY="partial:diff-truncated"
+[ "$DIVERSITY" = satisfied ] || MAY_COMPLETE_C3="false"
+
+# ⛔ The verdict is bound to the head read in Phase A. A push during the
+# (long) reviewer run makes this review describe an older commit.
+HEAD_NOW="$(gh pr view "$PR" --repo "$REPO" --json headRefOid 2>/dev/null | jq -r '.headRefOid // empty' 2>/dev/null)"
+if [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
+  MAY_COMPLETE_C3="false"
+  PRIMARY_STATUS="head_moved_during_review:${HEAD_NOW:-unreadable}"
+  log "[!] PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}); this review describes the old head only"
+fi
+
+log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
 
 COMMENT_F="$WORK/comment.md"
 {
@@ -832,16 +949,20 @@ COMMENT_F="$WORK/comment.md"
   printf 'Head reviewed: `%s`\n' "$HEAD_SHA"
   printf 'Context isolation: fresh OS process, no delegator history.\n'
   printf 'Read-only enforcement: `%s` (%s)\n' "$ENFORCEMENT" \
-    "$([ "$ENFORCEMENT" = vendor ] && printf 'CLI sandbox/tool-allowlist' || printf 'disposable git-archive export, chmod a-w, no .git')"
+    "$([ "$ENFORCEMENT" = "vendor+os" ] && printf 'CLI sandbox/tool-allowlist over a disposable git-archive export of the head' || printf 'disposable git-archive export, chmod a-w, no .git')"
   printf 'Post-run tamper check: `%s`\n' "$TAMPER"
   printf 'Diff truncated: %s\n\n' "$TRUNCATED"
   printf '%s\n\n' "$VERDICT_LINE"
-  printf '<details><summary>Full reviewer output (%s bytes)</summary>\n\n```\n' "$REVIEW_BYTES"
+  # A fence longer than any backtick run in the output, so reviewer text
+  # (or injected text) can never close the block and render as comment markup.
+  FENCE="$(LC_ALL=C grep -oE '`+' "$OUT_F" 2>/dev/null | awk '{ if (length($0) > m) m = length($0) } END { n = (m >= 3 ? m + 1 : 3); s = ""; for (i = 0; i < n; i++) s = s "`"; print s }')"
+  printf '<details><summary>Full reviewer output (%s bytes)</summary>\n\n%s\n' "$REVIEW_BYTES" "$FENCE"
   cat "$OUT_F"
-  printf '\n```\n</details>\n\n'
+  printf '\n%s\n</details>\n\n' "$FENCE"
   printf -- '---\n**Gate accounting (§4.1(e)) — what this does and does NOT satisfy**\n\n'
   printf '| limb | state |\n|---|---|\n'
-  printf '| C3 diversity (independent cross-brand opinion) | satisfied |\n'
+  printf '| C3 diversity (independent cross-brand opinion) | `%s` |\n' "$DIVERSITY"
+  printf '| Routed reviewer verdict | `%s` |\n' "$ROUTED_VERDICT"
   printf '| Configured primary verdict | `%s` |\n' "$PRIMARY_STATUS"
   printf '| May complete convergence on its own | `%s` |\n\n' "$MAY_COMPLETE_C3"
   if [ "$MAY_COMPLETE_C3" != "true" ]; then
@@ -868,11 +989,12 @@ if [ "$JSON" -eq 1 ]; then
   jq -n --arg repo "$REPO" --arg pr "$PR" --arg head "$HEAD_SHA" --arg rv "$CHOSEN" \
         --arg verdict "$VERDICT_LINE" --arg ps "$PRIMARY_STATUS" --arg c3 "$MAY_COMPLETE_C3" \
         --arg trunc "$TRUNCATED" --arg enf "$ENFORCEMENT" --arg tamper "$TAMPER" \
+        --arg div "$DIVERSITY" --arg rv_verdict "$ROUTED_VERDICT" \
         --argjson bytes "$REVIEW_BYTES" --argjson sk "$SKIPPED_JSON" \
     '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,skipped_candidates:$sk,
       isolation:{mode:"fresh-process",read_only_enforcement:$enf,tamper_check:$tamper},
       review_bytes:$bytes,diff_truncated:$trunc,
-      verdict:$verdict,diversity_limb:"satisfied",primary_verdict:$ps,
+      verdict:$verdict,routed_verdict:$rv_verdict,diversity_limb:$div,primary_verdict:$ps,
       may_complete_c3:($c3=="true")}'
 else
   cat "$COMMENT_F"

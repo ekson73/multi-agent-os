@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: gate, diversity and isolation follow-ups from the #414 review rounds
+
+- **Declared primaries.** `--primary L1,L2` names the configured primary
+  reviewers. A declared primary that has not approved the current head keeps
+  the gate at exit `3`; without the flag the configured set is reported as
+  undeclared and C3 is not completed. `--primary` with `--no-primary-configured`
+  is refused.
+- **The routed verdict gates C3.** Only a routed `PASS` can complete C3; a
+  routed `REQUEST_CHANGES` (or no verdict) leaves exit `3`.
+- **Diversity by provider family.** The caller is matched by provider family,
+  not binary name, so a same-family reviewer is skipped or refused. Undeclared
+  callers and multi-provider harnesses (`copilot`, `pi`, `jcode`, `opencode`,
+  `kiro-cli`) yield `unverified` diversity.
+- **Honest review output.** A non-zero reviewer exit is not stamped as a
+  review; a truncated diff and a head that moved during the review both block
+  C3; the output fence grows past any backtick run in the text.
+- **Exact bot matching.** Review bots are matched by exact login, so a human
+  whose name contains a bot name no longer counts; a quota signal from a bot
+  that has since approved the head is ignored.
+- **Isolation.** Every reviewer now reads a `git archive` export of the head
+  (the cwd shortcut is gone); symlinks are part of the tamper manifest; the
+  live-repo check hashes content, not status lines; `claude` and `codex` get the
+  prompt on stdin; `gtimeout` is accepted where `timeout` is missing; the PR
+  head is fetched from `--repo`; `kiro` is invoked as `kiro-cli`.
+- `tests/contract.sh` — +12 cases (29-40), 40 cases / 51 assertions.
+
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 
 - **TOCTOU closed (armed boundary).** Under `os-sandboxed` the profile now write-denies the state directory and every ancestor (literal), so the reviewer can no longer rename the directory away, write the real file through the new path and rename it back — a sequence that kept path and inode identical and left the change unreported (contract case 27). Cases 25-26 now accept "prevented" as well as "detected".
@@ -538,9 +564,11 @@ Cada correcao abaixo tem contraprova executada.
   `may_complete_c3` is computed from a live primary probe; absence of a primary
   is an **operator attestation**, never an inference.
 - **Read-only enforcement in two classes**: `vendor` (`codex --sandbox
-  read-only`, `claude --allowedTools`) and `os` for the other 9 — a disposable
+  read-only`, `claude --allowedTools`) and `os` for the others — a disposable
   `git archive` export, every path `chmod a-w`, no `.git`, plus a `sha256`
-  manifest tamper-check after the run. Drift ⇒ exit `1` and nothing is stamped.
+  manifest tamper-check after the run. The `os` class is `os-sandboxed` only
+  where `sandbox-exec` works; elsewhere it is `os-perms-only`, which detects a
+  write but does not prevent it. Drift ⇒ exit `1` and nothing is stamped.
 - `agents/code-reviewer.md` — additive independence boundary: the in-harness
   reviewer now declares itself a *correlated* verifier and routes to this skill
   wherever `verifier != generator` is the actual requirement.
@@ -552,7 +580,7 @@ Cada correcao abaixo tem contraprova executada.
   `--reviewer` bypassing the caller-exclusion invariant, and a mandatory secret
   scan that was silently skipped when `gitleaks` was absent. All fixed in-PR.
 
-- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash 3.2 empty-array expansion).
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash < 4.4 empty-array expansion, on hosts without a working `sandbox-exec`).
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 

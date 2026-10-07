@@ -35,27 +35,29 @@ mechanism a table cannot satisfy:
 | harness | how to call | notes |
 |---|---|---|
 | **claude** (Claude Code) | `ROUTED_REVIEW_CALLER=claude skills/routed-pr-review/bin/routed-review.sh --pr N --post` | or via the `Bash` tool; skill auto-discovers under `skills/` |
-| **codex** | `ROUTED_REVIEW_CALLER=codex ./…/routed-review.sh --pr N --json` | codex will not be chosen as its own reviewer |
-| **gemini / antigravity** | `ROUTED_REVIEW_CALLER=gemini ./…/routed-review.sh --pr N` | |
-| **opencode** | `ROUTED_REVIEW_CALLER=opencode ./…/routed-review.sh --pr N` | native `opencode pr <N>` is a *separate* path, not wrapped |
-| **aws-kiro / crew** | `ROUTED_REVIEW_CALLER=kiro ./…/routed-review.sh --pr N` | |
-| **pi** | `ROUTED_REVIEW_CALLER=pi ./…/routed-review.sh --pr N` | pi has no spawn tool — this is exactly its use case |
-| **oh-my-pi** | `ROUTED_REVIEW_CALLER=pi ./…/routed-review.sh --pr N` | same family as `pi`; shares its exclusion |
-| **prime-agent** | `ROUTED_REVIEW_CALLER=prime-agent ./…/routed-review.sh --pr N` | unknown family ⇒ no exclusion applied; pass an explicit `--reviewer` if the host shares a vendor with one in the pool |
-| **copilot** | `ROUTED_REVIEW_CALLER=copilot ./…/routed-review.sh --pr N` | |
-| **kimi / qwen / grok / jcode** | `ROUTED_REVIEW_CALLER=<name> ./…/routed-review.sh --pr N` | |
-| **any other** | `ROUTED_REVIEW_CALLER=<binary-name> ./…/routed-review.sh --pr N` | the name only needs to match the pool entry to be excluded |
+| **codex** | `ROUTED_REVIEW_CALLER=codex skills/routed-pr-review/bin/routed-review.sh --pr N --json` | no OpenAI-family reviewer is chosen |
+| **gemini / antigravity** | `ROUTED_REVIEW_CALLER=gemini skills/routed-pr-review/bin/routed-review.sh --pr N` | |
+| **opencode** | `ROUTED_REVIEW_CALLER=opencode skills/routed-pr-review/bin/routed-review.sh --pr N` | native `opencode pr <N>` is a *separate* path, not wrapped |
+| **aws-kiro / crew** | `ROUTED_REVIEW_CALLER=kiro-cli skills/routed-pr-review/bin/routed-review.sh --pr N` | |
+| **pi** | `ROUTED_REVIEW_CALLER=pi skills/routed-pr-review/bin/routed-review.sh --pr N` | pi has no spawn tool — this is exactly its use case |
+| **oh-my-pi** | `ROUTED_REVIEW_CALLER=pi skills/routed-pr-review/bin/routed-review.sh --pr N` | multi-provider harness ⇒ diversity reported `unverified` |
+| **prime-agent** | `ROUTED_REVIEW_CALLER=prime-agent skills/routed-pr-review/bin/routed-review.sh --pr N` | unknown family ⇒ diversity `unverified`; set the caller to a provider family (`anthropic`, `openai`, `google`, …) when known |
+| **copilot** | `ROUTED_REVIEW_CALLER=copilot skills/routed-pr-review/bin/routed-review.sh --pr N` | |
+| **kimi / qwen / grok / jcode** | `ROUTED_REVIEW_CALLER=<name> skills/routed-pr-review/bin/routed-review.sh --pr N` | |
+| **any other** | `ROUTED_REVIEW_CALLER=<binary-name> skills/routed-pr-review/bin/routed-review.sh --pr N` | a harness name or provider family; an unknown name yields `unverified` diversity |
 
 ## Contract for every wrapper
 
 1. Set `ROUTED_REVIEW_CALLER`.
 2. Do not pass `--post` unless the caller is authorised to write to the PR.
-3. Treat exit `3` as **"reviewed but still blocked"** — never as a merge signal.
-4. Treat exit `2` as **"no review exists"** — never stamp, never claim green.
-5. Never wrap the script in a retry loop against the *same* reviewer; rotation
-   already fall-throughs (`ai-code-review-bots-rotation.md` §3.5: a hot retry on
-   the same bot is not a different strategy).
+3. Pass `--primary <logins>` with the configured primary reviewers (or
+   `--no-primary-configured` only when the operator attests none exist).
+4. Treat exit `3` as **"reviewed but still blocked"** — never as a merge signal.
+5. Treat exit `2` as **"no review exists"** — never stamp, never claim green.
+6. Never wrap the script in a retry loop against the *same* reviewer; rotation
+   already falls through (a hot retry on the same bot is not a different
+   strategy).
 
 ---
 
-*Signed: `Claude-Dev-pr414` (Claude Opus 5, branch `feat/routed-pr-review` @ `342165e`) | 2026-09-03T15:33:49-03:00 — per `CLAUDE.md` §Sign documents with agent ID and timestamp*
+*Signed: `Claude-Dev-0414-001` (Claude Opus 5) | 2026-09-03T15:33:49-03:00 · revised `Claude-Dev-0414-002` (Claude Sonnet 5.5) | 2026-10-07T11:30:00-03:00*
