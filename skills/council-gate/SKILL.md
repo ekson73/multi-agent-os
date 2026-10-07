@@ -72,7 +72,8 @@ intake -> 33-socratic interrogation (§4)
       -> LAYER 2  democratic council (§5.2)       --converged-->
       -> RED-TEAM refutation (§5.2.5)             --refuted-->  P4 FAILS -> HITL (§7)   [the missed-facet catch]
                                                   --survives-->
-      -> evaluate predicate P1..P5 (§6)
+      -> evaluate predicate P0..P5 (§6)
+                    P0 fails (scope missing, unverifiable, or exceeded) -> HITL_OUT_OF_SCOPE (§6)
                     predicate PASS + ARMED        -> execute + decision-capture (§6.3)
                     predicate PASS + UNARMED       -> emit verdict + 1-touch confirm (§1)
                     predicate FAIL, score recoverable -> Score-Uplift (<=3) -> re-loop <= n*
@@ -144,7 +145,7 @@ AUTHORIZE_EXECUTED ⟺ P0 within-invoker-scope ∧ P1 Layer-1 deterministic-clea
 The **safe class is P0–P4**; **P5 (armed) is the *only* difference** between executed and consultative. On **any** terminal verdict run `maos:decision-capture` (`agentic-decide`) **first**: record the **verdict** · **why** · `spec_alignment` · the council trace · **the red-team trace** · the Layer-1 clear · the score. Metron needs the record whether or not it executed (authorize-rate + regret-rate), and this guarantees **every emitted `audit_ref` (§8) is backed by a real record** — no dangling ref on the default unarmed path. **Only on AUTHORIZE + ARMED** does the gate then **execute the action** — and it executes it **through the caller under the caller's existing guardrails** (the same hooks + the §5.1 Layer-1 deny-set), never by expanding its own shell surface (see the §5.1 execution-surface constraint). A `HITL_*` verdict emits `audit_ref: null` (nothing was authorized to capture beyond the escalation itself).
 
 ## §7 — HITL fallback = contestable evidence, NOT a persuasive verdict
-When the predicate fails (Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
+When the predicate fails (the action is outside the invoker's verifiable scope (P0), OR Layer 1 blocks, OR the red-team refutes, OR score/convergence falls short), escalate via `AskUserQuestion` (tool-over-prose, per `end-of-action-briefing-protocol` §7.1) carrying:
 1. **Ranked recommendations** (recommended FIRST + tagged), each with its **confidence** and the **tradeoff** as the description.
 2. The **audit trail / council trace + red-team trace** the human can inspect to **contest without re-doing the work** (evidence-first, not argument-first — the Explainability-Paradox counter).
 3. **Friction proportional to stakes** (rule §5.3; no blanket friction on trivial safe-class).
@@ -186,7 +187,7 @@ Trivial/read-only (§S6) · operator disarm · `/compact` since arming (re-prove
 10. ❌ Council self-authorizing a solely-automated decision with legal/significant effect on a natural person (credit/hiring/benefit/access/suspension…) — GDPR Art.22 / LGPD Art.20: the council is *still "solely automated"* (SCHUFA rubber-stamp doctrine), NOT the human safeguard → deny-set-blocked (§5.1) → mandatory-HITL; the Art.22(2) exceptions are operator-HITL-only.
 
 ## §12 — Quality Tests (6/6, dogfooded)
-Self-Application ✅ (composes existing primitives, adds no engine — Strata/Gordian) · Non-Contradiction ✅ (executes the constitutional rule; predicate P1–P5 + triple-check + red-team match the rule byte-for-byte; consistent with ECE + CASC + Metron) · Survival ✅ (ships unarmed; does not self-authorize) · Bounded ✅ (§10 skips + per-action lease + P1/⛔ unconditional + DUED via the rule) · Explicit-Exception ✅ (§10 + §0) · Utility-Sunset ✅ (inherits rule §-DUED). `scope-discipline` 6Q + `anti-theater` 8Q PASS (honest §1 unarmed default + §11 anti-patterns are the anti-theater).
+Self-Application ✅ (composes existing primitives, adds no engine — Strata/Gordian) · Non-Contradiction ✅ (executes the constitutional rule; predicate P1–P5 + triple-check + red-team match the rule, and P0 is a stricter addition the rule does not list yet (open item); consistent with ECE + CASC + Metron) · Survival ✅ (ships unarmed; does not self-authorize) · Bounded ✅ (§10 skips + per-action lease + P1/⛔ unconditional + DUED via the rule) · Explicit-Exception ✅ (§10 + §0) · Utility-Sunset ✅ (inherits rule §-DUED). `scope-discipline` 6Q + `anti-theater` 8Q PASS (honest §1 unarmed default + §11 anti-patterns are the anti-theater).
 
 ## §Refs
 - Governance SSOT: `~/.claude/rules/council-gate.md` (user-scope rule, akasha PR #236) · ladder: `auto-merge-standing-authorization` §1.1.1 (this gate = the Council tier) · predicate: `agentic-first` §4.7.8 · arming: `standing-autonomous-operation-authorization` · sanity: `harmonic` §0.5.1 CASC · falsifiability: `agentic-observability-protocol`.

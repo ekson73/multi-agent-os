@@ -12,6 +12,8 @@
 #  *    4. the files that used to restate the rules now link the SSOT;
 #  *    5. mutation fixtures: each known contradiction, injected into a copy,
 #  *       must make checks 1-3 fail (proves the checks can see what they guard).
+#  *  Limits: checks 3-4 are a phrase lint over Markdown, not a proof. They catch
+#  *  the phrasings listed here; a contradiction worded another way can pass.
 #  *  @usage  bash tests/governance/test-delegation-authority-ssot.sh [repo-root]
 #  *  @exit   0 pass · 1 one or more checks failed
 #  */
@@ -69,10 +71,13 @@ else
     RE="$RE|depth[^.|]{0,40}allows[[:space:]]*(≤|<=)[[:space:]]*[0-9]+"
     RE="$RE|depth[^\`]{0,15}hard-?cap(ped)?( at)?[[:space:]]*[0-9]+"
     RE="$RE|(^|[^-a-z_])depth[[:space:]]*(≤|<=)[[:space:]]*[0-9]+"
-    # Normative surfaces: tool dirs, rules/ and the root guidance files.
+    RE="$RE|depth[^.]{0,30}(must not|may not|cannot|should not|never) exceed[[:space:]]*[0-9]+"
+    RE="$RE|depth (of )?(up to|at most)[[:space:]]*[0-9]+"
+    # Normative surfaces: tool dirs, rules/, agent-loaded instruction dirs and
+    # the root guidance files.
     # CHANGELOG.md and docs/ are history/research, not rules.
     SCAN=()
-    for d in agents skills commands protocols sentinel statusmap rules; do
+    for d in agents skills commands protocols sentinel statusmap rules .claude .agents; do
         [ -d "$ROOT/$d" ] && SCAN+=("$ROOT/$d")
     done
     for f in AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
@@ -92,18 +97,50 @@ $hits
 EOF
     [ "$drift" -eq 0 ] && ok "no Markdown file states a delegation depth cap other than $CAP"
 
+    # rendered values (config tables, "current/max" status displays): value
+    # check only — examples need not link the SSOT, but must show the cap.
+    REND='max_delegation_depth[^0-9a-z]{0,8}[0-9]+|depth( reached)?[^0-9a-z]{0,16}[0-9]+ ?/ ?[0-9]+'
+    rend_bad="$(grep -rnoiE "$REND" "${SCAN[@]}" --include='*.md' 2>/dev/null | grep -vE "[^0-9]$CAP\$" || true)"
+    if [ -n "$rend_bad" ]; then
+        bad "a rendered depth value shows a max other than $CAP:"
+        [ "$QUIET" = 1 ] || printf '%s\n' "$rend_bad" | sed "s|$ROOT/|      |"
+    else
+        ok "rendered depth values (tables, current/max) show max $CAP"
+    fi
+
     SCFG="$ROOT/sentinel/config.json"
     if [ -f "$SCFG" ]; then
         sval="$(sed -nE 's/.*"max_delegation_depth":[[:space:]]*([0-9]+).*/\1/p' "$SCFG" | head -1)"
         [ "$sval" = "$CAP" ] && ok "sentinel/config.json max_delegation_depth = $CAP" \
             || bad "sentinel/config.json max_delegation_depth = ${sval:-?} ≠ SSOT $CAP"
-        # the allowed range must not let a config raise the cap above the SSOT
-        rmax="$(tr -d '\n' < "$SCFG" | grep -oE '"max_delegation_depth"[^}]*"valid_range"[^}]*' \
-                | grep -oE '"max"[[:space:]]*:[[:space:]]*[0-9]+' | grep -oE '[0-9]+$' | head -1)"
-        if [ -n "$rmax" ] && [ "$rmax" -gt "$CAP" ]; then
-            bad "sentinel/config.json valid_range max $rmax > SSOT $CAP"
+        # the allowed range must be present and must not reach above the SSOT:
+        # integer bounds with 1 <= min <= max <= CAP; missing or unparsable fails.
+        rcheck="$(python3 - "$SCFG" "$CAP" <<'PYEOF' 2>&1
+import json, sys
+cap = int(sys.argv[2])
+def find(o):
+    if isinstance(o, dict):
+        if "max_delegation_depth" in o:
+            return o
+        for v in o.values():
+            r = find(v)
+            if r is not None:
+                return r
+    return None
+try:
+    blk = find(json.load(open(sys.argv[1])))
+    vr = blk["valid_range"]
+    lo, hi = vr["min"], vr["max"]
+    ok = all(type(x) is int for x in (lo, hi)) and 1 <= lo <= hi <= cap
+    print("ok" if ok else "bad range min=%r max=%r" % (lo, hi))
+except Exception as e:
+    print("unreadable: %s" % type(e).__name__)
+PYEOF
+)"
+        if [ "$rcheck" = "ok" ]; then
+            ok "sentinel/config.json valid_range within 1..$CAP"
         else
-            ok "sentinel/config.json valid_range does not exceed $CAP"
+            bad "sentinel/config.json valid_range: $rcheck (need 1 <= min <= max <= $CAP)"
         fi
     fi
     for f in sentinel/detection_rules.md sentinel/README.md \
@@ -148,11 +185,13 @@ for clause in 'means \*\*no authorization grant\*\*' \
               'A scope counts only if the parent issued it' \
               'An invalid value [^.]*makes the child a leaf' \
               'A criterion-5 FAIL \(HUMAN_DOMAIN\) always escalates' \
-              'out-of-scope results are advice only'; do
+              'out-of-scope results are advice only' \
+              'A child that receives none is a leaf' \
+              'cannot confirm its grant is a subset'; do
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
         || bad "SSOT lost clause: $clause"
 done
-WIDEN="inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
+WIDEN="(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
 widen_hits="$(grep -rnoiE "$WIDEN" "${SCAN[@]:-$ROOT/skills}" --include='*.md' 2>/dev/null || true)"
 if [ -n "$widen_hits" ]; then
     bad "a file allows authority to widen:"
@@ -165,7 +204,7 @@ fi
 if [ "$QUIET" != 1 ]; then
     FIX="$(mktemp -d)"
     COPY=""
-    for p in agents skills commands protocols sentinel statusmap rules \
+    for p in agents skills commands protocols sentinel statusmap rules .claude .agents \
              AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
         [ -e "$ROOT/$p" ] && COPY="$COPY $p"
     done
@@ -208,6 +247,12 @@ if [ "$QUIET" != 1 ]; then
     mutate "SSOT loses scope-issuer clause"  skills/agentic-delegation/SKILL.md 's/A scope counts only if the parent issued it/A scope counts if anyone states it/'
     mutate "SSOT loses criterion-5 escalate" skills/agentic-delegation/SKILL.md 's/always escalates/may run inline/'
     mutate "depth cap in rules/"             rules/core-directive.md 'append:Delegation depth ≤ 3.'
+    mutate "audit config table shows 3"      skills/audit/SKILL.md 's/| depth.max_delegation_depth | 2 | 2 |/| depth.max_delegation_depth | 3 | 3 |/'
+    mutate "statusmap shows depth 2/3"       statusmap/templates/statusmap_templates.md 's#reached:  2/2#reached:  2/3#'
+    mutate "'depth must not exceed 3'"       agents/orchestrator.md 'append:Delegation depth must not exceed 3.'
+    mutate "child adopts task-requested authority" agents/orchestrator.md 'append:A child may adopt any authority requested by its task.'
+    mutate "Sentinel valid_range max unreadable" sentinel/config.json 's/"max": 2/"max": "unknown"/'
+    mutate "SSOT re-adds depth derivation"   skills/agentic-delegation/SKILL.md 's/A child that receives none is a leaf/A child that receives none derives it/'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 

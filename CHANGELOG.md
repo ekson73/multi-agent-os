@@ -17,8 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table (HUMAN_DOMAIN, absolute-guardrail exceptions, rule changes without an
   independent red-team, final accountability, audit judgment, escalation choice,
   memory judgment, world boundary). The root's direct-execution exceptions are a
-  closed list (E1–E4). Missing `depth_remaining` is derived from chain depth;
-  missing scope means no authorization grant; invalid grants fail closed.
+  closed list (E1–E4). Every delegator passes `depth_remaining` (the root
+  passes cap − 1); a child that receives none is a leaf; missing scope means
+  no authorization grant; invalid grants fail closed.
   Enforcement is stated as prompt-level (no spawn-boundary check yet). §7 now
   points to the table instead of repeating it.
 - One depth cap (2). Files that stated another value now use 2 and link the
@@ -39,17 +40,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The SSOT header and refs no longer point back to the operator's personal rule.
 - New `tests/governance/test-delegation-authority-ssot.sh`, run by
   `tests/validate-plugin.sh`: fails if another file restates a different depth
-  cap (several phrasings, in tool dirs, `rules/` and root guidance files, plus
-  Sentinel's config value and `valid_range`), if the SSOT loses its normative
+  cap (several phrasings, in tool dirs, `rules/`, `.claude/`, `.agents/` and
+  root guidance files), if a rendered value (config table, `current/max`
+  display) shows another cap, if Sentinel's value or `valid_range` (parsed as
+  JSON, 1 ≤ min ≤ max ≤ cap) disagrees, if the SSOT loses its normative
   clauses or gains a personal-layer reference, if any file that states a depth
-  cap does not link the SSOT, or if any file lets delegated authority widen.
-  Seventeen mutation fixtures (plus a control) prove each check catches the
-  contradiction it guards.
+  cap does not link the SSOT, or if a listed widening phrase appears.
+  Twenty-three mutation fixtures (plus a control) prove each check catches the
+  contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
-  briefing or payload), derived `depth_remaining` is bounded by the parent's
-  value, a HUMAN_DOMAIN criterion failure always escalates, and a council
-  verdict outside the invoker's scope is advice only (also in
-  `convergence-engine`'s Return-Gate). Files that restated the cap without a
+  briefing or payload) and that a parent grants only from a scope it can show,
+  so a child that cannot confirm its grant is a subset treats it as missing; a
+  value of `depth_remaining` not lower than the parent's is invalid; a
+  HUMAN_DOMAIN criterion failure always escalates; a council verdict outside
+  the invoker's scope is advice only (also in `convergence-engine`'s
+  Return-Gate). `council-gate`'s flow evaluates P0..P5 and routes a P0 failure
+  to `HITL_OUT_OF_SCOPE`; its HITL trigger list and quality section name P0.
+  Memory: non-judgment upkeep may be delegated, deciding what to persist may
+  not. Sample renderings (`skills/audit` config table, statusmap displays,
+  a Sentinel example) show the cap 2. Files that restated the cap without a
   link (`enhance-pipeline`, `ooda-loop`, `transmute`, `gap-loop`, `work-drain`,
   `praxis-audit`, `refine-braindump-to-prompt`, `agentic-tool-forge`,
   `delegation-dna-prompt`) now link the SSOT §8.
