@@ -13,7 +13,8 @@
 #  *    clip    — copy the manifest to the clipboard and VERIFY it by read-back cmp;
 #  *              unverifiable ⇒ rc 4 + the paste-MCP fallback hint (never fake success)
 #  *  @exit 0 ok · 1 usage/IO error · 2 check failed · 3 scanner blind/missing ·
-#  *        4 clipboard unverified · 5 a source was refused (secret/PII)
+#  *        4 clipboard unverified · 5 a source was refused (secret/PII/binary) ·
+#  *        6 cleanup failed (temporary data may remain — reported, never hidden)
 #  *  Dry-run is the default for persist (--apply to write). Idempotent. Bash 3.2-safe.
 #  */
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -37,6 +38,42 @@ EOF
 }
 
 die() { printf '%s\n' "$1" >&2; exit "${2:-1}"; }
+
+# Temporary data: every temp lives in ONE private dir (umask 077 + mktemp -d), plus the
+# registered same-filesystem rename temps in the destination. A single EXIT trap removes all
+# of them on success, die/exit and INT/TERM/HUP alike, then verifies they are gone; a failed
+# cleanup is reported on stderr with rc 6, never hidden.
+umask 077
+WORK=""
+DEST_TMPS=()
+cleanup() {
+  local rc=$? ok=1 f
+  trap - EXIT INT TERM HUP
+  for f in ${DEST_TMPS[@]+"${DEST_TMPS[@]}"}; do
+    rm -f -- "$f" 2>/dev/null || ok=0
+    [ ! -e "$f" ] || ok=0
+  done
+  if [ -n "$WORK" ]; then
+    rm -rf -- "$WORK" 2>/dev/null || ok=0
+    [ ! -e "$WORK" ] || ok=0
+  fi
+  if [ "$ok" -eq 0 ]; then
+    printf 'cleanup failed: temporary data may remain under %s\n' "${WORK:-<dest>}" >&2
+    rc=6
+  fi
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+mkwork() {
+  [ -z "$WORK" ] || return 0
+  # explicit template: BSD/macOS mktemp ignores $TMPDIR without one, GNU honours it — the
+  # template makes the location deterministic (and observable by the residue tests)
+  WORK="$(mktemp -d "${TMPDIR:-/tmp}/close-out-manifest.XXXXXX")" || die "cannot create private work dir" 1
+  chmod 700 "$WORK"
+}
 jstr() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
 
 REQUIRED_SECTIONS="Delegates gate|Instruction tree|HITL decisions|Roadmap|Artifact index|Recovery|Self-location"
@@ -116,10 +153,8 @@ cmd_persist() {
   SCANNER="${MAOS_SECRET_SCANNER:-gitleaks}"
   command -v "$SCANNER" >/dev/null 2>&1 || die "persist: secret scanner '$SCANNER' not found — refusing (fail-closed)" 3
 
-  local root; root="$(mktemp -d)" || die "persist: cannot create staging dir" 1
-  trap 'rm -rf "$root"' RETURN
-  chmod 700 "$root"
-  STAGE="$root/stage"; NOIGN="$root/noignore"
+  mkwork
+  STAGE="$WORK/stage"; NOIGN="$WORK/noignore"
   mkdir -m 700 "$STAGE" "$NOIGN" || die "persist: cannot create staging dir" 1
 
   # positive controls, assembled at runtime (no key/PII literal in this file), scanned through
@@ -138,13 +173,17 @@ cmd_persist() {
   ! secret_hit "$STAGE/ctl" || die "persist: secret scanner fails on a clean control — scanner error, refusing (fail-closed)" 3
   rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
 
-  local s base target status i=0 staged
+  local s base target status i=0 staged tmp
   for s in "${srcs[@]}"; do
     i=$((i + 1))
     [ -f "$s" ] && [ ! -L "$s" ] || { printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue; }
     base="$(basename -- "$s")"; target="$dest/$base"
     staged="$STAGE/f$i"
     cp -- "$s" "$staged" || die "persist: cannot stage $base" 1
+    if [ ! -f "$s" ] || [ -L "$s" ]; then # source swapped during the copy
+      rm -f -- "$staged"
+      printf '{"src":"%s","status":"skipped-not-regular-file"}\n' "$(jstr "$s")"; continue
+    fi
     if is_binary "$staged"; then status="refused-binary"; refused=1
     else
       views "$staged"
@@ -153,7 +192,11 @@ cmd_persist() {
       elif [ -f "$target" ] && cmp -s "$staged" "$target"; then status="unchanged"
       elif [ "$apply" -eq 1 ]; then
         mkdir -p -- "$dest"
-        cp -- "$staged" "$target.tmp.$$" && mv -f -- "$target.tmp.$$" "$target"
+        # the rename temp sits next to the target (same filesystem ⇒ atomic mv) and holds only
+        # already-scanned staged bytes; it is registered so any failure path removes it
+        tmp="$dest/.$base.cm-tmp.$$"; DEST_TMPS+=("$tmp")
+        cp -- "$staged" "$tmp" || die "persist: cannot write $base" 1
+        mv -f -- "$tmp" "$target" || die "persist: cannot promote $base" 1
         cmp -s "$staged" "$target" || die "persist: post-copy verify failed for $base" 1
         status="copied"
       else status="would-copy"
@@ -195,15 +238,12 @@ cmd_clip() {
   if [ -z "$CLIP_PASTE_CMD" ]; then
     printf '{"status":"unverified","reason":"no-readback-tool","hint":"%s"}\n' "$hint"; exit 4
   fi
-  local back; back="$(mktemp)"
+  # read-back streams straight into cmp: the handoff content never touches a temp file
   # shellcheck disable=SC2086
-  if $CLIP_COPY_CMD < "$file" 2>/dev/null && $CLIP_PASTE_CMD > "$back" 2>/dev/null \
-     && cmp -s "$file" "$back"; then
-    rm -f "$back"
+  if $CLIP_COPY_CMD < "$file" 2>/dev/null && $CLIP_PASTE_CMD 2>/dev/null | cmp -s "$file" -; then
     printf '{"status":"verified","bytes":%s}\n' "$(wc -c < "$file" | tr -d ' ')"
     return 0
   fi
-  rm -f "$back"
   printf '{"status":"unverified","reason":"read-back-mismatch","hint":"%s"}\n' "$hint"; exit 4
 }
 
