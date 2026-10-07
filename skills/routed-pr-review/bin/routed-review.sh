@@ -124,14 +124,32 @@ else die "timeout not found (neither timeout nor gtimeout) — required to bound
 log "[A] resolving $REPO#$PR"
 fetch_pr() {
   gh pr view "$PR" --repo "$REPO" \
-    --json number,title,body,commits,headRefOid,headRefName,baseRefName,url,author,mergeStateStatus,reviewDecision,latestReviews,comments 2>/dev/null
+    --json number,title,body,commits,headRefOid,headRefName,baseRefName,baseRefOid,url,author,mergeStateStatus,reviewDecision,latestReviews,comments 2>/dev/null
 }
 PR_JSON="$(fetch_pr)" || die "cannot read $REPO#$PR"
 HEAD_SHA="$(printf '%s' "$PR_JSON" | jq -r .headRefOid)"
 [ -n "$HEAD_SHA" ] && [ "$HEAD_SHA" != "null" ] || die "no headRefOid for $REPO#$PR"
+# ⛔ The review is of the diff head-vs-base. A base that moves (a retarget, a
+# push to the base branch) changes that diff while the head stays put, so the
+# base is pinned too and every later re-read compares BOTH. No base ⇒ no pin.
+BASE_SHA="$(printf '%s' "$PR_JSON" | jq -r '.baseRefOid // empty')"
+printf '%s' "$BASE_SHA" | grep -qE '^[0-9a-f]{40}$' || die "no valid baseRefOid for $REPO#$PR — cannot pin the reviewed diff"
 PR_TITLE="$(printf '%s' "$PR_JSON" | jq -r .title)"
 PR_URL="$(printf '%s' "$PR_JSON" | jq -r .url)"
-log "    head=$HEAD_SHA  \"$PR_TITLE\""
+log "    head=$HEAD_SHA  base=$BASE_SHA  \"$PR_TITLE\""
+
+# Re-read the PR and confirm head AND base still equal the Phase A pin.
+# 0 = unchanged · 1 = moved or unreadable ($PIN_DRIFT says which).
+pr_pin_check() {
+  local now h b
+  PIN_DRIFT=""
+  if ! now="$(fetch_pr)" || [ -z "$now" ]; then PIN_DRIFT="pr_unreadable"; return 1; fi
+  h="$(printf '%s' "$now" | jq -r '.headRefOid // empty' 2>/dev/null)"
+  b="$(printf '%s' "$now" | jq -r '.baseRefOid // empty' 2>/dev/null)"
+  [ "$h" = "$HEAD_SHA" ] && [ "$b" = "$BASE_SHA" ] && return 0
+  PIN_DRIFT="head:${HEAD_SHA}->${h:-unreadable} base:${BASE_SHA}->${b:-unreadable}"
+  return 1
+}
 
 # ------------------------------------------- Phase B: §4.1(a) primary probe
 # Classify each CONFIGURED REVIEWER (a known bot) that has spoken on this PR.
@@ -211,15 +229,32 @@ HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(","
 # followed by a COMMENTED vanishes from it while it is still active. The full
 # history is read and each reviewer's last DECISIVE state (APPROVED,
 # CHANGES_REQUESTED, DISMISSED) is kept. Unreadable history blocks.
-CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if (.reviewDecision == "CHANGES_REQUESTED")
+# ⛔ `latestReviews` that is not an array is not "no reviews" — it is an answer
+# that cannot be read, and the gate cannot clear on it.
+CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if (.latestReviews | type) != "array" then "unknown"
+  elif (.reviewDecision == "CHANGES_REQUESTED")
     or ([.latestReviews[]? | select(.state == "CHANGES_REQUESTED")] | length > 0)
-  then "yes" else "no" end')"
+  then "yes" else "no" end' 2>/dev/null)" || CHANGES_REQ="unknown"
+[ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
 if [ "$CHANGES_REQ" = no ]; then
   if _hist="$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" 2>/dev/null)" && [ -n "$_hist" ]; then
+    # ⛔ Shape first, then the verdict. `null` or `{}` used to iterate to zero
+    # reviews and read as "no change request" — an unreadable answer counted as
+    # a clean one. Every page must be an array of objects with a string
+    # `state`, and every DECISIVE review must name its author and its time;
+    # anything else is UNKNOWN, which blocks.
     CHANGES_REQ="$(printf '%s' "$_hist" | jq -s -r '
-      [.[][]? | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED")]
-      | group_by(.user.login) | map(max_by(.submitted_at) | .state)
-      | if any(. == "CHANGES_REQUESTED") then "yes" else "no" end' 2>/dev/null)" || CHANGES_REQ="unknown"
+      def decisive: .state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED";
+      if (length > 0) and all(.[]; type == "array"
+            and all(.[]; type == "object" and (.state | type) == "string"
+                    and ((decisive | not)
+                         or (((.user | type) == "object") and ((.user.login | type) == "string")
+                             and ((.submitted_at | type) == "string")))))
+      then
+        [.[][] | select(decisive)]
+        | group_by(.user.login) | map(max_by(.submitted_at) | .state)
+        | if any(. == "CHANGES_REQUESTED") then "yes" else "no" end
+      else "unknown" end' 2>/dev/null)" || CHANGES_REQ="unknown"
     [ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
   else
     CHANGES_REQ="unknown"
@@ -451,6 +486,16 @@ trap 'rm -rf "$WORK"' EXIT
 DIFF_F="$WORK/diff.patch"; PROMPT_F="$WORK/prompt.md"; OUT_F="$WORK/review.txt"
 
 gh pr diff "$PR" --repo "$REPO" > "$DIFF_F" 2>/dev/null || die "cannot fetch diff"
+# `gh pr diff` reads the LIVE PR, not the Phase A pin. Re-read right after it:
+# if head or base moved in between, the diff is of a different change than the
+# one this run will stamp. Fail-closed — refuse; a fresh run reviews the new pair.
+if ! pr_pin_check; then
+  log "[!] PR moved before the review started ($PIN_DRIFT) — refusing; re-run to review the new head/base"
+  [ "$JSON" -eq 1 ] && jq -nc --arg repo "$REPO" --arg pr "$PR" --arg d "$PIN_DRIFT" \
+      '{status:"pr_moved_before_review",repo:$repo,pr:($pr|tonumber),detail:$d,
+        diversity_limb:"unsatisfied",may_complete_c3:false}'
+  exit 1
+fi
 DIFF_BYTES="$(wc -c < "$DIFF_F" | tr -d ' ')"
 if [ "$DIFF_BYTES" -gt "$DIFF_CAP" ]; then
   log "    diff ${DIFF_BYTES}B > cap ${DIFF_CAP}B — truncating (declared in output, never hidden)"
@@ -566,6 +611,77 @@ build_manifest() {  # $1=dir $2=out ; fails unless every file got a digest
     done ) >> "$2" || return 1
 }
 
+export_path_ok() {  # $1=tree path ; 0 = safe to write under the export root
+  case "$1" in ""|/*|*$'\n'*) return 1 ;; esac
+  case "/$1/" in *"//"*|*"/./"*|*"/../"*) return 1 ;; esac
+  case "/$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')/" in *"/.git/"*) return 1 ;; esac
+  return 0
+}
+
+# ⛔ A symlink in the reviewed tree is followed by the reviewer's own tools. One
+# that points outside the export (`/etc/…`, `~/.ssh/…`, `../../..`) would hand
+# the reviewer — a model steered by the PR — host files that were never part of
+# the commit. Policy, per link:
+#   - absolute target, empty target, or a target whose bytes cannot be kept
+#     exactly (newline, NUL)                     -> replaced by a text marker;
+#   - no `..` component                          -> kept (it can only descend);
+#   - `..` that lexically escapes the export     -> marker;
+#   - `..` that stays inside lexically           -> kept, then resolved
+#     physically (another link can redirect the walk) and replaced by a marker
+#     unless `realpath` proves it lands inside the export. No `realpath` on the
+#     host -> marker.
+link_marker() {  # $1=export path $2=reason
+  rm -f "$1" 2>/dev/null
+  printf 'routed-review: symlink not exported — %s. The reviewer sees this marker instead of following it.\n' "$2" > "$1" \
+    || die "export: cannot write a symlink marker"
+}
+export_symlinks() {  # $1 = NUL list of path,oid pairs
+  [ -s "$1" ] || return 0
+  local p oid tgt size depth root dotted="$WORK/export.dotted"
+  root="$(cd "$EXPORT_DIR" && pwd -P)"; : > "$dotted"
+  while IFS= read -r -d '' p && IFS= read -r -d '' oid; do
+    mkdir -p "$EXPORT_DIR/$(dirname "$p")" 2>/dev/null || die "export: cannot create the parent of a symlink"
+    { [ -e "$EXPORT_DIR/$p" ] || [ -L "$EXPORT_DIR/$p" ]; } \
+      && die "export: a symlink collides with another tracked path — refusing the export"
+    tgt="$(git cat-file blob "$oid" 2>/dev/null)" || die "export: cannot read a symlink target"
+    size="$(git cat-file -s "$oid" 2>/dev/null)"
+    if [ -z "$tgt" ] || [ "$(LC_ALL=C; printf '%s' "${#tgt}")" != "$size" ] \
+       || [ "${tgt#/}" != "$tgt" ] || [ "${tgt#*$'\n'}" != "$tgt" ]; then
+      link_marker "$EXPORT_DIR/$p" "absolute, empty or non-text target"; continue
+    fi
+    case "/$tgt/" in
+      *"/../"*)
+        # lexical walk from the link's own directory; below the root = escape
+        depth="$(printf '%s' "$p" | awk -F/ '{print NF-1}')"
+        if [ "$(printf '%s' "$tgt" | awk -F/ -v d="$depth" '{
+              for (i = 1; i <= NF; i++) { c = $i
+                if (c == "" || c == ".") continue
+                if (c == "..") { if (--d < 0) { print "esc"; exit } } else d++ }
+              print "ok" }')" != ok ]; then
+          link_marker "$EXPORT_DIR/$p" "its target leaves the reviewed tree"; continue
+        fi
+        printf '%s\0' "$p" >> "$dotted" ;;
+    esac
+    ln -s -- "$tgt" "$EXPORT_DIR/$p" 2>/dev/null || die "export: cannot create a symlink"
+  done < "$1"
+  # Physical pass for every kept `..` link, repeated until stable: replacing one
+  # link can change how another resolves.
+  [ -s "$dotted" ] || return 0
+  local changed=1 r
+  while [ "$changed" -eq 1 ]; do
+    changed=0
+    while IFS= read -r -d '' p; do
+      [ -L "$EXPORT_DIR/$p" ] || continue
+      r=""
+      command -v realpath >/dev/null 2>&1 && r="$(realpath -- "$EXPORT_DIR/$p" 2>/dev/null)"
+      case "$r" in
+        "$root"|"$root"/*) ;;
+        *) link_marker "$EXPORT_DIR/$p" "its target does not resolve inside the reviewed tree"; changed=1 ;;
+      esac
+    done < "$dotted"
+  done
+}
+
 build_readonly_export() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 \
     || die "not inside a git work tree — cannot build a read-only export"
@@ -578,19 +694,48 @@ build_readonly_export() {
     || die "head $HEAD_SHA still absent after fetch"
   EXPORT_DIR="$WORK/tree"
   mkdir -p "$EXPORT_DIR"
-  # ⛔ NOT `git archive`: it honours `export-ignore` / `export-subst` from the
-  # tree's .gitattributes, so a PR could hide a file from its own reviewer (or
-  # rewrite placeholders) just by marking it. A throwaway index + checkout-index
-  # writes every tracked path of HEAD_SHA, and neither attribute applies there.
-  local idx="$WORK/export.index"
-  GIT_INDEX_FILE="$idx" git read-tree "$HEAD_SHA" 2>/dev/null \
-    || die "read-tree failed — cannot build a read-only export"
-  GIT_INDEX_FILE="$idx" git -c core.autocrlf=false -c core.symlinks=true \
-      checkout-index -a -f --prefix="$EXPORT_DIR/" 2>/dev/null \
-    || die "checkout-index failed — cannot build a read-only export"
-  rm -f "$idx"
-  local _want _got
-  _want="$(git ls-tree -r --full-tree "$HEAD_SHA" | awk '$2=="blob"' | wc -l | tr -d ' ')"
+  # ⛔ Every tracked blob of HEAD_SHA is written RAW, straight from the object
+  # store. Neither `git archive` nor `checkout-index` may be used:
+  #  - `git archive` honours `export-ignore` / `export-subst`, so a PR could hide
+  #    a file from its own reviewer just by marking it;
+  #  - `checkout-index` applies the working-tree conversions — smudge filters,
+  #    `ident`, eol/`working-tree-encoding` — so the reviewer read bytes that are
+  #    NOT the committed blob (a `filter=` the PR declares rewrites what is seen).
+  # `git cat-file blob` applies none of them. Each regular file is then
+  # re-hashed with `hash-object --no-filters` and must equal its blob id.
+  local list="$WORK/export.list" links="$WORK/export.links" paths="$WORK/export.paths" oids="$WORK/export.oids"
+  git ls-tree -r -z --full-tree "$HEAD_SHA" > "$list" 2>/dev/null \
+    || die "ls-tree failed — cannot build a read-only export"
+  : > "$links"; : > "$paths"; : > "$oids"
+  local ent meta path mode type oid _want=0
+  while IFS= read -r -d '' ent; do
+    meta="${ent%%$'\t'*}"; path="${ent#*$'\t'}"
+    read -r mode type oid <<<"$meta"
+    [ "$type" = commit ] && continue      # a submodule gitlink has no content here
+    [ "$type" = blob ] || die "unexpected tree entry type '$type' — refusing the export"
+    export_path_ok "$path" || die "unsafe path in the tree — refusing the export"
+    _want=$((_want + 1))
+    case "$mode" in
+      100644|100755)
+        mkdir -p "$EXPORT_DIR/$(dirname "$path")" 2>/dev/null \
+          || die "export: cannot create the parent of a tracked file"
+        git cat-file blob "$oid" > "$EXPORT_DIR/$path" 2>/dev/null \
+          || die "export: cannot write a tracked blob"
+        [ "$mode" = 100755 ] && chmod +x "$EXPORT_DIR/$path"
+        printf '%s\n' "$EXPORT_DIR/$path" >> "$paths"; printf '%s\n' "$oid" >> "$oids" ;;
+      120000) printf '%s\0%s\0' "$path" "$oid" >> "$links" ;;   # symlinks last
+      *) die "unexpected file mode '$mode' — refusing the export" ;;
+    esac
+  done < "$list"
+  # Raw-content proof: one hash-object over every regular file, compared in order.
+  if [ -s "$paths" ]; then
+    git hash-object --no-filters --stdin-paths < "$paths" > "$WORK/export.got" 2>/dev/null \
+      || die "export: could not re-hash the exported files"
+    cmp -s "$oids" "$WORK/export.got" \
+      || die "export diverges from the committed blobs — refusing a review of bytes that are not the commit"
+  fi
+  export_symlinks "$links"
+  local _got
   _got="$( (cd "$EXPORT_DIR" && find . \( -type f -o -type l \)) | wc -l | tr -d ' ')"
   [ "$_want" = "$_got" ] \
     || die "export incomplete ($_got of $_want tracked files) — refusing a partial review"
@@ -1048,6 +1193,7 @@ else
   PR_READ_OK=0
 fi
 HEAD_NOW="$(printf '%s' "$PR_JSON" | jq -r '.headRefOid // empty' 2>/dev/null)"
+BASE_NOW="$(printf '%s' "$PR_JSON" | jq -r '.baseRefOid // empty' 2>/dev/null)"
 
 MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pending_or_unknown"
 if [ "$CHANGES_REQ" = "yes" ]; then
@@ -1117,6 +1263,11 @@ elif [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
   MAY_COMPLETE_C3="false"
   PRIMARY_STATUS="head_moved_during_review:${HEAD_NOW:-unreadable}"
   log "[!] PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}); this review describes the old head only"
+elif [ "$BASE_NOW" != "$BASE_SHA" ]; then
+  # same head, different base = a different diff than the one reviewed
+  MAY_COMPLETE_C3="false"
+  PRIMARY_STATUS="base_moved_during_review:${BASE_NOW:-unreadable}"
+  log "[!] PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}); this review describes the old diff only"
 fi
 
 log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
@@ -1160,6 +1311,10 @@ if [ "$POST" -eq 1 ]; then
     || die "gitleaks not installed — refusing to post (the pre-post secret scan is mandatory, not best-effort). Install gitleaks, or drop --post and inspect the review on stdout."
   gitleaks detect --no-git --source="$COMMENT_F" --no-banner >/dev/null 2>&1 \
     || die "gitleaks flagged the review body — comment NOT posted (secrets are absolute)"
+  # last re-read before publishing: the stamp names a head and its gate line a
+  # verdict; neither may be posted against a PR that has since moved
+  pr_pin_check \
+    || die "PR moved after the verdict was computed ($PIN_DRIFT) — comment NOT posted; re-run"
   gh pr comment "$PR" --repo "$REPO" --body-file "$COMMENT_F" >/dev/null \
     && log "[E] posted to $PR_URL" || die "failed to post comment"
 fi
