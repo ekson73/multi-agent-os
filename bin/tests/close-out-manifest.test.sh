@@ -66,6 +66,59 @@ sed 's/^delegates_gate: PASS/delegates_gate: PENDING/' "$TMP/m.md" > "$TMP/m-gat
 bash "$CM" check --manifest "$TMP/m-gate.md" >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 2 ]; then ok "delegates gate not PASS ⇒ fail closed"; else bad "non-PASS gate should fail" "rc=$RC"; fi
 
+echo "── close-out-manifest: check — fusion with session-handover (FEAT-2/16/17/22/34)"
+# FEAT-2: closing with a pending delegate only as an operator-authorised PARTIAL
+sed 's/^delegates_gate: PASS/delegates_gate: PARTIAL/' "$TMP/m.md" > "$TMP/m-part.md"
+bash "$CM" check --manifest "$TMP/m-part.md" >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 2 ]; then ok "PARTIAL without operator authorisation ⇒ rc 2"; else bad "unauthorised PARTIAL should fail" "rc=$RC"; fi
+printf 'partial_authorized_by: operator in-session 2026-10-07\n' >> "$TMP/m-part.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-part.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q '"partial":true'; then ok "authorised PARTIAL passes and is flagged partial"; else bad "authorised PARTIAL should pass flagged" "rc=$RC out=$OUT"; fi
+
+# FEAT-16: the recovery triple must hold together
+sed 's/^command: .*/command: claude --resume some-other-id/' "$TMP/m.md" > "$TMP/m-cmdid.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-cmdid.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'command-lacks-session-id'; then ok "command without the session id ⇒ rc 2"; else bad "command must carry the session id" "rc=$RC out=$OUT"; fi
+sed 's#^link: .*#link: not-a-url#' "$TMP/m.md" > "$TMP/m-link.md"
+bash "$CM" check --manifest "$TMP/m-link.md" >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 2 ]; then ok "non-URL session link ⇒ rc 2"; else bad "session link must be a URL" "rc=$RC"; fi
+{ cat "$TMP/m.md"; printf 'transcript_path: %s/nope.jsonl\n' "$TMP"; } > "$TMP/m-tr.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-tr.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'transcript-missing'; then ok "declared transcript path that does not exist ⇒ rc 2"; else bad "missing transcript should fail" "rc=$RC out=$OUT"; fi
+
+# FEAT-17/22: indexed local paths must exist and must not be ephemeral unless declared so
+printf 'x\n' > "$TMP/real.md"; mkdir -p "$TMP/w"   # TMPDIR moved aside: $TMP is not the temp root here
+{ cat "$TMP/m.md"; printf -- '- durable: `%s`\n' "$TMP/real.md"; } > "$TMP/m-ok.md"
+TMPDIR="$TMP/w" bash "$CM" check --manifest "$TMP/m-ok.md" >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 0 ]; then ok "existing indexed path passes"; else bad "existing indexed path should pass" "rc=$RC"; fi
+{ cat "$TMP/m.md"; printf -- '- gone: `%s/missing.md`\n' "$TMP"; } > "$TMP/m-broken.md"
+OUT="$(TMPDIR="$TMP/w" bash "$CM" check --manifest "$TMP/m-broken.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'broken-link'; then ok "broken indexed path ⇒ rc 2"; else bad "broken path should fail" "rc=$RC out=$OUT"; fi
+{ cat "$TMP/m.md"; printf -- '- note: `/tmp`\n'; } > "$TMP/m-eph.md"
+OUT="$(bash "$CM" check --manifest "$TMP/m-eph.md" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q 'ephemeral-link'; then ok "undeclared ephemeral path ⇒ rc 2"; else bad "ephemeral path should fail" "rc=$RC out=$OUT"; fi
+{ cat "$TMP/m.md"; printf -- '- scratch (ephemeral): `/tmp`\n'; } > "$TMP/m-eph2.md"
+bash "$CM" check --manifest "$TMP/m-eph2.md" >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 0 ]; then ok "declared ephemeral path passes"; else bad "declared ephemeral path should pass" "rc=$RC"; fi
+
+# opt-in --strict adds After-action review / Resume check / Not done; default unchanged
+bash "$CM" check --manifest "$TMP/m.md" --strict >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 2 ]; then ok "--strict requires the opt-in sections"; else bad "--strict should require extra sections" "rc=$RC"; fi
+{ cat "$TMP/m.md"; printf '## After-action review\nplanned/happened/why\n## Resume check\ncompare anchor first\n## Not done\nnone (verified)\n'; } > "$TMP/m-strict.md"
+bash "$CM" check --manifest "$TMP/m-strict.md" --strict >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 0 ]; then ok "--strict passes with the opt-in sections"; else bad "--strict with sections should pass" "rc=$RC"; fi
+
+# FEAT-34: git anchor names branch@HEAD and every uncommitted file, never touches them
+G="$TMP/g"; git init -q "$G" && git -C "$G" -c user.email=t@t -c user.name=t commit -q --allow-empty -m init
+printf 'wip\n' > "$G/wip file.txt"
+OUT="$(bash "$CM" anchor --repo "$G" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 2 ] && printf '%s' "$OUT" | grep -q '"dirty":\["?? wip file.txt"\]' && [ -f "$G/wip file.txt" ]; then ok "anchor names dirty files (rc 2) and keeps them"; else bad "anchor should report dirty files" "rc=$RC out=$OUT"; fi
+rm -f "$G/wip file.txt"
+OUT="$(bash "$CM" anchor --repo "$G" 2>/dev/null)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -qE '"anchor":"[^"]+@[0-9a-f]{7,}'; then ok "clean anchor ⇒ rc 0 with branch@HEAD"; else bad "clean anchor should be rc 0" "rc=$RC out=$OUT"; fi
+bash "$CM" anchor --repo "$TMP/scratch" >/dev/null 2>&1; RC=$?
+if [ "$RC" -eq 1 ]; then ok "anchor on a non-repo ⇒ rc 1"; else bad "non-repo anchor should be rc 1" "rc=$RC"; fi
+
 echo "── close-out-manifest: persist"
 mkdir -p "$TMP/scratch" "$TMP/dest"
 printf 'plain report\n' > "$TMP/scratch/report.md"
@@ -144,6 +197,14 @@ chmod +x "$FS"
 mkdir -p "$TMP/b6"; printf 'race-payload\n' > "$TMP/b6/race.md"
 MUTATE="$TMP/b6/race.md" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/db6" --src "$TMP/b6/race.md" --apply >/dev/null 2>&1; RC=$?
 if [ ! -e "$TMP/db6/race.md" ] || ! grep -q "$MARK" "$TMP/db6/race.md"; then ok "TOCTOU: bytes changed after the scan are never promoted"; else bad "TOCTOU: promoted bytes the scanner never saw" "rc=$RC"; fi
+
+# FEAT-26: replacing a different existing target keeps the previous version as a backup
+if command -v gitleaks >/dev/null 2>&1; then
+  mkdir -p "$TMP/bk" "$TMP/dbk"; printf 'old\n' > "$TMP/dbk/r.md"; printf 'new\n' > "$TMP/bk/r.md"
+  bash "$CM" persist --dest "$TMP/dbk" --src "$TMP/bk/r.md" --apply >/dev/null 2>&1; RC=$?
+  B="$(ls "$TMP/dbk" | grep '^r\.md\.bak\.' | head -1)"
+  if [ "$RC" -eq 0 ] && [ -n "$B" ] && [ "$(cat "$TMP/dbk/$B")" = "old" ] && [ "$(cat "$TMP/dbk/r.md")" = "new" ]; then ok "changed target backed up before replace"; else bad "previous target should be kept as .bak" "rc=$RC files=$(ls "$TMP/dbk" | tr '\n' ' ')"; fi
+fi
 
 # a scanner that errors on everything ⇒ scanner failure rc 3, never mislabelled as refused-secret
 mkdir -p "$TMP/b9"; printf 'clean\n' > "$TMP/b9/ok.md"
