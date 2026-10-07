@@ -131,6 +131,11 @@ cmd_persist() {
   printf 'c: probe%sexample.org\n' "$at" > "$STAGE/ctl"
   views "$STAGE/ctl"
   pii_hit "$STAGE/ctl" || die "persist: PII scan is blind to the positive control — refusing (fail-closed)" 3
+  # negative control: a known-clean staged file must scan clean, otherwise the scanner is
+  # erroring on everything (crash, bad args, bad config) — report that as rc 3, not as a leak
+  printf 'plain text\n' > "$STAGE/ctl"
+  views "$STAGE/ctl"
+  ! secret_hit "$STAGE/ctl" || die "persist: secret scanner fails on a clean control — scanner error, refusing (fail-closed)" 3
   rm -f "$STAGE/ctl" "$STAGE/ctl.norm" "$STAGE/ctl.flat"
 
   local s base target status i=0 staged

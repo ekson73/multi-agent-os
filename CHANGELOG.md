@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proven to detect a positive control assembled at runtime (blind scanner ⇒ rc 3, dry-run
   default, idempotent); clipboard copy verified by `cmp` read-back (rc 4 ⇒ paste-MCP fallback,
   never a fake success). `persist` scans and promotes only the bytes it staged privately (no read-twice TOCTOU), refuses binary files, scans raw + CRLF-normalised + line-joined views, and isolates the scanner from inherited config, ignore files and in-content allow directives.
-- Tests: `bin/tests/close-out-manifest.test.sh` (22 assertions, bash 3.2-safe); wired into
+- Tests: `bin/tests/close-out-manifest.test.sh` (23 assertions, bash 3.2-safe); wired into
   `tests/validate-plugin.sh`.
 - `skills/postflight/SKILL.md` 0.10.1 → 0.11.0: Core Rule, responsibilities table, algorithm
   steps 0.5 / 3.7, anti-patterns 19-20, related artifacts.

@@ -136,13 +136,19 @@ cat > "$FS" <<EOF
 #!/usr/bin/env bash
 f=""; for a in "\$@"; do [ -f "\$a" ] && f="\$a"; done
 if grep -q "gh""p_" "\$f" 2>/dev/null; then exit 1; fi
-[ -n "\${MUTATE:-}" ] && printf '$MARK\n' >> "\$MUTATE"
+# mutate the origin only while the source's own (staged) bytes are being scanned
+[ -n "\${MUTATE:-}" ] && grep -qx 'race-payload' "\$f" 2>/dev/null && printf '$MARK\n' >> "\$MUTATE"
 exit 0
 EOF
 chmod +x "$FS"
-mkdir -p "$TMP/b6"; printf 'clean\n' > "$TMP/b6/race.md"
+mkdir -p "$TMP/b6"; printf 'race-payload\n' > "$TMP/b6/race.md"
 MUTATE="$TMP/b6/race.md" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/db6" --src "$TMP/b6/race.md" --apply >/dev/null 2>&1; RC=$?
 if [ ! -e "$TMP/db6/race.md" ] || ! grep -q "$MARK" "$TMP/db6/race.md"; then ok "TOCTOU: bytes changed after the scan are never promoted"; else bad "TOCTOU: promoted bytes the scanner never saw" "rc=$RC"; fi
+
+# a scanner that errors on everything ⇒ scanner failure rc 3, never mislabelled as refused-secret
+mkdir -p "$TMP/b9"; printf 'clean\n' > "$TMP/b9/ok.md"
+OUT="$(MAOS_SECRET_SCANNER=false bash "$CM" persist --dest "$TMP/db9" --src "$TMP/b9/ok.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -eq 3 ] && ! printf '%s' "$OUT" | grep -q 'refused-secret' && [ ! -e "$TMP/db9/ok.md" ]; then ok "always-failing scanner reported as scanner error (rc 3)"; else bad "always-failing scanner should be rc 3" "rc=$RC out=$OUT"; fi
 
 # a scanner blind to the positive control ⇒ fail closed (rc 3), nothing copied
 MAOS_SECRET_SCANNER=true bash "$CM" persist --dest "$TMP/dest2" --src "$TMP/scratch/report.md" --apply >/dev/null 2>&1; RC=$?
