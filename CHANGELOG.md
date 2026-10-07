@@ -38,7 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `reviewDecision` is empty; the routed verdict is only the terminal line, and
   a PASS beside a REQUEST_CHANGES line is no verdict; `--json` carries the
   review text; a declared `--primary` outside the built-in bot list can clear.
-- `tests/contract.sh` — +20 cases (29-48), 48 cases / 59 assertions.
+- **Second red-team round (codex, head `64f6ee6`)**: `claude` runs with
+  `--tools Read,Grep,Glob --strict-mcp-config` (`--allowedTools` only grants
+  permission) and under `sandbox-exec` where available; the export's baseline
+  manifest is checked against a digest kept in memory, and the sandbox also
+  write-protects the baseline and the work-dir node; the verdict token must be
+  exact and outside an unclosed code fence; the PR body and commit messages are
+  in the prompt; a timeout's reason is `timeout`.
+- `tests/contract.sh` — +25 cases (29-53), 53 cases / 64 assertions.
 
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 

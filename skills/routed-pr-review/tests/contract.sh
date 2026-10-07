@@ -66,6 +66,7 @@ case "$1 ${2:-}" in
     fi
     cat <<JSON
 { "number": 1, "title": "contract fixture", "headRefOid": "${H}",
+  "body": "${T_PR_BODY:-}", "commits": [{"oid": "abcdef0123", "messageHeadline": "${T_COMMIT_MSG:-fixture commit}", "messageBody": ""}],
   "headRefName": "feat/x", "baseRefName": "main", "url": "https://example.invalid/pr/1",
   "author": {"login": "someone"},
   "mergeStateStatus": "${T_MERGESTATE:-UNSTABLE}",
@@ -110,6 +111,14 @@ if [ -n "${T_ANC_SWAP:-}" ]; then   # swap a GRANDPARENT for a same-named real t
 fi
 [ -n "${T_TAMPER_MV:-}" ] && { printf 'x' > "$T_TAMPER_MV.tmp" 2>/dev/null; mv -f "$T_TAMPER_MV.tmp" "$T_TAMPER_MV" 2>/dev/null; rm -f "$T_TAMPER_MV" 2>/dev/null; }
 [ -n "${T_TAMPER_PATH:-}" ] && printf '%s' "${T_TAMPER_JSON:-}" > "$T_TAMPER_PATH" 2>/dev/null
+if [ -n "${T_BASELINE_FORGE:-}" ]; then   # edit the export AND regenerate its baseline consistently
+  chmod -R u+w . 2>/dev/null; chmod u+w .. 2>/dev/null
+  printf 'forged\n' >> file.txt 2>/dev/null || printf 'forged\n' > forged.txt 2>/dev/null
+  find . -type f -print0 | sort -z | xargs -0 shasum -a 256 > ../manifest.before 2>/dev/null
+  chmod -R a-w . 2>/dev/null
+fi
+# echo back what the prompt contained, so a case can see the PR body arrive
+if [ -n "${T_PROMPT_MARK:-}" ]; then case "$*" in *"$T_PROMPT_MARK"*) echo "PROMPT-CARRIED-$T_PROMPT_MARK" ;; esac; fi
 printf '%s\n' "${T_REVIEW_BODY:-}"
 exit "${T_REVIEW_RC:-0}"
 STUB
@@ -153,7 +162,7 @@ sut() {
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="$HEAD_SHA" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE" \
+       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK" \
        bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
@@ -585,6 +594,37 @@ VERDICT: PASS — second decision"
 OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$TWO_VERDICTS" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "two conflicting verdict lines give no verdict" 3 '.routed_verdict' "none"
+
+# Cases 49-53: findings of the second routed red-team (codex) on this PR.
+# ── 49 ── the verdict token is exact: PASSING is not PASS.
+PASSING="No finding; fixture body written well past the forty byte floor here.
+VERDICT: PASSING is not a supported verdict"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASSING" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "VERDICT: PASSING is not a PASS" 3 '.routed_verdict' "none"
+
+# ── 50 ── a terminal verdict inside an unclosed code fence is an example.
+FENCED="Finding 1 [minor] fixture body written well past the forty byte floor.
+\`\`\`
+VERDICT: PASS — example"
+OUT="$(T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$FENCED" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a verdict inside an unclosed fence is no verdict" 3 '.routed_verdict' "none"
+
+# ── 51 ── rewriting the export AND its baseline is still caught (no kernel).
+OUT="$(EXTRA_BIN="$BROKEN_SBX" T_BASELINE_FORGE=1 T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a regenerated baseline does not hide an edited export" 1 '.detail' "violated:export"
+
+# ── 52 ── the PR body reaches the reviewer, so false claims there can be checked.
+OUT="$(T_PR_BODY="claims BODYMARK42" T_PROMPT_MARK="BODYMARK42" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" \
+       ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "the PR body is part of the prompt" 3 '.review | test("PROMPT-CARRIED-BODYMARK42")' "true"
+
+# ── 53 ── a timeout is reported as a timeout, whatever the CLI printed.
+OUT="$(STATE="$STATE" EXTRA_BIN="$GEM_BIN" RV=gemini T_GEMINI_ERR="contacting auth-api login" T_GEMINI_RC=124 \
+       T_REVIEWS='[]' ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "rc 124 is classified as a timeout reason" 2 '.failure_reason' "timeout"
 
 # ── 45 ── --json carries the review body, not only metadata.
 OUT="$(T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
