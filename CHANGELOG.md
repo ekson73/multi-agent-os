@@ -32,7 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompt on stdin; `gtimeout` is accepted where `timeout` is missing; the PR
   head is fetched from `--repo`; `kiro` is invoked as `kiro-cli`.
 - `codex` gets `--skip-git-repo-check`, since the export has no `.git` (found by the H6 red-team run on this PR).
-- `tests/contract.sh` — +13 cases (29-41), 41 cases / 52 assertions.
+- **Red-team findings (codex, routed, head `5701213`)**: the gate re-reads the
+  PR after the review and recomputes the primaries (an approval withdrawn
+  during the run was missed); a human `CHANGES_REQUESTED` blocks even when
+  `reviewDecision` is empty; the routed verdict is only the terminal line, and
+  a PASS beside a REQUEST_CHANGES line is no verdict; `--json` carries the
+  review text; a declared `--primary` outside the built-in bot list can clear.
+- `tests/contract.sh` — +20 cases (29-48), 48 cases / 59 assertions.
 
 ### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
 

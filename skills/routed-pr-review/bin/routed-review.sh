@@ -122,9 +122,11 @@ else die "timeout not found (neither timeout nor gtimeout) — required to bound
 
 # ---------------------------------------------------------------- Phase A: PR
 log "[A] resolving $REPO#$PR"
-PR_JSON="$(gh pr view "$PR" --repo "$REPO" \
-  --json number,title,headRefOid,headRefName,baseRefName,url,author,mergeStateStatus,reviewDecision,latestReviews,comments 2>/dev/null)" \
-  || die "cannot read $REPO#$PR"
+fetch_pr() {
+  gh pr view "$PR" --repo "$REPO" \
+    --json number,title,headRefOid,headRefName,baseRefName,url,author,mergeStateStatus,reviewDecision,latestReviews,comments 2>/dev/null
+}
+PR_JSON="$(fetch_pr)" || die "cannot read $REPO#$PR"
 HEAD_SHA="$(printf '%s' "$PR_JSON" | jq -r .headRefOid)"
 [ -n "$HEAD_SHA" ] && [ "$HEAD_SHA" != "null" ] || die "no headRefOid for $REPO#$PR"
 PR_TITLE="$(printf '%s' "$PR_JSON" | jq -r .title)"
@@ -143,7 +145,18 @@ log "    head=$HEAD_SHA  \"$PR_TITLE\""
 # made any human whose login contains `claude`, `qodo`, `snyk`… a "primary",
 # and a human APPROVED would then land in CLEARED (the exact hazard above).
 KNOWN_BOTS_RE='^(coderabbitai|qodo-code-review|qodo-merge|qodo-merge-pro|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk-bot|snyk-io)(\[bot\])?$'
-PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" --arg re "$KNOWN_BOTS_RE" '
+# Logins the operator declared with --primary are primaries too, even when they
+# are not on the list above (another review bot). The login charset was
+# validated at parse time, so the alternation is safe to embed.
+PRIMARY_RE="$KNOWN_BOTS_RE"
+if [ -n "$PRIMARIES" ]; then
+  _declared="$(printf '%s' "$PRIMARIES" | tr ',' '\n' | sed -e 's/\[bot\]$//' | paste -sd '|' -)"
+  PRIMARY_RE="^(coderabbitai|qodo-code-review|qodo-merge|qodo-merge-pro|copilot-pull-request-reviewer|github-advanced-security|amazon-q-developer|chatgpt-codex-connector|claude|snyk-bot|snyk-io|${_declared})(\\[bot\\])?\$"
+fi
+# Computes every primary-derived variable from $PR_JSON. Called in Phase B and
+# again in Phase E, so an approval withdrawn during the review is seen.
+compute_primaries() {
+PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" --arg re "$PRIMARY_RE" '
   ([.latestReviews[]? | select(.author.login | test($re; "i"))
      | {who: .author.login, sha: (.commit.oid // ""), verdict: .state}]) as $rv
   | ([.latestReviews[]? | select(.author.login | test($re; "i") | not)
@@ -185,7 +198,14 @@ if [ -n "$PRIMARIES" ]; then
     | [$want | split(",")[] | select((norm) as $w | ($ok | index($w)) | not)] | join(",")')"
 fi
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
-CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if .reviewDecision == "CHANGES_REQUESTED" then "yes" else "no" end')"
+# ⛔ An active CHANGES_REQUESTED from ANY reviewer — human or bot, any head —
+# blocks. `reviewDecision` alone misses one when the branch rules do not count
+# that reviewer, and humans are otherwise reduced to names above.
+CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if (.reviewDecision == "CHANGES_REQUESTED")
+    or ([.latestReviews[]? | select(.state == "CHANGES_REQUESTED")] | length > 0)
+  then "yes" else "no" end')"
+}
+compute_primaries
 
 log "[B] primaries(bots only) — cleared-for-head:[${CLEARED:--}] stale/earlier-head:[${STALE_OR_PENDING:--}] quota-signalled:[${QUOTA_HITS:--}] declared-not-cleared:[${UNCLEARED_DECLARED:--}] changes_requested:$CHANGES_REQ"
 log "    humans reviewed (informational, never a primary): [${HUMAN_REVIEWS:--}]"
@@ -847,8 +867,14 @@ CHOSEN="$(pick_reviewer)" || {
 log "[C] falling through to reviewer=$CHOSEN"
 done
 
-VERDICT_LINE="$(grep -aoE 'VERDICT: *(PASS|REQUEST_CHANGES).*' "$OUT_F" | tail -1)"
-[ -n "$VERDICT_LINE" ] || VERDICT_LINE="VERDICT: (not emitted by reviewer — read the body)"
+# ⛔ The verdict is the LAST non-blank line, and only if that whole line is a
+# verdict. A verdict-looking string inside a code block or a quoted example
+# must not decide the gate; anything else is "no verdict" (fail-closed).
+LAST_LINE="$(awk 'NF { l = $0 } END { print l }' "$OUT_F" | sed -e 's/[[:space:]]*$//')"
+case "$LAST_LINE" in
+  "VERDICT: PASS"*|"VERDICT: REQUEST_CHANGES"*) VERDICT_LINE="$LAST_LINE" ;;
+  *) VERDICT_LINE="VERDICT: (no terminal verdict line — read the body)" ;;
+esac
 
 # ------------------------------------------- Phase E: gate verdict + comment
 # The ONLY honest computation of what this review licenses.
@@ -877,6 +903,17 @@ repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none s
   [ -n "$out" ] || return 2
   [ "$out" -gt 0 ] 2>/dev/null && return 0 || return 1
 }
+
+# ⛔ Re-read the PR before deciding: reviews collected before a long reviewer
+# run can be stale even when the head SHA did not move (an approval withdrawn,
+# a CHANGES_REQUESTED submitted). Unreadable ⇒ the gate cannot clear.
+PR_READ_OK=1
+if PR_JSON_NOW="$(fetch_pr)" && [ -n "$PR_JSON_NOW" ]; then
+  PR_JSON="$PR_JSON_NOW"; compute_primaries
+else
+  PR_READ_OK=0
+fi
+HEAD_NOW="$(printf '%s' "$PR_JSON" | jq -r '.headRefOid // empty' 2>/dev/null)"
 
 MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pending_or_unknown"
 if [ "$CHANGES_REQ" = "yes" ]; then
@@ -924,6 +961,10 @@ case "$VERDICT_LINE" in
   "VERDICT: PASS"*)            ROUTED_VERDICT="pass" ;;
   "VERDICT: REQUEST_CHANGES"*) ROUTED_VERDICT="request_changes" ;;
 esac
+# A PASS that sits beside a REQUEST_CHANGES line elsewhere is ambiguous.
+if [ "$ROUTED_VERDICT" = pass ] && grep -aqE '^[[:space:]]*VERDICT: *REQUEST_CHANGES' "$OUT_F"; then
+  ROUTED_VERDICT="none"
+fi
 [ "$ROUTED_VERDICT" = pass ] || MAY_COMPLETE_C3="false"
 
 # Diversity is earned, not assumed (see family_of). A truncated diff means the
@@ -934,8 +975,9 @@ DIVERSITY="$(diversity_of "$CHOSEN")"
 
 # ⛔ The verdict is bound to the head read in Phase A. A push during the
 # (long) reviewer run makes this review describe an older commit.
-HEAD_NOW="$(gh pr view "$PR" --repo "$REPO" --json headRefOid 2>/dev/null | jq -r '.headRefOid // empty' 2>/dev/null)"
-if [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
+if [ "$PR_READ_OK" -eq 0 ]; then
+  MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pr_unreadable_after_review"
+elif [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
   MAY_COMPLETE_C3="false"
   PRIMARY_STATUS="head_moved_during_review:${HEAD_NOW:-unreadable}"
   log "[!] PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}); this review describes the old head only"
@@ -991,11 +1033,12 @@ if [ "$JSON" -eq 1 ]; then
         --arg verdict "$VERDICT_LINE" --arg ps "$PRIMARY_STATUS" --arg c3 "$MAY_COMPLETE_C3" \
         --arg trunc "$TRUNCATED" --arg enf "$ENFORCEMENT" --arg tamper "$TAMPER" \
         --arg div "$DIVERSITY" --arg rv_verdict "$ROUTED_VERDICT" \
-        --argjson bytes "$REVIEW_BYTES" --argjson sk "$SKIPPED_JSON" \
+        --argjson bytes "$REVIEW_BYTES" --argjson sk "$SKIPPED_JSON" --rawfile body "$OUT_F" \
     '{status:"reviewed",repo:$repo,pr:($pr|tonumber),head:$head,reviewer:$rv,skipped_candidates:$sk,
       isolation:{mode:"fresh-process",read_only_enforcement:$enf,tamper_check:$tamper},
       review_bytes:$bytes,diff_truncated:$trunc,
       verdict:$verdict,routed_verdict:$rv_verdict,diversity_limb:$div,primary_verdict:$ps,
+      review:$body,
       may_complete_c3:($c3=="true")}'
 else
   cat "$COMMENT_F"
