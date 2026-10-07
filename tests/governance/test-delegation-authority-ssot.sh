@@ -77,13 +77,13 @@ else
     # the root guidance files.
     # CHANGELOG.md and docs/ are history/research, not rules.
     SCAN=()
-    for d in agents skills commands protocols sentinel statusmap rules .claude .agents; do
+    for d in agents skills commands protocols sentinel statusmap rules .claude .agents .codex; do
         [ -d "$ROOT/$d" ] && SCAN+=("$ROOT/$d")
     done
     for f in AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
         [ -f "$ROOT/$f" ] && SCAN+=("$ROOT/$f")
     done
-    hits="$(grep -rnoiE "$RE" "${SCAN[@]}" --include='*.md' 2>/dev/null || true)"
+    hits="$(grep -rnoiE "$RE" "${SCAN[@]}" --include='*.md' --include='*.toml' 2>/dev/null || true)"
     drift=0
     while IFS= read -r line; do
         [ -n "$line" ] || continue
@@ -102,7 +102,7 @@ EOF
     REND='max_delegation_depth[^0-9a-z]{0,8}[0-9]+|depth( reached)?[^0-9a-z]{0,16}[0-9]+ ?/ ?[0-9]+'
     REND="$REND|[0-9]+ ?/ ?[0-9]+ depth|depth[^.|]{0,30}within limit[[:space:]]*[0-9]+"
     # "N/M depth" ends in "depth": normalize each hit to its max value first
-    rend_bad="$(grep -rnoiE "$REND" "${SCAN[@]}" --include='*.md' 2>/dev/null \
+    rend_bad="$(grep -rnoiE "$REND" "${SCAN[@]}" --include='*.md' --include='*.toml' 2>/dev/null \
         | sed -E 's#([0-9]+) ?/ ?([0-9]+) depth$#\1/\2#' | grep -vE "[^0-9]$CAP\$" || true)"
     if [ -n "$rend_bad" ]; then
         bad "a rendered depth value shows a max other than $CAP:"
@@ -210,8 +210,8 @@ files = []
 for a in sys.argv[1:]:
     if os.path.isdir(a):
         for d, _, fs in os.walk(a):
-            files += [os.path.join(d, f) for f in fs if f.endswith(".md")]
-    elif a.endswith(".md"):
+            files += [os.path.join(d, f) for f in fs if f.endswith((".md", ".toml"))]
+    elif a.endswith((".md", ".toml")):
         files.append(a)
 for f in sorted(files):
     try:
@@ -234,7 +234,7 @@ fi
 if [ "$QUIET" != 1 ]; then
     FIX="$(mktemp -d)"
     COPY=""
-    for p in agents skills commands protocols sentinel statusmap rules .claude .agents \
+    for p in agents skills commands protocols sentinel statusmap rules .claude .agents .codex \
              AGENTS.md CLAUDE.md CONTRIBUTING.md GEMINI.md README.md SECURITY.md; do
         [ -e "$ROOT/$p" ] && COPY="$COPY $p"
     done
@@ -292,6 +292,8 @@ if [ "$QUIET" != 1 ]; then
     mutate "DNA prompt v1.0 bypass (2 lines)" protocols/delegation/delegation-dna-prompt.md 's#agents that ignore the block still apply#agents that ignore the block\
 behave exactly as in v1.0; they need not apply#'
     mutate "Sentinel config deleted"         sentinel/config.json delete
+    mutate "depth cap in .codex/AGENTS.md"   .codex/AGENTS.md 'append:Delegation depth ≤ 3.'
+    mutate "depth cap in Codex agent TOML"   .codex/agents/explorer.toml 's#^Stay in exploration mode\.#Stay in exploration mode. Delegation depth ≤ 3.#'
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 

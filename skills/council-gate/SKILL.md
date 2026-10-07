@@ -129,7 +129,7 @@ The council can authorize only within the authority its invoker already holds: i
 AUTHORIZE_EXECUTED ⟺ P0 within-invoker-scope ∧ P1 Layer-1 deterministic-clear ∧ P2 reversible ∧ P3 score≥0.90 ∧ P4 council-convergent + red-team-survived ∧ P5 armed
 ```
 
-- **P0** = the action is inside the invoker's own assigned task or a grant it verifiably holds (`skills/agentic-delegation` §4.1). A missing or unverifiable scope makes P0 false for any action beyond that task. Record the scope evidence in the verdict and re-check it before executing.
+- **P0** = the action is inside the invoker's own assigned task or a grant it verifiably holds (`skills/agentic-delegation` §4.1), and that task itself is shown to be within its parent's authority. A missing or unverifiable scope makes P0 false for any action beyond that task; a task that cannot be shown to be within the parent's authority makes P0 false and goes back to the parent. Record the scope evidence in the verdict and re-check it before executing.
 - **P1** = the §5.1 Layer-1 clear (unconditional — confidence never opens it).
 - **P3** `autonomy_score` per `[C17]` §1.2 6-factor; if <0.90 attempt Score-Uplift (`[C17]` §1.4, ≤3) first.
 - **P4** = council convergence (§5.2) **AND** red-team survival (§5.2.5) — both, per the §2.3 triple-check.
