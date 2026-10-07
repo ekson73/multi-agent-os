@@ -138,7 +138,7 @@ escalation_triggers: see §Escalation Rule (lines 76-86) — inherited verbatim
 
 Field semantics:
 
-- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2.
+- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2 (`skills/agentic-delegation` §8).
   Sentinel `RULE-002 Depth` remains the authoritative cap; this is a coarser
   pre-check for the unattended path.
 - `mode` — auto-pilot delegation mode. Children inherit unless explicitly

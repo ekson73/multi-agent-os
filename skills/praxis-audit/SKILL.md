@@ -94,7 +94,7 @@ FIX      (the only mutating phase) gap-loop drives COUNCIL-confirmed fixes to co
 ## Bounds
 
 ```text
---max-iterations=6          (FIX loop cap → gap-loop; then park-state + escalate)   depth <= 2   Sentinel HIGH auto-blocks
+--max-iterations=6          (FIX loop cap → gap-loop; then park-state + escalate)   depth <= 2 (`skills/agentic-delegation` §8)   Sentinel HIGH auto-blocks
 --principles=[DRY, SSOT, KIS (Keep It Simple; not simplistic), YAGNI, ANTI-OVER-ENG, ANTI-THEATER, CONTINUITY, HAND-OFF, BOY-SCOUT]
 --principle-exception="only with documented justification (SDP)"   --meta-rule="BEING > rule" (§0 SER>Regras)
 ```

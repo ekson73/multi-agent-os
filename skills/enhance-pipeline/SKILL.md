@@ -178,7 +178,7 @@ Fire-and-forget — no local merge queue across turns (amnesic-safe).
 
 - `--max-pdca` (default 6) caps per-PR PDCA in DELIVER; diminishing returns → escalate.
 - Worktree discipline always on (`skills/worktree-policy`); never commit to main.
-- Delegation depth ≤ 2; Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
+- Delegation depth ≤ 2 (`skills/agentic-delegation` §8); Sentinel HIGH auto-blocks (`sentinel/config.json` authoritative).
 - 6-attempt escalation rule (different approach each attempt).
 - Exactly ONE STOP marker per turn (the `/goal` evaluator contract).
 - EXPAND external research is time-boxed; cite sources (anti-hallucination — never
