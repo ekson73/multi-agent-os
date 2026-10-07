@@ -31,13 +31,25 @@ Three findings made that gate unfit to ship:
   role goes to the human.
 - The gate, the digest, the A2 rule and the fields `approval_ref`, `approved_by`, `approved_at`, `trigger` and
   `authority_digest` are removed from the contract. They are listed as reserved in the template.
-- `tests/governance/test-roles-latent-only.sh` checks contract **structure** by allowlist, in the template of
-  `agents/forge.md` and in every file under `roles/`: `status` appears once and is exactly `latent`; `tier` is `null`;
-  the reserved fields are empty or null at any indentation and have no children; no activation key (`active`,
-  `enabled`, `armed`, `effective`, `activated`) holds a truthy value. In the three guidance files it also flags the
-  word form of a transition to `active`. It does **not** understand natural language: a sentence such as "the role
-  goes live" is not detected. The scope stays narrow because several `SKILL.md` files use `status: active` for skill
-  lifecycle, which is unrelated to roles.
+- `tests/governance/test-roles-latent-only.sh` checks contract **form** and refuses when in doubt. It reads the YAML
+  template in `agents/forge.md` and, recursively, the registry `roles/`. Under `roles/` the only accepted file is a
+  regular file named `*.md` (lowercase) whose line 1 is `---`, with one frontmatter closed by `---` and a body without
+  fences, document separators or `<contract key>:`. Anything else fails: symlinks, other extensions (`.yml`, `.YML`,
+  `.Md`), missing or unclosed frontmatter, a file that is not valid UTF-8 (the checker crashes, and the crash counts as
+  a failure). Inside a contract every line is `key: value`, `- item` or a comment; flow mappings, block scalars,
+  anchors, aliases, tags and flow sequences on contract fields fail; `status` appears once and is `latent`; `tier` is
+  the literal `null`; reserved fields and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`)
+  are empty, `null` or `~` (activation keys also accept `false`/`no`/`off`) and have no children. Fixtures build a
+  real `roles/` tree for each refused form and for a valid one. In the three guidance files the test also flags the
+  word form of a transition to `active`.
+- Refusing in doubt has a price: valid YAML such as `notes: |`, `tier: NULL` or `tier: ~`, or body prose containing
+  `role:`, fails. A legitimate case is written in the accepted form (block style, `tier: null`, prose without
+  `key:`); the test is not loosened for it.
+- What the test does **not** detect: natural-language activation ("the role goes live"); an unlisted key such as
+  `is_active: true` written in an accepted form; contracts kept in a registry the host designates outside `roles/`
+  (`agents/forge.md` allows one); and it does not run in CI today (no workflow calls `tests/governance/run-all.sh`).
+  The scope stays narrow because several `SKILL.md` files use `status: active` for skill lifecycle, which is
+  unrelated to roles.
 
 ## Requirements for any future activation gate
 
