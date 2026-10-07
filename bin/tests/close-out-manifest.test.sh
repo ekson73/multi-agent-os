@@ -89,6 +89,61 @@ else
   echo "  ⏭  gitleaks absent — secret-scan cases skipped (script fails closed without it)"
 fi
 
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "── close-out-manifest: persist bypass regressions (scan the exact bytes promoted)"
+  mk() { printf '%s%s' "gh""p_" "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 36)"; }
+
+  # B1 parser-differential: an in-content scanner directive must not exempt the file
+  mkdir -p "$TMP/b1"; printf 'k = "%s" # gitleaks%sallow\n' "$(mk)" ":" > "$TMP/b1/allow.md"
+  bash "$CM" persist --dest "$TMP/db1" --src "$TMP/b1/allow.md" --apply >/dev/null 2>&1; RC=$?
+  if [ "$RC" -ne 0 ] && [ ! -e "$TMP/db1/allow.md" ]; then ok "inline scanner-allow directive does not exempt the file"; else bad "inline allow directive bypassed the scan" "rc=$RC"; fi
+
+  # B2 a config planted next to the source cannot disable the scan
+  mkdir -p "$TMP/b2"; printf 'k = "%s"\n' "$(mk)" > "$TMP/b2/cfg.md"
+  printf '[extend]\nuseDefault = false\n[[rules]]\nid = "x"\nregex = "zzzqqq"\n' > "$TMP/b2/.gitleaks.toml"
+  bash "$CM" persist --dest "$TMP/db2" --src "$TMP/b2/cfg.md" --apply >/dev/null 2>&1; RC=$?
+  if [ "$RC" -ne 0 ] && [ ! -e "$TMP/db2/cfg.md" ]; then ok "planted target-dir config does not disable the scan"; else bad "planted config bypassed the scan" "rc=$RC"; fi
+
+  # B3 an inherited scanner config is ignored (scan still sees the secret)
+  printf '[extend]\nuseDefault = false\n[[rules]]\nid = "x"\nregex = "zzzqqq"\n' > "$TMP/blind.toml"
+  OUT="$(GITLEAKS_CONFIG="$TMP/blind.toml" bash "$CM" persist --dest "$TMP/db3" --src "$TMP/b2/cfg.md" --apply 2>/dev/null)"; RC=$?
+  if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-secret'; then ok "inherited GITLEAKS_CONFIG is ignored (secret still refused)"; else bad "inherited config should be ignored" "rc=$RC out=$OUT"; fi
+
+  # B4 binary content (NUL bytes) is refused before any scan
+  mkdir -p "$TMP/b4"; printf 'x\000y\n' > "$TMP/b4/bin.md"
+  OUT="$(bash "$CM" persist --dest "$TMP/db4" --src "$TMP/b4/bin.md" --apply 2>/dev/null)"; RC=$?
+  if [ "$RC" -eq 5 ] && printf '%s' "$OUT" | grep -q 'refused-binary'; then ok "binary source refused"; else bad "binary source should be refused" "rc=$RC out=$OUT"; fi
+
+  # B7 a secret split across two lines is reassembled by the line-joined view
+  mkdir -p "$TMP/b7"; T="$(mk)"; printf 'k = "%s\n%s"\n' "${T%????????????????????}" "${T#????????????????????}" > "$TMP/b7/split.md"
+  bash "$CM" persist --dest "$TMP/db7" --src "$TMP/b7/split.md" --apply >/dev/null 2>&1; RC=$?
+  if [ "$RC" -ne 0 ] && [ ! -e "$TMP/db7/split.md" ]; then ok "secret split across lines is refused"; else bad "split-line secret bypassed the scan" "rc=$RC"; fi
+
+  # B8 CRLF line endings do not hide a secret
+  mkdir -p "$TMP/b8"; printf 'k = "%s"\r\n' "$(mk)" > "$TMP/b8/crlf.md"
+  bash "$CM" persist --dest "$TMP/db8" --src "$TMP/b8/crlf.md" --apply >/dev/null 2>&1; RC=$?
+  if [ "$RC" -ne 0 ] && [ ! -e "$TMP/db8/crlf.md" ]; then ok "CRLF secret refused"; else bad "CRLF secret bypassed the scan" "rc=$RC"; fi
+
+  # B5 a clean file whose relative name starts with '-' is still scanned and persisted
+  mkdir -p "$TMP/b5"; printf 'plain\n' > "$TMP/b5/-dash.md"
+  ( cd "$TMP/b5" && bash "$CM" persist --dest "$TMP/db5" --src "-dash.md" --apply >/dev/null 2>&1 ); RC=$?
+  if [ "$RC" -eq 0 ] && cmp -s "$TMP/b5/-dash.md" "$TMP/db5/-dash.md"; then ok "leading-dash name scanned and persisted"; else bad "leading-dash clean file should persist" "rc=$RC"; fi
+fi
+
+# B6 TOCTOU: the source changes during the scan — only the scanned bytes may be promoted
+FS="$TMP/mutscan"; MARK="INJECTED_AFTER_SCAN"
+cat > "$FS" <<EOF
+#!/usr/bin/env bash
+f=""; for a in "\$@"; do [ -f "\$a" ] && f="\$a"; done
+if grep -q "gh""p_" "\$f" 2>/dev/null; then exit 1; fi
+[ -n "\${MUTATE:-}" ] && printf '$MARK\n' >> "\$MUTATE"
+exit 0
+EOF
+chmod +x "$FS"
+mkdir -p "$TMP/b6"; printf 'clean\n' > "$TMP/b6/race.md"
+MUTATE="$TMP/b6/race.md" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$TMP/db6" --src "$TMP/b6/race.md" --apply >/dev/null 2>&1; RC=$?
+if [ ! -e "$TMP/db6/race.md" ] || ! grep -q "$MARK" "$TMP/db6/race.md"; then ok "TOCTOU: bytes changed after the scan are never promoted"; else bad "TOCTOU: promoted bytes the scanner never saw" "rc=$RC"; fi
+
 # a scanner blind to the positive control ⇒ fail closed (rc 3), nothing copied
 MAOS_SECRET_SCANNER=true bash "$CM" persist --dest "$TMP/dest2" --src "$TMP/scratch/report.md" --apply >/dev/null 2>&1; RC=$?
 if [ "$RC" -eq 3 ] && [ ! -e "$TMP/dest2/report.md" ]; then ok "blind scanner ⇒ rc 3, nothing copied"; else bad "blind scanner should fail closed" "rc=$RC"; fi
