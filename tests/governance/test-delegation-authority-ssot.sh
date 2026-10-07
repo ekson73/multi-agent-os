@@ -148,6 +148,8 @@ PYEOF
         else
             bad "sentinel/config.json valid_range: $rcheck (need 1 <= min <= max <= $CAP)"
         fi
+    else
+        bad "sentinel/config.json missing (the depth cap must be machine-readable)"
     fi
     for f in sentinel/detection_rules.md sentinel/README.md \
              statusmap/templates/DELEGATION_PRE.md statusmap/templates/statusmap_templates.md; do
@@ -199,8 +201,28 @@ for clause in 'means \*\*no authorization grant\*\*' \
     printf '%s\n' "$BODY" | tr '\n' ' ' | grep -qE -- "$clause" && ok "SSOT clause: $clause" \
         || bad "SSOT lost clause: $clause"
 done
-WIDEN="do not (read|parse) the block behave exactly as before|(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
-widen_hits="$(grep -rnoiE "$WIDEN" "${SCAN[@]:-$ROOT/skills}" --include='*.md' 2>/dev/null || true)"
+WIDEN="(do not (read|parse)|ignores?) the block[^.]{0,40}(exactly as|as before|as in v1)|(adopt|take|accept|assume)s? any (authority|scope)|any (authority|scope) (requested|asked|claimed)|inherits? (the |its )?parent'?s? (full|whole|entire) (scope|authority)|may widen (the |its )?(scope|authority)|authority (can|may) (grow|expand|widen)"
+# whitespace-normalized per file, so a phrase broken across lines still matches
+widen_hits="$(WIDEN="$WIDEN" python3 - "${SCAN[@]:-$ROOT/skills}" <<'PYEOF'
+import os, re, sys
+rx = re.compile(os.environ["WIDEN"], re.I)
+files = []
+for a in sys.argv[1:]:
+    if os.path.isdir(a):
+        for d, _, fs in os.walk(a):
+            files += [os.path.join(d, f) for f in fs if f.endswith(".md")]
+    elif a.endswith(".md"):
+        files.append(a)
+for f in sorted(files):
+    try:
+        t = re.sub(r"\s+", " ", open(f, encoding="utf-8", errors="replace").read())
+    except OSError:
+        continue
+    m = rx.search(t)
+    if m:
+        print("%s: %s" % (f, m.group(0)))
+PYEOF
+)"
 if [ -n "$widen_hits" ]; then
     bad "a file allows authority to widen:"
     [ "$QUIET" = 1 ] || printf '%s\n' "$widen_hits" | sed "s|$ROOT/|      |"
@@ -223,6 +245,7 @@ if [ "$QUIET" != 1 ]; then
         (cd "$ROOT" && tar -cf - $COPY) | tar -xf - -C "$t"
         case "$expr" in
             append:*) printf '\n%s\n' "${expr#append:}" >> "$t/$rel" ;;
+            delete) rm -f "$t/$rel" ;;
             *) sed -i.bak "$expr" "$t/$rel" && rm -f "$t/$rel.bak" ;;
         esac
         if DAS_QUIET=1 bash "$SELF" "$t" >/dev/null 2>&1; then
@@ -266,6 +289,9 @@ if [ "$QUIET" != 1 ]; then
     mutate "auto-pilot bypass sentence back" skills/auto-pilot/SKILL.md 'append:Agents that do not read the block behave exactly as before.'
     mutate "statusmap '(2/3 depth)' order"   statusmap/templates/statusmap_templates.md 's#LOW (2/2 depth)#LOW (2/3 depth)#'
     mutate "statusmap 'within limit 3'"      statusmap/templates/statusmap_templates.md 's#(within limit 2)#(within limit 3)#'
+    mutate "DNA prompt v1.0 bypass (2 lines)" protocols/delegation/delegation-dna-prompt.md 's#agents that ignore the block still apply#agents that ignore the block\
+behave exactly as in v1.0; they need not apply#'
+    mutate "Sentinel config deleted"         sentinel/config.json delete
     mutate "personal-layer back-reference"   skills/agentic-delegation/SKILL.md "s/^> \*\*Scope\*\*:/> See the operator-host framework. **Scope**:/"
 fi
 

@@ -43,10 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cap (several phrasings, in tool dirs, `rules/`, `.claude/`, `.agents/` and
   root guidance files), if a rendered value (config table, `current/max`
   display) shows another cap, if Sentinel's value or `valid_range` (parsed as
-  JSON, 1 ≤ min ≤ max ≤ cap) disagrees, if the SSOT loses its normative
-  clauses or gains a personal-layer reference, if any file that states a depth
-  cap does not link the SSOT, or if a listed widening phrase appears.
-  Twenty-eight mutation fixtures (plus a control) prove each check catches the
+  JSON, 1 ≤ min ≤ max ≤ cap) disagrees or the config is missing, if the SSOT
+  loses its normative clauses or gains a personal-layer reference, if any file
+  that states a depth cap does not link the SSOT, or if a listed widening
+  phrase appears (matched across line breaks).
+  Thirty mutation fixtures (plus a control) prove each check catches the
   contradiction it guards. The prose checks are a phrase lint, not a proof.
 - The scope rule now says who may issue a scope (only the parent's own
   briefing or payload) and that a parent grants only from a scope it can show,

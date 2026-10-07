@@ -121,8 +121,8 @@ This block is load-bearing — without it, the sub-sub-agent operates blind.
 ## DNA Payload v1.1 (auto-pilot, optional)
 
 Emitted by `skills/auto-pilot/SKILL.md` when driving an operator goal across
-multiple spawns. **Additive and opt-in** — agents that ignore the block
-behave exactly as in v1.0.
+multiple spawns. **Additive** — agents that ignore the block still apply
+`skills/agentic-delegation` §4.1 defaults.
 
 Format (single fenced block appended to the spawn prompt):
 
