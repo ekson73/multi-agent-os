@@ -122,7 +122,7 @@ if grep -q "DNA Payload v1.2" "$DNA_PROMPT" \
    && grep -qi "optional" "$DNA_PROMPT" \
    && grep -qi "If absent, leaf" "$DNA_PROMPT" \
    && grep -qi "treated as absent (fail-closed)" "$DNA_PROMPT"; then
-    pass "v1.2 fields documented as optional with fail-closed absence"
+    pass "v1.2 fields documented (parser-optional) with fail-closed absence"
 else
     fail "v1.2 optional/fail-closed semantics not documented"
 fi
@@ -139,9 +139,9 @@ fi
 if DNA_OUT=$(bash "$DELEGATE" dna 2>/dev/null) \
    && echo "$DNA_OUT" | grep -q "^parent_agent_id:" \
    && echo "$DNA_OUT" | grep -q "^depth_remaining:"; then
-    pass "delegate.sh dna emits the v1.1 fields and the v1.2 fields"
+    pass "delegate.sh dna output still carries the v1.1 template and the v1.2 template lines (spec text, not live values)"
 else
-    fail "delegate.sh dna output lost a v1.1 field or the v1.2 fields"
+    fail "delegate.sh dna output lost a v1.1 or v1.2 template line"
 fi
 
 # 3e. no runtime script parses the payload fields (they are prompt text, not a wire format);

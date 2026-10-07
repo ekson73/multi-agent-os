@@ -22,8 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
   first).
   `skills/auto-pilot` lists the two optional lines where it describes the block.
-- `tests/dogfood-auto-pilot.sh` cycle 3 checks the fields, their optional and
-  fail-closed semantics, that `delegate.sh dna` still emits the v1.1 header, and
+- `tests/dogfood-auto-pilot.sh` cycle 3 checks the fields, their fail-closed
+  semantics, that `delegate.sh dna` output still carries the v1.1 and v1.2
+  template lines (spec text, not live values), and
   that no runtime script parses the fields (if one ever does, the test says so).
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
