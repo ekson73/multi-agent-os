@@ -14,7 +14,7 @@
 # this file: the secret fixture is assembled at runtime.
 # Run: bash bin/tests/close-out-manifest.test.sh
 # ═══════════════════════════════════════════════════════════════════════════════
-set -uo pipefail
+set -uo pipefail   # no -e on purpose: negative cases assert non-zero rc and must not abort the suite
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CM="$SCRIPT_DIR/../close-out-manifest.sh"
@@ -108,6 +108,9 @@ if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'paste-mcp'; then ok "lossy r
 
 OUT="$(MAOS_CLIP_COPY=/nonexistent/copy MAOS_CLIP_PASTE=/nonexistent/paste bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
 if [ "$RC" -eq 4 ]; then ok "no clipboard tool ⇒ rc 4 (no fake success)"; else bad "missing tool should be rc 4" "rc=$RC"; fi
+
+OUT="$(MAOS_CLIP_COPY="$TMP/fakecopy" MAOS_CLIP_PASTE= bash "$CM" clip --file "$TMP/m.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 4 ] && printf '%s' "$OUT" | grep -q 'no-readback-tool'; then ok "copy without read-back tool ⇒ rc 4 no-readback-tool"; else bad "missing read-back tool should be rc 4 no-readback-tool" "rc=$RC out=$OUT"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"
