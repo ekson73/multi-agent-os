@@ -243,17 +243,29 @@ if [ "$CHANGES_REQ" = no ]; then
     # a clean one. Every page must be an array of objects with a string
     # `state`, and every DECISIVE review must name its author and its time;
     # anything else is UNKNOWN, which blocks.
+    # ⛔ ALLOW-list, not deny-list: a state outside the five GitHub documents
+    # (`CHANGES_REQUESTED_V2`, `""`) is not a review that can be ignored, it is
+    # an answer that cannot be read. A decisive review must carry an ISO-8601
+    # UTC `submitted_at`: an arbitrary string sorts after every real date and
+    # would let a malformed APPROVED shadow a real CHANGES_REQUESTED.
+    # ⛔ Ties fail closed: when a reviewer's latest decisive reviews share one
+    # timestamp (1-second granularity) and any of them is CHANGES_REQUESTED,
+    # the change request wins — the order between them cannot be proven.
     CHANGES_REQ="$(printf '%s' "$_hist" | jq -s -r '
       def decisive: .state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED";
+      def known: decisive or .state == "COMMENTED" or .state == "PENDING";
+      def iso: (.submitted_at | type) == "string"
+               and (.submitted_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"));
       if (length > 0) and all(.[]; type == "array"
-            and all(.[]; type == "object" and (.state | type) == "string"
+            and all(.[]; type == "object" and (.state | type) == "string" and known
                     and ((decisive | not)
                          or (((.user | type) == "object") and ((.user.login | type) == "string")
-                             and ((.submitted_at | type) == "string")))))
+                             and iso))))
       then
         [.[][] | select(decisive)]
-        | group_by(.user.login) | map(max_by(.submitted_at) | .state)
-        | if any(. == "CHANGES_REQUESTED") then "yes" else "no" end
+        | group_by(.user.login)
+        | map((map(.submitted_at) | max) as $last | [.[] | select(.submitted_at == $last) | .state])
+        | if any(.[]; any(.[]; . == "CHANGES_REQUESTED")) then "yes" else "no" end
       else "unknown" end' 2>/dev/null)" || CHANGES_REQ="unknown"
     [ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
   else
@@ -485,10 +497,41 @@ WORK="$(mktemp -d "${TMPDIR:-/tmp}/routed-review.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 DIFF_F="$WORK/diff.patch"; PROMPT_F="$WORK/prompt.md"; OUT_F="$WORK/review.txt"
 
-gh pr diff "$PR" --repo "$REPO" > "$DIFF_F" 2>/dev/null || die "cannot fetch diff"
-# `gh pr diff` reads the LIVE PR, not the Phase A pin. Re-read right after it:
-# if head or base moved in between, the diff is of a different change than the
-# one this run will stamp. Fail-closed — refuse; a fresh run reviews the new pair.
+# ⛔ The diff is built LOCALLY from the two pinned SHAs, never downloaded.
+# `gh pr diff` reads the LIVE PR: a base switched and restored (B0 -> B1 -> B0)
+# between two snapshots passes every pin comparison while the bytes handed to
+# the reviewer are the B1 diff, stamped as B0. Comparing snapshots cannot prove
+# which base produced downloaded bytes; computing them from immutable objects
+# can. Same semantics as a pull-request diff: merge-base(base, head)..head.
+ensure_commit() {  # $1 = sha, $2 = fallback refspec ; 0 = the commit is local
+  git cat-file -e "$1^{commit}" 2>/dev/null && return 0
+  [ -n "$2" ] && git fetch --quiet --no-tags "https://github.com/$REPO.git" "$2" 2>/dev/null
+  git cat-file -e "$1^{commit}" 2>/dev/null && return 0
+  git fetch --quiet --no-tags "https://github.com/$REPO.git" "$1" 2>/dev/null
+  git cat-file -e "$1^{commit}" 2>/dev/null
+}
+build_pinned_diff() {  # writes the pinned diff to $DIFF_F
+  local mb
+  git rev-parse --git-dir >/dev/null 2>&1 \
+    || die "not inside a git repository — cannot build the pinned diff"
+  ensure_commit "$HEAD_SHA" "pull/$PR/head" \
+    || die "head $HEAD_SHA not fetchable from $REPO — cannot build the pinned diff"
+  ensure_commit "$BASE_SHA" "" \
+    || die "base $BASE_SHA not fetchable from $REPO — cannot build the pinned diff"
+  mb="$(git merge-base "$BASE_SHA" "$HEAD_SHA" 2>/dev/null)" || mb=""
+  printf '%s' "$mb" | grep -qE '^[0-9a-f]{40}$' \
+    || die "no merge base between the pinned base and head — cannot build the pinned diff"
+  # No external diff driver, no textconv: both come from attributes/config the
+  # PR or the host controls, and either rewrites the bytes the reviewer reads.
+  git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false \
+      diff --no-color --no-ext-diff --no-textconv --no-relative \
+      --src-prefix=a/ --dst-prefix=b/ -M "$mb" "$HEAD_SHA" > "$DIFF_F" 2>/dev/null \
+    || die "cannot build the pinned diff"
+}
+build_pinned_diff
+# Head or base may still have moved since Phase A. The diff above is of the
+# PINNED pair, but this run stamps that pair, so a move means the review would
+# describe a change the PR no longer is. Fail-closed — refuse; re-run.
 if ! pr_pin_check; then
   log "[!] PR moved before the review started ($PIN_DRIFT) — refusing; re-run to review the new head/base"
   [ "$JSON" -eq 1 ] && jq -nc --arg repo "$REPO" --arg pr "$PR" --arg d "$PIN_DRIFT" \
@@ -635,12 +678,36 @@ link_marker() {  # $1=export path $2=reason
   printf 'routed-review: symlink not exported — %s. The reviewer sees this marker instead of following it.\n' "$2" > "$1" \
     || die "export: cannot write a symlink marker"
 }
+# ⛔ A link exported earlier is LIVE until the physical pass below. If a later
+# entry's path runs THROUGH it (`x` a link, then `x/y` — only possible in a
+# malformed tree that names `x` twice), `mkdir -p` and `ln -s` follow it and
+# write outside the export. Every existing component of the parent path must be
+# a real directory, never a link; otherwise the export is refused.
+link_parent_ok() {  # $1 = tree path ; 0 = no component of its parent is a symlink
+  local d acc="" c
+  local -a parts
+  d="$(dirname "$1")"
+  [ "$d" = . ] && return 0
+  IFS=/ read -r -a parts <<<"$d"
+  for c in "${parts[@]}"; do
+    acc="${acc:+$acc/}$c"
+    [ -L "$EXPORT_DIR/$acc" ] && return 1
+    [ -e "$EXPORT_DIR/$acc" ] && [ ! -d "$EXPORT_DIR/$acc" ] && return 1
+  done
+  return 0
+}
 export_symlinks() {  # $1 = NUL list of path,oid pairs
   [ -s "$1" ] || return 0
   local p oid tgt size depth root dotted="$WORK/export.dotted"
   root="$(cd "$EXPORT_DIR" && pwd -P)"; : > "$dotted"
   while IFS= read -r -d '' p && IFS= read -r -d '' oid; do
+    link_parent_ok "$p" \
+      || die "export: a symlink sits on the path of another tracked entry — refusing the export"
     mkdir -p "$EXPORT_DIR/$(dirname "$p")" 2>/dev/null || die "export: cannot create the parent of a symlink"
+    case "$(cd "$EXPORT_DIR/$(dirname "$p")" 2>/dev/null && pwd -P)" in
+      "$root"|"$root"/*) ;;
+      *) die "export: the parent of a symlink resolves outside the export — refusing the export" ;;
+    esac
     { [ -e "$EXPORT_DIR/$p" ] || [ -L "$EXPORT_DIR/$p" ]; } \
       && die "export: a symlink collides with another tracked path — refusing the export"
     tgt="$(git cat-file blob "$oid" 2>/dev/null)" || die "export: cannot read a symlink target"

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: the two P1 of the codex pass on 6466b11 and the symlink-prefix alert (#414)
+
+- **The reviewed diff is built from the pinned pair.** `gh pr diff` read the
+  live PR, so a base switched and restored (B0 → B1 → B0) between snapshots
+  passed every pin while the reviewer got the B1 diff. The diff is now
+  `git diff merge-base(base, head) head` from the pinned SHAs (no external diff
+  driver, no textconv); a missing commit is fetched from `--repo`.
+- **The review history is an allow-list.** A state outside APPROVED /
+  CHANGES_REQUESTED / DISMISSED / COMMENTED / PENDING, or a decisive review
+  without an ISO-8601 `submitted_at`, makes the history `unknown` (blocks). A
+  same-second tie between decisive reviews of one reviewer blocks when any of
+  them is `CHANGES_REQUESTED`.
+- **A link on another entry's path refuses the export.** Before creating a
+  link, every existing component of its parent path must be a real directory
+  inside the export; a malformed tree that names a path twice can no longer
+  make `mkdir -p` / `ln -s` write outside it.
+- `tests/contract.sh` — cases 79-84 (fixture now has a real base commit); 84 cases / 101 assertions.
+
 ### Fixed — `routed-pr-review`: four P1 of the final codex red-team round on #414
 
 - **The base is pinned.** Head and base are fixed in Phase A and re-read after

@@ -53,7 +53,7 @@ Five phases:
 
 | phase | what | grounding |
 |---|---|---|
-| **A** resolve | PR, title, `headRefOid`, diff | `gh` |
+| **A** resolve | PR, title, `headRefOid` + `baseRefOid` (pinned); the diff is built **locally** from the pinned pair (`merge-base(base, head)..head`), never downloaded | `gh` + `git` |
 | **B** primary probe | classify every known review bot (**exact** login match, never a substring) that has spoken on this PR: cleared-for-head (**only `APPROVED` at the current head**; `COMMENTED` never clears) · pending (any other state, or an earlier head) · quota-signalled (unless the same bot has since approved this head) · changes-requested. The configured set comes from `--primary` (a declared login counts even if it is not a built-in bot); a declared primary that has not spoken is **pending**. An active `CHANGES_REQUESTED` from **any** reviewer, human included, blocks. Absence is never inferred — it is an operator attestation (`--no-primary-configured`) | `pr-review-protocol.md` §4.1(a); bot-message taxonomy from `review-bot-quota-recovery.md` |
 | **C** pick reviewer | capability-detect `command -v`, skip bots expired or broken in the rotation state file (`ROUTED_REVIEW_STATE`), **exclude the caller's provider family** (not just its binary name) | `ai-code-review-bots-rotation.md` §2/§3 |
 | **D** isolated run | fresh OS process, write confinement per harness class (Axis 2 — never a blanket "read-only"), refute-first prompt, timeout floor 500s | `cross-harness-red-team.md` |
@@ -199,9 +199,18 @@ bytes that are not the commit). Every exported file is re-hashed with
 `git hash-object --no-filters` and must equal its blob, or the run stops; the
 export is checked to contain every tracked path of the head. A symlink whose
 target is absolute or leaves the export is replaced by a text marker, so the
-reviewer can never follow it to a host file. Head **and base** are pinned in
-Phase A and re-checked after the diff, after the review and before posting. If the head commit is missing, it is fetched from `--repo` into that
-repository's object store.
+reviewer can never follow it to a host file, and a link that sits on the path
+of another tracked entry (a malformed tree naming the same path twice) refuses
+the export instead of being written through. Head **and base** are pinned in
+Phase A and re-checked after the diff, after the review and before posting. The
+reviewed diff is computed from the two pinned SHAs (`git diff
+merge-base(base, head) head`, no external driver, no textconv): `gh pr diff` reads
+the live PR, so a base switched and restored between two snapshots would hand
+the reviewer another change's diff under the pinned stamp. A review history the
+gate cannot read — a state outside the five GitHub documents, or a decisive
+review without an ISO-8601 time — is `unknown` and blocks; a same-second tie
+with a `CHANGES_REQUESTED` blocks too. If the head or base commit is missing, it
+is fetched from `--repo` into that repository's object store.
 
 Two native review paths were found during the probe and are **not** wrapped by
 this tool: `qwen review run` and `opencode pr <N>`. They are recorded as
@@ -221,12 +230,12 @@ access without moving cwd). Line-level checking is structurally blind to both.
 These run the **real script end-to-end** against a stub `PATH`, so they assert
 the path.
 
-No network, no real reviewer, no real `gh`: a temp one-commit git repo supplies
+No network, no real reviewer, no real `gh`: a temp two-commit git repo (base + head) supplies
 a genuine `HEAD_SHA` (the script fetches and exports it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**78 cases · 93 assertions** (several cases assert an exit code *and* a field or
+**84 cases · 101 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
