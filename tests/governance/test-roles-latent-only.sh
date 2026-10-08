@@ -24,7 +24,8 @@
 # ou false. Arquivo maior que 64 KiB falha. Qualquer outra forma e violacao: link simbolico, outra
 # extensao (.yml, .YML, .Md, .gitkeep), frontmatter ausente ou nao fechado,
 # arquivo que nao decodifica como UTF-8 (o verificador cai, e a queda conta
-# como falha).
+# como falha). Se a descoberta (`find`) falhar ou escrever em stderr (ex.:
+# diretorio ilegivel), isso tambem e violacao.
 #
 # O frontmatter (e as sondas) e lido com yaml.safe_load, com
 # chave duplicada recusada, ancora e alias recusados (fecha a expansao
@@ -39,7 +40,8 @@
 #     e null;
 #   - `role`, `status` e `tier` so aparecem na raiz (a profundidade e contada,
 #     entao uma chave vazia `""` nao faz um mapa aninhado passar por raiz);
-#   - `!!omap`, `!!pairs` e `!!set` (que viram tupla ou set) sao recusados;
+#   - `!!omap`, `!!pairs` e `!!set` sao recusados na construcao, inclusive
+#     vazios (`!!omap []`);
 #   - em qualquer profundidade, dentro de mapas e de listas: campos reservados
 #     (approval_ref, approved_by, approved_at, trigger, authority_digest) valem
 #     null; chaves de ativacao (active, enabled, armed, effective, activated)
@@ -139,6 +141,14 @@ def no_duplicates(loader, node, deep=False):
     return loader.construct_mapping(node, deep)
 
 Loader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_duplicates)
+
+def refuse_tag(loader, node):
+    # !!omap, !!pairs e !!set sao recusados na construcao, inclusive vazios
+    # (`!!omap []` vira lista vazia e escaparia da checagem por tipo).
+    raise yaml.constructor.ConstructorError(None, None, f"tag {node.tag} recusada", node.start_mark)
+
+for _t in ("omap", "pairs", "set"):
+    Loader.add_constructor("tag:yaml.org,2002:" + _t, refuse_tag)
 
 def walk(o, path, out, where, depth=0, seen=None):
     # `seen` evita percorrer de novo um no compartilhado ou ciclico (alias no
@@ -281,12 +291,20 @@ structural() {
 
 # Descoberta do registro: todo item sob <raiz>/roles que nao seja diretorio
 # (arquivo, link, qualquer extensao) vai para o verificador.
+# Falha fechada: se o `find` sair com rc != 0 ou escrever em stderr (ex.:
+# diretorio sem permissao de leitura), a propria descoberta vira violacao.
 REG_COUNT=0
 registry_scan() { # <raiz>
-  local root="$1" files=() f
+  local root="$1" files=() f lst err rc
   REG_COUNT=0
   if [ -e "$root/roles" ] || [ -L "$root/roles" ]; then
-    while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$root/roles" ! -type d -print0)
+    lst="$(mktemp)" && err="$(mktemp)" || { printf 'descoberta do registro falhou: mktemp\n'; return; }
+    find "$root/roles" ! -type d -print0 >"$lst" 2>"$err"; rc=$?
+    while IFS= read -r -d '' f; do files+=("$f"); done <"$lst"
+    if [ "$rc" -ne 0 ] || [ -s "$err" ]; then
+      printf 'descoberta do registro falhou (find rc=%s): %s\n' "$rc" "$(tr '\n' ' ' <"$err")"
+    fi
+    rm -f "$lst" "$err"
   fi
   REG_COUNT="${#files[@]}"
   [ "$REG_COUNT" -eq 0 ] || structural --registry "${files[@]}"
@@ -346,7 +364,10 @@ probe "status aninhado"         $'role: x\nstatus: latent\nmeta:\n  status: acti
 probe "!!omap aninhado"         $'role: x\nstatus: latent\nmeta: !!omap\n  - approved_by: board'
 probe "!!pairs aninhado"        $'role: x\nstatus: latent\nmeta: !!pairs\n  - active: true'
 probe "!!set aninhado"          $'role: x\nstatus: latent\nmeta: !!set\n  ? approval_ref'
-probe "chave vazia na raiz"     $'role: x\nstatus: latent\n"":\n  status: active'
+probe "!!omap vazio"            $'role: x\nstatus: latent\nmeta: !!omap []'
+probe "!!pairs vazio"           $'role: x\nstatus: latent\nmeta: !!pairs []'
+probe "!!set vazio"             $'role: x\nstatus: latent\nmeta: !!set {}'
+probe "chave vazia na raiz"    $'role: x\nstatus: latent\n"":\n  status: active'
 probe "ancora e alias"          $'role: x\nstatus: latent\nbase: &b {k: v}\nmeta: *b'
 probe "ancora sem alias"        $'role: x\nstatus: latent\nmeta: &m {k: v}'
 probe "billion laughs"          $'role: x\nstatus: latent\na: &a [x, x]\nb: &b [*a, *a]\nc: &c [*b, *b]'
@@ -361,6 +382,32 @@ case "$(registry_scan "$tmp/crash")" in
   *"verificador estrutural falhou"*) pass "queda do verificador conta como falha";;
   *) fail "queda do verificador nao virou falha";;
 esac
+
+# Sondas da descoberta que falha (fail-closed): `find` com rc != 0 ou stderr
+# precisa virar violacao, nunca "0 arquivos, 0 violacoes".
+mkdir -p "$tmp/shim" "$tmp/findfail/roles"; printf '%s\n' '---' 'status: latent' '---' > "$tmp/findfail/roles/ok.md"
+printf '#!/bin/sh\necho "find: roles/private: Permission denied" >&2\nexit 1\n' > "$tmp/shim/find"; chmod +x "$tmp/shim/find"
+case "$(PATH="$tmp/shim:$PATH" registry_scan "$tmp/findfail")" in
+  *"descoberta do registro falhou"*) pass "find que falha (rc=1 + stderr) vira violacao";;
+  *) fail "find que falha passou como registro limpo";;
+esac
+printf '#!/bin/sh\necho "find: aviso" >&2\nexit 0\n' > "$tmp/shim/find"
+case "$(PATH="$tmp/shim:$PATH" registry_scan "$tmp/findfail")" in
+  *"descoberta do registro falhou"*) pass "find com stderr e rc=0 vira violacao";;
+  *) fail "find com stderr e rc=0 passou como registro limpo";;
+esac
+# Caso real: diretorio sem permissao sob roles/ (so tem efeito fora de root).
+mkdir -p "$tmp/unread/roles/private"; printf '%s\n' '---' 'status: active' '---' > "$tmp/unread/roles/private/bad.md"
+chmod 000 "$tmp/unread/roles/private"
+if [ -r "$tmp/unread/roles/private" ]; then
+  pass "diretorio ilegivel: sem efeito como root (coberto pelas sondas com shim)"
+else
+  case "$(registry_scan "$tmp/unread")" in
+    *"descoberta do registro falhou"*) pass "diretorio ilegivel sob roles/ vira violacao";;
+    *) fail "diretorio ilegivel sob roles/ passou como registro limpo";;
+  esac
+fi
+chmod 700 "$tmp/unread/roles/private"
 
 # Fixtures ponta a ponta: cada uma monta uma arvore com roles/ e passa pela
 # mesma descoberta (registry_scan) usada no passo 3.
@@ -403,7 +450,11 @@ mkfx gitkeep         .gitkeep       ''
 mkfx omap            cto.md         "${VALID_FM%---}"$'meta: !!omap\n  - approved_by: board\n  - enabled: true\n---'
 mkfx pairs           cto.md         "${VALID_FM%---}"$'meta: !!pairs\n  - approval_ref: rec-1\n  - active: true\n---'
 mkfx set             cto.md         "${VALID_FM%---}"$'meta: !!set\n  ? approved_by\n---'
-mkfx chave-vazia     cto.md         "${VALID_FM%---}"$'"":\n  status: active\n---'
+mkfx omap-vazio      cto.md         "${VALID_FM%---}"$'meta: !!omap []\n---'
+mkfx pairs-vazio     cto.md         "${VALID_FM%---}"$'meta: !!pairs []\n---'
+mkfx corpo-omap-vazio cto.md        "$VALID_FM"$'\n!!omap []'
+mkfx corpo-pairs-vazio cto.md       "$VALID_FM"$'\n!!pairs []'
+mkfx chave-vazia     cto.md        "${VALID_FM%---}"$'"":\n  status: active\n---'
 mkfx corpo-aspas     cto.md         "$VALID_FM"$'\n"active": true\n- x'
 mkfx corpo-aspas-s   cto.md         "$VALID_FM"$'\n\'approval_ref\': rec-1\n- x'
 mkfx corpo-explicita cto.md         "$VALID_FM"$'\n? active\n: true\n- x'
