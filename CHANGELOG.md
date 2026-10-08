@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added
+- `skills/tutorial-forge/SKILL.md` (v0.1.0) — forge de tutoriais multi-capítulo parametrizáveis (analogias-first, leigo-friendly)
+- `skills/source-curator/SKILL.md` (v0.1.0) — curadoria adversarial de fontes NotebookLM (A/B/C/D grading, baseline-aware invariant)
+- `skills/notebooklm-artifact-orchestrator/SKILL.md` (v0.1.0) — orquestração de 6 studio artifacts por notebook (contrato verificado contra `nlm 0.15.3`)
+- `agents/tutorial-specialist.md` (v0.2.0) — agente orquestrador parametrizável que despacha 4 subagentes separados por `role=` (pesquisador-critico, redator-tutor, revisor-pedagogico, produtor-multimidia)
+- `protocols/tutorial-delegation.md` (v0.1.0) — contrato de 3 handoffs estritos (Pesquisador → Redator → Revisor) com JSON schemas e validação
+
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
 - `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
