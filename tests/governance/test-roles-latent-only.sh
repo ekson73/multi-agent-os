@@ -6,11 +6,9 @@
 # tem fim, e cada rodada de revisao achou um vetor novo do mesmo tipo. A
 # garantia de que nenhum contrato concede autoridade e o gate do ADR-019.
 #
-# Onde mede:
-#   - o template YAML de agents/forge.md (frontmatter e fences ```yaml ou
-#     ~~~yaml no inicio da linha, sem diferenciar maiusculas; fence aberta ate
-#     o fim do arquivo tambem conta como bloco);
-#   - o registro `roles/` (recursivo), onde a forma aceita e estrita.
+# Onde mede: SOMENTE o registro `roles/` (recursivo), onde a forma aceita e
+# estrita. Os blocos YAML do template em agents/forge.md NAO sao verificados por
+# maquina (limitacao declarada; follow-up possivel).
 #
 # Sob `roles/`, so passa um arquivo regular com nome terminado em `.md`
 # (minusculo), em UTF-8 sem BOM, sem CR/NEL/LS/PS, cuja linha 1 e `---`, com um
@@ -19,21 +17,23 @@
 # linha, sozinho ou seguido de espaco, ex.: `--- # comentario`),
 # nem chave de contrato seguida de `:`, com ou sem aspas (role, status, tier,
 # campos reservados, chaves de ativacao), nem linha iniciada por `?` ou `:`
-# (chave/valor explicito do YAML). O corpo tambem e lido como YAML; se carregar
-# como mapa ou lista, nenhuma chave de contrato pode aparecer nele, em qualquer
-# profundidade. Arquivo maior que 64 KiB falha. Qualquer outra forma e violacao: link simbolico, outra
+# (chave/valor explicito do YAML). O corpo tambem e lido como YAML pelo
+# carregador estrito; se carregar como mapa ou lista, nenhuma chave de contrato
+# (decodificada pelo carregador, ex.: `"active"` vira `active`) pode
+# aparecer nele, em qualquer profundidade e com qualquer valor, inclusive null
+# ou false. Arquivo maior que 64 KiB falha. Qualquer outra forma e violacao: link simbolico, outra
 # extensao (.yml, .YML, .Md, .gitkeep), frontmatter ausente ou nao fechado,
 # arquivo que nao decodifica como UTF-8 (o verificador cai, e a queda conta
 # como falha).
 #
-# O frontmatter (e o template, e as sondas) e lido com yaml.safe_load, com
+# O frontmatter (e as sondas) e lido com yaml.safe_load, com
 # chave duplicada recusada, ancora e alias recusados (fecha a expansao
 # exponencial; a merge key `<<` tambem e recusada, porque o construtor de
 # chaves duplicadas nao sabe construi-la) e bloco maior que 64 KiB recusado.
-# Regra unica: no frontmatter, no corpo sob `roles/` e em todo bloco do
-# template, qualquer recusa do carregador estrito (erro de parse, chave
-# duplicada, documento ilegivel, tag desconhecida, ancora, alias, merge key) e
-# violacao. Nao ha releitura tolerante.
+# Regra unica: no frontmatter e no corpo sob `roles/`, qualquer recusa do
+# carregador estrito (erro de parse, chave duplicada, documento ilegivel, tag
+# desconhecida, ancora, alias, merge key) e violacao. Nao ha releitura
+# tolerante.
 # Sobre o valor carregado:
 #   - a raiz e um mapa; `status` vale a string `latent`; `tier`, se existir,
 #     e null;
@@ -48,8 +48,6 @@
 # nunca cai para uma checagem mais fraca.
 # Cada chamada ao verificador tem limite de 30 s (alarme); estourar conta como
 # falha. Esse limite e uma protecao extra: nenhuma sonda o mede hoje.
-# No template de agents/forge.md, todo bloco ```yaml precisa carregar no
-# carregador estrito (o modelo de agente, que e markdown, usa fence ```markdown).
 #
 # Padrao: recusar na duvida. Falsos positivos aceitos: arquivo com CRLF ou BOM,
 # `roles/.gitkeep`, prosa no corpo com "role:" ou iniciada por `?`/`:`,
@@ -73,14 +71,12 @@
 #     rec-1` vira null; chave `!!binary` vira bytes);
 #   - chave com espaco, homoglifo ou caractere invisivel (ex.: `active ` ou
 #     `аctive` com "а" cirilico) passa: nao ha normalizacao Unicode;
-#   - so `roles/` e o template sao lidos: um registro que o host designe fora
-#     de `roles/` nao e verificado; neste repo `roles/` nao existe, entao o
-#     passo 3 le 0 arquivos e o registro so e exercitado pelas fixtures;
-#   - o teste nao exige campos do template (role, owner, decide...): mede so as
+#   - so `roles/` e lido: os blocos YAML do template em agents/forge.md e um
+#     registro que o host designe fora de `roles/` nao sao verificados; neste
+#     repo `roles/` nao existe, entao o passo 3 le 0 arquivos e o registro so e
+#     exercitado pelas fixtures;
+#   - o teste nao exige campos do contrato (role, owner, decide...): mede so as
 #     chaves que concedem ou sinalizam autoridade;
-#   - no template, so blocos em fence no inicio da linha sao lidos: YAML fora de
-#     fence (alem do frontmatter), fence dentro de citacao `>`, apos marcador de
-#     lista ou com 4 ou mais crases/tis nao e inspecionado;
 #   - nenhuma sonda esconde o perl do PATH: a checagem de perl ausente foi
 #     verificada a mao (rc=1), nao por mutante;
 #   - nenhum workflow de CI roda este teste hoje; ele roda por
@@ -106,7 +102,7 @@ GUIDANCE_FILES=(
 )
 
 # ── Verificador estrutural ───────────────────────────────────────────────────
-# Modos: --block (bloco YAML pela stdin), --template ARQ.md, --registry ARQ...
+# Modos: --block (bloco YAML pela stdin), --registry ARQ...
 # Imprime uma violacao por linha.
 CHECKER="$(cat <<'PY'
 import os, re, sys
@@ -177,8 +173,8 @@ def check_yaml(text, where, require_contract):
     try:
         data = yaml.load(text, Loader=Loader)
     except yaml.YAMLError as e:
-        # Regra unica: qualquer recusa do carregador estrito e violacao, no
-        # frontmatter e em todo bloco do template. Nao ha releitura tolerante.
+        # Regra unica: qualquer recusa do carregador estrito e violacao. Nao ha
+        # releitura tolerante.
         return [f"{where}: YAML invalido ({str(e).splitlines()[0]})"]
     is_contract = require_contract or (isinstance(data, dict) and any(k in data for k in ROOT_ONLY))
     if not is_contract:
@@ -193,28 +189,23 @@ def check_yaml(text, where, require_contract):
     walk(data, "", out, where)
     return out
 
-def template_blocks(text):
-    lines = text.split("\n")
-    i = 0
-    if lines and lines[0].strip() == "---":
-        j = 1
-        while j < len(lines) and lines[j].strip() != "---":
-            j += 1
-        yield "\n".join(lines[1:j])
-        i = j + 1
-    cur, mark = None, None
-    for k in range(i, len(lines)):
-        s = lines[k].strip()
-        m = re.match(r"^(```|~~~)\s*ya?ml\b", s, re.I)
-        if cur is None and m:
-            cur, mark = [], m.group(1)
-        elif cur is not None and s.startswith(mark):
-            yield "\n".join(cur)
-            cur = None
-        elif cur is not None:
-            cur.append(lines[k])
-    if cur is not None:  # fence aberta ate o fim do arquivo: o bloco conta
-        yield "\n".join(cur)
+def body_keys(o, path, out, where, seen=None):
+    # Qualquer chave de contrato no corpo e violacao, com qualquer valor. A chave
+    # e a que o carregador decodificou (escape `"active"` vira `active`).
+    seen = set() if seen is None else seen
+    if isinstance(o, (dict, list, tuple)):
+        if id(o) in seen:
+            return
+        seen.add(id(o))
+    if isinstance(o, dict):
+        for k, v in o.items():
+            p = f"{path}.{k}"
+            if k in CONTRACT_KEYS:
+                out.append(f"{where}: chave de contrato `{p}` no corpo (decodificada pelo carregador)")
+            body_keys(v, p, out, where, seen)
+    elif isinstance(o, (list, tuple)):
+        for i, x in enumerate(o):
+            body_keys(x, f"{path}[{i}]", out, where, seen)
 
 def registry(path):
     if os.path.islink(path):
@@ -250,7 +241,8 @@ def registry(path):
         elif EXPLICIT.match(s):
             out.append(f"{path}:{k + 1}: chave ou valor explicito (`?`/`:`) no corpo")
     # O corpo tambem e lido como YAML: se carregar como mapa ou lista, nenhuma
-    # chave de contrato pode aparecer nele, em qualquer profundidade.
+    # chave de contrato pode aparecer nele, em qualquer profundidade e com
+    # qualquer valor.
     body = "\n".join(lines[j + 1:])
     try:
         docs = list(yaml.load_all(body, Loader=Loader))
@@ -264,18 +256,13 @@ def registry(path):
         if isinstance(d, (dict, list, tuple, set)):
             inner = []
             walk(d, "corpo", inner, path, 1)
+            body_keys(d, "corpo", inner, path)
             out += inner
     return out
 
 mode, args = sys.argv[1], sys.argv[2:]
 if mode == "--block":
     out = check_yaml(sys.stdin.read(), "fixture", True)
-elif mode == "--template":
-    out = []
-    for path in args:
-        with open(path, encoding="utf-8") as fh:
-            for b in template_blocks(fh.read()):
-                out += check_yaml(b, path, False)
 elif mode == "--registry":
     out = [v for path in args for v in registry(path)]
 else:
@@ -375,39 +362,6 @@ case "$(registry_scan "$tmp/crash")" in
   *) fail "queda do verificador nao virou falha";;
 esac
 
-# Bloco YAML invalido no template que cita chave de contrato entre aspas falha.
-printf '%s\n' '# t' '```yaml' '"approval_ref": granted' 'bad: [' '```' > "$tmp/tpl.md"
-case "$(structural --template "$tmp/tpl.md")" in
-  *"YAML invalido"*) pass "template: bloco invalido com chave entre aspas recusado";;
-  *) fail "template: bloco invalido com chave entre aspas foi pulado";;
-esac
-
-# Template: bloco que o carregador estrito recusa, e as formas de fence medidas aqui
-# (``` ou ~~~ no inicio da linha, maiusculas, aberta ate o fim do arquivo).
-tplcase() { # <nome> <conteudo do arquivo>
-  printf '%s\n' "$2" > "$tmp/tpl-$1.md"
-  local out; out="$(structural --template "$tmp/tpl-$1.md")"
-  case "$out" in
-    *"verificador estrutural falhou"*) fail "template $1 derrubou o verificador";;
-    "") fail "template $1 escapou";;
-    *) pass "template $1 recusado";;
-  esac
-}
-tplcase ancora-escape  $'```yaml\n"\\u0073tatus": &a active\n```'
-tplcase fence-aberta   $'```yaml\napproval_ref: granted'
-tplcase fence-YAML     $'```YAML\napproval_ref: granted\n```'
-tplcase fence-til      $'~~~yaml\napproval_ref: granted\n~~~'
-tplcase docsep-coment  $'```yaml\n"\\u0061ctive": true\n--- # dois\nx: !!python/name:builtins.str\n```'
-tplcase dup-protegida  $'```yaml\n"\\u0061ctive": true\n"\\u0061ctive": false\n```'
-tplcase alias-ciclico  $'```yaml\nx: &a [*a]\n```'
-# Regressoes RT476_P10 (cada caso passava com 0 violacoes no head 732cbfdb):
-# A1: fence aberta em citacao `>` engolia o bloco seguinte.
-tplcase a1-citacao-engole $'> ```yaml\n> x: 1\n\nprosa\n```yaml\n"\\u0061ctive": true\n```'
-# A2: documento ilegivel antes do documento com a ativacao.
-tplcase a2-doc-ilegivel   $'```yaml\nx: !unknown\n---\n"\\u0061ctive": true\n```'
-# A3: duplicata de chave comum antes da duplicata de contrato.
-tplcase a3-dup-comum      $'```yaml\nx: 1\nx: 2\n"\\u0061ctive": true\n"\\u0061ctive": false\n```'
-
 # Fixtures ponta a ponta: cada uma monta uma arvore com roles/ e passa pela
 # mesma descoberta (registry_scan) usada no passo 3.
 VALID_FM=$'---\nrole: cto\nstatus: latent\ntier: null\nowner: board\ndecide: [ "architecture" ]\nbinding: [ "architect" ]\nholder: agent\napproval_ref: null\n---'
@@ -470,8 +424,12 @@ mkfx corpo-docsep-coment cto.md     "$VALID_FM"$'\ntexto\n--- # comentario\nmais
 mkfx corpo-tag-ilegivel cto.md      "$VALID_FM"$'\n"\\u0061ctive": true\nx: !!python/name:builtins.str'
 mkfx corpo-dup-protegida cto.md     "$VALID_FM"$'\n"\\u0061ctive": true\n"\\u0061ctive": false'
 mkfx corpo-lista-dup  cto.md        "$VALID_FM"$'\n- {x: 1, x: 2, "\\u0061ctive": true}'
+# Regressoes RT476_P10/P11 no corpo: A2 (tag desconhecida antes da ativacao),
+# A3 (duplicata comum antes da duplicata de contrato), chave escapada com false.
 mkfx corpo-a2-tag     cto.md        "$VALID_FM"$'\nx: !unknown\n"\\u0061ctive": true'
 mkfx corpo-a3-dup-comum cto.md      "$VALID_FM"$'\nx: 1\nx: 2\n"\\u0061ctive": true\n"\\u0061ctive": false'
+mkfx corpo-escape-false cto.md      "$VALID_FM"$'\n"\\u0061ctive": false'
+mkfx corpo-escape-null  cto.md      "$VALID_FM"$'\n- {"\\u0061pproval_ref": null}'
 mkfx ancora-sem-alias cto.md        "${VALID_FM%---}"$'meta: &m {k: v}\n---'
 mkfx grande-limite   cto.md         "$VALID_FM"$'\n'"$(printf 'x%.0s' $(seq 1 $((65535 - ${#VALID_FM}))))"
 mkfx valido          limite.md      "$VALID_FM"$'\n'"$(printf 'x%.0s' $(seq 1 $((65534 - ${#VALID_FM}))))"
@@ -513,15 +471,10 @@ for f in "${GUIDANCE_FILES[@]}"; do
   else pass "$f: nenhuma transicao na forma active"; fi
 done
 
-# ── 3. Template + registro roles/ deste repositorio ──────────────────────────
-{ structural --template agents/forge.md; registry_scan .; } > "$tmp/out"; viol="$(cat "$tmp/out")"
+# ── 3. Registro roles/ deste repositorio (o template NAO e lido) ─────────────
+registry_scan . > "$tmp/out"; viol="$(cat "$tmp/out")"
 if [ -n "$viol" ]; then fail "contratos fora da forma aceita:"; printf '%s\n' "$viol" | sed 's/^/      | /'
-else pass "template ok; roles/: $REG_COUNT arquivo(s) lido(s), 0 violacoes"; fi
-
-# O template precisa existir e ser um contrato, senao o passo 3 mede nada.
-block="$(awk '/^Role contract fields/{f=1} f&&/^```yaml/{y=1;next} y&&/^```/{exit} y' agents/forge.md)"
-if printf '%s\n' "$block" | grep -qE '^status:[[:space:]]+latent([[:space:]]|$)'; then pass "template presente com status latent"
-else fail "template YAML do contrato ausente ou sem 'status: latent'"; fi
+else pass "roles/: $REG_COUNT arquivo(s) lido(s), 0 violacoes"; fi
 
 # ── 4. A frase que nega autoridade ao status ─────────────────────────────────
 if grep -qi 'status` never grants authority' agents/forge.md 2>/dev/null; then

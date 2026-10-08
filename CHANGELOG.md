@@ -17,17 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Activation is out of scope: the ratification gate drafted during review (owner record, `authority_digest`, checks
   (a)–(e)) was removed because nothing executed it and its identity rule had a revocation hole; what a future gate
   must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
-  `tests/governance/test-roles-latent-only.sh` checks contract form in the template and under `roles/`
-  and refuses when in doubt: under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
+  `tests/governance/test-roles-latent-only.sh` checks contract form only under `roles/` and refuses when in doubt.
+  The YAML template blocks in `agents/forge.md` are not machine-verified in this PR (declared limitation; a template
+  check is a possible follow-up). Under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
   fences, extra documents, symlinks, CR/NEL or BOM, files over 64 KiB, or contract keys in the body (quoted keys,
-  explicit `?`/`:` keys, and the body loaded as YAML are all checked). The frontmatter is loaded with `yaml.safe_load`
+  explicit `?`/`:` keys, and the body loaded by the strict loader are all checked; a contract key in the body fails
+  with any value, null and false included, and keys are compared after the loader decodes them, so `"active"`
+  counts as `active`). The frontmatter is loaded with `yaml.safe_load`
   (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
   fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
-  tree per refused form. Any refusal by the strict loader in the frontmatter, the body under `roles/` or a template
-  block fails; there is no lenient re-read. Template fences are read case-insensitively at the start of a line
-  (``` or ~~~), and a fence open to end of file counts; YAML outside fences, fences inside `>` quotes or after list
-  markers, and fences of 4+ backticks or tildes are not inspected. The agent-spec example in `agents/forge.md` is
-  now tagged `markdown`. Without `perl` (time limit) the test also fails. It is a best-effort lint that fails closed,
+  tree per refused form. Any refusal by the strict loader in the frontmatter or the body under `roles/` fails
+  (parse error, duplicate key, unreadable document, unknown tag); there is no lenient re-read. Without `perl` (time
+  limit) the test also fails. It is a best-effort lint that fails closed,
   not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
   reading, or a registry outside `roles/`, and no CI workflow runs it yet.
 

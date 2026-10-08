@@ -192,8 +192,8 @@ proposal_cap: null             # optional ceiling on what this role may propose 
 Known limits (out of scope for this section, stated so nobody reads more into it):
 
 - **Specification, not tooling.** Nothing in this repo reads a role contract. `latent` is enforced by this text and by
-  the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract form in the template and
-  under `roles/` and refuses when in doubt (only `.md` files with one frontmatter are accepted there; the
+  the regression test `tests/governance/test-roles-latent-only.sh`, which checks contract form only
+  under `roles/` (the YAML template blocks in this file are not machine-verified) and refuses when in doubt (only `.md` files with one frontmatter are accepted there; the
   frontmatter is loaded with `yaml.safe_load`, without anchors or `!!omap`/`!!pairs`/`!!set`, and checked at every depth; the body may not carry contract keys; it is a best-effort lint that fails closed, not a guarantee; ADR-019 lists the accepted form and the limits), and flags the literal word form of an activation in the guidance files. It does not
   understand natural language or Unicode look-alike keys, does not read a registry outside `roles/`, does not run in CI, and guards the
   text; it cannot stop an agent that ignores it.
@@ -273,7 +273,7 @@ Execute the 33 questions above. Answer internally. Synthesize.
 
 Produce file in standard format:
 
-```markdown
+```yaml
 ---
 name: {acronym-lowercase}
 version: 1.0.0

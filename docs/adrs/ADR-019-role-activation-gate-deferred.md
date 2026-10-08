@@ -34,24 +34,23 @@ Three findings made that gate unfit to ship:
 - `tests/governance/test-roles-latent-only.sh` checks contract **form and loaded value**, and refuses when in
   doubt. It is a **best-effort lint that fails closed, not a guarantee**: the YAML surface (escapes, tags,
   constructs, parser differences) has no end, and each review round found a new bypass of the same kind. The
-  guarantee that no contract grants authority is the gate this ADR defers. It reads the YAML template in
-  `agents/forge.md` (fences ```` ```yaml ```` or `~~~yaml`, case-insensitive; a fence left open to end of file still
-  counts) and, recursively, the registry `roles/`. Under `roles/` the
+  guarantee that no contract grants authority is the gate this ADR defers. It reads only the registry `roles/`,
+  recursively. The YAML template blocks in `agents/forge.md` are **not** machine-verified in this PR (a declared
+  limitation; a template check is a possible follow-up). Under `roles/` the
   only accepted file is a regular file named `*.md` (lowercase), UTF-8 without BOM and without CR, NEL, LS or PS
   characters, at most 64 KiB, whose line 1 is `---`, with one frontmatter closed by `---` and a body without
   fences, document separators, `<contract key>:` (quoted or not) or a line that starts with `?` or `:` (explicit
-  YAML key or value). The body is also loaded as YAML; if it loads as a mapping or list, no contract key may appear
-  in it at any depth. Anything else fails: symlinks, other extensions (`.yml`, `.YML`, `.Md`,
+  YAML key or value). The body is also loaded by the strict loader; if it loads as a mapping or list, no contract
+  key may appear in it at any depth, with any value (null and false included). Keys are compared after the loader
+  decodes them, so an escaped key such as `"active"` counts as `active`. Anything else fails: symlinks, other extensions (`.yml`, `.YML`, `.Md`,
   `.gitkeep`), missing or unclosed frontmatter, a file that is not valid UTF-8 (the checker crashes, and the crash
   counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), with duplicate keys,
   anchors and aliases refused (this closes exponential alias expansion; the merge key `<<` is refused as a side effect
-  of the duplicate-key constructor, which cannot build it). One rule applies to the frontmatter, the body under
-  `roles/` and every template block: any refusal by the strict loader (parse error, duplicate key, unreadable
-  document, unknown tag, anchor, alias, merge key) fails. There is no lenient re-read. A body line starting with
-  `---` or `...` followed by a space (e.g. `--- # comment`) counts as a document separator. Only fences at the start
-  of a line are read in the template; YAML outside fences, fences inside a `>` quote or after a list marker, and
-  fences of 4 or more backticks or tildes are not inspected. The agent-spec example in `agents/forge.md` is tagged
-  ```` ```markdown ````, not ```` ```yaml ````, because it is not YAML. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
+  of the duplicate-key constructor, which cannot build it). One rule applies to the frontmatter and the body under
+  `roles/`: any refusal by the strict loader (parse error, duplicate key, unreadable document, unknown tag, anchor,
+  alias, merge key) fails. There is no lenient re-read, so a common duplicate key or an unknown tag placed before a
+  contract key fails the file instead of hiding it. A body line starting with `---` or `...` followed by a space
+  (e.g. `--- # comment`) counts as a document separator. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
   `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root (depth is counted, so an empty
   key `""` cannot make a nested mapping pass as the root); `!!omap`, `!!pairs` and `!!set` are refused; at any depth, inside mappings and
   lists, reserved fields are null and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`) are
