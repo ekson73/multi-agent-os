@@ -521,9 +521,66 @@ if [ "$RC" -eq 1 ] && [ ! -e "$TMP/ephreal/sub" ]; then ok "persist refuses a du
 # F5 docs stay coherent with the code: the protocol does not deny the bare-CPF match, the
 # test header names the executor version under test
 PROTO="$SCRIPT_DIR/../../skills/postflight/references/close-out-manifest-protocol.md"
-if [ -f "$PROTO" ] && ! grep -q 'a bare run of 10-11 digits is not matched' "$PROTO"; then ok "protocol PII sentence agrees with the bare-CPF engine"; else bad "protocol still denies the bare-CPF match" "$PROTO"; fi
+# the defect is the UNQUALIFIED denial ("... is not matched, ..."), any case; the current text
+# qualifies it ("... is not matched as a phone number"), which is true and must keep passing
+if [ -f "$PROTO" ] && ! grep -qiE 'bare run of 10-11 digits is not matched[,.;]' "$PROTO"; then ok "protocol PII sentence agrees with the bare-CPF engine"; else bad "protocol still denies the bare-CPF match" "$PROTO"; fi
 V="$(bash "$CM" --version | awk '{print $2}')"
 if sed -n 3p "$0" 2>/dev/null | grep -q "(v$V)"; then ok "test header names executor v$V"; else bad "test header version must match the executor" "$(sed -n 3p "$0")"; fi
+
+# G1 a quoted '~' --dest is expanded once: gate and write use the same path (never ./~/x)
+mkdir -p "$MDIR/home" "$TMP/g1cwd" "$TMP/g1"; printf 'clean\n' > "$TMP/g1/a.md"
+# shellcheck disable=SC2088 # the literal, unexpanded '~' is the case under test
+OUT="$(cd "$TMP/g1cwd" && HOME="$MDIR/home" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest '~/g1dest' --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+# shellcheck disable=SC2088 # "$TMP/g1cwd/~" names the literal directory the old code created
+if [ "$RC" -eq 0 ] && cmp -s "$TMP/g1/a.md" "$MDIR/home/g1dest/a.md" && [ ! -e "$TMP/g1cwd/~" ]; then ok "quoted ~ --dest: written under \$HOME, never to a literal ./~"; else bad "quoted ~ --dest must expand once" "rc=$RC out=$OUT literal=$(find "$TMP/g1cwd" -mindepth 1 | tr '\n' ' ')"; fi
+
+# G2 a doubled leading slash names the same temp root: //tmp/x is refused like /tmp/x
+G2N="close-out-g2.$$"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "//tmp/$G2N" --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ] && [ ! -e "/tmp/$G2N" ] && printf '%s' "$OUT" | grep -q 'temp/scratch root'; then ok "persist refuses --dest //tmp/x"; else bad "//tmp --dest must be refused" "rc=$RC out=$OUT"; fi
+rm -rf -- "/tmp/$G2N"
+if [ -d /private/tmp ] && [ ! -L /private/tmp ]; then # macOS: pwd -P keeps a leading // ("//private")
+  OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "//private/tmp/$G2N" --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+  if [ "$RC" -eq 1 ] && [ ! -e "/private/tmp/$G2N" ]; then ok "persist refuses --dest //private/tmp/x"; else bad "//private/tmp --dest must be refused" "rc=$RC out=$OUT"; fi
+  rm -rf -- "/private/tmp/$G2N"
+else echo "  ⏭  no /private/tmp (not macOS) — //private/tmp case skipped"; fi
+
+# G3 a durable-looking symlink straight to /tmp (a child of /) is refused: canon never yields //tmp
+ln -s /tmp "$DST/g3tl"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/g3tl/$G2N" --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ] && [ ! -e "/tmp/$G2N" ]; then ok "persist refuses --dest through a symlink to /tmp"; else bad "symlink to /tmp must be refused" "rc=$RC out=$OUT"; fi
+rm -rf -- "/tmp/$G2N"
+
+# G4 a TERM landing right after the .bak is created (before it is registered) leaves no .bak
+REAL_MKTEMP="$(command -v mktemp)"; mkdir -p "$TMP/g4bin" "$TMP/g4" "$DST/dg4"
+cat > "$TMP/g4bin/mktemp" <<EOF
+#!/usr/bin/env bash
+out="\$("$REAL_MKTEMP" "\$@")" || exit 1
+printf '%s\n' "\$out"
+# signal the persist process itself: the OUTERMOST ancestor running the script under test
+# (the command-substitution subshell is a fork with the same command line)
+case "\$*" in *.bak.*)
+  p="\$PPID"; n=0; top=""
+  while [ -n "\$p" ] && [ "\$p" -gt 1 ] && [ "\$n" -lt 4 ]; do
+    case "\$(ps -o command= -p "\$p" 2>/dev/null)" in
+      *"$CM persist "*) top="\$p" ;;
+      *) [ -z "\$top" ] || break ;; # past the script: never signal the runner or anything above it
+    esac
+    p="\$(ps -o ppid= -p "\$p" 2>/dev/null | tr -d ' ')"; n=\$((n + 1))
+  done
+  [ -n "\$top" ] && kill -TERM "\$top" ;;
+esac
+EOF
+chmod +x "$TMP/g4bin/mktemp"; printf 'old\n' > "$DST/dg4/r.md"; printf 'new\n' > "$TMP/g4/r.md"
+PATH="$TMP/g4bin:$PATH" MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/dg4" --src "$TMP/g4/r.md" --apply >/dev/null 2>&1; RC=$?
+LEFT="$(find "$DST/dg4" -mindepth 1 ! -name r.md)"
+if [ "$RC" -eq 143 ] && [ -z "$LEFT" ] && [ "$(cat "$DST/dg4/r.md")" = "old" ]; then ok "TERM between .bak creation and registration: no residue, target intact"; else bad "signal window left a .bak or touched the target" "rc=$RC left=$LEFT"; fi
+
+# G5 the scratchpad rule matches a path component named "scratchpad", not any name starting with it
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$MDIR/home/scratchpad-archive" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'would-copy'; then ok "durable ~/scratchpad-archive is not a scratch root"; else bad "scratchpad-archive must be accepted" "rc=$RC out=$OUT"; fi
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$MDIR/home/scratchpad/sub" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ]; then ok "a scratchpad/ component is still refused"; else bad "scratchpad/ --dest must be refused" "rc=$RC out=$OUT"; fi
 
 echo ""
 echo "  pass=$PASS fail=$FAIL"

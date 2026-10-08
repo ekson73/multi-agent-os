@@ -49,6 +49,7 @@ umask 077
 WORK=""
 DEST_TMPS=()
 PENDING_BAK="" # a backup being written: removed on any exit until it is a complete copy
+SIG_DEFER=""   # a signal received inside a deferred critical section (see the .bak creation)
 cleanup() {
   local rc=$? ok=1 f
   trap - EXIT INT TERM HUP
@@ -139,25 +140,35 @@ section_body_empty() { # rc 0 when "## <section>" has no non-blank line before t
     END { exit found ? 1 : 0 }' "$1"
 }
 
+squash() { # collapse repeated slashes: //tmp, //private/tmp and /usr//tmp name the same dirs
+  local p="$1"
+  while case "$p" in *//*) true ;; *) false ;; esac; do p="${p//\/\//\/}"; done
+  printf '%s' "$p"
+}
 canon() { # physical path of an existing file (symlinks resolved), else empty
   local d f="$1" n=0
   while [ -L "$f" ] && [ "$n" -lt 40 ]; do
     d="$(cd "$(dirname -- "$f")" && pwd -P)" || return 0
-    f="$(readlink -- "$f")"; case "$f" in /*) ;; *) f="$d/$f" ;; esac; n=$((n + 1))
+    f="$(readlink -- "$f")"; case "$f" in /*) ;; *) f="${d%/}/$f" ;; esac; n=$((n + 1))
   done
   [ -e "$f" ] || return 0
-  d="$(cd "$(dirname -- "$f")" && pwd -P)" && printf '%s/%s' "$d" "${f##*/}"
+  d="$(cd "$(dirname -- "$f")" && pwd -P)" || return 0
+  printf '%s/%s' "${d%/}" "${f##*/}" # ${d%/}: a child of / is /x, never //x
 }
 is_ephemeral() { # temp/scratch roots, including the canonical session temp root and macOS per-user temp
-  local t="${TMPDIR:-/tmp}" tc; t="${t%/}"; tc="$(cd "$t" 2>/dev/null && pwd -P)"
-  case "$1" in
+  local p t="${TMPDIR:-/tmp}" tc; p="$(squash "$1")"; t="$(squash "$t")"; t="${t%/}"
+  tc="$(cd "$t" 2>/dev/null && pwd -P)"; tc="$(squash "$tc")"
+  case "$p" in
     "") return 1 ;;
-    /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|/private/var/tmp|/private/var/tmp/*|*/scratchpad*) return 0 ;;
+    /tmp|/tmp/*|/private/tmp|/private/tmp/*|/var/tmp|/var/tmp/*|/private/var/tmp|/private/var/tmp/*) return 0 ;;
+    # a session scratchpad dir (a path component named exactly "scratchpad"), not any name that
+    # merely starts with it: ~/scratchpad-archive is a durable dir
+    */scratchpad|*/scratchpad/*) return 0 ;;
     # macOS per-user temp (/var/folders/<x>/<y>/T): ephemeral even when $TMPDIR points elsewhere
     /var/folders/*/T|/var/folders/*/T/*|/private/var/folders/*/T|/private/var/folders/*/T/*) return 0 ;;
     "$t"|"$t"/*) return 0 ;;
   esac
-  [ -n "$tc" ] && case "$1" in "$tc"|"$tc"/*) return 0 ;; esac
+  [ -n "$tc" ] && case "$p" in "$tc"|"$tc"/*) return 0 ;; esac
   return 1
 }
 cmd_check() {
@@ -353,9 +364,13 @@ cmd_persist() {
   [ "${#srcs[@]}" -gt 0 ] || die "persist: at least one --src required"
   # the point of persist is durability: a destination under a temp root (spelled, or the real
   # path of its nearest existing ancestor, symlinks followed) is refused before anything runs
-  local da="${dest/#\~/$HOME}"
+  # "~" is expanded ONCE, here: the gate and every write below use the same path (a quoted
+  # '~/x' must never be checked as $HOME/x and then written to a literal ./~/x)
+  # shellcheck disable=SC2088 # a literal "~" is exactly what is being matched here
+  case "$dest" in "~"|"~/"*) dest="$HOME${dest#\~}" ;; esac
+  local da="$dest"
   while [ ! -e "$da" ] && [ "$da" != "/" ] && [ "$da" != "." ]; do da="$(dirname -- "$da")"; done
-  if is_ephemeral "${dest/#\~/$HOME}" || is_ephemeral "$(canon "$da")"; then
+  if is_ephemeral "$dest" || is_ephemeral "$(canon "$da")"; then
     die "persist: --dest is under a temp/scratch root — refusing (a durable copy must survive temp cleanup)" 1
   fi
 
@@ -429,8 +444,15 @@ cmd_persist() {
         cp -- "$staged" "$tmp" || die "persist: cannot write $base" 1
         # never lose the previous version: a differing target is kept as a timestamped backup
         if [ -f "$target" ]; then
-          bak="$(mktemp "$target.bak.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")" || die "persist: cannot back up $base" 1
+          # INT/TERM/HUP are deferred across "create the .bak + register it": a signal landing
+          # between the two would otherwise exit before the trap knows the (empty) file exists
+          SIG_DEFER=""
+          trap 'SIG_DEFER=130' INT; trap 'SIG_DEFER=143' TERM; trap 'SIG_DEFER=129' HUP
+          bak="$(mktemp "$target.bak.$(date -u +%Y%m%dT%H%M%SZ).XXXXXX")" || bak=""
           PENDING_BAK="$bak" # an incomplete backup is residue: the EXIT trap removes it
+          trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+          [ -z "$SIG_DEFER" ] || exit "$SIG_DEFER"
+          [ -n "$bak" ] || die "persist: cannot back up $base" 1
           cp -p -- "$target" "$bak" || die "persist: cannot back up $base" 1
           PENDING_BAK="" # complete: kept on purpose (never lose the previous version)
         fi
