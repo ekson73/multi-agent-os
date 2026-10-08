@@ -368,6 +368,10 @@ cmd_persist() {
   # '~/x' must never be checked as $HOME/x and then written to a literal ./~/x)
   # shellcheck disable=SC2088 # a literal "~" is exactly what is being matched here
   case "$dest" in "~"|"~/"*) dest="$HOME${dest#\~}" ;; esac
+  # a trailing "/" makes "link/" stop being a symlink to [ -L ] and canon(): drop it (keep "/")
+  while [ "${#dest}" -gt 1 ] && [ "${dest%/}" != "$dest" ]; do dest="${dest%/}"; done
+  # ".." after a missing component is resolved only at mkdir time, past the gate: refuse it
+  case "/$dest/" in */../*) die "persist: --dest must not contain a '..' component — refusing" 1 ;; esac
   local da="$dest"
   while [ ! -e "$da" ] && [ "$da" != "/" ] && [ "$da" != "." ]; do da="$(dirname -- "$da")"; done
   if is_ephemeral "$dest" || is_ephemeral "$(canon "$da")"; then
