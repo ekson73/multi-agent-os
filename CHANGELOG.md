@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `person-agent-creator` and the first three person-agents
+
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`: DRY recon,
+  sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
+  five-lens synthesis, charter template, and a deterministic lint gate
+  (`scripts/lint-person-agent.sh`, 8 offline fixtures in `scripts/test-lint-person-agent.sh`).
+  Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
+  (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
+- Elevated in place to v2.0.0 person-agents, each with a dossier under
+  `skills/person-agent-creator/dossiers/`: `consultants/elon-musk`, `consultants/sam-altman`,
+  `consultants/amodei-siblings` (collective mind).
+
+### Fixed — unsourced quotes in three consultant archetypes
+
+- The v1.0.0 headline quotes of `sam-altman` and `amodei-siblings` were not found in any source checked
+  and were removed; `elon-musk`'s was not verified against a primary transcript and is now a labeled
+  paraphrase. Replacements are verbatim lines from the subjects' own writing, with sources.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
