@@ -21,7 +21,7 @@
 | Axis | Finding | Source | Status |
 |---|---|---|---|
 | Name meaning | Samuel: Hebrew *Shemuʾel*, "name of God" (alternative reading "God has heard"); the prophet who anointed Israel's first kings | S4 | documented |
-| Surname meaning | not checked | — | não verificado |
+| Surname meaning | not checked | — | unverified |
 | Birth | 22 April 1985, Chicago, Illinois | S1 | documented |
 | Education | John Burroughs School (Ladue, Missouri); two years of computer science at Stanford, left in 2005 without a degree | S1 | documented |
 | Timeline / companies | Loopt (co-founded 2005, age 19; acquired by Green Dot, March 2012) · Y Combinator partner (2011), president (Feb 2014–March 2019) · OpenAI co-founder (2015), CEO (2019–) · Tools for Humanity / Worldcoin co-founder (2019) · chair of Helion Energy · chair of Oklo (May 2024–April 2025) | S1 | documented |
@@ -66,4 +66,4 @@
 
 ## 7. Fidelity summary
 
-documented: 8 · inferred: 3 · cultural: 3 · não verificado: 2 (surname meaning, adversity response)
+documented: 8 · inferred: 3 · cultural: 3 · unverified: 2 (surname meaning, adversity response)

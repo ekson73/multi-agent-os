@@ -28,7 +28,7 @@
 | Axis | Finding | Source | Status |
 |---|---|---|---|
 | Names | Dario: Italian form of Darius, from Old Persian *Dārayavauš*, "possessing goodness". Daniela: feminine of Daniel, Hebrew *Daniyyel*, "God is my judge" | S9 | documented |
-| Surname meaning | not checked | — | não verificado |
+| Surname meaning | not checked | — | unverified |
 | Births | Dario: 1983, San Francisco. Daniela: 1987, San Francisco. Exact dates not in sources read | S1, S2 | documented (year only) |
 | Education — Dario | attended Caltech; BS physics, Stanford; PhD biophysics, Princeton (thesis 2011, on network-scale electrophysiology of neural circuits); postdoc, Stanford School of Medicine; Hertz Fellow (2007) | S1, S8 | documented |
 | Education — Daniela | Lowell High School (San Francisco); BA English literature, UC Santa Cruz (music and liberal arts, classical-flute scholarship) | S2 | documented |
@@ -48,7 +48,7 @@
 | Secondary minds | **Optimistic long-range forecaster** (S3) · **concrete-problem decomposer** (S6) | S3, S6 | documented |
 | M.O. | Name the concrete failure modes · measure trends · commit in advance to thresholds · scale only when the safeguards for that level are in place · publish the reasoning | S5, S6, S7 | documented / inferred |
 | Positive traits | Public reasoning in long-form writing (S3) · research rigor (S6, S7) · institution building (S2, S4) · balancing hope and caution (S3) | S2–S7 | documented |
-| Expert-drawn profile | no full biography located this round | — | não verificado |
+| Expert-drawn profile | no full biography located this round | — | unverified |
 
 ## 4. Cultural-semiotic inputs (non-evidential)
 
@@ -78,4 +78,4 @@
 
 ## 7. Fidelity summary
 
-documented: 11 · inferred: 3 · cultural: 1 · não verificado: 4 (surname, birth dates, expert profile, items 22–23)
+documented: 11 · inferred: 3 · cultural: 1 · unverified: 4 (surname, birth dates, expert profile, items 22–23)

@@ -14,7 +14,7 @@
 
 | Axis | Finding | Source | Status |
 |---|---|---|---|
-| Name meaning / etymology | | | documented / não verificado |
+| Name meaning / etymology | | | documented / unverified |
 | Education (published sources only) | | | |
 | Timeline | | | |
 | Creations, companies, achievements | | | |
@@ -41,10 +41,10 @@
 
 ## 5. 33 Socratic answers
 
-<Q1..Q33, one line each, with source id or `não verificado`.>
+<Q1..Q33, one line each, with source id or `unverified`.>
 
 ## 6. Source conflicts and open items
 
 ## 7. Fidelity summary
 
-documented: N · inferred: N · cultural: N · não verificado: N
+documented: N · inferred: N · cultural: N · unverified: N

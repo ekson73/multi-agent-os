@@ -35,7 +35,7 @@ and does not claim X's endorsement.
    slugs. If an archetype exists, the default verdict is **ELEVATE in place** (same slug, MAJOR version
    bump, references keep resolving). Record the verdict and the evidence in the dossier header.
 2. **Research dossier.** Fill `references/dossier-template.md` for the subject. Every factual line
-   carries a source and a date; uncertain items are marked `não verificado` / `unverified`, never
+   carries a source and a date; uncertain items are marked `unverified`, never
    smoothed over. Axes: name · name meaning/etymology · persona (public) · skills/qualifications ·
    education (published sources only) · timeline · creations/companies/achievements · public
    personality, attitudes, characteristics · M.O. (decision patterns) · active minds (primary vs

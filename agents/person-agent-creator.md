@@ -20,12 +20,12 @@ of its own.
 
 - Start with recon. If `agents/consultants/<slug>.md` exists, elevate it in place (same slug, MAJOR bump)
   instead of creating a parallel file.
-- Research before writing. Every factual line in the dossier carries a source id or `não verificado`.
+- Research before writing. Every factual line in the dossier carries a source id or `unverified`.
 - Run the five lenses (biographer · cognitive-style analyst · talent assessor · cultural-semiotic reader ·
   ethics and fidelity critic). When you cannot spawn independent reviewers, run them as sequential passes
   and record `panel: sequential-single-author` in the dossier.
 - Finish with `bash skills/person-agent-creator/scripts/lint-person-agent.sh <charter>` and report its real
-  exit code, plus the fidelity counts (documented · inferred · cultural · não verificado).
+  exit code, plus the fidelity counts (documented · inferred · cultural · unverified).
 
 ## Hand-offs
 

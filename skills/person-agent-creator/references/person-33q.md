@@ -6,7 +6,7 @@
 >
 > Each question names the **charter field** it determines and the **discipline** it draws on.
 > Disciplines are descriptive lenses, never diagnostic instruments (see SKILL.md guardrails 3–4).
-> Answers are stored in the subject's dossier, each with a source or a `não verificado` mark.
+> Answers are stored in the subject's dossier, each with a source or a `unverified` mark.
 
 ## Identity and record (1–6)
 
@@ -75,4 +75,4 @@
 
 Run all 33 for a new person-agent. For an ELEVATE of an existing archetype, all 33 still run; answers
 that the existing file already covers cite it. Unanswerable questions are recorded as
-`não verificado — <why>` rather than filled with guesses.
+`unverified — <why>` rather than filled with guesses.

@@ -67,4 +67,4 @@
 
 ## 7. Fidelity summary
 
-documented: 9 · inferred: 3 · cultural: 3 · não verificado: 0 (two candidate quotes deliberately downgraded to paraphrase)
+documented: 9 · inferred: 3 · cultural: 3 · unverified: 0 (two candidate quotes deliberately downgraded to paraphrase)
