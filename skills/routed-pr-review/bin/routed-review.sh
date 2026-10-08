@@ -245,17 +245,24 @@ if [ "$CHANGES_REQ" = no ]; then
     # anything else is UNKNOWN, which blocks.
     # ⛔ ALLOW-list, not deny-list: a state outside the five GitHub documents
     # (`CHANGES_REQUESTED_V2`, `""`) is not a review that can be ignored, it is
-    # an answer that cannot be read. A decisive review must carry an ISO-8601
-    # UTC `submitted_at`: an arbitrary string sorts after every real date and
-    # would let a malformed APPROVED shadow a real CHANGES_REQUESTED.
+    # an answer that cannot be read. A decisive review must carry a REAL
+    # ISO-8601 UTC `submitted_at` in GitHub's whole-second form: it must parse
+    # AND print back byte-identical (`2026-99-99T99:99:99Z` and `2026-11-31…`
+    # fail). Order is by epoch SECONDS, never by string: `…00Z` sorts after
+    # `…00.5Z` as text, and an arbitrary string sorts after every real date —
+    # either would let a malformed APPROVED shadow a real CHANGES_REQUESTED.
+    # Fractional seconds are not GitHub's format: UNKNOWN, which blocks.
     # ⛔ Ties fail closed: when a reviewer's latest decisive reviews share one
-    # timestamp (1-second granularity) and any of them is CHANGES_REQUESTED,
-    # the change request wins — the order between them cannot be proven.
+    # epoch second and any of them is CHANGES_REQUESTED, the change request
+    # wins — the order between them cannot be proven.
     CHANGES_REQ="$(printf '%s' "$_hist" | jq -s -r '
       def decisive: .state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED";
       def known: decisive or .state == "COMMENTED" or .state == "PENDING";
+      def epoch: .submitted_at as $s
+               | try ($s | fromdateiso8601 | if todateiso8601 == $s then . else null end) catch null;
       def iso: (.submitted_at | type) == "string"
-               and (.submitted_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"));
+               and (.submitted_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+               and (epoch | type) == "number";
       if (length > 0) and all(.[]; type == "array"
             and all(.[]; type == "object" and (.state | type) == "string" and known
                     and ((decisive | not)
@@ -264,7 +271,7 @@ if [ "$CHANGES_REQ" = no ]; then
       then
         [.[][] | select(decisive)]
         | group_by(.user.login)
-        | map((map(.submitted_at) | max) as $last | [.[] | select(.submitted_at == $last) | .state])
+        | map((map(epoch) | max) as $last | [.[] | select(epoch == $last) | .state])
         | if any(.[]; any(.[]; . == "CHANGES_REQUESTED")) then "yes" else "no" end
       else "unknown" end' 2>/dev/null)" || CHANGES_REQ="unknown"
     [ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
