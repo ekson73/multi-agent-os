@@ -683,6 +683,17 @@ else
     fail "bin/tests/continuation-broadcast.test.sh missing"
 fi
 
+CM_TESTS="$PLUGIN_ROOT/bin/tests/close-out-manifest.test.sh"
+if [ -x "$PLUGIN_ROOT/bin/close-out-manifest.sh" ] && [ -f "$CM_TESTS" ]; then
+    if bash "$CM_TESTS" >/dev/null 2>&1; then
+        pass "bin/tests/close-out-manifest.test.sh passes"
+    else
+        fail "bin/tests/close-out-manifest.test.sh FAILED (run 'bash bin/tests/close-out-manifest.test.sh')"
+    fi
+else
+    fail "bin/close-out-manifest.sh or its test suite missing"
+fi
+
 # research-dossier: the two f=0 gates, proven in BOTH directions (valid passes,
 # each negative fixture fails for its OWN reason). Skips cleanly without node.
 RD_TESTS="$PLUGIN_ROOT/bin/tests/research-dossier.test.sh"
@@ -711,6 +722,7 @@ fi
 # supporting SSOT docs
 for d in skills/postflight/references/continuation-broadcast-protocol.md \
          skills/postflight/references/close-out-hunt-checklist.md \
+         skills/postflight/references/close-out-manifest-protocol.md \
          docs/adrs/ADR-010-continuation-broadcast.md; do
     if [ -f "$PLUGIN_ROOT/$d" ]; then pass "$d exists"; else fail "$d missing"; fi
 done
