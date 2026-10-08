@@ -530,8 +530,12 @@ build_pinned_diff() {  # writes the pinned diff to $DIFF_F
     || die "no merge base between the pinned base and head — cannot build the pinned diff"
   # No external diff driver, no textconv: both come from attributes/config the
   # PR or the host controls, and either rewrites the bytes the reviewer reads.
+  # `--text`: a tree-to-tree diff reads `-diff`/`binary` from the CWD's
+  # .gitattributes, $GIT_DIR/info/attributes and core.attributesFile — none of
+  # them the pinned trees — so without it the PR (or the host) could mark a
+  # changed file binary and the reviewer would read only "Binary files differ".
   git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false \
-      diff --no-color --no-ext-diff --no-textconv --no-relative \
+      diff --no-color --no-ext-diff --no-textconv --text --no-relative \
       --src-prefix=a/ --dst-prefix=b/ -M "$mb" "$HEAD_SHA" > "$DIFF_F" 2>/dev/null \
     || die "cannot build the pinned diff"
 }

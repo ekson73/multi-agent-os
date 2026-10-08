@@ -940,6 +940,19 @@ case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
 RC=0; OUT="{\"v\":\"$GOT\"}"
 check "a later valid APPROVED is not read as a change request" 0 '.v' "cleared"
 
+# ── 88-89 ── a `-diff` attribute from the host never hides a changed file.
+# A tree-to-tree diff reads attributes from $GIT_DIR/info/attributes and from
+# core.attributesFile, not from the pinned trees: without --text the reviewer
+# got "Binary files … differ" instead of the head's line.
+mkdir -p "$REPO_DIR/.git/info"; printf '*.txt -diff\n' > "$REPO_DIR/.git/info/attributes"
+OUT="$(T_PROMPT_MARK="PINNED_HEAD_LINE_79" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+rm -f "$REPO_DIR/.git/info/attributes"
+check "an info/attributes -diff never hides the change" 3 '.review | contains("PROMPT-CARRIED-PINNED_HEAD_LINE_79")' "true"
+printf '*.txt -diff\n' > "$SANDBOX/host-attrs"
+OUT="$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.attributesFile GIT_CONFIG_VALUE_0="$SANDBOX/host-attrs" \
+       T_PROMPT_MARK="PINNED_HEAD_LINE_79" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a host core.attributesFile -diff never hides the change" 3 '.review | contains("PROMPT-CARRIED-PINNED_HEAD_LINE_79")' "true"
+
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || { printf '  failed: %s\n' "${FAILED_NAMES[*]}"; exit 1; }
