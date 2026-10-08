@@ -23,11 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit `?`/`:` keys, and the body loaded as YAML are all checked). The frontmatter is loaded with `yaml.safe_load`
   (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
   fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
-  tree per refused form. When the strict loader refuses the body or a template block, a duplicated contract key fails and the text is
-  re-read with `yaml.safe_load_all` one document at a time (documents before a failing one are still walked); under
-  `roles/` a body that YAML cannot read to the end fails. Template fences are read case-insensitively, with 3 or more
-  backticks or tildes, inside `>` quotes or after list markers, and a fence open to end of file counts; YAML outside
-  fences in the template and unreadable template blocks without a contract key are not inspected. Without `perl` (time limit) the test also fails. It is a best-effort lint that fails closed,
+  tree per refused form. Any refusal by the strict loader in the frontmatter, the body under `roles/` or a template
+  block fails; there is no lenient re-read. Template fences are read case-insensitively at the start of a line
+  (``` or ~~~), and a fence open to end of file counts; YAML outside fences, fences inside `>` quotes or after list
+  markers, and fences of 4+ backticks or tildes are not inspected. The agent-spec example in `agents/forge.md` is
+  now tagged `markdown`. Without `perl` (time limit) the test also fails. It is a best-effort lint that fails closed,
   not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
   reading, or a registry outside `roles/`, and no CI workflow runs it yet.
 

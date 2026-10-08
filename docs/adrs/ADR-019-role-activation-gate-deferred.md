@@ -45,15 +45,13 @@ Three findings made that gate unfit to ship:
   `.gitkeep`), missing or unclosed frontmatter, a file that is not valid UTF-8 (the checker crashes, and the crash
   counts as a failure). The frontmatter is loaded with `yaml.safe_load` (PyYAML, YAML 1.1), with duplicate keys,
   anchors and aliases refused (this closes exponential alias expansion; the merge key `<<` is refused as a side effect
-  of the duplicate-key constructor, which cannot build it). In the frontmatter, YAML the strict loader refuses fails.
-  In the body and in template blocks, when the strict loader refuses, a duplicated contract key fails; then the text
-  is re-read with `yaml.safe_load_all` one document at a time, and every document it yields (including those before
-  a document that fails) is walked as nested: `role`/`status`/`tier` anywhere, a filled reserved field or a true
-  activation key fails. Under `roles/`, a body that not even `safe_load` reads to the end also fails (fail closed);
-  in the template, an unreadable block that names no contract key passes (declared limit). A body line starting with
-  `---` or `...` followed by a space (e.g. `--- # comment`) counts as a document separator. Template fences are
-  read with 3 or more backticks or tildes, case-insensitively, inside a `>` quote or after a list marker, and a fence
-  left open to end of file still counts; YAML outside fences in the template is not inspected. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
+  of the duplicate-key constructor, which cannot build it). One rule applies to the frontmatter, the body under
+  `roles/` and every template block: any refusal by the strict loader (parse error, duplicate key, unreadable
+  document, unknown tag, anchor, alias, merge key) fails. There is no lenient re-read. A body line starting with
+  `---` or `...` followed by a space (e.g. `--- # comment`) counts as a document separator. Only fences at the start
+  of a line are read in the template; YAML outside fences, fences inside a `>` quote or after a list marker, and
+  fences of 4 or more backticks or tildes are not inspected. The agent-spec example in `agents/forge.md` is tagged
+  ```` ```markdown ````, not ```` ```yaml ````, because it is not YAML. Each checker call is cut off after 30 s (a backstop that no probe measures today). On the loaded value: the root is a mapping, `status` is the string `latent`,
   `tier` (if present) is null, and `role`/`status`/`tier` appear only at the root (depth is counted, so an empty
   key `""` cannot make a nested mapping pass as the root); `!!omap`, `!!pairs` and `!!set` are refused; at any depth, inside mappings and
   lists, reserved fields are null and activation keys (`active`, `enabled`, `armed`, `effective`, `activated`) are

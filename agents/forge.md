@@ -273,7 +273,7 @@ Execute the 33 questions above. Answer internally. Synthesize.
 
 Produce file in standard format:
 
-```yaml
+```markdown
 ---
 name: {acronym-lowercase}
 version: 1.0.0
