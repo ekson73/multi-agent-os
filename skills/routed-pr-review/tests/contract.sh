@@ -905,6 +905,41 @@ else
   FAIL=$((FAIL+1)); FAILED_NAMES+=("case84-fixture"); echo "  FAIL  case 84 fixture could not be built"
 fi
 
+# Same value as `printf "$AT_HEAD" APPROVED`, without a variable format string.
+AT_APPROVED="${AT_HEAD/\%s/APPROVED}"
+
+# ── 85 ── an impossible date in a valid-looking format is UNKNOWN, never a later review.
+# `2026-99-99T99:99:99Z` passes a format regex and sorts after every real date as
+# text, so before the fix this APPROVED shadowed the real change request.
+for TS in 2026-99-99T99:99:99Z 2026-11-31T10:00:00Z; do
+  H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"$TS\"}]"
+  OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
+         EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  check "an impossible submitted_at blocks C3 ($TS)" 3 '.primary_verdict' "review_history_unreadable"
+done
+
+# ── 86 ── fractional seconds never reorder a change request away.
+# As text `…00Z` > `…00.5Z` ('Z' > '.'): the earlier APPROVED won. And `…00.000Z`
+# vs `…00Z` is one instant written two ways: the string tie never fired.
+for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.5Z\"}]" \
+         "[{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.000Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"; do
+  OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
+         EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
+    changes_requested|review_history_unreadable) GOT=blocked ;; *) GOT=cleared ;; esac
+  RC=0; OUT="{\"v\":\"$GOT\"}"
+  check "a fractional-second history never clears C3 (${H:80:40})" 0 '.v' "blocked"
+done
+
+# ── 87 ── guard (passes before AND after): a real, later APPROVED still supersedes.
+H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:01Z\"}]"
+OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
+  changes_requested|review_history_unreadable) GOT=blocked ;; *) GOT=cleared ;; esac
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a later valid APPROVED is not read as a change request" 0 '.v' "cleared"
+
 echo
 printf '  %s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || { printf '  failed: %s\n' "${FAILED_NAMES[*]}"; exit 1; }
