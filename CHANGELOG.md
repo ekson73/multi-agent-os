@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: RT414D round on 41a932b (#414)
+
+- **Review order is by epoch second, not by string.** A decisive review's
+  `submitted_at` must be GitHub's whole-second ISO-8601 UTC form and must parse
+  and print back byte-identical (`fromdateiso8601` / `todateiso8601`). An
+  impossible date (`2026-99-99T99:99:99Z`, `2026-11-31T…`) or a fractional
+  second (`…00.5Z`, `…00.000Z`) is `unknown` (blocks). Before, `…00Z` sorted
+  after `…00.5Z` as text and an impossible date sorted after every real one, so
+  a malformed APPROVED could shadow a real CHANGES_REQUESTED and clear C3.
+- **The pinned diff is built with `--text`.** A tree-to-tree diff reads
+  `-diff`/`binary` from the CWD's `.gitattributes`, `$GIT_DIR/info/attributes`
+  and `core.attributesFile`, so the PR or the host could make a changed file
+  reach the reviewer as "Binary files … differ".
+- `tests/contract.sh` — cases 85-89 and an exit-code assertion on case 84;
+  89 cases / 109 assertions.
+
 ### Fixed — `routed-pr-review`: the two P1 of the codex pass on 6466b11 and the symlink-prefix alert (#414)
 
 - **The reviewed diff is built from the pinned pair.** `gh pr diff` read the
