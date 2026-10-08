@@ -582,6 +582,25 @@ if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q 'would-copy'; then ok "durabl
 OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$MDIR/home/scratchpad/sub" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
 if [ "$RC" -eq 1 ]; then ok "a scratchpad/ component is still refused"; else bad "scratchpad/ --dest must be refused" "rc=$RC out=$OUT"; fi
 
+# G6 a symlink to a temp dir with a trailing slash ("link/", tab-completion) is still refused
+G6T="/tmp/close-out-g6.$$"; mkdir -p "$G6T"; ln -s "$G6T" "$DST/g6tl"
+for g6d in "$DST/g6tl/" "$DST/g6tl//"; do
+  OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$g6d" --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+  if [ "$RC" -eq 1 ] && [ -z "$(ls -A "$G6T")" ]; then ok "persist refuses --dest symlink-to-temp with trailing slash ($g6d)"; else bad "trailing-slash symlink to temp must be refused" "dest=$g6d rc=$RC out=$OUT"; fi
+done
+rm -rf -- "$G6T"
+
+# G7 '..' after a missing component would resolve into /tmp only at mkdir time: refused up front
+G7N="close-out-g7.$$"; G7UP=""; G7P="$(cd "$DST" && pwd -P)/nx"
+while [ "$G7P" != "/" ]; do G7UP="$G7UP/.."; G7P="$(dirname -- "$G7P")"; done
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/nx$G7UP/tmp/$G7N" --src "$TMP/g1/a.md" --apply 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ] && [ ! -e "/tmp/$G7N" ] && [ ! -e "$DST/nx" ]; then ok "persist refuses --dest with '..' escaping into /tmp"; else bad "'..' --dest must be refused" "rc=$RC out=$OUT"; fi
+rm -rf -- "/tmp/$G7N" "$DST/nx"
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/g7dir/../g7ok" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 1 ]; then ok "any '..' component in --dest is refused"; else bad "'..' --dest must be refused" "rc=$RC out=$OUT"; fi
+OUT="$(MAOS_SECRET_SCANNER="$FS" bash "$CM" persist --dest "$DST/g7..ok/" --src "$TMP/g1/a.md" 2>&1)"; RC=$?
+if [ "$RC" -eq 0 ]; then ok "a name merely containing '..' and a trailing slash is accepted"; else bad "'g7..ok/' must be accepted" "rc=$RC out=$OUT"; fi
+
 echo ""
 echo "  pass=$PASS fail=$FAIL"
 [ "$FAIL" -eq 0 ]
