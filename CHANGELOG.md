@@ -7,6 +7,211 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: RT414D round on 41a932b (#414)
+
+- **Review order is by epoch second, not by string.** A decisive review's
+  `submitted_at` must be GitHub's whole-second ISO-8601 UTC form and must parse
+  and print back byte-identical (`fromdateiso8601` / `todateiso8601`). An
+  impossible date (`2026-99-99T99:99:99Z`, `2026-11-31T…`) or a fractional
+  second (`…00.5Z`, `…00.000Z`) is `unknown` (blocks). Before, `…00Z` sorted
+  after `…00.5Z` as text and an impossible date sorted after every real one, so
+  a malformed APPROVED could shadow a real CHANGES_REQUESTED and clear C3.
+- **The pinned diff is built with `--text`.** A tree-to-tree diff reads
+  `-diff`/`binary` from the CWD's `.gitattributes`, `$GIT_DIR/info/attributes`
+  and `core.attributesFile`, so the PR or the host could make a changed file
+  reach the reviewer as "Binary files … differ".
+- `tests/contract.sh` — cases 85-89 and an exit-code assertion on case 84;
+  89 cases / 109 assertions.
+
+### Fixed — `routed-pr-review`: the two P1 of the codex pass on 6466b11 and the symlink-prefix alert (#414)
+
+- **The reviewed diff is built from the pinned pair.** `gh pr diff` read the
+  live PR, so a base switched and restored (B0 → B1 → B0) between snapshots
+  passed every pin while the reviewer got the B1 diff. The diff is now
+  `git diff merge-base(base, head) head` from the pinned SHAs (no external diff
+  driver, no textconv); a missing commit is fetched from `--repo`.
+- **The review history is an allow-list.** A state outside APPROVED /
+  CHANGES_REQUESTED / DISMISSED / COMMENTED / PENDING, or a decisive review
+  without an ISO-8601 `submitted_at`, makes the history `unknown` (blocks). A
+  same-second tie between decisive reviews of one reviewer blocks when any of
+  them is `CHANGES_REQUESTED`.
+- **A link on another entry's path refuses the export.** Before creating a
+  link, every existing component of its parent path must be a real directory
+  inside the export; a malformed tree that names a path twice can no longer
+  make `mkdir -p` / `ln -s` write outside it.
+- `tests/contract.sh` — cases 79-84 (fixture now has a real base commit); 84 cases / 101 assertions.
+
+### Fixed — `routed-pr-review`: four P1 of the final codex red-team round on #414
+
+- **The base is pinned.** Head and base are fixed in Phase A and re-read after
+  the diff (moved ⇒ refused), after the review (moved ⇒ cannot complete C3) and
+  before posting (moved ⇒ not posted).
+- **The export holds raw blobs.** Files are written with `git cat-file blob`,
+  not `checkout-index` (which applied smudge filters, `ident` and eol
+  conversion), and each is checked with `git hash-object --no-filters`.
+- **An unreadable review history blocks.** `null`, `{}` or a malformed reviews
+  answer is `unknown`, never "no change request".
+- **Symlinks cannot reach the host.** Absolute or escaping targets become text
+  markers; in-tree links are kept.
+
+### Fixed — `routed-pr-review`: open P1/P2 findings from the codex connector on #414
+
+- **`--primary` is the configured set.** When declared, primaries are classified
+  against that list alone; an undeclared bot's stale or commented review no
+  longer blocks C3 (an active `CHANGES_REQUESTED` from any reviewer still does).
+- **The export ignores `export-ignore`.** The reviewer's tree is built from a
+  throwaway index (`read-tree` + `checkout-index`), not `git archive`, so a PR
+  cannot hide a file from its own reviewer through `.gitattributes`; the export
+  is checked to hold every tracked path of the head.
+- **No spin on a non-directory lock.** A regular file or symlink at the state
+  lock path is refused, a stale lock is reclaimed at most once, and attempts
+  are capped.
+- **Leading-zero retry values** from the state file are read as decimal.
+- **Raw reviewer stderr is withheld** by default (it may carry a secret); only
+  the sanitized failure token is printed. `ROUTED_REVIEW_DEBUG_STDERR=1` opts in.
+- Contract: the concurrent-writer cases are triggered by the reviewer's start
+  marker instead of a wall-clock timer (the flaky case 22); five new cases.
+
+### Fixed — `routed-pr-review`: gate, diversity and isolation follow-ups from the #414 review rounds
+
+- **Declared primaries.** `--primary L1,L2` names the configured primary
+  reviewers. A declared primary that has not approved the current head keeps
+  the gate at exit `3`; without the flag the configured set is reported as
+  undeclared and C3 is not completed. `--primary` with `--no-primary-configured`
+  is refused.
+- **The routed verdict gates C3.** Only a routed `PASS` can complete C3; a
+  routed `REQUEST_CHANGES` (or no verdict) leaves exit `3`.
+- **Diversity by provider family.** The caller is matched by provider family,
+  not binary name, so a same-family reviewer is skipped or refused. Undeclared
+  callers and multi-provider harnesses (`copilot`, `pi`, `jcode`, `opencode`,
+  `kiro-cli`) yield `unverified` diversity.
+- **Honest review output.** A non-zero reviewer exit is not stamped as a
+  review; a truncated diff and a head that moved during the review both block
+  C3; the output fence grows past any backtick run in the text.
+- **Exact bot matching.** Review bots are matched by exact login, so a human
+  whose name contains a bot name no longer counts; a quota signal from a bot
+  that has since approved the head is ignored.
+- **Isolation.** Every reviewer now reads a read-only export of the head
+  (the cwd shortcut is gone); symlinks are part of the tamper manifest; the
+  live-repo check hashes content, not status lines; `claude` and `codex` get the
+  prompt on stdin; `gtimeout` is accepted where `timeout` is missing; the PR
+  head is fetched from `--repo`; `kiro` is invoked as `kiro-cli`.
+- `codex` gets `--skip-git-repo-check`, since the export has no `.git` (found by the H6 red-team run on this PR).
+- **Red-team findings (codex, routed, head `5701213`)**: the gate re-reads the
+  PR after the review and recomputes the primaries (an approval withdrawn
+  during the run was missed); a human `CHANGES_REQUESTED` blocks even when
+  `reviewDecision` is empty; the routed verdict is only the terminal line, and
+  a PASS beside a REQUEST_CHANGES line is no verdict; `--json` carries the
+  review text; a declared `--primary` outside the built-in bot list can clear.
+- **Second red-team round (codex, head `64f6ee6`)**: `claude` runs with
+  `--tools Read,Grep,Glob --strict-mcp-config` (`--allowedTools` only grants
+  permission) and under `sandbox-exec` where available; the export's baseline
+  manifest is checked against a digest kept in memory, and the sandbox also
+  write-protects the baseline and the work-dir node; the verdict token must be
+  exact and outside an unclosed code fence; the PR body and commit messages are
+  in the prompt; a timeout's reason is `timeout`.
+- **Third red-team round (codex + kimi, head `a579013`)**: an active change
+  request is read from the full review history (a later COMMENTED no longer
+  hides it; unreadable history blocks); fences are tracked by character and
+  length; a verdict indented by up to 3 spaces is read; the attestation probe
+  also reads review comments; the live-repo snapshot includes HEAD, so a commit
+  is an escape; `timeout -k 30` kills a reviewer that ignores SIGTERM; GNU/BSD
+  `stat` attempts are captured separately; `code-reviewer.md` states the
+  conditional guarantees; SKILL.md documents the host-hook and git-work-tree
+  limits.
+- **Fourth red-team round (codex, head `85225b4`)**: a closing fence with
+  trailing spaces is measured by its fence characters only; exit `137`
+  (`timeout -k` kill) is a timeout, not a broken reviewer; the
+  `code-reviewer.md` count is `+24/−1, 17 → 40`.
+- `tests/contract.sh` — +33 cases (29-61), 61 cases / 72 assertions.
+
+### Security — `routed-pr-review`: rename-away/write-back of the state directory is blocked; a symlinked state file is no longer used
+
+- **TOCTOU closed (armed boundary).** Under `os-sandboxed` the profile now write-denies the state directory and every ancestor (literal), so the reviewer can no longer rename the directory away, write the real file through the new path and rename it back — a sequence that kept path and inode identical and left the change unreported (contract case 27). Cases 25-26 now accept "prevented" as well as "detected".
+- **Fail-open closed.** A symlinked state file was write-denied only by name while writes followed the link and the digest of a symlink stayed constant; such a file is now ignored for the run and replaced by an ephemeral empty state (contract case 28).
+- Both fixes are mutation-checked (removing either makes its case fail). Remaining limits are documented in `SKILL.md` (no kernel boundary ⇒ write-and-revert inside the window is unreported; detached reviewer descendants outlive the post-dispatch checks).
+
+### Security — `routed-pr-review`: a swapped state directory no longer slips past the armed-boundary skip
+
+- `skills/routed-pr-review/bin/routed-review.sh` — under an armed kernel
+  boundary the state content compare was skipped because the state FILE is
+  write-denied, but its parent and ancestor directories were not: a reviewer
+  could rename the parent and leave a decoy (symlink or same-path real tree)
+  with a forged entry, undetected (reproduced). The state directory's identity
+  (resolved path + device:inode) is now snapshotted and verified after
+  dispatch in every class; a change aborts as `violated:state-file`. +2 cases
+  (36/36); a mutation disabling the check turns both RED.
+
+### Fixed — `routed-pr-review` state check: no blind restore, no false alarm under an armed kernel
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the post-dispatch state
+  check restored the pre-run bytes on any change. A concurrent run recording a
+  failure during dispatch therefore aborted a valid review as
+  `violated:state-file` **and** had its record reverted (reproduced; also the
+  confused-deputy restore a security review flagged). Now: no restore — a
+  change aborts and the file is left for inspection; under an armed kernel
+  boundary the compare is skipped, because the profile now denies write,
+  rename-over and unlink of the state **file** itself (proven, with a mutation
+  check); the deny no longer covers the whole state directory; writers use a
+  mkdir mutex and same-directory atomic replace, and never write through a
+  symlink. +4 cases / +7 assertions (34/34).
+
+### Fixed — `routed-pr-review` gate: only APPROVED clears, tamper check cannot pass vacuously, reviewer env is an allowlist
+
+- `skills/routed-pr-review/bin/routed-review.sh` — three findings from a
+  routed review of #414, each reproduced before fixing:
+  - a bot `COMMENTED` review at the head counted as clearing a primary, and a
+    second bot that commented or requested changes at the same head was
+    ignored beside one approval. Now only `APPROVED` at the head clears; any
+    other latest state is pending.
+  - the export/live-repo tamper checks hashed with `shasum` and discarded its
+    errors: with a failing or missing tool both manifests were empty and the
+    check reported `clean`. The hash tool is resolved once (`shasum` or
+    `sha256sum`), a manifest must hold one digest per file, and failure aborts.
+  - the reviewer environment is now an allowlist (base vars, locale/proxy, the
+    reviewer vendors' credential prefixes, plus `ROUTED_REVIEW_ENV_ALLOW`);
+    repo tokens and `ROUTED_REVIEW_*` never reach the reviewer.
+- `CHANGELOG.md` — the #414 contract-test bullet had landed inside the released
+  `[1.22.1]` section; moved under the unreleased #414 entry.
+- `tests/contract.sh` — +4 cases / +5 assertions (27/27); rotation state moved to its own
+  subdir so a write-denied state dir cannot make a leak test pass falsely.
+
+### Security — `routed-pr-review` rotation state is isolated from, and not trusted by, the reviewer
+
+- `skills/routed-pr-review/bin/routed-review.sh` — the reviewer process
+  inherited `ROUTED_REVIEW_STATE` and could write the rotation state file (the
+  kernel profile denied only the export and the live repo). A dogfood run
+  showed a reviewer-side write landing there. A reviewer steered by PR content
+  could therefore mark healthy families as limited/broken (directable
+  selection / persistent denial of review), and values from the file reached
+  shell arithmetic unvalidated. Now: `ROUTED_REVIEW_*` scrubbed from the
+  reviewer env; state dir write-denied in the sandbox profile; state file
+  snapshotted per candidate and verified after dispatch in every enforcement
+  class (change ⇒ `isolation_violated`, bytes restored); timestamps must be
+  strict UTC ISO-8601 and not in the future, `retry_after_sec` must be an
+  integer ≤ 86400, otherwise the entry is ignored; failure triage reads stderr
+  only. +3 cases / +4 assertions (22/22).
+
+### Fixed — `routed-pr-review` triages a failed reviewer: broken ≠ quota, then falls through
+
+- `skills/routed-pr-review/bin/routed-review.sh` — a reviewer that produced no
+  review was always recorded as rate-limited and the run exited `2`. An
+  ineligible-account CLI (`IneligibleTierError`, rc=2) was therefore re-picked
+  every time its 1h window expired and could never succeed. Failures are now
+  classified per `pr-review-protocol` §4.1(b): **quota** only on a positive
+  capacity signal (recorded as `last_limited_at`, as before); **broken** for
+  anything else (recorded as `broken_at` + a sanitized reason token, excluded
+  from auto-pick for `ROUTED_REVIEW_BROKEN_TTL_SEC`, default 24h); **timeout**
+  excluded for the run only. In auto mode the run falls through to the next
+  family and lists every `skipped_candidates` entry in the JSON; an explicit
+  `--reviewer` is classified (`failure_class`) and never swapped. The state-file
+  timestamps are now parsed as UTC (they were read as local time).
+- `skills/routed-pr-review/tests/contract.sh` — +4 cases / +7 assertions
+  (broken fallthrough, broken skip on the next run, quota positive control,
+  explicit reviewer not swapped). The harness now points
+  `ROUTED_REVIEW_STATE` at its sandbox; before, case 4 wrote to the operator's
+  real rotation state file.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
@@ -431,6 +636,43 @@ Cada correcao abaixo tem contraprova executada.
   `sideways` scan block (non-portable `head -N`, `--breadth=all` crashing
   `head`/`gh --limit`, the current worktree not excluded from sideways
   enumeration, and whitespace-unsafe word-splitting on worktree paths).
+
+### Added — `routed-pr-review` skill · isolated PR review when bots are quota-blocked (#414)
+
+- `skills/routed-pr-review/` (new, soul-name **Euthyna**) — dispatches an
+  independent PR review whose context is isolated from the delegator **by
+  construction**: a fresh OS process in a different vendor family, prompted to
+  REFUTE rather than approve. Closes the rung left open by
+  `ai-code-review-bots-rotation` §5 (a local lint pass is *partial evidence, NOT
+  a review*) and `pr-review-protocol` §4.1 (a bot answering at ~8h): keep
+  **reviewing** while blocked, never **merge** while blocked.
+- **Consumable contract**: `bin/routed-review.sh --pr N [--repo O/R]
+  [--reviewer NAME] [--post] [--json] [--timeout SEC] [--max-turns N]
+  [--no-primary-configured]`. Exit codes are load-bearing — `0` reviewed and may
+  complete C3 · `3` reviewed but a primary is still pending · `2` no reviewer
+  available or empty output · `1` error or isolation violation.
+- **Gate honesty is mechanical** (§4.1(e)): a routed review satisfies the C3
+  *diversity* limb ONLY and never a configured primary's verdict.
+  `may_complete_c3` is computed from a live primary probe; absence of a primary
+  is an **operator attestation**, never an inference.
+- **Read-only enforcement in two classes**: `vendor` (`codex --sandbox
+  read-only`, `claude --allowedTools`) and `os` for the others — a disposable
+  `git archive` export, every path `chmod a-w`, no `.git`, plus a `sha256`
+  manifest tamper-check after the run. The `os` class is `os-sandboxed` only
+  where `sandbox-exec` works; elsewhere it is `os-perms-only`, which detects a
+  write but does not prevent it. Drift ⇒ exit `1` and nothing is stamped.
+- `agents/code-reviewer.md` — additive independence boundary: the in-harness
+  reviewer now declares itself a *correlated* verifier and routes to this skill
+  wherever `verifier != generator` is the actual requirement.
+- **Hardened by two dogfood cycles against its own PR** (reviewer `codex`,
+  isolated): cycle 1 caught a `vendor` classification resting on a flag the code
+  never passed, and an `absent` conclusion drawn from PR silence. Cycle 2 caught
+  five more — unpaginated absence probe, human reviews landing in the
+  bot-cleared set, vendor paths reading a tree not proven to be the stamped SHA,
+  `--reviewer` bypassing the caller-exclusion invariant, and a mandatory secret
+  scan that was silently skipped when `gitleaks` was absent. All fixed in-PR.
+
+- `routed-pr-review` contract tests (`tests/contract.sh`) — 9 cases / 11 assertions run the real script against a stub `PATH`, asserting the gate *path* rather than the line. Caught defects #20, #21 and #22 across two runs — the last being that the whole `os-perms-only` fallback class crashed on every non-macOS host (`set -u` + bash < 4.4 empty-array expansion, on hosts without a working `sandbox-exec`).
 
 ### Added — `morning-briefing` command card (#403, review-hardened #404)
 
