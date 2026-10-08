@@ -897,10 +897,13 @@ SHA84="$(cd "$REPO_DIR" && {
   git commit-tree "$root" -p "$BASE_SHA" -m malformed84; } 2>/dev/null)"
 if [ -n "$SHA84" ]; then
   OUT="$(TMPDIR="$TMP84" T_HEAD="$SHA84" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+  RC84="$RC"
   if [ -e "$TMP84/y" ] || [ -L "$TMP84/y" ]; then GOT=escaped; else GOT=contained; fi
   RC=0; OUT="{\"v\":\"$GOT\"}"
   check "a link on another entry's path is never written through" 0 '.v' "contained"
   ok_grep "the refusal names the link on the path" 'sits on the path of another tracked entry'
+  RC="$RC84"; OUT='{}'
+  check "the refusal exits 1 (isolation), never 0/2/3" 1
 else
   FAIL=$((FAIL+1)); FAILED_NAMES+=("case84-fixture"); echo "  FAIL  case 84 fixture could not be built"
 fi
