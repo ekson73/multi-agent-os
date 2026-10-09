@@ -16,7 +16,7 @@
 | S5 | GIGAZINE, coverage of "How To Be Successful" dated 2019-01-30 — https://gigazine.net/gsc_news/en/20190130-how-to-be-successful | press (dates S2) | 2019 |
 | S4 | Behind the Name, "Samuel" — https://www.behindthename.com/name/samuel | etymology | 2026 |
 | S6 | Oklo newsroom, merger announcement with AltC ("has served as Chairman of Oklo since 2015") — https://oklo.com/newsroom/oklo-an-advanced-fission-technology-company-to-go-public-via-merger-with-altc-acquisition-corp | company | 2023 |
-| S7 | GeekWire, report on Helion and OpenAI ("Altman is stepping down from its board of directors", Helion CEO statement) — https://www.geekwire.com/2026/report-helion-is-working-on-a-massive-fusion-power-deal-with-openai/ | press | 2026-03-23 |
+| S7 | GeekWire, report on Helion and OpenAI (Altman leaving Helion's board, per a Helion CEO statement; page returned 403 on re-fetch 2026-10-09, wording not re-confirmed) — https://www.geekwire.com/2026/report-helion-is-working-on-a-massive-fusion-power-deal-with-openai/ · corroborated by Reuters, 2026-03-23 (as syndicated by WHBL); Axios reported it as leaving the board chair | press | 2026-03-23 |
 
 ## 2. Identity and record
 
@@ -65,7 +65,7 @@
 - S2 shows no date on the page; January 2019 comes from S5 (press coverage dated 2019-01-30).
 - The v1.0.0 headline quote has no source and was removed.
 - Item 23 (adversity response) left open — not analyzed with sources this round.
-- Helion: S1 (Wikipedia, read 2026-10-08) still lists him as chairman; S7 (Helion statement to GeekWire, 2026-03-23) reports his departure from the board. S7 is the primary statement and is used.
+- Helion: S1 (Wikipedia, read 2026-10-08) still lists him as chairman; S7 (Helion statement to GeekWire, 2026-03-23) reports his departure from the board. S7 is the primary statement and is used; Reuters (2026-03-23) corroborates the departure, Axios frames it as leaving the chair. Whether he left the board entirely or only the chair is not settled by the sources read.
 
 ## 7. Fidelity summary
 

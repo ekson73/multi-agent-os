@@ -42,12 +42,12 @@
 
 | Axis | Finding | Source | Status |
 |---|---|---|---|
-| Primary mind (joint) | **Safety-gated builder**: capability work proceeds behind explicit, pre-committed safety thresholds | S5, S4 | documented |
+| Primary mind (joint) | **Safety-gated builder**: capability work proceeds behind explicit, pre-committed safety thresholds (per the 2023 RSP; later versions not re-checked) | S5, S4 | documented (dated 2023) |
 | Dario's lens | **Empirical scientist** — physics and neuroscience training; measures before claiming (scaling laws, concrete safety problems) | S1, S6, S7 | documented / inferred |
 | Daniela's lens | **Organization and policy builder** — communications, policy, safety-and-policy leadership, scaling teams | S2 | documented / inferred |
 | Secondary minds | **Optimistic long-range forecaster** (S3) · **concrete-problem decomposer** (S6) | S3, S6 | documented |
 | M.O. | Name the concrete failure modes · measure trends · commit in advance to thresholds · scale only when the safeguards for that level are in place · publish the reasoning | S5, S6, S7 | documented / inferred |
-| Positive traits | Public reasoning in long-form writing (S3) · research rigor (S6, S7) · institution building (S2, S4) · balancing hope and caution (S3) | S2–S7 | documented |
+| Positive traits | Public reasoning in long-form writing (S3) · research rigor (S6, S7) · institution building (S2, S4) · balancing hope and caution (S3) | S1–S7 | documented / inferred |
 | Expert-drawn profile | no full biography located this round | — | unverified |
 
 ## 4. Cultural-semiotic inputs (non-evidential)
@@ -75,7 +75,10 @@
 - S2 gives 2020 for leaving OpenAI and 2021 for co-founding.
 - No full biography located; expert-drawn profile left open.
 - Items 22–23 (leadership style, adversity response) left open.
-- Only the 2023 Responsible Scaling Policy (S5) was read; later revisions were not checked this round.
+- Only the 2023 Responsible Scaling Policy (S5) was read. Later versions exist (Anthropic lists a 3.0 rewrite
+  in February 2026 and updates through 3.4 in July 2026); none was re-checked, so the primary-mind trait is
+  dated to 2023 — unverified for the current policy.
+- No published critical account of either person was sought in this round.
 
 ## 7. Fidelity summary
 

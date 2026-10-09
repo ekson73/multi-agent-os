@@ -12,17 +12,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`: DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 48 offline fixtures in `scripts/test-lint-person-agent.sh`, also
-  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: required sections and the
-  fidelity table, unfilled placeholders, a source marker on blockquote lines that contain a quotation
-  (presence, not existence of the id), words from non-exhaustive clinical and cultural lists outside
-  *Known limits*, and a bounded list of first-person, role-play and endorsement patterns, on every line
-  after stripping markdown prefixes. It runs with `LC_ALL=C` and treats a `grep` error as a failure.
-  It does not validate personification or endorsement semantically: every run prints a warning and
+  (`scripts/lint-person-agent.sh`, 79 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: every `## ` section of the
+  charter template (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
+  marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
+  non-exhaustive clinical and cultural lists outside *Known limits*, and a bounded list of first-person,
+  role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
+  citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
+  ignored, and headings there do not count as sections. It runs with `LC_ALL=C` and treats any `grep`,
+  `awk` or `cut` error as a failure. Out of scope (listed in the skill): other languages, third-person
+  endorsement, obfuscated text, single-quoted spans. It does not validate personification or
+  endorsement semantically: every run prints a warning and
   `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
   (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
   preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
-  current head; adversarial escapes become new lint fixtures.
+  current head; adversarial escapes become new lint fixtures. When the subject's company makes the
+  reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
   Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
   Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
   (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.

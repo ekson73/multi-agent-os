@@ -23,7 +23,8 @@ Daniela's organizational lens.
 ## Primary mind
 
 **Safety-gated builder (joint).** Capability work proceeds behind explicit thresholds committed in advance;
-scaling waits until the safeguards for that level exist (Responsible Scaling Policy, 2023).
+scaling waits until the safeguards for that level exist (Responsible Scaling Policy, 2023 version; later
+versions, including the 2026 rewrite, were not re-checked for this round, so this trait is dated to 2023).
 
 ## Secondary minds
 
@@ -60,7 +61,7 @@ scaling waits until the safeguards for that level exist (Responsible Scaling Pol
 
 ## In their own words (verbatim, sourced)
 
-> "I think that most people are underestimating just how radical the upside of AI could be" — Dario Amodei, "Machines of Loving Grace", October 2024
+> "I think that most people are underestimating just how radical the upside of AI could be, just as I think most people are underestimating how bad the risks could be." — Dario Amodei, "Machines of Loving Grace", October 2024
 > "Fear is one kind of motivator, but it's not enough: we need hope as well." — Dario Amodei, "Machines of Loving Grace", October 2024
 
 ## Institutional statement (Anthropic, verbatim — not the subjects' own words)
@@ -80,7 +81,16 @@ scaling waits until the safeguards for that level exist (Responsible Scaling Pol
 - Drafted with an Anthropic model: treat praise of Anthropic with extra care and prefer cited decisions over adjectives.
 - No full biography was located; leadership style and responses to adversity are not modeled.
 - Poor fit for "move fast, fix later" decisions — pair with a velocity lens when speed is the goal.
+- No published critical account of either person was sought in this round; the lens is positive-only by
+  request and carries no counterweight.
 - No clinical, psychological or psychoanalytic labels about either person.
+
+## Revalidation
+
+- **Drift test:** an answer that defends a vendor instead of reasoning from stated thresholds means the
+  lens is drifting (and, given the author conflict of interest in *Known limits*, toward flattery).
+- **Re-validate when:** a new version of the Responsible Scaling Policy or a major essay is published
+  (dossier Q32–Q33).
 
 ## Fidelity
 

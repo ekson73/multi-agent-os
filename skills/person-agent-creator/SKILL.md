@@ -42,8 +42,9 @@ and does not claim X's endorsement.
    secondary) · books/biographies/interviews · expert-drawn profile (published, attributed) ·
    cultural-semiotic inputs (zodiac, numerology, name semiotics — **labeled non-evidential**) ·
    self-declared beliefs (only if publicly self-declared).
-3. **33 Socratic person-questions.** Run `references/person-33q.md` against the dossier. Each answer
-   determines one charter field; answers live in the dossier.
+3. **33 Socratic person-questions.** Run `references/person-33q.md` against the dossier. Each question
+   names where its answer lands: a charter section (the agent reads it) or a dossier section (the
+   record behind it). All answers are also listed in dossier §5.
 4. **MoE synthesis (multi-lens panel).** Synthesize the charter through five lenses; each lens may veto
    a claim it cannot ground:
    - *Biographer* — is every claim in the record? dates, sources, conflicts between sources.
@@ -68,27 +69,45 @@ and does not claim X's endorsement.
    bash "$d/scripts/lint-person-agent.sh" <agent.md>
    ```
 
-   It fails (exit 1) on exactly these checks, and nothing else:
-   - a required section is missing, or the `| Field | Status |` fidelity table is missing;
+   It fails (exit 1) on these checks, plus any internal tool error, and nothing else:
+   - a section of `references/charter-template.md` is missing: every `## ` heading of the template
+     must appear as a heading outside code fences and HTML comments (order is not checked, extra
+     sections are allowed), and the `| Field | Status |` fidelity table must exist. That is all the
+     DoD's "from the template" means for the script; the content of each section is the panel's job;
    - an unfilled template placeholder (`<Subject>`, `<slug>`, ...);
-   - a blockquote line that contains a quotation but no source marker (` — <source>` or ` -- <source>`,
-     on that line or the next blockquote line). Only the presence of a marker is checked, not whether
-     the source id exists in the dossier;
+   - a blockquote line with a double-quoted span (straight `"`, curly `“ ”` or `« »`) that has no
+     source marker of its own. A span is *sourced* when ` — <source>` or ` -- <source>` follows it
+     directly, or when it ends the line and the next blockquote line starts with that marker. Text
+     after a same-line marker is the source (a quoted title there needs no second marker). Only the
+     presence of a marker is checked, not whether the source id exists in the dossier. Single-quoted
+     text is not treated as a quotation;
    - a word from a **non-exhaustive** clinical list or a **non-exhaustive** cultural list (zodiac,
      numerology, tarot, ...) outside *Known limits*, matched on word boundaries;
    - a **bounded** list of first-person, role-play and endorsement patterns: `I am` / `I'm` /
-     `my name is` / `eu sou` / `me chamo`, `As X, I` / `Speaking as X, I`, `I think` / `I believe` /
-     `I would`, `I` or `we` (also `We, the X,`) followed by approve / endorse / authorize / sign off /
-     back / support, `You are <Name>`, `answer as him/her`.
-   These checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
-   markers, emphasis, backticks) and include code-fence content. Text inside a sourced quotation is
-   exempt, so verbatim first-person quotes stay allowed. The script runs with `LC_ALL=C` and treats a
-   `grep` error as a failure, never as "no match". Fixtures: `scripts/test-lint-person-agent.sh`.
+     `my name is` / `eu sou` / `meu nome é` / `me chamo`; `As X, I|we` / `Speaking as X, I` (X may
+     contain `Mr.`, `Dr.`, ...); `I` / `I'd` + think / believe / feel / would / will / want and `eu`
+     + acho / penso / creio / acredito / quero / vou; `I`, `I'd`, `we`, `we'd` (also `We, the X,` and
+     `We the X`) followed by approve / endorse / authorize / vouch for / sign off / certify / back /
+     support, in present or past tense; `you are <Name>` / `you're <Name>` in any letter case (the
+     next word counts when it is capitalized, or lowercase and not a common word, a `-ing`, `-ed` or
+     `-ly` word); `answer as him/her/them`.
+   The checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
+   markers, emphasis, backticks), including lines inside code fences (``` or ~~~, of any length, with
+   nested fences) and HTML comments, and fence info strings. Only the double-quoted spans that are
+   sourced (as defined above) are exempt, so a verbatim first-person quote stays allowed while an
+   unsourced span on the same line is still checked. A `## ` heading inside a fence or a comment
+   neither changes the current section (so it cannot open *Known limits*) nor counts as a required
+   section. The script runs with `LC_ALL=C`; a `grep`, `awk` or `cut` error is a failure, never "no
+   match". Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
+   `LINT=<path>`).
 
-   **What it does not check.** Personification or endorsement written in words outside that list
-   ("This lens is approved by X", a paraphrase that speaks for the person) passes the script. Every
-   run prints a warning saying so, and `--json` carries `"semantic_validated": false`. A passing lint
-   is the floor, not the verdict; the merge gate below is the verdict.
+   **What it does not check (out of scope, kept as passing fixtures).** Personification or
+   endorsement in words outside that list ("This lens is approved by X", a paraphrase that speaks for
+   the person), other languages than English and Portuguese, look-alike (confusable) letters,
+   zero-width or non-breaking spaces inside a pattern, a source id that does not exist, and
+   single-quoted quotations. Every run prints a warning saying so, and `--json` carries
+   `"semantic_validated": false`. A passing lint is the floor, not the verdict; the merge gate below
+   is the verdict.
 7. **Fidelity self-assessment.** Per charter field: `documented` (cited) · `inferred` (pattern across
    ≥2 cited decisions) · `documented / inferred` (mixed). Report the counts in two named units so they can
    be checked: charter fields (rows of the charter Fidelity table) and dossier-only items (`cultural`
@@ -99,7 +118,8 @@ agent answers each line; a "no" means rewrite. These answers come from the autho
 as a review:
 - [ ] No sentence speaks as the person, for the person, or to the reader as if they were the person.
 - [ ] No sentence states or implies that the person (or their company) approves, endorses or uses this lens.
-- [ ] Every quotation is verbatim, carries a source id that exists in the dossier, and sits in a blockquote.
+- [ ] Every quotation is verbatim and complete, or its cut is visibly marked (`[…]`) and the dossier
+  says what was left out; it carries a source id that exists in the dossier and sits in a blockquote.
 - [ ] No trait rests on a clinical, cultural or numerological input; those appear only in *Known limits*.
 - [ ] Each Fidelity status matches the dossier row it summarizes.
 
@@ -112,8 +132,12 @@ The lint gate cannot judge meaning, and the author cannot verify their own chart
 merges, a **review panel** reads the charter and its dossier against the guardrails below, semantic
 questions first, through orthogonal lenses:
 - *Adversarial*: tries to write personification or endorsement text that slips past the lint.
-- *Living-person risk*: privacy and defamation of a living person.
-- *Source fidelity*: every quote and claim matches its source and date.
+- *Living-person risk*: privacy (only published biography; no health, family or finances),
+  defamation, clinical labels (guardrail 3), cultural inputs used as evidence (guardrail 4), flattery
+  by omission or by a selectively cut quote, past roles presented as current, and the author's
+  conflict of interest with the subject.
+- *Source fidelity*: every quote and claim matches its source and date; every quote is complete or
+  visibly marked as cut (`[…]`).
 
 Declare the panel's **independence grade**; use the strongest one available:
 
@@ -124,15 +148,37 @@ Declare the panel's **independence grade**; use the strongest one available:
 | `self` | the generator reviewing its own output | no |
 
 The gate degrades but does not stop: when `vendor` is unavailable, run `context` and say so in the
-record. `self` never clears the gate. Record the result on the pull request, bound to the head commit:
+record. `self` never clears the gate. **Exception — conflict of interest:** when the dossier declares a
+conflict of interest between the author's model vendor and the subject (e.g. a charter about a
+company's founders written by that company's model), `context` is not enough: the gate needs `vendor`
+or a human reviewer, and without one it stays on HOLD instead of degrading.
+
+*Policy status:* "`context` counts as verification" and "degrade, never stop" are rules stated by the
+operator who commissioned this skill; they are recorded here as awaiting the operator's explicit
+acknowledgment on the pull request that first applies them.
+
+How to run a `vendor` reviewer from a shell, when a different vendor's CLI is installed (example with
+OpenAI Codex CLI; any other vendor's non-interactive mode works the same way):
+
+```bash
+codex exec --sandbox read-only "<review prompt: charter path, dossier path, the three lenses>" < /dev/null
+```
+
+Close stdin (`< /dev/null`): without it `codex exec` was observed waiting for more input and never
+returning. Read-only sandbox: the reviewer reports, it does not edit. In-host reviewers spawned through
+`perspective-trio` or `persona-pipeline` share the author's model, so they count as `context`, not
+`vendor`.
+
+Record the result on the pull request, bound to the head commit, with one verdict per lens:
 
 ```text
-Reviewed-By: <reviewer and model family> · grade <vendor|context> · head <full commit sha> · verdict <CLEAR|CHANGES>
+Reviewed-By: <reviewer and model family> · grade <vendor|context> · head <full commit sha> · verdict <CLEAR|CHANGES|HOLD>
+Lenses: adversarial <ok|changes> · living-person <ok|changes> · source-fidelity <ok|changes>
 Scope: semantic personification/endorsement, living-person risk, quote fidelity, guardrails 1–7
 ```
 
-A verdict on an older commit does not count; a new push needs a new record. No merge without a
-`CLEAR` record at the current head.
+A verdict on an older commit does not count; a new push needs a new record. A record that omits a
+lens, or marks one `changes`, is not `CLEAR`. No merge without a `CLEAR` record at the current head.
 
 **Improvement loop.** Every phrasing the adversarial lens gets past the lint becomes a new fixture in
 `scripts/test-lint-person-agent.sh` (and a pattern, when it is objectively checkable), so the floor
@@ -169,10 +215,11 @@ humanoid profile (communication style, decision tempo, risk posture). See `refer
 
 | File | Purpose |
 |---|---|
-| `references/person-33q.md` | 33 Socratic questions → charter fields → disciplines |
+| `references/person-33q.md` | 33 Socratic questions → where each answer lands (charter or dossier section) → disciplines |
 | `references/dossier-template.md` | Research dossier skeleton |
 | `references/charter-template.md` | Agent-file skeleton (required sections the lint gate checks) |
 | `scripts/lint-person-agent.sh` | Deterministic floor (exit 0 pass · 1 fail or tool error · 2 usage); not a semantic check |
+| `scripts/test-lint-person-agent.sh` | Offline fixtures for the lint, incl. the declared out-of-scope cases |
 | `dossiers/<slug>.md` | One dossier per person-agent |
 
 ## Prior art (recon summary)
@@ -196,4 +243,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |

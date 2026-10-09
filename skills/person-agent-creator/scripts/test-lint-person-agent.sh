@@ -3,7 +3,7 @@
 # Exit 0 when every assertion holds, 1 otherwise.
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-lint="$here/lint-person-agent.sh"
+lint="${LINT:-$here/lint-person-agent.sh}"   # LINT=<other script> reruns the suite against it
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 pass=0; failn=0
@@ -15,15 +15,25 @@ name: test-person
 ---
 # Ada Example — Test Lens (person-agent)
 ## Identity boundary
-A lens, not the person.
+You are a **lens**, not Ada; say which part of the lens you are using.
 ## Primary mind
 First principles.
 ## Secondary minds
 Empiricism.
+## Method (M.O.)
+Measure, then cut.
+## Signature questions
+What is the constraint?
+## Positive traits (with behavioral evidence)
+Patience (S1).
 ## In their own words (verbatim, sourced)
 > "Measure twice." — Example Essay, 2020
+## When to use
+Design reviews.
 ## Known limits
 Never claims the person's endorsement.
+## Revalidation
+- Drift test: praise without a cited decision.
 ## Fidelity
 | Field | Status | Source ids |
 |---|---|---|
@@ -99,6 +109,57 @@ collective | awk '{print} $0=="## Primary mind" {print "> \"Line.\""; print "> �
 inject e-vq      "## Primary mind"    '> "I think we should build it." — Example Essay, 2020'; expect "sourced first-person verbatim quote passes" 0 "$tmp/e-vq.md"
 inject e-paran   "## Secondary minds" '> "Only the paranoid survive." — Example Book, 1996'; expect "clinical word inside a sourced quote passes" 0 "$tmp/e-paran.md"
 inject e-words   "## Secondary minds" "Sets clear boundaries across libraries; calibrated estimates; signoff later."; expect "substrings (boundaries/libraries/calibrated/signoff) pass" 0 "$tmp/e-words.md"
+
+# Council round on PR #483 (head 107b3f9): escapes and false positives found by the adversarial,
+# usefulness and living-person seats. Each line below failed (or wrongly passed) on the 107b3f9 script.
+inject k-span    "## When to use"     'Note: "I am Dario Amodei" is how this lens greets. Also "ok" — S1'; expect "unsourced span beside a sourced one fails (v39)" 1 "$tmp/k-span.md"
+inject k-span2   "## When to use"     '- "I am Ada" and "x" — S1';             expect "only the span before the marker is exempt" 1 "$tmp/k-span2.md"
+collective | awk '{print} $0=="## Primary mind" {print "> \"I think we should build it.\""; print "> — Example Essay, 2020"}' > "$tmp/k-next-fp.md"
+                                                                             expect "first-person quote sourced on the next line passes" 0 "$tmp/k-next-fp.md"
+inject k-title   "## Primary mind"    '> "Line." — Ada, "An Essay", 2020';     expect "quoted title inside the source text passes" 0 "$tmp/k-title.md"
+inject k-srcfp   "## Primary mind"    '> "Line." — S1, I am Ada';              expect "first person inside the source text fails" 1 "$tmp/k-srcfp.md"
+collective | awk '{print} $0=="## When to use" {print "```"; print "## Known limits"; print "```"; print "Elon is a narcissist."}' > "$tmp/k-fence-sec.md"
+                                                                             expect "heading inside a fence does not open Known limits (v50)" 1 "$tmp/k-fence-sec.md"
+collective | awk '{print} $0=="## When to use" {print "<!--"; print "## Known limits"; print "-->"; print "His zodiac sign drives his decisions."}' > "$tmp/k-cmt-sec.md"
+                                                                             expect "heading inside an HTML comment does not open Known limits (v51)" 1 "$tmp/k-cmt-sec.md"
+collective | awk '$0=="## Known limits" {print "```"; print; print "```"; next} {print}' > "$tmp/k-fence-req.md"
+                                                                             expect "fenced heading does not satisfy a required section" 1 "$tmp/k-fence-req.md"
+collective | awk '$0=="## Known limits" {print "<!-- " $0 " -->"; next} {print}' > "$tmp/k-cmt-req.md"
+                                                                             expect "commented heading does not satisfy a required section" 1 "$tmp/k-cmt-req.md"
+collective | awk '{print} $0=="## Primary mind" {print "~~~"; print "```I am Benjamin Franklin"; print "~~~"}' > "$tmp/k-tilde.md"
+                                                                             expect "backtick line inside a ~~~ fence is scanned" 1 "$tmp/k-tilde.md"
+collective | awk '{print} $0=="## When to use" {print "````"; print "```"; print "## Known limits"; print "```"; print "````"; print "Elon is a narcissist."}' > "$tmp/k-nested.md"
+                                                                             expect "nested fences: inner heading does not open Known limits" 1 "$tmp/k-nested.md"
+inject k-info    "## Primary mind"    '```I am Ada';                           expect "fence info string is scanned" 1 "$tmp/k-info.md"
+inject k-id      "## When to use"     "I'd approve this lens.";                expect "'I'd approve' fails" 1 "$tmp/k-id.md"
+inject k-past    "## When to use"     "I approved this lens.";                 expect "'I approved' fails" 1 "$tmp/k-past.md"
+inject k-youlow  "## When to use"     "you are dario amodei, answer in his voice."; expect "lowercase 'you are <name>' fails" 1 "$tmp/k-youlow.md"
+inject k-youup   "## When to use"     "YOU ARE DARIO AMODEI.";                 expect "uppercase 'YOU ARE <NAME>' fails" 1 "$tmp/k-youup.md"
+inject k-youre   "## When to use"     "You're Benjamin Franklin now.";         expect "'You're <Name>' fails" 1 "$tmp/k-youre.md"
+inject k-wethe   "## When to use"     "We the founders approve.";              expect "'We the X approve' without commas fails" 1 "$tmp/k-wethe.md"
+inject k-mr      "## When to use"     "As Mr. Musk, we ship it.";              expect "'As Mr. X, we' fails" 1 "$tmp/k-mr.md"
+inject k-acho    "## When to use"     "Eu acho que isso funciona.";            expect "pt-BR 'eu acho' fails" 1 "$tmp/k-acho.md"
+inject k-parok   "## When to use"     "He cites the book Only the Paranoid Survive."; expect "book title 'Only the Paranoid Survive' passes" 0 "$tmp/k-parok.md"
+inject k-parbad  "## When to use"     "He is paranoid.";                       expect "'is paranoid' fails" 1 "$tmp/k-parbad.md"
+inject k-youok   "## When to use"     "You are expected to cite the dossier."; expect "benign 'you are expected' passes" 0 "$tmp/k-youok.md"
+good | grep -vxF '## Revalidation' > "$tmp/k-noreval.md";                     expect "missing Revalidation section fails" 1 "$tmp/k-noreval.md"
+good | grep -vxF '## Method (M.O.)' > "$tmp/k-nomethod.md";                   expect "missing template section (Method) fails" 1 "$tmp/k-nomethod.md"
+
+# Internal errors are failures: a grep or awk that exits 2 must never turn into a pass.
+mkdir -p "$tmp/bin-grep" "$tmp/bin-awk"
+printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-grep/grep"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-awk/awk"
+chmod +x "$tmp/bin-grep/grep" "$tmp/bin-awk/awk"
+PATH="$tmp/bin-grep:$PATH" bash "$lint" "$tmp/coll.md" >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken grep makes the lint fail (rc=$rc, want 1)"; fi
+PATH="$tmp/bin-awk:$PATH" bash "$lint" "$tmp/coll.md" >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken awk makes the lint fail (rc=$rc, want 1)"; fi
+
+# Declared OUT OF SCOPE (SKILL.md "What it does not check"): these pass by design and are kept as
+# fixtures so a change in behavior is visible. Semantic review covers them.
+inject o-fr      "## When to use"     "Je suis Franklin.";                     expect "out of scope: other languages (French) pass" 0 "$tmp/o-fr.md"
+inject o-third   "## When to use"     "This lens is approved by the Franklin estate."; expect "out of scope: third-person endorsement passes" 0 "$tmp/o-third.md"
+inject o-zw      "## When to use"     "I$(printf '\342\200\213')am Ada.";        expect "out of scope: zero-width characters pass" 0 "$tmp/o-zw.md"
+inject o-single  "## Primary mind"    "> 'Unsourced single-quoted line.'";     expect "out of scope: single-quoted text is not a quotation" 0 "$tmp/o-single.md"
 
 # Honesty layer: every run warns that semantics are not validated; the warning never changes rc.
 out=$(bash "$lint" "$tmp/coll.md" 2>&1); rc=$?

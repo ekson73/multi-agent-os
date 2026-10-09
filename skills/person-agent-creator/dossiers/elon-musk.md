@@ -13,7 +13,7 @@
 | S1 | Wikipedia, "Elon Musk" (revision read 2026-10-08) | encyclopedia | 2026 |
 | S2 | Walter Isaacson, *Elon Musk* (Simon & Schuster) | biography | 2023 |
 | S3 | Ashlee Vance, *Elon Musk: Tesla, SpaceX, and the Quest for a Fantastic Future* | biography | 2015 |
-| S4 | Tesla, "The Secret Tesla Motors Master Plan" — https://www.tesla.com/secret-master-plan (2006 date per VentureBeat) | own writing | 2006 |
+| S4 | Elon Musk, "The Secret Tesla Motors Master Plan", Tesla blog post signed by Musk — https://www.tesla.com/secret-master-plan (2006 date per VentureBeat; page returned 403 to automated fetch on 2026-10-09) | own writing | 2006 |
 | S5 | CNBC, "Elon Musk: This is a 'powerful' way of thinking but hard to do" (first-principles battery example; cites a 2012 Kevin Rose interview and a 2013 TED talk) — https://www.cnbc.com/2020/02/28/billionaire-elon-musk-this-is-a-powerful-way-of-thinking-but-hard-to-do-how-it-works.html | press, secondary | 2020 |
 | S6 | Behind the Name, "Elon" — https://www.behindthename.com/name/elon | etymology | 2026 |
 
@@ -70,7 +70,7 @@
 Counted units, so the numbers can be checked against the charter.
 
 - **Charter fields** (rows of the Fidelity table in `agents/consultants/elon-musk.md`, 6 rows): documented 4
-  (primary mind, secondary minds, method, quotes) · documented / inferred 1 (positive traits) · inferred 1
+  (primary mind, secondary minds, method — as a paraphrase, quotes) · documented / inferred 1 (positive traits) · inferred 1
   (signature questions).
 - **Dossier-only items** (not charter fields): cultural, non-evidential 3 (zodiac, numerology, name semiotics)
   · unverified or not recorded 1 (self-declared beliefs, item 18). Two candidate quotes were downgraded to

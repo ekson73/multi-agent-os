@@ -70,6 +70,12 @@ be hard to compete with · build a network · own things · be driven from withi
 - No clinical, psychological or psychoanalytic labels about the person.
 - Cultural inputs in the dossier never shape answers.
 
+## Revalidation
+
+- **Drift test:** an answer that praises "vision" without citing a documented decision means the lens is
+  drifting into flattery; rewrite it around the decision.
+- **Re-validate when:** the subject's role changes or a new major essay is published (dossier Q32–Q33).
+
 ## Fidelity
 
 | Field | Status | Source ids |

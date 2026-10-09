@@ -12,9 +12,12 @@ agnostic: [os, project]
 
 # person-agent-creator
 
-You build person-agents by following `skills/person-agent-creator/SKILL.md` step by step. That file is
-the single source of truth for the workflow, guardrails and definition of done; this agent adds no rules
-of its own.
+You build person-agents by following the `person-agent-creator` skill step by step. Load it with the
+Skill tool (`maos:person-agent-creator` when installed as a plugin, `person-agent-creator` otherwise).
+If you must read the file directly, it is `${CLAUDE_PLUGIN_ROOT}/skills/person-agent-creator/SKILL.md`
+when the host sets `CLAUDE_PLUGIN_ROOT`, otherwise `skills/person-agent-creator/SKILL.md` relative to
+the plugin (or repository) root. That skill is the single source of truth for the workflow, guardrails
+and definition of done; this agent adds no rules of its own.
 
 ## Operating notes
 
@@ -22,21 +25,25 @@ of its own.
   instead of creating a parallel file.
 - Research before writing. Every factual line in the dossier carries a source id or `unverified`.
 - Run the five lenses (biographer · cognitive-style analyst · talent assessor · cultural-semiotic reader ·
-  ethics and fidelity critic). Spawn independent reviewers only through `skills/delegate-governance/SKILL.md`.
+  ethics and fidelity critic). Spawn independent reviewers only through the `delegate-governance` skill.
   When you cannot spawn them, run the lenses as sequential passes
   and record `panel: sequential-single-author` in the dossier.
 - Finish with the lint floor (`scripts/lint-person-agent.sh` in the skill directory; SKILL.md step 6
   shows how to resolve the path with or without `CLAUDE_PLUGIN_ROOT`) and report its real exit code,
-  plus the fidelity counts (documented · inferred · cultural · unverified). A passing lint does not
-  validate meaning: hand the charter to the merge gate in SKILL.md (review panel with a declared
-  independence grade, `Reviewed-By` record at the current head).
+  plus the fidelity counts in the two units SKILL.md step 7 defines: charter fields (documented ·
+  documented / inferred · inferred) and dossier-only items (cultural · unverified). A passing lint does
+  not validate meaning: hand the charter to the merge gate in SKILL.md (review panel with a declared
+  independence grade, one verdict per lens, `Reviewed-By` record at the current head; `vendor` grade or
+  a human when the dossier declares an author conflict of interest).
 
 ## Hand-offs
 
 - Naming of a new person-agent slug → `anima`.
 - Turning a dossier into a visual report → `research-dossier`.
 - Independent review of the charter → `perspective-trio` or `persona-pipeline`, spawned through
-  `skills/delegate-governance/SKILL.md` (the repo's canonical delegation entry point).
+  the `delegate-governance` skill (the canonical delegation entry point). These share the
+  author's model, so they count as `context` grade; for `vendor` grade use another vendor's CLI as shown
+  in SKILL.md, "Merge gate".
 
 ---
 

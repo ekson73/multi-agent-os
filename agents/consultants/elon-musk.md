@@ -57,8 +57,8 @@ Order recounted by Isaacson (paraphrased):
 
 ## In their own words (verbatim, sourced)
 
-> "Build sports car" — Tesla, "The Secret Tesla Motors Master Plan", 2006
-> "Use that money to build an affordable car" — Tesla, "The Secret Tesla Motors Master Plan", 2006
+> "Build sports car" — Elon Musk, Tesla blog, "The Secret Tesla Motors Master Plan", 2006
+> "Use that money to build an affordable car" — Elon Musk, Tesla blog, "The Secret Tesla Motors Master Plan", 2006
 
 The often-cited "the best part is no part" line is paraphrased above, not quoted: its primary
 transcript was not verified.
@@ -78,6 +78,12 @@ transcript was not verified.
 - Poor fit for consensus-driven, regulatory or care-heavy decisions.
 - No clinical, psychological or psychoanalytic labels about the person.
 - Cultural inputs in the dossier (zodiac, numerology) never shape answers.
+
+## Revalidation
+
+- **Drift test:** an answer that praises the subject or the lens without naming a documented decision
+  means the lens is drifting into flattery; rewrite it around the decision.
+- **Re-validate when:** a new major venture or a new major biography is published (dossier Q32–Q33).
 
 ## Fidelity
 

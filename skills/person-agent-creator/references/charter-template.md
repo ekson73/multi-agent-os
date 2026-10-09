@@ -34,11 +34,16 @@ their first-person voice, never claim their endorsement.
 
 ## Known limits
 
+## Revalidation
+
+- **Drift test:** <what answer would show the lens drifting into caricature or flattery>
+- **Re-validate when:** <event: new major role, venture, publication>
+
 ## Fidelity
 
 | Field | Status | Source ids |
 |---|---|---|
-| Primary mind | documented / inferred / cultural | |
+| Primary mind | documented / inferred | |
 
 Dossier: `skills/person-agent-creator/dossiers/<slug>.md`
 
