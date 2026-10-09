@@ -51,6 +51,15 @@ tr -d '\r' < "$file" > "$src" || fail "lint error: tr failed (CR normalization)"
 # <x> starting with a letter or digit) follows it directly, or when it ends a blockquote line and the
 # next blockquote line starts with that marker. Only sourced spans are exempt from the voice checks.
 awk -v headings="$tmp/headings" '
+  function lower(s,   i, u) {               # tolower plus UTF-8 uppercase Latin-1 letters (LC_ALL=C
+    s = tolower(s)                          # leaves "É" as is): \303\200-\303\236 -> +0x20, except "×"
+    for (i = 128; i <= 158; i++) {
+      if (i == 151) continue
+      u = sprintf("\303%c", i)
+      if (index(s, u)) gsub(u, sprintf("\303%c", i + 32), s)
+    }
+    return s
+  }
   function fence_run(x,   c, n) {          # length of a leading ``` / ~~~ run (>=3), else 0
     c = substr(x, 1, 1)
     if (c != "`" && c != "~") return 0
@@ -73,16 +82,20 @@ awk -v headings="$tmp/headings" '
         r = fence_run(u); rest = substr(u, r + 1)
         if (r && !(substr(u, 1, 1) == "`" && index(rest, "`"))) { infence = 1; fch = substr(u, 1, 1); flen = r; isfence = 1 }
       }
-      if (!isfence) {                           # comment markers, outside inline code spans
+      if (!isfence) {                           # comment markers, left to right
+        # Outside a comment, an inline code span hides "<!--" (it is code). Inside an open comment the
+        # text is raw, as in a renderer: a backtick there is not code, so "`-->`" still closes it.
         x = raw
-        while (match(x, /`+/)) {                 # drop each inline code span (a run and its closing run)
-          run = substr(x, RSTART, RLENGTH); pre = substr(x, 1, RSTART - 1); post = substr(x, RSTART + RLENGTH)
-          j = index(post, run); if (!j) break
-          x = pre " " substr(post, j + length(run))
-        }
         while (1) {
-          if (incomment) { i = index(x, "-->"); if (!i) break; incomment = 0; x = substr(x, i + 3) }
-          else           { i = index(x, "<!--"); if (!i) break; incomment = 1; x = substr(x, i + 4) }
+          if (incomment) { i = index(x, "-->"); if (!i) break; incomment = 0; x = substr(x, i + 3); continue }
+          i = index(x, "<!--"); if (!i) break
+          if (match(x, /`+/) && RSTART < i) {    # a backtick run before the marker: skip its code span
+            run = substr(x, RSTART, RLENGTH); post = substr(x, RSTART + RLENGTH)
+            j = index(post, run)
+            x = j ? substr(post, j + length(run)) : post   # unmatched run is a literal backtick
+            continue
+          }
+          incomment = 1; x = substr(x, i + 4)
         }
       }
     }
@@ -117,7 +130,7 @@ awk -v headings="$tmp/headings" '
         if (after ~ marker) break   # the rest is the source text (titles may be quoted); still scanned
       }
       out = out t
-      print ROWNR[k] "\t" SEC[k] "\t" BQ[k] "\t" (BQ[k] ? unsourced : 0) "\t" tolower(out) "\t" out
+      print ROWNR[k] "\t" SEC[k] "\t" BQ[k] "\t" (BQ[k] ? unsourced : 0) "\t" lower(out) "\t" out
     }
   }' "$src" > "$tmp/norm" || fail "lint error: awk normalization failed"
 : >> "$tmp/headings" || fail "lint error: cannot write headings file"
@@ -164,7 +177,8 @@ report() {
 #    template is the single source of truth), as a heading OUTSIDE code fences and HTML comments in the
 #    charter (order is not checked; extra sections are allowed). A missing or unreadable template is
 #    an internal error, never "nothing required".
-template="$(cd "$(dirname "$0")" && pwd)/../references/charter-template.md" || fail "lint error: cannot resolve template path"
+if ! { sdir=$(dirname "$0") && sdir=$(cd "$sdir" && pwd); }; then fail "lint error: cannot resolve script directory"; sdir=/nonexistent; fi
+template="$sdir/../references/charter-template.md"
 required=$(awk '/^(```|~~~)/ { f = !f; next } !f && /^## / { sub(/[ \t]+$/, ""); print }' "$template" 2>/dev/null); rc=$?
 if [ "$rc" -ne 0 ] || [ -z "$required" ]; then
   fail "lint error: cannot read required sections from $template"
@@ -298,7 +312,8 @@ if [ -n "$dossier_line" ]; then dossier_rel=${dossier_line#Dossier: \`}; dossier
 if [ -z "$dossier_rel" ]; then
   fail "missing dossier pointer (Dossier: \`<path>\`)"
 else
-  dossier=""; d="$(cd "$(dirname "$file")" && pwd)" || fail "lint error: cannot resolve charter directory"
+  dossier=""
+  if ! { d=$(dirname "$file") && d=$(cd "$d" && pwd); }; then fail "lint error: cannot resolve charter directory"; d=""; fi
   while [ -n "$d" ]; do
     if [ -f "$d/$dossier_rel" ]; then dossier="$d/$dossier_rel"; break; fi
     [ "$d" = "/" ] && break
@@ -313,10 +328,11 @@ else
     # Ranges are expanded only up to the highest dossier id, so a huge span cannot loop forever;
     # a reversed range or an id with a suffix (S1a) is reported, never silently skipped.
     cited=$(awk -F'\t' '$2 == "Fidelity" { print $6 }' "$tmp/norm" | awk -v max="$max" '
-      { s = $0
-        while (match(s, /S[0-9]+ *(-|\342\200\223) *S?[0-9]+[A-Za-z]*|S[0-9]+[A-Za-z]*/)) {
-          t = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
-          if (t ~ /[A-RT-Za-z]/) { gsub(/ /, "", t); print "bad:" t; continue }
+      { s = " " $0                            # an id starts after a non-alphanumeric; s9 counts as S9
+        while (match(s, /[^A-Za-z0-9][Ss][0-9]+ *(-|\342\200\223) *[Ss]?[0-9]+[A-Za-z0-9]*|[^A-Za-z0-9][Ss][0-9]+[A-Za-z0-9]*/)) {
+          t = substr(s, RSTART + 1, RLENGTH - 1); s = substr(s, RSTART + RLENGTH)
+          t = toupper(t)
+          if (t !~ /^S[0-9]+ *(-|\342\200\223) *S?[0-9]+$/ && t !~ /^S[0-9]+$/) { gsub(/ /, "", t); print "bad:" t; continue }
           gsub(/\342\200\223/, "-", t); gsub(/[ S]/, "", t)
           if (index(t, "-")) {
             split(t, r, "-"); a = r[1] + 0; b = r[2] + 0
@@ -355,14 +371,16 @@ json_str() { # JSON string escape: backslash, quote, control characters.
 
 echo "$WARNING" >&2
 if [ "$json" -eq 1 ]; then
-  printf '{"file":"%s","passed":%s,"semantic_validated":false,"warning":"%s","failures":[' \
-    "$(json_str "$file")" "$([ ${#failures[@]} -eq 0 ] && echo true || echo false)" "$(json_str "$WARNING")"
-  sep=""
+  # Every escaped string is built first and its status checked: a broken helper is an internal error
+  # (exit 1, message on stderr), never a JSON document that says "passed": true.
+  if ! { jfile=$(json_str "$file") && jwarn=$(json_str "$WARNING"); }; then echo "lint error: json_str failed" >&2; exit 1; fi
+  jfails=""; sep=""
   for f in "${failures[@]+"${failures[@]}"}"; do
-    printf '%s"%s"' "$sep" "$(json_str "$f")"
-    sep=","
+    jf=$(json_str "$f") || { echo "lint error: json_str failed" >&2; exit 1; }
+    jfails="$jfails$sep\"$jf\""; sep=","
   done
-  printf ']}\n'
+  printf '{"file":"%s","passed":%s,"semantic_validated":false,"warning":"%s","failures":[%s]}\n' \
+    "$jfile" "$([ ${#failures[@]} -eq 0 ] && echo true || echo false)" "$jwarn" "$jfails"
 else
   if [ ${#failures[@]} -eq 0 ]; then
     echo "PASS $file (deterministic floor only)"

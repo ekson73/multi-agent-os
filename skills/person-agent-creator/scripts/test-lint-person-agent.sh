@@ -229,10 +229,13 @@ if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: 
 mkdir -p "$tmp/bin-grep" "$tmp/bin-awk"
 printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-grep/grep"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-awk/awk"
 chmod +x "$tmp/bin-grep/grep" "$tmp/bin-awk/awk"
-PATH="$tmp/bin-grep:$PATH" bash "$lint" "$tmp/coll.md" >/dev/null 2>&1; rc=$?
-if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken grep makes the lint fail (rc=$rc, want 1)"; fi
-PATH="$tmp/bin-awk:$PATH" bash "$lint" "$tmp/coll.md" >/dev/null 2>&1; rc=$?
-if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken awk makes the lint fail (rc=$rc, want 1)"; fi
+# The rc AND the "lint error" message are asserted: a FAIL for another reason would hide the bug.
+out=$(PATH="$tmp/bin-grep:$PATH" bash "$lint" "$tmp/coll.md" 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'lint error'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken grep makes the lint fail with 'lint error' (rc=$rc, want 1)"; fi
+out=$(PATH="$tmp/bin-awk:$PATH" bash "$lint" "$tmp/coll.md" 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'lint error'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken awk makes the lint fail with 'lint error' (rc=$rc, want 1)"; fi
+out=$(PATH="$tmp/bin-awk:$PATH" bash "$lint" "$tmp/coll.md" --json 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && ! printf '%s' "$out" | grep -q '"passed":true'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken awk never yields JSON passed:true (rc=$rc)"; fi
 
 # Declared OUT OF SCOPE (SKILL.md "What it does not check"): these pass by design and are kept as
 # fixtures so a change in behavior is visible. Semantic review covers them.
@@ -260,6 +263,16 @@ klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class 
 klass collective | awk '{print} $0=="## Secondary minds" {print "Literary analysis: Dario is a narcissist."}' > "$tmp/l-lab-real.md"; expect "real-person class: the literary-analysis label exempts nothing" 1 "$tmp/l-lab-real.md"
 { good | awk 'NR == 4 && $0 == "---" { next } { print }'; echo "---"; echo "Footer."; } > "$tmp/j-body-rule.md"; expect "missing closing --- with a later body rule fails (J1 residual)" 1 "$tmp/j-body-rule.md"
 good | awk '{print} NR == 3 {print "# Stray heading"}' > "$tmp/j-fm-head.md"; expect "heading inside front matter fails (J1 residual)" 1 "$tmp/j-fm-head.md"
+# Addendum K (usefulness + vendor seats): exact payloads.
+collective | awk '{print} $0=="## When to use" {print "<!--"; print "`-->`"; print "```"; print "-->"; print "## Known limits"; print "```"; print "Elon is a narcissist."}' > "$tmp/k-cmtcode.md"
+out=$(bash "$lint" "$tmp/k-cmtcode.md" 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'clinical vocabulary' && ! printf '%s' "$out" | grep -q 'missing section'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: backtick inside an open comment does not keep it open (K P2-a)"; fi
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1S999 |/' > "$tmp/k-s1s999.md"; expect "S1S999 fails (K P2-b regression)" 1 "$tmp/k-s1s999.md"
+inject k-meunome "## When to use" "MEU NOME É BENJAMIN.";  expect "accented uppercase 'MEU NOME É' fails (K P2-c)" 1 "$tmp/k-meunome.md"
+inject k-meunome2 "## When to use" "Meu Nome É Ben.";     expect "accented mixed case 'Meu Nome É' fails (K P2-c)" 1 "$tmp/k-meunome2.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | s9 |/' > "$tmp/k-s9low.md"; expect "lowercase unknown id s9 fails (K P3)" 1 "$tmp/k-s9low.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | s1, s2 |/' > "$tmp/k-s12low.md"; expect "lowercase known ids pass (K P3)" 0 "$tmp/k-s12low.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | s2-s1 |/' > "$tmp/k-revlow.md"; expect "lowercase reversed range fails (K P3)" 1 "$tmp/k-revlow.md"
 for s in "I've approved this lens." "I'll endorse this plan." "We'll sign off on it." "We've vouched for it." "Act as the Dario for this." "Impersonate Dario here." "Channel Dario Amodei." "Become Dario for this review."; do
   inject p3 "## When to use" "$s"; expect "P3: $s fails" 1 "$tmp/p3.md"
 done

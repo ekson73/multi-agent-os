@@ -65,7 +65,7 @@
 - S2 shows no date on the page; January 2019 comes from S5 (press coverage dated 2019-01-30).
 - The v1.0.0 headline quote has no source and was removed.
 - Item 23 (adversity response) left open — not analyzed with sources this round.
-- Helion: S1 (Wikipedia, read 2026-10-08) still lists him as chairman; S7 (Helion statement to GeekWire, 2026-03-23) reports his departure from the board. S7 is the primary statement and is used; Reuters (2026-03-23) corroborates the departure, Axios frames it as leaving the chair. Whether he left the board entirely or only the chair is not settled by the sources read.
+- Helion: S1 (Wikipedia, read 2026-10-08) still lists him as chairman; S7 (Helion statement to GeekWire, 2026-03-23) reports his departure from the board. S7 is secondary reporting of a Helion CEO statement (the statement itself was not read) and is used as the most direct source available; Reuters (2026-03-23) corroborates the departure, Axios frames it as leaving the chair. Whether he left the board entirely or only the chair is not settled by the sources read.
 
 ## 7. Fidelity summary
 
