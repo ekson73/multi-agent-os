@@ -225,11 +225,15 @@ report "quote without source marker" "$n"
 # 0. subject_class in the front matter: one of five values. Real-person rules (check 5) apply to
 #    living-public, deceased-historical and collective; fictional and non-human subjects may carry
 #    labeled clinical vocabulary as literary analysis. Every other check applies to every class.
-subject_class=$(awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
-  NR > 1 && /^subject_class:/ { v = $0; sub(/^subject_class:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); gsub(/"/, "", v); print v; exit }' "$file") \
+# The value only counts inside a closed front-matter block (opening and closing "---").
+subject_class=$(awk 'NR == 1 { if ($0 != "---") exit; opened = 1; next }
+  $0 == "---" { closed = 1; exit }
+  /^subject_class:/ && v == "" { v = $0; sub(/^subject_class:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); gsub(/"/, "", v) }
+  END { if (opened && !closed) print "\002"; else if (closed) print v }' "$file") \
   || fail "lint error: awk subject_class check failed"
 case "$subject_class" in
   living-public|deceased-historical|collective|fictional-or-archetypal|non-human-or-abiotic) ;;
+  $'\002') fail "front matter has no closing ---" ;;
   "") fail "missing subject_class in front matter" ;;
   *) fail "unknown subject_class: $subject_class" ;;
 esac
@@ -272,14 +276,27 @@ else
   else
     known=$(awk -F'|' '/^\| *S[0-9]+ *\|/ { x = $2; gsub(/[ S]/, "", x); print x }' "$dossier") \
       || fail "lint error: awk dossier id check failed"
-    cited=$(awk -F'\t' '$2 == "Fidelity" { print $6 }' "$tmp/norm" | awk '
+    max=0; for k in $known; do [ "$k" -gt "$max" ] && max=$k; done
+    # Ranges are expanded only up to the highest dossier id, so a huge span cannot loop forever;
+    # a reversed range or an id with a suffix (S1a) is reported, never silently skipped.
+    cited=$(awk -F'\t' '$2 == "Fidelity" { print $6 }' "$tmp/norm" | awk -v max="$max" '
       { s = $0
-        while (match(s, /S[0-9]+ *(-|\342\200\223) *S?[0-9]+|S[0-9]+/)) {
+        while (match(s, /S[0-9]+ *(-|\342\200\223) *S?[0-9]+[A-Za-z]*|S[0-9]+[A-Za-z]*/)) {
           t = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
+          if (t ~ /[A-RT-Za-z]/) { gsub(/ /, "", t); print "bad:" t; continue }
           gsub(/\342\200\223/, "-", t); gsub(/[ S]/, "", t)
-          if (index(t, "-")) { split(t, r, "-"); for (i = r[1] + 0; i <= r[2] + 0; i++) print i } else print t + 0
+          if (index(t, "-")) {
+            split(t, r, "-"); a = r[1] + 0; b = r[2] + 0
+            if (a > b) { print "rev:S" a "-S" b; continue }
+            for (i = a; i <= b && i <= max; i++) print i
+            if (b > max) print b
+          } else print t + 0
         } }') || fail "lint error: awk cited id check failed"
     for id in $cited; do
+      case "$id" in
+        bad:*) fail "malformed source id: ${id#bad:}"; break ;;
+        rev:*) fail "reversed source id range: ${id#rev:}"; break ;;
+      esac
       printf '%s\n' "$known" | grep -qx -- "$id"; rc=$?
       [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
       [ "$rc" -eq 0 ] || { fail "source id S$id is not in the dossier source list"; break; }

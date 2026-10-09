@@ -154,6 +154,7 @@ good | grep -vxF '## Method (M.O.)' > "$tmp/k-nomethod.md";                   ex
 klass() { good | sed "s/^subject_class: living-public$/subject_class: $1/"; }
 good | grep -v '^subject_class:' > "$tmp/s-nocls.md";            expect "missing subject_class fails" 1 "$tmp/s-nocls.md"
 klass alien > "$tmp/s-badcls.md";                                 expect "unknown subject_class fails" 1 "$tmp/s-badcls.md"
+good | awk 'NR == 4 && $0 == "---" { next } { print }' > "$tmp/j-noclose.md"; expect "front matter without closing --- fails (J1)" 1 "$tmp/j-noclose.md"
 for c in deceased-historical collective fictional-or-archetypal non-human-or-abiotic; do
   klass "$c" > "$tmp/s-$c.md";                                    expect "class $c good charter passes" 0 "$tmp/s-$c.md"
 done
@@ -166,6 +167,14 @@ klass collective | sed 's/^Empiricism.$/Shows narcissistic drive./' > "$tmp/s-co
 good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S9 |/' > "$tmp/s-id9.md"; expect "unknown source id fails" 1 "$tmp/s-id9.md"
 good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1–S2 |/' > "$tmp/s-rng-ok.md"; expect "source id range inside the list passes" 0 "$tmp/s-rng-ok.md"
 good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1-S3 |/' > "$tmp/s-rng-bad.md"; expect "source id range past the list fails" 1 "$tmp/s-rng-bad.md"
+# J2 (CodeRabbit 5472633615): reversed, oversized, suffixed and en-dash-reversed ranges.
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S2-S1 |/' > "$tmp/j-rev.md"; expect "reversed source id range fails (J2)" 1 "$tmp/j-rev.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S2–S1 |/' > "$tmp/j-rev-en.md"; expect "reversed en-dash source id range fails (J2)" 1 "$tmp/j-rev-en.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1-S99999999 |/' > "$tmp/j-huge.md"
+start=$SECONDS; expect "oversized source id range fails (J2)" 1 "$tmp/j-huge.md"
+if [ $((SECONDS - start)) -le 5 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: oversized range is bounded (took $((SECONDS - start))s)"; fi
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1a |/' > "$tmp/j-suf.md"; expect "source id with a suffix fails (J2)" 1 "$tmp/j-suf.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1, S2 |/' > "$tmp/j-list.md"; expect "comma-separated known ids pass (J2)" 0 "$tmp/j-list.md"
 good | grep -v '^Dossier:' > "$tmp/s-nodos.md";                   expect "missing dossier pointer fails" 1 "$tmp/s-nodos.md"
 # shellcheck disable=SC2016  # literal markdown backticks
 good | sed 's/^Dossier: `dossier.md`$/Dossier: `nowhere.md`/' > "$tmp/s-dos404.md"; expect "dossier not found fails" 1 "$tmp/s-dos404.md"
