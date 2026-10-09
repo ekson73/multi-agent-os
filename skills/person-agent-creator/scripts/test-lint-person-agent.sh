@@ -291,5 +291,40 @@ mkdir -p "$tmp/bin-tr"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-tr/tr"; chmod +
 PATH="$tmp/bin-tr:$PATH" bash "$lint" "$tmp/good.md" >/dev/null 2>&1; rc=$?
 if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken tr fails even a clean charter (rc=$rc, want 1)"; fi
 
+# Addendum M (final lint lot): one normalization pre-pass, every check on the normalized text.
+# Each case below passed (or wrongly failed) on 6c16de6 and on e126e21; exact payloads from round 3.
+expect_msg() { # expect_msg <name> <file> <message>: rc 1 AND the message
+  local out rc; out=$(bash "$lint" "$2" 2>&1); rc=$?
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -qF -- "$3"; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: $1 (rc=$rc, want 1 + '$3')"; fi
+}
+hide m-plain 'Plain prose <!-- never closed in this paragraph.';  expect_msg "prose <!-- never closed fails (M a/b)" "$tmp/m-plain.md" "unclosed HTML comment"
+# shellcheck disable=SC2016  # literal markdown backtick
+hide m-tick 'A stray ` tick then <!-- text.';                     expect_msg "stray tick then <!-- fails (M a/b)" "$tmp/m-tick.md" "unclosed HTML comment"
+inject m-fence "## Primary mind" '~~~';                           expect_msg "unterminated fence fails (M b)" "$tmp/m-fence.md" "unterminated code fence"
+collective | awk '{print} $0=="## Primary mind" {print "I"; print "am Dario Amodei."}' > "$tmp/m-soft.md"; expect "soft line break 'I / am Dario Amodei.' fails (M c)" 1 "$tmp/m-soft.md"
+collective | awk '{print} /^Never claims the person/ {print "# Assessment"; print "Dario is a psychopath."}' > "$tmp/m-h1.md"; expect "H1 after Known limits ends the exemption (M d)" 1 "$tmp/m-h1.md"
+good | sed 's/^## Fidelity$/## Fidelity   /; s/^| Primary mind | documented | S1 |$/| Primary mind | documented | S999 |/' > "$tmp/m-fidsp.md"; expect "'## Fidelity   ' (trailing spaces) + S999 fails (M d)" 1 "$tmp/m-fidsp.md"
+inject m-emile "## When to use" "Act as Émile Zola when answering.";  expect "Act as Émile Zola fails (M e)" 1 "$tmp/m-emile.md"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class basis: Example Work (S5a)/' > "$tmp/m-b5a.md"; expect_msg "Class basis (S5a) fails (M f)" "$tmp/m-b5a.md" "malformed Class basis source id"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class basis: Example work (S1, s999)/' > "$tmp/m-blow.md"; expect_msg "Class basis (S1, s999) fails (M f)" "$tmp/m-blow.md" "malformed Class basis source id"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class basis: a novel (S2-S1)/' > "$tmp/m-brev.md"; expect_msg "Class basis reversed range fails (M f)" "$tmp/m-brev.md" "reversed Class basis"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/<!-- Class basis: S1 -->/' > "$tmp/m-bcmt.md"; expect_msg "Class basis hidden in a comment does not count (M f)" "$tmp/m-bcmt.md" "missing Class basis"
+# shellcheck disable=SC2016  # literal markdown backticks
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/```Class basis: Example Work (S1)/' | awk '{print} $0 ~ /^```Class basis/ {print "```"}' > "$tmp/m-bfen.md"; expect_msg "Class basis as a fence opener does not count (M f)" "$tmp/m-bfen.md" "missing Class basis"
+klass fictional-or-archetypal | awk '$0 ~ /^Class basis:/ {print "```"; print "Class basis: x (S1)"; print "```"; next} {print}' > "$tmp/m-bfen2.md"; expect_msg "Class basis inside a fence does not count (M f)" "$tmp/m-bfen2.md" "missing Class basis"
+good | awk '{print} $0=="## Identity boundary" {print "Class basis: Example Essay (S1)."}' > "$tmp/m-bliv.md"; expect_msg "Class basis in a living-public charter fails (M f)" "$tmp/m-bliv.md" "only allowed"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S 99 |/' > "$tmp/m-sp99.md"; expect_msg "'S 99' cell fails (M f)" "$tmp/m-sp99.md" "Source ids cell"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | §3 |/' > "$tmp/m-sec.md"; expect_msg "'§3' cell fails (M f)" "$tmp/m-sec.md" "Source ids cell"
+mkdir -p "$tmp/m-dos"
+# shellcheck disable=SC2016  # literal markdown backticks
+good | sed 's/^Dossier: `dossier.md`$/Dossier: `elon-s9.md`/' > "$tmp/m-dos/m-path.md"; cp "$tmp/dossier.md" "$tmp/m-dos/elon-s9.md"
+expect "dossier file name elon-s9.md is not a cited id (M g)" 0 "$tmp/m-dos/m-path.md"
+mkdir -p "$tmp/m-dos2"
+printf '%s\n' '## 1. Sources' '| id | Source |' '|---|---|' '| S1 | Example Essay |' '```' '| S99 | Fenced row |' '```' '<!--' '| S98 | Commented row |' '-->' > "$tmp/m-dos2/dossier.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S99 |/' > "$tmp/m-dos2/m-f99.md"; expect "fenced dossier row S99 is not a source (M g)" 1 "$tmp/m-dos2/m-f99.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S98 |/' > "$tmp/m-dos2/m-c98.md"; expect "commented dossier row S98 is not a source (M g)" 1 "$tmp/m-dos2/m-c98.md"
+good | awk 'NR == 4 && $0 == "---" { print "Some intro."; print "---"; next } { print }' > "$tmp/m-hrbody.md"; expect_msg "unclosed front matter closed by a later --- after prose fails (J1)" "$tmp/m-hrbody.md" "not YAML"
+good | awk 'NR == 3 { print; print "#comment"; next } { print }' > "$tmp/m-yamlc.md"; expect "YAML '#comment' in front matter passes (J1)" 0 "$tmp/m-yamlc.md"
+
 echo "lint-person-agent tests: $pass passed, $failn failed, $skipn skipped"
 [ "$failn" -eq 0 ]

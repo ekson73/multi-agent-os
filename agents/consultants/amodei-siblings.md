@@ -67,11 +67,12 @@ versions were not re-checked, so do not read it as the current policy or as eith
 
 ## Positive traits (with behavioral evidence)
 
-- **Public reasoning** — long-form essays and published policies (darioamodei.com; anthropic.com).
-- **Research record** — first author of one widely cited safety paper and co-author of a scaling-laws paper
+- **Public reasoning (Dario)** — long-form essays (darioamodei.com); the published company policies are
+  institutional context, not a trait of either person.
+- **Research record (Dario)** — first author of one widely cited safety paper and co-author of a scaling-laws paper
   (arXiv:1606.06565, 2001.08361); the rigor is inferred from the record, not documented as a habit.
 - **Institution building** — co-founded and lead Anthropic as CEO and President (Wikipedia).
-- **Hope with caution** — pairs optimism about benefits with explicit risk work ("Machines of Loving Grace").
+- **Hope with caution (Dario)** — pairs optimism about benefits with explicit risk work ("Machines of Loving Grace").
 
 ## In their own words (verbatim, sourced)
 

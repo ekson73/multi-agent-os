@@ -121,12 +121,19 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
 
    It fails (exit 1) on these checks, plus any internal tool error, and nothing else:
    - `subject_class` is missing from the front matter, is not one of the five classes above, or the
-     front matter has no closing `---` (the block ends at the first `---` after line 1; a markdown
-     heading inside it means the closing line is missing and a later body rule closed it, which fails);
-   - a `fictional-or-archetypal` or `non-human-or-abiotic` charter has no `Class basis:` line, or that
-     line cites no dossier source id, or cites one that is not in the dossier;
-   - a source id cited in the Fidelity table (`S3`, or a range `S1–S7` / `S1-S7`) is not a source row
-     (`| Sn |`) of the dossier named on the charter's `Dossier:` line, or that line or file is missing
+     front matter has no closing `---` (the block ends at the first `---` after line 1; every line of
+     it must look like YAML — a `key:`, an indented continuation, a `- item`, a `#comment` without a
+     space — so a markdown heading or plain text inside it means the closing line is missing and a later
+     body rule closed it, which fails);
+   - an HTML comment that opens (`<!--`) and never closes, or a code fence that never closes;
+   - a `fictional-or-archetypal` or `non-human-or-abiotic` charter has no `Class basis:` line (outside
+     code fences and HTML comments), or that line cites no dossier source id, cites one that is not in
+     the dossier, or writes one other than strictly `S<digits>` (a list or `S<a>-S<b>` ranges; `S5a`,
+     `s999` and reversed ranges fail); a `Class basis:` line in any other class fails;
+   - a source id in the *Source ids* column of the Fidelity table (`S3`, or a range `S1–S7` / `S1-S7`;
+     the cell must hold only ids and `,` / `;` separators, so `S 99` or `§3` fails) is not an id of the
+     dossier's source table (the table whose header starts with `| id |`, rows outside code fences and
+     HTML comments only) named on the charter's `Dossier:` line, or that line or file is missing
      (the path is looked up from the charter's directory upwards; existence only, not what the source
      says), or a cited id is malformed (`S1a`) or a range is reversed (`S7-S1`); ranges are expanded
      only up to the highest dossier id;
@@ -158,19 +165,31 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
      lens` and `become familiar` pass); the contractions `I've`, `I'll`, `we've`, `we'll` before an
      approval verb. Carriage returns are removed before any check, so a CRLF charter is linted like an
      LF one.
-   The checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
-   markers, emphasis, backticks), including lines inside code fences (``` or ~~~, of any length, with
-   nested fences) and HTML comments, and fence info strings. Only the double-quoted spans that are
-   sourced (as defined above) are exempt, so a verbatim first-person quote stays allowed while an
-   unsourced span on the same line is still checked. A `## ` heading inside a fence or a comment
-   neither changes the current section (so it cannot open *Known limits*) nor counts as a required
-   section. Fences and comments exclude each other as in a markdown renderer: a fence opens only at the
-   start of a line (a backtick run followed by more backticks on the same line is inline code), and
-   `<!--` inside inline code does not open a comment. The script runs with `LC_ALL=C`. Every external
-   tool it calls (`grep`, `awk`, `cut`, `dirname`) has its exit status checked; the helpers that pick
-   the first match use shell expansion instead of `sed`, `head` or `cut`. Any tool error is a failure,
-   never "no match", and the fixtures prove it by breaking each tool through a `PATH` shim. Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
-   `LINT=<path>`). Tested end to end on 2026-10-09 with three throwaway charters (a historical figure,
+   **One normalization pre-pass, every check on its output.** The script never matches the raw
+   markdown. It builds two views. The *structure* view keeps only lines outside code fences (``` or
+   ~~~, any length, nested) and HTML comments; only those lines can be a heading, end a section, be a
+   `Class basis:` line or a Fidelity row. The *voice* view keeps every line, fences and comments
+   included (an agent reads the raw file, so hidden text still reaches the model), joins the soft line
+   breaks of a paragraph into one unit (so `I` / `am X` is one sentence), and is what the first-person,
+   role-play, clinical and cultural checks read. A unit is exempt from the clinical and cultural checks
+   only when every line of it is a structure line inside *Known limits*; text inside a fence or a comment
+   is never exempt. A line that starts with a class label is a unit of its own, so a label never covers
+   the next line. Headings: up to three spaces, 1–6 `#`, a space, the text; trailing spaces and a
+   closing `#` run are trimmed and the text is compared in lower case, and a level-1 or level-2 heading
+   starts a new section (a `# X` after *Known limits* ends it). Latin-1 accented letters are folded to
+   ASCII and the voice text is lowered, so case and accents change no match (`MEU NOME É`, `Act as Émile
+   Zola`), under `LC_ALL=C` and `C.UTF-8` alike. Markdown prefixes are stripped (indent, `>` at any
+   depth, list markers, emphasis, backticks); a fence opens only at the start of a line (a backtick run
+   followed by more backticks on the same line is inline code), and `<!--` inside inline code does not
+   open a comment. Only the double-quoted spans that are sourced (as defined above) are exempt, so a
+   verbatim first-person quote stays allowed while an unsourced span on the same line is still checked.
+   Every external tool it calls (`grep`, `awk`, `cut`, `tr`, `dirname`, the JSON escape helper) has its
+   exit status checked; the helpers that pick the first match use shell expansion instead of `sed`,
+   `head` or `cut`. Any tool error is a failure, never "no match", and the fixtures prove it by breaking
+   each tool through a `PATH` shim. Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
+   `LINT=<path>`; the script reads `../references/charter-template.md` relative to itself, so an older
+   script must be placed in `scripts/` beside this one, or every fixture that should pass fails and the
+   count misleads). Tested end to end on 2026-10-09 with three throwaway charters (a historical figure,
    a fictional character quoted from a public-domain text, and a non-human metaphor): all passed, and
    the same charters failed once a fabricated first-person line (or, for the historical one, a clinical
    label) was added.
@@ -179,7 +198,21 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
    endorsement in words outside that list ("This lens is approved by X", a paraphrase that speaks for
    the person), other languages than English and Portuguese, look-alike (confusable) letters,
    zero-width or non-breaking spaces inside a pattern, a source id cited outside the Fidelity table,
-   whether a source actually says what the charter claims, and single-quoted quotations. Every run prints a warning saying so, and `--json` carries
+   whether a source actually says what the charter claims, and single-quoted quotations.
+
+   **Known limits of the floor (documented, not new rules; the panel decides).** The normalization
+   above is the last lint lot for this release; what it does not catch stays a known limit:
+   - role-play false positives in plain biography (`Before becoming President of Anthropic`, `He would
+     become CEO`, `Post updates in the channel General`, `Never impersonate Dario`) fail; reword them;
+   - role-play and endorsement forms outside the bounded list pass: `Be Dario Amodei.`, `You will be
+     Dario.`, `Respond as` / `Speak as` / `Answer as Dario`, `Write in the voice of Dario`, `I've just
+     approved`, `We all endorse`, and Portuguese plural endorsement (`Nós aprovamos`);
+   - a `Literary analysis:` or `Metaphor:` label applied to a real person reclassified as fictional or
+     non-human passes when the charter carries a `Class basis:` with a real dossier id: whether the
+     class is true is semantic, and a change of class is a panel finding (see *Merge gate*);
+   - a YAML comment with a space after `#` in the front matter (`# note`) is read as a markdown heading
+     and fails; write `#note`;
+   - an id written with a leading zero (`S01`) is read as `S1`. Every run prints a warning saying so, and `--json` carries
    `"semantic_validated": false`. A passing lint is the floor, not the verdict; the merge gate below
    is the verdict.
 7. **Fidelity self-assessment.** Per charter field: `documented` (cited) · `inferred` (pattern across
@@ -322,4 +355,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Adversarial round: fences and comments exclude each other and inline code opens neither; required sections read from the template; every external tool status checked (proved with PATH shims); act as / pretend to be / roleplay as <Name> and "he's paranoid" caught (112 fixtures); front matter must close, and reversed, oversized or suffixed source ids fail (119 fixtures, CodeRabbit review 5472633615); the consultative-lens paragraph is in the SKILL, the agent and the charter template. Final adversarial round: the clinical check runs for every class (a self-declared class no longer switches it off; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class), fictional and non-human charters need a `Class basis:` line with a dossier id, a change of class is a panel finding, the front matter may not swallow body headings, and `I've`/`I'll`/`we've`/`we'll`, `impersonate`/`channel`/`become`, `act as the <Name>` and CRLF files are handled (141 fixtures; the JSON fixture skips without python3/jq). Second adversarial pass: a backtick inside an open HTML comment no longer exempts a term, glued source ids (`S1S999`) and lowercase ids (`s9`) are checked, accented uppercase Portuguese first person is caught, failed directory or JSON helpers fail the lint, and tool-failure fixtures assert the `lint error` message (151 fixtures). Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Adversarial round: fences and comments exclude each other and inline code opens neither; required sections read from the template; every external tool status checked (proved with PATH shims); act as / pretend to be / roleplay as <Name> and "he's paranoid" caught (112 fixtures); front matter must close, and reversed, oversized or suffixed source ids fail (119 fixtures, CodeRabbit review 5472633615); the consultative-lens paragraph is in the SKILL, the agent and the charter template. Final adversarial round: the clinical check runs for every class (a self-declared class no longer switches it off; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class), fictional and non-human charters need a `Class basis:` line with a dossier id, a change of class is a panel finding, the front matter may not swallow body headings, and `I've`/`I'll`/`we've`/`we'll`, `impersonate`/`channel`/`become`, `act as the <Name>` and CRLF files are handled (141 fixtures; the JSON fixture skips without python3/jq). Second adversarial pass: a backtick inside an open HTML comment no longer exempts a term, glued source ids (`S1S999`) and lowercase ids (`s9`) are checked, accented uppercase Portuguese first person is caught, failed directory or JSON helpers fail the lint, and tool-failure fixtures assert the `lint error` message (151 fixtures). Final lint lot: one normalization pre-pass replaces point rules (structure view without fences and comments, voice view with soft breaks joined, accents folded, headings trimmed and case-folded, H1 ends Known limits); an unclosed comment or fence fails; `Class basis:` only in fictional and non-human charters, outside fences and comments, with strict `S<digits>` ids; Fidelity ids read only from the Source ids column and dossier ids only from the dossier's source table; front-matter lines must look like YAML; residual gaps documented as known limits of the floor (172 fixtures). Amodei charter: Dario-only traits attributed to Dario; dossier: the RSP is institutional context, not a joint achievement, and the 3.0/3.4 dates are marked unsourced. Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |
