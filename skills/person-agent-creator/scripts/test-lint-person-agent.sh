@@ -376,5 +376,18 @@ expect_msg "second Class basis line (S999) fails (O3)" "$tmp/o-2basis.md" "more 
 good | awk '{ print } $0 == "## Identity boundary" { print "Class basis:"; print "Class basis: Example Essay (S1)." }' > "$tmp/o-lpbasis.md"
 expect_msg "living-public with an empty and a filled Class basis line fails (O3)" "$tmp/o-lpbasis.md" "Class basis line is only allowed"
 
+# Addendum P (round 6 on 6255c56, lint freeze). Each failing case below passed (rc 0) on 6255c56.
+# 1. A Fidelity row without a closing pipe hid its last cell.
+good | sed -e 's/^| Field | Status | Source ids |$/| Field | Status | Source ids | Source ids/' -e 's/^|---|---|---|$/|---|---|---|---|/' -e 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1 | S999/' > "$tmp/p-nopipe.md"
+expect_msg "Fidelity rows without a closing pipe, S999 in the last column, fail (P1)" "$tmp/p-nopipe.md" "without a closing pipe"
+# 2. An escaped pipe shifts the cells: the rendered Source ids cell is S999.
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind \\| x | S1 | S999 |/' > "$tmp/p-escpipe.md"
+expect_msg "escaped pipe shifting S999 under Source ids fails (P2)" "$tmp/p-escpipe.md" "escaped pipe"
+# 3. A bare URL in Class basis is removed up to whitespace or <>, past a ')'.
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: https://example.org/)S1|' > "$tmp/p-bareurl.md"
+expect_msg "Class basis 'https://example.org/)S1' fails (P3)" "$tmp/p-bareurl.md" "Class basis cites no dossier source id"
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: Example Essay (S1, https://example.org/)|' > "$tmp/p-urlid-ok.md"
+expect "Class basis id before a URL in parentheses passes (P3)" 0 "$tmp/p-urlid-ok.md"
+
 echo "lint-person-agent tests: $pass passed, $failn failed, $skipn skipped"
 [ "$failn" -eq 0 ]

@@ -287,12 +287,16 @@ fid=$(awk -F'\t' '
     row = ($7 == 1 && $5 ~ /^\|/)
     if (row && !(prev && $1 == pnr + 1)) { ntab++; if (ntab == 1) hdr = $6 }
     if (row && $5 ~ /^\| *field *\| *status *\|/) nh++
+    if (row && $5 !~ /\|[ \t]*$/ && !np) np = $1
+    if (row && index($5, "\\|") && !ep) ep = $1
     prev = row; pnr = $1
   }
   END {
     if (out) { print "outside:" out; exit }
     if (ntab != 1) { print "count:" ntab + 0; exit }
     if (nh > 1) { print "headers:" nh; exit }
+    if (np) { print "nopipe:" np; exit }
+    if (ep) { print "escpipe:" ep; exit }
     if (tolower(hdr) !~ /^\| *field *\| *status *\|/) { print "header"; exit }
     nc = split(hdr, c, "|")
     for (i = 2; i < nc; i++) { x = tolower(c[i]); gsub(/^ +| +$/, "", x); if (x == "source ids") { n++; if (!col) col = i } }
@@ -304,6 +308,8 @@ case "$fid" in
   count:0|header) fail "missing fidelity table (| Field | Status | Source ids |) in ## Fidelity" ;;
   count:*) fail "more than one table in ## Fidelity (${fid#count:}); keep only the fidelity table" ;;
   nocol) fail "fidelity table has no Source ids column" ;;
+  nopipe:*) fail "fidelity table row without a closing pipe (line ${fid#nopipe:}); end every row with |" ;;
+  escpipe:*) fail "escaped pipe (\\|) in the fidelity table (line ${fid#escpipe:}); it shifts the cells" ;;
   headers:*) fail "fidelity table repeats its header (${fid#headers:} header rows); keep exactly one" ;;
   multicol:*) fail "fidelity table has ${fid#multicol:} Source ids columns; keep exactly one" ;;
   ''|*[!0-9]*) fail "lint error: fidelity table check returned '$fid'" ;;
@@ -424,11 +430,11 @@ class_basis=$(awk -F'\t' '$7 == 1 && $5 ~ /^class basis:/ { v = $6; sub(/^[^:]*:
 # never ignored.
 basis_lines=$(awk -F'\t' '$7 == 1 && $5 ~ /^class basis:/ { n++ } END { print n + 0 }' "$tmp/norm") \
   || fail "lint error: awk class basis line count failed"
-# An autolink <scheme:...> is removed whole, then any bare URL, before ids are read (an id inside a URL,
+# An autolink <scheme:...> is removed whole, then any bare URL up to whitespace or <>, before ids are read (an id inside a URL,
 # such as https://example.org/S999 or <https://example.org/)S1>, is not a citation). At least one valid S<digits> id must remain: nothing to check is a failure.
 basis_ids_text=""
 if [ -n "$class_basis" ]; then
-  basis_ids_text=$(printf '%s\n' "$class_basis" | awk '{ gsub(/<[A-Za-z][A-Za-z0-9+.-]*:[^>]*>/, " "); gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t)>]*/, " "); print }') \
+  basis_ids_text=$(printf '%s\n' "$class_basis" | awk '{ gsub(/<[A-Za-z][A-Za-z0-9+.-]*:[^>]*>/, " "); gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t<>]*/, " "); print }') \
     || fail "lint error: awk class basis URL strip failed"
 fi
 case "$subject_class" in
