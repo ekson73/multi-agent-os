@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-02**: the table lists 92 git-tracked top-level skills, including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (92)
+## Available Skills (93)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -68,6 +68,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `openrig-concierge` | `openrig-concierge/SKILL.md` | Concierge and guarded operator for OpenRig (the `rig` CLI that runs Claude Code and Codex seats as one rig): explains, operates and diagnoses rigs; routes to first-party `rig context get` refs; owns tiers and trust gates. Crews on target repositories are a hard STOP until #453. |
 | `opera-debrief` | `opera-debrief/SKILL.md` | Use when you want to deliver a session/work recap as a FAITHFUL, dosed NARRATIVE — a "summary as an opera": a short story-arc (acts) with measured hum |
 | `operator-quote-capture` | `operator-quote-capture/SKILL.md` | Use when operator says "salva isto", "tome nota", "remember this", "from now on", "capture this rule/tip", OR when detecting substantive operator quot |
+| `person-agent-creator` | `person-agent-creator/SKILL.md` | Create or elevate a PERSON-AGENT: a thinking-archetype agent modeled on the publicly documented reasoning of a subject (living or deceased person, fictional or archetypal figure, collective, or non-human), declared by `subject_class` — never an impersonation. |
 | `pii-masking` | `pii-masking/SKILL.md` | Synchronous CI-time PII detection — CPF Modulo-11 (algorithmic checksum, not just regex), RFC 5322 email subset (catastrophic-backtracking-safe), E.16 |
 | `postflight` | `postflight/SKILL.md` | Use at the END of a session/action — especially before the operator compacts or clears the conversation — to close the workspace out cleanly and hand  |
 | `praxis-audit` | `praxis-audit/SKILL.md` | Self-referential session-method audit — turn the firing/theater lens onto THIS session's OWN enacted methods/tools (not the standing governance corpus |
