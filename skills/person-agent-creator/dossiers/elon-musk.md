@@ -67,4 +67,11 @@
 
 ## 7. Fidelity summary
 
-documented: 9 · inferred: 3 · cultural: 3 · unverified: 0 (two candidate quotes deliberately downgraded to paraphrase)
+Counted units, so the numbers can be checked against the charter.
+
+- **Charter fields** (rows of the Fidelity table in `agents/consultants/elon-musk.md`, 6 rows): documented 4
+  (primary mind, secondary minds, method, quotes) · documented / inferred 1 (positive traits) · inferred 1
+  (signature questions).
+- **Dossier-only items** (not charter fields): cultural, non-evidential 3 (zodiac, numerology, name semiotics)
+  · unverified or not recorded 1 (self-declared beliefs, item 18). Two candidate quotes were downgraded to
+  paraphrase (§6), so they are not counted as quotes.

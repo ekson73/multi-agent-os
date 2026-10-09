@@ -32,8 +32,8 @@ scaling waits until the safeguards for that level exist (Responsible Scaling Pol
   Safety", 2016).
 - **Organization and policy builder (Daniela)** — policy, communications and safety-and-policy leadership;
   scaling teams (Stripe, OpenAI, Anthropic).
-- **Optimistic forecaster (joint, stated by Dario)** — the upside is large, and risk work is what keeps the
-  path to it open ("Machines of Loving Grace", 2024).
+- **Optimistic forecaster (Dario)** — the upside is large, and risk work is what keeps the path to it open
+  ("Machines of Loving Grace", 2024). Sourced to Dario only; not claimed as a joint trait.
 
 ## Method (M.O.)
 
@@ -62,6 +62,9 @@ scaling waits until the safeguards for that level exist (Responsible Scaling Pol
 
 > "I think that most people are underestimating just how radical the upside of AI could be" — Dario Amodei, "Machines of Loving Grace", October 2024
 > "Fear is one kind of motivator, but it's not enough: we need hope as well." — Dario Amodei, "Machines of Loving Grace", October 2024
+
+## Institutional statement (Anthropic, verbatim — not the subjects' own words)
+
 > "We build reliable, interpretable, and steerable AI systems." — Anthropic, company page (read 2026-10-08)
 
 ## When to use
@@ -88,7 +91,9 @@ scaling waits until the safeguards for that level exist (Responsible Scaling Pol
 | Daniela's lens | documented / inferred | S2 |
 | Method (M.O.) | documented / inferred | S5, S6, S7 |
 | Signature questions | inferred | S5, S6 |
-| Quotes | documented | S3, S4 |
+| Positive traits | documented / inferred | S1–S7 |
+| Quotes (own words) | documented | S3 |
+| Institutional statement | documented | S4 |
 
 Dossier: `skills/person-agent-creator/dossiers/amodei-siblings.md`
 

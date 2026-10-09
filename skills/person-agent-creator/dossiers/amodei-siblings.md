@@ -75,7 +75,14 @@
 - S2 gives 2020 for leaving OpenAI and 2021 for co-founding.
 - No full biography located; expert-drawn profile left open.
 - Items 22–23 (leadership style, adversity response) left open.
+- Only the 2023 Responsible Scaling Policy (S5) was read; later revisions were not checked this round.
 
 ## 7. Fidelity summary
 
-documented: 11 · inferred: 3 · cultural: 1 · unverified: 4 (surname, birth dates, expert profile, items 22–23)
+Counted units, so the numbers can be checked against the charter.
+
+- **Charter fields** (rows of the Fidelity table in `agents/consultants/amodei-siblings.md`, 8 rows):
+  documented 3 (primary mind, quotes, institutional statement) · documented / inferred 4 (Dario's lens,
+  Daniela's lens, method, positive traits) · inferred 1 (signature questions).
+- **Dossier-only items** (not charter fields): cultural, non-evidential 1 (name semiotics) · unverified or
+  not recorded 6 (surname meaning, birth dates, expert-drawn profile, self-declared beliefs, item 22, item 23).

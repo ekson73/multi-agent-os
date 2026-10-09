@@ -9,7 +9,7 @@ description: |
   Use when asked to "create a person-agent for X", "model how X thinks", "elevate the X consultant
   archetype", "build a collective-mind agent for X and Y", or "criar um person-agent".
   Does NOT write first-person voices, invent quotes, diagnose people, or use private data.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill, Task
 ---
 
 # person-agent-creator
@@ -51,16 +51,23 @@ and does not claim X's endorsement.
    - *Talent assessor (HR / head-hunter lens)* — competencies stated as observed behaviors, with evidence.
    - *Cultural-semiotic reader* — name meaning, cultural framing; never allowed to drive behavior.
    - *Ethics and fidelity critic* — impersonation, flattery, invented voice, clinical labels, private data.
-   In a host that can delegate, run the lenses as independent reviewers; otherwise run them as
-   sequential passes and say so in the dossier (`panel: sequential-single-author`).
+   In a host that can delegate, run the lenses as independent reviewers, spawned through the repo's
+   canonical delegation entry point, `skills/delegate-governance/SKILL.md` (or
+   `${CLAUDE_PLUGIN_ROOT}/plugin-scripts/gaac/delegate.sh init|dna|finalize`), never as ad-hoc spawns;
+   otherwise run them as sequential passes and say so in the dossier (`panel: sequential-single-author`).
 5. **Charter.** Write the agent file from `references/charter-template.md`. Positive and beneficial
    traits only (operator scope) — **plus** a mandatory *Known limits* section so the profile does not
    become flattery.
-6. **Lint gate (deterministic).** `bash skills/person-agent-creator/scripts/lint-person-agent.sh <agent.md>`.
-   Fails on: missing required sections · first-person identity claims ("I am <name>") · a quote without
-   a source marker · missing fidelity table · clinical-diagnosis vocabulary applied to the subject.
+6. **Lint gate (deterministic).** `bash ${CLAUDE_PLUGIN_ROOT}/skills/person-agent-creator/scripts/lint-person-agent.sh <agent.md>`
+   (from a repo checkout, `${CLAUDE_PLUGIN_ROOT}` is the repo root).
+   Fails on: missing required sections · first-person identity, voice or endorsement in **any** section
+   and for **any** name (so collective-member aliases are covered) · a blockquote quote without a source
+   marker · missing fidelity table · clinical vocabulary outside *Known limits* · cultural inputs outside
+   *Known limits* · unfilled template placeholders. Fixtures: `scripts/test-lint-person-agent.sh`.
 7. **Fidelity self-assessment.** Per charter field: `documented` (cited) · `inferred` (pattern across
-   ≥2 cited decisions) · `cultural` (non-evidential input). Report the counts.
+   ≥2 cited decisions) · `documented / inferred` (mixed). Report the counts in two named units so they can
+   be checked: charter fields (rows of the charter Fidelity table) and dossier-only items (`cultural`
+   non-evidential inputs, `unverified` / not-recorded items).
 
 **DoD**: dossier with sources · 33 answers · charter passing the lint gate (exit 0) · fidelity table ·
 recon verdict recorded · no secrets, no private data.

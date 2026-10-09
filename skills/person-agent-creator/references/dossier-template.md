@@ -47,4 +47,7 @@
 
 ## 7. Fidelity summary
 
-documented: N · inferred: N · cultural: N · unverified: N
+- **Charter fields** (rows of the charter Fidelity table, N rows): documented N · documented / inferred N ·
+  inferred N — each row named.
+- **Dossier-only items** (not charter fields): cultural, non-evidential N · unverified or not recorded N —
+  each item named.

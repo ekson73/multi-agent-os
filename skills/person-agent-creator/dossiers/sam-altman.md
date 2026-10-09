@@ -15,6 +15,8 @@
 | S3 | Keach Hagey, *The Optimist: Sam Altman, OpenAI, and the Race to Invent the Future* (W. W. Norton, ISBN 9781324075967) — https://wwnorton.co.uk/books/9781324075967-the-optimist | biography | 2025 |
 | S5 | GIGAZINE, coverage of "How To Be Successful" dated 2019-01-30 — https://gigazine.net/gsc_news/en/20190130-how-to-be-successful | press (dates S2) | 2019 |
 | S4 | Behind the Name, "Samuel" — https://www.behindthename.com/name/samuel | etymology | 2026 |
+| S6 | Oklo newsroom, merger announcement with AltC ("has served as Chairman of Oklo since 2015") — https://oklo.com/newsroom/oklo-an-advanced-fission-technology-company-to-go-public-via-merger-with-altc-acquisition-corp | company | 2023 |
+| S7 | GeekWire, report on Helion and OpenAI ("Altman is stepping down from its board of directors", Helion CEO statement) — https://www.geekwire.com/2026/report-helion-is-working-on-a-massive-fusion-power-deal-with-openai/ | press | 2026-03-23 |
 
 ## 2. Identity and record
 
@@ -24,7 +26,7 @@
 | Surname meaning | not checked | — | unverified |
 | Birth | 22 April 1985, Chicago, Illinois | S1 | documented |
 | Education | John Burroughs School (Ladue, Missouri); two years of computer science at Stanford, left in 2005 without a degree | S1 | documented |
-| Timeline / companies | Loopt (co-founded 2005, age 19; acquired by Green Dot, March 2012) · Y Combinator partner (2011), president (Feb 2014–March 2019) · OpenAI co-founder (2015), CEO (2019–) · Tools for Humanity / Worldcoin co-founder (2019) · chair of Helion Energy · chair of Oklo (May 2024–April 2025) | S1 | documented |
+| Timeline / companies | Loopt (co-founded 2005, age 19; acquired by Green Dot, March 2012) · Y Combinator partner (2011), president (Feb 2014–March 2019) · OpenAI co-founder (2015), CEO (2019–) · Tools for Humanity / Worldcoin co-founder (2019) · former chair of Helion Energy (left its board, announced 2026-03-23, S7) · chair of Oklo from 2015 (S6), continued after its May 2024 public-company merger, stepped down April 2025 (S1) | S1, S6, S7 | documented |
 | Own words (recurring theses) | Compounding (careers and companies as exponential curves), self-belief, independent thinking, focus, boldness, ownership | S2 | documented |
 
 ## 3. Mind and character
@@ -63,7 +65,14 @@
 - S2 shows no date on the page; January 2019 comes from S5 (press coverage dated 2019-01-30).
 - The v1.0.0 headline quote has no source and was removed.
 - Item 23 (adversity response) left open — not analyzed with sources this round.
+- Helion: S1 (Wikipedia, read 2026-10-08) still lists him as chairman; S7 (Helion statement to GeekWire, 2026-03-23) reports his departure from the board. S7 is the primary statement and is used.
 
 ## 7. Fidelity summary
 
-documented: 8 · inferred: 3 · cultural: 3 · unverified: 2 (surname meaning, adversity response)
+Counted units, so the numbers can be checked against the charter.
+
+- **Charter fields** (rows of the Fidelity table in `agents/consultants/sam-altman.md`, 6 rows): documented 4
+  (primary mind, method, positive traits, quotes) · documented / inferred 1 (secondary minds) · inferred 1
+  (signature questions).
+- **Dossier-only items** (not charter fields): cultural, non-evidential 3 (zodiac, numerology, name semiotics)
+  · unverified or not recorded 3 (surname meaning, self-declared beliefs, item 23).

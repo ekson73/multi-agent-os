@@ -6,7 +6,7 @@ description: >
   reasoning of a real person or a collective (e.g. a founding pair). Runs the person-agent-creator
   skill: DRY recon, sourced research dossier, 33 Socratic person-questions, multi-lens synthesis,
   charter, deterministic lint gate and fidelity self-assessment. Never impersonates, never invents quotes.
-tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch
+tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill, Task
 agnostic: [os, project]
 ---
 
@@ -22,16 +22,19 @@ of its own.
   instead of creating a parallel file.
 - Research before writing. Every factual line in the dossier carries a source id or `unverified`.
 - Run the five lenses (biographer · cognitive-style analyst · talent assessor · cultural-semiotic reader ·
-  ethics and fidelity critic). When you cannot spawn independent reviewers, run them as sequential passes
+  ethics and fidelity critic). Spawn independent reviewers only through `skills/delegate-governance/SKILL.md`.
+  When you cannot spawn them, run the lenses as sequential passes
   and record `panel: sequential-single-author` in the dossier.
-- Finish with `bash skills/person-agent-creator/scripts/lint-person-agent.sh <charter>` and report its real
+- Finish with `bash ${CLAUDE_PLUGIN_ROOT}/skills/person-agent-creator/scripts/lint-person-agent.sh <charter>`
+  (repo root when run from a checkout) and report its real
   exit code, plus the fidelity counts (documented · inferred · cultural · unverified).
 
 ## Hand-offs
 
 - Naming of a new person-agent slug → `anima`.
 - Turning a dossier into a visual report → `research-dossier`.
-- Independent review of the charter → `perspective-trio` or `persona-pipeline`.
+- Independent review of the charter → `perspective-trio` or `persona-pipeline`, spawned through
+  `skills/delegate-governance/SKILL.md` (the repo's canonical delegation entry point).
 
 ---
 
