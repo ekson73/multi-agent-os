@@ -57,19 +57,29 @@ awk -v headings="$tmp/headings" '
   {
     raw = $0
     u = raw; sub(/^ ? ? ?/, "", u)            # up to three spaces of indent
-    infence_start = infence; incomment_start = incomment
-    if (!infence) {
-      r = fence_run(u)
-      if (r) { infence = 1; fch = substr(u, 1, 1); flen = r; isfence = 1 } else isfence = 0
-    } else {
+    infence_start = infence; incomment_start = incomment; isfence = 0
+    # Fences and comments exclude each other, as in a markdown renderer: inside a fence "<!--" is
+    # text; inside a comment a fence run is text. A fence opens only at the start of a line, and a
+    # backtick fence whose info string contains a backtick is inline code, not a fence.
+    if (infence) {
       r = fence_run(u); rest = substr(u, r + 1)
-      if (r && substr(u, 1, 1) == fch && r >= flen && rest ~ /^[ \t]*$/) { infence = 0; isfence = 1 } else isfence = 0
-    }
-    if (!infence_start && !isfence) {           # HTML comments only outside code fences
-      x = raw
-      while (1) {
-        if (incomment) { i = index(x, "-->"); if (!i) break; incomment = 0; x = substr(x, i + 3) }
-        else           { i = index(x, "<!--"); if (!i) break; incomment = 1; x = substr(x, i + 4) }
+      if (r && substr(u, 1, 1) == fch && r >= flen && rest ~ /^[ \t]*$/) { infence = 0; isfence = 1 }
+    } else {
+      if (!incomment) {
+        r = fence_run(u); rest = substr(u, r + 1)
+        if (r && !(substr(u, 1, 1) == "`" && index(rest, "`"))) { infence = 1; fch = substr(u, 1, 1); flen = r; isfence = 1 }
+      }
+      if (!isfence) {                           # comment markers, outside inline code spans
+        x = raw
+        while (match(x, /`+/)) {                 # drop each inline code span (a run and its closing run)
+          run = substr(x, RSTART, RLENGTH); pre = substr(x, 1, RSTART - 1); post = substr(x, RSTART + RLENGTH)
+          j = index(post, run); if (!j) break
+          x = pre " " substr(post, j + length(run))
+        }
+        while (1) {
+          if (incomment) { i = index(x, "-->"); if (!i) break; incomment = 0; x = substr(x, i + 3) }
+          else           { i = index(x, "<!--"); if (!i) break; incomment = 1; x = substr(x, i + 4) }
+        }
       }
     }
     if (!infence_start && !isfence && !incomment_start && raw ~ /^## /) {
@@ -117,38 +127,49 @@ awk -F'\t' '$2 != "Known limits" { print $1 "\t" $5 }' "$tmp/norm" > "$tmp/low_n
 # match <regex> — first matching source line number on the lowered column, or empty. A grep error
 # (rc >= 2, e.g. a regex the platform cannot compile) is reported as ERRn and becomes a FAIL.
 match() {
-  local out rc
+  local out rc ln nr
   out=$(grep -nE -- "$1" "$tmp/low"); rc=$?
-  if [ "$rc" -ge 2 ]; then echo "ERR$rc"; return; fi
-  [ -n "$out" ] && sed -n "$(printf '%s' "$out" | head -1 | cut -d: -f1)p" "$tmp/nr"
+  if [ "$rc" -ge 2 ]; then echo "ERRgrep$rc"; return; fi
+  [ -n "$out" ] || return
+  ln=${out%%:*}                                    # first match, bash expansion (no head/cut/sed)
+  nr=$(awk -v n="$ln" 'NR == n { print; exit }' "$tmp/nr"); rc=$?
+  if [ "$rc" -ne 0 ] || [ -z "$nr" ]; then echo "ERRawk$rc"; return; fi
+  echo "$nr"
 }
 # match_outside_limits <regex> — same, skipping rows whose section is "Known limits".
 match_outside_limits() {
-  local out rc
+  local out rc first
   out=$(grep -E -- "$1" "$tmp/low_nolimits"); rc=$?
-  if [ "$rc" -ge 2 ]; then echo "ERR$rc"; return; fi
-  printf '%s' "$out" | head -1 | cut -f1
+  if [ "$rc" -ge 2 ]; then echo "ERRgrep$rc"; return; fi
+  [ -n "$out" ] || return
+  first=${out%%$'\n'*}
+  echo "${first%%$'\t'*}"
 }
 # report <message> <line-or-ERRn> — runs in the main shell, so a grep error inside the command
 # substitution still reaches the failure list.
 report() {
   case "$2" in
     "") ;;
-    ERR*) fail "lint error: grep rc=${2#ERR} while checking: $1" ;;
+    ERR*) fail "lint error: helper failed (${2#ERR}) while checking: $1" ;;
     *) fail "$1 (line $2)" ;;
   esac
 }
 
-# 1. Required sections: every "## " section of references/charter-template.md, as a heading OUTSIDE
-#    code fences and HTML comments (order is not checked; extra sections are allowed).
-for h in "## Identity boundary" "## Primary mind" "## Secondary minds" "## Method (M.O.)" \
-         "## Signature questions" "## Positive traits (with behavioral evidence)" \
-         "## In their own words (verbatim, sourced)" "## When to use" "## Known limits" \
-         "## Revalidation" "## Fidelity"; do
-  grep -qxF -- "$h" "$tmp/headings"; rc=$?
-  [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
-  [ "$rc" -eq 0 ] || fail "missing section: $h"
-done
+# 1. Required sections: every "## " heading of references/charter-template.md (read at run time, so the
+#    template is the single source of truth), as a heading OUTSIDE code fences and HTML comments in the
+#    charter (order is not checked; extra sections are allowed). A missing or unreadable template is
+#    an internal error, never "nothing required".
+template="$(cd "$(dirname "$0")" && pwd)/../references/charter-template.md" || fail "lint error: cannot resolve template path"
+required=$(awk '/^(```|~~~)/ { f = !f; next } !f && /^## / { sub(/[ \t]+$/, ""); print }' "$template" 2>/dev/null); rc=$?
+if [ "$rc" -ne 0 ] || [ -z "$required" ]; then
+  fail "lint error: cannot read required sections from $template"
+else
+  while IFS= read -r h; do
+    grep -qxF -- "$h" "$tmp/headings"; rc=$?
+    [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
+    [ "$rc" -eq 0 ] || fail "missing section: $h"
+  done <<< "$required"
+fi
 
 # 2. Fidelity table header.
 grep -qE '^\| *Field *\| *Status *\|' "$file"; rc=$?
@@ -180,6 +201,12 @@ n=$(awk -F'\t' '
   {
     lo = $5; oc = $6
     if (lo ~ /(^|[^a-z])answer as (him|her|them)([^a-z]|$)/) { print $1; exit }
+    l2 = lo; o2 = oc                           # "act as / pretend to be / roleplay as <Capitalized name>"
+    while (match(l2, /(^|[^a-z])(act|acting|pretend|pretending|role-?play|role-?playing) (as|to be|you are) [^ ]+/)) {
+      seg = substr(o2, RSTART, RLENGTH); wd = seg; sub(/.* /, "", wd); gsub(/[^A-Za-z]/, "", wd)
+      if (wd ~ /^[A-Z]/ && !(tolower(wd) in stop)) { print $1; exit }
+      l2 = substr(l2, RSTART + RLENGTH); o2 = substr(o2, RSTART + RLENGTH)
+    }
     while (match(lo, /(^|[^a-z])you('"'"'re| are)( now)? [^ ]+/)) {
       seg = substr(oc, RSTART, RLENGTH); wd = seg; sub(/.* /, "", wd); gsub(/[^A-Za-z]/, "", wd)
       lw = tolower(wd)
@@ -210,7 +237,7 @@ esac
 # 5. Clinical / diagnostic vocabulary outside "## Known limits" (NON-EXHAUSTIVE list), for real
 #    people only (see check 0).
 case "$subject_class" in fictional-or-archetypal|non-human-or-abiotic) clinical=0 ;; *) clinical=1 ;; esac
-[ "$clinical" -eq 1 ] && n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)")
+[ "$clinical" -eq 1 ] && n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|[a-z]+'s paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)")
 [ "$clinical" -eq 1 ] && report "clinical vocabulary outside Known limits" "$n"
 
 # 6. Cultural-semiotic inputs (NON-EXHAUSTIVE list) may be named only in Known limits.
@@ -220,7 +247,7 @@ report "cultural input outside Known limits" "$n"
 # 7. Unfilled template placeholders (<Subject>, <exact quote>, <slug>, ...).
 out=$(grep -nE '<[A-Za-z][A-Za-z -]*>' "$file"); rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
-n=$(printf '%s' "$out" | head -1 | cut -d: -f1)
+n=""; [ -n "$out" ] && n=${out%%:*}
 report "unfilled template placeholder" "$n"
 
 # 8. Source ids. Every id cited in the Fidelity table (S1, S2, ... and ranges S1-S7 / S1–S7) must be
@@ -230,8 +257,7 @@ report "unfilled template placeholder" "$n"
 dossier_line=$(grep -m1 -E '^Dossier: `[^`]+`' "$file"); rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc (dossier pointer)"
 dossier_rel=""
-# shellcheck disable=SC2016
-[ -n "$dossier_line" ] && dossier_rel=$(printf '%s\n' "$dossier_line" | sed -E 's/^Dossier: `([^`]+)`.*/\1/')
+if [ -n "$dossier_line" ]; then dossier_rel=${dossier_line#Dossier: \`}; dossier_rel=${dossier_rel%%\`*}; fi
 if [ -z "$dossier_rel" ]; then
   fail "missing dossier pointer (Dossier: \`<path>\`)"
 else
@@ -239,7 +265,7 @@ else
   while [ -n "$d" ]; do
     if [ -f "$d/$dossier_rel" ]; then dossier="$d/$dossier_rel"; break; fi
     [ "$d" = "/" ] && break
-    d="$(dirname "$d")"
+    d="$(dirname "$d")" || { fail "lint error: dirname failed"; break; }
   done
   if [ -z "$dossier" ]; then
     fail "dossier not found: $dossier_rel"

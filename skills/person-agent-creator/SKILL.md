@@ -24,18 +24,22 @@ council, or act as an advisor or a worked success case — borrowing the best do
 subject whose name, history and archetype carry the meaning the team wants to use. The subject can be
 real, historical, fictional, imagined, collective or non-human.
 
-> **A lens, not an authority.** A person-agent gives an advisory vote or breaks a tie between ideas. It
-> does not replace an independent reviewer (verifier > generator), it never clears a security gate or a
-> decision reserved to humans, and because it runs on the same model as the rest of the panel its view
-> is correlated with theirs. To break a tie on a pull request, use the review panel with a declared
-> independence grade (`vendor` / `context`, see *Merge gate*), not a person-agent.
+> **Consultative lens, not an authority.** This person-agent gives an advisory view or breaks a tie between
+> ideas. It cannot clear a guardrail, a decision reserved to humans, a governance self-edit or any deny-set
+> item. It runs on the same model family as the rest of the panel, so its view is correlated with theirs and
+> does not replace an independent review. When it advises or breaks a tie, record its evidence and any
+> dissent; its vote counts only after that evidence.
+>
+> Every charter carries this paragraph (it is part of `references/charter-template.md`). To break a tie
+> on a pull request, use the review panel with a declared independence grade (`vendor` / `context`, see
+> *Merge gate*), not a person-agent.
 
 ## When to use / not use
 
 | Use | Do not use |
 |---|---|
 | New person-agent for a public figure with a published record | Private individuals, or anyone without a public record of decisions |
-| Elevating a thin archetype (e.g. `agents/consultants/*.md`) into a sourced person-agent | Role-play, chat "as" the subject, or new text written in a character's voice (a fictional subject uses the archetypal path below, not fan fiction) |
+| Elevating a thin archetype (e.g. `agents/consultants/*.md`) into a sourced person-agent | Role-play, chat "as" the subject, or fan fiction (new text in a character's voice). A fictional character is supported through the `fictional-or-archetypal` class below, which models the documented behavior, not a new voice |
 | A **collective mind** (founding pair, team) whose public record is joint | Generic role personas (use `forge` / the persona catalog) |
 | A historical, fictional or non-human subject used as an advisory lens or a tiebreak voice | Any gate, approval or human-reserved decision (see the box above) |
 
@@ -47,10 +51,10 @@ verbatim quotes only with a source, a *Known limits* section); the class adds it
 | `subject_class` | Extra guardrails | *Known limits* must say |
 |---|---|---|
 | `living-public` | All the strict rules below; public record only; no remote clinical labels | The lens is not the person, holds no private reasoning, and is dated (as-of) |
-| `deceased-historical` | Sources for every claim; no fabricated lines (many famous quotes are apocryphal: keep only those traced to a primary or scholarly source); no defamation; texts in the public domain may be quoted verbatim with a source | Historical context differs from today; apocryphal material was excluded |
-| `fictional-or-archetypal` (RBAD category 6) | No real-person impersonation risk, but intellectual property and trademarks apply: use the archetype and its behavior, do not reproduce protected text; quotations only verbatim with a source (public-domain works are safest); labeled literary analysis may use clinical words | The behavior comes from the work, not from a person; rights status of the source |
-| `collective` | Separate joint traits from each member's own traits; every member follows the rules of their class | Which traits are joint and which belong to one member |
-| `non-human-or-abiotic` | State that the lens is an analogy or metaphor; no claims of agency or intent beyond the metaphor | It is a metaphor; the behaviors are human readings of the subject |
+| `deceased-historical` | Primary or scholarly sources for every claim; apocryphal quotes flagged (many famous lines are) and never presented as the subject's words; no fabricated quotes; no defamation; public-domain texts may be quoted verbatim with a source | Historical context differs from today; which apocryphal material was excluded |
+| `fictional-or-archetypal` (RBAD category 6) | Labeled as fictional; the canonical source (the work, edition, chapter) is cited; intellectual property and trademarks apply: use the archetype and its behavior, do not reproduce protected text; quotations only verbatim with a source (public-domain works are safest); labeled literary analysis may use clinical words. This is the supported path for fiction; writing new text in a character's voice (fan fiction) stays out of scope | The behavior comes from the work, not from a person; rights status of the source |
+| `collective` | The collective is kept separate from its members: nothing is attributed to one member without a source naming that member; every member follows the rules of their own class | Which traits are joint and which belong to one member |
+| `non-human-or-abiotic` | Declared as an analogy or metaphor; no anthropomorphic claim (intent, feeling, agency) stated as fact | It is a metaphor; the behaviors are human readings of the subject |
 
 The lint applies the clinical-vocabulary check only to `living-public`, `deceased-historical` and
 `collective`. First person, role-play and unsourced quotes fail for every class: an unsourced line in a
@@ -62,8 +66,9 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
 > *Lens vote (advisory): design B.* Rationale: B routes around the legacy dependency instead of
 > removing it first, matching this lens's behavior "take the path of least resistance that still
 > reaches the sea" (charter, *Method*; a metaphor, not evidence). Evidence: B needs 2 changed services,
-> A needs 5 (design docs, section 3). The vote breaks the tie between ideas only; the security review
-> and the human sign-off still apply.
+> A needs 5 (design docs, section 3). Dissent recorded: one member prefers A because it removes the
+> dependency for good. The vote breaks the tie between ideas only, after the evidence is on record; the
+> security review and the human sign-off still apply.
 
 ## Workflow (DoR → steps → DoD)
 
@@ -114,8 +119,9 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
      (`| Sn |`) of the dossier named on the charter's `Dossier:` line, or that line or file is missing
      (the path is looked up from the charter's directory upwards; existence only, not what the source
      says);
-   - a section of `references/charter-template.md` is missing: every `## ` heading of the template
-     must appear as a heading outside code fences and HTML comments (order is not checked, extra
+   - a section of `references/charter-template.md` is missing: the script reads every `## ` heading of
+     the template at run time (the template is the single source of truth; a missing template is an
+     internal error), and each must appear as a heading outside code fences and HTML comments (order is not checked, extra
      sections are allowed), and the `| Field | Status |` fidelity table must exist. That is all the
      DoD's "from the template" means for the script; the content of each section is the panel's job;
    - an unfilled template placeholder (`<Subject>`, `<slug>`, ...);
@@ -135,15 +141,20 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
      `We the X`) followed by approve / endorse / authorize / vouch for / sign off / certify / back /
      support, in present or past tense; `you are <Name>` / `you're <Name>` in any letter case (the
      next word counts when it is capitalized, or lowercase and not a common word, a `-ing`, `-ed` or
-     `-ly` word); `answer as him/her/them`.
+     `-ly` word); `answer as him/her/them`; `act as` / `pretend to be` / `roleplay as` followed by a
+     capitalized name (`Act as a consultative lens` passes).
    The checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
    markers, emphasis, backticks), including lines inside code fences (``` or ~~~, of any length, with
    nested fences) and HTML comments, and fence info strings. Only the double-quoted spans that are
    sourced (as defined above) are exempt, so a verbatim first-person quote stays allowed while an
    unsourced span on the same line is still checked. A `## ` heading inside a fence or a comment
    neither changes the current section (so it cannot open *Known limits*) nor counts as a required
-   section. The script runs with `LC_ALL=C`; a `grep`, `awk` or `cut` error is a failure, never "no
-   match". Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
+   section. Fences and comments exclude each other as in a markdown renderer: a fence opens only at the
+   start of a line (a backtick run followed by more backticks on the same line is inline code), and
+   `<!--` inside inline code does not open a comment. The script runs with `LC_ALL=C`. Every external
+   tool it calls (`grep`, `awk`, `cut`, `dirname`) has its exit status checked; the helpers that pick
+   the first match use shell expansion instead of `sed`, `head` or `cut`. Any tool error is a failure,
+   never "no match", and the fixtures prove it by breaking each tool through a `PATH` shim. Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
    `LINT=<path>`). Tested end to end on 2026-10-09 with three throwaway charters (a historical figure,
    a fictional character quoted from a public-domain text, and a non-human metaphor): all passed, and
    the same charters failed once a fabricated first-person line (or, for the historical one, a clinical
@@ -292,4 +303,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Adversarial round: fences and comments exclude each other and inline code opens neither; required sections read from the template; every external tool status checked (proved with PATH shims); act as / pretend to be / roleplay as <Name> and "he's paranoid" caught (112 fixtures); the consultative-lens paragraph is in the SKILL, the agent and the charter template. Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |

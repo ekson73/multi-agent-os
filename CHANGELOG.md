@@ -12,25 +12,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
   five classes (living public figure, historical figure, fictional or archetypal character, collective,
   non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
-  as an authority, a gate or a substitute for an independent reviewer. DRY recon,
+  as an authority, a gate or a substitute for an independent reviewer (every charter carries a
+  "consultative lens, not an authority" paragraph). DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 96 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  (`scripts/lint-person-agent.sh`, 112 offline fixtures in `scripts/test-lint-person-agent.sh`, also
   run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: a valid `subject_class`, that every
   source id in the Fidelity table exists in the dossier, every `## ` section of the
-  charter template (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
+  charter template (read from the template at run time) (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
   marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
   non-exhaustive clinical (real-person classes only) and cultural lists outside *Known limits*, and a bounded list of first-person,
   role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
   citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
-  ignored, and headings there do not count as sections. It runs with `LC_ALL=C` and treats any `grep`,
-  `awk` or `cut` error as a failure. Out of scope (listed in the skill): other languages, third-person
+  ignored, and headings there do not count as sections; fences and comments exclude each other as in a
+  renderer, and inline code never opens either. It runs with `LC_ALL=C`, checks the exit status of every
+  tool it calls and treats any tool error as a failure (proved by breaking `sed`, `head`, `cut`,
+  `dirname`, `grep` and `awk` in the fixtures). Out of scope (listed in the skill): other languages, third-person
   endorsement, obfuscated text, single-quoted spans. It does not validate personification or
   endorsement semantically: every run prints a warning and
   `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
   (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
   preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
-  current head; adversarial escapes become new lint fixtures. When the subject's company makes the
+  current head; adversarial escapes become new lint fixtures. In a host that cannot delegate, the panel
+  lenses run as sequential passes recorded as `panel: sequential-single-author`; that is grade `self`,
+  which never clears the gate on its own. When the subject's company makes the
   reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
   Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
   Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels

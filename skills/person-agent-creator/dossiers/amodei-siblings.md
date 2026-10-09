@@ -80,8 +80,9 @@
   in February 2026 and updates through 3.4 in July 2026); none was re-checked, so the RSP row is dated to 2023 —
   unverified for the current policy. The primary mind no longer rests on it.
 - No published critical account of either person was sought in this round.
-- S3 also argues for a coalition of democracies "scaling quickly" and using AI "to achieve robust military
-  superiority"; recorded as a documented tension, with no inference about the siblings' current position.
+- S3 (Dario's essay, his alone) also argues for a coalition of democracies "scaling quickly" and using AI
+  "to achieve robust military superiority"; recorded as a documented tension for Dario only, not attributed
+  to Daniela, with no inference about his current position.
 
 ## 7. Fidelity summary
 

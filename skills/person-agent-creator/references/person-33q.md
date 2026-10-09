@@ -14,7 +14,7 @@
 
 | # | Question | Lands in | Discipline |
 |---|---|---|---|
-| 1 | Who exactly is modeled — one person or a collective, and why that boundary? | charter: title + *Identity boundary* · dossier header | sociology (unit of analysis) |
+| 1 | Who exactly is modeled — which subject class (living public, historical, fictional or archetypal, collective, non-human), and why that boundary? | charter: `subject_class` front matter + title + *Identity boundary* · dossier header | sociology (unit of analysis) |
 | 2 | Which public record is authoritative (own writing, interviews, biographies, filings), and which is noise? | dossier §1 Sources | historiography |
 | 3 | What does the name mean, and what does it signal culturally? (non-evidential) | dossier §4 (name semiotics; never a charter trait) | etymology, semiotics |
 | 4 | What is the documented timeline: birth, education, ventures, turning points? | dossier §2 Timeline | biography |

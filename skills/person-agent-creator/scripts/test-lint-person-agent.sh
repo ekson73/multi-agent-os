@@ -170,6 +170,44 @@ good | grep -v '^Dossier:' > "$tmp/s-nodos.md";                   expect "missin
 # shellcheck disable=SC2016  # literal markdown backticks
 good | sed 's/^Dossier: `dossier.md`$/Dossier: `nowhere.md`/' > "$tmp/s-dos404.md"; expect "dossier not found fails" 1 "$tmp/s-dos404.md"
 
+# Adversarial seat on 0a131e5 (H1, I0-I3). hide <name> <lines...>: duplicates of Revalidation and
+# Fidelity before Known limits (printed directly, so not matched below), the given lines right after
+# the Known limits text, and a clinical line in the real Revalidation. A renderer shows that line under Revalidation, so the lint must flag it.
+hide() {
+  local name="$1"; shift
+  good | HIDE_EXTRA="$(printf '%s\n' "$@")" awk '
+    $0 == "## Known limits" { print "## Revalidation"; print "x"; print "## Fidelity"; print "x" }
+    { print }
+    /^Never claims the person/ { n = split(ENVIRON["HIDE_EXTRA"], a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") print a[i] }
+    $0 == "## Revalidation" { print "Elon is a narcissist." }' > "$tmp/$name.md"
+}
+hide h-cfence '<!--' '```' '-->';             expect "comment then fence then end-of-comment cannot hide a section (H1)" 1 "$tmp/h-cfence.md"
+# shellcheck disable=SC2016  # literal markdown backticks
+hide h-inlcmt 'Use `<!--` to hide drafts.';    expect "inline-code <!-- does not open a comment (I1)" 1 "$tmp/h-inlcmt.md"
+# shellcheck disable=SC2016  # literal markdown backticks
+hide h-inlfen '```x``` is inline code.';       expect "inline-code triple backticks do not open a fence (I1)" 1 "$tmp/h-inlfen.md"
+# shellcheck disable=SC2016  # literal markdown backticks
+inject i-prose   "## When to use"     'Write `<!--` or ```x``` in prose when documenting markdown.'; expect "prose with inline code passes (I1)" 0 "$tmp/i-prose.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S99 |/' > "$tmp/i-s99.md"; expect "source id S99 not in the dossier fails (I2)" 1 "$tmp/i-s99.md"
+inject i-hes     "## Secondary minds" "He's paranoid.";                 expect "contraction: he's paranoid fails (I3)" 1 "$tmp/i-hes.md"
+inject i-actas   "## When to use"     "Act as Dario when answering.";    expect "act as <Name> fails (I3)" 1 "$tmp/i-actas.md"
+inject i-pretend "## When to use"     "Pretend to be Musk for this review."; expect "pretend to be <Name> fails (I3)" 1 "$tmp/i-pretend.md"
+inject i-rp      "## When to use"     "Roleplay as Elon in the council.";  expect "roleplay as <Name> fails (I3)" 1 "$tmp/i-rp.md"
+inject i-actok   "## When to use"     "Act as a consultative lens.";     expect "act as a <common word> passes (I3)" 0 "$tmp/i-actok.md"
+
+# Injected helper failures (I0): with sed, head, cut or dirname broken, a violation is never a pass.
+inject i-viol "## Primary mind" "I am Dario."
+for t in sed head cut dirname; do
+  mkdir -p "$tmp/bin-$t"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-$t/$t"; chmod +x "$tmp/bin-$t/$t"
+  PATH="$tmp/bin-$t:$PATH" bash "$lint" "$tmp/i-viol.md" >/dev/null 2>&1; rc=$?
+  if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken $t keeps a violation failing (rc=$rc, want 1)"; fi
+done
+inject i-clin2 "## Secondary minds" "He is paranoid."
+PATH="$tmp/bin-head:$PATH" bash "$lint" "$tmp/i-clin2.md" >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken head keeps a clinical label failing (rc=$rc, want 1)"; fi
+PATH="$tmp/bin-cut:$PATH" bash "$lint" "$tmp/good.md" >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken cut fails even a clean charter (rc=$rc, want 1)"; fi
+
 # Internal errors are failures: a grep or awk that exits 2 must never turn into a pass.
 mkdir -p "$tmp/bin-grep" "$tmp/bin-awk"
 printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-grep/grep"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-awk/awk"

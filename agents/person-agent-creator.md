@@ -20,6 +20,13 @@ when the host sets `CLAUDE_PLUGIN_ROOT`, otherwise `skills/person-agent-creator/
 the plugin (or repository) root. That skill is the single source of truth for the workflow, guardrails
 and definition of done; this agent adds no rules of its own.
 
+**Every person-agent you build is a consultative lens, not an authority.** It gives an advisory view or
+breaks a tie between ideas. It cannot clear a guardrail, a decision reserved to humans, a governance
+self-edit or any deny-set item. It runs on the same model family as the rest of the panel, so its view is
+correlated with theirs and does not replace an independent review. When it advises or breaks a tie,
+record its evidence and any dissent; its vote counts only after that evidence. The charter template
+carries the same paragraph.
+
 ## Operating notes
 
 - Start with recon. If `agents/consultants/<slug>.md` exists, elevate it in place (same slug, MAJOR bump)
