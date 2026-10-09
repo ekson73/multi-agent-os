@@ -28,8 +28,8 @@ of its own.
 - Finish with the lint floor (`scripts/lint-person-agent.sh` in the skill directory; SKILL.md step 6
   shows how to resolve the path with or without `CLAUDE_PLUGIN_ROOT`) and report its real exit code,
   plus the fidelity counts (documented · inferred · cultural · unverified). A passing lint does not
-  validate meaning: hand the charter to the merge gate in SKILL.md (independent reviewer from a
-  different vendor family, `Reviewed-By` record at the current head).
+  validate meaning: hand the charter to the merge gate in SKILL.md (review panel with a declared
+  independence grade, `Reviewed-By` record at the current head).
 
 ## Hand-offs
 

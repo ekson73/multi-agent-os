@@ -19,8 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *Known limits*, and a bounded list of first-person, role-play and endorsement patterns, on every line
   after stripping markdown prefixes. It runs with `LC_ALL=C` and treats a `grep` error as a failure.
   It does not validate personification or endorsement semantically: every run prints a warning and
-  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires an independent
-  reviewer from a different vendor family, recorded on the pull request at the current head.
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
+  (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
+  preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
+  current head; adversarial escapes become new lint fixtures.
   Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
   Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
   (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.

@@ -109,20 +109,34 @@ recon verdict recorded · no secrets, no private data · merge gate passed (belo
 ## Merge gate (mandatory)
 
 The lint gate cannot judge meaning, and the author cannot verify their own charter. Before a charter
-merges, an **independent reviewer from a different vendor family** than the author (for example, a
-Claude-authored charter reviewed by a GPT- or Gemini-family model, or by a human) reads the charter
-and its dossier against the guardrails below, with the semantic questions first: does any sentence
-speak as, for, or with the endorsement of the person; does every quote match its source.
+merges, a **review panel** reads the charter and its dossier against the guardrails below, semantic
+questions first, through orthogonal lenses:
+- *Adversarial*: tries to write personification or endorsement text that slips past the lint.
+- *Living-person risk*: privacy and defamation of a living person.
+- *Source fidelity*: every quote and claim matches its source and date.
 
-Record the result on the pull request, bound to the head commit it reviewed:
+Declare the panel's **independence grade**; use the strongest one available:
+
+| Grade | Panel | Counts as verification? |
+|---|---|---|
+| `vendor` | a different vendor or model family than the author (or a human) | yes, strongest |
+| `context` | the same model in a fresh process, one persona per lens, no author history | yes, but correlated with the author |
+| `self` | the generator reviewing its own output | no |
+
+The gate degrades but does not stop: when `vendor` is unavailable, run `context` and say so in the
+record. `self` never clears the gate. Record the result on the pull request, bound to the head commit:
 
 ```text
-Reviewed-By: <reviewer and model family> · head <full commit sha> · verdict <CLEAR|CHANGES>
-Scope: semantic personification/endorsement, quote fidelity, guardrails 1–7
+Reviewed-By: <reviewer and model family> · grade <vendor|context> · head <full commit sha> · verdict <CLEAR|CHANGES>
+Scope: semantic personification/endorsement, living-person risk, quote fidelity, guardrails 1–7
 ```
 
 A verdict on an older commit does not count; a new push needs a new record. No merge without a
 `CLEAR` record at the current head.
+
+**Improvement loop.** Every phrasing the adversarial lens gets past the lint becomes a new fixture in
+`scripts/test-lint-person-agent.sh` (and a pattern, when it is objectively checkable), so the floor
+rises with each review.
 
 ## Guardrails (non-negotiable)
 
@@ -182,4 +196,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory cross-vendor merge gate (review round on PR #483). |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). |
