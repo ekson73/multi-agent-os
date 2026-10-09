@@ -286,21 +286,26 @@ fid=$(awk -F'\t' '
   $2 == "fidelity" {
     row = ($7 == 1 && $5 ~ /^\|/)
     if (row && !(prev && $1 == pnr + 1)) { ntab++; if (ntab == 1) hdr = $6 }
+    if (row && $5 ~ /^\| *field *\| *status *\|/) nh++
     prev = row; pnr = $1
   }
   END {
     if (out) { print "outside:" out; exit }
     if (ntab != 1) { print "count:" ntab + 0; exit }
+    if (nh > 1) { print "headers:" nh; exit }
     if (tolower(hdr) !~ /^\| *field *\| *status *\|/) { print "header"; exit }
     nc = split(hdr, c, "|")
-    for (i = 2; i < nc; i++) { x = tolower(c[i]); gsub(/^ +| +$/, "", x); if (x == "source ids") { print i; exit } }
-    print "nocol"
+    for (i = 2; i < nc; i++) { x = tolower(c[i]); gsub(/^ +| +$/, "", x); if (x == "source ids") { n++; if (!col) col = i } }
+    if (n > 1) { print "multicol:" n; exit }
+    if (col) print col; else print "nocol"
   }' "$tmp/norm") || fail "lint error: awk fidelity table check failed"
 case "$fid" in
   outside:*) fail "fidelity table header outside ## Fidelity (line ${fid#outside:})" ;;
   count:0|header) fail "missing fidelity table (| Field | Status | Source ids |) in ## Fidelity" ;;
   count:*) fail "more than one table in ## Fidelity (${fid#count:}); keep only the fidelity table" ;;
   nocol) fail "fidelity table has no Source ids column" ;;
+  headers:*) fail "fidelity table repeats its header (${fid#headers:} header rows); keep exactly one" ;;
+  multicol:*) fail "fidelity table has ${fid#multicol:} Source ids columns; keep exactly one" ;;
   ''|*[!0-9]*) fail "lint error: fidelity table check returned '$fid'" ;;
 esac
 
@@ -415,23 +420,28 @@ SCAN='{ s = " " $0
 #     A Class basis line in any other class fails (the template line must be deleted there).
 class_basis=$(awk -F'\t' '$7 == 1 && $5 ~ /^class basis:/ { v = $6; sub(/^[^:]*:[ \t]*/, "", v); print v; exit }' "$tmp/norm") \
   || fail "lint error: awk class basis check failed"
-# A URL is removed before ids are read (an id inside a URL, such as https://example.org/S999, is not a
-# citation). At least one valid S<digits> id must remain: nothing to check is a failure.
+# Every "Class basis:" structure line counts, not only the first: a second line (empty or filled) is
+# never ignored.
+basis_lines=$(awk -F'\t' '$7 == 1 && $5 ~ /^class basis:/ { n++ } END { print n + 0 }' "$tmp/norm") \
+  || fail "lint error: awk class basis line count failed"
+# An autolink <scheme:...> is removed whole, then any bare URL, before ids are read (an id inside a URL,
+# such as https://example.org/S999 or <https://example.org/)S1>, is not a citation). At least one valid S<digits> id must remain: nothing to check is a failure.
 basis_ids_text=""
 if [ -n "$class_basis" ]; then
-  basis_ids_text=$(printf '%s\n' "$class_basis" | awk '{ gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t)>]*/, " "); print }') \
+  basis_ids_text=$(printf '%s\n' "$class_basis" | awk '{ gsub(/<[A-Za-z][A-Za-z0-9+.-]*:[^>]*>/, " "); gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t)>]*/, " "); print }') \
     || fail "lint error: awk class basis URL strip failed"
 fi
 case "$subject_class" in
   fictional-or-archetypal|non-human-or-abiotic)
-    if [ -z "$class_basis" ]; then fail "missing Class basis line for subject_class $subject_class"
+    if [ "$basis_lines" -gt 1 ]; then fail "more than one Class basis line ($basis_lines); keep exactly one"
+    elif [ -z "$class_basis" ]; then fail "missing Class basis line for subject_class $subject_class"
     else
       basis_n=$(printf '%s\n' "$basis_ids_text" | awk -v max=0 -v strict=1 "$SCAN") || fail "lint error: awk class basis id count failed"
       printf '%s\n' "$basis_n" | grep -qE '^[0-9]+$'; rc=$?
       [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
       [ "$rc" -eq 0 ] || fail "Class basis cites no dossier source id (S<n>; ids inside a URL do not count)"
     fi ;;
-  *) [ -z "$class_basis" ] || fail "Class basis line is only allowed for fictional-or-archetypal and non-human-or-abiotic" ;;
+  *) [ "$basis_lines" -eq 0 ] || fail "Class basis line is only allowed for fictional-or-archetypal and non-human-or-abiotic" ;;
 esac
 
 # 6. Cultural-semiotic inputs (NON-EXHAUSTIVE list) may be named only in Known limits.

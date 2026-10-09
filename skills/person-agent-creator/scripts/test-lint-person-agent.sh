@@ -358,5 +358,23 @@ mkdir -p "$tmp/n-dos"
 printf '%s\n' '## 1. Sources' '| id | Source |' '|---|---|' '| S1 | Example Essay |' '```' '````not-a-closer' '| id | Source |' '| S99 | Fenced row |' '```' > "$tmp/n-dos/dossier.md"
 good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S99 |/' > "$tmp/n-dos/n-f99.md"; expect "'\`\`\`\`not-a-closer' does not close the dossier fence; fenced S99 is not a source (N5)" 1 "$tmp/n-dos/n-f99.md"
 
+# Addendum O (round 5 on 9c0aae8): the lint read only the first occurrence. Each failing case below
+# passed (rc 0) on 9c0aae8.
+# 1. Fidelity: a second Source ids column, or a repeated header that relabels the columns.
+good | sed -e 's/^| Field | Status | Source ids |$/| Field | Status | Source ids | Source ids |/' -e 's/^|---|---|---|$/|---|---|---|---|/' -e 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1 | S999 |/' > "$tmp/o-2col.md"
+expect_msg "second Source ids column with S999 fails (O1)" "$tmp/o-2col.md" "Source ids columns"
+good | awk '{ print } $0 == "| Primary mind | documented | S1 |" { print "| Field | Status | S1 | Source ids |"; print "| Primary mind | documented | S1 | S999 |" }' > "$tmp/o-rehdr.md"
+expect_msg "repeated Fidelity header relabeling columns fails (O1)" "$tmp/o-rehdr.md" "repeats its header"
+# 2. Class basis: an autolink is removed whole, including a ')' and an id inside it.
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: <https://example.org/)S1>|' > "$tmp/o-auto.md"
+expect_msg "Class basis '<https://example.org/)S1>' fails (O2)" "$tmp/o-auto.md" "Class basis cites no dossier source id"
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: [Example Essay S1](https://example.org/)|' > "$tmp/o-ltext.md"
+expect "Class basis id in link text still counts (O2)" 0 "$tmp/o-ltext.md"
+# 3. Class basis: exactly one line.
+klass fictional-or-archetypal | awk '{ print } /^Class basis: Example Essay/ { print "Class basis: Other work (S999)." }' > "$tmp/o-2basis.md"
+expect_msg "second Class basis line (S999) fails (O3)" "$tmp/o-2basis.md" "more than one Class basis line"
+good | awk '{ print } $0 == "## Identity boundary" { print "Class basis:"; print "Class basis: Example Essay (S1)." }' > "$tmp/o-lpbasis.md"
+expect_msg "living-public with an empty and a filled Class basis line fails (O3)" "$tmp/o-lpbasis.md" "Class basis line is only allowed"
+
 echo "lint-person-agent tests: $pass passed, $failn failed, $skipn skipped"
 [ "$failn" -eq 0 ]
