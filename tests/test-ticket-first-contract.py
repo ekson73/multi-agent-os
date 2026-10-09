@@ -52,6 +52,21 @@ class TicketFirstContract(unittest.TestCase):
         self.assertIn("Q4 only if non-actionable or explicitly cancelled", text)
         self.assertIn("body is an audience-safe projection of the seed", text)
 
+    def test_outbox_adapter_respects_seed_contract(self):
+        text = (ROOT / "protocols/ticket-first-governance.md").read_text()
+        for phrase in ("documentation-only adapter", "params.context", "resume_instructions",
+                       "deferred entries have no key", "read back", "compatible durable mechanism",
+                       "not read by the SessionStart hook"):
+            self.assertIn(phrase, text)
+
+    def test_command_and_validator_are_wired(self):
+        command = (ROOT / "commands/preflight.md").read_text()
+        self.assertNotIn("HITL create-proposal", command)
+        self.assertIn("R0.d before implementation", command)
+        validator = (ROOT / "tests/validate-plugin.sh").read_text()
+        self.assertIn('python3 "$PLUGIN_ROOT/tests/test-ticket-first-contract.py"', validator)
+        self.assertIn('fail "ticket-first contract tests FAILED"', validator)
+
     def test_pending_recovery_is_part_of_exit(self):
         text = (ROOT / "skills/postflight/references/ticket-sync-protocol.md").read_text()
         self.assertIn("pending-ticket", text)

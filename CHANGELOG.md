@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outages retain a durable pending-ticket outbox, never a public-provider fallback.
 - Postflight reconciles pending records and carries unresolved work into handoff without
   blocking safe exit. Existing provider schemas and batching remain canonical.
-- Add static regression contract tests; no new network hooks or global installation.
+- Add static regression contract tests to the plugin validator, align the command entry
+  point, and document the optional durable work-state adapter without changing seed fields.
+  No new network hooks or global installation.
 
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
