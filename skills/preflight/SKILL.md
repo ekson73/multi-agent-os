@@ -115,7 +115,9 @@ The SessionStart hook resolves the ticket from the strongest local signal, in pr
 
 It emits `ticket=KEY (source=seed|branch|commit, mode=…)` into the SessionStart additionalContext +
 stderr. **Zero network** (no `gh`, no `curl`), **<2s**, **always exit 0**. Opt-out: `PREFLIGHT_NO_TICKET_ANCHOR=1`.
-No anchor → a nudge to run the agentic walk (R0.b) or proceed (a ticket may be proposed at postflight).
+No anchor → a nudge to run the agentic walk (R0.b), then mandatory R0.d before implementation.
+Until reconciled, allow only bounded read-only recon or already-authorized urgent containment
+under the ticket-first protocol. A successful hook exit does not waive that agentic gate.
 
 ### R0.b — N-Tree walk (agentic, capability-detected — on `/maos:preflight ticket`)
 
@@ -216,7 +218,8 @@ exposes right now** and adapt to it (do NOT hardcode):
 **No ticket anchor** (the hook nudges; never blocks):
 ```
 🧭 preflight: branch=just-a-name ... ; heal=...
-→ No ticket anchor detected (mode=unanchored): run /maos:preflight ticket to walk the N-Tree + classify, or proceed.
+→ No ticket anchor detected (mode=unanchored): run /maos:preflight ticket to walk the N-Tree + classify.
+→ Apply R0.d before implementation; until reconciled, only bounded read-only recon or already-authorized urgent containment.
 ```
 
 **On `/maos:preflight ticket`** (agentic N-Tree walk + classify):

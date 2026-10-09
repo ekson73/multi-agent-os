@@ -168,7 +168,8 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
      **DELEGATE `close`** to the capability-detected ticketing primitive (it runs the close
      verify-gate + writes the audit comment). The *creation* of loose-end follow-ups is P2.5's
      job (not here) — P1 owns ticket **close**, P2.5 owns ticket **create/enrich**.
-   - Classify every surfaced item by Eisenhower; act on Q1/Q2, register Q3, note/drop Q4.
+   - Classify every surfaced item by Eisenhower; act on Q1/Q2, register Q3, batch actionable Q4;
+     drop Q4 only if non-actionable or explicitly cancelled with an audit reason.
 2. P2 DEBRIEF: invoke `morning-briefing` for the 7-section state, then synthesize ON TOP the
    objectives N-Tree + Eisenhower next-actions (non-blocked first) + the **COMPLETE 10-item
    close-out HUNT** (SSOT `references/close-out-hunt-checklist.md`): survey fails · errors ·
@@ -193,7 +194,7 @@ governance the target repo exposes right now** and adapt (do NOT hardcode):
    (a) triage the P2 atoms (gaps · pendings · undecided · unasked-Qs · out-of-scope) →
    anti-theater filter → dedup (delegate `auto` op) → Eisenhower → file under the cap
    (≤3 individual + 1 batch housekeeping ticket); (b) create/reuse the **idempotent
-   continuation ticket** (delegate `auto`: search-before-create; body mirrors the seed;
+   continuation ticket** (delegate `auto`: search-before-create; body is an audience-safe projection of the seed;
    provider-relative "relates-to"/child-of linkage); (c) enrich the anchored ticket
    (delegate `enrich`). Route by repo CLASS (corporate→Jira · personal→Linear ·
    community→GH) via governance discovery — never a hardcoded org. No ticketing capability

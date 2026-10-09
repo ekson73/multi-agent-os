@@ -30,6 +30,28 @@ class TicketFirstContract(unittest.TestCase):
             self.assertNotIn(obsolete, text)
         self.assertIn("implementation remains paused", text)
 
+    def test_no_anchor_prose_and_example_require_gate(self):
+        text = (ROOT / "skills/preflight/SKILL.md").read_text()
+        sections = (
+            text.split("### R0.a —", 1)[1].split("### R0.b —", 1)[0],
+            text.split("**No ticket anchor**", 1)[1].split("**On `/maos:preflight ticket`**", 1)[0],
+        )
+        for section in sections:
+            with self.subTest(section=section):
+                self.assertNotIn("or proceed", section)
+                self.assertIn("R0.d before implementation", section)
+                self.assertIn("bounded read-only recon", section)
+                self.assertIn("already-authorized urgent containment", section)
+        self.assertIn("**always exit 0**", sections[0])
+        self.assertIn("never blocks", sections[1])
+
+    def test_postflight_algorithm_preserves_visibility_and_actionable_q4(self):
+        text = (ROOT / "skills/postflight/SKILL.md").read_text()
+        self.assertNotIn("note/drop Q4", text)
+        self.assertNotIn("body mirrors the seed", text)
+        self.assertIn("Q4 only if non-actionable or explicitly cancelled", text)
+        self.assertIn("body is an audience-safe projection of the seed", text)
+
     def test_pending_recovery_is_part_of_exit(self):
         text = (ROOT / "skills/postflight/references/ticket-sync-protocol.md").read_text()
         self.assertIn("pending-ticket", text)
