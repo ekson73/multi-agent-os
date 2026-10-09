@@ -81,12 +81,14 @@ inject c-zodiac      "## Secondary minds"   "His Taurus zodiac sign sets his dec
 inject c-ph          "## Primary mind"      "<Subject> thinks in first principles."; expect "unfilled placeholder fails" 1 "$tmp/c-ph.md"
 expect "unfilled charter template fails" 1 "$here/../references/charter-template.md"
 cp "$tmp/coll.md" "$tmp/bad\"name.md"
-json_ok() { # validate JSON on stdin with whatever validator exists; none available is a FAIL, not a skip
+json_ok() { # validate JSON on stdin with whatever validator exists
   if command -v python3 >/dev/null 2>&1; then python3 -c 'import json,sys; json.load(sys.stdin)'
-  elif command -v jq >/dev/null 2>&1; then jq -e . >/dev/null
-  else echo "no JSON validator (python3/jq) available" >&2; return 1; fi
+  else jq -e . >/dev/null; fi
 }
-if bash "$lint" "$tmp/bad\"name.md" --json 2>/dev/null | json_ok 2>/dev/null; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json output is valid JSON for a quoted filename"; fi
+skipn=0
+if ! command -v python3 >/dev/null 2>&1 && ! command -v jq >/dev/null 2>&1; then
+  skipn=$((skipn+1)); echo "SKIP: --json validity (no python3/jq in this environment)"   # environment gap, not a lint failure
+elif bash "$lint" "$tmp/bad\"name.md" --json 2>/dev/null | json_ok 2>/dev/null; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json output is valid JSON for a quoted filename"; fi
 
 # Known escapes from review rounds on PR #483 (bounded list: the script does not chase unbounded
 # variants; semantic review covers the rest). Markdown prefixes must not hide a sentence.
@@ -151,7 +153,13 @@ good | grep -vxF '## Method (M.O.)' > "$tmp/k-nomethod.md";                   ex
 # Subject classes and source ids (operator addendum to the PR #483 lot). Class rules: real-person
 # clinical check only for living-public, deceased-historical and collective; first person, role-play
 # and unsourced quotes fail for every class.
-klass() { good | sed "s/^subject_class: living-public$/subject_class: $1/"; }
+klass() { # klass <class>: fictional and non-human charters carry the required Class basis line (check 5b)
+  case "$1" in
+    fictional-or-archetypal|non-human-or-abiotic)
+      good | sed "s/^subject_class: living-public$/subject_class: $1/" | awk '{print} $0=="## Identity boundary" {print "Class basis: Example Essay (S1)."}' ;;
+    *) good | sed "s/^subject_class: living-public$/subject_class: $1/" ;;
+  esac
+}
 good | grep -v '^subject_class:' > "$tmp/s-nocls.md";            expect "missing subject_class fails" 1 "$tmp/s-nocls.md"
 klass alien > "$tmp/s-badcls.md";                                 expect "unknown subject_class fails" 1 "$tmp/s-badcls.md"
 good | awk 'NR == 4 && $0 == "---" { next } { print }' > "$tmp/j-noclose.md"; expect "front matter without closing --- fails (J1)" 1 "$tmp/j-noclose.md"
@@ -239,5 +247,28 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'NOT validated'; then pass=$(
 out=$(bash "$lint" "$tmp/coll.md" --json 2>/dev/null)
 if printf '%s' "$out" | grep -q '"semantic_validated":false'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json carries semantic_validated:false"; fi
 
-echo "lint-person-agent tests: $pass passed, $failn failed"
+# Final adversarial round on PR #483 (head 6c16de67): class laundering, front matter swallowing the
+# body, contractions and more role-play verbs, CRLF. Each case below passed (or wrongly failed) there.
+laund() { klass fictional-or-archetypal | awk -v l="$1" '{print} $0=="## Secondary minds" {print l}'; }
+laund "Dario is a narcissist and a psychopath." > "$tmp/l-laund.md";        expect "real person reclassified as fictional: clinical line fails" 1 "$tmp/l-laund.md"
+klass non-human-or-abiotic | awk '{print} $0=="## Secondary minds" {print "Dario is a narcissist."}' > "$tmp/l-laund-nh.md"; expect "reclassified as non-human: unlabeled clinical line fails" 1 "$tmp/l-laund-nh.md"
+laund "The character reads as narcissistic." > "$tmp/l-unlab.md";           expect "fictional: unlabeled clinical line fails" 1 "$tmp/l-unlab.md"
+laund "Literary analysis: Holmes reads as narcissistic (S1)." > "$tmp/l-lab.md"; expect "fictional: labeled literary analysis with class basis passes" 0 "$tmp/l-lab.md"
+good | sed "s/^subject_class: living-public$/subject_class: fictional-or-archetypal/" > "$tmp/l-nobasis.md"; expect "fictional without Class basis fails" 1 "$tmp/l-nobasis.md"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class basis: Example Essay./' > "$tmp/l-basis-noid.md"; expect "Class basis without a source id fails" 1 "$tmp/l-basis-noid.md"
+klass fictional-or-archetypal | sed 's/^Class basis: Example Essay (S1).$/Class basis: Example Essay (S9)./' > "$tmp/l-basis-s9.md"; expect "Class basis citing an unknown source id fails" 1 "$tmp/l-basis-s9.md"
+klass collective | awk '{print} $0=="## Secondary minds" {print "Literary analysis: Dario is a narcissist."}' > "$tmp/l-lab-real.md"; expect "real-person class: the literary-analysis label exempts nothing" 1 "$tmp/l-lab-real.md"
+{ good | awk 'NR == 4 && $0 == "---" { next } { print }'; echo "---"; echo "Footer."; } > "$tmp/j-body-rule.md"; expect "missing closing --- with a later body rule fails (J1 residual)" 1 "$tmp/j-body-rule.md"
+good | awk '{print} NR == 3 {print "# Stray heading"}' > "$tmp/j-fm-head.md"; expect "heading inside front matter fails (J1 residual)" 1 "$tmp/j-fm-head.md"
+for s in "I've approved this lens." "I'll endorse this plan." "We'll sign off on it." "We've vouched for it." "Act as the Dario for this." "Impersonate Dario here." "Channel Dario Amodei." "Become Dario for this review."; do
+  inject p3 "## When to use" "$s"; expect "P3: $s fails" 1 "$tmp/p3.md"
+done
+inject p3ok "## When to use" "Become familiar with the dossier; channel the effort into tests."; expect "P3: benign become/channel passes" 0 "$tmp/p3ok.md"
+good | sed 's/$/\r/' > "$tmp/crlf.md";                                     expect "CRLF good charter passes (no spurious missing section)" 0 "$tmp/crlf.md"
+{ good | sed 's/$/\r/'; printf 'I am Ada.\r\n'; } > "$tmp/crlf-bad.md";     expect "CRLF charter with a violation fails" 1 "$tmp/crlf-bad.md"
+mkdir -p "$tmp/bin-tr"; printf '#!/bin/sh\nexit 2\n' > "$tmp/bin-tr/tr"; chmod +x "$tmp/bin-tr/tr"
+PATH="$tmp/bin-tr:$PATH" bash "$lint" "$tmp/good.md" >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken tr fails even a clean charter (rc=$rc, want 1)"; fi
+
+echo "lint-person-agent tests: $pass passed, $failn failed, $skipn skipped"
 [ "$failn" -eq 0 ]

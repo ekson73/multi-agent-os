@@ -56,9 +56,15 @@ verbatim quotes only with a source, a *Known limits* section); the class adds it
 | `collective` | The collective is kept separate from its members: nothing is attributed to one member without a source naming that member; every member follows the rules of their own class | Which traits are joint and which belong to one member |
 | `non-human-or-abiotic` | Declared as an analogy or metaphor; no anthropomorphic claim (intent, feeling, agency) stated as fact | It is a metaphor; the behaviors are human readings of the subject |
 
-The lint applies the clinical-vocabulary check only to `living-public`, `deceased-historical` and
-`collective`. First person, role-play and unsourced quotes fail for every class: an unsourced line in a
-character's voice is still fabrication.
+The class is declared by the author, so it never switches a check off. The clinical-vocabulary check
+runs for every class; a `fictional-or-archetypal` charter may use clinical words only on a line that
+starts with `Literary analysis:`, and a `non-human-or-abiotic` charter only on a line that starts with
+`Metaphor:` or `As a metaphor,`. Those two classes must also state why they are in that class, on a line
+`Class basis: <the work and its creator, or the metaphor> (S<n>)` citing a dossier source id. Whether a
+labeled line is really about a character or a metaphor, and not about a real person, is semantic: the
+merge gate decides it, and a change of `subject_class` is a finding for the panel (see *Merge gate*).
+First person, role-play and unsourced quotes fail for every class: an unsourced line in a character's
+voice is still fabrication.
 
 **Example — tiebreak in a council.** Two designs tie 2–2. The facilitator asks a
 hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
@@ -115,7 +121,10 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
 
    It fails (exit 1) on these checks, plus any internal tool error, and nothing else:
    - `subject_class` is missing from the front matter, is not one of the five classes above, or the
-     front matter has no closing `---`;
+     front matter has no closing `---` (the block ends at the first `---` after line 1; a markdown
+     heading inside it means the closing line is missing and a later body rule closed it, which fails);
+   - a `fictional-or-archetypal` or `non-human-or-abiotic` charter has no `Class basis:` line, or that
+     line cites no dossier source id, or cites one that is not in the dossier;
    - a source id cited in the Fidelity table (`S3`, or a range `S1–S7` / `S1-S7`) is not a source row
      (`| Sn |`) of the dossier named on the charter's `Dossier:` line, or that line or file is missing
      (the path is looked up from the charter's directory upwards; existence only, not what the source
@@ -135,7 +144,8 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
      text is not treated as a quotation;
    - a word from a **non-exhaustive** clinical list or a **non-exhaustive** cultural list (zodiac,
      numerology, tarot, ...) outside *Known limits*, matched on word boundaries (the clinical list applies to
-     `living-public`, `deceased-historical` and `collective` only);
+     every class; the only extra exemption is a line with the class label, `Literary analysis:` for
+     fictional and `Metaphor:` / `As a metaphor,` for non-human);
    - a **bounded** list of first-person, role-play and endorsement patterns: `I am` / `I'm` /
      `my name is` / `eu sou` / `meu nome é` / `me chamo`; `As X, I|we` / `Speaking as X, I` (X may
      contain `Mr.`, `Dr.`, ...); `I` / `I'd` + think / believe / feel / would / will / want and `eu`
@@ -143,8 +153,11 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
      `We the X`) followed by approve / endorse / authorize / vouch for / sign off / certify / back /
      support, in present or past tense; `you are <Name>` / `you're <Name>` in any letter case (the
      next word counts when it is capitalized, or lowercase and not a common word, a `-ing`, `-ed` or
-     `-ly` word); `answer as him/her/them`; `act as` / `pretend to be` / `roleplay as` followed by a
-     capitalized name (`Act as a consultative lens` passes).
+     `-ly` word); `answer as him/her/them`; `act as` / `pretend to be` / `roleplay as` / `impersonate` /
+     `channel` / `become`, optionally followed by `the`, then a capitalized name (`Act as a consultative
+     lens` and `become familiar` pass); the contractions `I've`, `I'll`, `we've`, `we'll` before an
+     approval verb. Carriage returns are removed before any check, so a CRLF charter is linted like an
+     LF one.
    The checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
    markers, emphasis, backticks), including lines inside code fences (``` or ~~~, of any length, with
    nested fences) and HTML comments, and fence info strings. Only the double-quoted spans that are
@@ -238,7 +251,11 @@ Lenses: adversarial <ok|changes> · living-person <ok|changes> · source-fidelit
 Scope: semantic personification/endorsement, living-person risk, quote fidelity, guardrails 1–7
 ```
 
-A verdict on an older commit does not count; a new push needs a new record. A record that omits a
+A verdict on an older commit does not count; a new push needs a new record. **Reclassification:** any
+change of `subject_class` between commits (for example from `collective` to `fictional-or-archetypal`)
+is a finding for the panel and needs an independent review of the new class and its `Class basis`, even
+when the lint passes: the class is declared by the author and moves which lines the clinical check
+exempts. A record that omits a
 lens, or marks one `changes`, is not `CLEAR`. No merge without a `CLEAR` record at the current head.
 
 **Improvement loop.** Every phrasing the adversarial lens gets past the lint becomes a new fixture in
@@ -305,4 +322,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Adversarial round: fences and comments exclude each other and inline code opens neither; required sections read from the template; every external tool status checked (proved with PATH shims); act as / pretend to be / roleplay as <Name> and "he's paranoid" caught (112 fixtures); front matter must close, and reversed, oversized or suffixed source ids fail (119 fixtures, CodeRabbit review 5472633615); the consultative-lens paragraph is in the SKILL, the agent and the charter template. Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Adversarial round: fences and comments exclude each other and inline code opens neither; required sections read from the template; every external tool status checked (proved with PATH shims); act as / pretend to be / roleplay as <Name> and "he's paranoid" caught (112 fixtures); front matter must close, and reversed, oversized or suffixed source ids fail (119 fixtures, CodeRabbit review 5472633615); the consultative-lens paragraph is in the SKILL, the agent and the charter template. Final adversarial round: the clinical check runs for every class (a self-declared class no longer switches it off; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class), fictional and non-human charters need a `Class basis:` line with a dossier id, a change of class is a panel finding, the front matter may not swallow body headings, and `I've`/`I'll`/`we've`/`we'll`, `impersonate`/`channel`/`become`, `act as the <Name>` and CRLF files are handled (141 fixtures; the JSON fixture skips without python3/jq). Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |

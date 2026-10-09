@@ -35,6 +35,10 @@ fail() { failures+=("$1"); }
 tmp="$(mktemp -d)" || { echo "lint error: mktemp failed" >&2; exit 1; }
 trap 'rm -rf "$tmp"' EXIT
 
+# Every check reads a copy with carriage returns removed, so a CRLF charter is linted like an LF one.
+src="$tmp/src"
+tr -d '\r' < "$file" > "$src" || fail "lint error: tr failed (CR normalization)"
+
 # Normalized view, one row per line:
 #   NR <TAB> section <TAB> blockquote? <TAB> unsourced-quote? <TAB> lowered text <TAB> original-case text
 # The two text columns have every SOURCED quote span replaced by "" (see below); everything else stays.
@@ -115,7 +119,7 @@ awk -v headings="$tmp/headings" '
       out = out t
       print ROWNR[k] "\t" SEC[k] "\t" BQ[k] "\t" (BQ[k] ? unsourced : 0) "\t" tolower(out) "\t" out
     }
-  }' "$file" > "$tmp/norm" || fail "lint error: awk normalization failed"
+  }' "$src" > "$tmp/norm" || fail "lint error: awk normalization failed"
 : >> "$tmp/headings" || fail "lint error: cannot write headings file"
 
 # Column files, built once; a failure here is an internal error, never "no match".
@@ -136,10 +140,11 @@ match() {
   if [ "$rc" -ne 0 ] || [ -z "$nr" ]; then echo "ERRawk$rc"; return; fi
   echo "$nr"
 }
-# match_outside_limits <regex> — same, skipping rows whose section is "Known limits".
+# match_outside_limits <regex> [file] — same, skipping rows whose section is "Known limits"
+# (default file: every row outside Known limits, as "NR <TAB> lowered text").
 match_outside_limits() {
   local out rc first
-  out=$(grep -E -- "$1" "$tmp/low_nolimits"); rc=$?
+  out=$(grep -E -- "$1" "${2:-$tmp/low_nolimits}"); rc=$?
   if [ "$rc" -ge 2 ]; then echo "ERRgrep$rc"; return; fi
   [ -n "$out" ] || return
   first=${out%%$'\n'*}
@@ -172,7 +177,7 @@ else
 fi
 
 # 2. Fidelity table header.
-grep -qE '^\| *Field *\| *Status *\|' "$file"; rc=$?
+grep -qE '^\| *Field *\| *Status *\|' "$src"; rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
 [ "$rc" -eq 0 ] || fail "missing fidelity table (| Field | Status | ...)"
 
@@ -187,7 +192,7 @@ n=$(match "${B}(as|speaking as|como) ([^,.]|(mr|mrs|ms|dr|prof|sr|jr)\\.)+(,| he
 report "first-person voice as a named person" "$n"
 n=$(match "${B}(i|i'd|eu) (think|believe|feel|would|will|want|acho|penso|creio|acredito|quero|vou)${E}")
 report "first-person opinion" "$n"
-n=$(match "${B}(i|we|eu|nós|i'd|we'd)( would| will| do| did)?(, [^,]+,)? (hereby |fully |strongly |officially )?${APPROVE}${E}")
+n=$(match "${B}(i|we|eu|nós|i'd|we'd|i've|we've|i'll|we'll)( would| will| do| did| have| had)?(, [^,]+,)? (hereby |fully |strongly |officially )?${APPROVE}${E}")
 report "first-person approval/endorsement" "$n"
 n=$(match "${B}we,? the [^,.]+,? (hereby |fully |strongly |officially )?${APPROVE}${E}")
 report "first-person approval/endorsement (we the X)" "$n"
@@ -201,8 +206,9 @@ n=$(awk -F'\t' '
   {
     lo = $5; oc = $6
     if (lo ~ /(^|[^a-z])answer as (him|her|them)([^a-z]|$)/) { print $1; exit }
-    l2 = lo; o2 = oc                           # "act as / pretend to be / roleplay as <Capitalized name>"
-    while (match(l2, /(^|[^a-z])(act|acting|pretend|pretending|role-?play|role-?playing) (as|to be|you are) [^ ]+/)) {
+    l2 = lo; o2 = oc                           # "act as / pretend to be / roleplay as / impersonate / channel /
+                                               #  become [the] <Capitalized name>"
+    while (match(l2, /(^|[^a-z])((act|acting|pretend|pretending|role-?play|role-?playing) (as|to be|you are)|impersonate|impersonating|channel|channeling|channelling|become|becoming)( the)? [^ ]+/)) {
       seg = substr(o2, RSTART, RLENGTH); wd = seg; sub(/.* /, "", wd); gsub(/[^A-Za-z]/, "", wd)
       if (wd ~ /^[A-Z]/ && !(tolower(wd) in stop)) { print $1; exit }
       l2 = substr(l2, RSTART + RLENGTH); o2 = substr(o2, RSTART + RLENGTH)
@@ -225,31 +231,58 @@ report "quote without source marker" "$n"
 # 0. subject_class in the front matter: one of five values. Real-person rules (check 5) apply to
 #    living-public, deceased-historical and collective; fictional and non-human subjects may carry
 #    labeled clinical vocabulary as literary analysis. Every other check applies to every class.
-# The value only counts inside a closed front-matter block (opening and closing "---").
+# The value only counts inside a closed front-matter block: line 1 is "---" and the block ends at the
+# FIRST "---" after it. A markdown heading inside that block means the closing line is missing and a
+# later "---" (a body rule) closed it, so the block swallowed body sections: that fails.
 subject_class=$(awk 'NR == 1 { if ($0 != "---") exit; opened = 1; next }
   $0 == "---" { closed = 1; exit }
+  /^#{1,6}([ \t]|$)/ { heading = 1 }
   /^subject_class:/ && v == "" { v = $0; sub(/^subject_class:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); gsub(/"/, "", v) }
-  END { if (opened && !closed) print "\002"; else if (closed) print v }' "$file") \
+  END { if (opened && !closed) print "\002"; else if (heading) print "\003"; else if (closed) print v }' "$src") \
   || fail "lint error: awk subject_class check failed"
 case "$subject_class" in
   living-public|deceased-historical|collective|fictional-or-archetypal|non-human-or-abiotic) ;;
   $'\002') fail "front matter has no closing ---" ;;
+  $'\003') fail "front matter contains a markdown heading (closing --- missing or misplaced)" ;;
   "") fail "missing subject_class in front matter" ;;
   *) fail "unknown subject_class: $subject_class" ;;
 esac
 
-# 5. Clinical / diagnostic vocabulary outside "## Known limits" (NON-EXHAUSTIVE list), for real
-#    people only (see check 0).
-case "$subject_class" in fictional-or-archetypal|non-human-or-abiotic) clinical=0 ;; *) clinical=1 ;; esac
-[ "$clinical" -eq 1 ] && n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|[a-z]+'s paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)")
-[ "$clinical" -eq 1 ] && report "clinical vocabulary outside Known limits" "$n"
+# 5. Clinical / diagnostic vocabulary outside "## Known limits" (NON-EXHAUSTIVE list), for EVERY class:
+#    the class is declared by the author, so it never switches the check off. The only extra exemption
+#    is a line that carries the class label itself: "Literary analysis:" for fictional-or-archetypal,
+#    "Metaphor:" or "As a metaphor," for non-human-or-abiotic. Whether such a labeled line is really about
+#    a character or a metaphor (and not about a real person) is semantic: the merge gate decides it.
+case "$subject_class" in
+  fictional-or-archetypal) label='^literary analysis:' ;;
+  non-human-or-abiotic)    label='^(metaphor:|as a metaphor,)' ;;
+  *)                       label='' ;;
+esac
+awk -F'\t' -v label="$label" 'label == "" || $2 !~ label' "$tmp/low_nolimits" > "$tmp/low_clinical" \
+  || fail "lint error: awk failed (class label filter)"
+n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|[a-z]+'s paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)" "$tmp/low_clinical")
+report "clinical vocabulary outside Known limits" "$n"
+
+# 5b. Class basis: a fictional-or-archetypal or non-human-or-abiotic charter states, on a line starting
+#     with "Class basis:", why it is in that class (the work and its creator, or the metaphor) with at
+#     least one dossier source id. The id is checked against the dossier with the other ids (check 8).
+class_basis=""
+case "$subject_class" in
+  fictional-or-archetypal|non-human-or-abiotic)
+    class_basis=$(awk -F'\t' 'tolower($6) ~ /^class basis:/ { v = $6; sub(/^[^:]*:[ \t]*/, "", v); print v; exit }' "$tmp/norm") \
+      || fail "lint error: awk class basis check failed"
+    if [ -z "$class_basis" ]; then fail "missing Class basis line for subject_class $subject_class"
+    else
+      case "$class_basis" in *S[0-9]*) ;; *) fail "Class basis cites no dossier source id (S<n>)" ;; esac
+    fi ;;
+esac
 
 # 6. Cultural-semiotic inputs (NON-EXHAUSTIVE list) may be named only in Known limits.
 n=$(match_outside_limits "${B}(zodiac|horoscop|astrolog|numerolog|tarot|life path|star sign|signo${E}|aries${E}|taurus${E}|gemini sign|cancer sign|leo${E}|virgo${E}|libra${E}|scorpio${E}|sagittarius${E}|capricorn${E}|aquarius${E}|pisces${E})")
 report "cultural input outside Known limits" "$n"
 
 # 7. Unfilled template placeholders (<Subject>, <exact quote>, <slug>, ...).
-out=$(grep -nE '<[A-Za-z][A-Za-z -]*>' "$file"); rc=$?
+out=$(grep -nE '<[A-Za-z][A-Za-z -]*>' "$src"); rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
 n=""; [ -n "$out" ] && n=${out%%:*}
 report "unfilled template placeholder" "$n"
@@ -258,7 +291,7 @@ report "unfilled template placeholder" "$n"
 #    a source row ("| Sn |") of the dossier named on the "Dossier: `<path>`" line. The path is looked
 #    up from the charter's directory upwards. Checks existence of the id, not what the source says.
 # shellcheck disable=SC2016  # backticks are literal markdown, not expansions
-dossier_line=$(grep -m1 -E '^Dossier: `[^`]+`' "$file"); rc=$?
+dossier_line=$(grep -m1 -E '^Dossier: `[^`]+`' "$src"); rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc (dossier pointer)"
 dossier_rel=""
 if [ -n "$dossier_line" ]; then dossier_rel=${dossier_line#Dossier: \`}; dossier_rel=${dossier_rel%%\`*}; fi
@@ -292,6 +325,16 @@ else
             if (b > max) print b
           } else print t + 0
         } }') || fail "lint error: awk cited id check failed"
+    # Class basis ids (check 5b) are checked against the same list.
+    if [ -n "$class_basis" ]; then
+      basis_ids=$(printf '%s\n' "$class_basis" | awk '{ s = $0; while (match(s, /S[0-9]+/)) { print substr(s, RSTART + 1, RLENGTH - 1) + 0; s = substr(s, RSTART + RLENGTH) } }') \
+        || fail "lint error: awk class basis id check failed"
+      for id in $basis_ids; do
+        printf '%s\n' "$known" | grep -qx -- "$id"; rc=$?
+        [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
+        [ "$rc" -eq 0 ] || { fail "Class basis source id S$id is not in the dossier source list"; break; }
+      done
+    fi
     for id in $cited; do
       case "$id" in
         bad:*) fail "malformed source id: ${id#bad:}"; break ;;

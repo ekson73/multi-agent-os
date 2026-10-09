@@ -16,13 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "consultative lens, not an authority" paragraph). DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 119 offline fixtures in `scripts/test-lint-person-agent.sh`, also
-  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: a valid `subject_class` inside a closed front matter, that every
+  (`scripts/lint-person-agent.sh`, 141 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: a valid `subject_class` inside a closed front matter (no body heading inside it), a `Class basis:` line with a dossier id for fictional and non-human charters, that every
   source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
   expand only up to the highest dossier id), every `## ` section of the
   charter template (read from the template at run time) (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
   marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
-  non-exhaustive clinical (real-person classes only) and cultural lists outside *Known limits*, and a bounded list of first-person,
+  non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
   role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
   citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
   ignored, and headings there do not count as sections; fences and comments exclude each other as in a

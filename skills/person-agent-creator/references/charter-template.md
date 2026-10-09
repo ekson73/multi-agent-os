@@ -23,6 +23,8 @@ item. It runs on the same model family as the rest of the panel, so its view is 
 does not replace an independent review. When it advises or breaks a tie, record its evidence and any
 dissent; its vote counts only after that evidence.
 
+Class basis: <only for fictional-or-archetypal and non-human-or-abiotic: the work and its creator, or the metaphor, with a dossier source id such as S1; delete this line for the other classes>
+
 ## Primary mind
 
 ## Secondary minds
