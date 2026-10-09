@@ -236,7 +236,7 @@ report "quote without source marker" "$n"
 # later "---" (a body rule) closed it, so the block swallowed body sections: that fails.
 subject_class=$(awk 'NR == 1 { if ($0 != "---") exit; opened = 1; next }
   $0 == "---" { closed = 1; exit }
-  /^#{1,6}([ \t]|$)/ { heading = 1 }
+  /^#+([ \t]|$)/ { heading = 1 }   # no {m,n}: mawk cannot compile it
   /^subject_class:/ && v == "" { v = $0; sub(/^subject_class:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); gsub(/"/, "", v) }
   END { if (opened && !closed) print "\002"; else if (heading) print "\003"; else if (closed) print v }' "$src") \
   || fail "lint error: awk subject_class check failed"
