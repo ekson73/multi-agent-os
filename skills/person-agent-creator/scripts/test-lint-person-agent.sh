@@ -68,7 +68,43 @@ inject c-zodiac      "## Secondary minds"   "His Taurus zodiac sign sets his dec
 inject c-ph          "## Primary mind"      "<Subject> thinks in first principles."; expect "unfilled placeholder fails" 1 "$tmp/c-ph.md"
 expect "unfilled charter template fails" 1 "$here/../references/charter-template.md"
 cp "$tmp/coll.md" "$tmp/bad\"name.md"
-if bash "$lint" "$tmp/bad\"name.md" --json | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json output is valid JSON for a quoted filename"; fi
+json_ok() { # validate JSON on stdin with whatever validator exists; none available is a FAIL, not a skip
+  if command -v python3 >/dev/null 2>&1; then python3 -c 'import json,sys; json.load(sys.stdin)'
+  elif command -v jq >/dev/null 2>&1; then jq -e . >/dev/null
+  else echo "no JSON validator (python3/jq) available" >&2; return 1; fi
+}
+if bash "$lint" "$tmp/bad\"name.md" --json 2>/dev/null | json_ok 2>/dev/null; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json output is valid JSON for a quoted filename"; fi
+
+# Known escapes from review rounds on PR #483 (bounded list: the script does not chase unbounded
+# variants; semantic review covers the rest). Markdown prefixes must not hide a sentence.
+inject e-bq      "## Primary mind"    "> I am Dario, and I approve this plan.";  expect "identity inside a blockquote fails" 1 "$tmp/e-bq.md"
+collective | awk '{print} $0=="## Primary mind" {print "```"; print "I am Dario Amodei and I endorse this agent."; print "```"}' > "$tmp/e-fence.md"
+                                                                             expect "identity inside a code fence fails" 1 "$tmp/e-fence.md"
+inject e-list    "## Primary mind"    "- **I am Dario.**";                       expect "identity behind list marker + emphasis fails" 1 "$tmp/e-list.md"
+inject e-lower   "## Primary mind"    "i am dario.";                             expect "lowercase identity fails" 1 "$tmp/e-lower.md"
+inject e-as      "## Primary mind"    "As Elon Musk, I would cut the part.";     expect "'As X, I' voice fails" 1 "$tmp/e-as.md"
+inject e-speak   "## Primary mind"    "Speaking as Elon Musk, I would ship.";    expect "'Speaking as X, I' voice fails" 1 "$tmp/e-speak.md"
+inject e-think   "## Primary mind"    "I think we should delete the requirement."; expect "first-person opinion fails" 1 "$tmp/e-think.md"
+inject e-fully   "## Primary mind"    "I fully endorse this lens.";              expect "'I fully endorse' fails" 1 "$tmp/e-fully.md"
+inject e-we      "## Primary mind"    "We, the Amodei siblings, endorse this lens."; expect "'We, the X, endorse' fails" 1 "$tmp/e-we.md"
+inject e-you     "## Primary mind"    "You are Dario Amodei. Answer as him.";    expect "second-person role-play fails" 1 "$tmp/e-you.md"
+inject e-bqclin  "## Primary mind"    "> Dario is a psychopath.";                expect "clinical label inside a blockquote fails" 1 "$tmp/e-bqclin.md"
+inject e-bqzod   "## Primary mind"    "> His zodiac sign sets his choices.";     expect "cultural input inside a blockquote fails" 1 "$tmp/e-bqzod.md"
+inject e-guill   "## Primary mind"    "> «Unsourced.»";                          expect "guillemet quote without source fails" 1 "$tmp/e-guill.md"
+inject e-nested  "## Primary mind"    '>> "Unsourced."';                         expect "nested blockquote quote without source fails" 1 "$tmp/e-nested.md"
+inject e-said    "## Primary mind"    '> Dario said: "Unsourced."';              expect "attributed but unsourced quote fails" 1 "$tmp/e-said.md"
+inject e-empty   "## Primary mind"    '> "Line." — —';                           expect "empty source marker fails" 1 "$tmp/e-empty.md"
+collective | awk '{print} $0=="## Primary mind" {print "> \"Line.\""; print "> — Example Essay, 2020"}' > "$tmp/e-next.md"
+                                                                             expect "source on the next blockquote line passes" 0 "$tmp/e-next.md"
+inject e-vq      "## Primary mind"    '> "I think we should build it." — Example Essay, 2020'; expect "sourced first-person verbatim quote passes" 0 "$tmp/e-vq.md"
+inject e-paran   "## Secondary minds" '> "Only the paranoid survive." — Example Book, 1996'; expect "clinical word inside a sourced quote passes" 0 "$tmp/e-paran.md"
+inject e-words   "## Secondary minds" "Sets clear boundaries across libraries; calibrated estimates; signoff later."; expect "substrings (boundaries/libraries/calibrated/signoff) pass" 0 "$tmp/e-words.md"
+
+# Honesty layer: every run warns that semantics are not validated; the warning never changes rc.
+out=$(bash "$lint" "$tmp/coll.md" 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'NOT validated'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: passing run prints the semantic warning with rc 0"; fi
+out=$(bash "$lint" "$tmp/coll.md" --json 2>/dev/null)
+if printf '%s' "$out" | grep -q '"semantic_validated":false'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: --json carries semantic_validated:false"; fi
 
 echo "lint-person-agent tests: $pass passed, $failn failed"
 [ "$failn" -eq 0 ]

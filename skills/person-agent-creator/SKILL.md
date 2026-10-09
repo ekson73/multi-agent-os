@@ -58,19 +58,71 @@ and does not claim X's endorsement.
 5. **Charter.** Write the agent file from `references/charter-template.md`. Positive and beneficial
    traits only (operator scope) — **plus** a mandatory *Known limits* section so the profile does not
    become flattery.
-6. **Lint gate (deterministic).** `bash ${CLAUDE_PLUGIN_ROOT}/skills/person-agent-creator/scripts/lint-person-agent.sh <agent.md>`
-   (from a repo checkout, `${CLAUDE_PLUGIN_ROOT}` is the repo root).
-   Fails on: missing required sections · first-person identity, voice or endorsement in **any** section
-   and for **any** name (so collective-member aliases are covered) · a blockquote quote without a source
-   marker · missing fidelity table · clinical vocabulary outside *Known limits* · cultural inputs outside
-   *Known limits* · unfilled template placeholders. Fixtures: `scripts/test-lint-person-agent.sh`.
+6. **Lint gate (deterministic floor).** The script lives in this skill's directory. Resolve it from
+   the plugin root when the host sets one, otherwise from the directory that contains this SKILL.md
+   (hosts that ship only `./skills`, such as Pi/npx installs, do not set `CLAUDE_PLUGIN_ROOT`):
+
+   ```bash
+   d="${CLAUDE_PLUGIN_ROOT:+$CLAUDE_PLUGIN_ROOT/skills/person-agent-creator}"
+   d="${d:-<directory containing this SKILL.md>}"
+   bash "$d/scripts/lint-person-agent.sh" <agent.md>
+   ```
+
+   It fails (exit 1) on exactly these checks, and nothing else:
+   - a required section is missing, or the `| Field | Status |` fidelity table is missing;
+   - an unfilled template placeholder (`<Subject>`, `<slug>`, ...);
+   - a blockquote line that contains a quotation but no source marker (` — <source>` or ` -- <source>`,
+     on that line or the next blockquote line). Only the presence of a marker is checked, not whether
+     the source id exists in the dossier;
+   - a word from a **non-exhaustive** clinical list or a **non-exhaustive** cultural list (zodiac,
+     numerology, tarot, ...) outside *Known limits*, matched on word boundaries;
+   - a **bounded** list of first-person, role-play and endorsement patterns: `I am` / `I'm` /
+     `my name is` / `eu sou` / `me chamo`, `As X, I` / `Speaking as X, I`, `I think` / `I believe` /
+     `I would`, `I` or `we` (also `We, the X,`) followed by approve / endorse / authorize / sign off /
+     back / support, `You are <Name>`, `answer as him/her`.
+   These checks run on every line after stripping markdown prefixes (indent, `>` at any depth, list
+   markers, emphasis, backticks) and include code-fence content. Text inside a sourced quotation is
+   exempt, so verbatim first-person quotes stay allowed. The script runs with `LC_ALL=C` and treats a
+   `grep` error as a failure, never as "no match". Fixtures: `scripts/test-lint-person-agent.sh`.
+
+   **What it does not check.** Personification or endorsement written in words outside that list
+   ("This lens is approved by X", a paraphrase that speaks for the person) passes the script. Every
+   run prints a warning saying so, and `--json` carries `"semantic_validated": false`. A passing lint
+   is the floor, not the verdict; the merge gate below is the verdict.
 7. **Fidelity self-assessment.** Per charter field: `documented` (cited) · `inferred` (pattern across
    ≥2 cited decisions) · `documented / inferred` (mixed). Report the counts in two named units so they can
    be checked: charter fields (rows of the charter Fidelity table) and dossier-only items (`cultural`
    non-evidential inputs, `unverified` / not-recorded items).
 
+**Self-check at generation time (NOT verification).** Before handing the charter over, the creating
+agent answers each line; a "no" means rewrite. These answers come from the author, so they do not count
+as a review:
+- [ ] No sentence speaks as the person, for the person, or to the reader as if they were the person.
+- [ ] No sentence states or implies that the person (or their company) approves, endorses or uses this lens.
+- [ ] Every quotation is verbatim, carries a source id that exists in the dossier, and sits in a blockquote.
+- [ ] No trait rests on a clinical, cultural or numerological input; those appear only in *Known limits*.
+- [ ] Each Fidelity status matches the dossier row it summarizes.
+
 **DoD**: dossier with sources · 33 answers · charter passing the lint gate (exit 0) · fidelity table ·
-recon verdict recorded · no secrets, no private data.
+recon verdict recorded · no secrets, no private data · merge gate passed (below).
+
+## Merge gate (mandatory)
+
+The lint gate cannot judge meaning, and the author cannot verify their own charter. Before a charter
+merges, an **independent reviewer from a different vendor family** than the author (for example, a
+Claude-authored charter reviewed by a GPT- or Gemini-family model, or by a human) reads the charter
+and its dossier against the guardrails below, with the semantic questions first: does any sentence
+speak as, for, or with the endorsement of the person; does every quote match its source.
+
+Record the result on the pull request, bound to the head commit it reviewed:
+
+```text
+Reviewed-By: <reviewer and model family> · head <full commit sha> · verdict <CLEAR|CHANGES>
+Scope: semantic personification/endorsement, quote fidelity, guardrails 1–7
+```
+
+A verdict on an older commit does not count; a new push needs a new record. No merge without a
+`CLEAR` record at the current head.
 
 ## Guardrails (non-negotiable)
 
@@ -106,7 +158,7 @@ humanoid profile (communication style, decision tempo, risk posture). See `refer
 | `references/person-33q.md` | 33 Socratic questions → charter fields → disciplines |
 | `references/dossier-template.md` | Research dossier skeleton |
 | `references/charter-template.md` | Agent-file skeleton (required sections the lint gate checks) |
-| `scripts/lint-person-agent.sh` | Deterministic gate (exit 0 pass · 1 fail · 2 usage) |
+| `scripts/lint-person-agent.sh` | Deterministic floor (exit 0 pass · 1 fail or tool error · 2 usage); not a semantic check |
 | `dossiers/<slug>.md` | One dossier per person-agent |
 
 ## Prior art (recon summary)
@@ -130,4 +182,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory cross-vendor merge gate (review round on PR #483). |

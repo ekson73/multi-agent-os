@@ -71,8 +71,8 @@
 
 Counted units, so the numbers can be checked against the charter.
 
-- **Charter fields** (rows of the Fidelity table in `agents/consultants/sam-altman.md`, 6 rows): documented 4
-  (primary mind, method, positive traits, quotes) · documented / inferred 1 (secondary minds) · inferred 1
+- **Charter fields** (rows of the Fidelity table in `agents/consultants/sam-altman.md`, 6 rows): documented 3
+  (primary mind, method, quotes) · documented / inferred 2 (secondary minds, positive traits) · inferred 1
   (signature questions).
 - **Dossier-only items** (not charter fields): cultural, non-evidential 3 (zodiac, numerology, name semiotics)
   · unverified or not recorded 3 (surname meaning, self-declared beliefs, item 23).

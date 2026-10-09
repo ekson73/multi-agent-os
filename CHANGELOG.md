@@ -11,12 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`: DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
-  five-lens synthesis, charter template, and a deterministic lint gate
-  (`scripts/lint-person-agent.sh`, 26 offline fixtures in `scripts/test-lint-person-agent.sh`).
-  The gate rejects first-person identity, voice or endorsement in every section and for any name (so a
-  collective charter cannot carry "I am <member>"), unsourced blockquote quotes in any quoting style,
-  clinical or cultural inputs outside *Known limits*, and unfilled template placeholders; `--json` output
-  is escaped. Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
+  five-lens synthesis, charter template, and a deterministic lint floor
+  (`scripts/lint-person-agent.sh`, 48 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: required sections and the
+  fidelity table, unfilled placeholders, a source marker on blockquote lines that contain a quotation
+  (presence, not existence of the id), words from non-exhaustive clinical and cultural lists outside
+  *Known limits*, and a bounded list of first-person, role-play and endorsement patterns, on every line
+  after stripping markdown prefixes. It runs with `LC_ALL=C` and treats a `grep` error as a failure.
+  It does not validate personification or endorsement semantically: every run prints a warning and
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires an independent
+  reviewer from a different vendor family, recorded on the pull request at the current head.
+  Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
   Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
   (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
 - Elevated in place to v2.0.0 person-agents, each with a dossier under

@@ -78,7 +78,7 @@ be hard to compete with · build a network · own things · be driven from withi
 | Secondary minds | documented / inferred | S1, S2 |
 | Method (M.O.) | documented (paraphrase) | S2 |
 | Signature questions | inferred | S2 |
-| Positive traits | documented | S1–S3 |
+| Positive traits | documented / inferred | S1–S3 |
 | Quotes | documented | S2 |
 
 Dossier: `skills/person-agent-creator/dossiers/sam-altman.md`

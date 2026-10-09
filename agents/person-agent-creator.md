@@ -25,9 +25,11 @@ of its own.
   ethics and fidelity critic). Spawn independent reviewers only through `skills/delegate-governance/SKILL.md`.
   When you cannot spawn them, run the lenses as sequential passes
   and record `panel: sequential-single-author` in the dossier.
-- Finish with `bash ${CLAUDE_PLUGIN_ROOT}/skills/person-agent-creator/scripts/lint-person-agent.sh <charter>`
-  (repo root when run from a checkout) and report its real
-  exit code, plus the fidelity counts (documented · inferred · cultural · unverified).
+- Finish with the lint floor (`scripts/lint-person-agent.sh` in the skill directory; SKILL.md step 6
+  shows how to resolve the path with or without `CLAUDE_PLUGIN_ROOT`) and report its real exit code,
+  plus the fidelity counts (documented · inferred · cultural · unverified). A passing lint does not
+  validate meaning: hand the charter to the merge gate in SKILL.md (independent reviewer from a
+  different vendor family, `Reviewed-By` record at the current head).
 
 ## Hand-offs
 
