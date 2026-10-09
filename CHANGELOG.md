@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "consultative lens, not an authority" paragraph). DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 149 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  (`scripts/lint-person-agent.sh`, 151 offline fixtures in `scripts/test-lint-person-agent.sh`, also
   run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: a valid `subject_class` inside a closed front matter (no body heading inside it), a `Class basis:` line with a dossier id for fictional and non-human charters, that every
   source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
   expand only up to the highest dossier id), every `## ` section of the

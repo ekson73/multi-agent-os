@@ -237,6 +237,14 @@ if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'lint error'; then pass=$((pa
 out=$(PATH="$tmp/bin-awk:$PATH" bash "$lint" "$tmp/coll.md" --json 2>&1); rc=$?
 if [ "$rc" -eq 1 ] && ! printf '%s' "$out" | grep -q '"passed":true'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken awk never yields JSON passed:true (rc=$rc)"; fi
 
+# Addendum L: a failing dirname or json_str must fail even a clean charter, with "lint error".
+out=$(PATH="$tmp/bin-dirname:$PATH" bash "$lint" "$tmp/good.md" 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'lint error'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: broken dirname fails a clean charter with 'lint error' (rc=$rc, want 1)"; fi
+realawk=$(command -v awk); mkdir -p "$tmp/bin-jsonawk"
+printf '#!/bin/sh\ncase "$*" in *"ORS = \\"\\""*) exit 2;; esac\nexec "%s" "$@"\n' "$realawk" > "$tmp/bin-jsonawk/awk"; chmod +x "$tmp/bin-jsonawk/awk"
+out=$(PATH="$tmp/bin-jsonawk:$PATH" bash "$lint" "$tmp/good.md" --json 2>&1); rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'lint error' && ! printf '%s' "$out" | grep -q '"passed":true'; then pass=$((pass+1)); else failn=$((failn+1)); echo "FAIL: a failing json_str fails --json with 'lint error' (rc=$rc, want 1)"; fi
+
 # Declared OUT OF SCOPE (SKILL.md "What it does not check"): these pass by design and are kept as
 # fixtures so a change in behavior is visible. Semantic review covers them.
 inject o-fr      "## When to use"     "Je suis Franklin.";                     expect "out of scope: other languages (French) pass" 0 "$tmp/o-fr.md"
