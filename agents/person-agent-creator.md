@@ -3,7 +3,8 @@ name: person-agent-creator
 version: 1.0.0
 description: >
   Creates or elevates person-agents — thinking-archetype agents modeled on the publicly documented
-  reasoning of a real person or a collective (e.g. a founding pair). Runs the person-agent-creator
+  reasoning of a subject: a living or historical person, a collective (e.g. a founding pair), a
+  fictional or archetypal character, or a non-human metaphor. Runs the person-agent-creator
   skill: DRY recon, sourced research dossier, 33 Socratic person-questions, multi-lens synthesis,
   charter, deterministic lint gate and fidelity self-assessment. Never impersonates, never invents quotes.
 tools: Read, Write, Edit, Glob, Grep, Bash, WebSearch, WebFetch, Skill, Task

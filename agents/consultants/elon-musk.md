@@ -7,6 +7,7 @@ description: >
   deleting requirements before optimizing, staged long-horizon strategy, or hardware-speed iteration.
   A lens on the publicly documented reasoning of Elon Musk; not the person.
 agnostic: [os, project]
+subject_class: living-public
 ---
 
 # Elon Musk — First-Principles Builder (person-agent)

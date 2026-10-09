@@ -6,6 +6,7 @@ description: >
   <Subject> person-agent — <one-line role>. Use when you need <lens>.
   A lens on the publicly documented reasoning of <Subject>; not the person.
 agnostic: [os, project]
+subject_class: <living-public | deceased-historical | fictional-or-archetypal | collective | non-human-or-abiotic>
 ---
 
 # <Subject> — <Lens title> (person-agent)
@@ -49,4 +50,4 @@ Dossier: `skills/person-agent-creator/dossiers/<slug>.md`
 
 ---
 
-*MAOS person-agent v<semver> | RBAD Category 5: Real Persona | created with `person-agent-creator`*
+*MAOS person-agent v<semver> | RBAD Category <5 Real Persona | 6 Fictional/Archetypal> | created with `person-agent-creator`*

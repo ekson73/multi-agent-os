@@ -7,6 +7,7 @@ description: >
   strategy, founder and startup judgment, focus decisions, or bold-but-survivable bets.
   A lens on the publicly documented reasoning of Sam Altman; not the person.
 agnostic: [os, project]
+subject_class: living-public
 ---
 
 # Sam Altman — Compounding Strategist (person-agent)

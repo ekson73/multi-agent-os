@@ -42,12 +42,13 @@
 
 | Axis | Finding | Source | Status |
 |---|---|---|---|
-| Primary mind (joint) | **Safety-gated builder**: capability work proceeds behind explicit, pre-committed safety thresholds (per the 2023 RSP; later versions not re-checked) | S5, S4 | documented (dated 2023) |
-| Dario's lens | **Empirical scientist** — physics and neuroscience training; measures before claiming (scaling laws, concrete safety problems) | S1, S6, S7 | documented / inferred |
+| Primary mind (joint) | **Risk-aware builder**: capability and risk treated as one problem, inferred from Dario's safety research and essay and the company the pair co-founded | S3, S4, S6 | inferred |
+| Institutional context | Responsible Scaling Policy, a company policy (v1.0, Sept 2023; revised through v3.4, July 2026). Only the 2023 text was read; it is context, not a personal trait | S5 | documented (company policy, dated) |
+| Dario's lens | **Empirical scientist** — physics and neuroscience training; authored work on scaling trends and concrete safety problems (the measuring habit is inferred from authorship) | S1, S6, S7 | documented / inferred |
 | Daniela's lens | **Organization and policy builder** — communications, policy, safety-and-policy leadership, scaling teams | S2 | documented / inferred |
 | Secondary minds | **Optimistic long-range forecaster** (S3) · **concrete-problem decomposer** (S6) | S3, S6 | documented |
 | M.O. | Name the concrete failure modes · measure trends · commit in advance to thresholds · scale only when the safeguards for that level are in place · publish the reasoning | S5, S6, S7 | documented / inferred |
-| Positive traits | Public reasoning in long-form writing (S3) · research rigor (S6, S7) · institution building (S2, S4) · balancing hope and caution (S3) | S1–S7 | documented / inferred |
+| Positive traits | Public reasoning in long-form writing (S3) · research record — authorship, rigor inferred (S6, S7) · institution building (S2, S4) · balancing hope and caution (S3) | S1–S7 | documented / inferred |
 | Expert-drawn profile | no full biography located this round | — | unverified |
 
 ## 4. Cultural-semiotic inputs (non-evidential)
@@ -61,7 +62,7 @@
 ## 5. 33 Socratic answers (short)
 
 1 collective (founding pair) because the institution and its safety commitments are joint · 2 S3–S7 first, then S1–S2 · 3 S9 ·
-4 §2 · 5 §2 · 6 S3 thesis · 7 measure, threshold, commit in advance · 8 safety-gated builder · 9 empirical scientist, organization builder, optimistic forecaster ·
+4 §2 · 5 §2 · 6 S3 thesis · 7 measure, threshold, commit in advance · 8 risk-aware builder (inferred); the RSP is institutional context, not a trait · 9 empirical scientist, organization builder, optimistic forecaster ·
 10 explicit evidence, measurement, stated uncertainty (S3, S7) · 11 deliberate tempo gated by thresholds (S5) · 12 decompose into concrete, testable problems (S6) ·
 13 shipping capability without matching safeguards (S5) · 14 no biography located · 15 §3 · 16 safety, reliability, interpretability, steerability (S4) ·
 17 S3 hope plus caution · 18 not recorded · 19 §4 · 20 Dario: research leadership, quantitative forecasting; Daniela: operations, policy, team scaling (S1, S2) ·
@@ -76,16 +77,18 @@
 - No full biography located; expert-drawn profile left open.
 - Items 22–23 (leadership style, adversity response) left open.
 - Only the 2023 Responsible Scaling Policy (S5) was read. Later versions exist (Anthropic lists a 3.0 rewrite
-  in February 2026 and updates through 3.4 in July 2026); none was re-checked, so the primary-mind trait is
-  dated to 2023 — unverified for the current policy.
+  in February 2026 and updates through 3.4 in July 2026); none was re-checked, so the RSP row is dated to 2023 —
+  unverified for the current policy. The primary mind no longer rests on it.
 - No published critical account of either person was sought in this round.
+- S3 also argues for a coalition of democracies "scaling quickly" and using AI "to achieve robust military
+  superiority"; recorded as a documented tension, with no inference about the siblings' current position.
 
 ## 7. Fidelity summary
 
 Counted units, so the numbers can be checked against the charter.
 
-- **Charter fields** (rows of the Fidelity table in `agents/consultants/amodei-siblings.md`, 8 rows):
-  documented 3 (primary mind, quotes, institutional statement) · documented / inferred 4 (Dario's lens,
-  Daniela's lens, method, positive traits) · inferred 1 (signature questions).
+- **Charter fields** (rows of the Fidelity table in `agents/consultants/amodei-siblings.md`, 9 rows):
+  documented 3 (institutional context — RSP 2023, quotes, institutional statement) · documented / inferred 4
+  (Dario's lens, Daniela's lens, method, positive traits) · inferred 2 (primary mind, signature questions).
 - **Dossier-only items** (not charter fields): cultural, non-evidential 1 (name semiotics) · unverified or
   not recorded 6 (surname meaning, birth dates, expert-drawn profile, self-declared beliefs, item 22, item 23).

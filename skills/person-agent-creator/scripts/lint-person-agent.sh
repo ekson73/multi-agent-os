@@ -195,9 +195,23 @@ report "second-person role-play instruction" "$n"
 n=$(awk -F'\t' '$4 == 1 { print $1; exit }' "$tmp/norm") || fail "lint error: awk quote check failed"
 report "quote without source marker" "$n"
 
-# 5. Clinical / diagnostic vocabulary outside "## Known limits" (NON-EXHAUSTIVE list).
-n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)")
-report "clinical vocabulary outside Known limits" "$n"
+# 0. subject_class in the front matter: one of five values. Real-person rules (check 5) apply to
+#    living-public, deceased-historical and collective; fictional and non-human subjects may carry
+#    labeled clinical vocabulary as literary analysis. Every other check applies to every class.
+subject_class=$(awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+  NR > 1 && /^subject_class:/ { v = $0; sub(/^subject_class:[ \t]*/, "", v); sub(/[ \t]+$/, "", v); gsub(/"/, "", v); print v; exit }' "$file") \
+  || fail "lint error: awk subject_class check failed"
+case "$subject_class" in
+  living-public|deceased-historical|collective|fictional-or-archetypal|non-human-or-abiotic) ;;
+  "") fail "missing subject_class in front matter" ;;
+  *) fail "unknown subject_class: $subject_class" ;;
+esac
+
+# 5. Clinical / diagnostic vocabulary outside "## Known limits" (NON-EXHAUSTIVE list), for real
+#    people only (see check 0).
+case "$subject_class" in fictional-or-archetypal|non-human-or-abiotic) clinical=0 ;; *) clinical=1 ;; esac
+[ "$clinical" -eq 1 ] && n=$(match_outside_limits "${B}(narcissis|psychopath|sociopath|bipolar|autis|asperger|adhd${E}|ocd${E}|personality disorder|psychotic|psychosis|manic${E}|megaloman|schizo|paranoia|paranoid (personality|disorder|schizo)|(is|was|clinically) paranoid${E}|histrionic|borderline personality|diagnosed with|diagnosis of|mentally ill|on the spectrum|obsessive-compulsive|neurodivergent)")
+[ "$clinical" -eq 1 ] && report "clinical vocabulary outside Known limits" "$n"
 
 # 6. Cultural-semiotic inputs (NON-EXHAUSTIVE list) may be named only in Known limits.
 n=$(match_outside_limits "${B}(zodiac|horoscop|astrolog|numerolog|tarot|life path|star sign|signo${E}|aries${E}|taurus${E}|gemini sign|cancer sign|leo${E}|virgo${E}|libra${E}|scorpio${E}|sagittarius${E}|capricorn${E}|aquarius${E}|pisces${E})")
@@ -208,6 +222,44 @@ out=$(grep -nE '<[A-Za-z][A-Za-z -]*>' "$file"); rc=$?
 [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
 n=$(printf '%s' "$out" | head -1 | cut -d: -f1)
 report "unfilled template placeholder" "$n"
+
+# 8. Source ids. Every id cited in the Fidelity table (S1, S2, ... and ranges S1-S7 / S1–S7) must be
+#    a source row ("| Sn |") of the dossier named on the "Dossier: `<path>`" line. The path is looked
+#    up from the charter's directory upwards. Checks existence of the id, not what the source says.
+# shellcheck disable=SC2016  # backticks are literal markdown, not expansions
+dossier_line=$(grep -m1 -E '^Dossier: `[^`]+`' "$file"); rc=$?
+[ "$rc" -le 1 ] || fail "lint error: grep rc=$rc (dossier pointer)"
+dossier_rel=""
+# shellcheck disable=SC2016
+[ -n "$dossier_line" ] && dossier_rel=$(printf '%s\n' "$dossier_line" | sed -E 's/^Dossier: `([^`]+)`.*/\1/')
+if [ -z "$dossier_rel" ]; then
+  fail "missing dossier pointer (Dossier: \`<path>\`)"
+else
+  dossier=""; d="$(cd "$(dirname "$file")" && pwd)" || fail "lint error: cannot resolve charter directory"
+  while [ -n "$d" ]; do
+    if [ -f "$d/$dossier_rel" ]; then dossier="$d/$dossier_rel"; break; fi
+    [ "$d" = "/" ] && break
+    d="$(dirname "$d")"
+  done
+  if [ -z "$dossier" ]; then
+    fail "dossier not found: $dossier_rel"
+  else
+    known=$(awk -F'|' '/^\| *S[0-9]+ *\|/ { x = $2; gsub(/[ S]/, "", x); print x }' "$dossier") \
+      || fail "lint error: awk dossier id check failed"
+    cited=$(awk -F'\t' '$2 == "Fidelity" { print $6 }' "$tmp/norm" | awk '
+      { s = $0
+        while (match(s, /S[0-9]+ *(-|\342\200\223) *S?[0-9]+|S[0-9]+/)) {
+          t = substr(s, RSTART, RLENGTH); s = substr(s, RSTART + RLENGTH)
+          gsub(/\342\200\223/, "-", t); gsub(/[ S]/, "", t)
+          if (index(t, "-")) { split(t, r, "-"); for (i = r[1] + 0; i <= r[2] + 0; i++) print i } else print t + 0
+        } }') || fail "lint error: awk cited id check failed"
+    for id in $cited; do
+      printf '%s\n' "$known" | grep -qx -- "$id"; rc=$?
+      [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
+      [ "$rc" -eq 0 ] || { fail "source id S$id is not in the dossier source list"; break; }
+    done
+  fi
+fi
 
 json_str() { # JSON string escape: backslash, quote, control characters.
   printf '%s' "$1" | awk 'BEGIN { ORS = "" } {

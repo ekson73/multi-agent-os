@@ -9,14 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — `person-agent-creator` and the first three person-agents
 
-- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`: DRY recon,
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
+  five classes (living public figure, historical figure, fictional or archetypal character, collective,
+  non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
+  as an authority, a gate or a substitute for an independent reviewer. DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 79 offline fixtures in `scripts/test-lint-person-agent.sh`, also
-  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: every `## ` section of the
+  (`scripts/lint-person-agent.sh`, 96 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). The floor checks only: a valid `subject_class`, that every
+  source id in the Fidelity table exists in the dossier, every `## ` section of the
   charter template (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
   marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
-  non-exhaustive clinical and cultural lists outside *Known limits*, and a bounded list of first-person,
+  non-exhaustive clinical (real-person classes only) and cultural lists outside *Known limits*, and a bounded list of first-person,
   role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
   citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
   ignored, and headings there do not count as sections. It runs with `LC_ALL=C` and treats any `grep`,

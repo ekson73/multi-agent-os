@@ -2,8 +2,9 @@
 name: person-agent-creator
 version: "1.0.0"
 description: |
-  Create or elevate a PERSON-AGENT: a thinking-archetype agent modeled on the publicly documented
-  thinking, decisions, style and track record of a real (often living) person — never an impersonation.
+  Create or elevate a PERSON-AGENT: a thinking-archetype agent modeled on the documented thinking,
+  decisions, style and track record of a subject — a living public figure, a historical figure, a
+  fictional or archetypal character, a collective, or a non-human metaphor — never an impersonation.
   Runs a fixed workflow: DRY recon → research dossier (sourced, per-axis) → 33 Socratic person-questions
   → multi-lens (MoE) synthesis → charter (agent file) → deterministic lint gate → fidelity self-assessment.
   Use when asked to "create a person-agent for X", "model how X thinks", "elevate the X consultant
@@ -18,13 +19,51 @@ A person-agent answers one question: *"How would someone who reasons the way X h
 approach this problem?"* It is a **lens**, attributed and bounded. It is not X, does not speak as X,
 and does not claim X's endorsement.
 
+**Why build one.** To support a decision: break a tie between ideas, add a voice to a deliberation or a
+council, or act as an advisor or a worked success case — borrowing the best documented behaviors of a
+subject whose name, history and archetype carry the meaning the team wants to use. The subject can be
+real, historical, fictional, imagined, collective or non-human.
+
+> **A lens, not an authority.** A person-agent gives an advisory vote or breaks a tie between ideas. It
+> does not replace an independent reviewer (verifier > generator), it never clears a security gate or a
+> decision reserved to humans, and because it runs on the same model as the rest of the panel its view
+> is correlated with theirs. To break a tie on a pull request, use the review panel with a declared
+> independence grade (`vendor` / `context`, see *Merge gate*), not a person-agent.
+
 ## When to use / not use
 
 | Use | Do not use |
 |---|---|
 | New person-agent for a public figure with a published record | Private individuals, or anyone without a public record of decisions |
-| Elevating a thin archetype (e.g. `agents/consultants/*.md`) into a sourced person-agent | Role-play, fan fiction, chat "as" the person |
+| Elevating a thin archetype (e.g. `agents/consultants/*.md`) into a sourced person-agent | Role-play, chat "as" the subject, or new text written in a character's voice (a fictional subject uses the archetypal path below, not fan fiction) |
 | A **collective mind** (founding pair, team) whose public record is joint | Generic role personas (use `forge` / the persona catalog) |
+| A historical, fictional or non-human subject used as an advisory lens or a tiebreak voice | Any gate, approval or human-reserved decision (see the box above) |
+
+## Subject classes
+
+Set `subject_class` in the charter front matter. Every class keeps the base guardrails (no impersonation,
+verbatim quotes only with a source, a *Known limits* section); the class adds its own:
+
+| `subject_class` | Extra guardrails | *Known limits* must say |
+|---|---|---|
+| `living-public` | All the strict rules below; public record only; no remote clinical labels | The lens is not the person, holds no private reasoning, and is dated (as-of) |
+| `deceased-historical` | Sources for every claim; no fabricated lines (many famous quotes are apocryphal: keep only those traced to a primary or scholarly source); no defamation; texts in the public domain may be quoted verbatim with a source | Historical context differs from today; apocryphal material was excluded |
+| `fictional-or-archetypal` (RBAD category 6) | No real-person impersonation risk, but intellectual property and trademarks apply: use the archetype and its behavior, do not reproduce protected text; quotations only verbatim with a source (public-domain works are safest); labeled literary analysis may use clinical words | The behavior comes from the work, not from a person; rights status of the source |
+| `collective` | Separate joint traits from each member's own traits; every member follows the rules of their class | Which traits are joint and which belong to one member |
+| `non-human-or-abiotic` | State that the lens is an analogy or metaphor; no claims of agency or intent beyond the metaphor | It is a metaphor; the behaviors are human readings of the subject |
+
+The lint applies the clinical-vocabulary check only to `living-public`, `deceased-historical` and
+`collective`. First person, role-play and unsourced quotes fail for every class: an unsourced line in a
+character's voice is still fabrication.
+
+**Example — tiebreak in a council.** Two designs tie 2–2. The facilitator asks a
+hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
+
+> *Lens vote (advisory): design B.* Rationale: B routes around the legacy dependency instead of
+> removing it first, matching this lens's behavior "take the path of least resistance that still
+> reaches the sea" (charter, *Method*; a metaphor, not evidence). Evidence: B needs 2 changed services,
+> A needs 5 (design docs, section 3). The vote breaks the tie between ideas only; the security review
+> and the human sign-off still apply.
 
 ## Workflow (DoR → steps → DoD)
 
@@ -70,6 +109,11 @@ and does not claim X's endorsement.
    ```
 
    It fails (exit 1) on these checks, plus any internal tool error, and nothing else:
+   - `subject_class` is missing from the front matter, or is not one of the five classes above;
+   - a source id cited in the Fidelity table (`S3`, or a range `S1–S7` / `S1-S7`) is not a source row
+     (`| Sn |`) of the dossier named on the charter's `Dossier:` line, or that line or file is missing
+     (the path is looked up from the charter's directory upwards; existence only, not what the source
+     says);
    - a section of `references/charter-template.md` is missing: every `## ` heading of the template
      must appear as a heading outside code fences and HTML comments (order is not checked, extra
      sections are allowed), and the `| Field | Status |` fidelity table must exist. That is all the
@@ -79,10 +123,11 @@ and does not claim X's endorsement.
      source marker of its own. A span is *sourced* when ` — <source>` or ` -- <source>` follows it
      directly, or when it ends the line and the next blockquote line starts with that marker. Text
      after a same-line marker is the source (a quoted title there needs no second marker). Only the
-     presence of a marker is checked, not whether the source id exists in the dossier. Single-quoted
+     presence of a marker is checked on these lines (source ids are checked in the Fidelity table, above). Single-quoted
      text is not treated as a quotation;
    - a word from a **non-exhaustive** clinical list or a **non-exhaustive** cultural list (zodiac,
-     numerology, tarot, ...) outside *Known limits*, matched on word boundaries;
+     numerology, tarot, ...) outside *Known limits*, matched on word boundaries (the clinical list applies to
+     `living-public`, `deceased-historical` and `collective` only);
    - a **bounded** list of first-person, role-play and endorsement patterns: `I am` / `I'm` /
      `my name is` / `eu sou` / `meu nome é` / `me chamo`; `As X, I|we` / `Speaking as X, I` (X may
      contain `Mr.`, `Dr.`, ...); `I` / `I'd` + think / believe / feel / would / will / want and `eu`
@@ -99,13 +144,16 @@ and does not claim X's endorsement.
    neither changes the current section (so it cannot open *Known limits*) nor counts as a required
    section. The script runs with `LC_ALL=C`; a `grep`, `awk` or `cut` error is a failure, never "no
    match". Fixtures: `scripts/test-lint-person-agent.sh` (rerun them against another script with
-   `LINT=<path>`).
+   `LINT=<path>`). Tested end to end on 2026-10-09 with three throwaway charters (a historical figure,
+   a fictional character quoted from a public-domain text, and a non-human metaphor): all passed, and
+   the same charters failed once a fabricated first-person line (or, for the historical one, a clinical
+   label) was added.
 
    **What it does not check (out of scope, kept as passing fixtures).** Personification or
    endorsement in words outside that list ("This lens is approved by X", a paraphrase that speaks for
    the person), other languages than English and Portuguese, look-alike (confusable) letters,
-   zero-width or non-breaking spaces inside a pattern, a source id that does not exist, and
-   single-quoted quotations. Every run prints a warning saying so, and `--json` carries
+   zero-width or non-breaking spaces inside a pattern, a source id cited outside the Fidelity table,
+   whether a source actually says what the charter claims, and single-quoted quotations. Every run prints a warning saying so, and `--json` carries
    `"semantic_validated": false`. A passing lint is the floor, not the verdict; the merge gate below
    is the verdict.
 7. **Fidelity self-assessment.** Per charter field: `documented` (cited) · `inferred` (pattern across
@@ -193,7 +241,8 @@ rises with each review.
 3. **No remote diagnosis.** Psychiatry, psychoanalysis and neuroscience are used only as published
    descriptive vocabularies, attributed to their sources — never as a diagnosis of a living person
    (Goldwater-rule principle). No personality-type labels assigned to the subject unless the subject
-   published them.
+   published them. A `fictional-or-archetypal` subject may carry labeled literary analysis instead
+   (see *Subject classes*).
 4. **Cultural inputs are non-evidential.** Zodiac, numerology, name semiotics, spirituality frameworks
    (e.g. Vedanta, gnosis) may appear as labeled cultural context; they never set a trait or a behavior.
 5. **Public record only.** Education and history from published biographies or official sources; no
@@ -243,4 +292,4 @@ persona-pipeline role).
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |
+| 1.0.0 | 2026-10-08 | First release: workflow, 33 person-questions, templates, lint gate; first three person-agents elevated (elon-musk, sam-altman, amodei-siblings). Lint scope narrowed to what it checks, with a semantic-limits warning and a mandatory merge gate with a review panel and declared independence grade (review round on PR #483). Council round on PR #483: lint checks every template section (new *Revalidation*), exempts only sourced double-quoted spans, ignores fenced code and HTML comments, catches past-tense and Portuguese endorsement, fails on any internal tool error (79 fixtures, proven against the previous script). Operator addendum: subject classes (living-public, deceased-historical, fictional-or-archetypal, collective, non-human-or-abiotic) with guardrails and Known limits per class; the lint requires `subject_class`, scopes the clinical check to real people, and checks that every Fidelity source id exists in the dossier (96 fixtures); a person-agent is an advisory lens, never an authority; tiebreak example. Each Socratic question names where its answer lands; conflict-of-interest rule needs a vendor or human reviewer; agent loads the skill by name with a path fallback. Unreleased: folded into 1.0.0. |

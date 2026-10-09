@@ -12,6 +12,7 @@ good() {
 cat <<'EOF'
 ---
 name: test-person
+subject_class: living-public
 ---
 # Ada Example — Test Lens (person-agent)
 ## Identity boundary
@@ -38,8 +39,10 @@ Never claims the person's endorsement.
 | Field | Status | Source ids |
 |---|---|---|
 | Primary mind | documented | S1 |
+Dossier: `dossier.md`
 EOF
 }
+printf '%s\n' '## 1. Sources' '| id | Source |' '|---|---|' '| S1 | Example Essay |' '| S2 | Example Talk |' > "$tmp/dossier.md"
 
 expect() { # expect <name> <expected-rc> <file>
   bash "$lint" "$3" >/dev/null 2>&1; rc=$?
@@ -144,6 +147,28 @@ inject k-parbad  "## When to use"     "He is paranoid.";                       e
 inject k-youok   "## When to use"     "You are expected to cite the dossier."; expect "benign 'you are expected' passes" 0 "$tmp/k-youok.md"
 good | grep -vxF '## Revalidation' > "$tmp/k-noreval.md";                     expect "missing Revalidation section fails" 1 "$tmp/k-noreval.md"
 good | grep -vxF '## Method (M.O.)' > "$tmp/k-nomethod.md";                   expect "missing template section (Method) fails" 1 "$tmp/k-nomethod.md"
+
+# Subject classes and source ids (operator addendum to the PR #483 lot). Class rules: real-person
+# clinical check only for living-public, deceased-historical and collective; first person, role-play
+# and unsourced quotes fail for every class.
+klass() { good | sed "s/^subject_class: living-public$/subject_class: $1/"; }
+good | grep -v '^subject_class:' > "$tmp/s-nocls.md";            expect "missing subject_class fails" 1 "$tmp/s-nocls.md"
+klass alien > "$tmp/s-badcls.md";                                 expect "unknown subject_class fails" 1 "$tmp/s-badcls.md"
+for c in deceased-historical collective fictional-or-archetypal non-human-or-abiotic; do
+  klass "$c" > "$tmp/s-$c.md";                                    expect "class $c good charter passes" 0 "$tmp/s-$c.md"
+done
+klass fictional-or-archetypal | sed 's/^Empiricism.$/Literary analysis: the character reads as narcissistic./' > "$tmp/s-fic-clin.md"; expect "fictional: labeled clinical analysis passes" 0 "$tmp/s-fic-clin.md"
+klass non-human-or-abiotic | sed 's/^Empiricism.$/As a metaphor, the river behaves like a manic flood./' > "$tmp/s-nh-clin.md"; expect "non-human: clinical metaphor passes" 0 "$tmp/s-nh-clin.md"
+klass deceased-historical | sed 's/^Empiricism.$/Shows narcissistic drive./' > "$tmp/s-dec-clin.md"; expect "deceased-historical: clinical label fails" 1 "$tmp/s-dec-clin.md"
+klass collective | sed 's/^Empiricism.$/Shows narcissistic drive./' > "$tmp/s-col-clin.md"; expect "collective: clinical label fails" 1 "$tmp/s-col-clin.md"
+{ klass fictional-or-archetypal; echo "I am Sherlock Holmes."; } > "$tmp/s-fic-fp.md"; expect "fictional: first-person identity still fails" 1 "$tmp/s-fic-fp.md"
+{ klass fictional-or-archetypal; echo '> "Elementary."'; } > "$tmp/s-fic-q.md";       expect "fictional: unsourced quote still fails" 1 "$tmp/s-fic-q.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S9 |/' > "$tmp/s-id9.md"; expect "unknown source id fails" 1 "$tmp/s-id9.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1–S2 |/' > "$tmp/s-rng-ok.md"; expect "source id range inside the list passes" 0 "$tmp/s-rng-ok.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S1-S3 |/' > "$tmp/s-rng-bad.md"; expect "source id range past the list fails" 1 "$tmp/s-rng-bad.md"
+good | grep -v '^Dossier:' > "$tmp/s-nodos.md";                   expect "missing dossier pointer fails" 1 "$tmp/s-nodos.md"
+# shellcheck disable=SC2016  # literal markdown backticks
+good | sed 's/^Dossier: `dossier.md`$/Dossier: `nowhere.md`/' > "$tmp/s-dos404.md"; expect "dossier not found fails" 1 "$tmp/s-dos404.md"
 
 # Internal errors are failures: a grep or awk that exits 2 must never turn into a pass.
 mkdir -p "$tmp/bin-grep" "$tmp/bin-awk"
