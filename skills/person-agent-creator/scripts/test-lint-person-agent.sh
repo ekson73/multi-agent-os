@@ -326,5 +326,37 @@ good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented |
 good | awk 'NR == 4 && $0 == "---" { print "Some intro."; print "---"; next } { print }' > "$tmp/m-hrbody.md"; expect_msg "unclosed front matter closed by a later --- after prose fails (J1)" "$tmp/m-hrbody.md" "not YAML"
 good | awk 'NR == 3 { print; print "#comment"; next } { print }' > "$tmp/m-yamlc.md"; expect "YAML '#comment' in front matter passes (J1)" 0 "$tmp/m-yamlc.md"
 
+# Addendum N (last lint lot, round 4 on 6dc55c9): fail-closed cuts, exact reported payloads. Each case
+# below passed (rc 0) on 6dc55c9.
+s999() { sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S999 |/'; }
+# 1. Nothing to check is a failure (Fidelity table and Class basis).
+good | s999 | sed 's/^| Field | Status | Source ids |$/| Field | Status | Refs |/' > "$tmp/n-refs.md"; expect_msg "Fidelity header '| Field | Status | Refs |' fails (N1)" "$tmp/n-refs.md" "no Source ids column"
+good | s999 | sed 's/^| Field | Status | Source ids |$/| Field | Status | Evidence |/' > "$tmp/n-evid.md"; expect_msg "Fidelity header '| Field | Status | Evidence |' + S999 fails (N1)" "$tmp/n-evid.md" "no Source ids column"
+good | awk '/^\| Field|^\|---|^\| Primary mind/ { next } { print } $0 == "## Primary mind" { print "| Field | Status | Source ids |"; print "|---|---|---|"; print "| Primary mind | documented | S1 |" } $0 == "## Fidelity" { print "| Primary mind | documented | S999 |" }' > "$tmp/n-outside.md"
+expect_msg "Fidelity header outside ## Fidelity fails (N1)" "$tmp/n-outside.md" "outside ## Fidelity"
+good | awk '{ print } $0 == "| Primary mind | documented | S1 |" { print ""; print "| Extra | Notes |"; print "|---|---|"; print "| Primary mind | S999 |" }' > "$tmp/n-second.md"
+expect_msg "second table in ## Fidelity fails (N1)" "$tmp/n-second.md" "more than one table"
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: https://example.org/S999|' > "$tmp/n-url.md"; expect_msg "Class basis with only a URL id fails (N1)" "$tmp/n-url.md" "Class basis cites no dossier source id"
+klass fictional-or-archetypal | sed 's|^Class basis: Example Essay (S1).$|Class basis: Example Essay (S1), https://example.org/S999|' > "$tmp/n-url-ok.md"; expect "Class basis with a valid id and a URL passes (N1)" 0 "$tmp/n-url-ok.md"
+# 2. Unsupported heading forms inside Known limits.
+collective | awk '{ print } /^Never claims the person/ { print "Assessment"; print "==="; print "Dario is a psychopath." }' > "$tmp/n-setext1.md"; expect_msg "setext '===' in Known limits fails (N2)" "$tmp/n-setext1.md" "unsupported heading form"
+collective | awk '{ print } /^Never claims the person/ { print "Assessment"; print "---"; print "Dario is a psychopath." }' > "$tmp/n-setext2.md"; expect_msg "setext '---' in Known limits fails (N2)" "$tmp/n-setext2.md" "unsupported heading form"
+collective | awk '{ print } /^Never claims the person/ { print "<h2>Assessment</h2>"; print "Dario is a psychopath." }' > "$tmp/n-h2.md"; expect_msg "HTML <h2> in Known limits fails (N2)" "$tmp/n-h2.md" "unsupported heading form"
+# 3. A heading or a Fidelity row that contains "<!--".
+collective | awk '{ print } /^Never claims the person/ { print "# Assessment <!-- note -->"; print "Dario is a psychopath." }' > "$tmp/n-cmth.md"; expect_msg "'# Assessment <!-- note -->' + clinical line fails (N3)" "$tmp/n-cmth.md" "html comment in heading/table row"
+good | awk '{ print } $0 == "| Primary mind | documented | S1 |" { print "| Primary mind (joint) | inferred | S999 | <!-- note -->" }' > "$tmp/n-cmtrow.md"; expect_msg "Fidelity row with <!-- note --> + S999 fails (N3)" "$tmp/n-cmtrow.md" "html comment in heading/table row"
+# 4. Whitespace runs collapse in the voice view.
+inject n-ws1 "## Primary mind" "I  am Dario Amodei.";              expect "'I  am Dario Amodei.' (double space) fails (N4)" 1 "$tmp/n-ws1.md"
+inject n-ws2 "## Secondary minds" "Dario is  paranoid.";            expect "'Dario is  paranoid.' (double space) fails (N4)" 1 "$tmp/n-ws2.md"
+collective | awk '{ print } $0 == "## Primary mind" { print "I "; print "am Dario Amodei." }' > "$tmp/n-ws3.md"; expect "'I ⏎am Dario Amodei.' (trailing space soft break) fails (N4)" 1 "$tmp/n-ws3.md"
+collective | awk '{ print } $0 == "## Secondary minds" { print "Dario is "; print "paranoid." }' > "$tmp/n-ws4.md"; expect "'Dario is ⏎paranoid.' (trailing space soft break) fails (N4)" 1 "$tmp/n-ws4.md"
+inject n-ws5 "## Primary mind" "I$(printf '\t')am Dario Amodei.";   expect "tab between words fails (N4)" 1 "$tmp/n-ws5.md"
+inject n-ws6 "## Primary mind" "I$(printf '\302\240')am Dario Amodei."; expect "non-breaking space between words fails (N4)" 1 "$tmp/n-ws6.md"
+collective | awk -v nb="$(printf '\302\240')" '{ print } $0 == "## Primary mind" { print "I"; print nb; print "am Dario Amodei." }' > "$tmp/n-ws7.md"; expect "line of only a non-breaking space does not split the sentence (N4)" 1 "$tmp/n-ws7.md"
+# 5. Dossier fence: a closing fence is a fence line only.
+mkdir -p "$tmp/n-dos"
+printf '%s\n' '## 1. Sources' '| id | Source |' '|---|---|' '| S1 | Example Essay |' '```' '````not-a-closer' '| id | Source |' '| S99 | Fenced row |' '```' > "$tmp/n-dos/dossier.md"
+good | sed 's/^| Primary mind | documented | S1 |$/| Primary mind | documented | S99 |/' > "$tmp/n-dos/n-f99.md"; expect "'\`\`\`\`not-a-closer' does not close the dossier fence; fenced S99 is not a source (N5)" 1 "$tmp/n-dos/n-f99.md"
+
 echo "lint-person-agent tests: $pass passed, $failn failed, $skipn skipped"
 [ "$failn" -eq 0 ]

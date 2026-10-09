@@ -51,7 +51,9 @@ tr -d '\r' < "$file" > "$src" || fail "lint error: tr failed (CR normalization)"
 #     structure line in "Known limits"; text inside a comment or a fence is never exempt.
 #
 # Fail-closed rules: an HTML comment ("<!--") that no "-->" closes, or a code fence that never closes,
-# fails the lint (the script does not emulate CommonMark's rules for these cases).
+# fails the lint (the script does not emulate CommonMark's rules for these cases). So do a heading line
+# or a Fidelity row that contains "<!--", and a setext underline or HTML heading tag inside Known limits.
+# Whitespace: in both views every run of spaces, tabs and non-breaking spaces is one space.
 # Headings: up to three spaces, 1-6 '#', a space, the text; trailing spaces and closing '#' run are
 # trimmed and the text is compared in lower case. A level-1 or level-2 heading starts a new section, so
 # a "# X" after "## Known limits" ends Known limits.
@@ -127,6 +129,19 @@ awk -v headings="$tmp/headings" -v units="$tmp/units" -v flags="$tmp/flags" '
       }
     }
     struct = (!infence_start && !isfence && !incomment_start && !incomment && !touched) ? 1 : 0
+    # Fail-closed forms (the script does not emulate them): a heading line or a Fidelity table row that
+    # contains "<!--", and, inside Known limits, a setext underline after a text line or an HTML heading
+    # tag. Only lines that start outside a fence and outside a comment are tested.
+    lineok = (!infence_start && !isfence && !incomment_start)
+    if (lineok && index(raw, "<!--")) {
+      if (heading(raw) > 0) print "comment-heading\t" NR > flags
+      else if (section == "fidelity" && u ~ /^\|/) print "comment-row\t" NR > flags
+    }
+    if (lineok && section == "known limits") {
+      if (prevtext && u ~ /^(=+|-+)[ \t]*$/) print "heading-form\t" NR > flags
+      if (tolower(raw) ~ /<h[1-6]([ \t>\/]|$)/) print "heading-form\t" NR > flags
+    }
+    prevtext = (raw !~ /^[ \t]*$/)
     hl = struct ? heading(raw) : 0
     if (hl == 1 || hl == 2) section = HTEXT
     if (hl == 2) print "## " HTEXT > headings
@@ -141,7 +156,11 @@ awk -v headings="$tmp/headings" -v units="$tmp/units" -v flags="$tmp/flags" '
     gsub(/[*_`]/, "", t)
     gsub(/\342\200\234|\342\200\235|\302\253|\302\273/, "\"", t)   # curly double quotes, guillemets
     gsub(/\342\200\230|\342\200\231/, "\047", t)                   # curly single quotes
-    n++; ROWNR[n] = NR; SEC[n] = section; BQ[n] = bq; TXT[n] = t; ST[n] = struct
+    # Whitespace: non-breaking spaces become spaces, every run collapses to one space, ends trimmed. A
+    # line that held only non-breaking spaces is not a blank line (it does not end a voice unit).
+    nb = index(t, "\302\240") ? 1 : 0
+    gsub(/\302\240/, " ", t); gsub(/  +/, " ", t); sub(/^ +/, "", t); sub(/ +$/, "", t)
+    n++; ROWNR[n] = NR; SEC[n] = section; BQ[n] = bq; TXT[n] = t; ST[n] = struct; NB[n] = nb
     HD[n] = (hl > 0 || (!struct && heading(raw) > 0)); LI[n] = li; FL[n] = isfence
     TB[n] = (t ~ /^\|/)
   }
@@ -175,7 +194,7 @@ awk -v headings="$tmp/headings" -v units="$tmp/units" -v flags="$tmp/flags" '
     for (k = 1; k <= n; k++) {
       lo = tolower(OUT[k]); ex = (ST[k] && SEC[k] == "known limits") ? 1 : 0
       lab = (lo ~ /^(literary analysis:|metaphor:|as a metaphor,)/)
-      if (lo ~ /^[ \t]*$/) { if (open) flush(); continue }
+      if (lo ~ /^[ \t]*$/ && !NB[k]) { if (open) flush(); continue }
       single = (HD[k] || FL[k] || TB[k] || lab)
       if (open && (single || LI[k] || BQ[k] != ubq || ex != uex || ulab)) flush()
       if (!open) { open = 1; unr = ROWNR[k]; uex = ex; ubq = BQ[k]; ulab = lab; ulo = lo; uoc = OUT[k] }
@@ -184,7 +203,7 @@ awk -v headings="$tmp/headings" -v units="$tmp/units" -v flags="$tmp/flags" '
     }
     if (open) flush()
   }
-  function flush() { print unr "\t" uex "\t" ulo "\t" uoc > units; open = 0 }
+  function flush() { gsub(/  +/, " ", ulo); gsub(/  +/, " ", uoc); print unr "\t" uex "\t" ulo "\t" uoc > units; open = 0 }
 ' "$src" > "$tmp/norm" || fail "lint error: awk normalization failed"
 : >> "$tmp/headings" || fail "lint error: cannot write headings file"
 : >> "$tmp/units" || fail "lint error: cannot write units file"
@@ -234,6 +253,11 @@ report() {
     *) fail "$1 (line $2)" ;;
   esac
 }
+# flag <kind> — first line number of a per-line flag written by the pre-pass, or empty.
+flag() { awk -F'\t' -v k="$1" '$1 == k { print $2; exit }' "$tmp/flags" || echo "ERRawk"; }
+report "html comment in heading/table row" "$(flag comment-heading)"
+report "html comment in heading/table row" "$(flag comment-row)"
+report "unsupported heading form in Known limits (setext underline or HTML heading; use an ATX '#' heading)" "$(flag heading-form)"
 
 # 1. Required sections: every "## " heading of references/charter-template.md (read at run time, so the
 #    template is the single source of truth), as a structure heading in the charter, compared after the
@@ -252,10 +276,33 @@ else
   done <<< "$required"
 fi
 
-# 2. Fidelity table header, on a structure line.
-n=$(awk -F'\t' '$7 == 1 && $5 ~ /^\| *field *\| *status *\|/ { print $1; exit }' "$tmp/norm") \
-  || fail "lint error: awk fidelity header check failed"
-[ -n "$n" ] || fail "missing fidelity table (| Field | Status | ...)"
+# 2. Fidelity table, fail-closed (nothing found to check is a failure): exactly one table (a run of
+#    consecutive structure rows starting with "|") inside the "## Fidelity" section, whose header is
+#    "| Field | Status | ..." with a column named "Source ids". A Field/Status header outside that
+#    section, a second table there, or a header without the column fails. Output: the 1-based index of
+#    the Source ids column, or "outside:<line>", "count:<n>", "header", "nocol".
+fid=$(awk -F'\t' '
+  $7 == 1 && $5 ~ /^\| *field *\| *status *\|/ && $2 != "fidelity" && !out { out = $1 }
+  $2 == "fidelity" {
+    row = ($7 == 1 && $5 ~ /^\|/)
+    if (row && !(prev && $1 == pnr + 1)) { ntab++; if (ntab == 1) hdr = $6 }
+    prev = row; pnr = $1
+  }
+  END {
+    if (out) { print "outside:" out; exit }
+    if (ntab != 1) { print "count:" ntab + 0; exit }
+    if (tolower(hdr) !~ /^\| *field *\| *status *\|/) { print "header"; exit }
+    nc = split(hdr, c, "|")
+    for (i = 2; i < nc; i++) { x = tolower(c[i]); gsub(/^ +| +$/, "", x); if (x == "source ids") { print i; exit } }
+    print "nocol"
+  }' "$tmp/norm") || fail "lint error: awk fidelity table check failed"
+case "$fid" in
+  outside:*) fail "fidelity table header outside ## Fidelity (line ${fid#outside:})" ;;
+  count:0|header) fail "missing fidelity table (| Field | Status | Source ids |) in ## Fidelity" ;;
+  count:*) fail "more than one table in ## Fidelity (${fid#count:}); keep only the fidelity table" ;;
+  nocol) fail "fidelity table has no Source ids column" ;;
+  ''|*[!0-9]*) fail "lint error: fidelity table check returned '$fid'" ;;
+esac
 
 # 3. First person, role-play and endorsement — bounded pattern list (voice units: lowered, accents
 #    folded, soft breaks joined, sourced quote spans removed, every section, every markdown prefix).
@@ -368,11 +415,21 @@ SCAN='{ s = " " $0
 #     A Class basis line in any other class fails (the template line must be deleted there).
 class_basis=$(awk -F'\t' '$7 == 1 && $5 ~ /^class basis:/ { v = $6; sub(/^[^:]*:[ \t]*/, "", v); print v; exit }' "$tmp/norm") \
   || fail "lint error: awk class basis check failed"
+# A URL is removed before ids are read (an id inside a URL, such as https://example.org/S999, is not a
+# citation). At least one valid S<digits> id must remain: nothing to check is a failure.
+basis_ids_text=""
+if [ -n "$class_basis" ]; then
+  basis_ids_text=$(printf '%s\n' "$class_basis" | awk '{ gsub(/[A-Za-z][A-Za-z0-9+.-]*:\/\/[^ \t)>]*/, " "); print }') \
+    || fail "lint error: awk class basis URL strip failed"
+fi
 case "$subject_class" in
   fictional-or-archetypal|non-human-or-abiotic)
     if [ -z "$class_basis" ]; then fail "missing Class basis line for subject_class $subject_class"
     else
-      case "$class_basis" in *S[0-9]*) ;; *) fail "Class basis cites no dossier source id (S<n>)" ;; esac
+      basis_n=$(printf '%s\n' "$basis_ids_text" | awk -v max=0 -v strict=1 "$SCAN") || fail "lint error: awk class basis id count failed"
+      printf '%s\n' "$basis_n" | grep -qE '^[0-9]+$'; rc=$?
+      [ "$rc" -le 1 ] || fail "lint error: grep rc=$rc"
+      [ "$rc" -eq 0 ] || fail "Class basis cites no dossier source id (S<n>; ids inside a URL do not count)"
     fi ;;
   *) [ -z "$class_basis" ] || fail "Class basis line is only allowed for fictional-or-archetypal and non-human-or-abiotic" ;;
 esac
@@ -414,7 +471,7 @@ else
       function fence_run(x,   c, n) { c = substr(x, 1, 1); if (c != "`" && c != "~") return 0
         n = 0; while (substr(x, n + 1, 1) == c) n++; return (n >= 3) ? n : 0 }
       { u = $0; sub(/^ ? ? ?/, "", u); r = fence_run(u)
-        if (infence) { if (r && substr(u, 1, 1) == fch && r >= flen) infence = 0; next }
+        if (infence) { if (r && substr(u, 1, 1) == fch && r >= flen && substr(u, r + 1) ~ /^[ \t]*$/) infence = 0; next }
         if (!incomment && r) { infence = 1; fch = substr(u, 1, 1); flen = r; intable = 0; next }
         x = $0; was = incomment; hit = 0
         while (1) {
@@ -429,20 +486,27 @@ else
         if (x ~ /^S[0-9]+$/) print substr(x, 2) + 0
       }') || fail "lint error: awk dossier id check failed"
     max=0; for k in $known; do [ "$k" -gt "$max" ] && max=$k; done
-    # Source-id cells of the Fidelity table: the column whose header contains "source".
-    cells=$(awk -F'\t' '$7 == 1 && $2 == "fidelity" && $5 ~ /^\|/ { print $6 }' "$tmp/norm" | awk -F'|' '
-      col == 0 && tolower($0) ~ /field/ { for (i = 2; i < NF; i++) if (tolower($i) ~ /source/) col = i; next }
-      $0 ~ /^\|[ \t:|-]*$/ { next }
-      col { print $col }') || fail "lint error: awk fidelity cell check failed"
+    # Source-id cells of the Fidelity table: the "Source ids" column found by check 2 (header row and
+    # separator row skipped). If check 2 failed there is no column and no cell is read.
+    cells=""
+    case "$fid" in ''|*[!0-9]*) ;; *)
+      cells=$(awk -F'\t' '$7 == 1 && $2 == "fidelity" && $5 ~ /^\|/ { print $6 }' "$tmp/norm" | awk -F'|' -v col="$fid" '
+        NR == 1 { next }
+        $0 ~ /^\|[ \t:|-]*$/ { next }
+        { print $col }') || fail "lint error: awk fidelity cell check failed" ;;
+    esac
     # A Source ids cell holds ids, ranges and separators (",", ";", spaces) only: "S 99" or "§3" fails.
     junk=$(printf '%s\n' "$cells" | awk '{ r = $0; gsub(/[Ss][0-9]+[A-Za-z0-9]*( *(-|\342\200\223) *[Ss]?[0-9]+[A-Za-z0-9]*)?/, "", r)
       gsub(/[ \t,;]/, "", r); if (r != "") { c = $0; gsub(/^[ \t]+|[ \t]+$/, "", c); print c; exit } }') \
       || fail "lint error: awk source id cell check failed"
     [ -z "$junk" ] || fail "Source ids cell is not a list of S<n> ids: $junk"
     cited=$(printf '%s\n' "$cells" | awk -v max="$max" -v strict=0 "$SCAN") || fail "lint error: awk cited id check failed"
+    case "$fid" in ''|*[!0-9]*) ;; *)
+      case "$cited" in *[0-9]*) ;; *) fail "fidelity table cites no source id (nothing to check)" ;; esac ;;
+    esac
     # Class basis ids (check 5b), strict: uppercase S<digits> only.
     if [ -n "$class_basis" ]; then
-      basis_ids=$(printf '%s\n' "$class_basis" | awk -v max="$max" -v strict=1 "$SCAN") \
+      basis_ids=$(printf '%s\n' "$basis_ids_text" | awk -v max="$max" -v strict=1 "$SCAN") \
         || fail "lint error: awk class basis id check failed"
       for id in $basis_ids; do
         case "$id" in

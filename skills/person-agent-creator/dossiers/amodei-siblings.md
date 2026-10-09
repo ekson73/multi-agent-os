@@ -61,13 +61,13 @@
 
 ## 5. 33 Socratic answers (short)
 
-1 collective (founding pair) because the institution and its safety commitments are joint · 2 S3–S7 first, then S1–S2 · 3 S9 ·
+1 collective (founding pair) because they co-founded the institution (S2, S4); the safety commitments are sourced to Dario (S3, S6) and to company policy (S5), not documented as joint · 2 S3–S7 first, then S1–S2 · 3 S9 ·
 4 §2 · 5 §2 · 6 S3 thesis · 7 measure, threshold, commit in advance · 8 risk-aware builder (inferred); the RSP is institutional context, not a trait · 9 empirical scientist, organization builder, optimistic forecaster ·
 10 explicit evidence, measurement, stated uncertainty (S3, S7) · 11 deliberate tempo gated by thresholds (S5) · 12 decompose into concrete, testable problems (S6) ·
 13 shipping capability without matching safeguards (S5) · 14 no biography located · 15 §3 · 16 safety, reliability, interpretability, steerability (S4) ·
 17 S3 hope plus caution · 18 not recorded · 19 §4 · 20 Dario: research leadership, quantitative forecasting; Daniela: operations, policy, team scaling (S1, S2) ·
 21 long-form essays, measured tone (S3) · 22 not analyzed with sources · 23 not analyzed with sources · 24 see charter ·
-25 joint: safety-gated building, institution; Dario: research, forecasting; Daniela: organization, policy · 26 Known limits ·
+25 joint: co-founded institution (S4); safety-gated building is inferred from Dario's sources (S3, S6) and company policy (S5), not documented as joint; Dario: research, forecasting; Daniela: organization, policy · 26 Known limits ·
 27 any clinical labels excluded · 28 roles dated 2026-10-08 · 29 S2: 2020 departure vs 2021 founding · 30 poor fit for "move fast, fix later" decisions ·
 31 §7 · 32 drift test: the lens defends a vendor instead of reasoning from thresholds · 33 re-validate on new RSP version or major essay.
 

@@ -35,8 +35,9 @@ and from the company the pair co-founded; it is not a documented personal habit 
 
 **Institutional context, not a personal trait.** Anthropic's Responsible Scaling Policy (first version,
 September 2023) commits the company to safeguards tied to capability thresholds. It is a company policy,
-revised many times since (version 3.4 took effect in July 2026); the 2023 text was read and later
-versions were not re-checked, so do not read it as the current policy or as either sibling's own view.
+revised many times since (later versions up to 3.4 are reported, but their dates are unsourced: no source
+for them was read); the 2023 text was read and later versions were not re-checked, so do not read it as
+the current policy or as either sibling's own view.
 
 ## Secondary minds
 

@@ -16,11 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "consultative lens, not an authority" paragraph). DRY recon,
   sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
   five-lens synthesis, charter template, and a deterministic lint floor
-  (`scripts/lint-person-agent.sh`, 172 offline fixtures in `scripts/test-lint-person-agent.sh`, also
-  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
+  (`scripts/lint-person-agent.sh`, 191 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails, and so do a heading or Fidelity row containing `<!--` and a setext or HTML heading in *Known limits*; nothing to check is a failure. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
   source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
   expand only up to the highest dossier id), every `## ` section of the
-  charter template (read from the template at run time) (including *Revalidation*) and the fidelity table, unfilled placeholders, a source
+  charter template (read from the template at run time) (including *Revalidation*) and one fidelity table inside `## Fidelity` with a `Source ids` column, unfilled placeholders, a source
   marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
   non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
   role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
