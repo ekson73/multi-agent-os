@@ -223,7 +223,8 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
    judges each charter against this contract. A further gap that needs more than a fail-closed cut is
    recorded below as a known limit, not as a new rule.
 
-   **Stop rule.** The lint is frozen as a deterministic floor at this release (round 6). Variants of
+   **Stop rule.** The lint is frozen as a deterministic floor as of the fixes for review round 6 (commit `d317283`);
+   later review rounds change only this documentation. Variants of
    deliberate obfuscation are known limits, not bugs to chase: they are not fixed with new rules. Every
    semantic judgement goes to the mandatory review panel. A further change to the lint needs a defect
    that lets accidental drift through, not a new evasion form.
@@ -251,12 +252,18 @@ hypothetical `river-current` lens (`non-human-or-abiotic`) for an advisory vote:
    - a bare HTML tag in prose (`<table>`, `<em>`) is reported as an unfilled placeholder, while a tag
      with attributes (`<table class="x">`) passes;
    - a `mailto:S3@...` address counts `S3` as an id (only `scheme://` URLs and autolinks are removed);
-   - a quotation whose source marker sits on the next line passes only when both lines are blockquote
-     lines and the next one starts with the marker (`> — Name (S1)`); split any other way it fails;
+   - a quotation whose source marker sits on the next line: in a blockquote it passes only when the
+     next line starts with the marker and the attribution carries no double-quoted title
+     (`> — Dario Amodei, "Machines of Loving Grace", 2024` fails: the title reads as a new quote);
+     outside a blockquote, a plain split in two lines (`"Safety first."` then `— Name (S1)`) passes;
    - "I am" inside a code example outside a fence fails as first person;
    - `[I](url)` link text, a clinical label split by a comment or a tag (`bi<!-- -->polar`) and a
      `Class basis:` hidden in a comment of a living-public charter pass; deliberate obfuscation is the
-     panel's job (a forced two-space line break inside a pattern is caught, the lint is stricter here);
+     panel's job (a forced two-space line break inside a pattern is caught, the lint is stricter here,
+     but a backslash line break between the words of a pattern, `I\` then `am Dario`, passes);
+   - a last Fidelity row without a leading pipe (`Secondary mind | documented | S999 |`) still renders
+     as a table row in GFM, but the lint does not read it as a row, so its id is not checked; this is a
+     known limit under the stop rule, and the panel checks the rendered table;
    - instructions that are not role-play read as such and fail: `Never say I am Ada.`, `You are
      helpful and precise.`; reword them;
    - an id invisible once rendered still counts: `<S3>` (an unknown HTML tag), a link title
