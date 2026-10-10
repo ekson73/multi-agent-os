@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: reject incomplete gitlink exports (#413, #414)
+
+- Refuse any gitlink in the pinned HEAD with exit 1 before reviewer dispatch or posting, instead of silently omitting it from the export and completeness count. This also covers unchanged submodules; no submodule content is fetched or materialized. Add offline added/changed/unchanged, missing-object, nested/spaced-path and no-post regressions.
+
 ### Fixed — `routed-pr-review`: bounded rotation-state reads (#413, #414)
 
 - Normalize the broken-reviewer TTL as decimal after whole-string digit/length
