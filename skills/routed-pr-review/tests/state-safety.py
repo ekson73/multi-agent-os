@@ -3,12 +3,14 @@
 from pathlib import Path
 import os
 import json
+import hashlib
 import re
 import shlex
 import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 
 SOURCE = (Path(__file__).resolve().parents[1] / 'bin/routed-review.sh').read_text()
@@ -26,10 +28,15 @@ class StateSafetyTests(unittest.TestCase):
         self.path.write_text('{"bots":{}}')
         safe_bin = Path(self.temp.name) / 'tools'
         safe_bin.mkdir()
-        for command in ('jq', 'timeout', 'shasum'):
+        for command in ('jq', 'timeout'):
             source = shutil.which(command) or (shutil.which('gtimeout') if command == 'timeout' else None)
             self.assertIsNotNone(source, command)
             (safe_bin / command).symlink_to(source)
+        hash_tool = 'shasum' if shutil.which('shasum') else 'sha256sum'
+        hash_source = shutil.which(hash_tool)
+        self.assertIsNotNone(hash_source, 'shasum or sha256sum is required')
+        (safe_bin / hash_tool).symlink_to(hash_source)
+        self.hash_cmd = [hash_tool, '-a', '256'] if hash_tool == 'shasum' else [hash_tool]
         home = Path(self.temp.name) / 'home'
         home.mkdir()
         # Never inherit reviewer, shell-startup, git or harness overrides.
@@ -40,11 +47,52 @@ class StateSafetyTests(unittest.TestCase):
         script = '\n'.join((
             'set -uo pipefail', 'STATE_FILE="$1"',
             'TIMEOUT_CMD=$(command -v timeout || command -v gtimeout)',
-            'HASH_CMD=(shasum -a 256)',
+            'HASH_CMD=(' + ' '.join(shlex.quote(arg) for arg in self.hash_cmd) + ')',
             function('sha256_stdin'), function('read_state'), function('state_digest'),
             function('verify_state_untouched'), 'log() { :; }', extra, body))
         return subprocess.run(['bash', '-c', script, 'state-test', str(self.path)],
                               text=True, capture_output=True, timeout=5, env=self.env)
+
+    def test_setup_and_digest_support_sha256sum_without_shasum(self):
+        which = shutil.which
+        fallback = which('sha256sum')
+        if fallback is None:
+            # A shasum-only host can still exercise the fallback command shape.
+            fallback = str(Path(self.temp.name) / 'sha256sum')
+            Path(fallback).write_text('#!/bin/sh\nexec ' + shlex.quote(which('shasum')) + ' -a 256 "$@"\n')
+            Path(fallback).chmod(0o700)
+        with patch('shutil.which', side_effect=lambda name: None if name == 'shasum' else
+                   fallback if name == 'sha256sum' else which(name)):
+            probe = StateSafetyTests('test_regular_and_absent_are_distinct_valid_digests')
+            self.addCleanup(probe.doCleanups)
+            probe.setUp()
+            self.assertEqual(['sha256sum'], probe.hash_cmd)
+            result = probe.run_bash('state_digest')
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(hashlib.sha256(probe.path.read_bytes()).hexdigest(), result.stdout)
+
+    def test_record_failure_initializes_empty_or_absent_regular_state(self):
+        for kind in ('absent', 'empty', 'whitespace'):
+            with self.subTest(kind=kind):
+                if kind == 'absent':
+                    self.path.unlink()
+                else:
+                    self.path.write_text(' \t\r\n  \n' if kind == 'whitespace' else '')
+                result = self.run_bash('record_failure kimi broken auth', function('record_failure'))
+                self.assertEqual(0, result.returncode, result.stderr)
+                state = json.loads(self.path.read_text())
+                self.assertEqual('auth', state['bots']['kimi']['broken_reason'])
+                self.assertRegex(state['bots']['kimi']['broken_at'], r'^\d{4}-\d{2}-\d{2}T')
+                self.assertFalse(Path(str(self.path) + '.lock').exists())
+
+    def test_record_failure_preserves_invalid_json(self):
+        for invalid in ('{not valid JSON\n', '\v', '\f'):
+            with self.subTest(invalid=repr(invalid)):
+                self.path.write_text(invalid)
+                result = self.run_bash('record_failure kimi broken auth', function('record_failure'))
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(invalid, self.path.read_text())
+                self.assertFalse(Path(str(self.path) + '.lock').exists())
 
     def test_regular_and_absent_are_distinct_valid_digests(self):
         result = self.run_bash('state_digest')

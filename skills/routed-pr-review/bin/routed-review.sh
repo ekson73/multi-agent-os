@@ -475,6 +475,8 @@ record_failure() {  # $1=bot $2=class $3=reason
     log "    [warn] rotation state is unsafe or unreadable — failure not recorded"
     rmdir "$lock" 2>/dev/null; return 0
   fi
+  # Only JSON whitespace is empty; malformed nonempty input remains untouched.
+  [ -n "${state//[$' \t\r\n']/}" ] || state='{"bots":{}}'
   local tmp filter; tmp="$(mktemp "$dir/.state.XXXXXX")" || { rmdir "$lock"; return 0; }
   # shellcheck disable=SC2016  # $b/$t/$r are jq variables, not shell ones
   if [ "$2" = quota ]; then
