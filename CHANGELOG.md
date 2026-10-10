@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Postflight reconciles pending records and carries unresolved work into handoff without
   blocking safe exit. Existing provider schemas and batching remain canonical.
 - Add static regression contract tests to the plugin validator, align the command entry
-  point, and document the optional durable work-state adapter without changing seed fields.
-  No new network hooks or global installation.
+  point, and bind durable deferral to existing authorized claude-mem work state with indexed
+  cold recovery and an isolated installed-source smoke test. Missing/failed storage is
+  explicitly unsupported for durable deferral, not success. No changed seed fields,
+  new storage, dependencies, network hooks or global installation.
 
 ### Added — `person-agent-creator` and the first three person-agents
 
