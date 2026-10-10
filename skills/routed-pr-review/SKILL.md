@@ -224,6 +224,7 @@ candidates for a later cycle rather than silently duplicated.
 
 ```bash
 bash skills/routed-pr-review/tests/contract.sh    # -v for failing-case detail
+python3 skills/routed-pr-review/tests/state-safety.py  # offline TTL/state safety regressions
 python3 skills/routed-pr-review/tests/enforcement-render.py  # Bash rendering + mocked dispatcher
 python3 skills/routed-pr-review/tests/final-pin.py  # late drift in every output mode
 ```
