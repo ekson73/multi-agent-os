@@ -41,8 +41,10 @@ Caveats observed on 0.5.14:
 - `rig health` returning nothing is **not** a health assertion (its own help says so).
 - `rig attach` is **not** a viewer. It attaches the current shell into a rig node (`--self`), which is a
   T1 topology change. To watch a pane, use `rig capture` or the terminal provider's attach.
-- `rig snapshot`, `rig snapshot list` and `rig launch` take the rig **ID** (`rigId` in `rig ps --json`); a rig
-  name fails with "not found". `rig restore status <attemptId>` fails without `--rig <rigId>`.
+- `rig snapshot`, `rig snapshot list` and `rig launch` take the rig **ID** (`rigId` in `rig ps --json`). A rig
+  name fails with "not found". `rig down` accepts either, but two rigs can share a name
+  ([`external-crew.md`](./external-crew.md) §6), so prefer the ID for every mutation.
+- `rig restore status <attemptId>` fails without `--rig <rigId>`.
 - `rig launch <rigId> <node> --plan` is rejected: `--plan` applies only to a multi-seat `--seats` launch.
 
 ### T1 — reversible state

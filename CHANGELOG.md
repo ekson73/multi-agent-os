@@ -242,6 +242,10 @@ hard stop plus only verified OpenRig facts; the isolation design is tracked in #
   shows the runtime at a prompt, and `rig ps --nodes --rig <rig>` activity is live (`external-crew.md` §7,
   `trust-gates.md` §1, the agent).
 
+- **Historical sandbox notes:** retain `references/sandboxed-seats.md` as superseded field evidence for
+  #453, with the external-crew STOP stated first and former procedure links pinned to the original revision.
+  Its launch and publishing instructions do not authorize an exception to the STOP.
+
 ### Fixed — npm/Pi package now ships skill `scripts/` and `bin/` assets
 
 `package.json` `files` listed only `skills/**/*.md`, so every skill whose procedure
