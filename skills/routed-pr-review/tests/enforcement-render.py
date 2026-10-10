@@ -33,6 +33,16 @@ class EnforcementRendering(unittest.TestCase):
                     "GIT_ALLOW_PROTOCOL": "file", "GIT_CONFIG_NOSYSTEM": "1",
                     "GIT_CONFIG_GLOBAL": "/dev/null", "LC_ALL": "C"}
 
+    def test_bash32_case_patterns_are_parenthesized(self):
+        # Newer /bin/bash versions accept the broken form: keep this portability
+        # invariant observable even when the executing host is not Bash 3.2.
+        source = SUT.read_text()
+        start = source.index("  printf 'Read-only enforcement:")
+        end = source.index("  printf 'Post-run tamper", start)
+        rendering = source[start:end]
+        self.assertRegex(rendering, r'case "\$ENFORCEMENT"\s+in\s+\(vendor\+os\*\)')
+        self.assertRegex(rendering, r';;\s+\(\*\)\s+printf')
+
     def test_each_enforcement_arm(self):
         source = SUT.read_text()
         start = source.index("  printf 'Read-only enforcement:")
