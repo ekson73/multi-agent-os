@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject NUL in the PR title before shell capture and in the assembled prompt before any reviewer dispatch; validation failures also fail closed. This prevents lossy argv transport from qualifying a full review, without claiming to resolve argv privacy or arbitrary binary/encoding support.
 - Add offline `tests/prompt-bytes.py` coverage using synthetic diff/title/body inputs and mocked reviewers.
 
+### Fixed — `routed-pr-review`: final pin for every output mode (#413, #481)
+
+- Abort on drift/unreadability already observed during Phase E, even if the PR later returns to the pinned SHAs. Harden fixture anchors and add move→restore regressions; restore reason/no-output assertions in contract cases 36/68 (93 cases / 119 assertions).
+
+- Recheck head/base after the mandatory scan when `--post` is selected and before posting, text, or JSON output. Final drift or an unreadable PR now exits 1 with no verdict output or post; this intentionally replaces the previous informational JSON / exit 3 for already-observed drift. This snapshot does not prevent subsequent remote changes. Add offline head/base drift, unreadable-pin, stable-output and scanner-refusal regressions.
+
 ### Fixed — `routed-pr-review`: bounded rotation-state reads (#413, #414)
 
 - Normalize the broken-reviewer TTL as decimal after whole-string digit/length
