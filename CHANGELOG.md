@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   substitution and TERM-ignoring descendants. This is bounded read/tamper detection,
   not atomic same-UID pathname isolation or runtime activation.
 
+### Fixed — `routed-pr-review`: enforcement explanation on Bash 3.2 (#413)
+
+- Parenthesize case patterns inside the rendering substitution so Bash 3.2 emits the intended explanation rather than a parser diagnostic and shell source. Gates and enforcement behavior are unchanged; `python3 skills/routed-pr-review/tests/enforcement-render.py` covers both rendering arms and mocked dispatcher output.
+
 ### Tests — `routed-pr-review`: pagination and scanner refusal (#481, #487)
 
 - Add cases 90–93 for paginated-history failures and fail-closed pre-post scanning; update the live inventory to 93 cases / 115 assertions. Production behavior is unchanged.
