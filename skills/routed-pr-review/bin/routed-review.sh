@@ -1357,7 +1357,7 @@ COMMENT_F="$WORK/comment.md"
   printf 'Head reviewed: `%s`\n' "$HEAD_SHA"
   printf 'Context isolation: fresh OS process, no delegator history.\n'
   printf 'Read-only enforcement: `%s` (%s)\n' "$ENFORCEMENT" \
-    "$(case "$ENFORCEMENT" in vendor+os*) printf 'CLI sandbox/tool restriction over a disposable export of every tracked path of the head' ;; *) printf 'disposable export of every tracked path, chmod a-w, no .git' ;; esac)"
+    "$(case "$ENFORCEMENT" in (vendor+os*) printf 'CLI sandbox/tool restriction over a disposable export of every tracked path of the head' ;; (*) printf 'disposable export of every tracked path, chmod a-w, no .git' ;; esac)"
   printf 'Post-run tamper check: `%s`\n' "$TAMPER"
   printf 'Diff truncated: %s\n\n' "$TRUNCATED"
   printf '%s\n\n' "$VERDICT_LINE"
