@@ -340,14 +340,37 @@ ts_epoch() {  # $1=ISO-8601 UTC ; prints epoch, or nothing if malformed/future
   printf '%s' "$e"
 }
 
+read_state() {  # run a reader against one validated regular-file descriptor
+  # Bound OPEN plus reading and descendants. A pathname -f check alone races
+  # with FIFO substitution. The descriptor check rejects a substituted special
+  # file before reading; symlinks are rejected before and after the read.
+  # shellcheck disable=SC2016  # evaluated by the bounded child shell
+  "$TIMEOUT_CMD" -k 1 2 bash -c '
+    # Keep the supervised shell alive until timeout kills the whole group;
+    # otherwise a TERM-ignoring grandchild can outlive its terminated parent.
+    trap "" TERM
+    path=$1; shift
+    [ ! -L "$path" ] && [ -f "$path" ] || exit 1
+    exec 3< "$path" || exit 1
+    [ -f /dev/fd/3 ] && [ ! -L "$path" ] || exit 1
+    "$@" <&3 || exit 1
+    [ ! -L "$path" ] && [ -f "$path" ] || exit 1
+  ' state-reader "$STATE_FILE" "$@" 2>/dev/null
+}
+
 expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
   [ -f "$STATE_FILE" ] || return 1
   local limited retry since
-  limited="$(jq -r --arg b "$1" '.bots[$b].last_limited_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
+  # shellcheck disable=SC2016  # $b is a jq variable
+  limited="$(read_state jq -r --arg b "$1" '.bots[$b].last_limited_at // empty | strings' 2>/dev/null)" || return 1
   [ -n "$limited" ] || return 1
   since="$(ts_epoch "$limited")" || return 1
-  retry="$(jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' "$STATE_FILE" 2>/dev/null)"
-  printf '%s' "$retry" | grep -qE '^[0-9]{1,5}$' || return 1
+  # shellcheck disable=SC2016  # $b is a jq variable
+  retry="$(read_state jq -r --arg b "$1" '.bots[$b].retry_after_sec // 3600' 2>/dev/null && printf '.')" || return 1
+  # Preserve data/record newlines; remove the sentinel and only the final jq LF.
+  retry="${retry%.}"
+  retry="${retry%$'\n'}"
+  case "$retry" in ''|*[!0-9]*|??????*) return 1 ;; esac
   # base 10 explicitly: "09" from an untrusted state file is octal to bash
   retry=$((10#$retry))
   [ "$retry" -le 86400 ] || return 1
@@ -368,7 +391,9 @@ expired() {  # $1=bot ; honours ai-code-review-bots-rotation.md §2 state file
 # A timeout is neither — the reviewer may be slow, not unusable — so it is
 # excluded for this run only and recorded nowhere.
 BROKEN_TTL="${ROUTED_REVIEW_BROKEN_TTL_SEC:-86400}"
-printf '%s' "$BROKEN_TTL" | grep -qE '^[0-9]{1,6}$' || BROKEN_TTL=86400
+case "$BROKEN_TTL" in ''|*[!0-9]*|???????*) BROKEN_TTL=86400 ;; esac
+# Preserve the accepted 0..999999 range, but never interpret leading zeros as octal.
+BROKEN_TTL=$((10#$BROKEN_TTL))
 EXCLUDED=""          # families that already failed in THIS run (space-separated)
 ATTEMPTS=1           # reviewers dispatched in THIS run (never inherited from env)
 MAX_ATTEMPTS="${ROUTED_REVIEW_MAX_ATTEMPTS:-6}"
@@ -379,7 +404,8 @@ SKIPPED_JSON="[]"    # evidence of every fallthrough, emitted in --json output
 is_broken() {  # $1=bot ; 0 = marked broken within BROKEN_TTL (validated stamp only)
   [ -f "$STATE_FILE" ] || return 1
   local at since
-  at="$(jq -r --arg b "$1" '.bots[$b].broken_at // empty | strings' "$STATE_FILE" 2>/dev/null)"
+  # shellcheck disable=SC2016  # $b is a jq variable
+  at="$(read_state jq -r --arg b "$1" '.bots[$b].broken_at // empty | strings' 2>/dev/null)" || return 1
   [ -n "$at" ] || return 1
   since="$(ts_epoch "$at")" || return 1
   [ "$(date +%s)" -lt $(( since + BROKEN_TTL )) ]
@@ -442,7 +468,15 @@ record_failure() {  # $1=bot $2=class $3=reason
     fi
     sleep 0.1
   done
-  [ -f "$STATE_FILE" ] || printf '{"bots":{}}' > "$STATE_FILE"
+  local state
+  if [ ! -e "$STATE_FILE" ] && [ ! -L "$STATE_FILE" ]; then
+    state='{"bots":{}}'
+  elif ! state="$(read_state cat)"; then
+    log "    [warn] rotation state is unsafe or unreadable — failure not recorded"
+    rmdir "$lock" 2>/dev/null; return 0
+  fi
+  # Only JSON whitespace is empty; malformed nonempty input remains untouched.
+  [ -n "${state//[$' \t\r\n']/}" ] || state='{"bots":{}}'
   local tmp filter; tmp="$(mktemp "$dir/.state.XXXXXX")" || { rmdir "$lock"; return 0; }
   # shellcheck disable=SC2016  # $b/$t/$r are jq variables, not shell ones
   if [ "$2" = quota ]; then
@@ -452,7 +486,14 @@ record_failure() {  # $1=bot $2=class $3=reason
   fi
   # same-directory temp + mv = atomic replace; readers never see a half file
   if jq --arg b "$1" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg r "$3" "$filter" \
-       "$STATE_FILE" > "$tmp" 2>/dev/null; then mv -f "$tmp" "$STATE_FILE"; else rm -f "$tmp"; fi
+       > "$tmp" 2>/dev/null <<< "$state"; then
+    if [ -L "$STATE_FILE" ] || { [ -e "$STATE_FILE" ] && [ ! -f "$STATE_FILE" ]; }; then
+      log "    [warn] state destination became unsafe — failure not recorded"
+      rm -f "$tmp"
+    else
+      mv -f "$tmp" "$STATE_FILE"
+    fi
+  else rm -f "$tmp"; fi
   rmdir "$lock" 2>/dev/null
   return 0
 }
@@ -1057,10 +1098,15 @@ STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
 # Under an ARMED kernel boundary the reviewer cannot write the file at all, so
 # a change can only come from outside the sandbox (a concurrent run): the
 # check is skipped there instead of raising a false alarm.
-state_digest() {  # prints a digest of the state file (or of its absence/type)
-  if [ -L "$STATE_FILE" ]; then printf 'symlink'; return 0; fi
-  [ -e "$STATE_FILE" ] || { printf 'absent'; return 0; }
-  sha256_stdin < "$STATE_FILE" || printf 'unverifiable'
+state_digest() {  # regular-file digest or absence; unsafe/unreadable is failure
+  [ "${#HASH_CMD[@]}" -gt 0 ] || return 1
+  [ -L "$STATE_FILE" ] && return 1
+  [ -e "$STATE_FILE" ] || { printf absent; return 0; }
+  local digest
+  digest="$(read_state "${HASH_CMD[@]}")" || return 1
+  digest="${digest%% *}"
+  printf '%s' "$digest" | grep -qE '^[0-9a-f]{64}$' || return 1
+  printf '%s' "$digest"
 }
 # The armed profile denies the state FILE, but not the directory entries above
 # it: a reviewer can rename the parent and put a decoy (or a symlink to one)
@@ -1078,14 +1124,18 @@ state_dir_identity() {
   else id="?"; fi
   printf '%s|%s' "$(cd "$d" 2>/dev/null && pwd -P)" "$id"
 }
-snapshot_state() { STATE_BEFORE="$(state_digest)"; STATE_DIR_BEFORE="$(state_dir_identity)"; }
+snapshot_state() {
+  STATE_BEFORE="$(state_digest)" || return 1
+  STATE_DIR_BEFORE="$(state_dir_identity)"
+}
 verify_state_dir_unmoved() {
   [ "$(state_dir_identity)" = "$STATE_DIR_BEFORE" ] && return 0
   log "[!] state-file check FAILED — the directory holding rotation state was moved or replaced during dispatch"
   return 1
 }
 verify_state_untouched() {
-  [ "$(state_digest)" = "$STATE_BEFORE" ] && return 0
+  local current
+  if current="$(state_digest)" && [ "$current" = "$STATE_BEFORE" ]; then return 0; fi
   log "[!] state-file check FAILED — rotation state changed during dispatch; NOT restored (left for inspection: $STATE_FILE)"
   return 1
 }
@@ -1093,7 +1143,7 @@ verify_state_untouched() {
 while :; do
 ENFORCEMENT="$(sandbox_class "$CHOSEN")"
 snapshot_live_repo
-snapshot_state
+snapshot_state || die "rotation state could not be safely read — no reviewer dispatched"
 
 if [ "$ENFORCEMENT" = "os" ]; then
   log "[D] $CHOSEN has no vendor read-only flag -> enforcing outside the CLI"
