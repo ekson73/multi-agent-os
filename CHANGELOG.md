@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: refuse NUL-bearing prompts (#413, #414)
+
+- Reject NUL in the PR title before shell capture and in the assembled prompt before any reviewer dispatch; validation failures also fail closed. This prevents lossy argv transport from qualifying a full review, without claiming to resolve argv privacy or arbitrary binary/encoding support.
+- Add offline `tests/prompt-bytes.py` coverage using synthetic diff/title/body inputs and mocked reviewers.
+
 ### Fixed — `routed-pr-review`: bounded rotation-state reads (#413, #414)
 
 - Normalize the broken-reviewer TTL as decimal after whole-string digit/length
