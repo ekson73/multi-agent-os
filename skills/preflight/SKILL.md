@@ -9,7 +9,7 @@ description: |
   (R3) create a git worktree the moment you are about to create/update files. Reads
   whatever governance is present at invocation (CLAUDE/AGENTS/CONTRIBUTING/README/
   protocols/memories) and adapts.
-version: 1.2.0
+version: 1.3.0
 triggers:
   - preflight
   - run preflight
@@ -24,7 +24,7 @@ triggers:
   - walk the ticket N-Tree
   - preflight ticket
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   scope: AAIF cross-vendor
   family: worktree-lifecycle
   lifecycle-stage: operate
@@ -50,7 +50,7 @@ works on the wrong branch, on stale state, or unisolated in a shared checkout.
 ## When to Use
 
 - At the **start of a session** (the bundled SessionStart hook runs the deterministic ticket-**anchor**
-  + coarse `mode` hint automatically; the full R0 N-Tree walk / classification / create-proposal stays
+  + coarse `mode` hint automatically; the full R0 N-Tree walk / classification / ticket reconciliation stays
   **on-demand** via `/maos:preflight ticket`. R1 heal + R2 branch-detect also run in the hook).
 - At the **start of an action/task**, before you begin substantive work.
 - **Before creating or updating any file/directory** (R3 — lazily isolate the mutation).
@@ -69,14 +69,14 @@ belong to" · "classify this session" · "walk the ticket N-Tree"
 ```
 ANCHOR (R0) → ORIENT (R1) → HEAL (R2) → ISOLATE-ON-MUTATION (R3)
 Each step is SAFE-or-DEFER. Never clobber concurrent work. Never block on a no-op.
-R0 is ZERO-network at the hook layer; the agentic N-Tree walk + create-proposal are HITL-gated.
+R0 is ZERO-network at the hook layer; agentic ticket reconciliation follows ticket-first governance.
 ```
 
 ## The Responsibilities (R0–R3, + optional R1.5)
 
 | # | Responsibility | How (read-only / safe) | Lib |
 |---|---|---|---|
-| **R0** | **Anchor** the session to its ticket on the N-Tree + **classify** the session type | (a) deterministic hook anchors the ticket (seed `refs.ticket` › branch › last-commit via `locus --density anchor`, ZERO network) → coarse `mode`; (b) skill walks the N-Tree (parent-chain to epic/root + siblings) via capability-detected MCP; (c) classifies `session_type=<mode>/<work>`; (d) if no ticket → HITL create-proposal (delegates to `ticket-as-prompt`) | `bin/locus.sh` + `references/session-type-taxonomy.md` |
+| **R0** | **Anchor** the session to its ticket on the N-Tree + **classify** the session type | (a) deterministic hook anchors the ticket (seed `refs.ticket` › branch › last-commit via `locus --density anchor`, ZERO network) → coarse `mode`; (b) skill walks the N-Tree (parent-chain to epic/root + siblings) via capability-detected MCP; (c) classifies `session_type=<mode>/<work>`; (d) if no ticket → authorized create/reuse or durable pending-ticket record | `bin/locus.sh` + `references/session-type-taxonomy.md` |
 | **R1** | Detect the right branch **without interfering** with other agents/sessions/worktrees | branch + upstream + ahead/behind + branches **locked by other worktrees** (`git worktree list --porcelain`) + tree-state | `lib/git-branch-detect.sh` |
 | **R1.5** | **Peer-aware** non-interference (optional, capability-detected) | detect OTHER live sessions writing the **SAME checkout** (host session-activity signal, self-excluded, freshness-windowed); peers active → R2 **DEFERs**; off-host → `UNKNOWN` (report-only) | `lib/peer-session-detect.sh` |
 | **R2** | **Heal** the current branch from origin | `fetch` → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / **peers-active**} → act: `ff-only` \| `rebase --autostash` \| **DEFER** | `lib/git-safe-sync.sh` |
@@ -115,7 +115,9 @@ The SessionStart hook resolves the ticket from the strongest local signal, in pr
 
 It emits `ticket=KEY (source=seed|branch|commit, mode=…)` into the SessionStart additionalContext +
 stderr. **Zero network** (no `gh`, no `curl`), **<2s**, **always exit 0**. Opt-out: `PREFLIGHT_NO_TICKET_ANCHOR=1`.
-No anchor → a nudge to run the agentic walk (R0.b) or proceed (a ticket may be proposed at postflight).
+No anchor → a nudge to run the agentic walk (R0.b), then mandatory R0.d before implementation.
+Until reconciled, allow only bounded read-only recon or already-authorized urgent containment
+under the ticket-first protocol. A successful hook exit does not waive that agentic gate.
 
 ### R0.b — N-Tree walk (agentic, capability-detected — on `/maos:preflight ticket`)
 
@@ -138,19 +140,18 @@ Tier-B self-report (prompt verbs). Ambiguous → emit the **top-2 with evidence*
 The result is carried into the continuation seed (`session_type`) at postflight → read back by the
 next session's R0.
 
-### R0.d — No-ticket flow (HITL-gated — never auto-creates)
+### R0.d — Ticket-first create/reuse or bounded deferral
 
-When R0.a finds no anchor AND R0.b confirms none exists on the tree, present a **structured HITL
-proposal** (via `AskUserQuestion`), do NOT auto-create:
-
-1. **Create as draft** — delegate to `ticket-as-prompt`, which capability-detects the tracker and
-   routes by class (examples, non-normative: corporate / personal / community trackers), to open a
-   ticket whose body is a self-contained Ticket-as-Prompt.
-2. **Link to an existing ticket** — operator names the node; the session anchors to it.
-3. **Proceed without a documented ticket** — record the decision; postflight P2.5 may still propose one.
-
-Ticket *creation* is always delegated to `ticket-as-prompt` + capability-detected; absent that skill →
-DEFER(ticket) (report, never block).
+Load [`protocols/ticket-first-governance.md`](../../protocols/ticket-first-governance.md)
+before implementation, including for a recovered anchor and pending-ticket outbox.
+Search/reuse first; create through the configured authorized ticketing primitive without
+an extra HITL ceremony when destination, visibility and authority are already established.
+No tracker capability or unresolved routing: use the protocol's required durable binding
+and verify write/read-back before claiming a pending-ticket record. Missing or failed storage
+is **BLOCKED_NOT_PERSISTED**, not successful deferral; **implementation remains paused**
+except the protocol's bounded recon/authorized containment. Missing `ticket-as-prompt` may
+use the authorized capability ladder; it never permits silent untracked execution.
+Ticket-as-Prompt schema and provider mechanics remain in the existing ticketing primitive.
 
 ## Governance Discovery (read at invocation — the adaptive core)
 
@@ -173,7 +174,8 @@ exposes right now** and adapt to it (do NOT hardcode):
 0.5 R0: anchor the ticket (seed › branch › commit, ZERO network) → coarse mode.
    On /maos:preflight ticket: walk the N-Tree (parent-chain + siblings, capability-detected),
    flag the session node, classify session_type=<mode>/<work> (taxonomy SSOT), and if no
-   ticket exists → HITL create-proposal (delegate to ticket-as-prompt). DEFER if no tracker MCP.
+   ticket exists → follow R0.d (authorized create/reuse or durable pending-ticket record).
+   Validate recovered anchors and reconcile pending records before implementation.
 1. R1: read-only detect — current branch, upstream, ahead/behind, tree-state,
    branches locked by other worktrees. Report; never mutate.
 2. R2: if the action benefits from fresh state → safe-heal from origin
@@ -218,7 +220,8 @@ exposes right now** and adapt to it (do NOT hardcode):
 **No ticket anchor** (the hook nudges; never blocks):
 ```
 🧭 preflight: branch=just-a-name ... ; heal=...
-→ No ticket anchor detected (mode=unanchored): run /maos:preflight ticket to walk the N-Tree + classify, or proceed.
+→ No ticket anchor detected (mode=unanchored): run /maos:preflight ticket to walk the N-Tree + classify.
+→ Apply R0.d before implementation; until reconciled, only bounded read-only recon or already-authorized urgent containment.
 ```
 
 **On `/maos:preflight ticket`** (agentic N-Tree walk + classify):

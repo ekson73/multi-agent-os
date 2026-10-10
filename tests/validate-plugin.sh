@@ -763,6 +763,14 @@ else
 fi
 echo ""
 
+# Ticket-first public entry points and optional outbox adapter contract.
+if python3 "$PLUGIN_ROOT/tests/test-ticket-first-contract.py"; then
+    pass "ticket-first contract tests pass"
+else
+    fail "ticket-first contract tests FAILED"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 echo "  Validation Summary"
