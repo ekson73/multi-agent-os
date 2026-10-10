@@ -74,7 +74,9 @@ unambiguous and this tool implements it rather than arguing with it:
 `may_complete_c3` is computed, not asserted, and the exit code carries it:
 Final head/base drift or an unreadable final pin exits **1** with no verdict
 output and no post in every mode (including already-observed drift, which
-previously emitted informational JSON with exit 3).
+previously emitted informational JSON with exit 3). Once drift or unreadability
+is observed during Phase E, the run aborts; restoring the pin later does not
+restore that run's validity.
 `0` = review produced and may complete C3 · `3` = review produced **but the gate
 does not clear** (a primary pending, a routed `REQUEST_CHANGES`, unverified
 diversity or truncation) · `2` = no reviewer available / no clean
@@ -242,7 +244,7 @@ a genuine `HEAD_SHA` (the script fetches and exports it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**93 cases · 115 assertions** (several cases assert an exit code *and* a field or
+**93 cases · 119 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
