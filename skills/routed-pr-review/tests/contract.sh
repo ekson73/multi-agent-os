@@ -101,11 +101,13 @@ JSON
   # The LIVE diff. The script must never read it (case 79): a base switched
   # and restored between two snapshots would hand the reviewer these bytes.
   "pr diff")    printf 'diff --git a/file.txt b/file.txt\n+contract fixture\n%s' "${T_DIFF_EXTRA:-}" ;;
-  "pr comment") exit 0 ;;
+  "pr comment") [ -z "${T_POST_MARK:-}" ] || : > "$T_POST_MARK"; exit 0 ;;
   "api "*|"api")
                 case "$*" in
                   *"/reviews"*)        [ -n "${T_HISTORY_FAIL:-}" ] && exit 1
-                                       printf '%s\n' "${T_REVIEW_HISTORY:-[]}" ;;
+                                       printf '%s\n' "${T_REVIEW_HISTORY:-[]}"
+                                       [ -n "${T_HISTORY_PARTIAL_FAIL:-}" ] && exit 1
+                                       exit 0 ;;
                   *"pulls/comments"*)  printf '%s\n' "${T_PULL_COMMENTS:-[]}" ;;
                   *)                   printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
                 esac ;;
@@ -113,6 +115,15 @@ JSON
 esac
 STUB
 chmod +x "$STUB_BIN/gh"
+
+# Posting tests exercise orchestration, not secret detection. A local scanner
+# stub makes the final pin-check reachable even when gitleaks is not installed.
+# The failure fixture below proves that a rejected scan still prevents posting.
+cat > "$STUB_BIN/gitleaks" <<'STUB'
+#!/usr/bin/env bash
+exit "${T_GITLEAKS_RC:-0}"
+STUB
+chmod +x "$STUB_BIN/gitleaks"
 
 # Fake reviewer, in a family that is never the caller. Output length + verdict
 # are per-case, which is what drives the <40-byte and gate branches.
@@ -688,6 +699,23 @@ OUT="$(T_HISTORY_FAIL=1 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY=
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "an unreadable review history blocks C3" 3 '.primary_verdict' "review_history_unreadable"
 
+# ── 90-92 ── gh --paginate emits one JSON array per page. A late blocker,
+# malformed continuation, or transport failure after partial output cannot
+# turn a readable first page into evidence of complete, clean history.
+PAGE_TWO_CR='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"}]'
+PAGED_HISTORY="$(printf '[]\n%s\n' "$PAGE_TWO_CR")"
+OUT="$(T_REVIEW_HISTORY="$PAGED_HISTORY" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a change request on the second history page blocks C3" 3 '.primary_verdict' "changes_requested"
+
+OUT="$(T_REVIEW_HISTORY="$(printf '[]\n{}\n')" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a malformed second history page blocks C3 as unreadable" 3 '.primary_verdict' "review_history_unreadable"
+
+OUT="$(T_REVIEW_HISTORY='[]' T_HISTORY_PARTIAL_FAIL=1 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "partial history followed by transport failure blocks C3 as unreadable" 3 '.primary_verdict' "review_history_unreadable"
+
 # ── 56 ── a shorter fence does not close a longer one.
 LONGFENCE="Finding 1 [minor] fixture body written well past the forty byte floor.
 \`\`\`\`
@@ -817,6 +845,15 @@ OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=3 T_BASE_AFTER="$B2" \
 rm -f "$SANDBOX/count"
 check "a PR that moved before posting is not posted to" 1
 ok_grep "the refusal to post names the move" 'moved after the verdict'
+
+# ── 93 ── the scanner mock must not remove the production fail-closed gate.
+OUT="$(T_GITLEAKS_RC=1 T_POST_MARK="$SANDBOX/scan-failed-post" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
+       EXTRA_ARGS="--primary coderabbitai --post" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+check "a failed pre-post scan refuses posting" 1
+ok_grep "the refusal names the rejected scan" 'gitleaks flagged the review body.*NOT posted'
+if [ ! -e "$SANDBOX/scan-failed-post" ]; then GOT=not-posted; else GOT=posted; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a rejected scan never invokes gh pr comment" 0 '.v' "not-posted"
 
 # ── 71-72 ── P1-3: a review history that is null or {} is UNKNOWN, never clean.
 for H in 'null' '{}'; do
