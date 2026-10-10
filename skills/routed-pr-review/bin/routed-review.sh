@@ -134,6 +134,14 @@ HEAD_SHA="$(printf '%s' "$PR_JSON" | jq -r .headRefOid)"
 # base is pinned too and every later re-read compares BOTH. No base ⇒ no pin.
 BASE_SHA="$(printf '%s' "$PR_JSON" | jq -r '.baseRefOid // empty')"
 printf '%s' "$BASE_SHA" | grep -qE '^[0-9a-f]{40}$' || die "no valid baseRefOid for $REPO#$PR — cannot pin the reviewed diff"
+# Validate before shell capture, which cannot retain a decoded NUL in the title.
+TITLE_CHECK=0
+printf '%s' "$PR_JSON" | jq -e '(.title // "") | index("\u0000") == null' >/dev/null 2>&1 || TITLE_CHECK=$?
+case "$TITLE_CHECK" in
+  0) ;;
+  1) die "NUL in PR title — unsupported prompt input; review not dispatched" ;;
+  *) die "cannot validate PR title bytes — review not dispatched" ;;
+esac
 PR_TITLE="$(printf '%s' "$PR_JSON" | jq -r .title)"
 PR_URL="$(printf '%s' "$PR_JSON" | jq -r .url)"
 log "    head=$HEAD_SHA  base=$BASE_SHA  \"$PR_TITLE\""
@@ -638,6 +646,18 @@ PROMPT
   cat "$DIFF_F"
   printf '\n--- END DIFF ---\n'
 } > "$PROMPT_F"
+
+# argv cannot represent NUL. Refuse uniformly before any reviewer or fallback,
+# rather than silently dropping bytes and qualifying an incomplete review.
+LC_ALL=C tr -d '\000' < "$PROMPT_F" > "$WORK/prompt.nul-check" \
+  || die "cannot validate prompt bytes — review not dispatched"
+PROMPT_CHECK=0
+cmp -s "$PROMPT_F" "$WORK/prompt.nul-check" || PROMPT_CHECK=$?
+case "$PROMPT_CHECK" in
+  0) rm -f "$WORK/prompt.nul-check" ;;
+  1) die "NUL in prompt — unsupported prompt input; review not dispatched" ;;
+  *) die "cannot validate prompt bytes — review not dispatched" ;;
+esac
 
 # ---- Isolation enforcement ---------------------------------------------------
 # THREE enforcement classes, named for what they actually guarantee:
