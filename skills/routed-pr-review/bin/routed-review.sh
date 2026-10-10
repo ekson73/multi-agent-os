@@ -1383,19 +1383,14 @@ DIVERSITY="$(diversity_of "$CHOSEN")"
 [ "$TRUNCATED" = yes ] && [ "$DIVERSITY" = satisfied ] && DIVERSITY="partial:diff-truncated"
 [ "$DIVERSITY" = satisfied ] || MAY_COMPLETE_C3="false"
 
-# ⛔ The verdict is bound to the head read in Phase A. A push during the
-# (long) reviewer run makes this review describe an older commit.
+# Observed invalidity is terminal: a later move back to the pinned SHA cannot
+# restore this run's validity. The final pin still guards every emitted result.
 if [ "$PR_READ_OK" -eq 0 ]; then
-  MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pr_unreadable_after_review"
+  die "PR unreadable during the review — no verdict emitted; comment NOT posted; re-run"
 elif [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
-  MAY_COMPLETE_C3="false"
-  PRIMARY_STATUS="head_moved_during_review:${HEAD_NOW:-unreadable}"
-  log "[!] PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}); this review describes the old head only"
+  die "PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}) — no verdict emitted; comment NOT posted; re-run"
 elif [ "$BASE_NOW" != "$BASE_SHA" ]; then
-  # same head, different base = a different diff than the one reviewed
-  MAY_COMPLETE_C3="false"
-  PRIMARY_STATUS="base_moved_during_review:${BASE_NOW:-unreadable}"
-  log "[!] PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}); this review describes the old diff only"
+  die "PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}) — no verdict emitted; comment NOT posted; re-run"
 fi
 
 COMMENT_F="$WORK/comment.md"

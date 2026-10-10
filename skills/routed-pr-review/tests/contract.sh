@@ -584,6 +584,10 @@ OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_HEAD_AFTER=111111111111111111111
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 rm -f "$SANDBOX/count"
 check "a head that moved during the review blocks C3" 1
+ok_grep "the abort names the moved head" 'PR head moved during the review'
+if [ -z "$OUT" ]; then GOT=empty; else GOT=unexpected; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a moved head produces no verdict output" 0 '.v' "empty"
 
 # ── 37 ── a truncated diff is a partial opinion.
 OUT="$(ROUTED_REVIEW_DIFF_CAP=10 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
@@ -830,6 +834,10 @@ OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_BASE_AFTER="$B2" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 rm -f "$SANDBOX/count"
 check "a base that moved during the review blocks C3" 1
+ok_grep "the abort names the moved base" 'PR base moved during the review'
+if [ -z "$OUT" ]; then GOT=empty; else GOT=unexpected; fi
+RC=0; OUT="{\"v\":\"$GOT\"}"
+check "a moved base produces no verdict output" 0 '.v' "empty"
 
 # ── 69 ── P1-1: a base that moves between Phase A and the diff is refused.
 OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=1 T_BASE_AFTER="$B2" \

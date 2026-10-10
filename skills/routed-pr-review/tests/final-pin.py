@@ -32,23 +32,35 @@ class FinalPinTests(unittest.TestCase):
                     "GIT_ALLOW_PROTOCOL": "file", "GIT_CONFIG_NOSYSTEM": "1",
                     "GIT_CONFIG_GLOBAL": "/dev/null", "LC_ALL": "C"}
 
-    def dispatch(self, mode, drift="", scanner_rc=0):
-        fixture = (HERE / "contract.sh").read_text().split('echo "routed-pr-review — gate contract"')[0]
-        fixture = fixture.replace('SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"', "SELF_DIR=" + shlex.quote(str(HERE)))
-        fixture = fixture.replace('SUT="$SELF_DIR/../bin/routed-review.sh"', "SUT=" + shlex.quote(str(SUT)))
-        fixture = fixture.replace(' --json ${EXTRA_ARGS:-}', ' ${EXTRA_ARGS:-}')
-        fixture = fixture.replace('    H="$T_HEAD";', '    if [ -n "${T_FINAL_UNREADABLE:-}" ] && [ -f "$T_COUNT" ] && [ "$(cat "$T_COUNT")" -ge 3 ]; then exit 1; fi\n    H="$T_HEAD";')
+    def replace_once(self, text, old, new):
+        self.assertEqual(text.count(old), 1, f"fixture anchor missing or ambiguous: {old}")
+        return text.replace(old, new, 1)
+
+    def dispatch(self, mode, drift="", scanner_rc=0, restore=False):
+        fixture = (HERE / "contract.sh").read_text()
+        delimiter = 'echo "routed-pr-review — gate contract"'
+        self.assertEqual(fixture.count(delimiter), 1, "fixture split anchor missing or ambiguous")
+        fixture = fixture.split(delimiter, 1)[0]
+        fixture = self.replace_once(fixture, 'SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"', "SELF_DIR=" + shlex.quote(str(HERE)))
+        fixture = self.replace_once(fixture, 'SUT="$SELF_DIR/../bin/routed-review.sh"', "SUT=" + shlex.quote(str(SUT)))
+        fixture = self.replace_once(fixture, ' --json ${EXTRA_ARGS:-}', ' ${EXTRA_ARGS:-}')
+        fixture = self.replace_once(fixture, '    H="$T_HEAD";', '    if [ -n "${T_FINAL_UNREADABLE:-}" ] && [ -f "$T_COUNT" ] && [ "$(cat "$T_COUNT")" -ge "${T_SWITCH_AT:-1}" ] && { [ -z "${T_RESTORE_AT:-}" ] || [ "$(cat "$T_COUNT")" -lt "$T_RESTORE_AT" ]; }; then printf \'%s\' "$(( $(cat "$T_COUNT") + 1 ))" > "$T_COUNT"; exit 1; fi\n    H="$T_HEAD";')
+        fixture = self.replace_once(fixture, 'if [ "$n" -ge "${T_SWITCH_AT:-1}" ]; then',
+                                    'if [ "$n" -ge "${T_SWITCH_AT:-1}" ] && { [ -z "${T_RESTORE_AT:-}" ] || [ "$n" -lt "$T_RESTORE_AT" ]; }; then')
         marker = self.root / "posted"
         marker.unlink(missing_ok=True)
         scan_marker = self.root / "scanned"
         scan_marker.unlink(missing_ok=True)
-        fixture = fixture.replace('exit "${T_GITLEAKS_RC:-0}"', ': > "$T_SCAN_MARK"\nexit "${T_GITLEAKS_RC:-0}"')
+        fixture = self.replace_once(fixture, 'exit "${T_GITLEAKS_RC:-0}"', ': > "$T_SCAN_MARK"\nexit "${T_GITLEAKS_RC:-0}"')
         fixture += '\nexport T_SCAN_MARK=' + shlex.quote(str(scan_marker)) + '\n'
         changed = f'T_{drift}_AFTER=1111111111111111111111111111111111111111 ' if drift else ""
         if drift == "UNREADABLE":
             changed = "T_FINAL_UNREADABLE=1 "
+        switch_at = 2 if restore else 3
+        if restore:
+            changed += f"T_RESTORE_AT={switch_at + 1} "
         args = {"text": "", "json": "--json", "post": "--post"}[mode]
-        fixture += f'''OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=3 {changed}T_GITLEAKS_RC={scanner_rc} T_POST_MARK={shlex.quote(str(marker))} T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" EXTRA_ARGS="--primary coderabbitai {args}" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
+        fixture += f'''OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT={switch_at} {changed}T_GITLEAKS_RC={scanner_rc} T_POST_MARK={shlex.quote(str(marker))} T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" EXTRA_ARGS="--primary coderabbitai {args}" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 printf '%s' "$OUT"
 cat "$SANDBOX/err" >&2
 exit "$RC"
@@ -68,6 +80,27 @@ exit "$RC"
                     self.assertIn("moved after the verdict", result.stderr)
                     self.assertFalse(posted)
                     self.assertEqual(scanned, mode == "post")
+
+    def test_observed_move_then_restore_never_emits_or_posts(self):
+        for mode in ("text", "json", "post"):
+            for drift in ("HEAD", "BASE"):
+                with self.subTest(mode=mode, drift=drift):
+                    result, posted, _ = self.dispatch(mode, drift, restore=True)
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stdout, "")
+                    self.assertNotIn("may_complete_c3=true", result.stderr)
+                    self.assertIn(f"PR {drift.lower()} moved during the review", result.stderr)
+                    self.assertFalse(posted)
+
+    def test_phase_e_unreadable_then_recovered_never_emits_or_posts(self):
+        for mode in ("text", "json", "post"):
+            with self.subTest(mode=mode):
+                result, posted, _ = self.dispatch(mode, "UNREADABLE", restore=True)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("may_complete_c3=true", result.stderr)
+                self.assertIn("PR unreadable during the review", result.stderr)
+                self.assertFalse(posted)
 
     def test_unreadable_final_pin_never_emits_or_posts(self):
         for mode in ("text", "json", "post"):
