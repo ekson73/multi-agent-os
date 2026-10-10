@@ -220,6 +220,7 @@ candidates for a later cycle rather than silently duplicated.
 
 ```bash
 bash skills/routed-pr-review/tests/contract.sh    # -v for failing-case detail
+python3 skills/routed-pr-review/tests/state-safety.py  # offline TTL/state safety regressions
 ```
 
 **Why they exist.** Four dogfood cycles produced 19 findings and I self-caught
