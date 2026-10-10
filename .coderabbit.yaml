@@ -1,0 +1,31 @@
+# CodeRabbit — repo config (schema: https://coderabbit.ai/integrations/schema.v2.json)
+# Open-source, community-agnostic repo. Repo rules live in AGENTS.md / CLAUDE.md
+# (auto-read as code guidelines) — keep this file short and point to them.
+# Sibling bot configs: .pr_agent.toml (Qodo), .github/copilot-instructions.md (Copilot).
+reviews:
+  profile: chill
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/*.jsonl"
+  path_instructions:
+    - path: "**/*"
+      instructions: >-
+        Community-agnostic repo: flag hardcoded company names, personal emails, absolute paths,
+        internal hostnames or account identifiers as real findings. Do NOT require Jira-style
+        issue keys; tracking is optional (Linear). Match the language of the touched file.
+    - path: "skills/**/*.md"
+      instructions: >-
+        Agent-facing instructions. Flag ambiguous steps, references to tools or files that do not
+        exist, and contradictions with AGENTS.md or rules/.
+    - path: "bin/**"
+      instructions: >-
+        Scripts. Check quoting, real exit codes (no failures masked by pipes or wrappers), no
+        secrets in output, and safe deletion of computed paths.
+    - path: "mcp-tools/**"
+      instructions: >-
+        Never accept committed secrets, tokens or .env files; flag any credential-shaped value.
