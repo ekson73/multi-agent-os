@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: bounded rotation-state reads (#413, #414)
+
+- Normalize the broken-reviewer TTL as decimal after whole-string digit/length
+  validation; reject multiline arithmetic in TTL and retry values while retaining
+  their existing ranges and invalid-input behavior.
+- Bound rotation-state open/read/hash operations, reject nonregular descriptors,
+  and fail closed on unsafe or unreadable integrity snapshots. Failure recording
+  no longer opens the state path for initialization; unsafe destinations are skipped.
+- Add offline `tests/state-safety.py` regressions, including mocked dispatcher FIFO
+  substitution and TERM-ignoring descendants. This is bounded read/tamper detection,
+  not atomic same-UID pathname isolation or runtime activation.
+
 ### Fixed — `routed-pr-review`: enforcement explanation on Bash 3.2 (#413)
 
 - Parenthesize case patterns inside the rendering substitution so Bash 3.2 emits the intended explanation rather than a parser diagnostic and shell source. Gates and enforcement behavior are unchanged; `python3 skills/routed-pr-review/tests/enforcement-render.py` covers both rendering arms and mocked dispatcher output.
