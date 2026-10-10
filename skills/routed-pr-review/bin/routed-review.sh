@@ -850,7 +850,7 @@ build_readonly_export() {
   while IFS= read -r -d '' ent; do
     meta="${ent%%$'\t'*}"; path="${ent#*$'\t'}"
     read -r mode type oid <<<"$meta"
-    [ "$type" = commit ] && continue      # a submodule gitlink has no content here
+    [ "$type" = commit ] && die "gitlink in pinned HEAD — refusing an incomplete review export"
     [ "$type" = blob ] || die "unexpected tree entry type '$type' — refusing the export"
     export_path_ok "$path" || die "unsafe path in the tree — refusing the export"
     _want=$((_want + 1))

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: reject incomplete gitlink exports (#413, #414)
+
+- Refuse any gitlink in the pinned HEAD with exit 1 before reviewer dispatch or posting, instead of silently omitting it from the export and completeness count. This also covers unchanged submodules. This change adds no submodule fetching or materialization. Add offline added/changed/unchanged, missing-object, nested/spaced-path and no-post regressions.
+
 ### Fixed — `routed-pr-review`: refuse NUL-bearing prompts (#413, #414)
 
 - Reject NUL in the PR title before shell capture and in the assembled prompt before any reviewer dispatch; validation failures also fail closed. This prevents lossy argv transport from qualifying a full review, without claiming to resolve argv privacy or arbitrary binary/encoding support.
