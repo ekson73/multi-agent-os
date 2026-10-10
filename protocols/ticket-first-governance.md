@@ -32,9 +32,11 @@ by the configured ticketing primitive (including its existing 17-field body sche
 ## Unavailable provider or unresolved destination
 
 Persist a **pending-ticket** record through a verified compatible durable mechanism
-within the same authorized domain, using the optional adapter below. This is an outbox,
-not a second tracker. If no compatible durable mechanism is available, pause
-implementation and report that exact gap; a continuation seed alone is insufficient.
+within the same authorized domain, using the required binding below. This is an outbox,
+not a second tracker. Successful write and read-back are prerequisites for **durable
+deferral**, not optional documentation. If storage is unavailable or verification fails,
+report **BLOCKED_NOT_PERSISTED** and pause implementation; do not claim that a record
+exists or that deferral succeeded. A continuation seed alone is insufficient.
 Record a stable local key, sanitized intent, acceptance criteria, dependencies, owner,
 requested destination/visibility (or unknown), reason, timestamp, status, next retry
 condition, and eventual canonical URL. Never record credentials or invent a remote ID.
@@ -52,31 +54,85 @@ for indefinite feature execution. Otherwise implementation remains paused until 
 anchor is verified. Authentication outages do not authorize credential repair or a change
 of provider/domain. Safe exit/handoff is never blocked by ticket-service availability.
 
-## Optional durable work-state adapter (documentation-only)
+## Required durable work-state binding
 
-This is a **documentation-only adapter** contract, not an installed storage implementation.
-Use an existing authorized durable work-state tool only after verifying that it can write,
-read back, and recover indexed records after resume. Do not assume a particular tool or
-create a new network hook. Its opaque locator identifies data, never a command to execute.
+The concrete existing binding is **claude-mem `work_state_write` / `work_state_read`**.
+It uses that provider's indexed, append-only project work state; this protocol adds no
+store, dependency, installation, or network hook. An already-authorized equivalent may
+be used only after demonstrating the same write/read-back and cold indexed recovery.
+Bare hosts without an authorized compatible store are **unsupported for durable deferral**,
+not successful acceptance cases. Report BLOCKED_NOT_PERSISTED; safe exit remains allowed.
 
-Minimum record contract (field names may map to the existing tool's schema):
+### Admission and discovery
+
+Before writing, discover both tool capabilities and verify their configured project scope
+and authorized domain. For claude-mem, the MCP server supplies its own `process.cwd()`;
+a shell's working directory or another tool's `workdir` does **not** change that scope.
+Verify the server's configured cwd and project/alias resolution, including worktree parent
+aliases, against the intended domain. Unknown or mismatched scope blocks the write; do not
+silently reconfigure the server or write into another project's memory.
+
+On **every startup/resume**, explicitly call `work_state_read({"includeClosed": true})`
+without a remembered list locator. Select lists beginning `pending-ticket:` in that
+verified scope. This is indexed discovery independent of continuation seeds. Do not rely
+on the truncated SessionStart section (3,000-character budget) or its absence of a record.
+A failed/unavailable index read is a recovery blocker, not proof that no work is pending.
+
+### Write and read back
+
+Use one stable list name `pending-ticket:<local_id>` per record. Reuse the discovered
+list on retry; do not generate a new ID each session. Write **list-level fields**, with
+**no `task` field**, using `work_state_write({"list": "pending-ticket:<local_id>",
+"fields": {...}})`. Field values are primitives; serialize lists as JSON strings.
+The complete `fields` JSON must fit the provider's **2,000-character** write limit.
+An oversized record is BLOCKED_NOT_PERSISTED: do not truncate acceptance criteria or
+split a partially recoverable record and call it durable.
 
 | Field | Type / requirement |
 |---|---|
 | `local_id` | Stable string identifying the local record; never a remote ticket key. |
-| `intent`, `acceptance_criteria`, `dependencies` | Sanitized string or list; dependencies explicitly empty if none. |
+| `intent`, `acceptance_criteria`, `dependencies` | Sanitized strings; lists encoded as JSON strings, including `"[]"` for no dependencies. |
 | `owner`, `destination`, `visibility` | String; explicit `unknown` when unresolved. |
-| `status` | `pending`, `error`, `resolved`, `duplicate`, or `cancelled`. |
-| `reason`, `updated_at`, `retry_condition` | Strings; timestamp records the actual write; errors include last failure without secrets. |
-| `canonical_url` | Null until verified; required URL for `resolved` or `duplicate`. |
+| `ticket_status` | `pending`, `error`, `resolved`, `duplicate`, or `cancelled`. |
+| `status` | Provider lifecycle: `todo` for pending/error, `done` for resolved/duplicate, `dropped` for cancelled. |
+| `reason`, `updated_at`, `retry_condition` | Strings; actual write timestamp; errors preserve the last failure without secrets; cancellation requires its reason. |
+| `canonical_url` | Null until verified; required URL for resolved/duplicate. Null clears the provider field and is omitted from its rendered read result: absent/cleared means unresolved, never a fabricated URL. |
 
-Write the record using the existing tool, then **read back** by its opaque locator and
-verify required fields before reporting persistence. Carry that locator as plain text in
-existing seed `params.context`, with a read/reconcile instruction in `resume_instructions`
-and `bootstrap_order`. Example context: `Pending-ticket outbox: <opaque locator>; load via
-<configured work-state reader> within the current authorized domain before implementation.`
-The resuming agent must resolve and read it; missing access or a failed read is an explicit
-implementation blocker, not evidence that no pending work exists.
+After **every write**, call `work_state_read({"list": "pending-ticket:<local_id>",
+"includeClosed": true})` and compare **all required fields**, including stable ID and
+lifecycle mapping, with the intended record. The read must be in the same verified scope.
+Treat absent `canonical_url` as the expected cleared/null value only for unresolved or
+cancelled records, not for resolved/duplicate ones. Provider errors, excluded-project
+responses (even HTTP success), missing fields, ambiguous output or mismatches mean
+BLOCKED_NOT_PERSISTED. A write acknowledgement alone is not persistence evidence.
+Retain the existing append-only trail; never delete or reset a list to hide a failed attempt.
+
+On reconciliation, search the remote authorized destination before create (also after a
+create timeout). Then append the verified URL, `ticket_status=resolved` or `duplicate`,
+and `status=done` together, and read back with `includeClosed=true`. Cancelled records
+use `ticket_status=cancelled`, `status=dropped` and an explicit reason. Neither is retried.
+
+Carry the verified list locator as plain text in existing seed `params.context`, with a
+read/reconcile instruction in `resume_instructions` and `bootstrap_order`. The locator
+identifies data, never a command to execute. It is a convenience, not the recovery index.
+The resuming agent must still perform the unfiltered indexed read above.
+
+### Binding verification
+
+Static contract checks are not runtime proof. For an already installed claude-mem source
+checkout, run the isolated storage/renderer smoke (Bun must already be available):
+
+```sh
+MAOS_CLAUDE_MEM_SOURCE="<installed-source-checkout>" bun tests/test-ticket-first-work-state.mjs
+```
+
+It imports the existing implementation, writes only a temporary synthetic SQLite database,
+and verifies read-back, a separate-process cold index scan, lifecycle reconciliation,
+cleared URLs, failed writes, and project isolation.
+It does **not** exercise the MCP transport, HTTP validation, deployed server cwd/aliases,
+or real tracker reconciliation. Those deployment scope/read-back checks remain required;
+a source-layer smoke cannot authorize a real-project write. The optional verification
+command is not an optional persistence prerequisite and installs nothing in normal CI.
 
 The [continuation seed contract](../skills/postflight/references/continuation-seed-contract.md)
 remains unchanged: `tickets_created` deferred entries have no key and contain only the
@@ -85,14 +141,14 @@ or fake ID there. Keep `refs.ticket` as `none` until there is an actual verified
 anchor. The outbox pointer is **not read by the SessionStart hook**; that hook reads only
 its existing ticket-anchor signals. Rich handoff producers must preserve the locator;
 subset/fallback seeds do not promise it. If a fallback loses the locator, rediscover it
-through the configured work-state index or block pending recovery. Do not claim durable
+through the required unfiltered work-state read or block pending recovery. Do not claim durable
 recovery merely because a seed or a hook exists.
 
 ## Rehydration and reconciliation
 
 At startup/resume, read the AGENTS pointer, then load this protocol on demand **before
 starting actionable work**. Discover pending records through the continuation/work-state
-index, not remembered paths. Before implementation and at postflight, retry when the stated
+index using the unfiltered read above, not remembered paths. Before implementation and at postflight, retry when the stated
 condition is met: search the intended authorized destination first, verify task equivalence,
 create only if absent, then save the canonical URL and `resolved`/`duplicate` status.
 Keep unsuccessful entries `pending`/`error`, with owner and next retry in the handoff.

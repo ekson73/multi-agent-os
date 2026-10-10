@@ -54,10 +54,26 @@ class TicketFirstContract(unittest.TestCase):
 
     def test_outbox_adapter_respects_seed_contract(self):
         text = (ROOT / "protocols/ticket-first-governance.md").read_text()
-        for phrase in ("documentation-only adapter", "params.context", "resume_instructions",
+        for phrase in ("Required durable work-state binding", "params.context", "resume_instructions",
                        "deferred entries have no key", "read back", "compatible durable mechanism",
                        "not read by the SessionStart hook"):
             self.assertIn(phrase, text)
+
+    def test_concrete_binding_and_failure_boundary(self):
+        text = (ROOT / "protocols/ticket-first-governance.md").read_text()
+        for phrase in ('work_state_write', 'work_state_read', 'process.cwd()',
+                       '"includeClosed": true', 'pending-ticket:<local_id>',
+                       'no `task` field', '2,000-character', 'ticket_status',
+                       'absent/cleared means unresolved', 'BLOCKED_NOT_PERSISTED',
+                       'unsupported for durable deferral', 'all required fields',
+                       'excluded-project', 'test-ticket-first-work-state.mjs'):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+        self.assertNotIn('Optional durable work-state adapter', text)
+        for name in ('AGENTS.md', 'skills/preflight/SKILL.md',
+                     'skills/postflight/references/ticket-sync-protocol.md'):
+            with self.subTest(name=name):
+                self.assertIn('BLOCKED_NOT_PERSISTED', (ROOT / name).read_text())
 
     def test_command_and_validator_are_wired(self):
         command = (ROOT / "commands/preflight.md").read_text()
