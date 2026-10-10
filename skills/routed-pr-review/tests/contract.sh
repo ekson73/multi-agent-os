@@ -583,7 +583,7 @@ OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_HEAD_AFTER=111111111111111111111
        T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 rm -f "$SANDBOX/count"
-check "a head that moved during the review blocks C3" 3 '.primary_verdict' "head_moved_during_review:1111111111111111111111111111111111111111"
+check "a head that moved during the review blocks C3" 1
 
 # ── 37 ── a truncated diff is a partial opinion.
 OUT="$(ROUTED_REVIEW_DIFF_CAP=10 T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
@@ -829,7 +829,7 @@ OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=2 T_BASE_AFTER="$B2" \
        T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 rm -f "$SANDBOX/count"
-check "a base that moved during the review blocks C3" 3 '.primary_verdict' "base_moved_during_review:$B2"
+check "a base that moved during the review blocks C3" 1
 
 # ── 69 ── P1-1: a base that moves between Phase A and the diff is refused.
 OUT="$(T_COUNT="$SANDBOX/count" T_SWITCH_AT=1 T_BASE_AFTER="$B2" \

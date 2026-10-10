@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: final pin for every output mode (#413, #481)
+
+- Recheck head/base after the mandatory scan when `--post` is selected and before posting, text, or JSON output. Final drift or an unreadable PR now exits 1 with no verdict output or post; this intentionally replaces the previous informational JSON / exit 3 for already-observed drift. This snapshot does not prevent subsequent remote changes. Add offline head/base drift, unreadable-pin, stable-output and scanner-refusal regressions.
+
 ### Fixed — `routed-pr-review`: enforcement explanation on Bash 3.2 (#413)
 
 - Parenthesize case patterns inside the rendering substitution so Bash 3.2 emits the intended explanation rather than a parser diagnostic and shell source. Gates and enforcement behavior are unchanged; `python3 skills/routed-pr-review/tests/enforcement-render.py` covers both rendering arms and mocked dispatcher output.

@@ -1348,8 +1348,6 @@ elif [ "$BASE_NOW" != "$BASE_SHA" ]; then
   log "[!] PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}); this review describes the old diff only"
 fi
 
-log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
-
 COMMENT_F="$WORK/comment.md"
 {
   printf '## Routed review — `%s`\n\n' "$CHOSEN"
@@ -1389,10 +1387,16 @@ if [ "$POST" -eq 1 ]; then
     || die "gitleaks not installed — refusing to post (the pre-post secret scan is mandatory, not best-effort). Install gitleaks, or drop --post and inspect the review on stdout."
   gitleaks detect --no-git --source="$COMMENT_F" --no-banner >/dev/null 2>&1 \
     || die "gitleaks flagged the review body — comment NOT posted (secrets are absolute)"
-  # last re-read before publishing: the stamp names a head and its gate line a
-  # verdict; neither may be posted against a PR that has since moved
-  pr_pin_check \
-    || die "PR moved after the verdict was computed ($PIN_DRIFT) — comment NOT posted; re-run"
+fi
+
+# Every output mode carries a pinned verdict. Re-read after the optional scan,
+# before posting or emitting stdout/JSON; this is a snapshot, not an atomic lock.
+pr_pin_check \
+  || die "PR moved after the verdict was computed or became unreadable ($PIN_DRIFT) — no verdict emitted; comment NOT posted; re-run"
+
+log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
+
+if [ "$POST" -eq 1 ]; then
   gh pr comment "$PR" --repo "$REPO" --body-file "$COMMENT_F" >/dev/null \
     && log "[E] posted to $PR_URL" || die "failed to post comment"
 fi
