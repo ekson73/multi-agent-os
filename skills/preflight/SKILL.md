@@ -146,7 +146,9 @@ Load [`protocols/ticket-first-governance.md`](../../protocols/ticket-first-gover
 before implementation, including for a recovered anchor and pending-ticket outbox.
 Search/reuse first; create through the configured authorized ticketing primitive without
 an extra HITL ceremony when destination, visibility and authority are already established.
-No capability or unresolved routing: persist a pending-ticket record; **implementation remains paused**
+No tracker capability or unresolved routing: use the protocol's required durable binding
+and verify write/read-back before claiming a pending-ticket record. Missing or failed storage
+is **BLOCKED_NOT_PERSISTED**, not successful deferral; **implementation remains paused**
 except the protocol's bounded recon/authorized containment. Missing `ticket-as-prompt` may
 use the authorized capability ladder; it never permits silent untracked execution.
 Ticket-as-Prompt schema and provider mechanics remain in the existing ticketing primitive.

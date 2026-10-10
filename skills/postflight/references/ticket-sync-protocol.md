@@ -33,10 +33,12 @@ file and *how much*, never *how* to talk to a provider.
 ## Pending-ticket reconciliation
 
 First apply [`protocols/ticket-first-governance.md`](../../../protocols/ticket-first-governance.md):
-discover the existing durable pending-ticket outbox, retry eligible records with
+perform its unfiltered indexed pending-ticket discovery, retry eligible records with
 search-before-create, and preserve resolved/duplicate URLs or pending/error retry conditions.
 The tracker remains canonical; the outbox exists only until verified reconciliation.
-Carry unresolved records and their locator into the continuation handoff. Do not copy a
+Carry verified unresolved records and their locator into the continuation handoff; report
+BLOCKED_NOT_PERSISTED separately when storage or verification failed, without claiming
+durable deferral. Safe exit remains allowed. Do not copy a
 private continuation seed verbatim to a less-private tracker: sanitize for its audience.
 The caps below batch actionable atoms, never erase them; Q4 may be dropped only when
 non-actionable or explicitly cancelled with reason.
