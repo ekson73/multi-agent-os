@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests — `routed-pr-review`: pagination and scanner refusal (#481, #487)
+
+- Add cases 90–93 for paginated-history failures and fail-closed pre-post scanning; update the live inventory to 93 cases / 115 assertions. Production behavior is unchanged.
+
 ### Fixed — `routed-pr-review`: RT414D round on 41a932b (#414)
 
 - **Review order is by epoch second, not by string.** A decisive review's
