@@ -134,6 +134,14 @@ HEAD_SHA="$(printf '%s' "$PR_JSON" | jq -r .headRefOid)"
 # base is pinned too and every later re-read compares BOTH. No base ⇒ no pin.
 BASE_SHA="$(printf '%s' "$PR_JSON" | jq -r '.baseRefOid // empty')"
 printf '%s' "$BASE_SHA" | grep -qE '^[0-9a-f]{40}$' || die "no valid baseRefOid for $REPO#$PR — cannot pin the reviewed diff"
+# Validate before shell capture, which cannot retain a decoded NUL in the title.
+TITLE_CHECK=0
+printf '%s' "$PR_JSON" | jq -e '(.title // "") | index("\u0000") == null' >/dev/null 2>&1 || TITLE_CHECK=$?
+case "$TITLE_CHECK" in
+  0) ;;
+  1) die "NUL in PR title — unsupported prompt input; review not dispatched" ;;
+  *) die "cannot validate PR title bytes — review not dispatched" ;;
+esac
 PR_TITLE="$(printf '%s' "$PR_JSON" | jq -r .title)"
 PR_URL="$(printf '%s' "$PR_JSON" | jq -r .url)"
 log "    head=$HEAD_SHA  base=$BASE_SHA  \"$PR_TITLE\""
@@ -638,6 +646,18 @@ PROMPT
   cat "$DIFF_F"
   printf '\n--- END DIFF ---\n'
 } > "$PROMPT_F"
+
+# argv cannot represent NUL. Refuse uniformly before any reviewer or fallback,
+# rather than silently dropping bytes and qualifying an incomplete review.
+LC_ALL=C tr -d '\000' < "$PROMPT_F" > "$WORK/prompt.nul-check" \
+  || die "cannot validate prompt bytes — review not dispatched"
+PROMPT_CHECK=0
+cmp -s "$PROMPT_F" "$WORK/prompt.nul-check" || PROMPT_CHECK=$?
+case "$PROMPT_CHECK" in
+  0) rm -f "$WORK/prompt.nul-check" ;;
+  1) die "NUL in prompt — unsupported prompt input; review not dispatched" ;;
+  *) die "cannot validate prompt bytes — review not dispatched" ;;
+esac
 
 # ---- Isolation enforcement ---------------------------------------------------
 # THREE enforcement classes, named for what they actually guarantee:
@@ -1383,22 +1403,15 @@ DIVERSITY="$(diversity_of "$CHOSEN")"
 [ "$TRUNCATED" = yes ] && [ "$DIVERSITY" = satisfied ] && DIVERSITY="partial:diff-truncated"
 [ "$DIVERSITY" = satisfied ] || MAY_COMPLETE_C3="false"
 
-# ⛔ The verdict is bound to the head read in Phase A. A push during the
-# (long) reviewer run makes this review describe an older commit.
+# Observed invalidity is terminal: a later move back to the pinned SHA cannot
+# restore this run's validity. The final pin still guards every emitted result.
 if [ "$PR_READ_OK" -eq 0 ]; then
-  MAY_COMPLETE_C3="false"; PRIMARY_STATUS="pr_unreadable_after_review"
+  die "PR unreadable during the review — no verdict emitted; comment NOT posted; re-run"
 elif [ "$HEAD_NOW" != "$HEAD_SHA" ]; then
-  MAY_COMPLETE_C3="false"
-  PRIMARY_STATUS="head_moved_during_review:${HEAD_NOW:-unreadable}"
-  log "[!] PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}); this review describes the old head only"
+  die "PR head moved during the review ($HEAD_SHA -> ${HEAD_NOW:-unreadable}) — no verdict emitted; comment NOT posted; re-run"
 elif [ "$BASE_NOW" != "$BASE_SHA" ]; then
-  # same head, different base = a different diff than the one reviewed
-  MAY_COMPLETE_C3="false"
-  PRIMARY_STATUS="base_moved_during_review:${BASE_NOW:-unreadable}"
-  log "[!] PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}); this review describes the old diff only"
+  die "PR base moved during the review ($BASE_SHA -> ${BASE_NOW:-unreadable}) — no verdict emitted; comment NOT posted; re-run"
 fi
-
-log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
 
 COMMENT_F="$WORK/comment.md"
 {
@@ -1439,10 +1452,16 @@ if [ "$POST" -eq 1 ]; then
     || die "gitleaks not installed — refusing to post (the pre-post secret scan is mandatory, not best-effort). Install gitleaks, or drop --post and inspect the review on stdout."
   gitleaks detect --no-git --source="$COMMENT_F" --no-banner >/dev/null 2>&1 \
     || die "gitleaks flagged the review body — comment NOT posted (secrets are absolute)"
-  # last re-read before publishing: the stamp names a head and its gate line a
-  # verdict; neither may be posted against a PR that has since moved
-  pr_pin_check \
-    || die "PR moved after the verdict was computed ($PIN_DRIFT) — comment NOT posted; re-run"
+fi
+
+# Every output mode carries a pinned verdict. Re-read after the optional scan,
+# before posting or emitting stdout/JSON; this is a snapshot, not an atomic lock.
+pr_pin_check \
+  || die "PR moved after the verdict was computed or became unreadable ($PIN_DRIFT) — no verdict emitted; comment NOT posted; re-run"
+
+log "[E] diversity_limb=$DIVERSITY  routed_verdict=$ROUTED_VERDICT  primary=$PRIMARY_STATUS  may_complete_c3=$MAY_COMPLETE_C3"
+
+if [ "$POST" -eq 1 ]; then
   gh pr comment "$PR" --repo "$REPO" --body-file "$COMMENT_F" >/dev/null \
     && log "[E] posted to $PR_URL" || die "failed to post comment"
 fi

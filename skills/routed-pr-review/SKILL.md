@@ -72,9 +72,14 @@ unambiguous and this tool implements it rather than arguing with it:
 | Completing convergence alone | only when **all** hold: every `--primary` approved the current head (or `--no-primary-configured` was attested and not contradicted) · the routed verdict is `PASS` · diversity is `satisfied` (declared caller, single-provider reviewer of another family) · the diff was not truncated · the PR head did not move during the review |
 
 `may_complete_c3` is computed, not asserted, and the exit code carries it:
+Final head/base drift or an unreadable final pin exits **1** with no verdict
+output and no post in every mode (including already-observed drift, which
+previously emitted informational JSON with exit 3). Once drift or unreadability
+is observed during Phase E, the run aborts; restoring the pin later does not
+restore that run's validity.
 `0` = review produced and may complete C3 · `3` = review produced **but the gate
 does not clear** (a primary pending, a routed `REQUEST_CHANGES`, unverified
-diversity, truncation or a moved head) · `2` = no reviewer available / no clean
+diversity or truncation) · `2` = no reviewer available / no clean
 output · `1` = error.
 
 ### Provider families — diversity is about the model, not the binary
@@ -199,13 +204,15 @@ bytes that are not the commit). Every exported file is re-hashed with
 `git hash-object --no-filters` and must equal its blob, or the run stops; the
 export is checked to contain every tracked path of the head. A pinned HEAD
 containing any gitlink (submodule entry), even unchanged in the PR, is rejected
-with exit 1 before reviewer dispatch or posting: submodule content is not
-materialized, and no submodule fetch/update is attempted. A symlink whose
+with exit 1 before reviewer dispatch or posting. The exporter does not fetch
+or materialize submodule content; existing retrieval of pinned head/base
+commits is unchanged. A symlink whose
 target is absolute or leaves the export is replaced by a text marker, so the
 reviewer can never follow it to a host file, and a link that sits on the path
 of another tracked entry (a malformed tree naming the same path twice) refuses
 the export instead of being written through. Head **and base** are pinned in
-Phase A and re-checked after the diff, after the review and before posting. The
+Phase A and re-checked after the diff, after the review and before every final output (text, JSON, or post). This last
+check is a snapshot, not an atomic guarantee against subsequent remote changes. The
 reviewed diff is computed from the two pinned SHAs (`git diff
 merge-base(base, head) head`, no external driver, no textconv): `gh pr diff` reads
 the live PR, so a base switched and restored between two snapshots would hand
@@ -226,6 +233,8 @@ bash skills/routed-pr-review/tests/contract.sh    # -v for failing-case detail
 python3 skills/routed-pr-review/tests/state-safety.py  # offline TTL/state safety regressions
 python3 skills/routed-pr-review/tests/enforcement-render.py  # Bash rendering + mocked dispatcher
 python3 skills/routed-pr-review/tests/gitlink-export.py  # refuse incomplete submodule exports
+python3 skills/routed-pr-review/tests/prompt-bytes.py  # reject NUL before review dispatch
+python3 skills/routed-pr-review/tests/final-pin.py  # late drift in every output mode
 ```
 
 **Why they exist.** Four dogfood cycles produced 19 findings and I self-caught
@@ -241,7 +250,7 @@ a genuine `HEAD_SHA` (the script fetches and exports it, so it must exist), and
 stubs answer the four `gh` call shapes plus a fake reviewer whose output each
 case controls by env. Every case is data, not another copy of the invocation.
 
-**93 cases · 115 assertions** (several cases assert an exit code *and* a field or
+**93 cases · 119 assertions** (several cases assert an exit code *and* a field or
 that the diagnostic names its reason — a silent correct exit is not enough). The
 run prints one line per assertion. The table lists the founding nine; every later
 case states its own contract and the defect it guards in `tests/contract.sh`.
@@ -415,8 +424,9 @@ draft of this very section mis-stated two of them; corrected before commit):
 | 2 | reviewer produced <40 bytes, or exited non-zero | `2` (explicit `--reviewer`) · fall-through (auto) | treated as **no review**; triaged quota · broken · timeout (guarantee 1) and recorded in the rotation state file so rotation *skips* it (§3 never-hot-retry). In auto mode the next family is tried; `2` only when none is left |
 | 3 | isolation violated (either tamper check) | `1` | no stamp, no comment, `status:isolation_violated` |
 | 4 | `gitleaks` absent while `--post` given | `1` | refuses to post rather than posting an unscanned body |
-| 5 | review ran, gate does not clear C3 (primary pending, routed `REQUEST_CHANGES`, unverified diversity, truncation, moved head) | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
+| 5 | review ran, gate does not clear C3 (primary pending, routed `REQUEST_CHANGES`, unverified diversity, truncation) | `3` | the review **is** emitted; `3` means *reviewed-but-blocked*, not failure |
 | 6 | review ran, C3 cleared | `0` | — |
+| 7 | final head/base pin moved or is unreadable | `1` | no verdict output and no post, even if drift was already observed earlier |
 
 Below the ladder, `ai-code-review-bots-rotation` §5 still licenses the
 deterministic local path (`gitleaks`/lint/typecheck/build) as **labelled partial
