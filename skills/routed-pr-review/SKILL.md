@@ -202,7 +202,11 @@ which would let a change hide a file from its reviewer) **nor** `checkout-index`
 (it applies smudge filters, `ident` and eol conversion, so the reviewer would read
 bytes that are not the commit). Every exported file is re-hashed with
 `git hash-object --no-filters` and must equal its blob, or the run stops; the
-export is checked to contain every tracked path of the head. A symlink whose
+export is checked to contain every tracked path of the head. A pinned HEAD
+containing any gitlink (submodule entry), even unchanged in the PR, is rejected
+with exit 1 before reviewer dispatch or posting. The exporter does not fetch
+or materialize submodule content; existing retrieval of pinned head/base
+commits is unchanged. A symlink whose
 target is absolute or leaves the export is replaced by a text marker, so the
 reviewer can never follow it to a host file, and a link that sits on the path
 of another tracked entry (a malformed tree naming the same path twice) refuses
@@ -228,6 +232,7 @@ candidates for a later cycle rather than silently duplicated.
 bash skills/routed-pr-review/tests/contract.sh    # -v for failing-case detail
 python3 skills/routed-pr-review/tests/state-safety.py  # offline TTL/state safety regressions
 python3 skills/routed-pr-review/tests/enforcement-render.py  # Bash rendering + mocked dispatcher
+python3 skills/routed-pr-review/tests/gitlink-export.py  # refuse incomplete submodule exports
 python3 skills/routed-pr-review/tests/prompt-bytes.py  # reject NUL before review dispatch
 python3 skills/routed-pr-review/tests/final-pin.py  # late drift in every output mode
 ```
