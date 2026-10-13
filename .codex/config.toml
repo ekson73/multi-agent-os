@@ -9,11 +9,12 @@ web_search = "live"
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 
-# Remote transport, same as the user-scope standard: Codex merges project + user
-# config per key, so a stdio entry here collided with a remote user entry
-# ("url is not supported for stdio"). Keyless here; an API key header, if any,
-# comes from ~/.codex/config.toml [mcp_servers.context7.http_headers].
-[mcp_servers.context7]
+# Distinct name on purpose: Codex merges project and user config per key, so a
+# project `context7` entry collides with any user-scope `context7` entry of the
+# other transport ("url is not supported for stdio"), whether this one is stdio
+# or remote. Keyless remote baseline; a user's own `context7` entry (any
+# transport, with or without an API key header) keeps working alongside it.
+[mcp_servers.context7_baseline]
 url = "https://mcp.context7.com/mcp"
 
 [mcp_servers.exa]
