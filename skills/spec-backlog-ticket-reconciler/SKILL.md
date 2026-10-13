@@ -8,9 +8,12 @@ metadata:
   lifecycle-stage: operate
   cross_link_slug: spec-backlog-ticket-reconciler
   dogfood_status: pending-first-cycle
+  qualification: experimental-unqualified
 ---
 
 # Spec–backlog–ticket reconciler
+
+> **Experimental — not qualified.** The bundled [EVAL-REPORT](EVAL-REPORT.md) verdict is FLAG: relevant-query activation and correct instruction following (skill-writer checklist items 9–10) are not yet proven end-to-end. Treat outputs as plan-only proposals until a qualifying evaluation records a PASS; every write gate below still applies.
 
 ## §0 BEING > Rules
 

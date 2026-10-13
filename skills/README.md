@@ -91,7 +91,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `signoff` | `signoff/SKILL.md` | The operator's END-OF-SESSION SIGN-OFF (encerramento) verb — invoked when you are DONE and want the session closed out AND its pending work left disco |
 | `skill-writer` | `skill-writer/SKILL.md` | Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). |
 | `slm-routing` | `slm-routing/SKILL.md` | Declarative decision rubric for routing AI work between a small local language model (SLM) and a remote frontier LLM. |
-| `spec-backlog-ticket-reconciler` | `spec-backlog-ticket-reconciler/SKILL.md` | Reconcile actionable repository specifications with local backlog and GitHub, Jira, or Linear issues. |
+| `spec-backlog-ticket-reconciler` | `spec-backlog-ticket-reconciler/SKILL.md` | **Experimental, unqualified (see EVAL-REPORT).** Reconcile actionable repository specifications with local backlog and GitHub, Jira, or Linear issues. |
 | `sprint-carryover` | `sprint-carryover/SKILL.md` | Relocate stranded open backlog from past/closed sprints INTO the active sprint (dry-run default; MOVE is operator-gated; discovery composes work-compass). |
 | `status-map` | `status-map/SKILL.md` | Generate human-readable ASCII status visualizations for agent sessions |
 | `sync-to-git` | `sync-to-git/SKILL.md` | Git synchronization automation for AI agents with GitHub/Bitbucket support |
