@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# MAOS — verdict-at-head (reviewer verdicts bound to the CURRENT head commit)
+# Function: for one pull request, read EVERY review (paginated), keep the most
+#   recent review of each reviewer, and compare its FULL `commit_id` against the
+#   FULL `headRefOid`. A verdict issued against an older commit is STALE: it does
+#   not describe the code that would be merged. Also reads the head commit's
+#   status/check descriptions, because a reviewer bot that hit its usage quota
+#   can report `success` with the description "Review rate limited" — a green
+#   tick that carries NO verdict and must never count as convergence.
+# Why this script exists: "is every reviewer's verdict current?" is otherwise
+#   answered by reading `latestReviews`/`reviewDecision`, which keep surfacing a
+#   clean verdict from an earlier commit after a later push. This makes the check
+#   deterministic, fail-closed and jq-parseable.
+# Spec: rules/pr-governance-unified.md Step 7 ("Veredito vinculado ao head") —
+#   this script mechanizes the per-reviewer verdict part of that audit only; it does
+#   not replace reading review bodies and inline comments (Step 7 b/c).
+# Idempotency: read-only — only GET requests (`gh pr view`, `gh api`), no writes,
+#   no local state beyond a private temp dir removed on exit. Re-running is safe;
+#   the result changes only if the PR changes between runs.
+# Fail-closed: any API/parse failure exits 2 (never 0); an unverifiable reviewer
+#   (STALE, NONE, rate-limited, dismissed) exits 3. There is no `|| echo 0` path.
+# Portability: POSIX Bash 3.2 + jq + gh. No secrets: auth is whatever `gh` already
+#   has. No organization-specific content.
+# Exit codes: 0 CONVERGED · 3 BLOCKED (scriptable) · 2 usage / API / parse error.
+set -euo pipefail
+
+REPO=""; PR=""; PRIMARY=""; FORMAT="text"; FIXTURE_DIR=""
+
+usage() {
+  cat <<EOF
+MAOS verdict-at-head — are reviewer verdicts bound to the current head commit?
+
+Usage:
+  $(basename "$0") --repo OWNER/REPO --pr N [--primary LOGIN[,LOGIN...]] [--json]
+  $(basename "$0") --fixture-dir DIR [--primary ...] [--json]   # offline (tests)
+
+Options:
+  --repo OWNER/REPO    repository (live mode, read-only, uses \`gh\`)
+  --pr N               pull request number
+  --primary L1,L2      reviewers whose CURRENT verdict is required (case-insensitive,
+                       a trailing "[bot]" is optional). Without --primary, EVERY
+                       reviewer that left a review is treated as required.
+  --json               machine-readable output (default: text)
+  --fixture-dir DIR    read pr.json, reviews.json, status.json, checks.json from DIR
+                       instead of calling the API (checks.json optional)
+  --help
+
+Per reviewer (most recent submitted review):
+  status  CURRENT  review commit_id == headRefOid (full 40-char compare)
+          STALE    review is bound to another commit
+          NONE     a --primary reviewer with no review at all
+
+Verdict (all reasons are collected, not just the first):
+  BLOCKED  a required reviewer is STALE / NONE / DISMISSED / rate-limited,
+           OR any reviewer has an active CHANGES_REQUESTED (GitHub keeps it
+           blocking even after later COMMENTED reviews or newer pushes),
+           OR any head status/check describes a rate limit,
+           OR there is no required reviewer at all (nothing to converge on)
+  CONVERGED every required reviewer has an APPROVED/COMMENTED review at head
+
+Exit: 0 CONVERGED · 3 BLOCKED · 2 usage/API/parse error.
+EOF
+}
+
+die() { printf 'verdict-at-head: %s\n' "$1" >&2; exit 2; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --repo)        [ $# -ge 2 ] || die "--repo needs a value"; REPO="$2"; shift 2 ;;
+    --pr)          [ $# -ge 2 ] || die "--pr needs a value"; PR="$2"; shift 2 ;;
+    --primary)     [ $# -ge 2 ] || die "--primary needs a value"; PRIMARY="$2"; shift 2 ;;
+    --json)        FORMAT="json"; shift ;;
+    --fixture-dir) [ $# -ge 2 ] || die "--fixture-dir needs a value"; FIXTURE_DIR="$2"; shift 2 ;;
+    --help|-h)     usage; exit 0 ;;
+    *)             usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found"
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/verdict-at-head.XXXXXX")" || die "mktemp failed"
+trap 'rm -rf "$TMP"' EXIT
+
+if [ -n "$FIXTURE_DIR" ]; then
+  [ -d "$FIXTURE_DIR" ] || die "fixture dir not found: $FIXTURE_DIR"
+  for f in pr reviews status; do
+    [ -f "$FIXTURE_DIR/$f.json" ] || die "missing fixture: $FIXTURE_DIR/$f.json"
+    cp "$FIXTURE_DIR/$f.json" "$TMP/$f.json"
+  done
+  if [ -f "$FIXTURE_DIR/checks.json" ]; then cp "$FIXTURE_DIR/checks.json" "$TMP/checks.json"
+  else printf '[]' > "$TMP/checks.json"; fi
+  [ -n "$REPO" ] || REPO="fixture"
+  [ -n "$PR" ] || PR="0"
+else
+  [ -n "$REPO" ] || { usage >&2; die "--repo is required"; }
+  [ -n "$PR" ] || { usage >&2; die "--pr is required"; }
+  case "$REPO" in */*) ;; *) die "--repo must be OWNER/REPO" ;; esac
+  case "$PR" in ''|*[!0-9]*) die "--pr must be a number" ;; esac
+  command -v gh >/dev/null 2>&1 || die "gh not found"
+
+  gh pr view "$PR" --repo "$REPO" --json headRefOid > "$TMP/pr.json" \
+    || die "could not read PR head (gh pr view failed)"
+  HEAD_LIVE="$(jq -r '.headRefOid // empty' "$TMP/pr.json")" || die "could not parse PR head"
+  case "$HEAD_LIVE" in ''|*[!0-9a-f]*) die "invalid headRefOid: [$HEAD_LIVE]" ;; esac
+  # All pages, never the first 30 only (GitHub paginates reviews in 30s).
+  gh api --paginate --slurp "repos/$REPO/pulls/$PR/reviews?per_page=100" > "$TMP/reviews.json" \
+    || die "could not read reviews"
+  # Combined status carries the description (statusCheckRollup omits it); paginated:
+  # its `statuses` list is paged too, and a rate-limit description on page 2 must still block.
+  gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/status?per_page=100" > "$TMP/status.json" \
+    || die "could not read commit status"
+  gh api --paginate --slurp "repos/$REPO/commits/$HEAD_LIVE/check-runs?per_page=100" > "$TMP/checks.json" \
+    || die "could not read check runs"
+fi
+
+# Primary list as a JSON array (normalized: lowercase, trailing "[bot]" removed).
+PRIMARY_JSON="$(jq -nc --arg p "$PRIMARY" '$p | split(",") | map(ascii_downcase | gsub("^\\s+|\\s+$";"") | sub("\\[bot\\]$";"")) | map(select(length>0))')" \
+  || die "could not parse --primary"
+
+RESULT="$(jq -n \
+  --arg repo "$REPO" --arg pr "$PR" \
+  --argjson primary "$PRIMARY_JSON" \
+  --slurpfile prf "$TMP/pr.json" \
+  --slurpfile revf "$TMP/reviews.json" \
+  --slurpfile stf "$TMP/status.json" \
+  --slurpfile chf "$TMP/checks.json" '
+  def norm: ascii_downcase | sub("\\[bot\\]$";"");
+  def alnum: ascii_downcase | gsub("[^a-z0-9]";"");
+  # First word of a normalized name: the vendor token ("Qodo Merge" -> "qodo",
+  # "qodo-code-review[bot]" -> "qodo", "ci" -> "ci").
+  def vendor_token: norm | [scan("[a-z0-9]+")] | (.[0] // "");
+  # Explicit aliases where a reviewer login and its status context differ in the
+  # vendor word itself. Exact keys only; never a prefix rule.
+  def login_alias: {"coderabbitai": "coderabbit"}[.] // .;
+  # Attribution of a rate-limited status/check to a reviewer: full normalized
+  # equality, or equality of vendor tokens (alias applied). NEVER a prefix match
+  # ("ci" must not attribute to "cicero"); a shared non-first word (e.g. "code")
+  # does not count either.
+  def attributes_to($login):
+    (alnum) as $c | (vendor_token) as $ct
+    | ($login | alnum) as $l | ($login | vendor_token | login_alias) as $lt
+    | ($c | length) > 0 and ($c == $l or ($ct | length) > 0 and $ct == $lt);
+  # Accept a flat array, or an array of pages (gh --paginate --slurp).
+  def flatten_pages: if (type=="array" and length>0 and (.[0]|type)=="array") then add else . end;
+  def rate_limited_text: test("rate[ _-]?limit"; "i");
+
+  ($prf[0].headRefOid // "") as $head
+  | if ($head | test("^[0-9a-f]{40}$") | not) then error("invalid headRefOid") else . end
+  | ($revf[0] | flatten_pages
+      | map(select(.submitted_at != null and .state != "PENDING" and .user.login != null))) as $reviews
+  # Rate-limited signals on the head commit: statuses + check runs.
+  | ([ ($stf[0] | if type=="array" then (map(.statuses // []) | add // []) else (.statuses // []) end)[]
+        | select((.description // "") | rate_limited_text)
+        | {context: .context, state: .state, description: .description} ]
+     + [ ($chf[0] | flatten_pages
+          | if type=="object" then (.check_runs // []) else (map(.check_runs // []) | add // []) end)[]
+        | select(((.output.title // "") + " " + (.output.summary // "") + " " + (.output.text // "")) | rate_limited_text)
+        | {context: .name, state: (.conclusion // .status), description: (.output.title // "rate limited")} ]
+    ) as $rl
+  | ($reviews | group_by(.user.login | norm)) as $groups
+  | ([ $groups[]
+       | sort_by(.submitted_at, .id) as $g
+       | ($g | last) as $latest
+       | ([ $g[] | select(.state=="APPROVED" or .state=="CHANGES_REQUESTED" or .state=="DISMISSED") ] | last) as $dec
+       | ($latest.user.login | norm) as $login
+       | {
+           login: $login,
+           primary: (($primary | length) == 0 or ($primary | any(.[]; . == $login))),
+           state: $latest.state,
+           commit: $latest.commit_id,
+           status: (if $latest.commit_id == $head then "CURRENT" else "STALE" end),
+           decisive_state: ($dec.state // null),
+           changes_requested_active: (($dec.state // "") == "CHANGES_REQUESTED"),
+           rate_limited: ([ $rl[] | select(.context | attributes_to($login)) ] | length > 0)
+         } ]) as $seen
+  | ($seen | map(.login)) as $seen_logins
+  | ($seen + [ $primary[] | select(. as $p | ($seen_logins | any(.[]; . == $p)) | not)
+               | {login: ., primary: true, state: null, commit: null, status: "NONE",
+                  decisive_state: null, changes_requested_active: false, rate_limited: false} ]) as $all
+  | ($all | map(select(.primary))) as $req
+  | ([ ($req | if length == 0 then ["no-required-reviewer"] else [] end)[],
+       ($req[] | select(.status=="NONE")  | "none:" + .login),
+       ($req[] | select(.status=="STALE") | "stale:" + .login),
+       ($req[] | select(.status=="CURRENT" and .state=="DISMISSED") | "dismissed:" + .login),
+       ($req[] | select(.status=="CURRENT" and .state!="DISMISSED" and .state!="APPROVED" and .state!="COMMENTED" and .state!="CHANGES_REQUESTED") | "no-verdict-state:" + .login + ":" + (.state // "null")),
+       ($req[] | select(.rate_limited) | "rate-limited-reviewer:" + .login),
+       ($all[] | select(.changes_requested_active) | "changes-requested:" + .login),
+       ($rl[] | "rate-limited-check:" + .context)
+     ] | unique) as $reasons
+  | {
+      tool: "verdict-at-head",
+      repo: $repo, pr: ($pr | tonumber? // $pr), head: $head,
+      verdict: (if ($reasons | length) == 0 then "CONVERGED" else "BLOCKED" end),
+      reasons: $reasons,
+      reviewers: $all,
+      rate_limited: $rl,
+      summary: {
+        reviewers: ($all | length), required: ($req | length),
+        current: ($all | map(select(.status=="CURRENT")) | length),
+        stale: ($all | map(select(.status=="STALE")) | length),
+        none: ($all | map(select(.status=="NONE")) | length),
+        changes_requested_active: ($all | map(select(.changes_requested_active)) | length),
+        rate_limited_signals: ($rl | length)
+      }
+    }
+')" || die "could not evaluate verdicts (malformed API data?)"
+
+# Live mode: the head must not move while we read. If it did, nothing above
+# describes the commit that would be merged — that is BLOCKED, never CONVERGED.
+if [ -z "$FIXTURE_DIR" ]; then
+  HEAD_NOW="$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)" \
+    || die "could not re-read PR head"
+  if [ "$HEAD_NOW" != "$HEAD_LIVE" ]; then
+    RESULT="$(printf '%s' "$RESULT" | jq --arg now "$HEAD_NOW" \
+      '.verdict="BLOCKED" | .reasons = ((.reasons + ["head-moved:" + $now]) | unique)')" \
+      || die "could not record head move"
+  fi
+fi
+
+VERDICT="$(printf '%s' "$RESULT" | jq -r '.verdict')" || die "could not read verdict"
+
+if [ "$FORMAT" = "json" ]; then
+  printf '%s\n' "$RESULT"
+else
+  printf '%s' "$RESULT" | jq -r '
+    "verdict-at-head  \(.repo)#\(.pr)  head \(.head)",
+    "verdict: \(.verdict)",
+    (.reviewers[] | "  \(if .primary then "*" else " " end) \(.login)  \(.status)  \(.state // "-")  \((.commit // "-")[0:12])\(if .changes_requested_active then "  CHANGES_REQUESTED-active" else "" end)\(if .rate_limited then "  rate-limited" else "" end)"),
+    (.rate_limited[] | "  ! rate limited: \(.context) [\(.state)] \(.description)"),
+    (if (.reasons|length) > 0 then "reasons: " + (.reasons | join(", ")) else empty end),
+    "(* = required reviewer)"'
+fi
+
+case "$VERDICT" in
+  CONVERGED) exit 0 ;;
+  BLOCKED)   exit 3 ;;
+  *)         die "unexpected verdict: $VERDICT" ;;
+esac

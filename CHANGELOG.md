@@ -7,6 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — ticket-first traceability (#484)
+
+- Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
+- Preflight searches/reuses or creates in an authorized destination before implementation;
+  outages retain a durable pending-ticket outbox, never a public-provider fallback.
+- Postflight reconciles pending records and carries unresolved work into handoff without
+  blocking safe exit. Existing provider schemas and batching remain canonical.
+- Add static regression contract tests to the plugin validator, align the command entry
+  point, and bind durable deferral to existing authorized claude-mem work state with indexed
+  cold recovery and an isolated installed-source smoke test. Missing/failed storage is
+  explicitly unsupported for durable deferral, not success. No changed seed fields,
+  new storage, dependencies, network hooks or global installation.
+
+### Added — `person-agent-creator` and the first three person-agents
+
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
+  five classes (living public figure, historical figure, fictional or archetypal character, collective,
+  non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
+  as an authority, a gate or a substitute for an independent reviewer (every charter carries a
+  "consultative lens, not an authority" paragraph). DRY recon,
+  sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
+  five-lens synthesis, charter template, and a deterministic lint floor
+  (`scripts/lint-person-agent.sh`, 201 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails, and so do a heading or Fidelity row containing `<!--` and a setext or HTML heading in *Known limits*; nothing to check is a failure, and every occurrence is read (one `Source ids` column and one header row in the Fidelity table, one `Class basis:` line, autolinks and bare URLs removed whole, Fidelity rows closed by a pipe and free of escaped pipes); the lint is frozen as a floor by a stop rule, and obfuscation variants are known limits. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
+  source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
+  expand only up to the highest dossier id), every `## ` section of the
+  charter template (read from the template at run time) (including *Revalidation*) and one fidelity table inside `## Fidelity` with a `Source ids` column, unfilled placeholders, a source
+  marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
+  non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
+  role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
+  citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
+  ignored, and headings there do not count as sections; fences and comments exclude each other as in a
+  renderer, and inline code never opens either. It runs with `LC_ALL=C`, checks the exit status of every
+  tool it calls and treats any tool error as a failure (proved by breaking `sed`, `head`, `cut`,
+  `dirname`, `grep` and `awk` in the fixtures). Out of scope (listed in the skill): other languages, third-person
+  endorsement, obfuscated text, single-quoted spans. It does not validate personification or
+  endorsement semantically: every run prints a warning and
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
+  (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
+  preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
+  current head; adversarial escapes become new lint fixtures. In a host that cannot delegate, the panel
+  lenses run as sequential passes recorded as `panel: sequential-single-author`; that is grade `self`,
+  which never clears the gate on its own. When the subject's company makes the
+  reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
+  Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
+  Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
+  (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
+- Elevated in place to v2.0.0 person-agents, each with a dossier under
+  `skills/person-agent-creator/dossiers/`: `consultants/elon-musk`, `consultants/sam-altman`,
+  `consultants/amodei-siblings` (collective mind).
+
+### Fixed — unsourced quotes in three consultant archetypes
+
+- The v1.0.0 headline quotes of `sam-altman` and `amodei-siblings` were not found in any source checked
+  and were removed; `elon-musk`'s was not verified against a primary transcript and is now a labeled
+  paraphrase. Replacements are verbatim lines from the subjects' own writing, with sources.
+
+### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
+
+- New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
+  Reads every review (paginated, all pages), keeps each reviewer's most recent
+  review, and compares its full `commit_id` with the full `headRefOid` —
+  `CURRENT` / `STALE` / `NONE`. A clean verdict issued on an older commit is the
+  classic trap of `latestReviews`/`reviewDecision`; this makes it a deterministic
+  check. Also reads the head commit's status and check-run descriptions: a
+  reviewer bot that hit its quota can report `success` with "Review rate
+  limited" — no verdict, never convergence. An active `CHANGES_REQUESTED` blocks
+  even after later `COMMENTED` reviews (matches GitHub). The head is re-read at
+  the end; a push during the read blocks.
+- Exit `0` CONVERGED · `3` BLOCKED · `2` usage/API/parse error (fail-closed, never `0`).
+- Tests: `bin/tests/verdict-at-head.test.sh` (52 assertions, offline fixtures:
+  stale approval, 12-char-prefix collision, stale vs superseded
+  `CHANGES_REQUESTED`, rate-limited `success`, >30 reviews across pages,
+  force-push, `--primary` NONE, malformed input, paged statuses, unknown
+  review state, rate limit in `output.text`, literal regex).
+- Documented in `rules/pr-governance-unified.md` Step 7 + Tools Reference.
+- Rate-limit attribution to a reviewer uses normalized equality or vendor-token
+  equality (plus an exact alias table) — never a prefix: context `ci` no longer
+  marks reviewer `cicero`, and `Qodo Merge` now attributes to `qodo[bot]`. The
+  verdict itself was already fail-safe (any rate-limit signal blocks).
+- Script header cites its spec (Step 7) and states idempotency (read-only);
+  the test suite fails fast on any fixture/setup failure (no `set -e`, because
+  every case captures a non-zero exit of the script under test).
+
+### Fixed — gitleaks false-negative: entropy on value, not match (follow-up to #433)
+
+- `.gitleaks.toml` (v1.1.0 -> v1.3.0) — the `vek-db-password` and `vek-jwt-secret`
+  rules evaluated `entropy` against the **whole `name=value` match**, so the
+  variable name diluted the score and a weak real credential slipped under the
+  threshold (`entropy=3.5`/`3.0`). Measured: **0 of 5** weak credentials
+  (a `DB_PASSWORD` set to a common dictionary word, etc.) were detected. Both
+  rules now capture the **value** in group 1 via `secretGroup = 1` and carry
+  **no entropy floor at all**. An entropy floor is a false-negative in disguise:
+  even a low floor of 2.0 drops a non-repeat weak secret such as `abababab`
+  (Shannon entropy 1.0), while — measured on this repo's full history — removing
+  the floor adds **zero** false positives, because the value char class already
+  excludes code/template punctuation. Entropy measures randomness, not intent,
+  and placeholders and weak passwords occupy the **same** band (a `password123`
+  token at 3.278 outscores a real `Passw0rd` at 2.750), so the split is: recall
+  in the rule, precision in the allowlist — never an entropy threshold.
+- The `vek-db-password` value char class also excludes shell/template/code
+  punctuation (`$ { } ( ) , .`) so the rule matches a literal `KEY=secret` but
+  no longer false-positives on code that *reads* a secret (`os.getenv(`,
+  `os.getcwd()`, `${DB_PASS}`). Trade: a password containing a dot is not
+  matched — accepted, because every code-reference false-positive vanishes.
+- A rule-scoped `[rules.allowlist]` exempts three documented non-credentials by
+  form or exact path: the AWS Secrets Manager **reference URI** shape, tested
+  against the extracted value (`regexTarget = "secret"`) and **anchored `^…$`**
+  so a real password that merely *ends* in such a URI is not swallowed; plus a
+  CI build-log capture and a test fixture, each **path-anchored (`$`)** so a
+  suffixed sibling (`…​.bak`) stays scanned. It is deliberately **not** a broad
+  `docs/insights/` path allowlist, because a sibling doc still holds a real
+  credential that must keep firing.
+- `tests/test-gitleaks-config.sh` (new) — a TDD contract for the config, run
+  against the real gitleaks binary: a **canary** (an armed fixture yielding 0
+  findings fails the test — the gate must never be decorative), recall on weak
+  real credentials, a **no-entropy-floor** assertion (low-entropy credentials
+  still fire), precision on documented placeholders, an anti-over-suppression
+  trap (a real secret glued to a placeholder still fires), and an AWS-URI
+  anti-substring-bypass pair. The helper fails hard on a scanner error (never
+  masking a crash as zero findings), compares the **complete** extracted secret
+  (no prefix free-riding), cleans fixtures via an `EXIT`/`RETURN` trap, and
+  treats a missing `gitleaks` binary as a failure, not a skip. Full-history
+  findings dropped from 93 to the residue that is a **genuine** credential
+  requiring rotation.
+
+### Added — `live-session-continuity-recovery` skill
+
+- `skills/live-session-continuity-recovery/SKILL.md` reconstructs the exact active thread with source-coverage and freshness attestation, correction-aware claim provenance, explicit-versus-inferred goals, bounded review, and one read-only OODA next action or HITL. It composes adjacent skills without a transcript parser, write-capable default, automatic session enumeration, or new adapter.
+- Training refinement: seven items / 1,800 characters are best-effort targets, not a hard cap (live output reached 1,975; manual correction reached 1,455). Count before sending where the host permits without persistence; preserve blocker status, report overflow, and label expanded reviews rather than omit material facts. Internal session handles remain private; only currently authorized non-sensitive record labels may disambiguate status, and the next action stays atomic.
+- Training refinement: evidence-gated objective qualifiers, steps/feedback, and read-only peer-WIP boundaries without changing the canonical hierarchy.
+
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 
 - `harnesses/<id>.yaml` (new, 38 files) + `harnesses/README.md` (registry contract v1): data-only
@@ -146,6 +278,47 @@ affected: `agentic-session-harness`, `bot-finding-arbiter`,
   removed. On a clean `npm install <tgz>`, all 15 helpers exit 0 on `--help` or a real
   invocation, and `gitleaks detect --no-git` over the extracted tarball finds no leaks.
 - No contract change for the Claude plugin, which already ships the whole repository.
+
+### Added — roadmap-tree-projector (durable roadmap N-Tree from a graph SSOT)
+
+Jira/ADR/OpenSpec/Linear store the roadmap NODES (content) but nothing stored the
+dependency EDGES between them, the computed graph STATUS, or the analysis LENSES
+(SWOT/RACI/Eisenhower/DoR/DoD) — so every recap re-drew them in prose that dies on
+context compaction. This adds the missing SSOT + its projector, forged via
+`agentic-tool-forge` (type=skill+command):
+
+- `orchestration/roadmap.yaml` — durable, versioned graph SSOT. Nodes carry
+  POINTERS (`ref:` — Jira key · PR# · session-key), never copied content (DRY).
+  Seed ships GENERIC/REDACTED examples (public repo — privacy guard).
+- `skills/roadmap-tree-projector/` — HYBRID skill: a deterministic
+  `scripts/project_roadmap.py` (self-locate → validate → cycle-detect → topo-sort
+  → render tree + lens; non-zero exit on FAIL, CI-gateable) + a cognitive layer
+  (classify ambiguous status, suggest missing edges). WORLD-AWARE: resolves each
+  node's ticket-manager/home by its world; never writes orchestration into a
+  client repo. Follows `eko-executable-scripts`. 32 tests green
+  (`scripts/test_project_roadmap.py`).
+
+### Fixed — roadmap-tree-projector review round (PR #439)
+
+Addresses coderabbit/copilot/codex threads before merge. P1 (silent-wrong):
+validate `parents` so a typo'd parent errors instead of silently dropping the
+node; fold measured status into the `--json` envelope (`effective_status`);
+non-zero exit on unknown `--lens`/bad parent so CI cannot read success on a
+broken projection; correct the parse contract (PyYAML required, no faked
+fallback — anti-theater); route the status probe by `ref.manager` with the
+node's world as the default. P2: reject duplicate YAML keys (PyYAML last-wins
+→ hard stop); require node `title`; list `roadmap-tree-projector` in
+`skills/README.md`. A second re-review round (the rebase re-triggered a full
+review) added: parent-hierarchy CYCLE detection (an edge-only cycle check let a
+`parents` cycle pass `--check` then RecursionError at render); `resolve_probe_manager`
+now reads the roadmap's OWN `worlds.<name>.ticket_manager` so an added/extended
+world routes correctly instead of emitting `null`; a non-list `nodes` / non-mapping
+node is now a clean validation error (was an uncaught traceback with no JSON
+failure envelope); dependency EDGES are rendered explicitly in the human view
+(were only folded into the topo order); the Jira probe uses the positional
+`acli jira workitem view <KEY>` (the `--key` flag does not exist) and the GitHub
+probe passes `-R <ref.repo>`. Tests 11 → 24 → 32.
+- `commands/roadmap-tree.md` — the `/roadmap-tree` human entry point.
 
 ### Fixed — Step 9 resolve o metodo de merge; Step 12 deixa de destruir trabalho
 
