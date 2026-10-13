@@ -102,7 +102,7 @@ Each item below is a reviewed, T3 configuration change. Show the diff before you
 
 - **Claude MCP approvals: scope each one to the seat's reviewed cwd. Never approve by name at user scope.**
   Approval settings identify a server only by its *name*. An `enabledMcpjsonServers` entry in user
-  `~/.claude/settings.json` would approve that name in every repository, including an untrusted one that
+  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json` would approve that name in every repository, including an untrusted one that
   binds the same name to a different command. That is trust by name alone (guardrail 4). So:
   - *allow*: after reading the command of that `.mcp.json` entry, put the exact name in
     `enabledMcpjsonServers` of the **seat cwd's untracked** `.claude/settings.local.json`. It applies only to
