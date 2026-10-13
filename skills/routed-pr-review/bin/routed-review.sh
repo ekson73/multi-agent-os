@@ -1030,6 +1030,7 @@ arm_sandbox_prefix() {
 
 run_reviewer() {
   local h="$1" rc=0 dir="$2"
+  build_reviewer_env "$h"
   case "$h" in
     claude)   # proven: cross-harness-red-team (claude-code 2.1.235)
       # ⛔ `--add-dir` GRANTS access to a directory; it does NOT move the working
@@ -1090,29 +1091,35 @@ reset_isolation() {  # before trying another candidate: a fresh export + profile
 #    after: any change aborts the run as an isolation violation and the
 #    pre-run bytes are restored. Detection is the floor where prevention is
 #    not available (os-perms-only, vendor CLIs).
-# The reviewer environment is an ALLOWLIST, not "everything minus a few":
-# base process vars, proxy/locale, and the reviewer vendors' own credential
-# prefixes. Everything else — repo tokens (GH_*/GITHUB_*), cloud keys, and the
-# ROUTED_REVIEW_* control vars — is dropped. ROUTED_REVIEW_ENV_ALLOW adds
-# explicit names (e.g. a vendor var outside the prefixes below); ROUTED_REVIEW_*
-# can never be re-admitted.
+# Rebuild a closed allowlist immediately before EACH effective candidate,
+# including fallback. Unknown/multi-provider adapters receive no auth keys.
+# ROUTED_REVIEW_ENV_ALLOW is intentionally ignored, including arbitrary names.
 REVIEWER_ENV=(env -i)
-_env_allowed() {
+_env_allowed() {  # $1=name, $2=effective candidate; no ambiguous-provider credentials
   case "$1" in
     ROUTED_REVIEW_*) return 1 ;;
     PATH|HOME|USER|LOGNAME|SHELL|TERM|LANG|TMPDIR|TZ|COLORTERM|NO_COLOR) return 0 ;;
-    LC_*|XDG_*|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy) return 0 ;;
-    ANTHROPIC_*|CLAUDE_*|OPENAI_*|CODEX_*|GEMINI_*|GOOGLE_*|MOONSHOT_*|KIMI_*) return 0 ;;
-    DASHSCOPE_*|QWEN_*|XAI_*|GROK_*|OPENROUTER_*|OPENCODE_*|KIRO_*|JCODE_*) return 0 ;;
+    LC_*|HTTP_PROXY|HTTPS_PROXY|NO_PROXY|http_proxy|https_proxy|no_proxy) return 0 ;;
   esac
-  case " ${ROUTED_REVIEW_ENV_ALLOW:-} " in *" $1 "*) return 0 ;; esac
+  # Exact auth names, not vendor-wide prefixes (which also carry config/code).
+  case "$2:$1" in
+    claude:ANTHROPIC_API_KEY|claude:ANTHROPIC_AUTH_TOKEN|codex:OPENAI_API_KEY|\
+    gemini:GEMINI_API_KEY|gemini:GOOGLE_API_KEY|kimi:MOONSHOT_API_KEY|\
+    qwen:DASHSCOPE_API_KEY|grok:XAI_API_KEY) return 0 ;;
+  esac
+  # No arbitrary ENV_ALLOW escape hatch: a harmless-looking name can still
+  # contain a credential. Only the static base and effective candidate pass.
   return 1
 }
-while IFS= read -r _v; do
-  printf '%s' "$_v" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || continue
-  _env_allowed "$_v" && REVIEWER_ENV+=("$_v=${!_v}")
-done < <(compgen -e)
-unset _v
+build_reviewer_env() {
+  local candidate="$1" name
+  REVIEWER_ENV=(env -i)
+  while IFS= read -r name; do
+    printf '%s' "$name" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$' || continue
+    _env_allowed "$name" "$candidate" && REVIEWER_ENV+=("$name=${!name}")
+  done < <(compgen -e)
+  return 0
+}
 unset ROUTED_REVIEW_STATE ROUTED_REVIEW_BROKEN_TTL_SEC ROUTED_REVIEW_CALLER ROUTED_REVIEW_ENV_ALLOW
 STATE_DIR="$(dirname "$STATE_FILE")"; mkdir -p "$STATE_DIR" 2>/dev/null || true
 # State integrity = digest before dispatch vs digest after. There is NO

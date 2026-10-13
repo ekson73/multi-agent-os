@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: isolate candidate credentials (#413, #414)
+
+- Rebuild a closed environment for each effective reviewer and fallback. Pass only exact auth variables for that candidate, never another provider's credentials; unknown/multi-provider adapters get none. Ignore `ROUTED_REVIEW_ENV_ALLOW`, including innocent-looking arbitrary names, as a deliberate security tightening. Vendor configuration prefixes and XDG overrides are no longer forwarded. This does not certify adapter filesystem/process/network isolation.
+- Contract mocks now load synthetic controls from disposable fixture files, not a production allowlist bypass. Add offline candidate/fallback/unknown/multi/arbitrary-name canary regressions.
+
 ### Fixed — `routed-pr-review`: reject incomplete gitlink exports (#413, #414)
 
 - Refuse any gitlink in the pinned HEAD with exit 1 before reviewer dispatch or posting, instead of silently omitting it from the export and completeness count. This also covers unchanged submodules. This change adds no submodule fetching or materialization. Add offline added/changed/unchanged, missing-object, nested/spaced-path and no-post regressions.
