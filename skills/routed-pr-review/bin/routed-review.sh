@@ -43,7 +43,7 @@ usage() {
 Usage: routed-review.sh --pr N [options]
 
   --pr N              PR number (required)
-  --repo OWNER/NAME   default: current repo via gh
+  --repo [HOST/]OWNER/NAME  default: current repo via gh
   --reviewer NAME     auto (default) | claude | codex | gemini | kimi | qwen
                       | grok | pi | copilot | jcode | opencode | kiro-cli
   --primary L1,L2     the CONFIGURED primary reviewers (bot logins) of this repo.
@@ -117,8 +117,31 @@ elif command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD=gtimeout
 else die "timeout not found (neither timeout nor gtimeout) — required to bound every reviewer dispatch (brew install coreutils)"; fi
 [ "$TIMEOUT" -ge 500 ] 2>/dev/null || { log "[warn] raising --timeout $TIMEOUT -> 500 (measured floor)"; TIMEOUT=500; }
 
-[ -n "$REPO" ] || REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" \
-  || die "could not resolve repo; pass --repo OWNER/NAME"
+# gh accepts [HOST/]OWNER/REPO; REST endpoints require only OWNER/REPO.
+# Keep identity components separate so all metadata, API and fetch calls agree.
+normalize_repo() {
+  local owner name
+  case "$REPO" in
+    */*/*) REPO_HOST="${REPO%%/*}"; REPO_PATH="${REPO#*/}" ;;
+    */*) REPO_HOST="${GH_HOST:-github.com}"; REPO_PATH="$REPO" ;;
+    *) return 1 ;;
+  esac
+  # Shell patterns inspect the entire value; grep anchors are line-oriented.
+  case "$REPO_HOST/$REPO_PATH" in *[[:space:][:cntrl:]]*) return 1 ;; esac
+  printf '%s' "$REPO_HOST" | grep -qE '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$' || return 1
+  case "$REPO_HOST" in *..*|*.-*|*-.*) return 1 ;; esac
+  owner="${REPO_PATH%%/*}"; name="${REPO_PATH#*/}"
+  printf '%s' "$owner" | grep -qE '^[A-Za-z0-9][A-Za-z0-9-]*$' || return 1
+  printf '%s' "$name" | grep -qE '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' || return 1
+  REPO_HOST="$(printf '%s' "$REPO_HOST" | tr '[:upper:]' '[:lower:]')"
+  REPO="$REPO_HOST/$REPO_PATH"
+  REPO_FETCH_URL="https://$REPO_HOST/$REPO_PATH.git"
+}
+if [ -z "$REPO" ]; then
+  _repo_url="$(gh repo view --json url -q .url 2>/dev/null)" || die "could not resolve repo; pass --repo [HOST/]OWNER/NAME"
+  case "$_repo_url" in https://*) REPO="${_repo_url#https://}" ;; *) die "invalid repository URL" ;; esac
+fi
+normalize_repo || die "invalid repository identity; expected [HOST/]OWNER/NAME"
 
 # ---------------------------------------------------------------- Phase A: PR
 log "[A] resolving $REPO#$PR"
@@ -193,7 +216,7 @@ compute_primaries() {
 local history projection
 CHANGES_REQ=unknown
 projection='[]'
-if history="$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" 2>/dev/null)"; then
+if history="$(gh api --hostname "$REPO_HOST" --paginate "repos/$REPO_PATH/pulls/$PR/reviews?per_page=100" 2>/dev/null)"; then
   projection="$(printf '%s' "$history" | jq -sce '
     def epoch: .submitted_at as $s | try ($s | fromdateiso8601 | if todateiso8601 == $s then . else null end) catch null;
     def valid: type == "object"
@@ -543,9 +566,9 @@ DIFF_F="$WORK/diff.patch"; PROMPT_F="$WORK/prompt.md"; OUT_F="$WORK/review.txt"
 # can. Same semantics as a pull-request diff: merge-base(base, head)..head.
 ensure_commit() {  # $1 = sha, $2 = fallback refspec ; 0 = the commit is local
   git cat-file -e "$1^{commit}" 2>/dev/null && return 0
-  [ -n "$2" ] && git fetch --quiet --no-tags "https://github.com/$REPO.git" "$2" 2>/dev/null
+  [ -n "$2" ] && git fetch --quiet --no-tags "$REPO_FETCH_URL" "$2" 2>/dev/null
   git cat-file -e "$1^{commit}" 2>/dev/null && return 0
-  git fetch --quiet --no-tags "https://github.com/$REPO.git" "$1" 2>/dev/null
+  git fetch --quiet --no-tags "$REPO_FETCH_URL" "$1" 2>/dev/null
   git cat-file -e "$1^{commit}" 2>/dev/null
 }
 build_pinned_diff() {  # writes the pinned diff to $DIFF_F
@@ -809,7 +832,7 @@ build_readonly_export() {
   # Fetch from the repository --repo names, not whatever `origin` happens to
   # be: invoked from an unrelated checkout, `origin` is a different repo.
   git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null \
-    || git fetch "https://github.com/$REPO.git" "pull/$PR/head" --quiet 2>/dev/null \
+    || git fetch "$REPO_FETCH_URL" "pull/$PR/head" --quiet 2>/dev/null \
     || die "head $HEAD_SHA not fetchable from $REPO — cannot build a read-only export"
   git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null \
     || die "head $HEAD_SHA still absent after fetch"
@@ -1303,10 +1326,10 @@ fi
 repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none seen · 2 = probe failed
   local data pulls number history out page
   local -a pages=()
-  data="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null)" || return 2
-  history="$(gh api --paginate "repos/$REPO/pulls/comments?per_page=100" 2>/dev/null)" || return 2
+  data="$(gh api --hostname "$REPO_HOST" --paginate "repos/$REPO_PATH/issues/comments?per_page=100" 2>/dev/null)" || return 2
+  history="$(gh api --hostname "$REPO_HOST" --paginate "repos/$REPO_PATH/pulls/comments?per_page=100" 2>/dev/null)" || return 2
   pages+=("$data" "$history")
-  pulls="$(gh api --paginate "repos/$REPO/pulls?state=all&per_page=100" 2>/dev/null)" || return 2
+  pulls="$(gh api --hostname "$REPO_HOST" --paginate "repos/$REPO_PATH/pulls?state=all&per_page=100" 2>/dev/null)" || return 2
   pulls="$(printf '%s' "$pulls" | jq -ser '
     if length > 0 and all(.[]; type == "array" and all(.[];
       type == "object" and (.number | type == "number" and . > 0 and floor == .)))
@@ -1315,7 +1338,7 @@ repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none s
   # including closed ones; silence in a bounded first page proves nothing.
   while IFS= read -r number; do
     [ -n "$number" ] || continue
-    history="$(gh api --paginate "repos/$REPO/pulls/$number/reviews?per_page=100" 2>/dev/null)" || return 2
+    history="$(gh api --hostname "$REPO_HOST" --paginate "repos/$REPO_PATH/pulls/$number/reviews?per_page=100" 2>/dev/null)" || return 2
     pages+=("$history")
   done <<< "$pulls"
   # Validate EACH endpoint receipt before concatenation: an empty successful
