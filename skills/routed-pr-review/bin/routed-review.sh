@@ -188,7 +188,45 @@ fi
 # Computes every primary-derived variable from $PR_JSON. Called in Phase B and
 # again in Phase E, so an approval withdrawn during the review is seen.
 compute_primaries() {
-PRIMARY_STATE="$(printf '%s' "$PR_JSON" | jq -r --arg head "$HEAD_SHA" --arg re "$PRIMARY_RE" '
+# REST history is the source of truth, not GraphQL's cached latestReviews.
+# A failed later page invalidates the entire receipt, including earlier pages.
+local history projection
+CHANGES_REQ=unknown
+projection='[]'
+if history="$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" 2>/dev/null)"; then
+  projection="$(printf '%s' "$history" | jq -sce '
+    def epoch: .submitted_at as $s | try ($s | fromdateiso8601 | if todateiso8601 == $s then . else null end) catch null;
+    def valid: type == "object"
+      and (.state | IN("APPROVED","CHANGES_REQUESTED","DISMISSED","COMMENTED","PENDING"))
+      and (.user.login | type == "string" and length > 0)
+      and (if .state == "PENDING" then true else
+        (.commit_id | type == "string" and test("^[0-9a-f]{40}$"))
+        and (.submitted_at | type == "string" and test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
+        and (epoch | type == "number") end);
+    if length > 0 and all(.[]; type == "array" and all(.[]; valid))
+    then [.[][] | select(.state != "PENDING")]
+    else error("incomplete review history") end' 2>/dev/null)" || projection='null'
+  if [ "$projection" != null ]; then
+    CHANGES_REQ="$(printf '%s' "$projection" | jq -r '
+      [.[] | select(.state | IN("APPROVED","CHANGES_REQUESTED","DISMISSED"))]
+      | group_by(.user.login | ascii_downcase)
+      | map((map(.submitted_at | fromdateiso8601) | max) as $last
+          | [.[] | select((.submitted_at | fromdateiso8601) == $last)])
+      | if any(.[][]; .state == "CHANGES_REQUESTED") then "yes" else "no" end')"
+    # Preserve ties conservatively: approval cannot hide a simultaneous withdrawal.
+    projection="$(printf '%s' "$projection" | jq -c '
+      group_by(.user.login | ascii_downcase)
+      | map((map(.submitted_at | fromdateiso8601) | max) as $last
+          | [.[] | select((.submitted_at | fromdateiso8601) == $last)]
+          | sort_by(.state == "APPROVED") | first
+          | {author: {login: .user.login}, commit: {oid: .commit_id}, state})')"
+  fi
+fi
+[ "$CHANGES_REQ" != unknown ] || projection='[]'
+local evidence_json
+# Keep metadata comments informational; they can hold, but never grant approval.
+evidence_json="$(printf '%s' "$PR_JSON" | jq --argjson reviews "$projection" '.latestReviews = $reviews')"
+PRIMARY_STATE="$(printf '%s' "$evidence_json" | jq -r --arg head "$HEAD_SHA" --arg re "$PRIMARY_RE" '
   ([.latestReviews[]? | select(.author.login | test($re; "i"))
      | {who: .author.login, sha: (.commit.oid // ""), verdict: .state}]) as $rv
   | ([.latestReviews[]? | select(.author.login | test($re; "i") | not)
@@ -230,63 +268,7 @@ if [ -n "$PRIMARIES" ]; then
     | [$want | split(",")[] | select((norm) as $w | ($ok | index($w)) | not)] | join(",")')"
 fi
 HUMAN_REVIEWS="$(printf '%s' "$PRIMARY_STATE" | jq -r '.human_reviews | join(",")')"
-# ⛔ An active CHANGES_REQUESTED from ANY reviewer — human or bot, any head —
-# blocks. `reviewDecision` alone misses one when the branch rules do not count
-# that reviewer, and humans are otherwise reduced to names above.
-# ⛔ `latestReviews` keeps only each reviewer's LAST review, so a change request
-# followed by a COMMENTED vanishes from it while it is still active. The full
-# history is read and each reviewer's last DECISIVE state (APPROVED,
-# CHANGES_REQUESTED, DISMISSED) is kept. Unreadable history blocks.
-# ⛔ `latestReviews` that is not an array is not "no reviews" — it is an answer
-# that cannot be read, and the gate cannot clear on it.
-CHANGES_REQ="$(printf '%s' "$PR_JSON" | jq -r 'if (.latestReviews | type) != "array" then "unknown"
-  elif (.reviewDecision == "CHANGES_REQUESTED")
-    or ([.latestReviews[]? | select(.state == "CHANGES_REQUESTED")] | length > 0)
-  then "yes" else "no" end' 2>/dev/null)" || CHANGES_REQ="unknown"
-[ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
-if [ "$CHANGES_REQ" = no ]; then
-  if _hist="$(gh api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" 2>/dev/null)" && [ -n "$_hist" ]; then
-    # ⛔ Shape first, then the verdict. `null` or `{}` used to iterate to zero
-    # reviews and read as "no change request" — an unreadable answer counted as
-    # a clean one. Every page must be an array of objects with a string
-    # `state`, and every DECISIVE review must name its author and its time;
-    # anything else is UNKNOWN, which blocks.
-    # ⛔ ALLOW-list, not deny-list: a state outside the five GitHub documents
-    # (`CHANGES_REQUESTED_V2`, `""`) is not a review that can be ignored, it is
-    # an answer that cannot be read. A decisive review must carry a REAL
-    # ISO-8601 UTC `submitted_at` in GitHub's whole-second form: it must parse
-    # AND print back byte-identical (`2026-99-99T99:99:99Z` and `2026-11-31…`
-    # fail). Order is by epoch SECONDS, never by string: `…00Z` sorts after
-    # `…00.5Z` as text, and an arbitrary string sorts after every real date —
-    # either would let a malformed APPROVED shadow a real CHANGES_REQUESTED.
-    # Fractional seconds are not GitHub's format: UNKNOWN, which blocks.
-    # ⛔ Ties fail closed: when a reviewer's latest decisive reviews share one
-    # epoch second and any of them is CHANGES_REQUESTED, the change request
-    # wins — the order between them cannot be proven.
-    CHANGES_REQ="$(printf '%s' "$_hist" | jq -s -r '
-      def decisive: .state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "DISMISSED";
-      def known: decisive or .state == "COMMENTED" or .state == "PENDING";
-      def epoch: .submitted_at as $s
-               | try ($s | fromdateiso8601 | if todateiso8601 == $s then . else null end) catch null;
-      def iso: (.submitted_at | type) == "string"
-               and (.submitted_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"))
-               and (epoch | type) == "number";
-      if (length > 0) and all(.[]; type == "array"
-            and all(.[]; type == "object" and (.state | type) == "string" and known
-                    and ((decisive | not)
-                         or (((.user | type) == "object") and ((.user.login | type) == "string")
-                             and iso))))
-      then
-        [.[][] | select(decisive)]
-        | group_by(.user.login)
-        | map((map(epoch) | max) as $last | [.[] | select(epoch == $last) | .state])
-        | if any(.[]; any(.[]; . == "CHANGES_REQUESTED")) then "yes" else "no" end
-      else "unknown" end' 2>/dev/null)" || CHANGES_REQ="unknown"
-    [ -n "$CHANGES_REQ" ] || CHANGES_REQ="unknown"
-  else
-    CHANGES_REQ="unknown"
-  fi
-fi
+
 }
 compute_primaries
 
@@ -1319,16 +1301,39 @@ fi
 # attestation (a bot demonstrably spoke ⇒ the attestation is wrong, and wrong
 # loudly), but it can never grant one.
 repo_reviewer_seen() {   # 0 = a known bot has demonstrably spoken · 1 = none seen · 2 = probe failed
-  local out
-  # Bots speak in issue comments AND in review comments; probe both.
-  local ic pc
-  ic="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null)" || return 2
-  pc="$(gh api --paginate "repos/$REPO/pulls/comments?per_page=100" 2>/dev/null)" || return 2
-  out="$(printf '%s\n%s\n' "$ic" "$pc" \
-        | jq -s --arg re "$KNOWN_BOTS_RE" \
-            '[.[][]? | select(.user.login | test($re; "i")) | .user.login] | unique | length' 2>/dev/null)" || return 2
-  [ -n "$out" ] || return 2
-  [ "$out" -gt 0 ] 2>/dev/null && return 0 || return 1
+  local data pulls number history out page
+  local -a pages=()
+  data="$(gh api --paginate "repos/$REPO/issues/comments?per_page=100" 2>/dev/null)" || return 2
+  history="$(gh api --paginate "repos/$REPO/pulls/comments?per_page=100" 2>/dev/null)" || return 2
+  pages+=("$data" "$history")
+  pulls="$(gh api --paginate "repos/$REPO/pulls?state=all&per_page=100" 2>/dev/null)" || return 2
+  pulls="$(printf '%s' "$pulls" | jq -ser '
+    if length > 0 and all(.[]; type == "array" and all(.[];
+      type == "object" and (.number | type == "number" and . > 0 and floor == .)))
+    then [.[][] | .number] | unique | map(tostring) | join("\n") else error("invalid PR pages") end' 2>/dev/null)" || return 2
+  # Submitted reviews need not contain inline comments. Scan every listed PR,
+  # including closed ones; silence in a bounded first page proves nothing.
+  while IFS= read -r number; do
+    [ -n "$number" ] || continue
+    history="$(gh api --paginate "repos/$REPO/pulls/$number/reviews?per_page=100" 2>/dev/null)" || return 2
+    pages+=("$history")
+  done <<< "$pulls"
+  # Validate EACH endpoint receipt before concatenation: an empty successful
+  # response must not disappear beside another endpoint's valid empty array.
+  data=""
+  for page in "${pages[@]}"; do
+    printf '%s' "$page" | jq -se '
+      length > 0 and all(.[]; type == "array" and all(.[];
+        type == "object" and (.user.login | type == "string" and length > 0)))' >/dev/null 2>&1 || return 2
+    data="$(printf '%s\n%s' "$data" "$page")"
+  done
+  out="$(printf '%s' "$data" | jq -ser --arg re "$KNOWN_BOTS_RE" '
+    if length > 0 and all(.[]; type == "array" and all(.[];
+      type == "object" and (.user.login | type == "string" and length > 0)))
+    then [.[][] | select(.user.login | test($re; "i"))] | length
+    else error("invalid evidence pages") end' 2>/dev/null)" || return 2
+  [ "$out" -gt 0 ] && return 0
+  return 1
 }
 
 # ⛔ Re-read the PR before deciding: reviews collected before a long reviewer
@@ -1372,9 +1377,10 @@ elif [ -z "$CLEARED" ] && [ -z "$STALE_OR_PENDING" ] && [ -z "$QUOTA_HITS" ] \
       PRIMARY_STATUS="attestation_contradicted_bot_has_spoken_in_repo"
       log "[!] --no-primary-configured was passed, but a known reviewer HAS spoken in this repo."
       log "[!] Refusing the attestation. This PR is PENDING, not absent."
-    else
+    elif [ "$probe_rc" -eq 1 ]; then
       PRIMARY_STATUS="none_configured_operator_attested"; MAY_COMPLETE_C3="true"
-      [ "$probe_rc" -eq 2 ] && log "    note: corroboration probe failed; resting on the attestation alone"
+    else
+      PRIMARY_STATUS="repository_review_evidence_unreadable"
     fi
   else
     PRIMARY_STATUS="absence_requires_operator_attestation"
