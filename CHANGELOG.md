@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — routed review evidence and host binding (#413, #414)
+
+- Read fresh, complete paginated REST review history rather than the latest-review projection. Include submitted reviews when checking repository-wide reviewer presence, and refuse malformed, missing, or partial endpoint responses instead of treating them as absence.
+- Keep `[HOST/]OWNER/REPO` metadata, REST API requests, and Git fetches on the same validated host. Reject control characters and malformed repository identities before dispatch.
+- Update offline contract fixtures to model the REST review fields and pagination used by the dispatcher.
+
+### Fixed — validation output and fixture isolation (#494, #495)
+
+- Avoid pipefail/SIGPIPE false failures in long skill-header checks, and allow the research dossier renderer to drain stdout before exiting.
+- Fail closed on fixture allocation, directory setup, Git initialization, and inherited Git-context errors before touching any outer repository. Add offline failure-injection regressions.
+
 ### Fixed — `routed-pr-review`: physical temp roots and ignored-file integrity (#413, #414)
 
 - Reject TMPDIR resolving inside the live checkout before any temporary allocation, including symlinked paths and the ephemeral-state fallback. Reuse the resolved physical temp root.
