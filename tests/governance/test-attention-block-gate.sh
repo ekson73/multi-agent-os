@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOOK="$ROOT/plugin-scripts/governance/attention-block-gate.sh"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 export MAOS_ATTENTION_STATE_DIR="$TMP/state" MAOS_ATTENTION_NOTIFY=0
-pass=0; fail=0
+pass=0; fail=0; skip=0
 run() { jq -cn --arg m "$1" --arg p "$2" '{last_assistant_message:$m,session_id:"s1",prompt_id:$p}' | bash "$HOOK"; }
 expect() { if eval "$2"; then pass=$((pass+1)); echo "ok   $1"; else fail=$((fail+1)); echo "FAIL $1"; fi; }
 
@@ -50,7 +50,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
   nrun "$B2" >/dev/null
   expect "no prompt_id: changed pending block notifies again" '[ "$(grep -c "\"fired\":true,\"note\":\"notify\"" "$TMP/state/ledger.jsonl")" -eq 2 ]'
 else
-  pass=$((pass+2)); echo "skip notify-dedup (non-Darwin: notify unsupported)"
+  skip=$((skip+2)); echo "skip notify-dedup (non-Darwin: notify unsupported)"
 fi
 mkdir -p "$TMP/bin"; for c in dirname mkdir date cat; do ln -sf "$(command -v $c)" "$TMP/bin/$c"; done
 out="$(PATH="$TMP/bin" /bin/bash "$HOOK" </dev/null)"; rc=$?
@@ -59,4 +59,4 @@ out="$(MAOS_ATTENTION_GATE=0 run 'Should I merge?' p5)"
 expect "kill-switch honored"         '[ -z "$out" ]'
 out="$(printf 'not json' | bash "$HOOK")"; rc=$?
 expect "fail-safe on garbage"        '[ $rc -eq 0 ]'
-echo "--- $pass passed, $fail failed"; [ "$fail" -eq 0 ]
+echo "--- $pass passed, $fail failed, $skip skipped"; [ "$fail" -eq 0 ]
