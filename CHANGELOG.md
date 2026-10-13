@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Limit dependency status requirements to explicit pt/en dependency clauses, not approval subjects.
 - Validate complete, item-bound reply alternatives, including grouped code spans; scan asks in metadata beneath a clear status.
 - Clarify the recap template: replace `N` with the actual 1–3 item count. Add focused linter regression fixtures; no new verdicts or open-option requirements.
+- Report non-Darwin notification test skips separately from passed assertions.
 
 ### Added — `operator-attention-block` skill (*Pharos*) + `bin/attention-block-lint` + Stop hook `attention-block-gate`
 
