@@ -22,6 +22,21 @@
 #             3 review produced BUT a configured primary is still pending
 set -uo pipefail
 
+# Resolve before ANY mktemp (including the symlink-state fallback). A lexical
+# path outside the checkout may point inside it through a symlink. Keep the
+# physical path for later allocations, rather than reusing that mutable alias.
+TEMP_ROOT="$(cd "${TMPDIR:-/tmp}" 2>/dev/null && pwd -P)" || {
+  printf 'routed-review: temporary directory is unavailable\n' >&2; exit 1;
+}
+LIVE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || LIVE_ROOT=""
+if [ -n "$LIVE_ROOT" ]; then
+  LIVE_ROOT="$(cd "$LIVE_ROOT" 2>/dev/null && pwd -P)" || exit 1
+  case "$TEMP_ROOT/" in "$LIVE_ROOT/"*)
+    printf 'routed-review: TMPDIR must resolve outside the live checkout\n' >&2; exit 1 ;;
+  esac
+fi
+TMPDIR="$TEMP_ROOT"; export TMPDIR
+
 STATE_FILE="${ROUTED_REVIEW_STATE:-$HOME/.claude/state/ai-review-bots.json}"
 # ⛔ A symlinked state file is not used: the kernel deny names a PATH, writes
 # follow the link to wherever it points, and nothing could vouch for the
@@ -967,16 +982,34 @@ LIVE_BEFORE=""
 # CONTENT, not status codes: in an already-dirty checkout a further edit to a
 # modified file keeps the same `git status --porcelain` line. So the snapshot is
 # the status (paths + codes), the tracked diff, and the digest of every
-# untracked, non-ignored file.
+# untracked file, INCLUDING pre-existing ignored files and symlink targets.
 live_repo_state() {
-  # HEAD and the checked-out ref too: a reviewer that edits a tracked file and
-  # COMMITS it leaves status and diff clean, but moves HEAD.
-  git rev-parse -q --verify HEAD 2>/dev/null; git symbolic-ref -q HEAD 2>/dev/null
-  git status --porcelain=v1 -z --untracked-files=all 2>/dev/null
-  git diff --binary HEAD 2>/dev/null
-  git ls-files -z -o --exclude-standard 2>/dev/null | while IFS= read -r -d '' f; do
-    printf '%s\0' "$f"; [ -f "$f" ] && "${HASH_CMD[@]}" < "$f" 2>/dev/null
-  done
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  (
+    cd "$root" || exit 1
+    # Git omits FIFOs/devices, including ignored ones. Reject them without
+    # opening or blocking on them; never let an omitted entry certify clean.
+    local special
+    special="$(find . -path './.git' -prune -o ! -type d ! -type f ! -type l -print -quit)" || exit 1
+    [ -z "$special" ] || exit 1
+    # HEAD and checked-out ref catch a reviewer committing its own mutation.
+    git rev-parse -q --verify HEAD 2>/dev/null || exit 1
+    git symbolic-ref -q HEAD 2>/dev/null || true
+    git status --porcelain=v1 -z --untracked-files=all 2>/dev/null || exit 1
+    git diff --binary HEAD 2>/dev/null || exit 1
+    git ls-files -z -o 2>/dev/null | while IFS= read -r -d '' f; do
+      printf '%s\0' "$f"
+      if [ -L "$f" ]; then
+        printf 'link\0'; readlink "$f" || exit 1
+      elif [ -f "$f" ]; then
+        printf 'file\0'; "${HASH_CMD[@]}" < "$f" 2>/dev/null || exit 1
+      else
+        # Refuse a raced-away/replaced entry rather than silently omitting it.
+        exit 1
+      fi
+    done
+  )
 }
 snapshot_live_repo() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
