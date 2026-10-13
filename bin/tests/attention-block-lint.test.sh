@@ -299,5 +299,131 @@ Should I also delete the old release branch?
 > ➕ +1 registrado no backlog (não precisa de você agora)
 T
 
+check "subject PR approval needs no wait line" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — merge PR #463 now · `1 yes` / `1 no`
+T
+
+check "inline subject ref is not a dependency" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — mesclar o PR `#463` agora · `1 sim` / `1 não`
+T
+
+check "subject and after dependency are distinguished" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — merge PR #463 after PR `#42` · `1 yes` / `1 no`
+> ⏳ #42 — agent: in review · nothing for you
+T
+
+check "dependency clause ends before next subject" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — after #42, merge PR #463 · `1 yes` / `1 no`
+> ⏳ #42 — agent: in review · nothing for you
+T
+
+check "English blocked-on dependency still needs status" dependency_unexplained 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — release blocked-on `#42` · `1A` / `1B`
+T
+
+check "Portuguese blocked dependency still needs status" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — release bloqueada pelo PR #42 · `1A` / `1B`
+T
+
+check "English depends-on dependency still needs status" dependency_unexplained 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — release depends on #42 · `1A` / `1B`
+T
+
+check "Portuguese apos dependency still needs status" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — publicar após #42 · `1A` / `1B`
+T
+
+MAOS_ATTENTION_TICKET_PREFIXES="ABC" check "configured ticket dependency inside code span" dependency_unexplained 2 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🔶 DECIDIR** — publicar depois de `ABC-42` · `1A` / `1B`
+T
+
+MAOS_ATTENTION_TICKET_PREFIXES="ABC" check "configured ticket subject needs no wait line" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — close ABC-42 · `1 yes`
+T
+
+MAOS_ATTENTION_TICKET_PREFIXES="ABC" check "configured ticket exact leading wait ref explains dependency" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — publish after `ABC-42` · `1A` / `1B`
+> ⏳ `ABC-42` — agent: in review · nothing for you
+T
+
+MAOS_ATTENTION_TICKET_PREFIXES="ABC" check "unconfigured ticket prefix stays ignored" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — publish after XYZ-42 · `1A` / `1B`
+T
+
+check "grouped replies reject another item number" malformed_item 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — merge release · `1 yes / 2 no`
+T
+
+check "compact grouped letter replies reject another item" malformed_item 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — region · `1A/2B`
+T
+
+check "grouped replies for same item remain valid" ok 0 <<'T'
+> **🔔 PRECISA DE VOCÊ (1)**
+> 1. **🛑 AUTORIZAR** — mesclar · `1 sim / 1 não`
+T
+
+check "compact grouped letters and command spans remain valid" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — run `make deploy` in region · `1A/1B`
+T
+
+check "grouped replies reject unnumbered alternative" malformed_item 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — merge · `1 yes / no`
+T
+
+check "letter reply token must match completely" malformed_item 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — region · `1A-extra`
+T
+
+check "duplicate grouped replies remain ambiguous" duplicate_reply_token 2 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🔶 DECIDE** — region · `1A/1A`
+T
+
+check "bare numbered reply remains valid" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — merge · `1`
+T
+
+check "clear overflow cannot hide a question" inconsistent_clear_with_asks 2 <<'T'
+> **✅ NOTHING NEEDS YOU**
+> ➕ +1 Should I merge the release?
+T
+
+check "clear wellformed wait cannot hide a question" inconsistent_clear_with_asks 2 <<'T'
+> **✅ NOTHING NEEDS YOU**
+> ⏳ #42 — agent: ready · Should I merge the release?
+T
+
+check "clear wait status without an ask remains valid" ok 0 <<'T'
+> **✅ NOTHING NEEDS YOU**
+> ⏳ #42 — agent: in review · nothing for you
+T
+
+check "attention wait and overflow metadata remain valid" ok 0 <<'T'
+> **🔔 NEEDS YOU (1)**
+> 1. **🛑 AUTHORIZE** — release after #42 · `1 yes` / `1 no`
+> ⏳ #42 — agent: in review · nothing for you
+> ➕ +1 deferred to backlog: Should I delete the old branch?
+T
+
+
 echo "--- $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

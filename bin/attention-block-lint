@@ -36,15 +36,19 @@ ITEM_LINE = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)")
 ITEM_WELLFORMED = re.compile(r"^\s*>\s*\d+\.\s+\*\*\s*(🛑|🔶|✋)\s+[A-ZÀ-Ý][A-ZÀ-Ý ]+\*\*\s+[—–-]\s+\S")
 REPLY_TOKEN = re.compile(r"`[^`]+`")
 ANY_NUMBERED = re.compile(r"^\s*>\s*(\d+)\.\s")
-# Dependency references inside an item (a PR, ticket, or "after X") must say who
-# owns them and their state, on a ⏳ line of the same block. A human item that waits
-# on something invisible is itself a needle in a haystack.
+# Only explicit dependency clauses need a wait line; a PR/ticket mentioned as the
+# subject of an approval ("merge PR #463") is not a dependency.
 # Only `#N` by default; ticket keys only for prefixes the operator configures
 # (MAOS_ATTENTION_TICKET_PREFIXES="ABC,XYZ"), so UTF-8 / SHA-256 / SOC-2 are never
 # mistaken for tickets.
 import os as _os
 _PREFIXES = [p.strip() for p in _os.environ.get("MAOS_ATTENTION_TICKET_PREFIXES", "").split(",") if re.fullmatch(r"[A-Z][A-Z0-9]{0,15}", p.strip())]
 DEP_REF = re.compile(r"(?<![\w#])#\d+(?!\w)" + ("|" + r"\b(?:" + "|".join(_PREFIXES) + r")-\d+\b" if _PREFIXES else ""))
+# Bound the heuristic to a clause, not the rest of the item or its reply choices.
+DEP_CLAUSE = re.compile(
+    r"\b(?:after|depois|ap[oó]s|depends?\s+on|depend(?:e|em)\s+d[eo]|"
+    r"blocked[\s-]+on|bloquead[oa]s?\s+(?:por|pel[oa]|em)|aguardando|waiting\s+(?:on|for))"
+    r"\b[^.;,!?·—–\n]*", re.IGNORECASE)
 # A CHECKABLE wait line: `> ⏳ <ref> — <owner>: <state> · <what the human must do>`.
 # A bare mention of the ref is not an explanation: owner, state and the human action
 # must all be present, or the dependency is still invisible (CodeRabbit, PR #463).
@@ -53,7 +57,7 @@ WAIT_WELLFORMED = re.compile(r"^\s*>\s*⏳\s+(\S+).*?\s[—–-]\s+[^:·]+:\s*[^
 # in the same line does not get its status from it (CodeRabbit, PR #463).
 # Overflow: `> ➕ +N <text>`. Anything else after ➕ is not metadata and is scanned.
 OVERFLOW_WELLFORMED = re.compile(r"^\s*>\s*➕\s+\+\d+\s+\S")
-NUMBERED_TOKEN = re.compile(r"`\d+(?:[A-Z]\b|\s|`)")
+NUMBERED_TOKEN = re.compile(r"`\d+(?:[A-Z]\b|\s|[/|,;]|`)")
 # Legacy colored circles are NOT item markers: 🔴🟡🟠🟢🔵 already mean PROGRESS STATE
 # in the end-of-action-briefing §4.1 status legend. Reusing them for SEVERITY here
 # would give one icon two meanings — the exact ambiguity this block exists to remove.
@@ -140,6 +144,10 @@ def scan(text: str) -> dict:
         if in_block:
             if re.match(r"^\s*>", raw):
                 block_end = i
+                # Metadata can carry deferred work under attention, but cannot hide
+                # an ask beneath a status claiming nothing needs the operator.
+                if block_kind == "clear" and _is_ask(raw):
+                    signals.append({"line": i, "text": raw.strip()[:120]})
                 wm = WAIT_WELLFORMED.match(raw)
                 if wm:
                     waits.append(wm.group(1).strip("`*_.,;:()[]"))
@@ -161,19 +169,20 @@ def scan(text: str) -> dict:
                 n = num.group(1)
                 ok_shape = bool(ITEM_WELLFORMED.match(raw))
                 tokens = REPLY_TOKEN.findall(raw)
-                # Reply tokens are spans shaped like "<num>..." (`1 sim`, `2A`). At least one
-                # must carry THIS item's number and none may carry another's; spans that are
-                # not numbered (`make deploy`) are ordinary code and are ignored.
-                numbered = [t.strip("`") for t in tokens if re.match(r"`\d+(?:[A-Z]\b|\s|`)", t)]
+                # Split grouped alternatives before checking the COMPLETE token;
+                # every alternative must belong to this item. Ignore command spans.
+                numbered = [part.strip() for t in tokens if NUMBERED_TOKEN.match(t)
+                            for part in re.split(r"\s*(?:[/|,;]|\b(?:or|ou)\b)\s*", t.strip("`"))]
                 ok_token = im.group(1) == "✋" or (
-                    bool(numbered) and all(re.match(re.escape(n) + r"(?:[A-Z]\b|\s|$)", t) for t in numbered))
+                    bool(numbered) and all(re.fullmatch(re.escape(n) + r"(?:[A-Z]|\s+[^/|,;]+)?", t)
+                                           for t in numbered))
                 # The reply contract is exact only if each token identifies ONE option:
                 # `1A` offered twice (or `1A`/`1a`) is ambiguous (Codex, PR #463).
                 norm = [" ".join(t.split()).casefold() for t in numbered]
                 dup_token = len(norm) != len(set(norm))
-                # Drop only reply-token spans; a ref inside ordinary code (`#463`) is
-                # still a dependency (Codex, PR #463).
-                deps = DEP_REF.findall(re.sub(r"`[^`]+`", lambda t: "" if NUMBERED_TOKEN.match(t.group(0)) else t.group(0), raw))
+                # Keep refs in ordinary inline code, but only inside dependency clauses.
+                prose = REPLY_TOKEN.sub(lambda t: "" if NUMBERED_TOKEN.match(t.group(0)) else t.group(0), raw)
+                deps = [ref for clause in DEP_CLAUSE.findall(prose) for ref in DEP_REF.findall(clause)]
                 items.append({"line": i, "severity": im.group(1),
                               "wellformed": ok_shape and ok_token, "deps": deps, "n": n,
                               "dup_token": dup_token})

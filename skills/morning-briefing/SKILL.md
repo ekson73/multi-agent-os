@@ -811,7 +811,8 @@ A1. <process discipline aplicado> ✅/🟡
 
 <!-- ALWAYS LAST (v1.9.1): Pharos attention block — skills/operator-attention-block.
      Items = §9 unanswered-Qs + §10 undecided + §11 HITL-pendings + the §16 ⭐ option when it
-     needs the human, ≤3, 🛑/🔶/✋ + numbered reply token. None ⇒ the bare ✅ line. -->
+     needs the human, ≤3, 🛑/🔶/✋ + numbered reply token. Replace N with the actual
+     item count (1–3); never render the literal N. None ⇒ the bare ✅ line. -->
 > **🔔 PRECISA DE VOCÊ (N)**
 > 1. **🔶 DECIDIR** — <§16 ⭐ recommended action> · `1 sim` / `1 não`
 ```
