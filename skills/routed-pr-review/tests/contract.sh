@@ -27,23 +27,43 @@ SUT="$SELF_DIR/../bin/routed-review.sh"
 PASS=0; FAIL=0; FAILED_NAMES=()
 
 # ---------------------------------------------------------------- scaffolding
-SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/rr-contract.XXXXXX")"
+# Git's inherited repository/index overrides defeat `cd`-based isolation.
+# Reject them before creating anything; do not silently mutate the caller.
+for git_context in $(compgen -e); do
+  case "$git_context" in
+    GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_CONFIG|GIT_CONFIG_COUNT|GIT_CONFIG_PARAMETERS)
+      echo "FATAL: inherited $git_context is incompatible with an isolated fixture" >&2; exit 1 ;;
+  esac
+done
+SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/rr-contract.XXXXXX")" || {
+  echo "FATAL: could not allocate fixture directory" >&2; exit 1;
+}
+[ -n "$SANDBOX" ] && [ -d "$SANDBOX" ] || {
+  echo "FATAL: invalid fixture directory" >&2; exit 1;
+}
 trap 'rm -rf "$SANDBOX"' EXIT
 
 REPO_DIR="$SANDBOX/repo"; STUB_BIN="$SANDBOX/bin"
 # Rotation state lives in its OWN subdir: the script write-denies the state
 # directory to the reviewer, so marker files a hostile stub drops elsewhere in
 # $SANDBOX must not share it (else a leak test passes for the wrong reason).
-mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
+mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state" || {
+  echo "FATAL: could not create fixture directories" >&2; exit 1;
+}
 
 # A real one-commit repo: the script proves cwd == HEAD_SHA and can git-archive it.
 (
-  cd "$REPO_DIR"
-  git init -q . 2>/dev/null
-  git config user.email t@t; git config user.name t; git config commit.gpgsign false
+  # Explicit guards are required: this subshell is the LHS of `||`, where
+  # Bash's errexit is disabled even if `set -e` were present.
+  cd "$REPO_DIR" || exit 1
+  git init -q . 2>/dev/null || exit 1
+  [ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || exit 1
+  git config user.email t@t || exit 1
+  git config user.name t || exit 1
+  git config commit.gpgsign false || exit 1
   # The PR base: the diff is built locally from merge-base(base, head)..head.
   echo base-only > base.txt
-  git add -A && git commit -qm "base"
+  git add -A && git commit -qm "base" || exit 1
   echo hello > file.txt
   # A line only the pinned head carries: the reviewer must see it (case 79).
   echo PINNED_HEAD_LINE_79 > head-marker.txt
@@ -105,9 +125,20 @@ JSON
   "api "*|"api")
                 case "$*" in
                   *"/reviews"*)        [ -n "${T_HISTORY_FAIL:-}" ] && exit 1
-                                       printf '%s\n' "${T_REVIEW_HISTORY:-[]}"
+                                       if [ "${T_REVIEW_HISTORY+x}" = x ]; then
+                                         printf '%s\n' "$T_REVIEW_HISTORY"
+                                       else
+                                         R="${T_REVIEWS:-[]}"
+                                         if [ -n "${T_COUNT:-}" ] && [ -s "$T_COUNT" ] && [ "$(cat "$T_COUNT")" -gt "${T_SWITCH_AT:-1}" ]; then
+                                           [ -n "${T_REVIEWS_AFTER:-}" ] && R="$T_REVIEWS_AFTER"
+                                         fi
+                                         printf '%s' "$R" | jq --arg head "$T_HEAD" '
+                                           map({user: .author, state, commit_id: (.commit.oid // $head),
+                                                submitted_at: "2026-10-13T00:00:00Z"})'
+                                       fi
                                        [ -n "${T_HISTORY_PARTIAL_FAIL:-}" ] && exit 1
                                        exit 0 ;;
+                  *"/pulls?"*)       printf '[]\n' ;;
                   *"pulls/comments"*)  printf '%s\n' "${T_PULL_COMMENTS:-[]}" ;;
                   *)                   printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
                 esac ;;
@@ -198,6 +229,13 @@ printf '%s\n' "${T_REVIEW_BODY:-}"
 STUB
 chmod +x "$CODEX_BIN/codex"
 
+# Reviewer controls are fixture data, not a production environment escape hatch.
+# Bake the disposable fixture path into mocks; no real reviewer sources this file.
+for mock in "$STUB_BIN/kimi" "$GEM_BIN/gemini" "$CODEX_BIN/codex"; do
+  { head -1 "$mock"; printf 'source %q\n' "$SANDBOX/reviewer-controls.sh"; tail -n +2 "$mock"; } > "$mock.new"
+  mv "$mock.new" "$mock"; chmod +x "$mock"
+done
+
 # ---------------------------------------------------------------- assertions
 # Run the REAL script against the stub PATH. Per-case fixtures are passed as an
 # env prefix (`T_REVIEWS=… sut`) — bash applies those to the function call, so
@@ -209,10 +247,16 @@ sut() {
   local p="${STUB_BIN}:${PATH}"
   [ -n "${EXTRA_BIN:-}" ] && p="${EXTRA_BIN}:${p}"
   [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
+  # Serialize only synthetic test controls for the stub, never host credentials.
+  : > "$SANDBOX/reviewer-controls.sh"
+  local control
+  for control in T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE; do
+    declare -p "$control" >/dev/null 2>&1 || continue
+    printf '%s=%q\n' "$control" "${!control}" >> "$SANDBOX/reviewer-controls.sh"
+  done
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="${T_HEAD:-$HEAD_SHA}" T_BASE="${T_BASE:-$BASE_SHA}" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE" \
        ${SUT_WRAP:-} bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
@@ -692,8 +736,8 @@ check "rc 124 is classified as a timeout reason" 2 '.failure_reason' "timeout"
 
 # Cases 54-58: third routed red-team round (codex + kimi) on this PR.
 # ── 54 ── a change request followed by a COMMENTED is still active.
-HIST='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"},
-       {"user":{"login":"maintainer"},"state":"COMMENTED","submitted_at":"2026-01-02T00:00:00Z"}]'
+HIST='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-01T00:00:00Z"},
+       {"user":{"login":"maintainer"},"state":"COMMENTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-02T00:00:00Z"}]'
 OUT="$(T_REVIEW_HISTORY="$HIST" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a change request later followed by a comment still blocks" 3 '.primary_verdict' "changes_requested"
@@ -706,7 +750,7 @@ check "an unreadable review history blocks C3" 3 '.primary_verdict' "review_hist
 # ── 90-92 ── gh --paginate emits one JSON array per page. A late blocker,
 # malformed continuation, or transport failure after partial output cannot
 # turn a readable first page into evidence of complete, clean history.
-PAGE_TWO_CR='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"}]'
+PAGE_TWO_CR='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-01T00:00:00Z"}]'
 PAGED_HISTORY="$(printf '[]\n%s\n' "$PAGE_TWO_CR")"
 OUT="$(T_REVIEW_HISTORY="$PAGED_HISTORY" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
@@ -911,9 +955,9 @@ OUT="$(T_PROMPT_MARK="PINNED_HEAD_LINE_79" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" 
 check "the reviewer gets the diff of the pinned base..head" 3 '.review | contains("PROMPT-CARRIED-PINNED_HEAD_LINE_79")' "true"
 
 # ── 80-82 ── a review history the gate cannot read is UNKNOWN, never clean.
-CR_OK='{"user":{"login":"alice"},"state":"CHANGES_REQUESTED","submitted_at":"2026-10-07T10:00:00Z"}'
+CR_OK='{"user":{"login":"alice"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-10-07T10:00:00Z"}'
 for H in '[{"state":"CHANGES_REQUESTED_V2"}]' '[{"state":""}]' \
-         "[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"not-a-timestamp\"}]"; do
+         "[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"not-a-timestamp\"}]"; do
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   check "an unreadable history record blocks C3 (${H:0:40})" 3 '.primary_verdict' "review_history_unreadable"
@@ -922,7 +966,7 @@ done
 # ── 83 ── same-second APPROVED + CHANGES_REQUESTED: the change request wins.
 # CHANGES_REQUESTED listed FIRST: jq max_by keeps the last maximal element, so
 # an order-dependent reducer would let the later APPROVED win the tie.
-TIE="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"
+TIE="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"
 OUT="$(T_REVIEW_HISTORY="$TIE" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a same-second tie with a change request blocks C3" 3 '.primary_verdict' "changes_requested"
@@ -960,7 +1004,7 @@ AT_APPROVED="${AT_HEAD/\%s/APPROVED}"
 # `2026-99-99T99:99:99Z` passes a format regex and sorts after every real date as
 # text, so before the fix this APPROVED shadowed the real change request.
 for TS in 2026-99-99T99:99:99Z 2026-11-31T10:00:00Z; do
-  H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"$TS\"}]"
+  H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"$TS\"}]"
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   check "an impossible submitted_at blocks C3 ($TS)" 3 '.primary_verdict' "review_history_unreadable"
@@ -969,8 +1013,8 @@ done
 # ── 86 ── fractional seconds never reorder a change request away.
 # As text `…00Z` > `…00.5Z` ('Z' > '.'): the earlier APPROVED won. And `…00.000Z`
 # vs `…00Z` is one instant written two ways: the string tie never fired.
-for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.5Z\"}]" \
-         "[{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.000Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"; do
+for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00.5Z\"}]" \
+         "[{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00.000Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"; do
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
@@ -980,7 +1024,7 @@ for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at
 done
 
 # ── 87 ── guard (passes before AND after): a real, later APPROVED still supersedes.
-H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:01Z\"}]"
+H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:01Z\"}]"
 OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in

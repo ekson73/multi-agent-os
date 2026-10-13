@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — routed review evidence and host binding (#413, #414)
+
+- Read fresh, complete paginated REST review history rather than the latest-review projection. Include submitted reviews when checking repository-wide reviewer presence, and refuse malformed, missing, or partial endpoint responses instead of treating them as absence.
+- Keep `[HOST/]OWNER/REPO` metadata, REST API requests, and Git fetches on the same validated host. Reject control characters and malformed repository identities before dispatch.
+- Update offline contract fixtures to model the REST review fields and pagination used by the dispatcher.
+
+### Fixed — validation output and fixture isolation (#494, #495)
+
+- Avoid pipefail/SIGPIPE false failures in long skill-header checks, and allow the research dossier renderer to drain stdout before exiting.
+- Fail closed on fixture allocation, directory setup, Git initialization, and inherited Git-context errors before touching any outer repository. Add offline failure-injection regressions.
+
+### Fixed — `routed-pr-review`: physical temp roots and ignored-file integrity (#413, #414)
+
+- Reject TMPDIR resolving inside the live checkout before any temporary allocation, including symlinked paths and the ephemeral-state fallback. Reuse the resolved physical temp root.
+- Include pre-existing ignored files and symlink targets in live-tree snapshots. Refuse nonregular/unreadable entries rather than silently declaring a clean snapshot. This detects persistent changes; it is not preventive confinement and may cost more on large ignored trees.
+
+### Fixed — `routed-pr-review`: isolate candidate credentials (#413, #414)
+
+- Preserve the exact `CLAUDE_CODE_OAUTH_TOKEN` credential for the legacy Claude candidate only, including OAuth-only headless use; do not forward it to fallbacks or restore a `CLAUDE_*` wildcard. This compatibility fix does not qualify a new runtime or change its explicit authentication contract.
+
+- Rebuild a closed environment for each effective reviewer and fallback. Pass only exact auth variables for that candidate, never another provider's credentials; unknown/multi-provider adapters get none. Ignore `ROUTED_REVIEW_ENV_ALLOW`, including innocent-looking arbitrary names, as a deliberate security tightening. Vendor configuration prefixes and XDG overrides are no longer forwarded. This does not certify adapter filesystem/process/network isolation.
+- Contract mocks now load synthetic controls from disposable fixture files, not a production allowlist bypass. Add offline candidate/fallback/unknown/multi/arbitrary-name canary regressions.
+
 ### Fixed — `routed-pr-review`: reject incomplete gitlink exports (#413, #414)
 
 - Refuse any gitlink in the pinned HEAD with exit 1 before reviewer dispatch or posting, instead of silently omitting it from the export and completeness count. This also covers unchanged submodules. This change adds no submodule fetching or materialization. Add offline added/changed/unchanged, missing-object, nested/spaced-path and no-post regressions.
