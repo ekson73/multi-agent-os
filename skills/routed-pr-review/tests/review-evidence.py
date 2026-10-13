@@ -30,7 +30,7 @@ case "$*" in
 esac
 }
 HEAD_SHA=''' + HEAD + '''
-REPO=o/r; PR=1; PRIMARIES=coderabbitai
+REPO=o/r; REPO_HOST=github.com; REPO_PATH=o/r; PR=1; PRIMARIES=coderabbitai
 KNOWN_BOTS_RE='^(coderabbitai)(\\[bot\\])?$'; PRIMARY_RE="$KNOWN_BOTS_RE"
 PR_JSON="$(jq -n --argjson rv "$LATEST" '{latestReviews:$rv,comments:[],reviewDecision:""}')"
 compute_primaries() {''' + primary + '\nrepo_reviewer_seen() {' + corroboration
