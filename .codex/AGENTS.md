@@ -15,8 +15,12 @@ The generated baseline enables GitHub, Context7, Exa, Memory, Playwright, and Se
 
 Context7 is registered here as `context7_baseline` (keyless remote), not `context7`, so it never
 merges with a user-scope `context7` entry of another transport. It does not inherit headers or the
-`enabled` flag of a user `context7` entry. To turn the baseline off, set
-`[mcp_servers.context7_baseline] enabled = false` in `~/.codex/config.toml`.
+`enabled` flag of a user `context7` entry. To turn the baseline off, add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.context7_baseline]
+enabled = false
+```
 
 ## Multi-Agent Support
 
