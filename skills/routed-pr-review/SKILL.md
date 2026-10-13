@@ -49,6 +49,15 @@ skills/routed-pr-review/bin/routed-review.sh --pr 42 --post          # stamp the
 ROUTED_REVIEW_CALLER=claude skills/routed-pr-review/bin/routed-review.sh --pr 42
 ```
 
+**Repository-wide absence-probe cost:** `--no-primary-configured` is corroborated
+against issue comments, inline comments, and the complete review history of every
+PR, including closed PRs. Each PR requires at least one review API request, plus
+pagination; large repositories can require thousands of requests. The current
+implementation does not short-circuit after a bot match. A rate limit or any
+unreadable endpoint holds the gate rather than being interpreted as absence.
+Do not use an absence attestation to bypass this cost when reviewers are configured;
+declare the configured set with `--primary` instead.
+
 Five phases:
 
 | phase | what | grounding |
@@ -324,9 +333,13 @@ pattern this harness exists to end.
    yes` rides in the comment and the JSON.
 3. **Rotation state is out of the reviewer's reach, and is never trusted.**
    The reviewer is a model steered by the PR under review, so: its
-   environment is an **allowlist** (base vars, locale/proxy, the reviewer
-   vendors' credential prefixes, plus names in `ROUTED_REVIEW_ENV_ALLOW`) —
-   repo tokens and `ROUTED_REVIEW_*` never reach it; when a kernel boundary
+   environment is a **closed allowlist rebuilt per candidate**, including
+   fallback (base vars, locale/proxy, and exact auth names for that candidate).
+   Unknown/multi-provider candidates receive no provider auth variables.
+   `ROUTED_REVIEW_ENV_ALLOW` is ignored: an arbitrary variable name cannot
+   establish that its value is safe. Repository tokens, vendor configuration,
+   and `ROUTED_REVIEW_*` are excluded. This is environment isolation, not a
+   claim that HOME/config, filesystem, process, or network access is confined; when a kernel boundary
    arms, the state **file** is write-denied (write, rename-over and unlink all
    fail — contract case 24), so a change during dispatch can only come from a
    concurrent run and is not treated as a breach. The deny also names the
