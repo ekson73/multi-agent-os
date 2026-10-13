@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed — `routed-pr-review`: isolate candidate credentials (#413, #414)
 
+- Preserve the exact `CLAUDE_CODE_OAUTH_TOKEN` credential for the legacy Claude candidate only, including OAuth-only headless use; do not forward it to fallbacks or restore a `CLAUDE_*` wildcard. This compatibility fix does not qualify a new runtime or change its explicit authentication contract.
+
 - Rebuild a closed environment for each effective reviewer and fallback. Pass only exact auth variables for that candidate, never another provider's credentials; unknown/multi-provider adapters get none. Ignore `ROUTED_REVIEW_ENV_ALLOW`, including innocent-looking arbitrary names, as a deliberate security tightening. Vendor configuration prefixes and XDG overrides are no longer forwarded. This does not certify adapter filesystem/process/network isolation.
 - Contract mocks now load synthetic controls from disposable fixture files, not a production allowlist bypass. Add offline candidate/fallback/unknown/multi/arbitrary-name canary regressions.
 

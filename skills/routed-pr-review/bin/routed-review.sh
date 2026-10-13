@@ -1137,7 +1137,7 @@ _env_allowed() {  # $1=name, $2=effective candidate; no ambiguous-provider crede
   esac
   # Exact auth names, not vendor-wide prefixes (which also carry config/code).
   case "$2:$1" in
-    claude:ANTHROPIC_API_KEY|claude:ANTHROPIC_AUTH_TOKEN|codex:OPENAI_API_KEY|\
+    claude:ANTHROPIC_API_KEY|claude:ANTHROPIC_AUTH_TOKEN|claude:CLAUDE_CODE_OAUTH_TOKEN|codex:OPENAI_API_KEY|\
     gemini:GEMINI_API_KEY|gemini:GOOGLE_API_KEY|kimi:MOONSHOT_API_KEY|\
     qwen:DASHSCOPE_API_KEY|grok:XAI_API_KEY) return 0 ;;
   esac

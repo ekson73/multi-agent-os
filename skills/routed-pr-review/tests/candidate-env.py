@@ -68,6 +68,19 @@ class CandidateEnvironment(unittest.TestCase):
                 self.assertNotIn('ROUTED_REVIEW_ENV_ALLOW', actual)
                 self.assertNotIn('T_FIXTURE', actual)
 
+    def test_claude_oauth_only_credential_is_candidate_scoped(self):
+        policy=self.policy(SUT.read_text())
+        env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent',
+             'CLAUDE_CODE_OAUTH_TOKEN':'synthetic-oauth-only',
+             'CLAUDE_UNRELATED_SECRET':'synthetic-must-not-pass'}
+        command=policy+'\nbuild_reviewer_env claude\n"${REVIEWER_ENV[@]}" /usr/bin/env\nprintf "NEXT\\n"\nbuild_reviewer_env codex\n"${REVIEWER_ENV[@]}" /usr/bin/env\n'
+        result=subprocess.run(['/bin/bash','-c',command],env=env,text=True,capture_output=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+        first,second=result.stdout.split('NEXT\n')
+        self.assertIn('CLAUDE_CODE_OAUTH_TOKEN=synthetic-oauth-only',first)
+        self.assertNotIn('CLAUDE_CODE_OAUTH_TOKEN',second)
+        self.assertNotIn('synthetic-must-not-pass',result.stdout)
+
     def test_real_dispatch_rebuilds_environment_on_fallback(self):
         source = SUT.read_text()
         policy = self.policy(source)
@@ -84,6 +97,7 @@ class CandidateEnvironment(unittest.TestCase):
             (root / 'prompt').write_text('synthetic prompt')
             env = {'PATH': str(root) + ':/usr/bin:/bin', 'HOME': str(root),
                    'ANTHROPIC_API_KEY': 'synthetic-a', 'OPENAI_API_KEY': 'synthetic-b',
+                   'CLAUDE_CODE_OAUTH_TOKEN':'synthetic-oauth',
                    'INNOCENT_LABEL': 'synthetic-hidden-secret',
                    'ROUTED_REVIEW_ENV_ALLOW': 'INNOCENT_LABEL'}
             command = policy + '\n' + dispatch + '\n'
@@ -96,6 +110,8 @@ class CandidateEnvironment(unittest.TestCase):
             self.assertIn('INVOKED', first)
             self.assertIn('INVOKED', second)
             self.assertIn('ANTHROPIC_API_KEY=synthetic-a', first)
+            self.assertIn('CLAUDE_CODE_OAUTH_TOKEN=synthetic-oauth', first)
+            self.assertNotIn('CLAUDE_CODE_OAUTH_TOKEN', second)
             self.assertNotIn('OPENAI_API_KEY', first)
             self.assertIn('OPENAI_API_KEY=synthetic-b', second)
             self.assertNotIn('ANTHROPIC_API_KEY', second)
