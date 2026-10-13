@@ -27,23 +27,43 @@ SUT="$SELF_DIR/../bin/routed-review.sh"
 PASS=0; FAIL=0; FAILED_NAMES=()
 
 # ---------------------------------------------------------------- scaffolding
-SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/rr-contract.XXXXXX")"
+# Git's inherited repository/index overrides defeat `cd`-based isolation.
+# Reject them before creating anything; do not silently mutate the caller.
+for git_context in $(compgen -e); do
+  case "$git_context" in
+    GIT_DIR|GIT_WORK_TREE|GIT_COMMON_DIR|GIT_INDEX_FILE|GIT_OBJECT_DIRECTORY|GIT_ALTERNATE_OBJECT_DIRECTORIES|GIT_CONFIG|GIT_CONFIG_COUNT|GIT_CONFIG_PARAMETERS)
+      echo "FATAL: inherited $git_context is incompatible with an isolated fixture" >&2; exit 1 ;;
+  esac
+done
+SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/rr-contract.XXXXXX")" || {
+  echo "FATAL: could not allocate fixture directory" >&2; exit 1;
+}
+[ -n "$SANDBOX" ] && [ -d "$SANDBOX" ] || {
+  echo "FATAL: invalid fixture directory" >&2; exit 1;
+}
 trap 'rm -rf "$SANDBOX"' EXIT
 
 REPO_DIR="$SANDBOX/repo"; STUB_BIN="$SANDBOX/bin"
 # Rotation state lives in its OWN subdir: the script write-denies the state
 # directory to the reviewer, so marker files a hostile stub drops elsewhere in
 # $SANDBOX must not share it (else a leak test passes for the wrong reason).
-mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state"
+mkdir -p "$REPO_DIR" "$STUB_BIN" "$SANDBOX/state" || {
+  echo "FATAL: could not create fixture directories" >&2; exit 1;
+}
 
 # A real one-commit repo: the script proves cwd == HEAD_SHA and can git-archive it.
 (
-  cd "$REPO_DIR"
-  git init -q . 2>/dev/null
-  git config user.email t@t; git config user.name t; git config commit.gpgsign false
+  # Explicit guards are required: this subshell is the LHS of `||`, where
+  # Bash's errexit is disabled even if `set -e` were present.
+  cd "$REPO_DIR" || exit 1
+  git init -q . 2>/dev/null || exit 1
+  [ "$(git rev-parse --show-toplevel)" = "$(pwd -P)" ] || exit 1
+  git config user.email t@t || exit 1
+  git config user.name t || exit 1
+  git config commit.gpgsign false || exit 1
   # The PR base: the diff is built locally from merge-base(base, head)..head.
   echo base-only > base.txt
-  git add -A && git commit -qm "base"
+  git add -A && git commit -qm "base" || exit 1
   echo hello > file.txt
   # A line only the pinned head carries: the reviewer must see it (case 79).
   echo PINNED_HEAD_LINE_79 > head-marker.txt
