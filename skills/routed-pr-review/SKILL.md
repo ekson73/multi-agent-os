@@ -49,6 +49,15 @@ skills/routed-pr-review/bin/routed-review.sh --pr 42 --post          # stamp the
 ROUTED_REVIEW_CALLER=claude skills/routed-pr-review/bin/routed-review.sh --pr 42
 ```
 
+**Repository-wide absence-probe cost:** `--no-primary-configured` is corroborated
+against issue comments, inline comments, and the complete review history of every
+PR, including closed PRs. Each PR requires at least one review API request, plus
+pagination; large repositories can require thousands of requests. The current
+implementation does not short-circuit after a bot match. A rate limit or any
+unreadable endpoint holds the gate rather than being interpreted as absence.
+Do not use an absence attestation to bypass this cost when reviewers are configured;
+declare the configured set with `--primary` instead.
+
 Five phases:
 
 | phase | what | grounding |

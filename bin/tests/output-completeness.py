@@ -7,11 +7,28 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+CHECKS_START = '    # Simulated cross-provider contexts'
+CHECKS_END = '    # Invalid --provider'
 
 class OutputCompleteness(unittest.TestCase):
+    def header_checks(self, source):
+        self.assertIn(CHECKS_START, source, f'missing source anchor: {CHECKS_START}')
+        tail=source.split(CHECKS_START, 1)[1]
+        self.assertIn(CHECKS_END, tail, f'missing source anchor: {CHECKS_END}')
+        checks=tail.split(CHECKS_END, 1)[0]
+        self.assertIn('\n', checks, 'header-check source section has no body')
+        checks=checks.split('\n', 1)[1]
+        self.assertTrue(checks.strip(), 'header-check source section is empty')
+        return checks
+
+    def test_missing_header_check_anchor_fails_descriptively(self):
+        for source in ['unrelated source', CHECKS_START+'\nbody without end']:
+            with self.subTest(source=source),self.assertRaisesRegex(AssertionError, 'missing source anchor:'):
+                self.header_checks(source)
+
     def test_delegate_header_checks_do_not_sigpipe(self):
         source = (ROOT / 'tests/validate-plugin.sh').read_text()
-        checks = source.split('    # Simulated cross-provider contexts', 1)[1].split('\n', 1)[1].split('    # Invalid --provider', 1)[0]
+        checks = self.header_checks(source)
         with tempfile.TemporaryDirectory() as temporary:
             delegate = Path(temporary) / 'delegate.sh'
             delegate.write_text('''#!/bin/bash
