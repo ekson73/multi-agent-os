@@ -218,6 +218,13 @@ printf '%s\n' "${T_REVIEW_BODY:-}"
 STUB
 chmod +x "$CODEX_BIN/codex"
 
+# Reviewer controls are fixture data, not a production environment escape hatch.
+# Bake the disposable fixture path into mocks; no real reviewer sources this file.
+for mock in "$STUB_BIN/kimi" "$GEM_BIN/gemini" "$CODEX_BIN/codex"; do
+  { head -1 "$mock"; printf 'source %q\n' "$SANDBOX/reviewer-controls.sh"; tail -n +2 "$mock"; } > "$mock.new"
+  mv "$mock.new" "$mock"; chmod +x "$mock"
+done
+
 # ---------------------------------------------------------------- assertions
 # Run the REAL script against the stub PATH. Per-case fixtures are passed as an
 # env prefix (`T_REVIEWS=… sut`) — bash applies those to the function call, so
@@ -229,10 +236,16 @@ sut() {
   local p="${STUB_BIN}:${PATH}"
   [ -n "${EXTRA_BIN:-}" ] && p="${EXTRA_BIN}:${p}"
   [ -n "${ONLY_BIN:-}" ]  && p="${ONLY_BIN}"
+  # Serialize only synthetic test controls for the stub, never host credentials.
+  : > "$SANDBOX/reviewer-controls.sh"
+  local control
+  for control in T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE; do
+    declare -p "$control" >/dev/null 2>&1 || continue
+    printf '%s=%q\n' "$control" "${!control}" >> "$SANDBOX/reviewer-controls.sh"
+  done
   # Hermetic rotation state: never read or write the operator's real state file.
   ( cd "$REPO_DIR" \
     && PATH="$p" T_HEAD="${T_HEAD:-$HEAD_SHA}" T_BASE="${T_BASE:-$BASE_SHA}" ROUTED_REVIEW_STATE="${STATE:-$SANDBOX/state/state-default.json}" \
-       ROUTED_REVIEW_ENV_ALLOW="T_REVIEW_BODY T_REVIEW_RC T_LEAK_MARK T_GH_MARK T_TAMPER_PATH T_TAMPER_JSON T_GEMINI_ERR T_GEMINI_RC T_SLEEP T_TAMPER_MV T_DIR_SWAP T_ANC_SWAP T_RENAME_WRITE T_BASELINE_FORGE T_PROMPT_MARK T_LIVE_COMMIT T_SEE_FILE T_START_MARK T_CAT_FILE T_LINK_PROBE" \
        ${SUT_WRAP:-} bash "$SUT" --pr 1 --repo o/r --reviewer "${RV:-kimi}" --timeout 500 --json ${EXTRA_ARGS:-} 2>"$SANDBOX/err" )
 }
 
