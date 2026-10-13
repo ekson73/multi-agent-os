@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `routed-pr-review`: physical temp roots and ignored-file integrity (#413, #414)
+
+- Reject TMPDIR resolving inside the live checkout before any temporary allocation, including symlinked paths and the ephemeral-state fallback. Reuse the resolved physical temp root.
+- Include pre-existing ignored files and symlink targets in live-tree snapshots. Refuse nonregular/unreadable entries rather than silently declaring a clean snapshot. This detects persistent changes; it is not preventive confinement and may cost more on large ignored trees.
+
 ### Fixed — `routed-pr-review`: isolate candidate credentials (#413, #414)
 
 - Rebuild a closed environment for each effective reviewer and fallback. Pass only exact auth variables for that candidate, never another provider's credentials; unknown/multi-provider adapters get none. Ignore `ROUTED_REVIEW_ENV_ALLOW`, including innocent-looking arbitrary names, as a deliberate security tightening. Vendor configuration prefixes and XDG overrides are no longer forwarded. This does not certify adapter filesystem/process/network isolation.
