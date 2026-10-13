@@ -147,7 +147,8 @@ normalize_repo() {
   case "$REPO_HOST" in *..*|*.-*|*-.*) return 1 ;; esac
   owner="${REPO_PATH%%/*}"; name="${REPO_PATH#*/}"
   printf '%s' "$owner" | grep -qE '^[A-Za-z0-9][A-Za-z0-9-]*$' || return 1
-  printf '%s' "$name" | grep -qE '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' || return 1
+  case "$name" in .|..) return 1 ;; esac
+  printf '%s' "$name" | grep -qE '^[A-Za-z0-9_.][A-Za-z0-9_.-]*$' || return 1
   REPO_HOST="$(printf '%s' "$REPO_HOST" | tr '[:upper:]' '[:lower:]')"
   REPO="$REPO_HOST/$REPO_PATH"
   REPO_FETCH_URL="https://$REPO_HOST/$REPO_PATH.git"

@@ -29,8 +29,26 @@ jq -n --arg host "$REPO_HOST" --arg path "$REPO_PATH" --arg repo "$REPO" --arg f
         self.assertEqual(json.loads(self.parse('o/r','git.example.com').stdout)['host'], 'git.example.com')
         self.assertEqual(json.loads(self.parse('github.com/o/r','git.example.com').stdout)['host'], 'github.com')
 
+    def test_dot_leading_repository_names(self):
+        for name in ('.github', '.dotfiles'):
+            for prefix,host in [('o/','github.com'),('git.example.com/o/','git.example.com')]:
+                with self.subTest(name=name,prefix=prefix):
+                    result=self.parse(prefix+name)
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertEqual(json.loads(result.stdout)['fetch'],f'https://{host}/o/{name}.git')
+
+    def test_dot_repository_url_autodiscovery(self):
+        source=SUT.read_text()
+        block='normalize_repo() {'+source.split('normalize_repo() {',1)[1].split('# ---------------------------------------------------------------- Phase A: PR',1)[0]
+        for host in ['github.com','git.example.com']:
+            result=subprocess.run(['bash','-c',
+                'die() { exit 1; }; gh() { printf "%s" "$URL"; }; REPO=""; '+block+'\nprintf "%s" "$REPO_FETCH_URL"'],
+                env={'PATH':os.environ['PATH'],'URL':f'https://{host}/o/.github'},text=True,capture_output=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(result.stdout,f'https://{host}/o/.github.git')
+
     def test_unsafe_inputs_refuse(self):
-        for value in ['x/y/z/w','evil@host/o/r','host/../r','o/r?x','https://host/o/r','-x/r','o/','host:44/o/r', 'github.com/o/r\nBAD?x', 'host\nBAD?/o/r', 'host/o\nBAD?/r', 'o/r\r', 'o/r\t', 'o/r\x01', '', 'o//r']:
+        for value in ['o/.','o/..','host/o/.','host/o/..','x/y/z/w','evil@host/o/r','host/../r','o/r?x','https://host/o/r','-x/r','o/','host:44/o/r', 'github.com/o/r\nBAD?x', 'host\nBAD?/o/r', 'host/o\nBAD?/r', 'o/r\r', 'o/r\t', 'o/r\x01', '', 'o//r']:
             with self.subTest(value=value): self.assertNotEqual(self.parse(value).returncode,0)
 
     def test_actual_api_and_fetch_argv_share_host(self):
