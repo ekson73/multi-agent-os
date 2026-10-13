@@ -1263,6 +1263,7 @@ try {
 // An invocation mistake (missing --ir, unknown flag) exits 2 per the contract but is
 // NOT an IO/environment fault, so it is never relayed — the tool already printed the
 // usage that tells the operator what to fix.
-if (_code === EXIT_USAGE_NOHEAL) process.exit(EXIT_USAGE);
-if (_code === EXIT_USAGE) selfHealRelay(new Error('usage/IO error (exit 2)'), EXIT_USAGE);
-process.exit(_code);
+if (_code === EXIT_USAGE_NOHEAL) _code = EXIT_USAGE;
+else if (_code === EXIT_USAGE) selfHealRelay(new Error('usage/IO error (exit 2)'), EXIT_USAGE);
+// Let pending stdout/stderr writes drain before exiting (notably piped output).
+process.exitCode = _code;
