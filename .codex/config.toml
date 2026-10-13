@@ -14,6 +14,8 @@ args = ["-y", "@modelcontextprotocol/server-github"]
 # other transport ("url is not supported for stdio"), whether this one is stdio
 # or remote. Keyless remote baseline; a user's own `context7` entry (any
 # transport, with or without an API key header) keeps working alongside it.
+# This entry inherits neither headers nor `enabled` from a user `context7`; to turn
+# it off, set [mcp_servers.context7_baseline] enabled = false in ~/.codex/config.toml.
 [mcp_servers.context7_baseline]
 url = "https://mcp.context7.com/mcp"
 
