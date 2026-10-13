@@ -125,9 +125,20 @@ JSON
   "api "*|"api")
                 case "$*" in
                   *"/reviews"*)        [ -n "${T_HISTORY_FAIL:-}" ] && exit 1
-                                       printf '%s\n' "${T_REVIEW_HISTORY:-[]}"
+                                       if [ "${T_REVIEW_HISTORY+x}" = x ]; then
+                                         printf '%s\n' "$T_REVIEW_HISTORY"
+                                       else
+                                         R="${T_REVIEWS:-[]}"
+                                         if [ -n "${T_COUNT:-}" ] && [ -s "$T_COUNT" ] && [ "$(cat "$T_COUNT")" -gt "${T_SWITCH_AT:-1}" ]; then
+                                           [ -n "${T_REVIEWS_AFTER:-}" ] && R="$T_REVIEWS_AFTER"
+                                         fi
+                                         printf '%s' "$R" | jq --arg head "$T_HEAD" '
+                                           map({user: .author, state, commit_id: (.commit.oid // $head),
+                                                submitted_at: "2026-10-13T00:00:00Z"})'
+                                       fi
                                        [ -n "${T_HISTORY_PARTIAL_FAIL:-}" ] && exit 1
                                        exit 0 ;;
+                  *"/pulls?"*)       printf '[]\n' ;;
                   *"pulls/comments"*)  printf '%s\n' "${T_PULL_COMMENTS:-[]}" ;;
                   *)                   printf '%s\n' "${T_REPO_COMMENTS:-[]}" ;;
                 esac ;;
@@ -725,8 +736,8 @@ check "rc 124 is classified as a timeout reason" 2 '.failure_reason' "timeout"
 
 # Cases 54-58: third routed red-team round (codex + kimi) on this PR.
 # ── 54 ── a change request followed by a COMMENTED is still active.
-HIST='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"},
-       {"user":{"login":"maintainer"},"state":"COMMENTED","submitted_at":"2026-01-02T00:00:00Z"}]'
+HIST='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-01T00:00:00Z"},
+       {"user":{"login":"maintainer"},"state":"COMMENTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-02T00:00:00Z"}]'
 OUT="$(T_REVIEW_HISTORY="$HIST" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a change request later followed by a comment still blocks" 3 '.primary_verdict' "changes_requested"
@@ -739,7 +750,7 @@ check "an unreadable review history blocks C3" 3 '.primary_verdict' "review_hist
 # ── 90-92 ── gh --paginate emits one JSON array per page. A late blocker,
 # malformed continuation, or transport failure after partial output cannot
 # turn a readable first page into evidence of complete, clean history.
-PAGE_TWO_CR='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-01-01T00:00:00Z"}]'
+PAGE_TWO_CR='[{"user":{"login":"maintainer"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-01-01T00:00:00Z"}]'
 PAGED_HISTORY="$(printf '[]\n%s\n' "$PAGE_TWO_CR")"
 OUT="$(T_REVIEW_HISTORY="$PAGED_HISTORY" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
@@ -944,9 +955,9 @@ OUT="$(T_PROMPT_MARK="PINNED_HEAD_LINE_79" T_REVIEWS='[]' T_REVIEW_BODY="$BODY" 
 check "the reviewer gets the diff of the pinned base..head" 3 '.review | contains("PROMPT-CARRIED-PINNED_HEAD_LINE_79")' "true"
 
 # ── 80-82 ── a review history the gate cannot read is UNKNOWN, never clean.
-CR_OK='{"user":{"login":"alice"},"state":"CHANGES_REQUESTED","submitted_at":"2026-10-07T10:00:00Z"}'
+CR_OK='{"user":{"login":"alice"},"state":"CHANGES_REQUESTED","commit_id":"'"$HEAD_SHA"'","submitted_at":"2026-10-07T10:00:00Z"}'
 for H in '[{"state":"CHANGES_REQUESTED_V2"}]' '[{"state":""}]' \
-         "[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"not-a-timestamp\"}]"; do
+         "[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"not-a-timestamp\"}]"; do
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   check "an unreadable history record blocks C3 (${H:0:40})" 3 '.primary_verdict' "review_history_unreadable"
@@ -955,7 +966,7 @@ done
 # ── 83 ── same-second APPROVED + CHANGES_REQUESTED: the change request wins.
 # CHANGES_REQUESTED listed FIRST: jq max_by keeps the last maximal element, so
 # an order-dependent reducer would let the later APPROVED win the tie.
-TIE="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"
+TIE="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"
 OUT="$(T_REVIEW_HISTORY="$TIE" T_REVIEWS="$(printf "$AT_HEAD" APPROVED)" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 check "a same-second tie with a change request blocks C3" 3 '.primary_verdict' "changes_requested"
@@ -993,7 +1004,7 @@ AT_APPROVED="${AT_HEAD/\%s/APPROVED}"
 # `2026-99-99T99:99:99Z` passes a format regex and sorts after every real date as
 # text, so before the fix this APPROVED shadowed the real change request.
 for TS in 2026-99-99T99:99:99Z 2026-11-31T10:00:00Z; do
-  H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"$TS\"}]"
+  H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"$TS\"}]"
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   check "an impossible submitted_at blocks C3 ($TS)" 3 '.primary_verdict' "review_history_unreadable"
@@ -1002,8 +1013,8 @@ done
 # ── 86 ── fractional seconds never reorder a change request away.
 # As text `…00Z` > `…00.5Z` ('Z' > '.'): the earlier APPROVED won. And `…00.000Z`
 # vs `…00Z` is one instant written two ways: the string tie never fired.
-for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.5Z\"}]" \
-         "[{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"submitted_at\":\"2026-10-07T10:00:00.000Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"; do
+for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00.5Z\"}]" \
+         "[{\"user\":{\"login\":\"alice\"},\"state\":\"CHANGES_REQUESTED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00.000Z\"},{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:00Z\"}]"; do
   OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
          EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
   case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
@@ -1013,7 +1024,7 @@ for H in "[{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at
 done
 
 # ── 87 ── guard (passes before AND after): a real, later APPROVED still supersedes.
-H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"submitted_at\":\"2026-10-07T10:00:01Z\"}]"
+H="[$CR_OK,{\"user\":{\"login\":\"alice\"},\"state\":\"APPROVED\",\"commit_id\":\"$HEAD_SHA\",\"submitted_at\":\"2026-10-07T10:00:01Z\"}]"
 OUT="$(T_REVIEW_HISTORY="$H" T_REVIEWS="$AT_APPROVED" T_REVIEW_BODY="$PASS_BODY" \
        EXTRA_ARGS="--primary coderabbitai" ROUTED_REVIEW_CALLER=claude sut)"; RC=$?
 case "$(printf '%s' "$OUT" | jq -r '.primary_verdict' 2>/dev/null)" in
