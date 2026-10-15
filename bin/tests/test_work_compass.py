@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import sys
 import tempfile
 import time
@@ -513,6 +514,77 @@ def test_q3_forward_compat():
           c["quadrant"] == "Q3" and c["disposition"] == "Delegate")
 
 
+# ── 19. --format=html (Phase 2 item 5 — static, self-contained, escaped, sanitized) ─
+def _html_graph(items, unavailable=None):
+    g = wc.build_graph(items, "current", None, unavailable or [])
+    g["meta"]["generated_utc"] = "2026-01-01T00:00:00+00:00"  # pin for determinism
+    return g
+
+
+def test_html_escapes_markup():
+    evil = wc.item("s:1", "session", "<script>alert(1)</script>", status="active")
+    out = wc.render_html(_html_graph([evil], ['x"><img src=x onerror=1>']))
+    check("html: <script> in a title never reaches the output raw",
+          "<script>alert" not in out and "&lt;script&gt;" in out)
+    check("html: unavailable diagnostics are escaped too",
+          "<img src=x" not in out and "&lt;img" in out)
+    check("html: document starts with a doctype", out.lstrip().lower().startswith("<!doctype html>"))
+
+
+def test_html_sanitizes_paths_and_secrets():
+    home = str(wc.HOME)
+    leaky = wc.item(
+        "s:2", "session", f"work in /Users/alice/private/proj and {home}/notes",
+        status="active", source="token ghp_" + "A" * 30 + " Bearer abc.def.ghi",
+    )
+    out = wc.render_html(_html_graph([leaky]))
+    check("html: absolute user paths are collapsed", "alice" not in out and home not in out)
+    check("html: path replaced by ~ marker", "~/" in out)
+    check("html: secret-shaped tokens are masked",
+          "ghp_" + "A" * 30 not in out and "abc.def.ghi" not in out and "[redacted]" in out)
+
+
+def test_html_is_self_contained():
+    out = wc.render_html(_html_graph([wc.item("b:1", "branch", "one", status="active")]))
+    low = out.lower()
+    check("html: no script tag", "<script" not in low)
+    check("html: no external link/stylesheet/import",
+          "<link" not in low and "@import" not in low and "url(" not in low)
+    check("html: no network URL in src/href",
+          not re.search(r'(src|href)\s*=\s*["\']?\s*(https?:)?//', low))
+    check("html: CSS is inline", "<style" in low)
+
+
+def test_html_deterministic_and_complete():
+    items = [wc.item("b:2", "branch", "two"), wc.item("b:1", "branch", "one", flags=["stale"])]
+    a = wc.render_html(_html_graph(items))
+    b = wc.render_html(_html_graph(list(reversed(items))))
+    check("html: byte-identical for the same graph (deterministic)", a == b)
+    check("html: every item id is present", "b:1" in a and "b:2" in a)
+    check("html: domain sections are navigable (anchor + id)",
+          'href="#d-branch"' in a and 'id="d-branch"' in a)
+    check("html: candidates flagged visibly", "stale" in a)
+
+
+def test_html_cli_flag_and_backcompat():
+    import json as _json
+    import subprocess
+    base = [sys.executable, str(_MOD)] + [f"--no-{n}" for n in wc.COLLECTORS]
+    r = subprocess.run(base + ["--format", "html"], capture_output=True, text=True, timeout=60)
+    check("html cli: --format html exits 0", r.returncode == 0, r.stderr[:200])
+    check("html cli: stdout is an html document",
+          r.stdout.lstrip().lower().startswith("<!doctype html>"))
+    j = subprocess.run(base + ["--json"], capture_output=True, text=True, timeout=60)
+    ok = j.returncode == 0
+    try:
+        ok = ok and set(_json.loads(j.stdout)) >= {"meta", "by_domain", "items"}
+    except ValueError:
+        ok = False
+    check("html cli: --json path unchanged (backcompat)", ok)
+    m = subprocess.run(base + ["--format", "mermaid"], capture_output=True, text=True, timeout=60)
+    check("html cli: mermaid path unchanged", m.returncode == 0 and m.stdout.startswith("flowchart TD"))
+
+
 def main() -> int:
     print("test_work_compass — work-compass v1.3.1")
     print("=" * 60)
@@ -531,6 +603,9 @@ def main() -> int:
         test_pendency_scope_filter, test_pendency_include_pending,
         test_pendency_next_action, test_sort_flags_and_backcompat,
         test_stale_session_routes_to_reap, test_q3_forward_compat,
+        test_html_escapes_markup, test_html_sanitizes_paths_and_secrets,
+        test_html_is_self_contained, test_html_deterministic_and_complete,
+        test_html_cli_flag_and_backcompat,
     ]:
         print(f"\n[{fn.__name__}]")
         fn()

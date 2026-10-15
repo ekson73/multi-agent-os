@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — work-compass `--format=html`
+
+- `bin/work-compass-aggregate.py --format=html`: static, self-contained HTML view of the unified
+  work landscape (stdlib only; no JS, no network, inline CSS; every value HTML-escaped; absolute
+  user paths collapsed and secret-shaped tokens masked before rendering). `--json`, `ascii` and
+  `mermaid` paths unchanged. 18 new assertions in `bin/tests/test_work_compass.py` (121 total).
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.

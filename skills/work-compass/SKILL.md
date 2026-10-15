@@ -48,8 +48,9 @@ triggers:
 **SCOPE** — *What is this, and what is it NOT?* It is a thin, stateless, read-only
 **aggregator + renderer + detector + router** (~≤600 LoC net-new). It is NOT a sync engine,
 NOT a database, NOT a web/desktop/mobile app, NOT an ML rule-suggester. *Phase boundary?*
-Phase-1 = CLI/TUI only; HTML view, drag-drop, ML, and Linear/GitLab/ClickUp adapters are
-explicitly DEFERRED (YAGNI / Gordian).
+Phase-1 = CLI/TUI only; drag-drop, ML, and Linear/GitLab/ClickUp adapters are explicitly
+DEFERRED (YAGNI / Gordian). A **static, self-contained HTML view** (`--format=html`, read-only,
+no JS/network) landed in the item-5 increment; interactive/drag-drop views remain deferred.
 
 **CAPABILITIES** — *What can it do?* (1) Fan-out aggregate sessions+worktrees+branches+PRs+
 issues+Jira into one namespaced work-item graph; (2) render an ASCII N-Tree (default) or
@@ -105,7 +106,7 @@ bin/work-compass-aggregate.py --format=mermaid
 | Flag | Effect |
 |---|---|
 | `--json` | emit the normalized work-item graph |
-| `--format=ascii\|mermaid` | renderer (default ascii) |
+| `--format=ascii\|mermaid\|html` | renderer (default ascii); `html` = static, self-contained, escaped + path/secret-sanitized page (stdout; applies to the N-Tree path, not `--json`/pendency) |
 | `--ascii-only` | no-emoji glyph fallback (statusmap convention) |
 | `--scope <verb>` | Compass verb filter; `--node <id>` anchors the traversal |
 | `--stale-days N` | staleness threshold (default 7) |

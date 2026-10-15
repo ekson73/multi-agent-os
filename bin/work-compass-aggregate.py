@@ -38,6 +38,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -792,6 +793,83 @@ def render_mermaid(graph: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+# ── html renderer (static · self-contained · escaped · sanitized) ────────────────
+# Output-only surface: stdlib, no network, no JS, inline CSS. Every value that came
+# from a session/ticket/path is sanitized (user paths collapsed, secret-shaped tokens
+# masked) and then HTML-escaped, so the page is safe to open and to share.
+_USER_PATH_RE = re.compile(r"/(?:Users|home)/[^/\s\"'<>]+")
+_SECRET_RES = [
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{8,}"),
+]
+
+
+def _sanitize(value) -> str:
+    """Collapse absolute user paths to ~ and mask secret-shaped tokens (display only)."""
+    s = "" if value is None else str(value)
+    home = str(HOME)
+    if home and home != "/":
+        s = s.replace(home, "~")
+    s = _USER_PATH_RE.sub("~", s)
+    for rx in _SECRET_RES:
+        s = rx.sub("[redacted]", s)
+    return s
+
+
+_HTML_CSS = (
+    ":root{color-scheme:light dark;--bg:#fff;--fg:#1a1a1a;--mut:#667;--line:#d8dde3;--flag:#b35c00}"
+    "@media (prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaed;--mut:#9aa3ad;"
+    "--line:#2c313a;--flag:#ffb454}}"
+    "body{margin:0;padding:16px;background:var(--bg);color:var(--fg);"
+    "font:14px/1.45 system-ui,sans-serif}"
+    "h1{font-size:18px;margin:0 0 4px}h2{font-size:15px;margin:20px 0 6px}"
+    "nav a{margin-right:12px}.meta,.diag{color:var(--mut)}.flag{color:var(--flag);font-weight:600}"
+    "table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--line);"
+    "padding:4px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}"
+)
+
+
+def render_html(graph: dict) -> str:
+    def esc(v) -> str:
+        return html.escape(_sanitize(v), quote=True)
+
+    meta = graph["meta"]
+    grouped = graph["by_domain"]
+    present = [d for d in DOMAINS if grouped.get(d)]
+    out = [
+        "<!doctype html>", '<html lang="en">', "<head>", '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width,initial-scale=1">',
+        "<title>work-compass</title>", f"<style>{_HTML_CSS}</style>", "</head>", "<body>",
+        "<h1>work-compass — unified work landscape</h1>",
+        f'<p class="meta">items: {esc(meta["count"])} · domains: {esc(meta["domains_present"])}'
+        f'/{len(DOMAINS)} · candidates: {esc(meta["candidate_count"])} · scope: {esc(meta["scope"])}'
+        f' · generated: {esc(meta["generated_utc"])}</p>',
+    ]
+    for diag in meta.get("unavailable", []):
+        out.append(f'<p class="diag">unavailable: {esc(diag)}</p>')
+    out.append("<nav>" + "".join(
+        f'<a href="#d-{esc(d)}">{esc(d)} ({len(grouped[d])})</a>' for d in present) + "</nav>")
+    for d in present:
+        out += [f'<section id="d-{esc(d)}">', f"<h2>{esc(d)}</h2>", "<table>",
+                "<tr><th>id</th><th>status</th><th>title</th><th>flags</th><th>source</th>"
+                "<th>last</th></tr>"]
+        for it in grouped[d]:
+            flags = " ".join(f'<span class="flag">{esc(f)}</span>' for f in it.get("flags", []))
+            rid = re.sub(r"[^A-Za-z0-9_-]", "-", str(it["id"]))
+            out.append(
+                f'<tr id="i-{esc(rid)}"><td>{esc(it["id"])}</td>'
+                f'<td>{esc(it.get("status", "unknown"))}</td><td>{esc(it["title"])}</td>'
+                f"<td>{flags}</td><td>{esc(it.get('source', ''))}</td>"
+                f'<td>{esc(it.get("last_ts", ""))}</td></tr>')
+        out += ["</table>", "</section>"]
+    out += ["</body>", "</html>"]
+    return "\n".join(out) + "\n"
+
+
 # ── compass scope filter (CPT §9.5 verbs) ───────────────────────────────────────
 VALID_SCOPES = {"current", "down", "sideways", "up", "forward"}
 
@@ -1037,7 +1115,8 @@ def aggregate(args) -> tuple[list[dict], list[str]]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="work-compass cross-domain aggregator")
     ap.add_argument("--json", action="store_true", help="emit the work-item graph as JSON")
-    ap.add_argument("--format", choices=["ascii", "mermaid"], default="ascii")
+    ap.add_argument("--format", choices=["ascii", "mermaid", "html"], default="ascii",
+                    help="N-Tree render: ascii | mermaid | html (static, self-contained)")
     ap.add_argument("--ascii-only", action="store_true", help="no-emoji ASCII glyphs")
     ap.add_argument("--scope", default="current",
                     help="Compass verb: current|down|sideways|up|forward")
@@ -1105,6 +1184,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.format == "mermaid":
         sys.stdout.write(render_mermaid(graph))
+        return 0
+    if args.format == "html":
+        sys.stdout.write(render_html(graph))
         return 0
     sys.stdout.write(render_ascii(graph, ascii_only=args.ascii_only))
     return 0
