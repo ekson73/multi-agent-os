@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `bin/work-state` (durable work-item state)
+
+- Append-only local JSONL (`$WORK_STATE_DIR`, default `${XDG_STATE_HOME:-~/.local/state}/work-compass`,
+  never in git) with lease, `idempotency_key`, ownership (`owner`/`incarnation`/`last_activity_at`/
+  `children`/`terminal_marker`). `claim` is the only way to start an attempt: `attempts` is derived from
+  events, capped at 2 launches, then dead-letter. Writes are serialized with `flock` (no stale locks).
+  `manifest` prints a sanitized summary safe to commit. No launcher/scheduler/installer here.
+  Tests: `bin/tests/test_work_state.py` (fail-visible under pytest; mutation-checked).
+
 ### Added — work-compass `--format=html`
 
 - `bin/work-compass-aggregate.py --format=html`: static, self-contained HTML view of the unified

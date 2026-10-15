@@ -1,0 +1,293 @@
+#!/usr/bin/env python3
+"""
+work-state — durable, append-only work-item state (lease · idempotency · ownership).
+
+A thin local writer for the work-compass family. It records WHAT happened to a work
+item and answers WHO may act on it NOW — nothing else. It never launches, schedules or
+installs anything; consumers (dispatcher, resume, HTML, metrics) are separate.
+
+Storage (local, never in git):
+    $WORK_STATE_DIR/events.jsonl      raw, append-only log (may hold owners/notes: keep local)
+    default dir: ${XDG_STATE_HOME:-~/.local/state}/work-compass
+    `manifest` prints a SANITIZED summary that is safe to commit/share.
+
+Semantics:
+    append  one event line; the same --idempotency-key twice is a reported no-op.
+    claim   the ONLY way to start an attempt. attempts is DERIVED from `claimed` events
+            (never taken from the caller), capped at 2 launches, then dead-letter.
+    state   fold of the events for one item (or all).
+    manifest sanitized summary.   path   print the log path.
+
+Concurrency: every write holds an exclusive flock on events.lock for read-modify-append,
+so racing writers cannot tear a line or duplicate a key; the lock dies with the process
+(no stale-lock cleanup needed).
+
+Exit codes: 0 ok / reported no-op · 1 error (incl. unreadable log, fail-closed) ·
+            2 usage / unknown item · 3 item already terminal · 4 dead-letter · 5 live lease held.
+"""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import json
+import os
+import re
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+MAX_LAUNCHES = 2  # first launch + one retry; the 3rd goes to dead-letter
+
+_USER_PATH_RE = re.compile(r"/(?:Users|home)/[^/\s\"'<>]+")
+_SECRET_RES = [
+    re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}"),
+    re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{8,}"),
+]
+
+
+def _state_dir() -> Path:
+    env = os.environ.get("WORK_STATE_DIR")
+    if env:
+        return Path(env).expanduser()
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
+    return Path(base) / "work-compass"
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _iso(dt: datetime) -> str:
+    return dt.isoformat()
+
+
+def _parse(ts: str | None) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _sanitize(value) -> str:
+    s = "" if value is None else str(value)
+    home = str(Path.home())
+    if home and home != "/":
+        s = s.replace(home, "~")
+    s = _USER_PATH_RE.sub("~", s)
+    for rx in _SECRET_RES:
+        s = rx.sub("[redacted]", s)
+    return s
+
+
+class _Locked:
+    """Exclusive flock for read-modify-append; released on exit or process death."""
+
+    def __init__(self, d: Path):
+        d.mkdir(parents=True, exist_ok=True)
+        self.log = d / "events.jsonl"
+        self._lock = open(d / "events.lock", "a+")
+
+    def __enter__(self):
+        fcntl.flock(self._lock, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        fcntl.flock(self._lock, fcntl.LOCK_UN)
+        self._lock.close()
+
+    def read(self) -> list[dict]:
+        if not self.log.exists():
+            return []
+        out = []
+        for n, raw in enumerate(self.log.read_text().splitlines(), 1):
+            if not raw.strip():
+                continue
+            try:
+                out.append(json.loads(raw))
+            except ValueError as exc:  # fail closed: never guess around a torn/corrupt log
+                raise SystemExit(f"work-state: unreadable log line {n} ({exc}); inspect {self.log}")
+        return out
+
+    def write(self, events: list[dict], ev: dict) -> dict:
+        ev = {"v": 1, "seq": (events[-1]["seq"] + 1) if events else 1, "t": _iso(_now()), **ev}
+        fd = os.open(self.log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            os.write(fd, (json.dumps(ev, ensure_ascii=False, separators=(",", ":")) + "\n").encode())
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        events.append(ev)
+        return ev
+
+
+_DEFAULT_STATUS = {"enqueued": "queued", "claimed": "running", "done": "done",
+                   "dead-lettered": "dead-letter", "failed": "failed", "released": "queued"}
+_CARRY = ("status", "owner", "incarnation", "lease_until", "children", "terminal_marker", "note")
+
+
+def fold(events: list[dict], item: str) -> dict | None:
+    st: dict | None = None
+    for e in events:
+        if e.get("item") != item:
+            continue
+        st = st or {"item": item, "status": "queued", "owner": None, "incarnation": None,
+                    "lease_until": None, "children": [], "terminal_marker": None,
+                    "attempts": 0, "last_activity_at": None, "note": None}
+        if e["event"] in _DEFAULT_STATUS:
+            st["status"] = _DEFAULT_STATUS[e["event"]]
+        for k in _CARRY:
+            if k in e:
+                st[k] = e[k]
+        if e["event"] == "claimed":
+            st["attempts"] += 1  # derived, not caller-supplied
+        st["last_activity_at"] = e["t"]
+    return st
+
+
+def _lease_live(st: dict) -> bool:
+    lu = _parse(st.get("lease_until"))
+    return bool(lu and lu > _now() and st["status"] == "running")
+
+
+def _seen(events: list[dict], key: str | None) -> bool:
+    return bool(key) and any(e.get("idempotency_key") == key for e in events)
+
+
+def _event_from_args(a) -> dict:
+    ev: dict = {"item": a.item, "event": a.event}
+    for k in ("status", "owner", "note", "idempotency_key"):
+        v = getattr(a, k, None)
+        if v is not None:
+            ev[k] = v
+    if getattr(a, "incarnation", None) is not None:
+        ev["incarnation"] = a.incarnation
+    if getattr(a, "lease_sec", None) is not None:
+        ev["lease_until"] = _iso(_now() + timedelta(seconds=a.lease_sec))
+    if getattr(a, "children", None):
+        ev["children"] = a.children
+    if getattr(a, "terminal_marker", None):
+        try:
+            ev["terminal_marker"] = json.loads(a.terminal_marker)
+        except ValueError:
+            raise SystemExit("work-state: --terminal-marker must be JSON")
+    return ev
+
+
+def cmd_append(a) -> int:
+    with _Locked(_state_dir()) as lk:
+        events = lk.read()
+        if _seen(events, a.idempotency_key):
+            print(f"noop: idempotency_key {a.idempotency_key!r} already recorded")
+            return 0
+        ev = lk.write(events, _event_from_args(a))
+    print(json.dumps({"ok": True, "seq": ev["seq"]}))
+    return 0
+
+
+def cmd_claim(a) -> int:
+    with _Locked(_state_dir()) as lk:
+        events = lk.read()
+        if _seen(events, a.idempotency_key):
+            print(f"noop: idempotency_key {a.idempotency_key!r} already recorded")
+            return 0
+        st = fold(events, a.item)
+        if st is None:
+            print(f"work-state: unknown item {a.item!r} (append an 'enqueued' event first)", file=sys.stderr)
+            return 2
+        if st["status"] == "dead-letter":
+            print("dead-letter: item exhausted its launch budget", file=sys.stderr)
+            return 4
+        if st["status"] == "done" or st["terminal_marker"]:
+            print("terminal: item already finished; it cannot be re-claimed", file=sys.stderr)
+            return 3
+        if st["attempts"] >= MAX_LAUNCHES:
+            lk.write(events, {"item": a.item, "event": "dead-lettered",
+                              "note": f"launch budget ({MAX_LAUNCHES}) exhausted"})
+            print("dead-letter: launch budget exhausted", file=sys.stderr)
+            return 4
+        if _lease_live(st):
+            print(f"leased: held by {st['owner']!r} until {st['lease_until']}", file=sys.stderr)
+            return 5
+        ev = lk.write(events, {"item": a.item, "event": "claimed", "owner": a.owner,
+                               "incarnation": a.incarnation,
+                               "lease_until": _iso(_now() + timedelta(seconds=a.lease_sec)),
+                               **({"idempotency_key": a.idempotency_key} if a.idempotency_key else {})})
+    print(json.dumps({"ok": True, "seq": ev["seq"], "attempts": st["attempts"] + 1,
+                      "lease_until": ev["lease_until"]}))
+    return 0
+
+
+def cmd_state(a) -> int:
+    with _Locked(_state_dir()) as lk:
+        events = lk.read()
+    if a.item:
+        st = fold(events, a.item)
+        if st is None:
+            print(f"work-state: unknown item {a.item!r}", file=sys.stderr)
+            return 2
+        print(json.dumps(st, ensure_ascii=False, indent=2))
+        return 0
+    items = sorted({e["item"] for e in events})
+    print(json.dumps({i: fold(events, i) for i in items}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_manifest(_a) -> int:
+    with _Locked(_state_dir()) as lk:
+        events = lk.read()
+    rows = []
+    for i in sorted({e["item"] for e in events}):
+        st = fold(events, i)
+        rows.append({k: _sanitize(st[k]) if isinstance(st[k], str) else st[k]
+                     for k in ("item", "status", "owner", "incarnation", "lease_until",
+                               "attempts", "last_activity_at", "note")})
+    print(json.dumps({"schema": "work-state-manifest/v1", "count": len(rows), "items": rows},
+                     ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_path(_a) -> int:
+    print(_state_dir() / "events.jsonl")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description="durable work-item state (append-only, local)")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    def common(p, need_event=False):
+        p.add_argument("--item", required=True)
+        p.add_argument("--idempotency-key", dest="idempotency_key", default=None)
+        if need_event:
+            p.add_argument("--event", required=True)
+            p.add_argument("--status", default=None)
+            p.add_argument("--owner", default=None)
+            p.add_argument("--incarnation", type=int, default=None)
+            p.add_argument("--lease-sec", dest="lease_sec", type=int, default=None)
+            p.add_argument("--children", nargs="*", default=None)
+            p.add_argument("--terminal-marker", dest="terminal_marker", default=None)
+            p.add_argument("--note", default=None)
+
+    common(sub.add_parser("append", help="append one event (idempotent by key)"), need_event=True)
+    c = sub.add_parser("claim", help="start an attempt (derived attempts, <=2 launches)")
+    common(c)
+    c.add_argument("--owner", required=True)
+    c.add_argument("--incarnation", type=int, required=True)
+    c.add_argument("--lease-sec", dest="lease_sec", type=int, required=True)
+    s = sub.add_parser("state", help="fold of one item (or all)")
+    s.add_argument("--item", default=None)
+    sub.add_parser("manifest", help="sanitized summary (safe to commit)")
+    sub.add_parser("path", help="print the raw log path")
+    a = ap.parse_args(argv)
+    return {"append": cmd_append, "claim": cmd_claim, "state": cmd_state,
+            "manifest": cmd_manifest, "path": cmd_path}[a.cmd](a)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
