@@ -113,6 +113,7 @@ bin/work-compass-aggregate.py --format=mermaid
 | `--detect-only` | print only flagged candidates |
 | `--route <id> [--action A]` | print a reviewable routing command (read-only) |
 | `--no-jira / --no-github / --no-sessions / --no-git` | skip a domain |
+| `--no-ci / --no-linear / --no-harnesses` | skip the CI (`gh run list`), Linear (needs env `LINEAR_API_KEY`; otherwise reported `unavailable`) or cross-harness inventory collectors. `harnesses` lists names + mtime only (never contents) from `WORK_COMPASS_HARNESS_DIRS="name=path"` (separator = `os.pathsep`, no guessed defaults) |
 | `--repo owner/name` / `--repo-dir <path>` | provider/repo targeting |
 | `--sort [Eisenhower\|created\|updated\|urgent\|important]` | sorter (v1.3, composes `eisenhower-matrix` classifier). `Eisenhower` = Q1→Q4 `urgent×important` queue (Do/Schedule/Delegate/Eliminate; case-insensitive). Default `created` = id-order (deterministic; collectors expose no created_ts). Applies to the N-Tree rows AND gates the pendency view |
 | `--pendency-scope [current\|session\|repo\|vault\|all]` | pendency view (v1.3): filter WHERE pendencies live (id-prefix — orthogonal to the CPT `--scope` verbs). `current` = session+repo surfaces · `session` = sessions/jobs/plans · `repo` = branches/worktrees/PRs/issues/stashes · `vault` = eko-engram (no collector → honest `unavailable`) · `all` = everything incl. `jira:*`. Alias surface: `eisenhower-matrix --scope=<v>` |

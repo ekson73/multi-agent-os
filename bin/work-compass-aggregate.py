@@ -593,6 +593,115 @@ def collect_codex_sessions(index_path: str | Path | None = None) -> tuple[list[d
     return items, None
 
 
+# ── Phase-2 collectors: CI · Linear (configurable) · harness inventory ───────────────
+_CI_STATUS = {"success": "ok", "failure": "fail", "timed_out": "fail", "cancelled": "warn",
+              "action_required": "warn", "skipped": "unknown", "neutral": "unknown"}
+
+
+def collect_ci(repo: str | None) -> tuple[list[dict], str | None]:
+    """`gh run list` → the LATEST run per workflow (one item each). Degrades without gh."""
+    if not have("gh"):
+        return [], "ci: gh CLI not available"
+    rc, out, err = run(
+        ["gh", "run", "list", "--limit", "50"] + (["--repo", repo] if repo else [])
+        + ["--json", "databaseId,name,status,conclusion,headBranch,updatedAt,url,event"])
+    if rc != 0:
+        return [], f"ci: {err.strip()[:80] or 'unavailable'}"
+    try:
+        runs = json.loads(out or "[]")
+    except json.JSONDecodeError:
+        return [], "ci: unparseable gh output"
+    rname = repo or _infer_repo_slug()
+    latest: dict[str, dict] = {}
+    for r in runs:
+        name = str(r.get("name") or "workflow")
+        if name not in latest or str(r.get("updatedAt", "")) > str(latest[name].get("updatedAt", "")):
+            latest[name] = r
+    items = []
+    for name, r in sorted(latest.items()):
+        status = ("warn" if r.get("status") in ("in_progress", "queued", "waiting", "pending")
+                  else _CI_STATUS.get(str(r.get("conclusion")), "unknown"))
+        items.append(item(
+            f"ci:{rname}:{name}", "process", f"{name} — {r.get('conclusion') or r.get('status')}",
+            status=status, last_ts=r.get("updatedAt", ""), source="gh run list",
+            refs={"branch": r.get("headBranch", ""), "url": r.get("url", ""),
+                  "run": r.get("databaseId"), "repo": rname}))
+    return items, None
+
+
+_LINEAR_QUERY = ("{ viewer { assignedIssues(first: 50, filter: {state: {type: "
+                 "{nin: [\"completed\", \"canceled\"]}}}) { nodes { identifier title url "
+                 "updatedAt state { name type } } } } }")
+
+
+def _linear_fetch(query: str, key: str) -> dict:
+    import urllib.request
+    url = os.environ.get("WORK_COMPASS_LINEAR_URL", "https://api.linear.app/graphql")
+    req = urllib.request.Request(
+        url, data=json.dumps({"query": query}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": key})
+    with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 — fixed https endpoint
+        return json.loads(resp.read().decode())
+
+
+def collect_linear(fetch=None, api_key: str | None = None) -> tuple[list[dict], str | None]:
+    """Open issues assigned to the credential's owner. Credential ONLY via env (or injected);
+    no credential → unavailable. The key is never written to an item or a diagnostic."""
+    key = api_key if api_key is not None else os.environ.get("LINEAR_API_KEY", "")
+    if not key:
+        return [], "linear: LINEAR_API_KEY not set"
+    try:
+        data = (fetch or _linear_fetch)(_LINEAR_QUERY, key)
+        nodes = data["data"]["viewer"]["assignedIssues"]["nodes"]
+    except Exception as exc:  # noqa: BLE001 — degrade, never block the other collectors
+        return [], f"linear: {type(exc).__name__}"
+    items = []
+    for n in nodes:
+        st = n.get("state") or {}
+        items.append(item(
+            f"linear:{n.get('identifier')}", "ticket", str(n.get("title", ""))[:80],
+            status="warn" if st.get("type") == "started" else "ok",
+            last_ts=n.get("updatedAt", ""), source="linear graphql",
+            refs={"url": n.get("url", ""), "state": st.get("name", "")}))
+    return items, None
+
+
+_HARNESS_SECRETISH = re.compile(r"secret|token|credential|passw|\.env|api[-_]?key", re.I)
+
+
+def collect_harnesses(spec: str | None = None) -> tuple[list[dict], str | None]:
+    """INVENTORY ONLY for extra agent harnesses: entry count + newest mtime of a directory the
+    operator CONFIGURED (WORK_COMPASS_HARNESS_DIRS="name=path<pathsep>name=path"). No default
+    paths are guessed, file CONTENTS are never read, secret-looking names are skipped, and the
+    openclaw tree is detect-only (skipped)."""
+    spec = os.environ.get("WORK_COMPASS_HARNESS_DIRS", "") if spec is None else spec
+    pairs = [p for p in spec.split(os.pathsep) if p.strip()]
+    if not pairs:
+        return [], "harnesses: no paths configured (set WORK_COMPASS_HARNESS_DIRS=name=path)"
+    items: list[dict] = []
+    missing: list[str] = []
+    for pair in pairs:
+        name, _, raw = pair.partition("=")
+        name = re.sub(r"[^A-Za-z0-9_.-]", "", name) or "harness"
+        path = Path(raw).expanduser()
+        if _is_openclaw(path):
+            continue
+        if not path.is_dir():
+            missing.append(name)
+            continue
+        entries = [e for e in os.scandir(path) if not _HARNESS_SECRETISH.search(e.name)]
+        newest = max((e.stat().st_mtime for e in entries), default=None)
+        ts = datetime.fromtimestamp(newest, timezone.utc).isoformat() if newest else ""
+        age = days_since(ts) if ts else None
+        items.append(item(
+            f"harness:{name}", "session", f"{name}: {len(entries)} entries",
+            status=("unknown" if age is None else "ok" if age <= DEFAULT_STALE_DAYS else "stale"),
+            last_ts=ts, source="dir inventory (names+mtime only)",
+            refs={"vendor": name, "inventory_only": True, "entries": len(entries)}))
+    diag = f"harnesses: path not found for {', '.join(missing)}" if missing else None
+    return items, diag
+
+
 # ── detector (≤10 transparent heuristics; surfaces CANDIDATES, never auto-actions) ──
 def detect(items: list[dict], stale_days: int) -> None:
     by_id = {it["id"]: it for it in items}
@@ -1085,7 +1194,8 @@ def build_graph(items: list[dict], scope: str, node_id: str | None,
 
 # ── main ─────────────────────────────────────────────────────────────────────────
 # collector registry — add a surface = ONE entry here (drives --no-<name> flags too).
-COLLECTORS = ["sessions", "git", "github", "jira", "stashes", "plans", "jobs", "codex"]
+COLLECTORS = ["sessions", "git", "github", "jira", "stashes", "plans", "jobs", "codex",
+              "ci", "linear", "harnesses"]
 
 
 def aggregate(args) -> tuple[list[dict], list[str]]:
@@ -1099,6 +1209,9 @@ def aggregate(args) -> tuple[list[dict], list[str]]:
         "plans":    lambda: collect_plans(),
         "jobs":     lambda: collect_bg_jobs(),
         "codex":    lambda: collect_codex_sessions(),
+        "ci":       lambda: collect_ci(args.repo),
+        "linear":   lambda: collect_linear(),
+        "harnesses": lambda: collect_harnesses(),
     }
     items: list[dict] = []
     unavailable: list[str] = []

@@ -585,6 +585,105 @@ def test_html_cli_flag_and_backcompat():
     check("html cli: mermaid path unchanged", m.returncode == 0 and m.stdout.startswith("flowchart TD"))
 
 
+# ── 20. Phase 2 item 3 — collectors: CI · Linear (configurable) · harness inventory ──
+def test_collect_ci():
+    import json as _json
+    orig_run, orig_have = wc.run, wc.have
+    runs = [
+        {"databaseId": 3, "name": "CI", "status": "completed", "conclusion": "failure",
+         "headBranch": "main", "updatedAt": _new(), "url": "u3", "event": "push"},
+        {"databaseId": 2, "name": "CI", "status": "completed", "conclusion": "success",
+         "headBranch": "main", "updatedAt": _old(1), "url": "u2", "event": "push"},
+        {"databaseId": 5, "name": "Lint", "status": "in_progress", "conclusion": None,
+         "headBranch": "x", "updatedAt": _new(), "url": "u5", "event": "pull_request"},
+    ]
+    try:
+        wc.have = lambda c: True
+        wc.run = lambda argv, timeout=30: (0, _json.dumps(runs), "")
+        items, diag = wc.collect_ci("o/r")
+        by = {i["id"]: i for i in items}
+        check("ci: one item per workflow (latest run wins)", len(items) == 2 and diag is None)
+        check("ci: failure → fail, in_progress → warn",
+              by["ci:o/r:CI"]["status"] == "fail" and by["ci:o/r:Lint"]["status"] == "warn")
+        check("ci: domain process, source recorded",
+              all(i["domain"] == "process" and i["source"] for i in items))
+        wc.have = lambda c: False
+        items2, diag2 = wc.collect_ci("o/r")
+        check("ci: gh missing → unavailable, no items, no exception", items2 == [] and "gh" in diag2)
+        wc.have = lambda c: True
+        wc.run = lambda argv, timeout=30: (1, "", "HTTP 401")
+        items3, diag3 = wc.collect_ci("o/r")
+        check("ci: gh error → unavailable diag", items3 == [] and diag3 and "ci:" in diag3)
+    finally:
+        wc.run, wc.have = orig_run, orig_have
+
+
+def test_collect_linear():
+    key = "lin_api_" + "Z" * 30
+    prev = os.environ.pop("LINEAR_API_KEY", None)
+    try:
+        items, diag = wc.collect_linear()
+        check("linear: no credential → unavailable (degrades, never raises)",
+              items == [] and diag and "LINEAR_API_KEY" in diag)
+        payload = {"data": {"viewer": {"assignedIssues": {"nodes": [
+            {"identifier": "ABC-1", "title": "Fix thing", "url": "https://x/ABC-1",
+             "updatedAt": _new(), "state": {"name": "In Progress", "type": "started"}},
+            {"identifier": "ABC-2", "title": "Old", "url": "https://x/ABC-2",
+             "updatedAt": _old(30), "state": {"name": "Todo", "type": "unstarted"}}]}}}}
+        seen = {}
+        def fake(query, k):
+            seen["k"] = k
+            return payload
+        items, diag = wc.collect_linear(fetch=fake, api_key=key)
+        check("linear: assigned open issues become ticket items",
+              diag is None and {i["id"] for i in items} == {"linear:ABC-1", "linear:ABC-2"}
+              and all(i["domain"] == "ticket" for i in items))
+        check("linear: key is passed to the fetcher only", seen["k"] == key)
+        def boom(query, k):
+            raise OSError(f"401 for {k}")
+        items, diag = wc.collect_linear(fetch=boom, api_key=key)
+        check("linear: fetch failure → unavailable", items == [] and diag and diag.startswith("linear:"))
+        check("linear: credential never appears in a diagnostic", key not in (diag or ""))
+    finally:
+        if prev is not None:
+            os.environ["LINEAR_API_KEY"] = prev
+
+
+def test_collect_harnesses():
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "amp" / "threads").mkdir(parents=True)
+        (root / "amp" / "threads" / "t1.json").write_text("SECRET-CONTENT-MUST-NOT-BE-READ")
+        (root / "amp" / "secrets.json").write_text("TOPSECRET")
+        (root / "empty").mkdir()
+        spec = f"amp={root / 'amp'}{os.pathsep}ghost={root / 'ghost'}{os.pathsep}empty={root / 'empty'}"
+        items, diag = wc.collect_harnesses(spec)
+        by = {i["id"]: i for i in items}
+        check("harness: configured existing dir becomes one inventory item", "harness:amp" in by)
+        check("harness: domain session, inventory-only marker",
+              by["harness:amp"]["domain"] == "session" and by["harness:amp"]["refs"].get("inventory_only"))
+        check("harness: secret-like files are not counted", "1 entries" in by["harness:amp"]["title"]
+              or by["harness:amp"]["refs"].get("entries") == 1)
+        check("harness: contents are never read into the item",
+              "SECRET-CONTENT" not in repr(by) and "TOPSECRET" not in repr(by))
+        check("harness: missing path reported as unavailable, not guessed",
+              "ghost" in (diag or "") and "harness:ghost" not in by)
+        items, diag = wc.collect_harnesses("")
+        check("harness: nothing configured → unavailable, no default guessing",
+              items == [] and diag and "WORK_COMPASS_HARNESS_DIRS" in diag)
+        oc = Path(wc.OPENCLAW_ROOT)
+        items, diag = wc.collect_harnesses(f"claw={oc}")
+        check("harness: openclaw tree is detect-only (skipped)", all(i["id"] != "harness:claw" for i in items))
+
+
+def test_new_collectors_registered():
+    for n in ("ci", "linear", "harnesses"):
+        check(f"registry: {n} in COLLECTORS", n in wc.COLLECTORS)
+    src = open(wc.__file__, encoding="utf-8").read()
+    check("registry: --no-<name> is generated from COLLECTORS (not hand-listed)",
+          'for _name in COLLECTORS' in src)
+
+
 def main() -> int:
     print("test_work_compass — work-compass v1.3.1")
     print("=" * 60)
@@ -606,6 +705,8 @@ def main() -> int:
         test_html_escapes_markup, test_html_sanitizes_paths_and_secrets,
         test_html_is_self_contained, test_html_deterministic_and_complete,
         test_html_cli_flag_and_backcompat,
+        test_collect_ci, test_collect_linear, test_collect_harnesses,
+        test_new_collectors_registered,
     ]:
         print(f"\n[{fn.__name__}]")
         fn()

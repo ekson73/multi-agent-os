@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — work-compass collectors: `ci`, `linear`, `harnesses`
+
+- `ci` (`gh run list`, latest run per workflow; read-only), `linear` (opt-in: requires the
+  `LINEAR_API_KEY` env var — without it the collector reports `unavailable`; the key is never
+  logged or echoed), `harnesses` (inventory of NAMES + mtime only, never file contents; directories
+  come from `WORK_COMPASS_HARNESS_DIRS="name=path<pathsep>name=path"`, no guessed defaults;
+  secret-looking names and `~/openclaw` are skipped). Each auto-generates `--no-ci` / `--no-linear` /
+  `--no-harnesses`. 21 new assertions in `bin/tests/test_work_compass.py` (142 total).
+
 ### Added — `bin/work-state` (durable work-item state)
 
 - Append-only local JSONL (`$WORK_STATE_DIR`, default `${XDG_STATE_HOME:-~/.local/state}/work-compass`,
