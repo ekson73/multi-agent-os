@@ -420,10 +420,18 @@ fi
 # the silent-plausibility failure TEMPLATE_SLOT_UNFILLED exists to prevent.
 TPL="$ROOT/../skills/research-dossier/templates/dossier.html"
 if [ -f "$TPL" ]; then
-  cp "$TPL" "$TMP/tpl.bak"
-  printf '\n<!-- __GHOST_SLOT__ -->\n' >> "$TPL"
-  node "$REND" --ir "$EX/ir-valid.json" --formats html --out "$TMP/slot" >"$TMP/slot.log" 2>&1; RC=$?
-  cp "$TMP/tpl.bak" "$TPL"
+  # Isolation (RUN122): the ghost slot goes into a COPY of the template, never the
+  # tracked file. The renderer resolves its template as
+  # <renderer dir>/../skills/research-dossier/templates/dossier.html (SKILL_DIR from
+  # import.meta.url) and imports only node: builtins, so a private fixture holding a
+  # renderer copy + a template copy is the whole closure. $TMP is removed by the
+  # EXIT trap, so an interrupted run leaves the tracked template untouched.
+  TFX="$TMP/tplfx"
+  mkdir -p "$TFX/bin" "$TFX/skills/research-dossier/templates"
+  cp "$REND" "$TFX/bin/research-dossier-render.mjs"
+  cp "$TPL" "$TFX/skills/research-dossier/templates/dossier.html"
+  printf '\n<!-- __GHOST_SLOT__ -->\n' >> "$TFX/skills/research-dossier/templates/dossier.html"
+  node "$TFX/bin/research-dossier-render.mjs" --ir "$EX/ir-valid.json" --formats html --out "$TMP/slot" >"$TMP/slot.log" 2>&1; RC=$?
   eq '1' "$RC" 'an unfilled template slot FAILS the build (never a silent exit 0)'
   [ -f "$TMP/slot/dossier.html" ] && no 'no artifact is written when a slot survives' 'file written' \
                                   || ok 'no artifact is written when a slot survives'

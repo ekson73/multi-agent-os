@@ -96,16 +96,20 @@ printf 'not json at all' | bash "$HOOK" >/dev/null 2>&1
 [ $? -eq 0 ] && ok "non-JSON stdin -> exit 0" || bad "non-JSON stdin" "nonzero exit"
 
 # BLOCKING-1: unset HOME must not abort under `set -u`
+# Isolation (RUN122): HOME stays UNSET, but QBG_STATE_DIR points at a private dir
+# inside $TMP, so nothing is written to — or deleted from — the shared global
+# fallback ${HOME:-/tmp}/.claude/state/question-batch-gate (= /tmp/.claude/state/...).
+# Coverage limit (deliberate): with QBG_STATE_DIR set, the hook's `${HOME:-/tmp}`
+# fallback expression is not evaluated, so this case no longer exercises that exact
+# default-path branch; it still proves the hook exits 0 with HOME absent and sets
+# no other bare $HOME dependency. The fallback expression itself is the one line
+# `STATE_DIR="${QBG_STATE_DIR:-${HOME:-/tmp}/..."` in the hook (guarded by the `:-/tmp`
+# default); exercising it for real requires writing to the shared /tmp path, which
+# this suite does not do.
 O="$(jq -cn '{session_id:"h",prompt_id:"h2",last_assistant_message:"a?\nb?\nc?"}' \
-  | env -u HOME -u QBG_STATE_DIR PATH="$PATH" bash "$HOOK" 2>&1)"; RC=$?
+  | env -u HOME QBG_STATE_DIR="$TMP/nohome-state" PATH="$PATH" bash "$HOOK" 2>&1)"; RC=$?
 [ "$RC" -eq 0 ] && ok "unset HOME -> exit 0 (BLOCKING-1)" \
   || bad "unset HOME" "rc=$RC out=$(printf '%s' "$O" | head -1)"
-# Issue #366 finding 4: with HOME unset, the hook falls back to
-# ${HOME:-/tmp}/.claude/state/question-batch-gate = /tmp/.claude/state/
-# question-batch-gate — a REAL path outside $TMP, left uncleaned and
-# polluting later test runs' idempotency path (stray markers accumulate
-# across CI runs on a shared /tmp). Bounded, literal, non-computed path.
-rm -rf "/tmp/.claude/state/question-batch-gate" 2>/dev/null || true
 
 # BLOCKING-2: payload-controlled ids must never escape STATE_DIR. Assert on
 # directory-EMPTINESS of the victim dir, not a specific filename — issue #366
