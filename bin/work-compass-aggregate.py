@@ -680,26 +680,46 @@ def collect_harnesses(spec: str | None = None) -> tuple[list[dict], str | None]:
         return [], "harnesses: no paths configured (set WORK_COMPASS_HARNESS_DIRS=name=path)"
     items: list[dict] = []
     missing: list[str] = []
+    unreadable: list[str] = []
     for pair in pairs:
         name, _, raw = pair.partition("=")
         name = re.sub(r"[^A-Za-z0-9_.-]", "", name) or "harness"
-        path = Path(raw).expanduser()
-        if _is_openclaw(path):
+        # Degrade per directory AND per entry: a denied/vanished/dangling path must never
+        # escape (it would reach the top-level self-heal relay) nor drop the other harnesses.
+        try:
+            path = Path(raw).expanduser()
+            if _is_openclaw(path):
+                continue
+            if not path.is_dir():
+                missing.append(name)
+                continue
+            count, newest = 0, None
+            with os.scandir(path) as it:
+                for e in it:
+                    if _HARNESS_SECRETISH.search(e.name):
+                        continue
+                    count += 1
+                    try:  # lstat: a dangling symlink / racing removal skips only its mtime
+                        m = e.stat(follow_symlinks=False).st_mtime
+                    except OSError:
+                        continue
+                    newest = m if newest is None else max(newest, m)
+        except (OSError, RuntimeError, ValueError):
+            unreadable.append(name)
             continue
-        if not path.is_dir():
-            missing.append(name)
-            continue
-        entries = [e for e in os.scandir(path) if not _HARNESS_SECRETISH.search(e.name)]
-        newest = max((e.stat().st_mtime for e in entries), default=None)
         ts = datetime.fromtimestamp(newest, timezone.utc).isoformat() if newest else ""
         age = days_since(ts) if ts else None
         items.append(item(
-            f"harness:{name}", "session", f"{name}: {len(entries)} entries",
+            f"harness:{name}", "session", f"{name}: {count} entries",
             status=("unknown" if age is None else "ok" if age <= DEFAULT_STALE_DAYS else "stale"),
             last_ts=ts, source="dir inventory (names+mtime only)",
-            refs={"vendor": name, "inventory_only": True, "entries": len(entries)}))
-    diag = f"harnesses: path not found for {', '.join(missing)}" if missing else None
-    return items, diag
+            refs={"vendor": name, "inventory_only": True, "entries": count}))
+    notes = []
+    if missing:
+        notes.append(f"path not found for {', '.join(missing)}")
+    if unreadable:
+        notes.append(f"path unreadable (denied/removed) for {', '.join(unreadable)}")
+    return items, (f"harnesses: {'; '.join(notes)}" if notes else None)
 
 
 # ── detector (≤10 transparent heuristics; surfaces CANDIDATES, never auto-actions) ──
@@ -966,11 +986,12 @@ def render_html(graph: dict) -> str:
         out += [f'<section id="d-{esc(d)}">', f"<h2>{esc(d)}</h2>", "<table>",
                 "<tr><th>id</th><th>status</th><th>title</th><th>flags</th><th>source</th>"
                 "<th>last</th></tr>"]
-        for it in grouped[d]:
+        for n, it in enumerate(grouped[d], 1):
             flags = " ".join(f'<span class="flag">{esc(f)}</span>' for f in it.get("flags", []))
-            rid = re.sub(r"[^A-Za-z0-9_-]", "-", str(it["id"]))
+            # opaque ordinal id: normalizing the raw id first would defeat _sanitize and leak
+            # /Users/<name> into the attribute; the visible cell below is sanitized separately.
             out.append(
-                f'<tr id="i-{esc(rid)}"><td>{esc(it["id"])}</td>'
+                f'<tr id="i-{n}-{esc(d)}"><td>{esc(it["id"])}</td>'
                 f'<td>{esc(it.get("status", "unknown"))}</td><td>{esc(it["title"])}</td>'
                 f"<td>{flags}</td><td>{esc(it.get('source', ''))}</td>"
                 f'<td>{esc(it.get("last_ts", ""))}</td></tr>')

@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — Phase-2 B4 independent-review findings (`bin/work-state`, work-compass)
+
+- `work-state append` now validates the transition under the lock: `claimed` / `dead-lettered`
+  are reserved to `claim`; unknown events are refused; `--status` may only repeat the status the
+  event derives (no fabricated `running`, no reopening a terminal item); while an item is `running`
+  only its owner of record (`--owner` + `--incarnation`) may heartbeat/complete/release it, and a
+  stale or foreign writer is refused (exit 5) — once the lease has EXPIRED anyone may reap it with
+  `released`/`failed`/`enqueued`, but ownership never moves without a `claim`. No claim cycle is
+  imposed: `done` without a prior claim and `failed`/`released`/`heartbeat` on non-terminal items stay valid,
+  and any append event may still create an unknown item directly (no mandatory `enqueued` step).
+- `work-state claim` checks a LIVE lease before the launch budget (a racing claimant gets exit 5 and
+  nothing is written; it no longer dead-letters a leased item). Absurd `--lease-sec` is exit 2, not a traceback.
+- `work-state` reads fail closed on structurally invalid lines (not only unparseable JSON — e.g. a lone
+  `{"seq":1}`) before any append; writes complete short `os.write`s and, on a partial failure, never
+  truncate: the evidence stays, the error says so, and the next command refuses the torn line.
+  A non-empty log that does not end in LF is refused byte-untouched even when its last JSON object is
+  complete (a write that died exactly before the LF would otherwise let the next append glue two objects
+  on one line); lines are split on LF only, so U+2028/U+0085 inside a note cannot lock the log.
+- `work-state` validates the outgoing event against the same schema the reader enforces BEFORE opening
+  the log: `append --item "" --event enqueued` is now exit 2 and writes nothing (it used to record a
+  line the next read would refuse).
+- `work-compass --format=html`: row `id` attributes are opaque ordinals (`i-<n>-<domain>`) — the old
+  normalise-then-sanitize order let `/Users/<name>` survive into attributes.
+- `collect_harnesses` degrades per directory and per entry (denied dir, dangling symlink, entry removed
+  between `scandir` and `stat`) with a diagnostic instead of escaping to the self-heal relay, and the other
+  harnesses are still collected.
+
 ### Added — work-compass collectors: `ci`, `linear`, `harnesses`
 
 - `ci` (`gh run list`, latest run per workflow; read-only), `linear` (opt-in: requires the

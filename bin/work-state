@@ -13,21 +13,66 @@ Storage (local, never in git):
 
 Semantics:
     append  one event line; the same --idempotency-key twice is a reported no-op.
+            Validated under the lock (see "Transition contract"); a rejected event is
+            NEVER written.
     claim   the ONLY way to start an attempt. attempts is DERIVED from `claimed` events
             (never taken from the caller), capped at 2 launches, then dead-letter.
     state   fold of the events for one item (or all).
     manifest sanitized summary.   path   print the log path.
 
+Transition contract (enforced by `append` under the exclusive lock; nothing here requires a
+claim cycle — `done` without a prior claim, and `failed`/`released`/`heartbeat` on any
+non-terminal item, stay valid):
+    status is DERIVED from the event; --status may only repeat the derived value, so a
+    caller can neither fabricate `running` nor reopen a terminal item.
+    `claimed` and `dead-lettered` are reserved to `claim` (append rejects them): the launch
+    budget and the lease cannot be bypassed or voided by a hand-written event. Unknown
+    events are rejected (they could otherwise carry owner/lease fields).
+    unknown item -> any append event creates it directly (a `done` without a prior
+            `enqueued` or claim was accepted before this contract and stays valid: the
+            minimal choice is NOT to invent a mandatory enqueue step). `claim` and `state`
+            still refuse an unknown item (2).
+    terminal item (done / dead-letter / terminal marker) -> every append is rejected (3).
+    item `running` under an owner of record (the last `claimed`): only that owner
+            (--owner AND --incarnation) may heartbeat / done / released / failed / enqueued;
+            anyone else is rejected (5) — a stale or foreign writer cannot extend, move,
+            release or complete a lease it does not hold. Exception: once the lease has
+            EXPIRED, any caller may reap it with `released` / `failed` / `enqueued` (these
+            only lower the state; heartbeat and done stay owner-only, so ownership never
+            moves without a `claim`). Items that are not running have no owner to protect.
+    --lease-sec out of the representable range is rejected (2), never a crash.
+
+Order of claim refusals (none of them writes, except the budget dead-letter):
+    unknown(2) -> dead-letter(4) -> terminal(3) -> LIVE lease(5) -> budget exhausted:
+    write `dead-lettered`, exit 4. A live lease is therefore never converted into a
+    dead-letter by a racing claimant.
+
+Fail-closed reads: a non-empty log must end in LF (a final line without it may be a torn
+write — even when the JSON happens to be complete — and the next append would glue two
+objects onto one line, so it is refused byte-for-byte untouched); lines are split on LF
+only; every log line must be a JSON object with an integer, strictly
+increasing `seq`, string `item` / `event` / `t`, a parseable `lease_until` when present,
+and well-typed optional fields; anything else (a torn line, `{"seq":1}`) aborts the
+command BEFORE any append and leaves the log untouched.
+Writes are append-only: the outgoing event is validated against the SAME schema the reader
+enforces BEFORE the log is opened (a rejected event, e.g. an empty --item, exits 2 and leaves
+the log — or its absence — intact); a short write is completed; an error after some bytes were
+written never truncates (the evidence stays) — the command fails honestly and the
+partial line is then refused by the fail-closed read.
+
 Concurrency: every write holds an exclusive flock on events.lock for read-modify-append,
 so racing writers cannot tear a line or duplicate a key; the lock dies with the process
 (no stale-lock cleanup needed).
 
-Exit codes: 0 ok / reported no-op · 1 error (incl. unreadable log, fail-closed) ·
-            2 usage / unknown item · 3 item already terminal · 4 dead-letter · 5 live lease held.
+Exit codes: 0 ok / reported no-op · 1 error (incl. an unreadable/invalid log or a write that
+            could not be completed — fail-closed, never reported ok) ·
+            2 usage / unknown item / rejected event or field · 3 item already terminal ·
+            4 dead-letter · 5 live lease held / caller is not the owner of record.
 """
 from __future__ import annotations
 
 import argparse
+import errno
 import fcntl
 import json
 import os
@@ -37,6 +82,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 MAX_LAUNCHES = 2  # first launch + one retry; the 3rd goes to dead-letter
+APPEND_EVENTS = ("enqueued", "heartbeat", "released", "failed", "done")
+RESERVED_EVENTS = ("claimed", "dead-lettered")  # only `claim` may write these
+REAP_EVENTS = ("enqueued", "released", "failed")  # may reap an EXPIRED lease (state only goes down)
+TERMINAL_STATUSES = ("done", "dead-letter")
 
 _USER_PATH_RE = re.compile(r"/(?:Users|home)/[^/\s\"'<>]+")
 _SECRET_RES = [
@@ -104,31 +153,97 @@ class _Locked:
     def read(self) -> list[dict]:
         if not self.log.exists():
             return []
-        out = []
-        for n, raw in enumerate(self.log.read_text().splitlines(), 1):
+        out: list[dict] = []
+        blob = self.log.read_bytes()
+        if blob and not blob.endswith(b"\n"):
+            # Fail closed BEFORE parsing or writing: the last event may be a torn write that
+            # lost only its LF; appending would concatenate two JSON objects on one line.
+            raise SystemExit(f"work-state: log does not end in a newline (torn final line?); "
+                             f"refusing to read or append, left untouched — inspect {self.log}")
+        try:
+            text = blob.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SystemExit(f"work-state: log is not valid UTF-8 ({exc}); inspect {self.log}")
+        for n, raw in enumerate(text.split("\n"), 1):  # LF only: splitlines() also splits on U+2028/U+0085
             if not raw.strip():
                 continue
             try:
-                out.append(json.loads(raw))
+                ev = json.loads(raw)
             except ValueError as exc:  # fail closed: never guess around a torn/corrupt log
                 raise SystemExit(f"work-state: unreadable log line {n} ({exc}); inspect {self.log}")
+            bad = _invalid_event(ev, out[-1]["seq"] if out else 0)
+            if bad:
+                raise SystemExit(f"work-state: invalid log line {n} ({bad}); inspect {self.log}")
+            out.append(ev)
         return out
 
     def write(self, events: list[dict], ev: dict) -> dict:
-        ev = {"v": 1, "seq": (events[-1]["seq"] + 1) if events else 1, "t": _iso(_now()), **ev}
+        prev = events[-1]["seq"] if events else 0
+        ev = {"v": 1, "seq": prev + 1, "t": _iso(_now()), **ev}
+        bad = _invalid_event(ev, prev)  # the writer may never emit what the reader refuses
+        if bad:
+            print(f"work-state: rejected: the event would not pass the log schema ({bad}); "
+                  "nothing was written", file=sys.stderr)
+            raise SystemExit(2)
+        data = (json.dumps(ev, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
         fd = os.open(self.log, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        progress = [0]
         try:
-            os.write(fd, (json.dumps(ev, ensure_ascii=False, separators=(",", ":")) + "\n").encode())
+            _write_all(fd, data, progress)
             os.fsync(fd)
+        except BaseException as exc:
+            # Append-only: NEVER truncate or rewrite. Whatever reached the log stays as
+            # evidence; a torn line is refused by the fail-closed read on the next command.
+            n, total = progress[0], len(data)
+            if n == 0:
+                state = "no bytes were written (the event is not in the log)"
+            elif n < total:
+                state = (f"{n} of {total} bytes were written: the log may now end in a PARTIAL line, "
+                         "left untouched as evidence; later commands will refuse it (fail-closed)")
+            else:
+                state = "all bytes were written but could not be confirmed durable; the event may be recorded"
+            raise SystemExit(f"work-state: write failed ({exc}); {state}; inspect {self.log}")
         finally:
             os.close(fd)
         events.append(ev)
         return ev
 
 
+def _write_all(fd: int, data: bytes, progress: list[int]) -> None:
+    """os.write may accept fewer bytes than asked: loop until every byte is out, else fail."""
+    view = memoryview(data)
+    while progress[0] < len(view):
+        n = os.write(fd, view[progress[0]:])
+        if n <= 0:
+            raise OSError(errno.EIO, "short write (0 bytes accepted)")
+        progress[0] += n
+
+
+def _invalid_event(ev, prev_seq: int) -> str | None:
+    """Structural check of one log line (fail-closed read). Returns the problem or None."""
+    if not isinstance(ev, dict):
+        return "not a JSON object"
+    seq = ev.get("seq")
+    if isinstance(seq, bool) or not isinstance(seq, int) or seq <= prev_seq:
+        return "seq missing, not an integer, or not strictly increasing"
+    for k in ("item", "event", "t"):
+        if not isinstance(ev.get(k), str) or not ev[k]:
+            return f"{k} missing or not a non-empty string"
+    if "lease_until" in ev and (not isinstance(ev["lease_until"], str) or _parse(ev["lease_until"]) is None):
+        return "lease_until is not a parseable timestamp"
+    if "incarnation" in ev and (isinstance(ev["incarnation"], bool) or not isinstance(ev["incarnation"], int)):
+        return "incarnation is not an integer"
+    if "children" in ev and not isinstance(ev["children"], list):
+        return "children is not a list"
+    for k in ("owner", "note", "idempotency_key"):
+        if k in ev and ev[k] is not None and not isinstance(ev[k], str):
+            return f"{k} is not a string"
+    return None
+
+
 _DEFAULT_STATUS = {"enqueued": "queued", "claimed": "running", "done": "done",
                    "dead-lettered": "dead-letter", "failed": "failed", "released": "queued"}
-_CARRY = ("status", "owner", "incarnation", "lease_until", "children", "terminal_marker", "note")
+_CARRY = ("owner", "incarnation", "lease_until", "children", "terminal_marker", "note")
 
 
 def fold(events: list[dict], item: str) -> dict | None:
@@ -159,6 +274,14 @@ def _seen(events: list[dict], key: str | None) -> bool:
     return bool(key) and any(e.get("idempotency_key") == key for e in events)
 
 
+def _lease_until(sec: int) -> str:
+    try:
+        return _iso(_now() + timedelta(seconds=sec))
+    except (OverflowError, ValueError):
+        print(f"work-state: --lease-sec {sec} is outside the representable range", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
 def _event_from_args(a) -> dict:
     ev: dict = {"item": a.item, "event": a.event}
     for k in ("status", "owner", "note", "idempotency_key"):
@@ -168,7 +291,7 @@ def _event_from_args(a) -> dict:
     if getattr(a, "incarnation", None) is not None:
         ev["incarnation"] = a.incarnation
     if getattr(a, "lease_sec", None) is not None:
-        ev["lease_until"] = _iso(_now() + timedelta(seconds=a.lease_sec))
+        ev["lease_until"] = _lease_until(a.lease_sec)
     if getattr(a, "children", None):
         ev["children"] = a.children
     if getattr(a, "terminal_marker", None):
@@ -179,18 +302,53 @@ def _event_from_args(a) -> dict:
     return ev
 
 
+def _is_terminal(st: dict) -> bool:
+    return st["status"] in TERMINAL_STATUSES or bool(st["terminal_marker"])
+
+
+def _check_append(events: list[dict], a) -> tuple[int, str] | None:
+    """Transition contract (module docstring). Returns (exit_code, message) to reject."""
+    if a.event in RESERVED_EVENTS:
+        return 2, f"event {a.event!r} is reserved to the claim path"
+    if a.event not in APPEND_EVENTS:
+        return 2, f"unknown event {a.event!r} (allowed: {', '.join(APPEND_EVENTS)})"
+    st = fold(events, a.item)
+    if st is None:
+        derived = _DEFAULT_STATUS.get(a.event, "queued")  # direct creation, as before the contract
+    else:
+        if _is_terminal(st):
+            return 3, "terminal: item already finished; no further events"
+        derived = _DEFAULT_STATUS.get(a.event, st["status"])
+    if a.status is not None and a.status != derived:
+        return 2, f"status is derived from the event ({derived!r}); --status may only repeat it"
+    if st is not None and st["status"] == "running":
+        if (a.owner, a.incarnation) != (st["owner"], st["incarnation"]):
+            if not (a.event in REAP_EVENTS and not _lease_live(st)):  # expired lease may be reaped
+                return 5, (f"not the owner of record (held by {st['owner']!r} incarnation "
+                           f"{st['incarnation']!r}); pass its --owner and --incarnation")
+    return None
+
+
 def cmd_append(a) -> int:
+    if a.lease_sec is not None:
+        _lease_until(a.lease_sec)  # range check before touching the log (SystemExit on overflow)
+    new = _event_from_args(a)
     with _Locked(_state_dir()) as lk:
         events = lk.read()
         if _seen(events, a.idempotency_key):
             print(f"noop: idempotency_key {a.idempotency_key!r} already recorded")
             return 0
-        ev = lk.write(events, _event_from_args(a))
+        err = _check_append(events, a)
+        if err:
+            print(f"work-state: rejected: {err[1]}", file=sys.stderr)
+            return err[0]
+        ev = lk.write(events, new)
     print(json.dumps({"ok": True, "seq": ev["seq"]}))
     return 0
 
 
 def cmd_claim(a) -> int:
+    _lease_until(a.lease_sec)  # range check before touching the log
     with _Locked(_state_dir()) as lk:
         events = lk.read()
         if _seen(events, a.idempotency_key):
@@ -206,17 +364,17 @@ def cmd_claim(a) -> int:
         if st["status"] == "done" or st["terminal_marker"]:
             print("terminal: item already finished; it cannot be re-claimed", file=sys.stderr)
             return 3
+        if _lease_live(st):  # BEFORE the budget: a live lease must refuse without writing
+            print(f"leased: held by {st['owner']!r} until {st['lease_until']}", file=sys.stderr)
+            return 5
         if st["attempts"] >= MAX_LAUNCHES:
             lk.write(events, {"item": a.item, "event": "dead-lettered",
                               "note": f"launch budget ({MAX_LAUNCHES}) exhausted"})
             print("dead-letter: launch budget exhausted", file=sys.stderr)
             return 4
-        if _lease_live(st):
-            print(f"leased: held by {st['owner']!r} until {st['lease_until']}", file=sys.stderr)
-            return 5
         ev = lk.write(events, {"item": a.item, "event": "claimed", "owner": a.owner,
                                "incarnation": a.incarnation,
-                               "lease_until": _iso(_now() + timedelta(seconds=a.lease_sec)),
+                               "lease_until": _lease_until(a.lease_sec),
                                **({"idempotency_key": a.idempotency_key} if a.idempotency_key else {})})
     print(json.dumps({"ok": True, "seq": ev["seq"], "attempts": st["attempts"] + 1,
                       "lease_until": ev["lease_until"]}))

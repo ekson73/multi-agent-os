@@ -676,6 +676,84 @@ def test_collect_harnesses():
         check("harness: openclaw tree is detect-only (skipped)", all(i["id"] != "harness:claw" for i in items))
 
 
+def test_html_row_ids_are_opaque():
+    home = str(wc.HOME)
+    leaky = [wc.item("/Users/alice/proj", "session", "t", status="active"),
+             wc.item(f"{home}/notes", "session", "t2", status="active"),
+             wc.item("session:ghp_" + "Z" * 30, "session", "t3", status="active")]
+    out = wc.render_html(_html_graph(leaky))
+    ids = re.findall(r'\bid="([^"]*)"', out)
+    blob = " ".join(ids)
+    check("html: no attribute carries a user path or token fragment",
+          "alice" not in blob and "Users" not in blob and home not in blob and "Z" * 30 not in blob,
+          blob)
+    check("html: every id attribute is opaque (i-<n>-<domain> or d-<domain>)",
+          all(re.fullmatch(r"(i-\d+-[a-z]+|d-[a-z]+)", i) for i in ids), blob)
+    check("html: row ids are unique", len(ids) == len(set(ids)))
+    check("html: visible id cell is still sanitized", "alice" not in out and home not in out)
+
+
+def test_collect_harnesses_degrades_per_directory_and_entry():
+    class _Ent:
+        def __init__(self, name, fail):
+            self.name, self._fail = name, fail
+
+        def stat(self, follow_symlinks=True):
+            if self._fail:
+                raise FileNotFoundError(self.name)
+            return os.stat_result((0, 0, 0, 1, 0, 0, 0, 0, 1_700_000_000, 0))
+
+    class _Scan:
+        def __init__(self, ents):
+            self._e = ents
+
+        def __enter__(self):
+            return iter(self._e)
+
+        def __exit__(self, *a):
+            return False
+
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "ok").mkdir()
+        (root / "ok" / "a.json").write_text("x")
+        (root / "dangling").mkdir()
+        os.symlink(str(root / "nowhere"), str(root / "dangling" / "broken-link"))
+        (root / "denied").mkdir()
+        (root / "denied" / "f").write_text("x")
+        os.chmod(root / "denied", 0)
+        spec = os.pathsep.join(f"{n}={root / n}" for n in ("denied", "dangling", "ok"))
+        try:
+            items, diag = wc.collect_harnesses(spec)
+        except Exception as exc:  # noqa: BLE001 — the point of the test
+            check("harness: an unreadable dir / dangling symlink must not raise", False, repr(exc))
+            return
+        finally:
+            os.chmod(root / "denied", 0o755)
+        by = {i["id"]: i for i in items}
+        check("harness: dangling symlink does not drop the directory",
+              "harness:dangling" in by and by["harness:dangling"]["refs"]["entries"] == 1)
+        check("harness: other harnesses survive an unreadable one", "harness:ok" in by)
+        if os.geteuid() != 0:  # root ignores mode 000
+            check("harness: denied directory is reported, not fatal",
+                  "harness:denied" not in by and "denied" in (diag or ""), diag or "")
+        real_scandir = wc.os.scandir
+        wc.os.scandir = lambda p: _Scan([_Ent("gone.json", True), _Ent("here.json", False)])
+        try:
+            items, diag = wc.collect_harnesses(f"race={root / 'ok'}")
+        finally:
+            wc.os.scandir = real_scandir
+        check("harness: entry removed between scandir and stat is skipped, dir still reported",
+              len(items) == 1 and items[0]["refs"]["entries"] == 2 and items[0]["last_ts"])
+        wc.os.scandir = lambda p: (_ for _ in ()).throw(PermissionError(13, "denied"))
+        try:
+            items, diag = wc.collect_harnesses(f"race={root / 'ok'}")
+        finally:
+            wc.os.scandir = real_scandir
+        check("harness: scandir failure degrades to a diagnostic (no exception)",
+              items == [] and "race" in (diag or ""))
+
+
 def test_new_collectors_registered():
     for n in ("ci", "linear", "harnesses"):
         check(f"registry: {n} in COLLECTORS", n in wc.COLLECTORS)
@@ -706,6 +784,7 @@ def main() -> int:
         test_html_is_self_contained, test_html_deterministic_and_complete,
         test_html_cli_flag_and_backcompat,
         test_collect_ci, test_collect_linear, test_collect_harnesses,
+        test_html_row_ids_are_opaque, test_collect_harnesses_degrades_per_directory_and_entry,
         test_new_collectors_registered,
     ]:
         print(f"\n[{fn.__name__}]")
