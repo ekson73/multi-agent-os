@@ -57,11 +57,16 @@ Four facets, one lens:
 
 ## Runbook: exposure → closed
 
+0. **Inputs** — if the credential class or location is not in the input, write `class U` and make *classify* the owner's first action; never infer a class from a ticket ID. A finding whose organization/world is unknown gets a "which world?" question to the owner before any action and is listed under one world only.
 1. **Classify** — type (cloud key, VCS token, OAuth client, DB password, private key), repo visibility, first commit date, still referenced? Masked prefix only.
 2. **Contain** (code-side, draft PR) — remove from the working tree, replace with a secret-store reference, add a scanner rule if missing. History rewrite is proposed, never done.
 3. **Hand off rotation** — one checklist line per credential for the owner: system, console path, dependent deploys, order of rotation per environment.
 4. **Verify** — after the owner confirms, check the old value is rejected (owner runs the check or confirms it); never test with the live value.
-5. **Close** — link ticket ↔ PR ↔ owner confirmation; mark duplicates.
+5. **Close** — link ticket ↔ PR ↔ owner confirmation; mark duplicates (the oldest tracker item of that organization stays the SSOT; propose closures, never write them).
+
+**Order** — network exposure first · then the secret-store path (so rotated values land in the store, not back in plaintext) · then rotation per environment (dev → hml/staging → prod) · redaction or history cleanup only after revocation is confirmed **and** a scanner gate is merged.
+
+**Owner-run verify examples** — cloud key shows inactive/deleted in the console · VCS/API token is rejected by the API · a closed port times out from outside the network.
 
 ## Prohibitions
 
@@ -74,18 +79,18 @@ Four facets, one lens:
 
 ## Completion Criteria
 
-- [ ] Every finding has: location (file:line or resource id), rule/class, severity, owner, disposition.
+- [ ] Every finding is one line: id(s) · world · class (or `U`) · owner action · order/dependency · blast radius · agent draft PR · duplicates · claim (verified/inferred/unverified).
 - [ ] Code-side containment is a draft PR that passes the repo's own checks (or the reason they could not run).
 - [ ] Every human-only step is a one-line checklist item for the owner, with order and blast radius.
 - [ ] No secret value appears in any output, note, PR or commit.
 
 ## Dogfooding
 
-Validate via ≥2 real cycles (one exposure-response checklist, one dependency or gate fix PR) before promotion out of `0.x`.
+Validate via ≥2 real cycles (one exposure-response checklist, one dependency or gate fix PR) before promotion out of `0.x`. A checklist built only from sanitized notes counts as a half cycle; a full cycle reads live sources.
 
 ## Autonomy
 
 The cowork ≥0.90 human-substitution bar (`COWORK-AUTONOMY-POLICY.md`) does not apply to this agent.
-Acts with justification inside read, triage and draft-PR scope. Below that line (rotation, revocation,
+Acts with justification inside read, triage and draft-PR scope; when briefed read-only it uses no Write/Edit. Below that line (rotation, revocation,
 infra apply, merge, history rewrite) it always hands off to the human owner, whatever its confidence
 score. A converged council cannot clear these steps either.
