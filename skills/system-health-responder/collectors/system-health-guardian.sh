@@ -212,10 +212,11 @@ memory_spine_lag() { # $1=repo $2=warn_h $3=crit_h → one-line JSON
   [ -d "$repo" ] && top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] || { _ms_unknown "repo-missing"; return 0; }
   for c in /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/timeout /usr/local/bin/gtimeout /usr/bin/timeout; do
     [ -x "$c" ] && { tmo="$c"; break; }; done
-  # never prompt, never hang on a dead link — also bounds the fetch on stock macOS (no `timeout` binary)
-  if ! GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=10}" \
+  # never prompt, never hang on a dead link: without a `timeout` binary (stock macOS) the fetch is still
+  # bounded per transport — ssh ConnectTimeout + ServerAlive (stalled session), http lowSpeed (stalled transfer)
+  if ! GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=10 -oServerAliveInterval=10 -oServerAliveCountMax=3}" \
        ${tmo:+"$tmo" "${MEMORY_SPINE_FETCH_TIMEOUT:-30}"} \
-       git -C "$top" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch -q >/dev/null 2>&1; then
+       git -C "$top" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch -q --no-tags >/dev/null 2>&1; then
     _ms_unknown "fetch-failed"; return 0; fi
   git -C "$top" rev-parse -q --verify '@{u}' >/dev/null 2>&1 || { _ms_unknown "no-upstream"; return 0; }
   # unpushed commits touching projects/ — oldest committer time (sort -n | head -1, never trust log order)
@@ -229,7 +230,7 @@ memory_spine_lag() { # $1=repo $2=warn_h $3=crit_h → one-line JSON
   while IFS= read -r -d '' rec; do
     p="${rec:3}"; m="$(_ms_mtime "$top/$p")" || { d="$(dirname "$top/$p")"; while [ ! -e "$d" ] && [ "$d" != "$top" ]; do d="$(dirname "$d")"; done
       m="$(_ms_mtime "$d")" || { rm -f "$st_out"; _ms_unknown "mtime-unreadable"; return 0; }; }
-    [ -z "$oldest" ] || [ "$m" -lt "$oldest" ] && oldest="$m"
+    { [ -z "$oldest" ] || [ "$m" -lt "$oldest" ]; } && oldest="$m"
     case "$rec" in R*|C*|?R*|?C*) IFS= read -r -d '' _ || true;; esac   # skip the rename/copy source record
   done <"$st_out"
   rm -f "$st_out"
