@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — seat profile (six org levels) and three delivery agents
+
+- New `agents/SEAT-PROFILE.md` (v1.0.0): six organizational levels (Political, Strategic,
+  Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
+  delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
+  Describes fit only; grants no authority.
+- New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
+  until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
+  names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.

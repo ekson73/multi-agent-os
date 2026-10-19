@@ -23,9 +23,14 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
 | data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
 | openrig-fleet-engineer | `openrig-fleet-engineer.md` | OpenRig fleet engineer: operate, observe, diagnose and heal rigs; crews on target repositories are a STOP until #453 (loads `openrig-concierge`) |
+| solution-architect | `solution-architect.md` | Solution design: boundaries, contracts, NFRs, ADRs, topology, expand/contract, rollback design (L4; proposes L1) |
+| devsecops-engineer | `devsecops-engineer.md` | DevSecOps/AppSec: threat model, secrets hygiene, supply chain, IAM, authz/RLS review, negative tests, containment (L4) |
+| devops-engineer | `devops-engineer.md` | Hosted CI/CD + PaaS deploys (`specialty`), reproducible builds, previews, release records, rollback (L5; L4 release plans) |
 | person-agent-creator | `person-agent-creator.md` | Creates/elevates person-agents (sourced dossier, 33 person-questions, lint gate); first three: `consultants/elon-musk`, `consultants/sam-altman`, `consultants/amodei-siblings` (v2.0.0) |
 
 ## Agent Categories
+
+Organizational levels (L0–L5), RACI defaults and the seat attributes every delivery agent declares: see [`SEAT-PROFILE.md`](./SEAT-PROFILE.md).
 
 ### Coordination
 - `orchestrator` — Root agent, manages delegation
@@ -55,7 +60,7 @@ Generic, product-agnostic delivery specialists materializing the standard softwa
 roles. Compose with the existing registry (most roles already covered — these fill the genuine
 per-stack/role gaps; see "Role Coverage Map" below).
 
-**Autonomy posture** (all 7): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
+**Autonomy posture** (all 10): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
 co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
 their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
 (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first.
@@ -67,6 +72,9 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 - `prompt-context-engineer` — prompt + context + harness AI-craft layer (composite)
 - `agile-product-lead` — PO/PM/SM/BA product & delivery leadership (composite)
 - `data-privacy-officer` — DPO/privacy/DPIA across GDPR/LGPD/CCPA (generic)
+- `solution-architect` — solution design, contracts, NFRs, ADRs (generic; proposes, never decides, L1 direction)
+- `devsecops-engineer` — threat modeling, supply chain, IAM, authz review (generic; privacy stays with DPO)
+- `devops-engineer` — hosted CI/CD + PaaS (`specialty`); Kubernetes/GitOps stays with `gitops-engineer`
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
@@ -79,9 +87,9 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | Cowork role | Coverage | Provider |
 |---|---|---|
 | DevOps (AWS/IaC/Terraform) | EXISTS | `cloud-infrastructure:cloud-architect` · `terraform-specialist` |
-| DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
+| DevOps (Fly/Render/Railway/CI-CD) | **GAP→NEW** | `devops-engineer` (hosted CI/CD + PaaS `specialty`) · optional: `cloud-infrastructure:deployment-engineer` · Kubernetes/GitOps → `maos:gitops-engineer` |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
-| DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
+| DevSecOps / Security | **GAP→NEW** | `devsecops-engineer` · optional: `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` (audit) |
 | DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
 | Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
 | Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
@@ -91,12 +99,12 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | PO / PM / SM / BA | **GAP→NEW** (composite) | `agile-product-lead` |
 | DPO / Privacy | **GAP→NEW** | `data-privacy-officer` |
 | QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
-| Solution Architect | EXISTS | `architecture:architect` · `system-designer` |
+| Solution Architect | **GAP→NEW** | `solution-architect` · optional: `architecture:architect` · `system-designer` |
 | CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes: `maos:consultants:steve-jobs` · `maos:consultants:sam-altman` · `maos:consultants:bill-gates` · `maos:consultants:sundar-pichai` · `maos:consultants:mark-zuckerberg` |
 | Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes: `maos:consultants:eric-jing` (Ant Group chairman) · `maos:consultants:bill-gates` |
 | Auditor | EXISTS | `maos:governance-auditor` · `validation-auditor` |
 | Agent-Orchestrator / Task-Orchestrator | EXISTS | `maos:orchestrator` · `taskmaster:task-orchestrator` |
-| Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` + `deployment-engineer` (verb-set covered) |
+| Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` (K8s) · `maos:devops-engineer` (hosted CI/CD, PaaS) + `deployment-engineer` (verb-set covered) |
 
 ## Agent Naming Convention
 
