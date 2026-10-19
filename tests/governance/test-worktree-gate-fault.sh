@@ -45,8 +45,11 @@ rc="$(printf '%s' '{"tool_input":{"command":"git commit -m x"}}' | MAOS_SELFHEAL
 # Faults INSIDE a function or from `set -u` never fire an ERR trap (no errtrace)
 # and exit 1; the gate must still block. Evaluated in a fresh repo on main so the
 # gate reaches its RF01 branch-creation path.
-REPO="$SBX/repo"; mkdir -p "$REPO"
-( cd "$REPO" && [ "$(pwd -P)" = "$(cd "$REPO" && pwd -P)" ] && git init -q -b main \
+# shellcheck source=/dev/null
+source "$HERE/../lib/fixture-guard.sh"   # #495: fail closed before git mutations
+fx_reject_git_env || exit 1
+REPO="$SBX/repo"; fx_mkdir "$REPO" || exit 1
+( fx_enter_fresh "$REPO" && git init -q -b main && fx_assert_root "$REPO" \
     && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m init ) >/dev/null 2>&1 \
   || { echo "FAIL: fixture repo"; exit 1; }
 for kind in fn unbound; do
@@ -55,11 +58,11 @@ for kind in fn unbound; do
     fn)      echo 'log_audit() { false; echo after; }' >> "$SBX/g-$kind/lib/worktree-utils.sh" ;;
     unbound) echo 'log_audit() { echo "$MAOS_TEST_UNSET_VAR_XYZ"; }' >> "$SBX/g-$kind/lib/worktree-utils.sh" ;;
   esac
-  rc="$(cd "$REPO" && printf '%s' '{"tool_input":{"command":"git checkout -b feat/x"}}' \
+  rc="$(fx_enter "$REPO" && printf '%s' '{"tool_input":{"command":"git checkout -b feat/x"}}' \
         | PATH="$SBX/bin:$PATH" TMPDIR="$SBX" bash "$SBX/g-$kind/worktree-gate.sh" >/dev/null 2>&1; echo $?)"
   [ "$rc" = 2 ] && ok "fault inside a function ($kind) blocks (exit 2)" || bad "function fault ($kind) exit=$rc (want 2)"
 done
-rc="$(cd "$REPO" && printf '%s' '{"tool_input":{"command":"git checkout -b feat/x"}}' | bash "$SRC/worktree-gate.sh" >/dev/null 2>&1; echo $?)"
+rc="$(fx_enter "$REPO" && printf '%s' '{"tool_input":{"command":"git checkout -b feat/x"}}' | bash "$SRC/worktree-gate.sh" >/dev/null 2>&1; echo $?)"
 [ "$rc" = 2 ] && ok "healthy hook blocks branch creation on main (control)" || bad "healthy hook RF01 exit=$rc (want 2)"
 
 # Positive control: the unbroken hook still allows a plain non-git command.
