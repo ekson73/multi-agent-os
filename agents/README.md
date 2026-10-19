@@ -23,6 +23,8 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
 | data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
 | openrig-fleet-engineer | `openrig-fleet-engineer.md` | OpenRig fleet engineer: operate, observe, diagnose and heal rigs; crews on target repositories are a STOP until #453 (loads `openrig-concierge`) |
+| secops-engineer | `secops-engineer.md` | SecOps/AppSec: exposure response, rotation runbooks for the owner, secret-scan triage (locations only), CVE fix PRs (v0.1.0, dogfooding) |
+| release-engineer | `release-engineer.md` | Release/CI: merge convergence across repos, fail-closed CI gates, pipeline parity, branch/release model (v0.1.0, dogfooding) |
 | person-agent-creator | `person-agent-creator.md` | Creates/elevates person-agents (sourced dossier, 33 person-questions, lint gate); first three: `consultants/elon-musk`, `consultants/sam-altman`, `consultants/amodei-siblings` (v2.0.0) |
 
 ## Agent Categories
@@ -44,6 +46,11 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 
 ### Knowledge Management
 - `memory-curator` — Audit and maintain persistent memory/knowledge quality
+
+### Security & Release Operations
+
+- `secops-engineer` — prepares every credentialed or irreversible step for the human owner, never performs it
+- `release-engineer` — drives open PRs to mergeable-or-blocked; merges and releases stay with the owner
 
 ### Startup Coaching
 
@@ -82,6 +89,8 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
 | DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
+| SecOps / incident response (exposure → rotation hand-off → verify) | **GAP→NEW** | `secops-engineer` (the reviewers above review code; none owned exposure response or secret-scan triage, and cross-plugin seats are not loadable in every harness) |
+| Release engineering / merge convergence | **GAP→NEW** | `release-engineer` (`gitops-engineer` owns cluster state; deployment agents deploy — neither drives many open PRs to green across repos) |
 | DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
 | Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
 | Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
