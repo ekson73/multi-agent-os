@@ -31,17 +31,20 @@ set -euo pipefail
 # FAIL CLOSED: an unexpected fault while gating a git command (or an unreadable
 # input) exits 2 = BLOCK. A non-2 exit is a non-blocking hook error in Claude Code,
 # so the old `exit $ec` let the very command the gate exists to check run unchecked.
-# Non-git commands are outside the gate's scope and keep the original exit code.
+# Commands that do not start with `git` (the gate's own scope, e.g. `cd x && git commit`)
+# are outside it and keep the original exit code.
 #
 # Relay is OPT-IN (MAOS_SELFHEAL=1). It launches an installed AI CLI with file and
 # shell tools on a prompt that embeds the run log; doing that by default from a
 # PreToolUse hook, on every fault, is not acceptable for a guardrail.
 #
 # CRITICAL — fires ONLY on an UNEXPECTED fault, NEVER on the legitimate `exit 2`
-# BLOCK (a valid gate verdict). Two guards enforce this:
-#   1. `trap self_heal ERR` — ERR only, never EXIT; a plain `exit 2` does NOT trip ERR.
-#   2. self_heal re-exits 2 verbatim if the captured code is 2 (defensive: treat 2
-#      as a legitimate gate verdict, never a repair trigger).
+# BLOCK or `exit 0` allow (valid gate verdicts). It is an EXIT trap, not ERR: bash
+# does not run an ERR trap for a failure inside a function (no errtrace) nor for a
+# `set -u` abort, and both exit 1, which Claude Code treats as non-blocking. The
+# trap passes 0 and 2 through verbatim; any other code is a fault. The one
+# deliberate non-0/non-2 exit, require_jq's documented "degraded no-op" when jq is
+# missing, is exempted via _MAOS_DEGRADED (known exception, unchanged behaviour).
 #
 # STDOUT CONTRACT — this hook communicates via stdout JSON-RPC. The runlog tee goes
 # to STDERR ONLY; stdout is left pristine so the verdict JSON is never corrupted.
@@ -130,13 +133,11 @@ fault_exit_code() {
 self_heal() {
   local ec=$?
   set +e
-  trap - ERR
+  trap - EXIT
 
-  # DEFENSIVE: exit 2 is a legitimate gate BLOCK, never a fault. Re-exit 2 verbatim
-  # and never dispatch a repair. (ERR should not fire on a plain `exit 2`, but this
-  # guard makes the contract structural rather than incidental.)
-  if [[ "$ec" == "2" ]]; then
-    exit 2
+  # 0 (allow) and 2 (block) are gate verdicts, never faults: pass them through.
+  if [[ "$ec" == "0" || "$ec" == "2" || "${_MAOS_DEGRADED:-0}" == "1" ]]; then
+    exit "$ec"
   fi
 
   local verdict
@@ -193,7 +194,7 @@ self_heal() {
     echo "  no AI harness could run the repair; review $prompt_file and $RUNLOG" >&2
   exit "$verdict"
 }
-trap self_heal ERR
+trap self_heal EXIT
 
 # Read tool input first, so a later fault can still tell whether it was gating git.
 TOOL_INPUT="$(cat)"
@@ -212,13 +213,14 @@ source "${LIB_DIR}/worktree-utils.sh"
 
 # Enforce jq as hard requirement — worktree-gate uses json_get with nested
 # paths (.tool_input.command) that the fallback cannot parse reliably.
+command -v jq >/dev/null 2>&1 || _MAOS_DEGRADED=1
 require_jq
 
 # =============================================================================
 # MAIN GATE LOGIC
 # =============================================================================
 
-# Tool input (Claude passes JSON) was read right after the ERR trap was set.
+# Tool input (Claude passes JSON) was read right after the EXIT trap was set.
 
 # Extract command from tool input
 COMMAND=$(json_get "$TOOL_INPUT" '.tool_input.command')

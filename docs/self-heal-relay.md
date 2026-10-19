@@ -29,7 +29,7 @@ legitimate deny / gate / verdict exit. Each language enforces this structurally:
 
 | Language | Intentional exit that must NOT relay | How the guard works |
 |----------|--------------------------------------|---------------------|
-| **bash** (`worktree-gate.sh`) | `exit 2` = BLOCK (gate verdict); `exit 0` = allow | `trap self_heal ERR` (ERR only, never EXIT — a plain `exit 2` does not trip ERR) **plus** `self_heal` re-exits `2` verbatim if the captured code is 2 |
+| **bash** (`worktree-gate.sh`) | `exit 2` = BLOCK (gate verdict); `exit 0` = allow | `trap self_heal EXIT` passes `0` and `2` through verbatim and treats any other code as a fault (an ERR trap misses failures inside functions and `set -u` aborts). Exception: require_jq's documented jq-missing degrade exit |
 | **python** (`work-compass-aggregate.py`) | clean `exit 0`; argparse `exit 2` usage; `sys.exit(1)` route-miss | `try: … except SystemExit: raise` — SystemExit is re-raised untouched; relay only on an uncaught `Exception` |
 | **node** (`research-dossier-render.mjs`) | `exit 1` = GATE FAILURE (provenance/palette verdict) | `selfHealRelay` guard `if (code === EXIT_GATE) return;` — relay only for the exit-2 IO/usage class or an uncaught throw |
 
@@ -84,12 +84,13 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 ## Per-language port notes
 
 - **bash (`worktree-gate.sh`)** — `set -euo pipefail` means an unexpected fault trips
-  `ERR`; `trap self_heal ERR` (ERR only, never EXIT, to avoid double-fire). The hook
+  an exit; `trap self_heal EXIT` maps any code other than 0/2 to the fault path (ERR alone
+  misses function-internal failures and `set -u` aborts, which exit 1 = non-blocking). The hook
   communicates via **JSON-RPC on stderr** (C06: "JSON errors to stderr"), so the
   runlog tee is `exec 2> >(tee -a "$RUNLOG" >&2)` — **stderr** is teed while **stdout
   is left pristine**, and the verdict on stderr passes through the tee intact. The
   `exit 2` block path is a plain `exit 2` (never routed through a failing command),
-  and `self_heal` re-exits 2 defensively.
+  and `self_heal` passes 0/2 through verbatim.
 - **python (`work-compass-aggregate.py`)** — the `__main__` wrapper does
   `try: raise SystemExit(main()) / except SystemExit: raise / except Exception: relay
   + SystemExit(1)`. Catching `Exception` (not `BaseException`) leaves `SystemExit`

@@ -31,6 +31,7 @@ LIB_DIR="${SCRIPT_DIR}/lib"
 source "${LIB_DIR}/common.sh"
 source "${LIB_DIR}/git-branch-detect.sh"
 source "${LIB_DIR}/git-safe-sync.sh"
+unset GSS_ALLOW_REBASE   # SessionStart never rebases, even if the user shell exports the opt-in
 # Optional cross-session layer (capability-detected; graceful no-op if absent).
 [ -f "${LIB_DIR}/peer-session-detect.sh" ] && source "${LIB_DIR}/peer-session-detect.sh"
 

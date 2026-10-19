@@ -101,16 +101,18 @@ if command -v gitleaks >/dev/null 2>&1; then
   else
     GL_REPORT="$GL_DIR/report.json"
     GL_RC=0
-    gitleaks detect --no-git --source "$SNAP" \
+    trap 'rm -rf "$GL_DIR"' EXIT   # the report may name findings; never leave it behind
+    # --redact: only the report's presence is used, so secret values are never written.
+    gitleaks detect --no-git --redact --source "$SNAP" \
       --report-format json --report-path "$GL_REPORT" >/dev/null 2>&1 || GL_RC=$?
     if [ "$GL_RC" -eq 0 ]; then
       GL="clean"
-    elif [ "$GL_RC" -eq 1 ] && [ -s "$GL_REPORT" ] && ! grep -qx '[[:space:]]*\[[[:space:]]*\][[:space:]]*' "$GL_REPORT"; then
+    elif [ "$GL_RC" -eq 1 ] && [ -s "$GL_REPORT" ] && [ "$(tr -d '[:space:]' < "$GL_REPORT")" != "[]" ]; then
       GL="findings"
     else
       GL="scan-error"
     fi
-    rm -rf "$GL_DIR"
+    rm -rf "$GL_DIR"; trap - EXIT
   fi
 fi
 
