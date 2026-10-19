@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAOS Governance: worktree-gate.sh
 # Purpose: Unified gatekeeper for git worktree protocol enforcement
-# Version: 1.0.0
+# Version: 1.1.0
 # Protocol: C04 (Git Worktree Protocol v2.0), C06 (AI-Native Environment)
 #
 # Enforces:
@@ -28,6 +28,15 @@ set -euo pipefail
 # crush → amp), most-qualified-first, each with its OWN headless syntax + a SCOPED
 # (never trust-all) tool set. The human still reviews the diff.
 #
+# FAIL CLOSED: an unexpected fault while gating a git command (or an unreadable
+# input) exits 2 = BLOCK. A non-2 exit is a non-blocking hook error in Claude Code,
+# so the old `exit $ec` let the very command the gate exists to check run unchecked.
+# Non-git commands are outside the gate's scope and keep the original exit code.
+#
+# Relay is OPT-IN (MAOS_SELFHEAL=1). It launches an installed AI CLI with file and
+# shell tools on a prompt that embeds the run log; doing that by default from a
+# PreToolUse hook, on every fault, is not acceptable for a guardrail.
+#
 # CRITICAL — fires ONLY on an UNEXPECTED fault, NEVER on the legitimate `exit 2`
 # BLOCK (a valid gate verdict). Two guards enforce this:
 #   1. `trap self_heal ERR` — ERR only, never EXIT; a plain `exit 2` does NOT trip ERR.
@@ -37,9 +46,9 @@ set -euo pipefail
 # STDOUT CONTRACT — this hook communicates via stdout JSON-RPC. The runlog tee goes
 # to STDERR ONLY; stdout is left pristine so the verdict JSON is never corrupted.
 #
-# Opt out: MAOS_SELFHEAL=0.  Override harness order: MAOS_AI_HARNESS="claude kiro-cli …".
+# Opt in: MAOS_SELFHEAL=1.  Override harness order: MAOS_AI_HARNESS="claude kiro-cli …".
 # ─────────────────────────────────────────────────────────────────────────────
-MAOS_SELFHEAL="${MAOS_SELFHEAL:-1}"
+MAOS_SELFHEAL="${MAOS_SELFHEAL:-0}"
 # Normalize TMPDIR (strip trailing slash so "$TMPDIR/tmpl" never becomes "dir//tmpl",
 # which some BSD mktemp builds reject). Portable temp: template form, then -t prefix,
 # then a $$ fallback — identical technique to bin/kirocrew-extras.
@@ -105,6 +114,19 @@ dispatch_ai_harness() {
   return 1
 }
 
+# Verdict on a fault: 2 (BLOCK) when the input is a git command or cannot be read,
+# else the original code. Raw-text match, no jq: jq may be the thing that failed.
+fault_exit_code() {
+  local ec="$1"
+  if [[ -z "${TOOL_INPUT:-}" ]] || [[ "$TOOL_INPUT" != *'"command"'* ]]; then
+    echo 2; return
+  fi
+  if printf '%s' "$TOOL_INPUT" | grep -Eq '"command"[[:space:]]*:[[:space:]]*"[[:space:]]*git([[:space:]]|\\[nt]|")'; then
+    echo 2; return
+  fi
+  echo "$ec"
+}
+
 self_heal() {
   local ec=$?
   set +e
@@ -117,10 +139,15 @@ self_heal() {
     exit 2
   fi
 
+  local verdict
+  verdict="$(fault_exit_code "$ec")"
   echo "✖ worktree-gate failed unexpectedly (exit $ec)." >&2
+  if [[ "$verdict" == "2" ]]; then
+    echo "  Blocking this git command (fail closed): the gate could not evaluate it." >&2
+  fi
   if [[ "$MAOS_SELFHEAL" != "1" ]]; then
-    echo "  Self-heal disabled (MAOS_SELFHEAL=$MAOS_SELFHEAL). Log: $RUNLOG" >&2
-    exit "$ec"
+    echo "  Self-heal relay is opt-in (MAOS_SELFHEAL=1). Log: $RUNLOG" >&2
+    exit "$verdict"
   fi
   local _order="${MAOS_AI_HARNESS:-$AI_HARNESS_ORDER_DEFAULT}" _h _found=0
   set -f
@@ -129,7 +156,7 @@ self_heal() {
   if (( ! _found )); then
     echo "  No AI harness found on PATH (order: $_order) — cannot self-heal." >&2
     echo "  Log kept at: $RUNLOG" >&2
-    exit "$ec"
+    exit "$verdict"
   fi
 
   local prompt_file
@@ -164,9 +191,12 @@ self_heal() {
   echo "  → dispatching an AI harness for auto-repair (prompt: $prompt_file)" >&2
   dispatch_ai_harness "$prompt_file" || \
     echo "  no AI harness could run the repair; review $prompt_file and $RUNLOG" >&2
-  exit "$ec"
+  exit "$verdict"
 }
 trap self_heal ERR
+
+# Read tool input first, so a later fault can still tell whether it was gating git.
+TOOL_INPUT="$(cat)"
 
 # =============================================================================
 # INITIALIZATION
@@ -188,8 +218,7 @@ require_jq
 # MAIN GATE LOGIC
 # =============================================================================
 
-# Read tool input from stdin (Claude passes JSON)
-TOOL_INPUT=$(cat)
+# Tool input (Claude passes JSON) was read right after the ERR trap was set.
 
 # Extract command from tool input
 COMMAND=$(json_get "$TOOL_INPUT" '.tool_input.command')

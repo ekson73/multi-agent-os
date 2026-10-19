@@ -107,7 +107,7 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 | Script | Language | Fires on | Never relays (legitimate exit) |
 |--------|----------|----------|--------------------------------|
 | [`bin/kirocrew-extras`](../bin/kirocrew-extras) | bash | any error (reference impl) | — (its non-zero is a genuine FAIL) |
-| [`plugin-scripts/governance/worktree-gate.sh`](../plugin-scripts/governance/worktree-gate.sh) | bash | unexpected fault (unbound var, `require_jq` fail, `source` fail) | `exit 2` (BLOCK verdict), `exit 0` (allow) |
+| [`plugin-scripts/governance/worktree-gate.sh`](../plugin-scripts/governance/worktree-gate.sh) | bash | unexpected fault (unbound var, `source` fail), **opt-in only** (`MAOS_SELFHEAL=1`); a fault on a git command exits `2` (fail closed) | `exit 2` (BLOCK verdict), `exit 0` (allow) |
 | [`bin/work-compass-aggregate.py`](../bin/work-compass-aggregate.py) | python | uncaught `Exception` | any `SystemExit` (clean `0`, argparse `2`, route-miss `1`) |
 | [`bin/research-dossier-render.mjs`](../bin/research-dossier-render.mjs) | node | uncaught throw / rejection, exit-2 IO/usage | `exit 1` (GATE FAILURE verdict) |
 
