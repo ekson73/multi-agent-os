@@ -202,30 +202,41 @@ if [ "${1:-}" = "--mem-pressure-status" ]; then mem_pressure_status "${2:-}"; ex
 _ms_mtime() { # portable mtime: GNU `stat -c %Y` first (BSD `stat -f %m` misparses on GNU), validated numeric
   local m; m="$(stat -c %Y "$1" 2>/dev/null)"; case "$m" in ''|*[!0-9]*) m="$(stat -f %m "$1" 2>/dev/null)";; esac
   case "$m" in ''|*[!0-9]*) return 1;; esac; echo "$m"; }
+_ms_unknown() { printf '{"status":"unknown","reason":"%s","canary":"dead","checked_at":%s}' "$1" "$(date +%s)"; }
 memory_spine_lag() { # $1=repo $2=warn_h $3=crit_h → one-line JSON
-  local repo="$1" warn_h="${2:-24}" crit_h="${3:-72}" now tmo="" c ts oldest="" p m d rec
+  local repo="$1" warn_h="${2:-24}" crit_h="${3:-72}" now tmo="" c ts oldest="" p m d rec top st_out rc
   now="$(date +%s)"
-  _ms_unknown() { printf '{"status":"unknown","reason":"%s","canary":"dead","checked_at":%s}' "$1" "$now"; }
-  [ -d "$repo" ] && git -C "$repo" rev-parse --git-dir >/dev/null 2>&1 || { _ms_unknown "repo-missing"; return 0; }
+  # thresholds go into JSON unquoted → must be plain numbers, else the whole contract write breaks
+  case "$warn_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
+  case "$crit_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
+  [ -d "$repo" ] && top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] || { _ms_unknown "repo-missing"; return 0; }
   for c in /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/timeout /usr/local/bin/gtimeout /usr/bin/timeout; do
     [ -x "$c" ] && { tmo="$c"; break; }; done
-  if [ -n "$tmo" ]; then "$tmo" "${MEMORY_SPINE_FETCH_TIMEOUT:-30}" git -C "$repo" fetch -q >/dev/null 2>&1
-  else git -C "$repo" fetch -q >/dev/null 2>&1; fi || { _ms_unknown "fetch-failed"; return 0; }
-  git -C "$repo" rev-parse -q --verify '@{u}' >/dev/null 2>&1 || { _ms_unknown "no-upstream"; return 0; }
+  # never prompt, never hang on a dead link — also bounds the fetch on stock macOS (no `timeout` binary)
+  if ! GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=10}" \
+       ${tmo:+"$tmo" "${MEMORY_SPINE_FETCH_TIMEOUT:-30}"} \
+       git -C "$top" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20 fetch -q >/dev/null 2>&1; then
+    _ms_unknown "fetch-failed"; return 0; fi
+  git -C "$top" rev-parse -q --verify '@{u}' >/dev/null 2>&1 || { _ms_unknown "no-upstream"; return 0; }
   # unpushed commits touching projects/ — oldest committer time (sort -n | head -1, never trust log order)
-  ts="$(git -C "$repo" log --format=%ct '@{u}..HEAD' -- projects/ 2>/dev/null)" || { _ms_unknown "log-failed"; return 0; }
+  ts="$(git -C "$top" log --format=%ct '@{u}..HEAD' -- projects/ 2>/dev/null)" || { _ms_unknown "log-failed"; return 0; }
   ts="$(printf '%s\n' "$ts" | grep -E '^[0-9]+$' | sort -n | head -1 || true)"
-  # dirty/untracked paths under projects/ (NUL-safe porcelain v1); deleted → parent dir mtime
+  # dirty/untracked paths under projects/ (NUL-safe porcelain v1, captured to a file so a failing
+  # `git status` is DETECTED — a process substitution would hide it and read as "clean")
+  st_out="$(mktemp "${TMPDIR:-/tmp}/ms-status.XXXXXX" 2>/dev/null)" || { _ms_unknown "mktemp-failed"; return 0; }
+  rc=0; git -C "$top" status --porcelain=v1 -z --untracked-files=all -- projects/ >"$st_out" 2>/dev/null || rc=$?
+  [ "$rc" -eq 0 ] || { rm -f "$st_out"; _ms_unknown "status-failed"; return 0; }
   while IFS= read -r -d '' rec; do
-    p="${rec:3}"; m="$(_ms_mtime "$repo/$p")" || { d="$(dirname "$repo/$p")"; while [ ! -e "$d" ] && [ "$d" != "$repo" ]; do d="$(dirname "$d")"; done
-      m="$(_ms_mtime "$d")" || { _ms_unknown "mtime-unreadable"; return 0; }; }
+    p="${rec:3}"; m="$(_ms_mtime "$top/$p")" || { d="$(dirname "$top/$p")"; while [ ! -e "$d" ] && [ "$d" != "$top" ]; do d="$(dirname "$d")"; done
+      m="$(_ms_mtime "$d")" || { rm -f "$st_out"; _ms_unknown "mtime-unreadable"; return 0; }; }
     [ -z "$oldest" ] || [ "$m" -lt "$oldest" ] && oldest="$m"
-    case "$rec" in R*|C*) IFS= read -r -d '' _ || true;; esac   # skip the rename/copy source record
-  done < <(git -C "$repo" status --porcelain=v1 -z --untracked-files=all -- projects/ 2>/dev/null)
+    case "$rec" in R*|C*|?R*|?C*) IFS= read -r -d '' _ || true;; esac   # skip the rename/copy source record
+  done <"$st_out"
+  rm -f "$st_out"
   [ -n "$ts" ] && { [ -z "$oldest" ] || [ "$ts" -lt "$oldest" ]; } && oldest="$ts"
   awk -v now="$now" -v o="${oldest:-}" -v w="$warn_h" -v cr="$crit_h" 'BEGIN{
-    lag=(o=="")?0:now-o; if(lag<0)lag=0; h=lag/3600.0; st=(h>=cr)?"crit":((h>=w)?"warn":"ok");
-    printf "{\"status\":\"%s\",\"lag_sec\":%d,\"lag_h\":%.2f,\"warn_h\":%s,\"crit_h\":%s,\"canary\":\"alive\",\"checked_at\":%d}", st,lag,h,w,cr,now }'
+    w+=0; cr+=0; lag=(o=="")?0:now-o; if(lag<0)lag=0; h=lag/3600.0; st=(h>=cr)?"crit":((h>=w)?"warn":"ok");
+    printf "{\"status\":\"%s\",\"lag_sec\":%d,\"lag_h\":%.2f,\"warn_h\":%g,\"crit_h\":%g,\"canary\":\"alive\",\"checked_at\":%d}", st,lag,h,w,cr,now }'
 }
 if [ "${1:-}" = "--memory-spine-lag" ]; then memory_spine_lag "${2:-$HOME/.claude}" "${3:-24}" "${4:-72}"; echo; exit 0; fi
 

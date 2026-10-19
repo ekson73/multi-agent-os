@@ -164,7 +164,16 @@ if command -v jq >/dev/null 2>&1; then
   ck "fetch failure → unknown (fail-closed)" "$(msf "$O" status)" "unknown"
   ck "fetch failure → canary dead"           "$(msf "$O" canary)" "dead"
   ck "fetch failure → no lag number"         "$(msf "$O" 'lag_sec // "none"')" "none"
-  G remote set-url origin "$MSD/remote.git"; G branch -q --unset-upstream
+  G remote set-url origin "$MSD/remote.git"; 
+  # review round: malformed thresholds and a failing `git status` must stay fail-closed + valid JSON
+  O="$("$COLLECTOR" --memory-spine-lag "$MSD/r" 24h 72 2>/dev/null)"
+  ck "non-numeric threshold → valid JSON, unknown" "$(jq -r .status <<<"$O" 2>/dev/null || echo INVALID-JSON)" "unknown"
+  ck "non-numeric threshold → reason bad-threshold" "$(msf "$O" reason)" "bad-threshold"
+  mkdir -p "$MSD/gstub"; REAL_GIT="$(command -v git)"
+  printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = status ] && exit 128; done\nexec "%s" "$@"\n' "$REAL_GIT" >"$MSD/gstub/git"; chmod +x "$MSD/gstub/git"
+  ck "failing git status → unknown (status-failed), never ok" "$(msf "$(PATH="$MSD/gstub:$PATH" msl "$MSD/r")" reason)" "status-failed"
+  ck "subdirectory repo path resolves to toplevel → measured" "$(msf "$(msl "$MSD/r/projects")" canary)" "alive"
+  G branch -q --unset-upstream
   ck "no @{u} → unknown (no literal origin/main fallback)" "$(msf "$(msl "$MSD/r")" reason)" "no-upstream"
   ck "missing repo → unknown" "$(msf "$(msl "$MSD/absent")" status)" "unknown"
   rm -rf "$MSD"
