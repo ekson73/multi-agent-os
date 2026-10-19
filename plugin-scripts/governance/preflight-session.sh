@@ -7,7 +7,7 @@
 #        a candidate mode (continuation-candidate | unanchored) + nudges when no anchor.
 #   R1 — detect the current branch / upstream / divergence / worktree-locks
 #        non-interferingly (read-only).
-#   R2 — safely heal the current branch from origin (fetch→classify→ff|rebase|DEFER).
+#   R2 — safely heal the current branch from origin (fetch→classify→ff-only|DEFER; never rebases).
 #   R1.5 — (optional, capability-detected) detect OTHER live peer sessions writing
 #        this SAME checkout; if any are active, DEFER R2 to avoid interfering.
 #   Then inject a concise status as SessionStart additionalContext so the agent
