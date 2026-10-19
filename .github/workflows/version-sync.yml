@@ -1,6 +1,14 @@
 # Version Sync Workflow
 # SSOT: .claude-plugin/plugin.json
 # Synced: README.md, CLAUDE.md, package.json, packaging/opencode-maos/package.json
+#
+# Publishes through a pull request, never a direct push to main (#305 prerequisite):
+# a no-bypass main ruleset can only be installed once no workflow writes to main.
+# Prerequisite: Settings > Actions > General > "Allow GitHub Actions to create and
+# approve pull requests" must be on, or `gh pr create` fails with 403 (the branch is
+# still pushed; a re-run after enabling it opens the PR).
+# Note: a PR opened with GITHUB_TOKEN does not trigger pull_request workflows; a
+# maintainer starts its checks by closing and reopening the PR or pushing to its branch.
 
 name: Version Sync
 
@@ -17,12 +25,18 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: write       # push the sync branch (never main)
+  pull-requests: write  # open the sync PR
+
+concurrency:
+  group: version-sync
+  cancel-in-progress: false
 
 jobs:
   sync-version:
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    # main only: the sync PR targets main, so a dispatch from another ref would carry its commits.
+    if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')"
 
     steps:
       - name: Checkout repository
@@ -39,26 +53,30 @@ jobs:
           echo "📦 Source version: $VERSION"
 
       - name: Sync README.md badge
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           sed -i "s/Version-[0-9]*\.[0-9]*\.[0-9]*-blue/Version-${VERSION}-blue/g" README.md
           echo "✅ README.md badge updated"
 
       - name: Sync README.md footer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" README.md
           echo "✅ README.md footer updated"
 
       - name: Sync CLAUDE.md footer
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           sed -i "s/Multi-Agent OS v[0-9]*\.[0-9]*\.[0-9]*/Multi-Agent OS v${VERSION}/g" CLAUDE.md
           echo "✅ CLAUDE.md footer updated"
 
       - name: Sync package.json + OpenCode packaging version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
           if [ -f packaging/opencode-maos/package.json ]; then
             jq --arg v "$VERSION" '.version = $v' packaging/opencode-maos/package.json > /tmp/oc.json && mv /tmp/oc.json packaging/opencode-maos/package.json
@@ -78,20 +96,39 @@ jobs:
             git diff --stat -- "${FILES[@]}"
           fi
 
-      - name: Commit and push changes
+      - name: Open a sync pull request
         if: steps.changes.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          set -euo pipefail
+          BRANCH="chore/version-sync-v${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
           git add README.md CLAUDE.md package.json packaging/opencode-maos/package.json
-          git commit -m "chore: sync version to v${VERSION} [skip ci]"
-          git push
-          echo "🚀 Version synced to v${VERSION}"
+          git commit -m "chore: sync version to v${VERSION}"
+          # Idempotent and never forced: if this version's sync branch already exists,
+          # the earlier run published it; reuse its PR instead of overwriting.
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null; then
+            echo "Branch $BRANCH already exists; not overwriting"
+          else
+            git push origin "$BRANCH"
+          fi
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -qx OPEN; then
+            echo "Sync PR for v${VERSION} already open"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore: sync version to v${VERSION}" \
+              --body "Derived version fields synced from \`.claude-plugin/plugin.json\` (v${VERSION}) by version-sync.yml. Opened as a PR so main stays gated (#305)."
+          fi
+          echo "🚀 Version sync PR for v${VERSION} ready"
 
       - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           echo "## Version Sync Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| File | Status |" >> $GITHUB_STEP_SUMMARY
