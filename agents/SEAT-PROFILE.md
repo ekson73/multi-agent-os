@@ -74,7 +74,8 @@ higher layer for a lower one.
 
 ## 3. Seat attributes (the profile every delivery agent declares)
 
-Declare these in the agent body under `## Seat Profile`, as a table. Every field is required;
+New delivery agents declare these in the agent body under `## Seat Profile`, as a table; existing
+cowork agents adopt it when they are next revised (not enforced yet). Every field is required;
 write `n/a (reason)` instead of leaving one out.
 
 | Attribute | Meaning | Allowed values |
@@ -109,5 +110,5 @@ write `n/a (reason)` instead of leaving one out.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.1 | 2026-10-19 | Defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
+| 1.0.1 | 2026-10-19 | Seat Profile mandatory for new agents, adopted by existing ones on next revision; defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
 | 1.0.0 | 2026-10-19 | First version: six levels, RACI default per level, delegation shapes, objective layers, seat attributes, matching procedure. |
