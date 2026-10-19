@@ -25,8 +25,7 @@ on:
         default: false
 
 permissions:
-  contents: write       # push the sync branch (never main)
-  pull-requests: write  # open the sync PR
+  contents: read        # least privilege by default; the job below widens it
 
 concurrency:
   group: version-sync
@@ -37,6 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     # main only: the sync PR targets main, so a dispatch from another ref would carry its commits.
     if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]')"
+    permissions:
+      contents: write       # push the sync branch (never main)
+      pull-requests: write  # open the sync PR
 
     steps:
       - name: Checkout repository
