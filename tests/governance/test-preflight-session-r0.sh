@@ -18,10 +18,13 @@ eq()   { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
 
 printf 'test-preflight-session-r0.sh\n'
 
-ROOT="$(mktemp -d)"
+# shellcheck source=/dev/null
+source "$DIR/../lib/fixture-guard.sh"   # #495: fail closed before git mutations
+fx_reject_git_env || exit 1
+ROOT="$(fx_mktemp_dir)" || exit 1
 mkrepo() {  # $1=name [+ optional branch] → echoes path
-  local d="$ROOT/$1"; rm -rf "$d"; mkdir -p "$d"
-  ( cd "$d" && git init -q && git -c user.email=t@t -c user.name=t commit --allow-empty -q -m init ) >/dev/null 2>&1
+  local d="$ROOT/$1"; rm -rf "$d"; fx_mkdir "$d" || return 1
+  ( fx_enter_fresh "$d" && git init -q && fx_assert_root "$d" && git -c user.email=t@t -c user.name=t commit --allow-empty -q -m init ) >/dev/null 2>&1
   printf '%s' "$d"
 }
 ctx() { CLAUDE_PROJECT_DIR="$1" bash "$HOOK" 2>/dev/null | sed -n 's/.*"additionalContext":"\(.*\)"}}/\1/p'; }

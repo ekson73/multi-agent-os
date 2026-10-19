@@ -9,6 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATE_SCRIPT="${PROJECT_ROOT}/plugin-scripts/governance/worktree-gate.sh"
+# shellcheck source=/dev/null
+source "${PROJECT_ROOT}/tests/lib/fixture-guard.sh"
 
 # Test counter
 TESTS_RUN=0
@@ -25,10 +27,13 @@ NC='\033[0m'
 TEST_DIR=""
 
 setup() {
-    TEST_DIR=$(mktemp -d)
+    # #495: fail closed before any git mutation if allocation or entry fails
+    fx_reject_git_env || exit 1
+    TEST_DIR="$(fx_mktemp_dir)" || exit 1
     # Create a test git repo
-    cd "$TEST_DIR"
+    fx_enter_fresh "$TEST_DIR" || exit 1
     git init --initial-branch=main >/dev/null 2>&1
+    fx_assert_root "$TEST_DIR" || exit 1
     echo "test" > file.txt
     git add file.txt
     git commit -m "initial" >/dev/null 2>&1

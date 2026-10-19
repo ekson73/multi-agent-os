@@ -70,10 +70,13 @@ eq '0' "$rc" 'bad density → exit 0'
 "$GS" >/dev/null 2>&1 ; eq '0' "$?" 'missing density → exit 0'
 
 # ── anchor extraction + slug normalization (controlled tmp repo — deterministic in CI) ──
-TMP="$(mktemp -d)"
+# shellcheck source=/dev/null
+source "$DIR/../../tests/lib/fixture-guard.sh"   # #495: fail closed before git mutations
+fx_reject_git_env || exit 1
+TMP="$(fx_mktemp_dir)" || exit 1
 (
-  cd "$TMP" || exit 1
-  git init -q
+  fx_enter_fresh "$TMP" || exit 1
+  git init -q && fx_assert_root "$TMP" || exit 1
   git -c user.email=t@t -c user.name=t commit --allow-empty -q -m 'init'   # no ticket in subject
   git checkout -q -b feature/VKS-2159-poc-openspec
 ) >/dev/null 2>&1
