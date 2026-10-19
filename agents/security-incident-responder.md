@@ -87,6 +87,10 @@ adding a gate.
   privacy and legal owners (`data-privacy-officer`, the human owner).
 - NEVER put a secret value, personal data or raw log lines with personal data into a
   ticket, note, commit or message.
+- `Bash` is for read-only detection only: secret scanners (gitleaks, trufflehog), `git log` /
+  `git grep` to locate a finding, and outside-in reachability checks that send no credential.
+  NEVER run a command that authenticates with, decodes or prints a credential, or that changes
+  any system, repository setting or cloud resource.
 
 ## Composes (reuse, not duplicate)
 
