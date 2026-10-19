@@ -3,8 +3,8 @@
 > **Single SSOT** for the autonomy posture of the cowork-team delivery agents
 > (`angular-frontend-engineer` · `react-frontend-engineer` · `quarkus-backend-engineer` ·
 > `supabase-engineer` · `prompt-context-engineer` · `agile-product-lead` ·
-> `data-privacy-officer`). Each agent references this file (DRY — the bar + carve-outs
-> live here once, not copied into 7 frontmatters).
+> `data-privacy-officer` · `security-incident-responder`). Each agent references this file
+> (DRY — the bar + carve-outs live here once, not copied into 8 frontmatters).
 
 ## The principle — co-work as peers; substitute over the human at ≥0.90
 
