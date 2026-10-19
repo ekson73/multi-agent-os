@@ -69,7 +69,7 @@ syntax** and a **scoped** tool set:
 
 | Env var | Effect |
 |---------|--------|
-| `MAOS_SELFHEAL=0` | Disable the relay entirely (log kept, no dispatch). Default `1`. |
+| `MAOS_SELFHEAL=0` / `1` | `0` disables the relay (log kept, no dispatch). The default is per adopter: `worktree-gate.sh` is opt-in (default `0`; `1` enables the relay and the command is still blocked). Other adopters default to `1`. |
 | `MAOS_AI_HARNESS="claude kiro-cli …"` | Override the harness order (space-separated). Default: `kiro-cli claude codex opencode gemini crush amp`. |
 
 ## Portable temp per language

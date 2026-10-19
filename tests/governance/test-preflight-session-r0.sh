@@ -22,6 +22,7 @@ printf 'test-preflight-session-r0.sh\n'
 source "$DIR/../lib/fixture-guard.sh"   # #495: fail closed before git mutations
 fx_reject_git_env || exit 1
 ROOT="$(fx_mktemp_dir)" || exit 1
+trap 'rm -rf "$ROOT"' EXIT
 mkrepo() {  # $1=name [+ optional branch] → echoes path
   local d="$ROOT/$1"; rm -rf "$d"; fx_mkdir "$d" || return 1
   ( fx_enter_fresh "$d" && git init -q && fx_assert_root "$d" && git -c user.email=t@t -c user.name=t commit --allow-empty -q -m init ) >/dev/null 2>&1 \

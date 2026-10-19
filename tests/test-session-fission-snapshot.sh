@@ -24,6 +24,10 @@ case "${GL_STUB_MODE:?}" in
   fatal)    echo "FTL bad source" >&2; exit 1 ;;
   emptyrep) [ -n "$report" ] && printf '[]\n' > "$report"; exit 1 ;;
   other)    exit 2 ;;
+  partial)  [ -n "$report" ] && printf '[{"RuleID":"generic-api-key"}]\n' > "$report"
+            echo "8:33PM ERR failed to scan file error=\"permission denied\"" >&2; exit 1 ;;
+  errclean) echo "8:33PM ERR failed to scan file error=\"permission denied\"" >&2; exit 0 ;;
+  warnonly) echo "8:33PM WRN partial scan of large file skipped" >&2; exit 0 ;;
 esac
 STUB
 chmod +x "$SBX/bin/gitleaks"
@@ -45,6 +49,9 @@ check findings findings
 check fatal    scan-error
 check emptyrep scan-error
 check other    scan-error
+check partial  scan-error
+check errclean scan-error
+check warnonly clean
 
 echo "session-fission snapshot: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

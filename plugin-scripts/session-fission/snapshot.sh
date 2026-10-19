@@ -100,12 +100,19 @@ if command -v gitleaks >/dev/null 2>&1; then
     GL="scan-error"
   else
     GL_REPORT="$GL_DIR/report.json"
+    GL_LOG="$GL_DIR/stderr.log"
     GL_RC=0
     trap 'rm -rf "$GL_DIR"' EXIT   # the report may name findings; never leave it behind
     # --redact: only the report's presence is used, so secret values are never written.
     gitleaks detect --no-git --redact --source "$SNAP" \
-      --report-format json --report-path "$GL_REPORT" >/dev/null 2>&1 || GL_RC=$?
-    if [ "$GL_RC" -eq 0 ]; then
+      --report-format json --report-path "$GL_REPORT" >/dev/null 2>"$GL_LOG" || GL_RC=$?
+    # gitleaks logs a mid-scan error and keeps going, so a partial scan can still
+    # exit 0 (no findings) or 1 with a non-empty report. An ERR/FTL log line means
+    # the scan was incomplete: report scan-error, never clean/findings. The log
+    # stays in the private dir and is never printed.
+    if grep -Eq '(^|[[:space:]])(ERR|FTL)([[:space:]]|$)|"level":"(error|fatal)"' "$GL_LOG" 2>/dev/null; then
+      GL="scan-error"
+    elif [ "$GL_RC" -eq 0 ]; then
       GL="clean"
     elif [ "$GL_RC" -eq 1 ] && [ -s "$GL_REPORT" ] && [ "$(tr -d '[:space:]' < "$GL_REPORT")" != "[]" ]; then
       GL="findings"

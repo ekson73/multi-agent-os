@@ -24,7 +24,8 @@ PASS=0; FAIL=0
 ok()  { echo "  PASS $1"; PASS=$((PASS+1)); }
 bad() { echo "  FAIL $1"; FAIL=$((FAIL+1)); }
 run() { # $1 = stdin json; extra env via caller
-  printf '%s' "$1" | PATH="$SBX/bin:$PATH" TMPDIR="$SBX" bash "$GATE" >/dev/null 2>&1; echo $?
+  # env -u: an inherited MAOS_SELFHEAL=1 must not mask the default under test.
+  printf '%s' "$1" | env -u MAOS_SELFHEAL -u MAOS_AI_HARNESS PATH="$SBX/bin:$PATH" TMPDIR="$SBX" bash "$GATE" >/dev/null 2>&1; echo $?
 }
 
 rc="$(run '{"tool_input":{"command":"git commit -m x"}}')"

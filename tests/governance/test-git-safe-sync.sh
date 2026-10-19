@@ -8,7 +8,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$HERE/../../plugin-scripts/governance/lib/git-safe-sync.sh"
 
 # Fixture isolation: never let an inherited Git location redirect fixture git calls.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_NAMESPACE
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_NAMESPACE GSS_ALLOW_REBASE
 SBX="$(mktemp -d)" || { echo "FAIL: mktemp"; exit 1; }
 [ -n "$SBX" ] && [ -d "$SBX" ] || { echo "FAIL: sandbox"; exit 1; }
 trap 'rm -rf "$SBX"' EXIT
