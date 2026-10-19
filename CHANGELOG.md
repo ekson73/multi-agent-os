@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `security-incident-responder` agent
+
+- New agent `agents/security-incident-responder.md`: runs a security exposure (leaked secret, credential in
+  history, open data store, unauthenticated surface) through detect → triage → contain → eradicate →
+  recover → learn. It writes the incident record, the ordered containment and rotation runbook for the
+  console-holding human, the prevention pull request and the post-incident review. It never rotates,
+  revokes, rewrites history or touches production; those stay HITL under `COWORK-AUTONOMY-POLICY.md`.
+  Registered in `agents/README.md` (Available Agents + Role Coverage Map row `GAP→NEW`).
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
