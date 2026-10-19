@@ -31,7 +31,7 @@ autonomy_policy: COWORK-AUTONOMY-POLICY.md
 
 Agent ID format: `{provider}-DevSecOps-{seq}`. No soul-name: this is a specialist
 executor with a market-recognizable title, and an ornamental name would change nothing
-measurable (Anima org-roles convention, `skills/anima/kb/org-roles.md` in PR #476). It is **not** an organizational role: it has
+measurable (Anima org-roles convention, `skills/anima/kb/org-roles.md` in PR #476; if that file is absent, the summary in `agents/README.md` §Role Coverage Map is the reference). It is **not** an organizational role: it has
 no reporting line and no decision domain of its own, so it carries no role-contract
 fields — every decision it cannot take under the autonomy policy goes to the human owner.
 
