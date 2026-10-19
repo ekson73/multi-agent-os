@@ -172,7 +172,8 @@ if command -v jq >/dev/null 2>&1; then
   mkdir -p "$MSD/gstub"; REAL_GIT="$(command -v git)"
   printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = status ] && exit 128; done\nexec "%s" "$@"\n' "$REAL_GIT" >"$MSD/gstub/git"; chmod +x "$MSD/gstub/git"
   ck "failing git status → unknown (status-failed), never ok" "$(msf "$(PATH="$MSD/gstub:$PATH" msl "$MSD/r")" reason)" "status-failed"
-  ck "subdirectory repo path resolves to toplevel → measured" "$(msf "$(msl "$MSD/r/projects")" canary)" "alive"
+  ck "subdirectory repo path → unknown (repo-missing), never measured" "$(msf "$(msl "$MSD/r/projects")" reason)" "repo-missing"
+  ck "trailing-slash root path → still measured" "$(msf "$(msl "$MSD/r/")" canary)" "alive"
   G branch -q --unset-upstream
   ck "no @{u} → unknown (no literal origin/main fallback)" "$(msf "$(msl "$MSD/r")" reason)" "no-upstream"
   ck "missing repo → unknown" "$(msf "$(msl "$MSD/absent")" status)" "unknown"

@@ -209,7 +209,10 @@ memory_spine_lag() { # $1=repo $2=warn_h $3=crit_h → one-line JSON
   # thresholds go into JSON unquoted → must be plain numbers, else the whole contract write breaks
   case "$warn_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
   case "$crit_h" in ''|*[!0-9.]*|*.*.*|.) _ms_unknown "bad-threshold"; return 0;; esac
-  [ -d "$repo" ] && top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] || { _ms_unknown "repo-missing"; return 0; }
+  # the configured path must BE the repo root: a subdirectory (possibly of an unrelated repo) is a
+  # misconfiguration and must not be measured as if it were the memory-home → fail-closed
+  [ -d "$repo" ] && top="$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" && [ -n "$top" ] \
+    && [ "$(cd "$repo" && pwd -P)" = "$(cd "$top" && pwd -P)" ] || { _ms_unknown "repo-missing"; return 0; }
   for c in /opt/homebrew/bin/timeout /opt/homebrew/bin/gtimeout /usr/local/bin/timeout /usr/local/bin/gtimeout /usr/bin/timeout; do
     [ -x "$c" ] && { tmo="$c"; break; }; done
   # never prompt, never hang on a dead link: without a `timeout` binary (stock macOS) the fetch is still
