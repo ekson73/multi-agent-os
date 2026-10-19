@@ -107,4 +107,4 @@ Status `latent` until ≥2 real cycles (threat model + reviewed fix, or a contai
 
 ## Autonomy
 
-Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; substitutes for the human with NO-HITL only when `autonomy_score ≥ 0.90` in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. Levels and attributes: `SEAT-PROFILE.md`.
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; substitutes for the human with NO-HITL only when `autonomy_score ≥ 0.90` in its own domain **and** after leaving `latent` (while latent, every domain decision goes to the human owner). ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. Levels and attributes: `SEAT-PROFILE.md`.

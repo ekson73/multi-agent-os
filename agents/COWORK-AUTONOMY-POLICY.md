@@ -19,6 +19,11 @@ This **0.90** bar is deliberately **stricter** than the default decision-matrix 
 0.90 the agent acts within the normal bands (act+justify in the medium band; cascade /
 escalate in the low band) — it does NOT substitute the human silently.
 
+**Latent seats are excluded.** An agent whose seat is still `latent` (see
+[`SEAT-PROFILE.md`](./SEAT-PROFILE.md)) holds no NO-HITL grant, whatever its score: every
+decision in its domain goes to the human owner until the owner promotes it. It may still produce
+reversible work (branch, PR, draft) for review.
+
 `autonomy_score` is the standard 6-factor score:
 `(knowledge×0.30) + (certainty×0.30) + ((1-risk)×0.15) + ((1-impact)×0.15) + ((1-importance)×0.05) + ((1-priority)×0.05)`.
 
