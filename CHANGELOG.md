@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `devsecops-engineer` and `cloud-iac-engineer` agents
+
+- New executor agents closing two gaps where in-repo coverage was under 50%:
+  `agents/devsecops-engineer.md` (specialty secops: secrets lifecycle contain → dual-key
+  rotate → re-wire to a runtime secret store → verify → history-purge decision,
+  secret-scanning triage and CI gates, supply-chain/SCA remediation, IAM least privilege and
+  CI OIDC, containment runbooks) and `agents/cloud-iac-engineer.md` (specialty iac:
+  Terraform/OpenTofu networking, managed-database networking and TLS enforcement, IAM roles
+  and workload identity, drift detection, importing hand-made resources, plan-review
+  discipline). Both are specialists, not organizational roles: no role-contract fields, no
+  soul-name. Each carries an "Agentic requirements" table (level, minimum harness, memory,
+  model tier, autonomy, proactivity, authority, authentication, predominant minds with a
+  falsifiable metric) and prohibitions on printing secrets, applying to production or
+  rotating live credentials without a human go-ahead, history rewrites without HITL, and
+  skipping `skills/red-team` when H1–H12 fire.
+- `agents/README.md`: both agents listed; Role Coverage Map rows "DevOps (AWS/IaC/Terraform)"
+  and "DevSecOps / Security" now point to the MAOS-native agents, with the external plugin
+  agents kept as optional extras marked "external, not shipped here".
+  `agents/COWORK-AUTONOMY-POLICY.md` lists the two new agents.
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
