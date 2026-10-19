@@ -5,7 +5,7 @@
 #  * @reason Copy the source transcript to a backup dir + write a manifest + run gitleaks,
 #  *         BEFORE any archive/reseed op. The source is read-only; this only copies OUT.
 #  * @impact Writes a snapshot + manifest under the backup dir. Never touches the source.
-#  * @version 0.1.0
+#  * @version 0.1.1
 #  */
 
 set -euo pipefail
@@ -84,17 +84,34 @@ MANIFEST="$SNAP.manifest.yaml"
 cp -p "$TRANSCRIPT" "$SNAP"
 
 # gitleaks scrub (best-effort; reported, not enforced here).
-# Distinguish tool errors from real findings: gitleaks exits 0=clean, 1=leaks,
-# anything else=tool error (do NOT misreport an error as "findings"). `detect
-# --source` kept for broad version compat (newer `dir` subcommand breaks older installs).
+# gitleaks exits 1 BOTH on a real finding AND on a fatal scanner error (bad
+# --source, unreadable --config), so the exit code alone cannot tell them apart
+# (#399). Disambiguate with --report-path: a real finding writes a non-empty
+# report; a fatal error never reaches the report step. `detect --source` kept for
+# broad version compat (newer `dir` subcommand breaks older installs).
+# The `|| GL_RC=$?` keeps a non-zero exit from tripping `set -e` before the
+# manifest is written.
 GL="skipped"
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks detect --no-git --source "$SNAP" >/dev/null 2>&1
-  case $? in
-    0) GL="clean" ;;
-    1) GL="findings" ;;
-    *) GL="scan-error" ;;
-  esac
+  # Private dir: the report path does not exist until gitleaks writes it, so
+  # "present + non-empty" can only mean gitleaks wrote a finding report.
+  GL_DIR="$(mktemp -d "${TMPDIR:-/tmp}/snapshot-gitleaks.XXXXXX")" || GL_DIR=""
+  if [ -z "$GL_DIR" ]; then
+    GL="scan-error"
+  else
+    GL_REPORT="$GL_DIR/report.json"
+    GL_RC=0
+    gitleaks detect --no-git --source "$SNAP" \
+      --report-format json --report-path "$GL_REPORT" >/dev/null 2>&1 || GL_RC=$?
+    if [ "$GL_RC" -eq 0 ]; then
+      GL="clean"
+    elif [ "$GL_RC" -eq 1 ] && [ -s "$GL_REPORT" ] && ! grep -qx '[[:space:]]*\[[[:space:]]*\][[:space:]]*' "$GL_REPORT"; then
+      GL="findings"
+    else
+      GL="scan-error"
+    fi
+    rm -rf "$GL_DIR"
+  fi
 fi
 
 SOURCE_Y="$(yaml_sq "$TRANSCRIPT")"
