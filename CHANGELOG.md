@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
   until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
   names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
+  because their prior providers are external plugins not shipped here; those stay listed as optional.
 - `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
 
 ### Changed — ticket-first traceability (#484)

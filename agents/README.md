@@ -78,6 +78,11 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
+**2026-10-19 reclassification** — Solution Architect, DevSecOps and hosted DevOps moved from `EXISTS`
+to `GAP→NEW`: their earlier providers are external plugins that ship outside this repo, so a host
+without them had no agent for the role. The external providers stay listed as optional, so routing
+that used them keeps working.
+
 **Legend** — the `Coverage` axis is **reuse-vs-forge**, *not* present-vs-absent:
 `EXISTS` = a **pre-existing** agent already covered the role (reused as-is) ·
 `GAP→NEW` = no pre-existing agent covered it → **a new agent was forged and exists today**

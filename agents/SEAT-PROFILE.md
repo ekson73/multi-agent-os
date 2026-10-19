@@ -4,11 +4,16 @@
 > every decision and task, and (2) the attribute set every delivery agent declares as its
 > **seat profile**. Agents reference this file (DRY); they do not copy it.
 >
-> **Version**: 1.0.0 (2026-10-19) · **Scope**: generic, product-agnostic.
+> **Version**: 1.0.1 (2026-10-19) · **Scope**: generic, product-agnostic.
 > **Companions**: [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) (the ≥0.90 no-HITL bar
-> and carve-outs) · role contracts in `agents/forge.md` §"Organizational Roles" (decision domain,
-> `latent` status — PR #476). A seat profile **describes fit; it grants no authority.** Authority
-> comes only from the human owner, through the role contract and the host's gates.
+> and carve-outs) · role contracts (decision domain, `out_of_domain`), specified in
+> `agents/forge.md` §"Organizational Roles" once PR #476 lands. A seat profile **describes fit; it
+> grants no authority.** Authority comes only from the human owner, through the host's gates.
+>
+> **`latent`** (defined here so this file stands alone): a seat that may be invoked and may produce
+> work inside its `authority_class`, but holds no decision authority — every decision in its domain
+> goes to the human owner. A new agent stays `latent` until at least two real dogfood cycles are
+> recorded; leaving `latent` is the human owner's decision.
 
 ## 1. The six levels
 
@@ -74,9 +79,9 @@ write `n/a (reason)` instead of leaving one out.
 
 | Attribute | Meaning | Allowed values |
 |---|---|---|
-| `level` | Home level (§1) | `L0`…`L5` (agents: `L2`…`L5`; L0/L1 only as advisory) |
+| `level` | Home level (§1), one value; optionally one secondary level with the activity it covers | `L0`…`L5` (agents: `L2`…`L5`; L0/L1 only as advisory), e.g. `L5 Operational; L4 for release plans` — the home level sets the default RACI |
 | `human_analog` | Market titles a newcomer recognizes | free text |
-| `raci_default` | Default letter on its home activities | `A/R` · `R` · `C` · `I` |
+| `raci_default` | Default letters per activity | one or more `<letters> on <activity>` clauses, letters from `A/R` · `R` · `C` · `I` (e.g. `A/R on design · C on implementation`) |
 | `authority_class` | Highest effect it may produce | `observe` · `reversible-write` (branch, PR, local) · `gated-technical-effect` (preview deploy, controlled migration with target, SHA, gates and rollback) — `human-only` is never an agent value |
 | `autonomy` | When it acts without a human | per `COWORK-AUTONOMY-POLICY.md` bands; state the bar |
 | `proactivity` | How it starts work | `reactive` (only when called) · `suggestive` (proposes) · `proactive-in-scope` (acts on what it finds inside its domain, reports the rest) |
@@ -104,4 +109,5 @@ write `n/a (reason)` instead of leaving one out.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.0.1 | 2026-10-19 | Defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
 | 1.0.0 | 2026-10-19 | First version: six levels, RACI default per level, delegation shapes, objective layers, seat attributes, matching procedure. |
