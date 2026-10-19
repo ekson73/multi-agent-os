@@ -18,7 +18,10 @@ out_of_domain:
 reports_to: board
 binding:
 - agent:founder-coach
-- agent:consultants/*
+- agent:consultants/steve-jobs
+- agent:consultants/sam-altman
+- agent:consultants/bill-gates
+- agent:consultants/sundar-pichai
 - skill:founder-playbook
 - skill:eisenhower-matrix
 - skill:derive-system-from-goal

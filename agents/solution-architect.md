@@ -14,10 +14,11 @@ tools:
   - Glob
   - Bash
   - Write
+  - Edit
   - WebSearch
 agnostic: [os, project, vendor]
 rbad: { category: "IT Roles", role: "Solution Architect", specialty: "Design/ADR" }
-forge_provenance: "Forged via forge §Organizational Roles step [2b] (coverage <50% in the existing registry, so a new executor-specialty agent) + Anima naming (agent register, market-recognizable, family-aligned with *-engineer/*-officer); gap analysis in docs/org/agentic-org-raci.md."
+forge_provenance: "Forged via forge §Organizational Roles step [2b] (architect coverage <50% in the existing registry, so a new tactical-level agent that also backs the cto contract) + Anima naming (agent register, market-recognizable, family-aligned with *-engineer/*-officer); gap analysis in docs/org/agentic-org-raci.md."
 autonomy_policy: COWORK-AUTONOMY-POLICY.md
 ---
 
@@ -64,4 +65,4 @@ Validate via ≥1 real ADR or design accepted by the human before promotion.
 
 ## Autonomy
 
-Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; substitutes for the human with NO-HITL only when `autonomy_score ≥ 0.90` in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. Its role contract is `latent` (ADR-019): it grants no decision authority.
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; NO-HITL at `autonomy_score ≥ 0.90` covers execution inside a brief only (how to do the delegated work); every role decision still goes to the board while its contract is latent. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. The latent contract prevails (ADR-019).

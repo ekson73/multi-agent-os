@@ -40,8 +40,8 @@ originating goal and its own secondary goals, plus DoR/DoD, stop conditions and 
 | Role | Level | Bound agents / skills (reuse) | Coverage | Verdict |
 |---|---|---|---|---|
 | governance-officer | political | governance-auditor, validation-auditor, red-team, council-gate, rule-quality-tests | ≥50% | contract + binding |
-| ceo | strategic | founder-coach, consultants/*, founder-playbook, eisenhower-matrix, derive-system-from-goal | ≥50% | contract + binding |
-| cto | strategic | **solution-architect (new)**, consultants/jeff-dean, consultants/demis-hassabis, research-dossier, agentic-tool-intake | ≥50% with the new architect | contract + binding |
+| ceo | strategic | founder-coach, consultants (steve-jobs, sam-altman, bill-gates, sundar-pichai), founder-playbook, eisenhower-matrix, derive-system-from-goal | ≥50% | contract + binding |
+| cto | strategic | **solution-architect (new)**, consultants/jeff-dean, consultants/demis-hassabis, research-dossier, agentic-tool-intake | <50% before this PR; ≥50% only with the new solution-architect (shared with architect) | contract + binding, depends on the new agent |
 | orchestrator | orchestrator | orchestrator, auto-pilot, agentic-delegation, delegate-governance, atomize-and-route, agent-select, ooda-loop | ≥50% | contract + binding |
 | chief-of-staff | orchestrator | chief-of-staff, work-compass, pulse, morning-briefing, work-drain | ≥50% | contract + binding |
 | product-lead | managerial | agile-product-lead, sprint-carryover, roadmap-tree-projector, eisenhower-matrix | ≥50% | contract + binding |
@@ -88,15 +88,22 @@ EXE executor (specialty in brackets).
 | Solution design | I | I | I | A | I | I | C | I | R | C | C |
 | Implementation (draft PR) | I | I | I | I | A | I | C | I | C | I | R (dev) |
 | Independent review and verdict | I | C | I | I | I | I | I | C | C | A/R | C |
-| Security review, secrets and supply chain | A (rotation, disclosure) | C | I | C | I | I | I | I | C | C | R (security) |
+| Security review, secrets and supply chain | A (rotation, disclosure) | C | I | C | I | I | I | I | C | R (security-engineer acting for the verifier) | C (security fixes) |
 | Personal-data handling (privacy, DPIA) | A | C | I | I | I | I | C | I | C | C | R (data-privacy-officer) |
 | Merge into a protected or deploying branch | A/R | I | I | I | I | I | I | C (readiness) | I | C | I |
 | Deploy, migration apply, IaC apply | A/R | I | I | C | I | I | I | C | I | C | C (ops prepares steps) |
 | Production incident triage | A (any prod action) | I | I | C | C | I | I | I | C | I | R (sre) |
 | Docs, runbooks, release notes | I | I | I | I | A | I | C | C | C | C | R (docs) |
 | Memory, lessons, knowledge base | I | C | I | I | A | C | I | I | I | I | R (knowledge) |
-| Naming an artifact | I | I | I | I | I | I | I | I | I | I | R/A (Anima, standing naming authority) |
-| Creating an agent or role contract | A | C | I | C | C | I | I | I | I | C | R (Forge) |
+| Naming an artifact | I | I | I | I | I | I | I | I | I | I | R/A (Anima ¹) |
+| Creating an agent or role contract | A | C | I | C | C | I | I | I | I | C | R (Forge ¹) |
+
+¹ Anima and the Forge are skills/tools, not holders of the `executor` contract. Naming is the one standing
+exception to the latent note: the operator's naming carve-out lets Anima decide a name without pre-approval
+(brand, legal, secrets or cross-org names still go to the board). Creating an agent or role stays a board decision.
+
+When `security-engineer` reviews someone else's change it acts as a verifier and reports to the board, never to
+the orchestrator; when it fixes, it is an executor.
 
 ## 4. Agentic requirements per role
 

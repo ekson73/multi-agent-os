@@ -14,6 +14,7 @@ tools:
   - Glob
   - Bash
   - Write
+  - Edit
   - WebSearch
 agnostic: [os, project, vendor]
 rbad: { category: "IT Roles", role: "Site Reliability Engineer", specialty: "Reliability/Incident" }
@@ -64,4 +65,4 @@ Validate via ≥1 real incident triage or SLO/alert design producing an actionab
 
 ## Autonomy
 
-Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; substitutes for the human with NO-HITL only when `autonomy_score ≥ 0.90` in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. Its role contract is `latent` (ADR-019): it grants no decision authority.
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; NO-HITL at `autonomy_score ≥ 0.90` covers execution inside a brief only (how to do the delegated work); every role decision still goes to the board while its contract is latent. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. The latent contract prevails (ADR-019).

@@ -15,7 +15,7 @@ out_of_domain:
 - cross-organization actions
 - ethics or policy calls without precedent
 - personal or relational decisions
-reports_to: orchestrator
+reports_to: board
 binding:
 - agent:gitops-engineer
 - skill:hierarchical-merge
@@ -36,7 +36,7 @@ requirements:
 
 # Release Manager (role contract)
 
-Managerial level release and change control. Proposes merges and releases; the merge into a protected or deploying branch is always the board's go-ahead.
+Managerial level release and change control. It checks other agents' output, so it reports to the board, and a bound agent never assesses a change it produced. Proposes merges and releases; the merge into a protected or deploying branch is always the board's go-ahead.
 
 This contract is latent (ADR-019) - it documents scope and binds existing agents; it grants no authority. Every decision of the role goes to the board (the human operator).
 

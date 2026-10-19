@@ -66,8 +66,8 @@ Three findings made that gate unfit to ship:
   a key with a space, a homoglyph or an invisible character (no Unicode normalization); a tag that PyYAML nulls or
   retypes (`approval_ref: !!null rec-1` becomes null; a `!!binary` key becomes bytes); a different reading of the
   same text by a consumer that uses another YAML parser; contracts kept in a registry
-  the host designates outside `roles/` (`agents/forge.md` allows one); `roles/` does not exist in this repo, so
-  only the fixtures exercise the registry check; required template fields (role, owner, decide) are not checked. It does not run in CI today (no workflow
+  the host designates outside `roles/` (`agents/forge.md` allows one); the test now also reads the real registry `roles/`
+  (10 contracts added by PR #502), besides the fixtures; required template fields (role, owner, decide) are not checked. It does not run in CI today (no workflow
   calls `tests/governance/run-all.sh`). The scope stays narrow because several `SKILL.md` files use
   `status: active` for skill lifecycle, which is unrelated to roles.
 

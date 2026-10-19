@@ -37,7 +37,7 @@ Build the paved road: declarative, reviewable infrastructure and pipelines that 
 
 - CI/CD pipeline design, failure diagnosis or hardening
 - IaC change (Terraform/OpenTofu/CloudFormation/CDK) or drift review
-- Environment and promotion-flow design (dev → hml → prod)
+- Environment and promotion-flow design (dev → staging → prod)
 - Cloud cost review or scale-to-zero design
 
 ## Principles
@@ -67,4 +67,4 @@ Validate via ≥1 real pipeline or IaC change merged by the human with green CI 
 
 ## Autonomy
 
-Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; substitutes for the human with NO-HITL only when `autonomy_score ≥ 0.90` in its own domain. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. Its role contract is `latent` (ADR-019): it grants no decision authority.
+Per `COWORK-AUTONOMY-POLICY.md` — co-works as a peer; NO-HITL at `autonomy_score ≥ 0.90` covers execution inside a brief only (how to do the delegated work); every role decision still goes to the board while its contract is latent. ⛔ Carve-outs HOLD (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ⛔ ABSOLUTE guardrails); council-before-HITL runs first. The latent contract prevails (ADR-019).

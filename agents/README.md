@@ -59,7 +59,7 @@ Generic, product-agnostic delivery specialists materializing the standard softwa
 roles. Compose with the existing registry (most roles already covered — these fill the genuine
 per-stack/role gaps; see "Role Coverage Map" below).
 
-**Autonomy posture** (all 7): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
+**Autonomy posture** (all 12): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
 co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
 their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
 (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first.
@@ -71,6 +71,11 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 - `prompt-context-engineer` — prompt + context + harness AI-craft layer (composite)
 - `agile-product-lead` — PO/PM/SM/BA product & delivery leadership (composite)
 - `data-privacy-officer` — DPO/privacy/DPIA across GDPR/LGPD/CCPA (generic)
+- `security-engineer` — AppSec + SecOps review, scans and finding triage
+- `site-reliability-engineer` — SLOs, alerting, incidents, postmortems
+- `platform-engineer` — CI/CD, IaC, environments, FinOps
+- `solution-architect` — design and ADRs
+- `technical-writer` — docs, runbooks, release notes
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
@@ -82,8 +87,8 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 
 | Cowork role | Coverage | Provider |
 |---|---|---|
-| DevOps (AWS/IaC/Terraform) | EXISTS | `cloud-infrastructure:cloud-architect` · `terraform-specialist` |
-| DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
+| DevOps (AWS/IaC/Terraform) | **GAP→NEW** | `platform-engineer` (external `cloud-infrastructure:cloud-architect` · `terraform-specialist` are not part of MAOS) |
+| DevOps (Fly/Render/Railway/CI-CD/GitOps) | **GAP→NEW** + EXISTS | `platform-engineer` (CI/CD) · `maos:gitops-engineer` (GitOps); external `cloud-infrastructure:deployment-engineer` is not part of MAOS |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
 | DevSecOps / Security | **GAP→NEW** | `security-engineer` (external plugins `architecture:security-reviewer` · `code-modernization:security-auditor` are not part of MAOS) + `maos:governance-auditor` |
 | DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
@@ -97,7 +102,7 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
 | Solution Architect | **GAP→NEW** | `solution-architect` (external `architecture:architect` is not part of MAOS) |
 | SRE / Incident | **GAP→NEW** | `site-reliability-engineer` |
-| Platform / CI-CD / IaC / FinOps | **GAP→NEW** | `platform-engineer` (complements `maos:gitops-engineer`) |
+| FinOps / environments | **GAP→NEW** | `platform-engineer` |
 | Technical Writer | **GAP→NEW** | `technical-writer` |
 | CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes: `maos:consultants:steve-jobs` · `maos:consultants:sam-altman` · `maos:consultants:bill-gates` · `maos:consultants:sundar-pichai` · `maos:consultants:mark-zuckerberg` |
 | Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes: `maos:consultants:eric-jing` (Ant Group chairman) · `maos:consultants:bill-gates` |
