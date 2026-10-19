@@ -121,6 +121,65 @@ ck "SSOT core line intact in offender PROTECTED"      "$(grep -cE '1password ope
 ck "denied() openclaw (SSOT core, behavioral)"        "$(dn openclaw)"   "denied"
 ck "denied() omniroute (SSOT core, behavioral)"       "$(dn omniroute)"  "denied"
 
+echo "── memory_spine lag (EKO-106) — fresh fetch · @{u} · oldest-wins · deleted→dir mtime · clamp · fail-closed ──"
+msl() { "$COLLECTOR" --memory-spine-lag "$1" 24 72 2>/dev/null; }
+msf() { jq -r ".$2" <<<"$1"; }
+setm() { touch -d "@$1" "$2" 2>/dev/null || touch -t "$(date -r "$1" +%Y%m%d%H%M.%S)" "$2"; }   # GNU / BSD
+if command -v jq >/dev/null 2>&1; then
+  MSD="$(mktemp -d)"; NOW="$(date +%s)"
+  git init -q --bare "$MSD/remote.git"
+  git clone -q "$MSD/remote.git" "$MSD/r" 2>/dev/null
+  G() { git -C "$MSD/r" -c user.name=t -c user.email=t@t -c commit.gpgsign=false "$@"; }
+  mkdir -p "$MSD/r/projects/a/memory"; echo seed >"$MSD/r/projects/a/memory/m.md"; echo x >"$MSD/r/README"
+  G add -A; G commit -qm seed; G push -q -u origin HEAD 2>/dev/null
+  O="$(msl "$MSD/r")"
+  ck "clean + pushed → ok"                 "$(msf "$O" status)" "ok"
+  ck "clean + pushed → lag 0 (not unknown)" "$(msf "$O" lag_sec)" "0"
+  ck "liveness canary alive"                "$(msf "$O" canary)" "alive"
+  # two unpushed memory commits, 30h and 10h old — the OLDEST must win (sort -n, not log order)
+  echo a >>"$MSD/r/projects/a/memory/m.md"; G add -A; GIT_COMMITTER_DATE="@$((NOW-30*3600)) +0000" G commit -qm old
+  echo b >>"$MSD/r/projects/a/memory/m.md"; G add -A; GIT_COMMITTER_DATE="@$((NOW-10*3600)) +0000" G commit -qm new
+  O="$(msl "$MSD/r")"
+  ck "unpushed memory 30h old → warn (oldest wins)" "$(msf "$O" status)" "warn"
+  ck "lag_h reflects the 30h commit"               "$(msf "$O" 'lag_h|floor')" "30"
+  # an unpushed commit OUTSIDE projects/ is not memory lag (pathspec)
+  G push -q 2>/dev/null; echo y >>"$MSD/r/README"; G add -A; GIT_COMMITTER_DATE="@$((NOW-100*3600)) +0000" G commit -qm other
+  ck "unpushed non-memory commit → ok (pathspec projects/)" "$(msf "$(msl "$MSD/r")" status)" "ok"
+  G push -q 2>/dev/null
+  # dirty (uncommitted) memory file aged 80h → crit
+  echo c >>"$MSD/r/projects/a/memory/m.md"; setm $((NOW-80*3600)) "$MSD/r/projects/a/memory/m.md"
+  ck "dirty memory 80h old → crit" "$(msf "$(msl "$MSD/r")" status)" "crit"
+  G checkout -q -- projects/
+  # deleted tracked file → falls back to the parent dir mtime (30h)
+  rm "$MSD/r/projects/a/memory/m.md"; setm $((NOW-30*3600)) "$MSD/r/projects/a/memory"
+  ck "deleted memory file → parent-dir mtime → warn" "$(msf "$(msl "$MSD/r")" status)" "warn"
+  G checkout -q -- projects/
+  # future mtime (clock skew) clamps to 0, never negative
+  echo d >"$MSD/r/projects/a/memory/new.md"; setm $((NOW+5*3600)) "$MSD/r/projects/a/memory/new.md"
+  ck "future mtime → lag clamped to 0" "$(msf "$(msl "$MSD/r")" lag_sec)" "0"
+  rm -f "$MSD/r/projects/a/memory/new.md"
+  # FAIL-CLOSED: fetch failure / no upstream / missing repo → unknown, never 0
+  G remote set-url origin "$MSD/nope.git"
+  O="$(msl "$MSD/r")"
+  ck "fetch failure → unknown (fail-closed)" "$(msf "$O" status)" "unknown"
+  ck "fetch failure → canary dead"           "$(msf "$O" canary)" "dead"
+  ck "fetch failure → no lag number"         "$(msf "$O" 'lag_sec // "none"')" "none"
+  G remote set-url origin "$MSD/remote.git"; G branch -q --unset-upstream
+  ck "no @{u} → unknown (no literal origin/main fallback)" "$(msf "$(msl "$MSD/r")" reason)" "no-upstream"
+  ck "missing repo → unknown" "$(msf "$(msl "$MSD/absent")" status)" "unknown"
+  rm -rf "$MSD"
+else
+  echo "  SKIP: jq absent — memory_spine fixture checks need jq"
+fi
+MS_OK='{"system":{"status":"ok","branches":{}},"burn_down":{"status":"ok"},"memory_spine":{"status":"ok","lag_h":0}}'
+MS_WARN='{"system":{"status":"ok","branches":{}},"burn_down":{"status":"ok"},"memory_spine":{"status":"warn","lag_h":30.5}}'
+MS_UNK='{"system":{"status":"ok","branches":{}},"burn_down":{"status":"ok"},"memory_spine":{"status":"unknown","reason":"fetch-failed"}}'
+MS_ABS='{"system":{"status":"ok","branches":{}},"burn_down":{"status":"ok"}}'
+ck_has    "memory_spine=warn while system ok → residue surfaces"         "$(respond_out "$MS_WARN")" "memory-spine=warn"
+ck_has    "memory_spine=unknown → fail-closed residue (never silent ok)" "$(respond_out "$MS_UNK")"  "lag UNMEASURED"
+ck_has    "memory_spine=ok → clean no-op"                                "$(respond_out "$MS_OK")"   "nothing to do"
+ck_has    "memory_spine absent (pre-1.7.0 contract) → clean no-op"       "$(respond_out "$MS_ABS")"  "nothing to do"
+
 echo "── machine-local ↔ skill-mirror collector byte-identity (the recon-relied-on invariant) [round-6] ──"
 LOCAL="$HOME/.local/bin/system-health-guardian.sh"
 if [ -f "$LOCAL" ]; then

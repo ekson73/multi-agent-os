@@ -237,8 +237,14 @@ main() {
   bd_trend="$(jq -r '.burn_down.trend // "?"' "$CONTRACT" 2>/dev/null)"
   bd_days="$(jq -r '.burn_down.days_to_threshold // "?"' "$CONTRACT" 2>/dev/null)"
   bd_drain="$(jq -r '.burn_down.drain_gb_per_hr // "?"' "$CONTRACT" 2>/dev/null)"
-  echo "System-health responder  [$([ "$DRY_RUN" -eq 1 ] && echo DRY-RUN || echo ENGAGE)]  contract.status=${overall}  burn_down=${bd}"
-  if [ "$overall" = "ok" ] && [ "$bd" != "warn" ] && [ "$bd" != "crit" ]; then
+  # memory_spine (EKO-106) is likewise TOP-LEVEL + advisory (never feeds .system.status / autonomy bands). Absent
+  # key = pre-1.7.0 collector → no-op. "unknown" is FAIL-CLOSED: an unmeasured spine surfaces, never reads as ok.
+  local msp msp_lag msp_reason
+  msp="$(jq -r '.memory_spine.status // "absent"' "$CONTRACT" 2>/dev/null)"
+  msp_lag="$(jq -r '.memory_spine.lag_h // "?"' "$CONTRACT" 2>/dev/null)"
+  msp_reason="$(jq -r '.memory_spine.reason // "?"' "$CONTRACT" 2>/dev/null)"
+  echo "System-health responder  [$([ "$DRY_RUN" -eq 1 ] && echo DRY-RUN || echo ENGAGE)]  contract.status=${overall}  burn_down=${bd}  memory_spine=${msp}"
+  if [ "$overall" = "ok" ] && [ "$bd" != "warn" ] && [ "$bd" != "crit" ] && { [ "$msp" = "ok" ] || [ "$msp" = "absent" ]; }; then
     echo "  ✅ all classes ok — nothing to do"; log "no-op overall=ok burn_down=${bd}"; return 0
   fi
 
@@ -282,6 +288,12 @@ main() {
   if [ "$bd" = "warn" ] || [ "$bd" = "crit" ]; then
     residue="${residue}- 🟠 disk burn-down=${bd} (trend=${bd_trend}, ~${bd_drain} GB/hr, ~${bd_days}d to threshold): leading indicator — prune caches / reclaim EARLY (session/operator) before the floor.\n"
   fi
+  # memory_spine (EKO-106) → observe-only: un-shipped memory is drained by a session/operator (push), never here.
+  case "$msp" in
+    warn|crit) residue="${residue}- 🟠 memory-spine=${msp}: persisted memory un-shipped for ~${msp_lag}h → drain it (commit + push the memory-home \`projects/\` tree) from a session/operator.\n";;
+    ok|absent) ;;
+    *) residue="${residue}- 🟠 memory-spine=${msp} (reason=${msp_reason}): lag UNMEASURED (fail-closed) → check the memory-home repo fetch/upstream.\n";;
+  esac
   # security → HITL (Q2 important, not autonomous)
   local secs; secs="$(jq -r '.system.branches.security.status // "ok"' "$CONTRACT" 2>/dev/null)"
   [ "$secs" != "ok" ] && residue="${residue}- 🟠 security=${secs} ($(jq -r '.system.branches.security.root_fail // "?"' "$CONTRACT")): re-enable firewall/SIP/gatekeeper = operator (System Settings).\n"
