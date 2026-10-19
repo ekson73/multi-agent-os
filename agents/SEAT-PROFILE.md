@@ -12,7 +12,8 @@
 >
 > **`latent`** (defined here so this file stands alone): a seat that may be invoked and may produce
 > work inside its `authority_class`, but holds no decision authority — every decision in its domain
-> goes to the human owner. A new agent stays `latent` until at least two real dogfood cycles are
+> goes to the human owner. Latent overrides any NO-HITL grant in `COWORK-AUTONOMY-POLICY.md`,
+> whatever the `autonomy_score`, until the owner changes the status. A new agent stays `latent` until at least two real dogfood cycles are
 > recorded; leaving `latent` is the human owner's decision.
 
 ## 1. The six levels
@@ -110,5 +111,5 @@ write `n/a (reason)` instead of leaving one out.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.1 | 2026-10-19 | Seat Profile mandatory for new agents, adopted by existing ones on next revision; defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
+| 1.0.1 | 2026-10-19 | `latent` overrides NO-HITL; Seat Profile mandatory for new agents, adopted by existing ones on next revision; defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
 | 1.0.0 | 2026-10-19 | First version: six levels, RACI default per level, delegation shapes, objective layers, seat attributes, matching procedure. |
