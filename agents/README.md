@@ -23,6 +23,11 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
 | data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
 | openrig-fleet-engineer | `openrig-fleet-engineer.md` | OpenRig fleet engineer: operate, observe, diagnose and heal rigs; crews on target repositories are a STOP until #453 (loads `openrig-concierge`) |
+| security-engineer | `security-engineer.md` | AppSec + SecOps: threat model, secrets/supply-chain scan, security-finding triage (v0.1.0 draft) |
+| site-reliability-engineer | `site-reliability-engineer.md` | SRE: SLOs, alerting, incident triage, postmortems, runbooks (v0.1.0 draft) |
+| platform-engineer | `platform-engineer.md` | Platform/DevOps: CI/CD, IaC, environments, FinOps (v0.1.0 draft) |
+| solution-architect | `solution-architect.md` | Solution design, ADRs, build-vs-buy, spec/as-built drift (v0.1.0 draft) |
+| technical-writer | `technical-writer.md` | Docs, runbooks, release notes, doc-drift fixes (v0.1.0 draft) |
 
 ## Agent Categories
 
@@ -80,7 +85,7 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | DevOps (AWS/IaC/Terraform) | EXISTS | `cloud-infrastructure:cloud-architect` · `terraform-specialist` |
 | DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
-| DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
+| DevSecOps / Security | **GAP→NEW** | `security-engineer` (external plugins `architecture:security-reviewer` · `code-modernization:security-auditor` are not part of MAOS) + `maos:governance-auditor` |
 | DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
 | Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
 | Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
@@ -90,12 +95,20 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | PO / PM / SM / BA | **GAP→NEW** (composite) | `agile-product-lead` |
 | DPO / Privacy | **GAP→NEW** | `data-privacy-officer` |
 | QA / Tester | EXISTS | `architecture:qa-engineer` · `test-generator` · `maos:qa-validator` |
-| Solution Architect | EXISTS | `architecture:architect` · `system-designer` |
+| Solution Architect | **GAP→NEW** | `solution-architect` (external `architecture:architect` is not part of MAOS) |
+| SRE / Incident | **GAP→NEW** | `site-reliability-engineer` |
+| Platform / CI-CD / IaC / FinOps | **GAP→NEW** | `platform-engineer` (complements `maos:gitops-engineer`) |
+| Technical Writer | **GAP→NEW** | `technical-writer` |
 | CEO / Founder | EXISTS (persona-lens — no standalone agent) | `maos:founder-coach` (lifecycle diagnosis + exit gates) + C-suite consultant archetypes: `maos:consultants:steve-jobs` · `maos:consultants:sam-altman` · `maos:consultants:bill-gates` · `maos:consultants:sundar-pichai` · `maos:consultants:mark-zuckerberg` |
 | Chairman / Board | EXISTS (persona-lens — no standalone agent) | `maos:governance-auditor` (board/governance oversight) + chairman-class consultant archetypes: `maos:consultants:eric-jing` (Ant Group chairman) · `maos:consultants:bill-gates` |
 | Auditor | EXISTS | `maos:governance-auditor` · `validation-auditor` |
 | Agent-Orchestrator / Task-Orchestrator | EXISTS | `maos:orchestrator` · `taskmaster:task-orchestrator` |
 | Git workflow (add/branch/pr/merge…) | EXISTS | `maos:gitops-engineer` + `deployment-engineer` (verb-set covered) |
+
+### Organizational roles (levels + RACI)
+
+Role contracts (all `latent`, ADR-019) live in `roles/`, bound to the agents above; the six-level map
+(political → operational) and the RACI by decision type are in [`docs/org/agentic-org-raci.md`](../docs/org/agentic-org-raci.md).
 
 ## Agent Naming Convention
 

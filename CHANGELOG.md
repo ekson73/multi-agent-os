@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Agentic organization: six levels, role contracts and RACI
+
+- `docs/org/agentic-org-raci.md` v0.1.0: level map (political, strategic, orchestrator, managerial, tactical,
+  operational), roles bound to existing agents, gap analysis and a RACI by decision and task type.
+- `roles/` (10 contracts, all `latent` per ADR-019): `governance-officer`, `ceo`, `cto`, `orchestrator`,
+  `chief-of-staff`, `product-lead`, `release-manager`, `architect`, `verifier`, `executor` (specialty attribute).
+  Each carries agentic `requirements` (min model class, harness, memory, autonomy, proactivity, DoR, DoD).
+- 5 agents where existing coverage was under 50% (v0.1.0 drafts, cowork autonomy policy): `security-engineer`,
+  `site-reliability-engineer`, `platform-engineer`, `solution-architect`, `technical-writer`.
+- Dogfood: first use of the Forge step [2b] and the Anima `org-roles` adapter from PR #476 on a real org model;
+  `tests/governance/test-roles-latent-only.sh` passes on the new `roles/` tree. No promotion claimed (0/2 cycles).
+
 ### Changed — TRAIN: Forge and Anima learn organizational roles
 
 - `agents/forge.md` v1.1.0, `skills/agentic-tool-forge` v1.3.0, `skills/anima` v1.3.0: an organizational role
