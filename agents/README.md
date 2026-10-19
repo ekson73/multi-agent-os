@@ -56,7 +56,7 @@ Generic, product-agnostic delivery specialists materializing the standard softwa
 roles. Compose with the existing registry (most roles already covered — these fill the genuine
 per-stack/role gaps; see "Role Coverage Map" below).
 
-**Autonomy posture** (all 7): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
+**Autonomy posture** (all 8): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
 co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
 their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
 (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first.
@@ -68,6 +68,7 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 - `prompt-context-engineer` — prompt + context + harness AI-craft layer (composite)
 - `agile-product-lead` — PO/PM/SM/BA product & delivery leadership (composite)
 - `data-privacy-officer` — DPO/privacy/DPIA across GDPR/LGPD/CCPA (generic)
+- `security-incident-responder` — secrets exposure / CSIRT lifecycle, prepares and verifies (generic)
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
