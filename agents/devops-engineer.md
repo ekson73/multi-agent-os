@@ -101,6 +101,14 @@ This agent owns hosted CI/CD and PaaS targets. Kubernetes, Helm, Kustomize and F
 - [ ] Rollback runbook exists and was exercised on a preview.
 - [ ] Production step, if any: owner approval for this SHA and target recorded before the agent executes it; otherwise left at the gate with all evidence attached.
 
+## Role Contract
+
+| Field | Value |
+|---|---|
+| `decides` | pipelines, builds, preview deploys and release records |
+| `out_of_domain` | production deploy approval, paid resources and plan changes → human owner · Kubernetes targets → `gitops-engineer` · security requirements → `devsecops-engineer` |
+| `status` | `latent` |
+
 ## Dogfooding
 
 Status `latent` until ≥2 real cycles (pipeline change + preview + release record) are recorded.

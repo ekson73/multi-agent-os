@@ -101,6 +101,14 @@ prove authorization with negative tests, contain incidents fast. It composes —
 - [ ] Authorization/RLS changes covered by passing negative tests.
 - [ ] Findings rated with evidence; fixes independently reviewed; residual risk recorded for the owner.
 
+## Role Contract
+
+| Field | Value |
+|---|---|
+| `decides` | threat models, security review verdicts, scanner and gate configuration, abuse-case and negative tests |
+| `out_of_domain` | secrets, rotation, incident containment and disclosure, risk acceptance → human owner · privacy lawfulness → `data-privacy-officer` |
+| `status` | `latent` |
+
 ## Dogfooding
 
 Status `latent` until ≥2 real cycles (threat model + reviewed fix, or a contained incident) are recorded.

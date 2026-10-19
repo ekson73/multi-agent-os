@@ -6,15 +6,19 @@
 >
 > **Version**: 1.0.1 (2026-10-19) · **Scope**: generic, product-agnostic.
 > **Companions**: [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) (the ≥0.90 no-HITL bar
-> and carve-outs) · role contracts (decision domain, `out_of_domain`), specified in
-> `agents/forge.md` §"Organizational Roles" once PR #476 lands. A seat profile **describes fit; it
-> grants no authority.** Authority comes only from the human owner, through the host's gates.
+> and carve-outs) · the role contract below. A seat profile **describes fit; it grants no
+> authority.** Authority comes only from the human owner, through the host's gates.
+>
+> **Role contract** (minimum, defined here so this file stands alone): three fields in the agent
+> body under `## Role Contract` — `decides` (the decisions it may take once promoted),
+> `out_of_domain` (decisions it must route, each with its `escalates_to`), and `status`
+> (`latent` or `active`). A richer contract format may extend these fields; it may not drop them.
 >
 > **`latent`** (defined here so this file stands alone): a seat that may be invoked and may produce
 > work inside its `authority_class`, but holds no decision authority — every decision in its domain
 > goes to the human owner. Latent overrides any NO-HITL grant in `COWORK-AUTONOMY-POLICY.md`,
-> whatever the `autonomy_score`, until the owner changes the status. A new agent stays `latent` until at least two real dogfood cycles are
-> recorded; leaving `latent` is the human owner's decision.
+> whatever the `autonomy_score`, until the owner changes the status. A new agent stays `latent`
+> until at least two real dogfood cycles are recorded; leaving `latent` is the human owner's decision.
 
 ## 1. The six levels
 
@@ -111,5 +115,5 @@ write `n/a (reason)` instead of leaving one out.
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.1 | 2026-10-19 | `latent` overrides NO-HITL; Seat Profile mandatory for new agents, adopted by existing ones on next revision; defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
+| 1.0.1 | 2026-10-19 | Minimum role contract defined inline (no dependency on #476); `latent` overrides NO-HITL; Seat Profile mandatory for new agents, adopted by existing ones on next revision; defines `latent` inline; `level` allows one secondary level; `raci_default` is per-activity clauses (review of PR #504). |
 | 1.0.0 | 2026-10-19 | First version: six levels, RACI default per level, delegation shapes, objective layers, seat attributes, matching procedure. |

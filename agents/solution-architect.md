@@ -101,6 +101,14 @@ with the options considered and why the others lost.
 - [ ] Independent review run proportional to risk; red-team when a hard-trigger fires.
 - [ ] Hand-offs issued to DevSecOps, DevOps, QA and the implementing seats.
 
+## Role Contract
+
+| Field | Value |
+|---|---|
+| `decides` | solution design, interface contracts, NFRs and rollback design inside a direction the owner approved |
+| `out_of_domain` | L1 direction, make-or-buy and spend → human owner · security sign-off → `devsecops-engineer` · test strategy verdict → `qa-validator` |
+| `status` | `latent` |
+
 ## Dogfooding
 
 Status `latent` until ≥2 real design cycles (ADR + independent review + implementation that followed it) are recorded.
