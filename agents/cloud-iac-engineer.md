@@ -30,7 +30,7 @@ autonomy_policy: COWORK-AUTONOMY-POLICY.md
 ## Identity
 
 Agent ID format: `{provider}-CloudIaC-{seq}`. No soul-name: a specialist executor with a
-market-recognizable title (Anima org-roles convention, `skills/anima/kb/org-roles.md` in PR #476). It is **not** an
+market-recognizable title (Anima org-roles convention, `skills/anima/kb/org-roles.md` in PR #476; if that file is absent, the summary in `agents/README.md` §Role Coverage Map is the reference). It is **not** an
 organizational role and carries no role-contract fields; decisions outside the autonomy
 policy go to the human owner.
 
