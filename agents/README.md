@@ -23,6 +23,7 @@ Agent definitions for the multi-agent-os plugin. These define specialized person
 | agile-product-lead | `agile-product-lead.md` | Product/delivery lead (PO/PM/SM/BA composite) |
 | data-privacy-officer | `data-privacy-officer.md` | DPO/privacy engineer (GDPR/LGPD/CCPA, DPIA, residency) |
 | openrig-fleet-engineer | `openrig-fleet-engineer.md` | OpenRig fleet engineer: operate, observe, diagnose and heal rigs; crews on target repositories are a STOP until #453 (loads `openrig-concierge`) |
+| security-incident-responder | `security-incident-responder.md` | Security incident response for secrets/exposure findings (contain → rotate → prevent); prepares and verifies, never rotates itself |
 | person-agent-creator | `person-agent-creator.md` | Creates/elevates person-agents (sourced dossier, 33 person-questions, lint gate); first three: `consultants/elon-musk`, `consultants/sam-altman`, `consultants/amodei-siblings` (v2.0.0) |
 
 ## Agent Categories
@@ -55,7 +56,7 @@ Generic, product-agnostic delivery specialists materializing the standard softwa
 roles. Compose with the existing registry (most roles already covered — these fill the genuine
 per-stack/role gaps; see "Role Coverage Map" below).
 
-**Autonomy posture** (all 7): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
+**Autonomy posture** (all 8): per [`COWORK-AUTONOMY-POLICY.md`](./COWORK-AUTONOMY-POLICY.md) —
 co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
 their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
 (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first.
@@ -67,6 +68,7 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 - `prompt-context-engineer` — prompt + context + harness AI-craft layer (composite)
 - `agile-product-lead` — PO/PM/SM/BA product & delivery leadership (composite)
 - `data-privacy-officer` — DPO/privacy/DPIA across GDPR/LGPD/CCPA (generic)
+- `security-incident-responder` — secrets exposure / CSIRT lifecycle, prepares and verifies (generic)
 
 #### Role Coverage Map (reuse-first — most cowork roles already exist)
 
@@ -82,6 +84,7 @@ their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs 
 | DevOps (Fly/Render/Railway/CI-CD/GitOps) | EXISTS | `cloud-infrastructure:deployment-engineer` · `maos:gitops-engineer` |
 | Infra Engineer (K8s/Network) | EXISTS | `cloud-infrastructure:kubernetes-architect` · `network-engineer` |
 | DevSecOps / Security | EXISTS | `architecture:security-reviewer` · `code-modernization:security-auditor` · `maos:governance-auditor` |
+| Security Incident Response (secrets exposure / CSIRT) | **GAP→NEW** | `security-incident-responder` (the DevSecOps row covers review and audit; no agent owned the detect → contain → rotate → prevent lifecycle) |
 | DBA (RDS/Aurora/Postgres) | EXTEND-candidate | community gap — covered today by `supabase-engineer` (Postgres) + `cloud-infrastructure:cloud-architect` for RDS/Aurora ops; a dedicated generic `postgres-dba` is a future extend (corp DBA binding lives in the corporate layer, intentionally out of this community map) |
 | Frontend — Angular | **GAP→NEW** | `angular-frontend-engineer` |
 | Frontend — React/PWA | **GAP→NEW** | `react-frontend-engineer` |
