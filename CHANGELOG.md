@@ -117,6 +117,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
   reading, or a registry outside `roles/`, and no CI workflow runs it yet.
 
+### Added — `ref-claim-verify` skill: verify cross-reference claims against the source
+
+- `skills/ref-claim-verify/` — read-only, stdlib-only, offline checker for the citations a doc,
+  PR body or diff makes about other artifacts: a cited **path** exists at a base/head ref, a
+  **section** (`file §4.1`) has a matching heading, a **version** (`[ID] v1.2.3` or `` `file` v1.2.3 ``)
+  equals the artifact's own declared version. Verdicts `VERIFIED` / `MISMATCH` / `UNRESOLVED`
+  (UNRESOLVED is never a pass); exit codes 0/2/3/1. Motivation: review bots approved a doc line
+  citing a version no ref declared. Dogfooded on that very PR: reproduces the defect (`claimed
+  v3.1.0; declared 3.0.0`, exit 3). Excerpts are masked by reusing `pii-masking` (fallback masks
+  CPF/email/phone and declares `masking: fallback`); a recall guard counts version-like mentions
+  not tied to an anchor so silence cannot hide a parsing gap. 74 tests.
+- Hardened the verifier against three review findings: (1) the SECTION token regex no
+  longer folds a trailing `.`/`-` into the section (a sentence-ending citation like
+  `` `file.md` §4.1. `` now parses as `4.1` and VERIFIES instead of a false MISMATCH);
+  (2) the SECTION branch now applies the same `safe_path` guard as the PATH branch, so an
+  unsafe/out-of-repo path (`../x.md`) returns UNRESOLVED (per SKILL.md), not MISMATCH;
+  (3) `_git` and the test fixture strip inherited Git env vars (`GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
+  cannot silently redirect the verifier at another repository. Two regression tests added.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
