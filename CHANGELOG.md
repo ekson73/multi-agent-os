@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
 - Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
 
+### Added — seat profile (six org levels) and three delivery agents
+
+- New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
+  Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
+  delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
+  Describes fit only; grants no authority.
+- New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
+  until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
+  names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
+  because their prior providers are external plugins not shipped here; those stay listed as optional.
+- `forge` Step 3 now loads `SEAT-PROFILE.md` and emits `## Seat Profile` and `## Role Contract`
+  (`status: latent`) for every new agent; the completion checklist requires both. The three new
+  agents carry the mandatory pt-BR line in their descriptions.
+- `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
