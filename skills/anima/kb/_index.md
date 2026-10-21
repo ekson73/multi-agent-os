@@ -9,6 +9,7 @@ matching adapter, and applies its conventions on top of the universal 12-aspect 
 | database · schema · instance · table · column · field · index · constraint · relationship · key | `databases.md` |
 | skill · command · agent · subagent · mcp · plugin · marketplace · rule · hook | `agentic-tools.md` |
 | product · brand · startup · app · service · domain · package · library (public) | `brand-product.md` |
+| organizational role · decision level · authorization tier · human gate · lane · relation edge · tag · role instance id | `org-roles.md` |
 | directory · path · file · variable · function · module · class · protocol · methodology · framework · acronym · mnemonic · alias · nickname · doc · manifesto · media · prompt · *(anything else)* | `general` (inline default below) |
 
 **`general` default** (no dedicated file — applies the universal house-form): kebab-case · ≤6 words · role-typed ·
