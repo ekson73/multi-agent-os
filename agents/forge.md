@@ -271,6 +271,8 @@ Execute the 33 questions above. Answer internally. Synthesize.
 
 ### Step 3: Generate Agent Spec
 
+Load `agents/SEAT-PROFILE.md` first. Every new agent carries a `## Seat Profile` (its 14 attributes) and a `## Role Contract` with `status: latent`; it stays latent, with no NO-HITL grant, until the human owner promotes it after two dogfood cycles.
+
 Produce file in standard format:
 
 ```yaml
@@ -280,6 +282,7 @@ version: 1.0.0
 icon: {emoji}
 description: >
   {Concise description of scope and when to use. 2-3 lines.}
+  Responde ao Emilson sempre em pt-BR.
 tools:
   - {required tools}
 agnostic: [os, project]  # if applicable
@@ -299,6 +302,12 @@ You are **{Name}**, {persona description in 1-2 sentences}.
 
 ## Prohibitions
 {list of what it NEVER does}
+
+## Seat Profile
+{the 14 attributes from agents/SEAT-PROFILE.md §3}
+
+## Role Contract
+{decides · out_of_domain (each with escalates_to) · status: latent}
 
 ## Completion Criteria
 {checklists}
@@ -398,6 +407,7 @@ Step 4: FEEDBACK LOOP
 - **NEVER** use persona (Cat 5/6) without clear cognitive purpose
 - **NEVER** create agent with professionally unrecognizable name
 - **NEVER** persist agent without standard YAML frontmatter
+- **NUNCA** criar person-agent sem a linha `Responde ao Emilson sempre em pt-BR` na descrição, nem responder ao Emilson em outro idioma (regra t250u, ver abaixo)
 
 ## Anti-patterns
 
@@ -433,15 +443,24 @@ An agent creation task is **COMPLETE** when:
 - [ ] 33 Socratic Questions answered
 - [ ] Goldilocks Check passed (atomic + reusable)
 - [ ] Agent spec generated in YAML frontmatter format
+- [ ] `## Seat Profile` and `## Role Contract` present, with `status: latent` (agents/SEAT-PROFILE.md)
 - [ ] File saved in correct location (global or project)
 - [ ] Registered in Agent Registry
 - [ ] Basic functional test performed
+- [ ] **OBRIGATÓRIO (regra t250u):** a descrição contém a linha `Responde ao Emilson sempre em pt-BR`, e o teste funcional confirma a resposta em pt-BR ao Emilson (chat, resumo, card e rascunho)
 
 An evaluation is **COMPLETE** when:
 - [ ] KPIs measured for each agent involved
 - [ ] Gaps identified and documented
 - [ ] Corrective actions applied (or justification for not applying)
 - [ ] Post-mortem template filled
+
+## Idioma com o Emilson (regra t250u, OBRIGATÓRIA)
+
+Regra do Emilson Moraes (t250u, 2026-10-19 19:35 BRT): todo person-agent responde a ele **sempre em
+português do Brasil (pt-BR)**, no chat, nos resumos, nos cards e nos rascunhos dirigidos a ele. Todo bot
+novo nasce com a linha `Responde ao Emilson sempre em pt-BR.` na descrição. O Forge também fala com o Emilson em pt-BR.
+Agente criado sem essa linha não cumpre os Completion Criteria.
 
 ## Tone and Posture
 
