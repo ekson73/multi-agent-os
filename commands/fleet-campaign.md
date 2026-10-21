@@ -74,7 +74,7 @@ the same command; re-run it after an upstream change so the projection stays cur
 
 ## §Refs
 
-- `skills/fleet-campaign/SKILL.md` (the method — nine laws, six phases, hard limits)
+- `skills/fleet-campaign/SKILL.md` (the method — the laws, six phases, hard limits)
 - `skills/fleet-campaign/references/worked-example.md` (the measured campaign behind the laws)
 
 ---

@@ -1,4 +1,4 @@
-# Worked example — the campaign that produced the nine laws
+# Worked example — the campaign that produced the laws
 
 > This is a **worked instance**, not the method. The method is provider-agnostic and lives in
 > `../SKILL.md`. Read this one for the shape of a real measurement matrix and for the probes that
@@ -28,8 +28,9 @@ gave three independent switches:
 | **version updates** | opens scheduled bump PRs from a checked-in config file | nothing a human would miss | **noise-only** |
 
 Only **version updates** was the noise the operator meant. The authorized action was therefore:
-remove the config file from the ref the provider reads, close the already-open bump PRs, and
-**never call the alerts-off endpoint**. One member had the weak loss-bearing surface explicitly
+remove the config file from the ref the provider reads, review the already-open bot PRs
+**individually** (see P4 — the author does not tell a scheduled bump from a security fix, so they
+are never closed in bulk), and **never call the alerts-off endpoint**. One member had the weak loss-bearing surface explicitly
 authorized off; the detection surface was left on in all 48.
 
 Had P0 been skipped, the obvious one-liner (disable the product) would have blinded a private
@@ -101,10 +102,17 @@ GH_TOKEN=$(gh auth token --user <login-B>) <worker-B-command>
 **Why command-scoped and not `export`ed.** An exported `GH_TOKEN` is shared mutable state in the
 conductor shell: every worker spawned afterwards inherits whichever assignment ran last. That is
 the same cross-worker credential race L9 forbids for the global switcher — via the environment
-instead of the keyring — and it can drive a mutation under the wrong identity. It also puts the
-raw token where any traced transcript of the campaign can capture it, which the anti-theater rule
-on secret leakage forbids. The global switcher (`gh auth switch`) was likewise **never** used.
-Zero collisions across three rounds. That is **L9**.
+instead of the keyring — and it can drive a mutation under the wrong identity. The global switcher
+(`gh auth switch`) was likewise **never** used. Zero collisions across three rounds. That is **L9**.
+
+**What command-scoping does NOT buy you: trace safety.** Scoping keeps the credential out of the
+shared environment; it does **not** keep it out of a shell trace. Under `set -x` (or a CI runner
+that traces by default) Bash logs the *expanded* assignment, so the token lands in the transcript
+exactly as it would from an `export`. Trace safety is a separate measure and it must be taken
+separately: keep tracing **off** across token acquisition and the invocation that consumes it
+(`set +x` around the block, restoring the previous state afterwards), or hand the credential over
+by a path that never materializes it in a traced command. A campaign that prints its probes
+verbatim — which the report contract requires — is precisely the environment where this matters.
 
 ## L2 in the field — the Gitflow round it cost
 
@@ -173,10 +181,14 @@ workers were careless; it is that a claim and a measurement are different kinds 
 
 ## P5 — RE-DERIVE: why the 8-day-old inventory was not reusable
 
-The round-1 inventory reported **18** open bump PRs. At action time the fresh measurement returned
-**25** — the bots had kept working, ~1 new PR/day. Acting on the snapshot would have closed 18,
-left 7 standing, and reported done. Re-deriving the register from the provider each round is what
+The round-1 inventory reported **18** open bot PRs. At action time the fresh measurement returned
+**25** — the bots had kept working, ~1 new PR/day. Acting on the snapshot would have handled 18,
+left 7 unseen, and reported done. Re-deriving the register from the provider each round is what
 makes that impossible, and it is the same invariant `work-drain` uses on trackers. That is **L7**.
+
+(The count is the decay evidence, nothing more. It is an ORIENT signal, not the gate, and those 25
+are reviewed one by one — a bulk action on a population that mixes a noise surface with a
+loss-bearing one is the mistake P4 exists to refuse.)
 
 ## L6 — the fork, and the escalation it requires
 
@@ -204,8 +216,8 @@ member is reported as such rather than counted as converged.
 
 | Declared clause | Result | Proof |
 |---|---|---|
-| no scheduled bump PRs generated | 9/9 config files absent on the default ref | `404` per member |
-| no open bump PRs left | 0 across all 48 | count per member |
+| no scheduled bump PRs generated | 9/9 config files absent on the default ref | `404` per member, both filenames |
+| already-open bot PRs disposed | each reviewed individually; none closed in bulk | per-PR disposition |
 | detection not degraded | 7/7 still on | `204` per member, alerts endpoint never mutated |
 | members named, none silently skipped | 2 archived members documented as read-only with nothing to change | repo flag |
 

@@ -35,10 +35,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on authority facts → SHARD one worker per credential boundary → VERIFY every worker claim at
   source before accepting it → RE-DERIVE the register each round and close on an empty
   re-measurement.
-- Carries nine generalized laws, each stated provider-agnostically **and** evidenced by its
+- Carries fourteen generalized laws, each stated provider-agnostically **and** evidenced by its
   measured instance: SURFACE-DECOMPOSITION · AUTHORITY-REF · FALSE-NEGATIVE-READ · TIER-NOT-CONFIG
   · HOST-FLOOR-OUTRANKS-POLICY · FORK-INHERITS · INVENTORY-DECAYS · CLAIM-IS-NOT-EVIDENCE ·
-  ONE-WORKER-PER-CREDENTIAL.
+  ONE-WORKER-PER-CREDENTIAL · OWN-BY-RESOURCE-BOUNDARY · ROLLUP-IS-NOT-THE-GATE ·
+  BLOCKED-IS-NOT-MISSING-APPROVAL · GATE-MAY-LIVE-IN-CODE · EXTERNAL-LOOPS-DO-NOT-CONVERGE.
+- New section **How a law enters this table**: a law enters only with a **measured** cause; a cause
+  inferred from tool output is a hypothesis, marked as such or left out. The section carries the
+  correction that proved the rule — `ROLLUP-IS-NOT-THE-GATE` first shipped with an inferred cause
+  ("a check run that registers and never concludes", read off truncated check names) and a
+  measurement refuted it: the real contributors were **non-required apps out of quota** plus
+  skipped jobs, with no unconcluded run present. The effect survived, the cause did not, and only
+  the measured cause yields the actionable form (`gh pr checks <n> --required`, exit 0).
+- `AUTHORITY-REF` now carries both directions: the default ref **varies between members of the same
+  branching family**, and a config left on a non-default branch is a **silent landmine** — inert
+  until someone flips the default.
 - Hard limits that `§0 BEING > Rules` never waives: turning off a loss-bearing surface
   (detection/alerting/audit/backup), irreversible deletion, production, PII or a secret value, a
   peer's or another org's config, a cost delta, a non-ours fork's divergence, and a declared state
