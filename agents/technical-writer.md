@@ -58,9 +58,17 @@ Make the work usable by the next reader: accurate, concise, task-oriented docume
 - [ ] Commands and paths verified or marked unverified.
 - [ ] Changelog/release notes trace to PRs or commits.
 
+## Role Contract
+
+| Field | Value |
+|---|---|
+| `decides` | doc structure, runbook and release-note drafts, doc-drift fixes |
+| `out_of_domain` | product or policy statements, external publication → human owner · design decisions → `solution-architect` |
+| `status` | `latent` |
+
 ## Dogfooding
 
-Validate via ≥1 real doc or release-notes PR accepted by the human before promotion.
+Status `latent` until ≥2 real cycles (doc or release-notes PR accepted by the human) are recorded.
 
 ## Autonomy
 

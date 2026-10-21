@@ -44,7 +44,7 @@ originating goal and its own secondary goals, plus DoR/DoD, stop conditions and 
 | cto | strategic | solution-architect (#504), consultants/jeff-dean, consultants/demis-hassabis, research-dossier, agentic-tool-intake | ≥50% with solution-architect (shared with architect) | contract + binding |
 | orchestrator | orchestrator | orchestrator, auto-pilot, agentic-delegation, delegate-governance, atomize-and-route, agent-select, ooda-loop | ≥50% | contract + binding |
 | chief-of-staff | orchestrator | chief-of-staff, work-compass, pulse, morning-briefing, work-drain | ≥50% | contract + binding |
-| product-lead | managerial | agile-product-lead, sprint-carryover, roadmap-tree-projector, eisenhower-matrix | ≥50% | contract + binding |
+| product-lead | managerial | agile-product-lead, sprint-carryover, roadmap-tree-projector, eisenhower-matrix, decompose-abstract-to-measurable | ≥50% | contract + binding |
 | release-manager | managerial | gitops-engineer, hierarchical-merge, worktree-policy, signoff, postflight | ≥50% | contract + binding |
 | architect | tactical | solution-architect (#504), reveng, deliberate-coding, decision-capture | ≥50% | contract + binding |
 | verifier | tactical | qa-validator, code-reviewer, validation-auditor, data-validator, persona-pipeline, red-team, convergence-engine | ≥50% | contract + binding |
@@ -58,9 +58,8 @@ sentinel-monitor, slm-routing, agentic-tool-evaluator) · `data` (data-analyst) 
 
 ### Gaps found and filled (new agents, all draft, `version: 0.1.0`)
 
-After #504 landed `solution-architect`, `devsecops-engineer` and `devops-engineer` on `main`, this PR dropped its own
-`solution-architect`, `security-engineer` and `platform-engineer` drafts and binds the roles to the #504 agents instead
-(DRY; the Forge [2b] rule now finds ≥50% coverage for those lanes). Two gaps remain:
+After #504 landed `solution-architect`, `devsecops-engineer` and `devops-engineer`, the architecture, security and ops
+lanes bind to those agents (DRY; Forge [2b] finds ≥50% coverage). Two gaps remain:
 
 | New agent | Why existing coverage was under 50% |
 |---|---|
@@ -90,7 +89,7 @@ EXE executor (specialty in brackets).
 | Implementation (draft PR) | I | I | I | I | A | I | C | I | C | I | R (dev) |
 | Independent review and verdict | I | C | I | I | I | I | I | C | C | A/R | C |
 | Security review, secrets and supply chain | A (rotation, disclosure) | C | I | C | I | I | I | I | C | R (devsecops-engineer acting for the verifier) | C (security fixes) |
-| Personal-data handling (privacy, DPIA) | A | C | I | I | I | I | C | I | C | C | R (data-privacy-officer) |
+| Personal-data handling (privacy, DPIA) | A | C | I | I | I | I | C | I | C | C | R (data-privacy-officer, acting outside the executor contract) |
 | Merge into a protected or deploying branch | A/R | I | I | I | I | I | I | C (readiness) | I | C | I |
 | Deploy, migration apply, IaC apply | A/R | I | I | C | I | I | I | C | I | C | C (ops prepares steps) |
 | Production incident triage | A (any prod action) | I | I | C | C | I | I | I | C | I | R (sre) |

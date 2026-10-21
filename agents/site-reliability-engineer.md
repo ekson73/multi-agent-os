@@ -59,9 +59,17 @@ Keep running services reliable and observable: define SLOs and alerts that matte
 - [ ] Postmortem or runbook persisted where the project keeps them.
 - [ ] Follow-up items dispositioned (ticket proposal, PR, or drop with reason).
 
+## Role Contract
+
+| Field | Value |
+|---|---|
+| `decides` | SLO and alert proposals, incident triage findings, postmortems and runbooks |
+| `out_of_domain` | production changes, paid resources and incident disclosure → human owner · pipelines/deploys → `devops-engineer` · security findings → `devsecops-engineer` |
+| `status` | `latent` |
+
 ## Dogfooding
 
-Validate via ≥1 real incident triage or SLO/alert design producing an actionable result before promotion.
+Status `latent` until ≥2 real cycles (incident triage or SLO/alert design producing an actionable result) are recorded.
 
 ## Autonomy
 

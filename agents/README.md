@@ -70,7 +70,8 @@ per-stack/role gaps; see "Role Coverage Map" below).
 co-work as peers and **substitute over the human with NO-HITL when `autonomy_score ≥ 0.90`** in
 their own domain (a stricter bar than the default HIGH ≥0.85). ⛔ Carve-outs HOLD even at ≥0.90
 (HUMAN_DOMAIN · merge→main/prod = HITL human-owner · ABSOLUTE guardrails); council-before-HITL first. Seats still
-`latent` (`solution-architect`, `devsecops-engineer`, `devops-engineer` until promoted) hold no
+`latent` (`solution-architect`, `devsecops-engineer`, `devops-engineer`, `site-reliability-engineer`,
+`technical-writer` until promoted) hold no
 NO-HITL grant: every domain decision goes to the human owner.
 
 - `angular-frontend-engineer` — Angular SPA implementation/review
