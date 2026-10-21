@@ -127,6 +127,10 @@ The block carries: `parent_agent_id`, `depth` (hard-capped at 2), `mode`,
 `autonomy_band`, `goal_root` (one-line), `attempts_remaining` (starts at 6
 per the project escalation rule), and `escalation_triggers` (inherits the
 5 rules already listed in `delegation-dna-prompt.md` §Escalation Rule).
+From v1.2 it also carries `depth_remaining` (the orchestrator always sets it:
+its own value − 1; a child without it is a leaf) and, when it grants authority,
+`authority_scope` (see `delegation-dna-prompt.md` §DNA Payload v1.2). The
+fields are optional only for parsers: v1.1 readers still accept the block.
 
 ## Anti-loop invariants
 
