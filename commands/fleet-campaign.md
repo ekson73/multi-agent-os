@@ -65,11 +65,12 @@ An unanswered escalation is **re-stated every round** until it is decided.
 standard mechanism rather than copying the file (a copy diverges):
 
 ```text
-npx skills add ekson73/multi-agent-os --skill fleet-campaign --agent '*' -g -y
+npx skills add <this-repo-source> --skill fleet-campaign --agent '*' -g -y
 ```
 
-Loaders that ignore symlinks take `--copy` on the same command; re-run it after an upstream change
-so the projection stays current.
+`<this-repo-source>` is whatever `.claude-plugin/plugin.json` `repository` names for the checkout
+you are projecting from — a fork substitutes its own. Loaders that ignore symlinks take `--copy` on
+the same command; re-run it after an upstream change so the projection stays current.
 
 ## §Refs
 

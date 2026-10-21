@@ -65,6 +65,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   briefing a `Task` worker directly and bypassing the ticket/provider/DNA/cleanup checks.
 - The `--round 2 --json` examples carry the required positional end-state, which the command
   contract marks mandatory (an empty value prints usage and stops).
+- Second review round, each finding verified at source: `§0` no longer reaches the **output
+  contracts** (a `--json` envelope and the report's measured rows are mandatory; only narrative is
+  skippable); P1 requires **metadata-only probes** (status/count, never a body the report then
+  prints) and distinguishes the **ORIENT columns** — which need no read-back — from the
+  **declared-or-mutated surfaces**, which all do; the worked example's acceptance gate is now the
+  **generation source being gone**, not a bot-PR count, because the vendor opens scheduled bumps
+  and security fixes under one author and the `dependencies`/`security` labels prove neither
+  (a repository's own `labels` option replaces the defaults for security updates too), so remaining
+  PRs are listed for individual review and never bulk-closed; the authorized-off auto-fix surface
+  gets its own read-back; and the fork case now carries the **four-field escalation record** the
+  hard limits require, with "pending escalation" as the correct state when the operator's decision
+  row is absent — "done deliberately" is not an authorization.
+- Identifier hygiene: no account or repository owner is named in the new documents (this repository
+  is referred to as such, the fork member generically, client members as `C1…C6`), and the
+  projection command points at `.claude-plugin/plugin.json` `repository` so a fork substitutes its
+  own source instead of inheriting a hardcoded one.
 
 ### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
 

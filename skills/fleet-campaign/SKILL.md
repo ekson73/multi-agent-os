@@ -34,9 +34,15 @@ allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, AskUserQuestion
 
 ## §0 — BEING > Rules (Foundational Compliance)
 
-This skill serves the operator's intent. If a **presentation** step obstructs delivering value NOW
-— a report table, a machine envelope, a narrative — skip it, log `Skipped <step> — BEING > Rules`,
-and proceed. Gates are for correctness, never ritual.
+This skill serves the operator's intent. If a **narrative** step obstructs delivering value NOW —
+a prose walkthrough, a rationale section, a formatted table a machine will not read — skip it, log
+`Skipped <step> — BEING > Rules`, and proceed. Gates are for correctness, never ritual.
+
+**The output contracts are not narrative.** When `--json` is requested, the envelope is mandatory
+and must be valid and complete (every required field, one stop marker): a caller in machine mode
+parses the reply, so degrading to prose there is a broken contract, not a saved step. The
+`## Report format` columns are likewise mandatory in their own mode — what §0 licenses dropping is
+the explanation around them, never the measured rows.
 
 **Two phases are never skippable, and §0 does not reach them:** **P4 VERIFY** (re-measure each
 worker claim at source) and **P5 RE-DERIVE** (the fresh measurement that closes a round). Skipping
@@ -110,9 +116,19 @@ the contract — **the exact probe that produced each column**, printed with the
 A column without its probe is not a measurement, it is a belief. A matrix without `measured_at`
 cannot be aged by the next reader.
 
-**The read-back must probe exactly the set discovery probed.** Anything narrower is a false
-completion: if P1 found the state under either of two filenames, two field names or two API
-surfaces, a P4 read-back that checks only one accepts a member that still carries the other. And
+**Probes are metadata-only.** A presence check reads status, not content (`-i | head -1`, a count,
+a status field) — never a body the probe then prints. The report contract requires the probe's
+output to be shown, so a probe that returns file content or a full configuration object puts that
+content into the report, which `## Hard limits` and anti-theater rule 7 forbid. Ask the provider
+whether the thing exists, not what it says.
+
+**The read-back must probe exactly the set discovery probed, for every surface the campaign
+declared or mutated.** Two different sets are in play and conflating them is the error: the ORIENT
+columns (a branch gate, a plan tier) exist to tell you whether your plan is relevant and need no
+read-back; every surface named in the declared end-state, plus every surface the campaign actually
+changed, needs one. Within that set the read-back must be as wide as discovery was: if P1 found the
+state under either of two filenames, two field names or two API surfaces, a P4 read-back that
+checks only one accepts a member that still carries the other. And
 when a counted population is **shared** between a noise surface and a loss-bearing one — the same
 author, label or namespace emitting both — the read-back must filter down to the noise surface.
 Otherwise acceptance is satisfiable by destroying the thing P0 protected, which is **L1** returning
