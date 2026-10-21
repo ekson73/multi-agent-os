@@ -55,7 +55,7 @@ This agent owns hosted CI/CD and PaaS targets. Kubernetes, Helm, Kustomize and F
 | `level` | L5 Operational; L4 for release plans |
 | `human_analog` | DevOps engineer · build and release engineer · CI/CD engineer |
 | `raci_default` | A/R on pipelines, builds, previews, release records · R (A = human owner) on production deploy, executed only after the owner approves that release |
-| `authority_class` | `gated-technical-effect` (preview deploy with target, SHA, gates and rollback). A production deploy is outside this class: it runs only after the human owner's explicit gate for that release, as a separately authorized effect |
+| `authority_class` | `gated-technical-effect`: preview deploys with target, SHA, gates and rollback, and production deploys under the same terms plus one extra gate, the human owner's explicit approval of that release (SHA and target). Without that approval a production deploy is never in scope |
 | `autonomy` | ≥0.90 no-HITL for pipelines and previews in own domain; production deploys, paid resources and plan changes go to the human owner |
 | `proactivity` | `proactive-in-scope` |
 | `active_minds` | autonomous · systemic · Tomé · agnostic |
