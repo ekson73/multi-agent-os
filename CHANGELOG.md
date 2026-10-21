@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added — seat profile (six org levels) and three delivery agents
 
-- New `agents/SEAT-PROFILE.md` (v1.0.0): six organizational levels (Political, Strategic,
+- New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
   Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
   delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
   Describes fit only; grants no authority.
