@@ -49,6 +49,14 @@ CASES = [
           form="additive", diags=None),
      "HOLD expected: fail-closed → additive_unverified / assistive (no diagnostics ⇒ unverifiable, capped)"),
 
+    # A2b — OMISSION OF THE FORM ITSELF: a relational concept with the relational diagnostic kept,
+    # but structural_form simply NOT declared. Pre-fix this slipped through as HIGH (under_specified
+    # passthrough) — the omission earned a *cleaner* pass than declaring 'additive'. Now fail-closed.
+    ("A2b form-omission bypass (relational diagnostics kept, structural_form ABSENT)",
+     spec("fairness", [leaf("l1", "D", 0.9, 0.95), leaf("l2", "D", 0.9, 0.95), leaf("l3", "D", 0.9, 0.95)],
+          form=None, diags={"q_value_lives_in_relations": True}),
+     "HOLD expected: BLOCKED — H35 derives relational even with no declared form (an additive tree cannot represent it)"),
+
     # A3 — CONFIDENT-BS: every leaf is J (pure judgment) but each asserted at high confidence 0.95.
     ("A3 confident-BS (all-J leaves, each confidence 0.95)",
      spec("professionalism",
