@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
 - Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
   because their prior providers are external plugins not shipped here; those stay listed as optional.
+- `forge` Step 3 now loads `SEAT-PROFILE.md` and emits `## Seat Profile` and `## Role Contract`
+  (`status: latent`) for every new agent; the completion checklist requires both. The three new
+  agents carry the mandatory pt-BR line in their descriptions.
 - `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
 
 ### Changed — ticket-first traceability (#484)

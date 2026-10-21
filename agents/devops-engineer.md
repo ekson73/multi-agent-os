@@ -7,6 +7,7 @@ description: >
   reproducible builds, release/deployment records, previews, PaaS deploys (Vercel, Netlify, Render,
   Railway, Fly — as `specialty`), observability, rollback runbooks. Production waits for the human
   owner's gate. Kubernetes/GitOps belongs to gitops-engineer.
+  Responde ao Emilson sempre em pt-BR.
 tools:
   - Read
   - Write

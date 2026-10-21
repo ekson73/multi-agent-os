@@ -8,6 +8,7 @@ description: >
   least privilege, authorization and row-level security review, security headers,
   negative tests, incident containment. Use for security design review, security-relevant
   diffs/pipelines and suspected exposure. Never handles secret values or certifies compliance.
+  Responde ao Emilson sempre em pt-BR.
 tools:
   - Read
   - Write

@@ -8,6 +8,7 @@ description: >
   topology, Architecture Decision Records (ADRs), trade-off analysis, expand/contract
   evolution and rollback design. Use before building anything that crosses a boundary,
   changes a contract, or is hard to undo. Proposes L1 direction; never decides it.
+  Responde ao Emilson sempre em pt-BR.
 tools:
   - Read
   - Write
