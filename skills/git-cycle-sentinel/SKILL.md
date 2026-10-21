@@ -23,15 +23,15 @@ triggers:
   - close the git cycle
   - offload the git cycle
   - push e abre PR pra mim
-version: 0.1.0
+version: 0.1.1
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Task, Skill]
 metadata:
-  version: "0.1.0"
+  version: "0.1.1"
   scope: AAIF cross-vendor
   family: git-governance
   lifecycle-stage: operate
   cross_link_slug: git-cycle-sentinel
-  dogfood_status: forged-not-yet-dogfooded
+  dogfood_status: dogfood-cycle-1-dry-run-done-not-promotable
   forged_by: agentic-tool-pipeline → agentic-tool-forge (methodology) + anima (name)
   source_research:
     - "eko-engram/resources/research/git-cycle-offloader-2026-10-21.md"
@@ -201,8 +201,43 @@ expôs (`[[git-cycle-norma-harmonizada-2026-10-21]]` §2 transversal). Cada um �
 | A3 | **gate-por-ruleset-não-404** — classifica forte/fraco lendo o ruleset, não por 404 clássico | `gh api .../rules/branches/<b>` antes de qualquer push |
 | A4 | **assinatura-nunca-regride** — assina onde o repo assina/exige; não força onde `gpgsign=false` | lê `commit.gpgsign` + `required_signatures`; espelha o estado |
 | A5 | **push-verificável** — refspec literal `"$SHA:refs/heads/<br>"`, sem `$()` no mesmo span | o span do push é estaticamente inspecionável |
-| A6 | **remote-com-host-alias** — parse robusto de owner/repo (SSH alias, host custom) | deriva owner/repo de `remote get-url`, não assume `github.com` |
-| A7 | **idempotência** — re-execução/re-entrega não duplica commit/PR/comentário | `idempotency_key` gate: skip-if-já-feito |
+| A6 | **remote-com-host-alias** — parse robusto de owner/repo (SSH alias, host custom) | **RECUSA** empurrar se o owner/repo não foi derivado pela regra §A6 abaixo; nunca assume `github.com` nem deixa o alias colar no owner |
+| A7 | **idempotência** — re-execução/re-entrega não duplica commit/PR/comentário | **RECUSA** criar commit/PR/comentário sem antes rodar a sonda de duplicata da §A7 abaixo (skip-if-já-feito) |
+
+### §A6 — mecânica do parse owner/repo (não-decorativa)
+O modo-falha concreto que este guard **recusa**: tratar `git@github.com-ekson73:ekson73/multi-agent-os.git`
+como se o owner fosse `github.com-ekson73` (o alias de host colado no owner) ou assumir cegamente
+`github.com`. A sentinela deriva owner/repo de `git remote get-url <remote>` com uma normalização
+que remove protocolo **e host (inclusive host-alias)** antes do owner, e tira o `.git`:
+
+```
+url=$(git -C "$REPO" remote get-url "${REMOTE:-origin}")
+# tira https://<host>/  |  git@<host-ou-alias>:  |  ssh://git@<host>/   e o sufixo .git
+slug=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)##; s#\.git/?$##')
+# slug == "owner/repo"; RECUSA (STOP-ERROR) se não casar ^[^/]+/[^/]+$
+printf '%s' "$slug" | grep -Eq '^[^/]+/[^/]+$' || die "owner/repo não derivável de $url"
+```
+
+O `git@[^:]+:` casa tanto `github.com` quanto `github.com-ekson73` (qualquer host-alias), de modo que
+o alias **nunca** entra no owner. O guard **bloqueia** o push quando o slug não casa `owner/repo`
+(em vez de seguir com um alvo de `gh api` errado). Verificação: `gh api repos/<slug>` deve resolver
+antes de empurrar; 404 aqui → STOP-ERROR, não push.
+
+### §A7 — sonda de idempotência (não-decorativa)
+O modo-falha concreto que este guard **recusa**: uma re-entrega assíncrona (mesma `idempotency_key`)
+abrir um **segundo** PR/commit/comentário. Antes de **cada** mutação a sentinela sonda o estado e
+pula o passo já feito:
+
+- **commit** — `git log --format=%H -n1 --grep="idmp:<key>"` (a key vai no trailer do commit); se já
+  existe para este `<theme>+headSha`, **não** recommita.
+- **PR** — `gh pr list --head <branch> --state all --json number` (ou busca por `idmp:<key>` no corpo);
+  se já há PR para este head, **reusa** o número, não abre outro.
+- **comentário de review** — procura o marcador `<!--idmp:<key>-->` nos comentários antes de postar;
+  presente → skip.
+
+`idempotency_key = hash(repo+theme+headSha)`. A sonda roda **antes** da mutação; sem ela a mutação é
+**recusada** (não é "best-effort"). Isto torna A7 verificável: um segundo run com a mesma key não
+produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao 1º run).
 
 > **Não-regressão de assinatura (A4) é inviolável**: a norma C1 é *condicional ao repo* — assinar
 > onde 5/6 já assinam e onde o ruleset exige (`required_signatures` em vkl); **não** forçar
@@ -216,16 +251,22 @@ Classificação medida (`[[git-cycle-norma-harmonizada-2026-10-21]]` §1):
 | Repo | Portão | `gpgsign` | `hooksPath` | Modelo | Postura da sentinela |
 |---|---|---|---|---|---|
 | vkl-rct-list-web | **FORTE** (pull_request + checks + signatures) | true | `.githooks` ativo | **Gitflow** | **OBEDECE**: PR + checks strict + assina + resolve threads + back-merge re-medido; nunca `--no-verify` |
-| multi-agent-os | fraco remoto (forte só local via GaaS) | **false** | GaaS/hooks.json | trunk | **SUPRE** guardrails; **não** força assinatura (gpgsign=false) |
+| multi-agent-os | fraco remoto (forte só local via GaaS) | true¹ | GaaS/hooks.json | trunk | **SUPRE** guardrails; assina (gpgsign lido **ao vivo**) |
 | eko-engram | fraco | true | unset | trunk | SUPRE; assina (gpgsign=true); publica via canal autorizado existente |
 | akasha-claude | **mais fraco** (hooks escritos mas não wired) | true | **unset** | trunk | SUPRE **tudo** em software (não assume que o hook protege) |
 | vek-ai-toolkit | fraco | true | unset | trunk | SUPRE; assina |
 | vek-docs-trellis | fraco GH (gate real no Bitbucket) | true | unset | trunk | SUPRE no GH; detecta forja Bitbucket |
 
 **Regra**: portão **forte → obedecer**; portão **fraco → suprir** (no-direct-main, scoped-add,
-gitleaks, worktree). A lista acima é *evidência medida*, **não** um cap — novos repos são
-classificados ao vivo pela mesma leitura (`gh api .../rules/branches` + `git config`), nunca
-assumidos (`pref.agentic_tools_hybrid_no_cap`).
+gitleaks, worktree). A lista acima é *evidência medida* (snapshot), **não** um cap nem a fonte de
+decisão — a sentinela **relê o estado ao vivo** (`gh api .../rules/branches` + `git config
+commit.gpgsign` + `core.hooksPath`) a cada run e decide pela leitura viva, nunca pela tabela
+congelada (`pref.agentic_tools_hybrid_no_cap`).
+
+> ¹ Snapshot 2026-10-21 da norma registrava multi-agent-os `gpgsign=false`; re-medido no dogfood
+> cycle-1 (2026-10-21) está **`true`**. A *regra* A4 (espelhar o estado vivo) produz "assina em MAOS"
+> corretamente — foi a célula congelada que envelheceu, não a decisão. Prova de que ler-ao-vivo >
+> tabela.
 
 ## Arquitetura HÍBRIDA (determinístico + cognitivo + self-heal)
 Per o mandato do operador (`pref.tool_hybrid_and_selfheal_mandate`):
@@ -329,3 +370,4 @@ Dormant-by-design caso contrário.
 | Version | Date | Change |
 |---|---|---|
 | 0.1.0 | 2026-10-21 | **Bootstrap** — forjada via metodologia `agentic-tool-pipeline`→`agentic-tool-forge` (sem CLI executável; as skills são documentos de metodologia que o agente encarna) + naming `anima` (`git-cycle-sentinel`; rejeitado `git-cycle-offloader` = drift epistemológico). Encoda a norma harmonizada de 5 fases (ENFORCE/APPLY, repo-aware), os 7 critérios de aceite (atritos vividos), Merge Queue como motor de merge, idempotência, não-regressão de assinatura, nunca `--no-verify` com pre-commit. Híbrido (script + cognitivo + self-heal). **Ainda NÃO dogfooded** — o dry-run/dogfood é o próximo passo (EKO-154). |
+| 0.1.1 | 2026-10-21 | **Dogfood cycle-1 (DRY-RUN, read-only em 6 repos, decisão-vs-norma)** — 7/7 cenários medidos na fonte. Refinados 2 guards decorativos: **A6** (host-alias) ganhou a mecânica `sed` que remove host-alias antes do owner + recusa STOP-ERROR se o slug não casa `owner/repo`; **A7** (idempotência) ganhou a sonda concreta de duplicata (commit trailer `idmp:<key>`, `gh pr list --head`, marcador de comentário) que **recusa** a mutação sem sondar antes. Tabela de repo-awareness corrigida: multi-agent-os `gpgsign` re-medido **true** (snapshot da norma dizia false) — evidência de que a regra lê-ao-vivo prevalece sobre a célula congelada. Veredito cycle-1: 5 guards firam, 2 eram decorativos (agora refinados). **NÃO promovível** — precisa cycle-2. |
