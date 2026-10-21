@@ -1,0 +1,269 @@
+{
+  "schema_version": "2.0.0",
+  "kind": "agentic_session_integrity_manifest",
+  "artifact_id": "vasm:f4e1f7fa6b6c8c158482aaa3463ba011fd7d99e7de1cb9a4414ce3d109944943",
+  "identity_sha256": "f4e1f7fa6b6c8c158482aaa3463ba011fd7d99e7de1cb9a4414ce3d109944943",
+  "run_id": "0704143c-abed-40ef-8799-3b050f05dafc",
+  "profile": "portable_sidecard",
+  "status": "VALIDATED",
+  "consistency_claim": "SELF_CONSISTENT_ONLY",
+  "snapshot_as_of": "2026-09-12T13:09:45Z",
+  "created_at": "2026-09-12T13:10:10.800Z",
+  "generator": {
+    "name": "verified-agentic-session-model",
+    "version": "2.0.0",
+    "runtime": "node v22.23.1"
+  },
+  "subjects": [
+    {
+      "role": "source",
+      "path": "wacli-sidecard-agentic-artifact-ai-first-wacli-eko-almanac-verified-deli--20260912T130945Z-r44-v2.0.0--hf4e1f7fa6b6c.session-model.json",
+      "media_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "40505570480ef86054b5d7a90b192f0aca5eaf3b388b018c3af3c9185a99478c"
+      }
+    },
+    {
+      "role": "sidecard_html",
+      "path": "wacli-sidecard-agentic-artifact-ai-first-wacli-eko-almanac-verified-deli--20260912T130945Z-r44-v2.0.0--hf4e1f7fa6b6c.sidecard.html",
+      "media_type": "text/html",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "79757038bd9d17c1d590db485fea71d3a0f96da4fb108b516093760935c572ca"
+      }
+    }
+  ],
+  "embedded_blocks": [
+    {
+      "id": "vasm-semantic-source",
+      "role": "semantic_source",
+      "encoding": "base64url",
+      "media_type": "application/json",
+      "canonicalization": "rfc8785-jcs",
+      "decoded_bytes": 129851,
+      "sha256": "40505570480ef86054b5d7a90b192f0aca5eaf3b388b018c3af3c9185a99478c"
+    },
+    {
+      "id": "vasm-render-receipt",
+      "role": "render_receipt",
+      "encoding": "base64url",
+      "media_type": "application/json",
+      "canonicalization": "rfc8785-jcs",
+      "decoded_bytes": 847,
+      "sha256": "94eff6c4573af7af9f0d49e441e1d6fc4b905a934b9f547146bd57c5c218d09f"
+    }
+  ],
+  "derived": {
+    "status_counts": [
+      {
+        "status": "planned",
+        "count": 6
+      },
+      {
+        "status": "started",
+        "count": 33
+      },
+      {
+        "status": "delegated",
+        "count": 0
+      },
+      {
+        "status": "deferred",
+        "count": 4
+      },
+      {
+        "status": "hitl",
+        "count": 0
+      },
+      {
+        "status": "blocked",
+        "count": 61
+      },
+      {
+        "status": "completed",
+        "count": 47
+      },
+      {
+        "status": "canceled",
+        "count": 0
+      },
+      {
+        "status": "superseded",
+        "count": 4
+      },
+      {
+        "status": "deprecated",
+        "count": 0
+      },
+      {
+        "status": "unknown",
+        "count": 0
+      }
+    ],
+    "readiness": "NOT_READY",
+    "critical_path_head": "node_gate3",
+    "next": {
+      "disposition": "IN_PROGRESS",
+      "task_ref": "work_wacli_delegate_delivery"
+    }
+  },
+  "checks": [
+    {
+      "name": "model_schema_and_references",
+      "status": "PASS"
+    },
+    {
+      "name": "sensitive_data_and_distribution",
+      "status": "PASS"
+    },
+    {
+      "name": "sidecard_csp_and_passivity",
+      "status": "PASS"
+    },
+    {
+      "name": "embedded_capsule_integrity",
+      "status": "PASS"
+    },
+    {
+      "name": "cross_view_parity",
+      "status": "PASS"
+    },
+    {
+      "name": "exact_byte_digests",
+      "status": "PASS"
+    }
+  ],
+  "sections": [
+    {
+      "id": "plan",
+      "source_pointer": "/plan",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#next",
+          "visible_tokens": [
+            "Current Disposition"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "identity",
+      "source_pointer": "/identity",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#identity",
+          "visible_tokens": [
+            "Identity — eight facets"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "traceability",
+      "source_pointer": "/traceability",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#traceability",
+          "visible_tokens": [
+            "Traceability"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "organization",
+      "source_pointer": "/organization",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#contexts",
+          "visible_tokens": [
+            "Artifact world and target-project world"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "topology",
+      "source_pointer": "/topology",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#workflow",
+          "visible_tokens": [
+            "Workflow and interdependencies"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "governance",
+      "source_pointer": "/governance",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#governance",
+          "visible_tokens": [
+            "Nonbinding governance snapshot"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "analysis",
+      "source_pointer": "/analysis",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#criteria",
+          "visible_tokens": [
+            "Criteria and risks"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "references",
+      "source_pointer": "/references",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#evidence",
+          "visible_tokens": [
+            "Evidence & References"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "child_derivation",
+      "source_pointer": "/child_derivation",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#lineage",
+          "visible_tokens": [
+            "Child blueprint and lineage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "inert_material",
+      "source_pointer": "/inert_material",
+      "projections": [
+        {
+          "role": "sidecard_html",
+          "locator": "#materials",
+          "visible_tokens": [
+            "Inert seed, DNA, template, instruction, prompt, directive, governance material"
+          ]
+        }
+      ]
+    }
+  ]
+}

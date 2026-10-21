@@ -7,6 +7,15 @@
 
 Multi-Agent OS (MAOS) is a Claude Code plugin for orchestrating AI agents in software development workflows. It provides Sentinel Protocol (anomaly detection), GaaS (Governance-as-a-Service), worktree coordination, and response compression.
 
+## Ticket-first bootstrap
+
+At startup/resume, discover the canonical ticket and any pending-ticket records in the
+existing durable work-state/continuation index. Before actionable work, load
+[`protocols/ticket-first-governance.md`](protocols/ticket-first-governance.md) on demand.
+Use its required binding and indexed recovery checks; unavailable storage is
+BLOCKED_NOT_PERSISTED, never claimed durable deferral. This pointer applies across runtimes;
+ticket traceability never grants execution authority.
+
 ## Build & Test
 
 ```bash
