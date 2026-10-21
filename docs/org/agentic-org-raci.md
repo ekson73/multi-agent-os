@@ -41,29 +41,30 @@ originating goal and its own secondary goals, plus DoR/DoD, stop conditions and 
 |---|---|---|---|---|
 | governance-officer | political | governance-auditor, validation-auditor, red-team, council-gate, rule-quality-tests | ≥50% | contract + binding |
 | ceo | strategic | founder-coach, consultants (steve-jobs, sam-altman, bill-gates, sundar-pichai), founder-playbook, eisenhower-matrix, derive-system-from-goal | ≥50% | contract + binding |
-| cto | strategic | **solution-architect (new)**, consultants/jeff-dean, consultants/demis-hassabis, research-dossier, agentic-tool-intake | <50% before this PR; ≥50% only with the new solution-architect (shared with architect) | contract + binding, depends on the new agent |
+| cto | strategic | solution-architect (#504), consultants/jeff-dean, consultants/demis-hassabis, research-dossier, agentic-tool-intake | ≥50% with solution-architect (shared with architect) | contract + binding |
 | orchestrator | orchestrator | orchestrator, auto-pilot, agentic-delegation, delegate-governance, atomize-and-route, agent-select, ooda-loop | ≥50% | contract + binding |
 | chief-of-staff | orchestrator | chief-of-staff, work-compass, pulse, morning-briefing, work-drain | ≥50% | contract + binding |
 | product-lead | managerial | agile-product-lead, sprint-carryover, roadmap-tree-projector, eisenhower-matrix | ≥50% | contract + binding |
 | release-manager | managerial | gitops-engineer, hierarchical-merge, worktree-policy, signoff, postflight | ≥50% | contract + binding |
-| architect | tactical | **solution-architect (new)**, reveng, deliberate-coding, decision-capture | <50% before | new agent + contract |
+| architect | tactical | solution-architect (#504), reveng, deliberate-coding, decision-capture | ≥50% | contract + binding |
 | verifier | tactical | qa-validator, code-reviewer, validation-auditor, data-validator, persona-pipeline, red-team, convergence-engine | ≥50% | contract + binding |
-| executor | operational | stack engineers (react, angular, quarkus, supabase), gitops-engineer, prompt-context-engineer, openrig-fleet-engineer, data-analyst, debugger, memory-curator, naming-organizer, legacy-archaeologist, **platform-engineer, site-reliability-engineer, security-engineer, technical-writer (new)** | specialties below | contract + binding |
+| executor | operational | stack engineers (react, angular, quarkus, supabase), gitops-engineer, prompt-context-engineer, openrig-fleet-engineer, data-analyst, debugger, memory-curator, naming-organizer, legacy-archaeologist, devops-engineer, devsecops-engineer (#504), **site-reliability-engineer, technical-writer (new)** | specialties below | contract + binding |
 
 Executor specialties (attribute, not separate roles): `dev` (stack engineers, debugger) · `ops`
-(platform-engineer, gitops-engineer) · `sre` (site-reliability-engineer) · `security` (security-engineer, with
+(devops-engineer, gitops-engineer) · `sre` (site-reliability-engineer) · `security` (devsecops-engineer, with
 data-privacy-officer for personal data) · `ai-ops` (prompt-context-engineer, openrig-fleet-engineer,
 sentinel-monitor, slm-routing, agentic-tool-evaluator) · `data` (data-analyst) · `docs` (technical-writer) ·
 `knowledge` (memory-curator, naming-organizer).
 
 ### Gaps found and filled (new agents, all draft, `version: 0.1.0`)
 
+After #504 landed `solution-architect`, `devsecops-engineer` and `devops-engineer` on `main`, this PR dropped its own
+`solution-architect`, `security-engineer` and `platform-engineer` drafts and binds the roles to the #504 agents instead
+(DRY; the Forge [2b] rule now finds ≥50% coverage for those lanes). Two gaps remain:
+
 | New agent | Why existing coverage was under 50% |
 |---|---|
-| `security-engineer` | AppSec/SecOps had only governance-auditor (standards) and red-team (adversarial); no agent threat-models changes, scans secrets/supply chain or triages security findings. The registry pointed to plugins that are not part of MAOS. |
 | `site-reliability-engineer` | sentinel-monitor watches agent orchestration, not running services; no SLO, alerting, incident or postmortem owner. |
-| `platform-engineer` | gitops-engineer covers Kubernetes/Flux only; CI/CD design, IaC (Terraform/CloudFormation) and FinOps had no MAOS agent. |
-| `solution-architect` | Design/ADR work pointed to an external plugin; MAOS had skills (reveng, decision-capture) but no design owner. |
 | `technical-writer` | The default delegation chain ends in "Doc", and no agent owned docs, runbooks or release notes. |
 
 Not created, on purpose: a `postgres-dba` (still the EXTEND-candidate of `agents/README.md`; host-specific DBA
@@ -88,7 +89,7 @@ EXE executor (specialty in brackets).
 | Solution design | I | I | I | A | I | I | C | I | R | C | C |
 | Implementation (draft PR) | I | I | I | I | A | I | C | I | C | I | R (dev) |
 | Independent review and verdict | I | C | I | I | I | I | I | C | C | A/R | C |
-| Security review, secrets and supply chain | A (rotation, disclosure) | C | I | C | I | I | I | I | C | R (security-engineer acting for the verifier) | C (security fixes) |
+| Security review, secrets and supply chain | A (rotation, disclosure) | C | I | C | I | I | I | I | C | R (devsecops-engineer acting for the verifier) | C (security fixes) |
 | Personal-data handling (privacy, DPIA) | A | C | I | I | I | I | C | I | C | C | R (data-privacy-officer) |
 | Merge into a protected or deploying branch | A/R | I | I | I | I | I | I | C (readiness) | I | C | I |
 | Deploy, migration apply, IaC apply | A/R | I | I | C | I | I | I | C | I | C | C (ops prepares steps) |
@@ -102,7 +103,7 @@ EXE executor (specialty in brackets).
 exception to the latent note: the operator's naming carve-out lets Anima decide a name without pre-approval
 (brand, legal, secrets or cross-org names still go to the board). Creating an agent or role stays a board decision.
 
-When `security-engineer` reviews someone else's change it acts as a verifier and reports to the board, never to
+When `devsecops-engineer` reviews someone else's change it acts as a verifier and reports to the board, never to
 the orchestrator; when it fixes, it is an executor.
 
 ## 4. Agentic requirements per role

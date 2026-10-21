@@ -6,6 +6,136 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — canonical execution ticket body
+
+- The spec–backlog–ticket reconciler single issue template now includes explicit in/out scope, constraints and gates, a verification method with planned versus observed evidence, and an actionable next step. It serves both informal spec-as-prompt and ticket-as-spec usage while the source specification retains authority.
+
+### Added — portable spec–backlog–ticket reconciliation skill
+
+- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval, mandatory campaign-level independent adversarial review before H11/H10/H7 or other red-team-triggered writes (HOLD if HIGH and no verifier), and post-write read-back. Standalone installations without the sibling red-team skill are plan-only/HOLD for writes. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- Guarded reconciliation now requires one independent refuter for MEDIUM campaigns without a hard trigger, re-approval after material source/destination changes, and endpoint-documented atomic write protection for automatic full-body edits; otherwise it HOLDs the edit and returns a proposed manual merge diff. Safe native field-only/append operations remain eligible when they preserve unrelated content.
+- The reconciler now declares its cross-vendor spec-lifecycle metadata, model/agent invocation surface (no slash wrapper), BEING priority, qualitative sunset, references, MIT license and pending dogfood status; write gates are unchanged.
+- `skills/README.md` lists this reconciler (94 tracked skills after syncing with `main`).
+- The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
+- Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
+
+### Added — seat profile (six org levels) and three delivery agents
+
+- New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
+  Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
+  delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
+  Describes fit only; grants no authority.
+- New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
+  until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
+  names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
+  because their prior providers are external plugins not shipped here; those stay listed as optional.
+- `forge` Step 3 now loads `SEAT-PROFILE.md` and emits `## Seat Profile` and `## Role Contract`
+  (`status: latent`) for every new agent; the completion checklist requires both. The three new
+  agents carry the mandatory pt-BR line in their descriptions.
+- `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
+
+### Changed — ticket-first traceability (#484)
+
+- Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
+- Preflight searches/reuses or creates in an authorized destination before implementation;
+  outages retain a durable pending-ticket outbox, never a public-provider fallback.
+- Postflight reconciles pending records and carries unresolved work into handoff without
+  blocking safe exit. Existing provider schemas and batching remain canonical.
+- Add static regression contract tests to the plugin validator, align the command entry
+  point, and bind durable deferral to existing authorized claude-mem work state with indexed
+  cold recovery and an isolated installed-source smoke test. Missing/failed storage is
+  explicitly unsupported for durable deferral, not success. No changed seed fields,
+  new storage, dependencies, network hooks or global installation.
+
+### Added — `person-agent-creator` and the first three person-agents
+
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
+  five classes (living public figure, historical figure, fictional or archetypal character, collective,
+  non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
+  as an authority, a gate or a substitute for an independent reviewer (every charter carries a
+  "consultative lens, not an authority" paragraph). DRY recon,
+  sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
+  five-lens synthesis, charter template, and a deterministic lint floor
+  (`scripts/lint-person-agent.sh`, 201 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails, and so do a heading or Fidelity row containing `<!--` and a setext or HTML heading in *Known limits*; nothing to check is a failure, and every occurrence is read (one `Source ids` column and one header row in the Fidelity table, one `Class basis:` line, autolinks and bare URLs removed whole, Fidelity rows closed by a pipe and free of escaped pipes); the lint is frozen as a floor by a stop rule, and obfuscation variants are known limits. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
+  source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
+  expand only up to the highest dossier id), every `## ` section of the
+  charter template (read from the template at run time) (including *Revalidation*) and one fidelity table inside `## Fidelity` with a `Source ids` column, unfilled placeholders, a source
+  marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
+  non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
+  role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
+  citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
+  ignored, and headings there do not count as sections; fences and comments exclude each other as in a
+  renderer, and inline code never opens either. It runs with `LC_ALL=C`, checks the exit status of every
+  tool it calls and treats any tool error as a failure (proved by breaking `sed`, `head`, `cut`,
+  `dirname`, `grep` and `awk` in the fixtures). Out of scope (listed in the skill): other languages, third-person
+  endorsement, obfuscated text, single-quoted spans. It does not validate personification or
+  endorsement semantically: every run prints a warning and
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
+  (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
+  preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
+  current head; adversarial escapes become new lint fixtures. In a host that cannot delegate, the panel
+  lenses run as sequential passes recorded as `panel: sequential-single-author`; that is grade `self`,
+  which never clears the gate on its own. When the subject's company makes the
+  reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
+  Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
+  Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
+  (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
+- Elevated in place to v2.0.0 person-agents, each with a dossier under
+  `skills/person-agent-creator/dossiers/`: `consultants/elon-musk`, `consultants/sam-altman`,
+  `consultants/amodei-siblings` (collective mind).
+
+### Fixed — unsourced quotes in three consultant archetypes
+
+- The v1.0.0 headline quotes of `sam-altman` and `amodei-siblings` were not found in any source checked
+  and were removed; `elon-musk`'s was not verified against a primary transcript and is now a labeled
+  paraphrase. Replacements are verbatim lines from the subjects' own writing, with sources.
+
+### Changed — TRAIN: Forge and Anima learn organizational roles
+
+- `agents/forge.md` v1.1.0, `skills/agentic-tool-forge` v1.3.0, `skills/anima` v1.3.0: an organizational role
+  already covered ≥50% by existing agents becomes a **role contract bound to them**, not a new agent (step [2b] in
+  the Forge decision framework, a `role contract (binding)` row in the forge router, and a new Anima adapter
+  `kb/org-roles.md` for naming roles, lanes, edges and tiers). Every contract has `status: latent`, the only
+  admitted value; the file's `status` never grants authority and every decision of the role goes to the human.
+  Activation is out of scope: the ratification gate drafted during review (owner record, `authority_digest`, checks
+  (a)–(e)) was removed because nothing executed it and its identity rule had a revocation hole; what a future gate
+  must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
+  `tests/governance/test-roles-latent-only.sh` checks contract form only under `roles/` and refuses when in doubt.
+  The YAML template blocks in `agents/forge.md` are not machine-verified in this PR (declared limitation; a template
+  check is a possible follow-up). Under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
+  fences, extra documents, symlinks, CR/NEL or BOM, files over 64 KiB, or contract keys in the body (quoted keys,
+  explicit `?`/`:` keys, and the body loaded by the strict loader are all checked; a contract key in the body fails
+  with any value, null and false included, and keys are compared after the loader decodes them, so `"active"`
+  counts as `active`). The frontmatter is loaded with `yaml.safe_load`
+  (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
+  fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
+  tree per refused form. Any refusal by the strict loader in the frontmatter or the body under `roles/` fails
+  (parse error, duplicate key, unreadable document, unknown tag); there is no lenient re-read. Without `perl` (time
+  limit) the test also fails. It is a best-effort lint that fails closed,
+  not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
+  reading, or a registry outside `roles/`, and no CI workflow runs it yet.
+
+### Added — `ref-claim-verify` skill: verify cross-reference claims against the source
+
+- `skills/ref-claim-verify/` — read-only, stdlib-only, offline checker for the citations a doc,
+  PR body or diff makes about other artifacts: a cited **path** exists at a base/head ref, a
+  **section** (`file §4.1`) has a matching heading, a **version** (`[ID] v1.2.3` or `` `file` v1.2.3 ``)
+  equals the artifact's own declared version. Verdicts `VERIFIED` / `MISMATCH` / `UNRESOLVED`
+  (UNRESOLVED is never a pass); exit codes 0/2/3/1. Motivation: review bots approved a doc line
+  citing a version no ref declared. Dogfooded on that very PR: reproduces the defect (`claimed
+  v3.1.0; declared 3.0.0`, exit 3). Excerpts are masked by reusing `pii-masking` (fallback masks
+  CPF/email/phone and declares `masking: fallback`); a recall guard counts version-like mentions
+  not tied to an anchor so silence cannot hide a parsing gap. 74 tests.
+- Hardened the verifier against three review findings: (1) the SECTION token regex no
+  longer folds a trailing `.`/`-` into the section (a sentence-ending citation like
+  `` `file.md` §4.1. `` now parses as `4.1` and VERIFIES instead of a false MISMATCH);
+  (2) the SECTION branch now applies the same `safe_path` guard as the PATH branch, so an
+  unsafe/out-of-repo path (`../x.md`) returns UNRESOLVED (per SKILL.md), not MISMATCH;
+  (3) `_git` and the test fixture strip inherited Git env vars (`GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
+  cannot silently redirect the verifier at another repository. Two regression tests added.
 
 ### Added — Agentic organization: six levels, role contracts and RACI
 
@@ -14,8 +144,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `roles/` (10 contracts, all `latent` per ADR-019): `governance-officer`, `ceo`, `cto`, `orchestrator`,
   `chief-of-staff`, `product-lead`, `release-manager`, `architect`, `verifier`, `executor` (specialty attribute).
   Each carries agentic `requirements` (min model class, harness, memory, autonomy, proactivity, DoR, DoD).
-- 5 agents where existing coverage was under 50% (v0.1.0 drafts, cowork autonomy policy): `security-engineer`,
-  `site-reliability-engineer`, `platform-engineer`, `solution-architect`, `technical-writer`.
+- 2 agents where existing coverage was under 50% (v0.1.0 drafts, cowork autonomy policy):
+  `site-reliability-engineer`, `technical-writer`. Security, platform and architecture lanes bind to the
+  `devsecops-engineer`, `devops-engineer` and `solution-architect` agents from #504 instead of new drafts.
 - Dogfood: first use of the Forge step [2b] and the Anima `org-roles` adapter from PR #476 on a real org model;
   `tests/governance/test-roles-latent-only.sh` passes on the new `roles/` tree. No promotion claimed (0/2 cycles).
 
@@ -118,6 +249,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/live-session-continuity-recovery/SKILL.md` reconstructs the exact active thread with source-coverage and freshness attestation, correction-aware claim provenance, explicit-versus-inferred goals, bounded review, and one read-only OODA next action or HITL. It composes adjacent skills without a transcript parser, write-capable default, automatic session enumeration, or new adapter.
 - Training refinement: seven items / 1,800 characters are best-effort targets, not a hard cap (live output reached 1,975; manual correction reached 1,455). Count before sending where the host permits without persistence; preserve blocker status, report overflow, and label expanded reviews rather than omit material facts. Internal session handles remain private; only currently authorized non-sensitive record labels may disambiguate status, and the next action stays atomic.
 - Training refinement: evidence-gated objective qualifiers, steps/feedback, and read-only peer-WIP boundaries without changing the canonical hierarchy.
+
+### Added — `wacli-operations` concierge + delegated helper (#419)
+
+- `skills/wacli-concierge/SKILL.md` v0.2.1 — model-triggered operational knowledge for
+  named accounts, resilient pairing, bounded sync, state-based diagnosis, store hazards,
+  locks, count-vs-listable behavior, app-state degradation, and consent-gated mutations.
+  Detailed operations and the Forge/33Q/type/naming decision move behind progressive-
+  disclosure references, keeping the loaded skill below the strict size ceiling.
+- `agents/wacli-delegate.md` v0.2.0 (soul-name **Iris**) — context-isolated helper for
+  any capability-detected wacli operation on one named linked account. Research/search is one
+  function among diagnosis, sync/export, interactive pairing coordination, and approval-gated
+  outward/destructive operations. Exact operator approval binds account, action, targets, and
+  payload digest to one non-retried attempt. This is behavioral policy, not a global exactly-once
+  guarantee without an external nonce ledger. Returns one compact, redacted JSON envelope; raw
+  wacli payloads and personal content stay outside the parent context.
+- Architecture: skill + subagent wins. An inline command provides no context boundary; a
+  bespoke MCP server is deferred until a real multi-client, protocol, subscription, or native-
+  upstream need exists. The existing plugin remains the distribution container.
+- Corrections from review: cross-platform install fallback; separate `accounts add` and
+  `--no-auth`; explicit local versus live `doctor` semantics; read-only SQLite requirement;
+  narrow follow-sync delegation; existing-store backup/approval gate; positive/negative
+  activation cases. The count-with-empty-list observation remains explicitly unresolved.
+- Second review round (DIY code review, PR #418): `agents/fixtures/fake-wacli-stub.sh` now parses
+  the documented `--account ACCOUNT --read-only --json ...` global-flag order before selecting
+  `CMD` (previously misclassified `--read-only`/`--json` as an unknown command), and fails nonzero
+  instead of silently exiting 0 on an unsupported `auth`/`messages` subcommand or an unrecognized
+  `messages search` flag. `tests/test-wacli-delegate-contract.sh` gained an existence assertion for
+  `agents/WACLI-DELEGATE-EVAL-REPORT.md` (referenced by its own header) plus the new negative-path
+  and global-flag-order stub assertions. `agents/WACLI-DELEGATE-EVAL-REPORT.md` case 6's label and
+  its Strengths section no longer claim Gate 3 authority provenance or an expired-plan refusal path
+  were verified when neither was.
+- Third review round (bot findings on PR #418, head `684f4e6`): `agents/wacli-delegate.md` v0.2.0
+  adds Execute **gate 6 (parameter binding)** — before the command, the delegate recomputes
+  `sha256(<unmasked target>)`/`sha256(<raw payload>)` from the actual `parameters` and refuses
+  (`PLAN_MISMATCH`) unless they equal the approved plan's `target_digest`/`payload_digest`; an
+  intact, approved plan no longer authorizes a swapped recipient or payload. The golden vector now
+  documents its raw synthetic target/payload and `tests/test-wacli-delegate-contract.sh` §3b pins the
+  recomputation rule. `accounts remove` is classified as a destructive local mutation (skill
+  v0.2.1 + delegate); the skill routes delegation through the canonical `delegate-governance`
+  entry point and states its degraded mode on hosts without the companion agent. Test harness: 5-field
+  script headers, `mktemp` + `trap … EXIT` temp files (explicitly not `set -e` — assertion harness
+  precedent); fake stub escapes interpolated error values and rejects surplus arguments after
+  `doctor --connect` / `auth status`.
+  Copilot round on the same head: `--store` and any companion SQLite query are operator-only
+  (never run by the concierge's `wacli:*` path or the delegate); admission gets a new-account
+  exception so `accounts add` probes `accounts list` instead of a not-yet-existing account.
 
 ### Added — `harness-concierge` skill + `bin/harness-mcp-sync` executor + harness registry
 

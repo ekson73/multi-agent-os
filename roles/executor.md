@@ -22,9 +22,9 @@ binding:
 - agent:quarkus-backend-engineer
 - agent:supabase-engineer
 - agent:gitops-engineer
-- agent:platform-engineer
+- agent:devops-engineer
 - agent:site-reliability-engineer
-- agent:security-engineer
+- agent:devsecops-engineer
 - agent:prompt-context-engineer
 - agent:openrig-fleet-engineer
 - agent:data-analyst

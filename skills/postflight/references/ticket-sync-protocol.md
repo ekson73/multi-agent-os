@@ -30,6 +30,19 @@ anti-over-engineering principle: no custom ticket schema, no custom state machin
 capability-detected ticketing tool (see "Capability ladder"); P2.5 only decides *what* to
 file and *how much*, never *how* to talk to a provider.
 
+## Pending-ticket reconciliation
+
+First apply [`protocols/ticket-first-governance.md`](../../../protocols/ticket-first-governance.md):
+perform its unfiltered indexed pending-ticket discovery, retry eligible records with
+search-before-create, and preserve resolved/duplicate URLs or pending/error retry conditions.
+The tracker remains canonical; the outbox exists only until verified reconciliation.
+Carry verified unresolved records and their locator into the continuation handoff; report
+BLOCKED_NOT_PERSISTED separately when storage or verification failed, without claiming
+durable deferral. Safe exit remains allowed. Do not copy a
+private continuation seed verbatim to a less-private tracker: sanitize for its audience.
+The caps below batch actionable atoms, never erase them; Q4 may be dropped only when
+non-actionable or explicitly cancelled with reason.
+
 ## The three sub-steps
 
 ### (a) Gap → ticket triage (bounded autonomous)
@@ -50,7 +63,7 @@ ATOM
 | **Q1** (urgent + important) | Create a ticket **now** (highest salience); link to the session + parent. |
 | **Q2** (important, not urgent) | Create a ticket (backlog); link to session/parent. |
 | **Q3** (urgent, not important) | Create a ticket **+ flag for delegation/dispatch** (route to a specialist later). |
-| **Q4** (neither) | Do **not** spend a ticket. Fold into the **batch housekeeping ticket** (below) **or** drop with a one-line audit note. |
+| **Q4** (neither) | Do **not** spend a ticket. Fold into the **batch housekeeping ticket** (below) **or**, only if non-actionable/cancelled, drop with a one-line audit note. |
 
 **Caps (anti-ticket-spam — hard):**
 
@@ -70,10 +83,10 @@ in the seed file:
 - **Idempotent — search-before-create.** Delegate the `auto` op (search → create-if-absent
   → else link+enrich). A 2nd postflight run on the same source session **reuses + enriches**
   the existing continuation ticket; it never creates a duplicate.
-- **Body = a mirror of the continuation seed** (the same resume-spine the seed carries:
+- **Body = an audience-safe projection of the continuation seed** (the same resume-spine the seed carries:
   who-you-are · mission · inherited-state · guardrails · DoD · DAG · refs). The seed (P3) and
   the continuation ticket are two registers of the *same* handoff — keep them consistent
-  (render both from the P2/P3 state, do not maintain in parallel).
+  (render both from the P2/P3 state, exclude private fields/links from public destinations).
 - **Linkage is provider-relative** (governance-discovered, never assumed): **"relates-to"
   link + bidirectional comments** by default; promote to **child-of-parent** only when the
   provider's hierarchy supports it (e.g. an epic/parent ticket the session anchors to).
@@ -95,12 +108,14 @@ Resolve the ticketing capability at invocation, top-down; the first present wins
    (`create`/`update`/`link`/`enrich`/`close`/`auto`) to it. It owns provider resolution
    (Jira/Linear), the 17-field body schema, the close verify-gate, auto-assign, and L8
    cross-links. *(Reference implementation: the user-scope `ticket-as-prompt` skill.)*
-2. **No skill, but the repo is GitHub-hosted** and `gh` is present → file via `gh issue
-   create` / `gh issue comment` (the native primitive for the **community** class).
-3. **Neither** → **DEFER(ticket)**: record the would-be tickets in the seed's
+2. **No skill, but GitHub Issues is the configured authorized destination** and `gh`
+   is present → search/reuse/create via the native primitive after verifying project,
+   domain and visibility. Hosting location alone never authorizes this fallback.
+3. **Neither or unavailable** → **DEFER(ticket)**: persist a pending-ticket outbox record
+   under the protocol above and record the would-be tickets in the seed's
    `tickets_created` as `{deferred: true, eisenhower, link: "none", reason}` + a one-line
    audit note, and continue. P3 HANDOFF / P3.5 SPAWN proceed **normally** — a missing tracker
-   never blocks the exit.
+   never blocks the exit. The successor still applies the ticket-first implementation gate.
 
 **Routing is by repo CLASS, never by hardcoded org-name** (layer purity): governance
 discovery (CLAUDE/AGENTS + the ticketing skill's own L4 routing) maps **corporate → Jira ·
