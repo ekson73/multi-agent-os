@@ -60,11 +60,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   credential race alongside the global switcher; and the `description` is under the 1024-character
   frontmatter limit so loaders do not truncate the triggers.
 
+- P3 now routes every worker spawn through `delegate-governance` (`AGENTS.md` §Delegation canonical
+  entry point) and carries the fleet brief as the payload on top of that prompt, instead of
+  briefing a `Task` worker directly and bypassing the ticket/provider/DNA/cleanup checks.
+- The `--round 2 --json` examples carry the required positional end-state, which the command
+  contract marks mandatory (an empty value prints usage and stops).
+
 ### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
 
-- `wacli-concierge` was counted in the inventory provenance note but had no row in the Available
-  Skills table, so the heading count disagreed with the directory count. Row added; the heading is
-  now **96**, matching the 96 skill directories on disk (verified by set difference, not by eye).
+- `wacli-concierge` and `ref-claim-verify` were both counted in the inventory provenance note but
+  had no row in the Available Skills table, so the heading count disagreed with the directory
+  count. Rows added; the heading is now **97**, matching the 97 skill directories on disk —
+  verified by set difference in both directions, not by eye. `ref-claim-verify` surfaced only on
+  the second rebase, which is `fleet-campaign`'s own `INVENTORY-DECAYS` law applying to its own PR.
 
 ### Added — seat profile (six org levels) and three delivery agents
 

@@ -50,7 +50,7 @@ An unanswered escalation is **re-stated every round** until it is decided.
 /fleet-campaign "no scheduled dependency-bump PRs in any of our repos, detection untouched"
 /fleet-campaign "public access blocked on every bucket in both accounts" --surfaces-first
 /fleet-campaign "MFA required for every org member" --dry-run     # P0 will find more than one surface
-/fleet-campaign --round 2 --json                                  # envelope for the conductor
+/fleet-campaign "public access blocked on every bucket in both accounts" --round 2 --json
 ```
 
 ## Not this command

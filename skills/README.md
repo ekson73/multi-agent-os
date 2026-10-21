@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table listed 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brought it to 94, `wacli-concierge` by hand 2026-10-21 (its row was missing from the table although the note counted it), and `fleet-campaign` the same day, bringing it to 96 — matching the 96 skill directories on disk. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table listed 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brought it to 94, `wacli-concierge` and `ref-claim-verify` by hand 2026-10-21 (both directories shipped without a table row), and `fleet-campaign` the same day, bringing it to 97 — matching the 97 skill directories on disk, verified by set difference rather than by eye. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (96)
+## Available Skills (97)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -80,6 +80,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `reactivate` | `reactivate/SKILL.md` | Cold-start reactivation conductor for new-fresh-born amnesic agents. |
 | `red-team` | `red-team/SKILL.md` | Decide WHEN an adversarial red-team is MANDATORY for an action, and HOW deep — then route to the right existing primitive (build nothing new). |
 | `refine-braindump-to-prompt` | `refine-braindump-to-prompt/SKILL.md` | Lapidate ONE raw operator braindump into ONE polished, ready-to-execute PROMPT. |
+| `ref-claim-verify` | `ref-claim-verify/SKILL.md` | Use to check the cross-reference CLAIMS a doc, PR body or diff makes about other artifacts against the real source — before trusting them. Verdicts are VERIFIED / MISMATCH / UNRESOLVED; UNRESOLVED is never a pass. |
 | `repo-custody-transfer` | `repo-custody-transfer/SKILL.md` | Transfer CUSTODY of a repository between git hosts (Bitbucket Cloud → GitHub first-class; soul-name Translatio) as a reversible, resumable, idempotent |
 | `research-dossier` | `research-dossier/SKILL.md` | Turn finished research into a decision-ready visual dossier — html, md, json, and hand-offs to pdf/pptx/xlsx — routed through an intermediate represen |
 | `response-compression` | `response-compression/SKILL.md` | Controls output verbosity. |

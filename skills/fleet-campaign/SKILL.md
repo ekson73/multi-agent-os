@@ -130,9 +130,15 @@ Partition the fleet by **credential boundary** — one worker per token/login/ac
 credential bound to that single worker invocation (command-scoped). Never a mutable global
 selector two workers can race (`gh auth switch` and friends), and never an `export` into the
 conductor's own shell: an exported credential is the same race through the environment, and it
-puts the raw value where a traced transcript can capture it. Brief each worker with: its slice,
-the declared end-state, the read-back probe that proves it, and the hard limits. Delegation
-depth ≤ 2, parallel ≤ 3.
+puts the raw value where a traced transcript can capture it.
+
+**Every spawn goes through `delegate-governance` first** (`plugin-scripts/gaac/delegate.sh
+init|dna|finalize`) — it is this repository's canonical delegation entry point (`AGENTS.md`
+§Delegation), and it carries the ticket, provider, DNA-inheritance and cleanup checks a fleet
+campaign must not skip. The brief below is the **fleet-specific payload** layered on top of that
+governance prompt, never a replacement for it: each worker receives its slice, the declared
+end-state, the read-back probe that proves it, and the hard limits. Delegation depth ≤ 2,
+parallel ≤ 3.
 
 Sharding by credential is an **isolation** measure, never a review measure. That two shards carry
 different identities does not make one a valid reviewer of the other: an approval gate exists to
@@ -232,7 +238,8 @@ Exit codes: `0` converged or round reported · `1` error · `2` HITL/defer.
 |---|---|---|
 | level-triggered re-derivation | `work-drain` (Antlia) | register derived from a **provider measurement**, not a tracker |
 | the bounded round | `ooda-loop` | P0/P1 fleet-specific ORIENT inputs (the nine laws) |
-| worker briefing | `agentic-delegation` | the shard key is the **credential boundary** |
+| spawning a worker | `delegate-governance` (`AGENTS.md` canonical entry point) | the fleet brief is the payload on top of that prompt, never a bypass |
+| worker briefing content | `agentic-delegation` | the shard key is the **credential boundary** |
 | isolation | `worktree-policy` · `anti-conflict` | one worktree per worker, never the repo root |
 | decision record | `decision-capture` | the surface classification is the record |
 | PR mechanics | `hierarchical-merge` · `CONTRIBUTING.md` | unchanged |
@@ -303,7 +310,7 @@ fired (E5 → narrow the trigger, not auto-deprecate).
 ```text
 /fleet-campaign "no scheduled dependency-bump PRs in any of our repos"
 /fleet-campaign "public access blocked on every bucket in both accounts" --surfaces-first
-/fleet-campaign --round 2 --json          # machine envelope for the conductor
+/fleet-campaign "public access blocked on every bucket in both accounts" --round 2 --json
 /fleet-campaign "MFA required for every member of the org"   # P0 will find >1 surface
 ```
 
