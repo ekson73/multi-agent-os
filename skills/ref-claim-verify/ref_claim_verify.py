@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -36,7 +37,7 @@ _EXT = r"(?:md|sh|py|json|ya?ml|toml|js|mjs|ts|txt|cfg|ini)"
 _SEMVER = r"\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z][0-9A-Za-z.\-+]*)?(?![0-9A-Za-z_]|\.[0-9A-Za-z])"
 _PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./\-]+\.%s)(?::\d+)?(?:#[\w\-]+)?`" % _EXT)
 _SECTION = re.compile(
-    r"`([A-Za-z0-9_./\-]+\.%s)`[ \t]{0,3}(?:[,\u2014(\-][ \t]{0,3})?\u00a7[ \t]?([A-Za-z0-9][A-Za-z0-9.\-]*)" % _EXT
+    r"`([A-Za-z0-9_./\-]+\.%s)`[ \t]{0,3}(?:[,\u2014(\-][ \t]{0,3})?\u00a7[ \t]?([A-Za-z0-9](?:[A-Za-z0-9.\-]*[A-Za-z0-9])?)" % _EXT
 )
 _VERSION = re.compile(
     r"(?P<anchor>`?\[[A-Za-z][A-Za-z0-9._\-]{0,23}\]`?(?!\()|`[A-Za-z0-9_./\-]+\.%s`)"
@@ -151,8 +152,20 @@ def mask(line: str, limit: int = 160) -> str:
 
 
 # ── git access (read-only, list-form subprocess, validated inputs) ──────────────
+# Inherited Git env vars (GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, object dirs, …)
+# override `-C repo`, so a caller's environment could silently redirect every
+# command at a different repository. Strip them once so `-C repo` is authoritative.
+_GIT_ENV_STRIP = (
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES", "GIT_PREFIX",
+)
+_GIT_ENV = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_STRIP}
+
+
 def _git(repo: str, *args: str) -> tuple[int, str]:
-    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, errors="replace")
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
+                       errors="replace", env=_GIT_ENV)
     return r.returncode, r.stdout
 
 
@@ -533,6 +546,9 @@ def _verify(c: Claim, repo: str, refs: list[str]) -> Claim:
         c.verdict = VERIFIED if found else MISMATCH
         c.evidence = f"present at {','.join(found)}" if found else f"absent at all of {','.join(refs)}"
     elif c.kind == "SECTION":
+        if not safe_path(c.target):
+            c.verdict, c.evidence = UNRESOLVED, "path is outside the repo or unsafe"
+            return c
         for r in refs:
             content = blob(repo, r, c.target)
             if content is None:

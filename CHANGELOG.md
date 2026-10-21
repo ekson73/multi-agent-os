@@ -17,7 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   citing a version no ref declared. Dogfooded on that very PR: reproduces the defect (`claimed
   v3.1.0; declared 3.0.0`, exit 3). Excerpts are masked by reusing `pii-masking` (fallback masks
   CPF/email/phone and declares `masking: fallback`); a recall guard counts version-like mentions
-  not tied to an anchor so silence cannot hide a parsing gap. 18 tests.
+  not tied to an anchor so silence cannot hide a parsing gap. 74 tests.
+- Hardened the verifier against three review findings: (1) the SECTION token regex no
+  longer folds a trailing `.`/`-` into the section (a sentence-ending citation like
+  `` `file.md` §4.1. `` now parses as `4.1` and VERIFIES instead of a false MISMATCH);
+  (2) the SECTION branch now applies the same `safe_path` guard as the PATH branch, so an
+  unsafe/out-of-repo path (`../x.md`) returns UNRESOLVED (per SKILL.md), not MISMATCH;
+  (3) `_git` and the test fixture strip inherited Git env vars (`GIT_DIR`, `GIT_WORK_TREE`,
+  `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
+  cannot silently redirect the verifier at another repository. Two regression tests added.
 
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 

@@ -5,8 +5,10 @@ import ref_claim_verify as rcv
 
 
 def git(repo, *a):
+    # Reuse the module's stripped env so inherited GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE
+    # cannot redirect the fixture's add/commit at the caller's repository or index.
     subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@example.org", "-c", "user.name=t",
-                    "-c", "commit.gpgsign=false", *a], check=True, capture_output=True)
+                    "-c", "commit.gpgsign=false", *a], check=True, capture_output=True, env=rcv._GIT_ENV)
 
 
 @pytest.fixture()
@@ -42,6 +44,18 @@ def test_path_added_only_at_head_needs_both_refs(repo):
 def test_section_verified_mismatch_unresolved(repo):
     c = claims("`docs/guide.md` §4.1, `docs/guide.md` §9.9, `docs/flat.md` §1", repo)
     assert [x["verdict"] for x in c] == ["VERIFIED", "MISMATCH", "UNRESOLVED"]
+
+
+def test_section_token_stops_at_sentence_period(repo):
+    # A citation at the end of a sentence must not fold the trailing '.' into the token.
+    c = claims("see `docs/guide.md` §4.1.", repo)
+    assert c and c[0]["detail"] == "4.1" and c[0]["verdict"] == "VERIFIED"
+
+
+def test_section_unsafe_path_is_unresolved_not_mismatch(repo):
+    # SKILL.md: an unsafe/out-of-repo path gives UNRESOLVED, same as the PATH branch.
+    c = claims("`../x.md` §4.1", repo)
+    assert c and c[0]["verdict"] == "UNRESOLVED"
 
 
 def test_version_mismatch_is_the_original_defect(repo):
