@@ -4,7 +4,7 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 94 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08; `verified-agentic-session-model` added by hand 2026-10-19), including `live-session-continuity-recovery` and `session-to-vault`. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Snapshot 2026-10-21**: both recently-merged skills are present — `spec-backlog-ticket-reconciler` (by hand 2026-10-13) and `verified-agentic-session-model` (by hand 2026-10-19), alongside `person-agent-creator` (2026-10-08), `live-session-continuity-recovery` and `session-to-vault`. `git ls-files 'skills/*/SKILL.md'` now reports 97 tracked top-level skills after the open-PR drain; the human-maintained table below lags the tree and is pending a generated refresh. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
 ## Available Skills (94)
 
@@ -91,6 +91,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `signoff` | `signoff/SKILL.md` | The operator's END-OF-SESSION SIGN-OFF (encerramento) verb — invoked when you are DONE and want the session closed out AND its pending work left disco |
 | `skill-writer` | `skill-writer/SKILL.md` | Creates and maintains Agent Skills following the open standard (compatible with 30+ AI tools). |
 | `slm-routing` | `slm-routing/SKILL.md` | Declarative decision rubric for routing AI work between a small local language model (SLM) and a remote frontier LLM. |
+| `spec-backlog-ticket-reconciler` | `spec-backlog-ticket-reconciler/SKILL.md` | **Experimental, unqualified (see EVAL-REPORT).** Reconcile actionable repository specifications with local backlog and GitHub, Jira, or Linear issues. |
 | `sprint-carryover` | `sprint-carryover/SKILL.md` | Relocate stranded open backlog from past/closed sprints INTO the active sprint (dry-run default; MOVE is operator-gated; discovery composes work-compass). |
 | `status-map` | `status-map/SKILL.md` | Generate human-readable ASCII status visualizations for agent sessions |
 | `sync-to-git` | `sync-to-git/SKILL.md` | Git synchronization automation for AI agents with GitHub/Bitbucket support |
@@ -113,6 +114,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
 - **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
+- **Specification & backlog**: `spec-backlog-ticket-reconciler` · `sprint-carryover` · `work-drain`
 - **Roadmap & prioritization**: `roadmap-tree-projector` · `eisenhower-matrix` · `work-compass`
 
 ## Inter-dependency graph (core families)
