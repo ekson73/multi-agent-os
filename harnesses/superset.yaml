@@ -1,0 +1,35 @@
+schema: 1
+id: superset
+name: Superset
+vendor: null
+kind: desktop-app
+detect:
+  commands: []
+  paths:
+  - /Applications/Superset.app
+mcp:
+  supported: false
+  config_paths: []
+  format: null
+  key_path: null
+  entry_style: null
+  transports: []
+  supports:
+    headers: false
+    env: false
+    disable: false
+    disable_field: null
+    disable_semantics: null
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: null
+  update_cmd: in-app auto-update
+docs_url: null
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: multi-agent terminal/orchestrator; no own MCP config found — wrapped agents use their own configs
+notes: Unverified.

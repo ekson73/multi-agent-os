@@ -1,0 +1,42 @@
+schema: 1
+id: jcode
+name: jcode
+vendor: null
+kind: cli
+detect:
+  commands:
+  - jcode
+  paths:
+  - ~/.jcode
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.jcode/mcp.json
+    scope: user
+  format: json
+  key_path:
+  - servers
+  entry_style: mcpservers-json
+  transports:
+  - stdio
+  - http
+  supports:
+    headers: false
+    env: true
+    disable: true
+    disable_field: disabled
+    disable_semantics: disabled-bool
+  cli: null
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: jcode --version
+  update_cmd: null
+docs_url: null
+last_verified: '2026-09-24'
+confidence: medium
+skip_reason: null
+notes: 'Map key `servers`. Entries: {command, args, env, shared, type: http, url, disabled}. `shared` is jcode-specific (preserve).
+  No headers observed. No `jcode mcp` subcommand.'

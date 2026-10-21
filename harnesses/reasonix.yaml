@@ -1,0 +1,44 @@
+schema: 1
+id: reasonix
+name: Reasonix
+vendor: null
+kind: cli
+detect:
+  commands:
+  - reasonix
+  paths:
+  - ~/.reasonix
+mcp:
+  supported: true
+  config_paths:
+  - path: ~/.reasonix/config.toml
+    scope: user
+  format: toml
+  key_path: []
+  entry_style: reasonix-toml
+  transports:
+  - stdio
+  - http
+  - sse
+  supports:
+    headers: true
+    env: true
+    disable: true
+    disable_field: null
+    disable_semantics: null
+  cli:
+    add: reasonix mcp add <name> -- <command> [args]  |  reasonix mcp add <name> --http <url> [--header K=V]
+    list: reasonix mcp list
+    remove: reasonix mcp remove <name>
+extensions:
+  skills: null
+  plugins: null
+  marketplace: null
+update:
+  version_cmd: reasonix --version
+  update_cmd: null
+docs_url: null
+last_verified: '2026-09-24'
+confidence: low
+skip_reason: MCP table name/shape in config.toml unknown (no MCP section present yet); use the CLI, not file writes
+notes: CLI says global installs use config.toml; has enable/disable/auth subcommands.

@@ -111,6 +111,15 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 | [`bin/work-compass-aggregate.py`](../bin/work-compass-aggregate.py) | python | uncaught `Exception` | any `SystemExit` (clean `0`, argparse `2`, route-miss `1`) |
 | [`bin/research-dossier-render.mjs`](../bin/research-dossier-render.mjs) | node | uncaught throw / rejection, exit-2 IO/usage | `exit 1` (GATE FAILURE verdict) |
 
+## Documented exception — executables that handle secrets never dispatch
+
+| Script | Behaviour on an unexpected fault | Why |
+|--------|----------------------------------|-----|
+| [`bin/harness-mcp-sync`](../bin/harness-mcp-sync) | **log-only, never dispatches** (`MAOS_SELFHEAL` is ignored) | It reads and writes AI-harness configs that may carry credentials. An auto-dispatched agent with HOME access could read every config the tool touches, so the "human reviews the diff" guarantee above is not enough. The fault log is kept (masked) for a human to hand to an agent deliberately. |
+
+Any future executable that resolves or writes secret material SHOULD follow this
+exception rather than the default relay, and be listed here.
+
 ## See also
 
 - Upstream standard: [`~/.kiro/steering/eko-executable-scripts.md`](file://~/.kiro/steering/eko-executable-scripts.md) §prop-6 (self-heal on failure, harness-agnostic).
