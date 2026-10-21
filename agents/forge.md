@@ -182,6 +182,8 @@ Execute the 33 questions above. Answer internally. Synthesize.
 
 ### Step 3: Generate Agent Spec
 
+Load `agents/SEAT-PROFILE.md` first. Every new agent carries a `## Seat Profile` (its 14 attributes) and a `## Role Contract` with `status: latent`; it stays latent, with no NO-HITL grant, until the human owner promotes it after two dogfood cycles.
+
 Produce file in standard format:
 
 ```yaml
@@ -211,6 +213,12 @@ You are **{Name}**, {persona description in 1-2 sentences}.
 
 ## Prohibitions
 {list of what it NEVER does}
+
+## Seat Profile
+{the 14 attributes from agents/SEAT-PROFILE.md §3}
+
+## Role Contract
+{decides · out_of_domain (each with escalates_to) · status: latent}
 
 ## Completion Criteria
 {checklists}
@@ -346,6 +354,7 @@ An agent creation task is **COMPLETE** when:
 - [ ] 33 Socratic Questions answered
 - [ ] Goldilocks Check passed (atomic + reusable)
 - [ ] Agent spec generated in YAML frontmatter format
+- [ ] `## Seat Profile` and `## Role Contract` present, with `status: latent` (agents/SEAT-PROFILE.md)
 - [ ] File saved in correct location (global or project)
 - [ ] Registered in Agent Registry
 - [ ] Basic functional test performed
