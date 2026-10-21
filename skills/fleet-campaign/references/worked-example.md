@@ -87,21 +87,25 @@ need shrinks.
 
 ## P3 — SHARD: one worker per credential boundary
 
-Two workers, one per account, each receiving its own token in-process:
+Two workers, one per account. The credential is bound to **one worker invocation**, as a
+command-scoped variable — never `export`ed into the conductor's shell:
 
 ```
-export GH_TOKEN=$(gh auth token --user <login-A>)   # worker A — personal account, 20 members
-export GH_TOKEN=$(gh auth token --user <login-B>)   # worker B — client org,       28 members
+# worker A — personal account, 20 members
+GH_TOKEN=$(gh auth token --user <login-A>) <worker-A-command>
+# worker B — client org, 28 members
+GH_TOKEN=$(gh auth token --user <login-B>) <worker-B-command>
 ```
 
-The global credential switcher (`gh auth switch`) was **never** used: it mutates shared state two
-concurrent workers would race on. Zero collisions across three rounds. That is **L9**.
+**Why command-scoped and not `export`ed.** An exported `GH_TOKEN` is shared mutable state in the
+conductor shell: every worker spawned afterwards inherits whichever assignment ran last. That is
+the same cross-worker credential race L9 forbids for the global switcher — via the environment
+instead of the keyring — and it can drive a mutation under the wrong identity. It also puts the
+raw token where any traced transcript of the campaign can capture it, which the anti-theater rule
+on secret leakage forbids. The global switcher (`gh auth switch`) was likewise **never** used.
+Zero collisions across three rounds. That is **L9**.
 
-Side benefit the shape bought for free: because the two accounts are distinct identities, a PR
-opened by one could be reviewed by the other — author ≠ approver, so no self-approval block and
-no human review wall.
-
-## P4 — the Gitflow round that L2 cost
+## L2 in the field — the Gitflow round it cost
 
 One member is Gitflow: default branch `main`, all work on `develop`. The config file was removed on
 `develop` — correct by the repo's own convention, and **generation continued**, because the provider

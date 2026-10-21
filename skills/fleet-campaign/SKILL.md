@@ -114,10 +114,19 @@ have invalidated whole plans *after* they were written.
 
 ### P3 — SHARD
 
-Partition the fleet by **credential boundary** — one worker per token/login/account/profile, token
-passed into that worker's process. Never a mutable global selector that two workers can race
-(`gh auth switch` and friends). Brief each worker with: its slice, the declared end-state, the
-read-back probe that proves it, and the hard limits. Delegation depth ≤ 2, parallel ≤ 3.
+Partition the fleet by **credential boundary** — one worker per token/login/account/profile, the
+credential bound to that single worker invocation (command-scoped). Never a mutable global
+selector two workers can race (`gh auth switch` and friends), and never an `export` into the
+conductor's own shell: an exported credential is the same race through the environment, and it
+puts the raw value where a traced transcript can capture it. Brief each worker with: its slice,
+the declared end-state, the read-back probe that proves it, and the hard limits. Delegation
+depth ≤ 2, parallel ≤ 3.
+
+Sharding by credential is an **isolation** measure, never a review measure. That two shards carry
+different identities does not make one a valid reviewer of the other: an approval gate exists to
+get an independent responsible reviewer, and satisfying it with a second credential the same
+operator controls is a bypass — explicitly inside `## Hard limits` whenever the resource is a
+peer's or another org's.
 
 ### P4 — VERIFY before accept
 
@@ -143,7 +152,7 @@ re-run after a partial round a no-op, and an interrupted campaign resumable with
 | **L6** | **FORK-INHERITS** | On a fork, removing an inherited file is **divergence from upstream**, not a fix. Decide it explicitly and record it. | One fleet member was a fork; its config came from upstream. Removing it was recorded as a deliberate, reversible divergence — not reported as a cleanup. |
 | **L7** | **INVENTORY-DECAYS** | Every measured number has a drift rate. Re-measure anything mutable before each round and print the number next to its measurement time. | An inventory 8 days old said 18 open bot PRs; at action time there were 25 (~1/day). Acting on the snapshot would have left 7 untouched and reported done. |
 | **L8** | **CLAIM-IS-NOT-EVIDENCE** | A worker/subagent `done` is a claim. Re-run the probe yourself. | Two of the re-measurements disagreed with the claim and changed the plan. |
-| **L9** | **ONE-WORKER-PER-CREDENTIAL** | Shard by credential boundary; pass the token per process. A shared mutable credential selector is a race, not a convenience. | One worker per owner, distinct tokens, zero collisions across three rounds; the global credential switcher was never used. |
+| **L9** | **ONE-WORKER-PER-CREDENTIAL** | Shard by credential boundary and bind the credential to **one worker invocation** (command-scoped). Any shared mutable credential — a global switcher *or* an exported environment variable the conductor's shell holds — is a race, not a convenience: whatever ran last is what the next worker inherits, and a mutation can land under the wrong identity. | One worker per owner, command-scoped tokens, zero collisions across three rounds; the global switcher was never used and the token was never exported into the conductor shell. |
 
 > The laws are **provider-agnostic on purpose**. `references/worked-example.md` carries the concrete
 > probe set from the campaign that produced them, as a worked instance — not as the method.

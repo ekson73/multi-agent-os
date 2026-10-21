@@ -46,9 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `skills/fleet-campaign/references/worked-example.md` holds the concrete probe set and matrix from
   the campaign behind the laws, redacted for an open-source repo: client-org members appear only as
   `C1…C6`, with no host, account, ARN, secret name, person or client content.
-- Registered in `skills/README.md` (count 93 → 94, new "Fleet & bulk convergence" family) and
-  `commands/README.md`. Cross-harness reach is by projection (`npx skills add … --skill
-  fleet-campaign`), never a divergent copy: this repo stays the SSOT.
+- Registered in `skills/README.md` (new "Fleet & bulk convergence" family) and `commands/README.md`.
+  Cross-harness reach is by projection (`npx skills add … --skill fleet-campaign`), never a
+  divergent copy: this repo stays the SSOT.
+
+### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
+
+- `wacli-concierge` was counted in the inventory provenance note but had no row in the Available
+  Skills table, so the heading count disagreed with the directory count. Row added; the heading is
+  now **96**, matching the 96 skill directories on disk (verified by set difference, not by eye).
 
 ### Added — seat profile (six org levels) and three delivery agents
 

@@ -4,9 +4,9 @@
 
 This folder contains reusable Agent Skills for the Multi-Agent OS framework. Skills follow the [Agent Skills open standard](https://agentskills.io) (SKILL.md format) and are compatible with 30+ AI tools including Claude Code, Cursor, Codex, Gemini CLI, Kiro, VS Code, GitHub Copilot, Goose, and others.
 
-> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brings it to 94. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
+> **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table listed 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brought it to 94, `wacli-concierge` by hand 2026-10-21 (its row was missing from the table although the note counted it), and `fleet-campaign` the same day, bringing it to 96 — matching the 96 skill directories on disk. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (94)
+## Available Skills (96)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -101,6 +101,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `transmute` | `transmute/SKILL.md` | Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code · agentic-tool · email · report) through a menu of transformations (c |
 | `ttl-policy` | `ttl-policy/SKILL.md` | Manage Time-To-Live policies for framework content freshness |
 | `voice-director` | `voice-director/SKILL.md` | Use when the operator EXPLICITLY asks to SPEAK/narrate something aloud — "fala isso", "narra o resumo", "speak this", "voz de aplauso", "--media audio |
+| `wacli-concierge` | `wacli-concierge/SKILL.md` | Operational knowledge and safety router for **wacli**, the linked-device WhatsApp CLI with a local SQLite/FTS5 mirror. Capability-detects first; remote/destructive mutations need exact human approval. |
 | `walkthrough-concierge` | `walkthrough-concierge/SKILL.md` | Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic Session Harness — session journals, the walkthrough (decisions +  |
 | `work-compass` | `work-compass/SKILL.md` | Aggregate the operator's scattered work — Jira/GitHub issues, Claude + cross-vendor (Codex) sessions, git worktrees/branches/stashes/uncommitted-WIP,  |
 | `work-drain` | `work-drain/SKILL.md` | Given one or more <object-targets> (a sprint, a backlog query, open PRs, tracker issues, a filter), DISCOVER every matching item across trackers, DERI |
