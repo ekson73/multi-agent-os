@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Cross-harness reach is by projection (`npx skills add … --skill fleet-campaign`), never a
   divergent copy: this repo stays the SSOT.
 
+- Review hardening (findings raised on the PR, each verified at source before accepting): `§0
+  BEING > Rules` no longer reaches **P4 VERIFY** or **P5 RE-DERIVE**, so the skip escape cannot
+  waive the acceptance checks the skill exists for; P1 now states that the **read-back must probe
+  exactly the set discovery probed** and must filter any population shared with a loss-bearing
+  surface, because an acceptance check satisfiable by destroying what P0 protected is `L1` through
+  the back door; the worked example's read-back probes both supported config filenames and counts
+  scheduled bumps only, never security-fix PRs; `L9` names the exported-environment form of the
+  credential race alongside the global switcher; and the `description` is under the 1024-character
+  frontmatter limit so loaders do not truncate the triggers.
+
 ### Fixed — `skills/README.md` index drift (boy-scout, found while registering `fleet-campaign`)
 
 - `wacli-concierge` was counted in the inventory provenance note but had no row in the Available

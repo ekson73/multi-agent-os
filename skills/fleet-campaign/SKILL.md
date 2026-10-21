@@ -2,23 +2,18 @@
 name: fleet-campaign
 version: "0.1.0"
 description: |
-  Converge a FLEET of provider-managed resources (N repos across M owners/orgs, N cloud accounts,
+  Converge a FLEET of provider-managed resources (N repos across M owners/orgs, N accounts,
   N clusters, N projects) to ONE declared configuration state, in measured rounds. Soul-name
-  Classis — the fleet brought under one command, hull by hull, each inspected before it is signed
-  off. Six phases: DISAMBIGUATE the named target into independent surfaces (what is LOST when each
-  one is off) → RECON the whole fleet at source THIS round → ORIENT on authority facts (which ref
-  the provider reads, which read is a false negative, which absence is a plan tier, which host
-  floor outranks the target's own policy) → SHARD one worker per credential boundary → VERIFY every
-  worker claim at source before accepting it → RE-DERIVE the register each round until the
-  re-measurement is empty. Thin conductor: composes work-drain's level-triggered invariant,
-  ooda-loop's round structure, agentic-delegation's briefing contract and worktree-policy's
-  isolation — reimplements no loop, no tracker access and no provider client.
-  Use when ONE setting must become true across MANY resources you do not control one-by-one, and
-  the product name you were given ("turn Dependabot off", "enable MFA everywhere", "drop public
-  access on all buckets") hides more than one switch.
-  Triggers: "fleet-campaign", "across all repos", "every repo in the org", "turn X off everywhere",
-  "fleet-wide", "all accounts", "bulk config change", "em todos os repos", "na organização toda",
-  "desligar X em tudo", "campanha de configuração".
+  Classis. Six phases: DISAMBIGUATE the named target into independent surfaces (what is LOST
+  when each is off) → RECON the fleet at source THIS round → ORIENT on authority facts (which
+  ref the provider reads, which read is a false negative, which absence is a plan tier) → SHARD
+  one worker per credential boundary → VERIFY every worker claim at source before accepting it
+  → RE-DERIVE each round until the re-measurement is empty.
+  Use when ONE setting must become true across MANY resources and the product name you were
+  given ("turn Dependabot off", "enable MFA everywhere") hides more than one switch.
+  Triggers: "fleet-campaign", "across all repos", "every repo in the org", "turn X off
+  everywhere", "fleet-wide", "bulk config change", "em todos os repos", "na organização toda",
+  "desligar X em tudo".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, AskUserQuestion
 ---
 
@@ -39,9 +34,18 @@ allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob, AskUserQuestion
 
 ## §0 — BEING > Rules (Foundational Compliance)
 
-This skill serves the operator's intent. If a phase obstructs delivering value NOW, skip it, log
-`Skipped <phase> — BEING > Rules`, and proceed. Gates are for correctness, never ritual. The one
-thing §0 never waives is `## Hard limits` — a surface whose absence loses detection, an
+This skill serves the operator's intent. If a **presentation** step obstructs delivering value NOW
+— a report table, a machine envelope, a narrative — skip it, log `Skipped <step> — BEING > Rules`,
+and proceed. Gates are for correctness, never ritual.
+
+**Two phases are never skippable, and §0 does not reach them:** **P4 VERIFY** (re-measure each
+worker claim at source) and **P5 RE-DERIVE** (the fresh measurement that closes a round). Skipping
+either turns the campaign into an unverified claim, which is the one failure this skill exists to
+prevent — a member could be reported converged while the resource is untouched. Owning a read-back
+probe is not the same as running it: the hard limits require the probe to **exist**, P4 requires it
+to have **run**, and convergence may not be reported without both.
+
+`## Hard limits` is likewise never waived — a surface whose absence loses detection, an
 irreversible deletion, production, PII/secret, a peer's config or cost always escalates.
 
 ## Purpose
@@ -105,6 +109,14 @@ the contract — **the exact probe that produced each column**, printed with the
 
 A column without its probe is not a measurement, it is a belief. A matrix without `measured_at`
 cannot be aged by the next reader.
+
+**The read-back must probe exactly the set discovery probed.** Anything narrower is a false
+completion: if P1 found the state under either of two filenames, two field names or two API
+surfaces, a P4 read-back that checks only one accepts a member that still carries the other. And
+when a counted population is **shared** between a noise surface and a loss-bearing one — the same
+author, label or namespace emitting both — the read-back must filter down to the noise surface.
+Otherwise acceptance is satisfiable by destroying the thing P0 protected, which is **L1** returning
+through the back door.
 
 ### P2 — ORIENT
 
@@ -231,13 +243,19 @@ Does NOT: author a provider client · drain tickets (`work-drain`) · migrate ho
 
 ## §Quality Tests
 
-**6/6 self-validity:**
+**8/8 self-validity:**
 1. Frontmatter parses as YAML; `name` + `description` present.
 2. Command wrapper exists and its filename = the `/entry` (`commands/fleet-campaign.md`).
 3. Every law is stated generally AND carries a measured instance — no law without evidence.
 4. The report contract prints a **probe** per column; a column without one fails the gate.
-5. Level-triggered: a re-run after a partial round is a no-op on already-converged members.
-6. `bash tests/validate-plugin.sh` passes (0 new errors).
+5. The P4 read-back probes **exactly the set** P1 discovered with (every filename / field / API
+   surface), and any population shared with a loss-bearing surface is filtered down to the noise
+   surface — a read-back narrower than discovery, or satisfiable by destroying what P0 protected,
+   fails the gate.
+6. P4 and P5 are outside the `§0` skip escape; convergence cannot be reported without both having
+   run.
+7. Level-triggered: a re-run after a partial round is a no-op on already-converged members.
+8. `bash tests/validate-plugin.sh` passes (0 new errors).
 
 **Scope-discipline 6Q:** (1) Is the register derived from a live provider read, not a snapshot?
 (2) Is discovery/looping composed, not reimplemented? (3) Is every loss-bearing surface gated?
@@ -298,3 +316,6 @@ fired (E5 → narrow the trigger, not auto-deprecate).
 ## License
 
 MIT (matches multi-agent-os repo `LICENSE`).
+
+---
+*Signed: kirocrew-worker · 2026-10-21T10:29:28-03:00*

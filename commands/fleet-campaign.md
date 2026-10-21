@@ -75,3 +75,6 @@ so the projection stays current.
 
 - `skills/fleet-campaign/SKILL.md` (the method — nine laws, six phases, hard limits)
 - `skills/fleet-campaign/references/worked-example.md` (the measured campaign behind the laws)
+
+---
+*Signed: kirocrew-worker · 2026-10-21T10:29:28-03:00*

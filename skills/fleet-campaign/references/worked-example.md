@@ -119,14 +119,39 @@ provider reads *before* editing, not after the read-back disagrees with you.
 Per member, after the merge, on the **default** ref explicitly:
 
 ```
-gh api -i repos/{o}/{r}/contents/.github/dependabot.yml | head -1   # expect 404
-gh pr list --repo {o}/{r} --author app/dependabot --state open --json number --jq 'length'   # expect 0
-gh api -i repos/{o}/{r}/vulnerability-alerts | head -1              # expect UNCHANGED (204 where it was 204)
+# the config file — BOTH supported filenames, the same pair P1 discovered with
+gh api -i repos/{o}/{r}/contents/.github/dependabot.yml  | head -1   # expect 404
+gh api -i repos/{o}/{r}/contents/.github/dependabot.yaml | head -1   # expect 404
+
+# open SCHEDULED-BUMP PRs only — the author is shared with security fixes, so filter
+gh pr list --repo {o}/{r} --author app/dependabot --state open \
+  --json number,title,labels \
+  --jq '[.[] | select(any(.labels[].name; . == "dependencies"))
+             | select(any(.labels[].name; . == "security") | not)] | length'   # expect 0
+
+# detection — must be UNCHANGED (204 where it was 204)
+gh api -i repos/{o}/{r}/vulnerability-alerts | head -1
 ```
 
-The third line is the one that matters: it proves the campaign removed noise **without** trading
-away detection. All 7 members that had detection on still returned `204` after the campaign; the
-alerts-off endpoint was never called.
+Three things in that block were learned the hard way, and each is this document's own rules biting
+its own example:
+
+**Both filenames, not one.** P1 discovered the config with a `.yml` → `.yaml` fallback. A read-back
+that probes only `.yml` accepts a member that still carries `.yaml`: it returns the expected `404`,
+reports converged, and leaves scheduled updates fully configured. The read-back must probe exactly
+the set discovery probes — anything narrower is a false completion.
+
+**Count scheduled bumps, not every PR by that author.** The vendor opens **both** scheduled version
+bumps and **security fixes** under the same author. A bare `--author app/dependabot --state open`
+count therefore fails acceptance while a perfectly valid security-fix PR is open — and the obvious
+way to make it pass is to close that security fix, which delays remediation. That is exactly the
+**L1** trap (acting on the bundle instead of the surface) reappearing inside the acceptance check.
+Security-fix PRs are **out of scope**: never counted, never closed to satisfy the campaign, and a
+request to close one is a separate, explicitly authorized decision.
+
+**Detection unchanged is the clause that matters.** It proves the campaign removed noise **without**
+trading away detection. All 7 members that had detection on still returned `204` after the campaign;
+the alerts-off endpoint was never called.
 
 Every worker `done` was re-run this way by the conductor before entering the register. Two
 re-measurements disagreed with the claim and changed the plan — **L8**. The lesson is not that the
@@ -161,3 +186,6 @@ Three rounds: measure → act per boundary → verify and converge the Gitflow r
 
 `ekson73/multi-agent-os` (this repository) and `ekson73/ekora` only. Everything in the client
 organization is `C1…C6`, deliberately.
+
+---
+*Signed: kirocrew-worker · 2026-10-21T10:29:28-03:00*
