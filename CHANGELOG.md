@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — canonical execution ticket body
+
+- The spec–backlog–ticket reconciler single issue template now includes explicit in/out scope, constraints and gates, a verification method with planned versus observed evidence, and an actionable next step. It serves both informal spec-as-prompt and ticket-as-spec usage while the source specification retains authority.
+
+### Added — portable spec–backlog–ticket reconciliation skill
+
+- `skills/spec-backlog-ticket-reconciler/SKILL.md` discovers authoritative specification artifacts and reconciles pending outcomes against complete local/GitHub/Jira/Linear inventories, with collision gates, dry-run approval, mandatory campaign-level independent adversarial review before H11/H10/H7 or other red-team-triggered writes (HOLD if HIGH and no verifier), and post-write read-back. Standalone installations without the sibling red-team skill are plan-only/HOLD for writes. Its single canonical issue body is in `templates/issue-body.md`; no provider-specific writer or assumed framework layout.
+- Guarded reconciliation now requires one independent refuter for MEDIUM campaigns without a hard trigger, re-approval after material source/destination changes, and endpoint-documented atomic write protection for automatic full-body edits; otherwise it HOLDs the edit and returns a proposed manual merge diff. Safe native field-only/append operations remain eligible when they preserve unrelated content.
+- The reconciler now declares its cross-vendor spec-lifecycle metadata, model/agent invocation surface (no slash wrapper), BEING priority, qualitative sunset, references, MIT license and pending dogfood status; write gates are unchanged.
+- `skills/README.md` lists this reconciler (94 tracked skills after syncing with `main`).
+- The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
+- Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
 
 ### Added — seat profile (six org levels) and three delivery agents
 
