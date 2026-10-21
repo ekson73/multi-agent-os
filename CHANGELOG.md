@@ -7,6 +7,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — seat profile (six org levels) and three delivery agents
+
+- New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
+  Orchestrator, Managerial, Tactical, Operational) with human analogs, a default RACI per level,
+  delegation shapes, objective layers, and the 14 seat attributes every delivery agent declares.
+  Describes fit only; grants no authority.
+- New agents `solution-architect`, `devsecops-engineer` and `devops-engineer` (v1.0.0, `latent`
+  until two dogfood cycles): forged after a reuse check found <50% in-repo coverage for each;
+  names decided via `anima`. Role Coverage Map and the cowork autonomy policy list them.
+- Coverage Map: Solution Architect, DevSecOps and hosted DevOps reclassified `EXISTS` → `GAP→NEW`
+  because their prior providers are external plugins not shipped here; those stay listed as optional.
+- `forge` Step 3 now loads `SEAT-PROFILE.md` and emits `## Seat Profile` and `## Role Contract`
+  (`status: latent`) for every new agent; the completion checklist requires both. The three new
+  agents carry the mandatory pt-BR line in their descriptions.
+- `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
+
+### Changed — ticket-first traceability (#484)
+
+- Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
+- Preflight searches/reuses or creates in an authorized destination before implementation;
+  outages retain a durable pending-ticket outbox, never a public-provider fallback.
+- Postflight reconciles pending records and carries unresolved work into handoff without
+  blocking safe exit. Existing provider schemas and batching remain canonical.
+- Add static regression contract tests to the plugin validator, align the command entry
+  point, and bind durable deferral to existing authorized claude-mem work state with indexed
+  cold recovery and an isolated installed-source smoke test. Missing/failed storage is
+  explicitly unsupported for durable deferral, not success. No changed seed fields,
+  new storage, dependencies, network hooks or global installation.
+
+### Added — `person-agent-creator` and the first three person-agents
+
+- New skill `skills/person-agent-creator/` and agent `agents/person-agent-creator.md`, for subjects of
+  five classes (living public figure, historical figure, fictional or archetypal character, collective,
+  non-human metaphor) used as advisory lenses for decisions, tiebreaks between ideas and councils — never
+  as an authority, a gate or a substitute for an independent reviewer (every charter carries a
+  "consultative lens, not an authority" paragraph). DRY recon,
+  sourced research dossier, 33 Socratic person-questions (mapped to charter fields and disciplines),
+  five-lens synthesis, charter template, and a deterministic lint floor
+  (`scripts/lint-person-agent.sh`, 201 offline fixtures in `scripts/test-lint-person-agent.sh`, also
+  run in `ubuntu:24.04` under `LC_ALL=C.UTF-8`). Every check reads one normalization pre-pass (fences and comments out of the structure view, soft line breaks joined, accents and case folded, headings trimmed); an unclosed HTML comment or code fence fails, and so do a heading or Fidelity row containing `<!--` and a setext or HTML heading in *Known limits*; nothing to check is a failure, and every occurrence is read (one `Source ids` column and one header row in the Fidelity table, one `Class basis:` line, autolinks and bare URLs removed whole, Fidelity rows closed by a pipe and free of escaped pipes); the lint is frozen as a floor by a stop rule, and obfuscation variants are known limits. The floor checks only: a valid `subject_class` inside a closed front matter (YAML-like lines only, no body heading inside it), a `Class basis:` line with strict `S<digits>` dossier ids for fictional and non-human charters only, that every
+  source id in the Fidelity table exists in the dossier (reversed ranges and suffixed ids fail; ranges
+  expand only up to the highest dossier id), every `## ` section of the
+  charter template (read from the template at run time) (including *Revalidation*) and one fidelity table inside `## Fidelity` with a `Source ids` column, unfilled placeholders, a source
+  marker on blockquote lines that contain a quotation (presence, not existence of the id), words from
+  non-exhaustive clinical (every class; only lines labeled `Literary analysis:` or `Metaphor:` are exempt in their class — a change of class is a panel finding) and cultural lists outside *Known limits*, and a bounded list of first-person,
+  role-play and endorsement patterns (English and Portuguese). A double-quoted span counts as a sourced
+  citation only when a source marker follows it; text inside fenced code blocks and HTML comments is
+  ignored, and headings there do not count as sections; fences and comments exclude each other as in a
+  renderer, and inline code never opens either. It runs with `LC_ALL=C`, checks the exit status of every
+  tool it calls and treats any tool error as a failure (proved by breaking `sed`, `head`, `cut`,
+  `dirname`, `grep` and `awk` in the fixtures). Out of scope (listed in the skill): other languages, third-person
+  endorsement, obfuscated text, single-quoted spans. It does not validate personification or
+  endorsement semantically: every run prints a warning and
+  `--json` carries `"semantic_validated": false`. A mandatory merge gate requires a review panel
+  (adversarial, living-person risk, source fidelity) with a declared independence grade (`vendor`
+  preferred, `context` allowed and recorded, `self` never clears), recorded on the pull request at the
+  current head; adversarial escapes become new lint fixtures. In a host that cannot delegate, the panel
+  lenses run as sequential passes recorded as `panel: sequential-single-author`; that is grade `self`,
+  which never clears the gate on its own. When the subject's company makes the
+  reviewer's model, the panel must include a `vendor` or human reviewer, otherwise the gate holds.
+  Independent reviewers are spawned through `skills/delegate-governance/SKILL.md`.
+  Guardrails: no impersonation, verbatim quotes only with source, no remote clinical labels
+  (Goldwater-rule principle), cultural inputs (zodiac, numerology) labeled non-evidential.
+- Elevated in place to v2.0.0 person-agents, each with a dossier under
+  `skills/person-agent-creator/dossiers/`: `consultants/elon-musk`, `consultants/sam-altman`,
+  `consultants/amodei-siblings` (collective mind).
+
+### Fixed — unsourced quotes in three consultant archetypes
+
+- The v1.0.0 headline quotes of `sam-altman` and `amodei-siblings` were not found in any source checked
+  and were removed; `elon-musk`'s was not verified against a primary transcript and is now a labeled
+  paraphrase. Replacements are verbatim lines from the subjects' own writing, with sources.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
