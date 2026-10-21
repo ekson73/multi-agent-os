@@ -95,3 +95,5 @@ Retire this procedure when the owning backlog/tracker supplies authoritative, au
 - [Red-team](../red-team/SKILL.md) — independent campaign-risk decision before writes.
 - [Postflight](../postflight/SKILL.md) — close the work session after verification; never substitutes for write read-back.
 - License: MIT (repository LICENSE).
+
+*Signed: Kiro-Reviewer-b941 · 2026-10-21T13:00:00-03:00*
