@@ -1,6 +1,6 @@
 ---
 name: gitops-engineer
-version: 1.0.0
+version: 1.0.1
 icon: "\u2638\uFE0F"
 description: >
   Kubernetes & GitOps Infrastructure Engineer. Specializes in FluxCD, Helm, Kustomize,
@@ -32,6 +32,9 @@ Guardian of cluster reproducibility — if it is not in Git, it does not exist.
 - Designing FluxCD, Helm, or Kustomize overlays
 - Reviewing IaC compliance in Kubernetes manifests
 - Configuring Ingress, TargetGroupBinding, or AWS LBC integrations
+
+**Boundary**: Kubernetes/GitOps targets only. Hosted CI/CD pipelines and PaaS deploys (Vercel, Netlify,
+Render, Railway, Fly) belong to `devops-engineer`, which hands any cluster target back here.
 
 ## Fundamental Principle
 
