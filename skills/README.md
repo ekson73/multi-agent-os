@@ -44,6 +44,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `eisenhower-matrix` | `eisenhower-matrix/SKILL.md` | List unresolved pendencies for --scope=[current\|session\|repo\|vault\|all] ordered by Eisenhower matrix (Q1 urgent+important → Q4). |
 | `enhance-pipeline` | `enhance-pipeline/SKILL.md` | Drive ONE feature/enhancement through the full divergent→convergent→deliver lifecycle: EXPAND (analyze · internal+external research · find gaps/fails/ |
 | `find-docs` | `find-docs/SKILL.md` | Retrieves and queries up-to-date documentation and code examples from Context7 for any programming library or framework. |
+| `fleet-campaign` | `fleet-campaign/SKILL.md` | Converge a FLEET of provider-managed resources (N repos across M owners/orgs, N accounts, N clusters) to ONE declared configuration state, in measured rounds. Soul-name Classis. |
 | `founder-playbook` | `founder-playbook/SKILL.md` | Diagnose where an AI-native startup is in its lifecycle (Idea → MVP → Launch → Scale) and route to the right stage discipline. |
 | `founder-stage-idea` | `founder-stage-idea/SKILL.md` | Idea-stage discipline for an AI-native startup: validate that a real, specific, frequent problem exists — and that your solution addresses it — BEFORE |
 | `founder-stage-launch` | `founder-stage-launch/SKILL.md` | Launch-stage discipline for an AI-native startup: turn early traction into a repeatable, channel-driven growth engine and build the company around the |
@@ -112,6 +113,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 - **Concierge routing**: `maos-concierge` · `claude-code-concierge` · `harness-concierge` · `9router-concierge` · `omniroute-concierge` · `opendesign-concierge` · `openrig-concierge` · `walkthrough-concierge`
 - **Governance & convergence**: `council-gate` · `convergence-engine` · `converge` · `red-team` · `delegate-governance` · `worktree-policy` · `anti-conflict` · `hierarchical-merge` · `ttl-policy` · `pii-masking`
 - **Loops & recovery**: `ooda-loop` · `gap-loop` · `goal-recovery` · `live-session-continuity-recovery` · `auto-pilot`
+- **Fleet & bulk convergence**: `fleet-campaign` (Classis — N resources → one declared config state, measured rounds) · `work-drain` (tracker register → DONE) · `repo-custody-transfer` (ONE repo, host→host)
 - **Founder journey**: `founder-playbook` · `founder-stage-idea` · `founder-stage-mvp` · `founder-stage-launch` · `founder-stage-scale`
 - **Specification & backlog**: `spec-backlog-ticket-reconciler` · `sprint-carryover` · `work-drain`
 - **Roadmap & prioritization**: `roadmap-tree-projector` · `eisenhower-matrix` · `work-compass`

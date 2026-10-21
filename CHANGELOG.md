@@ -19,6 +19,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
 - Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
 
+### Added — `fleet-campaign` (Classis): converge N resources to one declared config state
+
+- New skill `skills/fleet-campaign` (v0.1.0, `latent` until two dogfood cycles) + the
+  `/fleet-campaign` command wrapper. Forged through `agentic-tool-pipeline`; the Stage-1 DRY probe
+  over the existing corpus found no member deriving a work register from a **live provider
+  measurement of N resources** — `work-drain` derives from trackers, `repo-custody-transfer` is
+  N=1 host-to-host, `ooda-loop` is the generic round — so this is an addition, not a sister of an
+  existing SSOT. Named via `anima`: system-name `fleet-campaign`, soul-name **Classis**; rejected
+  `fleet-convergence` (collides semantically with `converge`/`convergence-engine`) and `census`
+  (names only the measuring half).
+- Carries the six-phase M.O. that survived a real 48-member / 2-credential-boundary / 3-round
+  campaign: DISAMBIGUATE the product name into independent surfaces classed by what is LOST when
+  each is off → RECON every member at source this round with the probe printed per column → ORIENT
+  on authority facts → SHARD one worker per credential boundary → VERIFY every worker claim at
+  source before accepting it → RE-DERIVE the register each round and close on an empty
+  re-measurement.
+- Carries nine generalized laws, each stated provider-agnostically **and** evidenced by its
+  measured instance: SURFACE-DECOMPOSITION · AUTHORITY-REF · FALSE-NEGATIVE-READ · TIER-NOT-CONFIG
+  · HOST-FLOOR-OUTRANKS-POLICY · FORK-INHERITS · INVENTORY-DECAYS · CLAIM-IS-NOT-EVIDENCE ·
+  ONE-WORKER-PER-CREDENTIAL.
+- Hard limits that `§0 BEING > Rules` never waives: turning off a loss-bearing surface
+  (detection/alerting/audit/backup), irreversible deletion, production, PII or a secret value, a
+  peer's or another org's config, a cost delta, a non-ours fork's divergence, and a declared state
+  with no read-back probe. An unanswered escalation is re-stated every round until decided.
+- `skills/fleet-campaign/references/worked-example.md` holds the concrete probe set and matrix from
+  the campaign behind the laws, redacted for an open-source repo: client-org members appear only as
+  `C1…C6`, with no host, account, ARN, secret name, person or client content.
+- Registered in `skills/README.md` (count 93 → 94, new "Fleet & bulk convergence" family) and
+  `commands/README.md`. Cross-harness reach is by projection (`npx skills add … --skill
+  fleet-campaign`), never a divergent copy: this repo stays the SSOT.
+
 ### Added — seat profile (six org levels) and three delivery agents
 
 - New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,
