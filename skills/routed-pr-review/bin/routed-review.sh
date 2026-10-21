@@ -570,7 +570,12 @@ CHOSEN="$(pick_reviewer)" || {
 log "[C] reviewer=$CHOSEN (caller=${CALLER:-unset}, isolation=fresh-process)"
 
 # ------------------------------------------- Phase D: isolated read-only run
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/routed-review.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/routed-review.XXXXXX")" || die "could not allocate review workspace (mktemp -d failed — TMPDIR full or not writable?)"
+# ⛔ Guard against an empty $WORK: the script does not use `set -e`, so a failed
+# mktemp would otherwise leave WORK="" and derive absolute paths like /diff.patch
+# and /tree — on a privileged runner that overwrites root-level files, and the
+# EXIT trap could `rm -rf` a pre-existing /tree. Refuse rather than continue.
+[ -n "$WORK" ] && [ -d "$WORK" ] || die "review workspace path is empty or not a directory — refusing to derive artifact paths"
 trap 'rm -rf "$WORK"' EXIT
 DIFF_F="$WORK/diff.patch"; PROMPT_F="$WORK/prompt.md"; OUT_F="$WORK/review.txt"
 
