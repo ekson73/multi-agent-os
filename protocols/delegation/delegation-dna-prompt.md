@@ -162,6 +162,7 @@ Optional, same block:
 ```
 depth_remaining: <int ≥ 0; at most the parent's own value − 1>
 authority_scope: <what this child may decide; a subset of the parent's>
+authority_origin: <the operator's original grant, passed down unchanged>
 ```
 
 - `depth_remaining` — `0` = leaf: do not delegate. Every parent passes it
@@ -171,10 +172,17 @@ authority_scope: <what this child may decide; a subset of the parent's>
 - `authority_scope` — a subset of the parent's; never widens. Parent-written only (§4.1).
   Absent = no grant beyond the task; exceeding, contradicting or
   unconfirmable against the parent's = treated as absent (fail-closed).
+- `authority_origin` — mandatory **whenever `authority_scope` is granted**
+  (`skills/agentic-delegation` §4.1): the operator's original grant (an
+  operator turn, or an operator comment on a PR/issue), passed down
+  **unchanged**. A parent may narrow `authority_scope` but never rewrites the
+  origin. A grant with `authority_scope` but no `authority_origin` counts as
+  missing → treated as absent (fail-closed).
 - Prompt-level, unverified prose (see §4.1 Known weakness); parent audits them.
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.2 | 2026-10-07*
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.2 | 2026-10-21*
 *v1.1: optional auto-pilot DNA payload block.*
 *v1.2 (2026-10-07): optional `depth_remaining` + `authority_scope`.*
+*v1.2 (2026-10-21): document `authority_origin` in the v1.2 block (mandatory when `authority_scope` is granted, per §4.1).*

@@ -122,4 +122,5 @@ On rejection: emit a single-line refusal with the specific rule violated, do **n
 
 ---
 
-*Source of truth: `protocols/delegation/delegation-init-prompt.md` | Version 1.0 | 2026-04-18*
+*Source of truth: `protocols/delegation/delegation-init-prompt.md` | Version 1.1 | 2026-10-21*
+*v1.1 (2026-10-21): dynamic section gains the `DEPTH_REMAINING` header field (delegator-set, its own value − 1; absent = leaf).*

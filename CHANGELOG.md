@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Rules live in `skills/agentic-delegation` §4.1 (lands with #479; merge #479
   first).
   `skills/auto-pilot` lists the two optional lines where it describes the block.
+  The v1.2 block also documents `authority_origin` (mandatory whenever
+  `authority_scope` is granted, per §4.1 — the operator's original grant passed
+  down unchanged; a scope without an origin is treated as absent, fail-closed),
+  closing the gap where a child reading only the payload would not know to carry
+  it. `delegation-init-prompt.md` bumped to v1.1 to record its new
+  `DEPTH_REMAINING` header field.
 - `tests/dogfood-auto-pilot.sh` cycle 3 greps the spec text for the fields and
   their fail-closed wording (it does not test semantics), checks that `delegate.sh dna` output still carries the v1.1 and v1.2
   template lines (spec text, not live values), and
