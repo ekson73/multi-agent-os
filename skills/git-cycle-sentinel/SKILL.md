@@ -212,24 +212,30 @@ que remove protocolo **e host (inclusive host-alias)** antes do owner, e tira o 
 
 ```
 url=$(git -C "$REPO" remote get-url "${REMOTE:-origin}")
-# tira https://<host>/  |  git@<host-ou-alias>:  |  ssh://git@<host>/   e o sufixo .git
-slug=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)##; s#\.git/?$##')
+# tira https://<host>/  |  ssh://<host>/  |  qualquer prefixo scp-style [user@]host: (inclusive
+# host-alias puro sem user, ex. "github.com-ekson73:")  |  e o sufixo .git
+slug=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+/|ssh://[^/]+/|[^/@]+@[^:/]+:|[^/@:]+:)##; s#\.git/?$##')
 # slug == "owner/repo"; RECUSA (STOP-ERROR) se não casar ^[^/]+/[^/]+$
 printf '%s' "$slug" | grep -Eq '^[^/]+/[^/]+$' || die "owner/repo não derivável de $url"
 ```
 
-O `git@[^:]+:` casa tanto `github.com` quanto `github.com-ekson73` (qualquer host-alias), de modo que
-o alias **nunca** entra no owner. O guard **bloqueia** o push quando o slug não casa `owner/repo`
-(em vez de seguir com um alvo de `gh api` errado). Verificação: `gh api repos/<slug>` deve resolver
-antes de empurrar; 404 aqui → STOP-ERROR, não push.
+As alternativas scp-style `[^/@]+@[^:/]+:` (com user, ex. `git@github.com:`, `git@github.com-ekson73:`,
+`org-123@github.com:`) e `[^/@:]+:` (alias **sem** user, ex. `github.com-ekson73:`) cobrem toda forma
+de host/host-alias — o alias **nunca** entra no owner, nem na forma `git@alias:` nem na forma
+`alias:owner/repo` pura (o furo que a 1ª versão do §A6 deixava passar). O guard **bloqueia** o push
+quando o slug não casa `owner/repo` (em vez de seguir com um alvo de `gh api` errado). Verificação:
+`gh api repos/<slug>` deve resolver antes de empurrar; 404 aqui → STOP-ERROR, não push.
 
 ### §A7 — sonda de idempotência (não-decorativa)
 O modo-falha concreto que este guard **recusa**: uma re-entrega assíncrona (mesma `idempotency_key`)
 abrir um **segundo** PR/commit/comentário. Antes de **cada** mutação a sentinela sonda o estado e
 pula o passo já feito:
 
-- **commit** — `git log --format=%H -n1 --grep="idmp:<key>"` (a key vai no trailer do commit); se já
-  existe para este `<theme>+headSha`, **não** recommita.
+- **commit** — `git log --format=%H -n1 --grep="idmp:<key>" origin/<base>..HEAD` (a key vai no trailer
+  do commit); **escopado ao range não-mergeado da branch** (`origin/<base>..HEAD`), **nunca** à
+  história alcançável inteira — senão uma key reusada numa branch mergeada-e-deletada ainda seria
+  alcançável de `HEAD` e daria falso-positivo, pulando um commit legítimo. Se já existe nesse range
+  para este `<theme>+headSha`, **não** recommita.
 - **PR** — `gh pr list --head <branch> --state all --json number` (ou busca por `idmp:<key>` no corpo);
   se já há PR para este head, **reusa** o número, não abre outro.
 - **comentário de review** — procura o marcador `<!--idmp:<key>-->` nos comentários antes de postar;
@@ -372,3 +378,4 @@ Dormant-by-design caso contrário.
 | 0.1.0 | 2026-10-21 | **Bootstrap** — forjada via metodologia `agentic-tool-pipeline`→`agentic-tool-forge` (sem CLI executável; as skills são documentos de metodologia que o agente encarna) + naming `anima` (`git-cycle-sentinel`; rejeitado `git-cycle-offloader` = drift epistemológico). Encoda a norma harmonizada de 5 fases (ENFORCE/APPLY, repo-aware), os 7 critérios de aceite (atritos vividos), Merge Queue como motor de merge, idempotência, não-regressão de assinatura, nunca `--no-verify` com pre-commit. Híbrido (script + cognitivo + self-heal). **Ainda NÃO dogfooded** — o dry-run/dogfood é o próximo passo (EKO-154). |
 | 0.1.1 | 2026-10-21 | **Dogfood cycle-1 (DRY-RUN, read-only em 6 repos, decisão-vs-norma)** — 7/7 cenários medidos na fonte. Refinados 2 guards decorativos: **A6** (host-alias) ganhou a mecânica `sed` que remove host-alias antes do owner + recusa STOP-ERROR se o slug não casa `owner/repo`; **A7** (idempotência) ganhou a sonda concreta de duplicata (commit trailer `idmp:<key>`, `gh pr list --head`, marcador de comentário) que **recusa** a mutação sem sondar antes. Tabela de repo-awareness corrigida: multi-agent-os `gpgsign` re-medido **true** (snapshot da norma dizia false) — evidência de que a regra lê-ao-vivo prevalece sobre a célula congelada. Veredito cycle-1: 5 guards firam, 2 eram decorativos (agora refinados). **NÃO promovível** — precisa cycle-2. |
 | 0.1.1 | 2026-10-21 | **Dogfood cycle-2 (EXECUÇÃO REAL, sandbox git descartável em `/tmp`)** — valida em runtime a mecânica do 0.1.1 que o cycle-1 só tinha no texto. 7/7 asserções PASS com mutação git real (nunca em repo do operador): **A1** raiz nunca mutada por checkout + publica via worktree; **A2** base-móvel integrada por `fetch`+`rebase origin/main` até `behind=0`; **A3** classifica forte/fraco lendo `gh api rules/branches` (read-only nos repos reais), não por 404; **A4** decisão de assinatura espelha `commit.gpgsign` ao vivo (mutation-check: `false→--no-gpg-sign`, `true→--gpg-sign`, nunca inverte); **A5** push por refspec literal `"$SHA:refs/heads/<br>"` verificado na fonte (SHA remoto == local); **A6** mecânica `sed` deriva owner=`ekson73` de `git@github.com-ekson73:...` (alias nunca cola no owner) e **RECUSA** URL malformada (mutation-check verde — fira, não decorativo); **A7** sonda `idmp:<key>` no trailer do commit: 2º run com mesma key NÃO duplica (mutation-check verde), key diferente cria commit novo. **VEREDITO: promovível** — ≥2 ciclos reais (cycle-1 dry-run + cycle-2 execução real) com os 2 guards antes decorativos agora firando em runtime. |
+| 0.1.1 | 2026-10-21 | **Re-refino pós-review de bots (PR #514)** — o próprio dogfood pegou 2 furos reais nos guards que o cycle-2 ainda não cobria, provando o valor do loop: **§A6** — a regex `git@[^:]+:` só pegava alias com `git@`; um alias **puro** `github.com-ekson73:owner/repo.git` (sem `git@`, forma de `~/.ssh/config`) colava no owner. Corrigido para scp-style genérico `[^/@]+@[^:/]+:\|[^/@:]+:` (cobre alias com e sem user; re-validado nas 6 formas + mutation-check). **§A7** — a sonda `git log --grep=idmp:<key>` varria a **história alcançável inteira**, dando falso-positivo se a key fora usada numa branch mergeada-e-deletada; escopada para `origin/<base>..HEAD` (provado em sandbox: a antiga acha a key mergeada, a nova não, e ainda detecta duplicata real da branch ativa). **CHANGELOG.md** do repo ganhou a entrada Unreleased do 0.1.1 (contrato AGENTS.md). |
