@@ -7,8 +7,8 @@
 #  *          corrected text + side-by-side diff + audit JSON.
 #  * @reason Closes ASR-error gap before downstream consumers ingest. Default-safe
 #  *          (review-only mode; inline writes require HITL auth flag).
-#  * @impact Empirically validated against Confluence page 900000001 (Nilson→Nelvael
-#  *          golden test, PDCA cycle 0).
+#  * @impact Validated against the synthetic golden fixture (Ptwo→P2,
+#  *          PDCA cycle 0). Real rosters stay outside this public tree.
 #  */
 set -euo pipefail
 
@@ -54,8 +54,8 @@ Options:
   -h, --help                 Show this help
 
 Examples:
-  # Golden test (Nilson → Nelvael, page 900000001)
-  $(basename "$0") --source confluence:900000001 --language pt-br --mode review-only
+  # Golden test (synthetic mishearing Ptwo -> P2)
+  $(basename "$0") --source skills/transcript-corrector/pdca/fixture-synthetic-excerpt.md --language en-us --mode review-only
 
   # Inline replace (requires operator HITL auth)
   $(basename "$0") --source path/to/transcript.md --language pt-br \\
