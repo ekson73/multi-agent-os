@@ -26,16 +26,18 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 | Fase | Ação | Delega a |
 |------|------|----------|
 | **1 STAGE** | scoped-add (nunca `-A` cego) · gitleaks · `status -sb` limpo | `ship`/`pr` · `corpus-git-persistence-discipline` |
-| **2 WORKTREE** | preflight fail-closed · raiz fora da default segue em worktree nova a partir de `origin/<default>` · branch `agent/<owner>-<theme>` | `worktree-policy` · `worktree-gate.sh` · `anti-conflict` |
-| **3 PR-CYCLE** | **une** proteção clássica + rulesets ANTES de empurrar → classifica (PR obrigatório · checks · ator contorna) → commit com assinatura verificada no ambiente → PR (se forte) | `gh api` · `pr-review-protocol` · `ai-code-review-bots-rotation` |
-| **4 MERGE** | rebase+retry (base móvel) → push refspec-literal → merge só com `--match-head-commit` (checks verdes, zero thread; portão desconhecido bloqueia) → **Merge Queue** / mergify / hierarchical | `hierarchical-merge` · `mergify-*` · `definition-of-well-done` |
+| **2 WORKTREE** | preflight fail-closed · raiz fora da default segue em worktree nova a partir de `origin/<default>` · `.githooks/` com `core.hooksPath` vazio vira config local · branch `agent/<owner>-<theme>` | `worktree-policy` · `worktree-gate.sh` · `anti-conflict` |
+| **3 PR-CYCLE** | **une** proteção clássica + rulesets (403 estrito = desconhecido, sem forte-parcial) → classifica (PR · checks · ator contorna) → lê automações que mesclam → commit assinado + trailer `idmp: <key>` → PR; [NÃO MESCLAR] abre rascunho com `do-not-merge` | `gh api` · `pr-review-protocol` · `ai-code-review-bots-rotation` · `converge` |
+| **4 MERGE** | update-branch por rebase se histórico linear · merge só com `--match-head-commit` (checks verdes, zero thread, `APPROVED` justificado, sem refutação aberta, sem [NÃO MESCLAR], sem conta proibida; desconhecido bloqueia) → **Merge Queue** / mergify / hierarchical | `hierarchical-merge` · `mergify-*` · `definition-of-well-done` · `converge` |
 | **5 BOY-SCOUT** | remove worktree+branch → `ff-only` sync da raiz → triage Eisenhower | `sync-to-git` · `ship` · `careful` |
 
 ## Comportamento (obedece-ou-supre, nunca regride)
 
 - **Portão lido pela união** da proteção clássica com os rulesets (a regra mais restritiva vence),
-  antes de empurrar. 403, 5xx, timeout ou outro erro conta como **desconhecido** e bloqueia o merge
-  autônomo; um 404 sozinho não prova portão fraco. Exemplo de repo: `owner/repo`.
+  antes de empurrar. 403, 5xx, timeout ou outro erro conta como **desconhecido**. **Regra estrita
+  do 403**: sem leitura da proteção clássica não há merge autônomo e não existe "forte-parcial"; o
+  resumo `branches/<b>` só lista checks a esperar e nunca libera merge. Um 404 sozinho não prova
+  portão fraco. Exemplo de repo: `owner/repo`.
 - **Classificação** em três eixos: PR obrigatório, checks obrigatórios, e se o ator consegue
   contornar. Forte = os três, sem contorno (proteção clássica com as mesmas regras equivale a
   ruleset). Fraco para o ator **não libera nada**: sem `--admin`, sem bypass, sem push direto na base.
@@ -46,14 +48,38 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 - **Preflight**: raiz fora da default (outra branch, HEAD destacado, worktrees anexadas) não é
   trocada nem limpa. O trabalho segue numa worktree nova a partir de `origin/<default>`, preservando
   o que está na raiz.
-- **Merge preso ao SHA**: só com `--match-head-commit`, checks obrigatórios verdes e zero thread
-  aberta. A linha de status cita o SHA do head e o SHA do merge. Portão desconhecido nunca mescla
-  sozinho. Decisão técnica é autônoma; política, credenciais, gastos, irreversível, produção e
-  ampliação de acesso exigem aprovação explícita do humano dono.
+- **`.githooks`**: em clone novo, se o diretório existe e `core.hooksPath` não está definido,
+  ativar com `git config core.hooksPath .githooks` (config local). Husky, pre-commit ou outro
+  hooksPath existente é respeitado, e o commit confere que o hook rodou.
+- **Merge preso ao SHA**: só com `--match-head-commit`, checks obrigatórios verdes, zero thread
+  aberta, `APPROVED` justificado de aprovador capacitado no head, sem refutação justificada em
+  aberto, sem marcador [NÃO MESCLAR] nem label `do-not-merge`, e sem conta proibida no portão. A
+  linha de status cita o SHA do head e o SHA do merge. Portão desconhecido nunca mescla sozinho.
+  Decisão técnica é autônoma; política, credenciais, gastos, irreversível, produção e ampliação de
+  acesso exigem aprovação explícita do humano dono.
+- **Update-branch**: com histórico linear exigido, nunca por merge. Usar
+  `gh pr update-branch --rebase` (só na branch própria, pela regra de force-push) ou não atualizar.
+- **[NÃO MESCLAR]**: PR de teste ou marcado abre como rascunho, com label `do-not-merge` e sem
+  auto-merge. O merge é recusado com o marcador no título ou com a label. Automação que possa
+  mesclar ignorando isso → fechar o PR após o teste.
+- **Automações que mesclam**: lidas, sem mutar (fila de merge, `allow_auto_merge`, Mergify, apps de
+  aprovação, bots e workflows que chamem `gh pr merge`). Registradas em `merge_automations`.
+- **Aprovação**: aprovador capacitado é qualquer bot, agente ou app, de qualquer fornecedor, com
+  identidade própria (não conta humana nem a do dono), `APPROVED` real no head e requisitos do
+  projeto aprovados pelo dono. Sem lista fechada; a lista de contas proibidas prevalece. A
+  sentinela lê a política do projeto e não a edita. `APPROVED` sem justificativa no corpo não conta.
+  Revisor sem cota, com rate limit ou que não completou a revisão não conta, mesmo com check
+  "pass"/"success".
+- **Refutação**: uma refutação justificada e em aberto bloqueia o merge até convergência unânime
+  registrada no PR (`skills/converge/SKILL.md`). Maioria ou limiar não bastam.
 - **Force-push**: nunca na branch default. Em branch, só na criada pelo próprio agente e com
   `--force-with-lease`.
-- **Contas**: contas de outro domínio ou organização não aprovam nem atuam.
-- **Idempotente** (A7): re-execução não duplica commit/PR/comentário (`idempotency_key`).
+- **Contas**: contas de outro domínio ou organização não aprovam nem atuam. Conta proibida (lista
+  fora do repo) não é usada, pedida como reviewer nem posta em allowlist, `CODEOWNERS` ou workflow.
+  Se aparecer no repo, bloqueia **só o merge autônomo**; branch, commit e PR seguem.
+- **Idempotente** (A7): trailer canônico `idmp: <key>` (com espaço); a leitura também aceita
+  `idmp:<key>`. Marcador de PR e comentário: `<!--idmp:<key>-->`. Re-execução não duplica
+  commit, PR nem comentário.
 - **Self-heal**: harness só por assinatura já paga, sem chave de API cobrada por uso, teto de 6
   tentativas. Irreparável ou HUMAN_DOMAIN escala com a linha de status.
 - **Processos**: encerra só pelo PID que ela mesma iniciou ou pela própria porta.
@@ -73,8 +99,8 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 ─────────────────────────────────────────────────
 repo      owner/repo               gate  strong|weak|unknown   model  trunk
 signed    verified-in-env          worktree  agent/owner-theme
-push      refspec-literal OK       merge  --match-head-commit (checks verdes, zero thread)
-pr        #123                     head <sha>  merge <sha>  status CYCLED
+push      refspec-literal OK       merge  --match-head-commit (APPROVED justificado, sem refutação)
+pr        #123                     head <sha>  merge <sha>  idmp <key>  status CYCLED
 ─────────────────────────────────────────────────
 <!--ORCH-STATUS: STOP-DONE -->
 ```
@@ -82,8 +108,12 @@ pr        #123                     head <sha>  merge <sha>  status CYCLED
 ## Integration
 
 - Skill: [`skills/git-cycle-sentinel/SKILL.md`](../skills/git-cycle-sentinel/SKILL.md) (o orquestrador, v0.2.0).
-- Harness com agente de nuvem: o agente de nuvem cria a branch, commita, empurra e abre o PR; o
-  coordenador verifica, decide o merge amarrado ao head e não faz checkout local.
+- Quem pode o quê: o executor de código clona no ambiente de execução, cria a branch, commita,
+  empurra e abre o PR. O coordenador sem credencial própria lê o portão, comenta, rotula e pode
+  mesclar PR técnico se os guardrails passarem, pelo conector, e pede ao executor o que mutar.
+  Ninguém faz checkout nas máquinas do usuário. `--admin`, dismiss, `--no-verify` e bypass de
+  assinatura são nunca. A tabela completa está na skill.
+- Convergência de refutação: [`skills/converge/SKILL.md`](../skills/converge/SKILL.md).
 - Genesis: `skills/agentic-tool-pipeline` → `skills/agentic-tool-forge` + `skills/anima`.
 - Composes (delega, não reimplementa): `worktree-policy` · `anti-conflict` · `hierarchical-merge` ·
   `sync-to-git` · `plugin-scripts/governance/worktree-gate.sh` · GitHub Merge Queue / `mergify-*`.

@@ -1,21 +1,17 @@
 ---
 name: git-cycle-sentinel
 description: |
-  Orquestrador idempotente e repo-aware do ciclo-git completo (add · worktree · pr-cycle ·
-  merge · boy-scout) — o agente apenas SALVA (escreve no FS); o ciclo (stage · worktree ·
-  branch · commit assinado · push · PR · fila de merge · limpeza) roda como processo
-  autônomo, devolvendo ao agente só uma linha de status e pings quando precisa de decisão.
-  Sentinela: OBEDECE onde o portão remoto é forte (ruleset OU proteção clássica de branch que
-  imponha PR/review + checks obrigatórios, classificado pelas garantias efetivas) e SUPRE os próprios guardrails onde é fraco (no-direct-main, scoped-add, gitleaks,
-  worktree). Lê o ruleset antes de empurrar, detecta o modelo de branch (Gitflow vs trunk),
-  nunca regride assinatura, nunca usa --no-verify num repo com pre-commit ativo, empurra com
-  refspec literal + rebase/retry por base móvel, e é idempotente por idempotency_key. Usa a
-  GitHub Merge Queue como motor de merge quando disponível. NUNCA pula gate, nunca dispensa
-  review, nunca usa --admin nem bypass de assinatura; merge só amarrado ao head
-  (--match-head-commit). HÍBRIDO: parte determinística
-  (scripts/gates) + parte cognitiva (julgamento APPLY) + self-heal. Triggers: "rode o
-  git-cycle", "git-cycle-sentinel", "feche o ciclo-git deste worktree", "empurre e abra o PR
-  por mim", "run the git cycle", "offload the git cycle".
+  Orquestrador idempotente e repo-aware do ciclo-git completo (stage, worktree, commit
+  assinado, push, PR, merge, limpeza): o agente só salva arquivos e a sentinela roda o ciclo,
+  devolvendo uma linha de status e pings quando precisa de decisão. Lê o portão real antes
+  de empurrar (rulesets e proteção clássica, pelas garantias efetivas; leitura falha =
+  desconhecido, sem merge autônomo), obedece onde é forte e supre guardrails onde é fraco
+  (no-direct-main, scoped-add, gitleaks, worktree). Detecta Gitflow ou trunk, usa a Merge
+  Queue quando houver, idempotente por trailer idmp. Nunca pula gate, nunca dispensa review,
+  nunca usa --admin, --no-verify nem bypass de assinatura; merge só com --match-head-commit,
+  checks verdes, APPROVED justificado de aprovador capacitado e sem refutação aberta.
+  Triggers: "rode o git-cycle", "git-cycle-sentinel", "feche o ciclo-git deste worktree",
+  "empurre e abra o PR por mim", "run the git cycle", "offload the git cycle".
 triggers:
   - git-cycle-sentinel
   - rode o git-cycle
@@ -105,13 +101,28 @@ escreve arquivos no FS   ──dispara──▶      preflight fail-closed
                                            boy-scout: remove worktree/branch, ff-only, triage
 ```
 
-**Harness com agente de nuvem (cloud agent).** Em harnesses onde o trabalho de repositório é
-feito por um agente de nuvem, a divisão muda sem mudar a norma: o **agente de nuvem** cria a branch,
-faz os commits (stage com escopo, assinatura conforme o repo), empurra e abre o PR com o marcador de
-idempotência; o **coordenador** não faz checkout local nas máquinas do usuário e nunca abre PR
-por fora do agente de nuvem; ele **verifica e decide** (lê o portão, acompanha checks e reviews,
-atualiza a branch pelo provedor, decide merge autônomo vs HITL, mescla amarrado ao head e confirma a
-limpeza) e **delega** ao agente de nuvem as correções de self-heal e rebases.
+**Quem pode o quê (harness com agente de nuvem ou com executor próprio).** Em harnesses onde o
+trabalho de repositório é feito por um executor de código (agente de nuvem ou agente de engenharia
+com CLI `gh` e credencial próprias), a divisão muda sem mudar a norma: o **executor** pode clonar
+no ambiente de execução, criar a branch, commitar, empurrar e abrir o PR; o **coordenador** sem
+credencial própria verifica e decide pelo conector do provedor e pede ao executor o que mutar;
+ninguém faz checkout nas máquinas do usuário.
+
+| Ação | Coordenador (sem credencial própria) | Executor de código | Humano dono |
+|---|---|---|---|
+| Ler o portão (rulesets, proteção clássica, automações) | sim (conector) | sim | sim |
+| Clonar no ambiente de execução | não | sim | sim |
+| Checkout nas máquinas do usuário | não | não | só ele |
+| Branch, commit e push da branch do ciclo | não (pede ao executor) | sim | sim |
+| Abrir PR | não (pede ao executor) | sim | sim |
+| Update branch (respeitando histórico linear) | sim (conector) | sim | sim |
+| Force-push `--force-with-lease` na branch própria | não | só na branch que criou | sim |
+| Comentar, pôr label `do-not-merge`, fechar o PR do ciclo | sim | sim | sim |
+| Aprovar PR | não | só se for aprovador capacitado e não for o autor | sim |
+| Merge autônomo de PR técnico | sim, se todos os guardrails passarem | só se a política do projeto delegar | sim |
+| Merge de política, proteção, segredo, gasto, produção, acesso ou irreversível | não (`STOP-HITL`) | não | sim |
+| Mudar proteção, ruleset, `CODEOWNERS`, allowlist ou workflow de portão | não | não | sim |
+| `--admin`, dismiss de review, `--no-verify`, bypass de assinatura | nunca | nunca | fora desta skill |
 
 O agente recebe **feedback + pings apenas quando necessário** (decisão de review, conflito que
 exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
@@ -125,7 +136,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
 | `--owner <id>` | git user | Dono do worktree/branch. |
 | `--async` | `true` | Dispara o ciclo e retorna a linha de status; `false` = síncrono (debug). |
 | `--merge-engine` | `auto` | `merge-queue` (GitHub MQ) · `mergify` · `hierarchical` · `auto` (detecta). |
-| `--idempotency-key` | hash(repo+theme+baseSha) | Re-entrega não duplica commit/PR/comentário. `baseSha` (não `headSha`) mantém a key estável entre reruns — ver §A7. |
+| `--idempotency-key` | `<theme>-<repo>-<AAAAMMDD>` (data da 1ª invocação; minúsculas, `[a-z0-9-]`, ≤ 64) | Re-entrega não duplica commit/PR/comentário. A key é **persistida** no 1º artefato e relida nos reruns — ver §A7. |
 | `--dry-run` | `false` | Roda preflight + classifica o repo + imprime o plano; **não** muta nada. |
 | `--json` | off | Emite o envelope de máquina (§ Machine output) em vez de prosa. |
 
@@ -157,6 +168,10 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   remotas). Mudanças não commitadas ou commits só locais na raiz são preservados e registrados
   na linha de status, nunca descartados. Origin que não deriva `owner/repo` (ex. caminho local)
   → `STOP-ERROR` (§A6).
+- **ENFORCE · repo-aware** — **hooks em clone novo**: se existe `.githooks/` e `core.hooksPath` não
+  está definido, ativar com `git config core.hooksPath .githooks` (config local do clone); se o repo
+  já usa outro mecanismo (husky, pre-commit, outro hooksPath), respeitar o existente. Conferir que o
+  hook rodou no commit. Sem isso, "respeitar hooks" passaria em branco.
 - **ENFORCE** — branch rastreável `agent/<owner>-<theme>` via `git worktree add -b`; nunca
   `--force` sobre worktree ocupada. Delega a skill **`worktree-policy`** (v1.1.0) e ao gate
   `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
@@ -177,6 +192,10 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   timeout ou outro erro = DESCONHECIDO**. Um 404 nunca prova portão fraco sozinho. (→ lição
   `ruleset-vs-404`, agora no sentido correto: 404 clássico não prova fraco, mas a clássica
   **sempre** é lida)
+  **Regra estrita do 403**: sem leitura da proteção clássica (403 para ator sem admin, ou erro), o
+  estado é **desconhecido** e não há merge autônomo. O resumo `gh api
+  repos/<owner>/<repo>/branches/<b>` (`protected`, `protection.required_status_checks`) serve **só**
+  para listar os checks a esperar e **nunca** libera merge. Não existe estado "forte-parcial".
 - **ENFORCE · repo-aware** — **classificar pelas garantias efetivas, em três eixos**: (a) PR
   obrigatório (`pull_request` ou `required_pull_request_reviews`, com ou sem mínimo de
   aprovações); (b) checks obrigatórios (`required_status_checks` em qualquer fonte); (c) **o ator
@@ -191,22 +210,49 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   - **Fraco para o ator não libera nada**: o plano obedece a todas as regras lidas (PR, checks,
     resolução de conversas, histórico linear) e **nunca** usa `--admin` nem bypass; a sentinela
     ainda supre os guardrails em software.
+- **ENFORCE · repo-aware** — **automações que podem mesclar ou aprovar por fora** (leitura, sem
+  mutar): fila de merge (`merge_queue` em ruleset), `allow_auto_merge`, configuração do Mergify
+  (`.mergify.yml`, `.github/mergify.yml`, `.mergify/config.yml`) e seus check-runs, apps de aprovação
+  automática (roteadores e aprovadores de PR de qualquer fornecedor), bots de merge e workflows que
+  chamem `gh pr merge`, `--auto` ou `gh pr review --approve`. Registrar em `merge_automations`
+  (nome, gatilho, se respeita label/rascunho).
+- **ENFORCE** — **[NÃO MESCLAR] bloqueia de fato**: PR de teste ou marcado abre como **rascunho**,
+  recebe a label `do-not-merge` (criar a label, se faltar, é técnico e reversível), sem auto-merge;
+  antes de sair e antes de qualquer merge conferir `isDraft=true`, a label e `autoMergeRequest`
+  vazio. O merge é recusado com o marcador no título ou com a label. Automação que possa mesclar
+  ignorando isso → fechar o PR logo após o teste.
 - **ENFORCE · repo-aware** — onde o portão é forte (ex. um repo com PR + checks strict +
   assinatura): **nunca push direto
   em main** — abrir PR, aguardar os checks strict (ex. `build (lint·type·test·bundle)`), resolver
   threads, assinar.
 - **APPLY** — DoD de PR (5 itens): worktree+branch · PR aberto c/ descrição · convergência de bots
   · merge por caminho autorizado · cleanup. (→ `pr-review-protocol` §5)
-- **APPLY** — veredito de review vale só para o `headRefOid` atual; bot sem cota é roteado, nunca
-  dado como aprovado. (→ `ai-code-review-bots-rotation` §7)
+- **APPLY** — veredito de review vale só para o `headRefOid` atual; bot sem cota, com rate limit
+  ou que não completou a revisão é roteado ou registrado como ausente, nunca dado como aprovado,
+  mesmo que o check dele apareça como "pass"/"success". (→ `ai-code-review-bots-rotation` §7)
+- **ENFORCE** — **aprovador capacitado**: pode aprovar qualquer bot, agente ou app capacitado, de
+  qualquer fornecedor ou harness (sem lista fechada). Capacitado = (a) identidade própria de bot ou
+  app (não conta humana nem a conta do dono); (b) emite um review `APPROVED` real e rastreável no
+  provedor, no head atual; (c) teve aprovados pelo dono do projeto os requisitos e protocolos de
+  git-cycle, pr-pdca e gates do projeto. A lista de contas proibidas do projeto **sempre prevalece**.
+  A política concreta (quem está capacitado) fica **no próprio projeto**, num arquivo mantido pelo
+  dono (ex. o arquivo do portão de origem); a sentinela lê e não edita.
+- **ENFORCE** — **justificativa e refutação**: `APPROVED` sem justificativa no corpo do review não
+  conta. Uma refutação justificada e em aberto, de qualquer agente, **bloqueia o merge** até haver
+  **convergência unânime registrada no PR** (cada refutante registra acordo, ou a refutação é
+  endereçada e o autor dela confirma); maioria ou limiar não bastam. O debate segue o protocolo de
+  debate e convergência do repo: `skills/converge/SKILL.md` (canônico, 5 atos) aplicado ao canal do
+  PR por `docs/auto-pilot/GIT-PR-AS-DEBATE-PROMPT.md`; para merge, a exigência é mais estrita que o
+  `consensus_threshold` desses arquivos. `no-convergence-possible` → `pr-arbiter`/HITL.
 - **ENFORCE** — autor≠approver **legítimo**: nenhum agente aprova o próprio PR nem usa uma
   segunda conta do mesmo dono (segunda identidade) para cumprir a exigência de aprovação. Contas de
   outro domínio ou organização não aprovam nem atuam no repo (não revisam, não empurram, não
   mesclam). Sem revisor legítimo disponível → `STOP-HITL`.
 - **ENFORCE** — **contas proibidas**: a sentinela consulta uma lista de contas proibidas mantida
   **fora do repositório** (configuração privada do operador). Nenhuma conta dessa lista é usada,
-  pedida como reviewer, posta em allowlist (bypass, merge, deploy) ou em `CODEOWNERS`; se aparecer
-  no repo → `STOP-HITL` (mudar isso é mudança de política).
+  pedida como reviewer, posta em allowlist (bypass, merge, deploy), em `CODEOWNERS` ou em listas de
+  revisores/aprovadores dentro de workflows. Se aparecer no repo: bloqueia **só o merge autônomo**
+  (`STOP-HITL` na Fase 4); branch, commit e PR seguem. Nunca editar a lista (mudança de política).
 - **ENFORCE** — **force-push**: **nunca** na main/branch default nem em branch protegida. Em branch,
   só quando a branch foi criada pelo próprio agente (conferir o autor de todos os commits da branch e
   quem abriu o PR) e **sempre** com `--force-with-lease`, nunca `--force` puro. Na dúvida, abrir uma
@@ -229,8 +275,14 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   todos os checks obrigatórios (pelos nomes lidos nas duas fontes) verdes no `headRefOid` atual ·
   **zero thread de review aberta** (exija o repo ou não a resolução de conversas) · método de merge
   permitido pelo repo (`allow_squash_merge`/`allow_merge_commit`/`allow_rebase_merge`) e compatível
-  com `required_linear_history` · aprovação exigida cumprida por revisor legítimo. Portão
-  **desconhecido** → nunca merge autônomo.
+  com `required_linear_history` · aprovação exigida cumprida por aprovador capacitado, com
+  `APPROVED` justificado no head · nenhuma refutação justificada em aberto · nenhum marcador
+  [NÃO MESCLAR]/label `do-not-merge` · nenhuma conta proibida detectada no portão. Portão
+  **desconhecido** → nunca merge autônomo (o resumo `branches/<b>` não libera).
+- **ENFORCE** — **update-branch × histórico linear**: com `required_linear_history`, nunca o
+  update-branch por merge (cria merge commit na branch); usar o update-branch por rebase
+  (`gh pr update-branch --rebase` / `update_method: rebase`), que reescreve a branch e por isso
+  segue a regra de force-push (só branch própria), ou não atualizar. Branch já atualizada → nada.
 - **ENFORCE** — **merge amarrado ao head**: `gh pr merge --match-head-commit <SHA_HEAD>` (ou o
   parâmetro `sha` equivalente da API); se o head mudou, o merge falha e o ciclo volta à Fase 3. A
   linha de status cita o **SHA do head** mesclado e o **SHA do commit de merge**. Nunca `--admin`.
@@ -283,13 +335,20 @@ expôs (`[[git-cycle-norma-harmonizada-2026-10-21]]` §2 transversal). Cada um �
 | A6 | **remote-com-host-alias** — parse robusto de owner/repo (SSH alias, host custom) | **RECUSA** empurrar se o owner/repo não foi derivado pela regra §A6 abaixo; nunca assume `github.com` nem deixa o alias colar no owner |
 | A7 | **idempotência** — re-execução/re-entrega não duplica commit/PR/comentário | **RECUSA** criar commit/PR/comentário sem antes rodar a sonda de duplicata da §A7 abaixo (skip-if-já-feito) |
 
-### Casos de regressão do A3/A6 (dogfood D1, read-only)
+### Casos de regressão do A3/A6/A7 e da Fase 3 (dogfoods D1 read-only e D2 com PR descartável)
 | Cenário | Esperado |
 |---|---|
 | proteção clássica sem ruleset: PR obrigatório (0 aprovações) + checks strict + `enforce_admins=true` | **forte** |
 | proteção clássica com PR + checks, `enforce_admins=false`, ator admin | **fraco para o ator**; obedece aos checks; nunca `--admin` |
 | ruleset só `deletion` + `non_fast_forward`, clássica 404 | **fraco** |
-| 403 ao ler a proteção clássica | **desconhecido**; merge autônomo bloqueado |
+| 403 ao ler a proteção clássica | **desconhecido**; merge autônomo bloqueado, mesmo com resumo `branches/<b>` `protected=true` |
+| conta proibida numa lista de revisores dentro de workflow | branch, commit e PR seguem; merge autônomo bloqueado |
+| rerun com a mesma key | zero commit, push ou PR novo (head e contagem de PRs iguais); PR CLOSED com a key não é recriado |
+| PR [NÃO MESCLAR] com fila de merge ou aprovador automático presente | rascunho + label + auto-merge vazio conferidos; fechado após o teste |
+| histórico linear exigido e branch atrás | update-branch por rebase (branch própria) ou sem atualizar; nunca por merge |
+| revisor "rate limited" com status pass | ausente; não conta como aprovação |
+| `APPROVED` sem justificativa no corpo | não conta |
+| refutação justificada em aberto | merge bloqueado até convergência unânime registrada no PR |
 | origin em caminho local | `STOP-ERROR` (owner/repo não derivável) |
 | raiz numa branch de feature, com worktrees anexadas | worktree nova a partir de `origin/<default>`; raiz intocada |
 
@@ -339,18 +398,24 @@ O modo-falha concreto que este guard **recusa**: uma re-entrega assíncrona (mes
 abrir um **segundo** PR/commit/comentário. Antes de **cada** mutação a sentinela sonda o estado e
 pula o passo já feito:
 
-- **commit** — `git log --format=%H -n1 -F --grep="idmp:<key>" origin/<base>..HEAD` (a key vai no
-  trailer do commit); **escopado ao range não-mergeado da branch** (`origin/<base>..HEAD`), **nunca**
+- **formato** — trailer canônico `idmp: <key>` (com espaço, no bloco de trailers, ex. `git commit
+  --trailer "idmp: <key>"`); na leitura aceitar também a forma antiga `idmp:<key>`. Marcador no
+  corpo de PR e comentário: `<!--idmp:<key>-->`.
+- **commit** — `git log --format=%H -n1 -F --grep="<key>" origin/<base>..HEAD` (a key vai no
+  trailer do commit), confirmando a linha com `git interpret-trailers --parse`; **escopado ao range não-mergeado da branch** (`origin/<base>..HEAD`), **nunca**
   à história alcançável inteira — senão uma key reusada numa branch mergeada-e-deletada ainda seria
   alcançável de `HEAD` e daria falso-positivo, pulando um commit legítimo. O `-F` (fixed-string)
   casa a key **literalmente** (uma key `abc` não casa `idmp:abcdef`, e `.*` não casa qualquer
-  marcador); confirmar a linha de trailer exata `^idmp:<key>$`. Se já existe nesse range para esta
+  marcador); confirmar a linha de trailer exata `^idmp: ?<key>$`. Se já existe nesse range para esta
   `<key>`, **não** recommita.
 - **PR** — `gh pr list --head <branch> --state all --json number,body,state` e **só reusa** o número
   se o corpo carregar o marcador `<!--idmp:<key>-->` **desta** key (ou o head OID casar o atual);
   **nunca** reusa só por casar o nome de branch — a branch determinística `agent/<owner>-<theme>` é
   reciclada, e `--state all` traz PRs já MERGED/CLOSED de ciclos passados; reusar um deles abriria o
-  comentário/merge no PR errado. Sem match do marcador → abre PR novo.
+  comentário/merge no PR errado. Também buscar a key em PRs de **qualquer** branch e estado:
+  `gh pr list --state all --search "idmp:<key> in:body"`. Achou **MERGED** → no-op; achou
+  **CLOSED** sem merge → não reabrir nem recriar em silêncio (`STOP-HITL` ou key nova por pedido
+  explícito); achou **OPEN** → reusar. Sem match do marcador → abre PR novo.
 - **comentário de review** — procura o marcador `<!--idmp:<key>-->` nos comentários antes de postar;
   presente → skip.
 
@@ -358,7 +423,8 @@ pula o passo já feito:
 estado git é estável entre reruns assíncronos: `headSha` muda ao commitar, e `baseSha` muda porque a
 própria Fase 4 faz `fetch`+`rebase origin/<base>` (A2), então `origin/<base>` avança entre a 1ª
 entrega e o retry. Logo a regra primária é **persistir** a key: a 1ª invocação deriva um seed
-(`hash(repo + theme + baseSha-da-1a-invocacao)`), **grava** essa key no trailer do commit e no corpo
+(`<theme>-<repo>-<AAAAMMDD>` da 1ª invocação; o antigo `hash(repo + theme + baseSha)` segue aceito
+como key explícita), **grava** essa key no trailer do commit e no corpo
 do PR (`<!--idmp:<key>-->`), e **todo rerun relê a key persistida** desses artefatos em vez de
 re-derivar. Só quando ainda não há nenhum artefato (a verdadeira 1ª vez) o seed é usado.
 `--idempotency-key` explícito sempre vence e é o caminho recomendado para entregas async. A sonda
@@ -445,7 +511,7 @@ agente escreve arquivos → dispara git-cycle-sentinel "<theme>" --scope <globs>
 ## Machine output (`--json`)
 ```json
 {"repo":"<owner/name>","gate":"strong|weak|unknown","gate_sources":{"ruleset":"present|absent|unknown","classic":"present|absent|unknown"},
- "required_checks":["<nome>"],"actor_can_bypass":"true|false|unknown","extra_rules":["conversation_resolution","linear_history","signatures"],"model":"gitflow|trunk","phase":"stage|worktree|pr-cycle|merge|boy-scout|done",
+ "required_checks":["<nome>"],"actor_can_bypass":"true|false|unknown","extra_rules":["conversation_resolution","linear_history","signatures"],"merge_automations":[{"name":"<nome>","trigger":"<gatilho>","respects_label":"true|false|unknown"}],"model":"gitflow|trunk","phase":"stage|worktree|pr-cycle|merge|boy-scout|done",
  "signed":true,"merge_engine":"merge-queue|mergify|hierarchical","pr":123,"idempotency_key":"<hash>",
  "verdict":"CYCLED|PR_OPEN|BLOCKED|DEFER","status_line":"<uma linha>","stop_marker":"STOP-DONE|STOP-HITL|STOP-ERROR|CONTINUE","_agent_feedback":"<hints>"}
 ```
@@ -511,4 +577,4 @@ Dormant-by-design caso contrário.
 | 0.1.1 | 2026-10-21 | **Re-refino pós-review de bots (PR #514)** — o próprio dogfood pegou 2 furos reais nos guards que o cycle-2 ainda não cobria, provando o valor do loop: **§A6** — a regex `git@[^:]+:` só pegava alias com `git@`; um alias **puro** `github.com-meualias:owner/repo.git` (sem `git@`, forma de `~/.ssh/config`) colava no owner. Corrigido para scp-style genérico `[^/@]+@[^:/]+:\|[^/@:]+:` (cobre alias com e sem user; re-validado nas 6 formas + mutation-check). **§A7** — a sonda `git log --grep=idmp:<key>` varria a **história alcançável inteira**, dando falso-positivo se a key fora usada numa branch mergeada-e-deletada; escopada para `origin/<base>..HEAD` (provado em sandbox: a antiga acha a key mergeada, a nova não, e ainda detecta duplicata real da branch ativa). **CHANGELOG.md** do repo ganhou a entrada Unreleased do 0.1.1 (contrato AGENTS.md). |
 | 0.1.1 | 2026-10-21 | **Re-refino rodada 2 (findings codex no PR #514)** — mais 3 refinamentos procedentes de mecânica: **§A6** a sonda `gh api` agora preserva o **host** (resolve HostName do alias via `ssh -G` e passa `--hostname`), senão num remote GitHub Enterprise validaria um repo homônimo em github.com; **§A7 (PR)** reuso de PR exige casar o marcador `<!--idmp:<key>-->` (ou head OID), nunca só o nome de branch — a branch determinística é reciclada e `--state all` traz PRs MERGED/CLOSED antigos; **§A7 (key)** default da `idempotency_key` passou de `headSha` (mutável pela própria sentinela → rerun duplicava) para `baseSha` estável (`origin/<base>`), ou persistência da key da 1ª invocação. |
 | 0.1.1 | 2026-10-21 | **Re-refino rodada 3 (findings codex/graphite no PR #514) — fecha o regresso da key** — 3 refinamentos finais: **§A7 key** a derivação git nunca é estável entre reruns async (headSha muda ao commitar, baseSha muda com o rebase da Fase 4/A2), então **persistência da key** virou a **regra primária** (grava no trailer + corpo do PR, todo rerun relê), com a derivação só como seed da 1ª vez — encerra o regresso baseSha↔headSha; **§A7 commit probe** `git log -F` (fixed-string) + trailer âncorado `^idmp:<key>$` para não casar key-prefixo nem regex; **§A6 host** normaliza endpoint de transporte SSH (`ssh.github.com → github.com`) de volta ao host de API. Exit criterion (lição `ai-review-loop-no-fixed-point`): required verde + findings de correção reais endereçados; CHANGELOG P1 era falso-positivo (entrada já presente). |
-| 0.2.0 | 2026-10-22 | **Endurecimento de governança (mudança de política, MINOR)** — **§0** deixa de permitir pular fase/gate (`BEING > Rules`) e proíbe explicitamente dismiss de review, pular check obrigatório, `--no-verify`, bypass de assinatura (inclusive "temporário") e `gh pr merge --admin`. **Fase 3**: removida a aprovação por segunda conta do mesmo dono; contas de outro domínio/organização não aprovam nem atuam; lista de contas proibidas mantida fora do repo (nunca reviewer, allowlist ou `CODEOWNERS`); force-push nunca na main/default, só com `--force-with-lease` em branch criada pelo próprio agente (autor dos commits + quem abriu o PR), na dúvida branch nova. **Portão** classificado pelas garantias efetivas: proteção clássica com PR/review + checks obrigatórios = forte, equivalente a ruleset (A3 renomeado `gate-por-garantia-efetiva`). **Fase 4**: técnico é autônomo; política/proteção, credenciais e segredos, gastos, irreversível, produção e ampliação de acesso exigem aprovação explícita do humano dono; merge só com `--match-head-commit`, checks verdes e zero thread aberta, citando SHA do head e do merge. **Self-heal**: `ai-harness` definido (só assinaturas já pagas, sem chave por uso; pré-pago só em último caso, com aviso). **Fase 5**: processos só pelo próprio PID/porta, nunca `pkill`/`killall`/por nome. Nova nota de harness com agente de nuvem. Tabela de repo-awareness trocada por perfis genéricos; exemplos de alias genéricos. **Rodada 2 (dogfood D1, read-only em 3 repos)**: a leitura do portão une as duas APIs (rulesets + `rulesets/<id>` e proteção clássica) mais a permissão do ator; 403/erro = **desconhecido**, que bloqueia o merge autônomo; classificação em três eixos (PR obrigatório · checks obrigatórios · ator contorna?), com `enforce_admins=false` + ator admin ou `bypass_actors` com o ator = fraco para o ator, sem liberar nada; envelope ganha `gate_sources`, `required_checks`, `actor_can_bypass`, `extra_rules`; motor de merge aceita checks da clássica; merge confere resolução de conversas, histórico linear e método permitido; **A4** exige teste real de assinatura em repo temporário; **preflight** trata raiz fora da default (sem troca de branch, worktree nova de `origin/<default>`, nada descartado); casos de regressão do A3/A6. |
+| 0.2.0 | 2026-10-22 | **Endurecimento de governança (mudança de política, MINOR)** — **§0** deixa de permitir pular fase/gate (`BEING > Rules`) e proíbe explicitamente dismiss de review, pular check obrigatório, `--no-verify`, bypass de assinatura (inclusive "temporário") e `gh pr merge --admin`. **Fase 3**: removida a aprovação por segunda conta do mesmo dono; contas de outro domínio/organização não aprovam nem atuam; lista de contas proibidas mantida fora do repo (nunca reviewer, allowlist ou `CODEOWNERS`); force-push nunca na main/default, só com `--force-with-lease` em branch criada pelo próprio agente (autor dos commits + quem abriu o PR), na dúvida branch nova. **Portão** classificado pelas garantias efetivas: proteção clássica com PR/review + checks obrigatórios = forte, equivalente a ruleset (A3 renomeado `gate-por-garantia-efetiva`). **Fase 4**: técnico é autônomo; política/proteção, credenciais e segredos, gastos, irreversível, produção e ampliação de acesso exigem aprovação explícita do humano dono; merge só com `--match-head-commit`, checks verdes e zero thread aberta, citando SHA do head e do merge. **Self-heal**: `ai-harness` definido (só assinaturas já pagas, sem chave por uso; pré-pago só em último caso, com aviso). **Fase 5**: processos só pelo próprio PID/porta, nunca `pkill`/`killall`/por nome. Nova nota de harness com agente de nuvem. Tabela de repo-awareness trocada por perfis genéricos; exemplos de alias genéricos. **Rodada 2 (dogfood D1, read-only em 3 repos)**: a leitura do portão une as duas APIs (rulesets + `rulesets/<id>` e proteção clássica) mais a permissão do ator; 403/erro = **desconhecido**, que bloqueia o merge autônomo; classificação em três eixos (PR obrigatório · checks obrigatórios · ator contorna?), com `enforce_admins=false` + ator admin ou `bypass_actors` com o ator = fraco para o ator, sem liberar nada; envelope ganha `gate_sources`, `required_checks`, `actor_can_bypass`, `extra_rules`; motor de merge aceita checks da clássica; merge confere resolução de conversas, histórico linear e método permitido; **A4** exige teste real de assinatura em repo temporário; **preflight** trata raiz fora da default (sem troca de branch, worktree nova de `origin/<default>`, nada descartado); casos de regressão do A3/A6. **Rodada 3 (dogfood D2 com PR descartável + decisões de política)**: regra estrita do 403 (sem leitura da clássica = desconhecido; o resumo `branches/<b>` só lista checks; a ideia de "forte-parcial" foi rejeitada); tabela "quem pode o quê" (executor de código pode clonar e usar `gh pr`; coordenador verifica e decide); conta proibida no portão (inclusive em listas de workflow) bloqueia só o merge autônomo; ativação de `.githooks` em clone novo; idempotência com trailer `idmp: <key>`, key `<theme>-<repo>-<AAAAMMDD>` persistida e busca de PRs em qualquer estado; leitura de automações de merge/aprovação e [NÃO MESCLAR] imposto por rascunho + label `do-not-merge` + checagem; update-branch por rebase ou nenhum quando há histórico linear; revisor com rate limit não conta; aprovador = qualquer bot, agente ou app capacitado (identidade própria, `APPROVED` rastreável, protocolos do projeto aprovados), com a lista de proibidas prevalecendo e a política concreta no próprio projeto; `APPROVED` sem justificativa não conta e refutação justificada aberta bloqueia o merge até convergência unânime no PR (`skills/converge/SKILL.md` + `docs/auto-pilot/GIT-PR-AS-DEBATE-PROMPT.md`); description encurtada para ≤ 1024 caracteres. |

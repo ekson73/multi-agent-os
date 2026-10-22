@@ -20,7 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Portão lido pela união da proteção clássica com os rulesets; 403 ou erro conta como desconhecido e bloqueia o merge autônomo; classificação por PR obrigatório, checks e se o ator consegue contornar.
 - Assinatura verificada de fato no ambiente que commita.
 - Preflight com raiz fora da default, seguindo por worktree nova.
-- `commands/git-cycle-sentinel.md` alinhado à v0.2.0: exemplos genéricos `owner/repo`, sem bypass de gate nem `--admin`.
+- Regra estrita do 403: sem leitura da proteção clássica o portão é desconhecido, não há "forte-parcial", e o resumo `branches/<b>` nunca libera o merge autônomo.
+- Tabela de quem pode o quê no harness (coordenador sem credencial, executor de código, humano dono).
+- Conta proibida bloqueia só o merge autônomo; branch, commit e PR seguem.
+- Clone novo com `.githooks/` e `core.hooksPath` vazio ativa `core.hooksPath .githooks` na config local; outro mecanismo de hooks é respeitado.
+- Trailer canônico de idempotência `idmp: <key>` (leitura também aceita `idmp:<key>`).
+- Automações que mesclam ou aprovam por fora são lidas e registradas, sem serem mutadas.
+- [NÃO MESCLAR] é imposto: rascunho, label `do-not-merge`, sem auto-merge; automação que ignore isso fecha o PR após o teste.
+- Update-branch com histórico linear exigido é por rebase (`gh pr update-branch --rebase`), nunca por merge.
+- Revisor com rate limit, sem cota ou que não completou a revisão não conta, mesmo com check "pass".
+- Aprovadores capacitados de forma genérica: qualquer bot, agente ou app com identidade própria, `APPROVED` real no head e requisitos do projeto aprovados pelo dono; a lista de contas proibidas prevalece.
+- `APPROVED` sem justificativa no corpo do review não conta.
+- Refutação justificada em aberto bloqueia o merge até convergência unânime registrada no PR (`skills/converge/SKILL.md`); maioria ou limiar não bastam.
+- `commands/git-cycle-sentinel.md` alinhado à v0.2.0, inclusive a rodada 3: exemplos genéricos `owner/repo`, sem bypass de gate nem `--admin`.
 
 ### Added — `/hitl-digest` thin command
 
