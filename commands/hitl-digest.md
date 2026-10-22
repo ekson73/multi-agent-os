@@ -1,12 +1,12 @@
 ---
 name: hitl-digest
-description: Render the HITL DIGEST on demand — the operator's "take the needle out of the haystack" block (só os pontos de atenção humana — credencial · gasto · irreversível · envio · negócio — ⏫ alta e 👤 domínio-humano primeiro). Thin command over the synopsis-panel engine (synopsis-fuse.py --hitl-only), which reads the eko-engram punch-list.md SSOT and renders the hitl-digest house-style. Reimplements NOTHING — no ledger, no render. Read-only.
+description: Render the HITL DIGEST on demand — the operator's "take the needle out of the haystack" block (só os pontos de atenção humana — credencial · gasto · irreversível · envio · negócio — ⏫ alta e 👤 domínio-humano primeiro). Thin command over the synopsis-panel engine (synopsis-fuse.py --hitl-only), which reads the punch-list.md SSOT ledger and renders the hitl-digest house-style. Reimplements NOTHING — no ledger, no render. Read-only.
 ---
 
 # /hitl-digest Command
 
 Render the **HITL DIGEST** — the operator-facing block that separates the human-attention
-items (what Emilson must *know* or *decide*) from the rest of the work, on demand instead of
+items (what the operator must *know* or *decide*) from the rest of the work, on demand instead of
 only at end-of-turn. Metáfora de origem: *"tire a agulha do palheiro"* (ressaltar a decisão/info
 importante do meio do textão).
 
@@ -15,13 +15,13 @@ run in HITL-only mode — `bin/synopsis-fuse.py --hitl-only`. It **reimplements 
 
 | What it does (thin) | What it DOES NOT do (calls the SSOT) |
 |---|---|
-| interpret scope/filter/format from the operator's words | **does not** maintain the HITL ledger → `hitl-punch-list.py` + `punch-list.md` (eko-engram SSOT) |
+| interpret scope/filter/format from the operator's words | **does not** maintain the HITL ledger → `hitl-punch-list.py` + `punch-list.md` (external ledger SSOT) |
 | invoke `synopsis-fuse.py --hitl-only` and present the result | **does not** render the panel itself → `synopsis-fuse.py` (hitl-digest house-style) |
 | order ⏫ alta + 👤 domínio-humano first, cap at the top items | **does not** classify severity → `hitl-punch-list.py` (5 types, IDs H-NNNN) |
 
 > **O que É e o que NÃO É** — é o **atalho** que faltava: o motor de render HITL-only já
-> existe (`synopsis-fuse.py --hitl-only`, PR #512) e o ledger já existe (`punch-list.md` no
-> eko-engram); só não havia o command `/hitl-digest` que o operador aciona quando quiser. Este
+> existe (`synopsis-fuse.py --hitl-only`, PR #512) e o ledger já existe (`punch-list.md`, o
+> SSOT externo); só não havia o command `/hitl-digest` que o operador aciona quando quiser. Este
 > arquivo é esse atalho — **não** um novo motor, **não** um novo ledger.
 
 ## §0 — BEING > Rules
@@ -44,7 +44,7 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | `--scope` | `all` | recorte do panorama (repassado ao `work-compass` quando `--with-pendencies`) |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
-| `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre (`~/Projects/eko-engram/hitl/punch-list.md`) |
+| `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca) |
 | `--title TEXT` | *(pt-BR default)* | rótulo do digest |
 
 ## Parte cognitiva (o agente decide antes de rodar o script)
@@ -60,8 +60,10 @@ self-heal (erro → envelope de repair-request para um ai-harness).
 ## O que o command executa (determinístico)
 
 ```bash
-# resolve o motor: a skill synopsis-panel vive no mesmo repo
-FUSE="$(dirname "$0")/../skills/synopsis-panel/bin/synopsis-fuse.py"
+# resolve o motor a partir da raiz do plugin (NÃO de $0: um command .md não é um script
+# executável, então $0 é o shell/arg, não este arquivo). CLAUDE_PLUGIN_ROOT é a convenção
+# do Claude Code; o fallback para a raiz do git cobre execução fora do runtime do plugin.
+FUSE="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)}/skills/synopsis-panel/bin/synopsis-fuse.py"
 
 # DIGEST PURO (default) — só os gates humanos, sem rodar o coletor de pendências.
 # O compass vazio ({} via stdin) curto-circuita a agregação: o digest HITL não
@@ -72,8 +74,10 @@ echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format tree
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format html > hitl-digest.html
 
 # DIGEST + PENDÊNCIAS (--with-pendencies): aí SIM o coletor roda (mais lento). Cada HITL é
-# anexado à pendência a que pertence; a ordem Q1→Q4 vem do --sort eisenhower do work-compass.
-python3 "$FUSE" --scope all --include pending --format tree
+# anexado à pendência a que pertence. --pending-only mantém o foco HITL: só os nós que
+# carregam um HITL (ou flag) permanecem na árvore, então o resultado é o digest HITL com as
+# pendências a que os gates pertencem — NÃO o painel de sinopse completo.
+python3 "$FUSE" --scope all --include pending --pending-only --format tree
 ```
 
 > **Por que o compass vazio no caminho puro** — medido na fonte: o `synopsis-fuse.py` sempre
@@ -103,7 +107,7 @@ python3 "$FUSE" --scope all --include pending --format tree
 ## §Refs
 - Motor (composto, não reimplementado): `../skills/synopsis-panel/bin/synopsis-fuse.py`
   (`synopsis-panel`, PR #512) rodado em `--hitl-only`.
-- Ledger SSOT: `hitl-punch-list.py` + `hitl/punch-list.md` (eko-engram; 5 tipos, IDs H-NNNN).
+- Ledger SSOT: `hitl-punch-list.py` + `hitl/punch-list.md` (external ledger; 5 tipos, IDs H-NNNN).
 - House-style: spec `hitl-digest` (painel 52-col, severidade 🟡/🟠/🔴, ⏫ gate · 👤 human-domain).
 - Governança: `worktree-policy` · `hierarchical-merge` · `CONTRIBUTING.md`.
 
