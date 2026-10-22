@@ -26,8 +26,8 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 | Fase | Ação | Delega a |
 |------|------|----------|
 | **1 STAGE** | scoped-add (nunca `-A` cego) · gitleaks · `status -sb` limpo | `ship`/`pr` · `corpus-git-persistence-discipline` |
-| **2 WORKTREE** | preflight fail-closed · raiz fora da default segue em worktree nova a partir de `origin/<default>` · `.githooks/` com `core.hooksPath` vazio vira config local · branch `agent/<owner>-<theme>` | `worktree-policy` · `worktree-gate.sh` · `anti-conflict` |
-| **3 PR-CYCLE** | **une** proteção clássica + rulesets (403 estrito = desconhecido, sem forte-parcial) → classifica (PR · checks · ator contorna) → lê automações que mesclam → commit assinado + trailer `idmp: <key>` → PR; [NÃO MESCLAR] abre rascunho com `do-not-merge` | `gh api` · `pr-review-protocol` · `ai-code-review-bots-rotation` · `converge` |
+| **2 WORKTREE** | preflight fail-closed · raiz fora da default segue em worktree nova a partir de `origin/<default>` · `.githooks/` com `core.hooksPath` vazio vira config local · pre-commit explícito antes do commit · branch `agent/<owner>-<theme>` | `worktree-policy` · `worktree-gate.sh` · `anti-conflict` |
+| **3 PR-CYCLE** | **une** proteção clássica + rulesets (403 estrito = desconhecido, sem forte-parcial) → classifica (PR · checks · ator contorna) → lê automações que mesclam → commit assinado + trailer `idmp: <theme>-<repo>-<YYYYMMDD>` → PR; [NÃO MESCLAR] abre rascunho com `do-not-merge` | `gh api` · `pr-review-protocol` · `ai-code-review-bots-rotation` · `converge` |
 | **4 MERGE** | update-branch por rebase se histórico linear · merge só com `--match-head-commit` (checks verdes, zero thread, `APPROVED` justificado, sem refutação aberta, sem [NÃO MESCLAR], sem conta proibida; desconhecido bloqueia) → **Merge Queue** / mergify / hierarchical | `hierarchical-merge` · `mergify-*` · `definition-of-well-done` · `converge` |
 | **5 BOY-SCOUT** | remove worktree+branch → `ff-only` sync da raiz → triage Eisenhower | `sync-to-git` · `ship` · `careful` |
 
@@ -48,11 +48,14 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 - **Preflight**: raiz fora da default (outra branch, HEAD destacado, worktrees anexadas) não é
   trocada nem limpa. O trabalho segue numa worktree nova a partir de `origin/<default>`, preservando
   o que está na raiz.
-- **`.githooks`**: em clone novo, se o diretório existe e `core.hooksPath` não está definido,
-  ativar com `git config core.hooksPath .githooks` (config local). Husky, pre-commit ou outro
-  hooksPath existente é respeitado, e o commit confere que o hook rodou.
+- **`.githooks`**: em clone novo, no preflight, se o diretório existe e `core.hooksPath` não está
+  definido, ativar com `git config core.hooksPath .githooks` (config local). Husky, pre-commit ou
+  outro hooksPath existente é respeitado.
+- **Pre-commit explícito**: depois do stage, rodar o hook e só commitar com saída 0
+  (`.githooks/pre-commit`, `pre-commit run` ou `.husky/pre-commit`). Falha vai para self-heal, nunca
+  para contorno.
 - **Merge preso ao SHA**: só com `--match-head-commit`, checks obrigatórios verdes, zero thread
-  aberta, `APPROVED` justificado de aprovador capacitado no head, sem refutação justificada em
+  aberta, `APPROVED` justificado de aprovador que está no registro do projeto, sem refutação justificada em
   aberto, sem marcador [NÃO MESCLAR] nem label `do-not-merge`, e sem conta proibida no portão. A
   linha de status cita o SHA do head e o SHA do merge. Portão desconhecido nunca mescla sozinho.
   Decisão técnica é autônoma; política, credenciais, gastos, irreversível, produção e ampliação de
@@ -64,22 +67,23 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
   mesclar ignorando isso → fechar o PR após o teste.
 - **Automações que mesclam**: lidas, sem mutar (fila de merge, `allow_auto_merge`, Mergify, apps de
   aprovação, bots e workflows que chamem `gh pr merge`). Registradas em `merge_automations`.
-- **Aprovação**: aprovador capacitado é qualquer bot, agente ou app, de qualquer fornecedor, com
-  identidade própria (não conta humana nem a do dono), `APPROVED` real no head e requisitos do
-  projeto aprovados pelo dono. Sem lista fechada; a lista de contas proibidas prevalece. A
-  sentinela lê a política do projeto e não a edita. `APPROVED` sem justificativa no corpo não conta.
-  Revisor sem cota, com rate limit ou que não completou a revisão não conta, mesmo com check
-  "pass"/"success".
+- **Aprovação**: o registro de aprovadores capacitados é artefato do projeto (`login`, `id`,
+  `type: Bot`). Quem não está nele não conta, e projeto sem registro não tem aprovador
+  (`STOP-HITL`). A lista de contas proibidas prevalece. A sentinela lê o registro e não o edita.
+  `APPROVED` com corpo vazio não conta sem um comentário de justificativa da mesma conta vinculado
+  ao SHA do head. Revisor que só comenta não fecha o ciclo. Revisor sem cota, com rate limit ou que
+  não completou a revisão não conta, mesmo com check "pass"/"success".
 - **Refutação**: uma refutação justificada e em aberto bloqueia o merge até convergência unânime
   registrada no PR (`skills/converge/SKILL.md`). Maioria ou limiar não bastam.
 - **Force-push**: nunca na branch default. Em branch, só na criada pelo próprio agente e com
   `--force-with-lease`.
 - **Contas**: contas de outro domínio ou organização não aprovam nem atuam. Conta proibida (lista
   fora do repo) não é usada, pedida como reviewer nem posta em allowlist, `CODEOWNERS` ou workflow.
-  Se aparecer no repo, bloqueia **só o merge autônomo**; branch, commit e PR seguem.
-- **Idempotente** (A7): trailer canônico `idmp: <key>` (com espaço); a leitura também aceita
-  `idmp:<key>`. Marcador de PR e comentário: `<!--idmp:<key>-->`. Re-execução não duplica
-  commit, PR nem comentário.
+  Se aparecer no repo, bloqueia **só o merge autônomo**; branch, commit e PR seguem. Se o pedido
+  contradiz a lista, a lista vence e o caso vai para `STOP-HITL`.
+- **Idempotente** (A7): trailer canônico `idmp: <theme>-<repo>-<YYYYMMDD>` (com espaço); a leitura
+  também aceita a forma sem espaço. Marcador de PR e comentário:
+  `<!--idmp:<theme>-<repo>-<YYYYMMDD>-->`. Re-execução não duplica commit, PR nem comentário.
 - **Self-heal**: harness só por assinatura já paga, sem chave de API cobrada por uso, teto de 6
   tentativas. Irreparável ou HUMAN_DOMAIN escala com a linha de status.
 - **Processos**: encerra só pelo PID que ela mesma iniciou ou pela própria porta.
@@ -100,7 +104,8 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 repo      owner/repo               gate  strong|weak|unknown   model  trunk
 signed    verified-in-env          worktree  agent/owner-theme
 push      refspec-literal OK       merge  --match-head-commit (APPROVED justificado, sem refutação)
-pr        #123                     head <sha>  merge <sha>  idmp <key>  status CYCLED
+version   0.2.0                    body_sha256  <sha do corpo>
+pr        #123                     head <sha>  merge <sha>  idmp theme-repo-YYYYMMDD  status CYCLED
 ─────────────────────────────────────────────────
 <!--ORCH-STATUS: STOP-DONE -->
 ```
