@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added — `/hitl-digest` thin command
+
+- `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
+
 ### Changed — git-cycle-sentinel 0.1.1 (dogfood cycle-1 + cycle-2 real)
 
 - `skills/git-cycle-sentinel/SKILL.md` bumped 0.1.0 → 0.1.1 after dogfood cycle-1 (dry-run, decision-vs-norm) and cycle-2 (real execution in a throwaway `/tmp` git sandbox, 7/7 assertions PASS). Two previously-decorative guards made functional: **§A6** host-alias parse now strips any scp-style `[user@]host:` prefix (incl. a userless alias like `github.com-ekson73:`) so the alias never glues onto the owner, and RECUSA (STOP-ERROR) when the slug is not `owner/repo`; **§A7** idempotency probe scopes `git log --grep="idmp:<key>"` to the branch's unmerged range `origin/<base>..HEAD` (never whole reachable history) so a reused key on a merged-and-deleted branch cannot false-positive. Repo-awareness table corrected: `multi-agent-os gpgsign` re-measured `true` (read live, not the frozen cell). `dogfood_status → dogfood-cycle-2-real-7of7-pass-promotable`.
