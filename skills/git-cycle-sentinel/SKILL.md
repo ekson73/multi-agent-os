@@ -236,21 +236,27 @@ Resolve-se o host **de um alias** via `git` (que já consulta o `~/.ssh/config`)
 # host real por trás de um alias (resolve HostName do ssh_config); fallback para o host literal
 rawhost=$(printf '%s' "$url" | sed -E 's#^(https?|ssh)://##; s#^[^/@]*@##; s#[:/].*$##')
 apihost=$(ssh -G "$rawhost" 2>/dev/null | awk '/^hostname /{print $2; exit}'); apihost=${apihost:-$rawhost}
+# normaliza endpoints de TRANSPORTE SSH de volta ao host de API (o setup porta-443 mapeia
+# github.com -> ssh.github.com; a API não vive em ssh.<host>)
+apihost=$(printf '%s' "$apihost" | sed -E 's#^ssh\.##')
 gh api --hostname "$apihost" "repos/$slug" >/dev/null 2>&1 || die "repo $slug não resolve em $apihost"
 ```
 
-404/erro aqui → STOP-ERROR, não push.
+404/erro aqui → STOP-ERROR, não push. (O `ssh -G` resolve só o HostName; um endpoint de transporte
+como `ssh.github.com` é normalizado de volta ao host de API `github.com`.)
 
 ### §A7 — sonda de idempotência (não-decorativa)
 O modo-falha concreto que este guard **recusa**: uma re-entrega assíncrona (mesma `idempotency_key`)
 abrir um **segundo** PR/commit/comentário. Antes de **cada** mutação a sentinela sonda o estado e
 pula o passo já feito:
 
-- **commit** — `git log --format=%H -n1 --grep="idmp:<key>" origin/<base>..HEAD` (a key vai no trailer
-  do commit); **escopado ao range não-mergeado da branch** (`origin/<base>..HEAD`), **nunca** à
-  história alcançável inteira — senão uma key reusada numa branch mergeada-e-deletada ainda seria
-  alcançável de `HEAD` e daria falso-positivo, pulando um commit legítimo. Se já existe nesse range
-  para esta `<key>`, **não** recommita.
+- **commit** — `git log --format=%H -n1 -F --grep="idmp:<key>" origin/<base>..HEAD` (a key vai no
+  trailer do commit); **escopado ao range não-mergeado da branch** (`origin/<base>..HEAD`), **nunca**
+  à história alcançável inteira — senão uma key reusada numa branch mergeada-e-deletada ainda seria
+  alcançável de `HEAD` e daria falso-positivo, pulando um commit legítimo. O `-F` (fixed-string)
+  casa a key **literalmente** (uma key `abc` não casa `idmp:abcdef`, e `.*` não casa qualquer
+  marcador); confirmar a linha de trailer exata `^idmp:<key>$`. Se já existe nesse range para esta
+  `<key>`, **não** recommita.
 - **PR** — `gh pr list --head <branch> --state all --json number,body,state` e **só reusa** o número
   se o corpo carregar o marcador `<!--idmp:<key>-->` **desta** key (ou o head OID casar o atual);
   **nunca** reusa só por casar o nome de branch — a branch determinística `agent/<owner>-<theme>` é
@@ -259,13 +265,15 @@ pula o passo já feito:
 - **comentário de review** — procura o marcador `<!--idmp:<key>-->` nos comentários antes de postar;
   presente → skip.
 
-**Key estável entre reruns** — o default **não** pode incorporar `HEAD`/`headSha`, que a própria
-sentinela muta ao criar o commit: um rerun após o 1º commit derivaria uma key diferente, não acharia
-o trailer e **duplicaria**. O default deriva de estado que o ciclo **não** muta —
-`idempotency_key = hash(repo + theme + baseSha)` onde `baseSha = git rev-parse origin/<base>` (o ponto
-de partida, estável no ciclo) — ou a sentinela **persiste** a key da 1ª invocação (ex. no corpo do PR
-e no trailer) e a relê nos reruns. `--idempotency-key` explícito sempre vence. A sonda roda **antes**
-da mutação; sem ela a mutação é
+**Key estável entre reruns (persistência é a regra, derivação é só o seed)** — nenhuma derivação de
+estado git é estável entre reruns assíncronos: `headSha` muda ao commitar, e `baseSha` muda porque a
+própria Fase 4 faz `fetch`+`rebase origin/<base>` (A2), então `origin/<base>` avança entre a 1ª
+entrega e o retry. Logo a regra primária é **persistir** a key: a 1ª invocação deriva um seed
+(`hash(repo + theme + baseSha-da-1a-invocacao)`), **grava** essa key no trailer do commit e no corpo
+do PR (`<!--idmp:<key>-->`), e **todo rerun relê a key persistida** desses artefatos em vez de
+re-derivar. Só quando ainda não há nenhum artefato (a verdadeira 1ª vez) o seed é usado.
+`--idempotency-key` explícito sempre vence e é o caminho recomendado para entregas async. A sonda
+roda **antes** da mutação; sem ela a mutação é
 **recusada** (não é "best-effort"). Isto torna A7 verificável: um segundo run com a mesma key não
 produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao 1º run).
 
@@ -404,3 +412,4 @@ Dormant-by-design caso contrário.
 | 0.1.1 | 2026-10-21 | **Dogfood cycle-2 (EXECUÇÃO REAL, sandbox git descartável em `/tmp`)** — valida em runtime a mecânica do 0.1.1 que o cycle-1 só tinha no texto. 7/7 asserções PASS com mutação git real (nunca em repo do operador): **A1** raiz nunca mutada por checkout + publica via worktree; **A2** base-móvel integrada por `fetch`+`rebase origin/main` até `behind=0`; **A3** classifica forte/fraco lendo `gh api rules/branches` (read-only nos repos reais), não por 404; **A4** decisão de assinatura espelha `commit.gpgsign` ao vivo (mutation-check: `false→--no-gpg-sign`, `true→--gpg-sign`, nunca inverte); **A5** push por refspec literal `"$SHA:refs/heads/<br>"` verificado na fonte (SHA remoto == local); **A6** mecânica `sed` deriva owner=`ekson73` de `git@github.com-ekson73:...` (alias nunca cola no owner) e **RECUSA** URL malformada (mutation-check verde — fira, não decorativo); **A7** sonda `idmp:<key>` no trailer do commit: 2º run com mesma key NÃO duplica (mutation-check verde), key diferente cria commit novo. **VEREDITO: promovível** — ≥2 ciclos reais (cycle-1 dry-run + cycle-2 execução real) com os 2 guards antes decorativos agora firando em runtime. |
 | 0.1.1 | 2026-10-21 | **Re-refino pós-review de bots (PR #514)** — o próprio dogfood pegou 2 furos reais nos guards que o cycle-2 ainda não cobria, provando o valor do loop: **§A6** — a regex `git@[^:]+:` só pegava alias com `git@`; um alias **puro** `github.com-ekson73:owner/repo.git` (sem `git@`, forma de `~/.ssh/config`) colava no owner. Corrigido para scp-style genérico `[^/@]+@[^:/]+:\|[^/@:]+:` (cobre alias com e sem user; re-validado nas 6 formas + mutation-check). **§A7** — a sonda `git log --grep=idmp:<key>` varria a **história alcançável inteira**, dando falso-positivo se a key fora usada numa branch mergeada-e-deletada; escopada para `origin/<base>..HEAD` (provado em sandbox: a antiga acha a key mergeada, a nova não, e ainda detecta duplicata real da branch ativa). **CHANGELOG.md** do repo ganhou a entrada Unreleased do 0.1.1 (contrato AGENTS.md). |
 | 0.1.1 | 2026-10-21 | **Re-refino rodada 2 (findings codex no PR #514)** — mais 3 refinamentos procedentes de mecânica: **§A6** a sonda `gh api` agora preserva o **host** (resolve HostName do alias via `ssh -G` e passa `--hostname`), senão num remote GitHub Enterprise validaria um repo homônimo em github.com; **§A7 (PR)** reuso de PR exige casar o marcador `<!--idmp:<key>-->` (ou head OID), nunca só o nome de branch — a branch determinística é reciclada e `--state all` traz PRs MERGED/CLOSED antigos; **§A7 (key)** default da `idempotency_key` passou de `headSha` (mutável pela própria sentinela → rerun duplicava) para `baseSha` estável (`origin/<base>`), ou persistência da key da 1ª invocação. |
+| 0.1.1 | 2026-10-21 | **Re-refino rodada 3 (findings codex/graphite no PR #514) — fecha o regresso da key** — 3 refinamentos finais: **§A7 key** a derivação git nunca é estável entre reruns async (headSha muda ao commitar, baseSha muda com o rebase da Fase 4/A2), então **persistência da key** virou a **regra primária** (grava no trailer + corpo do PR, todo rerun relê), com a derivação só como seed da 1ª vez — encerra o regresso baseSha↔headSha; **§A7 commit probe** `git log -F` (fixed-string) + trailer âncorado `^idmp:<key>$` para não casar key-prefixo nem regex; **§A6 host** normaliza endpoint de transporte SSH (`ssh.github.com → github.com`) de volta ao host de API. Exit criterion (lição `ai-review-loop-no-fixed-point`): required verde + findings de correção reais endereçados; CHANGELOG P1 era falso-positivo (entrada já presente). |
