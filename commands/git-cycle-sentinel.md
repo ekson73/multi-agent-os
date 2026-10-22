@@ -12,7 +12,7 @@ agente **uma linha de status** e pings apenas quando precisa de uma decisão. Th
 sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 
 > Surfaces at runtime as `/maos:git-cycle-sentinel` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
-> Naming: Anima-named (`git-cycle-sentinel`; rejected runner-up `git-cycle-offloader` — "offloader"
+> Naming: nome dado pelo agente de nomeação do projeto (`git-cycle-sentinel`; rejected runner-up `git-cycle-offloader` — "offloader"
 > implicaria VM remota, drift epistemológico). Operador pode sobrescrever (`[C-naming]`).
 
 ## Usage
@@ -112,14 +112,20 @@ pr        #123                     head <sha>  merge <sha>  idmp theme-repo-YYYY
 
 ## Integration
 
-- Skill: [`skills/git-cycle-sentinel/SKILL.md`](../skills/git-cycle-sentinel/SKILL.md) (o orquestrador, v0.2.0).
+- Skill: [`skills/git-cycle-sentinel/SKILL.md`](../skills/git-cycle-sentinel/SKILL.md) (o orquestrador, v0.2.0, pai único).
+  Detalhes sob demanda: [`references/mecanica.md`](../skills/git-cycle-sentinel/references/mecanica.md) e
+  [`references/rastreabilidade.md`](../skills/git-cycle-sentinel/references/rastreabilidade.md).
+- Overlay por repo: seção `## git-cycle` no `AGENTS.md` (ou no `CONTRIBUTING.md`; só sem os dois,
+  `.github/git-cycle.md`), com chaves fechadas; aperta, nunca afrouxa o piso da skill.
+- Push em lote (P7): commits locais agrupados e push por lote, para não disparar os revisores
+  automáticos a cada commit.
 - Quem pode o quê: o executor de código clona no ambiente de execução, cria a branch, commita,
   empurra e abre o PR. O coordenador sem credencial própria lê o portão, comenta, rotula e pode
   mesclar PR técnico se os guardrails passarem, pelo conector, e pede ao executor o que mutar.
   Ninguém faz checkout nas máquinas do usuário. `--admin`, dismiss, `--no-verify` e bypass de
   assinatura são nunca. A tabela completa está na skill.
 - Convergência de refutação: [`skills/converge/SKILL.md`](../skills/converge/SKILL.md).
-- Genesis: `skills/agentic-tool-pipeline` → `skills/agentic-tool-forge` + `skills/anima`.
+- Genesis: skill de pipeline de ferramentas agênticas do projeto (método e autoria) + agente de nomeação do projeto (nome).
 - Composes (delega, não reimplementa): `worktree-policy` · `anti-conflict` · `hierarchical-merge` ·
   `sync-to-git` · `plugin-scripts/governance/worktree-gate.sh` · GitHub Merge Queue / `mergify-*`.
-- SSOT da norma: `[[git-cycle-norma-harmonizada-2026-10-21]]` · `[[git-cycle-offloader-2026-10-21]]` (EKO-154).
+- SSOT da norma: `[[git-cycle-norma-harmonizada-2026-10-21]]` · `[[git-cycle-offloader-2026-10-21]]` (notas de pesquisa no vault de conhecimento do mantenedor, fora do repo).
