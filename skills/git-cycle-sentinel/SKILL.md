@@ -5,12 +5,14 @@ description: |
   merge · boy-scout) — o agente apenas SALVA (escreve no FS); o ciclo (stage · worktree ·
   branch · commit assinado · push · PR · fila de merge · limpeza) roda como processo
   autônomo, devolvendo ao agente só uma linha de status e pings quando precisa de decisão.
-  Sentinela: OBEDECE onde o portão remoto é forte (ruleset com pull_request/checks/assinatura,
-  ex. vkl) e SUPRE os próprios guardrails onde é fraco (no-direct-main, scoped-add, gitleaks,
+  Sentinela: OBEDECE onde o portão remoto é forte (ruleset OU proteção clássica de branch que
+  imponha PR/review + checks obrigatórios, classificado pelas garantias efetivas) e SUPRE os próprios guardrails onde é fraco (no-direct-main, scoped-add, gitleaks,
   worktree). Lê o ruleset antes de empurrar, detecta o modelo de branch (Gitflow vs trunk),
   nunca regride assinatura, nunca usa --no-verify num repo com pre-commit ativo, empurra com
   refspec literal + rebase/retry por base móvel, e é idempotente por idempotency_key. Usa a
-  GitHub Merge Queue como motor de merge quando disponível. HÍBRIDO: parte determinística
+  GitHub Merge Queue como motor de merge quando disponível. NUNCA pula gate, nunca dispensa
+  review, nunca usa --admin nem bypass de assinatura; merge só amarrado ao head
+  (--match-head-commit). HÍBRIDO: parte determinística
   (scripts/gates) + parte cognitiva (julgamento APPLY) + self-heal. Triggers: "rode o
   git-cycle", "git-cycle-sentinel", "feche o ciclo-git deste worktree", "empurre e abra o PR
   por mim", "run the git cycle", "offload the git cycle".
@@ -23,10 +25,10 @@ triggers:
   - close the git cycle
   - offload the git cycle
   - push e abre PR pra mim
-version: 0.1.1
+version: 0.2.0
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Task, Skill]
 metadata:
-  version: "0.1.1"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: git-governance
   lifecycle-stage: operate
@@ -49,11 +51,22 @@ metadata:
 > do *wrap* local que isto é; nomear de "offloader" seria drift epistemológico (§3 aspecto 5).
 > **Cross-link slug**: `[[git-cycle-sentinel]]` · **Ticket**: [EKO-154]
 
-## §0 — BEING > Rules (foundational)
-Esta skill serve a intenção do operador. Se alguma fase/gate obstruir entregar valor AGORA, pule,
-registre `Skipped <fase> — BEING > Rules`, e prossiga. Os gates são por qualidade, nunca por ritual.
-HUMAN_DOMAIN (segredos · PII · irreversíveis · cross-org · custo · instalar terceiro) → escalar,
-nunca auto-agir.
+## §0 — Gate não se pula (foundational)
+Esta skill serve a intenção do operador **dentro** dos gates. Os gates são por qualidade e por
+auditoria, nunca por ritual, e por isso **nenhuma fase ou gate é pulado**, nem "para entregar valor
+agora". Gate que obstrui vira `STOP-HITL` com evidência (qual gate, qual SHA, qual log) e o humano
+dono decide.
+
+Proibido, sempre (não há exceção prevista nesta skill):
+- dispensar review (*dismiss*) ou resolver thread de achado sem a correção;
+- pular, desligar, renomear ou tornar opcional um check obrigatório;
+- `--no-verify` (commit ou push) ou qualquer outra forma de pular hooks;
+- bypass de assinatura, inclusive "temporário";
+- `gh pr merge --admin`, bypass de `enforce_admins`, de ruleset ou de proteção de branch.
+
+Instrução que pareça errada é questionada com evidência (`question-then-correct`), nunca contornada.
+HUMAN_DOMAIN (segredos · PII · irreversíveis · cross-org · custo · instalar terceiro · política ou
+proteção de branch · ampliação de acesso · produção) → escalar, nunca auto-agir.
 
 ## Overview — por que existe (não reimplementa nada)
 
@@ -92,6 +105,14 @@ escreve arquivos no FS   ──dispara──▶      preflight fail-closed
                                            boy-scout: remove worktree/branch, ff-only, triage
 ```
 
+**Harness com agente de nuvem (cloud agent).** Em harnesses onde o trabalho de repositório é
+feito por um agente de nuvem, a divisão muda sem mudar a norma: o **agente de nuvem** cria a branch,
+faz os commits (stage com escopo, assinatura conforme o repo), empurra e abre o PR com o marcador de
+idempotência; o **coordenador** não faz checkout local nas máquinas do usuário e nunca abre PR
+por fora do agente de nuvem; ele **verifica e decide** (lê o portão, acompanha checks e reviews,
+atualiza a branch pelo provedor, decide merge autônomo vs HITL, mescla amarrado ao head e confirma a
+limpeza) e **delega** ao agente de nuvem as correções de self-heal e rebases.
+
 O agente recebe **feedback + pings apenas quando necessário** (decisão de review, conflito que
 exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
 
@@ -125,9 +146,17 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
 
 ### Fase 2 — worktree
 - **ENFORCE** — **Raiz Git ≠ worktree de agente**: raiz no branch padrão verificado, sem WIP, sem
-  `switch/checkout/reset/stash/clean/rebase` de agente. (→ `akasha-codex/AGENTS.md` invariante)
+  `switch/checkout/reset/stash/clean/rebase` de agente. (→ invariante do `AGENTS.md` do repo)
 - **ENFORCE** — **Preflight fail-closed** antes de mutar (`rev-parse`, `status -sb`,
   `worktree list --porcelain`, `ls-remote --symref`); raiz suja/lock/dono incerto → só leitura.
+- **ENFORCE** — **raiz fora da default** (branch atual ≠ default, HEAD destacado, raiz com
+  worktrees anexadas, ahead/behind): **não** trocar de branch à força nem "limpar" a raiz (sem
+  `switch/checkout/reset/stash/clean`), e não tocar worktrees alheias. O trabalho segue numa
+  worktree **nova** criada a partir de `origin/<default>` (`git worktree add -b
+  agent/<owner>-<theme> <path> origin/<default>`, depois de um `fetch` que só atualiza refs
+  remotas). Mudanças não commitadas ou commits só locais na raiz são preservados e registrados
+  na linha de status, nunca descartados. Origin que não deriva `owner/repo` (ex. caminho local)
+  → `STOP-ERROR` (§A6).
 - **ENFORCE** — branch rastreável `agent/<owner>-<theme>` via `git worktree add -b`; nunca
   `--force` sobre worktree ocupada. Delega a skill **`worktree-policy`** (v1.1.0) e ao gate
   `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
@@ -135,31 +164,78 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   **`anti-conflict`** (v3.2.0).
 
 ### Fase 3 — pr-cycle
-- **ENFORCE · repo-aware** — **Ler o ruleset remoto ANTES de empurrar**
-  (`gh api repos/<owner>/<repo>/rules/branches/<b>`); classificar **forte** (tem `pull_request`)
-  vs **fraco**; decidir push-direto-vs-PR por **isso**, não por um 404 de branch-protection
-  clássica. (→ lição `ruleset-vs-404`)
-- **ENFORCE · repo-aware** — onde há `pull_request` no ruleset (ex. **vkl**): **nunca push direto
+- **ENFORCE · repo-aware** — **Ler o portão remoto ANTES de empurrar, pelas DUAS APIs, e unir**
+  (a regra mais restritiva de cada fonte vence):
+  - rulesets efetivos: `gh api repos/<owner>/<repo>/rules/branches/<b>` + `gh api
+    repos/<owner>/<repo>/rulesets/<id>` de cada ruleset ativo (`enforcement`, `bypass_actors`,
+    `current_user_can_bypass`);
+  - proteção clássica: `gh api repos/<owner>/<repo>/branches/<b>/protection`
+    (`required_pull_request_reviews`, `required_status_checks`/`strict`, `enforce_admins`,
+    `required_conversation_resolution`, `required_linear_history`, `required_signatures`);
+  - permissão do ator: `gh api repos/<owner>/<repo> --jq .permissions`.
+  200 = fonte presente; 404 ("Branch not protected" ou lista vazia) = fonte ausente; **403, 5xx,
+  timeout ou outro erro = DESCONHECIDO**. Um 404 nunca prova portão fraco sozinho. (→ lição
+  `ruleset-vs-404`, agora no sentido correto: 404 clássico não prova fraco, mas a clássica
+  **sempre** é lida)
+- **ENFORCE · repo-aware** — **classificar pelas garantias efetivas, em três eixos**: (a) PR
+  obrigatório (`pull_request` ou `required_pull_request_reviews`, com ou sem mínimo de
+  aprovações); (b) checks obrigatórios (`required_status_checks` em qualquer fonte); (c) **o ator
+  atual consegue contornar?** (sim quando `enforce_admins=false` e o ator é admin, ou quando os
+  `bypass_actors` do ruleset incluem o ator / `current_user_can_bypass` ≠ `never`).
+  - **forte** = (a) + (b) + (c)=não. Proteção clássica com PR/review obrigatório e checks
+    obrigatórios conta como portão forte, **equivalente** a um ruleset com as mesmas regras.
+  - **fraco** = falta (a) ou (b), ou (c)=sim (**fraco para este ator**: ex. `enforce_admins=false`
+    com ator admin; `bypass_actors` que incluem o ator).
+  - **desconhecido** = alguma fonte ou eixo ilegível → **bloqueia merge autônomo** (`STOP-HITL`) e
+    não autoriza push direto na base.
+  - **Fraco para o ator não libera nada**: o plano obedece a todas as regras lidas (PR, checks,
+    resolução de conversas, histórico linear) e **nunca** usa `--admin` nem bypass; a sentinela
+    ainda supre os guardrails em software.
+- **ENFORCE · repo-aware** — onde o portão é forte (ex. um repo com PR + checks strict +
+  assinatura): **nunca push direto
   em main** — abrir PR, aguardar os checks strict (ex. `build (lint·type·test·bundle)`), resolver
   threads, assinar.
 - **APPLY** — DoD de PR (5 itens): worktree+branch · PR aberto c/ descrição · convergência de bots
   · merge por caminho autorizado · cleanup. (→ `pr-review-protocol` §5)
 - **APPLY** — veredito de review vale só para o `headRefOid` atual; bot sem cota é roteado, nunca
   dado como aprovado. (→ `ai-code-review-bots-rotation` §7)
-- **APPLY** — autor≠approver DIY (2 contas ekson73 / vek-emilsonmoraes): PR de uma conta aprova
-  pela OUTRA; não escalar "aprovação humana" como muro.
-- **ENFORCE** — `--force-with-lease` só em branch de agente, **nunca** em main/protegida; bypass
-  temporário é só de assinatura (**não** `--no-verify`, não segredo, não `--force`).
+- **ENFORCE** — autor≠approver **legítimo**: nenhum agente aprova o próprio PR nem usa uma
+  segunda conta do mesmo dono (segunda identidade) para cumprir a exigência de aprovação. Contas de
+  outro domínio ou organização não aprovam nem atuam no repo (não revisam, não empurram, não
+  mesclam). Sem revisor legítimo disponível → `STOP-HITL`.
+- **ENFORCE** — **contas proibidas**: a sentinela consulta uma lista de contas proibidas mantida
+  **fora do repositório** (configuração privada do operador). Nenhuma conta dessa lista é usada,
+  pedida como reviewer, posta em allowlist (bypass, merge, deploy) ou em `CODEOWNERS`; se aparecer
+  no repo → `STOP-HITL` (mudar isso é mudança de política).
+- **ENFORCE** — **force-push**: **nunca** na main/branch default nem em branch protegida. Em branch,
+  só quando a branch foi criada pelo próprio agente (conferir o autor de todos os commits da branch e
+  quem abriu o PR) e **sempre** com `--force-with-lease`, nunca `--force` puro. Na dúvida, abrir uma
+  branch nova a partir da base e um PR novo que substitui o anterior.
+- **ENFORCE** — nenhum bypass, nem "temporário": não de assinatura, não `--no-verify`, não segredo,
+  não `--force`, não `--admin` (ver §0).
 - **APPLY** — questionar-e-corrigir: instrução errada/obsoleta/contraditória é questionada com
   evidência, não obedecida em silêncio. (→ `question-then-correct`)
 
 ### Fase 4 — merge
-- **APPLY · repo-aware** — **Gitflow só em vkl**: disciplina `develop`→`main` com back-merge
+- **APPLY · repo-aware** — **Gitflow só onde o repo o adota**: disciplina `develop`→`main` com back-merge
   **re-medido** (`git rev-list --count origin/develop..origin/main`; se 0 → não forçar merge
   vazio). Nos outros repos, alvo `main` direto. A sentinela **detecta** o modelo no source
   (existência de `develop` + CONTRIBUTING), nunca assume.
+- **APPLY** — **autonomia do merge**: decisões técnicas são autônomas (PR técnico verde, sem
+  achado aberto, dentro da política do repo). Exigem a **aprovação explícita do humano dono** (`STOP-HITL`), mesmo com
+  tudo verde: mudança de política ou de proteção de branch (ruleset, `CODEOWNERS`, allowlist, checks
+  obrigatórios), credenciais e segredos, gastos, ações irreversíveis, produção e ampliação de acesso.
+- **ENFORCE** — **pré-condições do merge**, lidas na fonte no momento do merge: mergeable limpo ·
+  todos os checks obrigatórios (pelos nomes lidos nas duas fontes) verdes no `headRefOid` atual ·
+  **zero thread de review aberta** (exija o repo ou não a resolução de conversas) · método de merge
+  permitido pelo repo (`allow_squash_merge`/`allow_merge_commit`/`allow_rebase_merge`) e compatível
+  com `required_linear_history` · aprovação exigida cumprida por revisor legítimo. Portão
+  **desconhecido** → nunca merge autônomo.
+- **ENFORCE** — **merge amarrado ao head**: `gh pr merge --match-head-commit <SHA_HEAD>` (ou o
+  parâmetro `sha` equivalente da API); se o head mudou, o merge falha e o ciclo volta à Fase 3. A
+  linha de status cita o **SHA do head** mesclado e o **SHA do commit de merge**. Nunca `--admin`.
 - **MERGE ENGINE — GitHub Merge Queue quando disponível** — quando o repo tem Merge Queue habilitada
-  (ou `allow_auto_merge=true` + ruleset com `required_status_checks`), a sentinela **enfileira** o
+  (ou `allow_auto_merge=true` + `required_status_checks` vindo do ruleset **ou** da proteção clássica), a sentinela **enfileira** o
   PR na Merge Queue como motor de merge (a fila mantém main verde, faz batching e lida com flaky)
   em vez de um merge manual. Fallback: `mergify` (skill interna) → `hierarchical-merge` (merge no
   PARENT, não direto em main; só quando todos os filhos completos).
@@ -186,7 +262,10 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
 - **ENFORCE** — restauração excepcional da raiz é custódia (só com pedido humano explícito); nunca
   "consertar" removendo worktree/stash alheio.
 - **ENFORCE · repo-aware** — respeitar `core.hooksPath` existente; **nunca `--no-verify`** num repo
-  com pre-commit ativo (ex. vkl). (→ atrito vivido §4 + conflito C4)
+  com pre-commit ativo. (→ atrito vivido §4 + conflito C4)
+- **ENFORCE** — **processos**: a sentinela registra o PID e a porta de cada processo que ela mesma
+  iniciou e só encerra por esse PID ou pela própria porta. **Nunca** `pkill`, `killall`, nem `kill`
+  por nome ou por padrão.
 - **APPLY** — workflow `ship` (gstack): base · testes · review do diff · bump VERSION · CHANGELOG ·
   commit · push · PR. Delega a `ship`/`pr`/`sync-to-git`.
 
@@ -198,22 +277,32 @@ expôs (`[[git-cycle-norma-harmonizada-2026-10-21]]` §2 transversal). Cada um �
 |---|---|---|
 | A1 | **raiz-protegida-tem-caminho** — nunca muta a raiz; publica só via worktree→PR + `ff-only` | preflight recusa mutação na raiz; sync só `--ff-only` |
 | A2 | **base-móvel** — `fetch`+`rebase origin/<base>` com retry bounded até fast-forward | push falha de base-movel → rebase+retry (teto N), não `--force` |
-| A3 | **gate-por-ruleset-não-404** — classifica forte/fraco lendo o ruleset, não por 404 clássico | `gh api .../rules/branches/<b>` antes de qualquer push |
-| A4 | **assinatura-nunca-regride** — assina onde o repo assina/exige; não força onde `gpgsign=false` | lê `commit.gpgsign` + `required_signatures`; espelha o estado |
+| A3 | **gate-por-garantia-efetiva** — une ruleset **e** proteção clássica e classifica forte/fraco/desconhecido por três eixos (PR obrigatório · checks obrigatórios · ator contorna?); nunca por um 404 isolado; erro de leitura = desconhecido | `gh api .../rules/branches/<b>` + `.../rulesets/<id>` + `.../branches/<b>/protection` + `.permissions` antes de qualquer push; casos de regressão abaixo |
+| A4 | **assinatura-nunca-regride** — assina onde o repo assina/exige; não força onde `gpgsign=false`; **verifica de fato** a capacidade de assinar | lê `required_signatures` (duas fontes) + `git config --get commit.gpgsign` / `gpg.format` / `user.signingkey` + **assinatura de teste** num repo temporário descartável (`mktemp -d` · `git init` · `git commit --allow-empty -S` · `git log --show-signature -1`); repo exige e ambiente não assina → não commita dali (`STOP-HITL` ou ambiente que assina); depois do push confere `commit.verification.verified` |
 | A5 | **push-verificável** — refspec literal `"$SHA:refs/heads/<br>"`, sem `$()` no mesmo span | o span do push é estaticamente inspecionável |
 | A6 | **remote-com-host-alias** — parse robusto de owner/repo (SSH alias, host custom) | **RECUSA** empurrar se o owner/repo não foi derivado pela regra §A6 abaixo; nunca assume `github.com` nem deixa o alias colar no owner |
 | A7 | **idempotência** — re-execução/re-entrega não duplica commit/PR/comentário | **RECUSA** criar commit/PR/comentário sem antes rodar a sonda de duplicata da §A7 abaixo (skip-if-já-feito) |
 
+### Casos de regressão do A3/A6 (dogfood D1, read-only)
+| Cenário | Esperado |
+|---|---|
+| proteção clássica sem ruleset: PR obrigatório (0 aprovações) + checks strict + `enforce_admins=true` | **forte** |
+| proteção clássica com PR + checks, `enforce_admins=false`, ator admin | **fraco para o ator**; obedece aos checks; nunca `--admin` |
+| ruleset só `deletion` + `non_fast_forward`, clássica 404 | **fraco** |
+| 403 ao ler a proteção clássica | **desconhecido**; merge autônomo bloqueado |
+| origin em caminho local | `STOP-ERROR` (owner/repo não derivável) |
+| raiz numa branch de feature, com worktrees anexadas | worktree nova a partir de `origin/<default>`; raiz intocada |
+
 ### §A6 — mecânica do parse owner/repo (não-decorativa)
-O modo-falha concreto que este guard **recusa**: tratar `git@github.com-ekson73:ekson73/multi-agent-os.git`
-como se o owner fosse `github.com-ekson73` (o alias de host colado no owner) ou assumir cegamente
+O modo-falha concreto que este guard **recusa**: tratar `git@github.com-meualias:owner/repo.git`
+como se o owner fosse `github.com-meualias` (o alias de host colado no owner) ou assumir cegamente
 `github.com`. A sentinela deriva owner/repo de `git remote get-url <remote>` com uma normalização
 que remove protocolo **e host (inclusive host-alias)** antes do owner, e tira o `.git`:
 
 ```
 url=$(git -C "$REPO" remote get-url "${REMOTE:-origin}")
 # tira https://<host>/  |  ssh://<host>/  |  qualquer prefixo scp-style [user@]host: (inclusive
-# host-alias puro sem user, ex. "github.com-ekson73:")  |  e o sufixo .git
+# host-alias puro sem user, ex. "github.com-meualias:")  |  e o sufixo .git
 slug=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+/|ssh://[^/]+/|[^/@]+@[^:/]+:|[^/@:]+:)##; s#\.git/?$##')
 # slug == "owner/repo"; RECUSA (STOP-ERROR) se não casar ^[^/]+/[^/]+$
 printf '%s' "$slug" | grep -Eq '^[^/]+/[^/]+$' || die "owner/repo não derivável de $url"
@@ -278,33 +367,35 @@ roda **antes** da mutação; sem ela a mutação é
 produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao 1º run).
 
 > **Não-regressão de assinatura (A4) é inviolável**: a norma C1 é *condicional ao repo* — assinar
-> onde 5/6 já assinam e onde o ruleset exige (`required_signatures` em vkl); **não** forçar
+> onde 5/6 já assinam e onde o ruleset exige (`required_signatures` no ruleset ou na proteção clássica); **não** forçar
 > assinatura em multi-agent-os enquanto `gpgsign=false` ali. A sentinela **respeita** o estado
 > medido, nunca o inverte.
 
 ## Repo-awareness (o coração híbrido)
 A sentinela lê o estado de cada repo e adapta ENFORCE vs APPLY ao que aquele repo **realmente tem**.
-Classificação medida (`[[git-cycle-norma-harmonizada-2026-10-21]]` §1):
+Perfis de exemplo (a medição original está em `[[git-cycle-norma-harmonizada-2026-10-21]]` §1):
 
-| Repo | Portão | `gpgsign` | `hooksPath` | Modelo | Postura da sentinela |
+| Perfil de repo (exemplo genérico) | Portão | `gpgsign` | `hooksPath` | Modelo | Postura da sentinela |
 |---|---|---|---|---|---|
-| vkl-rct-list-web | **FORTE** (pull_request + checks + signatures) | true | `.githooks` ativo | **Gitflow** | **OBEDECE**: PR + checks strict + assina + resolve threads + back-merge re-medido; nunca `--no-verify` |
-| multi-agent-os | fraco remoto (forte só local via GaaS) | true¹ | GaaS/hooks.json | trunk | **SUPRE** guardrails; assina (gpgsign lido **ao vivo**) |
-| eko-engram | fraco | true | unset | trunk | SUPRE; assina (gpgsign=true); publica via canal autorizado existente |
-| akasha-claude | **mais fraco** (hooks escritos mas não wired) | true | **unset** | trunk | SUPRE **tudo** em software (não assume que o hook protege) |
-| vek-ai-toolkit | fraco | true | unset | trunk | SUPRE; assina |
-| vek-docs-trellis | fraco GH (gate real no Bitbucket) | true | unset | trunk | SUPRE no GH; detecta forja Bitbucket |
+| ruleset com pull_request + checks + signatures | **FORTE** | true | `.githooks` ativo | Gitflow | **OBEDECE**: PR + checks strict + assina + resolve threads + back-merge re-medido; nunca `--no-verify` |
+| proteção clássica com PR/review obrigatório + checks strict + enforce_admins, sem ruleset | **FORTE** (garantia efetiva equivalente) | conforme lido | conforme lido | trunk | **OBEDECE**: PR + checks; nunca push direto; nunca `--admin` |
+| proteção clássica com PR + checks, `enforce_admins=false`, ator admin | **fraco para o ator** | conforme lido | conforme lido | trunk | **OBEDECE** aos checks e PR assim mesmo + SUPRE guardrails; nunca `--admin` |
+| multi-agent-os (este repo) | fraco para o ator admin (clássica com PR + checks, `enforce_admins=false`) | lido ao vivo¹ | GaaS/hooks.json | trunk | **SUPRE** guardrails; assina (gpgsign lido **ao vivo**) |
+| sem ruleset, sem proteção, hooks escritos mas não ligados | **mais fraco** | conforme lido | unset | trunk | SUPRE **tudo** em software (não assume que o hook protege) |
+| espelho no GitHub com gate real em outra forja | fraco no GitHub | conforme lido | unset | trunk | SUPRE no GitHub; detecta a outra forja |
 
 **Regra**: portão **forte → obedecer**; portão **fraco → suprir** (no-direct-main, scoped-add,
-gitleaks, worktree). A lista acima é *evidência medida* (snapshot), **não** um cap nem a fonte de
-decisão — a sentinela **relê o estado ao vivo** (`gh api .../rules/branches` + `git config
-commit.gpgsign` + `core.hooksPath`) a cada run e decide pela leitura viva, nunca pela tabela
+gitleaks, worktree). A lista acima é *ilustrativa* (perfis genéricos), **não** um cap nem a fonte de
+decisão — a sentinela **relê o estado ao vivo** (`gh api .../rules/branches` + `.../rulesets/<id>` + `gh api .../branches/<b>/protection`
++ `.permissions` + `git config commit.gpgsign` + assinatura de teste + `core.hooksPath`) a cada run e decide pela leitura viva, nunca pela tabela
 congelada (`pref.agentic_tools_hybrid_no_cap`).
 
 > ¹ Snapshot 2026-10-21 da norma registrava multi-agent-os `gpgsign=false`; re-medido no dogfood
 > cycle-1 (2026-10-21) está **`true`**. A *regra* A4 (espelhar o estado vivo) produz "assina em MAOS"
 > corretamente — foi a célula congelada que envelheceu, não a decisão. Prova de que ler-ao-vivo >
-> tabela.
+> tabela. No dogfood D1 (2026-10-22), num ambiente de agente diferente, `commit.gpgsign`,
+> `gpg.format` e `user.signingkey` estavam vazios e o commit de teste com `-S` falhou: a
+> capacidade de assinar depende do **ambiente** que commita, por isso o A4 exige o teste real.
 
 ## Arquitetura HÍBRIDA (determinístico + cognitivo + self-heal)
 Per o mandato do operador (`pref.tool_hybrid_and_selfheal_mandate`):
@@ -313,12 +404,14 @@ Per o mandato do operador (`pref.tool_hybrid_and_selfheal_mandate`):
   refspec literal · rebase+retry bounded · `idempotency_key` skip · gitleaks · `ff-only` sync ·
   os gates ENFORCE que já são scripts (`worktree-gate.sh`, hooks). Estes são **chamados**, não
   reescritos.
-- **Cognitivo (julgamento APPLY)** — classificar achado de review (correction vs style) · decidir
-  autor≠approver DIY · julgar artefato de merge estrutural · questionar-e-corrigir instrução
+- **Cognitivo (julgamento APPLY)** — classificar achado de review (correction vs style) · conferir
+  legitimidade do aprovador (autor≠approver, contas proibidas, outro domínio) · julgar artefato de merge estrutural · questionar-e-corrigir instrução
   obsoleta · triage Eisenhower das pontas soltas no boy-scout.
 - **Self-heal** — quando um passo script falha (ex. rebase conflita, push rejeitado por base-movel,
   check vermelho), a sentinela **não aborta cega**: captura o erro e o despacha a um ai-harness
-  agnóstico para resolver (rebase→resolver→re-push; check vermelho→ler log→corrigir→re-push),
+  para resolver. **ai-harness** = só harnesses e modelos cobertos por assinaturas **já pagas** pelo
+  operador (ex.: o agente de código incluído no plano), **sem chave de API cobrada por uso**; crédito
+  pré-pago só em último caso e com aviso prévio ao operador. Fluxo (rebase→resolver→re-push; check vermelho→ler log→corrigir→re-push),
   dentro do teto de tentativas (regra das 6 tentativas). Erro irreparável/HUMAN_DOMAIN → escala
   com a linha de status + o próximo passo resumível.
 
@@ -351,7 +444,8 @@ agente escreve arquivos → dispara git-cycle-sentinel "<theme>" --scope <globs>
 
 ## Machine output (`--json`)
 ```json
-{"repo":"<owner/name>","gate":"strong|weak","model":"gitflow|trunk","phase":"stage|worktree|pr-cycle|merge|boy-scout|done",
+{"repo":"<owner/name>","gate":"strong|weak|unknown","gate_sources":{"ruleset":"present|absent|unknown","classic":"present|absent|unknown"},
+ "required_checks":["<nome>"],"actor_can_bypass":"true|false|unknown","extra_rules":["conversation_resolution","linear_history","signatures"],"model":"gitflow|trunk","phase":"stage|worktree|pr-cycle|merge|boy-scout|done",
  "signed":true,"merge_engine":"merge-queue|mergify|hierarchical","pr":123,"idempotency_key":"<hash>",
  "verdict":"CYCLED|PR_OPEN|BLOCKED|DEFER","status_line":"<uma linha>","stop_marker":"STOP-DONE|STOP-HITL|STOP-ERROR|CONTINUE","_agent_feedback":"<hints>"}
 ```
@@ -372,6 +466,10 @@ Emite exatamente UM marcador terminal como última linha de cada turno:
 - Delegação depth ≤ 2; paralelo ≤ 3; regra das 6 tentativas antes de escalar.
 - HUMAN_DOMAIN + guardrails não-negociáveis (segredos/PII, force-push em protegida, instalar
   terceiro, cross-org, custo) SEMPRE param → HITL.
+- §0 vale sempre: nenhum gate pulado; sem dismiss, `--no-verify`, bypass de assinatura ou `--admin`.
+- Merge só com `--match-head-commit`, checks verdes e zero thread aberta; force-push só com
+  `--force-with-lease` em branch criada pelo próprio agente.
+- Processos encerrados só pelo próprio PID ou pela própria porta; nunca `pkill`/`killall`/por nome.
 - Exatamente UM marcador STOP por turno.
 
 ## §Quality Tests (self-dogfood — 6/6)
@@ -384,7 +482,7 @@ Emite exatamente UM marcador terminal como última linha de cada turno:
 3. **Survival** — aplicada a si, prega wrap-sobre-o-existente; ela É um wrap que delega. ✅
 4. **Bounded-Responsibility** — `--dry-run` · `idempotency_key` · recursão ≤2 · nunca regride
    assinatura · nunca `--no-verify` com pre-commit · DUED sunset. ✅
-5. **Explicit-Exception** — §0 BEING>Rules + HUMAN_DOMAIN escala + `--merge-engine`/`--async`
+5. **Explicit-Exception** — §0 gate não se pula (gate que obstrui → HITL) + HUMAN_DOMAIN escala + `--merge-engine`/`--async`
    override + portão-forte→obedece / fraco→supre. ✅
 6. **Utility-Sunset** — §DUED abaixo. ✅
 
@@ -409,7 +507,8 @@ Dormant-by-design caso contrário.
 |---|---|---|
 | 0.1.0 | 2026-10-21 | **Bootstrap** — forjada via metodologia `agentic-tool-pipeline`→`agentic-tool-forge` (sem CLI executável; as skills são documentos de metodologia que o agente encarna) + naming `anima` (`git-cycle-sentinel`; rejeitado `git-cycle-offloader` = drift epistemológico). Encoda a norma harmonizada de 5 fases (ENFORCE/APPLY, repo-aware), os 7 critérios de aceite (atritos vividos), Merge Queue como motor de merge, idempotência, não-regressão de assinatura, nunca `--no-verify` com pre-commit. Híbrido (script + cognitivo + self-heal). **Ainda NÃO dogfooded** — o dry-run/dogfood é o próximo passo (EKO-154). |
 | 0.1.1 | 2026-10-21 | **Dogfood cycle-1 (DRY-RUN, read-only em 6 repos, decisão-vs-norma)** — 7/7 cenários medidos na fonte. Refinados 2 guards decorativos: **A6** (host-alias) ganhou a mecânica `sed` que remove host-alias antes do owner + recusa STOP-ERROR se o slug não casa `owner/repo`; **A7** (idempotência) ganhou a sonda concreta de duplicata (commit trailer `idmp:<key>`, `gh pr list --head`, marcador de comentário) que **recusa** a mutação sem sondar antes. Tabela de repo-awareness corrigida: multi-agent-os `gpgsign` re-medido **true** (snapshot da norma dizia false) — evidência de que a regra lê-ao-vivo prevalece sobre a célula congelada. Veredito cycle-1: 5 guards firam, 2 eram decorativos (agora refinados). **NÃO promovível** — precisa cycle-2. |
-| 0.1.1 | 2026-10-21 | **Dogfood cycle-2 (EXECUÇÃO REAL, sandbox git descartável em `/tmp`)** — valida em runtime a mecânica do 0.1.1 que o cycle-1 só tinha no texto. 7/7 asserções PASS com mutação git real (nunca em repo do operador): **A1** raiz nunca mutada por checkout + publica via worktree; **A2** base-móvel integrada por `fetch`+`rebase origin/main` até `behind=0`; **A3** classifica forte/fraco lendo `gh api rules/branches` (read-only nos repos reais), não por 404; **A4** decisão de assinatura espelha `commit.gpgsign` ao vivo (mutation-check: `false→--no-gpg-sign`, `true→--gpg-sign`, nunca inverte); **A5** push por refspec literal `"$SHA:refs/heads/<br>"` verificado na fonte (SHA remoto == local); **A6** mecânica `sed` deriva owner=`ekson73` de `git@github.com-ekson73:...` (alias nunca cola no owner) e **RECUSA** URL malformada (mutation-check verde — fira, não decorativo); **A7** sonda `idmp:<key>` no trailer do commit: 2º run com mesma key NÃO duplica (mutation-check verde), key diferente cria commit novo. **VEREDITO: promovível** — ≥2 ciclos reais (cycle-1 dry-run + cycle-2 execução real) com os 2 guards antes decorativos agora firando em runtime. |
-| 0.1.1 | 2026-10-21 | **Re-refino pós-review de bots (PR #514)** — o próprio dogfood pegou 2 furos reais nos guards que o cycle-2 ainda não cobria, provando o valor do loop: **§A6** — a regex `git@[^:]+:` só pegava alias com `git@`; um alias **puro** `github.com-ekson73:owner/repo.git` (sem `git@`, forma de `~/.ssh/config`) colava no owner. Corrigido para scp-style genérico `[^/@]+@[^:/]+:\|[^/@:]+:` (cobre alias com e sem user; re-validado nas 6 formas + mutation-check). **§A7** — a sonda `git log --grep=idmp:<key>` varria a **história alcançável inteira**, dando falso-positivo se a key fora usada numa branch mergeada-e-deletada; escopada para `origin/<base>..HEAD` (provado em sandbox: a antiga acha a key mergeada, a nova não, e ainda detecta duplicata real da branch ativa). **CHANGELOG.md** do repo ganhou a entrada Unreleased do 0.1.1 (contrato AGENTS.md). |
+| 0.1.1 | 2026-10-21 | **Dogfood cycle-2 (EXECUÇÃO REAL, sandbox git descartável em `/tmp`)** — valida em runtime a mecânica do 0.1.1 que o cycle-1 só tinha no texto. 7/7 asserções PASS com mutação git real (nunca em repo do operador): **A1** raiz nunca mutada por checkout + publica via worktree; **A2** base-móvel integrada por `fetch`+`rebase origin/main` até `behind=0`; **A3** classifica forte/fraco lendo `gh api rules/branches` (read-only nos repos reais), não por 404; **A4** decisão de assinatura espelha `commit.gpgsign` ao vivo (mutation-check: `false→--no-gpg-sign`, `true→--gpg-sign`, nunca inverte); **A5** push por refspec literal `"$SHA:refs/heads/<br>"` verificado na fonte (SHA remoto == local); **A6** mecânica `sed` deriva owner=`owner` de `git@github.com-meualias:owner/...` (alias nunca cola no owner) e **RECUSA** URL malformada (mutation-check verde — fira, não decorativo); **A7** sonda `idmp:<key>` no trailer do commit: 2º run com mesma key NÃO duplica (mutation-check verde), key diferente cria commit novo. **VEREDITO: promovível** — ≥2 ciclos reais (cycle-1 dry-run + cycle-2 execução real) com os 2 guards antes decorativos agora firando em runtime. |
+| 0.1.1 | 2026-10-21 | **Re-refino pós-review de bots (PR #514)** — o próprio dogfood pegou 2 furos reais nos guards que o cycle-2 ainda não cobria, provando o valor do loop: **§A6** — a regex `git@[^:]+:` só pegava alias com `git@`; um alias **puro** `github.com-meualias:owner/repo.git` (sem `git@`, forma de `~/.ssh/config`) colava no owner. Corrigido para scp-style genérico `[^/@]+@[^:/]+:\|[^/@:]+:` (cobre alias com e sem user; re-validado nas 6 formas + mutation-check). **§A7** — a sonda `git log --grep=idmp:<key>` varria a **história alcançável inteira**, dando falso-positivo se a key fora usada numa branch mergeada-e-deletada; escopada para `origin/<base>..HEAD` (provado em sandbox: a antiga acha a key mergeada, a nova não, e ainda detecta duplicata real da branch ativa). **CHANGELOG.md** do repo ganhou a entrada Unreleased do 0.1.1 (contrato AGENTS.md). |
 | 0.1.1 | 2026-10-21 | **Re-refino rodada 2 (findings codex no PR #514)** — mais 3 refinamentos procedentes de mecânica: **§A6** a sonda `gh api` agora preserva o **host** (resolve HostName do alias via `ssh -G` e passa `--hostname`), senão num remote GitHub Enterprise validaria um repo homônimo em github.com; **§A7 (PR)** reuso de PR exige casar o marcador `<!--idmp:<key>-->` (ou head OID), nunca só o nome de branch — a branch determinística é reciclada e `--state all` traz PRs MERGED/CLOSED antigos; **§A7 (key)** default da `idempotency_key` passou de `headSha` (mutável pela própria sentinela → rerun duplicava) para `baseSha` estável (`origin/<base>`), ou persistência da key da 1ª invocação. |
 | 0.1.1 | 2026-10-21 | **Re-refino rodada 3 (findings codex/graphite no PR #514) — fecha o regresso da key** — 3 refinamentos finais: **§A7 key** a derivação git nunca é estável entre reruns async (headSha muda ao commitar, baseSha muda com o rebase da Fase 4/A2), então **persistência da key** virou a **regra primária** (grava no trailer + corpo do PR, todo rerun relê), com a derivação só como seed da 1ª vez — encerra o regresso baseSha↔headSha; **§A7 commit probe** `git log -F` (fixed-string) + trailer âncorado `^idmp:<key>$` para não casar key-prefixo nem regex; **§A6 host** normaliza endpoint de transporte SSH (`ssh.github.com → github.com`) de volta ao host de API. Exit criterion (lição `ai-review-loop-no-fixed-point`): required verde + findings de correção reais endereçados; CHANGELOG P1 era falso-positivo (entrada já presente). |
+| 0.2.0 | 2026-10-22 | **Endurecimento de governança (mudança de política, MINOR)** — **§0** deixa de permitir pular fase/gate (`BEING > Rules`) e proíbe explicitamente dismiss de review, pular check obrigatório, `--no-verify`, bypass de assinatura (inclusive "temporário") e `gh pr merge --admin`. **Fase 3**: removida a aprovação por segunda conta do mesmo dono; contas de outro domínio/organização não aprovam nem atuam; lista de contas proibidas mantida fora do repo (nunca reviewer, allowlist ou `CODEOWNERS`); force-push nunca na main/default, só com `--force-with-lease` em branch criada pelo próprio agente (autor dos commits + quem abriu o PR), na dúvida branch nova. **Portão** classificado pelas garantias efetivas: proteção clássica com PR/review + checks obrigatórios = forte, equivalente a ruleset (A3 renomeado `gate-por-garantia-efetiva`). **Fase 4**: técnico é autônomo; política/proteção, credenciais e segredos, gastos, irreversível, produção e ampliação de acesso exigem aprovação explícita do humano dono; merge só com `--match-head-commit`, checks verdes e zero thread aberta, citando SHA do head e do merge. **Self-heal**: `ai-harness` definido (só assinaturas já pagas, sem chave por uso; pré-pago só em último caso, com aviso). **Fase 5**: processos só pelo próprio PID/porta, nunca `pkill`/`killall`/por nome. Nova nota de harness com agente de nuvem. Tabela de repo-awareness trocada por perfis genéricos; exemplos de alias genéricos. **Rodada 2 (dogfood D1, read-only em 3 repos)**: a leitura do portão une as duas APIs (rulesets + `rulesets/<id>` e proteção clássica) mais a permissão do ator; 403/erro = **desconhecido**, que bloqueia o merge autônomo; classificação em três eixos (PR obrigatório · checks obrigatórios · ator contorna?), com `enforce_admins=false` + ator admin ou `bypass_actors` com o ator = fraco para o ator, sem liberar nada; envelope ganha `gate_sources`, `required_checks`, `actor_can_bypass`, `extra_rules`; motor de merge aceita checks da clássica; merge confere resolução de conversas, histórico linear e método permitido; **A4** exige teste real de assinatura em repo temporário; **preflight** trata raiz fora da default (sem troca de branch, worktree nova de `origin/<default>`, nada descartado); casos de regressão do A3/A6. |

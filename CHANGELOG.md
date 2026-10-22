@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — git-cycle-sentinel 0.2.0 (gates sem bypass e merge preso ao SHA)
+
+- `skills/git-cycle-sentinel/SKILL.md` 0.1.1 → 0.2.0. Gate não se pula: proibidos dismiss de review, pular check obrigatório, `--no-verify`, bypass de assinatura e `gh pr merge --admin`.
+- Contas de outro domínio ou organização não aprovam nem atuam.
+- Decisões técnicas são autônomas; política, credenciais, gastos, irreversível, produção e ampliação de acesso exigem aprovação explícita do humano dono.
+- Merge só com `--match-head-commit`, checks verdes e zero threads abertas; a linha de status cita o SHA do head e o do merge.
+- Force-push nunca na branch default; em branch, só na própria e com `--force-with-lease`.
+- Harness só por assinatura, sem chave de API cobrada por uso.
+- Processos encerrados só pelo próprio PID ou pela porta.
+- Portão classificado pela garantia efetiva (proteção clássica de branch equivale a ruleset).
+- Nota sobre harness com agente de nuvem: o agente de nuvem cria a branch, commita, empurra e abre o PR; o coordenador verifica, decide e mescla, e delega as correções.
+- Portão lido pela união da proteção clássica com os rulesets; 403 ou erro conta como desconhecido e bloqueia o merge autônomo; classificação por PR obrigatório, checks e se o ator consegue contornar.
+- Assinatura verificada de fato no ambiente que commita.
+- Preflight com raiz fora da default, seguindo por worktree nova.
+- `commands/git-cycle-sentinel.md` alinhado à v0.2.0: exemplos genéricos `owner/repo`, sem bypass de gate nem `--admin`.
+
 ### Added — `/hitl-digest` thin command
 
 - `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
