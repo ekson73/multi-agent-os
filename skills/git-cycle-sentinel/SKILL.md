@@ -219,11 +219,12 @@ slug=$(printf '%s' "$url" | sed -E 's#^(https?://[^/]+/|ssh://[^/]+/|[^/@]+@[^:/
 printf '%s' "$slug" | grep -Eq '^[^/]+/[^/]+$' || die "owner/repo não derivável de $url"
 ```
 
-As alternativas scp-style `[^/@]+@[^:/]+:` (com user, ex. `git@github.com:`, `git@github.com-ekson73:`,
-`org-123@github.com:`) e `[^/@:]+:` (alias **sem** user, ex. `github.com-ekson73:`) cobrem toda forma
-de host/host-alias — o alias **nunca** entra no owner, nem na forma `git@alias:` nem na forma
-`alias:owner/repo` pura (o furo que a 1ª versão do §A6 deixava passar). O guard **bloqueia** o push
-quando o slug não casa `owner/repo` (em vez de seguir com um alvo de `gh api` errado).
+As alternativas scp-style `[^/@]+@[^:/]+:` (forma **com user** `<user>@<host>:`, ex. um remote SSH
+padrão ou com host-alias) e `[^/@:]+:` (forma **sem user** `<host-alias>:`, ex. um alias de
+`~/.ssh/config`) cobrem toda forma de host/host-alias — o alias **nunca** entra no owner, nem na forma
+`<user>@<alias>:` nem na forma `<alias>:owner/repo` pura (o furo que a 1ª versão do §A6 deixava
+passar). O guard **bloqueia** o push quando o slug não casa `owner/repo` (em vez de seguir com um
+alvo de `gh api` errado).
 
 **Preservar o host para a verificação** — a sonda `gh api` tem de rodar contra o **mesmo host** que
 receberá o push, não o `github.com` default; senão, num remote de GitHub Enterprise (ou host custom),
