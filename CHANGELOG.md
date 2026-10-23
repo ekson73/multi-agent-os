@@ -145,6 +145,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GIT_INDEX_FILE`, object dirs, …) so `-C repo` is authoritative and a caller's environment
   cannot silently redirect the verifier at another repository. Two regression tests added.
 
+### Added — Agentic organization: six levels, role contracts and RACI
+
+- `docs/org/agentic-org-raci.md` v0.1.0: level map (political, strategic, orchestrator, managerial, tactical,
+  operational), roles bound to existing agents, gap analysis and a RACI by decision and task type.
+- `roles/` (10 contracts, all `latent` per ADR-019): `governance-officer`, `ceo`, `cto`, `orchestrator`,
+  `chief-of-staff`, `product-lead`, `release-manager`, `architect`, `verifier`, `executor` (specialty attribute).
+  Each carries agentic `requirements` (min model class, harness, memory, autonomy, proactivity, DoR, DoD).
+- 2 agents where existing coverage was under 50% (v0.1.0 drafts, cowork autonomy policy):
+  `site-reliability-engineer`, `technical-writer`. Security, platform and architecture lanes bind to the
+  `devsecops-engineer`, `devops-engineer` and `solution-architect` agents from #504 instead of new drafts.
+- Dogfood: first use of the Forge step [2b] and the Anima `org-roles` adapter from PR #476 on a real org model;
+  `tests/governance/test-roles-latent-only.sh` passes on the new `roles/` tree. No promotion claimed (0/2 cycles).
+
+### Changed — TRAIN: Forge and Anima learn organizational roles
+
+- `agents/forge.md` v1.1.0, `skills/agentic-tool-forge` v1.3.0, `skills/anima` v1.3.0: an organizational role
+  already covered ≥50% by existing agents becomes a **role contract bound to them**, not a new agent (step [2b] in
+  the Forge decision framework, a `role contract (binding)` row in the forge router, and a new Anima adapter
+  `kb/org-roles.md` for naming roles, lanes, edges and tiers). Every contract has `status: latent`, the only
+  admitted value; the file's `status` never grants authority and every decision of the role goes to the human.
+  Activation is out of scope: the ratification gate drafted during review (owner record, `authority_digest`, checks
+  (a)–(e)) was removed because nothing executed it and its identity rule had a revocation hole; what a future gate
+  must satisfy is in `docs/adrs/ADR-019-role-activation-gate-deferred.md`. New regression test
+  `tests/governance/test-roles-latent-only.sh` checks contract form only under `roles/` and refuses when in doubt.
+  The YAML template blocks in `agents/forge.md` are not machine-verified in this PR (declared limitation; a template
+  check is a possible follow-up). Under `roles/` only regular lowercase `.md` files with one frontmatter pass, with no
+  fences, extra documents, symlinks, CR/NEL or BOM, files over 64 KiB, or contract keys in the body (quoted keys,
+  explicit `?`/`:` keys, and the body loaded by the strict loader are all checked; a contract key in the body fails
+  with any value, null and false included, and keys are compared after the loader decodes them, so `"active"`
+  counts as `active`). The frontmatter is loaded with `yaml.safe_load`
+  (duplicate keys, anchors/aliases and `!!omap`/`!!pairs`/`!!set` refused): `status` is `latent`, `tier` is null, `role`/`status`/`tier` only at the root (depth-counted), and at any depth reserved
+  fields are null and activation keys null or false. Without PyYAML the test fails. Fixtures build a real `roles/`
+  tree per refused form. Any refusal by the strict loader in the frontmatter or the body under `roles/` fails
+  (parse error, duplicate key, unreadable document, unknown tag); there is no lenient re-read. Without `perl` (time
+  limit) the test also fails. It is a best-effort lint that fails closed,
+  not a guarantee. It does not detect natural-language activation, unlisted or look-alike (Unicode) keys, tags PyYAML nulls or retypes (`!!null`, `!!binary`), a different YAML parser's
+  reading, or a registry outside `roles/`, and no CI workflow runs it yet.
+
 ### Added — `bin/verdict-at-head`: reviewer verdicts bound to the current head
 
 - New read-only script `bin/verdict-at-head --repo OWNER/REPO --pr N [--primary L1,L2] [--json]`.
