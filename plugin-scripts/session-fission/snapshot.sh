@@ -5,7 +5,7 @@
 #  * @reason Copy the source transcript to a backup dir + write a manifest + run gitleaks,
 #  *         BEFORE any archive/reseed op. The source is read-only; this only copies OUT.
 #  * @impact Writes a snapshot + manifest under the backup dir. Never touches the source.
-#  * @version 0.1.0
+#  * @version 0.1.1
 #  */
 
 set -euo pipefail
@@ -84,17 +84,43 @@ MANIFEST="$SNAP.manifest.yaml"
 cp -p "$TRANSCRIPT" "$SNAP"
 
 # gitleaks scrub (best-effort; reported, not enforced here).
-# Distinguish tool errors from real findings: gitleaks exits 0=clean, 1=leaks,
-# anything else=tool error (do NOT misreport an error as "findings"). `detect
-# --source` kept for broad version compat (newer `dir` subcommand breaks older installs).
+# gitleaks exits 1 BOTH on a real finding AND on a fatal scanner error (bad
+# --source, unreadable --config), so the exit code alone cannot tell them apart
+# (#399). Disambiguate with --report-path: a real finding writes a non-empty
+# report; a fatal error never reaches the report step. `detect --source` kept for
+# broad version compat (newer `dir` subcommand breaks older installs).
+# The `|| GL_RC=$?` keeps a non-zero exit from tripping `set -e` before the
+# manifest is written.
 GL="skipped"
 if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks detect --no-git --source "$SNAP" >/dev/null 2>&1
-  case $? in
-    0) GL="clean" ;;
-    1) GL="findings" ;;
-    *) GL="scan-error" ;;
-  esac
+  # Private dir: the report path does not exist until gitleaks writes it, so
+  # "present + non-empty" can only mean gitleaks wrote a finding report.
+  GL_DIR="$(mktemp -d "${TMPDIR:-/tmp}/snapshot-gitleaks.XXXXXX")" || GL_DIR=""
+  if [ -z "$GL_DIR" ]; then
+    GL="scan-error"
+  else
+    GL_REPORT="$GL_DIR/report.json"
+    GL_LOG="$GL_DIR/stderr.log"
+    GL_RC=0
+    trap 'rm -rf "$GL_DIR"' EXIT   # the report may name findings; never leave it behind
+    # --redact: only the report's presence is used, so secret values are never written.
+    gitleaks detect --no-git --redact --source "$SNAP" \
+      --report-format json --report-path "$GL_REPORT" >/dev/null 2>"$GL_LOG" || GL_RC=$?
+    # gitleaks logs a mid-scan error and keeps going, so a partial scan can still
+    # exit 0 (no findings) or 1 with a non-empty report. An ERR/FTL log line means
+    # the scan was incomplete: report scan-error, never clean/findings. The log
+    # stays in the private dir and is never printed.
+    if grep -Eq '(^|[[:space:]])(ERR|FTL)([[:space:]]|$)|"level":"(error|fatal)"' "$GL_LOG" 2>/dev/null; then
+      GL="scan-error"
+    elif [ "$GL_RC" -eq 0 ]; then
+      GL="clean"
+    elif [ "$GL_RC" -eq 1 ] && [ -s "$GL_REPORT" ] && [ "$(tr -d '[:space:]' < "$GL_REPORT")" != "[]" ]; then
+      GL="findings"
+    else
+      GL="scan-error"
+    fi
+    rm -rf "$GL_DIR"; trap - EXIT
+  fi
 fi
 
 SOURCE_Y="$(yaml_sq "$TRANSCRIPT")"

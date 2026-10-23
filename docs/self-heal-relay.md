@@ -29,7 +29,7 @@ legitimate deny / gate / verdict exit. Each language enforces this structurally:
 
 | Language | Intentional exit that must NOT relay | How the guard works |
 |----------|--------------------------------------|---------------------|
-| **bash** (`worktree-gate.sh`) | `exit 2` = BLOCK (gate verdict); `exit 0` = allow | `trap self_heal ERR` (ERR only, never EXIT — a plain `exit 2` does not trip ERR) **plus** `self_heal` re-exits `2` verbatim if the captured code is 2 |
+| **bash** (`worktree-gate.sh`) | `exit 2` = BLOCK (gate verdict); `exit 0` = allow | `trap self_heal EXIT` passes `0` and `2` through verbatim and treats any other code as a fault (an ERR trap misses failures inside functions and `set -u` aborts). Exception: require_jq's documented jq-missing degrade exit |
 | **python** (`work-compass-aggregate.py`) | clean `exit 0`; argparse `exit 2` usage; `sys.exit(1)` route-miss | `try: … except SystemExit: raise` — SystemExit is re-raised untouched; relay only on an uncaught `Exception` |
 | **node** (`research-dossier-render.mjs`) | `exit 1` = GATE FAILURE (provenance/palette verdict) | `selfHealRelay` guard `if (code === EXIT_GATE) return;` — relay only for the exit-2 IO/usage class or an uncaught throw |
 
@@ -69,7 +69,7 @@ syntax** and a **scoped** tool set:
 
 | Env var | Effect |
 |---------|--------|
-| `MAOS_SELFHEAL=0` | Disable the relay entirely (log kept, no dispatch). Default `1`. |
+| `MAOS_SELFHEAL=0` / `1` | `0` disables the relay (log kept, no dispatch). The default is per adopter: `worktree-gate.sh` is opt-in (default `0`; `1` enables the relay and the command is still blocked). Other adopters default to `1`. |
 | `MAOS_AI_HARNESS="claude kiro-cli …"` | Override the harness order (space-separated). Default: `kiro-cli claude codex opencode gemini crush amp`. |
 
 ## Portable temp per language
@@ -84,12 +84,13 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 ## Per-language port notes
 
 - **bash (`worktree-gate.sh`)** — `set -euo pipefail` means an unexpected fault trips
-  `ERR`; `trap self_heal ERR` (ERR only, never EXIT, to avoid double-fire). The hook
+  an exit; `trap self_heal EXIT` maps any code other than 0/2 to the fault path (ERR alone
+  misses function-internal failures and `set -u` aborts, which exit 1 = non-blocking). The hook
   communicates via **JSON-RPC on stderr** (C06: "JSON errors to stderr"), so the
   runlog tee is `exec 2> >(tee -a "$RUNLOG" >&2)` — **stderr** is teed while **stdout
   is left pristine**, and the verdict on stderr passes through the tee intact. The
   `exit 2` block path is a plain `exit 2` (never routed through a failing command),
-  and `self_heal` re-exits 2 defensively.
+  and `self_heal` passes 0/2 through verbatim.
 - **python (`work-compass-aggregate.py`)** — the `__main__` wrapper does
   `try: raise SystemExit(main()) / except SystemExit: raise / except Exception: relay
   + SystemExit(1)`. Catching `Exception` (not `BaseException`) leaves `SystemExit`
@@ -107,7 +108,7 @@ Each port normalizes `TMPDIR` and uses a portable temp mechanism:
 | Script | Language | Fires on | Never relays (legitimate exit) |
 |--------|----------|----------|--------------------------------|
 | [`bin/kirocrew-extras`](../bin/kirocrew-extras) | bash | any error (reference impl) | — (its non-zero is a genuine FAIL) |
-| [`plugin-scripts/governance/worktree-gate.sh`](../plugin-scripts/governance/worktree-gate.sh) | bash | unexpected fault (unbound var, `require_jq` fail, `source` fail) | `exit 2` (BLOCK verdict), `exit 0` (allow) |
+| [`plugin-scripts/governance/worktree-gate.sh`](../plugin-scripts/governance/worktree-gate.sh) | bash | unexpected fault (unbound var, `source` fail), **opt-in only** (`MAOS_SELFHEAL=1`); a fault on a git command exits `2` (fail closed) | `exit 2` (BLOCK verdict), `exit 0` (allow) |
 | [`bin/work-compass-aggregate.py`](../bin/work-compass-aggregate.py) | python | uncaught `Exception` | any `SystemExit` (clean `0`, argparse `2`, route-miss `1`) |
 | [`bin/research-dossier-render.mjs`](../bin/research-dossier-render.mjs) | node | uncaught throw / rejection, exit-2 IO/usage | `exit 1` (GATE FAILURE verdict) |
 

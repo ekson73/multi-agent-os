@@ -7,7 +7,7 @@
 #        a candidate mode (continuation-candidate | unanchored) + nudges when no anchor.
 #   R1 — detect the current branch / upstream / divergence / worktree-locks
 #        non-interferingly (read-only).
-#   R2 — safely heal the current branch from origin (fetch→classify→ff|rebase|DEFER).
+#   R2 — safely heal the current branch from origin (fetch→classify→ff-only|DEFER; never rebases).
 #   R1.5 — (optional, capability-detected) detect OTHER live peer sessions writing
 #        this SAME checkout; if any are active, DEFER R2 to avoid interfering.
 #   Then inject a concise status as SessionStart additionalContext so the agent
@@ -31,6 +31,7 @@ LIB_DIR="${SCRIPT_DIR}/lib"
 source "${LIB_DIR}/common.sh"
 source "${LIB_DIR}/git-branch-detect.sh"
 source "${LIB_DIR}/git-safe-sync.sh"
+unset GSS_ALLOW_REBASE   # SessionStart never rebases, even if the user shell exports the opt-in
 # Optional cross-session layer (capability-detected; graceful no-op if absent).
 [ -f "${LIB_DIR}/peer-session-detect.sh" ] && source "${LIB_DIR}/peer-session-detect.sh"
 

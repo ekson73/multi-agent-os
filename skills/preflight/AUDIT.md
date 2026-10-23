@@ -10,7 +10,7 @@
 | Start-of-session responsibility | preflight | Verdict |
 |---|---|---|
 | Detect the **right branch** without interfering with other agents/sessions/worktrees | **R1** (`lib/git-branch-detect.sh`: branch + upstream + ahead/behind + `git worktree list --porcelain` locked-branches + tree-state) + **R1.5** peer-aware cross-session detection (`lib/peer-session-detect.sh`, capability-detected, graceful `UNKNOWN` off-host) | ✅ covered |
-| Git **pull / harmonize / heal / cure** the current branch from origin | **R2** (`lib/git-safe-sync.sh`: fetch → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / peers-active} → `ff-only` \| `rebase --autostash` \| **DEFER**) | ✅ covered |
+| Git **pull / harmonize / heal / cure** the current branch from origin | **R2** (`lib/git-safe-sync.sh`: fetch → classify {up-to-date / ff-ready / diverged / dirty / detached / mid-op / busy / peers-active} → `ff-only` \| **DEFER**; `rebase --autostash` only with `GSS_ALLOW_REBASE=1`) | ✅ covered |
 | Create a **git worktree** the moment you are about to create/update files/dirs | **R3** (lazy isolation; composes `/maos:worktree create`; `preflight-edit-gate.sh` PreToolUse safety-net) | ✅ covered |
 | Adapt to **whatever patterns/governance are available at invocation** | Governance Discovery section (reads `CLAUDE/AGENTS/CONTRIBUTING/README/protocols/memories`, falls back to C04 defaults) | ✅ covered |
 
