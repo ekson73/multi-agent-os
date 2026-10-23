@@ -355,7 +355,7 @@ def test_ssh_git_urls_are_not_flagged_as_email(ssh_url):
         "noreply@alibaba.com",
         "noreply@qodo.ai",
         # GitHub per-user noreply
-        "12345+ekson73@users.noreply.github.com",
+        "12345+octocat@users.noreply.github.com",
     ],
 )
 def test_allowlist_covers_well_known_noreply_and_subdomains(allowlisted_email):

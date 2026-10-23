@@ -3,7 +3,7 @@
 > **Anima verdict** — name: `self-heal-relay` · type: self-healing execution pattern ·
 > category: autonomic / resilience · soul-name **"Phoenix"** (prose only).
 > **Pattern doc, not a skill.** Upstream standard (cite, do not duplicate):
-> [`~/.kiro/steering/eko-executable-scripts.md`](file://~/.kiro/steering/eko-executable-scripts.md) §prop-6.
+> [`~/.kiro/steering/executable-scripts.md`](file://~/.kiro/steering/executable-scripts.md) §prop-6.
 
 ## Intent
 
@@ -122,5 +122,5 @@ exception rather than the default relay, and be listed here.
 
 ## See also
 
-- Upstream standard: [`~/.kiro/steering/eko-executable-scripts.md`](file://~/.kiro/steering/eko-executable-scripts.md) §prop-6 (self-heal on failure, harness-agnostic).
+- Upstream standard: [`~/.kiro/steering/executable-scripts.md`](file://~/.kiro/steering/executable-scripts.md) §prop-6 (self-heal on failure, harness-agnostic).
 - Reference implementation: [`bin/kirocrew-extras`](../bin/kirocrew-extras).

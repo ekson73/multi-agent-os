@@ -51,7 +51,7 @@ The concierge ROUTES to `claude-code-guide` (Q&A), `find-docs`/Context7/ref-tool
 
 ## C8 — Frontmatter + ISO-8601 + community-clean (layer purity)
 
-This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no Eko/Vek/corporate-specific content** in this community repo.
+This skill (and anything it places) carries frontmatter; dates are ISO-8601; content is MIT/AAIF universal — **no personal/corporate-specific content** in this community repo.
 
 **Drift flag:** corporate/operator-personal content leaking into this community skill, a relative date, or missing frontmatter = contradiction.
 

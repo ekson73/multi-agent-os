@@ -10,7 +10,7 @@
 
 **Mission**: Prover ao multi-agent-os um **goal-level autonomous-orchestration entry point** que delega um objetivo do operador end-to-end através de sub-agents, respeitando Sentinel Protocol + Anti-Conflict + 6-attempt escalation, com autonomia bandeada (L1/L2/L3) e DNA payload adicional retro-compatível.
 
-**Vision**: Tornar-se a **fachada community-facing canônica** para orquestração autônoma multi-AI — composta com `skills/converge` (debate), `skills/agent-select` (routing), `protocols/delegation/*` (GaaS) — e o **gateway de promoção** entre experimentos user-scope (e.g., [`~/.claude/skills/auto-orchestrator/`](https://github.com/ekson73/vek-dot-claude/tree/main/skills/auto-orchestrator)) e adoção community/AAIF cross-vendor.
+**Vision**: Tornar-se a **fachada community-facing canônica** para orquestração autônoma multi-AI — composta com `skills/converge` (debate), `skills/agent-select` (routing), `protocols/delegation/*` (GaaS) — e o **gateway de promoção** entre experimentos user-scope (e.g., [`~/.claude/skills/auto-orchestrator/`](https://github.com/OWNER/user-dotfiles/tree/main/skills/auto-orchestrator)) e adoção community/AAIF cross-vendor.
 
 **Values**:
 - **Compose, don't reimplement** — toda seta de fluxo termina em artifact existente neste repo.
@@ -59,8 +59,8 @@
 
 ## 3. Current state (v0.1.0 baseline shipped 2026-05-17)
 
-- **PR**: [ekson73/multi-agent-os#65](https://github.com/ekson73/multi-agent-os/pull/65) merged as commit `7f8fd64` (squash) on 2026-05-17 (HITL authorized scope-limited per [`[C07]`](https://github.com/ekson73/vek-dot-claude/blob/main/CLAUDE.md) v2.1.0).
-- **Bot convergence achieved (PDCA per [`pr-review-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/pr-review-protocol.md) v2.0.0)**: amazon-q `SUCCESS` + Copilot `SUCCESS` + gitleaks `SUCCESS` + Trivy x2 `SUCCESS` + pip-audit `SUCCESS` + OpenSSF `SUCCESS` + governance-validation `SUCCESS`. Out-of-action: CodeRabbit (rate-limit + credits zerados — `pr-review-protocol` §4 escape clause); Qodo (paid-seat — out of scope).
+- **PR**: [ekson73/multi-agent-os#65](https://github.com/ekson73/multi-agent-os/pull/65) merged as commit `7f8fd64` (squash) on 2026-05-17 (HITL authorized scope-limited per [`[C07]`](https://github.com/OWNER/user-dotfiles/blob/main/CLAUDE.md) v2.1.0).
+- **Bot convergence achieved (PDCA per [`pr-review-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/pr-review-protocol.md) v2.0.0)**: amazon-q `SUCCESS` + Copilot `SUCCESS` + gitleaks `SUCCESS` + Trivy x2 `SUCCESS` + pip-audit `SUCCESS` + OpenSSF `SUCCESS` + governance-validation `SUCCESS`. Out-of-action: CodeRabbit (rate-limit + credits zerados — `pr-review-protocol` §4 escape clause); Qodo (paid-seat — out of scope).
 - **Capabilities shipped**:
   - 4 delegation modes: `sequential` · `parallel` · `recursive` · `debate-converge`
   - 2 operator-facing aliases: `dueto` (parallel N=2) · `swarm` (parallel N≥3)
@@ -73,7 +73,7 @@
   - [#69 N5 Multi-vendor MCP channel layer](https://github.com/ekson73/multi-agent-os/issues/69)
   - [#70 7-perspective comparative-research artifact](https://github.com/ekson73/multi-agent-os/issues/70)
 - **Umbrella tracker (user-scope dependency)**: operator-private (not enumerated in this community doc — tracked in operator's private `~/.claude/` repo).
-- **Plan-mode artifact**: [`ekson73/vek-dot-claude#47`](https://github.com/ekson73/vek-dot-claude/pull/47) — submitted 2026-05-17, contains §0-§16 of the strategic plan that drove this master-plan.
+- **Plan-mode artifact**: [`OWNER/user-dotfiles#47`](https://github.com/OWNER/user-dotfiles/pull/47) — submitted 2026-05-17, contains §0-§16 of the strategic plan that drove this master-plan.
 
 ---
 
@@ -81,14 +81,14 @@
 
 | # | Finding | Severity | Source |
 |---|---|---|---|
-| F1 | **~80% functional overlap** entre `auto-pilot` community e [`auto-orchestrator`](https://github.com/ekson73/vek-dot-claude/blob/main/skills/auto-orchestrator/SKILL.md) user-scope (latter is AAIF-compliant superset: 5 companion subagents + 6-factor autonomy_score + goal-aware STOP markers + 5-path PR interaction + 12-role universal diversity matrix) | HIGH | Differential read 2026-05-17 |
+| F1 | **~80% functional overlap** entre `auto-pilot` community e [`auto-orchestrator`](https://github.com/OWNER/user-dotfiles/blob/main/skills/auto-orchestrator/SKILL.md) user-scope (latter is AAIF-compliant superset: 5 companion subagents + 6-factor autonomy_score + goal-aware STOP markers + 5-path PR interaction + 12-role universal diversity matrix) | HIGH | Differential read 2026-05-17 |
 | F2 | **Schizophrenia interna**: [`skills/auto-pilot`](https://github.com/ekson73/multi-agent-os/blob/main/skills/auto-pilot/SKILL.md) universal #1 "no auto-merge" CONFLITA com L3-extended "auto-merge of green-bot PRs" (fail Self-Application Test per `[C17]` §11) | HIGH | Same-file contradiction |
 | F3 | **Inconsistência numérica**: auto-pilot depth cap=2 hard vs auto-orchestrator depth cap=3 Phase 0.5 — qual é canônico? | MED | Cross-skill diff |
 | F4 | **Over-engineering candidate**: `dueto`/`swarm` aliases adicionam vocabulário sem diferenciação real (são `parallel` com N=2/N=3) | MED | SKILL.md Delegation modes table |
 | F5 | **Strategic blind-spot**: `auto-pilot` §Related NÃO referencia `auto-orchestrator` — drift community ↔ user-scope **invisibilizado** | HIGH | §Related audit |
 | F6 | **Missing empirical grounding**: design não cita AutoGPT pivot (unbounded autonomy abandonado 2024), 47.8% completion em 7-step chains (90%^7), [CrewAI](https://www.crewai.com/) hierarchical manager (−40% failures), [AutoGen Magentic-One](https://www.microsoft.com/en-us/research/blog/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/) dual-ledger, [LangGraph](https://langchain-ai.github.io/langgraph/) state-machine, [OpenHands](https://github.com/All-Hands-AI/OpenHands) Docker sandboxing, [AAIF spec](https://agentskills.io/specification) compliance | HIGH | Agent-3 web research 2026-05-17 |
 | F7 | **No goal-aware mode**: `auto-orchestrator` tem §5.5/§7.0 canonical STOP-* markers (`<!--ORCH-STATUS: STOP-DONE/HITL/ERROR/CONTINUE -->`); `auto-pilot` não tem | MED | Differential read |
-| F8 | **Naming theater risk**: `auto-pilot` vs `auto-orchestrator` operator confusion previsível (Q1 do UP review [#47](https://github.com/ekson73/vek-dot-claude/pull/47) §8 ainda em aberto) | MED | UP review |
+| F8 | **Naming theater risk**: `auto-pilot` vs `auto-orchestrator` operator confusion previsível (Q1 do UP review [#47](https://github.com/OWNER/user-dotfiles/pull/47) §8 ainda em aberto) | MED | UP review |
 
 ---
 
@@ -124,11 +124,11 @@ Selection criteria during debate (per [`skills/converge`](../../skills/converge/
 ### Community (open-source, MIT)
 
 - This repo: [`ekson73/multi-agent-os`](https://github.com/ekson73/multi-agent-os) — auto-pilot skill + protocols + sentinel + sister skills
-- Marketplace (personal/community): [`ekson73/eko-claude-plugins`](https://github.com/ekson73/eko-claude-plugins)
+- Marketplace (personal/community): [`OWNER/plugin-marketplace`](https://github.com/OWNER/plugin-marketplace)
 
 ### User-scope (operator's private master)
 
-- [`ekson73/vek-dot-claude`](https://github.com/ekson73/vek-dot-claude) — operator's private `~/.claude/` master (rules · skills · plans · commands · agents); contains `auto-orchestrator` skill v1.1.0 + governance frameworks (private to operator's setup)
+- [`OWNER/user-dotfiles`](https://github.com/OWNER/user-dotfiles) — operator's private `~/.claude/` master (rules · skills · plans · commands · agents); contains `auto-orchestrator` skill v1.1.0 + governance frameworks (private to operator's setup)
 
 ### Corp-layer (community-decoupled per layer-purity — NOT enumerated here)
 

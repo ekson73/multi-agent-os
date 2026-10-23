@@ -91,7 +91,7 @@ From `MASTER-PLAN.md` §5 (re-stated inline per §5.5):
 - Methodology: [`docs/auto-pilot/GIT-PR-AS-DEBATE-PROMPT.md`](../GIT-PR-AS-DEBATE-PROMPT.md)
 - Master-PR template: [`templates/master-pr-debate-prompt.template.md`](../templates/master-pr-debate-prompt.template.md)
 - Sister skill: [`skills/converge/SKILL.md`](../../../skills/converge/SKILL.md)
-- Companion plan: [`vek-dot-claude` plan-file (merged via PR #47)](https://github.com/ekson73/vek-dot-claude/blob/main/plans/analise-critique-valide-corrija-witty-blossom.md) §15-§17
+- Companion plan: [`user-dotfiles` plan-file (merged via PR #47)](https://github.com/OWNER/user-dotfiles/blob/main/plans/analise-critique-valide-corrija-witty-blossom.md) §15-§17
 
 ---
 

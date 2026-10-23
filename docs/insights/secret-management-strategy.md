@@ -39,13 +39,13 @@ ESO   → For runtime secrets fetched from AWS Secrets Manager at pod startup
 | **App (sales-api)** | `application-hml.properties` | 🚨 **CRITICAL** | **Hardcoded passwords in plaintext in git** |
 | **Cluster** | kubectl secrets | ⚠️ Created manually | Not GitOps (e.g., grafana-admin-credentials) |
 
-### 🚨 Critical Security Findings in vks-jss-sales-api
+### 🚨 Critical Security Findings in example-sales-api
 
 ```properties
 # application-hml.properties — PLAINTEXT CREDENTIALS IN GIT: (values redacted here; rotate at source)
-quarkus.datasource.password=${VEK_DB_PASSWORD:***}
+quarkus.datasource.password=${APP_DB_PASSWORD:***}
 quarkus.redis.hosts=rediss://***@...amazonaws.com:6379
-vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
+app.db.encryption.secret.key=${APP_DB_ENCRYPTION_SECRET_KEY:***}
 ```
 
 > [!CAUTION]
@@ -68,10 +68,10 @@ vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
 │  └── NO plaintext secrets (enforced by pre-commit)      │
 │                                                          │
 │  AWS Secrets Manager (actual secrets)                    │
-│  ├── vek/database/{env}#password                        │
-│  ├── vek/redis/{env}#url                                │
-│  ├── vek/grafana#admin-password                         │
-│  └── vek/nginx-basic-auth#auth                          │
+│  ├── org/database/{env}#password                        │
+│  ├── org/redis/{env}#url                                │
+│  ├── org/grafana#admin-password                         │
+│  └── org/nginx-basic-auth#auth                          │
 │                                                          │
 │  ESO Controller (in-cluster)                            │
 │  ├── Watches ExternalSecret CRDs                        │
@@ -113,7 +113,7 @@ vek.db.encryption.secret.key=${VEK_DB_ENCRYPTION_SECRET_KEY:***}
 
 ---
 
-## Inventory: Our `load-runtime-secrets.sh` (vks-jss-sales-api)
+## Inventory: Our `load-runtime-secrets.sh` (example-sales-api)
 
 > Source: `scripts/load-runtime-secrets.sh` (1610 lines, AIMS-7.0.2 JSON-RPC)
 
@@ -130,7 +130,7 @@ set-pre-build-env.sh
 │   ├── AWS Secrets Manager provider (aws://path#field)
 │   ├── In-memory cache (multi-field per secret)
 │   ├── AIMS-7.0.2 JSON-RPC (ai_progress, ai_metric, ai_context)
-│   └── Duplicate execution protection (VEK_RUNTIME_SECRETS_LOADED)
+│   └── Duplicate execution protection (APP_RUNTIME_SECRETS_LOADED)
 ├── 20+ functions (resolve_aws_secret, cache, etc.)
 └── Dependencies: dasel 2.8.1, awscli 2.15.0, jq 1.7 (mise)
 ```
@@ -167,4 +167,4 @@ set-pre-build-env.sh
 | `k8s-eks-prd-002/AGENTS.md` | Add ESO as secret management standard |
 | `helm-charts.yaml` | Change `external-secrets.status` from `"off"` to `"on"` |
 | `multi-agent-os/governance-v2` | Add secret management architecture diagram |
-| `vek-devops-backlog` | Create TASK for application-*.properties cleanup |
+| `org-devops-backlog` | Create TASK for application-*.properties cleanup |

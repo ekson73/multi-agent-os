@@ -37,7 +37,7 @@ envelope. The novel step the loop/goal family was missing.
 > them (gap-loop/quiesce) — none RECOVERED an *unstated* one at session start. Named via `anima`
 > (agent-register): `goal-recovery` (rejected `intent-recovery` — drifts from the family's `{{goal}}`
 > anchor + the operator's literal `--goal`; rejected `anamnesis` — soul-name obscurity in an agent slug).
-> Authored by Claude Opus 4.8 (1M) under operator `/enhance` directive 2026-07-12; reviewed by @ekson73.
+> Authored by Claude Opus 4.8 (1M) under operator `/enhance` directive 2026-07-12; reviewed by @maintainer.
 
 ## §0 — BEING > Rules (foundational)
 Serves the operator's intent. If a phase/gate obstructs recovering the right goal NOW, skip it, log

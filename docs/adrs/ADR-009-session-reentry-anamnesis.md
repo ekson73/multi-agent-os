@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (build IN PROGRESS — **M1 + M2 shipped**; M3/M4 spec'd in §M2–M4 Build-Spec + tracked by [#234](https://github.com/ekson73/multi-agent-os/issues/234)). This ADR is the design spec; the §M2–M4 Build-Spec turns the roadmap into build-level composition contracts.
 - **Date:** 2026-07-10
-- **Deciders:** operator (Emilson) + Claude (Opus 4.8)
+- **Deciders:** operator + Claude (Opus 4.8)
 - **Origin:** operator `/enhance /deep-research Ultrathink` 2026-07-09; SHAPE + SCOPE decided via AskUserQuestion 2026-07-10.
 - **Naming:** Anima `--n=5` slate → system-slug `session-reentry` · soul-name **Anamnesis** (Plato ἀνάμνησις, *recollection / the un-forgetting* — the dual of amnesia). Operator may override (`[C-naming]`).
 
@@ -35,7 +35,7 @@ Rejected alternatives: **(a)** `morning-briefing --mode=reentry` extension — m
 
 | Phase | Does | COMPOSES (reuse — path) |
 |---|---|---|
-| **1 · INGEST** (cold artifacts) | walk the thread's persisted surfaces; compute **dormancy** | CPT Compass walk (`cowork-process-topology-protocol.md` §9: `INDEX.yaml`/`manifest`/`events` — *operator akasha-claude rules, cross-repo*) · ASH (`skills/agentic-session-harness`) · `session-report/analyze-sessions.mjs` (transcript parse) · `skills/postflight/references/continuation-seed-contract.md` (seed shape) · `ticket-as-prompt` `re-entry-block` · the **37-type work-surface taxonomy** (see References — cross-repo) as the input-surface map |
+| **1 · INGEST** (cold artifacts) | walk the thread's persisted surfaces; compute **dormancy** | CPT Compass walk (`cowork-process-topology-protocol.md` §9: `INDEX.yaml`/`manifest`/`events` — *operator knowledge-vault rules, cross-repo*) · ASH (`skills/agentic-session-harness`) · `session-report/analyze-sessions.mjs` (transcript parse) · `skills/postflight/references/continuation-seed-contract.md` (seed shape) · `ticket-as-prompt` `re-entry-block` · the **37-type work-surface taxonomy** (see References — cross-repo) as the input-surface map |
 | **2 · RECONSTRUCT** (intent-hierarchy) | build the objectives **N-Tree** (originary/primary/secondary/auxiliary) + deliverables + state | `skills/postflight` **P2 DEBRIEF** (objectives-N-Tree synthesis — *the owner*) · `morning-briefing --mode=recap` (sectioned state-recap / context-restoration) · `skills/work-compass` (cross-surface aggregation) · `skills/pulse` (re-orientation phasing) |
 | **3 · RE-ATTUNE** (deliver) | layered, any-mind, multi-modal onboarding | `skills/content-recast` (progressive-disclosure lens + faithfulness guard + `--to-audience`/`--abstraction`) · `skills/opera-debrief` (human/agent register) · producers: `skills/voice-director` + `bin/speak.sh` (audio), content-recast render → NotebookLM/Gamma (graphic), `session-report/template.html` (HTML) |
 
@@ -121,15 +121,15 @@ are all **composed**.
 - **LACY code-tour:** optional modality for a mind re-entering a *foreign code* thread —
   an auto-synthesized walkthrough (à la TaCoS, ICSE 2026) over content-recast render.
 - **Rule cross-refs (land HERE, now the tool exists):** bidirectional back-refs from the
-  cross-repo akasha rules — `end-of-action-briefing-protocol §7.2` (SENDING seed → this
+  cross-repo knowledge-vault rules — `end-of-action-briefing-protocol §7.2` (SENDING seed → this
   RECEIVING tool), `cowork-process-topology §9` (Compass walk → its pedagogical
   elevation), `loose-end-triage-queue` (Taxis — re-entry surfaces the pending queue).
-  ⚠️ These are **cross-repo edits (operator akasha-claude, a shared repo)** → an akasha
+  ⚠️ These are **cross-repo edits (operator knowledge-vault, a shared repo)** → an knowledge-vault
   worktree + PR, **not** this maos repo. Deferred until now to avoid dangling
   forward-refs to a not-yet-built tool (audit-protocols §1).
 - **Acceptance**: `--media graphic` produces an HTML/Gamma N-Tree · LACY tour for a
   foreign code thread · the 3 rule cross-refs land bidirectionally (no dangling ref).
-- **Why heaviest / still spec:** real graphic producers + cross-repo (shared akasha)
+- **Why heaviest / still spec:** real graphic producers + cross-repo (shared knowledge-vault)
   rule edits — larger blast-radius than M2; kept as a build-ready spec tracked in #234.
 
 ## Definition of Done (per milestone)
@@ -143,8 +143,8 @@ Reconstructs a real dormant/foreign session's intent-hierarchy purely from persi
 ## References
 
 - Build tracker: [ekson73/multi-agent-os#234](https://github.com/ekson73/multi-agent-os/issues/234).
-- Input surface: the 37-type work-surface taxonomy — [`docs/work-surface-taxonomy-2026-07.md` @ ekson73/akasha-claude](https://github.com/ekson73/akasha-claude/blob/main/docs/work-surface-taxonomy-2026-07.md) (operator akasha-claude, cross-repo).
-- SENDING-side duals **in THIS repo** (this tool RECEIVES what they emit): `skills/postflight` P3 · `docs/auto-catchup-protocol.md`. Cross-repo: `end-of-action-briefing-protocol.md §7.2` (operator akasha-claude rules).
-- Composed primitives — **in THIS repo**: `skills/{postflight,work-compass,pulse,content-recast,opera-debrief,voice-director,agentic-session-harness,morning-briefing}` · `session-report` plugin. **Cross-repo** (operator akasha-claude): `rules/cowork-process-topology-protocol.md §9` · `skills/ticket-as-prompt`.
+- Input surface: the 37-type work-surface taxonomy — [`docs/work-surface-taxonomy-2026-07.md` @ OWNER/knowledge-vault](https://github.com/OWNER/knowledge-vault/blob/main/docs/work-surface-taxonomy-2026-07.md) (operator knowledge-vault, cross-repo).
+- SENDING-side duals **in THIS repo** (this tool RECEIVES what they emit): `skills/postflight` P3 · `docs/auto-catchup-protocol.md`. Cross-repo: `end-of-action-briefing-protocol.md §7.2` (operator knowledge-vault rules).
+- Composed primitives — **in THIS repo**: `skills/{postflight,work-compass,pulse,content-recast,opera-debrief,voice-director,agentic-session-harness,morning-briefing}` · `session-report` plugin. **Cross-repo** (operator knowledge-vault): `rules/cowork-process-topology-protocol.md §9` · `skills/ticket-as-prompt`.
 - Research grounding: Altmann & Trafton (2002) memory-for-goals · Monk/Trafton (2008) resumption-lag · Mark et al. (2008) cost-of-interrupted-work · Endsley (1995) situation-awareness · Nielsen progressive disclosure · Sweller CLT / Miller 7±2 · Ausubel (1960) advance-organizers · Csikszentmihalyi flow · TaCoS (ICSE 2026) · LACY code-tours · classical rhetoric + semiotics.
 - Related ADRs: ADR-001 (session-identity) · ADR-002 (PR-ops).

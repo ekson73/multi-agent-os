@@ -142,7 +142,7 @@ if [ "${n_trap:-0}" -ge 2 ]; then ok "ANTI-BYPASS: real secret glued to placehol
 else bad "ANTI-BYPASS: a real secret near the placeholder was suppressed ($n_trap/2)"; fi
 
 # ══ 6. AWS-URI anti-bypass (F1) — real secret ENDING in a reference URI fires ═
-# The vek-db-password allowlist exempts a value that IS an aws:/// reference URI
+# The app-db-password allowlist exempts a value that IS an aws:/// reference URI
 # (anchored ^…$ on the extracted secret). A real password that merely ENDS in
 # such a URI (CorrectHorse1!aws:///foo#BAR) must NOT be swallowed, while the
 # pure reference URI stays suppressed.
@@ -150,7 +150,7 @@ awsmix=$'db_password=CorrectHorse1aws:///foo#BAR\n'
 r_awsmix="$(scan "$awsmix")"
 if has_secret "$r_awsmix" "CorrectHorse1aws:///foo#BAR"; then ok "AWS-URI: real secret ending in a reference URI still fires"
 else bad "AWS-URI: a real secret ending in aws:/// was suppressed (substring bypass)"; fi
-awspure=$'db_password=aws:///vek-sales/env/hml#VEK_DB_PASSWORD\n'
+awspure=$'db_password=aws:///example-app/env/hml#APP_DB_PASSWORD\n'
 r_awspure="$(scan "$awspure")"
 if [ -z "$r_awspure" ]; then ok "AWS-URI: pure reference URI correctly suppressed"
 else bad "AWS-URI: a legitimate SM reference URI produced a finding"; fi

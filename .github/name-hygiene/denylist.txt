@@ -1,0 +1,16 @@
+# Hashed denylist for scripts/check-name-hygiene.py.
+# Format: "<id> <mode> <sha256(salt + lower-case token)>"; mode x = whole token, p = token prefix.
+# Plain values are deliberately not stored in the repo. To add an entry, compute
+#   printf %s "$SALT$TOKEN" | sha256sum
+# locally and append it with the next free id; reviewers judge it by the PR description, not by this file.
+salt maos-name-hygiene-v1
+d1 x 933d79bc242a7d367643d1b3f42394a29195b0242c1d7910a9e5b421ce02a64d
+d2 x 53eb0b2dca3e594126dba41a67d069eaa821ef181f2c16b771c306b24ef3892f
+d3 p 993013044884517c06ae093c35ae43cc9165579a93bd434324cf1392a2ab5409
+d4 p a072b1b49d623b89ce51779adca202b2463980803afa1892929ab7f29e926063
+d5 x 9dceb0f2fdf130a6b3a3e36dda262fc64933d864dcfbadb1ebb4d72321ddd06d
+d6 x 47537f4d2ac3848344c022de8a967129735240f6aaaacef94e3d54b7cd82e50e
+d7 x 8bd21731a7e47bb4f279384a97d2187d2d98e0b481aaaef9ad2d31af01cf0e5c
+d8 x fc7e0edf30e98f40d6c43d87d9f9b3b56771b548ff4094e300b861b15d282871
+d9 x cc5f7546950c9b645d3babb26c96e9df0005a734177843b0e42fbc255635d1d4
+d10 x eae78f118f3d46c8354d26076b012460e77eb10f1917bc928b9e841e16e668cc

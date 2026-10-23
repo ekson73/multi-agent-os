@@ -1,6 +1,6 @@
 # Apply a Design System with Open Design — Runbook (2 tiers)
 
-> Payload for `opendesign-concierge` "guide" mode. Worked example = Airbnb → vek-list POC.
+> Payload for `opendesign-concierge` "guide" mode. Worked example = Airbnb → org-list POC.
 
 ## Choose the tier
 - **Tier A — assets-direct** (KISS default): you have a NEW artifact/prototype/page and want the brand look. Zero build, zero Docker. Use the DS package files directly.
@@ -17,10 +17,10 @@ Steps:
 4. Reuse component recipes from `components.manifest.json`/`components.html` before inventing controls.
 5. Validate: every `var(--x)` you use resolves to a declaration in `tokens.css` (catch token typos).
 
-### Worked example — Airbnb → vek-list (this session, 2026-06-15)
-- POC scaffold: `~/Projects/vek-list-poc-opendesign-airbnb-design-system/` (DS embedded in `design-system/`, render proof `src/index.html`, **34/34 tokens validated** against `tokens.css`).
+### Worked example — Airbnb → org-list (this session, 2026-06-15)
+- POC scaffold: `~/Projects/org-list-poc-opendesign-airbnb-design-system/` (DS embedded in `design-system/`, render proof `src/index.html`, **34/34 tokens validated** against `tokens.css`).
 - Key Airbnb tokens: `--accent #ff385c` (Rausch — primary CTA/search/active only), `--fg #222`, `--surface-warm #f7f7f7`, `--border #ddd`, `--radius-md 14px`/`--radius-lg 20px`/`--radius-pill`, `--font-body` (Airbnb Cereal VF — **proprietary, NOT bundled** → falls back to system stack; honest: token-faithful, font-approximate).
-- Method demonstrated: top-nav + `search-pill` + category tabs + a listings card grid (the vek-list analog) — all from token vars + documented recipes.
+- Method demonstrated: top-nav + `search-pill` + category tabs + a listings card grid (the org-list analog) — all from token vars + documented recipes.
 
 ## Tier B — daemon + od-code-migration (agentic PR)
 1. Install the daemon (Docker, no node build): `cd ~/.claude/plugins/marketplaces/open-design && bash deploy/scripts/install.sh`.
@@ -33,6 +33,6 @@ Steps:
 - ⚠️ **Gate**: needs a Cloudflare **account-owned** token (`cfat_`, Super-Admin-created — survives offboarding) stored in a secret manager. Token = HUMAN_DOMAIN (operator provides). wrangler is unauthenticated until then.
 
 ## Gates summary (when the real work is blocked)
-- **Existing-repo repagination** → needs the target repo locally (e.g. `vek-list`/poc-reveng vs `vkl-rct-list-web`).
+- **Existing-repo repagination** → needs the target repo locally (e.g. `org-list`/poc-reveng vs `vkl-rct-list-web`).
 - **Preview deploy** → account-owned Cloudflare token (secret manager).
 - **Spec-driven legs** (design→spec→prototype→src) → OpenSpec + Spec-Kit `specify` (already installed). Tracker: VKS-2204.

@@ -1,13 +1,13 @@
 {
   "meta": {
-    "construct": "fitness of system-name 'eko-plugin-marketplace' for the Eko multi-host pack distribution hub",
+    "construct": "fitness of system-name 'plugin-marketplace' for a multi-host pack distribution hub",
     "version": "1.0.0",
     "structural_form": "additive",
     "context_lock": {
-      "context": "GitHub repo currently eko-claude-plugins; domain=distribution only (marketplace/registry pointers); NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator; register=human+agent",
+      "context": "GitHub repo currently plugin-marketplace; domain=distribution only (marketplace/registry pointers); NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator; register=human+agent",
       "purpose": "pick a rename target that is self-explicit, multi-host OK, continuous with legacy, does not imply agentic-tools live in-repo",
       "priority_focus": "gloss-independence > category-fit > continuity > sayability",
-      "stakeholder": "operator + future amnesic agents scanning ekson73/* repos",
+      "stakeholder": "operator + future amnesic agents scanning maintainer/* repos",
       "targets": "the candidate system-name slug alone (no README cheat)"
     }
   },
@@ -17,7 +17,7 @@
 
     {"id": "self_evidence", "label": "self-evidence", "parents": [{"id": "root", "weight": 0.35}], "kind": "branch"},
     {"id": "l_elevator", "label": "elevator-without-gloss", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
-     "leaf_type": "T", "value": 0.95, "method": "stranger test: slug alone → 'Eko plugin marketplace'", "confidence": 0.9,
+     "leaf_type": "T", "value": 0.95, "method": "stranger test: slug alone → 'plugin marketplace'", "confidence": 0.9,
      "anchors": {"positive": "plain clause matches roots without glossary → 1.0", "negative": "needs README to decode → 0.0"}},
     {"id": "l_jargon_stack", "label": "low-jargon-stack", "parents": [{"id": "self_evidence", "weight": 0.5}], "kind": "leaf",
      "leaf_type": "T", "value": 0.9, "raw": "plugin+marketplace=industry anchors", "method": "count abstract non-industry nouns", "confidence": 0.9,
@@ -33,7 +33,7 @@
 
     {"id": "continuity", "label": "rename-continuity", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
     {"id": "l_token", "label": "prior-token-kept", "parents": [{"id": "continuity", "weight": 1.0}], "kind": "leaf",
-     "leaf_type": "T", "value": 1.0, "raw": "keeps 'plugin' from eko-claude-plugins", "method": "token overlap with prior name", "confidence": 0.99,
+     "leaf_type": "T", "value": 1.0, "raw": "keeps 'plugin' from plugin-marketplace", "method": "token overlap with prior name", "confidence": 0.99,
      "anchors": {"positive": "≥1 high-signal prior token → 1.0", "negative": "zero overlap → 0.0"}},
 
     {"id": "resonance", "label": "resonance", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},

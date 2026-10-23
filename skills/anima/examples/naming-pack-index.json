@@ -1,13 +1,13 @@
 {
   "meta": {
-    "construct": "fitness of system-name 'eko-pack-index' for the Eko multi-host pack distribution hub",
+    "construct": "fitness of system-name 'pack-index' for a multi-host pack distribution hub",
     "version": "1.0.0",
     "structural_form": "additive",
     "context_lock": {
-      "context": "GitHub repo currently eko-claude-plugins; domain=distribution only; NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator",
+      "context": "GitHub repo currently plugin-marketplace; domain=distribution only; NOT multi-agent-os product; multi-host catalog planned; audience=amnesic agents + operator",
       "purpose": "pick a rename target that is self-explicit, multi-host OK, continuous with legacy, does not imply agentic-tools live in-repo",
       "priority_focus": "gloss-independence > category-fit > continuity > sayability",
-      "stakeholder": "operator + future amnesic agents scanning ekson73/* repos",
+      "stakeholder": "operator + future amnesic agents scanning maintainer/* repos",
       "targets": "the candidate system-name slug alone (no README cheat)"
     }
   },
@@ -30,7 +30,7 @@
      "anchors": {"positive": "no host lock → 1.0", "negative": "host lock → 0.0"}},
     {"id": "continuity", "label": "rename-continuity", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
     {"id": "l_token", "label": "prior-token-kept", "parents": [{"id": "continuity", "weight": 1.0}], "kind": "leaf",
-     "leaf_type": "T", "value": 0.0, "raw": "drops plugin and marketplace/claude signals", "method": "token overlap with eko-claude-plugins", "confidence": 0.99,
+     "leaf_type": "T", "value": 0.0, "raw": "drops plugin and marketplace/claude signals", "method": "token overlap with plugin-marketplace", "confidence": 0.99,
      "anchors": {"positive": "≥1 high-signal prior token → 1.0", "negative": "zero → 0.0"}},
     {"id": "resonance", "label": "resonance", "parents": [{"id": "root", "weight": 0.10}], "kind": "branch"},
     {"id": "l_say", "label": "sayability", "parents": [{"id": "resonance", "weight": 1.0}], "kind": "leaf",

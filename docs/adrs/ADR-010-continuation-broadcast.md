@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (built in this change — `bin/continuation-broadcast.sh` + postflight P3.6 + the `signoff` verb)
 - **Date:** 2026-07-10
-- **Deciders:** operator (Emilson) + Claude (Opus 4.8)
+- **Deciders:** operator + Claude (Opus 4.8)
 - **Origin:** operator `/enhance /deep-research Ultrathink` 2026-07-10 — "gerar handoff-prompt de continuidade … injetar o prompt de continuidade **onde for cabível** (tickets, docs, ADRs, changelogs, PRs, commits) para quando algum new-fresh-born-amnesic-agentic se deparar com o problema saber que tem pendências a serem continuadas."
 - **Naming:** system-slug `continuation-broadcast` (COMP/machine register — descriptive-canonical, no soul-name per Anima §3.4). The operator-facing sign-off verb is Anima-named **`signoff`** (surfaces `/maos:signoff`; rejected runner-up `disembark` — best flight-family resonance but less self-describing to an amnesic agent than the literal operator gesture "sign-off/encerramento"). Operator may override (`[C-naming]`).
 

@@ -9,7 +9,7 @@ The HYBRID split (see skills/roadmap-tree-projector/SKILL.md):
     edges, resolve which ticket-manager/probe to call per world. Deferred to the
     agent because it is judgement, not computation.
 
-eko-executable-scripts compliance (~/.kiro/steering/eko-executable-scripts.md):
+executable-scripts compliance (~/.kiro/steering/executable-scripts.md):
   1. Self-locating — finds roadmap.yaml via a glob+fallback, never a hardcoded
      absolute path.
   2. Live-pinned — reads the SSOT at runtime; carries no copied constant.

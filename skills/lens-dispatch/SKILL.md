@@ -91,7 +91,7 @@ is not auto-loaded (`[C08]` "arquivo morto").
 
 > ⚠️ **Correction (2026-07-22).** v0.2.0 said "referenced by **three** files, all passive
 > prose". Re-probed with a positive control: it is **10** files — 3 auto-loaded rules
-> (`eko-system-default-mode-laws`, `auto-merge-standing-authorization`, `council-gate`) and
+> (`system-default-mode-laws`, `auto-merge-standing-authorization`, `council-gate`) and
 > 7 non-auto-loaded prose files under `docs/`+`plans/`. The undercount ran in the direction
 > that **flattered the argument** ("only three" reads as more dormant), which is why it is
 > corrected loudly rather than quietly. The verdict is unchanged and now rests where it

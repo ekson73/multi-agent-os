@@ -15,7 +15,7 @@ We studied the whole open-source landscape of AI-coding-agent tools, found it is
 - It lives **inside MAOS** (the framework we already own), not as a new product. MAOS already did ~70% of the work; we added the missing **"teeth."**
 - The name **`MAOS Agora`** (the Greek *agora* = meeting + vetted marketplace + forum) was chosen by our naming agent.
 
-## Why it matters for Vek (productivity)
+## Why it matters for Acme (productivity)
 - **Less vendor lock-in** — we compose the best of many tools instead of betting the company on one.
 - **Less "token tax"** — naively loading every tool's full description costs **10,000–60,000 tokens *per turn***; the Hub's design shows only short summaries until a tool is actually needed (real money + speed saved at scale).
 - **Install-the-right-tool-without-breaking-the-rest** — the #1 concrete pain we can solve: many popular tools quietly **conflict** (two of them fight over the same config; one bans a browser tool another needs). The Hub knows the **16 known conflict pairs** and stops the collision before it happens.

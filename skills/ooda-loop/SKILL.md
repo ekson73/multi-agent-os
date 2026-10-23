@@ -194,7 +194,7 @@ ORIENT-b  invoke Hodos (derive-system-from-goal) on the recovered goal + the DoD
             |   R9 = N/A per the law doc §2) -> proceed to DECIDE with the {goal, dod} pair. Demanding
             |   a recurring cadence from a bounded goal is the missing-middle -> never do it.
             | ORIENT is synthesis (Boyd): Prisma gives the destination's COORDINATES, Hodos gives the ROUTE.
-            | law: akasha docs/derive-system-from-goal.md [C22]; fire-point anti-theater Layer-5 R9
+            | law: knowledge-vault docs/derive-system-from-goal.md [C22]; fire-point anti-theater Layer-5 R9
             |   (conditional + ADDITIVE — fires ONLY on recurring/open-ended goals).
             | R9 fails (recurring goal, one-shot-only vehicle) -> REFINE (build the system), never REJECT
             |   (and never an override of an upstream R2/R4/R6/R8 REJECT).
@@ -243,7 +243,7 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | INTAKE (repo only) | `skills/preflight` (anchor/orient/heal/isolate; safe-or-DEFER) + trigger classification + optional `operator-profile` |
 | OBSERVE | `skills/goal-recovery` (-> handoff-as-prompt; Skopos recon-first inference ladder) |
 | ORIENT-a | `skills/decompose-abstract-to-measurable` (Prisma value-tree; `scripts/structural_route.py` form-gate + `scripts/aggregate_spec.py` roll-up) THEN `bin/render_dod_as_prompt.py` (deterministic PROJECTION: spec -> dod-as-prompt, acceptance/kpis/termination_predicate, self-gated against `validate_envelope.py`) |
-| ORIENT-b | `skills/derive-system-from-goal` (Hodos; -> system-as-prompt; the minimal recurring vehicle — **N/A for a one-shot/bounded goal**. Law: akasha `docs/derive-system-from-goal.md` `[C22]`) |
+| ORIENT-b | `skills/derive-system-from-goal` (Hodos; -> system-as-prompt; the minimal recurring vehicle — **N/A for a one-shot/bounded goal**. Law: knowledge-vault `docs/derive-system-from-goal.md` `[C22]`) |
 | DECIDE | `agents/COWORK-AUTONOMY-POLICY.md` bands + `[C17]` §2 HUMAN_DOMAIN + `anti-theater` **9Q** gate (8 unconditional + **R9** conditional·additive: *recurring goal with only a one-shot vehicle? -> REFINE, never an override of a core REJECT*) |
 | ACT (default) | `skills/gap-loop` (harness-agnostic 5-phase loop; MoE RESOLVE + independent VALIDATE + derived score) |
 | ACT (session) | `skills/quiesce` (`/goal`-driven session quiescence; PR-green + comments-answered) |
@@ -267,7 +267,7 @@ goal-movement-absent ⇒ the SYSTEM is wrong, never the driver)** is allowed —
 | `--max-spawns` | `6` | non-negative int — shared delegation ceiling; depth remains <= 2. |
 | `--max-external-calls` | `20` | non-negative int — network/provider-call ceiling. |
 | `--max-wall-clock-minutes` | `60` | positive int — elapsed ceiling; a lower host deadline wins. |
-| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — passed to the driver (conservative default; parity with gap-loop EKO-66) |
+| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — passed to the driver (conservative default; parity with gap-loop TICKET-66) |
 | `--auto-merge-reason` | *(none)* | required-non-empty when `--auto-merge=authorized` (auditability, `auto-merge-standing-authorization` G8) |
 | `--output` | `text` | `text` \| `json` (emit the run envelope, below) |
 | `--dry-run` | off | run OBSERVE+ORIENT+DECIDE, print the {goal, dod} pair + chosen driver + predicate, but do NOT drive ACT |

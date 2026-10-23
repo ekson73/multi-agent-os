@@ -32,11 +32,11 @@ The viable equivalent: **a backgrounded poll-until-done loop**. The harness re-i
 ## How to use
 ```bash
 # Background it — the harness wakes you when it exits (on COMPLETED or timeout):
-bin/bb-pipeline-watch.sh --build 1363 --repo vks-jss-sales-api &   # run_in_background:true
+bin/bb-pipeline-watch.sh --build 1363 --repo example-sales-api &   # run_in_background:true
 # or watch the latest build on a branch:
-bin/bb-pipeline-watch.sh --latest --branch feature/x --repo vks-jss-sales-api
+bin/bb-pipeline-watch.sh --latest --branch feature/x --repo example-sales-api
 # one-shot sanity check (no loop):
-bin/bb-pipeline-watch.sh --build 1363 --repo vks-jss-sales-api --once
+bin/bb-pipeline-watch.sh --build 1363 --repo example-sales-api --once
 ```
 On wake, read the command's output file:
 - `=== BUILD <n> COMPLETED: SUCCESSFUL ===` → act on green.
@@ -53,5 +53,5 @@ On wake, read the command's output file:
 
 ## Refs
 - Pairs with `mcp-tools/maos-mcp-hub` `atlassian_bitbucket` gateway (`pipeline get`/`get_steps`/`auto_diagnose`).
-- Pattern origin: `vks-jss-sales-api` PR#85 (build 1362 FAILED → needed get_steps+diagnose+log by hand; this skill collapses that into one backgrounded wait). Cross-link `[[bitbucket-pipeline-watch]]`.
+- Pattern origin: `example-sales-api` PR#85 (build 1362 FAILED → needed get_steps+diagnose+log by hand; this skill collapses that into one backgrounded wait). Cross-link `[[bitbucket-pipeline-watch]]`.
 - Mechanism: Claude Code re-invokes the agent on backgrounded-`Bash` exit (the "wake me when it finishes" equivalent of a webhook).

@@ -12,8 +12,8 @@ description: >-
 
 ## Domain
 This repository is the **product** (agentic-tools). Distribution index is
-`ekson73/eko-claude-plugins` (target name eko-plugin-marketplace) — do not
-vendor skills into eko.
+`OWNER/plugin-marketplace` (target name plugin-marketplace) — do not
+vendor skills into the plugin marketplace.
 
 ## Layout (high signal)
 | Path | Role |
@@ -32,8 +32,8 @@ vendor skills into eko.
 npx skills add ekson73/multi-agent-os -g -a '*' -y
 
 # Claude
-# /plugin marketplace add ekson73/eko-claude-plugins
-# /plugin install maos@eko-claude-plugins
+# /plugin marketplace add OWNER/plugin-marketplace
+# /plugin install maos@plugin-marketplace
 
 # Pi
 pi install git:github.com/ekson73/multi-agent-os@main
@@ -51,5 +51,5 @@ description: When to use this skill (trigger-oriented, one paragraph).
 
 ## Tests / quality
 Follow repo `AGENTS.md` / `CONTRIBUTING.md`. Run project test-runner before commit.
-Do not invent marketplace formats for hosts eko marks `n/a`.
+Do not invent marketplace formats for hosts the marketplace marks `n/a`.
 

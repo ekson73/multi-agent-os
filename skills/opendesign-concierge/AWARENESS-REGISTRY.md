@@ -31,4 +31,4 @@
 - Prefer **Figma Make / Anima** if Figma is already your SSOT; **v0** if you're React+Vercel-only; **Banani/Stitch** if you need a generative design canvas first.
 
 ## Canonical machine facts (this environment)
-- Clone: `~/.claude/plugins/marketplaces/open-design/` (don't reinstall) · wrangler 4.x ✅ · OpenSpec + Spec-Kit `specify` ✅ · node 22 / pnpm 10.28 (source-build wants 24/10.33 → prefer Docker) · POC: `~/Projects/vek-list-poc-opendesign-airbnb-design-system/`.
+- Clone: `~/.claude/plugins/marketplaces/open-design/` (don't reinstall) · wrangler 4.x ✅ · OpenSpec + Spec-Kit `specify` ✅ · node 22 / pnpm 10.28 (source-build wants 24/10.33 → prefer Docker) · POC: `~/Projects/org-list-poc-opendesign-airbnb-design-system/`.

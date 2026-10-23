@@ -115,4 +115,4 @@ noise.
 - [ ] (optional) Score against (D) as calibration telemetry — learning only; no ADR/roadmap consequence.
 
 ---
-*Agent-drafted munition · the post itself is the product's first advertisement (the output IS the ad). EKO-66: nothing here is auto-posted — the operator fires it.*
+*Agent-drafted munition · the post itself is the product's first advertisement (the output IS the ad). TICKET-66: nothing here is auto-posted — the operator fires it.*

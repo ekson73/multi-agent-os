@@ -2,7 +2,7 @@
 
 > **Versão**: 1.0.0 (2026-01-26)
 > **Status**: Aprovado
-> **Autor**: Claude Opus 4.5 + Emilson Moraes
+> **Autor**: Claude Opus 4.5 + maintainer
 > **Rule relacionada**: `~/.claude/rules/mcp-servers-config.md`
 
 ---
@@ -349,7 +349,7 @@ Para configuração específica de projeto, usar `.claude.json` no diretório do
 
 | Versão | Data | Autor | Mudança |
 |--------|------|-------|---------|
-| 1.0.0 | 2026-01-26 | Claude + Emilson | Versão inicial |
+| 1.0.0 | 2026-01-26 | Claude + maintainer | Versão inicial |
 
 ---
 

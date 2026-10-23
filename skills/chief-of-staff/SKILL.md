@@ -27,7 +27,7 @@ metadata:
 > **steward of the household** — the one entrusted to keep the principal's whole estate of affairs in
 > order so the principal is free to act. This is the majordomo / chief-of-staff / right-hand: it does
 > not do the work, it keeps *you* pointed at the work that matters. It resonates with this operator's
-> own **Eko-System** — *oikos* is the same root. *(Display-only name. The machine identifier is the
+> own **Personal-System** — *oikos* is the same root. *(Display-only name. The machine identifier is the
 > slug `chief-of-staff`.)*
 >
 > **Twin** (the incoming agent-facing sibling, landing in PR #280 — may not be installed in this repo

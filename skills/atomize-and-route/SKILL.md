@@ -47,7 +47,7 @@ typed atoms, and resolves + persists each one idempotently — instead of every 
 one more untyped file in `projects/*/memory/`.
 
 **This skill does NOT introduce a new auto-fire mechanism.** Capture (broad + on-demand)
-stays the CEL hook's job (`akasha-claude` `hooks/learn-from-correction.js`, extended with a
+stays the CEL hook's job (`knowledge-vault` `hooks/learn-from-correction.js`, extended with a
 `kind` axis by the companion PR); this skill is the **batch/deliberate** processor that
 consumes CEL's ledger (and any other raw content) and turns it into persisted, gated,
 verified knowledge.
@@ -78,7 +78,7 @@ verified knowledge.
 Before atomizing anything: probe the corpus + check `bin/artifact-registry lookup --purpose`
 (does a tool/rule for this exact intent already exist?) + check this skill's OWN ledger
 (`bin/atomize-and-route ledger --query --unrouted`) for idempotency — never re-atomize
-content already fully routed. Cite `environment-capability-reconnaissance` (`akasha-claude`).
+content already fully routed. Cite `environment-capability-reconnaissance` (`knowledge-vault`).
 
 ### P1 — ATOMIZE
 Decompose the input into ONE-CONCEPT-PER-ATOM pieces (Zettelkasten discipline), each tagged
@@ -106,7 +106,7 @@ For each atom, call `bin/atomize-and-route route --type <type> --scope <scope> -
 work; routing is not. Emit a 1-line-per-atom manifest before persisting anything.
 
 ### P5 — CRITICIZE / VALIDATE / AUDIT (Gordian-proportional)
-Most atoms (memory · docs · plans · tracker items · eko-engram pages) route straight through
+Most atoms (memory · docs · plans · tracker items · notes-vault pages) route straight through
 — no council needed (`over-engineering-circuit-breaker` / Gordian: don't gate what isn't
 high-stakes). **The ONE mandatory gate**: an atom of type `norm` whose `route` resolution
 lands under `~/.claude/rules/` (i.e. it clears the KRDR must-fire-every-session ∧
@@ -118,7 +118,7 @@ self-authorized. Cite both skills; do not re-implement either gate here.
 ### P6 — PERSIST
 Apply the routed atoms idempotently (re-running P6 on the same atom set is a no-op — the
 `route` ledger entry IS the idempotency key). Stamp `agent-created` provenance on anything
-that becomes a tracker ticket (per `agent-ticket-provenance`, `akasha-claude`). Append the
+that becomes a tracker ticket (per `agent-ticket-provenance`, `knowledge-vault`). Append the
 `routed` events via `bin/atomize-and-route route` (non-dry-run) as each atom actually lands.
 
 ### P7 — VERIFY + brief
@@ -133,15 +133,15 @@ confirm the write. Close with the 5-state Visual Status Legend
 | Atom type | Format | Default destination | Gate |
 |---|---|---|---|
 | `norm` | markdown+frontmatter | `~/.claude/rules/` (only if must-fire ∧ cross-project ∧ high-stakes) | **H6 → red-team + council-gate** |
-| `procedure` | skill/command | `multi-agent-os` (community) / `vek-ai-toolkit` (corporate) | dedup via `artifact-registry lookup` first |
+| `procedure` | skill/command | `multi-agent-os` (community) / `ai-toolkit` (corporate) | dedup via `artifact-registry lookup` first |
 | `role` | agent | `multi-agent-os agents/` | dedup via `artifact-registry lookup` first |
 | `insight` | markdown | `projects/*/memory/` | elevate to `norm` only on Triple-touch (≥3×) |
 | `fact` / `reference` | markdown or NotebookLM source | `~/.claude/docs/` or NotebookLM | prefer NotebookLM for research material |
 | `decision` | markdown+frontmatter (ADR) | `~/.claude/docs/decisions/` | cite `decision-capture` |
-| `work` | tracker item | Jira (Vek) · Linear (personal) · GH Issue (repo) | eko L4 routing |
+| `work` | tracker item | Jira (Acme) · Linear (personal) · GH Issue (repo) | L4 routing |
 | `gap` / `pendency` | tracker or ledger | Taxis triage tiers | never silent-drop |
-| `idea` / `braindump-seed` | markdown (Dendron) | `~/eko-engram/pages/` (durable) or `plans/` (scratch) | durable vs session-scoped |
-| `template` / `example` | markdown | `~/eko-engram/templates/` or repo `templates/` | |
+| `idea` / `braindump-seed` | markdown (Dendron) | `~/notes-vault/pages/` (durable) or `plans/` (scratch) | durable vs session-scoped |
+| `template` / `example` | markdown | `~/notes-vault/templates/` or repo `templates/` | |
 | `question` / `answer` | markdown or tracker | `projects/*/memory/` | tracker only if independently actionable |
 
 Run `bin/atomize-and-route --help` for the live, executable version of this table (the SSOT —
@@ -167,7 +167,7 @@ Dendron page idea for 'agentic delegation failure modes'."*
    $ bin/atomize-and-route route --type pendency --scope project --dry-run
    tracker-or-taxis-queue
    $ bin/atomize-and-route route --type braindump-seed --scope durable-personal --dry-run
-   ~/eko-engram/pages/<slug>.md
+   ~/notes-vault/pages/<slug>.md
    ```
 5. **P5** — none of the three clears the `norm`+`rules/` bar → no red-team/council needed;
    all pass straight through.
@@ -183,9 +183,9 @@ This SKILL.md's own genesis is an atomize-and-route instance: the operator's ori
 Ultrathink braindump (4-part A/B/C/D ask) was itself decomposed into exactly the atom types
 this pipeline names — `norm` (the KRDR format-axis patch), `procedure` (this skill + its bin),
 `insight` (the background-agent-silent-death lesson, captured mid-build), `idea`
-(`~/eko-engram/` as a destination) — and routed via the P0-P7 steps above, including the P5
+(`~/notes-vault/` as a destination) — and routed via the P0-P7 steps above, including the P5
 gate (the KRDR patch, being a `norm` destined for `~/.claude/rules/`, went through the
-red-team+council discipline in its own PR, not this one — see the companion `akasha-claude`
+red-team+council discipline in its own PR, not this one — see the companion `knowledge-vault`
 PR for that gate's application).
 
 ## Distinct-from-siblings (DRY — composes, never duplicates)
@@ -206,9 +206,9 @@ PR for that gate's application).
 - `skills/directive-braindump-triage/SKILL.md`
 - `skills/graphify/SKILL.md`
 - `skills/council-gate/SKILL.md`
-- `skills/red-teaming-mandatory-trigger` (`akasha-claude` rule — cross-repo cite)
+- `skills/red-teaming-mandatory-trigger` (`knowledge-vault` rule — cross-repo cite)
 - `skills/artifact-registry` (`bin/artifact-registry`)
-- Companion PR (`akasha-claude`): `hooks/learn-from-correction.js` `kind`-axis extension +
+- Companion PR (`knowledge-vault`): `hooks/learn-from-correction.js` `kind`-axis extension +
   `rules/scope-discipline-pre-creation.md` format-axis + `§Q1.3` Fire-Point Binding patch.
 - Origin plan: `~/.claude/plans/ultrathink-analise-critique-busque-procu-rosy-clover.md`
 
@@ -219,4 +219,4 @@ bin, `graphify` provenance convention, `council-gate`/`red-teaming-mandatory-tri
 gate, `artifact-registry` dedup); introduces zero new auto-fire mechanism (capture stays
 CEL's job). Built inline (not via background Agent-tool delegation) after that delegation
 mode silently stalled for this exact task earlier the same day — see
-`feedback_background_agent_silent_death_diairesis_dropped.md` (`akasha-claude` memory).
+`feedback_background_agent_silent_death_diairesis_dropped.md` (`knowledge-vault` memory).
