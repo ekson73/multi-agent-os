@@ -451,18 +451,25 @@ if [ -x "$DELEGATE_CLI" ]; then
     fi
 
     # Simulated cross-provider contexts (env-isolated so ambient $TICKET can't skew)
-    H1=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKS-1706 --provider=bitbucket 2>/dev/null)
+    H1=$(env -u TICKET MAOS_JIRA_KEY_PREFIXES="PROJ OPS" bash "$DELEGATE_CLI" init --ticket=PROJ-1706 --provider=bitbucket 2>/dev/null)
     if echo "$H1" | grep -q "^TICKET_PROVIDER=jira$" && echo "$H1" | grep -q "^VCS_PROVIDER=bitbucket$"; then
         pass "delegate.sh detects jira+bitbucket context"
     else
         fail "delegate.sh should detect jira+bitbucket"
     fi
 
-    H2=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKO-88 --provider=github 2>/dev/null)
+    H2=$(env -u TICKET MAOS_LINEAR_KEY_PREFIXES="ENG" bash "$DELEGATE_CLI" init --ticket=ENG-88 --provider=github 2>/dev/null)
     if echo "$H2" | grep -q "^TICKET_PROVIDER=linear$" && echo "$H2" | grep -q "^VCS_PROVIDER=github$"; then
         pass "delegate.sh detects linear+github context"
     else
         fail "delegate.sh should detect linear+github"
+    fi
+
+    H4=$(env -u TICKET -u MAOS_JIRA_KEY_PREFIXES -u MAOS_LINEAR_KEY_PREFIXES bash "$DELEGATE_CLI" init --ticket=PROJ-1706 --provider=none 2>/dev/null)
+    if echo "$H4" | grep -q "^TICKET_PROVIDER=auto$"; then
+        pass "delegate.sh treats unconfigured key prefixes as auto (no hard-coded org keys)"
+    else
+        fail "delegate.sh should not hard-code ticket key prefixes"
     fi
 
     H3=$(env -u TICKET bash "$DELEGATE_CLI" init --provider=none 2>/dev/null)

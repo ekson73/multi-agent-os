@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — org-agnostic core: agents, protocols, runtime and tests
+
+- Agents, protocols, rules, hooks, `bin/`, `plugin-scripts/`, `mcp-tools/`, packaging, ontology and their tests no longer carry maintainer-, employer- or client-specific identifiers. Neutral placeholders replace them (`OWNER`, `WORKSPACE`, `Acme`, `org-*`, `TICKET-n`, `$HOME`).
+- The person-agent language rule is generic: `Responde no idioma configurado do usuário.` (`MAOS_USER_LOCALE`, falling back to the language the user writes in).
+- Installation config replaces hard-coded values: `MAOS_JIRA_KEY_PREFIXES` / `MAOS_LINEAR_KEY_PREFIXES` (ticket routing in `plugin-scripts/gaac/delegate.sh`), `MAOS_PERSONAL_GH_OWNERS` / `MAOS_WORK_GH_OWNERS` / `MAOS_PERSONAL_SSH_ALIAS` (`seed_active_world`), `MAOS_LAYER_PURITY_PATTERNS` / `MAOS_LAYER_PURITY_PATTERNS_FILE` (`bin/check-layer-purity`, CI reads the `LAYER_PURITY_PATTERNS` repository variable), `MAOS_TOOLKIT_DIR` (`bin/sync-agentic-tools.sh`), `$SCM_WRITE_ACCOUNT` (provider matrix) and `~/.config/maos/`.
+- **Upgrade note:** without that config, ticket keys resolve to `auto`, `active_world` resolves to `unknown` (fail-closed) and layer purity checks only its neutral defaults. Set the variables locally, and the repository variable for CI, to keep the previous behaviour.
+
 ### Added — `/hitl-digest` thin command
 
 - `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.

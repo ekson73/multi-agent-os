@@ -31,16 +31,14 @@ Phases:
 
 Flags:
   --ticket KEY     Override ticket id (else env TICKET; else empty→ticket=none).
-                   Ticket provider auto-detected from key prefix:
-                     VKS-*        → jira
-                     VKO-*|EKO-*  → linear
-                     other        → auto
-  --provider VCS   Override VCS provider detection from 'git remote -v'.
+                   Ticket provider auto-detected from key prefix, using the\n                   per-installation prefix lists below:\n                     \$MAOS_JIRA_KEY_PREFIXES   → jira\n                     \$MAOS_LINEAR_KEY_PREFIXES → linear\n                     other                     → auto\n  --provider VCS   Override VCS provider detection from 'git remote -v'.
                    Allowed: ${ALLOWED_PROVIDERS}
 
 Env:
   CLAUDE_PLUGIN_ROOT  Path to plugin root. Defaults to two dirs above this script.
   TICKET              Fallback for --ticket.
+  MAOS_JIRA_KEY_PREFIXES    Space-separated Jira project keys (e.g. "PROJ OPS"). Default: none.
+  MAOS_LINEAR_KEY_PREFIXES  Space-separated Linear team keys (e.g. "ENG"). Default: none.
 
 Exit codes:
   0   success
@@ -98,14 +96,20 @@ fi
 # Provider detection (deterministic — no guessing)
 # ----------------------------------------------------------------------------
 
-# Ticket provider from key prefix
-TICKET_PROVIDER="auto"
-case "${TICKET}" in
-  VKS-*|VKS_*) TICKET_PROVIDER="jira" ;;
-  VKO-*|EKO-*) TICKET_PROVIDER="linear" ;;
-  "") TICKET_PROVIDER="none" ;;
-  *) TICKET_PROVIDER="auto" ;;
-esac
+# Ticket provider from key prefix. Prefixes are installation config, never
+# hard-coded org keys: MAOS_JIRA_KEY_PREFIXES / MAOS_LINEAR_KEY_PREFIXES.
+ticket_provider_for() {
+  local key="$1" p
+  if [[ -z "$key" ]]; then echo "none"; return; fi
+  for p in ${MAOS_JIRA_KEY_PREFIXES:-}; do
+    if [[ "$key" == "$p"-* || "$key" == "$p"_* ]]; then echo "jira"; return; fi
+  done
+  for p in ${MAOS_LINEAR_KEY_PREFIXES:-}; do
+    if [[ "$key" == "$p"-* ]]; then echo "linear"; return; fi
+  done
+  echo "auto"
+}
+TICKET_PROVIDER="$(ticket_provider_for "${TICKET}")"
 
 # VCS provider from git remote, or from override flag
 if [[ -n "$PROVIDER_OVERRIDE" ]]; then

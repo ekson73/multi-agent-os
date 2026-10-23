@@ -7,7 +7,7 @@
 
 Covers 4 operation axes × 3 provider domains. Agents use this to stop re-deciding "which tool for this call" per invocation.
 
-- **Ticket providers**: Jira (`VKS-*`) · Linear (`VKO-*`, `EKO-*`)
+- **Ticket providers**: Jira (keys in `$MAOS_JIRA_KEY_PREFIXES`) · Linear (keys in `$MAOS_LINEAR_KEY_PREFIXES`)
 - **VCS providers**: Bitbucket · GitHub · GitLab
 - **Secrets**: your organization's secret-manager CLI (e.g. 1Password, Vault, AWS Secrets Manager)
 - **Observability**: session audit JSONL + `/agentic-status` + `/audit` skills
@@ -18,7 +18,7 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 
 ## Ticket operations
 
-### Jira (`VKS-*` keys; cloud `vek.atlassian.net`)
+### Jira (`$MAOS_JIRA_KEY_PREFIXES` keys; cloud `example.atlassian.net`)
 
 | Operation | Primary | Fallback 1 | Fallback 2 |
 |---|---|---|---|
@@ -29,7 +29,7 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 
 **Gotcha**: search endpoint migrated `/search` → `/search/jql` per Atlassian CHANGE-2046 (fixed in `maos-mcp-hub` PR #38). If running hub is stale, fallback 1 works.
 
-### Linear (`VKO-*`, `EKO-*` keys; `linear.app/ekson73`)
+### Linear (`$MAOS_LINEAR_KEY_PREFIXES` keys; `linear.app/WORKSPACE`)
 
 | Operation | Primary | Fallback 1 |
 |---|---|---|
@@ -42,7 +42,7 @@ Legend: `→` means fallback. Paths are relative to repo root unless noted.
 
 ## VCS operations
 
-### GitHub (`github.com/ekson73/*`, `github.com/vek-im/*`)
+### GitHub (`github.com/OWNER/*`, `github.com/acme-org/*`)
 
 | Operation | Primary | Fallback 1 | Fallback 2 |
 |---|---|---|---|
@@ -77,16 +77,16 @@ esac
 
 **Auth pattern** (per `feedback_autonomous_merge.md` + this session): run `gh` commands with `env -u GITHUB_TOKEN` when a stale `GITHUB_TOKEN` env var is present; this forces `gh` to use the keyring auth. See also `rules/agent-scm.md` §GitHub.
 
-### Bitbucket (`bitbucket.org/vek-servicos/*` — VKS repos)
+### Bitbucket (`bitbucket.org/acme-workspace/*` — VKS repos)
 
 | Operation | Primary | Fallback 1 |
 |---|---|---|
 | read / list pipelines, PRs, branches | `mcp__maos-mcp-hub__bitbucket_*` (flat tools deprecated — use `atlassian_bitbucket(resource, operation, params)`) | Bitbucket REST via `curl -u $BITBUCKET_EMAIL:$BITBUCKET_API_TOKEN` |
 | branch create / PR create | `mcp__maos-mcp-hub__atlassian_bitbucket` (`resource: branch\|pull_request`, `operation: create`) | Bitbucket REST |
 | PR comment / approve | `mcp__maos-mcp-hub__atlassian_bitbucket` (`resource: pull_request`, `operation: approve\|unapprove`) + PR-level comment via web UI until API supports | Bitbucket REST |
-| merge | `mcp__maos-mcp-hub__atlassian_bitbucket` (`resource: pull_request`, `operation: merge`) with `account="emilson"` for write ops | Bitbucket REST |
+| merge | `mcp__maos-mcp-hub__atlassian_bitbucket` (`resource: pull_request`, `operation: merge`) with `account="$SCM_WRITE_ACCOUNT"` for write ops | Bitbucket REST |
 
-**Multi-persona**: write ops (`approve`, `merge`, `comment`) require `account="emilson"` parameter per `rules/agent-scm.md` §Bitbucket and `CLAUDE.md` §Multi-persona.
+**Multi-persona**: write ops (`approve`, `merge`, `comment`) require `account="$SCM_WRITE_ACCOUNT"` parameter per `rules/agent-scm.md` §Bitbucket and `CLAUDE.md` §Multi-persona.
 
 ### GitLab (future; `glab` when available)
 
@@ -124,13 +124,13 @@ Rule: **never** print a secret to stdout in a message that might be logged outsi
 Agents detect providers deterministically — no guessing:
 
 ```bash
-# Ticket provider from key prefix — MUST stay in lock-step with plugin-scripts/gaac/delegate.sh
-case "${TICKET:-}" in
-  VKS-*|VKS_*) TICKET_PROVIDER=jira ;;
-  VKO-*|EKO-*) TICKET_PROVIDER=linear ;;
-  "") TICKET_PROVIDER=none ;;  # empty → ad-hoc session
-  *) TICKET_PROVIDER=auto ;;   # unknown prefix → escalate to user
-esac
+# Ticket provider from key prefix — MUST stay in lock-step with ticket_provider_for()
+# in plugin-scripts/gaac/delegate.sh. Prefixes are per-installation config:
+#   MAOS_JIRA_KEY_PREFIXES="PROJ OPS"   MAOS_LINEAR_KEY_PREFIXES="ENG"
+#   key prefix in MAOS_JIRA_KEY_PREFIXES   → jira
+#   key prefix in MAOS_LINEAR_KEY_PREFIXES → linear
+#   empty                                  → none (ad-hoc session)
+#   anything else                          → auto (escalate to user)
 
 # VCS provider from git remote
 REMOTE_URL=$(git config --get remote.origin.url 2>/dev/null || echo "")

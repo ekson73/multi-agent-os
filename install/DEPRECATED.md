@@ -7,9 +7,9 @@ This directory is deprecated as of v1.0.0.
 Installation is now handled via the Claude Code plugin system (plugin name: `maos`). See [`README.md`](../README.md#installation) for full instructions.
 
 ```text
-# From the eko-claude-plugins marketplace (inside a Claude Code session)
-/plugin marketplace add ekson73/eko-claude-plugins
-/plugin install maos@eko-claude-plugins
+# From the plugin-marketplace marketplace (inside a Claude Code session)
+/plugin marketplace add OWNER/plugin-marketplace
+/plugin install maos@plugin-marketplace
 
 # Or load locally from source (shell)
 claude --plugin-dir /path/to/multi-agent-os

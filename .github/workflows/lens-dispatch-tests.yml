@@ -64,6 +64,10 @@ jobs:
         run: bash tests/lens-dispatch-matrix.sh
 
       - name: Layer Purity (community promotion gate)
+        # Org-specific patterns come from the LAYER_PURITY_PATTERNS repository variable
+        # (newline-separated EREs), so the workflow never spells them; see bin/check-layer-purity.
+        env:
+          MAOS_LAYER_PURITY_PATTERNS: ${{ vars.LAYER_PURITY_PATTERNS }}
         run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
 
       - name: Validate plugin structure (repo MUST rule)

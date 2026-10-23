@@ -78,27 +78,33 @@ mk_repo() { # mk_repo <dir> [remote-url]
 echo "Testing seed_active_world() [lib/seed-io.sh]..."
 echo ""
 
+# The identity map is installation config (lib/seed-io.sh); pin a synthetic one for the suite.
+export MAOS_PERSONAL_GH_OWNERS="OWNER" MAOS_WORK_GH_OWNERS="acme-org"
+unset MAOS_PERSONAL_SSH_ALIAS
+
 # shellcheck source=/dev/null
 source "${LIB_DIR}/seed-io.sh"
 
-REPO1="${TEST_ROOT}/personal-ssh";  mk_repo "$REPO1" "git@github.com:ekson73/some-repo.git"
-REPO2="${TEST_ROOT}/personal-https"; mk_repo "$REPO2" "https://github.com/ekson73/some-repo.git"
-REPO3="${TEST_ROOT}/work-ssh";      mk_repo "$REPO3" "git@github.com:vek-im/some-repo.git"
+REPO1="${TEST_ROOT}/personal-ssh";  mk_repo "$REPO1" "git@github.com:OWNER/some-repo.git"
+REPO2="${TEST_ROOT}/personal-https"; mk_repo "$REPO2" "https://github.com/OWNER/some-repo.git"
+REPO3="${TEST_ROOT}/work-ssh";      mk_repo "$REPO3" "git@github.com:acme-org/some-repo.git"
 REPO4="${TEST_ROOT}/other-org";     mk_repo "$REPO4" "git@github.com:torvalds/linux.git"
-REPO5="${TEST_ROOT}/spoofed";       mk_repo "$REPO5" "git@evil.example.com:github.com/ekson73/some-repo.git"
+REPO5="${TEST_ROOT}/spoofed";       mk_repo "$REPO5" "git@evil.example.com:github.com/OWNER/some-repo.git"
 REPO6="${TEST_ROOT}/no-remote";     mk_repo "$REPO6"
 # The operator's personal-identity SSH ALIAS host (multi-identity-git-ssh-governance.md §3.3) —
 # stored directly (not via ambient `~/.gitconfig` insteadOf expansion) so this case is
 # deterministic on ANY machine/CI, whether or not that global rewrite is configured locally.
-REPO7="${TEST_ROOT}/personal-ssh-alias"; mk_repo "$REPO7" "git@github.com-ekson73:ekson73/some-repo.git"
+REPO7="${TEST_ROOT}/personal-ssh-alias"; mk_repo "$REPO7" "git@github.com-personal:OWNER/some-repo.git"
 
-assert_equals "personal" "$(seed_active_world "$REPO1")" "ekson73 SSH remote -> personal"
-assert_equals "personal" "$(seed_active_world "$REPO2")" "ekson73 HTTPS remote -> personal"
-assert_equals "work"     "$(seed_active_world "$REPO3")" "vek-im SSH remote -> work"
+assert_equals "personal" "$(seed_active_world "$REPO1")" "maintainer SSH remote -> personal"
+assert_equals "personal" "$(seed_active_world "$REPO2")" "maintainer HTTPS remote -> personal"
+assert_equals "work"     "$(seed_active_world "$REPO3")" "acme-org SSH remote -> work"
 assert_equals "unknown"  "$(seed_active_world "$REPO4")" "unrelated org (torvalds) -> unknown, NOT personal"
 assert_equals "unknown"  "$(seed_active_world "$REPO5")" "spoofed remote (github.com as path substring) -> unknown"
 assert_equals "unknown"  "$(seed_active_world "$REPO6")" "no origin remote -> unknown"
-assert_equals "personal" "$(seed_active_world "$REPO7")" "ekson73's own personal-identity SSH alias (github.com-ekson73) -> personal"
+assert_equals "personal" "$(seed_active_world "$REPO7")" "maintainer's own personal-identity SSH alias (github.com-personal) -> personal"
+assert_equals "unknown"  "$(MAOS_PERSONAL_GH_OWNERS="" MAOS_WORK_GH_OWNERS="" seed_active_world "$REPO1")" "unset identity map -> unknown (fail-closed, no hard-coded owners)"
+assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS="gh-me" seed_active_world "$(REPO8="${TEST_ROOT}/custom-alias"; mk_repo "$REPO8" "git@gh-me:OWNER/some-repo.git"; printf '%s' "$REPO8")")" "custom personal SSH alias (MAOS_PERSONAL_SSH_ALIAS) -> personal"
 
 # =============================================================================
 # SECTION 2 — postflight-precompact.sh emits active_world on the skeleton
@@ -115,7 +121,7 @@ echo '{"session_id":"test-session","trigger":"manual"}' | \
 PRE_SEED_FILE="${PRE_SEED_DIR}/continuation-seed.latest.json"
 if [[ -f "$PRE_SEED_FILE" ]]; then
   assert_equals "work" "$(jq -r '.params.active_world // "MISSING"' "$PRE_SEED_FILE")" \
-    "precompact skeleton carries active_world=work for a vek-im-origin repo"
+    "precompact skeleton carries active_world=work for a acme-org-origin repo"
   assert_equals "1.4.0" "$(jq -r '.data.contract_version // "MISSING"' "$PRE_SEED_FILE")" \
     "precompact skeleton stamps contract_version 1.4.0"
 else

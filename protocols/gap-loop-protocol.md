@@ -175,7 +175,7 @@ Every HITL is an UNSOLVED PROBLEM; classify before escalating:
 - convergence-report + reject-log → docs / Confluence.
 - gap-closures + residuals → tickets via `maos:postflight` P2.5 TICKET-SYNC (a capability-detected ticketing primitive, ref `ticket-as-prompt`; in-repo SSOT `skills/postflight/references/ticket-sync-protocol.md`).
 - boy-scout: leave touched artifacts cleaner than found (`maos:postflight` P1-SWEEP).
-- **STAGE-only git unless authorized** (EKO-66): never push/merge without explicit operator authorization.
+- **STAGE-only git unless authorized** (TICKET-66): never push/merge without explicit operator authorization.
 
 **DoD**: gap-register fully dispositioned (none undispositioned) · HARMONIC convergence + STABLE plateau
 reached · convergence synthesis + reject-log exist · **keep-best** (no unresolved regression) · Socratic

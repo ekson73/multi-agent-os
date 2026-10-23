@@ -16,23 +16,27 @@
 #   2 = usage error / file not found
 set -euo pipefail
 
-# Organization-specific strings to flag (case-insensitive)
-# Add new patterns here; one regex per line, anchored as needed.
+# Organization-specific strings to flag (case-insensitive), one ERE per entry.
+# The framework ships only neutral defaults: the real organization names, project keys
+# and domains are installation config, so this file never republishes them.
+#   MAOS_LAYER_PURITY_PATTERNS       newline-separated EREs (in CI: a repository variable)
+#   MAOS_LAYER_PURITY_PATTERNS_FILE  file with one ERE per line, '#' comments allowed
+#                                    (default: ~/.config/maos/layer-purity-patterns.txt)
 PATTERNS=(
-  '\bvek\b'
-  '\bVKL-[0-9]+'
-  '\bVKS-[0-9]+'
   '\bLGPD\b'
-  '\bVSAF\b'
-  '\bvector(inf)?\b'
-  '\bvek-list\b'
-  '\bvek-sales\b'
-  '\bvek-ai-toolkit\b'
-  '\bvek-claude-plugins\b'
-  '\bvek-list-pilot\b'
-  'vek\.atlassian\.net'
-  'vectorinf\.com\.br'
 )
+_lp_file="${MAOS_LAYER_PURITY_PATTERNS_FILE:-${HOME:-}/.config/maos/layer-purity-patterns.txt}"
+if [ -f "$_lp_file" ]; then
+  while IFS= read -r _lp || [ -n "$_lp" ]; do
+    case "$_lp" in ''|'#'*) continue ;; esac
+    PATTERNS+=("$_lp")
+  done < "$_lp_file"
+fi
+if [ -n "${MAOS_LAYER_PURITY_PATTERNS:-}" ]; then
+  while IFS= read -r _lp; do
+    [ -n "$_lp" ] && PATTERNS+=("$_lp")
+  done <<< "$MAOS_LAYER_PURITY_PATTERNS"
+fi
 
 MODE="text"
 FILES=()

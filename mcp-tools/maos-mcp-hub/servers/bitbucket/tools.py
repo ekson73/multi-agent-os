@@ -3432,7 +3432,7 @@ TOOLS = {
     "get_pull_requests": get_pull_requests,
     "get_pr_details": get_pr_details,
     "get_pr_build_statuses": get_pr_build_statuses,
-    "create_pull_request": create_pull_request,  # Sprint 7 - 2026-02-06 (Eko autonomy)
+    "create_pull_request": create_pull_request,  # Sprint 7 - 2026-02-06 (operator autonomy)
     "get_pr_comments": get_pr_comments,
     "merge_pull_request": merge_pull_request,
     "approve_pull_request": approve_pull_request,
