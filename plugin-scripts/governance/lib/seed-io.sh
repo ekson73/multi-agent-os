@@ -93,8 +93,8 @@ seed_unlock() {
 #   (continuation-seed-contract.md v1.4.0 `active_world`). Parses the `origin` remote's
 #   GitHub org against a VERIFIED identity map (multi-identity-git-ssh-governance.md §0.5).
 #   The map is installation config, never hard-coded owner names:
-#     MAOS_PERSONAL_GH_OWNERS   space-separated GitHub users/orgs of the personal world
-#     MAOS_WORK_GH_OWNERS       space-separated GitHub orgs of the work world
+#     MAOS_PERSONAL_GH_OWNERS   GitHub users/orgs of the personal world (spaces or commas)
+#     MAOS_WORK_GH_OWNERS       GitHub orgs of the work world (spaces or commas)
 #     MAOS_PERSONAL_SSH_ALIAS   personal-identity SSH host alias (default: github.com-personal)
 #   Unset lists classify every org as "unknown" (fail-closed).
 #   NEVER guesses: any org that does not positively match yields "unknown" — never a silent
@@ -102,7 +102,8 @@ seed_unlock() {
 #   evidence, exactly the failure this contract's Best-practice #2 forbids). Pure/read-only;
 #   safe to call from a hook that must never block (no network, plain string parsing).
 seed_active_world() {
-  local repo="$1" remote org o alias alias_re
+  local repo="$1" remote org o alias alias_re raw
+  local -a _owners=()
   alias="${MAOS_PERSONAL_SSH_ALIAS:-github.com-personal}"
   alias_re="$(printf '%s' "$alias" | sed 's/[.]/\\./g')"
   # `git remote get-url` EXPANDS this machine's own `url.<x>.insteadOf` rewrites by default —
@@ -130,10 +131,29 @@ seed_active_world() {
   # under the SAME work org per multi-identity-git-ssh-governance.md §0.5). Bitbucket-only
   # legacy orgs (e.g. org-servicos) are intentionally NOT matched here (this parser is
   # github.com-specific) — they fall through to "unknown", never guessed.
-  for o in ${MAOS_PERSONAL_GH_OWNERS:-}; do
+  # /**
+  #  * Accept spaces or commas, then iterate a quoted array.
+  #  * @context Owner lists were documented as space-separated while the upgrade note used commas.
+  #  * @reason The unquoted for-loop only split on IFS whitespace, so commas never matched.
+  #  * @impact "acme-org other" and "acme-org,other" match the same orgs. Empty input matches nothing.
+  #  */
+  local IFS=' '
+  raw="${MAOS_PERSONAL_GH_OWNERS:-}"
+  raw="${raw//,/ }"
+  _owners=()
+  if [ -n "${raw//[[:space:]]/}" ]; then
+    read -r -a _owners <<< "$raw"
+  fi
+  for o in "${_owners[@]}"; do
     if [ "$org" = "$o" ]; then printf 'personal'; return 0; fi
   done
-  for o in ${MAOS_WORK_GH_OWNERS:-}; do
+  raw="${MAOS_WORK_GH_OWNERS:-}"
+  raw="${raw//,/ }"
+  _owners=()
+  if [ -n "${raw//[[:space:]]/}" ]; then
+    read -r -a _owners <<< "$raw"
+  fi
+  for o in "${_owners[@]}"; do
     if [ "$org" = "$o" ]; then printf 'work'; return 0; fi
   done
   printf 'unknown'

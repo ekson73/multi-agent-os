@@ -127,6 +127,7 @@ Agents detect providers deterministically — no guessing:
 # Ticket provider from key prefix — MUST stay in lock-step with ticket_provider_for()
 # in plugin-scripts/gaac/delegate.sh. Prefixes are per-installation config:
 #   MAOS_JIRA_KEY_PREFIXES="PROJ OPS"   MAOS_LINEAR_KEY_PREFIXES="ENG"
+#   Spaces or commas are both accepted ("PROJ,OPS" and "PROJ OPS" are the same list).
 #   key prefix in MAOS_JIRA_KEY_PREFIXES   → jira
 #   key prefix in MAOS_LINEAR_KEY_PREFIXES → linear
 #   empty                                  → none (ad-hoc session)

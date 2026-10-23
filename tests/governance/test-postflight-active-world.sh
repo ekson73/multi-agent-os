@@ -12,6 +12,12 @@
 
 set -uo pipefail   # NOT -e: each test asserts its own outcome; a probe's non-zero must not abort the suite.
 
+# Fixtures store raw remote URLs. A global url.*.insteadOf rewrite (common in CI
+# sandboxes) makes `git remote get-url` return a different host, and seed_active_world
+# then fail-closes to unknown. Drop the operator gitconfig for this process only.
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_NOSYSTEM=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LIB_DIR="${PROJECT_ROOT}/plugin-scripts/governance/lib"
@@ -104,6 +110,14 @@ assert_equals "unknown"  "$(seed_active_world "$REPO5")" "spoofed remote (github
 assert_equals "unknown"  "$(seed_active_world "$REPO6")" "no origin remote -> unknown"
 assert_equals "personal" "$(seed_active_world "$REPO7")" "maintainer's own personal-identity SSH alias (github.com-personal) -> personal"
 assert_equals "unknown"  "$(MAOS_PERSONAL_GH_OWNERS="" MAOS_WORK_GH_OWNERS="" seed_active_world "$REPO1")" "unset identity map -> unknown (fail-closed, no hard-coded owners)"
+# Alias host, not github.com: url.*.insteadOf can rewrite git@github.com: before
+# seed_active_world sees it, and that form fail-closes to unknown. These cases use
+# an alias insteadOf does not rewrite, so they assert the list parser.
+REPO9="${TEST_ROOT}/comma-personal"; mk_repo "$REPO9" "git@gh-list:OWNER/some-repo.git"
+REPO10="${TEST_ROOT}/list-work";     mk_repo "$REPO10" "git@gh-list:acme-org/some-repo.git"
+assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_PERSONAL_GH_OWNERS="someone,OWNER" seed_active_world "$REPO9")" "comma-separated personal owners"
+assert_equals "work"     "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_WORK_GH_OWNERS="other-org,acme-org" seed_active_world "$REPO10")" "comma-separated work owners"
+assert_equals "work"     "$(MAOS_PERSONAL_SSH_ALIAS=gh-list MAOS_WORK_GH_OWNERS="other-org acme-org" seed_active_world "$REPO10")" "space-separated work owners"
 assert_equals "personal" "$(MAOS_PERSONAL_SSH_ALIAS="gh-me" seed_active_world "$(REPO8="${TEST_ROOT}/custom-alias"; mk_repo "$REPO8" "git@gh-me:OWNER/some-repo.git"; printf '%s' "$REPO8")")" "custom personal SSH alias (MAOS_PERSONAL_SSH_ALIAS) -> personal"
 
 # =============================================================================

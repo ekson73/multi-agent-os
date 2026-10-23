@@ -36,8 +36,7 @@
     "fallback": "permit_unprefixed_if_no_collision"
   },
   "vendor_reserved_audit": {
-    "_comment": "Sandwich Namespacing Layer 4 reference \u2014 list of vendor-native command names plugins should NEVER override at filename level. Authoritative cross-vendor catalog: OWNER/user-dotfiles:docs/vendor-reserved-words.md v1.0.0 (36+ Claude Code built-ins + Cursor/Copilot/Aider/Gemini/Goose).",
-    "source_of_truth": "https://github.com/OWNER/user-dotfiles/blob/main/docs/vendor-reserved-words.md",
+    "_comment": "Sandwich Namespacing Layer 4 reference \u2014 list of vendor-native command names plugins should NEVER override at filename level. The in-repo list is claude_code_builtins_sample in this object. Nothing reads a source_of_truth URL from this manifest.",
     "claude_code_builtins_sample": [
       "help",
       "clear",

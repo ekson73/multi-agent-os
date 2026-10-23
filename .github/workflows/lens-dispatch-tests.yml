@@ -66,6 +66,8 @@ jobs:
       - name: Layer Purity (community promotion gate)
         # Org-specific patterns come from the LAYER_PURITY_PATTERNS repository variable
         # (newline-separated EREs), so the workflow never spells them; see bin/check-layer-purity.
+        # An empty variable is not a silent pass: the script fails this step, except on a
+        # pull request from a fork, where it emits ::warning:: and skips.
         env:
           MAOS_LAYER_PURITY_PATTERNS: ${{ vars.LAYER_PURITY_PATTERNS }}
         run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh

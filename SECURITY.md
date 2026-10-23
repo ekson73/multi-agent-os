@@ -1,6 +1,6 @@
 # Security Policy
 
-> Mirror: [VKS-1956](https://example.atlassian.net/browse/PROJ-1956) — Wave 3 supply-chain hardening for `ekson73/multi-agent-os`.
+> Mirror: [PROJ-1956](https://example.atlassian.net/browse/PROJ-1956) — Wave 3 supply-chain hardening for `ekson73/multi-agent-os`.
 
 ## Supported Versions
 

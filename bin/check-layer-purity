@@ -11,32 +11,74 @@
 #   bin/check-layer-purity --json       # machine-readable output
 #
 # Exit codes:
-#   0 = clean (zero violations)
-#   1 = violations found
+#   0 = clean (zero violations), or skipped on a fork pull request with no patterns
+#   1 = violations found, or CI with no patterns configured
 #   2 = usage error / file not found
 set -euo pipefail
 
 # Organization-specific strings to flag (case-insensitive), one ERE per entry.
-# The framework ships only neutral defaults: the real organization names, project keys
-# and domains are installation config, so this file never republishes them.
-#   MAOS_LAYER_PURITY_PATTERNS       newline-separated EREs (in CI: a repository variable)
+# The framework ships only a neutral default. Real organization names, project keys
+# and domains are installation config and are never compiled into this file.
+#   MAOS_LAYER_PURITY_PATTERNS       newline-separated EREs
+#                                    (in CI: the LAYER_PURITY_PATTERNS repository variable)
 #   MAOS_LAYER_PURITY_PATTERNS_FILE  file with one ERE per line, '#' comments allowed
 #                                    (default: ~/.config/maos/layer-purity-patterns.txt)
+# /**
+#  * Unconfigured patterns must not look like a clean scan.
+#  * @context The neutral default (\bLGPD\b) is always loaded, so an empty config used to exit 0.
+#  * @reason A green run with no org patterns hides that the promotion gate checked almost nothing.
+#  * @impact Local runs warn and still scan the default. CI fails. A fork pull request warns and skips.
+#  */
 PATTERNS=(
   '\bLGPD\b'
 )
+_lp_configured=0
 _lp_file="${MAOS_LAYER_PURITY_PATTERNS_FILE:-${HOME:-}/.config/maos/layer-purity-patterns.txt}"
 if [ -f "$_lp_file" ]; then
   while IFS= read -r _lp || [ -n "$_lp" ]; do
-    case "$_lp" in ''|'#'*) continue ;; esac
-    PATTERNS+=("$_lp")
+    case "$_lp" in
+      ''|'#'*) continue ;;
+      *) _lp_configured=1; PATTERNS+=("$_lp") ;;
+    esac
   done < "$_lp_file"
 fi
 if [ -n "${MAOS_LAYER_PURITY_PATTERNS:-}" ]; then
   while IFS= read -r _lp; do
-    [ -n "$_lp" ] && PATTERNS+=("$_lp")
+    if [ -n "$_lp" ]; then
+      _lp_configured=1
+      PATTERNS+=("$_lp")
+    fi
   done <<< "$MAOS_LAYER_PURITY_PATTERNS"
 fi
+
+# CI is GitHub Actions, or any runner that exports CI=true.
+_lp_in_ci() {
+  [ "${GITHUB_ACTIONS:-}" = "true" ] || [ "${CI:-}" = "true" ]
+}
+
+# Fork pull requests do not carry the upstream repository variable.
+_lp_fork_pr() {
+  [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] || return 1
+  [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "${GITHUB_EVENT_PATH}" ] || return 1
+  local fork="false"
+  if command -v jq >/dev/null 2>&1; then
+    fork="$(jq -r 'if .pull_request.head.repo.fork == true then "true" else "false" end' "${GITHUB_EVENT_PATH}" 2>/dev/null || echo false)"
+  fi
+  [ "$fork" = "true" ]
+}
+
+_lp_unconfigured_gate() {
+  [ "$_lp_configured" -eq 0 ] || return 0
+  if _lp_in_ci; then
+    if _lp_fork_pr; then
+      echo "::warning::Layer Purity check skipped: no patterns configured (pull request from a fork; LAYER_PURITY_PATTERNS is not set)."
+      exit 0
+    fi
+    echo "error: Layer Purity: no patterns configured. Set MAOS_LAYER_PURITY_PATTERNS, MAOS_LAYER_PURITY_PATTERNS_FILE, or the LAYER_PURITY_PATTERNS repository variable. Refusing to pass silently." >&2
+    exit 1
+  fi
+  echo "warning: Layer Purity: no patterns configured (MAOS_LAYER_PURITY_PATTERNS, MAOS_LAYER_PURITY_PATTERNS_FILE, or the CI variable LAYER_PURITY_PATTERNS). Scanning the neutral default only." >&2
+}
 
 MODE="text"
 FILES=()
@@ -88,6 +130,8 @@ while [ $# -gt 0 ]; do
 done
 
 [ ${#FILES[@]} -eq 0 ] && { echo "Usage: $(basename "$0") <file>... | --hooks | --candidates [--json]" >&2; exit 2; }
+
+_lp_unconfigured_gate
 
 # Build combined regex (alternation) for grep -E.
 # printf-join (not an `IFS='|'` subshell): subshell-IFS is safe but trips a global-IFS lint;

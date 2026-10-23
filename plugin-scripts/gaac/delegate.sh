@@ -21,35 +21,39 @@ PROTOCOL_DIR="${PLUGIN_ROOT}/protocols/delegation"
 ALLOWED_PROVIDERS="auto|github|bitbucket|gitlab|none"
 
 usage() {
-  cat >&2 <<EOF
-Usage: delegate.sh <phase> [--ticket KEY] [--provider VCS]
-
-Phases:
-  init      Emit the pre-delegation prompt (for delegator to pass to sub-agent).
-  dna       Emit the mid-flight guardrails prompt (context refresh).
-  finalize  Emit the cleanup + handoff + learning prompt (post-delegation).
-
-Flags:
-  --ticket KEY     Override ticket id (else env TICKET; else empty→ticket=none).
-                   Ticket provider auto-detected from key prefix, using the\n                   per-installation prefix lists below:\n                     \$MAOS_JIRA_KEY_PREFIXES   → jira\n                     \$MAOS_LINEAR_KEY_PREFIXES → linear\n                     other                     → auto\n  --provider VCS   Override VCS provider detection from 'git remote -v'.
-                   Allowed: ${ALLOWED_PROVIDERS}
-
-Env:
-  CLAUDE_PLUGIN_ROOT  Path to plugin root. Defaults to two dirs above this script.
-  TICKET              Fallback for --ticket.
-  MAOS_JIRA_KEY_PREFIXES    Space-separated Jira project keys (e.g. "PROJ OPS"). Default: none.
-  MAOS_LINEAR_KEY_PREFIXES  Space-separated Linear team keys (e.g. "ENG"). Default: none.
-
-Exit codes:
-  0   success
-  2   bad usage / unknown phase / invalid --provider / missing flag value
-  3   prompt file not found under protocols/delegation/
-
-Examples:
-  plugin-scripts/gaac/delegate.sh init --ticket=VKS-1706
-  plugin-scripts/gaac/delegate.sh dna
-  plugin-scripts/gaac/delegate.sh finalize --provider=github
-EOF
+  printf >&2 '%s\n' \
+    "Usage: delegate.sh <phase> [--ticket KEY] [--provider VCS]" \
+    "" \
+    "Phases:" \
+    "  init      Emit the pre-delegation prompt (for delegator to pass to sub-agent)." \
+    "  dna       Emit the mid-flight guardrails prompt (context refresh)." \
+    "  finalize  Emit the cleanup + handoff + learning prompt (post-delegation)." \
+    "" \
+    "Flags:" \
+    "  --ticket KEY     Override ticket id (else env TICKET; else empty→ticket=none)." \
+    "                   Ticket provider auto-detected from key prefix, using the" \
+    "                   per-installation prefix lists below:" \
+    '                     $MAOS_JIRA_KEY_PREFIXES   → jira' \
+    '                     $MAOS_LINEAR_KEY_PREFIXES → linear' \
+    "                     other                     → auto" \
+    "  --provider VCS   Override VCS provider detection from 'git remote -v'." \
+    "                   Allowed: ${ALLOWED_PROVIDERS}" \
+    "" \
+    "Env:" \
+    "  CLAUDE_PLUGIN_ROOT  Path to plugin root. Defaults to two dirs above this script." \
+    "  TICKET              Fallback for --ticket." \
+    '  MAOS_JIRA_KEY_PREFIXES    Jira project keys, spaces or commas (e.g. "PROJ OPS" or "PROJ,OPS"). Default: none.' \
+    '  MAOS_LINEAR_KEY_PREFIXES  Linear team keys, spaces or commas (e.g. "ENG" or "ENG,DES"). Default: none.' \
+    "" \
+    "Exit codes:" \
+    "  0   success" \
+    "  2   bad usage / unknown phase / invalid --provider / missing flag value" \
+    "  3   prompt file not found under protocols/delegation/" \
+    "" \
+    "Examples:" \
+    "  plugin-scripts/gaac/delegate.sh init --ticket=PROJ-1706" \
+    "  plugin-scripts/gaac/delegate.sh dna" \
+    "  plugin-scripts/gaac/delegate.sh finalize --provider=github"
 }
 
 # ----------------------------------------------------------------------------
@@ -98,13 +102,35 @@ fi
 
 # Ticket provider from key prefix. Prefixes are installation config, never
 # hard-coded org keys: MAOS_JIRA_KEY_PREFIXES / MAOS_LINEAR_KEY_PREFIXES.
+# /**
+#  * Accept spaces or commas, then iterate a quoted array.
+#  * @context Upgrade notes used commas; the first parser split only on spaces.
+#  * @reason A single separator made one of the two documented forms a no-op.
+#  * @impact "PROJ OPS" and "PROJ,OPS" match the same keys. Empty input matches nothing.
+#  */
 ticket_provider_for() {
-  local key="$1" p
+  local key="$1" p raw
+  local -a prefixes=()
   if [[ -z "$key" ]]; then echo "none"; return; fi
-  for p in ${MAOS_JIRA_KEY_PREFIXES:-}; do
+  local IFS=' '
+
+  raw="${MAOS_JIRA_KEY_PREFIXES:-}"
+  raw="${raw//,/ }"
+  prefixes=()
+  if [[ -n "${raw//[[:space:]]/}" ]]; then
+    read -r -a prefixes <<< "$raw"
+  fi
+  for p in "${prefixes[@]}"; do
     if [[ "$key" == "$p"-* || "$key" == "$p"_* ]]; then echo "jira"; return; fi
   done
-  for p in ${MAOS_LINEAR_KEY_PREFIXES:-}; do
+
+  raw="${MAOS_LINEAR_KEY_PREFIXES:-}"
+  raw="${raw//,/ }"
+  prefixes=()
+  if [[ -n "${raw//[[:space:]]/}" ]]; then
+    read -r -a prefixes <<< "$raw"
+  fi
+  for p in "${prefixes[@]}"; do
     if [[ "$key" == "$p"-* ]]; then echo "linear"; return; fi
   done
   echo "auto"
