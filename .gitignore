@@ -33,3 +33,6 @@ out/
 !.kiro/agents/
 # mcp.json pode conter tokens no bloco env — NUNCA commitar
 .kiro/settings/
+
+# OMC harness state/cache (replay logs, project-memory, cooldowns) — never committed
+.omc/
