@@ -91,6 +91,32 @@ produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao
 > o repo não exige e o `gpgsign` lido é `false`. Repo exige e o ambiente não assina → não commita
 > dali. A sentinela **respeita** o estado medido, nunca o inverte.
 
+## Achados de review abertos: por thread, não por head
+O modo-falha que esta regra **recusa**: filtrar comentários de review pelo `commit_id` igual ao head
+atual. A API do provedor **move** o `commit_id` de comentários antigos para o head novo quando a
+linha ainda existe, e o filtro por head passa a mostrar como novos achados que já foram corrigidos.
+
+- **Fonte primária (GraphQL)**: `reviewThreads` do PR, com `isResolved` e `isOutdated` de cada
+  thread; achado aberto = thread com `isResolved=false`. Exemplo:
+  `gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved isOutdated path comments(first:1){nodes{databaseId author{login}}}}}}}}' -F o=<owner> -F r=<repo> -F n=<n>`
+  (paginar com `pageInfo` quando houver mais de 100).
+- **Sem GraphQL (REST)**: em `pulls/<n>/comments`, comentário com `position: null` (ou
+  `outdated: true`, quando o provedor expõe) é sinal de **corrigido** (a linha mudou); os demais
+  contam como abertos até haver prova do contrário. É só um sinal: na dúvida, conta como aberto.
+- **O que não muda**: o veredito (`APPROVED`) continua valendo só para o `headRefOid` atual; o
+  merge exige **zero thread aberta** pela fonte primária; resolver thread sem a correção continua
+  proibido (piso, item 2). Thread `isOutdated=true` e não resolvida ainda é aberta para o merge:
+  quem a corrigiu pede ao autor do achado que a resolva, ou a resolve citando o commit da correção.
+
+## Autoria e aprovação com a conta do dono (efeito esperado)
+Quando agentes commitam ou abrem o PR com a conta (ou o token) do dono humano, o provedor registra o
+**dono como autor**, e a regra autor ≠ aprovador o impede de aprovar esse PR. Isso é coerente com o
+provedor e é o comportamento esperado, não um defeito da sentinela. Saídas válidas: um aprovador
+do registro de capacitados (identidade própria, fora das contas proibidas) ou `STOP-HITL`. Nunca
+contornar com `--admin`, com troca de autoria (reescrever autor ou committer, `--author`, amend ou
+rebase para "limpar" a autoria) nem com uma segunda conta do mesmo dono. Pelo item 8 do piso, o
+agente que usa essa conta também nunca emite `APPROVED`, override ou convergência em nome do dono.
+
 ## Repo-awareness (o coração híbrido)
 A sentinela lê o estado de cada repo e adapta ENFORCE vs APPLY ao que aquele repo **realmente tem**.
 Perfis de exemplo (a medição original está na nota da norma harmonizada, fora do repo):

@@ -69,7 +69,9 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
   aprovação, bots e workflows que chamem `gh pr merge`). Registradas em `merge_automations`.
 - **Aprovação**: o registro de aprovadores capacitados é artefato do projeto (`login`, `id`,
   `type: Bot`). Quem não está nele não conta, e projeto sem registro não tem aprovador
-  (`STOP-HITL`). A lista de contas proibidas prevalece. A sentinela lê o registro e não o edita.
+  (`STOP-HITL` no merge, anunciado já na Fase 0). A lista de contas proibidas prevalece. A
+  sentinela lê o registro e não o edita. Agente que opera com o token ou a conta do dono humano
+  nunca emite `APPROVED`, override nem convergência em nome dele.
   `APPROVED` com corpo vazio não conta sem um comentário de justificativa da mesma conta vinculado
   ao SHA do head. Revisor que só comenta não fecha o ciclo. Revisor sem cota, com rate limit ou que
   não completou a revisão não conta, mesmo com check "pass"/"success".
@@ -122,8 +124,9 @@ pr        #<n>                     head <sha>  merge <sha>  idmp theme-repo-YYYY
 - Push em lote (P7): commits locais agrupados e push por lote, para não disparar os revisores
   automáticos a cada commit.
 - Quem pode o quê: o executor de código clona no ambiente de execução, cria a branch, commita,
-  empurra e abre o PR. O coordenador sem credencial própria lê o portão, comenta, rotula e pode
-  mesclar PR técnico se os guardrails passarem, pelo conector, e pede ao executor o que mutar.
+  empurra e abre o PR. O coordenador sem credencial própria lê o portão, comenta o status (rotina,
+  sem segredo, PII nem nome privado), rotula e pode mesclar PR técnico se os guardrails passarem,
+  pelo conector, e pede ao executor o que mutar.
   Ninguém faz checkout nas máquinas do usuário. `--admin`, dismiss, `--no-verify` e bypass de
   assinatura são nunca. A tabela completa está na skill.
 - Convergência de refutação: [`skills/converge/SKILL.md`](../skills/converge/SKILL.md).

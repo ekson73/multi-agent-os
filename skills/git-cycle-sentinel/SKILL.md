@@ -28,7 +28,7 @@ metadata:
   # Identificação da cópia (ver "Versão e identificação"): body_sha256 = sha256 do corpo
   # (tudo depois da linha que fecha este frontmatter); source_commit = commit de origem,
   # preenchido na instalação.
-  body_sha256: "e9b114b9c195531ad84fb8eba3f35d0f3d7c8b30da3a4a75f7384a1ca06d16ad"
+  body_sha256: "a51f2c5de71454ea8b6a8e3a6b65189d4559abb329bf11a9a500266a7ca8f8a2"
   source_commit: ""
   references:
     - references/mecanica.md
@@ -59,8 +59,9 @@ metadata:
   confere antes de rodar (divergência = "corpo alterado").
 - `metadata.source_commit`: commit de origem, preenchido na instalação (vazio no arquivo versionado).
 - `references/` fica fora do `body_sha256`; o cache da Fase 0 registra o sha de cada uma carregada.
-- **Instalação que estende este pai**: lê o pai instalado; antes da instalação, o único caminho
-  alternativo que ela declara. Nenhum dos dois, ou `body_sha256` divergente → `STOP-ERROR`.
+- **Instalação que estende este pai**: lê o pai instalado; senão, o único caminho alternativo que
+  ela declara. `body_sha256` divergente → `STOP-ERROR`. Nenhum dos dois → vale só o piso
+  inviolável (copiado na instalação), com o aviso `pai ausente` e `STOP-HITL` no merge.
 
 ## §0 — Gate não se pula (foundational)
 Esta skill serve a intenção do operador **dentro** dos gates. Os gates são por qualidade e por
@@ -90,13 +91,13 @@ Estas regras valem em todo repo e em todo domínio. Um overlay pode apertá-las,
    padrões se comparam sem diferenciar maiúsculas e, havendo `id` numérico, pelo `id`;
 6. force-push só na branch criada pelo próprio agente e só com `--force-with-lease`;
 7. `contas_proibidas` declaradas em qualquer nível (pai, domínio, repo, inclusive num overlay
-   rejeitado) se somam por união e nunca são removidas por outra camada.
+   rejeitado) se somam por união e nunca são removidas por outra camada;
+8. agente que opera com o token ou a conta do dono humano nunca emite `APPROVED`, override nem
+   convergência em nome dele (o provedor não distingue os dois; só conta o que o humano emite).
 
 ## Overview — por que existe (não reimplementa nada)
-A cobertura das 5 fases já existe no host (worktree-policy, anti-conflict, hierarchical-merge,
-sync-to-git, hooks); faltava um disparo único que tirasse o ciclo do contexto do agente. Esta skill
-é esse **wrap fino**: orquestra o que existe e devolve **uma linha de status**. Motivação completa
-em `references/mecanica.md`.
+**Wrap fino** sobre os primitivos que já cobrem as 5 fases no host: um disparo único tira o ciclo
+do contexto do agente e devolve **uma linha de status** (motivação em `references/mecanica.md`).
 
 ## When to use / not use
 - **Use**: o agente terminou de escrever arquivos e quer que o ciclo-git (stage → worktree →
@@ -135,7 +136,7 @@ o executor, dentro da tabela.
 | Abrir PR | não (pede ao executor) | sim | sim |
 | Update branch (respeitando histórico linear) | sim (conector) | sim | sim |
 | Force-push `--force-with-lease` na branch própria | não | só na branch que criou | sim |
-| Comentar, pôr label `do-not-merge`, fechar o PR do ciclo | sim | sim | sim |
+| Comentário de status no PR (rotina, sem aprovação humana; sem segredo, PII nem nome privado), label `do-not-merge`, fechar o PR do ciclo | sim | sim | sim |
 | Aprovar PR | não | só se for aprovador capacitado e não for o autor | sim |
 | Merge autônomo de PR técnico | sim, se todos os guardrails passarem | só se a política do projeto delegar | sim |
 | Merge de política, proteção, segredo, gasto, produção, acesso ou irreversível | não (`STOP-HITL`) | não | sim |
@@ -193,6 +194,9 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   "Lacuna ou contradição"); isso nunca trava o trabalho rotineiro.
 - **APPLY** — **classe de domínio**: decidir a classe do repo (ver "Classes de domínio") e
   registrar a fonte da decisão.
+- **ENFORCE** — **registro de aprovadores** (chave `aprovadores`; ver Fase 3): conferido aqui.
+  Ausente ou ilegível → a 1ª linha de status já anuncia `STOP-HITL` no merge, antes de qualquer
+  trabalho; o rotineiro segue.
 
 ### Fase 1 — add/stage
 - **ENFORCE** — stage *scoped* só aos arquivos do próprio trabalho; **nunca** `git add -A` cego no
@@ -227,8 +231,9 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   saídas. Falha → self-heal, nunca contornar. Commit já feito sem hook → rodar no head e registrar,
   sem reescrever o commit só por isso.
 - **ENFORCE** — branch rastreável `agent/<owner>-<theme>` via `git worktree add -b`; nunca
-  `--force` sobre worktree ocupada. Delega a skill **`worktree-policy`** (v1.1.0) e ao gate
-  `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
+  `--force` sobre worktree ocupada. Branch existente fora do padrão com PR aberto segue sem
+  renomear, com aviso na linha da fase; renomear só branch sem PR. Delega a **`worktree-policy`**
+  (v1.1.0) e ao gate `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
 - **ENFORCE** — prevenir colisão de arquivo entre agentes paralelos (lock/ownership). Delega a
   **`anti-conflict`** (v3.2.0).
 
@@ -293,7 +298,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   por `aprovadores`), mantido pelo dono, com uma entrada por aprovador: `login`, `id` (id numérico da conta no provedor) e
   `type: Bot`, mais os protocolos aprovados e a data. A sentinela confere `user.login` (sem diferenciar maiúsculas), `user.id` e
   `user.type` de cada review na API contra o registro; **quem não está no registro não conta** (nem
-  quem diverge em id ou tipo). Projeto sem registro → nenhum aprovador conta → `STOP-HITL` no merge.
+  quem diverge em id ou tipo). Projeto sem registro (visto na Fase 0) → nenhum aprovador conta → `STOP-HITL` no merge.
 - **ENFORCE** — **revisor que só comenta não fecha o ciclo**: comentário, review `COMMENTED` ou
   "nenhum problema encontrado" não é `APPROVED`. Revisor que por natureza nunca emite `APPROVED` é
   registrado como não aprovador; se o pedido só aceita revisores desse tipo, o ciclo não fecha →
@@ -504,14 +509,10 @@ Os 7 atritos vividos (**A1** raiz protegida · **A2** base móvel · **A3** port
 efetiva · **A4** assinatura nunca regride · **A5** push verificável · **A6** host-alias · **A7**
 idempotência) são a spec mínima; verificação, regressões e casos D4 em `references/rastreabilidade.md`.
 
-## Mecânica de A6 e A7 (resumo)
-- **§A6** — owner/repo de `git remote get-url` sem protocolo, host ou alias; slug inválido →
-  `STOP-ERROR`; a sonda `gh api --hostname` usa o host do push.
-- **§A7** — key `<theme>-<repo>-<AAAAMMDD>` persistida (trailer `idmp: <key>` e marcador
-  `<!--idmp:<key>-->`) e sondada antes de cada mutação; PR MERGED → no-op; CLOSED → `STOP-HITL`.
-- **Self-heal** — passo de script que falha é despachado a um ai-harness coberto por assinatura já
-  paga pelo operador (sem chave cobrada por uso; crédito pré-pago só em último caso e com aviso),
-  dentro da regra das 6 tentativas; irreparável ou HUMAN_DOMAIN → escala.
+## Mecânica de A6, A7, self-heal e achados abertos
+Em `references/mecanica.md`: §A6 (owner/repo sem host nem alias; slug inválido → `STOP-ERROR`),
+§A7 (key `idmp` persistida e sondada antes de cada mutação; PR CLOSED → `STOP-HITL`), self-heal
+(só harness de assinatura já paga, 6 tentativas), achados abertos por thread e autoria do dono.
 
 ## Delegação (cita, NÃO reimplementa)
 Cada fase só emite invocações de primitivos existentes; primitivo opcional ausente degrada para o
@@ -558,12 +559,9 @@ Carregue só quando precisar:
   A1–A7 com verificação, casos de regressão, casos D4 (overlays), Quality Tests, DUED e changelog.
 
 ## §Refs
-- Pesquisa de base e norma harmonizada: notas do mantenedor, fora do repo (`metadata.source_research`).
-- Primitivos delegados (co-localizados): `skills/worktree-policy` · `skills/anti-conflict` ·
-  `skills/hierarchical-merge` · `skills/sync-to-git` · `plugin-scripts/governance/worktree-gate.sh`.
-- Genesis: skill de pipeline de ferramentas agênticas do repo (condutor e autoria) · skill de
-  nomeação do repo (nome). Lifecycle: `protocols/agentic-tool-lifecycle.md`.
-- Governança: `CONTRIBUTING.md`.
+- Pesquisa de base: `metadata.source_research`; genesis: `metadata.forged_by`; primitivos delegados:
+  tabela em `references/mecanica.md`. Lifecycle: `protocols/agentic-tool-lifecycle.md`.
+  Governança: `CONTRIBUTING.md`.
 
 ## Changelog
 Versão atual: **0.2.0** (2026-10-22). Histórico completo em `references/rastreabilidade.md`.
