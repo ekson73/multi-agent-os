@@ -148,7 +148,9 @@ regexTarget = "secret"
 regexes = [
     '''^(?i:changeme|example)$''',
     '''^\*+$''',
-    '''^<[^>\s]*>$''',
+    # Angle-bracket placeholder: only the exact mask <REDACTED> (the single
+    # bracketed form in this repo's history), never any bracketed value.
+    '''^<REDACTED>$''',
     '''^\$\{[^}]+\}$''',
     # Whole value is an AWS Secrets Manager reference, same anchor as
     # app-db-password. A real password that merely contains this text is not

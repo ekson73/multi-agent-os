@@ -316,6 +316,8 @@ wrap2="$(printf '<%s%s>' 'A123' '4567')"
 r_wrap="$(scan "$(printf 'DB_PASSWORD=%s\npassword=%s\n' "$wrap1" "$wrap2")")"
 if [ "$(nrule "$r_wrap" app-db-password)" -ge 2 ]; then ok "ANGLE ANTI-BYPASS: bracket-wrapped non-placeholder values still fire"
 else bad "ANGLE ANTI-BYPASS: a bracket-wrapped non-placeholder value was suppressed ($(nrule "$r_wrap" app-db-password)/2)"; fi
+if [ "$(nrule "$r_wrap" app-password-assignment)" -ge 2 ]; then ok "ANGLE ANTI-BYPASS: app-password-assignment also fires on bracket-wrapped non-placeholders"
+else bad "ANGLE ANTI-BYPASS: app-password-assignment suppressed a bracket-wrapped non-placeholder ($(nrule "$r_wrap" app-password-assignment)/2)"; fi
 
 # Built-in rules. Tokens are generated here; the source has no ghp_ or AKIA literal.
 p_ghp="$(python3 - <<'PY'
