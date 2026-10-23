@@ -55,7 +55,27 @@ g="$(printf '%s' "$out" | grep -c '"docs/g.md"')"
 [ "$g" = 0 ] && ok "placeholders ignored (example mail, invalid CPF, USER, generic alias)" || bad "placeholders flagged ($g)"
 [ "$(printf '%s' "$out" | grep -c '"docs/h.md"')" = 0 ] && ok "context allow rule" || bad "context allow rule"
 [ "$(printf '%s' "$out" | grep -c '"fixtures/x.md"')" = 0 ] && ok "path allow rule" || bad "path allow rule"
-if printf '%s' "$out" | grep -qi 'zorblax\|quuxname\|real.person\|529.982'; then bad "output leaks a plain value"; else ok "output is masked"; fi
+text_out="$(python3 "$CHECK" --root "$T" 2>/dev/null || true)"
+leak=0
+printf '%s\n%s\n' "$out" "$text_out" | grep -qi 'zorblax\|quuxname\|real\.person\|529\.982' && leak=1
+# The previous formatter revealed the first letter plus asterisks.
+printf '%s\n%s\n' "$out" "$text_out" | grep -Eq 'Z\*+|Q\*+|r\*+@|[0-9]\*+\.' && leak=1
+python3 -c '
+import json, sys, hashlib
+d = json.loads(sys.argv[1])
+salt = "test-salt"
+def short(tok):
+    return hashlib.sha256((salt + tok.lower()).encode()).hexdigest()[:12]
+for f in d["findings"]:
+    if "token" in f or not isinstance(f.get("hash"), str) or len(f["hash"]) != 12:
+        sys.exit(1)
+    if any(c not in "0123456789abcdef" for c in f["hash"]):
+        sys.exit(1)
+got = [f["hash"] for f in d["findings"] if f["file"] == "docs/a.md" and f["detector"] == "d1"]
+if got != [short("zorblax")]:
+    sys.exit(2)
+' "$out" || leak=1
+[ "$leak" = 0 ] && ok "output is file, rule id and short hash" || bad "output leaks a plain value"
 
 python3 "$CHECK" --root "$T" --report-only >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 0 ] && ok "--report-only exits 0 with findings" || bad "--report-only (rc=$rc)"
@@ -65,6 +85,19 @@ python3 "$CHECK" --root "$T" --paths docs/clean.md >/dev/null 2>&1; rc=$?
 printf '{"allow":[{"id":"x","paths":["*"]}]}\n' > .github/name-hygiene/allow.json
 python3 "$CHECK" --root "$T" >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 2 ] && ok "allow rule without reason is a config error" || bad "missing reason (rc=$rc)"
+
+printf '%s\n' '{"allow":[{"id":"old","paths":["*"],"reason":"temporary placeholder","expires":"2000-01-01","tracking":"TRACKING-PLACEHOLDER"}]}' > .github/name-hygiene/allow.json
+warn="$(python3 "$CHECK" --root "$T" --report-only --paths docs/clean.md 2>/dev/null || true)"
+if printf '%s' "$warn" | grep -q 'allow rule old expired on 2000-01-01' \
+   && printf '%s' "$warn" | grep -q 'TRACKING-PLACEHOLDER' \
+   && [ "$(printf '%s' "$warn" | grep -c 'expired on')" = 1 ]; then
+  ok "expired allow rule warns once"
+else
+  bad "expired allow rule warning"
+fi
+printf '%s\n' '{"allow":[{"id":"future","paths":["*"],"reason":"temporary placeholder","expires":"2099-01-01","tracking":"TRACKING-PLACEHOLDER"}]}' > .github/name-hygiene/allow.json
+quiet="$(python3 "$CHECK" --root "$T" --report-only --paths docs/clean.md 2>/dev/null || true)"
+[ "$(printf '%s' "$quiet" | grep -c 'expired on')" = 0 ] && ok "unexpired allow rule is silent" || bad "unexpired rule warned"
 
 echo "test-name-hygiene: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

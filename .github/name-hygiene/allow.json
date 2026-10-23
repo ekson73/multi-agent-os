@@ -1,5 +1,5 @@
 {
-  "_doc": "Allowlist for scripts/check-name-hygiene.py. Every rule needs a reason. {T} in 'context' stands for the matched token, so rules never spell a denylisted name. Rules marked 'temporary' must be removed by the PR that resolves them.",
+  "_doc": "Allowlist for scripts/check-name-hygiene.py. Every rule needs a reason. {T} in 'context' stands for the matched token, so rules never spell a denylisted name. A temporary rule sets expires (YYYY-MM-DD) and a tracking reference; the check warns once that date is past. Remove the rule in the change that resolves it.",
   "allow": [
     {
       "id": "repo-slug",
@@ -29,7 +29,19 @@
         "README.md",
         ".claude-plugin/plugin.json"
       ],
-      "reason": "Copyright, README and plugin authorship are a maintainer decision handled outside this hygiene change (pending)."
+      "detectors": [
+        "d1",
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d6",
+        "d7",
+        "d8",
+        "d9",
+        "d10"
+      ],
+      "reason": "Copyright, README and plugin authorship names are a maintainer decision handled outside this hygiene change (pending). Name detectors only, so e-mail and other PII detectors still scan these paths."
     },
     {
       "id": "changelog-history",
@@ -40,6 +52,8 @@
     },
     {
       "id": "sentinel-pr-515",
+      "expires": "2026-11-30",
+      "tracking": "TRACKING-PLACEHOLDER",
       "paths": [
         "skills/git-cycle-sentinel/*",
         "commands/git-cycle-sentinel.md"
@@ -48,6 +62,8 @@
     },
     {
       "id": "pii-pr-pending",
+      "expires": "2026-11-30",
+      "tracking": "TRACKING-PLACEHOLDER",
       "paths": [
         "skills/transcript-corrector/*",
         "docs/feature-request-session-api.md"
@@ -56,6 +72,8 @@
     },
     {
       "id": "signed-wacli-fixture",
+      "expires": "2026-11-30",
+      "tracking": "TRACKING-PLACEHOLDER",
       "paths": [
         "agents/fixtures/wacli-*-almanac/*"
       ],
@@ -63,6 +81,8 @@
     },
     {
       "id": "signed-wacli-fixture-refs",
+      "expires": "2026-11-30",
+      "tracking": "TRACKING-PLACEHOLDER",
       "paths": [
         "*"
       ],

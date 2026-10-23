@@ -24,7 +24,10 @@ Fields: "paths" (fnmatch globs), optional "detectors" (ids such as "d3",
 matched token, so allow rules never spell the name either).
 
 Exit codes: 0 clean (or --report-only), 1 findings, 2 usage/config error.
-Output masks every finding to its first character.
+Output is file:line, the rule id and a 12-hex prefix of sha256(salt + token).
+No part of a matched term is printed. The salt and the sha256(salt + token)
+scheme are unchanged; only the displayed digest is truncated.
+A temporary allow rule whose `expires` date is in the past warns once.
 """
 from __future__ import annotations
 
@@ -36,6 +39,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import date
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ROOT = os.path.dirname(HERE)
@@ -66,6 +70,20 @@ def sha(salt: str, token: str) -> str:
     return hashlib.sha256((salt + token).encode("utf-8")).hexdigest()
 
 
+# Display truncation only. Callers still hash with sha(); this does not
+# change the salt or the algorithm.
+SHORT_HASH_HEX = 12
+
+
+def short_hash(salt: str, token: str) -> str:
+    """12 hex chars of sha256(salt + lowercased token).
+
+    Lower-casing is the normalization the denylist lookup already applies
+    before hashing. The digest function and the salt stay as they are.
+    """
+    return sha(salt, token.lower())[:SHORT_HASH_HEX]
+
+
 def load_denylist(path: str):
     salt, entries = None, []
     with open(path, encoding="utf-8") as fh:
@@ -94,7 +112,37 @@ def load_allow(path: str):
     for r in rules:
         if not r.get("reason") or not r.get("paths"):
             raise ValueError(f"allow rule without reason/paths: {r.get('id', '?')}")
+        exp = r.get("expires")
+        if exp is None:
+            continue
+        try:
+            date.fromisoformat(str(exp))
+        except (TypeError, ValueError):
+            raise ValueError(f"allow rule {r.get('id', '?')} has invalid expires") from None
+        tracking = r.get("tracking")
+        if not isinstance(tracking, str) or not tracking.strip():
+            raise ValueError(f"allow rule {r.get('id', '?')} expires without a tracking reference")
     return rules
+
+
+def warn_expired(rules, today: str | None = None) -> list[str]:
+    """One warning per allow rule whose expires date is before today."""
+    today_s = today or date.today().isoformat()
+    warnings = []
+    seen = set()
+    for r in rules:
+        exp = r.get("expires")
+        if not exp or str(exp) >= today_s:
+            continue
+        rid = str(r.get("id", "?"))
+        if rid in seen:
+            continue
+        seen.add(rid)
+        warnings.append(
+            f"check-name-hygiene: warning: allow rule {rid} expired on {exp} "
+            f"(tracking: {r.get('tracking')})"
+        )
+    return warnings
 
 
 def cpf_ok(d: str) -> bool:
@@ -126,10 +174,6 @@ def email_ignored(addr: str) -> bool:
     if IGNORED_EMAIL_DOMAINS.search(dom):
         return True
     return bool(re.match(r"^v?\d", dom.split(".")[0]))  # package@1.2.3 etc.
-
-
-def mask(s: str) -> str:
-    return s[:1] + "*" * min(max(len(s) - 1, 2), 6)
 
 
 def list_files(root: str, paths: list[str] | None):
@@ -220,7 +264,12 @@ def scan(root, files, salt, deny, rules, self_paths):
             for det, tok in hits:
                 if allowed(rules, path, det, line, tok):
                     continue
-                findings.append({"file": path, "line": lineno, "detector": det, "token": mask(tok)})
+                findings.append({
+                    "file": path,
+                    "line": lineno,
+                    "detector": det,
+                    "hash": short_hash(salt, tok),
+                })
     return findings
 
 
@@ -245,14 +294,20 @@ def main(argv=None) -> int:
         return 2
     self_paths = {os.path.relpath(p, root) for p in (deny_path, allow_path)}
     findings = scan(root, files, salt, deny, rules, self_paths)
+    warnings = warn_expired(rules)
     if a.json:
         print(json.dumps({"findings": findings, "count": len(findings)}, indent=2))
+        for w in warnings:
+            print(w, file=sys.stderr)
     else:
         for f in findings:
             where = f"{f['file']} (file name)" if f["line"] == 0 else f"{f['file']}:{f['line']}"
-            print(f"{where}: [{f['detector']}] {f['token']}")
+            print(f"{where}: [{f['detector']}] {f['hash']}")
         print(f"check-name-hygiene: {len(findings)} finding(s) in {len({f['file'] for f in findings})} file(s)"
               f" across {len(files)} scanned file(s){' (report-only)' if a.report_only else ''}")
+        # After the summary so a truncated CI step summary still shows them.
+        for w in warnings:
+            print(w)
     if findings and not a.report_only:
         return 1
     return 0

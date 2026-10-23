@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed — org-agnostic skills, docs and research; name-hygiene check (report-only)
 
-- Skills, commands, docs, research, tips and audit notes use neutral placeholders instead of maintainer-, employer- or client-specific identifiers. `.gitleaks.toml` rule ids become `app-*` (title "MAOS Secret Scanning Rules"); `tests/test-gitleaks-config.sh` follows.
+- Skills, commands, docs, research, tips and audit notes use neutral placeholders instead of maintainer-, employer- or client-specific identifiers. `.gitleaks.toml` rule ids become `app-*` (title "MAOS Secret Scanning Rules"); `tests/test-gitleaks-config.sh` follows. Downstream repositories that copy `.gitleaks.toml` must update allowlists or baselines that reference the previous rule ids.
 - `scripts/check-name-hygiene.py` (stdlib only): flags org/person identifiers from a hashed denylist (`.github/name-hygiene/denylist.txt`, no plain names in the repo), real-looking e-mail, CPF/CNPJ with valid check digits, local home paths and SSH host aliases. Every exception lives in `.github/name-hygiene/allow.json` with a reason. Unit test: `tests/test-name-hygiene.sh`.
 - New `name-hygiene` job in `.github/workflows/ai-governance-linter.yml`, report-only (`continue-on-error`) until the tree is clean; a follow-up makes it blocking.
 - Anima naming examples and the wacli dogfood note get neutral file names.
