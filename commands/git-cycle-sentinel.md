@@ -130,4 +130,4 @@ pr        #<n>                     head <sha>  merge <sha>  idmp theme-repo-YYYY
 - Genesis: skill de pipeline de ferramentas agênticas do projeto (método e autoria) + agente de nomeação do projeto (nome).
 - Composes (delega, não reimplementa): `worktree-policy` · `anti-conflict` · `hierarchical-merge` ·
   `sync-to-git` · `plugin-scripts/governance/worktree-gate.sh` · GitHub Merge Queue / `mergify-*`.
-- SSOT da norma: `[[git-cycle-norma-harmonizada-2026-10-21]]` · `[[git-cycle-offloader-2026-10-21]]` (notas de pesquisa no vault de conhecimento do mantenedor, fora do repo).
+- SSOT da norma: a norma harmonizada e a pesquisa de base (notas de pesquisa do mantenedor, fora do repo).

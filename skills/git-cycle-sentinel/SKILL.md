@@ -28,7 +28,7 @@ metadata:
   # Identificação da cópia (ver "Versão e identificação"): body_sha256 = sha256 do corpo
   # (tudo depois da linha que fecha este frontmatter); source_commit = commit de origem,
   # preenchido na instalação.
-  body_sha256: "b39686d900bcfac2ea9662a55c27dac1543b68f600615f9767feceddd01f265e"
+  body_sha256: "e9b114b9c195531ad84fb8eba3f35d0f3d7c8b30da3a4a75f7384a1ca06d16ad"
   source_commit: ""
   references:
     - references/mecanica.md
@@ -86,7 +86,8 @@ Estas regras valem em todo repo e em todo domínio. Um overlay pode apertá-las,
 2. sem dismiss de review (nem resolver thread de achado sem a correção);
 3. sem `--no-verify` (nem outra forma de pular hooks; nem bypass de assinatura);
 4. 403, 5xx, timeout ou outro erro de leitura do portão = **desconhecido**, sem merge autônomo;
-5. conta proibida nunca aprova (nem revisa, empurra, mescla ou entra em allowlist);
+5. conta proibida nunca aprova (nem revisa, empurra, mescla ou entra em allowlist); logins e
+   padrões se comparam sem diferenciar maiúsculas e, havendo `id` numérico, pelo `id`;
 6. force-push só na branch criada pelo próprio agente e só com `--force-with-lease`;
 7. `contas_proibidas` declaradas em qualquer nível (pai, domínio, repo, inclusive num overlay
    rejeitado) se somam por união e nunca são removidas por outra camada.
@@ -161,7 +162,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
 
 > Legenda: **ENFORCE** = determinístico, bloqueável por hook/ruleset/script (lado script da
 > sentinela). **APPLY** = exige leitura de estado + julgamento (lado cognitivo). `repo-aware` =
-> varia legitimamente por repo. SSOT da norma: `[[git-cycle-norma-harmonizada-2026-10-21]]` §3.
+> varia legitimamente por repo.
 
 ### Fase 0 — governança do repo (somente leitura, antes de qualquer mutação)
 - **ENFORCE · repo-aware** — **descobrir a governança** do repo-alvo, nesta ordem de busca (do
@@ -285,10 +286,12 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   provedor, no head atual; (c) teve aprovados pelo dono do projeto os requisitos e protocolos de
   git-cycle, pr-pdca e gates do projeto. A lista de contas proibidas do projeto **sempre prevalece**.
   A política concreta (quem está capacitado) fica **no próprio projeto**, no registro apontado pela
-  chave `aprovadores` do overlay; a sentinela lê e não edita.
+  chave `aprovadores` do overlay; a sentinela lê e não edita. O registro rege só aprovadores
+  automatizados: o **dono humano do repositório** sempre pode aprovar (`APPROVED` dele no head,
+  salvo se for o autor), e essa aprovação conta e resolve o `STOP-HITL`.
 - **ENFORCE** — **registro de aprovadores capacitados**: artefato versionado do projeto (apontado
   por `aprovadores`), mantido pelo dono, com uma entrada por aprovador: `login`, `id` (id numérico da conta no provedor) e
-  `type: Bot`, mais os protocolos aprovados e a data. A sentinela confere `user.login`, `user.id` e
+  `type: Bot`, mais os protocolos aprovados e a data. A sentinela confere `user.login` (sem diferenciar maiúsculas), `user.id` e
   `user.type` de cada review na API contra o registro; **quem não está no registro não conta** (nem
   quem diverge em id ou tipo). Projeto sem registro → nenhum aprovador conta → `STOP-HITL` no merge.
 - **ENFORCE** — **revisor que só comenta não fecha o ciclo**: comentário, review `COMMENTED` ou
@@ -304,7 +307,9 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   endereçada e o autor dela confirma); maioria ou limiar não bastam. O debate segue o protocolo de
   debate e convergência do repo: `skills/converge/SKILL.md` (canônico, 5 atos) aplicado ao canal do
   PR por `docs/auto-pilot/GIT-PR-AS-DEBATE-PROMPT.md`; para merge, a exigência é mais estrita que o
-  `consensus_threshold` desses arquivos. `no-convergence-possible` → `pr-arbiter`/HITL.
+  `consensus_threshold` desses arquivos. Impasse que não converge, ou pedido de override, sobe ao
+  **dono humano do repositório** (`STOP-HITL`): é o único caminho de desempate, e a decisão dele
+  fica registrada no PR (o `pr-arbiter` só prepara o parecer).
 - **ENFORCE** — autor≠approver **legítimo**: nenhum agente aprova o próprio PR nem usa uma
   segunda conta do mesmo dono (segunda identidade) para cumprir a exigência de aprovação. Contas de
   outro domínio ou organização não aprovam nem atuam no repo (não revisam, não empurram, não
@@ -341,7 +346,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   **zero thread de review aberta** (exija o repo ou não a resolução de conversas) · método de merge
   permitido pelo repo (`allow_squash_merge`/`allow_merge_commit`/`allow_rebase_merge`) e compatível
   com `required_linear_history` · aprovação exigida (o maior número entre a API e
-  `aprovacoes_minimas`) cumprida por aprovadores **do registro de capacitados**, com `APPROVED` justificado (corpo ou comentário vinculado ao head) no head · nenhum
+  `aprovacoes_minimas`) cumprida por aprovadores **do registro de capacitados** (ou pelo dono humano), com `APPROVED` justificado (corpo ou comentário vinculado ao head) no head · nenhum
   revisor que só comenta contado como aprovação · nenhuma refutação justificada em aberto · nenhum marcador
   [NÃO MESCLAR]/label `do-not-merge` · nenhuma conta proibida detectada no portão. Portão
   **desconhecido** → nunca merge autônomo (o resumo `branches/<b>` não libera).
@@ -395,17 +400,19 @@ domínio. Cada repo ou domínio declara **só as diferenças**, como dados, num 
   `owner/repo` ou `owner/*` para um domínio). O texto do upstream só traz exemplos fictícios.
 - **Chaves fechadas** (sete). Chave fora da tabela é ignorada, registrada em `overlay_ignored_keys`
   e anunciada como **aviso explícito** na linha de status (`aviso: chave desconhecida <chave>`).
-  Se o nome **ou o valor** sugere afrouxamento (nomes `allow_*`, `skip_*`, `bypass*`, `*_admin`,
-  `no_verify`, `force*`, `dismiss*`, `auto_approve*` e afins; valores com `--admin`, `--no-verify`,
-  `--force`, `bypass`, `dismiss`, `skip`), vai também para `overlay_suspect_keys`: `STOP-HITL` **só
-  no portão de merge**; o rotineiro segue.
+  Nome **ou valor** (inclusive aninhado) com token de afrouxamento vai também para
+  `overlay_suspect_keys`: `STOP-HITL` **só no portão de merge**; o rotineiro segue. A comparação
+  ignora maiúsculas e casa **por token**, não por substring (separadores: não alfanuméricos; `--` e
+  `=valor` opcionais). Tokens: `admin`, `bypass`, `force`, `dismiss`, `skip`, `allow`, `no verify`,
+  `auto approve` e equivalentes no idioma do repo (ex. `pular`, `auto aprovar`).
+  Toda forma de admin ou bypass (`[admin]`, `--ADMIN`, `ALLOW_ADMIN`) → `STOP-HITL` no merge.
 
 | Chave | Tipo | Mescla |
 |---|---|---|
 | `classe_dominio` | `cliente` · `comunitario` · `privado` · `outra_soberania` | igual ou mais restritiva que a do domínio; divergência = contradição |
 | `aprovadores` | `registro: <caminho>` ou lista de `{login, id, type: Bot}` | o específico substitui; nunca contém conta proibida |
-| `aprovacoes_minimas` | inteiro ≥ 1; só contam aprovadores do registro | maior valor (API e camadas); menor que o da camada de baixo = afrouxamento |
-| `contas_proibidas` | lista de logins ou padrões | união de todas as camadas |
+| `aprovacoes_minimas` | inteiro ≥ 1; só contam aprovadores do registro | maior valor (API e camadas); menor que o da camada de baixo ou que o mínimo da API = afrouxamento |
+| `contas_proibidas` | logins, padrões glob, `org:<padrão>` (membro público da org) ou `email:<padrão>` (e-mail da conta ou do commit); sem diferenciar maiúsculas | união de todas as camadas |
 | `checks_obrigatorios` | lista de nomes de check | união; soma-se aos checks da API |
 | `conteudo_proibido` | lista de categorias (`pii`, `segredos`, `dados-de-outro-dominio`, …) ou regex | união |
 | `estrategia_merge` | `{metodo: squash\|merge\|rebase\|fila, update_branch: rebase\|merge\|nenhum, force_push: branch_propria\|proibido}` | o específico vence, se for igual ou mais restritivo; `metodo` precisa ser permitido pela API |
@@ -414,7 +421,7 @@ domínio. Cada repo ou domínio declara **só as diferenças**, como dados, num 
   dentro do piso; subchave ausente (ex. em `estrategia_merge`) vem da camada de baixo.
 - **Aperta, nunca afrouxa**: remover item de uma lista de outra camada, pôr conta proibida em
   `aprovadores`, `force_push` além de `branch_propria`, `aprovacoes_minimas` menor que a da camada
-  de baixo, ou qualquer valor que contrarie o piso inviolável = tentativa de afrouxar, **sempre**
+  de baixo ou que o mínimo da API, ou qualquer valor que contrarie o piso inviolável = tentativa de afrouxar, **sempre**
   com `STOP-HITL` (nunca só ignorada em silêncio). Ignora-se **só a parte permissiva** desse
   overlay: `aprovadores`, `aprovacoes_minimas`, `estrategia_merge` e qualquer valor que afrouxe o
   piso (vale a camada de baixo).
@@ -461,7 +468,7 @@ Fonte ausente, ilegível ou conflitante: vale o **mais restritivo**, e a lacuna 
 
 - **segue sempre**: ler, criar a branch própria, commitar com hooks, push em lote (P7), abrir PR
   (rascunho, se houver lacuna), esperar checks, comentar status, update-branch permitido;
-- **para em `STOP-HITL`**: merge sem aprovador válido do registro; conta proibida no pedido ou no
+- **para em `STOP-HITL`**: merge sem aprovador válido do registro nem do dono humano; conta proibida no pedido ou no
   portão; overlay rejeitado (parcialmente); chave suspeita de afrouxamento (só no portão de merge);
   classe de domínio em contradição; portão desconhecido;
 - **para antes do commit**: conteúdo proibido no diff (dado proibido não entra nem em branch).
@@ -493,25 +500,18 @@ Cada push dispara revisores automáticos e CI. Por isso:
 - exceção: push imediato quando o lote local corre risco de perda (registrar o motivo).
 
 ## Critérios de aceite (resumo)
-Os 7 atritos vividos são a spec mínima: **A1** raiz protegida tem caminho (worktree → PR →
-`ff-only`) · **A2** base móvel (`fetch` + `rebase` com retry limitado) · **A3** portão pela
-garantia efetiva (três eixos; 404 isolado não prova nada; erro = desconhecido) · **A4** assinatura
-nunca regride (teste real de assinatura) · **A5** push verificável (refspec literal) · **A6**
-remote com host-alias (recusa owner/repo não derivável) · **A7** idempotência (sonda antes de cada
-mutação). Tabela de verificação, casos de regressão e casos D4 em `references/rastreabilidade.md`.
+Os 7 atritos vividos (**A1** raiz protegida · **A2** base móvel · **A3** portão pela garantia
+efetiva · **A4** assinatura nunca regride · **A5** push verificável · **A6** host-alias · **A7**
+idempotência) são a spec mínima; verificação, regressões e casos D4 em `references/rastreabilidade.md`.
 
 ## Mecânica de A6 e A7 (resumo)
 - **§A6** — owner/repo de `git remote get-url` sem protocolo, host ou alias; slug inválido →
   `STOP-ERROR`; a sonda `gh api --hostname` usa o host do push.
 - **§A7** — key `<theme>-<repo>-<AAAAMMDD>` persistida (trailer `idmp: <key>` e marcador
   `<!--idmp:<key>-->`) e sondada antes de cada mutação; PR MERGED → no-op; CLOSED → `STOP-HITL`.
-- **Repo-awareness** — portão forte → obedecer; fraco → suprir (no-direct-main, scoped-add,
-  gitleaks, worktree). Sempre pela leitura viva de cada run, nunca por tabela congelada.
 - **Self-heal** — passo de script que falha é despachado a um ai-harness coberto por assinatura já
   paga pelo operador (sem chave cobrada por uso; crédito pré-pago só em último caso e com aviso),
   dentro da regra das 6 tentativas; irreparável ou HUMAN_DOMAIN → escala.
-
-Código, perfis de repo, arquitetura e fluxo completos: `references/mecanica.md`.
 
 ## Delegação (cita, NÃO reimplementa)
 Cada fase só emite invocações de primitivos existentes; primitivo opcional ausente degrada para o
@@ -558,14 +558,12 @@ Carregue só quando precisar:
   A1–A7 com verificação, casos de regressão, casos D4 (overlays), Quality Tests, DUED e changelog.
 
 ## §Refs
-- Pesquisa de base (SSOT do veredito): `[[git-cycle-offloader-2026-10-21]]` (nota do mantenedor, fora do repo).
-- Norma harmonizada (SSOT das 5 fases + 7 atritos): `[[git-cycle-norma-harmonizada-2026-10-21]]`.
+- Pesquisa de base e norma harmonizada: notas do mantenedor, fora do repo (`metadata.source_research`).
 - Primitivos delegados (co-localizados): `skills/worktree-policy` · `skills/anti-conflict` ·
   `skills/hierarchical-merge` · `skills/sync-to-git` · `plugin-scripts/governance/worktree-gate.sh`.
 - Genesis: skill de pipeline de ferramentas agênticas do repo (condutor e autoria) · skill de
   nomeação do repo (nome). Lifecycle: `protocols/agentic-tool-lifecycle.md`.
 - Governança: `CONTRIBUTING.md`.
-- Cross-link slug: `[[git-cycle-sentinel]]`.
 
 ## Changelog
 Versão atual: **0.2.0** (2026-10-22). Histórico completo em `references/rastreabilidade.md`.

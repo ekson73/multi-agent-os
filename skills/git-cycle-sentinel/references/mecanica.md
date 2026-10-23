@@ -93,7 +93,7 @@ produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao
 
 ## Repo-awareness (o coração híbrido)
 A sentinela lê o estado de cada repo e adapta ENFORCE vs APPLY ao que aquele repo **realmente tem**.
-Perfis de exemplo (a medição original está em `[[git-cycle-norma-harmonizada-2026-10-21]]` §1):
+Perfis de exemplo (a medição original está na nota da norma harmonizada, fora do repo):
 
 | Perfil de repo (exemplo genérico) | Portão | `gpgsign` | `hooksPath` | Modelo | Postura da sentinela |
 |---|---|---|---|---|---|
@@ -160,7 +160,7 @@ agente escreve arquivos → dispara git-cycle-sentinel "<theme>" --scope <globs>
 
 ## Overview — por que existe (não reimplementa nada)
 
-A pesquisa `[[git-cycle-offloader-2026-10-21]]` mediu na fonte: a **cobertura** das 5 fases do
+A pesquisa de base (nota do mantenedor, fora do repo) mediu na fonte: a **cobertura** das 5 fases do
 ciclo-git **já existe e é madura** no host (skills `worktree-policy` · `anti-conflict` ·
 `hierarchical-merge` · `sync-to-git` + skills `ship`/`pr` + hooks de governança do host + CLIs de
 PRs empilhados). O que **não** existe é um disparo único que tire o ciclo do **contexto do agente** — hoje o
