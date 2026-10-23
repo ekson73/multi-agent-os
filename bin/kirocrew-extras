@@ -151,7 +151,7 @@ self_heal() {
     echo "## Task"
     echo "Diagnose the ROOT CAUSE, fix \`$SCRIPT_PATH\` (or advise the one human step"
     echo "if the failure is a missing native lib / a policy block), then re-run"
-    echo "\`$SCRIPT_PATH --check\` to validate. Follow the eko-executable-scripts"
+    echo "\`$SCRIPT_PATH --check\` to validate. Follow the executable-scripts"
     echo "standard in ~/.kiro/steering/. Do NOT install into any interpreter other"
     echo "than the KiroCrew bundle. Keep changes minimal and show a diff."
   } > "$prompt_file"

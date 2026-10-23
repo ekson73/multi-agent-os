@@ -309,7 +309,7 @@ def test_collect_codex():
 
 # ── 7. guardrails: openclaw exclusion + registry + new-domain determinism ──────
 def test_openclaw_exclusion():
-    inside = str(wc.HOME / "openclaw" / "agents" / "eko" / "SOUL.md")
+    inside = str(wc.HOME / "openclaw" / "agents" / "main" / "SOUL.md")
     plans = str(wc.HOME / ".claude" / "plans" / "x.md")
     check("openclaw: path inside sovereign tree excluded", wc._is_openclaw(inside) is True)
     check("openclaw: root itself excluded", wc._is_openclaw(str(wc.HOME / "openclaw")) is True)

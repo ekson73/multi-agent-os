@@ -99,7 +99,7 @@ Branches: list_branches, get_branch, create_branch, delete_branch, set_default_b
 |---|---|---|
 | `~/.claude/plans/hazy-scribbling-simon.md` | plano antigo | Ignorar — artefato histórico |
 | `~/.claude/plans/do-leia-o-moonlit-lemur.md` | plano antigo | Ignorar |
-| `vek-docs-trellis/.planning/osppe/34-convergence-10-meta-critique.md` | análise histórica | Ignorar |
+| `org-docs/.planning/osppe/34-convergence-10-meta-critique.md` | análise histórica | Ignorar |
 | `~/.claude/plans/vamos-continuar-com-vks-1694-typed-peacock.md` | este plano | Self-reference, ok |
 
 ### 2.3. Consumers em infraestrutura executável

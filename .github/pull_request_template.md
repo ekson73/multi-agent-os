@@ -46,7 +46,7 @@ If AI-assisted or AI-generated, include `Co-Authored-By:` footer(s) in the commi
 - [ ] `CHANGELOG.md`
 - [ ] `.github/CODEOWNERS`
 - [ ] `.claude-plugin/plugin.json`
-- [ ] Downstream marketplace pin (`ekson73/eko-claude-plugins`)
+- [ ] Downstream marketplace pin (`OWNER/plugin-marketplace`)
 
 ## Evidence
 
@@ -71,7 +71,7 @@ bash tests/validate-plugin.sh
 - [ ] Conventional Commits + `Co-Authored-By:` footer if AI involved
 - [ ] gitleaks clean (pre-commit + CI workflow)
 - [ ] Build / tests pass (`tests/validate-plugin.sh` or equivalent)
-- [ ] No secrets, no PII, no Vek-specific content (Layer Purity per `~/.claude/rules/layer-precedence-policy.md`)
+- [ ] No secrets, no PII, no org-specific content (Layer Purity per `~/.claude/rules/layer-precedence-policy.md`)
 - [ ] AGENTS.md / CONTRIBUTING.md / CLAUDE.md updated if contract changed
 - [ ] Version bump + CHANGELOG entry if `.claude-plugin/plugin.json` changed
 

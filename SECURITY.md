@@ -1,6 +1,6 @@
 # Security Policy
 
-> Mirror: [VKS-1956](https://vek.atlassian.net/browse/VKS-1956) — Wave 3 supply-chain hardening for `ekson73/multi-agent-os`.
+> Mirror: [PROJ-1956](https://example.atlassian.net/browse/PROJ-1956) — Wave 3 supply-chain hardening for `ekson73/multi-agent-os`.
 
 ## Supported Versions
 
@@ -21,7 +21,7 @@
    - Impact assessment (confidentiality / integrity / availability).
 3. Expect an acknowledgement within **2 business days** and a fix-or-mitigation plan within **5 business days** for HIGH/CRITICAL severity.
 
-For coordinated disclosure with Vek (`vek-im`) cross-org partners, copy the advisory to the Jira mirror linked above.
+For coordinated disclosure with Acme (`acme-org`) cross-org partners, copy the advisory to the Jira mirror linked above.
 
 ## Hardening Controls (Wave 3)
 
@@ -52,4 +52,4 @@ The supply-chain sentinel workflow automates only the secret-scan and dependency
 
 ## Cross-Org Coordination
 
-Per ADR-020, this framework is a candidate input to the Vek marketplace. Security disclosures affecting marketplace integration must be cross-posted to the Vek security channel.
+Per ADR-020, this framework is a candidate input to the Acme marketplace. Security disclosures affecting marketplace integration must be cross-posted to the Acme security channel.

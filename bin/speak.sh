@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# speak.sh — on-demand TTS for the eko-system family.
+# speak.sh — on-demand TTS for the personal-system family.
 # DETERMINISTIC mechanism (the "actor"): renders text → audio via the official fallback chain
 #   Gemini 3.1 Flash TTS (pt-BR native) → ElevenLabs v3 → Kokoro (local, free).
 # The "Voice Director" (the agent — see skills/voice-director/SKILL.md) computes voice/gender/intonation/
@@ -39,7 +39,7 @@ TEXT=""
 # the standard provider env vars directly (which take priority when already set), e.g.:
 #   SPEAK_GEMINI_KEY="<gemini api key>"
 #   SPEAK_ELEVEN_KEY="<elevenlabs api key>"
-SPEAK_LOCAL_ENV="${SPEAK_LOCAL_ENV:-$HOME/.config/eko/speak.env}"
+SPEAK_LOCAL_ENV="${SPEAK_LOCAL_ENV:-$HOME/.config/maos/speak.env}"
 if [ -f "$SPEAK_LOCAL_ENV" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in SPEAK_*=*) ;; *) continue;; esac

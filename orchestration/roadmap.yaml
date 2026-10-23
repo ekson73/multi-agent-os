@@ -32,9 +32,9 @@ version: 1
 # probes each node's status against the ticket-manager its world declares.
 worlds:
   personal:
-    # personal / eko-family / eko-system
+    # personal / family / personal-system
     ticket_manager: linear
-    repos: [multi-agent-os, akasha-*]
+    repos: [multi-agent-os, knowledge-vault-*]
     orchestration_home: true   # cross-world orchestration metadata lives HERE only
   client-alpha:
     # a client world — GENERIC placeholder, not a real client
