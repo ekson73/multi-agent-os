@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — gitleaks default rules are part of the gate
+
+- `.gitleaks.toml` sets `[extend] useDefault = true`. Built-in rules, including `github-pat` and `aws-access-token`, now run with the `app-*` rules. Downstream copies of this config fail closed on those patterns. Fixtures that the built-in rules flag are synthetic or assembled at runtime; paths are not allowlisted to hide them. The URI and password-assignment rules also have no entropy floor, and the uppercase-constant allowlist is case-sensitive, so a short or lowercase alphanumeric secret is no longer silent.
+
 ### Added — `/hitl-digest` thin command
 
 - `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.

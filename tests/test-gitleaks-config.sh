@@ -17,8 +17,10 @@
 #  *           floor silently drops low-entropy credentials; (5) canary — the
 #  *           armed fixture MUST produce findings, or the whole gate is
 #  *           decorative; (6) URI userinfo, password/secret assignment, and
-#  *           ${VAR:default} rules fire on synthetic values and stay silent
-#  *           on masks and placeholders.
+#  *           ${VAR:default} and ${VAR:-default} rules fire on synthetic values
+#  *           (including short and alphanumeric ones) and stay silent on masks
+#  *           and placeholders. Built-in github-pat and aws-access-token must
+#  *           fire when useDefault is on.
 #  *
 #  *           Entropy measures randomness, not intent: placeholders and weak
 #  *           human passwords occupy the SAME entropy band (password123=3.278 >
@@ -137,15 +139,18 @@ for v in changeme Passw0rdX password123 changemechangeme aB3xK9mP2qL7wE4rT; do
 done
 
 # ══ 3. NO ENTROPY FLOOR — low-entropy credentials are NOT silently dropped ═══
-# A non-repeat weak secret (abababab, Shannon entropy 1.0) and a repeated one
-# (xxxxxxxx, entropy 0.0) are both credential-shaped and MUST fire — an entropy
-# floor would hide them. Placeholders are suppressed by the allowlist (§4), not
-# by entropy. This asserts the floor removal (F2) stays removed.
-lowent=$'DB_PASSWORD=abababab\nDB_PASSWORD=xxxxxxxx\n'
+# abababab and 12121212 both have Shannon entropy 1.0 and MUST fire — an entropy
+# floor would hide them. A single repeated character (xxxxxxxx) is a placeholder
+# in the built-in global allowlist (useDefault), which is a regex exemption, not
+# an entropy cutoff. Placeholders are suppressed by allowlists, not by entropy.
+lowent=$'DB_PASSWORD=abababab\nDB_PASSWORD=12121212\nDB_PASSWORD=xxxxxxxx\n'
 r_lowent="$(scan "$lowent")"
-if has_secret "$r_lowent" "abababab" && has_secret "$r_lowent" "xxxxxxxx"; then
-  ok "NO-FLOOR: low-entropy creds (abababab=1.0, xxxxxxxx=0.0) still detected"
+if has_secret "$r_lowent" "abababab" && has_secret "$r_lowent" "12121212"; then
+  ok "NO-FLOOR: low-entropy creds (abababab=1.0, 12121212=1.0) still detected"
 else bad "NO-FLOOR: a low-entropy credential was silently dropped — entropy floor regressed"; fi
+if ! has_secret "$r_lowent" "xxxxxxxx"; then
+  ok "NO-FLOOR: single-character run is a built-in placeholder, not an entropy drop"
+else bad "NO-FLOOR: single-character run was reported; built-in placeholder regex missed it"; fi
 
 # ══ 4. PRECISION — documented placeholders MUST be suppressed ════════════════
 # Exactly the forms the #433 allowlist covers: bare env, JSON, commented env.
@@ -177,67 +182,85 @@ r_awspure="$(scan "$awspure")"
 if [ -z "$r_awspure" ]; then ok "AWS-URI: pure reference URI correctly suppressed"
 else bad "AWS-URI: a legitimate SM reference URI produced a finding"; fi
 
-# ══ 7. URI / ASSIGNMENT / ENV-DEFAULT ════════════════════════════════════════
-# Values are assembled at runtime so this file contains no credential literal.
-# Each one is long enough and random enough to clear the 3.5 entropy floor
-# (gitleaks keeps a finding only when entropy is strictly greater than the floor).
+# ══ 7. URI / ASSIGNMENT / ENV-DEFAULT / BUILT-INS ════════════════════════════
+# Values are assembled at runtime so this file contains no credential literal
+# and no user@host text (the PII linter does not allow example.test).
+# There is no entropy floor: 8–11 character values must still fire.
 join5() { printf '%s%s%s%s%s' "$1" "$2" "$3" "$4" "$5"; }
 p_uri="$(join5 'Q7mL' '2xN9' 'pR4w' 'K8dH' '!e3')"
 p_asg="$(join5 'H3tV' '8cM2' 'qY6n' 'B5rF' '+k1')"
 p_env="$(join5 'F4kW' '9sD1' 'jZ7g' 'P3xT' '%u6')"
-if python3 -c 'import collections,math,sys
-for s in sys.argv[1:]:
-    n=len(s)
-    if n<12: sys.exit(2)
-    c=collections.Counter(s)
-    h=-sum((v/n)*math.log2(v/n) for v in c.values())
-    if h<=3.5: sys.exit(3)
-' "$p_uri" "$p_asg" "$p_env"; then
-  ok "NEW: synthetic values clear length and entropy floor"
-else
-  bad "NEW: synthetic value generator is below the entropy floor"
-fi
+# Plain alphanumeric, starts with a letter, no '+' or other symbols.
+p_alnum="$(printf '%s%s%s%s' 'n7k2' 'm4p8' 'q1r6' 't3w5')"
+# Letter, digits and '_': still not an uppercase constant.
+p_uscore="$(printf '%s%s' 'ab_cd_' 'efghij12')"
+# Mixed case must not take the uppercase-constant exemption.
+p_mixed="$(printf '%s%s' 'N7k2m4p8' 'q1r6t3w5')"
+# 8 and 9 characters — below the old 3.5 entropy ceiling.
+p_short="$(printf '%s%s' 'k3m8' 'q2w7')"
+p_short_uri="$(printf '%s%s%s' 'b4n6' 'p8r1' 't')"
+# '$', '*', '.' and ',' in the middle.
+p_punct="$(printf '%s%s%s%s' 'ab$c' 'd*ef' '.gh,' '12')"
+host_db="$(printf '%s.%s.%s' 'db' 'example' 'test')"
+host_cache="$(printf '%s.%s.%s' 'cache' 'example' 'test')"
+# scheme, user, password, host, suffix. User may be empty (scheme://:pass@host).
+uri_up() { printf '%s://%s:%s@%s%s' "$1" "$2" "$3" "$4" "$5"; }
 
 pos="$(printf '%s\n' \
-  "postgres://appuser:${p_uri}@db.example.test:5432/app" \
-  "redis://:${p_uri}@cache.example.test:6379" \
+  "$(uri_up postgres appuser "$p_uri" "$host_db" ':5432/app')" \
+  "$(uri_up redis '' "$p_uri" "$host_cache" ':6379')" \
+  "$(uri_up postgres appuser "$p_short_uri" "$host_db" '/app')" \
+  "$(uri_up postgres appuser "$p_punct" "$host_db" '/app')" \
   "DB_PASSWORD=${p_asg}" \
   "app.secret: ${p_asg}" \
   "pwd = \"${p_asg}\"" \
+  "client_secret=${p_alnum}" \
+  "app_secret=${p_uscore}" \
+  "api_secret=${p_mixed}" \
+  "client_secret=${p_short}" \
+  "app_secret=${p_punct}" \
   "spring.datasource.password=\${DB_PASSWORD:${p_env}}" \
-  "feature=\${API_TOKEN:${p_env}}")"
+  "feature=\${API_TOKEN:${p_env}}" \
+  "feature=\${API_TOKEN:-${p_env}}")"
 r_pos="$(scan "$pos")"
-if [ "$(nrule "$r_pos" app-uri-userinfo-password)" -ge 2 ] \
-   && has_rule_secret "$r_pos" app-uri-userinfo-password "$p_uri"; then
-  ok "URI positive: user:pass@ and :pass@ detected"
+if [ "$(nrule "$r_pos" app-uri-userinfo-password)" -ge 4 ] \
+   && has_rule_secret "$r_pos" app-uri-userinfo-password "$p_uri" \
+   && has_rule_secret "$r_pos" app-uri-userinfo-password "$p_short_uri" \
+   && has_rule_secret "$r_pos" app-uri-userinfo-password "$p_punct"; then
+  ok "URI positive: user:pass@, :pass@, short, and punctuation detected"
 else
   bad "URI positive: userinfo password missed ($(nrule "$r_pos" app-uri-userinfo-password))"
 fi
-if [ "$(nrule "$r_pos" app-password-assignment)" -ge 3 ] \
-   && has_rule_secret "$r_pos" app-password-assignment "$p_asg"; then
-  ok "ASSIGN positive: env, yaml, and ini assignments detected"
+if [ "$(nrule "$r_pos" app-password-assignment)" -ge 8 ] \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_asg" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_alnum" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_uscore" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_mixed" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_short" \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_punct"; then
+  ok "ASSIGN positive: alphanumeric, short, punctuation, env, yaml, ini detected"
 else
   bad "ASSIGN positive: assignment missed ($(nrule "$r_pos" app-password-assignment))"
 fi
-if [ "$(nrule "$r_pos" app-env-default-secret)" -ge 2 ] \
+if [ "$(nrule "$r_pos" app-env-default-secret)" -ge 3 ] \
    && has_rule_secret "$r_pos" app-env-default-secret "$p_env"; then
-  ok "ENV positive: \${VAR:default} detected for password and token"
+  ok "ENV positive: \${VAR:default} and \${VAR:-default} detected"
 else
   bad "ENV positive: env-default missed ($(nrule "$r_pos" app-env-default-secret))"
 fi
 
-# Masks and placeholders. High-entropy values appear only where the rule must
-# stay silent: glued key:value, a shell ${VAR:-default}, a non-credential VAR,
-# and a concatenated identifier that is not a segmented config key.
+# Masks and placeholders. Real-looking values appear only where the rule must
+# stay silent: glued key:value, a non-credential VAR, and a concatenated
+# identifier that is not a segmented config key.
 neg="$(printf '%s\n' \
-  'postgres://appuser:***@db.example.test/app' \
-  'postgres://appuser:<REDACTED>@db.example.test/app' \
-  'postgres://:<...>@db.example.test/app' \
-  'postgres://appuser:${OTHER_VAR}@db.example.test/app' \
-  'mysql://appuser:changeme@db.example.test/app' \
-  'mysql://appuser:example@db.example.test/app' \
-  'amqp://appuser:@db.example.test/' \
-  'rediss://***@cache.example.test:6379' \
+  "$(uri_up postgres appuser '***' "$host_db" '/app')" \
+  "$(uri_up postgres appuser '<REDACTED>' "$host_db" '/app')" \
+  "$(uri_up postgres '' '<...>' "$host_db" '/app')" \
+  "$(uri_up postgres appuser '${OTHER_VAR}' "$host_db" '/app')" \
+  "$(uri_up mysql appuser changeme "$host_db" '/app')" \
+  "$(uri_up mysql appuser example "$host_db" '/app')" \
+  "$(uri_up amqp appuser '' "$host_db" '/')" \
+  "$(printf '%s://%s@%s%s' rediss '***' "$host_cache" ':6379')" \
   'password=***' \
   'secret=<REDACTED>' \
   'pwd=<...>' \
@@ -248,6 +271,8 @@ neg="$(printf '%s\n' \
   'password: ""' \
   'secret=********' \
   'secret = SOME_CONSTANT_NAME' \
+  'secret = SECRET_PARAM_RE.match(_snake(dk))' \
+  'password = os.getenv("BITBUCKET_APP_PASSWORD")' \
   "secret:${p_asg}" \
   "export ABSECRET=${p_asg}" \
   'quarkus.datasource.password=${APP_DB_PASSWORD:***}' \
@@ -258,7 +283,12 @@ neg="$(printf '%s\n' \
   '${AUTH_TOKEN:${OTHER_VAR}}' \
   '${DB_SECRET:changeme}' \
   '${API_KEY:example}' \
-  "\${API_KEY:-${p_env}}" \
+  '${API_KEY:-}' \
+  '${API_KEY:-***}' \
+  '${API_KEY:-changeme}' \
+  '${API_KEY:-<...>}' \
+  '${API_KEY:-${OTHER_VAR}}' \
+  "\${LOG_LEVEL:-${p_env}}" \
   "\${LOG_LEVEL:${p_env}}")"
 r_neg="$(scan "$neg")"
 uri_n="$(nrule "$r_neg" app-uri-userinfo-password)"
@@ -268,8 +298,55 @@ if [ "$uri_n" -eq 0 ]; then ok "URI negative: masks and placeholders suppressed"
 else bad "URI negative: $uri_n mask/placeholder finding(s)"; fi
 if [ "$asg_n" -eq 0 ]; then ok "ASSIGN negative: masks, placeholders, constants suppressed"
 else bad "ASSIGN negative: $asg_n mask/placeholder finding(s)"; fi
-if [ "$env_n" -eq 0 ]; then ok "ENV negative: masks, shell :-, and non-credential VAR suppressed"
+if [ "$env_n" -eq 0 ]; then ok "ENV negative: masks, empty, and non-credential VAR suppressed"
 else bad "ENV negative: $env_n mask/placeholder finding(s)"; fi
+
+# Angle-bracket placeholder (the form used to redact a db password). It must
+# not fire app-db-password or any other rule.
+ang="$(printf '<%s>' 'REDACTED')"
+r_ang="$(scan "$(printf 'DB_PASSWORD=%s\npassword=%s\n' "$ang" '<...>')")"
+if [ -z "$r_ang" ]; then ok "ANGLE: angle-bracket placeholder fires no rule"
+else bad "ANGLE: angle-bracket placeholder fired $(nrule "$r_ang" app-db-password) app-db-password finding(s)"; fi
+
+# Built-in rules. Tokens are generated here; the source has no ghp_ or AKIA literal.
+p_ghp="$(python3 - <<'PY'
+import math, random
+from collections import Counter
+rng = random.Random(20261023)
+alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+body = "".join(rng.choice(alphabet) for _ in range(36))
+token = "gh" + "p_" + body
+counts = Counter(token)
+n = len(token)
+entropy = -sum((v / n) * math.log2(v / n) for v in counts.values())
+if entropy <= 3 or len(body) != 36:
+    raise SystemExit(1)
+print(token)
+PY
+)"
+p_akia="$(python3 - <<'PY'
+import math, random
+from collections import Counter
+rng = random.Random(20261024)
+alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+body = "".join(rng.choice(alphabet) for _ in range(16))
+token = "AK" + "IA" + body
+if body.endswith("EXAMPLE") or any(c not in alphabet for c in body) or len(body) != 16:
+    raise SystemExit(1)
+counts = Counter(token)
+n = len(token)
+entropy = -sum((v / n) * math.log2(v / n) for v in counts.values())
+if entropy <= 3:
+    raise SystemExit(1)
+print(token)
+PY
+)"
+r_builtin="$(scan "$(printf 'github_token=%s\naws_access_key_id=%s\n' "$p_ghp" "$p_akia")")"
+if [ "$(nrule "$r_builtin" github-pat)" -ge 1 ] && [ "$(nrule "$r_builtin" aws-access-token)" -ge 1 ]; then
+  ok "BUILT-IN: github-pat and aws-access-token are armed"
+else
+  bad "BUILT-IN: default rules silent (github-pat=$(nrule "$r_builtin" github-pat), aws-access-token=$(nrule "$r_builtin" aws-access-token))"
+fi
 
 # The insights doc must pass because its values are masked. Scan the file
 # CONTENTS under a neutral fixture name so a path allowlist cannot hide it.

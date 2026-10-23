@@ -94,7 +94,7 @@ setup
 trap teardown EXIT
 
 # ── Unit: every signature in the corpus is detected with the right id ─────────
-assert_eq "anthropic_key"  "$(as_scan_secret "$(fake_secret anthropic)")" "as_scan_secret: anthropic key"
+assert_eq "anthropic_key"  "$(as_scan_secret "$(fake_secret anthropic)")" "as_scan_secret anthropic key"
 assert_eq "github_token"   "$(as_scan_secret "$(fake_secret github)")"    "as_scan_secret: github token"
 assert_eq "aws_access_key" "$(as_scan_secret "$(fake_secret aws)")"       "as_scan_secret: aws access key"
 assert_eq "slack_token"    "$(as_scan_secret "$(fake_secret slack)")"     "as_scan_secret: slack token"

@@ -1,11 +1,12 @@
 # .gitleaks.toml -- Gitleaks configuration for MAOS-based repositories
 # Canonical source: multi-agent-os/.gitleaks.toml
-# Version: 1.4.0
+# Version: 1.5.0
 
 title = "MAOS Secret Scanning Rules"
 
 [extend]
-# Uses gitleaks default ruleset as base
+# Built-in gitleaks rules (github-pat, aws-access-token, …) are part of the gate.
+useDefault = true
 
 [[rules]]
 id = "app-db-password"
@@ -48,6 +49,10 @@ description = "app-db-password documented non-credential references"
 regexTarget = "secret"
 regexes = [
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
+    # Whole value is an angle-bracket placeholder (<REDACTED>). The value
+    # class allows < and >, and the placeholder is longer than the 8-character
+    # minimum, so without this anchor the gate flags the mask itself.
+    '''^<[^>\s]*>$''',
 ]
 # Path exemptions: a CI build-log capture and a test fixture — neither is a
 # credential store. Anchored to the EXACT file end-of-path ($) so a suffixed
@@ -90,22 +95,27 @@ keywords = ["bitbucket", "BB_AUTH"]
 [[rules]]
 id = "app-uri-userinfo-password"
 description = "Password embedded in a URI userinfo (scheme://user:pass@host or scheme://:pass@host)"
-# secretGroup = 1 → entropy and the reported Secret are the password, not the
-# whole URI. A colon before the password is required, so a user-only userinfo
-# (scheme://***@host) is not a match. Entropy must be STRICTLY greater than
-# 3.5 (gitleaks skips entropy <= the floor). Masks and placeholders are
-# rejected by the value class and the anchored allowlist below — never by a
-# path exemption.
-regex = '''(?i)[a-z][a-z0-9+.-]*://[^/\s:@]*:([^:@\s'"$\{\}()<>*]{8,})@'''
+# secretGroup = 1 → the reported Secret is the password, not the whole URI.
+# A colon before the password is required, so a user-only userinfo
+# (scheme://***@host) is not a match. Case-insensitivity is scoped to the
+# scheme. No entropy floor: Shannon entropy of n characters is at most
+# log2(n), so a floor of 3.5 never matches a value shorter than 12 characters.
+# '$', '*', '.', ',', parentheses and brackets may appear inside the password.
+# The capture ends at '@' and does not stop on '#'. Masks are whole-value
+# allowlist regexes below — never a path exemption, and never a substring
+# stopword (a stopword would also hide a real secret that merely contains
+# the word).
+regex = '''(?i:[a-z][a-z0-9+.-]*)://[^/\s:@]*:([^:@\s'"]{8,})@'''
 keywords = ["://"]
 secretGroup = 1
-entropy = 3.5
 
 [rules.allowlist]
 description = "app-uri-userinfo-password masks and placeholders (value, not path)"
 regexTarget = "secret"
 regexes = [
-    '''(?i)^(changeme|example)$''',
+    # (?i:...) keeps the flag inside this alternative. An unscoped (?i) leaks
+    # into later alternatives when gitleaks joins the list with OR.
+    '''^(?i:changeme|example)$''',
     '''^\*+$''',
     '''^<[^>\s]*>$''',
     '''^\$\{[^}]+\}$''',
@@ -115,43 +125,54 @@ regexes = [
 id = "app-password-assignment"
 description = "password/passwd/pwd/secret assignment in properties, env, yaml, or ini"
 # The key is a bare word or dot/underscore/hyphen-separated segments ending in
-# password|passwd|pwd|secret (DB_PASSWORD, app.secret, pwd). A ':' assignment
-# requires whitespace after the colon (yaml `key: value`); a glued `key:value`
-# is not an assignment. '=' allows optional space (properties, env, ini).
-# secretGroup = 2 is the value. Entropy must be strictly greater than 3.5.
-# Placeholders are suppressed here, on the extracted value. This rule does NOT
-# path-allowlist docs/insights/secret-management-strategy.md — that file stays
-# clean because its values are masks, not because the path is skipped.
-regex = '''(?i)(?:^|[^A-Za-z0-9])["']?((?:[A-Za-z0-9]+[._-])*(?:password|passwd|pwd|secret))["']?\s*(?:=[ \t]*|:[ \t]+)["']?([^\s'"$\{\}()<>,*.]{8,})'''
+# password|passwd|pwd|secret (DB_PASSWORD, app.secret, pwd). Case-insensitivity
+# is scoped to that key. A ':' assignment requires whitespace after the colon
+# (yaml `key: value`); a glued `key:value` is not an assignment. '=' allows
+# optional space (properties, env, ini).
+# secretGroup = 2 is the value. No entropy floor (same reason as the URI rule):
+# a value of 8–11 characters must still fire. The value may contain '$', '*',
+# '.' and ','. '(' ends the value so a call such as os.getenv( is not swallowed
+# into the secret; os.getenv itself is an exact allowlist entry below.
+# Placeholders are exact anchored regexes on the extracted value. This rule
+# does NOT path-allowlist docs/insights/secret-management-strategy.md.
+regex = '''(?:^|[^A-Za-z0-9])["']?((?i:(?:[A-Za-z0-9]+[._-])*(?:password|passwd|pwd|secret)))["']?\s*(?:=[ \t]*|:[ \t]+)["']?([^(\s'"]{8,})'''
 keywords = ["password", "passwd", "pwd", "secret"]
 secretGroup = 2
-entropy = 3.5
 
 [rules.allowlist]
 description = "app-password-assignment masks, placeholders, reference URIs, code constants"
 regexTarget = "secret"
 regexes = [
-    '''(?i)^(changeme|example)$''',
+    '''^(?i:changeme|example)$''',
     '''^\*+$''',
     '''^<[^>\s]*>$''',
     '''^\$\{[^}]+\}$''',
     # Whole value is an AWS Secrets Manager reference, same anchor as
     # app-db-password. A real password that merely contains this text is not
-    # this pattern and still fires.
+    # this pattern and still fires. '#' stays inside the value so this anchor
+    # sees the field name.
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
-    # A pure uppercase identifier is a code constant (SECRET_PARAM_RE), not a credential.
-    '''^[A-Z][A-Z0-9_]*$''',
+    # Case-sensitive and exact. (?-i) holds even if an earlier alternative
+    # in the joined OR-list turned case-folding on. A lowercase or mixed-case
+    # alphanumeric secret must NOT match.
+    '''(?-i)^[A-Z][A-Z0-9_]*$''',
+    # Code reference: UPPER_CONSTANT.attr (SECRET_PARAM_RE.match), not a credential.
+    '''(?-i)^[A-Z][A-Z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)+$''',
+    # password = os.getenv("NAME") — the call parenthesis is not part of the value.
+    '''^os\.getenv$''',
 ]
 
 [[rules]]
 id = "app-env-default-secret"
-description = "Non-empty default in ${VAR:default} when VAR names a password, secret, key, or token"
-# Spring/properties form ${VAR:default} only. A leading '-' on the default
-# rejects shell ${VAR:-default}. VAR must contain a whole segment
-# password|passwd|pwd|secret|key|token (API_KEY matches; KEYBOARD does not).
-# secretGroup = 2 is the default. Empty, ***, <REDACTED>, <...>, ${OTHER_VAR},
-# changeme, and example do not match. No path allowlist.
-regex = '''(?i)\$\{((?:[A-Za-z0-9]+[._-])*(?:password|passwd|pwd|secret|key|token)(?:[._-][A-Za-z0-9]+)*):([^\s'"$\{\}()<>*\-][^\s'"$\{\}()<>*]{7,})\}'''
+description = "Non-empty default in ${VAR:default} or ${VAR:-default} when VAR names a password, secret, key, or token"
+# Both the properties form ${VAR:default} and the shell form ${VAR:-default}.
+# The shell '-' is the operator, not part of the secret. VAR must contain a
+# whole segment password|passwd|pwd|secret|key|token (API_KEY matches;
+# KEYBOARD does not). secretGroup = 2 is the default. A '$' may appear in the
+# default, but '${' does not, so a nested ${OTHER} is not a literal secret.
+# Empty, ***, <REDACTED>, <...>, ${OTHER_VAR}, changeme, and example do not
+# match. No path allowlist. No entropy floor.
+regex = '''\$\{((?i:(?:[A-Za-z0-9]+[._-])*(?:password|passwd|pwd|secret|key|token)(?:[._-][A-Za-z0-9]+)*)):-?((?:[^\s'"$\{\}()<>]|[$][^{]){8,})\}'''
 keywords = ["password", "passwd", "pwd", "secret", "key", "token"]
 secretGroup = 2
 
@@ -159,7 +180,7 @@ secretGroup = 2
 description = "app-env-default-secret masks and placeholders (value, not path)"
 regexTarget = "secret"
 regexes = [
-    '''(?i)^(changeme|example)$''',
+    '''^(?i:changeme|example)$''',
     '''^\*+$''',
     '''^<[^>\s]*>$''',
     '''^\$\{[^}]+\}$''',
