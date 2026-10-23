@@ -7,9 +7,9 @@ description: |
   corrected version BEFORE downstream consumers (summarizers, ticket creators,
   action-item extractors) ingest it.
   Multi-lingual pt-BR + en-US. Cross-vendor AAIF compatible.
-  Founding empirical case: Loom/equivalent transcribed "Nelvael Modelo Ficticio" as
-  "Nilson" in a Vek daily meeting; downstream consumers propagated the wrong name
-  until corrected. This skill closes that gap.
+  Shipped example: a synthetic invitee label "P2" is misheard as "Ptwo".
+  Downstream consumers would propagate the wrong label until corrected.
+  This skill closes that gap. Real rosters stay in a local overlay.
 triggers:
   - corrigir transcrição
   - corrigir transcricao
@@ -22,7 +22,7 @@ triggers:
   - check ASR errors
   - phonetic substitution check
   - participants whitelist check
-version: 1.0.0
+version: 1.0.1
 allowed-tools:
   - Read
   - Write
@@ -78,8 +78,8 @@ For every detected speaker name OR `@mention` in the transcript:
 5. If 0.65 ≤ score < 0.85 → **MEDIUM** → **flag-only in audit (no auto-apply)**; operator reviews + manually promotes (conservative-by-default per operator's Q2 draft-first preference in plan)
 6. If score < 0.65 → **LOW** → leave original, emit `:warning:` in audit + suggest alternatives
 7. Also consult `catalogs/phonetic-substitutions.yaml` for known class-based
-   substitutions (e.g., `[Nilson|Nielson|Nelson] → Nelvael` under context
-   "Vek daily + Invitee mismatch")
+   substitutions (e.g., `Ptwo → P2` when pseudonym P2 is on the invitee list
+   and Ptwo is not)
 
 ### Pass 2 — Common-typos dictionary
 
@@ -123,16 +123,16 @@ bash skills/transcript-corrector/scripts/correct.sh \
 ```bash
 # Inline mode (replace source — REQUIRES HITL auth per [C07] v2.1.0)
 bash skills/transcript-corrector/scripts/correct.sh \
-  --source confluence:900000001 \
-  --language pt-br \
+  --source skills/transcript-corrector/pdca/fixture-synthetic-excerpt.md \
+  --language en-us \
   --mode inline \
-  --confluence-write-auth "operator-approved-2026-05-28"
+  --confluence-write-auth "operator-approved-synthetic"
 ```
 
 ## Catalogs (versioned alongside skill)
 
-- `catalogs/participants-canonical.yaml` — speaker whitelist (Vek + Eko + extensible)
-- `catalogs/common-typos-pt-br.yaml` — pt-BR typo dictionary (golden seed: Nilson→Nelvael)
+- `catalogs/participants-canonical.yaml` — speaker whitelist (shipped entries are pseudonyms P1–P6; extend locally)
+- `catalogs/common-typos-pt-br.yaml` — pt-BR typo dictionary (empty until a later cycle)
 - `catalogs/common-typos-en-us.yaml` — en-US typo dictionary (initially empty)
 - `catalogs/phonetic-substitutions.yaml` — known phonetic-class substitutions
 
@@ -195,12 +195,13 @@ Deprecation candidate when ANY:
   adjudication in PDCA cycles
 - `multi-agent-os/skills/skill-writer/SKILL.md` — used to validate this skill's
   frontmatter + structure
-- Founding empirical case: Confluence page `900000001` (Daily Meeting 2026-05-27) —
-  Nilson→Nelvael phonetic substitution
+- Shipped golden case: synthetic fixture `pdca/fixture-synthetic-excerpt.md` —
+  Ptwo→P2 phonetic substitution
 - `pdca/cycle-0-2026-05-28.md` — golden test report
 
 ## Changelog
 
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-05-28 | Bootstrap — 4-pass pipeline (whitelist + typo dict + grammar + emit), 4 catalogs (participants, pt-BR typos, en-US typos, phonetic substitutions), 5 scripts (orchestrator + 4 passes), AAIF cross-vendor compatible (pure Bash + jq + stdlib Python), draft-only default + HITL-gated inline writes. Golden test PDCA C0 against Confluence page `900000001` (Nilson→Nelvael). |
+| 1.0.0 | 2026-05-28 | Bootstrap — 4-pass pipeline (whitelist + typo dict + grammar + emit), 4 catalogs (participants, pt-BR typos, en-US typos, phonetic substitutions), 5 scripts (orchestrator + 4 passes), AAIF cross-vendor compatible (pure Bash + jq + stdlib Python), draft-only default + HITL-gated inline writes. Golden test PDCA C0. |
+| 1.0.1 | 2026-10-22 | Public examples use synthetic pseudonyms P1–P6. Golden fixture has no meeting clock times and no external page id. |
