@@ -58,6 +58,18 @@ o="$(base_env env CI=true GITHUB_ACTIONS=true GITHUB_EVENT_NAME=pull_request \
 eq "1" "$rc" "same-repo pull request: no patterns configured still fails"
 has "no patterns configured" "$o" "same-repo pull request: failure message is explicit"
 
+for event in push workflow_dispatch; do
+  o="$(base_env env CI=true GITHUB_ACTIONS=true GITHUB_EVENT_NAME="$event" bash "$BIN" "$TMP/clean.txt" 2>&1)"; rc=$?
+  eq "1" "$rc" "$event: no patterns configured fails"
+  has "no patterns configured" "$o" "$event: failure message says no patterns configured"
+  hasnt "::warning::" "$o" "$event: does not skip with a warning"
+done
+
+WF="$(cd "$DIR/../.." && pwd)/.github/workflows/lens-dispatch-tests.yml"
+grep -q 'workflow_dispatch:' "$WF" && ok "workflow declares workflow_dispatch" || no "workflow declares workflow_dispatch" "missing"
+grep -q 'branches: \[main\]' "$WF" && ok "workflow push is limited to main" || no "workflow push is limited to main" "missing"
+grep -q 'contents: read' "$WF" && ok "workflow permissions stay contents: read" || no "workflow permissions stay contents: read" "missing"
+
 o="$(base_env env MAOS_LAYER_PURITY_PATTERNS='no-such-token' bash "$BIN" "$TMP/clean.txt" 2>&1)"; rc=$?
 eq "0" "$rc" "configured env patterns: scan exits 0 on a clean file"
 hasnt "no patterns configured" "$o" "configured env patterns: no unconfigured warning"

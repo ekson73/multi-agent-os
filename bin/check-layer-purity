@@ -67,6 +67,9 @@ _lp_fork_pr() {
   [ "$fork" = "true" ]
 }
 
+# Fork pull_request is the only CI event that skips. push (including push to
+# main) and workflow_dispatch fail when no patterns are configured, because the
+# repository variable is available on those events.
 _lp_unconfigured_gate() {
   [ "$_lp_configured" -eq 0 ] || return 0
   if _lp_in_ci; then

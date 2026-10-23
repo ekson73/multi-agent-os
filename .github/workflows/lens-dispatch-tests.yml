@@ -22,8 +22,13 @@ name: lens-dispatch tests
 # class this whole tool was repaired for. That trade is worth 53s.
 on:
   pull_request:
+  # Fork pull requests skip layer-purity (the repository variable is not theirs
+  # to read). Push to main re-runs the same check where LAYER_PURITY_PATTERNS
+  # is available, and a missing variable fails the job. workflow_dispatch is
+  # the maintainer re-run before merging a fork PR.
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -67,7 +72,8 @@ jobs:
         # Org-specific patterns come from the LAYER_PURITY_PATTERNS repository variable
         # (newline-separated EREs), so the workflow never spells them; see bin/check-layer-purity.
         # An empty variable is not a silent pass: the script fails this step, except on a
-        # pull request from a fork, where it emits ::warning:: and skips.
+        # pull request from a fork, where it emits ::warning:: and skips. Push to main
+        # and workflow_dispatch are not that exception: missing patterns fail there.
         env:
           MAOS_LAYER_PURITY_PATTERNS: ${{ vars.LAYER_PURITY_PATTERNS }}
         run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
