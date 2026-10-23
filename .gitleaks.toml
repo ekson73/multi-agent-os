@@ -49,13 +49,13 @@ description = "app-db-password documented non-credential references"
 regexTarget = "secret"
 regexes = [
     '''^aws:///[^\s'"]+#[A-Z0-9_]+$''',
-    # Whole value is an angle-bracket placeholder (<REDACTED>, <APP_PASSWORD>).
-    # The value class allows < and >, and the placeholder is longer than the
-    # 8-character minimum, so without this anchor the gate flags the mask
-    # itself. Uppercase token only and fully anchored ^…$: a real value that is
-    # merely wrapped in brackets (<s3cr3t!x>) or glued to a placeholder still
-    # fires. Only the placeholder is exempt, never the rule.
-    '''^<[A-Z][A-Z0-9_]*>$''',
+    # Whole value is exactly the redaction mask <REDACTED>, the only
+    # angle-bracket placeholder in this repo's history. The value class allows
+    # < and >, so without this exemption the gate flags the mask itself.
+    # Exact literal, fully anchored ^…$ on the extracted value: any other
+    # bracketed value (<s3cr3t!x>, <A1234567>) still fires. Only the
+    # placeholder is exempt, never the rule or a path.
+    '''^<REDACTED>$''',
 ]
 # Path exemptions: a CI build-log capture and a test fixture — neither is a
 # credential store. Anchored to the EXACT file end-of-path ($) so a suffixed
