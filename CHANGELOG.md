@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed — gitleaks default rules are part of the gate
 
 - `.gitleaks.toml` sets `[extend] useDefault = true`. Built-in rules, including `github-pat` and `aws-access-token`, now run with the `app-*` rules. Downstream copies of this config fail closed on those patterns. Fixtures that the built-in rules flag are synthetic or assembled at runtime; paths are not allowlisted to hide them. The URI and password-assignment rules also have no entropy floor, and the uppercase-constant allowlist is case-sensitive, so a short or lowercase alphanumeric secret is no longer silent.
+- `.gitleaksignore` lists 18 commit fingerprints (`commit:file:rule:line`) for historical fixture and example findings. Gitleaks 8.30.1 ignores a `fingerprints` key inside `[allowlist]` without warning, so the lines live in this file. The list does not cover `step1010_logs.txt`, `step1012_fly_deploy_logs.txt`, or `docs/insights/secret-management-strategy.md`.
 
 ### Added — `/hitl-digest` thin command
 
