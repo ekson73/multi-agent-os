@@ -112,6 +112,7 @@ When recursively delegating, **include** this block in the sub-prompt:
 - Worktree: skills/worktree-policy/SKILL.md
 - PR review: .claude/rules/pr-reviewer-communication.md (7 Mentes)
 - Autonomous merge: criteria in feedback_autonomous_merge.md (user-scope)
+- depth_remaining: <yours − 1>; authority_scope: <subset of yours>
 ```
 
 This block is load-bearing — without it, the sub-sub-agent operates blind.
@@ -121,8 +122,8 @@ This block is load-bearing — without it, the sub-sub-agent operates blind.
 ## DNA Payload v1.1 (auto-pilot, optional)
 
 Emitted by `skills/auto-pilot/SKILL.md` when driving an operator goal across
-multiple spawns. **Additive and opt-in** — agents that ignore the block
-behave exactly as in v1.0.
+multiple spawns. **Additive** — agents that ignore the block still apply
+`skills/agentic-delegation` §4.1 defaults.
 
 Format (single fenced block appended to the spawn prompt):
 
@@ -138,7 +139,7 @@ escalation_triggers: see §Escalation Rule (lines 76-86) — inherited verbatim
 
 Field semantics:
 
-- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2.
+- `depth` — incremented by 1 on each `Task` spawn under auto-pilot. Hard cap 2 (`skills/agentic-delegation` §8).
   Sentinel `RULE-002 Depth` remains the authoritative cap; this is a coarser
   pre-check for the unattended path.
 - `mode` — auto-pilot delegation mode. Children inherit unless explicitly
@@ -154,7 +155,34 @@ Field semantics:
 Backward-compat: v1.0 callers do not emit this block; v1.1 readers tolerate
 its absence.
 
+### DNA Payload v1.2 (optional authority fields)
+
+Optional, same block:
+
+```
+depth_remaining: <int ≥ 0; at most the parent's own value − 1>
+authority_scope: <what this child may decide; a subset of the parent's>
+authority_origin: <the operator's original grant, passed down unchanged>
+```
+
+- `depth_remaining` — `0` = leaf: do not delegate. Every parent passes it
+  (root: cap − 1, cap in `skills/agentic-delegation` §8). If absent, leaf.
+  Invalid (see `skills/agentic-delegation` §4.1) = leaf. Delegate only if
+  `depth_remaining` ≥ 1 and `depth` < cap; else leaf.
+- `authority_scope` — a subset of the parent's; never widens. Parent-written only (§4.1).
+  Absent = no grant beyond the task; exceeding, contradicting or
+  unconfirmable against the parent's = treated as absent (fail-closed).
+- `authority_origin` — mandatory **whenever `authority_scope` is granted**
+  (`skills/agentic-delegation` §4.1): the operator's original grant (an
+  operator turn, or an operator comment on a PR/issue), passed down
+  **unchanged**. A parent may narrow `authority_scope` but never rewrites the
+  origin. A grant with `authority_scope` but no `authority_origin` counts as
+  missing → treated as absent (fail-closed).
+- Prompt-level, unverified prose (see §4.1 Known weakness); parent audits them.
+
 ---
 
-*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.1 | 2026-05-16*
-*v1.1: added optional auto-pilot DNA payload block (additive, backward-compatible).*
+*Source of truth: `protocols/delegation/delegation-dna-prompt.md` | Version 1.2 | 2026-10-21*
+*v1.1: optional auto-pilot DNA payload block.*
+*v1.2 (2026-10-07): optional `depth_remaining` + `authority_scope`.*
+*v1.2 (2026-10-21): document `authority_origin` in the v1.2 block (mandatory when `authority_scope` is granted, per §4.1).*

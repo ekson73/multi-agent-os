@@ -8,6 +8,8 @@ version: 1.0.0
 
 Unified entry point for the delegation framework. Routes to one of three invariant meta-prompts + a provider selection matrix, so delegator and delegated agents stop re-inventing governance per call.
 
+Who may delegate what — root posture, authority inheritance (a subset of the delegator's, never widened), the never-delegable list and the depth cap — lives in `skills/agentic-delegation` (§4.1, §7, §8); this skill only emits the prompts.
+
 ## When to use this skill
 
 - Before a `Task` tool call that spawns a sub-agent.
@@ -46,6 +48,7 @@ CLI emitter: `plugin-scripts/gaac/delegate.sh <init|dna|finalize> [--ticket KEY]
 
 1. **Before spawning a sub-agent**:
    - Run `plugin-scripts/gaac/delegate.sh init --ticket=$TICKET` — its stdout is the prompt prefix for the sub-agent. The header lines (detected ticket / VCS providers, worktree, agent-hex) are authoritative; do not second-guess them.
+   - Add `DEPTH_REMAINING: <your own value − 1>` after the init header (the root uses cap − 1; `skills/agentic-delegation` §4.1). Without it the child is a leaf. When you grant authority, also add `AUTHORITY_SCOPE: <a subset of yours>`.
    - Concat your task-specific body after the init block.
 2. **Mid-flight** (optional but recommended for long chains):
    - Send the dna prompt via `delegate.sh dna` as a context refresh if the sub-agent drifted or the chain has > 5 tool calls.

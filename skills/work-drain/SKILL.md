@@ -156,7 +156,7 @@ One item that always fails must never block the drain or burn the budget:
 - The untouched remainder is **listed** in the briefing (`overflow beyond --max-items`), never
   silently dropped. Re-invoke to continue — resumption is free (§ level-triggered).
 - `--max-attempts` caps per-item retries.
-- `quiesce`'s own bounds apply per item (`--max-pdca`, depth ≤ 2, 6-attempt escalation).
+- `quiesce`'s own bounds apply per item (`--max-pdca`, depth ≤ 2 (`skills/agentic-delegation` §8), 6-attempt escalation).
 - **No silent truncation, ever** — anything the drain declines to touch is named in the report.
 - HUMAN_DOMAIN + non-negotiable guardrails (secrets · production PII · force-push protected ·
   prod/irreversible · cross-org) halt the drain → HITL, regardless of item count.

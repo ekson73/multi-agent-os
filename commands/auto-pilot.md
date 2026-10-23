@@ -46,7 +46,7 @@ levels and depth-capped recursion. Thin entry point over the
 ## Environment
 
 Non-negotiable invariants (never overridable by band or mode): worktree
-discipline always on, depth ≤ 2 hard cap, `delegation-init-prompt.md`
+discipline always on, depth ≤ 2 hard cap and authority that never widens on recursion (`skills/agentic-delegation` §4.1, §8), `delegation-init-prompt.md`
 §Rejection conditions always honored, Sentinel thresholds authoritative.
 
 ## Integration
