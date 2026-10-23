@@ -16,7 +16,9 @@
 #  *           line/path STILL fires (anti-over-suppression); (4) no entropy
 #  *           floor silently drops low-entropy credentials; (5) canary — the
 #  *           armed fixture MUST produce findings, or the whole gate is
-#  *           decorative.
+#  *           decorative; (6) URI userinfo, password/secret assignment, and
+#  *           ${VAR:default} rules fire on synthetic values and stay silent
+#  *           on masks and placeholders.
 #  *
 #  *           Entropy measures randomness, not intent: placeholders and weak
 #  *           human passwords occupy the SAME entropy band (password123=3.278 >
@@ -96,6 +98,26 @@ has_secret() {
   done <<<"$result"
   return 1
 }
+# nrule: count findings whose RuleID is exactly $2 (tab-terminated, so a prefix
+# of another id cannot inflate the count).
+nrule() {
+  local n
+  n="$(grep -c "^${2}"$'\t' <<<"$1" || true)"
+  printf '%s' "${n:-0}"
+}
+# has_rule_secret: RuleID and the complete Secret column both match.
+has_rule_secret() {
+  local result="$1" rule="$2" want="$3" line secret rid
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    rid="${line%%$'\t'*}"
+    [ "$rid" = "$rule" ] || continue
+    secret="${line#*$'\t'}"
+    secret="${secret#*$'\t'}"
+    [ "$secret" = "$want" ] && return 0
+  done <<<"$result"
+  return 1
+}
 
 # ══ 1. CANARY — the armed fixture MUST produce findings ══════════════════════
 # If this fixture ever yields 0 findings, the rules are broken/disabled and
@@ -154,6 +176,108 @@ awspure=$'db_password=aws:///example-app/env/hml#APP_DB_PASSWORD\n'
 r_awspure="$(scan "$awspure")"
 if [ -z "$r_awspure" ]; then ok "AWS-URI: pure reference URI correctly suppressed"
 else bad "AWS-URI: a legitimate SM reference URI produced a finding"; fi
+
+# ══ 7. URI / ASSIGNMENT / ENV-DEFAULT ════════════════════════════════════════
+# Values are assembled at runtime so this file contains no credential literal.
+# Each one is long enough and random enough to clear the 3.5 entropy floor
+# (gitleaks keeps a finding only when entropy is strictly greater than the floor).
+join5() { printf '%s%s%s%s%s' "$1" "$2" "$3" "$4" "$5"; }
+p_uri="$(join5 'Q7mL' '2xN9' 'pR4w' 'K8dH' '!e3')"
+p_asg="$(join5 'H3tV' '8cM2' 'qY6n' 'B5rF' '+k1')"
+p_env="$(join5 'F4kW' '9sD1' 'jZ7g' 'P3xT' '%u6')"
+if python3 -c 'import collections,math,sys
+for s in sys.argv[1:]:
+    n=len(s)
+    if n<12: sys.exit(2)
+    c=collections.Counter(s)
+    h=-sum((v/n)*math.log2(v/n) for v in c.values())
+    if h<=3.5: sys.exit(3)
+' "$p_uri" "$p_asg" "$p_env"; then
+  ok "NEW: synthetic values clear length and entropy floor"
+else
+  bad "NEW: synthetic value generator is below the entropy floor"
+fi
+
+pos="$(printf '%s\n' \
+  "postgres://appuser:${p_uri}@db.example.test:5432/app" \
+  "redis://:${p_uri}@cache.example.test:6379" \
+  "DB_PASSWORD=${p_asg}" \
+  "app.secret: ${p_asg}" \
+  "pwd = \"${p_asg}\"" \
+  "spring.datasource.password=\${DB_PASSWORD:${p_env}}" \
+  "feature=\${API_TOKEN:${p_env}}")"
+r_pos="$(scan "$pos")"
+if [ "$(nrule "$r_pos" app-uri-userinfo-password)" -ge 2 ] \
+   && has_rule_secret "$r_pos" app-uri-userinfo-password "$p_uri"; then
+  ok "URI positive: user:pass@ and :pass@ detected"
+else
+  bad "URI positive: userinfo password missed ($(nrule "$r_pos" app-uri-userinfo-password))"
+fi
+if [ "$(nrule "$r_pos" app-password-assignment)" -ge 3 ] \
+   && has_rule_secret "$r_pos" app-password-assignment "$p_asg"; then
+  ok "ASSIGN positive: env, yaml, and ini assignments detected"
+else
+  bad "ASSIGN positive: assignment missed ($(nrule "$r_pos" app-password-assignment))"
+fi
+if [ "$(nrule "$r_pos" app-env-default-secret)" -ge 2 ] \
+   && has_rule_secret "$r_pos" app-env-default-secret "$p_env"; then
+  ok "ENV positive: \${VAR:default} detected for password and token"
+else
+  bad "ENV positive: env-default missed ($(nrule "$r_pos" app-env-default-secret))"
+fi
+
+# Masks and placeholders. High-entropy values appear only where the rule must
+# stay silent: glued key:value, a shell ${VAR:-default}, a non-credential VAR,
+# and a concatenated identifier that is not a segmented config key.
+neg="$(printf '%s\n' \
+  'postgres://appuser:***@db.example.test/app' \
+  'postgres://appuser:<REDACTED>@db.example.test/app' \
+  'postgres://:<...>@db.example.test/app' \
+  'postgres://appuser:${OTHER_VAR}@db.example.test/app' \
+  'mysql://appuser:changeme@db.example.test/app' \
+  'mysql://appuser:example@db.example.test/app' \
+  'amqp://appuser:@db.example.test/' \
+  'rediss://***@cache.example.test:6379' \
+  'password=***' \
+  'secret=<REDACTED>' \
+  'pwd=<...>' \
+  'password=${OTHER_VAR}' \
+  'secret=changeme' \
+  'password=example' \
+  'secret=' \
+  'password: ""' \
+  'secret=********' \
+  'secret = SOME_CONSTANT_NAME' \
+  "secret:${p_asg}" \
+  "export ABSECRET=${p_asg}" \
+  'quarkus.datasource.password=${APP_DB_PASSWORD:***}' \
+  'app.encryption.secret.key=${APP_SECRET_KEY:***}' \
+  '${DB_PASSWORD:}' \
+  '${DB_PASSWORD:<REDACTED>}' \
+  '${API_SECRET:<...>}' \
+  '${AUTH_TOKEN:${OTHER_VAR}}' \
+  '${DB_SECRET:changeme}' \
+  '${API_KEY:example}' \
+  "\${API_KEY:-${p_env}}" \
+  "\${LOG_LEVEL:${p_env}}")"
+r_neg="$(scan "$neg")"
+uri_n="$(nrule "$r_neg" app-uri-userinfo-password)"
+asg_n="$(nrule "$r_neg" app-password-assignment)"
+env_n="$(nrule "$r_neg" app-env-default-secret)"
+if [ "$uri_n" -eq 0 ]; then ok "URI negative: masks and placeholders suppressed"
+else bad "URI negative: $uri_n mask/placeholder finding(s)"; fi
+if [ "$asg_n" -eq 0 ]; then ok "ASSIGN negative: masks, placeholders, constants suppressed"
+else bad "ASSIGN negative: $asg_n mask/placeholder finding(s)"; fi
+if [ "$env_n" -eq 0 ]; then ok "ENV negative: masks, shell :-, and non-credential VAR suppressed"
+else bad "ENV negative: $env_n mask/placeholder finding(s)"; fi
+
+# The insights doc must pass because its values are masked. Scan the file
+# CONTENTS under a neutral fixture name so a path allowlist cannot hide it.
+doc_body="$(cat "$HERE/../docs/insights/secret-management-strategy.md")"
+r_doc="$(scan "$doc_body")"
+doc_new=$(( $(nrule "$r_doc" app-uri-userinfo-password) + $(nrule "$r_doc" app-password-assignment) + $(nrule "$r_doc" app-env-default-secret) ))
+if [ "$doc_new" -eq 0 ]; then ok "DOC: secret-management-strategy.md content does not trip the new rules"
+else bad "DOC: secret-management-strategy.md tripped a new rule ($doc_new)"; fi
 
 # ── summary ──────────────────────────────────────────────────────────────────
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
