@@ -25,8 +25,8 @@ version: 0.2.0
 allowed-tools: [Read, Write, Edit, Bash, Grep, Glob, Task, Skill]
 metadata:
   version: "0.2.0"
-  body_sha256: "620835f407801fe825027bbb132cf1ccfd2f207768e6b5ccf216dd526f3788d8"
-  piso_sha256: "3d6fd302f4ce94bde9e41ed27f5a0a924c67d4f21b78fbe9289757fd0f6d42d4"
+  body_sha256: "49f500a70f21e314384bf3e21ae38e2d304cb11e548f41237e901e3a0b4a6346"
+  piso_sha256: "8cc5b64efc2cbd759440f0459b5c4f1b9c699f4c7bf897fdf41a9d679cedff7c"
   source_commit: ""
   references:
     - references/mecanica.md
@@ -44,8 +44,8 @@ metadata:
 
 # git-cycle-sentinel — a sentinela do ciclo-git
 
-> **Identidade**: *sentinel* (lat. *sentire*, "vigiar"): obedece ao portão forte e supre o
-> guardrail fraco. Origem do nome em `references/rastreabilidade.md`.
+> **Identidade**: *sentinel* (vigia): obedece ao portão forte, supre o fraco. Nome:
+> `references/rastreabilidade.md`.
 
 ## Versão e identificação
 
@@ -56,8 +56,10 @@ metadata:
   circular): `awk 'c>=2{print} /^---$/{c++}' SKILL.md | sha256sum`. Quem edita recalcula; quem usa
   confere antes de rodar (divergência = "corpo alterado").
 - `metadata.piso_sha256` = sha256 da seção "Piso inviolável" inteira (sem o cabeçalho, até o
-  próximo): `awk '/^#+ Piso inviolável/{f=1;next} f&&/^#+ /{exit} f' SKILL.md | sha256sum`; cópia
-  do piso noutra instalação dá o mesmo valor, senão `STOP-HITL`.
+  próximo de nível igual ou maior): `awk '!f&&/^#+ Piso inviolável/{f=index($0," ");next}
+  f&&/^#+ /&&index($0," ")<=f{exit} f' SKILL.md | sha256sum`; cópia do piso noutra instalação dá o
+  mesmo valor, senão `STOP-HITL`, que só sai restaurando o arquivo ou com o dono atualizando o valor
+  declarado; nunca com "seguir assim".
 - `metadata.source_commit`: commit de origem, preenchido na instalação (vazio no arquivo versionado).
 - `references/` fica fora do `body_sha256`; o cache da Fase 0 registra o sha de cada uma carregada.
 - **Instalação que estende este pai**: lê o pai instalado; senão, o único caminho alternativo que
@@ -93,6 +95,7 @@ Estas regras valem em todo repo e em todo domínio. Um overlay pode apertá-las,
 5. conta proibida nunca aprova (nem revisa, empurra, mescla ou entra em allowlist); logins e
    padrões se comparam sem diferenciar maiúsculas e, havendo `id` numérico, pelo `id`;
 6. force-push só na branch criada pelo próprio agente e só com `--force-with-lease`;
+   "própria" só com a prova da Fase 3 (marcador `idmp` do ciclo e registro do run);
 7. `contas_proibidas` declaradas em qualquer nível (pai, domínio, repo, inclusive num overlay
    rejeitado) se somam por união e nunca são removidas por outra camada;
 8. agente que opera com o token ou a conta do dono humano nunca emite `APPROVED`, override nem
@@ -103,15 +106,14 @@ Estas regras valem em todo repo e em todo domínio. Um overlay pode apertá-las,
    delegada nem canais onde agentes escrevem como o dono (conectores de chat ou de e-mail).
 
 ## When to use / not use
-- **Use**: o agente terminou de escrever arquivos e quer que o ciclo-git (stage → worktree →
-  commit assinado → push → PR → merge → boy-scout) role sem consumir o contexto dele; quer um
-  disparo repo-aware que se adapta ao portão de cada repo.
+- **Use**: o agente terminou os arquivos e quer o ciclo-git inteiro (stage → worktree → commit
+  assinado → push → PR → merge → boy-scout) fora do contexto dele, adaptado ao portão de cada repo.
 - **Não use**: commit único trivial e reversível feito inline; quem quer pular a leitura do portão
   (a sentinela sempre lê); offload da **tarefa inteira** para VM remota.
 
 ## Contrato central: o agente SALVA, a sentinela CICLA
 
-**Wrap fino** sobre os primitivos das 5 fases (motivação em `references/mecanica.md`). O agente
+**Wrap fino** sobre os primitivos das 5 fases (motivação na mecânica). O agente
 escreve arquivos e dispara; a sentinela faz preflight fail-closed, stage scoped (nunca
 `add -A` cego), worktree isolado (raiz nunca é worktree), commit ASSINADO (se o repo assina/exige),
 push refspec-literal + rebase/retry, PR, espera checks, resolve threads, merge (Merge Queue quando houver)
@@ -228,7 +230,8 @@ Pings só quando há decisão (review, conflito que exige julgamento, HITL); no 
   `--force` sobre worktree ocupada. Branch existente fora do padrão com PR aberto pelo próprio
   agente segue sem renomear, com aviso; PR de outro → `STOP-HITL`; renomear só branch sem PR.
   "Próprio" só se prova pelo marcador `idmp` do ciclo no PR e pelo registro do run (login igual não
-  basta); na dúvida, `STOP-HITL`. Delega a **`worktree-policy`**
+  basta); na dúvida, `STOP-HITL`. A prova evita acidente, não agente malicioso na mesma conta ou
+  máquina (mecânica §A7). Delega a **`worktree-policy`**
   (v1.1.0) e ao gate `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
 - **ENFORCE** — prevenir colisão de arquivo entre agentes paralelos (lock/ownership). Delega a
   **`anti-conflict`** (v3.2.0).
@@ -325,9 +328,10 @@ Pings só quando há decisão (review, conflito que exige julgamento, HITL); no 
   **a lista de proibidas vence** e o caso vai para `STOP-HITL`, citando os dois textos.
 - **ENFORCE** — **force-push**: **nunca** na main/branch default nem em branch protegida. Em branch,
   só quando a branch foi criada pelo próprio agente (conferir o autor de todos os commits da branch e
-  quem abriu o PR) e **sempre** com `--force-with-lease`, nunca `--force` puro. Na dúvida, abrir uma
-  branch nova a partir da base e um PR novo que substitui o anterior. Um overlay pode proibir de
-  vez (`force_push: proibido`).
+  quem abriu o PR e a prova da Fase 2: marcador `idmp` do ciclo e registro do run; autoria igual não
+  basta) e **sempre** com `--force-with-lease`, nunca `--force` puro. Na dúvida, abrir uma branch
+  nova a partir da base e um PR novo que substitui o anterior, ou `STOP-HITL`. Um overlay pode
+  proibir de vez (`force_push: proibido`).
 - **ENFORCE** — nenhum bypass, nem "temporário": não de assinatura, não `--no-verify`, não segredo,
   não `--force`, não `--admin` (ver §0).
 - **APPLY** — questionar-e-corrigir: instrução errada/obsoleta/contraditória é questionada com
@@ -432,19 +436,7 @@ domínio. Cada repo ou domínio declara **só as diferenças**, como dados, num 
 - **Sem motor de herança**: só três níveis (repo, domínio, pai). A Fase 0 lê o pai, mescla os
   overlays e registra no cache o `body_sha256` do pai e o sha de cada overlay.
 
-Exemplo fictício (overlay de repo que aperta; aceito):
-
-~~~markdown
-## git-cycle
-```yaml
-classe_dominio: cliente
-aprovadores: {registro: .github/aprovadores.yml}
-contas_proibidas: [example-bot-legado]
-checks_obrigatorios: [lint, test]
-conteudo_proibido: [pii, segredos, dados-de-outro-dominio]
-estrategia_merge: {metodo: squash, update_branch: rebase, force_push: proibido}
-```
-~~~
+Exemplo fictício de overlay: `references/mecanica.md`.
 
 ## Classes de domínio
 | Classe (exemplo fictício) | Quem aprova | Contas proibidas | O que não pode entrar | Proteção esperada |

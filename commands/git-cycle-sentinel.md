@@ -83,7 +83,8 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 - **Refutação**: uma refutação justificada e em aberto bloqueia o merge até convergência unânime
   registrada no PR (`skills/converge/SKILL.md`). Maioria ou limiar não bastam.
 - **Force-push**: nunca na branch default. Em branch, só na criada pelo próprio agente e com
-  `--force-with-lease`.
+  `--force-with-lease`. "Própria" só com o marcador `idmp` do ciclo no PR e o registro do run
+  (autoria ou login iguais não bastam); na dúvida, branch nova ou `STOP-HITL`.
 - **Contas**: contas de outro domínio ou organização não aprovam nem atuam. Conta proibida (lista
   fora do repo) não é usada, pedida como reviewer nem posta em allowlist, `CODEOWNERS` ou workflow.
   Se aparecer no repo, bloqueia **só o merge autônomo**; branch, commit e PR seguem. Se o pedido

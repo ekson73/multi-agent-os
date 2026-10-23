@@ -71,6 +71,17 @@ pula o passo já feito:
   explícito); achou **OPEN** → reusar. Sem match do marcador → abre PR novo.
 - **comentário de review** — procura o marcador `<!--idmp:<key>-->` nos comentários antes de postar;
   presente → skip.
+- **prova de "próprio"** (branch fora do padrão com PR, Fase 2; force-push e update-branch por rebase,
+  Fase 3): o marcador `<!--idmp:<key>-->` da key **deste** ciclo no corpo do PR **e** o registro do
+  run (cache ou `status/` da raiz compartilhada) com a mesma key, branch e PR. Autoria e login iguais
+  não bastam quando o agente usa a conta do dono. Faltou um dos dois, ou há dúvida → branch nova a
+  partir da base (PR novo que substitui o anterior) ou `STOP-HITL`.
+- **limite (risco residual)**: marcador e registro podem ser escritos por qualquer agente com a
+  mesma conta ou na mesma máquina (a raiz compartilhada é comum). Eles provam "feito por um ciclo da
+  sentinela", não "por este agente": protegem contra o **acidente** (empurrar no PR do humano ou de
+  outro ciclo), não contra um agente **malicioso** na mesma conta ou máquina. Contra este, valem a
+  credencial própria do executor, `--force-with-lease`, o registro de force-push do provedor e o
+  portão de merge.
 
 **Key estável entre reruns (persistência é a regra, derivação é só o seed)** — nenhuma derivação de
 estado git é estável entre reruns assíncronos: `headSha` muda ao commitar, e `baseSha` muda porque a
@@ -222,3 +233,18 @@ inteiro. Ele **reimplementa nada**: cada fase delega a um primitivo que já est�
 > Um primitivo opcional ausente degrada para o guardrail em software com um diagnóstico de 1 linha
 > — nunca uma falha dura. `--dry-run` prova: um grep do run confirma só delegação + leitura de
 > estado, zero reimplementação.
+
+## Exemplo de overlay de repo (fictício)
+Overlay de repo que aperta; aceito:
+
+~~~markdown
+## git-cycle
+```yaml
+classe_dominio: cliente
+aprovadores: {registro: .github/aprovadores.yml}
+contas_proibidas: [example-bot-legado]
+checks_obrigatorios: [lint, test]
+conteudo_proibido: [pii, segredos, dados-de-outro-dominio]
+estrategia_merge: {metodo: squash, update_branch: rebase, force_push: proibido}
+```
+~~~
