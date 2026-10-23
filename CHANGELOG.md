@@ -43,6 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agents carry the mandatory pt-BR line in their descriptions.
 - `gitops-engineer` 1.0.1: boundary note — hosted CI/CD and PaaS go to `devops-engineer`.
 
+### Changed — version-sync publishes through a PR, not a direct push to main (#305)
+
+- `.github/workflows/version-sync.yml` now commits derived version fields to `chore/version-sync-v<version>`
+  and opens (or reuses) a PR instead of pushing to `main`. This removes the one workflow that writes to
+  `main`, the stated prerequisite for a no-bypass main ruleset in #305. The identity model for an
+  authenticated release-coherence check is still the owner's decision and is not changed here.
+- Step outputs reach shell steps through `env:` instead of inline `${{ }}` in `run:` (CWE-78 pattern).
+- Requires the repository setting "Allow GitHub Actions to create and approve pull requests".
+  A PR opened with `GITHUB_TOKEN` does not trigger `pull_request` workflows; a maintainer starts its
+  checks by closing and reopening it. Runs only on `main` and one at a time (`concurrency`).
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.
