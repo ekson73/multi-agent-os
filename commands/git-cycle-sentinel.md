@@ -55,9 +55,10 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
   (`.githooks/pre-commit`, `pre-commit run` ou `.husky/pre-commit`). Falha vai para self-heal, nunca
   para contorno.
 - **Merge preso ao SHA**: só com `--match-head-commit`, checks obrigatórios verdes, zero thread
-  aberta, `APPROVED` justificado de aprovador que está no registro do projeto, sem refutação justificada em
-  aberto, sem marcador [NÃO MESCLAR] nem label `do-not-merge`, e sem conta proibida no portão. A
-  linha de status cita o SHA do head e o SHA do merge. Portão desconhecido nunca mescla sozinho.
+  aberta (lida por GraphQL; sem ela, o estado é desconhecido), `APPROVED` justificado de
+  aprovador que está no registro do projeto, sem refutação justificada em aberto, sem marcador
+  [NÃO MESCLAR] nem label `do-not-merge`, e sem conta proibida no portão. A linha de status cita
+  o SHA do head e o SHA do merge. Portão desconhecido nunca mescla sozinho.
   Decisão técnica é autônoma; política, credenciais, gastos, irreversível, produção e ampliação de
   acesso exigem aprovação explícita do humano dono.
 - **Update-branch**: com histórico linear exigido, nunca por merge. Usar
@@ -71,7 +72,9 @@ sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
   `type: Bot`). Quem não está nele não conta, e projeto sem registro não tem aprovador
   (`STOP-HITL` no merge, anunciado já na Fase 0). A lista de contas proibidas prevalece. A
   sentinela lê o registro e não o edita. Agente que opera com o token ou a conta do dono humano
-  nunca emite `APPROVED`, override nem convergência em nome dele.
+  nunca emite `APPROVED`, override nem convergência em nome dele; vindos dessa conta, só valem
+  com confirmação do próprio humano por um canal fora dessa credencial, citando o PR e o SHA do
+  head (sem ela, `STOP-HITL`).
   `APPROVED` com corpo vazio não conta sem um comentário de justificativa da mesma conta vinculado
   ao SHA do head. Revisor que só comenta não fecha o ciclo. Revisor sem cota, com rate limit ou que
   não completou a revisão não conta, mesmo com check "pass"/"success".

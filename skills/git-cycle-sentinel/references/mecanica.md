@@ -100,9 +100,10 @@ linha ainda existe, e o filtro por head passa a mostrar como novos achados que j
   thread; achado aberto = thread com `isResolved=false`. Exemplo:
   `gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{isResolved isOutdated path comments(first:1){nodes{databaseId author{login}}}}}}}}' -F o=<owner> -F r=<repo> -F n=<n>`
   (paginar com `pageInfo` quando houver mais de 100).
-- **Sem GraphQL (REST)**: em `pulls/<n>/comments`, comentário com `position: null` (ou
-  `outdated: true`, quando o provedor expõe) é sinal de **corrigido** (a linha mudou); os demais
-  contam como abertos até haver prova do contrário. É só um sinal: na dúvida, conta como aberto.
+- **Sem GraphQL** (erro, 403, sem escopo ou provedor sem a consulta): o estado das threads é
+  **desconhecido**, e o merge autônomo fica proibido (`STOP-HITL`), como todo portão desconhecido
+  (piso, item 4). O REST (`pulls/<n>/comments`) com `position: null` ou `outdated: true` serve só
+  de **dica** para o relatório (a linha mudou), nunca de prova de corrigido nem de liberação.
 - **O que não muda**: o veredito (`APPROVED`) continua valendo só para o `headRefOid` atual; o
   merge exige **zero thread aberta** pela fonte primária; resolver thread sem a correção continua
   proibido (piso, item 2). Thread `isOutdated=true` e não resolvida ainda é aberta para o merge:
@@ -116,6 +117,11 @@ do registro de capacitados (identidade própria, fora das contas proibidas) ou `
 contornar com `--admin`, com troca de autoria (reescrever autor ou committer, `--author`, amend ou
 rebase para "limpar" a autoria) nem com uma segunda conta do mesmo dono. Pelo item 8 do piso, o
 agente que usa essa conta também nunca emite `APPROVED`, override ou convergência em nome do dono.
+
+Como o provedor não distingue o humano do agente que usa a mesma credencial, `APPROVED`, override
+ou convergência vindos da conta do dono só valem com a **confirmação do próprio humano por um
+canal fora dessa credencial** (a instalação declara qual), citando o número do PR e o SHA do head
+atual. Sem ela, ou com SHA diferente do head, a sentinela não conta o sinal e para em `STOP-HITL`.
 
 ## Repo-awareness (o coração híbrido)
 A sentinela lê o estado de cada repo e adapta ENFORCE vs APPLY ao que aquele repo **realmente tem**.

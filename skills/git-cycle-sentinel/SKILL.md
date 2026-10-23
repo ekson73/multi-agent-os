@@ -28,7 +28,7 @@ metadata:
   # Identificação da cópia (ver "Versão e identificação"): body_sha256 = sha256 do corpo
   # (tudo depois da linha que fecha este frontmatter); source_commit = commit de origem,
   # preenchido na instalação.
-  body_sha256: "a51f2c5de71454ea8b6a8e3a6b65189d4559abb329bf11a9a500266a7ca8f8a2"
+  body_sha256: "334dae233cd9023ae89e827238184f29a520fd21160658acef22725bde16ee33"
   source_commit: ""
   references:
     - references/mecanica.md
@@ -60,8 +60,8 @@ metadata:
 - `metadata.source_commit`: commit de origem, preenchido na instalação (vazio no arquivo versionado).
 - `references/` fica fora do `body_sha256`; o cache da Fase 0 registra o sha de cada uma carregada.
 - **Instalação que estende este pai**: lê o pai instalado; senão, o único caminho alternativo que
-  ela declara. `body_sha256` divergente → `STOP-ERROR`. Nenhum dos dois → vale só o piso
-  inviolável (copiado na instalação), com o aviso `pai ausente` e `STOP-HITL` no merge.
+  ela declara. Pai ausente ou `body_sha256` divergente → `STOP-HITL` antes de qualquer mutação
+  remota (push, PR, comentário, merge); só a leitura local e a Fase 0 rodam.
 
 ## §0 — Gate não se pula (foundational)
 Esta skill serve a intenção do operador **dentro** dos gates. Os gates são por qualidade e por
@@ -93,7 +93,8 @@ Estas regras valem em todo repo e em todo domínio. Um overlay pode apertá-las,
 7. `contas_proibidas` declaradas em qualquer nível (pai, domínio, repo, inclusive num overlay
    rejeitado) se somam por união e nunca são removidas por outra camada;
 8. agente que opera com o token ou a conta do dono humano nunca emite `APPROVED`, override nem
-   convergência em nome dele (o provedor não distingue os dois; só conta o que o humano emite).
+   convergência em nome dele; vindos dessa conta, só valem com confirmação do próprio humano por
+   um canal fora dessa credencial, citando o PR e o SHA do head (sem ela, `STOP-HITL`).
 
 ## Overview — por que existe (não reimplementa nada)
 **Wrap fino** sobre os primitivos que já cobrem as 5 fases no host: um disparo único tira o ciclo
@@ -231,8 +232,8 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   saídas. Falha → self-heal, nunca contornar. Commit já feito sem hook → rodar no head e registrar,
   sem reescrever o commit só por isso.
 - **ENFORCE** — branch rastreável `agent/<owner>-<theme>` via `git worktree add -b`; nunca
-  `--force` sobre worktree ocupada. Branch existente fora do padrão com PR aberto segue sem
-  renomear, com aviso na linha da fase; renomear só branch sem PR. Delega a **`worktree-policy`**
+  `--force` sobre worktree ocupada. Branch existente fora do padrão com PR aberto pelo próprio
+  agente segue sem renomear, com aviso; PR de outro → `STOP-HITL`; renomear só branch sem PR. Delega a **`worktree-policy`**
   (v1.1.0) e ao gate `plugin-scripts/governance/worktree-gate.sh` (RF01/RF02/RF03, exit 2 = veredito).
 - **ENFORCE** — prevenir colisão de arquivo entre agentes paralelos (lock/ownership). Delega a
   **`anti-conflict`** (v3.2.0).
@@ -293,7 +294,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   A política concreta (quem está capacitado) fica **no próprio projeto**, no registro apontado pela
   chave `aprovadores` do overlay; a sentinela lê e não edita. O registro rege só aprovadores
   automatizados: o **dono humano do repositório** sempre pode aprovar (`APPROVED` dele no head,
-  salvo se for o autor), e essa aprovação conta e resolve o `STOP-HITL`.
+  salvo se for o autor, com a confirmação do item 8 do piso), e ela resolve o `STOP-HITL`.
 - **ENFORCE** — **registro de aprovadores capacitados**: artefato versionado do projeto (apontado
   por `aprovadores`), mantido pelo dono, com uma entrada por aprovador: `login`, `id` (id numérico da conta no provedor) e
   `type: Bot`, mais os protocolos aprovados e a data. A sentinela confere `user.login` (sem diferenciar maiúsculas), `user.id` e
@@ -348,7 +349,7 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   obrigatórios), credenciais e segredos, gastos, ações irreversíveis, produção e ampliação de acesso.
 - **ENFORCE** — **pré-condições do merge**, lidas na fonte no momento do merge: mergeable limpo ·
   todos os checks obrigatórios (pelos nomes lidos nas duas fontes) verdes no `headRefOid` atual ·
-  **zero thread de review aberta** (exija o repo ou não a resolução de conversas) · método de merge
+  **zero thread de review aberta** (exija o repo ou não; sem GraphQL = desconhecido) · método de merge
   permitido pelo repo (`allow_squash_merge`/`allow_merge_commit`/`allow_rebase_merge`) e compatível
   com `required_linear_history` · aprovação exigida (o maior número entre a API e
   `aprovacoes_minimas`) cumprida por aprovadores **do registro de capacitados** (ou pelo dono humano), com `APPROVED` justificado (corpo ou comentário vinculado ao head) no head · nenhum
@@ -509,11 +510,6 @@ Os 7 atritos vividos (**A1** raiz protegida · **A2** base móvel · **A3** port
 efetiva · **A4** assinatura nunca regride · **A5** push verificável · **A6** host-alias · **A7**
 idempotência) são a spec mínima; verificação, regressões e casos D4 em `references/rastreabilidade.md`.
 
-## Mecânica de A6, A7, self-heal e achados abertos
-Em `references/mecanica.md`: §A6 (owner/repo sem host nem alias; slug inválido → `STOP-ERROR`),
-§A7 (key `idmp` persistida e sondada antes de cada mutação; PR CLOSED → `STOP-HITL`), self-heal
-(só harness de assinatura já paga, 6 tentativas), achados abertos por thread e autoria do dono.
-
 ## Delegação (cita, NÃO reimplementa)
 Cada fase só emite invocações de primitivos existentes; primitivo opcional ausente degrada para o
 guardrail em software, com diagnóstico de uma linha. Tabela por fase em `references/mecanica.md`.
@@ -553,8 +549,10 @@ Emite exatamente UM marcador terminal como última linha de cada turno:
 
 ## Referências sob demanda
 Carregue só quando precisar:
-- `references/mecanica.md` — ao executar ou depurar §A6, §A7, repo-awareness, self-heal ou o
-  fluxo completo;
+- `references/mecanica.md` — ao executar ou depurar §A6 (slug inválido → `STOP-ERROR`), §A7 (key
+  `idmp` sondada antes de cada mutação; PR CLOSED → `STOP-HITL`), self-heal (só harness de
+  assinatura já paga, 6 tentativas), achados abertos por thread, autoria do dono, repo-awareness
+  ou o fluxo completo;
 - `references/rastreabilidade.md` — ao revisar, fazer dogfood ou mudar esta skill: critérios
   A1–A7 com verificação, casos de regressão, casos D4 (overlays), Quality Tests, DUED e changelog.
 
