@@ -452,21 +452,21 @@ if [ -x "$DELEGATE_CLI" ]; then
 
     # Simulated cross-provider contexts (env-isolated so ambient $TICKET can't skew)
     H1=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKS-1706 --provider=bitbucket 2>/dev/null)
-    if echo "$H1" | grep -q "^TICKET_PROVIDER=jira$" && echo "$H1" | grep -q "^VCS_PROVIDER=bitbucket$"; then
+    if grep -q "^TICKET_PROVIDER=jira$" <<< "$H1" && grep -q "^VCS_PROVIDER=bitbucket$" <<< "$H1"; then
         pass "delegate.sh detects jira+bitbucket context"
     else
         fail "delegate.sh should detect jira+bitbucket"
     fi
 
     H2=$(env -u TICKET bash "$DELEGATE_CLI" init --ticket=VKO-88 --provider=github 2>/dev/null)
-    if echo "$H2" | grep -q "^TICKET_PROVIDER=linear$" && echo "$H2" | grep -q "^VCS_PROVIDER=github$"; then
+    if grep -q "^TICKET_PROVIDER=linear$" <<< "$H2" && grep -q "^VCS_PROVIDER=github$" <<< "$H2"; then
         pass "delegate.sh detects linear+github context"
     else
         fail "delegate.sh should detect linear+github"
     fi
 
     H3=$(env -u TICKET bash "$DELEGATE_CLI" init --provider=none 2>/dev/null)
-    if echo "$H3" | grep -q "^TICKET_PROVIDER=none$" && echo "$H3" | grep -q "^VCS_PROVIDER=none$"; then
+    if grep -q "^TICKET_PROVIDER=none$" <<< "$H3" && grep -q "^VCS_PROVIDER=none$" <<< "$H3"; then
         pass "delegate.sh handles no-ticket/no-remote fallback"
     else
         fail "delegate.sh should handle no-ticket fallback"
