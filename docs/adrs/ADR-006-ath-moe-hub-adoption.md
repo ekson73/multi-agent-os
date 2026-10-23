@@ -1,8 +1,8 @@
 # ADR-006: Absorb `agentic-moe-2026` (ATH) as MAOS's MoE Hub architecture & evolution chapter
 
-- **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29 — WAVE-0 gating-seam shipped #180; per-wave implementation status: see §Implementation status → chapter-README SSOT)
+- **Status**: **Accepted** (ratified by operator maintainer, 2026-06-29 — WAVE-0 gating-seam shipped #180; per-wave implementation status: see §Implementation status → chapter-README SSOT)
 - **Date**: 2026-06-27
-- **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL directive
+- **Deciders**: Operator (maintainer) + Claude (Cowork), via HITL directive
 - **Scope**: This repo (`maos`, Class B). Companion to the existing orchestration/observability/anti-conflict protocols. Sibling evidence: `research/agentic-moe-2026/` (the research chapter) + `research/agentic-moe-2026/20260627-ATH-OODA-RECON.md` (the inventory cross-walk).
 
 ## Context
@@ -86,7 +86,7 @@ itself; **validate and decide.**
   agentic software engineering"* — applied to `CLAUDE.md` §Organizational Identity via the dedicated
   HITL ratification PR #206 (operator-ratified + merged 2026-07-05; never auto-merged, per the
   bootstrap-SSOT escalation discipline).
-- **Ratified 2026-06-29** (operator ekson73, HITL — recorded in the goal-loop session). **WAVE-0, the
+- **Ratified 2026-06-29** (operator maintainer, HITL — recorded in the goal-loop session). **WAVE-0, the
   gating-seam, already shipped in the same cycle** (PR #180: `lib/gateway/{policy.py,conflicts.yaml}` +
   `router.py` pre-dispatch check; additive `policy=None` passthrough; 0-regression, 192 pass proven on
   pristine HEAD — see `research/agentic-moe-2026/20260628-goal-loop-closure.md` Loop 2). The

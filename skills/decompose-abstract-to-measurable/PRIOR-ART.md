@@ -95,7 +95,7 @@ metaphor and the MCDA + rubric + fuzzy machinery stands on its own.
 
 Forged 2026-07-08 from a `/deep-research` + MoA-council session on the operator's
 "everything-is-calculable" thesis. Full honest-verdict + seam doctrine persisted
-in akasha memory: `dna_abstract_to_measurable_decomposition_2026_07_08.md` and
+in knowledge-vault memory: `dna_abstract_to_measurable_decomposition_2026_07_08.md` and
 `reference_abstract_to_measurable_prior_art_2026_07_08.md`.
 
 **v1.1.0 (2026-07-08)** — materialized the debate-converged delta the initial ship left out:

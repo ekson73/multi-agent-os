@@ -1,4 +1,4 @@
-# Dogfood — wacli Eko Almanac (verified-agentic-session-model)
+# Dogfood — wacli Almanac (verified-agentic-session-model)
 
 **Date**: 2026-09-12
 **Tool dogfooded**: `skills/verified-agentic-session-model` (PR #421)
@@ -6,11 +6,11 @@
 
 ## What this is
 
-A persisted, versioned copy of the "wacli Eko Almanac" — a self-governing,
+A persisted, versioned copy of the "wacli Almanac" — a self-governing,
 portable sidecard artifact produced by `verified-agentic-session-model`'s
 `bin/model-bundle.mjs render --profile portable-sidecard`. It maps this
 session's own Agentic Sociotechnical Organization state, lineage, generational
-capsule, and workflow for the wacli integration effort (accounts `eqm`/`eko`,
+capsule, and workflow for the wacli integration effort (two operator accounts,
 the `wacli-concierge` skill, and the `wacli-delegate` agent contract).
 
 Three files are checked in under `agents/fixtures/wacli-eko-almanac/`, all

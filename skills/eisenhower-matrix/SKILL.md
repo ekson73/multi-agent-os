@@ -65,7 +65,7 @@ metadata:
 
 | Param (skill) | Default | CLI (`work-compass-aggregate.py`) | Meaning |
 |---|---|---|---|
-| `--scope` | `current` | `--pendency-scope current\|session\|repo\|vault\|all` | WHERE pendencies live: `current` (= session+repo surfaces) · `session` (host session state: sessions/jobs/plans) · `repo` (branches/worktrees/PRs/issues/stashes) · `vault` (eko-engram inbox — no collector yet → reported `unavailable`, never fabricated) · `all` (everything incl. `jira:*`). |
+| `--scope` | `current` | `--pendency-scope current\|session\|repo\|vault\|all` | WHERE pendencies live: `current` (= session+repo surfaces) · `session` (host session state: sessions/jobs/plans) · `repo` (branches/worktrees/PRs/issues/stashes) · `vault` (notes-vault inbox — no collector yet → reported `unavailable`, never fabricated) · `all` (everything incl. `jira:*`). |
 | `--sort` | `Eisenhower` | `--sort Eisenhower\|created\|updated\|urgent\|important` | `Eisenhower` (Q1→Q4) · `created` (id-order, deterministic) · `updated` (last_ts desc) · `urgent` · `important`. Alias `--sort=default` → `Eisenhower`. Case-insensitive. |
 | `--json` | off | `--json` | Emit the quadrants envelope for agent-to-agent (AAIF) instead of the ASCII queue. |
 | `--include` | `all` | `--include pending\|all` | `pending` (unresolved only — done/archived suppressed) · `all` (audit view). Skill default invocation passes `pending`. |

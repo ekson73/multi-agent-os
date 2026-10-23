@@ -1,8 +1,8 @@
 # Security Tabletop Exercise — Multi-Agent OS
 
-> **Mirror**: [VKS-1956](https://vek.atlassian.net/browse/VKS-1956) — Wave 3 supply-chain hardening
+> **Mirror**: [VKS-1956](https://example.atlassian.net/browse/PROJ-1956) — Wave 3 supply-chain hardening
 > **Last reviewed**: 2026-05-16
-> **Owner**: @ekson73
+> **Owner**: @maintainer
 > **Cadence**: every 6 months, or after any HIGH/CRITICAL advisory affecting a direct dependency
 
 ## 1. Purpose
@@ -71,7 +71,7 @@ Each scenario describes an attacker action, the expected detection signal, the r
 1. **Immediately rotate** all Bitbucket app passwords for the affected persona accounts.
 2. Delete the workflow run logs (`gh run delete <id>`) — note logs may already be cached by third parties.
 3. Audit Bitbucket activity log for the 60 minutes following the leak.
-4. Open a HIGH-severity advisory and notify Vek `vek-im` security if cross-org tokens are involved.
+4. Open a HIGH-severity advisory and notify Acme `acme-org` security if cross-org tokens are involved.
 
 **Residual gap**: Logs are publicly visible by default. **Mitigation**: ban `echo $SECRET` patterns via pre-push hook; tracked in GaaS.
 
@@ -92,20 +92,20 @@ Each scenario describes an attacker action, the expected detection signal, the r
 
 **Residual gap**: No release artifact signing (cosign/sigstore) yet. **Mitigation**: add signed-release workflow (tracked, P2).
 
-### Scenario E — Cross-org reciprocity abuse (Vek → ekson73)
+### Scenario E — Cross-org reciprocity abuse (Acme → maintainer)
 
-**Attack**: A token issued in Vek org for cross-org coordination leaks into `ekson73/multi-agent-os` CI via a forked PR.
+**Attack**: A token issued in Acme org for cross-org coordination leaks into `ekson73/multi-agent-os` CI via a forked PR.
 
 **Detection signals**:
-- gitleaks job flags Vek-shaped tokens.
-- Repo policy: zero Vek tokens in this repo's CI (issue #52 constraint).
+- gitleaks job flags employer-shaped tokens.
+- Repo policy: zero Acme tokens in this repo's CI (issue #52 constraint).
 
 **Response**:
-1. Revoke the leaked Vek token via Vek devops-admins channel.
-2. Confirm no Vek scopes are still bound to this repo's secrets (`gh secret list`).
+1. Revoke the leaked Acme token via Acme devops-admins channel.
+2. Confirm no Acme scopes are still bound to this repo's secrets (`gh secret list`).
 3. File coordination note on the Jira mirror (VKS-1956).
 
-**Residual gap**: Cross-org boundary enforcement relies on convention. **Mitigation**: ADR-020 input to Vek marketplace will codify reciprocity rules.
+**Residual gap**: Cross-org boundary enforcement relies on convention. **Mitigation**: ADR-020 input to Acme marketplace will codify reciprocity rules.
 
 ## 4. Detection Coverage Matrix
 
@@ -121,9 +121,9 @@ Each scenario describes an attacker action, the expected detection signal, the r
 
 | Role | Who | Responsibility |
 |------|-----|---------------|
-| Incident Lead | @ekson73 | Owns triage, decides on rotation/hotfix |
-| Coordinator (Vek side) | devops-admins | Cross-org rotation + advisory mirror |
-| Communicator | @ekson73 | Publishes advisory, notifies consumers |
+| Incident Lead | @maintainer | Owns triage, decides on rotation/hotfix |
+| Coordinator (Acme side) | devops-admins | Cross-org rotation + advisory mirror |
+| Communicator | @maintainer | Publishes advisory, notifies consumers |
 
 Escalation: HIGH/CRITICAL → page within 15 min via configured channel; MEDIUM → next business day.
 

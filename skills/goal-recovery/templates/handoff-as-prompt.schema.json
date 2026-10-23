@@ -100,7 +100,7 @@
       "additionalProperties": true,
       "properties": {
         "layer": {"const": "community", "description": "per layer-precedence-policy §3 — mandatory attribution field"},
-        "type": {"const": "handoff-as-prompt", "description": "the eko L5 purpose-tag / --type"},
+        "type": {"const": "handoff-as-prompt", "description": "the L5 purpose-tag / --type"},
         "contract": {"type": "string"},
         "contract_version": {"type": "string"}
       }

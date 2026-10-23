@@ -222,7 +222,7 @@ def validate_dod(obj):
 
 def validate_system(obj):
     """system-as-prompt — the MINIMAL RECURRING SYSTEM (the vehicle) that conducts to a goal.
-    Law: akasha rules/derive-system-from-goal.md [C22] ("meta sem sistema e intencao sem acao");
+    Law: knowledge-vault rules/derive-system-from-goal.md [C22] ("meta sem sistema e intencao sem acao");
     engine: skills/derive-system-from-goal (Hodos); position: ooda-loop ORIENT-b."""
     errs = []
     require(obj, ["jsonrpc", "method", "params", "data"], "system", errs)

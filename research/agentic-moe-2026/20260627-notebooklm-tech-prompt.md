@@ -14,7 +14,7 @@ recommended_sources: "digest §B + final-report + 00 + 02 + 03 (e 01a–d se qui
 ## A) Audio Overview — "Customize" (cole isto)
 
 ```text
-Audiência: engenheiros DevOps / AI (Vek) — confortáveis com arquitetura, MCP, LLMOps.
+Audiência: engenheiros DevOps / AI (Acme) — confortáveis com arquitetura, MCP, LLMOps.
 Idioma: português do Brasil; mantenha nomes técnicos em inglês (MCP, hooks, gating, registry, OTel).
 Duração-alvo: ~18–25 minutos. Tom: técnico, preciso, sem hype.
 
@@ -83,4 +83,4 @@ Qual o caminho de fallback se o tool top-1 falhar? Cite o arquivo-fonte em cada 
 - **Fix (1) RESOLVIDO — gating-seam construído** (Loop 2): `lib/gateway/policy.py` (`PolicyResolver` dumb in-memory + `load_conflicts()`) + `conflicts.yaml` (**16 arestas estruturais** do `02-ntree-moe`) + `router.py` (+33/−1: 1 bloco pré-dispatch após validar `operation`; deny → erro no envelope `_agent_feedback` **existente**; discovery L0-L2 intocado). **`policy=None`=passthrough.**
 - **Prova (não-asserção):** `test_gateway_policy.py` **16/16** · router+feedback **24/24** · suíte **192 pass / 3 fails pré-existentes** (count-drift, seam-independentes, idênticos no HEAD pristino) · `validate-plugin.sh` PASSED · call-spy prova **handler-não-invocado** nos 2 deny-paths (disabled + conflict) → **0-regressão**.
 - **Score 6-fatores** (Loop 4, SSOT `agents/COWORK-AUTONOMY-POLICY.md`): `knowledge·.30 + certainty·.30 + (1−risk)·.15 + (1−impact)·.15 + (1−importance)·.05 + (1−priority)·.05` → **agent-doable 0.79** · **full-goal 0.71** (binding=`certainty`, HARD-capado). Regime `convergence-engine` = **DEFER@n*** (resíduo = ato-humano, não cognição).
-- **Governança git** (p/ Q&A): #176 mergeou ADR-006/007 **[Proposed]**; o resto landa via **worktree [C04] + gates [C07]** (gitleaks·openspec·validate-plugin), **merge=HITL**, EKO-66 stage-only. Q&A técnico a cobrir: *por que `policy=None` garante 0-regressão?* · *como o seam reusa o `_agent_feedback` (DRY)?* · *por que os fixes (2) CI-floor e (3) CTS seguem DEFERRED?* (R4-ops é admin; CTS é YAGNI até ≥3 tools competindo).
+- **Governança git** (p/ Q&A): #176 mergeou ADR-006/007 **[Proposed]**; o resto landa via **worktree [C04] + gates [C07]** (gitleaks·openspec·validate-plugin), **merge=HITL**, TICKET-66 stage-only. Q&A técnico a cobrir: *por que `policy=None` garante 0-regressão?* · *como o seam reusa o `_agent_feedback` (DRY)?* · *por que os fixes (2) CI-floor e (3) CTS seguem DEFERRED?* (R4-ops é admin; CTS é YAGNI até ≥3 tools competindo).

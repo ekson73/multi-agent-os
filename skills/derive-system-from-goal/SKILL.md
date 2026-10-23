@@ -11,14 +11,14 @@ description: |
   the driver). One-shot/bounded goal -> N/A by design (a plan IS its system; no envelope emitted).
   Thin deriver — reimplements NOTHING: no execution loop (that is gap-loop/quiesce), no
   convergence gate, no verifier (verifier != generator stays the driver's invariant). Law:
-  akasha `docs/derive-system-from-goal.md` [C22]; soul-name Hodos (ho-dos, "a method, system; a way" —
+  knowledge-vault `docs/derive-system-from-goal.md` [C22]; soul-name Hodos (ho-dos, "a method, system; a way" —
   the root of methodos = meta + hodos, so "method" IS "goal + the way").
 dogfood_status: pending-first-cycle
 ---
 
 # derive-system-from-goal (soul-name: *Hodos*) — the vehicle deriver
 
-> **The law this executes**: akasha `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md; an on-demand reference **doc**, not an auto-loaded rule — KRDR) — *dada a meta **recorrente**, construa o sistema ANTES de persegui-la; **meta sem sistema é intenção sem ação**.* The law's only mechanized fire-point is `anti-theater-grounding-protocol` **Layer-5 R9** (additive · fires ONLY on recurring/open-ended goals); this skill is R9's operational *how*.
+> **The law this executes**: knowledge-vault `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md; an on-demand reference **doc**, not an auto-loaded rule — KRDR) — *dada a meta **recorrente**, construa o sistema ANTES de persegui-la; **meta sem sistema é intenção sem ação**.* The law's only mechanized fire-point is `anti-theater-grounding-protocol` **Layer-5 R9** (additive · fires ONLY on recurring/open-ended goals); this skill is R9's operational *how*.
 > **Position**: `ooda-loop` **ORIENT-b**. Boyd's ORIENT is synthesis — **Prisma gives the destination's coordinates** (`dod-as-prompt`), **Hodos gives the route** (`system-as-prompt`). Both are ORIENT; neither drives.
 
 ## Purpose
@@ -135,7 +135,7 @@ Validator-gated like its siblings (`skills/goal-recovery/bin/validate_envelope.p
 6. **Utility-Sunset** — inherits the law's DUED: retire when `ooda-loop` ORIENT absorbs system-construction natively (E6), or agents internalize build-the-vehicle-first (E3, ≥10 zero-regret). ✅
 
 ## Refs
-- **Law (SSOT)**: akasha `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md) · fire-point `anti-theater-grounding-protocol` Layer-5 **R9** (additive · recurring-only).
+- **Law (SSOT)**: knowledge-vault `~/.claude/docs/derive-system-from-goal.md` (`[C22]` pointer in CLAUDE.md) · fire-point `anti-theater-grounding-protocol` Layer-5 **R9** (additive · recurring-only).
 - **Siblings**: `skills/ooda-loop` (the conductor — ORIENT-b is here) · `skills/goal-recovery` (+ its `bin/validate_envelope.py`) · `skills/decompose-abstract-to-measurable` (Prisma — ORIENT-a) · `skills/gap-loop` · `skills/quiesce`.
 - **Sources**: transcript `~/Downloads/transcricao_pessoas_inteligentes_sistemas.md` (Lucas Yano 2026-07-05, read in full — `{ts:411,451,511,518,554,604-617}`) · `~/Downloads/framework_12_etapas.csv`.
 - **Evidence**: Gollwitzer & Sheeran (2006) · Fogg *Tiny Habits* · Lally et al. (2010) · Michie BCT taxonomy · Nat Eliason (the counter) · Huang et al. 2310.01798 (why the verifier stays independent, and elsewhere).

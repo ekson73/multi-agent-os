@@ -1,0 +1,110 @@
+{
+  "_doc": "Allowlist for scripts/check-name-hygiene.py. Every rule needs a reason. {T} in 'context' stands for the matched token, so rules never spell a denylisted name. Rules marked 'temporary' must be removed by the PR that resolves them.",
+  "allow": [
+    {
+      "id": "repo-slug",
+      "paths": [
+        "*"
+      ],
+      "detectors": [
+        "d3"
+      ],
+      "context": "{T}/multi-agent-os",
+      "reason": "Canonical repository URL/slug. Changes only if the repository is transferred to a neutral organization (separate decision)."
+    },
+    {
+      "id": "codeowners",
+      "paths": [
+        ".github/CODEOWNERS"
+      ],
+      "detectors": [
+        "d3"
+      ],
+      "reason": "CODEOWNERS must name the real maintainer handle to work."
+    },
+    {
+      "id": "authorship-pending",
+      "paths": [
+        "LICENSE",
+        "README.md",
+        ".claude-plugin/plugin.json"
+      ],
+      "reason": "Copyright, README and plugin authorship are a maintainer decision handled outside this hygiene change (pending)."
+    },
+    {
+      "id": "changelog-history",
+      "paths": [
+        "CHANGELOG.md"
+      ],
+      "reason": "Historical CHANGELOG entries are a record of the past and are not rewritten; new entries follow the hygiene rule (reviewed in PR)."
+    },
+    {
+      "id": "sentinel-pr-515",
+      "paths": [
+        "skills/git-cycle-sentinel/*",
+        "commands/git-cycle-sentinel.md"
+      ],
+      "reason": "temporary: files owned by the open git-cycle-sentinel PR #515, which applies the same substitution map. Remove after it merges."
+    },
+    {
+      "id": "pii-pr-pending",
+      "paths": [
+        "skills/transcript-corrector/*",
+        "docs/feature-request-session-api.md"
+      ],
+      "reason": "temporary: handled by the separate privacy PR (third-party data and personal contact). Remove after it merges."
+    },
+    {
+      "id": "signed-wacli-fixture",
+      "paths": [
+        "agents/fixtures/wacli-*-almanac/*"
+      ],
+      "reason": "temporary: integrity-hashed fixture (manifest digests and embedded identity hashes); editing it breaks verification. Regenerate with synthetic accounts, then remove this rule."
+    },
+    {
+      "id": "signed-wacli-fixture-refs",
+      "paths": [
+        "*"
+      ],
+      "detectors": [
+        "d2"
+      ],
+      "context": "wacli-{T}-almanac",
+      "reason": "temporary: path references to the signed fixture directory above. Removed together with signed-wacli-fixture."
+    },
+    {
+      "id": "pii-linter-fixtures",
+      "paths": [
+        "skills/pii-masking/tests/*"
+      ],
+      "detectors": [
+        "email",
+        "cpf",
+        "cnpj"
+      ],
+      "reason": "Synthetic PII test vectors for the PII linter itself (generated, checksum-valid by design)."
+    },
+    {
+      "id": "third-party-role-contact",
+      "paths": [
+        "research/agentic-moe-2026/*"
+      ],
+      "detectors": [
+        "email"
+      ],
+      "context": "@bmadcode\\.com",
+      "reason": "Public support/role address of a third-party open-source project cited in market research; not personal data of a private individual."
+    },
+    {
+      "id": "self-test-fixtures",
+      "paths": [
+        "tests/test-name-hygiene.sh"
+      ],
+      "detectors": [
+        "home-path",
+        "ssh-alias"
+      ],
+      "reason": "Fictional home path and SSH alias used by the check's own unit test (e-mail and CPF vectors are assembled at runtime)."
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 > **Status**: DRAFT — awaiting operator review (brainstorming gate per superpowers:brainstorming HARD-GATE).
 > **Date**: 2026-05-28
 > **Author**: Claude (Opus 4.8) under operator directive 2026-05-28 via `/enhance`.
-> **Repo**: `multi-agent-os` (framework SSOT) → propagate to `eko-claude-plugins` + `vek-claude-plugins`.
+> **Repo**: `multi-agent-os` (framework SSOT) → propagate to `plugin-marketplace` + `org-claude-plugins`.
 > **Branch**: `feat/agentic-tool-evaluator-trainer`.
 
 ---
@@ -202,9 +202,9 @@ Common to both skills (progressive disclosure, one level deep per AAIF):
 | **P2** | `skills/agentic-tool-trainer/SKILL.md` | dogfood train+distill |
 | **P3** | Update `skills/skill-writer` cross-ref (creator-extend pointer) + multi-agent-os CHANGELOG + plugin manifest if needed | validate-plugin.sh |
 | **P4** | PR on `multi-agent-os` → bot convergence (Copilot/qodo/CodeRabbit) → merge | green PR |
-| **P5** | Propagate to `eko-claude-plugins` + `vek-claude-plugins` (sync/copy + their CHANGELOGs) → PRs | green PRs |
+| **P5** | Propagate to `plugin-marketplace` + `org-claude-plugins` (sync/copy + their CHANGELOGs) → PRs | green PRs |
 
-**Dogfood gate** (Vek mandate R1/R3): ≥1 real cycle each (evaluator evaluates a real skill; trainer improves/distills a real one) before community promotion.
+**Dogfood gate** (Acme mandate R1/R3): ≥1 real cycle each (evaluator evaluates a real skill; trainer improves/distills a real one) before community promotion.
 
 ---
 
@@ -226,4 +226,4 @@ Common to both skills (progressive disclosure, one level deep per AAIF):
 1. **Naming**: confirm `agentic-tool-evaluator` (semantic) vs `agentic-tool-tester` (your word)?
 2. **v1 scope-cut**: OK to defer gamification + collaboration/share-results to v2?
 3. **Apply-mode autonomy**: trainer mutating a tool → always PR+review (recommended), or allow autonomous propose-only for low-risk?
-4. **Propagation depth**: full SKILL.md copy into eko/vek `plugins/multi-agent-os/skills/`, or reference-only per framework-consumption doc?
+4. **Propagation depth**: full SKILL.md copy into personal/work `plugins/multi-agent-os/skills/`, or reference-only per framework-consumption doc?

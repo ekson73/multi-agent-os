@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /** health-respond.sh — EKO-90 part-2: system-health responder (deterministic engine)
+# /** health-respond.sh — TICKET-90 part-2: system-health responder (deterministic engine)
 #  *
 #  *  @what   End-of-action reflex executor. Reads the part-1 health-contract, engage-locks
 #  *          (so two reflexes never double-act), Eisenhower-ranks the warn/crit leaves, and:
@@ -49,7 +49,7 @@ PROC_DENYLIST=(
 
 usage() {
   cat <<'EOF'
-health-respond.sh — system-health responder (EKO-90 part-2)
+health-respond.sh — system-health responder (TICKET-90 part-2)
   (default)     DRY-RUN: read contract, rank, PROPOSE actions, seed HITL residue. Acts on nothing.
   --engage      Perform the Moderate autonomous renice of a clear cpu runaway (reversible-by-record).
                 REQUIRES SHR_READY=1 (the calling reflex sets it AFTER proving standing-autonomy
@@ -74,7 +74,7 @@ end run
 APPLESCRIPT
 }
 
-# portable mtime (BSD `stat -f` → GNU `stat -c` → 0) — os-agnostic per EKO-90 spec
+# portable mtime (BSD `stat -f` → GNU `stat -c` → 0) — os-agnostic per TICKET-90 spec
 mtime_of() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
 
 acquire_lock() {
@@ -298,7 +298,7 @@ main() {
   # no-residue explicitly (it is NOT a measured "ok", but it is also NOT a fault to surface).
   [ "$net" != "ok" ] && [ "$net" != "informational" ] && residue="${residue}- 🟠 network=${net}: unexpected listener → operator review (never auto-close).\n"
 
-  # ── agentic-tools (EKO-90-ext v1.2.0): cache-producer + claude-runtime ─────────
+  # ── agentic-tools (TICKET-90-ext v1.2.0): cache-producer + claude-runtime ─────────
   # The 2026-07-14 lesson: the disk-guardian cleaned caches but could not beat a LIVE producer
   # (`uvx …@latest` MCP churn). This branch adds the producer-aware response: Tier-A autonomous
   # `uv cache prune` (LOW · non-destructive · Moderate-gated), Tier-B SEED a containment delegation

@@ -2,7 +2,7 @@
 name: memory-gateway
 description: Use when creating, updating, superseding, archiving, reading, searching, or walking the persistent memory corpus. The ONE crash-safe writer to memory — route every memory mutation through it instead of editing topic files directly, so identity-dedup, atomic forgetting (supersede archives the old fact in the same op), and write-ahead crash recovery are guaranteed.
 version: 1.0.0
-author: MAOS (ADR-013 / EKO-116)
+author: MAOS (ADR-013 / TICKET-116)
 ---
 
 # Memory Gateway

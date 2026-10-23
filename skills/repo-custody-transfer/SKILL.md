@@ -1066,8 +1066,9 @@ MIN=one skill, residue scripts deferred until a cycle demands them).
 
 ## §Vocabulary — say "probe" or "attack-path" for adversarial review
 
-`bin/check-layer-purity` reserves one word here: the corporate name in its `\bv…r(inf)?\b` pattern
-(run the checker to see it — this section deliberately does not spell it). That word is also the
+`bin/check-layer-purity` reserves one word here: the corporate name in the operator's private
+pattern list (`MAOS_LAYER_PURITY_PATTERNS`; run the checker to see it — this section deliberately
+does not spell it). That word is also the
 most natural English term for a red-team attack-path, so the collision is structural, not
 accidental: it fired **three times** while authoring this skill, each time caught only by the gate.
 

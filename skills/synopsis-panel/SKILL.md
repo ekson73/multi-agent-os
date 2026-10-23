@@ -105,7 +105,7 @@ bin/synopsis-fuse.py --scope all --include pending --format tree
 
 # caminho barato: passe payloads já capturados (sem re-rodar coletores)
 work-compass-aggregate.py --json --sort eisenhower --pendency-scope repo --include pending > /tmp/wc.json
-bin/synopsis-fuse.py --compass-json /tmp/wc.json --hitl-md ~/Projects/eko-engram/hitl/punch-list.md --format html > painel.html
+bin/synopsis-fuse.py --compass-json /tmp/wc.json --hitl-md ~/Projects/notes-vault/hitl/punch-list.md --format html > painel.html
 
 # só o painel HITL (os gates humanos), em árvore
 bin/synopsis-fuse.py --hitl-only --format tree
@@ -171,7 +171,7 @@ fusões falso-positivas (E5). Dormente-por-design caso contrário.
 
 ## §Refs
 - Motores SSOT (compostos, não reimplementados): `../../bin/work-compass-aggregate.py`
-  (`[[work-compass]]`) · `hitl-punch-list.py` + `hitl/punch-list.md` (eko-engram SSOT) ·
+  (`[[work-compass]]`) · `hitl-punch-list.py` + `hitl/punch-list.md` (notes-vault SSOT) ·
   `eisenhower` (via work-compass `--sort eisenhower`).
 - House-style: `hitl-digest` spec (painel 52-col, severidade, ⏫/👤).
 - Naming: `[[anima]]` (nomeou esta skill; soul↔body com `agentic-tool-forge`).

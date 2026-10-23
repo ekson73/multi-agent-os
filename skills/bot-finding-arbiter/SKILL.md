@@ -136,7 +136,7 @@ Route the finding to exactly ONE (elevates the 5-path `pr-governance-unified` St
 | 4 | **improve** | valid + opportunity to go beyond the minimal fix |
 | 5 | **expand** | valid + the finding reveals a broader gap worth addressing |
 | 6 | **reject-total** | bot-wrong; the finding does not apply |
-| 7 | **comment/justify** | **ALWAYS** — every disposition posts a rationale comment on the PR (reuse `pr-reviewer-communication` / `vek-pr-commentator`) |
+| 7 | **comment/justify** | **ALWAYS** — every disposition posts a rationale comment on the PR (reuse `pr-reviewer-communication` / `org-pr-commentator`) |
 Plus (only on a verified **bot-wrong** that IS repo-fixable): **teach-the-bot** (§4) — an edict.
 
 ### 4 — ACT
@@ -146,7 +146,7 @@ Plus (only on a verified **bot-wrong** that IS repo-fixable): **teach-the-bot** 
 - **teach-the-bot (edict)**: write the minimal teaching edit to the bot's config file **per the
   registry** (`bot-config-registry.md`), as a **reviewed PR** (worktree → review → merge), NEVER a
   silent commit. Prefer a *narrow* rule (path-scoped instruction / documented-convention note) over a
-  broad ignore. Record it on the Bot Scorecard (`vek-pr-commentator`) as a `config-taught` disposition
+  broad ignore. Record it on the Bot Scorecard (`org-pr-commentator`) as a `config-taught` disposition
   so accuracy is tracked (the compounding win: each edict permanently shrinks future false-positives).
   - **Best-practices grounding (MANDATORY, before authoring the edict)**: consult BOTH
     (a) the bot's **official, current config documentation** (the `find-docs` skill, a docs-research
@@ -171,7 +171,7 @@ repo-fixable** (dashboard) → HITL, no edit.
 | deterministic ORIENT pre-filter (account-error / security-class gate) | `bin/classify.sh` + `tests/` fixtures (the only net-new code — a thin gate, not new convergence) |
 | independent verify (verifier > generator) | `skills/convergence-engine` · `agents/perspective-trio` · `agents/cascade-resolver` · `agents/persona-pipeline` · `bin/convergence-guard` |
 | disposition menu (elevated 5→7) | `rules/pr-governance-unified.md` Step 8 |
-| post comment / scorecard | `.claude/rules/pr-reviewer-communication.md` · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) |
+| post comment / scorecard | `.claude/rules/pr-reviewer-communication.md` · `ai-toolkit:org-pr-commentator` (Bot Scorecard) |
 | merge gate | `auto-merge-standing-authorization` · `bin/convergence-guard` |
 | loop discipline / OODA / no-silent-drop | `loose-end-triage-queue` (Taxis) |
 
@@ -199,7 +199,7 @@ repo-fixable** (dashboard) → HITL, no edit.
 Deprecate when ANY: a host ships native "arbitrate + teach reviewer bot" (E1) · absorbed into `convergence-engine`/`pr-governance-unified` as one entry (E6) · operator retraction (E4) · ≥3 false-positive suppressions slip through (E5 → tighten the verify gate, not deprecate).
 
 ## Refs
-`rules/pr-governance-unified.md` (§ Bot-Config Correction Discipline — the governance this skill executes) · `bot-config-registry.md` (the SSOT map) · `skills/convergence-engine` · `agents/{perspective-trio,cascade-resolver,persona-pipeline}` · `bin/classify.sh` (deterministic ORIENT pre-filter) + `tests/run.sh` · `bin/{convergence-guard,bb-pipeline-watch.sh}` · `gh` CLI · `vek-ai-toolkit:vek-pr-commentator` (Bot Scorecard) · akasha `pr-review-protocol.md` / `auto-merge-standing-authorization.md` / `loose-end-triage-queue.md`. Named by `anima` (soul-name *Praetor*, per `[[naming-authority]]` `[C-naming]`).
+`rules/pr-governance-unified.md` (§ Bot-Config Correction Discipline — the governance this skill executes) · `bot-config-registry.md` (the SSOT map) · `skills/convergence-engine` · `agents/{perspective-trio,cascade-resolver,persona-pipeline}` · `bin/classify.sh` (deterministic ORIENT pre-filter) + `tests/run.sh` · `bin/{convergence-guard,bb-pipeline-watch.sh}` · `gh` CLI · `ai-toolkit:org-pr-commentator` (Bot Scorecard) · knowledge-vault `pr-review-protocol.md` / `auto-merge-standing-authorization.md` / `loose-end-triage-queue.md`. Named by `anima` (soul-name *Praetor*, per `[[naming-authority]]` `[C-naming]`).
 
 ## Changelog
 | Version | Date | Change |

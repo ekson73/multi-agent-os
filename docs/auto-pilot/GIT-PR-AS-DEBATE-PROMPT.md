@@ -16,7 +16,7 @@
 |---|---|---|
 | Debate primitive | [`skills/converge/SKILL.md`](../../skills/converge/SKILL.md) v1.1.1 — 5-act protocol + Invariant 6 + reject log | Vendor-neutral N-proposal synthesis core |
 | Channel | GitHub Pull Request comments (master + sub) | Persistent · public · diff-anchored substrate |
-| Native participants | amazon-q-developer · GitHub Copilot · CodeRabbit · Qodo (capability-detected per [`pr-review-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/pr-review-protocol.md) §4 escape clauses) | Multi-vendor bot reviewers |
+| Native participants | amazon-q-developer · GitHub Copilot · CodeRabbit · Qodo (capability-detected per [`pr-review-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/pr-review-protocol.md) §4 escape clauses) | Multi-vendor bot reviewers |
 | Spawned participants | 8 cognitive perspectives — Tomé · DHH · Devil's-Advocate · Fowler · Pragmatic · Empiricist · SecOps · 90/10-Visionary (extensible) | Diverse mental models |
 | Comment convention | [`.claude/rules/pr-reviewer-communication.md`](../../.claude/rules/pr-reviewer-communication.md) v1.0.0 — `@mentions` + tables + re-review timeouts | Channel hygiene |
 | Sub-PR rationale | This document §4 — gate before creating any sub-PR | Anti-overload |
@@ -167,7 +167,7 @@ Add max 2 new perspectives per cycle (Goldilocks discipline).
 - **Network-isolated** (sandbox containers without internet)
 - **Repo-isolated** (forks / sandboxes with read-only or no access to private repos)
 - **Token-budget-limited** (cannot fetch all linked docs)
-- **Future-amnesic** (no persistent memory across sessions — see [`ai-as-pwd-axiom`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/ai-as-pwd-axiom.md) §1)
+- **Future-amnesic** (no persistent memory across sessions — see [`ai-as-pwd-axiom`](https://github.com/OWNER/user-dotfiles/blob/main/rules/ai-as-pwd-axiom.md) §1)
 - **Cross-vendor** (different MCP tool availabilities across hosts)
 
 An agent reading ONLY the PR body or a debate comment (with NO external resource access) must still be able to participate meaningfully.
@@ -202,11 +202,11 @@ An agent reading ONLY the PR body or a debate comment (with NO external resource
 
 ## 6. Layer-purity (binding)
 
-Per [`~/.claude/rules/layer-precedence-policy.md`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/layer-precedence-policy.md) v1.0.0:
+Per [`~/.claude/rules/layer-precedence-policy.md`](https://github.com/OWNER/user-dotfiles/blob/main/rules/layer-precedence-policy.md) v1.0.0:
 
-- Community ([`ekson73/multi-agent-os`](https://github.com/ekson73/multi-agent-os)) MUST NOT contain Vek-specific names · paths · acronyms · proprietary refs
+- Community ([`ekson73/multi-agent-os`](https://github.com/ekson73/multi-agent-os)) MUST NOT contain org-specific names · paths · acronyms · proprietary refs
 - Community ⇒ corp consumption is OK; corp ⇒ community contribution NEVER
-- Bot/PR-comment content in debate counts as community-bound; sanitize before incorporating any operator-quoted material with corp tokens (`VKS-*`, `vek-*`, `VKL-*`, etc.)
+- Bot/PR-comment content in debate counts as community-bound; sanitize before incorporating any operator-quoted material with corp tokens (`VKS-*`, `acme-*`, `VKL-*`, etc.)
 - Sanitize-or-strip · do not echo
 
 ---
@@ -215,12 +215,12 @@ Per [`~/.claude/rules/layer-precedence-policy.md`](https://github.com/ekson73/ve
 
 | Gate | Check | Source |
 |---|---|---|
-| Anti-theater REALITY 8/8 | Real · ¬Theater · ¬Hallucinated · ¬Invented · Viable · Applicable · Implementable · Useful | [`anti-theater-grounding-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/anti-theater-grounding-protocol.md) |
-| §11 Quality Tests 6/6 | Self-Application · Non-Contradiction · Survival · Bounded-Responsibility · Explicit-Exception · Utility-Sunset | [`auto-self-harness`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/auto-self-harness.md) `[C17]` §11 |
+| Anti-theater REALITY 8/8 | Real · ¬Theater · ¬Hallucinated · ¬Invented · Viable · Applicable · Implementable · Useful | [`anti-theater-grounding-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/anti-theater-grounding-protocol.md) |
+| §11 Quality Tests 6/6 | Self-Application · Non-Contradiction · Survival · Bounded-Responsibility · Explicit-Exception · Utility-Sunset | [`auto-self-harness`](https://github.com/OWNER/user-dotfiles/blob/main/rules/auto-self-harness.md) `[C17]` §11 |
 | §0 SER > Rules | Rule-application HELPS NOW? (skip + log se OBSTRUCTS) | `[C17]` §0 |
-| Scope-discipline 6Q | Q1-Q6 PRE-creation | [`scope-discipline-pre-creation`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/scope-discipline-pre-creation.md) |
+| Scope-discipline 6Q | Q1-Q6 PRE-creation | [`scope-discipline-pre-creation`](https://github.com/OWNER/user-dotfiles/blob/main/rules/scope-discipline-pre-creation.md) |
 | Converge Invariant 6 | Audit-not-persuasion · neutral framing · no leading questions to next agent | `skills/converge/SKILL.md` §Invariants |
-| Bot convergence | All named active bots `SUCCESS` per `pr-review-protocol` v2.0.0 §4 | [`pr-review-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/pr-review-protocol.md) |
+| Bot convergence | All named active bots `SUCCESS` per `pr-review-protocol` v2.0.0 §4 | [`pr-review-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/pr-review-protocol.md) |
 
 ---
 
@@ -248,9 +248,9 @@ After ≥ 2 successful cycles (Dogfooding R1+R3+R7), extract this methodology as
 | **skill** `git-pr-as-debate` | `multi-agent-os/skills/git-pr-as-debate/` | AAIF cross-vendor; invocable from any host |
 | **command** `/pr-debate` | `multi-agent-os/commands/` | Slash-command UX (Claude Code primary) |
 | **subagent** `auto-pr-debate-orchestrator` | `~/.claude/agents/` | Heavy orchestration delegated; preserves main context |
-| **plugin bundle** | `eko-claude-plugins` OR community marketplace | Distribution + governance |
+| **plugin bundle** | `plugin-marketplace` OR community marketplace | Distribution + governance |
 
-Default choice: **skill** (highest portability per AAIF) + **command** (best operator UX in Claude Code) — both pointing to the same backing logic per [`auto-orchestrator`](https://github.com/ekson73/vek-dot-claude/blob/main/skills/auto-orchestrator/SKILL.md) precedent (skill mirror of slash command).
+Default choice: **skill** (highest portability per AAIF) + **command** (best operator UX in Claude Code) — both pointing to the same backing logic per [`auto-orchestrator`](https://github.com/OWNER/user-dotfiles/blob/main/skills/auto-orchestrator/SKILL.md) precedent (skill mirror of slash command).
 
 If < 2 cycles → mark as **experimental pattern**; defer extraction. NEVER premature-promote (anti-pattern per dogfooding-mandate).
 
@@ -261,7 +261,7 @@ If < 2 cycles → mark as **experimental pattern**; defer extraction. NEVER prem
 - Master-plan: [`docs/auto-pilot/MASTER-PLAN.md`](./MASTER-PLAN.md)
 - Templates: [`templates/master-pr-debate-prompt.template.md`](./templates/master-pr-debate-prompt.template.md) · [`templates/sub-pr-debate-prompt.template.md`](./templates/sub-pr-debate-prompt.template.md)
 - Sister skills: [`skills/converge`](../../skills/converge/SKILL.md) · [`skills/auto-pilot`](../../skills/auto-pilot/SKILL.md) · [`skills/agent-select`](../../skills/agent-select/SKILL.md)
-- Sister rules (vek-dot-claude): [`pr-review-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/pr-review-protocol.md) · [`scope-discipline-pre-creation`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/scope-discipline-pre-creation.md) · [`anti-theater-grounding-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/anti-theater-grounding-protocol.md) · [`auto-self-harness`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/auto-self-harness.md) · [`layer-precedence-policy`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/layer-precedence-policy.md) · [`agentic-first-decision-protocol`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/agentic-first-decision-protocol.md) · [`ai-as-pwd-axiom`](https://github.com/ekson73/vek-dot-claude/blob/main/rules/ai-as-pwd-axiom.md)
+- Sister rules (user-dotfiles): [`pr-review-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/pr-review-protocol.md) · [`scope-discipline-pre-creation`](https://github.com/OWNER/user-dotfiles/blob/main/rules/scope-discipline-pre-creation.md) · [`anti-theater-grounding-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/anti-theater-grounding-protocol.md) · [`auto-self-harness`](https://github.com/OWNER/user-dotfiles/blob/main/rules/auto-self-harness.md) · [`layer-precedence-policy`](https://github.com/OWNER/user-dotfiles/blob/main/rules/layer-precedence-policy.md) · [`agentic-first-decision-protocol`](https://github.com/OWNER/user-dotfiles/blob/main/rules/agentic-first-decision-protocol.md) · [`ai-as-pwd-axiom`](https://github.com/OWNER/user-dotfiles/blob/main/rules/ai-as-pwd-axiom.md)
 - PR comment convention: [`.claude/rules/pr-reviewer-communication.md`](../../.claude/rules/pr-reviewer-communication.md)
 - Empirical refs (citation date 2026-05-17): [BabyAGI](https://github.com/yoheinakajima/babyagi) · [AutoGPT pivot](https://github.com/Significant-Gravitas/AutoGPT) · [CrewAI](https://www.crewai.com/) · [AutoGen Magentic-One](https://www.microsoft.com/en-us/research/blog/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/) · [LangGraph](https://langchain-ai.github.io/langgraph/) · [OpenHands](https://github.com/All-Hands-AI/OpenHands) · [AAIF spec](https://agentskills.io/specification)
 

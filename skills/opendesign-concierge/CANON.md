@@ -14,4 +14,4 @@
 | C8 | **1 concierge tool, not 2.** `opendesign-helper` is a DUED future split only if the do-runbooks outgrow this concierge. | DRY — the "guide" mode already delivers the helper function; a 2nd skill would duplicate ~70% of the knowledge-pack. |
 
 ## Drift checks (audit mode)
-- Clone present + origin == `nexu-io/open-design`? · DS catalog count ≈152? · `od` knowledge-pack still matches the live CLI? · wrangler still on PATH? · POC still at `~/Projects/vek-list-poc-opendesign-airbnb-design-system/`?
+- Clone present + origin == `nexu-io/open-design`? · DS catalog count ≈152? · `od` knowledge-pack still matches the live CLI? · wrangler still on PATH? · POC still at `~/Projects/org-list-poc-opendesign-airbnb-design-system/`?

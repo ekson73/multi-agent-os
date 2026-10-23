@@ -4,7 +4,7 @@ observed: "2026-06-27"
 repo: "ekson73/multi-agent-os (maos) v1.16.0 · branch main"
 method: "inventário do filesystem + leitura de protocolos/hooks/mcp-hub + cruzamento com 00..03 + final-report do agentic-moe-2026"
 lang: "prosa pt-BR · identificadores en-US"
-author: "Emilson de Queiroz Moraes (ekson73) · executado por Claude (Cowork)"
+author: "the maintainer · executado por Claude (Cowork)"
 governance_note: "NENHUM arquivo do repo foi modificado — propostas só. Mudanças exigem git worktree (MUST do CLAUDE.md)."
 ---
 

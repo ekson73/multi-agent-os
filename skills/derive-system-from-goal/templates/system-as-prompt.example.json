@@ -2,12 +2,12 @@
   "jsonrpc": "2.0",
   "method": "session.system_derivation",
   "params": {
-    "for_goal": "Make the Law of the System (akasha [C22]) actually FIRE for every future amnesic agent — not merely be written down.",
+    "for_goal": "Make the Law of the System (knowledge-vault [C22]) actually FIRE for every future amnesic agent — not merely be written down.",
     "context_lock": {
-      "context": "/enhance Ultrathink 2026-07-15; the operator's Law-of-the-System directive turned into a law (akasha rule + [C22]) + a fire-point (anti-theater Layer-5 R9) + an executable (this skill, ooda-loop ORIENT-b).",
+      "context": "/enhance Ultrathink 2026-07-15; the operator's Law-of-the-System directive turned into a law (knowledge-vault rule + [C22]) + a fire-point (anti-theater Layer-5 R9) + an executable (this skill, ooda-loop ORIENT-b).",
       "purpose": "close the construct-the-vehicle gap in the ooda-loop typed set so a driver stops improvising its recurring action each round.",
       "priority_focus": "the law must fire, not merely exist — a law with no firing mechanism IS intention without action (it would violate itself).",
-      "stakeholder": "operator (Eko/C8it) + every future amnesic agent that inherits the corpus.",
+      "stakeholder": "operator (personal) + every future amnesic agent that inherits the corpus.",
       "targets": "primary: ooda-loop DECIDE consumes a third envelope; secondary: R9 fires at anti-theater Layer-5; auxiliary: >=2 dogfood cycles before promotion."
     },
     "minimal_system": {

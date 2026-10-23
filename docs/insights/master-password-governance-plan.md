@@ -19,7 +19,7 @@
 │          ┌────────────┼─────────────────┐                 │
 │          │                              │                  │
 │  ┌───────▼──────────┐    ┌──────────────▼─────────────┐   │
-│  │   ESO v2.2.0     │    │  vek-env-resolver          │   │
+│  │   ESO v2.2.0     │    │  org-env-resolver          │   │
 │  │   (K8s Bridge)   │    │  (CI/CD + Multi-plat)      │   │
 │  │                  │    │                             │   │
 │  │  ClusterSecret   │    │  4-level TOML hierarchy     │   │
@@ -37,11 +37,11 @@
 
 ---
 
-## 2. vek-cli ENCAPSULATION — Análise
+## 2. org-cli ENCAPSULATION — Análise
 
-### Pergunta: Encapsular todas as tools de secrets em vek-cli?
+### Pergunta: Encapsular todas as tools de secrets em org-cli?
 
-| Tool Nativa | Hoje no vek-cli? | Encapsular? | Justificativa |
+| Tool Nativa | Hoje no org-cli? | Encapsular? | Justificativa |
 | ----------- | ----------------- | ----------- | ------------- |
 | `kubectl get externalsecret` | ❌ | ✅ **Sim** | `secrets eso status` — UX padronizada |
 | `kubectl get clustersecretstore` | ❌ | ✅ **Sim** | `secrets eso store` — health check |
@@ -51,10 +51,10 @@
 | `gitleaks detect` | ❌ | ✅ **Sim** | `secrets scan` — pre-commit |
 | `htpasswd -nb` | ❌ | ✅ **Sim** | `secrets generate-auth` |
 
-### Proposta: `vek-cli secrets` Module v2.0
+### Proposta: `org-cli secrets` Module v2.0
 
 ```text
-vek-cli.py secrets
+org-cli.py secrets
 ├── eso status      # kubectl get externalsecret -A + clustersecretstore
 ├── eso create      # Create ExternalSecret CRD from template
 ├── eso sync        # Force ESO refresh (annotate for immediate sync)
@@ -68,9 +68,9 @@ vek-cli.py secrets
 └── verify          # Full health check: SM + ESO + SOPS + scan
 ```
 
-### AI Agents: vek-cli vs Tools Nativas?
+### AI Agents: org-cli vs Tools Nativas?
 
-| Aspecto | vek-cli | Tool Nativa (kubectl, aws, sops) |
+| Aspecto | org-cli | Tool Nativa (kubectl, aws, sops) |
 | ------- | ------- | -------------------------------- |
 | **Discovery** | `--help` lista tudo | Agent precisa saber qual tool |
 | **Guard-rails** | `--dry-run` padronizado | Cada tool tem flags diferentes |
@@ -83,13 +83,13 @@ vek-cli.py secrets
 ### Recomendação
 
 > [!TIP]
-> **Para AI agents: vek-cli > tools nativas**
-> - Agent chama `vek-cli secrets verify --dry-run` (1 comando, contexto completo)
+> **Para AI agents: org-cli > tools nativas**
+> - Agent chama `org-cli secrets verify --dry-run` (1 comando, contexto completo)
 > - vs. `kubectl get css && kubectl get es -A && aws sm list-secrets && gitleaks detect` (4 comandos)
 >
 > **Para humanos experts: tools nativas são válidas** para troubleshooting ad-hoc
 
-**Conclusão**: Encapsular em vek-cli faz sentido TANTO para AI agents quanto para padronização DevOps. Mas manter acesso direto às tools nativas para troubleshooting.
+**Conclusão**: Encapsular em org-cli faz sentido TANTO para AI agents quanto para padronização DevOps. Mas manter acesso direto às tools nativas para troubleshooting.
 
 ---
 
@@ -119,5 +119,5 @@ vek-cli.py secrets
 | 7 | **TASK-007** NetworkPolicies | 🟡 Q1 | 2h | IP |
 | 8 | **TASK-019** Shell→Python CLI | 🟢 Q2 | 8h | Backlog |
 | 9 | **TASK-021** Rename script | 🟢 Q2 | 2h | Backlog |
-| 10 | **NEW** vek-cli secrets v2.0 module | 🟢 Q2 | 4h | → TASK-023 |
+| 10 | **NEW** org-cli secrets v2.0 module | 🟢 Q2 | 4h | → TASK-023 |
 | 11 | **NEW** Vault production evaluation | 🟢 Q3 | 8h | → TASK-024 |

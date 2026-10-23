@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# burndown-test.sh — unit tests for the reclaim-aware burn-down forecast (EKO-90-round3).
+# burndown-test.sh — unit tests for the reclaim-aware burn-down forecast (TICKET-90-round3).
 # Drives the collector's `--burndown` entrypoint with synthetic disk-guardian logs (no awk duplication —
 # the test exercises the exact production compute_burndown()). The RECLAIM-JUMP case is the critical
 # assertion: a naïve slope over the raw series would read "recovering", but the forecast MUST isolate the

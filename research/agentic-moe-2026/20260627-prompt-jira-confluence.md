@@ -1,5 +1,5 @@
 ---
-title: "PROMPT (saved, NOT launched) — Criar Épico Jira + Páginas Confluence no Vek"
+title: "PROMPT (saved, NOT launched) — Criar Épico Jira + Páginas Confluence no Acme"
 item: "(3) deep-research execution kit follow-up"
 status: "READY-TO-RUN — DO NOT EXECUTE até o operador aprovar"
 observed: "2026-06-27"
@@ -15,7 +15,7 @@ atlassian_mcp: "disponível nesta sessão, mas NÃO deve ser chamado até libera
 > esperar aprovação) antes de criar qualquer issue/página.
 
 ## Pré-requisitos a confirmar antes de rodar
-- **Confluence space key** do Vek (sugestão a partir do repo: documentação MAOS). → CONFIRMAR: `____`
+- **Confluence space key** do Acme (sugestão a partir do repo: documentação MAOS). → CONFIRMAR: `____`
 - **Jira project key** (o `CLAUDE.md` referencia `VKS-1694` → sugestão `VKS`). → CONFIRMAR: `VKS`
 - Fonte canônica dos achados: `~/Projects/multi-agent-os/research/agentic-moe-2026/` (8 arquivos `.md` + PDF/HTML consolidados).
 
@@ -24,7 +24,7 @@ atlassian_mcp: "disponível nesta sessão, mas NÃO deve ser chamado até libera
 ## RUN PROMPT (cole para o agente Atlassian quando liberado)
 
 ```text
-ROLE: você é um agente de operações com o Atlassian MCP conectado (Jira + Confluence do Vek).
+ROLE: você é um agente de operações com o Atlassian MCP conectado (Jira + Confluence do Acme).
 LANGUAGE: títulos/corpos em pt-BR; rótulos/keys em en-US.
 SAFETY: DRY-RUN obrigatório. Primeiro IMPRIMA o plano completo (todas as páginas e issues que
 criaria, com títulos, pais, labels, links) e PARE para aprovação humana. Só crie depois do "ok".
@@ -39,7 +39,7 @@ SOURCE OF TRUTH (anexar/linkar, não recolar tudo):
 Criar 1 página-pai + 6 filhas no space {CONFLUENCE_SPACE}:
 PAI: "Agentic MoE 2026 — Landscape Comparativo & Hub Orquestrador"
   corpo: resumo executivo (3 parágrafos do final-report §1) + índice das filhas + link p/ o repo.
-  labels: agentic-moe, claude-code, moe, research, vek
+  labels: agentic-moe, claude-code, moe, research, acme
 FILHAS:
   1. "Fase 0 — Canonicalização & Gate de Segurança"  (de 00) — tabela de vereditos
      INCLUDED/EXCLUDED + os 2 achados de segurança (GSD rug-pull, MemPalace) + correções de licença.
@@ -81,4 +81,4 @@ e os IDs que seriam criados. AGUARDAR "ok" antes de criar.
 ```
 
 ---
-*Gerado por Claude (Cowork) · 2026-06-27. Edite os keys/labels conforme o Vek antes de rodar.*
+*Gerado por Claude (Cowork) · 2026-06-27. Edite os keys/labels conforme o Acme antes de rodar.*

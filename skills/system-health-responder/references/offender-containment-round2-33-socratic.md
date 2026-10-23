@@ -48,7 +48,7 @@ Observe-only in round-2 (it names, it does not contain). But it is the *input* t
 
 ## Group I — The warn residue & the HITL boundary (Q13–18)
 
-**Q13. The contract shows `system.status=warn root_fail=cpu` (`fseventsd` 80%). Is that an EKO-90 problem to auto-fix?**
+**Q13. The contract shows `system.status=warn root_fail=cpu` (`fseventsd` 80%). Is that an TICKET-90 problem to auto-fix?**
 No. `fseventsd` (macOS FSEvents daemon) at 80% is a *symptom* of heavy filesystem churn (the cache thrash + the balloon-rm). It is macOS's own daemon — not killable, not the tool's to renice (system-critical). Root-cause-first: the cause was the producer churn (now drained); `fseventsd` settles on its own. → seed/note, no action.
 
 **Q14. The contract also shows `security.firewall=disabled` and `malware.xprotect_freshness=47 days`. Why are these NOT auto-fixed?**
@@ -64,7 +64,7 @@ Drain it (Taxis no-silent-drop): the security/malware items are *still true* →
 Two reasons: (1) it's a macOS-critical daemon — deprioritizing it harms the file-event pipeline the whole OS/Finder depends on; the PROC-guard errs conservative. (2) It's a *symptom*; renicing it treats the symptom while the cause (producer churn) is what mattered — and that's already fixed. Root-cause-first says don't renice a symptom.
 
 **Q18. What is the honest DoD-recovery status given a `warn` contract?**
-The **EKO-90/disk-recovery** DoD is MET (disk 136 GB, producers 0, offender contained, guardian live). The `warn` is on *orthogonal* branches (macOS security posture + a transient cpu blip) that were never in EKO-90's scope. Conflating them would be moving the goalposts. The tool correctly reports warn + seeds the HITL residue — that IS the design working.
+The **TICKET-90/disk-recovery** DoD is MET (disk 136 GB, producers 0, offender contained, guardian live). The `warn` is on *orthogonal* branches (macOS security posture + a transient cpu blip) that were never in TICKET-90's scope. Conflating them would be moving the goalposts. The tool correctly reports warn + seeds the HITL residue — that IS the design working.
 
 ## Group J — Attribution capability design (Q19–24)
 
@@ -112,7 +112,7 @@ Legitimacy = genuinely-new substance surfaced by *doing* (not re-doing). Round-2
 By Gordian scoping to what's real: one small collector capability (attribution), one registry finding (falsification), one seed-drain, one non-duplicate 33-Q set, and surfacing 2 HITL items. No new offenders contained (none exist), no aws-* registry entries (falsified), no code where a note suffices. Size follows substance, not symmetry.
 
 **Q32. Is the quiescence predicate satisfied after round-2?**
-Yes: EKO-90 scope has no open PR once round-2 merges, disk-recovery DoD holds, no un-actioned offender remains (the residue is HITL-seeded, which is the terminal state for operator-domain items). The system is quiescent — the honest terminal condition, not a manufactured "keep going."
+Yes: TICKET-90 scope has no open PR once round-2 merges, disk-recovery DoD holds, no un-actioned offender remains (the residue is HITL-seeded, which is the terminal state for operator-domain items). The system is quiescent — the honest terminal condition, not a manufactured "keep going."
 
 **Q33. What is the single durable lesson of round-2 for the next amnesic agent?**
 *Recon before hardening.* The obvious round-2 hardening (contain the offender's siblings) was wrong; only running the probe revealed the offender was singular and the siblings innocent. A recorded falsification is as valuable as a recorded fix — it prevents the next agent from confidently doing the wrong thing. Observe, then act — or, here, observe, then *deliberately don't*.

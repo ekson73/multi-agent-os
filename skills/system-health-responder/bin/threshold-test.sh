@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# threshold-test.sh — unit tests for the round-4 threshold decision cores (EKO-90-round4).
+# threshold-test.sh — unit tests for the round-4 threshold decision cores (TICKET-90-round4).
 # Drives the collector's `--cpu-load-status` / `--xprotect-status` entrypoints with synthetic inputs (no
 # awk/logic duplication — the test exercises the EXACT production cpu_load_status() / xprotect_status()).
 #

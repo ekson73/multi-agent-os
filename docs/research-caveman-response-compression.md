@@ -2,7 +2,7 @@
 
 > **Sessão**: caveman  
 > **Data**: 2026-04-10  
-> **Autor**: Claude-Sonnet-4.6 + Claude-Opus-4.6 + Emilson Moraes  
+> **Autor**: Claude-Sonnet-4.6 + Claude-Opus-4.6 + maintainer  
 > **Status**: Análise completa (v5 final) — pronto para implementação  
 > **Iterações**: v1 (proposta externa) → v2 (contra-proposta) → v3 (pós-inventário) → v4 (harmonizada) → v5 (refinada com peer review)
 
@@ -295,7 +295,7 @@ Skills, commands e agents vivem **dentro** do plugin. Já estão namespaciados p
 └── mcp-tools/maos-mcp-hub/  ← ÚNICO componente COM prefixo (standalone externo, 6 gateways, 96 actions)
 ```
 
-#### eko-claude-plugins
+#### plugin-marketplace
 
 ```
 └── plugins/multi-agent-os  ← marketplace pessoal com 1 plugin, submodule
@@ -680,7 +680,7 @@ Cada modo mapeia diretamente a um `enforcement_mode` do Sentinel: advisory=soft,
 | Config | `execution_policy` em `sentinel/config.json` | Extensão, não duplicação. |
 | Extension | Regra 6 em `context-prep/SKILL.md` | Evolução natural do artefato existente. |
 
-### 7.8 Sobre o `eko-claude-plugins` marketplace
+### 7.8 Sobre o `plugin-marketplace` marketplace
 
 O marketplace tem hoje 1 plugin: `multi-agent-os`.
 
@@ -849,8 +849,8 @@ Criar um quarto enforcement_mode (ex: `strict_unattended`) seria duplicação do
 - `commands/README.md` — catálogo de commands com padrão de estrutura
 
 ### Repositório marketplace
-- [ekson73/eko-claude-plugins](https://github.com/ekson73/eko-claude-plugins) — marketplace pessoal (1 plugin: multi-agent-os)
+- [OWNER/plugin-marketplace](https://github.com/OWNER/plugin-marketplace) — marketplace pessoal (1 plugin: multi-agent-os)
 
 ---
 
-*Análise por Claude-Sonnet-4.6 + Claude-Opus-4.6 + Emilson Moraes + Peer Review Externo (Perplexity/Sonar, 4 rounds) | Sessão: caveman | 2026-04-10 | v5 final — Approved, ready for implementation*
+*Análise por Claude-Sonnet-4.6 + Claude-Opus-4.6 + maintainer + Peer Review Externo (Perplexity/Sonar, 4 rounds) | Sessão: caveman | 2026-04-10 | v5 final — Approved, ready for implementation*

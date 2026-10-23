@@ -5,7 +5,7 @@ icon: "<emoji>"
 description: >
   <Subject> person-agent — <one-line role>. Use when you need <lens>.
   A lens on the publicly documented reasoning of <Subject>; not the person.
-  Responde ao Emilson sempre em pt-BR.
+  Responde no idioma configurado do usuário.
 agnostic: [os, project]
 subject_class: <living-public | deceased-historical | fictional-or-archetypal | collective | non-human-or-abiotic>
 ---

@@ -1,13 +1,13 @@
 ---
 name: system-health-responder
-description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
+description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). TICKET-90 part-2 — the responder half of the health suite.
 version: 1.8.0
 allowed-tools: Read, Bash
 ---
 
 # System-Health Responder
 
-**EKO-90 part-2** — the *responder* half of the system-health suite. Part-1 (the machine-local
+**TICKET-90 part-2** — the *responder* half of the system-health suite. Part-1 (the machine-local
 `system-health-guardian.sh` launchd collector) *measures* every 10 min and writes a secret-free,
 jq/yq-searchable **health-contract** with root-fail drill-down. This skill is the *end-of-action
 reflex* that **reads that contract and responds**: it heals what is safely autonomous (Moderate)
@@ -94,7 +94,7 @@ reflex), `SHR_NO_NOTIFY=1` (suppress the macOS notification, for tests/headless)
 - **HITL residue** (security · malware · kill · quarantine · OS-update) is *always* the operator's
   decision — the responder only queues it (seed + notify), never acts.
 
-## Agentic-tools response + offender-containment (EKO-90-ext v1.2.0)
+## Agentic-tools response + offender-containment (TICKET-90-ext v1.2.0)
 
 The 2026-07-14 disk-drain exposed a gap: the disk-guardian cleaned caches but could not beat a **live
 producer** — N Claude sessions re-spawning `uvx …@latest` MCP servers re-inflated `~/.cache/uv/archive-v0`
@@ -146,7 +146,7 @@ Running the recon surfaced material the design pass could not:
    agent neither re-investigates nor wrongly mass-contains the operator's AWS plugins. Its uninstall cache-orphan
    is expected (native 7-day GC), not a re-drain.
 3. **Warn residue is HITL, by design**: the collector's `system.status=warn` (firewall=disabled · XProtect stale ·
-   a transient `fseventsd` cpu blip) is on branches *orthogonal* to EKO-90's disk scope. The responder seeds them
+   a transient `fseventsd` cpu blip) is on branches *orthogonal* to TICKET-90's disk scope. The responder seeds them
    (operator's System Settings / OS update) — it does not auto-flip a security control. Round-2 drained the stale
    NEEDS-AGENT seed (persisted the still-valid firewall/xprotect items; the cpu/process items were transient).
 
@@ -154,7 +154,7 @@ Design-reasoning (33 non-duplicate Socratic Q&A): `references/offender-containme
 
 ### Burn-down forecast (v1.5.0, round-3, 2026-07-14) — the proactive half, completed
 
-The original EKO-90 DoD listed *"previsão de burn-down"* but rounds 1-2 left it a `BURN_DOWN="null"` stub.
+The original TICKET-90 DoD listed *"previsão de burn-down"* but rounds 1-2 left it a `BURN_DOWN="null"` stub.
 Round-3 implements it — the **leading indicator** whose absence let the 2026-07-14 drain reach 2.5 GB
 before anyone noticed. The collector (v1.2.0 → **v1.3.0**) now emits a structured top-level `burn_down`:
 
@@ -321,6 +321,6 @@ bug that `guardian.log` proved firing live (collector **v1.5.0 → v1.6.0**):
 - `bin/burndown-test.sh` — round-3 collector unit tests (drives `--burndown`; 16 assertions: reclaim-jump-not-misread · short-tail-honest-unknown · `+0000`/`+00:00`/`Z` tz variants).
 - `bin/responder-burndown-test.sh` — round-3 responder wiring tests (5 assertions: `warn`/`crit`→seed · `ok`/`unknown`→quiet — proves `.burn_down` is read, not just documented).
 - `bin/threshold-test.sh` — round-4→6 unit + integration tests (**59 assertions**): drives the collector cores `--cpu-load-status`/`--xprotect-status`/`--top-consumer-status`/`--counts-status`/`--mem-pressure-status` + the responder guards `--comm-match`/`--denied` + F1/F3 synthetic-contract responder integration + H1 SSOT-core drift-guard + machine-local↔mirror md5 byte-identity. (3 suites total = 59 + burndown 16 + responder-burndown 5 = **80/80**.)
-- EKO-90 (Linear, team EKO) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
+- TICKET-90 (Linear, personal team) — the parent ticket; part-1 = the collector, part-2 = this responder + this v1.2.0 ext.
 - `~/.claude/rules/loose-end-triage-queue.md` (Taxis) · `~/.claude/rules/agentic-observability-protocol.md`
   (Metron measure→respond) · `~/.claude/rules/standing-autonomous-operation-authorization.md` (READY gate).

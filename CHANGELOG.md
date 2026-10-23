@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The reconciler is marked experimental and unqualified (`qualification: experimental-unqualified`) until its evaluation records a PASS; the bundled EVAL-REPORT verdict remains FLAG.
 - Hardened the reconciler against three review findings: (1) an ingestion-time trust boundary at Passo 3 treats every retrieved spec/tracker body, comment and title as untrusted data (no embedded instruction is executed, disclosed, or forwarded raw to the verifier) — closing the window before the later H10 gate; (2) replace-style field updates (title, milestone, labels-as-set) now require the same atomic precondition or single-writer coordination as body edits, since `gh issue edit --title` offers no conditional write — only genuinely additive field ops stay exception-eligible; (3) the disclosure gate (authorize + minimize + redact) now applies to every verifier handoff regardless of criticality, not only HIGH/hard-trigger, so a MEDIUM refuter on a separate model/provider cannot receive unauthorized private source detail. Decision table grows to twenty-three rows (REQ-20 injection-inert, REQ-21 field-replace HOLD).
 
+### Changed — org-agnostic skills, docs and research; name-hygiene check (report-only)
+
+- Skills, commands, docs, research, tips and audit notes use neutral placeholders instead of maintainer-, employer- or client-specific identifiers. `.gitleaks.toml` rule ids become `app-*` (title "MAOS Secret Scanning Rules"); `tests/test-gitleaks-config.sh` follows.
+- `scripts/check-name-hygiene.py` (stdlib only): flags org/person identifiers from a hashed denylist (`.github/name-hygiene/denylist.txt`, no plain names in the repo), real-looking e-mail, CPF/CNPJ with valid check digits, local home paths and SSH host aliases. Every exception lives in `.github/name-hygiene/allow.json` with a reason. Unit test: `tests/test-name-hygiene.sh`.
+- New `name-hygiene` job in `.github/workflows/ai-governance-linter.yml`, report-only (`continue-on-error`) until the tree is clean; a follow-up makes it blocking.
+- Anima naming examples and the wacli dogfood note get neutral file names.
+
 ### Added — seat profile (six org levels) and three delivery agents
 
 - New `agents/SEAT-PROFILE.md` (v1.0.1): six organizational levels (Political, Strategic,

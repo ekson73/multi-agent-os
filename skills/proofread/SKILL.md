@@ -22,7 +22,7 @@ allowed-tools: Read, Edit, Bash, Grep, Glob
 > **Soul-name**: *Aristarchus* (Aristarchus of Samothrace, ~150 BCE — head of the Library of
 > Alexandria, the founding textual critic who invented the editorial marks; display-only).
 > **System-name** (canonical slug/trigger) = `proofread`. Named via the `anima` envelope.
-> **Pattern**: Eko Convergence Engine — deterministic linters bound + verify a probabilistic
+> **Pattern**: Convergence Engine — deterministic linters bound + verify a probabilistic
 > rewrite (`agentic-first §4.7`). **Reference catalog**: a host repo's `docs/text-quality-tooling.md`
 > (if present) holds the install matrix + the cspell≠codespell split + the privacy guardrail.
 
@@ -74,7 +74,7 @@ Same discipline for any cloud grammar service. (Secrets/PII/LGPD.)
 ## Output discipline (anti-theater)
 Report only REAL issues with evidence (file:line). Distinguish a genuine typo from a
 flagged-but-legitimate token (proper noun / coined term → add to the repo's cspell allowlist,
-e.g. `.cspell-akasha-words.txt`, not "fix" it). Verify before replacing (Mente Tomé).
+e.g. `.cspell-project-words.txt`, not "fix" it). Verify before replacing (Mente Tomé).
 
 ## Skip / bounds
 Skip trivial text · scope to changed files · time-box (don't lint a 200-file repo on a 1-file
@@ -89,4 +89,4 @@ also wire a fast warn-only pre-commit backstop separately).
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
-| 1.0.0 | 2026-06-24 | Bootstrap — forged from the akasha text-quality roadmap (`plans/compressed-enchanting-shamir.md`). ECE composition (cspell + LanguageTool-local + markdownlint × Grammar-Genie), pt-BR+en, privacy-local, self-describing WHEN. Soul-name *Aristarchus*. Empirically grounded: cspell catches `Aurona`, codespell doesn't, LanguageTool flags pt-BR concordância/acentos local. |
+| 1.0.0 | 2026-06-24 | Bootstrap — forged from the knowledge-vault text-quality roadmap (`plans/compressed-enchanting-shamir.md`). ECE composition (cspell + LanguageTool-local + markdownlint × Grammar-Genie), pt-BR+en, privacy-local, self-describing WHEN. Soul-name *Aristarchus*. Empirically grounded: cspell catches `Aurona`, codespell doesn't, LanguageTool flags pt-BR concordância/acentos local. |

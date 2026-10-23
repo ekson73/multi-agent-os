@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ══════════════════════════════════════════════════════════════════════════════
-# system-health-guardian.sh — READ-ONLY cross-resource health collector (EKO-90 part-1)
+# system-health-guardian.sh — READ-ONLY cross-resource health collector (TICKET-90 part-1)
 #
 # /** [decision] deterministic bash + launchd (StartInterval=600), NOT an LLM loop.
-#  *  @context operator EKO-90 2026-07-13: "avalie recursos [cpu,mem,disco,segurança,
+#  *  @context operator TICKET-90 2026-07-13: "avalie recursos [cpu,mem,disco,segurança,
 #  *           malware,processos,threads] de 10 em 10 min, salve log + contrato
 #  *           searchable [json/yaml] com tag taxonômico + drill-down até root-fail".
 #  *           Extends the disk-health-guardian pattern to a cross-resource sampler.
@@ -128,7 +128,7 @@ top_consumer_status() { # $1=pct(per-core) $2=ncpu $3=warn_pct $4=crit_ratio(of 
   st_hi "$1" "$3" "$crit_pct"
 }
 
-# ── BURN-DOWN forecast (EKO-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
+# ── BURN-DOWN forecast (TICKET-90-round3 2026-07-14) — reclaim-aware disk-exhaustion prediction ──
 # The PROACTIVE half of the guardian: predicts days-until-DISK_FREE_WARN_GB from the recent NATURAL drain
 # rate. Reads the disk-guardian's own timestamped `free=<N>G` samples (no new state file). CORRECTNESS FIX
 # (the confounding: free space JUMPS UP on the guardian's reclaim()/Tier-2 cache deletions, so a naïve
@@ -233,7 +233,7 @@ TOP_MEM_COMM="$(echo "$TOP_MEM_LINE" | cut -d'|' -f3)"; TOP_MEM_PCT="$(echo "$TO
 # ── DISK (delegate acting to disk-guardian; here we only REPORT the data volume) ──
 DISK_FREE_GB="$(df -g /System/Volumes/Data 2>/dev/null | awk 'NR==2{print $4}')"; DISK_FREE_GB="${DISK_FREE_GB:-999}"
 DISK_ST="$(st_lo "$DISK_FREE_GB" "$DISK_FREE_WARN_GB" "$DISK_FREE_CRIT_GB")"
-DG_LIVE="absent"; [ -f "$HOME/Library/LaunchAgents/com.eko.disk-health-guardian.plist" ] && DG_LIVE="delegated"
+DG_LIVE="absent"; [ -f "$HOME/Library/LaunchAgents/com.example.disk-health-guardian.plist" ] && DG_LIVE="delegated"
 
 # ── SECURITY (status flags — never a value) ───────────────────────────────────
 SIP="$(csrutil status 2>/dev/null | grep -qi enabled && echo enabled || echo disabled)"
@@ -295,7 +295,7 @@ LISTENERS="$(netstat -an -p tcp 2>/dev/null | grep -c LISTEN || true)"; LISTENER
 ESTAB="$(netstat -an -p tcp 2>/dev/null | grep -c ESTABLISHED || true)"; ESTAB="${ESTAB:-0}"
 NET_ST=informational   # listeners collected but NOT thresholded → honest label, NOT a measured "ok" (round-6 F3); responder treats informational as no-residue
 
-# ── AGENTIC-TOOLS health (EKO-90 ext v1.1.0 — operator /quiesce 2026-07-14) ────
+# ── AGENTIC-TOOLS health (TICKET-90 ext v1.1.0 — operator /quiesce 2026-07-14) ────
 # Adds `claude doctor` as a read-only "unattended show-only" probe (the BARE form is
 # diagnostic-only — the *fixing* /doctor is in-session) + a cache-PRODUCER pressure
 # signal (the leading indicator today's uvx-@latest disk-drain LACKED). SECRET-SAFE:
@@ -336,7 +336,7 @@ case "$UV_ARCHIVE_OBJS" in ''|*[!0-9]*) UV_ARCHIVE_OBJS=0 ;; esac
 # original script guards every grep-c with). wc still prints "0" on empty stdin, so the value is right.
 UVX_LATEST_PROCS="$(pgrep -f 'uvx .*@latest' 2>/dev/null | wc -l | tr -d ' ' || true)"
 case "$UVX_LATEST_PROCS" in ''|*[!0-9]*) UVX_LATEST_PROCS=0 ;; esac
-# ── ATTRIBUTION (EKO-90-round2 2026-07-14) — NAME an emergent producer, not just count it ──
+# ── ATTRIBUTION (TICKET-90-round2 2026-07-14) — NAME an emergent producer, not just count it ──
 # A transient `uvx …@latest` spawn can vanish before an operator can attribute it (lived it: pid 28935
 # gone before it could be named). Record the PUBLIC PyPI package token(s) so the responder/registry can
 # identify a re-emergent offender by name. SECRET-SAFE BY GRAMMAR: only tokens matching a strict package

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # responder-burndown-test.sh — proves the responder ACTS on the top-level `.burn_down` leading
-# indicator (EKO-90 round-3). `burn_down` is NOT a `.system.branches` leaf → it does not feed
+# indicator (TICKET-90 round-3). `burn_down` is NOT a `.system.branches` leaf → it does not feed
 # `.system.status`, so without explicit wiring a `burn_down:warn` while all branches are `ok` would
 # be silently swallowed by the `system.status==ok` early-return (the "documented-but-inert" theater
 # a guardian must not ship). These tests pin that wiring. DRY-RUN + tmp state + NOTIFY=0 (no seeds/

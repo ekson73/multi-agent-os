@@ -323,7 +323,7 @@ Three specialized AI agents independently evaluated this decision:
 
 - **Proposed by**: Claude-Orch-Prime-20260108-b7d2 (Orchestrator Agent)
 - **Validated by**: Architect, Analyst, Developer Agents (Multi-agent consensus)
-- **Approved by**: [Pending - Emilson Moraes, AI-Specialist/DevOps]
+- **Approved by**: [Pending - maintainer]
 - **Date**: 2026-01-09
 - **Effective Date**: Upon approval
 

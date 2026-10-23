@@ -35,7 +35,7 @@ through research → council → fix.
 > engine (naming-authority). Full provenance, sibling-distinctions, `--auto-self-*`
 > mapping, self-validity proofs, external grounding, §DUED and the dogfood log →
 > **`reference.md`** ([C07b] inline-vs-spec: this SKILL.md is the lean operational
-> entry). Authored by Claude Opus 4.8 under operator `/enhance` directive 2026-07-14; reviewed by @ekson73.
+> entry). Authored by Claude Opus 4.8 under operator `/enhance` directive 2026-07-14; reviewed by @maintainer.
 
 ## Purpose
 
@@ -80,7 +80,7 @@ COUNCIL  convergence-engine routes the findings: perspective-trio (breadth) + pe
          theater?") → converge (5-act, reject-log). verifier>generator is the master condition — a
          finding survives only if an independent seat confirms it. Kills false-positive "theater" calls.
 FIX      (the only mutating phase) gap-loop drives COUNCIL-confirmed fixes to convergence +
-         independently validates + persists (worktree-disciplined; --auto-merge default hold, EKO-66).
+         independently validates + persists (worktree-disciplined; --auto-merge default hold, TICKET-66).
          Regenerate the ledger. --dry-run stops after COUNCIL (print the fix-plan; drive nothing).
 ```
 
@@ -122,7 +122,7 @@ Operator `--auto-self-fix/-heal` = the FIX phase (gap-loop); `--family-aware` = 
 | `--source` | `auto` | `auto` (capability-detect) \| `ash` \| `transcript` \| `remember` \| `commits` \| `topology` |
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — FIX score gate (bands SSOT `agents/COWORK-AUTONOMY-POLICY.md`) |
 | `--max-iterations` | `6` | int — FIX loop cap → gap-loop |
-| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (EKO-66: STAGE-only) |
+| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (TICKET-66: STAGE-only) |
 | `--auto-merge-reason` | *(none)* | non-empty — **required when `--auto-merge=authorized`** (`auto-merge-standing` G8) |
 | `--dry-run` | off | RECON→COUNCIL only; print confirmed findings + fix-plan; drive NO FIX |
 | `--output` | `text` | `text` \| `json` (run envelope below) |
@@ -151,7 +151,7 @@ Exit: `0` STOP-DONE · `1` STOP-ERROR · `2` STOP-HITL (authority gap / dry-run 
 
 ```text
 praxis-audit --scope=this.session --dry-run                 # audit this session's methods; print findings + fix-plan; drive nothing
-praxis-audit --scope=this.session                           # audit → research → council → fix (FIX STAGE-only by default, EKO-66)
+praxis-audit --scope=this.session                           # audit → research → council → fix (FIX STAGE-only by default, TICKET-66)
 praxis-audit "focus on the verifier != generator gates"     # narrow the focus
 praxis-audit --auto-merge=authorized --auto-merge-reason="method-fixes, green CI"   # reason required when authorized
 ```
