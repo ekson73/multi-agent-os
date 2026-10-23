@@ -11,7 +11,7 @@ refspec-literal → PR → fila de merge → boy-scout) como **processo autônom
 agente **uma linha de status** e pings apenas quando precisa de uma decisão. Thin entry point
 sobre a [`git-cycle-sentinel` skill](../skills/git-cycle-sentinel/SKILL.md).
 
-> Surfaces at runtime as `/maos:git-cycle-sentinel` (Sandwich Namespacing per `.claude-plugin/plugin.json`).
+> Surfaces at runtime as `/<plugin>:git-cycle-sentinel` (namespace do plugin, declarado em `.claude-plugin/plugin.json`).
 > Naming: nome dado pelo agente de nomeação do projeto (`git-cycle-sentinel`; rejected runner-up `git-cycle-offloader` — "offloader"
 > implicaria VM remota, drift epistemológico). Operador pode sobrescrever (`[C-naming]`).
 
@@ -105,7 +105,7 @@ repo      owner/repo               gate  strong|weak|unknown   model  trunk
 signed    verified-in-env          worktree  agent/owner-theme
 push      refspec-literal OK       merge  --match-head-commit (APPROVED justificado, sem refutação)
 version   0.2.0                    body_sha256  <sha do corpo>
-pr        #123                     head <sha>  merge <sha>  idmp theme-repo-YYYYMMDD  status CYCLED
+pr        #<n>                     head <sha>  merge <sha>  idmp theme-repo-YYYYMMDD  status CYCLED
 ─────────────────────────────────────────────────
 <!--ORCH-STATUS: STOP-DONE -->
 ```
@@ -116,7 +116,9 @@ pr        #123                     head <sha>  merge <sha>  idmp theme-repo-YYYY
   Detalhes sob demanda: [`references/mecanica.md`](../skills/git-cycle-sentinel/references/mecanica.md) e
   [`references/rastreabilidade.md`](../skills/git-cycle-sentinel/references/rastreabilidade.md).
 - Overlay por repo: seção `## git-cycle` no `AGENTS.md` (ou no `CONTRIBUTING.md`; só sem os dois,
-  `.github/git-cycle.md`), com chaves fechadas; aperta, nunca afrouxa o piso da skill.
+  `.github/git-cycle.md`), com sete chaves fechadas (inclui `aprovacoes_minimas`, que só sobe);
+  aperta, nunca afrouxa o piso da skill; afrouxamento ou chave desconhecida gera aviso, e afrouxamento
+  vira `STOP-HITL` antes do merge.
 - Push em lote (P7): commits locais agrupados e push por lote, para não disparar os revisores
   automáticos a cada commit.
 - Quem pode o quê: o executor de código clona no ambiente de execução, cria a branch, commita,

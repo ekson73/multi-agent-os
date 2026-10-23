@@ -28,7 +28,7 @@ metadata:
   # Identificação da cópia (ver "Versão e identificação"): body_sha256 = sha256 do corpo
   # (tudo depois da linha que fecha este frontmatter); source_commit = commit de origem,
   # preenchido na instalação.
-  body_sha256: "098bec7d6a56805fa6117669b0d3c128aef9b7e8c9e35966d47688c30f86985e"
+  body_sha256: "b39686d900bcfac2ea9662a55c27dac1543b68f600615f9767feceddd01f265e"
   source_commit: ""
   references:
     - references/mecanica.md
@@ -59,6 +59,8 @@ metadata:
   confere antes de rodar (divergência = "corpo alterado").
 - `metadata.source_commit`: commit de origem, preenchido na instalação (vazio no arquivo versionado).
 - `references/` fica fora do `body_sha256`; o cache da Fase 0 registra o sha de cada uma carregada.
+- **Instalação que estende este pai**: lê o pai instalado; antes da instalação, o único caminho
+  alternativo que ela declara. Nenhum dos dois, ou `body_sha256` divergente → `STOP-ERROR`.
 
 ## §0 — Gate não se pula (foundational)
 Esta skill serve a intenção do operador **dentro** dos gates. Os gates são por qualidade e por
@@ -338,8 +340,8 @@ exige julgamento, HITL). Em tudo mais, o custo de contexto cai para uma linha.
   todos os checks obrigatórios (pelos nomes lidos nas duas fontes) verdes no `headRefOid` atual ·
   **zero thread de review aberta** (exija o repo ou não a resolução de conversas) · método de merge
   permitido pelo repo (`allow_squash_merge`/`allow_merge_commit`/`allow_rebase_merge`) e compatível
-  com `required_linear_history` · aprovação exigida cumprida por aprovador **do registro de
-  capacitados**, com `APPROVED` justificado (corpo ou comentário vinculado ao head) no head · nenhum
+  com `required_linear_history` · aprovação exigida (o maior número entre a API e
+  `aprovacoes_minimas`) cumprida por aprovadores **do registro de capacitados**, com `APPROVED` justificado (corpo ou comentário vinculado ao head) no head · nenhum
   revisor que só comenta contado como aprovação · nenhuma refutação justificada em aberto · nenhum marcador
   [NÃO MESCLAR]/label `do-not-merge` · nenhuma conta proibida detectada no portão. Portão
   **desconhecido** → nunca merge autônomo (o resumo `branches/<b>` não libera).
@@ -391,15 +393,18 @@ domínio. Cada repo ou domínio declara **só as diferenças**, como dados, num 
   chave, e a lacuna é registrada).
 - **Onde fica o overlay do domínio**: no catálogo privado do operador, fora do repo (mapeia
   `owner/repo` ou `owner/*` para um domínio). O texto do upstream só traz exemplos fictícios.
-- **Chaves fechadas**. Chave fora da tabela é ignorada e registrada em `overlay_ignored_keys`.
-  Se o nome sugere afrouxamento (`allow_*`, `skip_*`, `bypass*`, `*_admin`, `no_verify`,
-  `force*`, `dismiss*`, `auto_approve*`, `auto_aprovar*` e afins), ela vai também para
-  `overlay_suspect_keys` e gera `STOP-HITL` **só no portão de merge**; o trabalho rotineiro segue.
+- **Chaves fechadas** (sete). Chave fora da tabela é ignorada, registrada em `overlay_ignored_keys`
+  e anunciada como **aviso explícito** na linha de status (`aviso: chave desconhecida <chave>`).
+  Se o nome **ou o valor** sugere afrouxamento (nomes `allow_*`, `skip_*`, `bypass*`, `*_admin`,
+  `no_verify`, `force*`, `dismiss*`, `auto_approve*` e afins; valores com `--admin`, `--no-verify`,
+  `--force`, `bypass`, `dismiss`, `skip`), vai também para `overlay_suspect_keys`: `STOP-HITL` **só
+  no portão de merge**; o rotineiro segue.
 
 | Chave | Tipo | Mescla |
 |---|---|---|
 | `classe_dominio` | `cliente` · `comunitario` · `privado` · `outra_soberania` | igual ou mais restritiva que a do domínio; divergência = contradição |
 | `aprovadores` | `registro: <caminho>` ou lista de `{login, id, type: Bot}` | o específico substitui; nunca contém conta proibida |
+| `aprovacoes_minimas` | inteiro ≥ 1; só contam aprovadores do registro | maior valor (API e camadas); menor que o da camada de baixo = afrouxamento |
 | `contas_proibidas` | lista de logins ou padrões | união de todas as camadas |
 | `checks_obrigatorios` | lista de nomes de check | união; soma-se aos checks da API |
 | `conteudo_proibido` | lista de categorias (`pii`, `segredos`, `dados-de-outro-dominio`, …) ou regex | união |
@@ -408,9 +413,11 @@ domínio. Cada repo ou domínio declara **só as diferenças**, como dados, num 
 - **Precedência chave a chave**: overlay do repo > overlay do domínio > pai. O específico vence,
   dentro do piso; subchave ausente (ex. em `estrategia_merge`) vem da camada de baixo.
 - **Aperta, nunca afrouxa**: remover item de uma lista de outra camada, pôr conta proibida em
-  `aprovadores`, `force_push` além de `branch_propria`, ou qualquer valor que contrarie o piso
-  inviolável = tentativa de afrouxar. Ignora-se **só a parte permissiva** desse overlay:
-  `aprovadores`, `estrategia_merge` e qualquer valor que afrouxe o piso (vale a camada de baixo).
+  `aprovadores`, `force_push` além de `branch_propria`, `aprovacoes_minimas` menor que a da camada
+  de baixo, ou qualquer valor que contrarie o piso inviolável = tentativa de afrouxar, **sempre**
+  com `STOP-HITL` (nunca só ignorada em silêncio). Ignora-se **só a parte permissiva** desse
+  overlay: `aprovadores`, `aprovacoes_minimas`, `estrategia_merge` e qualquer valor que afrouxe o
+  piso (vale a camada de baixo).
   As partes restritivas do **mesmo** overlay continuam valendo por união: `contas_proibidas`,
   `conteudo_proibido`, `checks_obrigatorios` e qualquer aperto do piso. O fato vai para
   `overlay_rejected` (o que foi ignorado e o que foi mantido) e o ciclo para em `STOP-HITL` antes
@@ -441,9 +448,12 @@ estrategia_merge: {metodo: squash, update_branch: rebase, force_push: proibido}
 | outra soberania (`other-operator/*`; classe própria, não é subtipo de cliente nem de privado) | só identidades daquela soberania | as nossas contas, salvo mandato explícito | nada nosso entra; nada dela sai | a definida por ela; a sentinela só lê e para em `STOP-HITL` antes de mutar |
 
 **Detecção**, nesta ordem: (1) `classe_dominio` no overlay do repo; (2) registro do operador
-(overlay de domínio); (3) nenhum dos dois → **padrão restritivo**: união das restrições de cliente
-e comunitário (nada privado, nada de PII, merge autônomo só com portão forte e aprovador do
-registro), com a lacuna registrada.
+(overlay de domínio); (3) nenhum dos dois → **domínio padrão** (`restritivo`): união das restrições
+de cliente e comunitário (nada privado, nada de PII, merge autônomo só com portão forte e aprovador
+do registro), mais o overlay `padrao` do catálogo do operador, se existir, com a lacuna registrada.
+
+**Contas de outro domínio**: nas classes `restritivo` e `comunitario`, as `contas_proibidas`
+incluem a união das de **todos** os overlays de domínio do operador; repo sem mapa não perde o veto.
 
 ## Lacuna ou contradição
 Fonte ausente, ilegível ou conflitante: vale o **mais restritivo**, e a lacuna vai para
@@ -457,14 +467,11 @@ Fonte ausente, ilegível ou conflitante: vale o **mais restritivo**, e a lacuna 
 - **para antes do commit**: conteúdo proibido no diff (dado proibido não entra nem em branch).
 
 ## Recursos compartilhados na máquina (cache, worktrees, log)
-Vários agentes podem rodar a sentinela na mesma máquina. Três recursos são compartilhados, sob uma
-raiz configurável (padrão `${XDG_STATE_HOME:-~/.local/state}/git-cycle-sentinel/`):
-
-| Recurso | Onde | Escrita sem conflito |
-|---|---|---|
-| Cache da Fase 0, um por repo | `cache/<host>/<owner>/<repo>.json` | `flock` em `<arquivo>.lock`, grava em arquivo temporário no mesmo diretório e troca por `rename` (atômico) |
-| Worktrees, uma por agente e tema | `worktrees/<agente>/<owner>-<repo>-<tema>/` e registro `worktrees/registro.jsonl` | cada agente só cria, usa e remove a própria worktree; o registro é só de append |
-| Log único das linhas de status | `status/<AAAA-MM>.jsonl` | append de uma linha JSON por evento, numa única escrita `O_APPEND` com menos de 4 KiB, sob `flock` |
+Vários agentes na mesma máquina compartilham, sob uma **raiz única** (`$GIT_CYCLE_SENTINEL_HOME`,
+definida uma vez pela instalação; senão `${XDG_STATE_HOME:-$HOME/.local/state}/git-cycle-sentinel/`;
+nenhum outro caminho), o cache por repo (`cache/`), uma worktree por agente (`worktrees/`) e o log
+único (`status/`), com `flock` e troca atômica (detalhe em `references/mecanica.md`). A raiz nasce
+na primeira escrita (`mkdir -p`, 0700); `--dry-run` não a cria (`cache: miss`).
 
 - **Cache da Fase 0**: guarda o `body_sha256` do pai, o sha de cada overlay, o blob sha de cada
   fonte de governança (da árvore do commit da base), o resumo do portão, a classe de domínio, as
@@ -473,8 +480,6 @@ raiz configurável (padrão `${XDG_STATE_HOME:-~/.local/state}/git-cycle-sentine
 - **Invalidação**: qualquer sha mudou (pai, overlay ou fonte) → relê; partes da API sem sha
   (rulesets, proteção, permissões) têm TTL curto (padrão 1 h). Antes do merge, o portão é sempre
   relido ao vivo; o cache nunca libera merge.
-- **Economia de cota**: com o cache válido, a Fase 0 custa uma chamada de árvore (ou um `304` com
-  `If-None-Match`, que não consome a cota primária) em vez de uma chamada por fonte.
 
 ## P7 — disciplina de push (push em lote)
 Cada push dispara revisores automáticos e CI. Por isso:
@@ -496,14 +501,10 @@ remote com host-alias (recusa owner/repo não derivável) · **A7** idempotênci
 mutação). Tabela de verificação, casos de regressão e casos D4 em `references/rastreabilidade.md`.
 
 ## Mecânica de A6 e A7 (resumo)
-- **§A6** — owner/repo vem de `git remote get-url`, removendo protocolo e host (inclusive
-  host-alias, com ou sem `user@`) e o `.git`; slug que não casa `^[^/]+/[^/]+$` → `STOP-ERROR`. A
-  sonda `gh api --hostname` roda no mesmo host do push (alias resolvido por `ssh -G`; `ssh.<host>`
-  normalizado para o host da API).
-- **§A7** — key `<theme>-<repo>-<AAAAMMDD>`, **persistida** no trailer `idmp: <key>` e no marcador
-  `<!--idmp:<key>-->` do PR e dos comentários; reruns releem a key. Antes de cada mutação: commit
-  procurado só em `origin/<base>..HEAD` com linha de trailer exata; PR reusado só pelo marcador (ou
-  head OID), nunca pelo nome da branch; key em PR MERGED → no-op; em CLOSED → `STOP-HITL`.
+- **§A6** — owner/repo de `git remote get-url` sem protocolo, host ou alias; slug inválido →
+  `STOP-ERROR`; a sonda `gh api --hostname` usa o host do push.
+- **§A7** — key `<theme>-<repo>-<AAAAMMDD>` persistida (trailer `idmp: <key>` e marcador
+  `<!--idmp:<key>-->`) e sondada antes de cada mutação; PR MERGED → no-op; CLOSED → `STOP-HITL`.
 - **Repo-awareness** — portão forte → obedecer; fraco → suprir (no-direct-main, scoped-add,
   gitleaks, worktree). Sempre pela leitura viva de cada run, nunca por tabela congelada.
 - **Self-heal** — passo de script que falha é despachado a um ai-harness coberto por assinatura já
@@ -563,8 +564,7 @@ Carregue só quando precisar:
   `skills/hierarchical-merge` · `skills/sync-to-git` · `plugin-scripts/governance/worktree-gate.sh`.
 - Genesis: skill de pipeline de ferramentas agênticas do repo (condutor e autoria) · skill de
   nomeação do repo (nome). Lifecycle: `protocols/agentic-tool-lifecycle.md`.
-- Governança: `skills/worktree-policy` · `skills/hierarchical-merge` · `CONTRIBUTING.md`.
-- Detalhes sob demanda: `references/mecanica.md` · `references/rastreabilidade.md`.
+- Governança: `CONTRIBUTING.md`.
 - Cross-link slug: `[[git-cycle-sentinel]]`.
 
 ## Changelog

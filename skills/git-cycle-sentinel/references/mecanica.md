@@ -86,9 +86,10 @@ roda **antes** da mutação; sem ela a mutação é
 produz nenhum objeto novo (prova: contagem de PR/commit/comentário idêntica ao 1º run).
 
 > **Não-regressão de assinatura (A4) é inviolável**: a norma C1 é *condicional ao repo* — assinar
-> onde 5/6 já assinam e onde o ruleset exige (`required_signatures` no ruleset ou na proteção clássica); **não** forçar
-> assinatura em multi-agent-os enquanto `gpgsign=false` ali. A sentinela **respeita** o estado
-> medido, nunca o inverte.
+> onde o repo exige (`required_signatures` no ruleset ou na proteção clássica) ou onde o ambiente
+> já assina (`commit.gpgsign` lido **ao vivo** e assinatura de teste que passa); **não** forçar onde
+> o repo não exige e o `gpgsign` lido é `false`. Repo exige e o ambiente não assina → não commita
+> dali. A sentinela **respeita** o estado medido, nunca o inverte.
 
 ## Repo-awareness (o coração híbrido)
 A sentinela lê o estado de cada repo e adapta ENFORCE vs APPLY ao que aquele repo **realmente tem**.
@@ -98,8 +99,7 @@ Perfis de exemplo (a medição original está em `[[git-cycle-norma-harmonizada-
 |---|---|---|---|---|---|
 | ruleset com pull_request + checks + signatures | **FORTE** | true | `.githooks` ativo | Gitflow | **OBEDECE**: PR + checks strict + assina + resolve threads + back-merge re-medido; nunca `--no-verify` |
 | proteção clássica com PR/review obrigatório + checks strict + enforce_admins, sem ruleset | **FORTE** (garantia efetiva equivalente) | conforme lido | conforme lido | trunk | **OBEDECE**: PR + checks; nunca push direto; nunca `--admin` |
-| proteção clássica com PR + checks, `enforce_admins=false`, ator admin | **fraco para o ator** | conforme lido | conforme lido | trunk | **OBEDECE** aos checks e PR assim mesmo + SUPRE guardrails; nunca `--admin` |
-| multi-agent-os (este repo) | fraco para o ator admin (clássica com PR + checks, `enforce_admins=false`) | lido ao vivo¹ | GaaS/hooks.json | trunk | **SUPRE** guardrails; assina (gpgsign lido **ao vivo**) |
+| proteção clássica com PR + checks, `enforce_admins=false`, ator admin | **fraco para o ator** | lido ao vivo¹ | conforme lido (ex. hooks de plugin) | trunk | **OBEDECE** aos checks e PR assim mesmo + SUPRE guardrails; nunca `--admin` |
 | sem ruleset, sem proteção, hooks escritos mas não ligados | **mais fraco** | conforme lido | unset | trunk | SUPRE **tudo** em software (não assume que o hook protege) |
 | espelho no GitHub com gate real em outra forja | fraco no GitHub | conforme lido | unset | trunk | SUPRE no GitHub; detecta a outra forja |
 
@@ -109,12 +109,23 @@ decisão — a sentinela **relê o estado ao vivo** (`gh api .../rules/branches`
 + `.permissions` + `git config commit.gpgsign` + assinatura de teste + `core.hooksPath`) a cada run e decide pela leitura viva, nunca pela tabela
 congelada (`pref.agentic_tools_hybrid_no_cap`).
 
-> ¹ Snapshot 2026-10-21 da norma registrava multi-agent-os `gpgsign=false`; re-medido no dogfood
-> cycle-1 (2026-10-21) está **`true`**. A *regra* A4 (espelhar o estado vivo) produz "assina em MAOS"
-> corretamente — foi a célula congelada que envelheceu, não a decisão. Prova de que ler-ao-vivo >
-> tabela. No dogfood D1 (2026-10-22), num ambiente de agente diferente, `commit.gpgsign`,
+> ¹ Num repo medido, o snapshot da norma registrava `gpgsign=false` e o dogfood cycle-1
+> (2026-10-21) mediu **`true`**. A *regra* A4 (espelhar o estado vivo) decidiu certo; foi a célula
+> congelada que envelheceu. Prova de que ler-ao-vivo > tabela. No dogfood D1 (2026-10-22), num ambiente de agente diferente, `commit.gpgsign`,
 > `gpg.format` e `user.signingkey` estavam vazios e o commit de teste com `-S` falhou: a
 > capacidade de assinar depende do **ambiente** que commita, por isso o A4 exige o teste real.
+
+## Recursos compartilhados na máquina (detalhe)
+Raiz única definida na `SKILL.md` ("Recursos compartilhados").
+
+| Recurso | Onde | Escrita sem conflito |
+|---|---|---|
+| Cache da Fase 0, um por repo | `cache/<host>/<owner>/<repo>.json` | `flock` em `<arquivo>.lock`, grava em arquivo temporário no mesmo diretório e troca por `rename` (atômico) |
+| Worktrees, uma por agente e tema | `worktrees/<agente>/<owner>-<repo>-<tema>/` e registro `worktrees/registro.jsonl` | cada agente só cria, usa e remove a própria worktree; o registro é só de append |
+| Log único das linhas de status | `status/<AAAA-MM>.jsonl` | append de uma linha JSON por evento, numa única escrita `O_APPEND` com menos de 4 KiB, sob `flock` |
+
+- **Economia de cota**: com o cache válido, a Fase 0 custa uma chamada de árvore (ou um `304` com
+  `If-None-Match`, que não consome a cota primária) em vez de uma chamada por fonte.
 
 ## Arquitetura HÍBRIDA (determinístico + cognitivo + self-heal)
 Per o mandato do operador (`pref.tool_hybrid_and_selfheal_mandate`):
@@ -151,8 +162,8 @@ agente escreve arquivos → dispara git-cycle-sentinel "<theme>" --scope <globs>
 
 A pesquisa `[[git-cycle-offloader-2026-10-21]]` mediu na fonte: a **cobertura** das 5 fases do
 ciclo-git **já existe e é madura** no host (skills `worktree-policy` · `anti-conflict` ·
-`hierarchical-merge` · `sync-to-git` + `ship`/`pr` do gstack + hooks de governança GaaS + o CLI
-`gt`). O que **não** existe é um disparo único que tire o ciclo do **contexto do agente** — hoje o
+`hierarchical-merge` · `sync-to-git` + skills `ship`/`pr` + hooks de governança do host + CLIs de
+PRs empilhados). O que **não** existe é um disparo único que tire o ciclo do **contexto do agente** — hoje o
 agente gasta tokens/contexto acionando cada passo. O veredito (sobrevivente à re-validação) foi:
 **declarar-existente + WRAP fino híbrido**, nunca build do zero, nunca buy de produto único.
 
@@ -163,7 +174,7 @@ inteiro. Ele **reimplementa nada**: cada fase delega a um primitivo que já est�
 ## Delegação (cita — NÃO reimplementa)
 | Fase | Delega a (primitivo que já existe) |
 |---|---|
-| STAGE | `ship`/`pr` (gstack) · gitleaks local · `corpus-git-persistence-discipline` (regra) |
+| STAGE | `ship`/`pr` · gitleaks local · `corpus-git-persistence-discipline` (regra) |
 | WORKTREE | `worktree-policy` v1.1.0 · `plugin-scripts/governance/worktree-gate.sh` · `anti-conflict` v3.2.0 · `using-git-worktrees` · `preflight` |
 | PR-CYCLE | `gh api` (ruleset) · `pr-review-protocol` · `ai-code-review-bots-rotation` · `question-then-correct` |
 | MERGE | **GitHub Merge Queue** · `mergify-merge-queue`/`mergify-merge-protections` · `hierarchical-merge` v1.0.0 · `resolving-merge-conflicts` · `definition-of-well-done` |
