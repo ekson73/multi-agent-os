@@ -67,9 +67,10 @@ _lp_fork_pr() {
   [ "$fork" = "true" ]
 }
 
-# Fork pull_request is the only CI event that skips. push (including push to
-# main) and workflow_dispatch fail when no patterns are configured, because the
-# repository variable is available on those events.
+# Fork pull_request is the only CI event that skips. The fork head is checked
+# after merge, on push to main, where a missing LAYER_PURITY_PATTERNS fails.
+# workflow_dispatch does not run a fork head; a pre-merge check is a local or
+# trusted-branch checkout.
 _lp_unconfigured_gate() {
   [ "$_lp_configured" -eq 0 ] || return 0
   if _lp_in_ci; then

@@ -69,6 +69,10 @@ WF="$(cd "$DIR/../.." && pwd)/.github/workflows/lens-dispatch-tests.yml"
 grep -q 'workflow_dispatch:' "$WF" && ok "workflow declares workflow_dispatch" || no "workflow declares workflow_dispatch" "missing"
 grep -q 'branches: \[main\]' "$WF" && ok "workflow push is limited to main" || no "workflow push is limited to main" "missing"
 grep -q 'contents: read' "$WF" && ok "workflow permissions stay contents: read" || no "workflow permissions stay contents: read" "missing"
+grep -q 'pull_request_target' "$WF" && no "workflow does not use pull_request_target" "found" || ok "workflow does not use pull_request_target"
+grep -q '^[[:space:]]*needs:' "$WF" && no "validate-plugin has no job dependency" "needs present" || ok "validate-plugin has no job dependency"
+grep -q '^  validate-plugin:' "$WF" && ok "validate-plugin is its own job" || no "validate-plugin is its own job" "missing"
+grep -q '^  layer-purity:' "$WF" && ok "layer-purity is its own job" || no "layer-purity is its own job" "missing"
 
 o="$(base_env env MAOS_LAYER_PURITY_PATTERNS='no-such-token' bash "$BIN" "$TMP/clean.txt" 2>&1)"; rc=$?
 eq "0" "$rc" "configured env patterns: scan exits 0 on a clean file"

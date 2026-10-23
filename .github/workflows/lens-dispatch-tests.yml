@@ -22,10 +22,11 @@ name: lens-dispatch tests
 # class this whole tool was repaired for. That trade is worth 53s.
 on:
   pull_request:
-  # Fork pull requests skip layer-purity (the repository variable is not theirs
-  # to read). Push to main re-runs the same check where LAYER_PURITY_PATTERNS
-  # is available, and a missing variable fails the job. workflow_dispatch is
-  # the maintainer re-run before merging a fork PR.
+  # Fork PRs skip layer-purity. The fork head is checked after merge, on push
+  # to main, where LAYER_PURITY_PATTERNS is available and a missing variable
+  # fails the job. workflow_dispatch re-runs a ref of this repo; it does not
+  # run a fork head. A pre-merge check means checking that head out locally or
+  # on a trusted branch.
   push:
     branches: [main]
   workflow_dispatch:
@@ -41,7 +42,7 @@ concurrency:
 
 jobs:
   lens-dispatch:
-    name: self-test + 44-combination matrix + Layer Purity
+    name: self-test + 44-combination matrix
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -68,15 +69,40 @@ jobs:
       - name: Non-regression matrix + golden lens pin + table sizes
         run: bash tests/lens-dispatch-matrix.sh
 
+  # Own job so a missing LAYER_PURITY_PATTERNS (this job stays red until the
+  # owner creates that repository variable) cannot hide the other results.
+  # No job dependency. Fork PRs skip inside the script; push to main does not.
+  layer-purity:
+    name: Layer Purity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Layer Purity (community promotion gate)
         # Org-specific patterns come from the LAYER_PURITY_PATTERNS repository variable
         # (newline-separated EREs), so the workflow never spells them; see bin/check-layer-purity.
         # An empty variable is not a silent pass: the script fails this step, except on a
-        # pull request from a fork, where it emits ::warning:: and skips. Push to main
-        # and workflow_dispatch are not that exception: missing patterns fail there.
+        # pull request from a fork, where it emits ::warning:: and skips. That fork head
+        # is checked after merge on push to main. workflow_dispatch does not run the
+        # fork head; a pre-merge check is a local or trusted-branch checkout.
         env:
           MAOS_LAYER_PURITY_PATTERNS: ${{ vars.LAYER_PURITY_PATTERNS }}
         run: bash bin/check-layer-purity bin/lens-dispatch skills/lens-dispatch/SKILL.md tests/lens-dispatch-matrix.sh
+
+  # Own job, no dependency on layer-purity, so a red purity check cannot skip this.
+  validate-plugin:
+    name: validate plugin structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Validate plugin structure (repo MUST rule)
         # CLAUDE.md § MUST: "Validate plugin structure before committing." lens-dispatch adds a
