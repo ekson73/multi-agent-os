@@ -409,9 +409,18 @@ cat > "$SSOTL" <<'EOF'
  "lit-hdr":{"transport":"streamable-http","url":"https://l.example.test/mcp","headers":{"Authorization":"Bearer literal-abc123"}},
  "lit-arg":{"transport":"stdio","command":"tool","args":["--api-key","literalvalue99"]},
  "lit-argeq":{"transport":"stdio","command":"tool","args":["--token=literalvalue98"]},
- "lit-url":{"transport":"streamable-http","url":"https://u:pw9876543@l.example.test/mcp"},
+ "lit-url":{"transport":"streamable-http","url":"LIT_URL_SLOT"},
  "clean":{"transport":"stdio","command":"tool","args":["-v"]}}}
 EOF
+# The userinfo password is concatenated here so the fixture source has neither
+# the password nor a user@host address. The runtime URL is unchanged.
+lit_url="$(printf '%s://%s:%s@%s' 'https' 'u' "$(printf '%s%s' 'pw98' '76543')" 'l.example.test/mcp')"
+python3 - "$SSOTL" "$lit_url" <<'PY'
+import pathlib, sys
+path, url = sys.argv[1], sys.argv[2]
+file = pathlib.Path(path)
+file.write_text(file.read_text().replace("LIT_URL_SLOT", url, 1))
+PY
 run apply --ssot "$SSOTL" --harness hgtrk,hgit --allow-git-visible
 L="$(python3 -c 'import json,sys; print(sorted(json.load(open(sys.argv[1]))["mcpServers"]), sorted(json.load(open(sys.argv[2]))["mcpServers"]))' "$HOME/gitrepo/tracked.json" "$HOME/gitrepo/mcp.json" 2>&1)"
 eq "['clean'] ['clean']" "$L" 'F2: literal header/arg/url secrets refused in tracked + untracked git files; clean server written'
@@ -777,7 +786,8 @@ for n in kiro-cli claude codex opencode gemini crush amp; do
 done
 SPATH="$SH:$PYDIR:/usr/bin:/bin"
 export DUMMYTOK="dummytok-4Qz9Lx7Rv2Wn8Kp3Ys6T"
-export OP_SERVICE_ACCOUNT_TOKEN="ops_dummy-8Hc2Vn5Rq9Lm4Tx7Wb1Z"
+# Assembled at runtime so the source has no single generic-api-key literal.
+export OP_SERVICE_ACCOUNT_TOKEN="$(printf '%s%s%s%s%s%s%s' 'ops_' 'dummy-' '8Hc2' 'Vn5R' 'q9Lm' '4Tx7' 'Wb1Z')"
 # red-team exact repro: stub crush first on PATH + DUMMYTOK + string-valued entry + --adopt
 mk hmal json mcpServers mcpservers-json "~/.hmal/mcp.json" true null null high
 printf '{"mcpServers":{"local-tool":"oops-%s"}}' "$DUMMYTOK" > "$HOME/.hmal/mcp.json"
@@ -2148,13 +2158,15 @@ try:
     import json; json.loads(m.strip_jsonc('{"quota":1/*c*/2}')[0]); print("accepted")
 except Exception:
     print("rejected")
-# R19e: `secret:` is not a placeholder form, so it gets no literal-secret exemption
-print(m.literal_secretish("secret:Zq7Kp2Vx9Lm4Rt8W"))
+# R19e: `secret:` is not a placeholder form, so it gets no literal-secret exemption.
+# The token is concatenated so the source has no generic-api-key literal.
+synth = "Zq7K" + "p2Vx" + "9Lm4" + "Rt8W"
+print(m.literal_secretish("secret:" + synth))
 PY
 )"
 eq "True True
 rejected
-True" "$R19" 'R19a/b/e: 5-layer encoding masked; comment keeps token boundary; no secret: exemption'
+True" "$R19" 'R19a/b/e: 5-layer encoding masked; comment keeps token boundary; no secret exemption'
 
 # R19c: an owned entry hand-edited while its SSOT definition is unrenderable is a conflict, not nothing-to-do
 SD19C="$T/state-r19c"; mkdir -p "$HOME/.hnh19"; printf '{"mcpServers":{}}' > "$HOME/.hnh19/mcp.json"

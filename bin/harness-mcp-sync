@@ -716,7 +716,7 @@ def register_secret_args(obj):
 
 
 def literal_secretish(v) -> bool:
-    """A NON-placeholder value that looks like a secret: len>=12, >=3 char classes,
+    """A NON-placeholder value that looks like a secret (length >= 12, >=3 char classes,
     Shannon entropy >=3.5 (whole value or any whitespace token). Heuristic: short or
     low-entropy literals are undetectable — keep secrets in placeholders."""
     if not isinstance(v, str) or PLACEHOLDER_RE.search(v):

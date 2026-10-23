@@ -1,2 +1,24 @@
 # .gitleaksignore -- Fingerprints of confirmed false positives
 # Add fingerprints from: gitleaks protect --staged -v
+# Format: commit:file:rule-id:start-line
+# Gitleaks 8.30.1 ignores `fingerprints` inside [allowlist] without warning.
+# These 18 lines are historical fixtures and examples. They do not cover
+# step1010_logs.txt, step1012_fly_deploy_logs.txt, or secret-management-strategy.md.
+0a7c8a6ae4eb05fa7638c654f379332cab284412:docs/mcp-servers-config-spec.md:app-password-assignment:124
+0a7c8a6ae4eb05fa7638c654f379332cab284412:docs/mcp-servers-config-spec.md:app-password-assignment:241
+0ba4e942fafff79e629de3d2562f023bb058e9b8:bin/harness-mcp-sync:app-password-assignment:719
+0ba4e942fafff79e629de3d2562f023bb058e9b8:bin/tests/harness-mcp-sync.test.sh:app-password-assignment:2157
+0ba4e942fafff79e629de3d2562f023bb058e9b8:bin/tests/harness-mcp-sync.test.sh:app-uri-userinfo-password:412
+0ba4e942fafff79e629de3d2562f023bb058e9b8:bin/tests/harness-mcp-sync.test.sh:generic-api-key:2152
+0ba4e942fafff79e629de3d2562f023bb058e9b8:bin/tests/harness-mcp-sync.test.sh:generic-api-key:780
+10511f9b2e44366098cfaaa6b1db368e6e84bc86:tests/test-self-heal-relay.sh:app-password-assignment:92
+2defab2f80505b4cd77ea0076d5bb47d1fb33c24:skills/verified-agentic-session-model/tests/model-bundle.test.mjs:app-password-assignment:979
+3e293f5557ceea07002dde6464ca89ac9a307a1f:skills/session-catalog/scripts/session_catalog.py:app-password-assignment:2162
+3e293f5557ceea07002dde6464ca89ac9a307a1f:tests/test-session-catalog.sh:app-password-assignment:501
+496c91cf24dedc5adfd680c48a2d90e8c340928b:skills/verified-agentic-session-model/tests/model-bundle.test.mjs:app-password-assignment:1299
+4fac2ba82c80af91d22066dd9980980c1b8a74ff:bin/close-out-manifest.sh:app-env-default-secret:95
+9afa034ca7df4e5e882a05bacabf7b5b3d323863:mcp-tools/maos-mcp-hub/.env.example:app-password-assignment:74
+a1cb051630ed75d709f3068807c34fbecb8b68d4:tests/test-self-heal-relay.sh:app-password-assignment:126
+a399c3f3f4971a14d5689531f0266d2e279facf6:docs/mcp-servers-config-spec.md:app-password-assignment:124
+a399c3f3f4971a14d5689531f0266d2e279facf6:docs/mcp-servers-config-spec.md:app-password-assignment:241
+c2220ad9c41b1bf6203f225ab76c695062db6d9c:tests/governance/test-agentshield.sh:app-password-assignment:97
