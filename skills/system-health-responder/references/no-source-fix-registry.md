@@ -34,8 +34,9 @@ awslabs-uvx-latest | deploy-on-aws@claude-plugins-official | disable | awslabs/m
   (~150 GB) and `astral-sh/uv#11432 / #9790 / #5731`. → satisfies the ADR "no fix resolved at the source".
 - **Action taken (2026-07-14, operator-authorized)**: 12 producer procs killed → plugin **disabled**
   (reversible config-fix) → then **uninstalled** per the ADR. Disk 2.5 GB → 100+ GB, churn recurrence 0.
-- **Durable prevention**: `uv cache prune` (this skill's `--prune`); avoid `@latest` (pin a version or
-  `uv tool install`); the `system-health-guardian` collector now emits a `cache_producer` leading-indicator.
+- **Durable prevention**: avoid `@latest` (pin a version or `uv tool install`); the collector emits
+  a cache-producer leading indicator. Cache cleanup now requires the guarded disk-owner contract
+  in SKILL.md; containment `--prune` refuses and does not provide maintenance.
 - **Registry action = `disable`** (reversible-first default). The plugin is currently *uninstalled*, so
   `plugin_present` → false → the script reports "already contained". The entry stays as the durable
   evidence trail + re-arms detection if the plugin is ever reinstalled.

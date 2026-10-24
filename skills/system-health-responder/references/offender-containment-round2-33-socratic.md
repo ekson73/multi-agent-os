@@ -1,5 +1,9 @@
 # Offender-Containment — Round-2 33 Socratic Q&A (operational / detection / false-positive / HITL-boundary)
 
+> Historical rationale, not current cache-cleanup authority: the 2026-10-13 disk safety contract
+> in ../SKILL.md supersedes this document's autonomous-prune claims. Responder and containment
+> no longer prune; the guarded disk owner defaults to monitor and rejects installed UV 0.5.9.
+
 > **Round-2 (2026-07-14), non-duplicate by design.** Round-1's 33 (`offender-containment-33-socratic.md`)
 > covered *design*: ADR boundaries, tiers, rigor, evidence-gate rationale. This round-2 set covers what only
 > surfaced by **running the recon**: sibling-offender falsification, transient-vs-persistent producers,

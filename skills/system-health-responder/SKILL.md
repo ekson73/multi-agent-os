@@ -1,6 +1,6 @@
 ---
 name: system-health-responder
-description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway + `uv cache prune` producer-hygiene), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
+description: End-of-action reflex that reads the system-health contract, engage-locks, Eisenhower-ranks the warnings, does MODERATE non-destructive auto-heal (autonomous reversible renice of a clear cpu runaway; cache pressure is delegated to the guarded disk owner), responds to the new `agentic_tools` branch (`claude doctor` runtime health + cache-producer pressure), reads the reclaim-aware `burn_down` disk forecast (observe-only leading indicator → seed+notify before crisis), and escalate-seeds the HITL residue (security · malware · kill · disk→disk-guardian · no-source-fix offender containment). EKO-90 part-2 — the responder half of the health suite.
 version: 1.8.0
 allowed-tools: Read, Bash
 ---
@@ -105,9 +105,9 @@ producer** — N Claude sessions re-spawning `uvx …@latest` MCP servers re-inf
    the *fixing* `/doctor` stays in-session) + `cache_producer` (`uv_archive_objects` argv-free footprint +
    `uvx_latest_procs` producer signature). Secret-safe: counts/names/booleans only, never argv.
 
-2. **Responder** consumes that branch: **Tier-A** autonomous `uv cache prune` (LOW · non-destructive · same
-   `--engage`+`SHR_READY` Moderate gate as renice); **Tier-B** — **DISABLE tier ARMED 2026-07-14 (operator
-   ratification)** — in ENGAGE mode (only when an active reflex proved `SHR_READY`; launchd never sets it) the
+2. **Responder** consumes that branch: cache pressure is **DEFERRED to the disk owner** through the
+   existing HITL seed, without UV mutation. **Tier-B** remains separately gated: in ENGAGE mode
+   (only when an active reflex proved `SHR_READY`; launchd never sets it) the
    responder now invokes the containment executor to **DISABLE** (reversible) registry-vetted, present
    offenders. Uninstall stays a further explicit gate (NOT auto-armed — reversible-first). Un-vetted/
    un-present producers still fall through to the HITL seed (the launchd path, with no `SHR_READY`, always
@@ -116,7 +116,7 @@ producer** — N Claude sessions re-spawning `uvx …@latest` MCP servers re-inf
 An **active, armed agent** (or the armed responder above) performs the containment via
 `bin/offender-containment.sh`, mechanizing the operator ADR (2026-07-14): *"até que o plugin nao tem fix na
 fonte, pode desativar e/ou remover"* — with
-escalating gates (prune → disable `+OFC_ARM+OFC_READY+evidence` → remove `+OFC_ALLOW_UNINSTALL`), an
+escalating gates (disable `+OFC_ARM+OFC_READY+evidence` → remove `+OFC_ALLOW_UNINSTALL`), an
 **evidence gate** (`references/no-source-fix-registry.md` — a vetted upstream wontfix, not a hunch), a
 protected-denylist (`1password/openclaw/omniroute/claude`), reversibility (`containment.log` restore
 commands), and **disarmed-by-default dry-run**. Design rationale + edge cases:
@@ -125,7 +125,6 @@ commands), and **disarmed-by-default dry-run**. Design rationale + edge cases:
 ```bash
 OFC="$CLAUDE_PLUGIN_ROOT/skills/system-health-responder/bin/offender-containment.sh"
 "$OFC"                                          # DEFAULT dry-run: detect + PROPOSE. Acts on nothing.
-"$OFC" --prune                                  # LOW: uv cache prune (non-destructive maintenance)
 OFC_ARM=1 OFC_READY=1 "$OFC" --engage           # MEDIUM: disable registry-vetted, present offenders
 OFC_ARM=1 OFC_READY=1 OFC_ALLOW_UNINSTALL=1 "$OFC" --engage --allow-uninstall  # HIGH: uninstall (reinstall-able)
 ```
@@ -301,6 +300,62 @@ bug that `guardian.log` proved firing live (collector **v1.5.0 → v1.6.0**):
   crit surfaces · root_fail=top_consumer→no double-report) **+2 F3** (informational→no-residue · warn→still-surfaces)
   **+4 H1 SSOT** (core-line-intact both files · denied() openclaw/omniroute) **+1 machine-local↔mirror md5** =
   **59**; round-3 suites regress clean (16+5) = **80/80**.
+
+## Disk effector safety repair (2026-10-13; deployment paused)
+
+The existing disk runtime is now sourced at `collectors/disk-health-guardian.sh`, not a new daemon.
+The imported private baseline SHA-256 is
+`76c823fe9fe86441edebf17a096e031e5663be133147e63cbae5014271f4b17c`.
+The machine-local backup remains private; the candidate replaces its fixed temporary-directory UID
+with the current UID. Burn-rate thresholds, attribution and seed reporting are retained. CPU/memory
+collector code and installed files are untouched. Code in this repository does not reactivate launchd.
+
+1. Keep disk cleanup paused until independent validation and exact allowed-scope approval. Run
+   `bash skills/system-health-responder/bin/disk-guardian-test.sh` in the checkout: its native tool,
+   cache, HOME, process observations and failures are fixtures, not real-host cleanup evidence.
+2. Deploy only after comparing the live disk script to the baseline digest above and the candidate
+   to the reviewed digest. A mismatch is external WIP: defer, never overwrite. Back up each additional
+   responder/containment file at its actual runtime path before any separate CAS-gated deployment.
+   Preserve the CPU/memory job, collector, local skill edits and all unrelated launchd settings.
+3. Any initially approved deployment is monitor-only (no cleanup flag); leave cleanup disabled.
+   Rollback means restoring the exact private backup while the disk job remains paused, not restoring
+   an older `.bak` or reenabling the old deletion behavior. Activation needs a new explicit decision.
+
+Default monitoring retains critical/burn-rate notifications, triage seeds and two-healthy-run seed
+resolution; these reporting actions do not authorize cleanup. Explicit `--dry-run` suppresses those
+notifications/seeds/resolution. The native-df smoke is Darwin-only; other platforms report SKIP, not PASS.
+Free-space deltas are observed net volume changes, not target-attributed physical reclaim.
+
+**Mutation contract.** Only manual `--cleanup-uv` can request cleanup; it additionally needs
+`DHG_APPROVED_CACHE` equal to the canonical, non-symlink HOME UV cache, the absolute user-bin UV,
+exact reviewed version **0.13.0**, a bounded timeout executable, and per-invocation
+`DHG_UV_PRODUCERS_QUIESCENT=1`. The last variable is an **operator assertion/precondition**, not
+machine evidence or permission: after separate exact approval, the caller must maintain a controlled
+producer-free window for that cache. Daemons must never set, infer or persist it. Process absence,
+free-space pressure, expired locks and historical permission do not establish that window. No
+side-by-side newer pruner against old producers, version upgrade or actual prune is authorized here.
+
+Installed **0.5.9 is unsupported for mutation**. Its [versioned cache documentation](https://github.com/astral-sh/uv/blob/0.5.9/docs/concepts/cache.md)
+explicitly excludes safe cache modification while other UV commands run; current
+[0.13.0 documentation](https://github.com/astral-sh/uv/blob/0.13.0/docs/concepts/cache.md) is not a
+retroactive guarantee. The 0.13.0 branch is fixture-tested future/manual functionality, not a claim
+that compatible tooling/producers exist on this host. `pgrep` is an additional veto, never atomic proof.
+
+| Condition | Outcome |
+|---|---|
+| Missing/symlink/non-directory requested cache, missing native/timeout, unsupported version, cache override/binding mismatch, busy/unknown producer probe, native failure or timeout | DEFER; no raw removal or full clean; exit 2 when requested UV action is deferred |
+| Three native attempts (including failure/no progress) | Halt across runs; only explicitly approved `--reset-futile-uv` resets; no reset from healthy cycles |
+| Existing cleanup lock | Cleanup/reset defer; monitor still runs; never age-steal |
+| Owner metadata write fails | Release newly acquired lock; no cleanup |
+| Interrupted mutation | Retain lock until operator reconciles owner/children; monitoring remains available |
+| Unknown disk sample | UNKNOWN, exit 2; no healthy streak, cleanup or seed resolution |
+| Critical margin | Skip bulk attribution/census; preserve cached evidence; no unbounded fallback |
+
+The legacy Tier-2 executor and every non-UV candidate are unapproved: no deletion path reaches them.
+`health-respond.sh` now queues cache pressure through its existing HITL seed for disk-owner review;
+`offender-containment.sh --prune` refuses with exit 2, and `--engage` no longer implicitly prunes.
+Renice and separately gated producer containment retain their existing semantics: cache deferral itself
+must not grant broader authority. Next: inspect the candidate diff and fixture results before deployment.
 
 ## Composition (reuse, not reinvent — Strata)
 

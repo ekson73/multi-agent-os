@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — disk guardian fail-closed cleanup (deployment paused)
+
+- Canonicalize the current disk effector in the existing health suite; default to monitoring,
+  gate UV-only native pruning by exact version/cache/producer approval, and remove raw/full-clean
+  fallbacks and Tier-2 deletion. Add whole-action exclusion, persistent attempt cap, critical-margin
+  scan deferral and UNKNOWN disk handling; retain burn-rate reporting.
+- Remove responder/containment UV-prune bypasses; use existing HITL disk-owner delegation instead.
+  CPU/memory collection, renice and independently authorized containment semantics are unchanged.
+- Add isolated HOME/PATH contract fixtures and sentinel dry-run coverage. Installed UV 0.5.9 remains
+  mutation-ineligible; no live installation, reactivation, upgrade or cache deletion is part of this change.
+
 ### Changed — ticket-first traceability (#484)
 
 - Add a runtime-agnostic canonical ticket-first protocol and AGENTS bootstrap pointer.

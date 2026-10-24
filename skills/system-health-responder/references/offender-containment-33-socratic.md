@@ -1,5 +1,9 @@
 # 33 Socratic Questions — Offender-Containment & the EKO-90 Autonomy Extension
 
+> Historical rationale, not current cache-cleanup authority: the 2026-10-13 disk safety contract
+> in ../SKILL.md supersedes this document's autonomous-prune claims. Responder and containment
+> no longer prune; the guarded disk owner defaults to monitor and rejects installed UV 0.5.9.
+
 > Operator `/quiesce` 2026-07-14 directive: *"faça novos 33 perguntas socraticas sobre estes aspectos e
 > responda"* — the aspects being the new autonomous capabilities (ADR offender-containment, the `claude
 > doctor` Phase-1 probe, and handling of related / learned-today / emergent / doubtful / emergency /

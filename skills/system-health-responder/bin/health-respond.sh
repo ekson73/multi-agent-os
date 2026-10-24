@@ -299,11 +299,8 @@ main() {
   [ "$net" != "ok" ] && [ "$net" != "informational" ] && residue="${residue}- 🟠 network=${net}: unexpected listener → operator review (never auto-close).\n"
 
   # ── agentic-tools (EKO-90-ext v1.2.0): cache-producer + claude-runtime ─────────
-  # The 2026-07-14 lesson: the disk-guardian cleaned caches but could not beat a LIVE producer
-  # (`uvx …@latest` MCP churn). This branch adds the producer-aware response: Tier-A autonomous
-  # `uv cache prune` (LOW · non-destructive · Moderate-gated), Tier-B SEED a containment delegation
-  # to an active agent (the responder NEVER auto-disables/removes — the secret-safe contract can't
-  # name the plugin, and disable/remove is above Moderate → it stays HITL/armed-agent, per the ADR).
+  # Cache pressure is delegated to the guarded disk owner, never pruned here.
+  # Producer containment remains a separately gated operation below.
   local ats; ats="$(jq -r '.system.branches.agentic_tools.status // "ok"' "$CONTRACT" 2>/dev/null)"
   if [ "$ats" != "ok" ]; then
     local prod_st uvobj uvx claude_h
@@ -312,17 +309,10 @@ main() {
     uvx="$(jq -r '.system.branches.agentic_tools.leaves.cache_producer.uvx_latest_procs // 0' "$CONTRACT" 2>/dev/null)"
     claude_h="$(jq -r '.system.branches.agentic_tools.leaves.claude_runtime.health // "?"' "$CONTRACT" 2>/dev/null)"
     if [ "$prod_st" != "ok" ]; then
-      # Tier-A — LOW-stakes durable maintenance: `uv cache prune` (non-destructive; keeps tool installs).
-      # Moderate scope → rides the SAME --engage+SHR_READY gate as renice (autonomous only when READY proven).
       local ofc; ofc="$(dirname "$0")/offender-containment.sh"
-      if [ "$DRY_RUN" -eq 1 ]; then
-        echo "  ✅ PROPOSE agentic-tools: cache-producer=${prod_st} (uv_objs=${uvobj}, uvx@latest=${uvx}) → uv cache prune (non-destructive) [dry-run]"
-      elif [ -x "$ofc" ]; then
-        echo "  🧹 agentic-tools: producer pressure → uv cache prune (Moderate autonomous, non-destructive)"
-        "$ofc" --prune 2>>"$LOG" | sed 's/^/    /' || true
-        log "AGENTIC-PRUNE producer=${prod_st} uvobj=${uvobj} uvx=${uvx}"
-        acted=1
-      fi
+      echo "  DEFER agentic-tools: cache-producer=$prod_st (uv_objs=$uvobj) -> disk-health-guardian review; no UV mutation"
+      log "AGENTIC-PRUNE-DEFER producer=$prod_st uvobj=$uvobj uvx=$uvx"
+      residue="${residue}- Cache pressure: DEFER cleanup to disk-health-guardian; exact cache approval and compatible/quiescent producers required. No UV prune performed.\n"
       # Tier-B — ROOT-fix (operator ADR; DISABLE tier ARMED 2026-07-14 via operator ratification). A LIVE
       # `uvx …@latest` producer is the ROOT (prune treats the symptom). In ENGAGE mode — which only holds
       # when an ACTIVE reflex proved SHR_READY (launchd NEVER sets it) — the responder now invokes the

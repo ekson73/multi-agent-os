@@ -21,19 +21,19 @@
 | cpu — protected runaway | runaway but `comm ∈ PROC_DENYLIST` | seed + notify (never touch) | 🟠 HITL |
 | cpu — already-deprioritized | runaway but `nice ≥ RENICE_TO` (renice-down needs root) | seed + notify (kill/quit = operator) | 🟠 HITL |
 | **cpu — load saturation** (round-6 F1) | `branches.cpu.status ∈ {warn, crit}` AND `root_fail ≠ top_consumer` (SUSTAINED system load `load1`/`load5`, no single runaway) | seed + notify — **not auto-healable** (there is no single proc to renice; reducing load = operator closes apps). Was silently dropped pre-round-6 (the responder read only the `top_consumer` leaf, never the branch). | 🟠 HITL |
-| **disk** | `branches.disk.status != ok` | **DELEGATE to `disk-health-guardian`** — it owns disk (Tier-1/2 reclaim + its own escalate-seed). Zero duplication. | delegated |
+| **disk** | `branches.disk.status != ok` | Delegate to disk-health-guardian review; deployment paused, default monitor, mutation separately gated (see SKILL disk safety contract). | delegated / approval-gated |
 | **burn_down — forecast** (top-level `burn_down`, round-3) | `burn_down.status ∈ {warn, crit}` AND `burn_down.trend == "draining"` (reclaim-aware: sloped over the post-reclaim-jump tail, so a guardian cache-deletion up-jump can't mask a genuine drain) | **seed + notify** — `health-respond.sh main()` reads the top-level `.burn_down` **independently of `.system.status`** (it is NOT a `.system.branches` leaf, so it does not feed the roll-up — the early-return is gated on it too) and surfaces `days_to_threshold` + `drain_gb_per_hr` so a session/operator acts *before* the crisis the 2026-07-14 drain reached. **Observe-only leading indicator — a forecast NEVER auto-deletes; the disk *branch* (above) owns actual reclaim.** `unknown` (thin/absent log) → no action, no seed (never a fabricated number). | 🟠 seed + notify (no new autonomous action) |
 | **security** | firewall / SIP / gatekeeper off | seed + notify — re-enabling security = operator (System Settings) | 🟠 HITL |
 | **malware** | XProtect stale / detection | seed + notify — OS security update / quarantine = operator | 🟠 HITL |
 | **memory** | available% low **OR** kernel `pressure` warn/crit (round-6 F5: available% adds back inactive/purgeable → can read ok while the kernel signals pressure; blended via `worst()`) | seed + notify — freeing memory means killing a proc (destructive) | 🟠 HITL |
 | **process** | zombie (env-thresholded) **or** optional thread high-water anomaly (round-6 F4: `counts.status` = zombies ⊕ threads, no longer zombies-only) | seed + notify — kill = operator judgment | 🟠 HITL |
 | **network** | `informational` (round-6 F3: listeners collected but NOT thresholded → honest non-`ok` label, **no residue** — never a false `ok`, never a false HITL seed) | **none** (observe-only; never auto-close a socket) | ⚪ informational |
-| **agentic-tools — cache-producer** | `branches.agentic_tools.leaves.cache_producer.status != ok` | `uv cache prune` (non-destructive; removes ONLY unreachable objects, keeps tool installs) | ✅ **AUTONOMOUS (Moderate)** |
+| **agentic-tools — cache-producer** | `branches.agentic_tools.leaves.cache_producer.status != ok` | DEFER and queue disk-owner review through the existing HITL seed; no UV mutation in responder/containment. | HITL |
 | **agentic-tools — live `@latest` producer** | `cache_producer.uvx_latest_procs > 0` (+ `uvx_latest_producers` = the argv-free `<pkg>@latest` name(s), when the spawn was alive long enough to `ps` — secret-safe by grammar) | **ENGAGE (SHR_READY proven)** → responder invokes `offender-containment.sh --engage` = DISABLE registry-vetted, present offenders (reversible; uninstall NOT auto-armed). **DRY-RUN / launchd (no SHR_READY)** → seed only (naming the producer in the seed). Un-vetted → always seed. Producers are **transient** (spawn-do-exit) → the lever is the source (disable) / the cache (prune), never the proc. | ✅ **AUTONOMOUS DISABLE (armed 2026-07-14)** / 🟠 seed |
 | **agentic-tools — claude runtime** | `claude_runtime.health != healthy` (from `claude doctor`) | seed + notify — fixing = operator `/doctor` in-session (the collector's probe is read-only) | 🟠 HITL |
 
 **Eisenhower ordering (deterministic):** cpu-runaway (urgent+important → autonomous) → disk (delegated) →
-agentic-tools cache-producer prune (Moderate autonomous) → security/malware (important, HITL) →
+agentic-tools cache-producer delegation (HITL) → security/malware (important, HITL) →
 cpu-load-saturation / memory / process + agentic-tools containment/runtime (HITL). crit outranks warn within a
 class. `network` is observe-only `informational` (round-6 F3) — not in the action ordering.
 
@@ -46,7 +46,7 @@ but disabling/removing a plugin is **above Moderate** — so it gets its own esc
 
 | Tier | Action | Stakes | Reversibility | Arm gate |
 |---|---|---|---|---|
-| **prune** | `uv cache prune` | LOW · non-destructive | regeneration on next use | `--engage`+`SHR_READY` (Moderate — same as renice) |
+| **prune** | Refused by containment (exit 2); delegated to guarded disk owner | destructive cache mutation | not a rollback guarantee | exact independent cache/producer approval; see SKILL disk safety contract |
 | **disable** | `claude plugin disable <p>` | MEDIUM · reversible | `claude plugin enable <p>` | `--engage` + `OFC_ARM=1` + `OFC_READY=1` + **registry evidence** |
 | **remove** | `claude plugin uninstall <p>` | HIGH · reinstall-able | `claude plugin install <p>` | above **+ `OFC_ALLOW_UNINSTALL=1`** |
 | **default (no flags)** | detect + PROPOSE only | none | — | none — pure dry-run + seed |
@@ -150,10 +150,8 @@ zero drift.
 - Kill / `pkill` / force-quit any process.
 - Quarantine, delete, or move any file.
 - Re-enable / disable a security control (firewall, SIP, gatekeeper), or update the OS.
-- Do disk-CRISIS reclaim (the disk-health-guardian owns space-crisis reclaim). The ONE cache action the
-  responder may take is `uv cache prune` — strictly non-destructive **producer-cache hygiene** (removes
-  only *unreachable* objects, never a tool install / user data / the disk-guardian's crisis nuke). Distinct
-  axis: hygiene (proactive, targeted at a detected producer) ≠ crisis reclaim (reactive, disk-guardian).
+- Mutate caches: delegate to the guarded disk owner, whose default is monitor-only.
+  Regenerability does not prove deletion safe with active readers or producers.
 - Disable / uninstall any plugin from within the *launchd responder* itself — containment is only ever
   performed by an ACTIVE agent invoking `offender-containment.sh` under the ADR arm + registry evidence
   (the responder only PROPOSES + seeds it).

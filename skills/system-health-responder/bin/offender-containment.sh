@@ -11,7 +11,7 @@
 #  *          resolvido na fonte, pode desativar e/ou remover o agentic-tool e/ou plugin."
 #  *
 #  *  @tiers  elevate-autonomy → elevate-rigor (DENY-until-proven, fail-safe):
-#  *            prune   (LOW · non-destructive)   `uv cache prune`         arm: --prune (no extra gate)
+#  *            cache cleanup belongs to disk-health-guardian; never runs here.
 #  *            disable (MEDIUM · reversible)      `claude plugin disable`  arm: --engage +OFC_ARM +OFC_READY +evidence
 #  *            remove  (HIGH · reinstall-able)    `claude plugin uninstall`arm: above +OFC_ALLOW_UNINSTALL
 #  *          DEFAULT (no flags) = DRY-RUN: detect + consult registry + PROPOSE. Changes NOTHING.
@@ -26,8 +26,8 @@
 #  *          the full argv, never a `--api-key=` value, never echoes a token. (CWE-532/CWE-78.)
 #  *  @deny    NEVER disables/removes an operator-protected tool: 1password openclaw omniroute claude
 #  *          (the agent runtime itself) — mirrors the absolute denylist. NEVER touches those trees.
-#  *  @revert  disable → `claude plugin enable <p>`; uninstall → `claude plugin install <p>`; prune →
-#  *          regeneration on next use. Every action appends the exact restore command to containment.log.
+#  *  @revert disable -> claude plugin enable; uninstall -> claude plugin install.
+#  *          Every containment action records its restore command in containment.log.
 #  *  @exit    0 ok · 1 nothing-to-do/lock · 2 error. (script-safety §6: real exit, not wrapper-masked.)
 #  */
 set -euo pipefail
@@ -38,7 +38,7 @@ STATE_DIR="${OFC_STATE_DIR:-$HOME/.local/state/system-health}"
 LOG="${OFC_LOG:-$STATE_DIR/containment.log}"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
-MODE="dry-run"; DO_PRUNE=0; ALLOW_UNINSTALL="${OFC_ALLOW_UNINSTALL:-0}"
+MODE="dry-run"; ALLOW_UNINSTALL="${OFC_ALLOW_UNINSTALL:-0}"
 # operator-protected — NEVER contain these (case-insensitive substring; the runtime + secrets managers).
 # SSOT sensitive-app core (round-6 H1): `1password openclaw omniroute claude` MUST stay identical to
 # health-respond.sh PROC_DENYLIST — see the SSOT note there (inline-not-sourced = fail-safe); drift caught
@@ -54,7 +54,7 @@ usage() {
   cat <<'EOF'
 offender-containment.sh — contain a no-source-fix agentic-tool/plugin PRODUCER (EKO-90-ext)
   (default)          DRY-RUN: detect registry offenders present now + PROPOSE disable/remove. Acts on nothing.
-  --prune            LOW-stakes maintenance ONLY: `uv cache prune` (non-destructive; keeps tool installs).
+  --prune            Refused (exit 2): cache cleanup belongs to the guarded disk owner.
   --engage           Perform the MEDIUM disable of PRESENT, registry-vetted offenders. REQUIRES
                      OFC_ARM=1 + OFC_READY=1 (caller proved standing-autonomy READY). Without them → dry-run.
   --allow-uninstall  With --engage+arm: escalate disable→uninstall (HIGH). REQUIRES OFC_ALLOW_UNINSTALL=1.
@@ -73,16 +73,6 @@ protected() { local c; c="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"; loc
     case "$c" in *"$p"*) return 0;; esac
   done; return 1; }
 
-# uv cache prune — LOW-stakes durable maintenance (removes ONLY unreachable objects; keeps tool installs).
-# ACTS whenever called: prune_uv is only reached via `--prune` or an armed `--engage` — both mean "do it".
-# (The pure-default no-flags run never calls this — it stays detect+propose only.) prune needs no arm gate:
-# it is strictly non-destructive (reversible-by-regeneration), so it is safe under any invocation intent.
-prune_uv() {
-  command -v uv >/dev/null 2>&1 || { echo "  ⏭  uv absent — prune skipped"; return 0; }
-  echo "  🧹 uv cache prune (non-destructive; unreachable objects only; installs kept) …"
-  if uv cache prune >/dev/null 2>>"$LOG"; then echo "  ✅ pruned uv cache"; log "PRUNE uv cache prune ok"
-  else echo "  ⏭  uv cache prune non-zero (balloon mid-delete / partial) — safe, resumes"; log "PRUNE uv cache prune partial"; fi
-}
 
 # is a plugin currently present? (robust: match the plugin base token anywhere in `claude plugin list`)
 plugin_present() {
@@ -133,7 +123,7 @@ contain_from_registry() {
 
 case "${1:-}" in
   --help|-h) usage; exit 0;;
-  --prune) DO_PRUNE=1; MODE="dry-run";;   # --prune alone stays dry-run for disable; prune itself acts (LOW)
+  --prune) echo 'DEFER UV cleanup to disk-health-guardian; scoped approval required' >&2; log 'PRUNE DEFER disk-owner'; exit 2;;
   --engage)
     # fail-safe DENY-until-proven: disable/remove fire ONLY with OFC_ARM=1 + OFC_READY=1 (caller proved READY).
     if [ "${OFC_ARM:-0}" = 1 ] && [ "${OFC_READY:-0}" = 1 ]; then MODE="engage"
@@ -145,7 +135,6 @@ case "${1:-}" in
 esac
 
 echo "offender-containment  [MODE=$MODE  uninstall-armed=$ALLOW_UNINSTALL]"
-[ "$DO_PRUNE" -eq 1 ] || [ "$MODE" = engage ] && prune_uv   # prune runs on --prune OR as part of an armed containment
 contain_from_registry
-log "cycle mode=$MODE prune=$DO_PRUNE uninstall_armed=$ALLOW_UNINSTALL"
+log "cycle mode=$MODE uninstall_armed=$ALLOW_UNINSTALL"
 exit 0
