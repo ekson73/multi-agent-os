@@ -1,0 +1,350 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1792096425645,
+  "projectRoot": "/Users/emilson.moraes/Projects/multi-agent-os/.worktrees/run122-b4-integration-20261015",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=20",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "npm",
+    "runtime": "Node.js 20"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {
+      "validate:skills": "bash scripts/validate-skill-frontmatter.sh"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "bin",
+      "docs",
+      "scripts",
+      "test",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "agents": {
+      "path": "agents",
+      "purpose": null,
+      "fileCount": 30,
+      "lastAccessed": 1792096425613,
+      "keyFiles": [
+        "COWORK-AUTONOMY-POLICY.md",
+        "README.md",
+        "agile-product-lead.md",
+        "angular-frontend-engineer.md",
+        "cascade-resolver.md"
+      ]
+    },
+    "audit": {
+      "path": "audit",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425614,
+      "keyFiles": [
+        "session_index.json"
+      ]
+    },
+    "bin": {
+      "path": "bin",
+      "purpose": "Executable scripts",
+      "fileCount": 28,
+      "lastAccessed": 1792096425625,
+      "keyFiles": [
+        "artifact-registry",
+        "atomize-and-route",
+        "bb-pipeline-watch.sh",
+        "bootstrap.sh",
+        "check-layer-purity"
+      ]
+    },
+    "claude-md": {
+      "path": "claude-md",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425626,
+      "keyFiles": [
+        "DEPRECATED.md"
+      ]
+    },
+    "commands": {
+      "path": "commands",
+      "purpose": null,
+      "fileCount": 15,
+      "lastAccessed": 1792096425627,
+      "keyFiles": [
+        "README.md",
+        "agentic-status.md",
+        "audit.md",
+        "auto-pilot.md",
+        "council-gate.md"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 42,
+      "lastAccessed": 1792096425627,
+      "keyFiles": [
+        "AGENTS_AND_HUMANS_GUIDE.md",
+        "ANALYSIS_REPORT_2026-01-08.md",
+        "GaaS_INSTALLATION_GUIDE.md",
+        "RAW_URL_INJECTION.md",
+        "agent-bootstrap-protocol.md"
+      ]
+    },
+    "gauntlet": {
+      "path": "gauntlet",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425628,
+      "keyFiles": [
+        "pilot-journal.md"
+      ]
+    },
+    "harnesses": {
+      "path": "harnesses",
+      "purpose": null,
+      "fileCount": 39,
+      "lastAccessed": 1792096425629,
+      "keyFiles": [
+        "README.md",
+        "agy.yaml",
+        "aider.yaml",
+        "amp.yaml",
+        "antigravity-ide.yaml"
+      ]
+    },
+    "hooks": {
+      "path": "hooks",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425630,
+      "keyFiles": [
+        "hooks.json"
+      ]
+    },
+    "install": {
+      "path": "install",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425631,
+      "keyFiles": [
+        "DEPRECATED.md"
+      ]
+    },
+    "mcp-tools": {
+      "path": "mcp-tools",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1792096425631,
+      "keyFiles": []
+    },
+    "ontology": {
+      "path": "ontology",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1792096425633,
+      "keyFiles": [
+        "os3pd-enforcement-matrix.jsonld",
+        "os3pd-v4.13.0.ttl"
+      ]
+    },
+    "openspec": {
+      "path": "openspec",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1792096425634,
+      "keyFiles": []
+    },
+    "orchestration": {
+      "path": "orchestration",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425636,
+      "keyFiles": [
+        "roadmap.yaml"
+      ]
+    },
+    "packaging": {
+      "path": "packaging",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425636,
+      "keyFiles": [
+        "README.md"
+      ]
+    },
+    "plugin-scripts": {
+      "path": "plugin-scripts",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1792096425637,
+      "keyFiles": [
+        "post-delegate.sh",
+        "pre-delegate.sh",
+        "session-end.sh",
+        "session-start.sh",
+        "session-tip.sh"
+      ]
+    },
+    "protocols": {
+      "path": "protocols",
+      "purpose": null,
+      "fileCount": 10,
+      "lastAccessed": 1792096425637,
+      "keyFiles": [
+        "action-priority.md",
+        "agent-delegation.md",
+        "agentic-tool-lifecycle.md",
+        "exit-hygiene.md",
+        "gap-loop-protocol.md"
+      ]
+    },
+    "research": {
+      "path": "research",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1792096425637,
+      "keyFiles": []
+    },
+    "rules": {
+      "path": "rules",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1792096425637,
+      "keyFiles": [
+        "action-now-protocol.md",
+        "agent-scm.md",
+        "ai-native-errors.md",
+        "axial-principles.md",
+        "context-before-commit.md"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 9,
+      "lastAccessed": 1792096425637,
+      "keyFiles": [
+        "DEPRECATED.md",
+        "changelog-required-check.sh",
+        "check-release-coherence.py",
+        "converge-lint.sh",
+        "corpus-firing-audit.py"
+      ]
+    },
+    "sentinel": {
+      "path": "sentinel",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1792096425638,
+      "keyFiles": [
+        "IMPLEMENTATION_PLAN.md",
+        "README.md",
+        "config.json",
+        "detection_rules.md"
+      ]
+    },
+    "skills": {
+      "path": "skills",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1792096425638,
+      "keyFiles": [
+        "README.md"
+      ]
+    },
+    "statusmap": {
+      "path": "statusmap",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1792096425639,
+      "keyFiles": [
+        "README.md",
+        "inference.md"
+      ]
+    },
+    "templates": {
+      "path": "templates",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1792096425639,
+      "keyFiles": [
+        "README.md",
+        "statusline-command.sh"
+      ]
+    },
+    "test": {
+      "path": "test",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1792096425639,
+      "keyFiles": [
+        "test_kirocrew_extras.sh"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 14,
+      "lastAccessed": 1792096425640,
+      "keyFiles": [
+        "dogfood-auto-pilot.sh",
+        "lens-dispatch-matrix.sh",
+        "ontology-validation-requirements.txt",
+        "test-artifact-registry.sh",
+        "test-gitleaks-config.sh"
+      ]
+    },
+    "tips": {
+      "path": "tips",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1792096425640,
+      "keyFiles": [
+        "catalog.json",
+        "inference.md",
+        "validate-tips.sh"
+      ]
+    },
+    "sentinel/lib": {
+      "path": "sentinel/lib",
+      "purpose": "Library code",
+      "fileCount": 2,
+      "lastAccessed": 1792096425644,
+      "keyFiles": [
+        "alert_handler.md",
+        "trace_writer.md"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}
