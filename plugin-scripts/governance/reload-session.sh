@@ -18,7 +18,7 @@
 #
 # Predicate: source=compact → inject. source=resume → opt-in (MAOS_RELOAD_ON_RESUME=1; default
 #   off — resume already replays the transcript). source=startup|clear → NEVER (cold boot /
-#   deliberate wipe; recover on-demand via /maos:session-reentry). POSTFLIGHT_SEED_DIR overrides.
+#   deliberate wipe; use session-reentry for an identified dormant/foreign thread). POSTFLIGHT_SEED_DIR overrides.
 #   Opt-out: MAOS_NO_RELOAD=1 → skip entirely.
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -98,7 +98,7 @@ BODY="$(jq -r '
 # ── Bounded truncation (footer ALWAYS survives) ───────────────────────────────
 # additionalContext is capped (≤10k). Budget the body at ~9000 chars, cut at a line boundary,
 # THEN append the footer — so the re-entry pointers are never pushed out by a huge summary.
-FOOTER="Full structured re-entry: run /maos:session-reentry. Orient git state: run /maos:preflight."
+FOOTER="For this active conversation, ask to use live-session-continuity-recovery read-only; for an identified dormant/foreign thread, ask to use session-reentry. Orient git state: run /maos:preflight."
 MAXBODY=9000
 if [ "${#BODY}" -gt "$MAXBODY" ]; then
   BODY="$(printf '%s' "${BODY:0:$MAXBODY}" | sed '$d')"   # drop the partial last line
