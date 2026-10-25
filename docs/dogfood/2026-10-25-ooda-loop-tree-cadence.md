@@ -7,8 +7,8 @@
 ## What was run
 
 Forward pass from the project root to a ranked filter list and a delegation plan; backward pass
-reconciling findings into lessons and an updated concept note. Every node's output was persisted
-in a reviewable PR before the node was closed.
+reconciling findings into lessons and an updated concept note. The output of all nodes was persisted
+in one draft PR at the end of the run, before the run was closed (not one PR per node).
 
 ## Evidence
 

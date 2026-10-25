@@ -6,13 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Changed — `ooda-loop` 0.3.1: tree cadence (one cycle per node)
-
-- `skills/ooda-loop/SKILL.md`: new §"Tree cadence" — apply the OODA+PDCA pass once per goal-tree node (forward plans by DoR, backward reconciles by DoD) with four beats (execute, feedback, introspect, persist) and two measurable invariants: persist-before-close (the PR is the durable record where protected-branch pushes are forbidden) and one consolidated human package per cycle. Additive guidance only; no schema or marker change. Dogfood record: `docs/dogfood/2026-10-25-ooda-loop-tree-cadence.md`.
-
 ### Added — `/hitl-digest` thin command
 
 - `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
+
+### Changed — `ooda-loop` 0.3.1: tree cadence (one cycle per node)
+
+- `skills/ooda-loop/SKILL.md`: new §"Tree cadence" — apply the OODA+PDCA pass once per goal-tree node (forward plans by DoR, backward reconciles by DoD) with four beats that map onto the existing PDCA (execute = plan+do, feedback = check with verifier != generator, introspect = adjust, persist = close gate) and two checkable invariants (manual check, no enforcement yet): persist-before-close (the PR is the durable record where protected-branch pushes are forbidden) and one consolidated human package per cycle. Additive guidance only; no schema or marker change. `dogfood_status` set to a manual cycle-1 record. Dogfood record: `docs/dogfood/2026-10-25-ooda-loop-tree-cadence.md`.
 
 ### Changed — git-cycle-sentinel 0.1.1 (dogfood cycle-1 + cycle-2 real)
 

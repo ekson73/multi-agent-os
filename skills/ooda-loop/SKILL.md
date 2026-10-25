@@ -15,7 +15,7 @@ metadata:
   scope: AAIF cross-vendor
   family: orchestration-convergence
   cross_link_slug: ooda-loop
-  dogfood_status: pending-first-cycle
+  dogfood_status: manual-cycle-1-recorded-2026-10-25  # tree cadence applied by hand; behavioral ACT still unverified
 ---
 
 # OODA-Loop
@@ -300,24 +300,25 @@ When the work is a goal tree rather than a single item (project -> purposes -> D
 tasks -> steps -> session -> sub-agents), apply the same OODA+PDCA pass **once per node**, not
 once per tree. Forward (root to leaves) plans: a node starts only when its DoR holds. Backward
 (leaves to root) reconciles: a parent closes only when its children's evidence satisfies its DoD.
-Each node runs the same four beats, sized to the node (a trivial node gets one line):
+Each node runs the same four beats, sized to the node (a trivial node gets one line). They are
+the bounded PDCA cycle above, named for the tree view, not a second loop:
 
 ```text
-EXECUTE     the node's smallest eligible step (ACT above)
-FEEDBACK    compare the result to the node's DoD with evidence, not self-report
-INTROSPECT  fix what CHECK found and record at most ONE lesson for the next node
-PERSIST     write the result and lesson to the durable source (PR, ledger, ticket) BEFORE closing
+EXECUTE     = PLAN + DO     the node's smallest eligible step
+FEEDBACK    = CHECK         compare the result to the node's DoD; inherits verifier != generator
+INTROSPECT  = ADJUST        fix what CHECK found and record at most ONE lesson for the next node
+PERSIST     (close gate)    write the result and lesson to the durable source BEFORE closing
 ```
 
-Two invariants, both measurable:
+Two invariants, both checkable (no automated enforcement yet; a reviewer checks them by hand):
 
 - **Persist before close.** A node is not closed until its record exists in the durable source the
   host may write to. Where direct pushes to a protected branch are forbidden, the durable record is
   the PR, never a chat message or a session note.
-- **One human package per cycle.** When the residue is human-owned (access, spend, irreversible,
+- **One human package per cycle.** When the residue is human-owned (credential, spend, irreversible,
   external send, business), the cycle emits ONE consolidated, deduplicated package to the
-  operator's ledger, not N separate questions. Most top-priority residue in real backlogs is of
-  this kind; producing more analysis instead of the package is theater.
+  operator's ledger, not N separate questions. In the one recorded run most top-priority residue
+  was of this kind; producing more analysis instead of the package is theater.
 
 Before authoring any new concept or loop for a node, search the existing store and skills first;
 a concept that already exists is dogfooded and version-bumped, not rewritten.
