@@ -6,7 +6,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 
 > **Inventory provenance**: the 2026-08-25 refresh generated 87 rows from skill frontmatter `description`; `openrig-concierge` was added by hand 2026-09-23, `harness-concierge` by hand 2026-09-24, and `roadmap-tree-projector` on 2026-09-24. **Current snapshot 2026-10-08**: the table lists 93 git-tracked top-level skills (`person-agent-creator` added by hand 2026-10-08), including `live-session-continuity-recovery` and `session-to-vault`; `spec-backlog-ticket-reconciler` added by hand 2026-10-13 brings it to 94, and `ratchet-loop` by hand 2026-10-25 to 95. The dependency graph covers the session/agentic-tool/governance core families (edges extracted from `maos:` refs, `[[wikilinks]]`, `skills/` path refs in SKILL.md bodies); it is not an exhaustive dependency inventory.
 
-## Available Skills (95)
+## Available Skills (96)
 
 | Skill | Directory | Description |
 |-------|-----------|-------------|
@@ -100,6 +100,7 @@ This folder contains reusable Agent Skills for the Multi-Agent OS framework. Ski
 | `transcript-corrector` | `transcript-corrector/SKILL.md` | Use when you have a transcribed text (meeting transcript, voice-note transcript, call transcript, dictation) that may contain ASR (automatic-speech-re |
 | `transmute` | `transmute/SKILL.md` | Transmute ONE source of ANY kind (text · prompt · draft · braindump · doc · code · agentic-tool · email · report) through a menu of transformations (c |
 | `ttl-policy` | `ttl-policy/SKILL.md` | Manage Time-To-Live policies for framework content freshness |
+| `virtuous-spiral` | `virtuous-spiral/SKILL.md` | Run a spiral, event-driven virtuous delivery cycle (forward-1 delivers a node downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing ones) with a five-lens retro, bounded self-evolution and auto-persisted records; hard-floor items stay human |
 | `voice-director` | `voice-director/SKILL.md` | Use when the operator EXPLICITLY asks to SPEAK/narrate something aloud — "fala isso", "narra o resumo", "speak this", "voz de aplauso", "--media audio |
 | `walkthrough-concierge` | `walkthrough-concierge/SKILL.md` | Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic Session Harness — session journals, the walkthrough (decisions +  |
 | `work-compass` | `work-compass/SKILL.md` | Aggregate the operator's scattered work — Jira/GitHub issues, Claude + cross-vendor (Codex) sessions, git worktrees/branches/stashes/uncommitted-WIP,  |

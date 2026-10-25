@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added — `virtuous-spiral` generic parent skill (HOTL delivery cycle)
+
+- `skills/virtuous-spiral/SKILL.md`: generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Includes a five-lens retro, authorized and bounded self-evolution, auto-persisted records, and a child-variation format that may only tighten the parent.
+- An "Inviolable floor" section holds the hard limits (class and validity, convergence and independence of the reviewer, merge rule for repositories without an approvers registry, reserved-to-human list, generic minimum, and the single numeric table). Its integrity is checkable with one `awk | sha256sum` command; an empty hash counts as failure, and the approved hash is kept outside the file.
+- Role-based independence only: a reviewer opinion is identified by the file sha256 and the evaluated head, and proves role, not identity.
+- Status: proposal, no cycle run yet (dogfood pending). Cost ceilings are proposed values pending human confirmation; the weekly quota base is unverified.
+- `skills/README.md` lists the skill.
+
 ### Changed — `ratchet-loop` 0.2.0 (C2 instrumented) + top-20 description redundancy cut
 
 - `skills/ratchet-loop/SKILL.md` 0.1.0 → 0.2.0. C2 ("premises refuted per round") claimed to be a counter but nothing recorded a refutation, so it read whatever the conductor remembered — the unmeasured claim its own `ANTI-THEATER` gate fails. Adds **§Phase 6 — the `REFUTACAO` marker**: a five-field `|`-separated line (`REFUTACAO|premise|who asserted|who refuted|the measurement`) written into the round's work-ledger item `decision` field in the **same** round, a copy-ready `jq` counting command over the item files, and the obligation to mutation-check that command before reading a `0` as a real `0` (a command returning 0 because nothing matched and one returning 0 because it is broken look identical). `|` over JSON because `decision` is free text with a 2,000-character ceiling that a human also reads: greppable with no parser, no schema registration, no escaping that breaks on a hand edit.
