@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — session orientation contracts
+
+- Keep `pulse`, `session-reentry`, and `live-session-continuity-recovery` distinct; the existing `maos-concierge` now selects by current intent and evidence source, not time since a pause.
+- Clarify read-only reconstruction, proposed priority routes, and current persistence opt-in. Session reload hints use natural-language skill requests without assuming host slash discovery; no new wrapper, parser, or execution pipeline.
+
 ### Added — `/hitl-digest` thin command
 
 - `commands/hitl-digest.md`: thin `/hitl-digest` slash command over the `synopsis-panel` engine (`synopsis-fuse.py --hitl-only`). Renders the HITL DIGEST on demand — only the human-attention gates (credential, spend, irreversible, external-send, business), ⏫ high-severity and 👤 human-domain first. Reimplements nothing: it delegates rendering to `synopsis-fuse.py` and the ledger to the external `punch-list.md` SSOT; read-only. The engine path resolves from `CLAUDE_PLUGIN_ROOT` (with a git-root fallback), and the pure digest short-circuits aggregation with an empty compass so it never blocks on `work-compass`.
