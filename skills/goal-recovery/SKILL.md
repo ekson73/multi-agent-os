@@ -1,6 +1,6 @@
 ---
 name: goal-recovery
-version: "0.2.0"
+version: "0.3.0"
 description: |
   Recover a work session's real INTENT from its own live/context state — motivations, DoR,
   context, scope, the objective tree {originating, primary, secondary, auxiliary} — into
@@ -17,7 +17,7 @@ description: |
   intent", "handoff-as-prompt", "recover intent".
 allowed-tools: Read, Grep, Glob, Bash, Write, Task
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
   scope: AAIF cross-vendor
   family: session-lifecycle
   cross_link_slug: goal-recovery
@@ -74,11 +74,18 @@ Recover from the strongest available; corroborate across sources; a single sourc
                                                                                      inferred sources for the
                                                                                      work it describes)
 3. ticket              preflight R0 anchor — Jira/Linear/GH issue title+body+DoD    (stated intent, if any)
-4. objectives_ntree    postflight P2 objectives-map / work-compass CPT N-Tree        (synthesized objectives)
-5. ash_journal         agentic-session-harness journal: top-level `goal`, decisions[], spec_alignment drift
-6. git_branch          branch name (feat/<slug>) + PR title                          (weak but cheap signal)
-7. git_last_commit     last commit subject/body                                      (weak signal)
-8. transcript          this session's transcript (transcript_hash)                   (last resort; expensive)
+4. ci                  passing CI/pipeline checks: job names, asserted contracts,   (deterministic-but-partial:
+                       status checks the work must satisfy                            f=0 evidence, yet only
+                                                                                      covers what someone wired)
+5. tests               the test suite: test/spec names + assertions that encode      (deterministic-but-partial:
+                       the intended behaviour                                         f=0 evidence, yet only
+                                                                                      covers what someone remembered
+                                                                                      to assert)
+6. objectives_ntree    postflight P2 objectives-map / work-compass CPT N-Tree        (synthesized objectives)
+7. ash_journal         agentic-session-harness journal: top-level `goal`, decisions[], spec_alignment drift
+8. git_branch          branch name (feat/<slug>) + PR title                          (weak but cheap signal)
+9. git_last_commit     last commit subject/body                                      (weak signal)
+10. transcript         this session's transcript (transcript_hash)                   (last resort; expensive)
 ```
 
 > `braindump` is NOT session residue like the other sources — it is an artifact the operator hands in.
@@ -87,6 +94,18 @@ Recover from the strongest available; corroborate across sources; a single sourc
 > directives and session-meta. Drop the session-meta (`/enhance` wrappers, pep-talk, cartesian
 > resource lists offered as examples) before synthesizing — a listed resource is not a requirement
 > to use it. Primary consumer: `skills/refine-braindump-to-prompt` PHASE 1.
+
+> `ci` and `tests` are **deterministic-but-partial** evidence (f=0): a check that passes or a test
+> that asserts a behaviour is machine-verified fact, not prose, so it is harder evidence than a
+> ticket's narrative. They sit BELOW `ticket` nonetheless because they are **partial** — they
+> encode only the behaviour someone remembered to wire into CI or assert in a test, so a green
+> suite proves what it covers and is silent on the rest. The intent they reveal is therefore a
+> LOWER BOUND on the real goal, never its ceiling. Calibration: when `ci`/`tests` is the strongest
+> source read, the recovered `goal` inherits their partial-coverage — set `confidence` from the
+> determinism of the signal AND the breadth of what it covers, and do NOT treat a passing suite as
+> certainty (it caps well below 1.0; corroborate with a stated source above it before raising it).
+> A recovery grounded only on `ci`/`tests` with thin coverage is a candidate for
+> `inconclusive{reasons:[ambiguous_scope]}`.
 
 ## Pipeline (0 -> 4)
 
@@ -121,7 +140,7 @@ Recover from the strongest available; corroborate across sources; a single sourc
 ## Composition (the wiring — DRY; every step lands on an existing primitive)
 | Step | Composes (existing — reimplements nothing) |
 |---|---|
-| RECON | `skills/pulse` state-refresh · `skills/preflight` R0 ticket-anchor · `skills/work-compass` CPT N-Tree · `git`/`jq` reads |
+| RECON | `skills/pulse` state-refresh · `skills/preflight` R0 ticket-anchor · `skills/work-compass` CPT N-Tree · CI/test reads (`gh pr checks`/`gh run`, test-runner + `git`/`jq` reads) |
 | SYNTHESIZE | `skills/postflight` P2-DEBRIEF objectives-synthesis · `continuation-seed` contract (the schema base) |
 | audit source | `skills/agentic-session-harness` journal (`goal`, `decisions[]`, `spec_alignment`) |
 | EMIT + validate | `templates/handoff-as-prompt.schema.json` (extends continuation-seed) + `bin/validate_envelope.py` |
@@ -169,6 +188,24 @@ goal-recovery --scope=ticket:VKS-1234           # recover from a ticket anchor
 goal-recovery --output=summary                  # human recap instead of the JSON envelope
 goal-recovery --conf-inconclusive=0.75 --dry-run  # stricter HITL gate, print-only
 goal-recovery --ladder=postflight_seed,ash_journal  # restrict the inference sources
+goal-recovery --ladder=ticket,ci,tests          # recover from stated intent corroborated by the CI/test contract
+```
+
+### Example — recovering from `ci`/`tests` (deterministic-but-partial)
+A cold session on a branch with no ticket and no seed, but a green CI job `validate-envelope` and a
+test `test_rejects_empty_goal`. RECON reads `ci` + `tests`; the recovered `goal` is bounded by what
+they assert ("the envelope validator must reject an empty goal"), and `confidence` is kept moderate
+because the suite is partial. `recovered_from` cites both as the real sources:
+```json
+{
+  "confidence": 0.68,
+  "recovered_from": [
+    {"source": "ticket", "read": false, "ref": "absent"},
+    {"source": "ci", "read": true, "ref": "gh pr checks: validate-envelope=success"},
+    {"source": "tests", "read": true, "ref": "tests/run-tests.sh: test_rejects_empty_goal"}
+  ],
+  "inconclusive": {"flag": false, "reasons": []}
+}
 ```
 
 ## Quality Tests (6/6 self-validity — dogfooded)
@@ -200,6 +237,16 @@ Dormant-by-design otherwise.
 - External grounding: GOOD (arXiv:2508.15119, uncertainty-aware goal inference) · RECAP (2509.04472, intent-rewrite) · Boyd OODA (Observe) · Raghavan & Schneier IEEE S&P 2025 (auditable Observe inputs)
 
 ## Versioning
+- v0.3.0 (2026-10-25) — MINOR: `ci` and `tests` added to the inference ladder, inserted BELOW
+  `ticket` (ranks 4 and 5; ticket -> ci -> tests -> objectives_ntree -> ...). A passing CI check or
+  an asserted test is deterministic (f=0) evidence, harder than a ticket's prose, but PARTIAL — it
+  reveals only the behaviour someone wired into CI or remembered to assert, so the intent it
+  recovers is a LOWER BOUND, which is why it ranks below the stated ticket rather than above it.
+  `recovered_from` can now cite `ci`/`tests` as the real source (rastreabilidade), and `confidence`
+  is calibrated from the signal's determinism AND its coverage breadth — a green-but-thin suite caps
+  confidence well below 1.0 and is a candidate for `inconclusive{reasons:[ambiguous_scope]}`.
+  Additive: no existing source changed; the envelope schema gains `ci` and `tests` in the
+  `recovered_from[].source` enum. Recovery precedence shifts ranks 4-8 down to 6-10. Ref EKO-103 #119.
 - v0.2.0 (2026-08-14) — MINOR: `braindump` added to the inference ladder (rank 2) — a raw operator
   dump supplied AS the invocation subject, ranked above `ticket` because it is the operator's own
   words about *this* work, with an explicit drop-session-meta clause. Additive: no existing source
