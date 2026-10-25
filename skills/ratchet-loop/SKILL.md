@@ -1,25 +1,25 @@
 ---
 name: ratchet-loop
-version: "0.1.0"
+version: "0.2.0"
 description: |
-  Round-scored productivity loop (HOTL — Human Out The Loop within an inviolable HITL floor)
-  that drives ONE round of six phases over an intent tree, BOTH directions: RECOVER (backward,
-  leaf→project) → MEASURE (4 counters, at source) → DECIDE (forward, project→leaf, smallest
-  node set that moves a counter) → EXECUTE (one worker per resource boundary) → VERIFY
-  (evaluator verdict AND conductor re-measurement) → INTROSPECT (two gates: Repair on a
-  refuted premise, Evolution on a measured gain). A round that moves none of the four counters
-  is BUSY, not virtuous, and says so. Net-new is only three things: the bidirectional round
-  contract, the 4-counter gate (incl. refuted-premises, which nothing else counts), and a
-  FALSIFIABLE introspection trigger with a same-round all-surface repair obligation. Thin
-  preset: composes work-compass, pulse, eisenhower-matrix, ooda-loop, gap-loop, quiesce,
-  convergence-engine, decision-capture, agentic-session-harness, corpus-firing-audit,
-  praxis-audit, rule-quality-tests, dogfood-ledger, ttl-policy, status-map, audit,
-  agentic-tool-pipeline, agentic-tool-trainer — reimplements nothing.
-  Triggers: "ratchet-loop", "ciclo virtuoso", "virtuous cycle", "HOTL cycle",
-  "retro-fed productivity round", "meta-cognitive round", "did this round move anything".
+  Round-scored productivity loop (HOTL — Human Out The Loop within an inviolable HITL
+  floor) that drives ONE round of six phases over an intent tree, BOTH directions: RECOVER
+  (backward, leaf→project) → MEASURE (4 counters, at source) → DECIDE (forward,
+  project→leaf, smallest node set that moves a counter) → EXECUTE (one worker per resource
+  boundary) → VERIFY (evaluator verdict AND conductor re-measurement) → INTROSPECT (two
+  gates: Repair on a refuted premise, Evolution on a measured gain). A round moving none of
+  the four counters is BUSY, not virtuous, and says so. Net-new is three things: the
+  bidirectional round contract, the 4-counter gate (incl. refuted-premises, which nothing
+  else counts), a FALSIFIABLE introspection trigger with a same-round all-surface repair
+  obligation. Thin preset: composes work-compass, pulse, eisenhower-matrix, ooda-loop,
+  gap-loop, quiesce, convergence-engine, decision-capture, agentic-session-harness,
+  corpus-firing-audit, praxis-audit, rule-quality-tests, dogfood-ledger, ttl-policy,
+  status-map, audit, agentic-tool-pipeline, agentic-tool-trainer — reimplements nothing.
+  Triggers: "ratchet-loop", "ciclo virtuoso", "virtuous cycle", "HOTL cycle", "retro-fed
+  productivity round", "meta-cognitive round", "did this round move anything".
 allowed-tools: Task, Read, Write, Edit, Bash, Grep, Glob
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: orchestration-convergence
   cross_link_slug: ratchet-loop
@@ -124,12 +124,62 @@ PHASE 6 · INTROSPECT           two gates, below.                             [C
 Nothing fires either gate but those two triggers. "It felt better" is not a trigger; neither
 is "no findings this round".
 
+### Phase 6 — the `REFUTACAO` marker (this is what makes C2 a number)
+
+C2 claims to count premises refuted per round. Without a marker it counts nothing: the
+conductor's own belief about how many premises fell is exactly the kind of unmeasured claim
+`ANTI-THEATER` fails. So every refutation leaves a **grep-able line** behind.
+
+**Obligation.** Every premise refuted at source in a round writes **one** line into the
+`decision` field of the work-ledger item that round belongs to — same round, no batching,
+no end-of-cycle reconstruction from memory. Five fields, `|`-separated, one line, no
+newline inside a field:
+
+```text
+REFUTACAO|<premise, one line>|<who asserted it>|<who refuted it>|<the measurement that refuted it>
+```
+
+Two lines from this asset's own first cycle, which is where the format was proven:
+
+```text
+REFUTACAO|the catalog's description total is 170118 B|conductor|worker it_f42dcb76|the prescribed regex (?=^\w+:|\Z) does not stop at allowed-tools: (hyphen is not \w); the corrected (?=^[\w-]+:\s|\Z) measures 160509 B over 363 skills, so 4937 B (3.0%) in 79 skills was the allowed-tools key counted as description
+REFUTACAO|a 50% cut of the top-20 descriptions is reachable|conductor|worker it_f42dcb76|sum of distinct trigger terms + 1 byte of glue each is 15829 B against 25245 B, so the no-shrink rule caps any cut at 37.3% with ZERO prose, and 50% is unreachable by arithmetic, not by effort
+```
+
+**Counting a round** — reads the item files, needs no parser:
+
+```bash
+ROUND=3
+jq -r --argjson r "$ROUND" \
+  'select(.round==$r) | .decision // "" | split("\n")[] | select(startswith("REFUTACAO|"))' \
+  ~/.kiro/crew/work-ledger/*/items/it_*.json | grep -c . || echo 0
+```
+
+Drop the `| grep -c .` to read the refutations themselves instead of counting them. Verify
+the counter before trusting a zero: a command that returns 0 because nothing matched and
+one that returns 0 because it is broken look identical. Inject one synthetic line into a
+scratch file, confirm the command emits it, and only then read a real 0 as a real 0.
+
+**Why `|` and not JSON.** `decision` is free text with a 2,000-character ceiling, and the
+line has to survive being embedded in prose that a human also reads. A pipe-delimited line
+is greppable with no parser, no schema registration and no escaping rules; a JSON object
+inside a JSON string field needs quote-escaping that breaks the moment someone edits the
+field by hand, and it spends the character budget on punctuation.
+
+**Alternative chosen, alternative rejected.** Rejected: reanimating the harness's
+`spec_alignment` recording to carry refutations. Measured against it — the field exists but
+has been dead since 2026-06 and holds 0 `divergent` values, so reviving it is a schema-and-
+pipeline change in a dependency this asset does not own, to feed one counter. Also rejected:
+counting refutations by regex over prose, which returned 17 candidates on a corpus with no
+agreed marker — a candidate list, not a metric. The marker convention costs one line per
+refutation, changes no schema, and is counted by the command above.
+
 ## The four counters (the discriminator between virtuous and busy)
 
 | # | Counter | Direction | Measured from |
 |---|---|---|---|
 | C1 | **items accepted per round** | up | the work ledger's terminal states (`audit` for the trail) |
-| C2 | **premises refuted per round** | up early, down late | this skill's own round record — **net-new**, nothing else counts it |
+| C2 | **premises refuted per round** | up early, down late | `REFUTACAO` marker lines in the round's work-ledger items (§Phase 6 — the `REFUTACAO` marker) — **net-new**, nothing else counts it |
 | C3 | **orphan rate** (live items with no ticket) | down | `work-compass` stale/orphan detection |
 | C4 | **fixed-overhead bytes per session** | down | `status-map` / `audit` readout of session shape |
 
@@ -345,6 +395,7 @@ during Stage-2/3 of the pipeline.
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2.0 | 2026-10-25 | **C2 instrumented.** C2 claimed to count premises refuted per round but no marker existed, so the counter read whatever the conductor remembered — the unmeasured claim `ANTI-THEATER` fails. Adds §Phase 6 — the `REFUTACAO` marker: a five-field `\|`-separated line written into the round's work-ledger item `decision` field, the copy-ready `jq` counting command, and the instruction to mutation-check the command before reading a `0` as a real `0`. Chose the marker convention over reanimating the harness's `spec_alignment` field (dead since 2026-06, 0 `divergent` values — a schema-and-pipeline change in a dependency this asset does not own) and over regex-over-prose counting (returned 17 candidates with no agreed marker: a candidate list, not a metric). No schema change, no dependency change. `description` also cut 1338 -> 1323 B with its trigger-term set proven non-shrinking by set diff. |
 | 0.1.0 | 2026-10-25 | Bootstrap — the **round-scored productivity loop** (HOTL within an inviolable HITL floor). Net-new = the bidirectional 6-phase round contract (N1), the 4-counter productivity gate incl. refuted-premises (N2), and the falsifiable introspection trigger with same-round all-surface repair (N3); everything else delegates per §Composition's 19 rows over 18 existing assets. Forged through `agentic-tool-pipeline` (Stage-0 → INTENT → `agentic-tool-forge`; Stage-1 measured no duplicate; Stage-2/3 converged type=skill, rejecting command [a wrapper only — YAGNI at v0.1.0], rule [no phases, no delegation], agent [would duplicate existing conductor personas and imply authority the HITL floor denies]). Named via `anima` agent-register: `ratchet-loop` — a ratchet clicks forward and cannot slip; rejected `virtuous-cycle` (asserts the outcome the counters exist to test, and aligns with no family), `hotl-loop` (names the autonomy mode, not the mechanism; dates with the mode), `cvp-hotl` (acronym, gloss-dependent). Operator vocabulary ("ciclo virtuoso", "virtuous cycle", "HOTL") kept in `description` triggers so discoverability survives the rename. Seven corrections recorded as D1–D7. `dogfood_status: pending-first-cycle` — zero real cycles. |
 
 ## License

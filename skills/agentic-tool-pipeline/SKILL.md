@@ -2,15 +2,15 @@
 name: agentic-tool-pipeline
 description: |
   Conductor of the agentic-tool lifecycle — given ANY --source-object (intent · url ·
-  plugin · marketplace · path to an existing tool), ROUTE it to the right family member
-  and run the divergent→convergent pass: analyze → research similars → compare →
-  critique → DEBATE → CONVERGE → validate → improve → HARMONIZE → then forge/adopt/improve
-  one+ agentic-tools of any --type and SAVE to --location (akasha · multi-agent-os ·
-  vek-ai-toolkit). A thin preset that COMPOSES existing primitives (agentic-tool-forge/
-  intake/evaluator/trainer · anima · converge · perspective-trio) — reimplements nothing;
-  applies + passes 11 principles (DRY · KISS · SSOT · YAGNI · anti-over-eng · anti-theater
-  · boy-scout · DNA-geracional · continuity · idempotency · handoff). Use when ANY source
-  should become the right agentic-tool in one governed pass. Triggers:
+  plugin · marketplace · path to an existing tool), ROUTE it to the right family member,
+  run the divergent→convergent pass: analyze → research similars → compare → critique →
+  DEBATE → CONVERGE → validate → improve → HARMONIZE → then forge/adopt/improve one+
+  agentic-tools of any --type and SAVE to --location (akasha · multi-agent-os ·
+  vek-ai-toolkit). A thin preset that COMPOSES existing primitives
+  (agentic-tool-forge/intake/evaluator/trainer · anima · converge · perspective-trio);
+  reimplements nothing; applies + passes 11 principles (DRY · KISS · SSOT · YAGNI ·
+  anti-over-eng · anti-theater · boy-scout · DNA-geracional · continuity · idempotency ·
+  handoff). Triggers: ANY source should become the right agentic-tool in one governed pass;
   "agentic-tool-pipeline", "forge a tool from this url/plugin/intent", "turn any source
   into the right agentic-tool", "route to the agentic-tool lifecycle".
 allowed-tools: [Task, Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch, Skill]

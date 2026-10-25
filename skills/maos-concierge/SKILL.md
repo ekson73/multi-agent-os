@@ -3,20 +3,21 @@ name: maos-concierge
 version: "1.1.0"
 description: |
   Concierge / onboarding / guide / router / capability-detector / governance-anchor for the
-  ENTIRE Multi-Agent OS (MAOS) framework — its agents, skills, commands, protocols, and governances
-  (Orchestration · The Forge + RBAD + Goldilocks · Sentinel Protocol · Anti-Conflict · Hierarchical
-  Merge · Worktree Policy · TTL Policy · Status Maps · GaaS/GaaC Delegation · maos-mcp-hub gateways).
-  Use when a human or agent wants to LEARN MAOS, ONBOARD onto it, find WHICH tool/agent/command/protocol
-  to use for an intent, get a PLAYBOOK/RUNBOOK/WALKTHROUGH, AUDIT a project's MAOS usage, or re-find a
-  CANONICAL decision that drifted across sessions. It ROUTES + TEACHES + ANCHORS — it never reimplements
-  an agent/skill/protocol and never wraps an existing tool. 8 modes: explain (default — teach the
-  framework + landscape), onboard (guided ramp for a newcomer), guide (intent → right tool + playbook),
-  audit (read-only compliance vs MAOS protocols), anchor (surface canonical decisions, flag drift),
-  dashboard (ASCII onboarding-map; optional HTML companion), setup (MAOS Hub console — render the
-  derived registry views preset/category/use-case/context-aware/prose-intent/safe-mode and write the
-  enablement profile, conflict-checked + HITL-confirmed), config (inspect/adjust the persisted
-  hub profile SSOT). Vendor-neutral (AAIF cross-vendor) —
-  portable across Claude Code, Cursor, Codex, Gemini CLI, Copilot.
+  ENTIRE Multi-Agent OS (MAOS) framework — agents, skills, commands, protocols, governances
+  (Orchestration · The Forge + RBAD + Goldilocks · Sentinel Protocol · Anti-Conflict ·
+  Hierarchical Merge · Worktree Policy · TTL Policy · Status Maps · GaaS/GaaC Delegation ·
+  maos-mcp-hub gateways). For a human or agent wanting to LEARN MAOS, ONBOARD onto it, find
+  WHICH tool/agent/command/protocol fits an intent, get a PLAYBOOK/RUNBOOK/WALKTHROUGH,
+  AUDIT a project's usage, or re-find a CANONICAL decision drifted across sessions. ROUTES
+  + TEACHES + ANCHORS; never reimplements an agent/skill/protocol, never wraps an existing
+  tool. 8 modes: explain (default: teach framework + landscape), onboard (guided ramp for a
+  newcomer), guide (intent → right tool + playbook), audit (read-only compliance vs
+  protocols), anchor (surface canonical decisions, flag drift), dashboard (ASCII
+  onboarding-map; optional HTML companion), setup (MAOS Hub console: render derived
+  registry views preset/category/use-case/context-aware/prose-intent/safe-mode, write the
+  enablement profile, conflict-checked + HITL-confirmed), config (inspect/adjust the
+  persisted hub profile SSOT). Vendor-neutral (AAIF cross-vendor) — portable across Claude
+  Code, Cursor, Codex, Gemini CLI, Copilot.
 allowed-tools: Read, Glob, Grep, Bash, WebFetch
 evals:
   should_trigger:

@@ -2,22 +2,21 @@
 name: red-team
 version: "0.1.0"
 description: |
-  Decide WHEN an adversarial red-team is MANDATORY for an action, and HOW deep — then
-  route to the right existing primitive (build nothing new). Soul-name Elenchus (Socratic
-  ἔλεγχος — refutation by cross-examination). Red-teaming = adversarial verification BY
+  Decide WHEN an adversarial red-team is MANDATORY for an action, and HOW deep — then route
+  to the right existing primitive (build nothing new). Soul-name Elenchus (Socratic ἔλεγχος
+  — refutation by cross-examination). Red-teaming = adversarial verification BY
   CONSTRUCTION: an INDEPENDENT verifier (≠ the author/generator, rewarded for BREAKING the
-  artifact) — independence is constitutive, distinct from ordinary review. The trigger is a
+  artifact); independence is constitutive, distinct from ordinary review. The trigger is a
   deterministic hard-trigger predicate (secrets · production regulated personal data ·
   irreversible high-blast · unattended side-effect · auth/crypto/access-control/guardrail
   change · self-edit of a binding rule · cross-org/disclosure · untrusted-input-steered
   side-effect · aggregate campaign · fail-open flip) OR self-scored criticality HIGH — the
   trip-wires OVERRIDE the score, never a magic %. Composes bin/convergence-guard (master
   condition), perspective-trio (triplet-D adversarial), cascade-resolver (role-5), converge
-  (devil_advocate). Use when deciding "does this action need a red-team, and how much",
-  before a merge / irreversible / high-autonomy effect.
-  Triggers: "should this be red-teamed", "red-team this", "is an adversarial review
-  mandatory here", "do we need an independent break-it check", "how deep should the
-  red-team be", "adversarial verification gate".
+  (devil_advocate). Triggers: deciding "does this action need a red-team, and how much",
+  before a merge / irreversible / high-autonomy effect; "should this be red-teamed",
+  "red-team this", "is an adversarial review mandatory here", "do we need an independent
+  break-it check", "how deep should the red-team be", "adversarial verification gate".
 allowed-tools: Task, Read, Bash, Grep, Glob
 ---
 

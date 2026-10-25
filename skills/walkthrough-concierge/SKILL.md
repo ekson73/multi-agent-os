@@ -3,17 +3,18 @@ name: walkthrough-concierge
 version: "1.0.0"
 prompt_version: "1.0.0"
 description: |
-  Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic Session
-  Harness — session journals, the walkthrough (decisions + reasoning + drift vs SPECs), and the
-  decision-audit (decisions[] · sources · spec_alignment). Use when a human or agent wants to
-  LEARN ASH, ONBOARD onto it, find WHICH ASH tool to use for an intent (audit my decisions? why
-  did the agent diverge from a SPEC? capture a decision? read a session timeline?), get a
-  RUNBOOK, AUDIT a project's ASH usage/coverage, or re-find a CANONICAL ASH decision that drifted.
-  It ROUTES + TEACHES + ANCHORS — it never reimplements a CLI/hook/schema and never wraps an
-  existing tool. 6 modes: explain (default — teach ASH + landscape), onboard (guided ramp),
-  guide (intent → right agentic-* tool + invocation), audit (read-only ASH coverage/compliance),
-  anchor (surface canonical ASH decisions, flag drift), dashboard (ASCII coverage-map). Vendor-
-  neutral (AAIF cross-vendor). Sibling of maos-concierge / specdd-concierge / atlassian-concierge.
+  Concierge / onboarding / guide / router / governance-anchor for the ASH-lite Agentic
+  Session Harness — session journals, the walkthrough (decisions + reasoning + drift vs
+  SPECs), the decision-audit (decisions[] · sources · spec_alignment). For a human or agent
+  wanting to LEARN ASH, ONBOARD onto it, find WHICH ASH tool to use for an intent (audit my
+  decisions? why did the agent diverge from a SPEC? capture a decision? read a session
+  timeline?), get a RUNBOOK, AUDIT a project's ASH usage/coverage, or re-find a CANONICAL
+  ASH decision drifted. ROUTES + TEACHES + ANCHORS; never reimplements a CLI/hook/schema,
+  never wraps an existing tool. 6 modes: explain (default: teach ASH + landscape), onboard
+  (guided ramp), guide (intent → right agentic-* tool + invocation), audit (read-only ASH
+  coverage/compliance), anchor (surface canonical ASH decisions, flag drift), dashboard
+  (ASCII coverage-map). Vendor-neutral (AAIF cross-vendor). Sibling of maos-concierge /
+  specdd-concierge / atlassian-concierge.
 allowed-tools: Read, Glob, Grep, Bash
 evals:
   should_trigger:

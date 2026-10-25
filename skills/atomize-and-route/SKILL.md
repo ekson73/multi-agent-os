@@ -2,23 +2,22 @@
 name: atomize-and-route
 description: |
   Given ANY content (braindump · prompt · doc · transcript · insight · gap · pendency ·
-  idea · template) decompose it into TYPED knowledge atoms (norm · procedure · role ·
-  insight · fact/reference · decision · work · gap/pendency · idea/braindump-seed ·
+  idea · template) decompose into TYPED knowledge atoms (norm · procedure · role · insight
+  · fact/reference · decision · work · gap/pendency · idea/braindump-seed ·
   template/example · question/answer), classify each (context · scope · domain ·
-  confidence), relate them into a DAG (recursive/sequential/interdependent/
-  interconnected/disconnected/parallel per cowork-process-topology-protocol §5),
-  resolve WHERE + WHAT-FORMAT each one persists (via bin/atomize-and-route, the
-  deterministic KRDR-derived taxonomy lookup), gate-and-persist (H6 governance-self-edit
-  → red-team + council-gate; everything else passes straight through), and verify every
-  routed target is REAL and openable before reporting DONE. Composes — does NOT
-  duplicate — directive-braindump-triage (directive-only, DONE/OPEN/DROP classification),
-  graphify (code/folder → knowledge-graph, source of the EXTRACTED/INFERRED provenance
-  convention this skill reuses), council-gate (Boule — the H6 pre-persist gate),
-  red-teaming-mandatory-trigger (Elenchus — the H6 adversarial check), and
-  artifact-registry (dedup before creating any NEW agentic-tool as a `procedure`/`role`
-  atom). Use when the operator wants raw, mixed, un-typed content turned into
-  persisted, correctly-placed knowledge instead of one more untyped memory file.
-  Cross-vendor AAIF.
+  confidence), relate into a DAG (recursive/sequential/interdependent/
+  interconnected/disconnected/parallel per cowork-process-topology-protocol §5), resolve
+  WHERE + WHAT-FORMAT each persists (bin/atomize-and-route, the deterministic KRDR-derived
+  taxonomy lookup), gate-and-persist (H6 governance-self-edit → red-team + council-gate;
+  everything else passes straight through), verify every routed target REAL and openable
+  before reporting DONE. Composes — does NOT duplicate — directive-braindump-triage
+  (directive-only, DONE/OPEN/DROP classification), graphify (code/folder →
+  knowledge-graph, source of the EXTRACTED/INFERRED provenance convention this skill
+  reuses), council-gate (Boule — the H6 pre-persist gate), red-teaming-mandatory-trigger
+  (Elenchus — the H6 adversarial check), artifact-registry (dedup before creating any NEW
+  agentic-tool as a `procedure`/`role` atom). For raw, mixed, un-typed content the operator
+  wants turned into persisted, correctly-placed knowledge instead of one more untyped
+  memory file. Cross-vendor AAIF.
 triggers:
   - atomize this
   - route this content
