@@ -2,18 +2,18 @@
 name: reactivate
 version: "0.1.0"
 description: |
-  Cold-start reactivation conductor for new-fresh-born amnesic agents. Wakes an agent that has
-  NO context — orients from whatever evidence exists (or honestly reports that none does),
-  recovers the often-unstated intent, deliberates, and PRESENTS ranked recommendations /
-  next-actions routed to the consumer's own form: operator_language via the ask-tool for a live human,
-  a persisted ranked set for a deferred human, a typed JSON envelope for an agent/subagent/
-  abiotic consumer. Composes the existing family (pulse · goal-recovery · enhance-pipeline ·
-  converge · convergence-engine Return-Gate) and newly authors only what was genuinely absent:
-  a THINK step, a data-sanitize gate, and ONE unified PRESENT. Explicit operator instruction
-  overrides every computed condition.
-  Soul-name: Entelecheia (Aristotle, De Anima II.1 — the second entelechy: latent knowledge
-  moved into exercise). Triggers: "reactivate", "reativar", "wake up", "acordar", "cold start",
-  "I have no context", "onde eu estava", "what am I doing", "re-ativação".
+  Cold-start reactivation conductor for new-fresh-born amnesic agents. Wakes an agent
+  having NO context — orients from whatever evidence exists (or honestly reports that none
+  does), recovers the often-unstated intent, deliberates, PRESENTS ranked recommendations /
+  next-actions routed to the consumer's own form: operator_language via the ask-tool for a
+  live human, a persisted ranked set for a deferred human, a typed JSON envelope for an
+  agent/subagent/abiotic consumer. Composes the existing family (pulse · goal-recovery ·
+  enhance-pipeline · converge · convergence-engine Return-Gate), newly authors only what
+  was genuinely absent: a THINK step, a data-sanitize gate, ONE unified PRESENT. Explicit
+  operator instruction overrides every computed condition. Soul-name: Entelecheia
+  (Aristotle, De Anima II.1 — the second entelechy: latent knowledge moved into exercise).
+  Triggers: "reactivate", "reativar", "wake up", "acordar", "cold start", "I have no
+  context", "onde eu estava", "what am I doing", "re-ativação".
 allowed-tools: Read, Grep, Glob, Bash, Write, Task, AskUserQuestion
 metadata:
   version: "0.1.0"
