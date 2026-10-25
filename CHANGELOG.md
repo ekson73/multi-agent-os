@@ -6,13 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Added — `virtuous-spiral` generic parent skill (HOTL delivery cycle)
 
-- `skills/virtuous-spiral/SKILL.md`: generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Includes a five-lens retro, authorized and bounded self-evolution, auto-persisted records, and a child-variation format that may only tighten the parent.
-- An "Inviolable floor" section holds the hard limits (class and validity, convergence and independence of the reviewer, merge rule for repositories without an approvers registry, reserved-to-human list, generic minimum, and the single numeric table). Its integrity is checkable with one `awk | sha256sum` command; an empty hash counts as failure, and the approved hash is kept outside the file.
-- Role-based independence only: a reviewer opinion is identified by the file sha256 and the evaluated head, and proves role, not identity.
-- Status: proposal, no cycle run yet (dogfood pending). Cost ceilings are proposed values pending human confirmation; the weekly quota base is unverified.
-- `skills/README.md` lists the skill.
+### Added: `virtuous-spiral` generic parent skill (HOTL delivery cycle)
+
+- `skills/virtuous-spiral/SKILL.md` (v0.4.0): generic parent skill for a spiral, event-driven delivery cycle over a node tree (forward-1 delivers downward, backward traces each deliverable up to a motivation and prunes theater, forward-2 repeats only the missing deliverables one level up). Consolidates two proposals under one name: the floor, classes, self-evolution and child format from one, the gate for irreversible acts only (RELEASE or HOLD, closing re-read, state-id precondition, work record), the short ledger and the digest from the other.
+- An "Inviolable floor" section holds the hard limits; its integrity is checked with one `awk | sha256sum` command that takes the file path as a parameter. The approved hash is kept outside the file; a changed hash is class 2.
+- Action bias: the agent decides and delivers by default and records decision and reasoning afterwards; it asks only about intent or policy, personal taste, domain norms and the inviolable floor. Reversible and compensable steps never wait; only irreversible acts pass the gate. Cost ceilings have no default number: the agent declares its own estimate and only new spend is floor. Status: proposal, no cycle run yet (dogfood pending).
+- `skills/README.md` lists it (96) and adds it to the Loops & recovery family.
 
 ### Changed — `ratchet-loop` 0.2.0 (C2 instrumented) + top-20 description redundancy cut
 
