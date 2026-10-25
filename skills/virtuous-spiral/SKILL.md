@@ -17,7 +17,7 @@ BACKWARD (from the node back to its motivations)
 - Closing label (OODA): Observe = B3, Orient = B2 against B3 plus the defect class, Decide = B4, Act = hand the route to FORWARD. The OODA "act" does **not** execute the pending action.
 
 FORWARD (from the motivations down to execution)
-- **F1 course correction (hinge)**: only a RELEASED step enters. Immediately before executing, after the preparatory work (everything between RELEASE and the executing step), re-read the volatile premises at the source. A change attributable to this turn's own ledger (by the id or SHA the turn itself recorded, never by message or author) does not count as a change. If another change appeared, go back to B3 for it and HOLD provisionally; B3 and B4 release or keep the hold.
+- **F1 course correction (hinge)**: opens the gate on entry: only a RELEASED step enters FORWARD. It closes the gate again after the preparatory work of F2 (everything between RELEASE and the executing step), immediately before F3: re-read the volatile premises at the source. A change attributable to this turn's own ledger (by the id or SHA the turn itself recorded, never by message or author) does not count as a change. If another change appeared, go back to B3 for it and HOLD provisionally; B3 and B4 release or keep the hold.
 - **F2 decompose (progressive)**: pick the frontier of possible actions; per item, readiness/done criteria, owner and best agent.
 - **F3 execute**: within the host's own bound on live subagents (this skill states no number); then re-read the effect at the source, never the tool's "OK".
 - **F4 persist**: one ledger line and the updated artifact, same turn. Always runs.
@@ -26,8 +26,8 @@ FORWARD (from the motivations down to execution)
 
 ## Gates (principles this skill enforces by itself)
 - **G1 order**: no irreversible or externally visible action (merge, publish, push to a shared ref, write to another owner's tracker, report "done") before B3 has a verdict for every premise of that action and B4 has RELEASED it.
+- **G2 authority**: who authorizes an irreversible action is whatever standing authorization already exists in the host; this skill grants none, and the OODA "act" never executes the pending action.
 - **G3 fail-closed**: a premise that is `NOT VERIFIED`, or a condition with no operational definition, counts as not met. HOLD the step, record it, and continue with what is reversible and yours; do not stop the whole turn.
-- Who authorizes an irreversible action is whatever standing authorization already exists in the host; this skill grants none.
 
 ## Ledger (no new file)
 One append-only line per turn in the host's project memory, with: date · node · direction · baseline · action · result · defect class · lesson · auto-fix · evidence link. When an irreversible action ran, `result` also carries `F1 re-read: yes(<observed state id, e.g. HEAD SHA or row version; read time only if the source has no id>) | no | n/a`. Corrections are new lines.
