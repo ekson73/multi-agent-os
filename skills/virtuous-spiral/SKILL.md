@@ -1,6 +1,6 @@
 ---
 name: virtuous-spiral
-description: "Runs a spiral, event-driven virtuous delivery cycle for agents with the human out of the operational path: decide and deliver by default, record the decision and reasoning after, ask only about intent, personal taste, domain norms or the inviolable floor. Forward-1 delivers a node downward, backward traces every deliverable up to a motivation and prunes theater, forward-2 repeats only what is missing one level up. Brings a before-and-after metacognition check, a gate for irreversible acts only, a hashed inviolable floor and free self-evolution that stays traceable, reversible, refutable, contained and cost-declared. Use when a set of deliveries ends (a PR, a BRIEF, a session), when a child project declares variations, or when the user says 'virtuous spiral', 'espiral virtuosa' or 'ciclo virtuoso'. Not for one ticket or PR (use ooda-loop), scored rounds (use ratchet-loop) or a gap register (use gap-loop)."
+description: "Runs a spiral, event-driven virtuous delivery cycle for agents with the human out of the operational path: decide and deliver by default, record the decision and reasoning after, ask only about intent, personal taste, domain norms or the inviolable floor. Forward-1 delivers a node downward, backward traces every deliverable up to a motivation and prunes theater, forward-2 repeats only what is missing one level up. Brings a before-and-after metacognition check, a gate for irreversible acts only, a hashed inviolable floor and free self-evolution that stays traceable, reversible, refutable, contained and cost-declared. Use when a set of deliveries ends in a PR, a BRIEF or a session, when a child project declares variations, or when the user says 'virtuous spiral', 'espiral virtuosa' or 'ciclo virtuoso'. Not for one ticket or one PR (use ooda-loop), scored rounds (use ratchet-loop) or a gap register (use gap-loop)."
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 metadata:
   version: "0.4.0"
@@ -13,7 +13,7 @@ metadata:
 
 # Virtuous Spiral (generic parent skill, SSOT)
 
-Public, generic text: no names of agents or people, no ticket or message ids, no local paths, e-mails or third-party data. Roles are lenses: ORQ (orchestrator and cycle owner), AUD (audit and review opinion "C"), QA (verification), CUSTOS (cost measurer), OWNER (the human decider). These aliases stay as written. Status: PROPOSAL until merged under the repository policy.
+Public, generic text: no names of agents or people, no ticket or message ids, no local paths, e-mails or third-party data. The one public id this text allows is the opaque authorization ref defined in the floor (Merge and repositories); that ref is not a ticket or message id. Roles are lenses: ORQ (orchestrator and cycle owner), AUD (audit and review opinion "C"), QA (verification), CUSTOS (cost measurer), OWNER (the human decider). These aliases stay as written. Status: PROPOSAL until merged under the repository policy.
 Precedence: the project's canonical policy > this parent > child. Every normative number lives only in the "Inviolable floor" section. A host overlay (outside this repository) maps steps to the host's own rules and lists standing authorizations; it never restates this text.
 
 ## 1. Stance: decide and deliver (HOTL)
@@ -44,10 +44,10 @@ An item with no anchor is proposed to OWNER and never self-anchors; security and
 |---|---|---|---|
 | F1(n) | n with green DoR, anchor, ceiling | decomposes n downward and delivers (each child gets goal, sources, tools, class, DoR, DoD, deliverable, stop) | all deliverables proven, or ceiling, or named blocker |
 | B(n→p) | F1 ended | goes up one level; traces each subagent, session, step and task to a motivation and checks the proof; what does not climb leaves (§6); marks each deliverable of p covered, partial or missing | every remaining item has a chain or was pruned with a record |
-| F2(p) | B left ≥1 deliverable of p missing | repeats the forward in p ONLY on the missing ones (never re-delivers what is covered) | same as F1 |
+| F2(p) | B left ≥1 deliverable of p missing | repeats only the missing deliverables of p; it is not F1 and never re-delivers what is covered | those missing deliverables are proven, or ceiling, or named blocker |
 
-Climb rule: after B(n→p), if p has missing items run F2(p) then B(p→pp); if none, go straight to B(p→pp). B always runs before leaving a level, so the climb never loops on F1. At the root, B ends with the convergence check.
-**Trigger (not a clock):** a round fires at the end of a set of deliveries or actions by the executing agent (end of a PR, a BRIEF, a session). A periodic consolidation is only an option a child declares and never creates a routine: a new routine, higher cadence or reactivating a paused routine is floor and a cost decision.
+Climb rule: after B(n→p), if p has missing items run F2(p) then B(p→pp); if none are missing, do not run F2 and go straight to B(p→pp), so a fully covered parent still climbs and the root convergence check still runs. B always runs before leaving a level, so the climb never loops on F1. At the root, B ends with the convergence check.
+**Trigger (not a clock):** a round fires when a set of deliveries ends in a PR, a BRIEF or a session. One ticket or one PR does not fire this skill. A periodic consolidation is only an option a child declares and never creates a routine: a new routine, higher cadence or reactivating a paused routine is floor and a cost decision.
 **Convergence** (first that holds): (i) the root has all deliverables covered; (ii) a cost or time ceiling is hit (what is left becomes a pending item with an owner); (iii) consecutive rounds without delta up to the floor limit: contain, retro, put the cause in the digest.
 **Stop:** an empty frontier stops only after every held step has had its gate round; steps waiting on an external condition leave the frontier with their resume condition. A round with no new action, defect or decision is the signal to stop, not to invent work.
 Each phase runs the short loop of `ooda-loop` (OODA outer, PDCA inner); a small node runs a light round. Emit the family's stop marker as in `ratchet-loop`.
@@ -122,6 +122,15 @@ Loop: detect → diagnose → backup → change in a branch or PR (reversible) �
 | F-h | changing the parent by PR is the normal path, without consulting OWNER on content; C and the merge gate follow "Class and validity" | PR outside the floor, with C where the policy asks |
 | F-i | merge and repository hygiene: Floor, "Merge and repositories" | private-list terms = 0 by `rg`; secret and PII scans green |
 
+Repository-root floor check. The exact command stays under Hash integrity and is not edited here. From the repository root set the path and run that command:
+
+```sh
+F=skills/virtuous-spiral/SKILL.md
+: "${F:?set F to the path of the SKILL.md to check}"
+test "$(grep -cE '^#+ Inviolable floor' "$F")" = 1 && awk '!f&&/^#+ Inviolable floor/{f=index($0," ");next} f&&/^#+ /&&index($0," ")<=f{exit} f' "$F" | sha256sum
+```
+
+`$F` is the path of this file, so the check runs from the root. An unset `F` fails closed and is not a pass.
 
 ## Inviolable floor
 Only OWNER changes this section. It holds everything that is floor: hash integrity, class and validity, convergence, merge, the reserved list, the generic minimum and the numeric values. Text elsewhere that repeats a number or rule from here is only a pointer.
@@ -178,7 +187,7 @@ No direct push to main; no administrator privilege or bypass of protection or ru
 
 ## 11. Brief, metrics, children, herald, limits
 **BRIEF** (6 fields): goal in 1 line; scope and limits; allowed sources; output format; token or time ceiling; authorization. **REPORT** ≤ 25 lines: done, verified, NOT VERIFIED, decisions taken, decisions requested (only the 1%, ≤ 3, batched), paths. Provisional: becomes a link when the project adopts a single protocol.
-**Metrics** (state V, EXT or NOT VERIFIED; baselines stay private; a metric without a source stays off the panel): merged / created PRs over a fixed window, counted by two separate queries (`gh pr list --state merged --search "merged:>=<date>"` and `--state all --search "created:>=<date>"`, both with `--limit 1000`); WIP; spend per merged PR and round (CUSTOS, NOT VERIFIED until a meter and a base exist); items pruned / evaluated; evolutions against deliverable delta; age of pending human decisions; human questions per delivered PR (target: down; any outside the 1% is a defect).
+**Metrics** (state V, EXT or NOT VERIFIED; baselines stay private; a metric without a source stays off the panel): merged / created PRs over a fixed window. The round records `<start>` and `<end>` before counting, then runs two separate bounded queries: `gh pr list --state merged --search "merged:>=<start> merged:<=<end>" --limit 1000` and `gh pr list --state all --search "created:>=<start> created:<=<end>" --limit 1000`. WIP; spend per merged PR and round (CUSTOS, NOT VERIFIED until a meter and a base exist); items pruned / evaluated; evolutions against deliverable delta; age of pending human decisions; human questions per delivered PR (target: down; any outside the 1% is a defect).
 **Child** (closed keys, only tightens; a key outside the list is ignored with a warning; the child points to the parent by sha):
 ```yaml
 child: <name>
