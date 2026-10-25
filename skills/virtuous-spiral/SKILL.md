@@ -21,7 +21,7 @@ FORWARD (from the motivations down to execution)
 - **F2 decompose (progressive)**: pick the frontier of possible actions; per item, readiness/done criteria, owner and best agent.
 - **F3 execute**: within the host's own bound on live subagents (this skill states no number); then re-read the effect at the source, never the tool's "OK".
 - **F4 persist**: one ledger line and the updated artifact, same turn. Always runs.
-- **F5 propagate (conditional)**: only if there was a defect class, a durable new fact, or a recurrence of the same class; then the lesson becomes a mechanism (edit a rule, skill or pointer) and the next turn is re-planned from the delta. No trigger, no lesson.
+- **F5 propagate (conditional)**: only if there was a defect class, a durable new fact, or a recurrence of the same class; then the lesson (or the durable fact, when no defect produced a lesson; on a recurrence, the existing lesson) becomes a mechanism (edit a rule, skill or pointer) and the next turn is re-planned from the delta. No trigger, nothing is propagated.
 - Closing label (PDCA): Plan = F1 + F2, Do = F3, Check = re-read of the effect, Act = F4 (and F5 if triggered).
 
 ## Gates (principles this skill enforces by itself)
