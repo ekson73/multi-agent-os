@@ -30,7 +30,7 @@ FORWARD (from the motivations down to execution)
 - **G3 fail-closed**: a premise that is `NOT VERIFIED`, or a condition with no operational definition, counts as not met. HOLD the step, record it, and continue with what is reversible and yours; do not stop the whole turn.
 
 ## Ledger (no new file)
-One append-only line per turn in the host's project memory, with: date · node · direction · baseline · action · result · defect class · lesson · auto-fix · evidence link. When an irreversible action ran, `result` also carries `F1 re-read: yes(<observed state id, e.g. HEAD SHA or row version; read time only if the source has no id>) | no | n/a`. Corrections are new lines.
+One append-only line per turn in the host's project memory, starting with the marker `SPIRAL <date> ·` (so the line can be found by search), then: node · direction · baseline · action · result · defect class · lesson · auto-fix · evidence link. When an irreversible action ran, `result` also carries `F1 re-read: yes(<observed state id, e.g. HEAD SHA or row version; read time only if the source has no id>) | no | n/a`. Corrections are new lines.
 
 ## Stop
 Stop when any holds: (a) the frontier is empty, or the delta between two consecutive turns changes no decision; (b) a provider quota or the host's churn ceiling is hit: stop that subtree, record, report; (c) the next step needs a human-domain decision: hand over in the end digest. A turn with no ledger delta is the signal to stop, not to invent work.
