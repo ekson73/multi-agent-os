@@ -176,7 +176,7 @@ def validate_handoff(obj, conf_thresh):
     return errs
 
 
-def validate_dod(obj):
+def validate_dod(obj, conf_thresh=DEFAULT_CONF_INCONCLUSIVE):
     errs = []
     require(obj, ["jsonrpc", "method", "params", "data"], "dod", errs)
     check_identity_consts(obj, "dod", "dod", errs)   # jsonrpc/method/data.type const contract
@@ -184,11 +184,44 @@ def validate_dod(obj):
     if not isinstance(p, dict):
         errs.append("dod.params: expected object")
         return errs
-    require(p, ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate"],
+    # `confidence`, `recovered_from`, `inconclusive` MIRROR the handoff provenance gate: without them a
+    # DoD fabricated from nothing validated with exit 0 (no anti-fabrication bar). They are REQUIRED here
+    # for the same reason they are on the handoff — a DoD is derived FROM a recovered goal + read sources,
+    # and a confident derivation that cites no source is theater.
+    require(p, ["for_goal", "context_lock", "measurement_spec", "acceptance", "kpis", "termination_predicate",
+               "confidence", "recovered_from", "inconclusive"],
             "dod.params", errs)
+    in_unit(p, "confidence", "dod.params", errs)
+    is_list(p, "recovered_from", "dod.params", errs)
+
+    inconc = p.get("inconclusive") or {}
+    require(inconc, ["flag", "reasons"], "dod.params.inconclusive", errs)
+    flag = False  # fail-CLOSED: a non-object `inconclusive` is already reported by require(), and leaving
+    # flag False keeps the derivation gate STRICT rather than silently waiving it (same idiom as handoff).
+    if isinstance(inconc, dict):
+        # flag MUST be a real boolean: bool("false") is True (any non-empty string is truthy), so a string
+        # flag would fail-OPEN the gate. Reject non-bool, never coerce a non-bool to a value.
+        flag_raw = inconc.get("flag", False)
+        if "flag" in inconc and not isinstance(flag_raw, bool):
+            errs.append(f'dod.params.inconclusive.flag: must be a boolean, got {flag_raw!r} '
+                        f'(a truthy string like "false" would fail-OPEN the low-confidence gate)')
+        flag = flag_raw if isinstance(flag_raw, bool) else False
+        is_list(inconc, "reasons", "dod.params.inconclusive", errs)
+
+    # --- the provenance gate rules (SpecError conditions), mirrored from validate_handoff ---
+    conf = p.get("confidence")
+    rec = p.get("recovered_from")
+    if isinstance(conf, (int, float)) and not isinstance(conf, bool) and conf > 0:
+        if isinstance(rec, list) and len(rec) == 0:
+            errs.append("dod.params: recovered_from is empty while confidence>0 (a confident DoD must cite the sources it was derived from — anti-theater grounding; a DoD fabricated from nothing is refused)")
+
+    if isinstance(conf, (int, float)) and not isinstance(conf, bool) and conf < conf_thresh and not flag:
+        errs.append(f"dod.params: confidence {conf} < conf_inconclusive {conf_thresh} requires inconclusive.flag=true (never drive a loop on a low-confidence DoD)")
 
     for_goal = p.get("for_goal", "")
-    if isinstance(for_goal, str) and for_goal.strip() == "":
+    if isinstance(for_goal, str) and for_goal.strip() == "" and not flag:
+        errs.append("dod.params.for_goal: must be non-empty (a DoD divorced from its goal is a SpecError; an empty for_goal requires inconclusive.flag=true to DEFER)")
+    elif isinstance(for_goal, str) and for_goal.strip() == "":
         errs.append("dod.params.for_goal: must be non-empty (a DoD divorced from its goal is a SpecError)")
 
     tp = p.get("termination_predicate", "")
@@ -326,7 +359,7 @@ def main():
     if kind == "handoff":
         errs = validate_handoff(obj, args.conf_inconclusive)
     elif kind == "dod":
-        errs = validate_dod(obj)
+        errs = validate_dod(obj, args.conf_inconclusive)
     else:
         errs = validate_system(obj)
     if errs:

@@ -121,5 +121,30 @@ gate_test_on "$SYSTEM" "system: empty revision_trigger (the Eliason guard)"     
 gate_test_on "$SYSTEM" "system: empty minimal_system.why_minimal (P1 honesty)"   'o["params"]["minimal_system"]["why_minimal"]=""'
 gate_test_on "$SYSTEM" "system: wrong method const"                              'o["method"]="session.WRONG"'
 
+# --- dod-as-prompt PROVENANCE GATE (EKO-101) — the DoD must carry the SAME anti-fabrication bar
+# as the sibling handoff. Before this gate a DoD fabricated from nothing validated with exit 0. ---
+DOD_INVALID="$SKILLS/ooda-loop/tests/dod-as-prompt.invalid.example.json"
+# whole fixture: a confident DoD with empty recovered_from (fabricated from nothing) -> REFUSED
+if "$PY" "$VALIDATE" "$DOD_INVALID" >/dev/null 2>&1; then rc=0; else rc=$?; fi
+if [ "$rc" -eq 3 ]; then
+  ok "fabricated DoD (confidence>0, recovered_from empty) is REFUSED (SpecError exit 3 — provenance gate fires)"
+else
+  bad "fabricated DoD should be refused with exit 3 (provenance gate)"
+fi
+# mutation-check: the valid DoD example must FAIL the moment provenance is removed, and the gate must
+# distinguish good from bad (a guard that passes with AND without the defect proves nothing).
+gate_test_on "$DOD" "dod: recovered_from empty while confidence>0 (anti-fabrication)" 'o["params"]["recovered_from"]=[]'
+gate_test_on "$DOD" "dod: confidence below threshold without inconclusive.flag"        'o["params"]["confidence"]=0.4'
+gate_test_on "$DOD" "dod: missing confidence required key"                             'del o["params"]["confidence"]'
+gate_test_on "$DOD" "dod: missing recovered_from required key"                         'del o["params"]["recovered_from"]'
+gate_test_on "$DOD" "dod: missing inconclusive required key"                           'del o["params"]["inconclusive"]'
+gate_test_on "$DOD" "dod: inconclusive.flag as string (fail-OPEN guard)"               'o["params"]["inconclusive"]["flag"]="false"'
+# positive control: the SAME example WITH provenance must still PASS (gate is not trivially always-refuse)
+if "$PY" "$VALIDATE" "$DOD" >/dev/null 2>&1; then
+  ok "dod: valid example WITH provenance still validates (gate not trivially always-refuse)"
+else
+  bad "dod: valid example with provenance should still validate"
+fi
+
 echo "-- $pass passed, $fail failed --"
 [ "$fail" -eq 0 ]
