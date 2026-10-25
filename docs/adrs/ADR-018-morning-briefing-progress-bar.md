@@ -7,7 +7,7 @@
 
 ## Context
 
-`morning-briefing` is a declarative markdown skill (no executable scripts; its bash blocks are LLM-implemented pseudo-code per host capability). Recap-mode `## 4. $execution_metrics` already surfaced four percentages: `% Plan execution`, `% Principais completos`, `% PRs Green`, `% PR Agentic Convergence`. The operator asked for a **progress-bar** — a HYBRID tool (probabilistic to infer scope/context, deterministic for render/calc) that also incorporates the self-heal M.O., defined+tested+exampled in **both** multi-agent-os and eko-engram.
+`morning-briefing` is a declarative markdown skill (no executable scripts; its bash blocks are LLM-implemented pseudo-code per host capability). Recap-mode `## 4. $execution_metrics` already surfaced four percentages: `% Plan execution`, `% Principais completos`, `% PRs Green`, `% PR Agentic Convergence`. The operator asked for a **progress-bar** — a HYBRID tool (probabilistic to infer scope/context, deterministic for render/calc) that also incorporates the self-heal M.O., defined+tested+exampled in **both** multi-agent-os and notes-vault.
 
 The load-bearing problem is the **denominator**. A progress bar is a *confidence affordance*: proportional fill communicates "this was measured". The four metrics do not share one denominator class:
 
@@ -29,7 +29,7 @@ The council's Design Decision Record (DDR, 368 lines §0-§11, kept in the sessi
 5. **Q5 — Taxonomy.** Keep **4 tiers** (`$originating`/`$primary`/`$secondary`/`$auxiliary`). 12 of the operator's 15 named items already exist under other names; the 3 extra tiers + `DoR` are **DEFERRED with a named unblock condition** (falsifiable definition landed first in the `goal-recovery` SSOT), not refused. Net-new structural change accepted now: a **dedicated `$risks` recap section** (§12; old §12-16 renumbered §13-17). **One PR** (no cross-tool sync fires while tiers stay at 4).
 6. **Q6 — Hybrid split.** **No bundled script.** The deterministic layer is an exhaustive **12-row literal lookup table** in the template: the LLM copies a row, never computes (`pct` is already materialized by R3), so same-state reruns are byte-reproducible. Reopening condition (a denominator not already materialized as `pct`) documented in DDR §6.4.
 7. **Q7 — Versioning.** MINOR `v1.8.1 → v1.9.0` (additive capability; default preserves v1.8.1). The ADR-017-R1 `cycles_completed` reset is a **no-op** (already `0`); `promotion_eligible:false` kept; **no Bundle-Now waiver** (it would buy nothing).
-8. **Self-heal M.O. — N/A por artefato.** The 7 properties of `eko-executable-scripts` presuppose an executable (`trap self_heal ERR`, `exec > >(tee)`, `command -v kiro-cli`) — there is no `scripts/` dir for them to live in. Declaring adoption without an artifact is theater type A; inventing a script only to host the pattern is theater type B. The honest analogue is the documented **degradation/diagnostic** path for the bar's NEW deps (denominator 0 · unmeasured · partial probe · `gh` absent · cold-start · missing i18n key → omit bar + one stderr line, **never** draw `0%` as measured).
+8. **Self-heal M.O. — N/A por artefato.** The 7 properties of `executable-scripts` presuppose an executable (`trap self_heal ERR`, `exec > >(tee)`, `command -v kiro-cli`) — there is no `scripts/` dir for them to live in. Declaring adoption without an artifact is theater type A; inventing a script only to host the pattern is theater type B. The honest analogue is the documented **degradation/diagnostic** path for the bar's NEW deps (denominator 0 · unmeasured · partial probe · `gh` absent · cold-start · missing i18n key → omit bar + one stderr line, **never** draw `0%` as measured).
 
 Two new anti-patterns codify the rationale: **#30 — Bar without a measured denominator** and **#31 — Bar as source of truth / glyph-only**.
 
@@ -52,10 +52,10 @@ Two new anti-patterns codify the rationale: **#30 — Bar without a measured den
 
 ## References
 
-- **Design Decision Record** (368 lines §0-§11): `/Users/emilson.moraes/Projects/.scratch/mb-progress-bar/DESIGN-DECISION-RECORD.md` — session scratch, not versioned; 7-seat council synthesized by the R1 sub-conductor. Also captured in the MAOS knowledge base for durability.
+- **Design Decision Record** (368 lines §0-§11): `$HOME/Projects/.scratch/mb-progress-bar/DESIGN-DECISION-RECORD.md` — session scratch, not versioned; 7-seat council synthesized by the R1 sub-conductor. Also captured in the MAOS knowledge base for durability.
 - **PR**: `ekson73/multi-agent-os#435` (`feat/morning-briefing-progress-bar`) — the shipping vehicle for v1.9.0 and this ADR.
 - **Skill SSOT**: `skills/morning-briefing/SKILL.md` (Phase 3b.6 bar spec + lookup + json + degradation; anti-patterns #30/#31; §12 `$risks`; changelog row `1.9.0`).
 - **Distribution**: `skills/morning-briefing/DISTRIBUTION.md` (MAOS is the SSOT; other harness copies follow each harness's best practice, preferably a symlink).
-- **eko-engram** counterpart (definition + test/quality criteria + worked examples): `ekson73/eko-engram` `designs/morning-briefing-progress-bar.md`.
+- **notes-vault** counterpart (definition + test/quality criteria + worked examples): `OWNER/notes-vault` `designs/morning-briefing-progress-bar.md`.
 - **Companion**: `ADR-005-dogfood-cycle-ledger.md` (the ≥2-cycle gate this version defers to); the `dogfooding-mandate` (aka "ADR-017 R1", policy).
 - Anti-patterns echoed: #2 (vanity metric) · #7 (stale-state hallucination) · #14 (label carries full meaning) · #27 (factor-flag inference theater) · #29 (default scope no sibling scan).

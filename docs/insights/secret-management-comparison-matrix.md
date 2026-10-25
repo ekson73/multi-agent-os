@@ -102,8 +102,8 @@
 ```text
               ┌─────────────────────────────┐
               │   AWS Secrets Manager (SSOT) │  ← ONE source
-              │   vek/database/{env}#...     │
-              │   vek/monitoring/grafana#... │
+              │   org/database/{env}#...     │
+              │   org/monitoring/grafana#... │
               └──────────┬──────────────────┘
                          │
          ┌───────────────┼───────────────────┐
@@ -188,7 +188,7 @@
 3. Migrate secrets from AWS SM → Vault — 2h
 4. Change ClusterSecretStore.spec.provider: vault — 5min
 5. ExternalSecrets: update remoteRef paths — 1h
-6. Update vek-env-resolver TOML providers — 2h
+6. Update org-env-resolver TOML providers — 2h
 Total: ~10h (1 sprint, 1 person)
 ```
 

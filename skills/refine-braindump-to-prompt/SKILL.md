@@ -450,7 +450,7 @@ from *emitting*, and it is why `inline` does not appear in the table above.
 **SSOT of this axis (N2 contract, ratified `coexistence-pr11xpr12-20260814`).** `--output-target`
 exists in two places and they do not compete: **[[persist-locus]] is SSOT of ROUTING** — which
 houses × kinds a distillate may land in, and the membership test that admits them —
-(`eko-engram` `pages/persist-locus.md:96` + `resources/agentic-tools/persist-locus.spec.yaml:104`);
+(`notes-vault` `pages/persist-locus.md:96` + `resources/agentic-tools/persist-locus.spec.yaml:104`);
 **this flag is SSOT of EMISSION** — how one run reshapes and delivers to a named sink. Each cites
 the other; neither redefines the other's half. A future change to *which* kinds exist belongs there;
 a change to *how* a run emits belongs here.

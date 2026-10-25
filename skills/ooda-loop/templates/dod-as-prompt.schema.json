@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://multi-agent-os/skills/ooda-loop/dod-as-prompt.schema.json",
   "title": "dod-as-prompt",
-  "description": "The typed envelope carrying a MEASURABLE Definition-of-Done for a recovered goal. A thin wrapper over the Prisma engine (decompose-abstract-to-measurable): it holds the Prisma `measurement_spec` (the DoD as a value-tree of D/T/J leaves), the eko L5 acceptance/KPI projection of those leaves, and — once evaluated — the Prisma score/band. Its `termination_predicate` string is what gap-loop/quiesce consume via `--condition`. NO new measurement engine: authoring the value-tree and scoring it are BOTH Prisma's job (LLM proposes leaves; scripts/structural_route.py form-gates the tree and scripts/aggregate_spec.py rolls it up deterministically). This envelope is the wiring.",
+  "description": "The typed envelope carrying a MEASURABLE Definition-of-Done for a recovered goal. A thin wrapper over the Prisma engine (decompose-abstract-to-measurable): it holds the Prisma `measurement_spec` (the DoD as a value-tree of D/T/J leaves), the L5 acceptance/KPI projection of those leaves, and — once evaluated — the Prisma score/band. Its `termination_predicate` string is what gap-loop/quiesce consume via `--condition`. NO new measurement engine: authoring the value-tree and scoring it are BOTH Prisma's job (LLM proposes leaves; scripts/structural_route.py form-gates the tree and scripts/aggregate_spec.py rolls it up deterministically). This envelope is the wiring.",
   "type": "object",
   "required": ["jsonrpc", "method", "params", "data"],
   "additionalProperties": true,
@@ -38,8 +38,8 @@
             "nodes": {"type": "array", "minItems": 1}
           }
         },
-        "acceptance": {"type": "array", "items": {"type": "string"}, "description": "eko L5 projection — the binary-checkable DoD items, human-readable, one per material D/T leaf. The 'is it done?' checklist."},
-        "kpis": {"type": "array", "items": {"type": "string"}, "description": "eko L5 projection — measurable success signals derived from the leaves (e.g. 'tests 100% pass', 'gitleaks clean', 'aggregate score >= 0.85')."},
+        "acceptance": {"type": "array", "items": {"type": "string"}, "description": "L5 projection — the binary-checkable DoD items, human-readable, one per material D/T leaf. The 'is it done?' checklist."},
+        "kpis": {"type": "array", "items": {"type": "string"}, "description": "L5 projection — measurable success signals derived from the leaves (e.g. 'tests 100% pass', 'gitleaks clean', 'aggregate score >= 0.85')."},
         "termination_predicate": {"type": "string", "minLength": 1, "description": "THE string gap-loop/quiesce consume as --condition. Derived from the DoD: the loop is DONE when the D/T leaves are satisfied AND Prisma inconclusive.flag=false AND (score >= thresholds.band_high). Deterministic given the measurement_spec."},
         "evaluation": {
           "type": "object",

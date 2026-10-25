@@ -28,7 +28,7 @@ metadata:
   dogfood_status: pending-first-cycle
 ---
 
-# Voice Director — on-demand TTS for the eko-system family
+# Voice Director — on-demand TTS for the personal-system family
 <!-- skill slug: `voice-director` · operator command: `/speak` · producer: `bin/speak.sh` -->
 
 
@@ -161,7 +161,7 @@ the faithfulness/tone gate, and the deterministic param ranges.
 - Keys are read from a machine-local env file (or the process environment) at runtime — the
   actual secret is **never** echoed/logged/committed/placed in argv (it goes in a chmod-600 `curl --config`).
 - **Per-operator keys are machine-local, NOT committed** (so the repo carries zero operator credential data).
-  Put your keys in `~/.config/eko/speak.env` (`chmod 600`), which `bin/speak.sh` allowlist-parses
+  Put your keys in `~/.config/maos/speak.env` (`chmod 600`), which `bin/speak.sh` allowlist-parses
   (`SPEAK_*` keys only — never blind-sourced, per `script-safety §2`):
   ```sh
   SPEAK_GEMINI_KEY="<gemini api key>"

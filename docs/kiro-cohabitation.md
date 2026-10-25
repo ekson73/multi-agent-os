@@ -95,7 +95,7 @@ Skill loaders resolve roots in order and **mask duplicate skill names first-writ
 
 ## 7. What we did NOT verify (report honestly)
 
-- **Kiro Powers as a Vek distribution surface.** `~/.kiro/powers/registry.json` supports a `repoSources` slot (a Power = git repo + path), but it is currently empty on the reference host and the exact user-facing action that ADDS a `repoSources` entry (dashboard vs CLI vs hand-edit) was **not verified**. `registry.json`/`installed.json` are machine-owned and must never be hand-edited. Treat a Vek Powers repo as a **target** capability, not a shipped one. Agent Skills (§1–2) is the verified install path.
+- **Kiro Powers as a Acme distribution surface.** `~/.kiro/powers/registry.json` supports a `repoSources` slot (a Power = git repo + path), but it is currently empty on the reference host and the exact user-facing action that ADDS a `repoSources` entry (dashboard vs CLI vs hand-edit) was **not verified**. `registry.json`/`installed.json` are machine-owned and must never be hand-edited. Treat an Acme Powers repo as a **target** capability, not a shipped one. Agent Skills (§1–2) is the verified install path.
 - A pre-built, ready-to-load Kiro `hooks` JSON for MAOS is **not shipped** here; §4 is the porting guide, not a drop-in artifact.
 
 ## References

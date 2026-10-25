@@ -79,7 +79,7 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
   - When active, applied as one of the cognitive activations during ACT 2-3
 - `cognitive_activations` — list OR catalog URI
   - Inline: `["critic", "pre-mortem", "devils-advocate"]`
-  - URI (allowed schemes — **local/repo-backed only by default**): `vek-memory://`, `file://`, `repo://`. Network schemes (`http`, `https`, `ftp`, `ssh`) are **disallowed by default** to prevent SSRF and supply-chain compromise; consumers may extend the allowlist via explicit opt-in policy.
+  - URI (allowed schemes — **local/repo-backed only by default**): `org-memory://`, `file://`, `repo://`. Network schemes (`http`, `https`, `ftp`, `ssh`) are **disallowed by default** to prevent SSRF and supply-chain compromise; consumers may extend the allowlist via explicit opt-in policy.
   - Resolution contract: validate scheme against allowlist → resolve URI → verify checksum/manifest if available → cache the resolved set for reproducibility. On unreachable URI: fall back to default core set (Critic + Truth-seeker + Meta-cognitive) + emit warning to audit log.
   - Default (no parameter): implicit `Critic + Truth-seeker + Meta-cognitive` (semantic, not proprietary).
   - Inheritance when sub-delegated: `additive_only` — sub-agents may ADD, never REMOVE.
@@ -165,7 +165,7 @@ Explicit list of considered-and-rejected alternatives with rationale. Each propo
 converge proposalA.md proposalB.md
 
 # With cognitive activations from a catalog
-converge a.md b.md --cognitive-activations "vek-memory://dna_33_cognitive_minds.md"
+converge a.md b.md --cognitive-activations "org-memory://dna_33_cognitive_minds.md"
 
 # Force devil's advocate, write to file
 converge a.md b.md c.md --devil-advocate on --output converged.md

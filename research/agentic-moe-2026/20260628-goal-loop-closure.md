@@ -10,8 +10,8 @@ lang: "prosa pt-BR · identifiers en-US"
 # Goal-Loop Closure
 
 ## Phase 0 · DoR — **PASSED**
-- **git/worktree:** locks **removidos** pelo operador → repo `main` usável (a iteração anterior estava em parked-state pelo lock). ⚠️ ADR-004: agente **nunca** commita em `main` → persistência = **stage-only / operator-manual** (EKO-66).
-- **SSOT reachable:** `multi-agent-os` repo ✓. **Linear EKO + Confluence = externos** → **STAGE-only**, não auto-criar (autorização = HITL).
+- **git/worktree:** locks **removidos** pelo operador → repo `main` usável (a iteração anterior estava em parked-state pelo lock). ⚠️ ADR-004: agente **nunca** commita em `main` → persistência = **stage-only / operator-manual** (TICKET-66).
+- **SSOT reachable:** `multi-agent-os` repo ✓. **Linear (personal team) + Confluence = externos** → **STAGE-only**, não auto-criar (autorização = HITL).
 - DoR-gap (worktree-isolation) que abortaria: **resolvido** (lock foi).
 
 ## Phase 1 · RECAP (do estado da sessão — sem alucinar)
@@ -31,8 +31,8 @@ lang: "prosa pt-BR · identifiers en-US"
 | **G6** | "2 humanos curam firehose; sucesso quebra" | **accepted-as-risk (reenquadrado)** | inverter inbound→outbound (fila submetida → moat de dados); exige G1/G2. |
 | **G7** | CTS scorer unificado = over-engineering | **deferred-with-rationale** | cortado do v1 (hard-filters+tie-break já bastam); WT4-deferred. |
 | **G8** | Privacy: data-tainting + profile sem data-handling | **deferred-with-rationale** | Requirement + `data_class` enum → handoff. Residual **R3** (serializar após G5). |
-| **G9** | Persistência git | **accepted-as-risk** | EKO-66: operator-manual; script abaixo. Não auto-commit (ADR-004 + evitar re-lock). |
-| **G10** | Nome `MAOS Agora` não ratificado | ~~escalate~~ → **RESOLVED 2026-06-29** | **Ratificado** — Anima's call, tag `[C-naming]` (`[[naming-authority]]`, akasha-claude#188). Naming saiu do HUMAN_DOMAIN → autoridade da Anima. |
+| **G9** | Persistência git | **accepted-as-risk** | TICKET-66: operator-manual; script abaixo. Não auto-commit (ADR-004 + evitar re-lock). |
+| **G10** | Nome `MAOS Agora` não ratificado | ~~escalate~~ → **RESOLVED 2026-06-29** | **Ratificado** — Anima's call, tag `[C-naming]` (`[[naming-authority]]`, knowledge-vault#188). Naming saiu do HUMAN_DOMAIN → autoridade da Anima. |
 
 ## Phase 2 · RESOLVE (MoE diverge→converge) — **DONE**
 `research/agentic-moe-2026/20260628-solutions-debate.md` — 3 experts diversos (Jeff-Dean/Sam-Altman/Steve-Jobs) + síntese **converge[steelman→critique→compare→synthesize→reject-log]**. Reject-log ✓ (derrubou: "teeth=maior build-risk", "paradoxo do curador", "sucesso quebra o modelo").
@@ -44,8 +44,8 @@ lang: "prosa pt-BR · identifiers en-US"
 ## Phase 4 · PERSIST (DoD + boy-scout)
 - **Disco (boy-scout):** este closure + `20260628-{critical-analysis,solutions-debate}.md` + ADR-007 demotion + NotebookLM updates — **salvos** ("quem salva tem").
 - **decision-audit (SDP):** demoção ADR-007 (no ADR-007 header) + as 10 disposições acima.
-- **git:** **STAGE-only / operator-manual** (EKO-66). Script no fim. **Não commitei** (ADR-004: nunca em `main`; + evitar re-criar locks).
-- **Linear EKO / Confluence:** conteúdo **STAGED** abaixo — **não criado** (autorização HITL = escalação logada).
+- **git:** **STAGE-only / operator-manual** (TICKET-66). Script no fim. **Não commitei** (ADR-004: nunca em `main`; + evitar re-criar locks).
+- **Linear (personal team) / Confluence:** conteúdo **STAGED** abaixo — **não criado** (autorização HITL = escalação logada).
 
 ## DoD — checklist
 | Critério | Status |
@@ -77,12 +77,12 @@ lang: "prosa pt-BR · identifiers en-US"
 4. **Rodar o experimento mais barato:** curar ~20 edges + conflict-checker single-input → post no Discord/r-ClaudeAI. Mede *pull*.
 5. **Build PRs** (handoff Claude Code) com **R1–R5 como pré-condições**: seam+test → fixture→floor→required → split-registry→data_class (serial) → adiar CTS.
 
-## STAGED · Linear EKO (não criado — autorização HITL)
-- **Epic** `EKO: MAOS Agora MVP — conflict-safe install`.
+## STAGED · Linear (personal team) (não criado — autorização HITL)
+- **Epic** `TICKET: MAOS Agora MVP — conflict-safe install`.
 - **Stories:** `[MVP] prose-intent → entrevista → setup seguro` · `[MVP] registry read-only (15-20 hand-curated, what/when/conflicts_with)` · `[MVP] conflict-report` · `[build] gating-seam router.py (+R1 test)` · `[sec] fixture→floor→required (R4)` · `[data] split generated/curated (R5… R3)` + `data_class (R8)` · `[exp] conflict-checker single-input + Discord probe (R2)` · `[gov] ratify ADR-006 · demote ADR-007 · name MAOS Agora`.
 - Reaproveitar `openspec/changes/maos-hub-console/tasks.md` (T1–T10) como fonte das stories.
 
-## Script (operator-manual git · **[C04] worktree-based** · **[C07] gates** · EKO-66 · ADR-004)
+## Script (operator-manual git · **[C04] worktree-based** · **[C07] gates** · TICKET-66 · ADR-004)
 > ⚠️ Corrigido 2026-06-29 após o handoff de git-governance: a v1 fazia `git checkout -b` **no
 > checkout-raiz** — exatamente a violação [C04] que gerou o cluster de locks de 11:10. O trabalho
 > já está não-commitado no raiz → move-se para uma **worktree** (índice próprio, zero contenção)
@@ -98,8 +98,8 @@ rm -f .git/index.lock              # SÓ se stale + seu sign-off
 
 # 1) mover o trabalho raiz → worktree (C04). main==origin/main (#176) → stash pop sem conflito
 git stash push -u -m maos-agora-loop-closure
-git worktree add .worktrees/eko-loop-closure -b feature/EKO-XX-maos-agora-loop-closure origin/main
-cd .worktrees/eko-loop-closure && git stash pop
+git worktree add .worktrees/loop-closure -b feature/TICKET-XX-maos-agora-loop-closure origin/main
+cd .worktrees/loop-closure && git stash pop
 
 # 2) gates C07 verdes ANTES do commit
 gitleaks detect --no-banner && openspec validate --specs && bash tests/validate-plugin.sh
@@ -125,7 +125,7 @@ gh pr create --base main --title "feat(maos-hub): gating-seam + goal-loop closur
 # gh pr merge --squash --delete-branch        # ← só após "merge" explícito seu
 
 # 5) boy-scout: limpar worktrees prunable (de DENTRO de uma worktree; no raiz os hooks bloqueiam)
-git worktree prune && git worktree remove .worktrees/eko-loop-closure
+git worktree prune && git worktree remove .worktrees/loop-closure
 ```
 
 ---
@@ -134,7 +134,7 @@ git worktree prune && git worktree remove .worktrees/eko-loop-closure
 
 > `--goal-n-loop` outra iteração buscando ≥0.85. O Loop 1 PROVOU que mais análise re-platô (o cap era **execução**). Então Loop 2 = **BUILD** do residual de maior alavanca (R1), não debate (anti-theater).
 
-## Executado (additive · reversível · `policy=None`=passthrough · SEM commit / EKO-66)
+## Executado (additive · reversível · `policy=None`=passthrough · SEM commit / TICKET-66)
 - `mcp-tools/maos-mcp-hub/lib/gateway/policy.py` (novo) — `PolicyResolver` dumb in-memory + `load_conflicts()`.
 - `mcp-tools/maos-mcp-hub/lib/gateway/conflicts.yaml` (novo) — **16 arestas** de incompatibilidade curadas do `02-ntree-moe.md` → **R2-data fechado** (o conflict-graph virou DADO consultável, não prosa).
 - `mcp-tools/maos-mcp-hub/lib/gateway/router.py` (+33/−1) — o **gating-seam**: `policy` opcional no `__init__` + 1 bloco pré-dispatch (deny → erro estruturado no envelope `_agent_feedback` existente). Discovery L0–L2 intocado.
@@ -220,7 +220,7 @@ Todos os 8 SSOT citados pela v3 **existem** em disco (`COWORK-AUTONOMY-POLICY.md
 | **G-a** | Demand pull-signal (R2) | **HARD** carve-out (contas do operador + mundo) | escalate-item · DEFER@n* |
 | **G-b** | Ratificar ADR-006 | **HARD** — HUMAN_DOMAIN (v3: PROPOSED até ratificar) | escalate-item |
 | **G-c** | Ratificar nome `MAOS Agora` (G10) | ~~HARD — HUMAN_DOMAIN:ratify~~ → **RESOLVED 2026-06-29** | Ratificado (Anima's call, `[C-naming]`). Naming agora é autoridade autônoma da Anima — `[[naming-authority]]`. |
-| **G-d** | 12 arquivos stranded não-commitados no raiz → landing | **HARD** — merge→main HITL + EKO-66 | escalate · **script corrigido p/ worktree** |
+| **G-d** | 12 arquivos stranded não-commitados no raiz → landing | **HARD** — merge→main HITL + TICKET-66 | escalate · **script corrigido p/ worktree** |
 | **G-e** | `index.lock` órfão (13:03) | **HARD** — diagnóstico Mac-side + sign-off | escalate · diagnóstico dado |
 | **G-f** | 2 worktrees prunable (`rabat` + `claude/ecstatic-raman`) | boy-scout (operator, de dentro de worktree) | escalate-item |
 | **G-g** | `PR-body.md` (turnkey o landing) | **SOFT** — autoria de conteúdo | ✅ **fix-applied este round** |
@@ -246,7 +246,7 @@ Todos os 8 SSOT citados pela v3 **existem** em disco (`COWORK-AUTONOMY-POLICY.md
 ## Phase 4 · PERSIST
 - **Meta-trace (ASH-equivalente, DRY):** esta seção (round · score+6-fatores · binding · regime=DEFER · stop=n*/diminishing-returns).
 - **decision-capture:** as 9 disposições G-a..G-i acima (audit-trail).
-- **boy-scout:** `PR-body.md` autorado; o git-script (acima) corrigido p/ C04/C07. **EKO-66: stage-only** — sem git.
+- **boy-scout:** `PR-body.md` autorado; o git-script (acima) corrigido p/ C04/C07. **TICKET-66: stage-only** — sem git.
 
 ## TERMINATION (Loop 4) — `convergence-engine` retorna **DEFER@n***
 > Economic-stop atingido: o resíduo binding é **HARD/HUMAN_DOMAIN** (demanda→mundo; ADR-006→operador; merge→main→HITL). Pela v3: *"escalate the WHOLE goal only when convergence-engine returns DEFER at n*"* — é exatamente o caso. **DEFER classificado (~12% do goal, by-design), os ~88% agent-doable FECHADOS.** Honesto: a 4ª emissão do loop confirmou (com rigor canônico) o que a 3ª já achou — não há nova análise a extrair; o que falta é **ato humano**, não cognição.

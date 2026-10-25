@@ -2,7 +2,7 @@
 
 - **Status**: **DRAFT (thawed per-tile)** — amended 2026-07-10 under the **publish-by-default doctrine** (see §Amendment below). WAVE-6 tiles enter individually on **internal usefulness (a named consumer today) + the 7 guardrails + operator HITL ratification** — not on an external demand signal. Originally demoted from "North Star" on 2026-06-28 by the goal-loop (critical-analysis + solutions-debate + cascade confidence gate 0.75 < 0.85); the platform IDENTITY ("trusted front-door of the commons") remains **unclaimed — earned via real external integrations + users, never declared**. Promotion to Accepted still requires the first integration proving the gate. The atomic core ships via **ADR-006**.
 - **Date**: 2026-06-28 · **Amended**: 2026-07-10 (publish-by-default doctrine — see §Amendment)
-- **Deciders**: Operator (Emilson de Queiroz Moraes / ekson73) + Claude (Cowork), via HITL co-design (~5-turn dialogue)
+- **Deciders**: Operator (maintainer) + Claude (Cowork), via HITL co-design (~5-turn dialogue)
 - **Scope**: Strategic identity of the `maos` framework. Extends **ADR-006** (MAOS Hub). The operator-facing console + the community-integration motion are the two human/inbound faces of the same MAOS Hub gating network.
 - **SSOT**: `docs/vision/maos-integration-platform.md` (narrative) · `openspec/changes/maos-hub-console/` (console contract) · `openspec/specs/maos-hub-registry/spec.md` (registry contract). · Closure: `research/agentic-moe-2026/20260628-goal-loop-closure.md`.
 

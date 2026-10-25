@@ -7,7 +7,7 @@
       "context": "/enhance Ultrathink build in multi-agent-os worktree feat/ooda-loop-goal-recovery; the operator's 3-step goal-loop contract turned into tooling.",
       "purpose": "close the family's missing recover-from-context step + wire the recover->measure->converge contract as a reusable preset.",
       "priority_focus": "correctness + anti-theater (real, composed, validator-gated) over surface area.",
-      "stakeholder": "operator (@ekson73) + future amnesic agents that consume the typed {goal, dod} pair.",
+      "stakeholder": "operator (@maintainer) + future amnesic agents that consume the typed {goal, dod} pair.",
       "targets": "goal-recovery skill + ooda-loop skill + handoff-as-prompt + dod-as-prompt schemas + gap-loop/quiesce extension."
     },
     "measurement_spec": {

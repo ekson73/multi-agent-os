@@ -34,7 +34,7 @@ allowed-tools: Task, Read, Bash, Grep, Glob, AskUserQuestion
 | Check | Verdict |
 |---|---|
 | Does this tool HELP the operator? | **HELPS** — a closed sprint leaves open items silently stranded (off every active board, still owed). This surfaces them by owner and, on GO, carries them into the current sprint so nothing rots between sprints. The tool proposes; the operator decides. |
-| Slavery / harm risk? | **LOW** — dry-run is the default; the MOVE is a bulk mutation of a SHARED tracker (HUMAN_DOMAIN) and is therefore ALWAYS confirm-gated. No write happens without an explicit operator GO (eko-system default: collaborative, NEVER auto-destructive). |
+| Slavery / harm risk? | **LOW** — dry-run is the default; the MOVE is a bulk mutation of a SHARED tracker (HUMAN_DOMAIN) and is therefore ALWAYS confirm-gated. No write happens without an explicit operator GO (personal-system default: collaborative, NEVER auto-destructive). |
 | Hierarchy preserved? | YES — Operator SER (1) > this tool (2) > the producers it composes (3). Accountability returns to root: the move-set is presented for confirmation BEFORE any write; the operator authorizes, the tool executes, the report closes the loop. |
 
 ## Purpose

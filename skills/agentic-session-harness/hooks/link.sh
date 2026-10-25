@@ -29,8 +29,8 @@ esac
 # Claude Code replaces BOTH `/` AND `.` with `-` when materializing the project
 # transcript dir under ~/.claude/projects/. Replacing only `/` (prior behavior)
 # left literal dots in usernames/paths and produced dangling symlinks
-# (e.g. /Users/emilson.moraes/... → -Users-emilson.moraes-... instead of the
-#  correct -Users-emilson-moraes-...). Replace both classes.
+# (e.g. /Users/jane.doe/... → -Users-jane.doe-... instead of the
+#  correct -Users-jane-doe-...). Replace both classes.
 ENCODED_CWD=$(printf '%s' "$PROJECT_DIR" | sed 's|[/.]|-|g')
 SRC="$HOME/.claude/projects/${ENCODED_CWD}/${SID}.jsonl"
 DST_DIR="$PROJECT_DIR/.claude/transcripts"

@@ -57,7 +57,7 @@ Chosen = C (algorithm) + E (execution) + D (where cheaper); archive-not-delete f
 
 ## 7. Layer purity
 
-This tool is generic (community layer). No operator-personal names; backup/seed dirs configurable via env (`SESSION_FISSION_SNAPSHOT_DIR`, `SESSION_FISSION_SEED_DIR`); defaults use `$HOME`/`./`. Vek-specific wiring (Jira/walkthrough/ASH-lite) lives in `vek-ai-toolkit`, not here.
+This tool is generic (community layer). No operator-personal names; backup/seed dirs configurable via env (`SESSION_FISSION_SNAPSHOT_DIR`, `SESSION_FISSION_SEED_DIR`); defaults use `$HOME`/`./`. org-specific wiring (Jira/walkthrough/ASH-lite) lives in `ai-toolkit`, not here.
 
 ## 8. Scope
 

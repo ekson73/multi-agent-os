@@ -3,7 +3,7 @@
     "construct": "is this PR healthy?",
     "version": "1.0.0",
     "context_lock": {
-      "context": "vek-sales MVP, dev/hml branch, single-maintainer, auto-merge eligible",
+      "context": "example-app MVP, dev/hml branch, single-maintainer, auto-merge eligible",
       "purpose": "decide whether to auto-merge without human review",
       "priority_focus": "correctness > audit > speed",
       "stakeholder": "operator (author) + downstream integrators",

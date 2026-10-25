@@ -83,5 +83,5 @@ false-positive containment + governance theater — exactly the trap Skopos Gate
 
 | Date | Change |
 |---|---|
-| 2026-07-14 (r1) | Bootstrap — inaugural vetted offender `awslabs-uvx-latest` (deploy-on-aws / awslabs uvx-@latest / `awslabs/mcp#1400` not-planned). Watch-list: computer-control-mcp, iam-policy-autopilot (fixture-only). EKO-90-ext per operator `/quiesce` ADR 2026-07-14. |
+| 2026-07-14 (r1) | Bootstrap — inaugural vetted offender `awslabs-uvx-latest` (deploy-on-aws / awslabs uvx-@latest / `awslabs/mcp#1400` not-planned). Watch-list: computer-control-mcp, iam-policy-autopilot (fixture-only). TICKET-90-ext per operator `/quiesce` ADR 2026-07-14. |
 | 2026-07-14 (r2) | Round-2: recorded the **sibling-falsification** (aws-* family NOT offenders — do not contain) + the `deploy-on-aws` cache-orphan expected-not-re-drain note + the transient-producer note. Collector gains `uvx_latest_producers` attribution (name an emergent producer). No new vetted offender (recon found none). |

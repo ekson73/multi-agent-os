@@ -24,7 +24,7 @@ Uma sessão Cowork rodou 4 loops de pesquisa/decisão (`--goal-n-loop`) sobre ab
 - **Loop 3 (DEMAND):** a demanda bifurcou — a dor existe (prior 0.45→0.68), mas adoção é HARD.
 - **Loop 4 (v3-canônico):** score 6-fatores → agent-doable **0.79** / full-goal **0.71** (binding=`certainty`) → **DEFER@n*** (o resíduo é ato-humano, não cognição).
 
-O operador (Emilson / ekson73) **dispositou** os 7 HITLs. Este handoff os executa. **Fonte da verdade**
+O operador **dispositou** os 7 HITLs. Este handoff os executa. **Fonte da verdade**
 do raciocínio: `research/agentic-moe-2026/20260628-goal-loop-closure.md` (Loops 1–4) +
 `20260628-{critical-analysis,solutions-debate}.md`.
 
@@ -69,8 +69,8 @@ O script **já corrigido** vive em `research/agentic-moe-2026/20260628-goal-loop
 ```bash
 cd ~/Projects/multi-agent-os
 git stash push -u -m maos-agora-loop-closure
-git worktree add .worktrees/eko-loop-closure -b feature/EKO-XX-maos-agora-land origin/main
-cd .worktrees/eko-loop-closure && git stash pop
+git worktree add .worktrees/loop-closure -b feature/TICKET-XX-maos-agora-land origin/main
+cd .worktrees/loop-closure && git stash pop
 # gates C07 verdes ANTES do commit:
 gitleaks detect --no-banner && openspec validate --specs && bash tests/validate-plugin.sh
 # (rode também a suíte do gateway p/ confirmar 0-regressão:)
@@ -110,7 +110,7 @@ merge **só após meu OK** · branch deletada · worktree removida.
 
 ```bash
 # em docs/adrs/ADR-006-ath-moe-hub-adoption.md:
-#   - **Status**: Proposed (…)   →   - **Status**: **Accepted** (ratified by operator ekson73, 2026-06-29)
+#   - **Status**: Proposed (…)   →   - **Status**: **Accepted** (ratified by operator maintainer, 2026-06-29)
 ```
 Propague a ratificação (boy-scout, mesmas edições no PR de T2):
 - **`CHANGELOG.md`** — mova a entrada ADR-006 de "**proposed**" para ratificada (Accepted) no `[Unreleased]`.
@@ -171,7 +171,7 @@ Use **`maos:agentic-tool-trainer`** (ou `forge`) para evoluir o profile — não
 dogfood** — garantir utilidade para nós mesmos antes de apresentar. Portanto:
 
 - **NÃO** poste `20260629-demand-probe-post.md` em lugar nenhum agora. Ele fica como munição pronta.
-- **Crie a task BLOQUEADA** no tracker (Linear EKO — L4 routing; ou `TASKS.md` se preferir local):
+- **Crie a task BLOQUEADA** no tracker (Linear (personal team) — L4 routing; ou `TASKS.md` se preferir local):
   - **Título:** `[exp] R2 demand-probe — post conflict-checker (Discord/r-ClaudeAI)`
   - **Status:** `Blocked`
   - **Blocked-by:** `[dogfood] MAOS Agora conflict-checker — implement + simulate + self-use proven`
@@ -207,7 +207,7 @@ fixture known-bad (secret plantado) **falha** o gate (a fechadura agora tranca).
 ```bash
 # de DENTRO de uma worktree (no raiz os hooks bloqueiam branch-ops):
 git worktree prune
-git worktree remove .worktrees/eko-loop-closure        # a sua, após o merge de T2
+git worktree remove .worktrees/loop-closure        # a sua, após o merge de T2
 # as 2 antigas (rabat · claude/ecstatic-raman) — confirme abandono, então:
 git worktree remove --force <path-da-worktree>          # só se realmente órfãs/squash-merged
 ```
@@ -222,9 +222,9 @@ git worktree remove --force <path-da-worktree>          # só se realmente órf�
 *conceitos necessários.* Duas visões: **executiva** e **técnica**.
 
 Use a skill **`maos:notebooklm`** (roteia `notebooklm-py` CLI / `notebooklm-mcp-cli` / `@notebooklm-mcp`;
-escolha a conta certa: pessoal/Vek):
+escolha a conta certa: pessoal/trabalho):
 
-1. **Criar notebook:** `"MAOS Agora — agentic-moe-2026 (Vek)"`.
+1. **Criar notebook:** `"MAOS Agora — agentic-moe-2026 (Acme)"`.
 2. **Upload de fontes** (a seleção curada está em `…-notebooklm-source-digest.md` §A/§C/§D):
    - Núcleo: o **digest** + `20260627-final-report.md`.
    - Suporte: `20260627-00-canonicalization.md` · `02-ntree-moe.md` · `03-orchestrator-hub.md`.
@@ -235,7 +235,7 @@ escolha a conta certa: pessoal/Vek):
    - **Executivo:** `…-notebooklm-exec-prompt.md` → Audio Overview pt-BR ~10–12 min + Briefing Doc.
    - **Técnico:** `…-notebooklm-tech-prompt.md` → Audio Overview ~18–25 min + study-guide + Q&A.
 4. **Gerar os MELHORES artefatos standalone** (além do áudio) — salve em `research/agentic-moe-2026/notebooklm-out/`:
-   - **`exec-onepager.md`** (1 pág, zero jargão): o que é · por que importa p/ o Vek · impacto em
+   - **`exec-onepager.md`** (1 pág, zero jargão): o que é · por que importa p/ o Acme · impacto em
      produtividade (menos lock-in, menos token-tax, instalar-certo-sem-quebrar) · impacto na comunidade
      (front-door curado/seguro — *quando* ganho) · 3 próximos passos. Honesto: plataforma = destino, não fato.
    - **`tech-deepdive.md`**: o frame MoE (L0–L9) · o hub/gating-seam (`policy=None`=passthrough, 0-regressão)

@@ -37,7 +37,7 @@ and a **SOFT/HARD HITL classification**. The shared methodology lives in
 > re-expression of `quiesce`'s `/goal` condition-loop. Named via the `anima` engine
 > (agent-register, 12-aspect): `gap-loop` (rejected `converge-loop` — collides with
 > `converge`/`convergence-engine`; `goal-loop` — `goal` is vendor-reserved). Authored by
-> Claude Opus 4.8 (1M) under operator `/quiesce` directive 2026-06-29; reviewed by @ekson73.
+> Claude Opus 4.8 (1M) under operator `/quiesce` directive 2026-06-29; reviewed by @maintainer.
 
 ## Purpose
 
@@ -124,7 +124,7 @@ PHASE 3 · VALIDATE independent audit — experts DIFFERENT from Phase 2 (verifi
 PHASE 4 · PERSIST per-decision -> decision-audit (agentic-decide); convergence-report +
                   reject-log -> docs / Confluence; gap-closures + residuals -> tickets;
                   boy-scout: leave touched artifacts cleaner than found. STAGE-only git unless
-                  authorized (see Auto-merge / EKO-66).
+                  authorized (see Auto-merge / TICKET-66).
 ```
 
 ## Anti-gaming SCORE rule
@@ -197,7 +197,7 @@ The four self-* flags map onto EXISTING primitives (invoke, don't invent); they 
 | `--autonomy-threshold` | `0.85` | `0.0`-`1.0` — the score gate. Bands (SSOT `agents/COWORK-AUTONOMY-POLICY.md`): **>=0.90 MAY substitute the human / NO-HITL** (own-domain; carve-outs hold) · >=0.85 act · >=0.65 act+justify · else uplift→re-gate→HITL |
 | `--max-iterations` | `6` | int — loop cap before park-state + escalate |
 | `--socratic-depth` | `N` (from SSOT) | int — Phase-3 question-bank depth; **never hardcode "33"** |
-| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (EKO-66: STAGE-only, more conservative than quiesce) |
+| `--auto-merge` | `hold` | `authorized` \| `hold` \| `off` — default **hold** (TICKET-66: STAGE-only, more conservative than quiesce) |
 | `--auto-merge-reason` | *(none)* | non-empty string — **required when `--auto-merge=authorized`** (auditability parity with `quiesce` + `auto-merge-standing-authorization` G8); ignored for `hold`/`off` |
 | `--driver` | self | self-driven; on Claude Code MAY delegate inner work to `auto-pilot` |
 
@@ -240,7 +240,7 @@ The four self-* flags map onto EXISTING primitives (invoke, don't invent); they 
 - **Persist-over-fail**: write-ahead-checkpoint each gap disposition BEFORE executing (mid-loop collapse is recoverable).
 - **DRY / KIS / YAGNI / SSOT** — compose primitives, never duplicate them.
 - **No self-destructive decisions** — nothing that boomerangs on a future session.
-- **Boy-Scout** — leave every artifact cleaner than found; STAGE-only unless authorized (EKO-66).
+- **Boy-Scout** — leave every artifact cleaner than found; STAGE-only unless authorized (TICKET-66).
 
 ## Examples
 
@@ -249,7 +249,7 @@ gap-loop "harden the auth gaps before we ship"
 gap-loop --state-source=ticket:VKS-1234 --max-iterations=4
 gap-loop --autonomy-threshold=0.9 --socratic-depth=12
 gap-loop --condition='every gap dispositioned AND no HARD gate open'
-gap-loop --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"   # reason required when authorized (overrides EKO-66 default)
+gap-loop --auto-merge=authorized --auto-merge-reason="nightly convergence, green CI"   # reason required when authorized (overrides TICKET-66 default)
 ```
 
 ## Quality Tests (6/6 self-validity — dogfooded)
@@ -314,7 +314,7 @@ loop entry (E6) · operator retraction (E4) · >=3 false-positive runs (E5). Dor
   *Project carries* (ADR-006-as-HUMAN_DOMAIN + always-on collision, layer-fenced). Methodology in protocol v1.1.0.
 - v0.1.0 (initial) — harness-agnostic declarative 5-phase convergence loop; gap-register termination;
   anti-gaming derived score (names binding constraint); low-score -> rotate-roster re-loop (not HITL);
-  HITL-as-problem SOFT/HARD classification; Socratic-depth=N gate; STOP-marker reuse; EKO-66 stage-only
+  HITL-as-problem SOFT/HARD classification; Socratic-depth=N gate; STOP-marker reuse; TICKET-66 stage-only
   default. Distilled from the operator's `--goal-n-loop` prompt. Composes existing primitives; reimplements nothing.
 
 ## License

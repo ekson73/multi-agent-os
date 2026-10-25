@@ -8,7 +8,7 @@
 
 ## Goal / Context
 
-Operator asked: *"create new skills (creator/tester/trainer of agentic-tools) for multi-agent-os, propagate to eko/vek-claude-plugins; AAIF + Rovo compatible; 33 socratic questions each."* The task: design + build + register agentic-tool lifecycle skills in a framework repo, gated by review and dogfooding.
+Operator asked: *"create new skills (creator/tester/trainer of agentic-tools) for multi-agent-os, propagate to org-claude-plugins; AAIF + Rovo compatible; 33 socratic questions each."* The task: design + build + register agentic-tool lifecycle skills in a framework repo, gated by review and dogfooding.
 
 ## Steps (observed from the trace)
 

@@ -21,7 +21,7 @@ sobreposição entre as Fases 1 (detalhe) e a Síntese. Recomendação em 3 cama
 clareza/visão porque elimina a sobreposição de 280 KB preservando todas as conclusões datadas.
 Use-o como **fonte primária** do notebook; os demais entram como suporte.
 
-> Dica: nomeie o notebook **"Agentic MoE 2026 — Vek"**. Suba primeiro §B + final-report, gere o
+> Dica: nomeie o notebook **"Agentic MoE 2026 — Acme"**. Suba primeiro §B + final-report, gere o
 > Audio Overview, e só então adicione as fontes de suporte se precisar de profundidade.
 
 ---
@@ -126,4 +126,4 @@ A visão saiu do papel em parte: o **núcleo foi construído e test-provado**; a
 - **O seam foi construído** (Loop 2): `policy.py` + `conflicts.yaml` (16 incompatibilidades) + `router.py` (+33/−1) + 16 testes. **`policy=None`=passthrough → 0-regressão** nos 96 actions. Os "dentes" que a crítica disse faltar **agora existem** (test-provados).
 - **A demanda bifurcou** (Loop 3): a *dor existe* (prior 0.45→0.68 por evidência) mas *adotam-ESTA-solução* é **HARD** (só o mundo resolve). Wedge = "instalar a tool certa sem quebrar o resto".
 - **Loop 4 (v3-canônico):** score 6-fatores → **agent-doable 0.79 · full-goal 0.71** (binding=`certainty`, HARD-capado). Veredito: **DEFER@n*** — o que falta é ato-humano (ratificar ADR-006, rodar o probe), não cognição.
-- **Status real:** PR #176 mergeou ADR-006/007 como **Proposed**; o seam + docs seguem **não-commitados** (EKO-66, landing via worktree C04/C07).
+- **Status real:** PR #176 mergeou ADR-006/007 como **Proposed**; o seam + docs seguem **não-commitados** (TICKET-66, landing via worktree C04/C07).

@@ -105,7 +105,7 @@ ticket-manager owns its status probe:
 
 | World | ticket-manager | orchestration home |
 |---|---|---|
-| personal / eko-* | Linear | `multi-agent-os`, `akasha-*` (**only** home for cross-world orchestration) |
+| personal | Linear | `multi-agent-os`, `knowledge-vault-*` (**only** home for cross-world orchestration) |
 | client | Jira | the client's Jira project — pointers only, never orchestration files |
 | integrator | GitHub | that repo's issues |
 
@@ -122,8 +122,8 @@ repo — it only reads that world's status via its ticket-manager.
 | `--status-file <path>` | measured statuses (`id=status` per line) from step 2. |
 | `--json` | machine envelope (topo order + nodes + edges + lens names). |
 
-## eko-executable-scripts compliance
-The projector follows `~/.kiro/steering/eko-executable-scripts.md`: self-locating
+## executable-scripts compliance
+The projector follows `~/.kiro/steering/executable-scripts.md`: self-locating
 (glob+fallback), live-pinned (reads the SSOT at runtime), one idempotent
 verify→render→PASS/FAIL run with non-zero exit on FAIL, native prereq handled
 (PyYAML present → parse; absent → fail loud with the exact `pip install` remedy,
@@ -158,7 +158,7 @@ operator retraction (E4).
 - Genesis: `skills/agentic-tool-forge` · `skills/agentic-tool-pipeline`.
 - Lenses as skills (content sources for the frames): `skills/eisenhower-matrix`
   · `skills/decision-capture`.
-- Executable standard: `~/.kiro/steering/eko-executable-scripts.md`.
+- Executable standard: `~/.kiro/steering/executable-scripts.md`.
 - Governance: `skills/worktree-policy` · `skills/hierarchical-merge`.
 - Cross-link slug: `[[roadmap-tree-projector]]`.
 

@@ -45,7 +45,7 @@
 
 | Tool | Version | Use Case |
 | ---- | ------- | -------- |
-| `python3` | 3.12.7 (mise) | vek-cli, automation scripts |
+| `python3` | 3.12.7 (mise) | org-cli, automation scripts |
 | `node` | 22.22.0 (volta) | Frontend builds |
 | `npm` / `npx` | 11.8.0 | Package management |
 
@@ -62,7 +62,7 @@
 | `typer` | 0.21.1 | CLI framework |
 | `click` | 8.3.1 | CLI framework (legacy) |
 
-## 6. vek-cli.py Commands (12 modules)
+## 6. org-cli.py Commands (12 modules)
 
 ```text
 cluster    — EKS cluster operations
@@ -107,13 +107,13 @@ All verified ✅: `curl`, `wget`, `ssh`, `tar`, `zip`, `unzip`, `base64`, `sed`,
 | --------- | ------------- |
 | K8s manifest validation | `kustomize build` + `yamllint` |
 | K8s cluster operations | `kubectl` (read) / FluxCD (write) |
-| Helm chart management | `vek-cli.py helm` (SSOT: `helm-charts.yaml`) |
+| Helm chart management | `org-cli.py helm` (SSOT: `helm-charts.yaml`) |
 | Secret encryption | `sops` (KMS) — kubeseal unavailable |
 | AWS API calls | `aws` CLI |
 | Git operations | `git` + `gh` |
 | YAML processing | `yq` (structured) / `jq` (JSON) |
-| Python automation | `python3` + `vek-cli.py` |
-| Monitoring/health | `vek-cli.py monitor` + `flux get` |
+| Python automation | `python3` + `org-cli.py` |
+| Monitoring/health | `org-cli.py monitor` + `flux get` |
 | Documentation | Agent (markdown) → git commit |
 | Deployment | Git push → FluxCD auto-reconcile (IaC) |
 

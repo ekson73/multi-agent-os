@@ -22,7 +22,7 @@ Additionally, parameter naming is inconsistent across operations on the same res
 
 Finally, `createJiraIssue` rejects the `priority` field when issue type is `Intervenção Técnica - I.A.` (id 10407), forcing 2 round-trips (create + edit) to set priority. This was empirically reproduced in VKS-1851 and VKS-1853 creation sessions.
 
-Tracking ticket: **[VKS-1853](https://vek.atlassian.net/browse/VKS-1853)**.
+Tracking ticket: **[VKS-1853](https://example.atlassian.net/browse/PROJ-1853)**.
 
 ### Decision Space
 
@@ -103,6 +103,6 @@ Registered in `RESOURCE_MAP["pull_request"]` as operations `add_comment`, `updat
 - PR #40 / VKS-1706 (atlassian-rovo demotion to Tier-3)
 - PR #36 / VKS-1694 v1.7 (52-action gateway)
 - PR #38 / VKO-88 (Jira JQL hub migration)
-- Memory: `~/.claude/projects/-Users-emilson-moraes-Projects-vek-docs-trellis/memory/feedback_maos_mcp_hub_gaps.md`
+- Memory: `~/.claude/projects/-Users-USER-Projects-PROJECT/memory/feedback_maos_mcp_hub_gaps.md`
 - Bitbucket Cloud REST API v2.0 — Pullrequests endpoints
 - ADR-001 (session identity) — same ADR format template

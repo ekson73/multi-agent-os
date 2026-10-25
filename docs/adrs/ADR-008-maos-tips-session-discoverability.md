@@ -9,7 +9,7 @@
 
 MAOS ships ~116 agentic-tools (63 skills + 25 commands + 28 agents). Discovery is poor: unless a user
 already knows a tool's name they won't find it, and the value of the plugin stays locked. The operator
-saw the Claude Code **native `companyAnnouncements`** feature render a "Message from vek-im: VSAF…"
+saw the Claude Code **native `companyAnnouncements`** feature render a "Message from acme-org: VSAF…"
 orange-bar banner at session start (delivered server-side by the org's Anthropic Console enterprise
 policy) and asked for a MAOS-owned equivalent that teaches *which tool to use, when*.
 
@@ -23,8 +23,8 @@ for a community artifact. So a plugin cannot reuse that channel; the portable su
 Ship **MAOS-Tips**: a SessionStart hook that surfaces **one curated tip** about a maos tool per new
 session, plus an on-demand command and a print-only announcements generator.
 
-1. **Target = multi-agent-os only.** vek-ai-toolkit is out (empty `hooks.json`; Layer Purity — no
-   corporate content here). A Vek overlay is a separate roadmap item.
+1. **Target = multi-agent-os only.** ai-toolkit is out (empty `hooks.json`; Layer Purity — no
+   corporate content here). An Acme overlay is a separate roadmap item.
 2. **Placement = session-start (v1).** End-of-action is v2 — a context-mismatched tip mid-work is a
    credibility-killer; startup is low-risk.
 3. **Frequency = 1 per session** (operator directive) — fires only on `.source ∈ {startup, clear}`
@@ -80,7 +80,7 @@ cloned from `auto-name-session.sh`), **never committed**.
 ## TTL / revisit
 
 Revisit when: (a) tool count materially grows and hand-curation strains → build the v2 frontmatter
-auto-derivation; (b) end-of-action demand emerges → v2 placement; (c) a Vek overlay is scoped →
+auto-derivation; (b) end-of-action demand emerges → v2 placement; (c) an Acme overlay is scoped →
 separate corporate artifact honoring Layer Purity.
 
 ## References

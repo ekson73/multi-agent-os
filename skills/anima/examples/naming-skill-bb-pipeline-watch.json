@@ -27,7 +27,7 @@
      "anchors": {"positive": "valid agent-register form → 1.0", "negative": "invalid → 0.0"}},
     {"id": "l_no_person", "label": "no-personal-name", "parents": [{"id": "family", "weight": 0.5}], "kind": "leaf",
      "leaf_type": "T", "value": 1.0, "method": "no operator PII in name", "confidence": 0.99,
-     "anchors": {"positive": "role-only → 1.0", "negative": "emilson-* → 0.0"}},
+     "anchors": {"positive": "role-only → 1.0", "negative": "personname-* → 0.0"}},
     {"id": "scope", "label": "scope", "parents": [{"id": "root", "weight": 0.20}], "kind": "branch"},
     {"id": "l_vendor", "label": "vendor-in-name-ok", "parents": [{"id": "scope", "weight": 1.0}], "kind": "leaf",
      "leaf_type": "T", "value": 0.85, "method": "bitbucket is true vendor scope of skill", "confidence": 0.9,

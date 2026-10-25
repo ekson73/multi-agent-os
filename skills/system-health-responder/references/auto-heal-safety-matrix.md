@@ -5,7 +5,7 @@
 > truth for the policy that `bin/health-respond.sh` *implements in code*; the script does NOT
 > parse this markdown at runtime (the dispositions are hard-coded in the engine, this doc and
 > the engine are kept in sync by review). Authority level is **Moderate** (operator-chosen,
-> EKO-90): *autonomous reversible `renice`/throttle for a clear runaway proc; everything
+> TICKET-90): *autonomous reversible `renice`/throttle for a clear runaway proc; everything
 > destructive or security-touching → HITL.*
 >
 > **Autonomous-path gate (fail-safe).** The `renice` fires only when the engine is invoked with
@@ -37,7 +37,7 @@ agentic-tools cache-producer prune (Moderate autonomous) → security/malware (i
 cpu-load-saturation / memory / process + agentic-tools containment/runtime (HITL). crit outranks warn within a
 class. `network` is observe-only `informational` (round-6 F3) — not in the action ordering.
 
-## Offender-containment tiers (`bin/offender-containment.sh`) — above Moderate, separately armed (EKO-90-ext)
+## Offender-containment tiers (`bin/offender-containment.sh`) — above Moderate, separately armed (TICKET-90-ext)
 
 The 2026-07-14 disk-drain proved a gap: the disk-guardian cleaned caches but could not beat a **live
 producer** (`uvx …@latest` MCP churn; `uv` has no auto-GC). Neutralizing the producer is the root-fix,

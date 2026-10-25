@@ -14,13 +14,13 @@ recommended_sources: "digest §B + final-report.md (núcleo); 00/02/03 (suporte)
 ## A) Audio Overview — "Customize" (cole isto)
 
 ```text
-Audiência: liderança do Vek + stakeholders de negócio (NÃO é um walkthrough de código).
+Audiência: liderança do Acme + stakeholders de negócio (NÃO é um walkthrough de código).
 Idioma: português do Brasil. Duração-alvo: ~10–12 minutos. Tom: executivo, claro, orientado a decisão.
 
 Conte a história nesta ordem:
 1) A tese em uma frase: o ecossistema de ferramentas agentic NÃO é um mercado onde um tool vence —
    é uma STACK de camadas por papel, roteada como um "time de especialistas" (Mixture-of-Experts).
-2) Por que isso importa para o Vek: em vez de adotar "a ferramenta da moda", compõe-se a stack e um
+2) Por que isso importa para o Acme: em vez de adotar "a ferramenta da moda", compõe-se a stack e um
    HUB roteia o especialista certo por tarefa — menos lock-in, mais controle, menos custo de tokens.
 3) Os 2 achados de segurança que pagam a pesquisa sozinhos: o caso "GSD" (um projeto popular que
    virou um golpe de cripto/rug-pull — excluído) e o "MemPalace" (alegações de estrelas compradas e

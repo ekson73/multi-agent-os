@@ -7,9 +7,9 @@
 
 ## Context
 
-Vek repos split into two classes:
+Acme repos split into two classes:
 
-- **Class A — apps that DEPLOY** (`vek-sales`, `vek-list`, new ai-driven apps): GitLab-Flow-Lite + environment branches (`main` / `homolog` / `prod`) + canary ring.
+- **Class A — apps that DEPLOY** (`example-app`, `org-list`, new ai-driven apps): GitLab-Flow-Lite + environment branches (`main` / `homolog` / `prod`) + canary ring.
 - **Class B — libraries/marketplaces that are CONSUMED** (this repo): there is **no environment to deploy to**, so environment branches are meaningless.
 
 This repo already had branch-naming (`CLAUDE.md`) and a PR/merge workflow (`CONTRIBUTING.md`), but **no NAMED branching model in the agent-facing SSOT (`AGENTS.md`)** — causing ambiguity for humans and agents moving across repos.
@@ -35,4 +35,4 @@ Adopt **GitHub Flow + SemVer** for this Class-B repo:
 
 - **Companion**: `ADR-003-version-ssot-float.md` (source/version strategy) + Jira ticket
 - `AGENTS.md` §"Branching & Release Model"
-- Class A counterpart: `vek-sales` / `vek-list` GitLab-Flow-Lite (deployed apps)
+- Class A counterpart: `example-app` / `org-list` GitLab-Flow-Lite (deployed apps)

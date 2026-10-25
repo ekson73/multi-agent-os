@@ -35,7 +35,7 @@ evals:
     - "Execute the Sentinel audit trace analysis (delegate to the audit skill / sentinel-monitor)"
     - "Create a brand-new agent from scratch (delegate to The Forge — concierge routes TO it)"
     - "Reimplement a MAOS protocol or wrap an existing skill (DRY — the tools already exist)"
-    - "Onboard onto a Vek-specific stack / SpecDD flow (that is vek-concierge / specdd-concierge)"
+    - "Onboard onto a org-specific stack / SpecDD flow (that is org-concierge / specdd-concierge)"
 ---
 
 # Skill: maos-concierge — Concierge & Governance-Anchor over the Multi-Agent OS framework
@@ -157,7 +157,7 @@ Inspect the persisted hub profile (`mcp-tools/maos-mcp-hub/profile.yaml` / `$MAO
 - Companions: [`AWARENESS-REGISTRY.md`](./AWARENESS-REGISTRY.md) · [`CANON.md`](./CANON.md) · [`references/socratic-33q.md`](./references/socratic-33q.md) · [`dashboard.html`](./dashboard.html)
 - Framework tools (cross-ref, never reimplement): `orchestrator` · `forge` · `sentinel-monitor` · `audit` · `agentic-delegation` · `delegate-governance` · `anti-conflict` · `hierarchical-merge` · `worktree-policy` · `ttl-policy` · `status-map` · `converge` · `agent-select` · `context-prep` · `auto-pilot` · `morning-briefing` · `pulse` · `quiesce`
 - Protocols: `protocols/` · `sentinel/detection_rules.md` · `protocols/delegation/` · `docs/framework-consumption.md` · The Forge `agents/forge.md` (33Q)
-- Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
+- Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `org-concierge` (Acme layer) · `atlassian-concierge`
 
 ## Changelog
 - 2026-07-02 — v1.1.0 — T3 (WAVE 5, ADR-006/007): +2 modes `setup` (hub console — 6 registry views + conflict-checked, HITL-confirmed profile write via `lib/registry/console.py`) and `config` (profile SSOT inspect/validate). Composes T1 HubRegistry + T2 HubProfile; reimplements nothing.

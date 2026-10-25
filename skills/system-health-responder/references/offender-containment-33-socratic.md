@@ -1,4 +1,4 @@
-# 33 Socratic Questions — Offender-Containment & the EKO-90 Autonomy Extension
+# 33 Socratic Questions — Offender-Containment & the TICKET-90 Autonomy Extension
 
 > Operator `/quiesce` 2026-07-14 directive: *"faça novos 33 perguntas socraticas sobre estes aspectos e
 > responda"* — the aspects being the new autonomous capabilities (ADR offender-containment, the `claude
@@ -77,7 +77,7 @@ operator installed — reversible, but it changes what the environment can do. M
 **Q13 — Why should the launchd responder NOT disable plugins directly?**
 Three reasons: (1) the secret-safe contract carries no argv, so the responder can't *name* the offending
 plugin; (2) launchd runs unattended with no READY proof and no operator in the loop; (3) disable/remove is
-above the Moderate authority EKO-90 chose for the reflex. So the responder seeds; an *active, armed* agent acts.
+above the Moderate authority TICKET-90 chose for the reflex. So the responder seeds; an *active, armed* agent acts.
 
 **Q14 — What proves "READY" for an autonomous containment, concretely?**
 The caller sets `OFC_ARM=1 OFC_READY=1` only after proving the standing-autonomy predicate `R1∧R2∧R3∧R4`

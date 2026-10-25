@@ -2,7 +2,7 @@
 
 | Host | Entrypoint | Status |
 |---|---|---|
-| Claude Code | `.claude-plugin/plugin.json` + eko marketplace | ready |
+| Claude Code | `.claude-plugin/plugin.json` + plugin marketplace | ready |
 | Pi | root `package.json` (`pi.skills`) | ready (`pi install git:…`) |
 | OpenCode | `packaging/opencode-maos/` | ready (thin plugin + skills) |
 | Codex / Copilot / Kiro / Gemini / Warp / … | [Agent Skills](https://agentskills.io) via `npx skills` | docs |
@@ -11,10 +11,10 @@
 | Repo | Role |
 |---|---|
 | **multi-agent-os** (this) | **Product** — skills, agents, commands, packaging |
-| **eko-claude-plugins** | **Index** — catalog + host docs only |
+| **plugin-marketplace** | **Index** — catalog + host docs only |
 
 Discovery / research council (2026-08):  
-https://github.com/ekson73/eko-claude-plugins/blob/main/docs/research/HOST-RESEARCH-2026-08.md
+https://github.com/OWNER/plugin-marketplace/blob/main/docs/research/HOST-RESEARCH-2026-08.md
 
 ## Install matrix
 
@@ -27,7 +27,7 @@ Requires each `SKILL.md` to have YAML `name` + `description` (see `scripts/valid
 ### Native
 | Host | Command |
 |---|---|
-| Claude | `/plugin marketplace add ekson73/eko-claude-plugins` then `/plugin install maos@eko-claude-plugins` |
+| Claude | `/plugin marketplace add OWNER/plugin-marketplace` then `/plugin install maos@plugin-marketplace` |
 | Pi | `pi install git:github.com/ekson73/multi-agent-os@main` |
 | OpenCode | copy/curl `packaging/opencode-maos/index.js` → `~/.config/opencode/plugins/maos.js` **and/or** skills CLI |
 
@@ -62,7 +62,7 @@ migration, `permissions.yaml`, and co-habitation hazards), see
 
 ## Not in this repo’s job
 - Publishing ChatGPT store / VS Code VSIX / Open VSX / Grok packs as MAOS core
-- Hosting a multi-vendor “app store” UI (that’s eko’s index role, Claude-only mall)
+- Hosting a multi-vendor “app store” UI (that’s the marketplace index role, Claude-only mall)
 
 ## Validate
 ```bash

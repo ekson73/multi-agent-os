@@ -9,10 +9,10 @@
 
 | Candidate | score | band | conf | inconclusive |
 |---|---:|---|---:|---|
-| **eko-plugin-marketplace** | **0.875** | **HIGH** | 0.873 | no |
-| eko-pack-index | 0.445 | LOW | 0.878 | **yes** (`conflict:root`) |
+| **plugin-marketplace** | **0.875** | **HIGH** | 0.873 | no |
+| pack-index | 0.445 | LOW | 0.878 | **yes** (`conflict:root`) |
 
-**Decision corroborated:** keep `eko-plugin-marketplace`. Opaque interim fails measurable gloss+continuity.
+**Decision corroborated:** keep `plugin-marketplace`. Opaque interim fails measurable gloss+continuity.
 
 ## Cycle 2 — Agentic-tool skill name (control + negative)
 

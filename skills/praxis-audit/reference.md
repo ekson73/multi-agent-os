@@ -44,7 +44,7 @@ Per the operator's `--principles`, these are NOT new machinery on `praxis-audit`
 - **Persist-over-fail**: the praxis-register ledger IS the write-ahead checkpoint; a mid-run collapse is recoverable.
 - **DRY / KIS / YAGNI / SSOT** — compose the primitives, never duplicate them.
 - **No self-destructive decisions** — nothing that boomerangs on a future session.
-- **Boy-Scout** — leave every artifact cleaner than found; STAGE-only unless authorized (EKO-66).
+- **Boy-Scout** — leave every artifact cleaner than found; STAGE-only unless authorized (TICKET-66).
 
 ## Relationship to siblings
 

@@ -40,7 +40,7 @@ triggers:
 | Check | Verdict |
 |---|---|
 | Does this tool HELP the operator? | **HELPS** — one navigable pane over work scattered across ≥4 systems; surfaces what is silently rotting (branch-no-PR, ticket-no-session, >Nd-no-update) so the operator can decide, not the tool. |
-| Slavery / harm risk? | **LOW** — read-only by default; every destructive action (provider write / session pause-stop-delete) is *printed for approval*, never executed (eko-system-default-mode-laws L1 collaborative-NEVER-destructive). |
+| Slavery / harm risk? | **LOW** — read-only by default; every destructive action (provider write / session pause-stop-delete) is *printed for approval*, never executed (system-default-mode-laws L1 collaborative-NEVER-destructive). |
 | Hierarchy preserved? | YES — Operator SER (1) > this tool (2) > the producers it composes (3). Accountability returns to root: the tool suggests, the operator decides. |
 
 ## Condensed 33 Socratic Questions (forge method — inline answers)
@@ -70,7 +70,7 @@ postflight · auto-pilot · morning-briefing(recap) · quiesce · auto-orchestra
 ticket-as-prompt. *Output contract?* `--json` graph for agent-to-agent, ASCII for humans.
 
 **GOVERNANCE** — *Under which rules?* reuse-and-elevate (compose-not-reimplement) ·
-KIS/YAGNI/Gordian · eko-system-default-mode-laws L1 · CPT §9.5 (registered Compass
+KIS/YAGNI/Gordian · system-default-mode-laws L1 · CPT §9.5 (registered Compass
 consumer) · pr-review-protocol (worktree→PR→bot-convergence). *Naming?* `work-compass` —
 geographic compass metaphor matching CPT's Compass API verbs (current/down/sideways/up/
 forward) it consumes.
@@ -114,7 +114,7 @@ bin/work-compass-aggregate.py --format=mermaid
 | `--no-jira / --no-github / --no-sessions / --no-git` | skip a domain |
 | `--repo owner/name` / `--repo-dir <path>` | provider/repo targeting |
 | `--sort [Eisenhower\|created\|updated\|urgent\|important]` | sorter (v1.3, composes `eisenhower-matrix` classifier). `Eisenhower` = Q1→Q4 `urgent×important` queue (Do/Schedule/Delegate/Eliminate; case-insensitive). Default `created` = id-order (deterministic; collectors expose no created_ts). Applies to the N-Tree rows AND gates the pendency view |
-| `--pendency-scope [current\|session\|repo\|vault\|all]` | pendency view (v1.3): filter WHERE pendencies live (id-prefix — orthogonal to the CPT `--scope` verbs). `current` = session+repo surfaces · `session` = sessions/jobs/plans · `repo` = branches/worktrees/PRs/issues/stashes · `vault` = eko-engram (no collector → honest `unavailable`) · `all` = everything incl. `jira:*`. Alias surface: `eisenhower-matrix --scope=<v>` |
+| `--pendency-scope [current\|session\|repo\|vault\|all]` | pendency view (v1.3): filter WHERE pendencies live (id-prefix — orthogonal to the CPT `--scope` verbs). `current` = session+repo surfaces · `session` = sessions/jobs/plans · `repo` = branches/worktrees/PRs/issues/stashes · `vault` = notes-vault (no collector → honest `unavailable`) · `all` = everything incl. `jira:*`. Alias surface: `eisenhower-matrix --scope=<v>` |
 | `--include [pending\|all]` | pendency view: `pending` = unresolved only (done/archived suppressed) · `all` = audit view. Any of `--sort=Eisenhower`/`--pendency-scope`/`--include=pending` switches to the pendency-queue render; default invocation keeps the N-Tree byte-identical |
 
 ## The 7 CPT domains (grouping)
@@ -217,7 +217,7 @@ composes expose a joint API making aggregation redundant (E6) · operator retrac
 - `~/.claude/rules/openclaw-detect-only-sovereign-mandatory.md` (⛔ store-globs exclude `~/openclaw/` — `_is_openclaw` guard)
 - `statusmap/README.md` (ASCII house-style reused)
 - `skills/{preflight,postflight,morning-briefing}/SKILL.md` (siblings)
-- `~/.claude/rules/{reuse-and-elevate-protocol,over-engineering-circuit-breaker,eko-system-default-mode-laws}.md`
+- `~/.claude/rules/{reuse-and-elevate-protocol,over-engineering-circuit-breaker,system-default-mode-laws}.md`
 
 ## Changelog
 

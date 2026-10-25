@@ -68,11 +68,12 @@ jobs:
         #     that are not personal data).
         #   - `**/README.md` — READMEs commonly document env-var shapes
         #     (e.g., `BITBUCKET_EMAIL=...`).
-        #   - `.claude-plugin/plugin.json` — the plugin manifest's `email`
-        #     field is the operator-managed plugin author contact; replacing
-        #     it is a separate decision outside Phase B scope.
+        # `.claude-plugin/plugin.json` is scanned (no exclude). Its author
+        # email is a pending human decision: a hit is printed as file:line
+        # and type, and does not fail this job. Do not edit that field here.
         run: |
           set -euo pipefail
+          trap 'rm -f pii-findings.json' EXIT
           python skills/pii-masking/linter_pii.py \
             --paths "**/*.py" \
             --paths "**/*.md" \
@@ -85,6 +86,66 @@ jobs:
             --exclude "docs/**" \
             --exclude "AGENTS.md" \
             --exclude "**/README.md" \
-            --exclude ".claude-plugin/plugin.json" \
             --root . \
-            --fail-on-match
+            --format json > pii-findings.json
+          python3 - <<'PY'
+          import json
+          import sys
+
+          findings = json.load(open("pii-findings.json"))
+
+          def manifest(finding):
+              path = str(finding.get("file", "")).replace("\\", "/")
+              return path.endswith(".claude-plugin/plugin.json")
+
+          report = [f for f in findings if manifest(f)]
+          blocking = [f for f in findings if not manifest(f)]
+          if report:
+              print(
+                  "PII linter report-only: .claude-plugin/plugin.json "
+                  "authorship is pending a human decision"
+              )
+              for f in report:
+                  print(f"{f['file']}:{f['line']}: [{f['pii_type']}]")
+          if blocking:
+              print("PII linter blocking findings:")
+              for f in blocking:
+                  print(f"{f['file']}:{f['line']}: [{f['pii_type']}]")
+              sys.exit(1)
+          print(f"PII linter: {len(blocking)} blocking, {len(report)} report-only")
+          PY
+
+  name-hygiene:
+    # Org-agnostic name check (scripts/check-name-hygiene.py). REPORT-ONLY for now: the job
+    # never fails the PR while the cleanup PRs land. To make it blocking, a follow-up PR
+    # removes `continue-on-error` and `--report-only` once the full-tree run reports 0
+    # findings, and the job is added as a required status check on `main`.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Self-test
+        run: bash tests/test-name-hygiene.sh
+
+      - name: Name hygiene (report-only)
+        # Text output is file:line, rule id and a short hash. Matched terms are not printed.
+        run: |
+          set -euo pipefail
+          python scripts/check-name-hygiene.py --report-only | tee name-hygiene.txt
+          {
+            echo "### Name hygiene (report-only)"
+            echo '```'
+            tail -n 50 name-hygiene.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
