@@ -53,7 +53,7 @@ Climb rule: after B(n→p), if p has missing items run F2(p) then B(p→pp); if 
 Each phase runs the short loop of `ooda-loop` (OODA outer, PDCA inner); a small node runs a light round. Emit the family's stop marker as in `ratchet-loop`.
 
 ## 4. Metacognition (every case is a case)
-- **Before acting:** "What is the consequence, and is it reversible?" If the agent can undo it alone, or the cost of the error is below the cost of acting and reverting, act now and record after. If not, §5.
+- **Before acting:** "What is the consequence, and is it reversible?" Classify under §5 before acting. Reversible: act and record after. Compensable: act without asking, and apply §5 steps 3 and 4. Irreversible: enter §5 and follow steps 1 to 4. A cost comparison never authorizes an irreversible act.
 - **After acting:** "What did I learn?" One line in the ledger; the retro (§7) only when there was a defect or a delta.
 - **Introspect:** where was I overconfident, where did I ask to avoid responsibility (asking is not safe, it moves the cost to the human), what did I assume without a source (mark it NOT VERIFIED)?
 - **Each case is a case:** judge by goal, consequence and cost, not by matching a list of exceptions. When a rule and the goal clash, serve the goal inside the floor and record why. These questions replace an exception catalog; do not grow one.
