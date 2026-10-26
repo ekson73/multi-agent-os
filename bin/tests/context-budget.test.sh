@@ -122,6 +122,53 @@ eq 3  "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="ski
 eq 2  "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="unknown:brand_new_kind"][0]["count"]')" 'unknown: type reported, not dropped'
 "$CB" --mode transcript --transcript "$TM" --home /h >/dev/null 2>&1; eq 0 "$?" 'robust: text mode exit 0'
 
+# --- skillCount: a boolean is not an int
+TB="$T/bool.jsonl"
+python3 - "$TB" <<'PY2'
+import json,sys
+L=[{"type":"attachment","attachment":{"type":"skill_listing","content":"s"*4,"skillCount":True}},
+   {"type":"attachment","attachment":{"type":"skill_listing","content":"t"*4,"skillCount":2}},
+   {"type":"assistant","message":{}}]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY2
+o="$("$CB" --mode transcript --transcript "$TB" --home /h --json)"
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["count"]')" 'skillCount: boolean ignored'
+
+# --- security: PASSWORD / PASS / AUTH keys redacted, look-alike words kept
+TP="$T/pass.jsonl"
+python3 - "$TP" <<'PY2'
+import json,sys
+L=[{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart",
+    "hookName":"n DB_PASSWORD=pwone PASS=pwtwo MY_AUTH_HEADER=auththree --auth=authfour BYPASS=keepme",
+    "command":"/bin/hk","content":"h"}},
+   {"type":"assistant","message":{}}]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY2
+for fmt in text json; do
+  if [ "$fmt" = json ]; then o="$("$CB" --mode transcript --transcript "$TP" --home /h --json)"
+  else o="$("$CB" --mode transcript --transcript "$TP" --home /h)"; fi
+  leak=""
+  for s in pwone pwtwo auththree authfour; do case "$o" in *"$s"*) leak="$leak $s";; esac; done
+  [ -z "$leak" ] && ok "security ($fmt): PASSWORD/PASS/AUTH redacted" || no "security ($fmt): PASSWORD/PASS/AUTH redacted" "$leak"
+  case "$o" in *BYPASS=keepme*) ok "security ($fmt): BYPASS not over-redacted";; *) no "security ($fmt): BYPASS not over-redacted" "$o";; esac
+done
+
+# --- robustness: enabledPlugins that is not an object is ignored and counted
+H2="$T/home2"; mkdir -p "$H2/.claude/plugins"
+printf '{"enabledPlugins":["a"]}' > "$H2/.claude/settings.json"
+printf '{"plugins":{"a":[{"installPath":"/nonexistent"}]}}' > "$H2/.claude/plugins/installed_plugins.json"
+o="$("$CB" --mode disk --home "$H2" --cwd "$W" --json 2>&1)"; rc=$?
+eq 0 "$rc" 'robust: non-dict enabledPlugins does not crash'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="ignored malformed plugin config records"][0]["count"]')" 'robust: non-dict enabledPlugins counted as ignored'
+
+# --- disk: a symlinked directory under commands/ is not traversed
+H3="$T/home3"; mkdir -p "$H3/.claude/commands" "$T/outside"
+printf -- '---\nname: c\ndescription: real\n---\n' > "$H3/.claude/commands/c.md"
+printf -- '---\nname: o\ndescription: outside\n---\n' > "$T/outside/o.md"
+ln -s "$T/outside" "$H3/.claude/commands/link"
+o="$("$CB" --mode disk --home "$H3" --cwd "$W" --json)"
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: symlinked commands dir not followed'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac

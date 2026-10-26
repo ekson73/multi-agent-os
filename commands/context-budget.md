@@ -31,7 +31,20 @@ measurement; disk mode over-estimates listings because the harness truncates des
 ## Labels
 
 - Tokens are `bytes/4`, an **estimate**, not a tokenizer count.
-- `status`: `measured` · `estimated` · `not_measured`.
+- `status`: `measured` · `estimated` · `not_measured` · `skipped`.
+- An attachment type the tool does not recognise is reported as `unknown:<type>`
+  (category `unknown`, status `estimated`, size of the serialized JSON, `count` = occurrences).
+- `skipped non-object records` counts transcript lines that are valid JSON but not an object
+  (or an attachment that is not an object). Lines that are not JSON are dropped and not counted.
+- `ignored malformed plugin config records` (disk mode) counts plugin settings entries of the
+  wrong type; they are skipped, not fatal.
+- Hook names and the executable basename are redacted: `*TOKEN*`, `*KEY*`, `*SECRET*`,
+  `*PASSWORD*`, `*PASSWD*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment
+  (so `BYPASS=` stays), plus bearer tokens and URLs with userinfo or a query string.
 - Hook stdout is never counted or printed; only the `content` the harness injected.
 
-Exit codes: `0` ok · `1` error (JSON-RPC on stderr) · `2` warning (transcript had no attachments).
+Exit codes:
+- `0` ok — including `auto` with no transcript, which falls back to disk.
+- `1` error, JSON-RPC on stderr — `--mode transcript` with no transcript found, or a read failure.
+- `2` warning — the transcript used had no injected-context attachments (a transcript holding
+  only skipped records still exits `0`).

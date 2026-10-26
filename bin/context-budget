@@ -24,7 +24,9 @@ Usage:
   context-budget [--mode auto|transcript|disk] [--transcript PATH|latest]
                  [--cwd DIR] [--home DIR] [--top N] [--json]
 
-Exit codes: 0 ok · 1 error · 2 warning (requested source unavailable, fell back).
+Exit codes: 0 ok (also when auto mode found no transcript and fell back to disk)
+            · 1 error (--mode transcript with no transcript, or a read failure)
+            · 2 warning (the transcript used had no injected-context attachments).
 """
 from __future__ import annotations
 
@@ -44,7 +46,11 @@ TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
 # userinfo or a query string). Only the executable's basename is ever shown, and
 # any label text is redacted as a second line of defense.
 _SECRET_RES = (
-    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET)[^ ]*=\S+", re.I),
+    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD|PASSWD)[^ ]*=\S+", re.I),
+    # Short words only as a whole segment (split by _ or -), so BYPASS=,
+    # COMPASS= or AUTHOR= are not redacted but PASS=, DB_PWD= and MY_AUTH_X= are.
+    re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:PASS|PWD|AUTH)(?:[_-][A-Za-z0-9]+)*=\S+",
+               re.I),
     re.compile(r"Bearer\s+\S+", re.I),
     re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/@]+@\S*"),
     re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://\S*\?\S*"),
@@ -181,7 +187,7 @@ def from_transcript(path: str, home: str):
         rows.append(row("skill listing", "skills",
                         sum(nbytes(x.get("content")) for x in sls), "measured",
                         count=sum(x.get("skillCount") or 0 for x in sls
-                                  if isinstance(x.get("skillCount"), int))))
+                                  if type(x.get("skillCount")) is int)))
 
     als = seen.get("agent_listing_delta", [])
     if als:
@@ -274,24 +280,58 @@ def listing_bytes(paths, kind):
     return total, n
 
 
-def enabled_plugin_roots(home: str):
-    roots = []
-    settings = os.path.join(home, ".claude", "settings.json")
-    installed = os.path.join(home, ".claude", "plugins", "installed_plugins.json")
+def _load_json(path: str):
     try:
-        enabled = json.load(open(settings, encoding="utf-8")).get("enabledPlugins") or {}
-        inst = json.load(open(installed, encoding="utf-8")).get("plugins") or {}
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
     except (OSError, ValueError):
-        return roots
+        return None
+
+
+def enabled_plugin_roots(home: str):
+    """Return ([(plugin_key, install_path)], ignored) — ignored counts malformed records."""
+    roots, ignored = [], 0
+    settings = _load_json(os.path.join(home, ".claude", "settings.json"))
+    installed = _load_json(os.path.join(home, ".claude", "plugins", "installed_plugins.json"))
+    if not isinstance(settings, dict) or not isinstance(installed, dict):
+        return roots, ignored
+    enabled = settings.get("enabledPlugins")
+    if enabled is None:
+        enabled = {}
+    if not isinstance(enabled, dict):
+        return roots, ignored + 1
+    inst = installed.get("plugins")
+    if inst is None:
+        inst = {}
+    if not isinstance(inst, dict):
+        return roots, ignored + 1
     for key, on in enabled.items():
         if on is not True:
             continue
-        for entry in inst.get(key) or []:
+        entries = inst.get(key) or []
+        if not isinstance(entries, list):
+            ignored += 1
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                ignored += 1
+                continue
             p = entry.get("installPath")
-            if p and os.path.isdir(p):
+            if isinstance(p, str) and p and os.path.isdir(p):
                 roots.append((key, p))
                 break
-    return roots
+    return roots, ignored
+
+
+def _walk_md(root: str):
+    """*.md under root, recursively, without following symlinked directories.
+
+    Mirrors glob's default of skipping dot-files and dot-directories."""
+    out = []
+    for d, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(x for x in dirs if not x.startswith("."))
+        out += [os.path.join(d, f) for f in files if f.endswith(".md") and not f.startswith(".")]
+    return out
 
 
 def from_disk(home: str, cwd: str):
@@ -326,11 +366,15 @@ def from_disk(home: str, cwd: str):
 
     skills = glob.glob(os.path.join(cl, "skills", "*", "SKILL.md"))
     agents = glob.glob(os.path.join(cl, "agents", "*.md"))
-    commands = glob.glob(os.path.join(cl, "commands", "**", "*.md"), recursive=True)
-    for _, root in enabled_plugin_roots(home):
+    commands = _walk_md(os.path.join(cl, "commands"))
+    plugin_roots, ignored = enabled_plugin_roots(home)
+    for _, root in plugin_roots:
         skills += glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))
         agents += glob.glob(os.path.join(root, "agents", "*.md"))
-        commands += glob.glob(os.path.join(root, "commands", "**", "*.md"), recursive=True)
+        commands += _walk_md(os.path.join(root, "commands"))
+    if ignored:
+        rows.append(row("ignored malformed plugin config records", "skipped", 0, "skipped",
+                        count=ignored))
     for kind, paths in (("skills", skills), ("agents", agents), ("commands", commands)):
         b, n = listing_bytes(sorted(set(paths)), kind)
         rows.append(row(kind + " listing (name+description)", kind, b, "estimated", count=n,
@@ -409,7 +453,6 @@ def main(argv=None):
                 return 1
             tpath = None
             mode = "disk"
-            status = 2 if a.mode == "transcript" else 0
         else:
             mode = "transcript"
 
