@@ -12,7 +12,8 @@ pass=0 ; fail=0
 ok() { pass=$((pass + 1)); printf '  \xe2\x9c\x93 %s\n' "$1"; }
 no() { fail=$((fail + 1)); printf '  \xe2\x9c\x97 %s\n      got: [%s]\n' "$1" "$2"; }
 eq() { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
-jq_() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+# print JSON-style null for None so a missing field never reads as the string "None"
+jq_() { python3 -c "import json,sys; d=json.load(sys.stdin); v=($1); print('null' if v is None else v)"; }
 
 printf 'context-budget.test.sh\n'
 
@@ -67,8 +68,10 @@ eq 50  "$(printf '%s' "$o" | jq_ 'd["by_category"]["system_prompt"]["bytes"]')" 
 eq 200 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'transcript: rules classified'
 eq 10  "$(printf '%s' "$o" | jq_ 'd["by_category"]["memory_index"]["bytes"]')" 'transcript: MEMORY.md classified'
 eq 70  "$(printf '%s' "$o" | jq_ 'd["by_category"]["skills"]["bytes"]')" 'transcript: only initial window (before first reply)'
+# 5 = "ab" + "\n" + "cd" (the two fixture deferred-tool names, newline-joined)
 eq 5   "$(printf '%s' "$o" | jq_ 'd["by_category"]["deferred_tools"]["bytes"]')" 'transcript: deferred tool lines'
 eq 9   "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcript: SessionStart hook content only (not stdout, not PostToolUse)'
+# 374 = 50 system + 200 rules + 30 CLAUDE.md + 10 memory + 70 skills + 5 deferred + 9 hooks
 eq 374 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
 case "$o" in *SECRET-NOT-COUNTED*) no 'transcript: hook stdout never echoed' "$o" ;; *) ok 'transcript: hook stdout never echoed' ;; esac
 

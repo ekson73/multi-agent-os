@@ -432,14 +432,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="context-budget", description=__doc__.split("\n")[0])
     ap.add_argument("--mode", choices=("auto", "transcript", "disk"), default="auto")
     ap.add_argument("--transcript", default="latest", help="JSONL path or 'latest' (default)")
-    ap.add_argument("--cwd", default=os.getcwd(), help="session working dir (default: $PWD)")
+    ap.add_argument("--cwd", default=None, help="session working dir (default: $PWD)")
     ap.add_argument("--home", default=os.path.expanduser("~"))
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     a = ap.parse_args(argv)
 
     home = os.path.abspath(a.home)
-    cwd = os.path.abspath(a.cwd)
+    cwd = os.path.abspath(a.cwd or os.getcwd())
     status = 0
     mode = a.mode
     tpath = None
