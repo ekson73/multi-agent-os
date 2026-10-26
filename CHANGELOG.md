@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — the HITL digest shows THIS conversation's gates by default, and the whole ledger only when asked
+
+- **The defect.** `hitl/punch-list.md` is ONE global queue — every conversation's gates
+  live in the same file — and the pure digest rendered all of it. Measured on
+  2026-10-26: `synopsis-fuse.py --hitl-only --compass-json -` against the live ledger
+  returned **19 global items** for a conversation that owned **2** of them. A digest
+  that answers "what needs me now" answered with everyone else's queue, and the agent
+  reading it could not tell whose gates it was looking at.
+- **The fix.** The HITL ledger scope is now applied **before** counting, prioritising and
+  rendering, so every number in the output describes the slice that was actually shown.
+  In `--hitl-only` mode the default is `session` — the items whose ownership the ledger
+  itself records, in the ledger's own **`Sessão`** column (the writer's contract: the id
+  of the conversation that opened the item, or `-` when there is none). Only an explicit
+  `--scope all` widens to the whole ledger, legacy items included; every other `--scope`
+  value is a *pendency* scope and never widens. The general panel (without
+  `--hitl-only`) is unchanged — it is a landscape, not a digest — and the work-compass
+  pendency scope is untouched.
+- **Provenance is the ledger's, never the chat's.** An item with no provenance (a `-`,
+  an empty cell, or a ledger written before the column existed) is **legacy**: it belongs
+  to no known conversation, so it enters the global scope and never the session scope.
+  Mentioning an item's ID in a conversation does not make it yours, and the engine does
+  not treat a same-cwd, same-title or same-operator conversation as the same one.
+- **Identity is the invoking conversation, and it fails closed.** Resolution order:
+  `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` →
+  `CLAUDE_SESSION_ID` → the uuid in the *name* of `PI_SESSION_FILE` (or in the name of
+  its parent directory, the layout the harness uses for a delegated run). `PI_SESSION_ID`
+  is deliberately NOT consulted: it is per *process*, so a delegated run would resolve
+  the executor's id instead of the conversation's and report "0 gates for this
+  conversation" where the truth is "identity unknown". A delegated (sub-agent) run never
+  inherits its parent's identity: whoever executes it passes `--session-id` with the id of
+  the conversation behind the request. When no identity resolves, the render shows
+  **nothing** and states why — it never falls back to "all" and never claims the queue
+  is empty, because "I do not know whose this is" is not "there is nothing". Every render
+  names the scope it applied; the JSON envelope carries `meta.hitl_scope`,
+  `meta.hitl_scope_reason`, `meta.hitl_session_ids`, `meta.hitl_session_resolved`,
+  `meta.hitl_session_source`, `meta.hitl_scope_unresolved` and `meta.hitl_ledger_total`
+  (the size *before* the narrowing, so "0 shown" is never read as "0 exist").
+- **Ids are compared exactly.** A session id is an opaque token: only surrounding
+  whitespace is stripped, and `A` is not `a`. The JSON path reads the writer's single
+  `session_id` field. The `Sessão` column is located by the header, so its position in
+  the table cannot shift the other columns.
+- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (real ledgers in
+  the writer's table format and real CLI subprocesses, no mocks): the default narrows to
+  the calling conversation, an explicit `--scope all` widens, a pendency scope never
+  widens, a legacy item stays out of the session scope, a chat mention does not grant
+  ownership, an unresolved identity shows nothing and says why, the general panel keeps
+  the whole ledger, the pure path never invokes the collector, the id match is exact, and
+  an identity that is only separators or a marker is not an identity.
+
 ### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
 
 - **Scope widened** from Claude Code only to six surfaces: claude.ai web, desktop, Claude Code
