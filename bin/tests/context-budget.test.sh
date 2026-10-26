@@ -33,7 +33,9 @@ printf '%080d' 0 > "$H/.claude/projects/$ENC/memory/MEMORY.md"   # 80 bytes
 o="$("$CB" --mode disk --home "$H" --cwd "$W" --json)"; rc=$?
 eq 0 "$rc" 'disk: exit 0'
 eq 400 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'disk: rules bytes summed'
-eq 60  "$(printf '%s' "$o" | jq_ 'd["by_category"]["claude_md"]["bytes"]')" 'disk: CLAUDE.md chain (home + cwd)'
+# the chain walks up to /, so count only the fixture tree: a CLAUDE.md in a real
+# parent of $TMPDIR must not change the result
+eq 60  "$(printf '%s' "$o" | T="$T" jq_ 'sum(r["bytes"] for r in d["sources"] if r["category"]=="claude_md" and r.get("path","").startswith(__import__("os").environ["T"]))')" 'disk: CLAUDE.md chain (home + cwd)'
 eq 80  "$(printf '%s' "$o" | jq_ 'd["by_category"]["memory_index"]["bytes"]')" 'disk: MEMORY.md for encoded cwd'
 eq 100 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"].endswith("a.md")][0]["tokens_est"]*4')" 'disk: tokens_est = bytes/4'
 eq 3   "$(printf '%s' "$o" | jq_ 'len([r for r in d["sources"] if r["status"]=="not_measured"])')" 'disk: hooks/mcp/deferred flagged not_measured'
@@ -57,6 +59,9 @@ L=[
  {"type":"attachment","attachment":{"type":"deferred_tools_delta","addedLines":["ab","cd"],"addedNames":["ab","cd"]}},
  {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart","hookName":"SessionStart:startup","content":"h"*9,"stdout":"SECRET-NOT-COUNTED"}},
  {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse","hookName":"x","content":"z"*999}},
+ {"type":"attachment","attachment":{"type":"async_hook_response","hookEvent":"SessionStart","hookName":"a","stdout":"ASYNC-STDOUT-NOT-COUNTED","response":{"systemMessage":"shown to user","hookSpecificOutput":{"additionalContext":"k"*7}}}},
+ {"type":"attachment","attachment":{"type":"async_hook_response","hookEvent":"SessionStart","hookName":"b","stdout":"{}","response":{"suppressOutput":True}}},
+ {"type":"attachment","attachment":{"type":"hook_non_blocking_error","hookEvent":"SessionStart","hookName":"c","stderr":"ERR-NOT-COUNTED","stdout":"","exitCode":1}},
  {"type":"assistant","message":{}},
  {"type":"attachment","attachment":{"type":"skill_listing","content":"late"*1000,"skillCount":9}},
 ]
@@ -70,10 +75,12 @@ eq 10  "$(printf '%s' "$o" | jq_ 'd["by_category"]["memory_index"]["bytes"]')" '
 eq 70  "$(printf '%s' "$o" | jq_ 'd["by_category"]["skills"]["bytes"]')" 'transcript: only initial window (before first reply)'
 # 5 = "ab" + "\n" + "cd" (the two fixture deferred-tool names, newline-joined)
 eq 5   "$(printf '%s' "$o" | jq_ 'd["by_category"]["deferred_tools"]["bytes"]')" 'transcript: deferred tool lines'
-eq 9   "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcript: SessionStart hook content only (not stdout, not PostToolUse)'
-# 374 = 50 system + 200 rules + 30 CLAUDE.md + 10 memory + 70 skills + 5 deferred + 9 hooks
-eq 374 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
-case "$o" in *SECRET-NOT-COUNTED*) no 'transcript: hook stdout never echoed' "$o" ;; *) ok 'transcript: hook stdout never echoed' ;; esac
+# 16 = 9 hook_success content + 7 async additionalContext; stdout/stderr/systemMessage not counted
+eq 16  "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcript: injected hook text only (not stdout/stderr, not PostToolUse)'
+eq 0   "$(printf '%s' "$o" | jq_ 'len([r for r in d["sources"] if r["category"]=="unknown"])')" 'transcript: async/non-blocking hook records not dumped as unknown'
+# 381 = 50 system + 200 rules + 30 CLAUDE.md + 10 memory + 70 skills + 5 deferred + 16 hooks
+eq 381 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
+case "$o" in *SECRET-NOT-COUNTED*|*ASYNC-STDOUT-NOT-COUNTED*|*ERR-NOT-COUNTED*) no 'transcript: hook stdout/stderr never echoed' "$o" ;; *) ok 'transcript: hook stdout/stderr never echoed' ;; esac
 
 # --- security: hook command line is never echoed (only name + argv[0] basename)
 TS="$T/secret.jsonl"
@@ -176,14 +183,19 @@ eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="comm
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac
 "$CB" --mode transcript --transcript "$T/missing.jsonl" >/dev/null 2>&1; eq 1 "$?" 'transcript missing: exit 1'
+err="$("$CB" --transcript "$T/missing.jsonl" --home "$H" --cwd "$W" 2>&1 >/dev/null)"; rc=$?
+eq 1 "$rc" 'auto + explicit missing --transcript: exit 1 (no silent disk fallback)'
+case "$err" in *"transcript not found"*) ok 'auto + explicit missing --transcript: error on stderr';; *) no 'auto + explicit missing --transcript: error on stderr' "$err";; esac
 o="$("$CB" --home "$H" --cwd "$W" --json)"; rc=$?
 eq 0 "$rc" 'auto without transcript: exit 0'
 eq disk "$(printf '%s' "$o" | jq_ 'd["mode"]')" 'auto without transcript: falls back to disk'
 
 # --- read-only: nothing written under fake HOME
-before="$(find "$H" -type f | sort | xargs cat | cksum)"
+# file list + per-file checksums: a new empty file changes the list, an edit the sums
+snap() { find "$H" | sort; find "$H" -type f -exec cksum {} + | sort; }
+before="$(snap)"
 "$CB" --home "$H" --cwd "$W" >/dev/null
-after="$(find "$H" -type f | sort | xargs cat | cksum)"
+after="$(snap)"
 eq "$before" "$after" 'read-only: fake HOME unchanged'
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"

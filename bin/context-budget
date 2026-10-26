@@ -139,7 +139,22 @@ def _lines(seq):
 
 KNOWN_KINDS = ("prompt_snapshot", "instructions", "skill_listing", "agent_listing_delta",
                "deferred_tools_delta", "mcp_instructions_delta")
-HOOK_KINDS = ("hook_success", "hook_additional_context", "hook_system_message")
+# Hook attachments: only the text the harness injects into the model's context is
+# counted, never stdout/stderr/command. async_hook_response carries it under
+# response.hookSpecificOutput.additionalContext; hook_non_blocking_error injects
+# nothing (its stderr is shown to the user), so it adds no row.
+HOOK_KINDS = ("hook_success", "hook_additional_context", "hook_system_message",
+              "async_hook_response", "hook_non_blocking_error")
+
+
+def _hook_text(h):
+    c = h.get("content")
+    if isinstance(c, str) and c:
+        return c
+    r = h.get("response")
+    hso = r.get("hookSpecificOutput") if isinstance(r, dict) else None
+    ac = hso.get("additionalContext") if isinstance(hso, dict) else None
+    return ac if isinstance(ac, str) else ""
 
 
 def from_transcript(path: str, home: str):
@@ -220,7 +235,7 @@ def from_transcript(path: str, home: str):
                         "estimated", count=len(items)))
 
     for h in hooks:
-        content = h.get("content") or ""
+        content = _hook_text(h)
         if not content:
             continue  # nothing injected into the model's context
         rows.append(row("hook " + _hook_label(h), "hooks",
@@ -444,9 +459,12 @@ def main(argv=None):
     mode = a.mode
     tpath = None
     if mode in ("auto", "transcript"):
-        tpath = latest_transcript(home, cwd) if a.transcript == "latest" else a.transcript
+        explicit = a.transcript != "latest"
+        tpath = a.transcript if explicit else latest_transcript(home, cwd)
         if not tpath or not os.path.isfile(tpath):
-            if mode == "transcript":
+            # An explicit path that does not exist is an error in any mode; only the
+            # implicit 'latest' lookup may fall back to disk.
+            if mode == "transcript" or explicit:
                 sys.stderr.write(json.dumps({"jsonrpc": "2.0", "error": {
                     "code": -32001, "message": "transcript not found",
                     "data": {"cwd": cwd, "transcript": a.transcript}}}) + "\n")

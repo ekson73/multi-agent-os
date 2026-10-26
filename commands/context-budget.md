@@ -41,10 +41,13 @@ measurement; disk mode over-estimates listings because the harness truncates des
 - Hook names and the executable basename are redacted: `*TOKEN*`, `*KEY*`, `*SECRET*`,
   `*PASSWORD*`, `*PASSWD*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment
   (so `BYPASS=` stays), plus bearer tokens and URLs with userinfo or a query string.
-- Hook stdout is never counted or printed; only the `content` the harness injected.
+- Hook stdout and stderr are never counted or printed; only the text the harness injected into
+  the model's context: `content`, or `response.hookSpecificOutput.additionalContext` for
+  `async_hook_response`. `hook_non_blocking_error` injects nothing, so it adds no row.
 
 Exit codes:
-- `0` ok — including `auto` with no transcript, which falls back to disk.
-- `1` error, JSON-RPC on stderr — `--mode transcript` with no transcript found, or a read failure.
+- `0` ok — including `auto` with no `latest` transcript, which falls back to disk.
+- `1` error, JSON-RPC on stderr — `--mode transcript` with no transcript found, an explicit
+  `--transcript PATH` that does not exist (in any mode), or a read failure.
 - `2` warning — the transcript used had no injected-context attachments (a transcript holding
   only skipped records still exits `0`).

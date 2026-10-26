@@ -13,9 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   listings, deferred MCP tool names, MCP server instructions, hook injections — in bytes and
   estimated tokens (`bytes/4`, labelled estimate). Two modes: `transcript` (measured from the
   session `.jsonl` attachments before the first assistant record) and `disk` (files measured,
-  listings estimated, MCP/hooks `not_measured`). Hook stdout is never counted or printed.
+  listings estimated, MCP/hooks `not_measured`). Hook stdout/stderr is never counted or printed;
+  only injected text (`content`, or `additionalContext` of `async_hook_response`).
 - **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
-  (22 assertions, fake `$HOME`, read-only check).
+  (45 assertions, fake `$HOME`, read-only check).
 - Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
