@@ -43,7 +43,7 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | Param | Default | Effect |
 |-------|---------|--------|
 | `--scope` | `session` (só o digest) | **no digest puro**: `session` = só os HITLs desta conversa; `all` = o ledger inteiro, legados inclusive. Qualquer outro valor (`current`/`repo`/`vault`) é escopo de *pendência*, não de ledger — nunca amplia. **com `--with-pendencies`**: recorte do panorama repassado ao `work-compass` (comportamento antigo, intacto) |
-| `--session-id` | resolvido do ambiente | identidade da conversa que **invocou** o digest (aceita lista separada por vírgula; comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → o uuid no nome de `PI_SESSION_FILE`. **Sem identidade resolvida o digest não mostra nada e diz o motivo** — nunca mostra tudo, nunca afirma "não existem" |
+| `--session-id` | resolvido do ambiente | identidade da conversa que **invocou** o digest (aceita lista separada por vírgula; comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → headers nativos de `PI_SESSION_FILE` com ancestrais `parentSession` explícitos (ver contrato em `synopsis-panel`). **Sem identidade resolvida o digest não mostra nada e diz o motivo** — nunca mostra tudo, nunca afirma "não existem" |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
 | `--hitl-md PATH` | o vault normal (`~/eko-engram/hitl/punch-list.md`) | caminho do `punch-list.md` SSOT. O digest passa esse caminho **explicitamente** — a descoberta padrão do motor resolve `~/Projects/eko-engram`, que é **outro clone** com outro conteúdo. Para ler outro ledger, passe o path explícito (ou defina `HITL_LEDGER`). O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
@@ -62,11 +62,22 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 > Item sem proveniência é **legado**: entra no escopo global e **nunca** no escopo da
 > sessão — mencionar um ID no chat não torna o item seu.
 >
-> **Identidade é a da conversa que invocou**, nunca a do diretório, do repo ou do
-> operador. Um subprocesso delegado não herda a identidade do pai: quem executa
-> passa `--session-id` com o id da conversa que está por trás do pedido. Sem
-> identidade resolvida, o digest **falha fechado** (nada mostrado + motivo), porque
-> "não sei de quem é" não é "não existe".
+> **Identidade é a da conversa que invocou**, nunca a do diretório de trabalho, do
+> repo ou do operador. O fallback nativo acompanha somente `parentSession` declarado
+> no header do OMP; não usa cache de prompt nem procura conversas parecidas.
+> `--session-id` explícito continua sendo um override exato. Sem identidade
+> resolvida, o digest **falha fechado**: nada mostrado + motivo.
+
+**Decisão explícita do SSOT de runtime HITL:** A = `$HOME/eko-engram/hitl/punch-list.md`,
+o vault normal, preserva o WIP local por cutover aditivo autorizado; B =
+`$HOME/Projects/eko-engram` é outro clone Git, não um destino implícito para HITLs ativos.
+Produtores usam o mesmo `HITL_LEDGER` com `--file "$HITL_LEDGER"`; abertura direta
+informa `--session-id`, e novos eventos declaram `session_id=ID` por evento
+(no sync, `--session-id` só afirma igualdade, não atribui um dono ao lote).
+Código é publicado via worktree/PR Git; dados de A só são conciliados por CAS aditivo
+revisado pelo root/maintainer, nunca por pull ou espelhamento cego do WIP. Usar uma nota
+já publicada em B (decisão operacional do H-0054) não move o SSOT nem afirma que HOME
+foi atualizado. A descoberta B do painel geral é um caso separado, não uma migração.
 
 ## Parte cognitiva (o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
