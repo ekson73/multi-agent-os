@@ -81,22 +81,37 @@ self-heal (erro → envelope de repair-request para um ai-harness).
 ## O que o command executa (determinístico)
 
 ```bash
-# Resolve o motor (NÃO de $0: um command .md não é um script executável, então $0 é o
-# shell/arg, não este arquivo). Vários candidatos, e o PRIMEIRO que existir vence:
+# Resolve o motor. NÃO de $0: um command .md não é um script executável, então $0 é o
+# shell/arg, não este arquivo. Candidatos em ordem, e o PRIMEIRO que existir vence:
 #   1. CLAUDE_PLUGIN_ROOT — a convenção do Claude Code (runtime de plugin);
-#   2. MAOS_DIR (ou ~/Projects/multi-agent-os) — a mesma convenção de
-#      bin/sync-agentic-tools.sh: o checkout CANÔNICO do repo, que é o que a
-#      instalação de surface (/home .agents/commands, .claude/commands) aponta;
-#   3. a raiz do git do CWD — o repo em que o comando está sendo desenvolvido.
+#   2. a ÁRVORE DE ORIGEM DESTE COMANDO: o link instalado (~/.claude/commands,
+#      ~/.agents/commands, ~/.omp/agent/commands) resolvido ao seu arquivo real, e
+#      o motor ao lado dele. É a rota que o próprio comando instalado usa, então o
+#      digest nunca roda um motor de outra árvore (a cópia não-ativada);
+#   3. MAOS_DIR (ou ~/Projects/multi-agent-os) — a mesma convenção de
+#      bin/sync-agentic-tools.sh;
+#   4. a raiz do git do CWD — o repo em que o comando está sendo desenvolvido.
 # Sem o passo 2 o comando quebra fora do repo: `git rev-parse --show-toplevel` num
 # diretório de trabalho qualquer devolve um caminho onde o motor não existe.
 FUSE=""
-for cand in \
-  "${CLAUDE_PLUGIN_ROOT:-}/skills/synopsis-panel/bin/synopsis-fuse.py" \
-  "${MAOS_DIR:-$HOME/Projects/multi-agent-os}/skills/synopsis-panel/bin/synopsis-fuse.py" \
-  "$(git rev-parse --show-toplevel 2>/dev/null)/skills/synopsis-panel/bin/synopsis-fuse.py"; do
-  [ -f "$cand" ] && { FUSE="$cand"; break; }
+# 2: a árvore de onde este comando foi instalado (o motor ao lado do comando real)
+for link in "$HOME/.claude/commands/hitl-digest.md" \
+            "$HOME/.agents/commands/hitl-digest.md" \
+            "$HOME/.omp/agent/commands/hitl-digest.md"; do
+  [ -e "$link" ] || continue
+  real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$link" 2>/dev/null)"
+  [ -n "$real" ] || continue
+  cand="$(dirname "$(dirname "$real")")/skills/synopsis-panel/bin/synopsis-fuse.py"
+  if [ -f "$cand" ]; then FUSE="$cand"; break; fi
 done
+# 1, 3 e 4: os fallbacks, na ordem de precedência
+if [ -z "$FUSE" ]; then
+  for cand in "${CLAUDE_PLUGIN_ROOT:-}/skills/synopsis-panel/bin/synopsis-fuse.py" \
+              "${MAOS_DIR:-$HOME/Projects/multi-agent-os}/skills/synopsis-panel/bin/synopsis-fuse.py" \
+              "$(git rev-parse --show-toplevel 2>/dev/null)/skills/synopsis-panel/bin/synopsis-fuse.py"; do
+    [ -f "$cand" ] && { FUSE="$cand"; break; }
+  done
+fi
 [ -n "$FUSE" ] || { echo "hitl-digest: synopsis-fuse.py não encontrado" >&2; exit 2; }
 
 # DIGEST PURO (default) — só os gates humanos, sem rodar o coletor de pendências.
