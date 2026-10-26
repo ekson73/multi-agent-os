@@ -43,7 +43,7 @@ measurement; disk mode over-estimates listings because the harness truncates des
   `*COOKIE*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment
   (so `BYPASS=` stays), plus bearer tokens and URLs with userinfo or a query string.
 - Hook stdout and stderr are never counted or printed; only the text the harness injected into
-  the model's context: `content`, or `response.hookSpecificOutput.additionalContext` for
+  the model's context: `content` (a string or newline-joined list), or `response.hookSpecificOutput.additionalContext` for
   `async_hook_response`. `hook_non_blocking_error` injects nothing, so it adds no row.
 
 Exit codes:

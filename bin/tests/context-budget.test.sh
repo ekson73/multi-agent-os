@@ -5,7 +5,8 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 CB="$DIR/../context-budget"
-T="$(mktemp -d)"
+T="$(mktemp -d)" || { printf 'context-budget.test.sh: mktemp failed\n' >&2; exit 1; }
+[ -n "$T" ] && [ -d "$T" ] || { printf 'context-budget.test.sh: invalid temp dir\n' >&2; exit 1; }
 trap 'rm -rf "$T"' EXIT
 
 pass=0 ; fail=0
@@ -81,6 +82,13 @@ eq 0   "$(printf '%s' "$o" | jq_ 'len([r for r in d["sources"] if r["category"]=
 # 381 = 50 system + 200 rules + 30 CLAUDE.md + 10 memory + 70 skills + 5 deferred + 16 hooks
 eq 381 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
 case "$o" in *SECRET-NOT-COUNTED*|*ASYNC-STDOUT-NOT-COUNTED*|*ERR-NOT-COUNTED*) no 'transcript: hook stdout/stderr never echoed' "$o" ;; *) ok 'transcript: hook stdout/stderr never echoed' ;; esac
+
+# --- list-valued hook content uses the same newline composition as other listings
+printf '%s\n' '{"type":"attachment","attachment":{"type":"hook_additional_context","hookEvent":"UserPromptSubmit","hookName":"list","content":["alpha","beta"]}}' > "$T/list-hook.jsonl"
+o="$("$CB" --mode transcript --transcript "$T/list-hook.jsonl" --home /h --json)"
+# 10 = "alpha" + "\n" + "beta"
+eq 10 "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcript: list-valued hook content counted'
+eq 10 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: list-valued hook content included in total'
 
 # --- security: hook command line is never echoed (only name + argv[0] basename)
 TS="$T/secret.jsonl"
