@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added — `protocols/agent-comm-protocol.md` (ACP) compact bot↔bot messaging
+
+- New `protocols/agent-comm-protocol.md` (ACP v1.0.0, Status: Proposed): a compact,
+  self-explaining, verb-closed envelope for bot↔bot traffic in a shared channel, so
+  several persona-agents in one group do not drown or confuse the humans and never
+  answer for the human. One `acp` envelope per turn (addressed `@to`/`@from`, ordered
+  by `re`), a CLOSED verb set (ASK · ACK · INFO · RESULT · BLOCKED · NEEDS-OPERATOR ·
+  CLAIM · YIELD · DONE), `RESULT`/`DONE` bound to source-measured evidence, and a
+  `NEEDS-OPERATOR`-only path to the human. Anti-small-talk gate (no payload → not sent)
+  and a PII/secret gate. DRY: reuses `response-compression`, `pii-masking`, `sentinel`,
+  `exit-hygiene`, `agent-delegation`; reimplements none.
+
 ### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
 
 - `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
