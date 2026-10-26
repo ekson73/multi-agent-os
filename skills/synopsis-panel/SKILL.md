@@ -93,7 +93,7 @@ Então `echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LED
 entrega os cards da sessão invocadora prontos para `AskUserQuestion`, só para consumidor
 `human-live` num harness que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e
 `machine` o `json` de sempre. Contrato, fontes das opções e regra de recomendação:
-[`hitl-digest`](../../commands/hitl-digest.md) §Modo AskUserQuestion. Testes: `tests/test_synopsis_hitl_auq.py`.
+[`hitl-digest`](../../commands/hitl-digest.md) §Modo AskUserQuestion. Testes: [`test_synopsis_hitl_auq.py`](../../tests/test_synopsis_hitl_auq.py).
 
 ## Parte cognitiva (o que o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
