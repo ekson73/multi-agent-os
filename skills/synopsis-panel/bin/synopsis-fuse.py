@@ -872,7 +872,7 @@ AUQ_HEADER_MAX = 12
 AUQ_LABEL_MAX = 60
 AUQ_RECORD_TITLE_MAX = 18   # keeps the record line within 80 columns (spec §2)
 TYPE_OPTIONS = {
-    "credencial": ("Fornecer ou rotacionar", "Voc\u00ea fornece ou rotaciona a credencial no 1Password; o agente s\u00f3 usa a refer\u00eancia, nunca o valor.",
+    "credencial": ("Fornecer ou rotacionar", "Voc\u00ea fornece ou rotaciona a credencial no cofre aprovado; o agente s\u00f3 usa a refer\u00eancia, nunca o valor.",
                    "N\u00e3o fornecer", "O trabalho que depende da credencial fica bloqueado; o agente registra a recusa no ledger."),
     "gasto": ("Autorizar o gasto", "O agente executa dentro do valor registrado e anota o custo real no ledger.",
               "N\u00e3o autorizar", "Nenhum gasto; o agente procura uma alternativa sem custo ou encerra o item."),
@@ -1087,7 +1087,7 @@ def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
         "code": code,
         "preamble": pre,
         "ask_user_question": {"questions": questions} if questions else None,
-        "no_decisions": not questions,
+        "no_decisions": not questions and not meta.get("hitl_scope_unresolved"),
         "cards": card_meta,
         "overflow": [h.get("id", "") for h in overflow],
         "hitl_source": meta.get("hitl_source"),

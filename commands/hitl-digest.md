@@ -189,7 +189,7 @@ python3 "$FUSE" --hitl-md "$LEDGER" --scope all --include pending --pending-only
 ## Modo AskUserQuestion (`--format ask-user-question`)
 
 Garantias do contrato:
-- Fila vazia → `"ask_user_question": null` + `"no_decisions": true` e a linha `nenhuma decisão pendente — não abra AskUserQuestion`; não abra a ferramenta.
+- Fila vazia com escopo resolvido → `"ask_user_question": null` + `"no_decisions": true` e a linha `nenhuma decisão pendente — não abra AskUserQuestion`; não abra a ferramenta. Escopo não resolvido mantém `no_decisions: false`, payload nulo e o motivo explícito.
 - `machine` recebe exatamente os bytes de `--format json` (mesma saída, sem newline final).
 - Proveniência do ledger viaja no envelope (`hitl_source`, `hitl_source_kind`, `hitl_source_dirty`, `hitl_source_behind`, `hitl_warning`) e no `preamble` (≤80 colunas, avisos e metadados longos quebrados sem perda). O escopo e sua resolução também acompanham o payload; identidade ausente não é fila vazia.
 - Rótulos de opção são únicos mesmo após corte (sufixo ` (2)`); uma opção estruturada solitária ganha `Manter pendente`.
@@ -222,12 +222,12 @@ Regras do payload (cada uma vem do spec, nenhuma é nova):
 
 ```bash
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
-  --format ask-user-question --consumer human-live --harness "Claude Code" --repo "$(basename "$PWD")"
+  --format ask-user-question --consumer human-live --repo "$(basename "$PWD")"
 ```
 
-O agente imprime o `preamble` como texto e chama `AskUserQuestion` com
-`ask_user_question.questions`. Se a pergunta expirar sem resposta, o próximo digest a faz em texto,
-com letras (§0).
+O agente imprime o `preamble` como texto e, se o payload não for nulo, chama `AskUserQuestion`
+com `ask_user_question.questions`. Se a pergunta expirar sem resposta, no próximo digest passe
+`--consumer human-deferred` para usar o texto em vez de abrir a ferramenta novamente (§0).
 
 ## Examples
 

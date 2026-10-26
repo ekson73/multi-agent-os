@@ -88,12 +88,12 @@ HITL       → ┌────────────────────�
 
 ## Modo AskUserQuestion (hitl-digest)
 
-Resolva `FUSE` e `LEDGER` conforme `commands/hitl-digest.md` §O que o command executa.
+Resolva `FUSE` e `LEDGER` conforme [`hitl-digest`](../../commands/hitl-digest.md) §O que o command executa.
 Então `echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format ask-user-question --consumer human-live`
 entrega os cards da sessão invocadora prontos para `AskUserQuestion`, só para consumidor
 `human-live` num harness que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e
 `machine` o `json` de sempre. Contrato, fontes das opções e regra de recomendação:
-`commands/hitl-digest.md` §Modo AskUserQuestion. Testes: `tests/test_synopsis_hitl_auq.py`.
+[`hitl-digest`](../../commands/hitl-digest.md) §Modo AskUserQuestion. Testes: `tests/test_synopsis_hitl_auq.py`.
 
 ## Parte cognitiva (o que o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —

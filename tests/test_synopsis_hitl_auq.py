@@ -253,6 +253,7 @@ def test_unresolved_live_scope_is_not_an_empty_queue(tmp_path):
     out = run("--hitl-json", str(hj), "--format", "ask-user-question")
     d = json.loads(out)
     assert d["ask_user_question"] is None
+    assert d["no_decisions"] is False
     assert d["hitl_session_resolved"] is False and d["hitl_scope_unresolved"]
     assert d["hitl_ledger_total"] == 1
     assert "H-0808" not in out and "SYNTHETIC_FOREIGN" not in out
