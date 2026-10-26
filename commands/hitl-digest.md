@@ -33,7 +33,8 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 ## Usage
 
 ```text
-/hitl-digest [--scope current|session|repo|vault|all] [--format tree|mermaid|html|json]
+/hitl-digest [--scope current|session|repo|vault|all] [--session-id ID[,ID]]
+             [--format tree|mermaid|html|json]
              [--with-pendencies] [--hitl-md PATH] [--title TEXT]
 ```
 
@@ -41,11 +42,31 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 
 | Param | Default | Effect |
 |-------|---------|--------|
-| `--scope` | `all` | recorte do panorama (repassado ao `work-compass` quando `--with-pendencies`) |
+| `--scope` | `session` (só o digest) | **no digest puro**: `session` = só os HITLs desta conversa; `all` = o ledger inteiro, legados inclusive. Qualquer outro valor (`current`/`repo`/`vault`) é escopo de *pendência*, não de ledger — nunca amplia. **com `--with-pendencies`**: recorte do panorama repassado ao `work-compass` (comportamento antigo, intacto) |
+| `--session-id` | resolvido do ambiente | identidade da conversa que **invocou** o digest (aceita lista separada por vírgula; comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → o uuid no nome de `PI_SESSION_FILE`. **Sem identidade resolvida o digest não mostra nada e diz o motivo** — nunca mostra tudo, nunca afirma "não existem" |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
 | `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca), que resolve a cópia do **working tree**. O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
 | `--title TEXT` | *(pt-BR default)* | rótulo do digest |
+
+> **Por que o default é a sessão, e não o ledger inteiro.** O `punch-list.md` é UMA fila
+> global: os gates de todas as conversas estão no mesmo arquivo. Um digest que
+> responde "o que precisa de mim agora" mostrando 19 gates — dos quais a maioria é de
+> outra conversa — não responde à pergunta. Medido em 2026-10-26: o digest puro
+> devolveu **19 itens globais** para uma conversa que tinha **2** gates seus. O default
+> agora é a fatia desta conversa; o ledger inteiro só sai com `--scope all`, pedido
+> explicitamente.
+>
+> **A proveniência é do ledger, não do chat.** Cada item carrega no próprio ledger a
+> sessão que o abriu (coluna `Sessão` do `punch-list.md`; `-` = sem proveniência).
+> Item sem proveniência é **legado**: entra no escopo global e **nunca** no escopo da
+> sessão — mencionar um ID no chat não torna o item seu.
+>
+> **Identidade é a da conversa que invocou**, nunca a do diretório, do repo ou do
+> operador. Um subprocesso delegado não herda a identidade do pai: quem executa
+> passa `--session-id` com o id da conversa que está por trás do pedido. Sem
+> identidade resolvida, o digest **falha fechado** (nada mostrado + motivo), porque
+> "não sei de quem é" não é "não existe".
 
 ## Parte cognitiva (o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
@@ -60,15 +81,37 @@ self-heal (erro → envelope de repair-request para um ai-harness).
 ## O que o command executa (determinístico)
 
 ```bash
-# resolve o motor a partir da raiz do plugin (NÃO de $0: um command .md não é um script
-# executável, então $0 é o shell/arg, não este arquivo). CLAUDE_PLUGIN_ROOT é a convenção
-# do Claude Code; o fallback para a raiz do git cobre execução fora do runtime do plugin.
-FUSE="${CLAUDE_PLUGIN_ROOT:-$(git rev-parse --show-toplevel)}/skills/synopsis-panel/bin/synopsis-fuse.py"
+# Resolve o motor (NÃO de $0: um command .md não é um script executável, então $0 é o
+# shell/arg, não este arquivo). Vários candidatos, e o PRIMEIRO que existir vence:
+#   1. CLAUDE_PLUGIN_ROOT — a convenção do Claude Code (runtime de plugin);
+#   2. MAOS_DIR (ou ~/Projects/multi-agent-os) — a mesma convenção de
+#      bin/sync-agentic-tools.sh: o checkout CANÔNICO do repo, que é o que a
+#      instalação de surface (/home .agents/commands, .claude/commands) aponta;
+#   3. a raiz do git do CWD — o repo em que o comando está sendo desenvolvido.
+# Sem o passo 2 o comando quebra fora do repo: `git rev-parse --show-toplevel` num
+# diretório de trabalho qualquer devolve um caminho onde o motor não existe.
+FUSE=""
+for cand in \
+  "${CLAUDE_PLUGIN_ROOT:-}/skills/synopsis-panel/bin/synopsis-fuse.py" \
+  "${MAOS_DIR:-$HOME/Projects/multi-agent-os}/skills/synopsis-panel/bin/synopsis-fuse.py" \
+  "$(git rev-parse --show-toplevel 2>/dev/null)/skills/synopsis-panel/bin/synopsis-fuse.py"; do
+  [ -f "$cand" ] && { FUSE="$cand"; break; }
+done
+[ -n "$FUSE" ] || { echo "hitl-digest: synopsis-fuse.py não encontrado" >&2; exit 2; }
 
 # DIGEST PURO (default) — só os gates humanos, sem rodar o coletor de pendências.
 # O compass vazio ({} via stdin) curto-circuita a agregação: o digest HITL não
 # depende da N-Tree, então não há por que esperar o work-compass. Rápido e read-only.
+# Sem --scope, o motor mostra SÓ os itens desta conversa (escopo=session).
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format tree
+
+# MESMO digest, com a identidade da conversa invocadora explicitada. Use quando o
+# comando roda num processo delegado (subagente), onde o ambiente do filho NÃO
+# carrega a identidade da conversa que pediu: sem isto, o digest falha fechado.
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --session-id "$SESSION_ID" --format tree
+
+# LEDGER INTEIRO (global, legados inclusive) — pedido explícito, nunca o default.
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --scope all --format tree
 
 # digest puro em página HTML autônoma (estilo hitl-digest, dark/light)
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format html > hitl-digest.html
@@ -77,6 +120,7 @@ echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format html > hitl-di
 # anexado à pendência a que pertence. --pending-only mantém o foco HITL: só os nós que
 # carregam um HITL (ou flag) permanecem na árvore, então o resultado é o digest HITL com as
 # pendências a que os gates pertencem — NÃO o painel de sinopse completo.
+# Aqui --scope all é o recorte de PENDÊNCIAS (o work-compass), comportamento antigo e intacto.
 python3 "$FUSE" --scope all --include pending --pending-only --format tree
 ```
 
@@ -111,7 +155,9 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 ## Examples
 
 ```text
-/hitl-digest                                   # o digest puro (agulhas), árvore no chat
+/hitl-digest                                   # o digest puro (agulhas) DESTA CONVERSA, árvore no chat
+/hitl-digest --scope all                       # o ledger inteiro, legados inclusive (global, explícito)
+/hitl-digest --session-id 01a13c82-…          # identidade da conversa invocadora, explícita
 /hitl-digest --format html                     # página autônoma estilo hitl-digest
 /hitl-digest --with-pendencies --scope repo    # pendências do repo + os HITL anexados
 /hitl-digest --format json                     # envelope JSON p/ outro agente consumir
@@ -122,7 +168,10 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
   resolver é do humano. Este command só **lê e desenha**.
 - **Não inventa HITL.** Só entram os 5 tipos do SSOT (`credencial` · `gasto` · `irreversivel` ·
   `envio` · `negocio`); decisão técnica o agente toma e registra, não vira HITL.
-- **Não reimplementa render nem agregação.** Delega a `synopsis-fuse.py` (render) + `work-compass`
+- **Não atribui um item a uma conversa sem o ledger dizer.** A proveniência vem da
+  coluna `Sessão` do `punch-list.md`; item sem proveniência é legado e só aparece no
+  escopo global.
+- **Não reimplementa render nem agregação.** Delega o `synopsis-fuse.py` (render) + `work-compass`
   (agregação/Eisenhower, só com `--with-pendencies`).
 
 ## §Refs

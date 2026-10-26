@@ -132,9 +132,14 @@ def test_missing_ledger_is_named_as_missing(synopsis_fuse):
 
 # ── 3: every render NAMES the file, warning or not ────────────────────────────────
 def _run(script_path, ledger, fmt="tree"):
+    # `--scope all` because THIS file measures the ledger PROVENANCE, not the
+    # session scope: the fixture ledger has no session provenance, so the
+    # default (this conversation's items) would show nothing and the
+    # provenance facts would be unreadable. The scope contract has its own
+    # module: skills/synopsis-panel/tests/test_hitl_session_scope.py.
     proc = subprocess.run(
         [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
-         "--hitl-md", str(ledger), "--format", fmt],
+         "--hitl-md", str(ledger), "--scope", "all", "--format", fmt],
         input="{}", capture_output=True, text=True, timeout=120)
     assert proc.returncode == 0, proc.stderr
     return proc.stdout

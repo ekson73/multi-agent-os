@@ -123,12 +123,39 @@ bin/synopsis-fuse.py --format json
 | `--hitl-md F` | descobre | caminho do `punch-list.md` SSOT. A descoberta resolve a cópia do **working tree** — certo para quem está editando o ledger de propósito. Por isso todo render **diz qual arquivo leu** e **avisa** quando ele está modificado contra o `HEAD` ou o repo está atrás do upstream (ver abaixo) |
 | `--hitl-json F\|-` | — | array HITL já parseado (pula o parse do md); vazio/ausente = sem ledger (válido) |
 | `--format` | `tree` | `tree` · `mermaid` · `html` · `json` |
-| `--scope` | `all` | `current\|session\|repo\|vault\|all` (repassado ao work-compass) |
+| `--scope` | `all` (pendências) · `session` (ledger HITL, em `--hitl-only`) | `current\|session\|repo\|vault\|all`. Escopo de **pendência** (repassado ao work-compass) e, em `--hitl-only`, escopo do **ledger HITL**: sem `--scope` o digest mostra só os itens desta conversa; `--scope all` traz o ledger inteiro, legados inclusive; qualquer outro valor **nunca** amplia |
+| `--session-id ID[,ID]` | resolvido do ambiente | identidade da conversa que invocou o render (comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → o uuid no nome de `PI_SESSION_FILE`. `PI_SESSION_ID` é deliberadamente ignorado: é por *processo*, então um run delegado resolveria o id do executor. Sem identidade resolvida o escopo de sessão **falha fechado** (nada mostrado + motivo) |
 | `--include` | `pending` | `pending` (só não-resolvidas) · `all` |
 | `--hitl-only` | off | renderiza só o ramo HITL |
 | `--pending-only` | off | mantém nós flagged / com HITL |
 | `--title` | *(pt-BR default)* | rótulo do painel |
 | `--self-heal` | off | em erro, emite um repair-request estruturado em stderr (M.O. híbrido de self-heal) |
+
+### Escopo do ledger HITL (de quem é cada gate)
+
+O `punch-list.md` é **uma fila global**: os gates de todas as conversas estão no mesmo
+arquivo. Renderizá-la inteira como "o que precisa de mim agora" responde a uma pergunta
+que ninguém fez — medido em 2026-10-26, o digest puro devolveu **19 itens globais** para
+uma conversa que tinha **2** gates seus.
+
+- **O default em `--hitl-only` é a sessão**: só os itens cuja proveniência (a coluna
+  `Sessão` do próprio ledger) nomeia esta conversa.
+- **Só `--scope all` amplia** — pedido explícito, nunca inferido.
+- **Item sem proveniência é legado**: entra no escopo global e nunca no da sessão.
+  Mencionar o ID de um item no chat não o torna seu; a prova é o ledger. Um ledger
+  escrito antes da coluna existir é lido assim: todas as suas linhas são legadas.
+- **A comparação do id é exata** — só o espaço em volta é removido. Um id de sessão é um
+  token opaco, então `A` e `a` são conversas diferentes.
+- **Identidade ausente ⇒ falha fechado**: nada é mostrado e o motivo é dito. O render
+  nunca cai no "tudo" e nunca afirma "não existem" — porque "não sei de quem é" não é
+  "não existe".
+- **Fora de `--hitl-only` o painel geral não muda**: ele continua sendo um panorama e
+  mostra o ledger inteiro. O escopo de sessão é do *digest*.
+
+No envelope JSON os mesmos fatos vêm em `meta.hitl_scope`, `meta.hitl_scope_reason`,
+`meta.hitl_session_ids`, `meta.hitl_session_resolved`, `meta.hitl_session_source`,
+`meta.hitl_scope_unresolved` e `meta.hitl_ledger_total` (o total **antes** do recorte,
+para "0 mostrados" nunca ser lido como "0 existentes").
 
 ### Procedência do ledger (qual arquivo foi lido)
 
