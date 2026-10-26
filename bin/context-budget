@@ -1,0 +1,380 @@
+#!/usr/bin/env python3
+"""context-budget — measure what Claude Code loads into every context, per source.
+
+Read-only and idempotent: it only reads files; it never runs hooks, never writes,
+never calls the network. Run it twice on the same inputs and you get the same output.
+
+Two modes:
+  transcript  Reads a session transcript (JSONL) and measures what the harness
+              actually injected before the first model reply: system prompt,
+              instruction files (CLAUDE.md, rules, MEMORY.md), skill listing,
+              agent listing, deferred tool names, MCP server instructions and
+              SessionStart/UserPromptSubmit hook output. Status: measured.
+  disk        Scans files on disk: ~/.claude/rules, the CLAUDE.md chain from cwd
+              up, the auto-memory MEMORY.md, and the name+description of skills,
+              agents and commands (user + enabled plugins). Status: measured for
+              files, estimated for listings (the harness formats them its own way).
+              Deferred MCP tools, server instructions and hook output are
+              not on disk: reported as not_measured.
+
+Tokens are an ESTIMATE: bytes / 4. Never a tokenizer count.
+Values of secrets are never read into the report: only sizes, names and paths.
+
+Usage:
+  context-budget [--mode auto|transcript|disk] [--transcript PATH|latest]
+                 [--cwd DIR] [--home DIR] [--top N] [--json]
+
+Exit codes: 0 ok · 1 error · 2 warning (requested source unavailable, fell back).
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import re
+import sys
+
+TOKEN_DIVISOR = 4
+TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
+
+
+def nbytes(s) -> int:
+    if s is None:
+        return 0
+    if not isinstance(s, str):
+        s = json.dumps(s, ensure_ascii=False)
+    return len(s.encode("utf-8"))
+
+
+def row(source, category, size, status, path=None, note=None, count=None):
+    r = {
+        "source": source,
+        "category": category,
+        "bytes": size,
+        "tokens_est": size // TOKEN_DIVISOR if size is not None else None,
+        "status": status,
+    }
+    if path:
+        r["path"] = path
+    if count is not None:
+        r["count"] = count
+    if note:
+        r["note"] = note
+    return r
+
+
+def encode_project(cwd: str) -> str:
+    # Claude Code's project-dir encoding: every non-alphanumeric char becomes '-'.
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
+
+
+# ---------------------------------------------------------------- transcript
+
+def latest_transcript(home: str, cwd: str) -> str | None:
+    d = os.path.join(home, ".claude", "projects", encode_project(cwd))
+    files = [f for f in glob.glob(os.path.join(d, "*.jsonl")) if os.path.isfile(f)]
+    if not files:
+        return None
+    return max(files, key=lambda f: (os.path.getmtime(f), f))
+
+
+def classify_instruction(path: str, home: str) -> str:
+    p = path.replace(home, "~", 1) if path.startswith(home) else path
+    if "/.claude/rules/" in p:
+        return "rules"
+    if p.endswith("/memory/MEMORY.md"):
+        return "memory_index"
+    base = os.path.basename(p)
+    if base in ("CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"):
+        return "claude_md"
+    return "instructions_other"
+
+
+def from_transcript(path: str, home: str):
+    rows = []
+    first = {}
+    hooks = []
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            try:
+                o = json.loads(line)
+            except ValueError:
+                continue
+            if o.get("type") == "assistant":
+                break  # initial window ends at the first model reply
+            if o.get("type") != "attachment":
+                continue
+            a = o.get("attachment") or {}
+            k = a.get("type")
+            if k in ("hook_success", "hook_additional_context", "hook_system_message"):
+                ev = str(a.get("hookEvent") or "")
+                if ev.startswith(("SessionStart", "UserPromptSubmit")):
+                    hooks.append(a)
+                continue
+            first.setdefault(k, a)
+
+    snap = first.get("prompt_snapshot")
+    if snap is not None:
+        rows.append(row("system prompt (harness)", "system_prompt",
+                        nbytes(snap.get("systemPrompt")), "measured"))
+
+    instr = first.get("instructions")
+    if instr:
+        for f in instr.get("files") or []:
+            p = f.get("path") or "?"
+            rows.append(row(p.replace(home, "~", 1), classify_instruction(p, home),
+                            nbytes(f.get("content")), "measured", path=p))
+
+    sl = first.get("skill_listing")
+    if sl is not None:
+        rows.append(row("skill listing", "skills", nbytes(sl.get("content")), "measured",
+                        count=sl.get("skillCount")))
+
+    al = first.get("agent_listing_delta")
+    if al is not None:
+        rows.append(row("agent listing", "agents", nbytes("\n".join(al.get("addedLines") or [])),
+                        "measured", count=len(al.get("addedTypes") or [])))
+
+    dt = first.get("deferred_tools_delta")
+    if dt is not None:
+        rows.append(row("deferred tool names", "deferred_tools",
+                        nbytes("\n".join(dt.get("addedLines") or [])), "measured",
+                        count=len(dt.get("addedNames") or [])))
+
+    mi = first.get("mcp_instructions_delta")
+    if mi is not None:
+        for name, block in zip(mi.get("addedNames") or [], mi.get("addedBlocks") or []):
+            rows.append(row("mcp instructions: " + str(name), "mcp_instructions",
+                            nbytes(block), "measured"))
+
+    for h in hooks:
+        content = h.get("content") or ""
+        if not content:
+            continue  # nothing injected into the model's context
+        name = h.get("hookName") or "?"
+        cmd = str(h.get("command") or "")[:80]
+        rows.append(row("hook " + name + (": " + cmd if cmd else ""), "hooks",
+                        nbytes(content), "measured"))
+
+    return rows
+
+
+# ---------------------------------------------------------------------- disk
+
+FM_RE = re.compile(r"\A---\s*\n(.*?)\n---", re.S)
+
+
+def frontmatter(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            head = fh.read(8192)
+    except OSError:
+        return {}
+    m = FM_RE.match(head)
+    if not m:
+        return {}
+    out, key, buf = {}, None, []
+    for ln in m.group(1).splitlines():
+        km = re.match(r"^([A-Za-z0-9_-]+):\s*(.*)$", ln)
+        if km and not ln.startswith(" "):
+            if key:
+                out[key] = " ".join(buf).strip()
+            key, buf = km.group(1), [km.group(2).strip().strip("|>").strip()]
+        elif key:
+            buf.append(ln.strip())
+    if key:
+        out[key] = " ".join(buf).strip()
+    return {k: v.strip().strip("'\"") for k, v in out.items()}
+
+
+def file_size(p: str) -> int:
+    try:
+        return os.path.getsize(p)
+    except OSError:
+        return 0
+
+
+def listing_bytes(paths, kind):
+    total, n = 0, 0
+    for p in paths:
+        fm = frontmatter(p)
+        name = fm.get("name") or os.path.splitext(os.path.basename(
+            os.path.dirname(p) if kind == "skills" else p))[0]
+        desc = fm.get("description", "")
+        total += nbytes("- %s: %s\n" % (name, desc))
+        n += 1
+    return total, n
+
+
+def enabled_plugin_roots(home: str):
+    roots = []
+    settings = os.path.join(home, ".claude", "settings.json")
+    installed = os.path.join(home, ".claude", "plugins", "installed_plugins.json")
+    try:
+        enabled = json.load(open(settings, encoding="utf-8")).get("enabledPlugins") or {}
+        inst = json.load(open(installed, encoding="utf-8")).get("plugins") or {}
+    except (OSError, ValueError):
+        return roots
+    for key, on in enabled.items():
+        if on is not True:
+            continue
+        for entry in inst.get(key) or []:
+            p = entry.get("installPath")
+            if p and os.path.isdir(p):
+                roots.append((key, p))
+                break
+    return roots
+
+
+def from_disk(home: str, cwd: str):
+    rows = []
+    cl = os.path.join(home, ".claude")
+
+    for p in sorted(glob.glob(os.path.join(cl, "rules", "*.md"))):
+        rows.append(row(p.replace(home, "~", 1), "rules", file_size(p), "measured", path=p))
+
+    seen = set()
+    chain = [os.path.join(cl, "CLAUDE.md")]
+    d = os.path.abspath(cwd)
+    while True:
+        for n in ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md")):
+            chain.append(os.path.join(d, n))
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    for p in chain:
+        rp = os.path.realpath(p)
+        if rp in seen or not os.path.isfile(p):
+            continue
+        seen.add(rp)
+        rows.append(row(p.replace(home, "~", 1), "claude_md", file_size(p), "measured", path=p,
+                        note="@imports not followed"))
+
+    mem = os.path.join(cl, "projects", encode_project(os.path.abspath(cwd)), "memory", "MEMORY.md")
+    if os.path.isfile(mem):
+        rows.append(row(mem.replace(home, "~", 1), "memory_index", file_size(mem), "measured",
+                        path=mem, note="full file; the harness may truncate"))
+
+    skills = glob.glob(os.path.join(cl, "skills", "*", "SKILL.md"))
+    agents = glob.glob(os.path.join(cl, "agents", "*.md"))
+    commands = glob.glob(os.path.join(cl, "commands", "**", "*.md"), recursive=True)
+    for _, root in enabled_plugin_roots(home):
+        skills += glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))
+        agents += glob.glob(os.path.join(root, "agents", "*.md"))
+        commands += glob.glob(os.path.join(root, "commands", "**", "*.md"), recursive=True)
+    for kind, paths in (("skills", skills), ("agents", agents), ("commands", commands)):
+        b, n = listing_bytes(sorted(set(paths)), kind)
+        rows.append(row(kind + " listing (name+description)", kind, b, "estimated", count=n,
+                        note="frontmatter only; harness formatting differs"))
+
+    for cat, what in (("deferred_tools", "deferred MCP tool names"),
+                      ("mcp_instructions", "MCP server instructions"),
+                      ("hooks", "SessionStart/UserPromptSubmit hook output")):
+        rows.append(row(what, cat, None, "not_measured",
+                        note="not on disk; use --mode transcript"))
+    return rows
+
+
+# -------------------------------------------------------------------- report
+
+def summarize(rows):
+    cats = {}
+    for r in rows:
+        if r["bytes"] is None:
+            continue
+        c = cats.setdefault(r["category"], {"bytes": 0, "sources": 0})
+        c["bytes"] += r["bytes"]
+        c["sources"] += 1
+    for c in cats.values():
+        c["tokens_est"] = c["bytes"] // TOKEN_DIVISOR
+    total = sum(c["bytes"] for c in cats.values())
+    return cats, {"bytes": total, "tokens_est": total // TOKEN_DIVISOR}
+
+
+def render_text(report, top):
+    out = ["context-budget · mode=%s" % report["mode"]]
+    if report.get("transcript"):
+        out.append("transcript: %s" % report["transcript"])
+    out.append(report["token_note"])
+    out.append("")
+    out.append("%-14s %10s %10s %7s" % ("category", "bytes", "tokens~", "sources"))
+    for name, c in sorted(report["by_category"].items(), key=lambda kv: -kv[1]["bytes"]):
+        out.append("%-14s %10d %10d %7d" % (name, c["bytes"], c["tokens_est"], c["sources"]))
+    t = report["total"]
+    out.append("%-14s %10d %10d" % ("TOTAL", t["bytes"], t["tokens_est"]))
+    out.append("")
+    out.append("top %d sources:" % top)
+    ranked = sorted([r for r in report["sources"] if r["bytes"] is not None],
+                    key=lambda r: (-r["bytes"], r["source"]))
+    for r in ranked[:top]:
+        out.append("%10d  %8d  %-11s %s" % (r["bytes"], r["tokens_est"], r["status"], r["source"]))
+    nm = [r["source"] for r in report["sources"] if r["status"] == "not_measured"]
+    if nm:
+        out.append("")
+        out.append("not measured: " + "; ".join(nm))
+    return "\n".join(out)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="context-budget", description=__doc__.split("\n")[0])
+    ap.add_argument("--mode", choices=("auto", "transcript", "disk"), default="auto")
+    ap.add_argument("--transcript", default="latest", help="JSONL path or 'latest' (default)")
+    ap.add_argument("--cwd", default=os.getcwd(), help="session working dir (default: $PWD)")
+    ap.add_argument("--home", default=os.path.expanduser("~"))
+    ap.add_argument("--top", type=int, default=10)
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
+    a = ap.parse_args(argv)
+
+    home = os.path.abspath(a.home)
+    cwd = os.path.abspath(a.cwd)
+    status = 0
+    mode = a.mode
+    tpath = None
+    if mode in ("auto", "transcript"):
+        tpath = latest_transcript(home, cwd) if a.transcript == "latest" else a.transcript
+        if not tpath or not os.path.isfile(tpath):
+            if mode == "transcript":
+                sys.stderr.write(json.dumps({"jsonrpc": "2.0", "error": {
+                    "code": -32001, "message": "transcript not found",
+                    "data": {"cwd": cwd, "transcript": a.transcript}}}) + "\n")
+                return 1
+            tpath = None
+            mode = "disk"
+            status = 2 if a.mode == "transcript" else 0
+        else:
+            mode = "transcript"
+
+    try:
+        rows = from_transcript(tpath, home) if mode == "transcript" else from_disk(home, cwd)
+    except OSError as e:
+        sys.stderr.write(json.dumps({"jsonrpc": "2.0", "error": {
+            "code": -32002, "message": "read failed", "data": {"error": str(e)}}}) + "\n")
+        return 1
+
+    if mode == "transcript" and not rows:
+        sys.stderr.write("context-budget: transcript has no injected-context attachments\n")
+        status = 2
+
+    cats, total = summarize(rows)
+    report = {
+        "tool": "context-budget",
+        "version": "1.0.0",
+        "mode": mode,
+        "cwd": cwd,
+        "transcript": tpath,
+        "token_note": TOKEN_NOTE,
+        "total": total,
+        "by_category": cats,
+        "sources": rows,
+    }
+    if a.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
+    else:
+        print(render_text(report, a.top))
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())

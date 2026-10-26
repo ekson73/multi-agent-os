@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Tests for bin/context-budget. Self-contained: builds a fake $HOME in a temp dir,
+# never reads the real ~/.claude. Run: bash bin/tests/context-budget.test.sh
+set -uo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+CB="$DIR/../context-budget"
+T="$(mktemp -d)"
+trap 'rm -rf "$T"' EXIT
+
+pass=0 ; fail=0
+ok() { pass=$((pass + 1)); printf '  \xe2\x9c\x93 %s\n' "$1"; }
+no() { fail=$((fail + 1)); printf '  \xe2\x9c\x97 %s\n      got: [%s]\n' "$1" "$2"; }
+eq() { [ "$1" = "$2" ] && ok "$3" || no "$3" "got=[$2] want=[$1]"; }
+jq_() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+
+printf 'context-budget.test.sh\n'
+
+H="$T/home"; W="$T/work/repo"
+mkdir -p "$H/.claude/rules" "$H/.claude/skills/s1" "$H/.claude/agents" "$W"
+printf '%0100d' 0 > "$H/.claude/rules/a.md"          # 100 bytes
+printf '%0300d' 0 > "$H/.claude/rules/b.md"          # 300 bytes
+printf '%040d'  0 > "$H/.claude/CLAUDE.md"           # 40 bytes
+printf '%020d'  0 > "$W/CLAUDE.md"                   # 20 bytes
+printf -- '---\nname: s1\ndescription: does x\n---\nbody\n' > "$H/.claude/skills/s1/SKILL.md"
+printf -- '---\nname: ag\ndescription: agent y\n---\n' > "$H/.claude/agents/ag.md"
+ENC="$(printf '%s' "$W" | sed 's/[^A-Za-z0-9]/-/g')"
+mkdir -p "$H/.claude/projects/$ENC/memory"
+printf '%080d' 0 > "$H/.claude/projects/$ENC/memory/MEMORY.md"   # 80 bytes
+
+# --- disk mode
+o="$("$CB" --mode disk --home "$H" --cwd "$W" --json)"; rc=$?
+eq 0 "$rc" 'disk: exit 0'
+eq 400 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'disk: rules bytes summed'
+eq 60  "$(printf '%s' "$o" | jq_ 'd["by_category"]["claude_md"]["bytes"]')" 'disk: CLAUDE.md chain (home + cwd)'
+eq 80  "$(printf '%s' "$o" | jq_ 'd["by_category"]["memory_index"]["bytes"]')" 'disk: MEMORY.md for encoded cwd'
+eq 100 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"].endswith("a.md")][0]["tokens_est"]*4')" 'disk: tokens_est = bytes/4'
+eq 3   "$(printf '%s' "$o" | jq_ 'len([r for r in d["sources"] if r["status"]=="not_measured"])')" 'disk: hooks/mcp/deferred flagged not_measured'
+eq estimated "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["status"]')" 'disk: listings labelled estimated'
+
+# --- idempotence
+o2="$("$CB" --mode disk --home "$H" --cwd "$W" --json)"
+[ "$o" = "$o2" ] && ok 'disk: idempotent (same output twice)' || no 'disk: idempotent' 'differs'
+
+# --- transcript mode
+TR="$T/t.jsonl"
+python3 - "$TR" <<'PY'
+import json,sys
+L=[
+ {"type":"attachment","attachment":{"type":"prompt_snapshot","systemPrompt":"x"*50}},
+ {"type":"attachment","attachment":{"type":"instructions","files":[
+   {"path":"/h/.claude/rules/r.md","type":"User","content":"r"*200},
+   {"path":"/h/.claude/CLAUDE.md","type":"User","content":"c"*30},
+   {"path":"/h/.claude/projects/p/memory/MEMORY.md","type":"AutoMem","content":"m"*10}]}},
+ {"type":"attachment","attachment":{"type":"skill_listing","content":"s"*70,"skillCount":2}},
+ {"type":"attachment","attachment":{"type":"deferred_tools_delta","addedLines":["ab","cd"],"addedNames":["ab","cd"]}},
+ {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart","hookName":"SessionStart:startup","content":"h"*9,"stdout":"SECRET-NOT-COUNTED"}},
+ {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse","hookName":"x","content":"z"*999}},
+ {"type":"assistant","message":{}},
+ {"type":"attachment","attachment":{"type":"skill_listing","content":"late"*1000,"skillCount":9}},
+]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY
+o="$("$CB" --mode transcript --transcript "$TR" --home /h --json)"; rc=$?
+eq 0 "$rc" 'transcript: exit 0'
+eq 50  "$(printf '%s' "$o" | jq_ 'd["by_category"]["system_prompt"]["bytes"]')" 'transcript: system prompt'
+eq 200 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'transcript: rules classified'
+eq 10  "$(printf '%s' "$o" | jq_ 'd["by_category"]["memory_index"]["bytes"]')" 'transcript: MEMORY.md classified'
+eq 70  "$(printf '%s' "$o" | jq_ 'd["by_category"]["skills"]["bytes"]')" 'transcript: only initial window (before first reply)'
+eq 5   "$(printf '%s' "$o" | jq_ 'd["by_category"]["deferred_tools"]["bytes"]')" 'transcript: deferred tool lines'
+eq 9   "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcript: SessionStart hook content only (not stdout, not PostToolUse)'
+eq 374 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
+case "$o" in *SECRET-NOT-COUNTED*) no 'transcript: hook stdout never echoed' "$o" ;; *) ok 'transcript: hook stdout never echoed' ;; esac
+
+# --- text mode + fallbacks
+o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
+case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac
+"$CB" --mode transcript --transcript "$T/missing.jsonl" >/dev/null 2>&1; eq 1 "$?" 'transcript missing: exit 1'
+o="$("$CB" --home "$H" --cwd "$W" --json)"; rc=$?
+eq 0 "$rc" 'auto without transcript: exit 0'
+eq disk "$(printf '%s' "$o" | jq_ 'd["mode"]')" 'auto without transcript: falls back to disk'
+
+# --- read-only: nothing written under fake HOME
+before="$(find "$H" -type f | sort | xargs cat | cksum)"
+"$CB" --home "$H" --cwd "$W" >/dev/null
+after="$(find "$H" -type f | sort | xargs cat | cksum)"
+eq "$before" "$after" 'read-only: fake HOME unchanged'
+
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]
