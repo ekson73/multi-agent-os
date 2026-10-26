@@ -112,6 +112,12 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 
 ## Modo AskUserQuestion (`--format ask-user-question`)
 
+Garantias do contrato:
+- Fila vazia → `"ask_user_question": null` + `"no_decisions": true` e a linha `nenhuma decisão pendente — não abra AskUserQuestion`; não abra a ferramenta.
+- `machine` recebe exatamente os bytes de `--format json` (mesma saída, sem newline final).
+- Proveniência do ledger viaja no envelope (`hitl_source`, `hitl_source_kind`, `hitl_source_dirty`, `hitl_source_behind`, `hitl_warning`) e no `preamble` (≤80 colunas).
+- Rótulos de opção são únicos mesmo após corte (sufixo ` (2)`); uma opção estruturada solitária ganha `Manter pendente`.
+
 Quando o harness tem a ferramenta `AskUserQuestion` (Claude Code ou compatível) **e** o
 consumidor é `human-live` (`end-of-action-briefing-protocol` §7.0), o agente apresenta as
 decisões HITL pela ferramenta em vez das letras do digest em texto. Spec: `hitl-digest-spec`

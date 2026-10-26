@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `/hitl-digest` AskUserQuestion mode (bot review of #535)
+- Single structured option padded with `Manter pendente`; unknown `sev` no longer crashes the overflow line; option labels de-duplicated after clipping; empty queue emits `ask_user_question: null` + `no_decisions: true`; ledger provenance (dirty/behind/warning) carried into the envelope and preamble; SKILL example now pipes `--compass-json -`.
+
 ### Added — `/hitl-digest --format ask-user-question` (consumer-gated)
 
 - `skills/synopsis-panel/bin/synopsis-fuse.py`: new `ask-user-question` format with `--consumer human-live|human-deferred|machine`, `--session-id`, `--now`, `--harness`, `--repo`. For a `human-live` consumer it emits an AskUserQuestion-ready payload (≤3 questions, a 4th only for ⏫; header = `H-NNNN`; options from structured input, then the options the ledger row lists, then type dispositions; `(recomendado)` only with an evidence pointer) plus the durable text preamble (digest code, `aberta no AskUserQuestion` record lines, `⏭`, harness line). `human-deferred` gets the existing tree and `machine` the existing JSON envelope. Existing formats are unchanged (byte-identical goldens in `tests/test_synopsis_hitl_auq.py`).

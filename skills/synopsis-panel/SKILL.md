@@ -88,7 +88,7 @@ HITL       → ┌────────────────────�
 
 ## Modo AskUserQuestion (hitl-digest)
 
-`synopsis-fuse.py --hitl-only --format ask-user-question --consumer <classe>` entrega os cards do
+`echo '{}' | synopsis-fuse.py --hitl-only --compass-json - --format ask-user-question --consumer <classe>` entrega os cards do
 digest HITL prontos para a ferramenta `AskUserQuestion`, só para consumidor `human-live` num harness
 que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e `machine` o `json` de sempre.
 Contrato, fontes das opções e regra de recomendação: `commands/hitl-digest.md` §Modo

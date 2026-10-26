@@ -128,3 +128,44 @@ def test_no_session_id_no_code(ledger, monkeypatch):
     monkeypatch.delenv("CODEX_THREAD_ID", raising=False)
     d = json.loads(run("--hitl-md", str(ledger), "--format", "ask-user-question", "--now", "1793030400"))
     assert d["code"] is None and d["preamble"][0] == "══ 🟠 HITL DIGEST ══"
+
+
+def _hj(tmp_path, items):
+    hj = tmp_path / "h.json"
+    hj.write_text(json.dumps(items), encoding="utf-8")
+    return json.loads(run("--hitl-json", str(hj), "--format", "ask-user-question", *ARGS))
+
+
+def test_single_structured_option_padded(tmp_path):
+    d = _hj(tmp_path, [{"id": "H-0997", "sev": "🟡 NORMAL", "tipo": "negocio", "decidir": "Z",
+                        "idade": "3 d", "options": [{"label": "Só esta", "description": "x"}]}])
+    opts = d["ask_user_question"]["questions"][0]["options"]
+    assert len(opts) == 2 and opts[1]["label"] == "Manter pendente" and "3 d" in opts[1]["description"]
+
+
+def test_duplicate_labels_after_clip_are_unique(tmp_path):
+    long = "Aprovar a proposta com todos os ajustes pedidos pelo cliente " * 2
+    d = _hj(tmp_path, [{"id": "H-0996", "sev": "🟡 NORMAL", "tipo": "negocio", "decidir": "W",
+                        "options": [{"label": long + "A", "description": "a"},
+                                    {"label": long + "B", "description": "b"}]}])
+    labels = [o["label"] for o in d["ask_user_question"]["questions"][0]["options"]]
+    assert len(set(labels)) == len(labels)
+
+
+def test_empty_queue_no_decisions(tmp_path):
+    d = _hj(tmp_path, [])
+    assert d["ask_user_question"] is None and d["no_decisions"] is True
+    assert any("não abra AskUserQuestion" in l for l in d["preamble"])
+
+
+def test_unknown_sev_overflow_does_not_crash(tmp_path):
+    items = [{"id": f"H-09{i:02d}", "sev": "🟠 ALTA", "tipo": "negocio", "decidir": "q"} for i in range(4)]
+    items.append({"id": "H-0950", "sev": "???", "tipo": "negocio", "decidir": "q"})
+    d = _hj(tmp_path, items)
+    assert "H-0950" in d["overflow"]
+
+
+def test_provenance_fields_present(ledger):
+    d = payload(ledger)
+    for k in ("hitl_source", "hitl_source_kind", "hitl_source_dirty", "hitl_source_behind", "hitl_warning"):
+        assert k in d

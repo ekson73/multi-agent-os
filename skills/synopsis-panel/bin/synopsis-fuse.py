@@ -610,6 +610,19 @@ def _ledger_options(decidir: str) -> list[str]:
     return [p.strip(" .") for p in parts if p.strip(" .")]
 
 
+def _dedupe_labels(opts: list[dict]) -> list[dict]:
+    """AskUserQuestion needs distinct labels; clipping can collide them."""
+    seen: dict[str, int] = {}
+    for o in opts:
+        base = o["label"]
+        n = seen.get(base, 0) + 1
+        seen[base] = n
+        if n > 1:
+            suffix = f" ({n})"
+            o["label"] = _clip(base, AUQ_LABEL_MAX - len(suffix)) + suffix
+    return opts
+
+
 def _card_options(h: dict, raw: dict) -> tuple[list[dict], bool, str]:
     """Return (options, has_recommendation, source). Recommended option first."""
     structured = raw.get("options") if isinstance(raw.get("options"), list) else None
@@ -629,14 +642,18 @@ def _card_options(h: dict, raw: dict) -> tuple[list[dict], bool, str]:
             else:
                 opts.append(item)
         opts = ([rec] if rec else []) + opts
+        if len(opts) == 1:
+            idade = raw.get("idade") or h.get("idade") or "?"
+            opts.append({"label": "Manter pendente",
+                         "description": f"Nada muda agora; o item segue aberto (idade {idade})."})
         if len(opts) >= 2:
-            return opts[:4], rec is not None, "structured"
+            return _dedupe_labels(opts[:4]), rec is not None, "structured"
     link = h.get("link") or "-"
     listed = _ledger_options(h.get("decidir", ""))
     if len(listed) >= 2:
-        return ([{"label": _clip(x, AUQ_LABEL_MAX),
+        return (_dedupe_labels([{"label": _clip(x, AUQ_LABEL_MAX),
                   "description": f"Opção registrada no ledger; a consequência não foi registrada (ver {link})."}
-                 for x in listed[:4]], False, "ledger-text")
+                 for x in listed[:4]]), False, "ledger-text")
     # Fallback: dispositions intrinsic to the HITL TYPE (the 5 SSOT types), never
     # item-specific inventions. Free-form decisions go through the tool's auto "Other".
     idade = raw.get("idade") or h.get("idade") or "?"
@@ -656,7 +673,7 @@ def _cols(text: str) -> int:
 def _overflow_line(overflow: list[dict]) -> str:
     """⏭ line within 80 columns (spec §2); ids that do not fit are counted, never dropped."""
     prefix = "\u23ED pr\u00f3ximo digest (sem n\u00famero, n\u00e3o respond\u00edvel agora): "
-    toks = [f"{SEV_URGENCY.get(h.get('sev'), '').split()[0]} {h.get('id', '')}" for h in overflow]
+    toks = [f"{(SEV_URGENCY.get(h.get('sev'), '') or '?').split()[0]} {h.get('id', '')}" for h in overflow]
     shown = []
     for i, t in enumerate(toks):
         rest = len(toks) - i - 1
@@ -724,6 +741,13 @@ def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
         "══ \U0001F7E0 HITL DIGEST ══"
     count = f"{len(cards)} + 0 estac." + (f" + {len(overflow)} próximo digest" if overflow else "")
     pre = [head, count, *record]
+    meta = fused.get("meta", {})
+    if not cards:
+        pre.append("nenhuma decisão pendente — não abra AskUserQuestion")
+    if meta.get("hitl_source"):
+        pre.append(_clip(f"HITL ledger: {meta['hitl_source']}", 80))
+    if meta.get("hitl_warning"):
+        pre.append(_clip(f"\u26a0 {meta['hitl_warning']}", 78))
     if overflow:
         pre.append(_overflow_line(overflow))
     tail = [f"harness: {harness}" if harness else None, f"repo: {repo}" if repo else None,
@@ -737,11 +761,15 @@ def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
         "consumer": consumer,
         "code": code,
         "preamble": pre,
-        "ask_user_question": {"questions": questions},
+        "ask_user_question": {"questions": questions} if questions else None,
+        "no_decisions": not questions,
         "cards": card_meta,
         "overflow": [h.get("id", "") for h in overflow],
-        "hitl_source": fused.get("meta", {}).get("hitl_source"),
-        "hitl_source_kind": fused.get("meta", {}).get("hitl_source_kind"),
+        "hitl_source": meta.get("hitl_source"),
+        "hitl_source_kind": meta.get("hitl_source_kind"),
+        "hitl_source_dirty": meta.get("hitl_source_dirty"),
+        "hitl_source_behind": meta.get("hitl_source_behind"),
+        "hitl_warning": meta.get("hitl_warning"),
     }
     return json.dumps(env, ensure_ascii=False, indent=2) + "\n"
 
