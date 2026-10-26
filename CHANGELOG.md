@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Security — remove production-estate reconnaissance detail from the public HEAD
+
+- This repo is **public**. Seven documentation files recorded an AWS account
+  identifier, the name of a client production EKS cluster, its region, its
+  kubecontext name, and counts of its namespaces, kustomizations and
+  HelmReleases. None of those values authenticates anyone, so this is a
+  **reconnaissance exposure, not a credential leak** — an account identifier
+  cannot be rotated, which is precisely why it should never have been written
+  down in public. The combination (account identifier + `AdministratorAccess`
+  label + named production cluster) is finished target-selection material.
+- `docs/insights/agent-tools-resources-inventory.md` — §9 "Live Connections"
+  and the §1 tool table now state *capability* ("SSO profile configured",
+  "Reachable", "Context configured") and point at the operator's private IaC
+  repo and secret manager for the concrete identifiers, following the
+  vendor-neutral pointer pattern already used in
+  `protocols/delegation/provider-matrix.md` §Secrets. Estate counts are dropped
+  outright: they described one client's production footprint and serve no
+  reader of a public framework repo.
+- Six further files referenced the same cluster name as a private IaC *repo*
+  name; each now reads `<private-iac-repo>` or "the private IaC repo", which
+  preserves the sentence's meaning exactly:
+  `docs/adoption/codegraph-2026-06-18.md`,
+  `docs/insights/aws-sm-naming-convention.md`,
+  `docs/insights/eisenhower-dependency-prioritization.md`,
+  `docs/insights/multi-agent-swarm-governance-v2.md`,
+  `docs/insights/secret-management-strategy.md`.
+- **History is deliberately not rewritten.** The values remain in every prior
+  commit, in any existing clone, and in GitHub's fork/PR caches. A rewrite
+  would feel like a fix without being one, and it is not reversible. Whether to
+  rewrite, or to take the repo private, is the operator's call and is out of
+  scope here.
+
 ### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
 
 - `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was

@@ -56,7 +56,7 @@ VEK_DB_PASSWORD = "aws:///vek-sales/env/hml#VEK_DB_PASSWORD"
 ## Naming Rules
 
 1. **Leading slash**: All `/vek-sales/*` secrets use leading `/` (set by `aws_prefix`)
-2. **IaC secrets** (k8s-eks-prd-002 managed): Use `vek/` prefix WITHOUT leading slash
+2. **IaC secrets** (managed by the private IaC repo): Use `vek/` prefix WITHOUT leading slash
    - Pattern: `vek/{namespace}/{purpose}`
    - Example: `vek/monitoring/grafana`
 3. **AWS-managed**: Use AWS-generated names (`rds-db-credentials/`, `ecr-pullthroughcache/`)
