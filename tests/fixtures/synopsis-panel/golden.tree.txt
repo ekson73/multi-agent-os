@@ -1,6 +1,6 @@
 # Synopsis — pendências + HITL (N-Tree)
 
-> 0 pendencies (0 flagged) · 5 HITL (0 attached, 5 standalone) · scope=all
+> 0 pendencies (0 flagged) · 5 HITL (0 attached, 5 standalone)
 > HITL ledger: `<TMP>/punch-list.md`
 
 - **HITL (human-domain 👤)** (5)

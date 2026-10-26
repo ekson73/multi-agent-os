@@ -21,7 +21,7 @@
 <h1>Synopsis — pendências + HITL (N-Tree)</h1>
 <p class="sub">0 pend&ecirc;ncias (0 flagged) &middot;
 5 HITL (0 attached / 5 standalone) &middot;
-scope=all &middot; gerado <TS>Z</p>
+gerado <TS>Z</p>
 <p class="sub">HITL ledger: <code><TMP>/punch-list.md</code></p>
 <details open><summary>👤 HITL human-domain <small>(5)</small></summary><ul><li class="hl normal">🟡 H-0901 <em>[negocio/R1]</em> Escolher o nome do painel <small>pediu agente · prazo -</small></li><li class="hl urgente">🔴 H-0902 <em>[credencial/R3]</em> Credencial de teste: opções: usar a chave A só para leitura, outra credencial, ou adiar <small>pediu operador · prazo -</small></li><li class="hl alta">🟠 H-0903 <em>[envio/R2]</em> Aprovar o rascunho de e-mail de teste antes do envio <small>pediu agente · prazo -</small></li><li class="hl alta">🟠 H-0904 <em>[gasto/R2]</em> Subir a máquina de teste paga <small>pediu operador · prazo -</small></li><li class="hl urgente">🔴 H-0905 <em>[irreversivel/R3]</em> Apagar o diretório legado de teste <small>pediu agente · prazo -</small></li></ul></details>
 <p class="sub">Fontes (SSOT, n&atilde;o reimplementadas): work-compass &middot; eisenhower &middot; hitl punch-list.</p>

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!--
-  claude-code-concierge — dashboard.html (optional control-panel companion)
+  claude-concierge — dashboard.html (optional control-panel companion)
   Soul-name: Cicerone. Self-contained static file — no web service, no build step.
   Open directly in a browser. The skill emits this on request (--mode=dashboard).
-  Vendor-neutral (MIT / AAIF). Last verified: 2026-06-13.
+  Vendor-neutral (MIT / AAIF). Snapshot as of 2026-06-13 (not re-verified in the v2.0.0 rename).
   This is a STATIC onboarding/control-panel MAP — it does not read live state itself;
   the skill fills the live panels (sessions/MCPs/plugins/worktrees) via Phase-0 detection
   and composes morning-briefing/pulse/agentic-status for the heavy lifting.
@@ -12,7 +12,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>claude-code-concierge · Cicerone — Claude-Code platform control-panel</title>
+<title>claude-concierge · Cicerone — Claude Code surface control-panel</title>
 <style>
   :root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--ac:#58a6ff;--ok:#3fb950;--warn:#d29922;--card:#161b22;--bd:#30363d}
   *{box-sizing:border-box}
@@ -30,8 +30,8 @@
 </style>
 </head>
 <body>
-  <h1>🛎️ claude-code-concierge <span class="tag">soul: Cicerone</span></h1>
-  <p class="sub">Front-desk for the Claude-Code platform — onboard · route · research-docs · dashboard · doctor · guarded-install. <span class="mut">Routes to existing tools; reimplements nothing.</span></p>
+  <h1>🛎️ claude-concierge <span class="tag">soul: Cicerone</span></h1>
+  <p class="sub">Front desk for the Claude product surfaces; this panel covers the Claude Code surface — onboard · route · research-docs · dashboard · doctor · guarded-install. <span class="mut">Routes to existing tools; reimplements nothing.</span></p>
 
   <div class="grid">
     <div class="card">
@@ -121,8 +121,8 @@
   </div>
 
   <footer>
-    claude-code-concierge v1.0.0 · soul-name <i>Cicerone</i> · MIT / AAIF cross-vendor ·
-    companions: AWARENESS-REGISTRY.md · CANON.md · references/socratic-33q.md ·
+    claude-concierge v2.0.0 (code surface panel) · soul-name <i>Cicerone</i> · MIT / AAIF cross-vendor ·
+    companions: references/surfaces/code.md · CANON.md · references/socratic-33q.md ·
     official: <a href="https://code.claude.com/docs">code.claude.com/docs</a>
   </footer>
 </body>

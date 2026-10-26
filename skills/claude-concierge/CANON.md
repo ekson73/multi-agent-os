@@ -1,15 +1,15 @@
-# CANON.md — Canonical Claude-Code platform decisions (anchor-mode SSOT)
+# CANON.md — Canonical claude-concierge decisions (anchor-mode SSOT)
 
-> **Companion to** `SKILL.md` (claude-code-concierge). This is the `--mode=anchor` source-of-truth.
+> **Companion to** `SKILL.md` (claude-concierge). This is the `--mode=anchor` source-of-truth for all six surfaces. C1, C4, C7, C8 and C9 apply on every surface. C2, C3, C5 and C6 cover Claude Code mechanics (scopes, plugin/marketplace install, the `claude` CLI) and apply only there; per-surface detail lives in `references/surfaces/`.
 > **Why repo-local:** a fresh-amnesic agent or new teammate must re-find the binding platform rules instead of re-deriving (or contradicting) them.
-> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-06-13. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
+> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-10-26. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
 > **How `--mode=anchor` uses this:** surface the relevant decision on demand; if a project artifact contradicts a decision here, emit `decision + contradiction + corrective pointer`.
 
 ---
 
 ## C1 — Official-docs-first (anti-staleness)
 
-The authoritative "how to install/configure/use" is the **CURRENT official docs** — Claude-Code's (`code.claude.com/docs`) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
+The authoritative "how to install/configure/use" is the **CURRENT official docs** — the surface's (e.g. `code.claude.com/docs` for Claude Code, `support.claude.com` for claude.ai) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
 
 **Drift flag:** an install/config "how" asserted from memory without a current-docs citation = contradiction (staleness risk).
 
@@ -57,5 +57,5 @@ This skill (and anything it places) carries frontmatter; dates are ISO-8601; con
 
 ## C9 — Refs + sunset
 - Canonical sources: `code.claude.com/docs` · `docs.claude.com` · `github.com/anthropics/*` · the repo's `README.md`/`AGENTS.md` · `docs/framework-consumption.md`.
-- Companion: `AWARENESS-REGISTRY.md` (landscape) · `references/socratic-33q.md` (this concierge's spec).
+- Companion: `references/surfaces/code.md` (Claude Code landscape; ex-AWARENESS-REGISTRY.md) · `references/socratic-33q.md` (this concierge's spec).
 - **Sunset (DUED, qualitative):** supersede an entry when the official docs change the mechanism (e.g. a new CLI verb, a changed scope model, a new plugin/marketplace primitive), or operator retraction. No counter-based expiry — `--mode=doctor`/`research` re-derives against current docs.
