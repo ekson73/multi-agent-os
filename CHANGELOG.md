@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Disk mode counts user and project `.claude/rules/` (cwd and ancestors, nested dirs) and
   merges `enabledPlugins` user < project < local; secret-looking keys (incl. suffixed names
   like `*_PASSPHRASE`, `AUTHORIZATION`) are redacted.
+  Plugin installs are picked by scope (local > project > user, project/local only when
+  `projectPath` is cwd or an ancestor), and `.claude-plugin/plugin.json` component paths are
+  honored (custom `skills` add to `skills/`; custom `commands`/`agents` replace the defaults;
+  paths escaping the plugin root are ignored and counted).
   Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
   (cwd and ancestors), deduped by realpath.
 - **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**

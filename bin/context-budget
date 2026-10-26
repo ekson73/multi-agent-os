@@ -333,6 +333,8 @@ def enabled_plugin_roots(home: str, cwd: str):
         inst = {}
     if not isinstance(inst, dict):
         return roots, ignored + 1
+    here = os.path.realpath(os.path.abspath(cwd))
+    rank = {"local": 2, "project": 1}
     for key, on in enabled.items():
         if on is not True:
             continue
@@ -340,15 +342,85 @@ def enabled_plugin_roots(home: str, cwd: str):
         if not isinstance(entries, list):
             ignored += 1
             continue
+        # keep only installations applicable to cwd; local > project > user,
+        # and the deepest projectPath wins inside a scope
+        best = None
         for entry in entries:
             if not isinstance(entry, dict):
                 ignored += 1
                 continue
             p = entry.get("installPath")
-            if isinstance(p, str) and p and os.path.isdir(p):
-                roots.append((key, p))
-                break
+            if not (isinstance(p, str) and p and os.path.isdir(p)):
+                continue
+            scope = entry.get("scope")
+            depth = -1
+            if scope in rank:
+                pp = entry.get("projectPath")
+                if not isinstance(pp, str) or not pp:
+                    continue
+                pp = os.path.realpath(pp)
+                if here != pp and not here.startswith(pp.rstrip(os.sep) + os.sep):
+                    continue
+                depth = len(pp)
+            score = (rank.get(scope, 0), depth)
+            if best is None or score > best[0]:
+                best = (score, p)
+        if best:
+            roots.append((key, best[1]))
     return roots, ignored
+
+
+def plugin_components(root: str):
+    """(skills, agents, commands, ignored) for one plugin root.
+
+    Honors .claude-plugin/plugin.json: custom skills paths add to skills/,
+    custom commands and agents paths replace the default directories."""
+    man = _load_json(os.path.join(root, ".claude-plugin", "plugin.json"))
+    man = man if isinstance(man, dict) else {}
+    base = os.path.realpath(root)
+    ignored = 0
+
+    def paths(field):
+        nonlocal ignored
+        v = man.get(field)
+        if v is None:
+            return None
+        v = [v] if isinstance(v, str) else v
+        if not isinstance(v, list):
+            ignored += 1
+            return []
+        out = []
+        for x in v:
+            if not isinstance(x, str) or not x:
+                ignored += 1
+                continue
+            full = os.path.realpath(os.path.join(root, x))
+            if full != base and not full.startswith(base + os.sep):
+                ignored += 1
+                continue
+            out.append(full)
+        return out
+
+    def md_under(targets):
+        out = []
+        for t in targets:
+            if os.path.isfile(t) and t.endswith(".md"):
+                out.append(t)
+            elif os.path.isdir(t):
+                out += _walk_md(t)
+        return out
+
+    skill_dirs = [os.path.join(root, "skills")] + (paths("skills") or [])
+    skills = []
+    for sd in skill_dirs:
+        if os.path.isfile(os.path.join(sd, "SKILL.md")):
+            skills.append(os.path.join(sd, "SKILL.md"))
+        skills += glob.glob(os.path.join(sd, "*", "SKILL.md"))
+    a = paths("agents")
+    agents = glob.glob(os.path.join(root, "agents", "*.md")) if a is None else md_under(a)
+    c = paths("commands")
+    commands = _walk_md(os.path.join(root, "commands")) if c is None else md_under(c)
+    return skills, agents, commands, ignored
 
 
 def _walk_md(root: str):
@@ -409,9 +481,11 @@ def from_disk(home: str, cwd: str):
         commands += _walk_md(os.path.join(cd, "commands"))
     plugin_roots, ignored = enabled_plugin_roots(home, cwd)
     for _, root in plugin_roots:
-        skills += glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))
-        agents += glob.glob(os.path.join(root, "agents", "*.md"))
-        commands += _walk_md(os.path.join(root, "commands"))
+        s_, a_, c_, bad = plugin_components(root)
+        skills += s_
+        agents += a_
+        commands += c_
+        ignored += bad
     if ignored:
         rows.append(row("ignored malformed plugin config records", "skipped", 0, "skipped",
                         count=ignored))

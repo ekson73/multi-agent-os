@@ -235,6 +235,41 @@ eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skil
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: ancestor project-scope agents counted'
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: project-scope commands counted (nested)'
 
+# --- disk: installation selected by scope/projectPath, not file order
+H7="$T/home7"; W7="$T/ws7/repo"
+mkdir -p "$H7/.claude/plugins" "$W7" "$T/other7" "$T/pv1/commands" "$T/pv2/commands" "$T/pvu/commands"
+printf -- '---\nname: a\ndescription: other\n---\n' > "$T/pv1/commands/a.md"
+printf -- '---\nname: b\ndescription: mine\n---\n' > "$T/pv2/commands/b.md"
+printf -- '---\nname: c\ndescription: mine2\n---\n' > "$T/pv2/commands/c.md"
+printf -- '---\nname: u\ndescription: user\n---\n' > "$T/pvu/commands/u.md"
+printf '{"plugins":{"pv":[{"scope":"project","projectPath":"%s","installPath":"%s"},{"scope":"user","installPath":"%s"},{"scope":"project","projectPath":"%s","installPath":"%s"}]}}' \
+  "$T/other7" "$T/pv1" "$T/pvu" "$T/ws7" "$T/pv2" > "$H7/.claude/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"pv":true}}' > "$H7/.claude/settings.json"
+o="$("$CB" --mode disk --home "$H7" --cwd "$W7" --json)"
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: project install for cwd ancestor beats other project and user'
+o="$("$CB" --mode disk --home "$H7" --cwd "$T" --json)"
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: user install used when no project install applies'
+
+# --- disk: plugin.json component paths (skills supplement, commands/agents replace)
+H8="$T/home8"; P8="$T/pm"
+mkdir -p "$H8/.claude/plugins" "$P8/.claude-plugin" "$P8/skills/d1" "$P8/extra-skills/demo" \
+         "$P8/commands" "$P8/cmds" "$P8/agents" "$P8/ag2"
+printf -- '---\nname: d1\ndescription: default\n---\n' > "$P8/skills/d1/SKILL.md"
+printf -- '---\nname: demo\ndescription: extra\n---\n' > "$P8/extra-skills/demo/SKILL.md"
+printf -- '---\nname: old\ndescription: replaced\n---\n' > "$P8/commands/old.md"
+printf -- '---\nname: n1\ndescription: custom\n---\n' > "$P8/cmds/n1.md"
+printf -- '---\nname: n2\ndescription: custom\n---\n' > "$P8/cmds/n2.md"
+printf -- '---\nname: oa\ndescription: replaced\n---\n' > "$P8/agents/oa.md"
+printf -- '---\nname: na\ndescription: custom\n---\n' > "$P8/ag2/na.md"
+printf '{"name":"pm","skills":["./extra-skills/"],"commands":"./cmds/","agents":["./ag2/na.md","../escape"]}' > "$P8/.claude-plugin/plugin.json"
+printf '{"plugins":{"pm":[{"scope":"user","installPath":"%s"}]}}' "$P8" > "$H8/.claude/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"pm":true}}' > "$H8/.claude/settings.json"
+o="$("$CB" --mode disk --home "$H8" --cwd "$W" --json)"
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["count"]')" 'disk: manifest skills path supplements default'
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: manifest commands path replaces default'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: manifest agents file replaces default'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="ignored malformed plugin config records"][0]["count"]')" 'disk: manifest path escaping plugin root ignored and counted'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac
