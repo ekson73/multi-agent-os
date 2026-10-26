@@ -105,12 +105,14 @@ bin/synopsis-fuse.py --scope all --include pending --format tree
 
 # caminho barato: passe payloads já capturados (sem re-rodar coletores)
 work-compass-aggregate.py --json --sort eisenhower --pendency-scope repo --include pending > /tmp/wc.json
-bin/synopsis-fuse.py --compass-json /tmp/wc.json --hitl-md ~/Projects/eko-engram/hitl/punch-list.md --format html > painel.html
+bin/synopsis-fuse.py --compass-json /tmp/wc.json --hitl-md ~/eko-engram/hitl/punch-list.md --format html > painel.html
 
 # só o painel HITL (os gates humanos), em árvore.
 # O `--compass-json -` com `{}` no stdin NÃO é opcional aqui: sem ele o script invoca o
 # work-compass vivo e roda os coletores (minutos). O digest HITL não precisa da N-Tree.
-echo '{}' | bin/synopsis-fuse.py --hitl-only --compass-json - --format tree
+# O ledger é o vault NORMAL, passado explicitamente (o comando /hitl-digest faz o mesmo):
+# a descoberta padrão do motor resolve ~/Projects/eko-engram, que é OUTRO clone.
+echo '{}' | bin/synopsis-fuse.py --hitl-only --compass-json - --hitl-md ~/eko-engram/hitl/punch-list.md --format tree
 
 # envelope JSON unificado para outro agente consumir
 bin/synopsis-fuse.py --format json
@@ -162,7 +164,7 @@ para "0 mostrados" nunca ser lido como "0 existentes").
 Todo render nomeia o ledger que leu, e avisa quando ele diverge da versão rastreada:
 
 ```
-> HITL ledger: `/Users/<you>/Projects/eko-engram/hitl/punch-list.md`
+> HITL ledger: `/Users/<you>/eko-engram/hitl/punch-list.md`
 >
 > ⚠ ledger read from the WORKING TREE and it diverges from the tracked version:
 >   MODIFIED relative to HEAD; the repo is 21 commit(s) BEHIND its upstream.

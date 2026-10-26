@@ -322,6 +322,26 @@ def test_an_empty_session_id_does_not_shadow_the_environment(synopsis_fuse):
     assert ident["ids"] == [SESSION_A]
 
 
+def test_an_identity_of_only_separators_is_not_an_identity(synopsis_fuse):
+    """A value like " , " is not an id: reporting it as RESOLVED would show an
+    empty queue with no warning — the "unknown is not nothing" case."""
+    for value in (" , ", ",", " ", "-"):
+        ident = synopsis_fuse.resolve_session_identity(
+            None, {"MAOS_SELF_SESSION_ID": value})
+        assert ident["resolved"] is False, f"{value!r} must not resolve an identity"
+        assert ident["ids"] == []
+
+
+def test_the_unknown_sentinel_is_not_an_identity(synopsis_fuse):
+    """"unknown" is the repo-wide spelling of "absent" (plugin-scripts/
+    pre-delegate.sh, post-delegate.sh, session-end.sh, governance/lib/common.sh)."""
+    ident = synopsis_fuse.resolve_session_identity(
+        "unknown", {"MAOS_SELF_SESSION_ID": SESSION_A})
+    assert ident["ids"] == [SESSION_A], "an explicit 'unknown' must not shadow the env"
+    ident = synopsis_fuse.resolve_session_identity(None, {"MAOS_SELF_SESSION_ID": "unknown"})
+    assert ident["resolved"] is False
+
+
 # ── 3b: the base columns are located by the header, not by position (P2) ────────
 def test_a_moved_session_column_does_not_shift_the_base_columns(synopsis_fuse, tmp_path):
     """If the writer put "Sessão" anywhere but last, the base values must not move."""

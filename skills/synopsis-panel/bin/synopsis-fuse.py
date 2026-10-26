@@ -260,21 +260,29 @@ def resolve_session_identity(explicit: str | None, env: dict | None = None) -> d
     env = os.environ if env is None else env
 
     def _ids(raw: str) -> list[str]:
-        # exact tokens: a session id is opaque, so only whitespace is stripped
-        return [t.strip() for t in raw.split(",") if t.strip()]
+        # exact tokens: a session id is opaque, so only whitespace is stripped.
+        # The markers the ledger uses for "no provenance" mean the same here, and
+        # "unknown" is the repo's own spelling of "absent".
+        return [t for t in _session_ids(raw) if t != "unknown"]
 
     if explicit is not None:
         ids = _ids(explicit)
         if ids:
             return {"ids": ids, "source": "--session-id", "resolved": True, "note": None}
-        # An EMPTY --session-id carries no identity claim: it must not shadow the
-        # environment (a caller that always passes the flag would otherwise get
-        # "unresolved" while the environment knows the answer).
+        # An EMPTY (or marker-only) --session-id carries no identity claim: it must
+        # not shadow the environment (a caller that always passes the flag would
+        # otherwise get "unresolved" while the environment knows the answer).
         explicit = None
     for var in ("MAOS_SELF_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID"):
         raw = (env.get(var) or "").strip()
-        if raw and raw != "unknown":
-            return {"ids": _ids(raw), "source": f"env:{var}", "resolved": True, "note": None}
+        if not raw or raw == "unknown":
+            continue
+        ids = _ids(raw)
+        # A value that is only separators (" , ") or only a marker ("-") carries no
+        # identity: reporting it as RESOLVED would show an empty queue with no
+        # warning, which is exactly the "unknown is not nothing" case.
+        if ids:
+            return {"ids": ids, "source": f"env:{var}", "resolved": True, "note": None}
     raw_path = (env.get("PI_SESSION_FILE") or "").strip()
     if raw_path:
         p = Path(raw_path)

@@ -132,13 +132,13 @@ LEDGER="${HITL_LEDGER:-$HOME/eko-engram/hitl/punch-list.md}"
 # Sem --scope, o motor mostra SÓ os itens desta conversa (escopo=session).
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format tree
 
-# MESMO digest, com a identidade da conversa invocadora explicitada. Use quando o
-# comando roda num processo delegado (subagente), onde o ambiente do filho resolve
-# a identidade do PRÓPRIO harness (o id do fork), não o da conversa que pediu:
-# aqui a identidade chega pelo caminho que o harness expõe — a variável de
-# sessão do runtime, ou o id que o delegador repassa. Sem isto, o digest falha
-# fechado (mostra 0 e diz o motivo), que é o comportamento correto e explícito.
-SESSION_ID="${HITL_SESSION_ID:-${MAOS_SELF_SESSION_ID:-${CLAUDE_SESSION_ID:-}}}"
+# MESMO digest, com a identidade da conversa invocadora explicitada. A precedência
+# da identidade vive NO MOTOR (uma só fonte): o command não a reimplementa, porque
+# uma precedência duplicada aqui desfaria a ordem documentada. Num run delegado,
+# o orquestrador pode passar a identidade por HITL_SESSION_ID — um binding real,
+# explícito; sem ele, o motor resolve pelo ambiente (MAOS_SELF_SESSION_ID,
+# CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, PI_SESSION_FILE) como sempre.
+SESSION_ID="${HITL_SESSION_ID:-}"
 echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
   ${SESSION_ID:+--session-id "$SESSION_ID"} --format tree
 
