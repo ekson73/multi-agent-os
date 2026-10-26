@@ -89,7 +89,7 @@ HITL       → ┌────────────────────�
 ## Modo AskUserQuestion (hitl-digest)
 
 Resolva `FUSE` e `LEDGER` conforme `commands/hitl-digest.md` §O que o command executa.
-Então `echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format ask-user-question --consumer <classe>`
+Então `echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format ask-user-question --consumer human-live`
 entrega os cards da sessão invocadora prontos para `AskUserQuestion`, só para consumidor
 `human-live` num harness que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e
 `machine` o `json` de sempre. Contrato, fontes das opções e regra de recomendação:
