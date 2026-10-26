@@ -68,6 +68,17 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 > `--session-id` explícito continua sendo um override exato. Sem identidade
 > resolvida, o digest **falha fechado**: nada mostrado + motivo.
 
+**Decisão explícita do SSOT de runtime HITL:** A = `$HOME/eko-engram/hitl/punch-list.md`,
+o vault normal, preserva o WIP local por cutover aditivo autorizado; B =
+`$HOME/Projects/eko-engram` é outro clone Git, não um destino implícito para HITLs ativos.
+Produtores usam o mesmo `HITL_LEDGER` com `--file "$HITL_LEDGER"`; abertura direta
+informa `--session-id`, e novos eventos declaram `session_id=ID` por evento
+(no sync, `--session-id` só afirma igualdade, não atribui um dono ao lote).
+Código é publicado via worktree/PR Git; dados de A só são conciliados por CAS aditivo
+revisado pelo root/maintainer, nunca por pull ou espelhamento cego do WIP. Usar uma nota
+já publicada em B (decisão operacional do H-0054) não move o SSOT nem afirma que HOME
+foi atualizado. A descoberta B do painel geral é um caso separado, não uma migração.
+
 ## Parte cognitiva (o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
 1. **Escopo / world** — o pedido é do panorama todo, da sessão, do repo atual, do vault? → `--scope`.
