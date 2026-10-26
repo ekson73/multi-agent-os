@@ -46,7 +46,10 @@ TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
 # userinfo or a query string). Only the executable's basename is ever shown, and
 # any label text is redacted as a second line of defense.
 _SECRET_RES = (
-    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD|PASSWD)[^ ]*=\S+", re.I),
+    # Substring match, so suffixed/prefixed keys (SECRET_KEY, PRIVATE_KEY, X_PASSPHRASE,
+    # AUTHORIZATION_HEADER) are caught too; AUTHOR= alone is not.
+    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD|PASSWD|PASSPHRASE|PASSCODE|AUTHORIZATION"
+               r"|CREDENTIAL|COOKIE)[^ ]*=\S+", re.I),
     # Short words only as a whole segment (split by _ or -), so BYPASS=,
     # COMPASS= or AUTHOR= are not redacted but PASS=, DB_PWD= and MY_AUTH_X= are.
     re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_-])*(?:PASS|PWD|AUTH)(?:[_-][A-Za-z0-9]+)*=\S+",
@@ -303,18 +306,28 @@ def _load_json(path: str):
         return None
 
 
-def enabled_plugin_roots(home: str):
-    """Return ([(plugin_key, install_path)], ignored) — ignored counts malformed records."""
+def enabled_plugin_roots(home: str, cwd: str):
+    """Return ([(plugin_key, install_path)], ignored) — ignored counts malformed records.
+
+    enabledPlugins is merged user < project < local, as Claude Code applies settings."""
     roots, ignored = [], 0
-    settings = _load_json(os.path.join(home, ".claude", "settings.json"))
     installed = _load_json(os.path.join(home, ".claude", "plugins", "installed_plugins.json"))
-    if not isinstance(settings, dict) or not isinstance(installed, dict):
+    if not isinstance(installed, dict):
         return roots, ignored
-    enabled = settings.get("enabledPlugins")
-    if enabled is None:
-        enabled = {}
-    if not isinstance(enabled, dict):
-        return roots, ignored + 1
+    proj = os.path.join(os.path.abspath(cwd), ".claude")
+    enabled = {}
+    for sp in (os.path.join(home, ".claude", "settings.json"),
+               os.path.join(proj, "settings.json"), os.path.join(proj, "settings.local.json")):
+        settings = _load_json(sp)
+        if not isinstance(settings, dict):
+            continue
+        layer = settings.get("enabledPlugins")
+        if layer is None:
+            continue
+        if not isinstance(layer, dict):
+            ignored += 1
+            continue
+        enabled.update(layer)
     inst = installed.get("plugins")
     if inst is None:
         inst = {}
@@ -353,19 +366,27 @@ def from_disk(home: str, cwd: str):
     rows = []
     cl = os.path.join(home, ".claude")
 
-    for p in sorted(glob.glob(os.path.join(cl, "rules", "*.md"))):
-        rows.append(row(p.replace(home, "~", 1), "rules", file_size(p), "measured", path=p))
-
     seen = set()
     chain = [os.path.join(cl, "CLAUDE.md")]
+    rule_dirs = [os.path.join(cl, "rules")]
     d = os.path.abspath(cwd)
     while True:
         for n in ("CLAUDE.md", "CLAUDE.local.md", os.path.join(".claude", "CLAUDE.md")):
             chain.append(os.path.join(d, n))
+        rule_dirs.append(os.path.join(d, ".claude", "rules"))
         parent = os.path.dirname(d)
         if parent == d:
             break
         d = parent
+
+    # user rules, then project rules (cwd and ancestors), nested dirs included
+    for rd in rule_dirs:
+        for p in sorted(_walk_md(rd)):
+            rp = os.path.realpath(p)
+            if rp in seen:
+                continue
+            seen.add(rp)
+            rows.append(row(p.replace(home, "~", 1), "rules", file_size(p), "measured", path=p))
     for p in chain:
         rp = os.path.realpath(p)
         if rp in seen or not os.path.isfile(p):
@@ -382,7 +403,7 @@ def from_disk(home: str, cwd: str):
     skills = glob.glob(os.path.join(cl, "skills", "*", "SKILL.md"))
     agents = glob.glob(os.path.join(cl, "agents", "*.md"))
     commands = _walk_md(os.path.join(cl, "commands"))
-    plugin_roots, ignored = enabled_plugin_roots(home)
+    plugin_roots, ignored = enabled_plugin_roots(home, cwd)
     for _, root in plugin_roots:
         skills += glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))
         agents += glob.glob(os.path.join(root, "agents", "*.md"))

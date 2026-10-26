@@ -11,11 +11,11 @@ Use it to find what to trim, and re-run after each trim to measure the gain.
 ## Usage
 
 ```bash
-bin/context-budget                 # auto: latest transcript of this cwd, else disk
-bin/context-budget --json          # machine-readable report
-bin/context-budget --top 20        # show more rows
-bin/context-budget --mode disk     # estimate from files only
-bin/context-budget --mode transcript --transcript <path.jsonl>
+"${CLAUDE_PLUGIN_ROOT}/bin/context-budget"                 # auto: latest transcript of this cwd, else disk
+"${CLAUDE_PLUGIN_ROOT}/bin/context-budget" --json          # machine-readable report
+"${CLAUDE_PLUGIN_ROOT}/bin/context-budget" --top 20        # show more rows
+"${CLAUDE_PLUGIN_ROOT}/bin/context-budget" --mode disk     # estimate from files only
+"${CLAUDE_PLUGIN_ROOT}/bin/context-budget" --mode transcript --transcript <path.jsonl>
 ```
 
 ## Modes

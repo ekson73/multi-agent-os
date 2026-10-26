@@ -179,6 +179,48 @@ ln -s "$T/outside" "$H3/.claude/commands/link"
 o="$("$CB" --mode disk --home "$H3" --cwd "$W" --json)"
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: symlinked commands dir not followed'
 
+# --- security: suffixed key names redacted, look-alike words kept
+TS="$T/suffix.jsonl"
+python3 - "$TS" <<'PY2'
+import json,sys
+L=[{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart",
+    "hookName":"n COMPASS=keepa AUTHOR=keepb GPG_PASSPHRASE=sone AUTHORIZATION=stwo PIN_PASSCODE=sthree AWS_SECRET_KEY=sfour SSH_PRIVATE_KEY=sfive X_API_KEY=ssix",
+    "command":"/bin/hk","content":"h"}},
+   {"type":"assistant","message":{}}]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY2
+for fmt in text json; do
+  if [ "$fmt" = json ]; then o="$("$CB" --mode transcript --transcript "$TS" --home /h --json)"
+  else o="$("$CB" --mode transcript --transcript "$TS" --home /h)"; fi
+  leak=""
+  for s in sone stwo sthree sfour sfive ssix; do case "$o" in *"$s"*) leak="$leak $s";; esac; done
+  [ -z "$leak" ] && ok "security ($fmt): suffixed key names redacted" || no "security ($fmt): suffixed key names redacted" "$leak"
+  case "$o" in *COMPASS=keepa*AUTHOR=keepb*) ok "security ($fmt): COMPASS/AUTHOR not over-redacted";; *) no "security ($fmt): COMPASS/AUTHOR not over-redacted" "$o";; esac
+done
+
+# --- disk: project .claude/rules (cwd and ancestors) and nested rule dirs are counted
+H4="$T/home4"; W4="$T/ws4/a/repo"
+mkdir -p "$H4/.claude/rules/sub" "$W4/.claude/rules" "$T/ws4/.claude/rules"
+printf '%0100d' 0 > "$H4/.claude/rules/a.md"          # 100 bytes
+printf '%050d'  0 > "$H4/.claude/rules/sub/n.md"      # 50 bytes, nested
+printf '%030d'  0 > "$W4/.claude/rules/p.md"          # 30 bytes, project
+printf '%010d'  0 > "$T/ws4/.claude/rules/q.md"       # 10 bytes, ancestor
+o="$("$CB" --mode disk --home "$H4" --cwd "$W4" --json)"
+eq 190 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'disk: user + nested + project + ancestor rules summed'
+
+# --- disk: project settings enabledPlugins merge over user (user < project < local)
+H5="$T/home5"; W5="$T/ws5"
+mkdir -p "$H5/.claude/plugins" "$W5/.claude" "$T/p1/commands" "$T/p2/commands"
+printf -- '---\nname: x\ndescription: p1\n---\n' > "$T/p1/commands/x.md"
+printf -- '---\nname: y\ndescription: p2\n---\n' > "$T/p2/commands/y.md"
+printf -- '---\nname: z\ndescription: p2\n---\n' > "$T/p2/commands/z.md"
+printf '{"plugins":{"p1":[{"installPath":"%s"}],"p2":[{"installPath":"%s"}]}}' "$T/p1" "$T/p2" > "$H5/.claude/plugins/installed_plugins.json"
+printf '{"enabledPlugins":{"p1":true}}' > "$H5/.claude/settings.json"
+printf '{"enabledPlugins":{"p2":true}}' > "$W5/.claude/settings.json"
+printf '{"enabledPlugins":{"p1":false}}' > "$W5/.claude/settings.local.json"
+o="$("$CB" --mode disk --home "$H5" --cwd "$W5" --json)"
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: project/local enabledPlugins override user'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac
