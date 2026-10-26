@@ -55,7 +55,7 @@ A non-safety nicety (verbose teaching, an optional dashboard panel) may be skipp
 | `projects` | Project vs plain chat vs Claude Code repo context | support articles; `agentic-tool-forge` when the instructions should become a reusable skill |
 | `bots` | which official bot/agent surface fits | `claude-tag-troubleshoot:*` (Slack app issues) · `claude-api` / Agent SDK docs (custom agents) |
 | `duet` | access, approvals, what it can use | support article (no specialist tool exists) |
-| framework layer | — | `maos-concierge` (MAOS) · `harness-concierge` (non-Claude harnesses) · `walkthrough-concierge` |
+| framework layer | — | `maos-concierge` (MAOS) · `harness-concierge` (non-Claude harnesses) · `walkthrough-concierge` · `openclaw-concierge` (OpenClaw; not shipped in this repo — route only where it is installed, else say so) |
 
 ## Modes
 
