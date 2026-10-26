@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — preserve HITL ownership across native OMP recovery
+
+- `synopsis-fuse.py` now follows only explicit `parentSession` references in native
+  OMP session headers when resolving the default session scope. A worker reads its
+  adjacent root JSONL, not its own process header. This keeps gates recorded under
+  the original session visible after recovery under a new ID without rewriting provenance.
+- Explicit identity overrides remain exact. Only headers of referenced files are read;
+  a missing parent file or UUID-only reference proves that parent, not unseen ancestors.
+  Cycles, ambiguous references and header/filename conflicts fail closed. No prompt-cache
+  key, cwd/title inference, sibling search or session index is used.
+- Regression coverage exercises both native layouts, recovery, missing parents, cycles,
+  conflicting headers, ignored cache keys and override isolation through the pure CLI path.
+
 ### Fixed — the HITL digest shows THIS conversation's gates by default, and the whole ledger only when asked
 
 - **The defect.** `hitl/punch-list.md` is ONE global queue — every conversation's gates

@@ -43,10 +43,10 @@ Usage
                       session, because only `all` may widen.
   --session-id    identity of the INVOKING conversation, comma-separated for a set.
                   Default: MAOS_SELF_SESSION_ID, then CLAUDE_CODE_SESSION_ID, then
-                  CLAUDE_SESSION_ID, then the uuid in the NAME of PI_SESSION_FILE.
-                  A child process never inherits its parent's identity: a delegated
-                  run must be told which conversation it speaks for, or the session
-                  scope stays unresolved and fails closed.
+                  CLAUDE_SESSION_ID, then native PI_SESSION_FILE headers. A worker
+                  uses the adjacent root file; recovered roots include only ancestors
+                  explicitly named by parentSession. Overrides stay exact. Cyclic or
+                  conflicting native headers leave the session scope unresolved.
   --self-heal     on a renderer/parse error, print a structured repair-request
                   envelope to stderr instead of a bare traceback (hybrid self-heal M.O.).
 
@@ -211,6 +211,9 @@ HITL_TYPES = {"credencial", "gasto", "irreversivel", "envio", "negocio"}
 # caller; it shows only in the explicit global scope.
 SESSION_ID_RE = re.compile(
     r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+OMP_SESSION_NAME_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_("
+    + SESSION_ID_RE.pattern + r")")
 # The header spelling is normalized (case and accent) so a ledger written as
 # "Sessão" and one written as "Sessao" read the same. This is a fixed, known
 # set of names — NOT a casefold applied to the opaque ids themselves.
@@ -247,15 +250,78 @@ def _session_ids(raw) -> list[str]:
     return out
 
 
+def _native_session_file(path: Path) -> tuple[Path, str] | None:
+    """Locate the native root file; a worker uses its adjacent root JSONL."""
+    if path.suffix != ".jsonl":
+        return None
+    match = OMP_SESSION_NAME_RE.fullmatch(path.stem)
+    if match:
+        return path, match.group(1)
+    match = OMP_SESSION_NAME_RE.fullmatch(path.parent.name)
+    if match:
+        return Path(str(path.parent) + ".jsonl"), match.group(1)
+    return None
+
+
+def _native_session_identity(raw_path: str) -> dict:
+    """Read only native session headers and explicitly referenced ancestors."""
+    source = "env:PI_SESSION_FILE (native headers)"
+
+    def unresolved(reason: str) -> dict:
+        return {"ids": [], "source": source, "resolved": False, "note": reason}
+
+    current = _native_session_file(Path(raw_path).expanduser())
+    if current is None:
+        return unresolved("PI_SESSION_FILE has no unambiguous native session layout")
+    ids: list[str] = []
+    while current is not None:
+        path, session_id = current
+        if session_id in ids:
+            return unresolved("cycle in native parentSession references")
+        ids.append(session_id)
+        try:
+            with path.open(encoding="utf-8") as stream:
+                header = json.loads(stream.readline())
+                if isinstance(header, dict) and header.get("type") == "title":
+                    header = json.loads(stream.readline())
+        except FileNotFoundError:
+            # The native filename/reference still explicitly identifies this id.
+            # There is no evidence of further ancestors: do not search for any.
+            break
+        except (OSError, ValueError):
+            return unresolved("native session header is unreadable or malformed")
+        if (not isinstance(header, dict) or header.get("type") != "session"
+                or header.get("id") != session_id):
+            return unresolved("native session header conflicts with its filename identity")
+        parent = header.get("parentSession")
+        if parent is None:
+            break
+        if not isinstance(parent, str) or not parent.strip():
+            return unresolved("ambiguous native parentSession reference")
+        parent = parent.strip()
+        if SESSION_ID_RE.fullmatch(parent):
+            if parent in ids:
+                return unresolved("cycle in native parentSession references")
+            # An id-only reference proves the parent, not its own ancestors.
+            ids.append(parent)
+            break
+        parent_path = Path(parent).expanduser()
+        if not parent_path.is_absolute():
+            parent_path = path.parent / parent_path
+        current = _native_session_file(parent_path)
+        if current is None:
+            return unresolved("parentSession does not reference a native session id or file")
+    return {"ids": ids, "source": source, "resolved": True, "note": None}
+
+
 def resolve_session_identity(explicit: str | None, env: dict | None = None) -> dict:
     """Resolve the identity of the INVOKING conversation.
 
     Precedence: --session-id > MAOS_SELF_SESSION_ID > CLAUDE_CODE_SESSION_ID >
-    CLAUDE_SESSION_ID > the uuid in the FILE NAME of PI_SESSION_FILE. Never a
-    heuristic (cwd, title, operator) and never an inherited parent id: a
-    delegated run must be told which conversation it speaks for. When nothing
-    resolves, the scope stays UNRESOLVED and the render says so — it never falls
-    back to "everything" nor claims "there is nothing".
+    CLAUDE_SESSION_ID > native PI_SESSION_FILE headers. Only the latter follows
+    explicit parentSession references, preserving immutable item provenance when
+    OMP recovers a conversation under a new id. No cwd/title/cache-key inference.
+    Unreadable, conflicting or cyclic headers fail closed, never widen to all.
     """
     env = os.environ if env is None else env
 
@@ -285,20 +351,7 @@ def resolve_session_identity(explicit: str | None, env: dict | None = None) -> d
             return {"ids": ids, "source": f"env:{var}", "resolved": True, "note": None}
     raw_path = (env.get("PI_SESSION_FILE") or "").strip()
     if raw_path:
-        p = Path(raw_path)
-        # The uuid lives in the FILE name for a top-level session, and in the
-        # PARENT DIRECTORY name for a session the harness forked (the child file
-        # sits in a directory named after the conversation it belongs to) — the
-        # same convention scripts/corpus-firing-audit.py and
-        # scripts/ichnos-analytics.py already read.
-        for label, name in (("file", p.name), ("directory", p.parent.name)):
-            m = SESSION_ID_RE.search(name)
-            if m:
-                return {"ids": [m.group(0)], "source": f"env:PI_SESSION_FILE ({label})",
-                        "resolved": True, "note": None}
-        return {"ids": [], "source": "env:PI_SESSION_FILE", "resolved": False,
-                "note": (f"PI_SESSION_FILE carries no session id in its name "
-                         f"({p.name}) nor in its directory name ({p.parent.name})")}
+        return _native_session_identity(raw_path)
     return {"ids": [], "source": None, "resolved": False,
             "note": ("no session identity available (--session-id, MAOS_SELF_SESSION_ID, "
                      "CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, PI_SESSION_FILE)")}
@@ -894,8 +947,8 @@ def main(argv=None) -> int:
     ap.add_argument("--session-id", default=None,
                     help="identity of the invoking conversation (comma-separated for a set, "
                          "compared exactly); default: MAOS_SELF_SESSION_ID, "
-                         "CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, then the uuid in the "
-                         "name of PI_SESSION_FILE")
+                         "CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, then native "
+                         "PI_SESSION_FILE headers and explicit parentSession ancestors")
     ap.add_argument("--include", choices=["pending", "all"], default="pending")
     ap.add_argument("--hitl-only", action="store_true", help="render only the HITL branch")
     ap.add_argument("--pending-only", action="store_true", help="keep flagged/HITL-bearing pendency nodes")

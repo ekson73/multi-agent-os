@@ -126,7 +126,7 @@ bin/synopsis-fuse.py --format json
 | `--hitl-json F\|-` | — | array HITL já parseado (pula o parse do md); vazio/ausente = sem ledger (válido) |
 | `--format` | `tree` | `tree` · `mermaid` · `html` · `json` |
 | `--scope` | `all` (pendências) · `session` (ledger HITL, em `--hitl-only`) | `current\|session\|repo\|vault\|all`. Escopo de **pendência** (repassado ao work-compass) e, em `--hitl-only`, escopo do **ledger HITL**: sem `--scope` o digest mostra só os itens desta conversa; `--scope all` traz o ledger inteiro, legados inclusive; qualquer outro valor **nunca** amplia |
-| `--session-id ID[,ID]` | resolvido do ambiente | identidade da conversa que invocou o render (comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → o uuid no nome de `PI_SESSION_FILE`. `PI_SESSION_ID` é deliberadamente ignorado: é por *processo*, então um run delegado resolveria o id do executor. Sem identidade resolvida o escopo de sessão **falha fechado** (nada mostrado + motivo) |
+| `--session-id ID[,ID]` | resolvido do ambiente | identidade da conversa que invocou o render (comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → headers nativos de `PI_SESSION_FILE` com ancestrais `parentSession` explícitos. `PI_SESSION_ID` é deliberadamente ignorado: é por *processo*. Overrides não expandem para ancestrais. Sem identidade resolvida o escopo de sessão **falha fechado** (nada mostrado + motivo) |
 | `--include` | `pending` | `pending` (só não-resolvidas) · `all` |
 | `--hitl-only` | off | renderiza só o ramo HITL |
 | `--pending-only` | off | mantém nós flagged / com HITL |
@@ -148,6 +148,12 @@ uma conversa que tinha **2** gates seus.
   escrito antes da coluna existir é lido assim: todas as suas linhas são legadas.
 - **A comparação do id é exata** — só o espaço em volta é removido. Um id de sessão é um
   token opaco, então `A` e `a` são conversas diferentes.
+- **Continuidade nativa do OMP**: no fallback `PI_SESSION_FILE`, lê só o header da
+  sessão e dos arquivos nativos explicitamente referidos por `parentSession`.
+  Um worker usa o root JSONL adjacente; recuperação sob novo ID inclui o ID de origem
+  sem reescrever o ledger. Referência só por UUID (ou arquivo pai ausente) prova esse
+  pai, não ancestrais adicionais. Ciclo, conflito entre header e nome ou referência
+  ambígua falham fechado. Não usa `providerPromptCacheKey`, cwd, título ou varredura.
 - **Identidade ausente ⇒ falha fechado**: nada é mostrado e o motivo é dito. O render
   nunca cai no "tudo" e nunca afirma "não existem" — porque "não sei de quem é" não é
   "não existe".
