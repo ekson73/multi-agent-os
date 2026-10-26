@@ -72,6 +72,56 @@ eq 9   "$(printf '%s' "$o" | jq_ 'd["by_category"]["hooks"]["bytes"]')" 'transcr
 eq 374 "$(printf '%s' "$o" | jq_ 'd["total"]["bytes"]')" 'transcript: total'
 case "$o" in *SECRET-NOT-COUNTED*) no 'transcript: hook stdout never echoed' "$o" ;; *) ok 'transcript: hook stdout never echoed' ;; esac
 
+# --- security: hook command line is never echoed (only name + argv[0] basename)
+TS="$T/secret.jsonl"
+python3 - "$TS" <<'PY2'
+import json,sys
+cmd = ("FOO_TOKEN=sk-fake123 /usr/local/bin/hookx --auth 'Bearer abcSECRETbearer' "
+       "https://usr:pAsSwD@x.io/p?k=QUERYSECRET")
+L=[{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart",
+    "hookName":"SessionStart:startup","command":cmd,"content":"h"*5}},
+   {"type":"assistant","message":{}}]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY2
+for fmt in text json; do
+  if [ "$fmt" = json ]; then o="$("$CB" --mode transcript --transcript "$TS" --home /h --json)"
+  else o="$("$CB" --mode transcript --transcript "$TS" --home /h)"; fi
+  leak=""
+  for s in sk-fake123 FOO_TOKEN abcSECRETbearer pAsSwD QUERYSECRET usr:; do
+    case "$o" in *"$s"*) leak="$leak $s";; esac
+  done
+  [ -z "$leak" ] && ok "security ($fmt): hook secrets not printed" || no "security ($fmt): hook secrets not printed" "$leak"
+  case "$o" in *hookx*) ok "security ($fmt): argv[0] basename shown";; *) no "security ($fmt): argv[0] basename shown" "$o";; esac
+done
+o="$(printf '%s\n' '{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"SessionStart","hookName":"n","command":"X_KEY=leakme \"unbalanced","content":"h"}}' > "$T/q.jsonl"; "$CB" --mode transcript --transcript "$T/q.jsonl" --home /h --json)"
+case "$o" in *leakme*) no 'security: unbalanced quotes do not leak' "$o";; *) ok 'security: unbalanced quotes do not leak';; esac
+
+# --- robustness: non-object records never crash; repeated/unknown attachments accumulate
+TM="$T/messy.jsonl"
+python3 - "$TM" <<'PY2'
+import json,sys
+L=[ [1,2], "a string", 7, None,
+ {"type":"attachment","attachment":"not-a-dict"},
+ {"type":"attachment","attachment":[1]},
+ {"type":"attachment","attachment":{"type":"instructions","files":["x", 3,
+   {"path":"/h/.claude/rules/r.md","type":"User","content":"r"*20}]}},
+ {"type":"attachment","attachment":{"type":"skill_listing","content":"s"*30,"skillCount":2}},
+ {"type":"attachment","attachment":{"type":"skill_listing","content":"t"*12,"skillCount":1}},
+ {"type":"attachment","attachment":{"type":"brand_new_kind","payload":"p"*5}},
+ {"type":"attachment","attachment":{"type":"brand_new_kind","payload":"q"*5}},
+ {"type":"assistant","message":{}},
+]
+open(sys.argv[1],"w").write("\n".join(json.dumps(x) for x in L)+"\n")
+PY2
+o="$("$CB" --mode transcript --transcript "$TM" --home /h --json 2>&1)"; rc=$?
+eq 0 "$rc" 'robust: malformed records do not crash (exit 0)'
+eq 6  "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skipped"][0]["count"]')" 'robust: non-object records counted'
+eq 20 "$(printf '%s' "$o" | jq_ 'd["by_category"]["rules"]["bytes"]')" 'robust: non-dict instruction files skipped, valid kept'
+eq 42 "$(printf '%s' "$o" | jq_ 'd["by_category"]["skills"]["bytes"]')" 'accumulate: repeated attachments of one type summed'
+eq 3  "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["count"]')" 'accumulate: counts summed'
+eq 2  "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="unknown:brand_new_kind"][0]["count"]')" 'unknown: type reported, not dropped'
+"$CB" --mode transcript --transcript "$TM" --home /h >/dev/null 2>&1; eq 0 "$?" 'robust: text mode exit 0'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac

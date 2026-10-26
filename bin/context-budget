@@ -33,10 +33,41 @@ import glob
 import json
 import os
 import re
+import shlex
 import sys
 
 TOKEN_DIVISOR = 4
 TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
+
+
+# Hook commands can carry credentials (env assignments, bearer tokens, URLs with
+# userinfo or a query string). Only the executable's basename is ever shown, and
+# any label text is redacted as a second line of defense.
+_SECRET_RES = (
+    re.compile(r"[A-Za-z0-9_]*(TOKEN|KEY|SECRET)[^ ]*=\S+", re.I),
+    re.compile(r"Bearer\s+\S+", re.I),
+    re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://[^\s/@]+@\S*"),
+    re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://\S*\?\S*"),
+)
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _redact(text: str) -> str:
+    for rx in _SECRET_RES:
+        text = rx.sub("[REDACTED]", text)
+    return text
+
+
+def _hook_label(h: dict) -> str:
+    """Hook name plus the basename of argv[0]; never the raw command line."""
+    name = _redact(str(h.get("hookName") or "?"))[:80]
+    cmd = str(h.get("command") or "")
+    try:
+        toks = [t for t in shlex.split(cmd) if not _ENV_ASSIGN.match(t)]
+    except ValueError:  # unbalanced quotes: do not guess, show nothing of it
+        toks = []
+    exe = _redact(os.path.basename(toks[0]))[:40] if toks else ""
+    return name + (": " + exe if exe else "")
 
 
 def nbytes(s) -> int:
@@ -91,71 +122,107 @@ def classify_instruction(path: str, home: str) -> str:
     return "instructions_other"
 
 
+def _dicts(seq):
+    """Yield only dict items; anything else is malformed input, skipped."""
+    return [x for x in (seq if isinstance(seq, list) else []) if isinstance(x, dict)]
+
+
+def _lines(seq):
+    return "\n".join(str(x) for x in (seq if isinstance(seq, list) else []))
+
+
+KNOWN_KINDS = ("prompt_snapshot", "instructions", "skill_listing", "agent_listing_delta",
+               "deferred_tools_delta", "mcp_instructions_delta")
+HOOK_KINDS = ("hook_success", "hook_additional_context", "hook_system_message")
+
+
 def from_transcript(path: str, home: str):
     rows = []
-    first = {}
+    seen = {}          # attachment type -> every attachment of that type, in order
     hooks = []
+    skipped = 0        # JSONL records or attachments that are not JSON objects
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             try:
                 o = json.loads(line)
             except ValueError:
                 continue
+            if not isinstance(o, dict):
+                skipped += 1
+                continue
             if o.get("type") == "assistant":
                 break  # initial window ends at the first model reply
             if o.get("type") != "attachment":
                 continue
-            a = o.get("attachment") or {}
-            k = a.get("type")
-            if k in ("hook_success", "hook_additional_context", "hook_system_message"):
+            a = o.get("attachment")
+            if not isinstance(a, dict):
+                skipped += 1
+                continue
+            k = str(a.get("type") or "?")
+            if k in HOOK_KINDS:
                 ev = str(a.get("hookEvent") or "")
                 if ev.startswith(("SessionStart", "UserPromptSubmit")):
                     hooks.append(a)
                 continue
-            first.setdefault(k, a)
+            seen.setdefault(k, []).append(a)
 
-    snap = first.get("prompt_snapshot")
-    if snap is not None:
+    for snap in seen.get("prompt_snapshot", []):
         rows.append(row("system prompt (harness)", "system_prompt",
                         nbytes(snap.get("systemPrompt")), "measured"))
 
-    instr = first.get("instructions")
-    if instr:
-        for f in instr.get("files") or []:
-            p = f.get("path") or "?"
+    for instr in seen.get("instructions", []):
+        for f in _dicts(instr.get("files")):
+            p = str(f.get("path") or "?")
             rows.append(row(p.replace(home, "~", 1), classify_instruction(p, home),
                             nbytes(f.get("content")), "measured", path=p))
 
-    sl = first.get("skill_listing")
-    if sl is not None:
-        rows.append(row("skill listing", "skills", nbytes(sl.get("content")), "measured",
-                        count=sl.get("skillCount")))
+    sls = seen.get("skill_listing", [])
+    if sls:
+        rows.append(row("skill listing", "skills",
+                        sum(nbytes(x.get("content")) for x in sls), "measured",
+                        count=sum(x.get("skillCount") or 0 for x in sls
+                                  if isinstance(x.get("skillCount"), int))))
 
-    al = first.get("agent_listing_delta")
-    if al is not None:
-        rows.append(row("agent listing", "agents", nbytes("\n".join(al.get("addedLines") or [])),
-                        "measured", count=len(al.get("addedTypes") or [])))
+    als = seen.get("agent_listing_delta", [])
+    if als:
+        rows.append(row("agent listing", "agents",
+                        sum(nbytes(_lines(x.get("addedLines"))) for x in als), "measured",
+                        count=sum(len(x.get("addedTypes") or []) for x in als
+                                  if isinstance(x.get("addedTypes"), list))))
 
-    dt = first.get("deferred_tools_delta")
-    if dt is not None:
+    dts = seen.get("deferred_tools_delta", [])
+    if dts:
         rows.append(row("deferred tool names", "deferred_tools",
-                        nbytes("\n".join(dt.get("addedLines") or [])), "measured",
-                        count=len(dt.get("addedNames") or [])))
+                        sum(nbytes(_lines(x.get("addedLines"))) for x in dts), "measured",
+                        count=sum(len(x.get("addedNames") or []) for x in dts
+                                  if isinstance(x.get("addedNames"), list))))
 
-    mi = first.get("mcp_instructions_delta")
-    if mi is not None:
-        for name, block in zip(mi.get("addedNames") or [], mi.get("addedBlocks") or []):
+    for mi in seen.get("mcp_instructions_delta", []):
+        names = mi.get("addedNames") if isinstance(mi.get("addedNames"), list) else []
+        blocks = mi.get("addedBlocks") if isinstance(mi.get("addedBlocks"), list) else []
+        for name, block in zip(names, blocks):
             rows.append(row("mcp instructions: " + str(name), "mcp_instructions",
                             nbytes(block), "measured"))
+
+    # Unknown attachment types are not dropped: report the serialized size so the
+    # total never silently undercounts. Serialized JSON != rendered text, hence
+    # "estimated".
+    for k in sorted(set(seen) - set(KNOWN_KINDS)):
+        items = seen[k]
+        rows.append(row("unknown:" + _redact(k)[:60], "unknown",
+                        sum(nbytes(json.dumps(x, ensure_ascii=False)) for x in items),
+                        "estimated", count=len(items)))
 
     for h in hooks:
         content = h.get("content") or ""
         if not content:
             continue  # nothing injected into the model's context
-        name = h.get("hookName") or "?"
-        cmd = str(h.get("command") or "")[:80]
-        rows.append(row("hook " + name + (": " + cmd if cmd else ""), "hooks",
+        rows.append(row("hook " + _hook_label(h), "hooks",
                         nbytes(content), "measured"))
+
+    if skipped:
+        rows.append(row("skipped non-object records", "skipped", 0, "skipped",
+                        count=skipped))
 
     return rows
 
