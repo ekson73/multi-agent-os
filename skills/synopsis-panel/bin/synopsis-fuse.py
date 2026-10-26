@@ -574,6 +574,9 @@ def fuse(compass: dict, hitl: list[dict], *, hitl_only: bool, pending_only: bool
             # how many items the LEDGER holds, before the scope narrowed it: a
             # session scope showing 0 of 19 must not read as "there is nothing"
             "hitl_ledger_total": (hitl_scope or {}).get("ledger_total", len(hitl)),
+            # whether this render is the HITL-only digest: it decides whether the
+            # pendency scope is meaningful at all (in the pure digest there is none)
+            "hitl_only": hitl_only,
             "sources": {
                 "pendencies": "work-compass-aggregate.py --json (SSOT)",
                 "priority": "work-compass --sort eisenhower (SSOT)",
@@ -618,10 +621,13 @@ def _flag_suffix(node: dict) -> str:
 def render_tree(fused: dict, title: str) -> str:
     m = fused["meta"]
     out = [f"# {title}", ""]
+    # the pendency scope is meaningless in the pure digest (there is no pendency
+    # tree there), so it is not printed — the HITL scope line below says what applies
+    scope_txt = "" if m.get("hitl_only") else f" · pendency scope={m['scope'] or 'all'}"
     out.append(f"> {m['compass_count']} pendencies "
                f"({m['compass_candidates']} flagged) · {m['hitl_count']} HITL "
-               f"({m['hitl_attached']} attached, {m['hitl_orphan']} standalone) · "
-               f"scope={m['scope'] or 'all'}")
+               f"({m['hitl_attached']} attached, {m['hitl_orphan']} standalone)"
+               f"{scope_txt}")
     if m["compass_unavailable"]:
         out.append(f"> unavailable: {', '.join(m['compass_unavailable'])}")
     if m.get("hitl_source"):
@@ -735,6 +741,8 @@ def render_html(fused: dict, title: str) -> str:
         domains_html += f'<details open><summary>{HUMAN_FLAG} HITL human-domain <small>({len(orphan)})</small></summary><ul>{lis}</ul></details>'
 
     source_html = ""
+    # the pendency scope is meaningless in the pure digest (no pendency tree there)
+    scope_html = "" if m.get("hitl_only") else f" &middot; scope={e(m['scope'] or 'all')}"
     if m.get("hitl_source"):
         source_html += f'<p class="sub">HITL ledger: <code>{e(str(m["hitl_source"]))}</code></p>'
     if m.get("hitl_scope") and m.get("hitl_scope") != "all":
@@ -771,8 +779,8 @@ def render_html(fused: dict, title: str) -> str:
 </style></head><body>
 <h1>{e(title)}</h1>
 <p class="sub">{m['compass_count']} pend&ecirc;ncias ({m['compass_candidates']} flagged) &middot;
-{m['hitl_count']} HITL ({m['hitl_attached']} attached / {m['hitl_orphan']} standalone) &middot;
-scope={e(m['scope'] or 'all')} &middot; gerado {e(m['generated_utc'][:19])}Z</p>
+{m['hitl_count']} HITL ({m['hitl_attached']} attached / {m['hitl_orphan']} standalone){scope_html} &middot;
+gerado {e(m['generated_utc'][:19])}Z</p>
 {source_html}
 {domains_html}
 <p class="sub">Fontes (SSOT, n&atilde;o reimplementadas): work-compass &middot; eisenhower &middot; hitl punch-list.</p>
