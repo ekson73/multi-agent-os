@@ -318,6 +318,40 @@ eq transcript "$(printf '%s' "$o" | jq_ 'd["mode"]')" 'auto: transcript discover
 eq 7 "$(printf '%s' "$o" | jq_ 'd["by_category"]["system_prompt"]["bytes"]')" 'auto: unrelated pattern-matching HOME transcript not read'
 eq "$HG/.claude/projects/$(printf '%s' "$WG" | sed 's/[^A-Za-z0-9]/-/g')/fixture.jsonl" "$(printf '%s' "$o" | jq_ 'd["transcript"]')" 'auto: transcript comes from exact literal HOME'
 
+# --- canonical entry/document classification, with real listing byte totals
+H9="$T/home9"; W9="$T/project9"; P9="$T/plugin9"
+python3 - "$H9" "$W9" "$P9" "$T" <<'PYD'
+import json, sys
+from pathlib import Path
+h, w, p, temp = map(Path, sys.argv[1:])
+def put(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+for base in (h / ".claude", w / ".claude", p):
+    put(base / "agents/real.md", "---\nname: agent\ndescription: works\n---\n")
+    put(base / "agents/README.md", "Documentation, not an agent.\n")
+    put(base / "agents/POLICY.md", "---\nname: not-an-agent\ndescription: documentation\n---\n")
+    put(base / "commands/README.md", "Documentation, not a command.\n")
+    put(base / "commands/auto-shard/SKILL.md", "---\nname: auto-shard\ndescription: skill\n---\n")
+    put(base / "commands/auto-shard/operations/hidden.md",
+        "---\nname: not-a-command\ndescription: skill sub-document\n---\n")
+    put(base / "commands/code/analyze/real.md", "---\nname: cmd\ndescription: works\n---\n")
+put(h / ".claude/settings.json", json.dumps({"enabledPlugins": {"fixture": True}}))
+put(h / ".claude/plugins/installed_plugins.json",
+    json.dumps({"plugins": {"fixture": [{"scope": "user", "installPath": str(p)}]}}))
+put(temp / "unwanted-startup.sh", 'touch "' + str(temp / "hook-ran") + '"\n')
+PYD
+o="$(BASH_ENV="$T/unwanted-startup.sh" "$CB" --mode disk --home "$H9" --cwd "$W9" --json)"
+eq 3 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: docs excluded from user/project/plugin agent counts'
+eq 45 "$(printf '%s' "$o" | jq_ 'd["by_category"]["agents"]["bytes"]')" 'disk: real agent listing bytes only (3 x 15)'
+eq 3 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: skill sub-docs excluded, genuine nested commands retained'
+eq 39 "$(printf '%s' "$o" | jq_ 'd["by_category"]["commands"]["bytes"]')" 'disk: real nested command listing bytes only (3 x 13)'
+eq 84 "$(printf '%s' "$o" | jq_ 'd["by_category"]["agents"]["bytes"]+d["by_category"]["commands"]["bytes"]')" 'disk: documentation contributes zero listing bytes'
+[ ! -e "$T/hook-ran" ] && ok 'disk: canonical classifier does not run shell startup hooks' || no 'disk: canonical classifier does not run shell startup hooks' 'BASH_ENV executed'
+printf 'More documentation that is not loaded as a listing.\n' >> "$P9/commands/README.md"
+o="$("$CB" --mode disk --home "$H9" --cwd "$W9" --json)"
+eq 84 "$(printf '%s' "$o" | jq_ 'd["by_category"]["agents"]["bytes"]+d["by_category"]["commands"]["bytes"]')" 'disk: documentation edits do not change listing estimate'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac

@@ -36,10 +36,13 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 
 TOKEN_DIVISOR = 4
 TOKEN_NOTE = "tokens_est = bytes/4 (estimate, not a tokenizer count)"
+_ENTRY_CLASSIFIER = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "scripts", "entry-classifier.sh")
 
 
 # Hook commands can carry credentials (env assignments, bearer tokens, URLs with
@@ -300,6 +303,24 @@ def listing_bytes(paths, kind):
     return total, n
 
 
+def _listing_entries(root, paths):
+    """Use the canonical entry predicate in one read-only batch per component root."""
+    if not paths:
+        return set()
+    env = {"PATH": os.defpath}
+    env.update({k: os.environ[k] for k in ("LANG", "LC_ALL", "LC_CTYPE") if k in os.environ})
+    result = subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-c",
+         'PLUGIN_ROOT="$2"; source "$1" || exit 1; shift 2; '
+         'for path; do if is_entry "$path"; then printf "%s\\0" "$path"; fi; done',
+         "context-budget", _ENTRY_CLASSIFIER, root,
+         *(os.path.relpath(p, root) for p in paths)],
+        capture_output=True, env=env)
+    if result.returncode:
+        raise OSError("entry classifier failed")
+    return {os.path.join(root, os.fsdecode(p)) for p in result.stdout.split(b"\0") if p}
+
+
 def _load_json(path: str):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -382,7 +403,7 @@ def plugin_components(root: str):
     custom commands and agents paths replace the default directories."""
     man = _load_json(os.path.join(root, ".claude-plugin", "plugin.json"))
     man = man if isinstance(man, dict) else {}
-    base = os.path.realpath(root)
+    base = root = os.path.realpath(root)
     ignored = 0
 
     def paths(field):
@@ -425,7 +446,8 @@ def plugin_components(root: str):
     agents = glob.glob(os.path.join(glob.escape(root), "agents", "*.md")) if a is None else md_under(a)
     c = paths("commands")
     commands = _walk_md(os.path.join(root, "commands")) if c is None else md_under(c)
-    return skills, agents, commands, ignored
+    entries = _listing_entries(root, agents + commands)
+    return skills, [p for p in agents if p in entries], [p for p in commands if p in entries], ignored
 
 
 def _walk_md(root: str):
@@ -482,8 +504,11 @@ def from_disk(home: str, cwd: str):
     skills, agents, commands = [], [], []
     for cd in claude_dirs:
         skills += glob.glob(os.path.join(glob.escape(cd), "skills", "*", "SKILL.md"))
-        agents += glob.glob(os.path.join(glob.escape(cd), "agents", "*.md"))
-        commands += _walk_md(os.path.join(cd, "commands"))
+        a = glob.glob(os.path.join(glob.escape(cd), "agents", "*.md"))
+        c = _walk_md(os.path.join(cd, "commands"))
+        entries = _listing_entries(cd, a + c)
+        agents.extend(p for p in a if p in entries)
+        commands.extend(p for p in c if p in entries)
     plugin_roots, ignored = enabled_plugin_roots(home, cwd)
     for _, root in plugin_roots:
         s_, a_, c_, bad = plugin_components(root)

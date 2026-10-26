@@ -39,6 +39,8 @@ measurement; disk mode over-estimates listings because the harness truncates des
 - `ignored malformed plugin config records` (disk mode) counts plugin settings entries of the
   wrong type, including non-string, non-null install scopes; they are skipped, not fatal.
 - Directory names in home, project and plugin discovery are literal, including `[]`, `*` and `?`.
+- Agent/command listings use `scripts/entry-classifier.sh`: documentation and skill-owned sub-documents
+  are excluded; real nested commands remain. The classifier runs without shell startup hooks.
 - Hook names and the executable basename are redacted: `*TOKEN*`, `*KEY*`, `*SECRET*`,
   `*PASSWORD*`, `*PASSWD*`, `*PASSPHRASE*`, `*PASSCODE*`, `*AUTHORIZATION*`, `*CREDENTIAL*`,
   `*COOKIE*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment

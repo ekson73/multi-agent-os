@@ -27,8 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   home, project and plugin directory names literally, including wildcard metacharacters.
   Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
   (cwd and ancestors), deduped by realpath.
+  Agent/command estimates reuse the canonical entry classifier, excluding ALL-CAPS documents
+  and skill-owned sub-documents while retaining genuine nested commands.
 - **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
-  (72 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
+  (79 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
 - Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
