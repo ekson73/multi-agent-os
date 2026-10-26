@@ -122,8 +122,15 @@ def latest_transcript(home: str, cwd: str) -> str | None:
     return max(files, key=lambda f: (os.path.getmtime(f), f))
 
 
+def _tilde(path: str, home: str) -> str:
+    if path == home:
+        return "~"
+    prefix = home.rstrip(os.sep) + os.sep
+    return "~" + os.sep + path[len(prefix):] if path.startswith(prefix) else path
+
+
 def classify_instruction(path: str, home: str) -> str:
-    p = path.replace(home, "~", 1) if path.startswith(home) else path
+    p = _tilde(path, home)
     if "/.claude/rules/" in p:
         return "rules"
     if p.endswith("/memory/MEMORY.md"):
@@ -202,7 +209,7 @@ def from_transcript(path: str, home: str):
     for instr in seen.get("instructions", []):
         for f in _dicts(instr.get("files")):
             p = str(f.get("path") or "?")
-            rows.append(row(p.replace(home, "~", 1), classify_instruction(p, home),
+            rows.append(row(_tilde(p, home), classify_instruction(p, home),
                             nbytes(f.get("content")), "measured", path=p))
 
     sls = seen.get("skill_listing", [])
@@ -485,18 +492,18 @@ def from_disk(home: str, cwd: str):
             if rp in seen:
                 continue
             seen.add(rp)
-            rows.append(row(p.replace(home, "~", 1), "rules", file_size(p), "measured", path=p))
+            rows.append(row(_tilde(p, home), "rules", file_size(p), "measured", path=p))
     for p in chain:
         rp = os.path.realpath(p)
         if rp in seen or not os.path.isfile(p):
             continue
         seen.add(rp)
-        rows.append(row(p.replace(home, "~", 1), "claude_md", file_size(p), "measured", path=p,
+        rows.append(row(_tilde(p, home), "claude_md", file_size(p), "measured", path=p,
                         note="@imports not followed"))
 
     mem = os.path.join(cl, "projects", encode_project(os.path.abspath(cwd)), "memory", "MEMORY.md")
     if os.path.isfile(mem):
-        rows.append(row(mem.replace(home, "~", 1), "memory_index", file_size(mem), "measured",
+        rows.append(row(_tilde(mem, home), "memory_index", file_size(mem), "measured",
                         path=mem, note="full file; the harness may truncate"))
 
     # user scope, then project scope (cwd and ancestors)

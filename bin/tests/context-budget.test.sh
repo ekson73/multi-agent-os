@@ -352,6 +352,13 @@ printf 'More documentation that is not loaded as a listing.\n' >> "$P9/commands/
 o="$("$CB" --mode disk --home "$H9" --cwd "$W9" --json)"
 eq 84 "$(printf '%s' "$o" | jq_ 'd["by_category"]["agents"]["bytes"]+d["by_category"]["commands"]["bytes"]')" 'disk: documentation edits do not change listing estimate'
 
+# --- home abbreviation is lexical and only replaces a complete path prefix
+printf '%s\n' '{"type":"attachment","attachment":{"type":"instructions","files":[{"path":"/fake/home","content":"a"},{"path":"/fake/home/r.md","content":"bb"},{"path":"/fake/home-other/r.md","content":"ccc"},{"path":"/srv/fake/home/r.md","content":"dddd"}]}}' > "$T/path-labels.jsonl"
+o="$("$CB" --mode transcript --transcript "$T/path-labels.jsonl" --home /fake/home --json)"
+eq '~|~/r.md|/fake/home-other/r.md|/srv/fake/home/r.md' "$(printf '%s' "$o" | jq_ '"|".join(r["source"] for r in d["sources"])')" 'paths: shorten only exact home and home descendants'
+eq '/fake/home|/fake/home/r.md|/fake/home-other/r.md|/srv/fake/home/r.md' "$(printf '%s' "$o" | jq_ '"|".join(r["path"] for r in d["sources"])')" 'paths: original machine paths remain unchanged'
+eq '4:10' "$(printf '%s' "$o" | jq_ 'str(len(d["sources"]))+":"+str(d["total"]["bytes"])')" 'paths: source count and content byte total unchanged'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac

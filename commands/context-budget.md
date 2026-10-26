@@ -32,6 +32,7 @@ measurement; disk mode over-estimates listings because the harness truncates des
 
 - Tokens are `bytes/4`, an **estimate**, not a tokenizer count.
 - `status`: `measured` · `estimated` · `not_measured` · `skipped`.
+- Source labels abbreviate only the exact home directory or its descendants; the original `path` field is unchanged.
 - An attachment type the tool does not recognise is reported as `unknown:<type>`
   (category `unknown`, status `estimated`, size of the serialized JSON, `count` = occurrences).
 - `skipped non-object records` counts transcript lines that are valid JSON but not an object
