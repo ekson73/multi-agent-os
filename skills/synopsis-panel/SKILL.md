@@ -85,6 +85,15 @@ HITL       → ┌────────────────────�
 > **lê** o punch-list. A única lógica nova é a fusão (juntar um item HITL à pendência
 > certa por token de Link/ID) + os renderers.
 
+
+## Modo AskUserQuestion (hitl-digest)
+
+`synopsis-fuse.py --hitl-only --format ask-user-question --consumer <classe>` entrega os cards do
+digest HITL prontos para a ferramenta `AskUserQuestion`, só para consumidor `human-live` num harness
+que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e `machine` o `json` de sempre.
+Contrato, fontes das opções e regra de recomendação: `commands/hitl-digest.md` §Modo
+AskUserQuestion. Testes: `tests/test_synopsis_hitl_auq.py`.
+
 ## Parte cognitiva (o que o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
 1. **Escopo / world** — o pedido é do panorama todo, da sessão, do repo atual, do vault?

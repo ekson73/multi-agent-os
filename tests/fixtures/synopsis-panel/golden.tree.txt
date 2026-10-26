@@ -1,0 +1,11 @@
+# Synopsis — pendências + HITL (N-Tree)
+
+> 0 pendencies (0 flagged) · 5 HITL (0 attached, 5 standalone) · scope=all
+> HITL ledger: `<TMP>/punch-list.md`
+
+- **HITL (human-domain 👤)** (5)
+  - ⏫🟡 H-0901 [negocio/R1] Escolher o nome do painel  (pediu agente · prazo -)
+  - ⏫🔴 H-0902 [credencial/R3] Credencial de teste: opções: usar a chave A só para leitura, outra credencial, ou adiar  (pediu operador · prazo -)
+  - ⏫🟠 H-0903 [envio/R2] Aprovar o rascunho de e-mail de teste antes do envio  (pediu agente · prazo -)
+  - ⏫🟠 H-0904 [gasto/R2] Subir a máquina de teste paga  (pediu operador · prazo -)
+  - ⏫🔴 H-0905 [irreversivel/R3] Apagar o diretório legado de teste  (pediu agente · prazo -)

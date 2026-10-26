@@ -1,0 +1,100 @@
+{
+  "artifact": "synopsis-panel",
+  "title": "Synopsis — pendências + HITL (N-Tree)",
+  "schema": "synopsis-panel/v1",
+  "meta": {
+    "generated_utc": "<TS>",
+    "compass_count": 0,
+    "compass_candidates": 0,
+    "hitl_count": 5,
+    "hitl_attached": 0,
+    "hitl_orphan": 5,
+    "scope": "",
+    "compass_unavailable": [],
+    "hitl_source": "<TMP>/punch-list.md",
+    "hitl_source_kind": "md-explicit",
+    "hitl_source_dirty": null,
+    "hitl_source_behind": null,
+    "hitl_warning": null,
+    "sources": {
+      "pendencies": "work-compass-aggregate.py --json (SSOT)",
+      "priority": "work-compass --sort eisenhower (SSOT)",
+      "hitl": "hitl-punch-list.py / punch-list.md (SSOT)"
+    }
+  },
+  "tree": {
+    "domains": {},
+    "hitl_unattached": [
+      {
+        "id": "H-0901",
+        "sev": "NORMAL",
+        "tipo": "negocio",
+        "risk": "R1",
+        "decidir": "Escolher o nome do painel",
+        "pediu": "agente",
+        "prazo": "-",
+        "status": "pendente",
+        "link": "[EX-1](https://example.invalid/EX-1)",
+        "glyph": "🟡",
+        "flag": "⏫",
+        "human": "👤"
+      },
+      {
+        "id": "H-0902",
+        "sev": "URGENTE",
+        "tipo": "credencial",
+        "risk": "R3",
+        "decidir": "Credencial de teste: opções: usar a chave A só para leitura, outra credencial, ou adiar",
+        "pediu": "operador",
+        "prazo": "-",
+        "status": "pendente",
+        "link": "[EX-2](https://example.invalid/EX-2)",
+        "glyph": "🔴",
+        "flag": "⏫",
+        "human": "👤"
+      },
+      {
+        "id": "H-0903",
+        "sev": "ALTA",
+        "tipo": "envio",
+        "risk": "R2",
+        "decidir": "Aprovar o rascunho de e-mail de teste antes do envio",
+        "pediu": "agente",
+        "prazo": "-",
+        "status": "pendente",
+        "link": "(sem ticket)",
+        "glyph": "🟠",
+        "flag": "⏫",
+        "human": "👤"
+      },
+      {
+        "id": "H-0904",
+        "sev": "ALTA",
+        "tipo": "gasto",
+        "risk": "R2",
+        "decidir": "Subir a máquina de teste paga",
+        "pediu": "operador",
+        "prazo": "-",
+        "status": "pendente",
+        "link": "[EX-4](https://example.invalid/EX-4)",
+        "glyph": "🟠",
+        "flag": "⏫",
+        "human": "👤"
+      },
+      {
+        "id": "H-0905",
+        "sev": "URGENTE",
+        "tipo": "irreversivel",
+        "risk": "R3",
+        "decidir": "Apagar o diretório legado de teste",
+        "pediu": "agente",
+        "prazo": "-",
+        "status": "pendente",
+        "link": "[EX-5](https://example.invalid/EX-5)",
+        "glyph": "🔴",
+        "flag": "⏫",
+        "human": "👤"
+      }
+    ]
+  }
+}

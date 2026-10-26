@@ -33,7 +33,8 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 ## Usage
 
 ```text
-/hitl-digest [--scope current|session|repo|vault|all] [--format tree|mermaid|html|json]
+/hitl-digest [--scope current|session|repo|vault|all] [--format tree|mermaid|html|json|ask-user-question]
+             [--consumer human-live|human-deferred|machine]
              [--with-pendencies] [--hitl-md PATH] [--title TEXT]
 ```
 
@@ -42,7 +43,8 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | Param | Default | Effect |
 |-------|---------|--------|
 | `--scope` | `all` | recorte do panorama (repassado ao `work-compass` quando `--with-pendencies`) |
-| `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
+| `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) · `ask-user-question` (payload p/ a ferramenta AskUserQuestion — ver §Modo AskUserQuestion) |
+| `--consumer` | `human-live` | só com `ask-user-question`: classe de consumidor do §7.0 (`human-live` · `human-deferred` · `machine`) — o agente decide |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
 | `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca), que resolve a cópia do **working tree**. O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
 | `--title TEXT` | *(pt-BR default)* | rótulo do digest |
@@ -108,6 +110,44 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 > echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md /tmp/ledger.md --format tree
 > ```
 
+## Modo AskUserQuestion (`--format ask-user-question`)
+
+Quando o harness tem a ferramenta `AskUserQuestion` (Claude Code ou compatível) **e** o
+consumidor é `human-live` (`end-of-action-briefing-protocol` §7.0), o agente apresenta as
+decisões HITL pela ferramenta em vez das letras do digest em texto. Spec: `hitl-digest-spec`
+§0 (uma só superfície de resposta). O script não enxerga a ferramenta nem o leitor: quem
+classifica é o agente, que passa `--consumer`.
+
+| `--consumer` | Saída |
+|---|---|
+| `human-live` | envelope `hitl-digest/ask-user-question/v1`: `preamble` (linhas de texto) + `ask_user_question.questions` (pronto para a ferramenta) |
+| `human-deferred` | o digest em texto de sempre (`tree`), byte a byte |
+| `machine` | o envelope JSON de sempre (`json`); nunca um digest em texto |
+
+Regras do payload (cada uma vem do spec, nenhuma é nova):
+- 1 card = 1 pergunta; `header` = o id `H-NNNN` (≤12 colunas); `multiSelect: false`.
+- No máximo 3 cards; um 4º só quando há mais de 3 itens ⏫ (URGENTE). O resto vai para a linha
+  `⏭ próximo digest`, que não é respondível.
+- Opções, nesta ordem de fonte: (1) `options` estruturadas no item (`--hitl-json`); (2) as opções
+  que a própria linha do ledger lista (`opções: a, b, ou c`); (3) as disposições do TIPO do item
+  (credencial · gasto · irreversível · envio · negócio) + `Manter pendente`. Nunca inventadas por item.
+- `(recomendado)` só na opção estruturada com `recommended: true` **e** `evidence` (§3: sem ponteiro
+  de evidência não há recomendação). Ela vem primeiro. Sem ela, o preâmbulo diz
+  `sem recomendação: falta ponteiro de evidência`.
+- O preâmbulo traz o cabeçalho com o código `K<YYMMDD>-<HHMM>-<s8>` (UTC; sem id de sessão raiz, sem
+  código), a linha de contagem, uma linha `· … aberta no AskUserQuestion` por card (registro durável,
+  sem letras e sem `Responda:`), o `⏭` e `harness · repo · sessão`. Cada linha cabe em 80 colunas.
+- Determinístico: mesma entrada + `--now` + `--session-id` ⇒ mesmo payload.
+
+```bash
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format ask-user-question \
+  --consumer human-live --harness "Claude Code" --repo "$(basename "$PWD")"
+```
+
+O agente imprime o `preamble` como texto e chama `AskUserQuestion` com
+`ask_user_question.questions`. Se a pergunta expirar sem resposta, o próximo digest a faz em texto,
+com letras (§0).
+
 ## Examples
 
 ```text
@@ -115,6 +155,7 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 /hitl-digest --format html                     # página autônoma estilo hitl-digest
 /hitl-digest --with-pendencies --scope repo    # pendências do repo + os HITL anexados
 /hitl-digest --format json                     # envelope JSON p/ outro agente consumir
+/hitl-digest --format ask-user-question        # cards prontos p/ a ferramenta AskUserQuestion
 ```
 
 ## Fronteiras (o que este command NÃO faz)

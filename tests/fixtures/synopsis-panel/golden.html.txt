@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Synopsis — pendências + HITL (N-Tree)</title>
+<style>
+ :root{--bg:#0d1117;--fg:#e6edf3;--mut:#8b949e;--line:#21262d;--hitl:#f85149;--alta:#d29922;--flag:#58a6ff}
+ @media(prefers-color-scheme:light){:root{--bg:#fff;--fg:#1f2328;--mut:#656d76;--line:#d0d7de}}
+ body{background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;margin:0;padding:2rem}
+ h1{font-size:1.2rem;margin:0 0 .25rem} .sub{color:var(--mut);margin:0 0 1.5rem;font-size:.85rem}
+ details{border:1px solid var(--line);border-radius:8px;margin:.5rem 0;padding:.5rem .75rem}
+ summary{cursor:pointer;font-weight:600} ul{list-style:none;margin:.4rem 0;padding-left:1.1rem}
+ li{margin:.2rem 0} .id{color:var(--flag);font-weight:600}
+ .b{font-size:.72rem;padding:.05rem .4rem;border-radius:999px;margin-left:.3rem}
+ .b.hitl{background:var(--hitl);color:#fff} .b.flag{background:var(--flag);color:#fff}
+ .hl{color:var(--mut)} .hl.urgente{color:var(--hitl)} .hl.alta{color:var(--alta)}
+ em{color:var(--mut);font-style:normal} small{color:var(--mut)}
+ .warn{border:1px solid var(--alta);border-left:4px solid var(--alta);border-radius:6px;
+   padding:.5rem .75rem;margin:0 0 1rem;color:var(--fg);font-size:.85rem}
+ code{color:var(--flag)}
+</style></head><body>
+<h1>Synopsis — pendências + HITL (N-Tree)</h1>
+<p class="sub">0 pend&ecirc;ncias (0 flagged) &middot;
+5 HITL (0 attached / 5 standalone) &middot;
+scope=all &middot; gerado <TS>Z</p>
+<p class="sub">HITL ledger: <code><TMP>/punch-list.md</code></p>
+<details open><summary>👤 HITL human-domain <small>(5)</small></summary><ul><li class="hl normal">🟡 H-0901 <em>[negocio/R1]</em> Escolher o nome do painel <small>pediu agente · prazo -</small></li><li class="hl urgente">🔴 H-0902 <em>[credencial/R3]</em> Credencial de teste: opções: usar a chave A só para leitura, outra credencial, ou adiar <small>pediu operador · prazo -</small></li><li class="hl alta">🟠 H-0903 <em>[envio/R2]</em> Aprovar o rascunho de e-mail de teste antes do envio <small>pediu agente · prazo -</small></li><li class="hl alta">🟠 H-0904 <em>[gasto/R2]</em> Subir a máquina de teste paga <small>pediu operador · prazo -</small></li><li class="hl urgente">🔴 H-0905 <em>[irreversivel/R3]</em> Apagar o diretório legado de teste <small>pediu agente · prazo -</small></li></ul></details>
+<p class="sub">Fontes (SSOT, n&atilde;o reimplementadas): work-compass &middot; eisenhower &middot; hitl punch-list.</p>
+</body></html>
