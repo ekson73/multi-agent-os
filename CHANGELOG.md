@@ -47,13 +47,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   whitespace is stripped, and `A` is not `a`. The JSON path reads the writer's single
   `session_id` field. The `Sessão` column is located by the header, so its position in
   the table cannot shift the other columns.
-- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (33 cases, real
-  ledgers in the writer's table format and real CLI subprocesses, no mocks): the default
-  narrows to the calling conversation, an explicit `--scope all` widens, a pendency scope
-  never widens, a legacy item stays out of the session scope, a chat mention does not
-  grant ownership, an unresolved identity shows nothing and says why, the general panel
-  keeps the whole ledger, the pure path never invokes the collector, the id match is
-  exact, and an identity that is only separators or a marker is not an identity.
+- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (real ledgers in
+  the writer's table format and real CLI subprocesses, no mocks): the default narrows to
+  the calling conversation, an explicit `--scope all` widens, a pendency scope never
+  widens, a legacy item stays out of the session scope, a chat mention does not grant
+  ownership, an unresolved identity shows nothing and says why, the general panel keeps
+  the whole ledger, the pure path never invokes the collector, the id match is exact, and
+  an identity that is only separators or a marker is not an identity.
 
 ### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
 
