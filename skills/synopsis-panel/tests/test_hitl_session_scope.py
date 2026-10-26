@@ -314,6 +314,135 @@ def test_the_process_scoped_session_id_is_not_the_conversation(synopsis_fuse):
     assert ident["resolved"] is False
 
 
+def _native_header(tmp_path, session_id, parent=None, **extra):
+    path = tmp_path / f"2026-10-14T22-21-56-389Z_{session_id}.jsonl"
+    header = {"type": "session", "version": 3, "id": session_id}
+    if parent is not None:
+        header["parentSession"] = parent
+    header.update(extra)
+    # Only these first two entries are metadata. The invalid body must never be read.
+    path.write_text(json.dumps({"type": "title", "title": "test"}) + "\n"
+                    + json.dumps(header) + "\n{not-a-header-or-valid-json\n",
+                    encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("reference", ["id", "file", "missing-file", "missing-id"])
+def test_native_recovery_keeps_explicit_origin(script_path, tmp_path, reference):
+    origin = _native_header(tmp_path, SESSION_A)
+    parent = SESSION_A if reference in ("id", "missing-id") else str(origin)
+    recovered = _native_header(tmp_path, SESSION_B, parent)
+    if reference in ("missing-file", "missing-id"):
+        origin.unlink()
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(recovered)))
+    assert envelope["meta"]["hitl_session_resolved"] is True
+    assert envelope["meta"]["hitl_session_ids"] == [SESSION_B, SESSION_A]
+    assert _ids(envelope) == ["H-0001", "H-0002"]
+    assert envelope["meta"]["hitl_count"] == 2
+    assert envelope["meta"]["hitl_ledger_total"] == 3
+
+
+@pytest.mark.parametrize("depth", [2, 5])
+def test_native_uuid_parent_chain_reaches_immutable_origin(script_path, tmp_path, depth):
+    ids = [f"{n:08x}-1111-4111-8111-{n:012x}" for n in range(1, depth + 1)]
+    ids.append(SESSION_A)
+    for index, session_id in enumerate(ids):
+        parent = ids[index + 1] if index + 1 < len(ids) else None
+        _native_header(tmp_path, session_id, parent)
+    current = tmp_path / f"2026-10-14T22-21-56-389Z_{ids[0]}.jsonl"
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(current)))
+    assert envelope["meta"]["hitl_session_ids"] == ids
+    assert envelope["meta"]["hitl_session_resolved"] is True
+    assert _ids(envelope) == ["H-0001"]
+
+
+def test_ambiguous_uuid_parent_files_fail_closed(script_path, tmp_path):
+    origin = _native_header(tmp_path, SESSION_A)
+    duplicate = tmp_path / f"2026-10-15T22-21-56-389Z_{SESSION_A}.jsonl"
+    duplicate.write_bytes(origin.read_bytes())
+    current = _native_header(tmp_path, SESSION_B, SESSION_A)
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(current)))
+    assert envelope["meta"]["hitl_session_resolved"] is False
+    assert envelope["meta"]["hitl_session_ids"] == []
+    assert envelope["meta"]["hitl_scope_unresolved"]
+    assert _ids(envelope) == []
+
+
+def test_native_worker_reads_the_adjacent_root_not_its_own_header(script_path, tmp_path):
+    root = _native_header(tmp_path, SESSION_A)
+    worker = root.parent / root.stem / "Worker.jsonl"
+    worker.parent.mkdir()
+    worker.write_text(json.dumps({"type": "session", "id": SESSION_B}) + "\n",
+                      encoding="utf-8")
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(worker), PI_SESSION_ID=SESSION_B))
+    assert envelope["meta"]["hitl_session_ids"] == [SESSION_A]
+    assert _ids(envelope) == ["H-0001"]
+
+
+def test_native_headers_do_not_use_the_prompt_cache_key(script_path, tmp_path):
+    native = _native_header(tmp_path, SESSION_B, providerPromptCacheKey=SESSION_A)
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(native)))
+    assert envelope["meta"]["hitl_session_ids"] == [SESSION_B]
+    assert _ids(envelope) == ["H-0002"]
+
+
+@pytest.mark.parametrize("reference", ["file", "id"])
+def test_native_parent_cycle_fails_closed(script_path, tmp_path, reference):
+    origin = _native_header(tmp_path, SESSION_A)
+    recovered = _native_header(
+        tmp_path, SESSION_B, SESSION_A if reference == "id" else str(origin))
+    _native_header(tmp_path, SESSION_A,
+                   SESSION_B if reference == "id" else str(recovered))
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(recovered)))
+    assert envelope["meta"]["hitl_session_resolved"] is False
+    assert envelope["meta"]["hitl_session_ids"] == []
+    assert envelope["meta"]["hitl_scope_unresolved"]
+    assert _ids(envelope) == []
+
+
+@pytest.mark.parametrize("header", [
+    {"id": SESSION_A},
+    {"parentSession": [SESSION_A, SESSION_B]},
+    {"parentSession": "ambiguous-reference"},
+    {"parentSession": SESSION_B},
+])
+def test_ambiguous_native_headers_fail_closed(script_path, tmp_path, header):
+    native = _native_header(tmp_path, SESSION_B, **header)
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(native)))
+    assert envelope["meta"]["hitl_session_resolved"] is False
+    assert envelope["meta"]["hitl_scope_unresolved"]
+    assert _ids(envelope) == []
+
+
+@pytest.mark.parametrize("override", ["flag", "environment"])
+def test_identity_override_never_expands_to_native_ancestors(
+        script_path, tmp_path, override):
+    native = _native_header(tmp_path, SESSION_B, SESSION_A)
+    env = _clean_env(PI_SESSION_FILE=str(native))
+    flags = []
+    if override == "flag":
+        flags = ["--session-id", SESSION_B]
+    else:
+        env["MAOS_SELF_SESSION_ID"] = SESSION_B
+    envelope = _run(script_path, _ledger(tmp_path), *flags, env=env)
+    assert envelope["meta"]["hitl_session_ids"] == [SESSION_B]
+    assert _ids(envelope) == ["H-0002"]
+
+
+def test_arbitrary_uuid_directory_is_not_native_parent_provenance(synopsis_fuse):
+    ident = synopsis_fuse.resolve_session_identity(
+        None, {"PI_SESSION_FILE": f"/tmp/{SESSION_A}/Worker.jsonl"})
+    assert ident["resolved"] is False
+    assert ident["ids"] == []
+
+
 def test_an_empty_session_id_does_not_shadow_the_environment(synopsis_fuse):
     """An empty --session-id carries no claim; the environment still answers."""
     ident = synopsis_fuse.resolve_session_identity(

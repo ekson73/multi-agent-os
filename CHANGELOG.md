@@ -33,6 +33,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
 
+### Fixed — preserve HITL ownership across native OMP recovery
+
+- `synopsis-fuse.py` now follows only explicit `parentSession` references in native
+  OMP session headers when resolving the default session scope. A worker reads its
+  adjacent root JSONL, not its own process header. This keeps gates recorded under
+  the original session visible after recovery under a new ID without rewriting provenance.
+- Explicit identity overrides remain exact. UUID-only parents resolve a unique native
+  file with that exact UUID in the same collection and continue through its header.
+  A missing parent file proves that parent only; multiple candidates, cycles, ambiguous
+  references and header/filename conflicts fail closed. No prompt-cache key, cwd/title
+  inference, other-collection search or session index is used.
+- Regression coverage exercises both native layouts, two-/five-hop UUID recovery,
+  missing parents, cycles, ambiguous parent files, conflicting headers, ignored cache
+  keys and override isolation through the pure CLI path.
+
 ### Fixed — the HITL digest shows THIS conversation's gates by default, and the whole ledger only when asked
 
 - **The defect.** `hitl/punch-list.md` is ONE global queue — every conversation's gates
@@ -57,13 +72,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not treat a same-cwd, same-title or same-operator conversation as the same one.
 - **Identity is the invoking conversation, and it fails closed.** Resolution order:
   `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` →
-  `CLAUDE_SESSION_ID` → the uuid in the *name* of `PI_SESSION_FILE` (or in the name of
-  its parent directory, the layout the harness uses for a delegated run). `PI_SESSION_ID`
-  is deliberately NOT consulted: it is per *process*, so a delegated run would resolve
-  the executor's id instead of the conversation's and report "0 gates for this
-  conversation" where the truth is "identity unknown". A delegated (sub-agent) run never
-  inherits its parent's identity: whoever executes it passes `--session-id` with the id of
-  the conversation behind the request. When no identity resolves, the render shows
+  `CLAUDE_SESSION_ID` → native `PI_SESSION_FILE` headers and their explicit
+  `parentSession` chain. A worker uses the adjacent native root JSONL, not its own
+  process header. A UUID-only parent resolves only a unique matching native file in
+  the same collection; a missing parent file proves that parent only. Explicit
+  CLI/environment overrides stay exact and do not expand ancestry. `PI_SESSION_ID`
+  is deliberately NOT consulted: it is per process, not the invoking conversation.
+  When no identity resolves, the render shows
   **nothing** and states why — it never falls back to "all" and never claims the queue
   is empty, because "I do not know whose this is" is not "there is nothing". Every render
   names the scope it applied; the JSON envelope carries `meta.hitl_scope`,
