@@ -1,6 +1,6 @@
 # AWARENESS-REGISTRY.md — Claude-Code platform landscape (the concierge payload)
 
-> **Companion to** `SKILL.md` (claude-code-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
+> **Companion to** `SKILL.md` (claude-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
 > **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-06-13.
 > **Convention**: this registry is *referenced*, not duplicated, by callers. Counts/paths are point-in-time — `--mode=doctor --health-check` re-derives from the live config and flags drift. The authoritative "how" is ALWAYS the current official docs (`--mode=research`), not this table — this orients; docs decide.
 

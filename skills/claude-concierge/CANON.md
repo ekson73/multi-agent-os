@@ -1,6 +1,6 @@
 # CANON.md — Canonical Claude-Code platform decisions (anchor-mode SSOT)
 
-> **Companion to** `SKILL.md` (claude-code-concierge). This is the `--mode=anchor` source-of-truth.
+> **Companion to** `SKILL.md` (claude-concierge; decisions C1–C9 are scoped to the Claude Code surface). This is the `--mode=anchor` source-of-truth.
 > **Why repo-local:** a fresh-amnesic agent or new teammate must re-find the binding platform rules instead of re-deriving (or contradicting) them.
 > **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-06-13. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
 > **How `--mode=anchor` uses this:** surface the relevant decision on demand; if a project artifact contradicts a decision here, emit `decision + contradiction + corrective pointer`.

@@ -1,5 +1,7 @@
 # The Forge — 33 Socratic Questions (self-executed) → `claude-code-concierge` spec
 
+> Historical spec: written for the v1 name `claude-code-concierge`; the skill is now `claude-concierge` v2.0.0 (multi-surface). Kept unchanged as the genesis record.
+
 > Per the Forge discipline: *"Execute internally BEFORE creating any agentic-tool. The answers form the spec."*
 > Self-executed 2026-06-13 for **claude-code-concierge** (soul-name *Cicerone*). The answers below ARE the
 > design contract that `SKILL.md` implements. Vendor-neutral (MIT). Mirrors sibling concierges' format.

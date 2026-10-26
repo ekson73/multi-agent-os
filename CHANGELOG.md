@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
+
+- **Scope widened** from Claude Code only to six surfaces: claude.ai web, desktop, Claude Code
+  (CLI/IDE), Projects, bots/agents (Claude in Slack, Claude in Chrome, Agent SDK, Managed Agents)
+  and Duet. Each surface has its own `references/surfaces/<surface>.md`, sourced from official
+  docs on 2026-10-26; unsourced facts are marked NOT VERIFIED.
+- **Progressive disclosure:** the SKILL.md body is a lean router (surface → reference → route);
+  the old AWARENESS-REGISTRY moved to `references/surfaces/code.md`.
+- **Compatibility:** `skills/claude-code-concierge/` stays as a thin deprecated alias. No slash
+  command wrapper was added (repo policy from #407: skills are already `/`-invokable).
+- Cross-references in sibling concierges, the lifecycle protocol and `skills/README.md` now name
+  `claude-concierge`.
 ### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
 
 - **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`

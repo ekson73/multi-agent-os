@@ -26,7 +26,7 @@ evals:
     - "What does rig seat clear-attention need?"
   should_not_trigger:
     - "Change OpenRig's own source code or open a PR on mvschwarz/openrig"
-    - "Explain how Claude Code skills or plugins work (route to claude-code-concierge)"
+    - "Explain how Claude Code skills or plugins work (route to claude-concierge)"
     - "Onboard me to the MAOS framework (route to maos-concierge)"
     - "Create a git worktree for this feature (route to worktree-policy)"
     - "Delegate this task to subagents (route to delegate-governance / auto-pilot)"
@@ -239,7 +239,7 @@ Dormant by design otherwise.
 ## Cross-refs
 
 [`worktree-policy`](../worktree-policy/SKILL.md) · [`delegate-governance`](../delegate-governance/SKILL.md) ·
-[`maos-concierge`](../maos-concierge/SKILL.md) · [`claude-code-concierge`](../claude-code-concierge/SKILL.md) ·
+[`maos-concierge`](../maos-concierge/SKILL.md) · [`claude-concierge`](../claude-concierge/SKILL.md) ·
 [`agentic-tool-forge`](../agentic-tool-forge/SKILL.md) · [`anima`](../anima/SKILL.md) ·
 [`rule-quality-tests`](../rule-quality-tests/SKILL.md) · [`agentic-tool-evaluator`](../agentic-tool-evaluator/SKILL.md).
 Upstream: https://github.com/mvschwarz/openrig (Apache-2.0) · https://www.openrig.dev/docs.
