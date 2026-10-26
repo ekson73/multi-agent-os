@@ -8,7 +8,7 @@
 
 | # | Case | Result | Evidence |
 |---|---|---|---|
-| A | Routing: "install a Claude Code plugin marketplace at project scope" → claude-code-concierge | PASS | harness-concierge `should_not_trigger[0]` routes it; claude-code-concierge gains the reverse hand-off row (routing table) + `should_not_trigger` entry for non-Claude harness MCP. Mutually consistent. Static check only. |
+| A | Routing: "install a Claude Code plugin marketplace at project scope" → claude-concierge | PASS | harness-concierge `should_not_trigger[0]` routes it; claude-concierge gains the reverse hand-off row (routing table) + `should_not_trigger` entry for non-Claude harness MCP. Mutually consistent. Static check only. |
 | B | `--harness nonexistent-tool` | PASS | exit 2, `error: unknown harness id(s): nonexistent-tool`; Protocol §1 mandates research → add YAML with `confidence: low`, never recall paths. |
 | C | Dry-run never writes | PASS | sha of every file under temp HOME identical before/after `plan`; state-dir empty. |
 | D | 2nd apply = empty plan | PASS | all servers `unchanged`, `apply: nothing-to-do`, `backup_ts: -`; `verify: clean`. |
@@ -24,7 +24,7 @@ Repo suite `bash bin/tests/harness-mcp-sync.test.sh`: **86 passed, 0 failed** at
 | Dimension | Score | Note |
 |---|---|---|
 | Clarity | 5 | Layer table, 7-step tiered protocol, audit-able safety rules. |
-| Triggerability | 4 | Good should/should-not sets; description also lists "skills/plugins/marketplace surfaces", overlapping claude-code-concierge's lexical territory; no `/slash` wrapper (`commands/harness-concierge.md` absent). |
+| Triggerability | 4 | Good should/should-not sets; description also lists "skills/plugins/marketplace surfaces", overlapping claude-concierge's lexical territory; no `/slash` wrapper (`commands/harness-concierge.md` absent). |
 | DRY | 5 | Facts in registry YAML, shapes in one `STYLES` table, routes out instead of duplicating. |
 | Safety | 5 | Plan-first, backups, atomic, 600, conflict-not-overwrite, comment-refusal, secret masking all verified. |
 
@@ -33,5 +33,5 @@ Repo suite `bash bin/tests/harness-mcp-sync.test.sh`: **86 passed, 0 failed** at
 ## Top improvements (→ agentic-tool-trainer)
 
 1. ✅ DONE (red-team round) — Unknown-harness error should name the next step (`add harnesses/<id>.yaml with confidence: low after research`) so the executor output mirrors Protocol §1.
-2. ✅ description tightened (slash wrapper deferred — skills are invocable directly) — Tighten the description: say "non-Claude-Code harnesses' skills/plugin surfaces" to reduce collision with claude-code-concierge on marketplace/plugin queries; add a `/harness-concierge` command wrapper if human slash invocation is intended.
+2. ✅ description tightened (slash wrapper deferred — skills are invocable directly) — Tighten the description: say "non-Claude-Code harnesses' skills/plugin surfaces" to reduce collision with claude-concierge on marketplace/plugin queries; add a `/harness-concierge` command wrapper if human slash invocation is intended.
 3. PARTIAL — `--adopt` conflict and `restore` round-trip tests now exist; still open: run a true with/without sub-agent trigger eval (case A was static), and add explicit test cases for `--adopt` conflict and `restore` round-trip to the fixture set.

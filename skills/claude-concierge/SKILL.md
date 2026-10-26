@@ -59,7 +59,7 @@ A non-safety nicety (verbose teaching, an optional dashboard panel) may be skipp
 
 ## Modes
 
-`--mode=explain` (default) teach the surface map · `compare` pick the right surface for an intent · `guide` intent → route + exact command/path · `research` cite current docs for a "how" · `install` guarded Claude Code install (CANON C6 confirm-gated sequence; shell commands are not pre-approved and prompt as usual) · `doctor` read-only health-check (`--health-check`) or `--self-test` · `dashboard` local Claude Code state (code reference) · `anchor` surface a CANON decision and flag drift. `--format=md|json`.
+`--mode=explain` (default) teach the surface map · `compare` pick the right surface for an intent · `guide` intent → route + exact command/path · `research` cite current docs for a "how" · `install` guarded Claude Code install (CANON C6 confirm-gated sequence; shell commands are not pre-approved and prompt as usual) · `doctor` read-only health-check (`--health-check`) or `--self-test` (runs local commands such as `claude mcp list`; shell commands are not pre-approved and prompt as usual) · `dashboard` local Claude Code state (code reference; runs local commands such as `git worktree list`, which prompt as usual) · `anchor` surface a CANON decision and flag drift. `--format=md|json`.
 
 ## Governance (binding)
 

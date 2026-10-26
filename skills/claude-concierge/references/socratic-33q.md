@@ -23,7 +23,7 @@
 10. **Claude Code tools needed?** — `Read`, `Glob`, `Grep` (capability detection + health-check), `Bash` (`command -v claude`, `claude mcp list`, `claude plugin …`, `git worktree list`), `WebFetch`/`WebSearch` (official docs — the core research muscle). `Write` only for the on-request `dashboard.html` companion (it orients/researches; it does not mutate config except in confirm-gated `--mode=install`, which uses the `claude` CLI via Bash, not file edits).
 11. **External sources to consult?** — `code.claude.com/docs` (authoritative), `docs.claude.com`/`docs.anthropic.com`, `github.com/anthropics/*`, each tool's own docs (via `find-docs`/Context7/ref-tools), and the `claude-code-guide` agent for feature Q&A.
 12. **Patterns/conventions to follow?** — The concierge family template (Identity/DNA/Phase-0/Decision-Matrix/Modes/Governance/DoR/DoD/KPIs/Cross-refs); kebab-case; vendor-neutral MIT (layer purity — NO corporate content); ISO-8601 dates; soul-name display-only (envelope-safety).
-13. **Warm-start context?** — `references/surfaces/*.md` (per-surface landscape) + `CANON.md` (canonical decisions) + Phase-0 capability detection of the current host/repo.
+13. **Warm-start context?** — `AWARENESS-REGISTRY.md` (landscape) + `CANON.md` (canonical decisions) + Phase-0 capability detection of the current host/repo.
 14. **Autonomy level?** — **Consultative** for explain/onboard/guide/research/dashboard (orients/researches, caller executes); **read-only** for doctor/anchor (proposes, never mutates); **guarded-autonomous** for install (confirm-gated, capability-detected, verified). Never autonomous over irreversible/secret/cross-org/enterprise changes.
 
 ## Limits (15-21)
