@@ -25,6 +25,10 @@ Usage
                   or '-' for stdin. If omitted, the script CALLS the engine itself
                   (slower: it runs the live collectors).
   --hitl-md       path to the HITL SSOT markdown (default: discover the punch-list.md).
+                  Discovery resolves the WORKING-TREE copy, which is correct for a human
+                  editing the ledger on purpose. Every render therefore NAMES the file it
+                  read, and WARNS when that file is modified relative to HEAD or its repo
+                  is behind its upstream — an item count can match while the items differ.
   --hitl-json     path to a pre-parsed HITL JSON array, or '-' for stdin (skips the md parse).
   --format        which render to emit (default tree).
   --self-heal     on a renderer/parse error, print a structured repair-request
@@ -96,6 +100,80 @@ def find_hitl_md() -> Path | None:
         for g in base.glob("**/hitl/punch-list.md"):
             return g
     return None
+
+
+# ── ledger PROVENANCE (say which file was read; warn when it is not the tracked one) ─
+# WHY: find_hitl_md() resolves the WORKING-TREE copy of the ledger. That is the right
+# default — a human editing the ledger on purpose must see their own edits, and this
+# engine is read-only, so it must never substitute a different file behind their back.
+# But a working-tree copy can be dirty or the repo behind its upstream, and then an
+# AGENT measures a stale queue and does not know it. Measured 2026-10-26: a vault 21
+# commits behind, with a dirty ledger, rendered 16 open items — the same count as the
+# tracked one, with three closed items shown and three real ones hidden. The count
+# matching is what hid the error. So: never swap the file, always NAME it, and WARN
+# when it diverges from the tracked version.
+def _git(cwd: Path, *args: str) -> str | None:
+    """Run a read-only git command. Returns stripped stdout, or None if unavailable."""
+    if not shutil.which("git"):
+        return None
+    try:
+        p = subprocess.run(["git", "-C", str(cwd), *args],
+                           capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    return p.stdout.strip()
+
+
+def ledger_provenance(path: Path | None, kind: str = "md") -> dict:
+    """Describe WHERE the HITL ledger was read from and whether it is the tracked copy.
+
+    Pure observation: runs only read-only git queries and never rewrites, stages or
+    substitutes anything. Degrades to a bare path when git, the repo or the upstream
+    is unavailable — an absent signal is reported as unknown, never as "clean".
+    """
+    prov: dict = {"kind": kind, "path": str(path) if path else None,
+                  "in_git": False, "dirty": None, "behind": None, "warning": None}
+    if not path:
+        prov["warning"] = "HITL ledger not found (rendering a tree with zero HITL items)"
+        return prov
+    d = path.parent
+    top = _git(d, "rev-parse", "--show-toplevel")
+    if not top:
+        return prov  # not in a git repo (or no git): the absolute path is all we can say
+    prov["in_git"] = True
+    prov["repo"] = top
+    rel = _git(d, "ls-files", "--full-name", "--error-unmatch", str(path))
+    if rel is None:
+        prov["dirty"] = None
+        prov["warning"] = (f"ledger read from {path} is NOT TRACKED by the repo at {top} "
+                           f"— nothing to compare it against")
+        return prov
+    prov["tracked_as"] = rel
+    # dirty = the working-tree copy differs from HEAD for this path
+    porcelain = _git(d, "status", "--porcelain", "--", str(path))
+    prov["dirty"] = bool(porcelain)
+    # behind = commits the current branch is missing from its upstream
+    counts = _git(d, "rev-list", "--left-right", "--count", "@{upstream}...HEAD")
+    if counts:
+        parts = counts.split()
+        if len(parts) == 2 and parts[0].isdigit():
+            prov["behind"] = int(parts[0])
+    bits = []
+    if prov["dirty"]:
+        bits.append("MODIFIED relative to HEAD")
+    if prov["behind"]:
+        bits.append(f"the repo is {prov['behind']} commit(s) BEHIND its upstream")
+    if bits:
+        prov["warning"] = (
+            f"ledger read from the WORKING TREE and it diverges from the tracked version: "
+            f"{'; '.join(bits)}. The item count can match while the items differ. "
+            f"To measure the tracked version: "
+            f"git -C {top} show @{{upstream}}:{rel} > /tmp/ledger.md "
+            f"&& --hitl-md /tmp/ledger.md"
+        )
+    return prov
 
 
 # ── HITL ledger parse (reuses the SSOT column contract from hitl-punch-list.py) ────
@@ -180,17 +258,23 @@ def load_compass(args) -> dict:
     return call_work_compass(args.scope, args.include)
 
 
-def load_hitl(args) -> list[dict]:
+def load_hitl(args) -> tuple[list[dict], dict]:
+    """Return (items, provenance). Provenance always names the source that was read."""
     if args.hitl_json == "-":
         raw = sys.stdin.read().strip()
-        return json.loads(raw) if raw else []
+        return (json.loads(raw) if raw else []), ledger_provenance(None, kind="json-stdin")
     if args.hitl_json:
-        raw = Path(args.hitl_json).read_text(encoding="utf-8").strip()
-        return json.loads(raw) if raw else []  # empty file == no HITL ledger (valid)
+        p = Path(args.hitl_json)
+        raw = p.read_text(encoding="utf-8").strip()
+        # empty file == no HITL ledger (valid)
+        return (json.loads(raw) if raw else []), ledger_provenance(p, kind="json")
     md = Path(args.hitl_md) if args.hitl_md else find_hitl_md()
+    explicit = bool(args.hitl_md)
     if not md or not md.is_file():
-        return []  # HITL ledger absent is not fatal — a tree with zero HITL is valid
-    return parse_hitl_md(md)
+        # HITL ledger absent is not fatal — a tree with zero HITL is valid
+        return [], ledger_provenance(None, kind="md")
+    prov = ledger_provenance(md, kind="md-explicit" if explicit else "md-discovered")
+    return parse_hitl_md(md), prov
 
 
 # ── FUSION (the net-new model) ─────────────────────────────────────────────────────
@@ -231,7 +315,8 @@ def _item_tokens(it: dict) -> list[str]:
     return [t.lower() for t in toks if t]
 
 
-def fuse(compass: dict, hitl: list[dict], *, hitl_only: bool, pending_only: bool) -> dict:
+def fuse(compass: dict, hitl: list[dict], *, hitl_only: bool, pending_only: bool,
+         hitl_prov: dict | None = None) -> dict:
     meta = compass.get("meta", {}) or {}
     by_domain = compass.get("by_domain", {}) or {}
     items = compass.get("items", []) or []
@@ -280,6 +365,14 @@ def fuse(compass: dict, hitl: list[dict], *, hitl_only: bool, pending_only: bool
             "hitl_orphan": len(orphan_hitl),
             "scope": meta.get("scope", ""),
             "compass_unavailable": meta.get("unavailable", []),
+            # provenance of the HITL ledger: WHICH file was read, and whether it
+            # diverges from the tracked version. Never omitted — an agent reading
+            # this envelope must be able to tell a stale queue from a fresh one.
+            "hitl_source": (hitl_prov or {}).get("path"),
+            "hitl_source_kind": (hitl_prov or {}).get("kind"),
+            "hitl_source_dirty": (hitl_prov or {}).get("dirty"),
+            "hitl_source_behind": (hitl_prov or {}).get("behind"),
+            "hitl_warning": (hitl_prov or {}).get("warning"),
             "sources": {
                 "pendencies": "work-compass-aggregate.py --json (SSOT)",
                 "priority": "work-compass --sort eisenhower (SSOT)",
@@ -330,6 +423,11 @@ def render_tree(fused: dict, title: str) -> str:
                f"scope={m['scope'] or 'all'}")
     if m["compass_unavailable"]:
         out.append(f"> unavailable: {', '.join(m['compass_unavailable'])}")
+    if m.get("hitl_source"):
+        out.append(f"> HITL ledger: `{m['hitl_source']}`")
+    if m.get("hitl_warning"):
+        out.append(f">")
+        out.append(f"> \u26a0 {m['hitl_warning']}")
     out.append("")
     for dom, rows in fused["domains"].items():
         out.append(f"- **{dom}** ({len(rows)})")
@@ -353,7 +451,16 @@ def render_mermaid(fused: dict, title: str) -> str:
     def _mm(s: str) -> str:
         return (s or "").replace("(", "[").replace(")", "]").replace('"', "'")
 
-    out = ["```mermaid", "mindmap", f"  root(({_mm(title)}))"]
+    m = fused["meta"]
+    out = []
+    # provenance goes OUTSIDE the fence: a mindmap node cannot carry a sentence safely
+    if m.get("hitl_source"):
+        out.append(f"> HITL ledger: `{m['hitl_source']}`")
+    if m.get("hitl_warning"):
+        out.append(f"> \u26a0 {m['hitl_warning']}")
+    if out:
+        out.append("")
+    out += ["```mermaid", "mindmap", f"  root(({_mm(title)}))"]
     for dom, rows in fused["domains"].items():
         out.append(f"    {_mm(dom)}")
         for n in rows:
@@ -404,6 +511,12 @@ def render_html(fused: dict, title: str) -> str:
             for h in orphan)
         domains_html += f'<details open><summary>{HUMAN_FLAG} HITL human-domain <small>({len(orphan)})</small></summary><ul>{lis}</ul></details>'
 
+    source_html = ""
+    if m.get("hitl_source"):
+        source_html += f'<p class="sub">HITL ledger: <code>{e(str(m["hitl_source"]))}</code></p>'
+    if m.get("hitl_warning"):
+        source_html += f'<p class="warn">&#9888; {e(str(m["hitl_warning"]))}</p>'
+
     return f"""<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -420,11 +533,15 @@ def render_html(fused: dict, title: str) -> str:
  .b.hitl{{background:var(--hitl);color:#fff}} .b.flag{{background:var(--flag);color:#fff}}
  .hl{{color:var(--mut)}} .hl.urgente{{color:var(--hitl)}} .hl.alta{{color:var(--alta)}}
  em{{color:var(--mut);font-style:normal}} small{{color:var(--mut)}}
+ .warn{{border:1px solid var(--alta);border-left:4px solid var(--alta);border-radius:6px;
+   padding:.5rem .75rem;margin:0 0 1rem;color:var(--fg);font-size:.85rem}}
+ code{{color:var(--flag)}}
 </style></head><body>
 <h1>{e(title)}</h1>
 <p class="sub">{m['compass_count']} pend&ecirc;ncias ({m['compass_candidates']} flagged) &middot;
 {m['hitl_count']} HITL ({m['hitl_attached']} attached / {m['hitl_orphan']} standalone) &middot;
 scope={e(m['scope'] or 'all')} &middot; gerado {e(m['generated_utc'][:19])}Z</p>
+{source_html}
 {domains_html}
 <p class="sub">Fontes (SSOT, n&atilde;o reimplementadas): work-compass &middot; eisenhower &middot; hitl punch-list.</p>
 </body></html>
@@ -484,8 +601,9 @@ def main(argv=None) -> int:
     ctx = {"format": args.format, "scope": args.scope, "include": args.include}
     try:
         compass = load_compass(args)
-        hitl = load_hitl(args)
-        fused = fuse(compass, hitl, hitl_only=args.hitl_only, pending_only=args.pending_only)
+        hitl, hitl_prov = load_hitl(args)
+        fused = fuse(compass, hitl, hitl_only=args.hitl_only,
+                     pending_only=args.pending_only, hitl_prov=hitl_prov)
         sys.stdout.write(RENDERERS[args.format](fused, args.title))
         return 0
     except Exception as exc:  # noqa: BLE001 — hybrid self-heal boundary

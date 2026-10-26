@@ -107,8 +107,10 @@ bin/synopsis-fuse.py --scope all --include pending --format tree
 work-compass-aggregate.py --json --sort eisenhower --pendency-scope repo --include pending > /tmp/wc.json
 bin/synopsis-fuse.py --compass-json /tmp/wc.json --hitl-md ~/Projects/eko-engram/hitl/punch-list.md --format html > painel.html
 
-# só o painel HITL (os gates humanos), em árvore
-bin/synopsis-fuse.py --hitl-only --format tree
+# só o painel HITL (os gates humanos), em árvore.
+# O `--compass-json -` com `{}` no stdin NÃO é opcional aqui: sem ele o script invoca o
+# work-compass vivo e roda os coletores (minutos). O digest HITL não precisa da N-Tree.
+echo '{}' | bin/synopsis-fuse.py --hitl-only --compass-json - --format tree
 
 # envelope JSON unificado para outro agente consumir
 bin/synopsis-fuse.py --format json
@@ -118,7 +120,7 @@ bin/synopsis-fuse.py --format json
 | Flag | Default | Significado |
 |---|---|---|
 | `--compass-json F\|-` | — (chama o motor) | payload `work-compass --json` pronto, ou `-` stdin; omitido ⇒ chama o motor vivo |
-| `--hitl-md F` | descobre | caminho do `punch-list.md` SSOT |
+| `--hitl-md F` | descobre | caminho do `punch-list.md` SSOT. A descoberta resolve a cópia do **working tree** — certo para quem está editando o ledger de propósito. Por isso todo render **diz qual arquivo leu** e **avisa** quando ele está modificado contra o `HEAD` ou o repo está atrás do upstream (ver abaixo) |
 | `--hitl-json F\|-` | — | array HITL já parseado (pula o parse do md); vazio/ausente = sem ledger (válido) |
 | `--format` | `tree` | `tree` · `mermaid` · `html` · `json` |
 | `--scope` | `all` | `current\|session\|repo\|vault\|all` (repassado ao work-compass) |
@@ -127,6 +129,29 @@ bin/synopsis-fuse.py --format json
 | `--pending-only` | off | mantém nós flagged / com HITL |
 | `--title` | *(pt-BR default)* | rótulo do painel |
 | `--self-heal` | off | em erro, emite um repair-request estruturado em stderr (M.O. híbrido de self-heal) |
+
+### Procedência do ledger (qual arquivo foi lido)
+
+Todo render nomeia o ledger que leu, e avisa quando ele diverge da versão rastreada:
+
+```
+> HITL ledger: `/Users/<you>/Projects/eko-engram/hitl/punch-list.md`
+>
+> ⚠ ledger read from the WORKING TREE and it diverges from the tracked version:
+>   MODIFIED relative to HEAD; the repo is 21 commit(s) BEHIND its upstream.
+>   The item count can match while the items differ.
+```
+
+No envelope JSON os mesmos fatos vêm em `meta.hitl_source`, `meta.hitl_source_kind`,
+`meta.hitl_source_dirty`, `meta.hitl_source_behind` e `meta.hitl_warning`.
+
+**Por que avisar e não trocar o arquivo.** Medido em 2026-10-26: um vault 21 commits
+atrás do upstream, com o ledger modificado, rendeu **16 abertos** — exatamente o mesmo
+total da versão rastreada, com três itens já fechados aparecendo e três reais escondidos.
+*O total bater é o que escondeu o erro.* Mas o motor é read-only e serve humano e agente:
+substituir o arquivo por baixo de quem está editando o ledger de propósito seria pior que
+o defeito. Então ele nunca troca o arquivo — ele **nomeia** e **avisa**. Um ledger limpo e
+em dia não emite aviso nenhum (testado: `skills/synopsis-panel/tests/`).
 
 ## O modelo de fusão (a única lógica nova)
 - Cada item HITL do `punch-list.md` é indexado por `ID` (H-NNNN) e pelo `Link`.

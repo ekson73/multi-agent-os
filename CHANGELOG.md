@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
+
+- **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`
+  resolved the **working-tree** copy of `hitl/punch-list.md` and said nothing about
+  which file it had opened. Measured on 2026-10-26: a vault **21 commits behind its
+  upstream**, with a dirty ledger, rendered **16 open items** — the *same count* as the
+  tracked copy, with three already-closed items (`H-0034`, `H-0038`, `H-0047`) shown and
+  three real ones (`H-0044`, `H-0051`, `H-0052`) hidden, one of them the most serious in
+  the queue. The matching total is what hid the error, so an agent measured a stale queue
+  **without knowing**, three times in one session.
+- **The fix, and what was deliberately not done.** The default is unchanged: the engine
+  still reads the working-tree file. Preferring the tracked version would silently parse a
+  *different* file than the one on disk and break the legitimate case — a human editing the
+  ledger on purpose — which is worse than the defect in a read-only tool used by humans and
+  agents alike. So the engine never swaps the file; it **names** it and **warns**. Every
+  render (`tree`, `mermaid`, `html`) prints the absolute ledger path, and prints a warning
+  when that file is modified against `HEAD` or its repo is behind its upstream, with the
+  exact command to read the tracked version. The JSON envelope carries the same facts in
+  `meta.hitl_source`, `meta.hitl_source_kind`, `meta.hitl_source_dirty`,
+  `meta.hitl_source_behind` and `meta.hitl_warning`. A clean, up-to-date ledger emits no
+  warning at all. New `ledger_provenance()` runs only read-only git queries and degrades to
+  a bare path when git, the repo or the upstream is unavailable — an absent signal is
+  reported as unknown, never as "clean".
+- **Tests.** `skills/synopsis-panel/tests/` (12 cases, real git fixtures, no mocks, following
+  the `skills/pii-masking/tests/` convention). They cover both halves of the contract — a
+  divergent ledger warns, a clean one does not — and are validated by mutation: removing the
+  warning fails 4, removing the path fails 3, restoring passes 12.
+- **Docs.** `skills/synopsis-panel/SKILL.md` gains a "Procedência do ledger" section, and its
+  `--hitl-only` example gains the `--compass-json -` it was missing: without it the script
+  invokes the live `work-compass` collectors and takes minutes, which reads as a hang.
+  `commands/hitl-digest.md` documents reading the header before citing the queue.
+
 ### Security — remove production-estate reconnaissance detail from the public HEAD
 
 - This repo is **public**. Seven documentation files recorded an AWS account
