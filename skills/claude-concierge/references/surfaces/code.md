@@ -14,9 +14,9 @@ Tier 1  Agentic-tool TYPES       → MCP server · skill · command · agent/sub
 Tier 2  The SCOPE model          → enterprise/managed > project > user > local > defaults (precedence)
 Tier 3  The SOURCE model         → direct · plugin · marketplace · official (Claude/Anthropic)
 Tier 4  Official knowledge        → code.claude.com/docs · docs.claude.com · anthropics/* · each tool's own docs
-Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing · pulse · auto-orchestrator · recap
+Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing (including --mode=recap) · pulse · auto-orchestrator
 Tier 6  Genesis pair             → agentic-tool-forge (+ anima naming) → agentic-tool-evaluator → agentic-tool-trainer
-Tier 7  Sibling concierges       → maos-concierge · walkthrough-concierge · openclaw-concierge (route for THEIR domains)
+Tier 7  Sibling concierges       → maos-concierge · walkthrough-concierge · optional EXTERNAL openclaw-concierge (not bundled; capability-detect, report unavailable if absent)
 ```
 
 ## The agentic-tool TYPES (what can be installed/configured)
@@ -83,12 +83,11 @@ direct    (you author/place the file yourself)               ← you own the tru
 |---|---|
 | `preflight` | session/workspace orient + heal + isolate BEFORE work |
 | `postflight` | end-of-session sweep + debrief + handoff |
-| `morning-briefing` | cold-start state recap · `--dashboard`/`--next-actions` lean on it |
+| `morning-briefing` | cold-start state recap · `--mode=recap` for session recap · `--dashboard`/`--next-actions` lean on it |
 | `pulse` | mid-session re-orient · `--next-actions` |
 | `auto-pilot` | drive a goal end-to-end across sub-agents |
 | `auto-orchestrator` | autonomous multi-phase backlog work |
 | `quiesce` | drive the session to a clean/green/converged steady state |
-| `recap` | end-of-session recap |
 
 ## Genesis pair (cross-ref — the concierge ROUTES here for CREATION)
 
@@ -105,7 +104,7 @@ direct    (you author/place the file yourself)               ← you own the tru
 |---|---|
 | `maos-concierge` | the MAOS framework (agents/skills/commands/protocols/governances) |
 | `walkthrough-concierge` | ASH (Agentic Session Harness — journals/decisions/drift) |
-| `openclaw-concierge` | OpenClaw (multi-channel personal-AI gateway, MIT) |
+| `openclaw-concierge` (optional EXTERNAL dependency; not bundled) | OpenClaw (multi-channel personal-AI gateway, MIT); capability-detect before routing, report unavailable if not installed |
 | **`claude-concierge`** (this; `claude-code-concierge` = deprecated alias) | all six **Claude product surfaces** (claude.ai web · desktop · Claude Code · Projects · bots/agents · Duet): orient and route; for Claude Code also install/scope/source/docs-research |
 
 ## Core concepts (vocabulary the concierge teaches)

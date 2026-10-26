@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — concierge route availability and community-neutral guidance
+
+- Claude concierge companions now identify OpenClaw's concierge as an optional,
+  external dependency: detect it before routing and report unavailable when absent.
+  Replaced the nonexistent `recap` route with existing `morning-briefing --mode=recap`;
+  session close remains `postflight`.
+- Generalized the community-content prohibition and removed organization-specific
+  default routing from the MAOS concierge. World-specific external routing stays
+  opt-in and capability-detected; safety gates, sovereignty boundaries and historical
+  verification/snapshot dates are unchanged. No integration was installed or added.
+
 ### Fixed — preserve HITL ownership across native OMP recovery
 
 - `synopsis-fuse.py` now follows only explicit `parentSession` references in native
