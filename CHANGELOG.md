@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default routing from the MAOS concierge. World-specific external routing stays
   opt-in and capability-detected; safety gates, sovereignty boundaries and historical
   verification/snapshot dates are unchanged. No integration was installed or added.
+- Review follow-up: removed the unbundled `auto-orchestrator` route from the Code
+  lifecycle table and aligned the MAOS genesis companion's external-router guidance,
+  retaining its original date with a dated correction annotation.
 
 ### Fixed — preserve HITL ownership across native OMP recovery
 

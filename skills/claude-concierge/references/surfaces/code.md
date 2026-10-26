@@ -14,7 +14,7 @@ Tier 1  Agentic-tool TYPES       → MCP server · skill · command · agent/sub
 Tier 2  The SCOPE model          → enterprise/managed > project > user > local > defaults (precedence)
 Tier 3  The SOURCE model         → direct · plugin · marketplace · official (Claude/Anthropic)
 Tier 4  Official knowledge        → code.claude.com/docs · docs.claude.com · anthropics/* · each tool's own docs
-Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing (including --mode=recap) · pulse · auto-orchestrator
+Tier 5  Lifecycle family         → preflight · postflight · auto-pilot · morning-briefing (including --mode=recap) · pulse · quiesce
 Tier 6  Genesis pair             → agentic-tool-forge (+ anima naming) → agentic-tool-evaluator → agentic-tool-trainer
 Tier 7  Sibling concierges       → maos-concierge · walkthrough-concierge · optional EXTERNAL openclaw-concierge (not bundled; capability-detect, report unavailable if absent)
 ```
@@ -86,7 +86,6 @@ direct    (you author/place the file yourself)               ← you own the tru
 | `morning-briefing` | cold-start state recap · `--mode=recap` for session recap · `--dashboard`/`--next-actions` lean on it |
 | `pulse` | mid-session re-orient · `--next-actions` |
 | `auto-pilot` | drive a goal end-to-end across sub-agents |
-| `auto-orchestrator` | autonomous multi-phase backlog work |
 | `quiesce` | drive the session to a clean/green/converged steady state |
 
 ## Genesis pair (cross-ref — the concierge ROUTES here for CREATION)
