@@ -1,8 +1,10 @@
 # The Forge — 33 Socratic Questions (self-executed) → `claude-code-concierge` spec
 
+> Historical spec: written for the v1 name `claude-code-concierge`; the skill is now `claude-concierge` v2.0.0 (multi-surface). Kept unchanged as the genesis record.
+
 > Per the Forge discipline: *"Execute internally BEFORE creating any agentic-tool. The answers form the spec."*
-> Self-executed 2026-06-13 for **claude-code-concierge** (soul-name *Cicerone*). The answers below ARE the
-> design contract that `SKILL.md` implements. Vendor-neutral (MIT). Mirrors sibling concierges' format.
+> Self-executed 2026-06-13 for **claude-code-concierge** (soul-name *Cicerone*). The answers below WERE the
+> v1 design contract; they are now a historical record only. The current contract is `SKILL.md` + `CANON.md`. Vendor-neutral (MIT). Mirrors sibling concierges' format.
 
 ## Scope (1-7)
 
@@ -38,7 +40,7 @@
 
 22. **Interacts with which agents?** — Upstream: the human/agent invoking it. Downstream (routes to): `claude-code-guide`, `find-docs`, `agentic-tool-forge`, `anima`, `agentic-tool-evaluator`/`-trainer`, `preflight`/`postflight`/`auto-pilot`/`morning-briefing`/`pulse`/`quiesce`/`recap`, `maos-concierge`/`walkthrough-concierge`/`openclaw-concierge`, `maos-mcp-hub`, `agentic-status`/`status-map`.
 23. **Communication format?** — Markdown (human) + structured tables; ASCII for dashboard; `--format=json` for agent-to-agent; mode-flagged invocation.
-24. **Receives tasks how?** — Skill invocation (or `/claude-code-concierge` command wrapper) with optional `--mode=`/flag-alias + NL intent.
+24. **Receives tasks how?** — Skill invocation (no command wrapper exists) with optional `--mode=`/flag-alias + NL intent.
 25. **Reports results how?** — Mode-specific: orientation block · onboarding checklist · research reconciliation (cited) · dashboard · health-check findings table · install audit line · anchor decision+contradiction+pointer.
 26. **Integrates with ecosystem how?** — Sits ABOVE the Claude-Code tool catalog as the platform onboarding/research/install entry-point; cross-refs (never duplicates) the registry; 4th member of the cross-vendor concierge family (maos/walkthrough/openclaw + this).
 
@@ -47,7 +49,7 @@
 27. **Who can invoke?** — Any human or agent in a Claude-Code (or AAIF) context (public/community — MIT).
 28. **Documents decisions how?** — `--mode=doctor`/`anchor` outputs carry evidence + criterion + fix; install emits an audit line (command + scope/source + revert); canonical decisions live in `CANON.md`; changelog in `SKILL.md`.
 29. **Success metrics (KPIs)?** — 0 reimplemented tools · 0 fabricated commands · 100% research recommendations cite a CURRENT official source · 100% installs confirm-gated + verified · 100% health-check findings with evidence+criterion+fix · graceful-degrade on missing surface.
-30. **Updates/evolves how?** — Docs-driven: `--mode=research`/`doctor` re-derive against current official docs and flag drift vs `AWARENESS-REGISTRY.md`; CANON entries sunset via DUED (qualitative) when the official mechanism changes.
+30. **Updates/evolves how?** — Docs-driven: `--mode=research`/`doctor` re-derive against current official docs and flag drift vs `references/surfaces/*.md`; CANON entries sunset via DUED (qualitative) when the official mechanism changes.
 
 ## Validation (31-33)
 
@@ -57,4 +59,4 @@
 
 ---
 
-> **Spec → SKILL mapping**: Q2/Q3 → 8 modes + What-I-do-NOT-do · Q4 → Identity (why it exists, the gap) · Q8-Q13 → Phase-0 + companions + AWARENESS-REGISTRY · Q14 → mode autonomy (consultative/read-only/guarded) · Q15-Q21 → governance layer + limits + C1-C8 · Q22-Q26 → Landscape Decision Matrix + Cross-refs · Q27-Q30 → governance + KPIs · Q31-Q33 → DoD + dogfooding.
+> **Spec → SKILL mapping**: Q2/Q3 → 8 modes + What-I-do-NOT-do · Q4 → Identity (why it exists, the gap) · Q8-Q13 → Phase-0 + companions + references/surfaces/ · Q14 → mode autonomy (consultative/read-only/guarded) · Q15-Q21 → governance layer + limits + C1-C8 · Q22-Q26 → Landscape Decision Matrix + Cross-refs · Q27-Q30 → governance + KPIs · Q31-Q33 → DoD + dogfooding.

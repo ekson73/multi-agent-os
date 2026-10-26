@@ -30,12 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not treat a same-cwd, same-title or same-operator conversation as the same one.
 - **Identity is the invoking conversation, and it fails closed.** Resolution order:
   `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` →
-  `CLAUDE_SESSION_ID` → the uuid in the *name* of `PI_SESSION_FILE`. `PI_SESSION_ID` is
-  deliberately NOT consulted: it is per *process*, so a delegated run would resolve the
-  executor's id instead of the conversation's and report "0 gates for this conversation"
-  where the truth is "identity unknown". A delegated (sub-agent) run never inherits its
-  parent's identity: whoever executes it passes `--session-id` with the id of the
-  conversation behind the request. When no identity resolves, the render shows
+  `CLAUDE_SESSION_ID` → the uuid in the *name* of `PI_SESSION_FILE` (or in the name of
+  its parent directory, the layout the harness uses for a delegated run). `PI_SESSION_ID`
+  is deliberately NOT consulted: it is per *process*, so a delegated run would resolve
+  the executor's id instead of the conversation's and report "0 gates for this
+  conversation" where the truth is "identity unknown". A delegated (sub-agent) run never
+  inherits its parent's identity: whoever executes it passes `--session-id` with the id of
+  the conversation behind the request. When no identity resolves, the render shows
   **nothing** and states why — it never falls back to "all" and never claims the queue
   is empty, because "I do not know whose this is" is not "there is nothing". Every render
   names the scope it applied; the JSON envelope carries `meta.hitl_scope`,
@@ -44,15 +45,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the size *before* the narrowing, so "0 shown" is never read as "0 exist").
 - **Ids are compared exactly.** A session id is an opaque token: only surrounding
   whitespace is stripped, and `A` is not `a`. The JSON path reads the writer's single
-  `session_id` field.
-- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (24 cases, real
+  `session_id` field. The `Sessão` column is located by the header, so its position in
+  the table cannot shift the other columns.
+- **Tests.** `skills/synopsis-panel/tests/test_hitl_session_scope.py` (33 cases, real
   ledgers in the writer's table format and real CLI subprocesses, no mocks): the default
   narrows to the calling conversation, an explicit `--scope all` widens, a pendency scope
   never widens, a legacy item stays out of the session scope, a chat mention does not
   grant ownership, an unresolved identity shows nothing and says why, the general panel
-  keeps the whole ledger, the pure path never invokes the collector, and the id match is
-  exact.
+  keeps the whole ledger, the pure path never invokes the collector, the id match is
+  exact, and an identity that is only separators or a marker is not an identity.
 
+### Changed — `claude-code-concierge` becomes `claude-concierge` (all Claude product surfaces)
+
+- **Scope widened** from Claude Code only to six surfaces: claude.ai web, desktop, Claude Code
+  (CLI/IDE), Projects, bots/agents (Claude in Slack, Claude in Chrome, Agent SDK, Managed Agents)
+  and Duet. Each surface has its own `references/surfaces/<surface>.md`, sourced from official
+  docs on 2026-10-26; unsourced facts are marked NOT VERIFIED.
+- **Progressive disclosure:** the SKILL.md body is a lean router (surface → reference → route);
+  the old AWARENESS-REGISTRY moved to `references/surfaces/code.md`.
+- **Compatibility:** `skills/claude-code-concierge/` stays as a thin deprecated alias. No slash
+  command wrapper was added (repo policy from #407: skills are already `/`-invokable).
+- Cross-references in sibling concierges, the lifecycle protocol and `skills/README.md` now name
+  `claude-concierge`.
 ### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
 
 - **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`

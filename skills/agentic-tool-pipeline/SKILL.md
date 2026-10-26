@@ -136,7 +136,7 @@ STAGE 4 FORGE     := forge[create·adapt·fix·improve·train·test·audit·inco
 | **1 EXPAND** | `agentic-tool-forge` Phase-1 research (internal `Glob`/`Grep` DRY probe + external `WebSearch`/`find-docs`/Context7); the same engine `agentic-tool-intake` Phase-2 delegates to · `enhance-pipeline` EXPAND row |
 | **2 FILTER ⇐ DEBATE** | `skills/converge` Acts 1-2 (steelman→critique) OR `debate-converge` for a real council; optional fan-out `agents/perspective-trio` (3 lenses) / `agents/persona-pipeline` (6-stage board) |
 | **3 HARMONIZE ⇐ CONVERGE+HARMONIZE** | `skills/converge` full 5-act (steelman→critique→compare→synthesize→reject-log) → ONE+ synthesized tool-spec(s). AUDIT-not-PERSUASION bias guards inherited. |
-| **4 FORGE / DELIVER** | the **routed** member from Stage 0: `agentic-tool-forge` (create) · `agentic-tool-intake` (adapt/absorb/install; install gated via `claude-code-concierge`) · `agentic-tool-trainer`+`-evaluator` (improve/test/audit). `--type` honored by forge's type router; save-path by `--location`. Naming inside Stage 4 is forge's existing delegation to `anima` — the conductor never names. Loops the terminal when the synthesis yields multiple tools. |
+| **4 FORGE / DELIVER** | the **routed** member from Stage 0: `agentic-tool-forge` (create) · `agentic-tool-intake` (adapt/absorb/install; install gated via `claude-concierge`) · `agentic-tool-trainer`+`-evaluator` (improve/test/audit). `--type` honored by forge's type router; save-path by `--location`. Naming inside Stage 4 is forge's existing delegation to `anima` — the conductor never names. Loops the terminal when the synthesis yields multiple tools. |
 
 > **Anti-NIH discipline**: the conductor EMITS invocations of the above; it never inlines
 > their logic. A missing optional primitive degrades to the in-repo column with a one-line
@@ -181,7 +181,7 @@ Does NOT author/forge directly (→ `agentic-tool-forge`) · does NOT decide ado
 (→ `agentic-tool-intake`) · does NOT score behavior (→ `agentic-tool-evaluator`) · does
 NOT improve/distill (→ `agentic-tool-trainer`) · does NOT name (→ `anima`, inside forge) ·
 does NOT reimplement research/debate/convergence (→ forge Phase-1 / `debate-converge` /
-`converge`) · does NOT install (→ intake's gated `claude-code-concierge`) · does NOT ship
+`converge`) · does NOT install (→ intake's gated `claude-concierge`) · does NOT ship
 features or drive sessions (→ `enhance-pipeline` / `quiesce` / `auto-pilot`).
 
 | Sibling | Its scope | This conductor's delta |
