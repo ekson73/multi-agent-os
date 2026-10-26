@@ -258,6 +258,15 @@ eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="comm
 o="$("$CB" --mode disk --home "$H7" --cwd "$T" --json)"
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: user install used when no project install applies'
 
+# --- malformed install scopes are skipped and explicitly counted, never ranked as user scope
+printf '{"plugins":{"pv":[{"scope":[],"installPath":"%s"},{"scope":{},"installPath":"%s"},{"scope":1,"installPath":"%s"},{"scope":true,"installPath":"%s"},{"scope":"user","installPath":"%s"}]}}' \
+  "$T/pv2" "$T/pv2" "$T/pv2" "$T/pv2" "$T/pvu" > "$H7/.claude/plugins/installed_plugins.json"
+o="$("$CB" --mode disk --home "$H7" --cwd "$W7" --json 2>"$T/scope.err")"; rc=$?
+eq 0 "$rc" 'disk: malformed scope types do not crash'
+eq 4 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="ignored malformed plugin config records"][0]["count"]')" 'disk: malformed scope types explicitly counted'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: malformed scopes do not override valid user install'
+eq '' "$(cat "$T/scope.err")" 'disk: malformed scopes do not emit a traceback'
+
 # --- disk: plugin.json component paths (skills supplement, commands/agents replace)
 H8="$T/home8"; P8="$T/pm"
 mkdir -p "$H8/.claude/plugins" "$P8/.claude-plugin" "$P8/skills/d1" "$P8/extra-skills/demo" \
@@ -277,6 +286,37 @@ eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skil
 eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: manifest commands path replaces default'
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: manifest agents file replaces default'
 eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["source"]=="ignored malformed plugin config records"][0]["count"]')" 'disk: manifest path escaping plugin root ignored and counted'
+
+# --- glob metacharacters in literal directory names must not widen discovery
+HG="$T/home[abc]*?"; WG="$T/ws[xyz]*?/repo"; PG="$T/plugin[def]*?"; HD="$T/homea-decoy"
+python3 - "$HG" "$WG" "$PG" "$HD" <<'PYG'
+import json, re, sys
+from pathlib import Path
+h, w, p, decoy = map(Path, sys.argv[1:])
+def put(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+for base in (h / ".claude", w / ".claude", p):
+    put(base / "skills/s/SKILL.md", "---\nname: s\ndescription: fixture\n---\n")
+    put(base / "agents/a.md", "---\nname: a\ndescription: fixture\n---\n")
+put(p / "extra[ghi]*?/s2/SKILL.md", "---\nname: s2\ndescription: fixture\n---\n")
+put(p / ".claude-plugin/plugin.json", json.dumps({"skills": ["./extra[ghi]*?/"]}))
+put(h / ".claude/plugins/installed_plugins.json",
+    json.dumps({"plugins": {"fixture": [{"scope": "user", "installPath": str(p)}]}}))
+put(h / ".claude/settings.json", json.dumps({"enabledPlugins": {"fixture": True}}))
+encoded = re.sub(r"[^A-Za-z0-9]", "-", str(w))
+for home, content in ((h, "benign!"), (decoy, "decoy" * 20)):
+    put(home / ".claude/projects" / encoded / "fixture.jsonl", json.dumps({
+        "type": "attachment", "attachment": {"type": "prompt_snapshot", "systemPrompt": content}}) + "\n")
+PYG
+o="$("$CB" --mode disk --home "$HG" --cwd "$WG" --json)"; rc=$?
+eq 0 "$rc" 'disk: literal glob metacharacter directories exit 0'
+eq 4 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["count"]')" 'disk: user/project/plugin/custom skills in literal metacharacter dirs'
+eq 3 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: user/project/plugin agents in literal metacharacter dirs'
+o="$("$CB" --home "$HG" --cwd "$WG" --json)"
+eq transcript "$(printf '%s' "$o" | jq_ 'd["mode"]')" 'auto: transcript discovery treats HOME metacharacters literally'
+eq 7 "$(printf '%s' "$o" | jq_ 'd["by_category"]["system_prompt"]["bytes"]')" 'auto: unrelated pattern-matching HOME transcript not read'
+eq "$HG/.claude/projects/$(printf '%s' "$WG" | sed 's/[^A-Za-z0-9]/-/g')/fixture.jsonl" "$(printf '%s' "$o" | jq_ 'd["transcript"]')" 'auto: transcript comes from exact literal HOME'
 
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"

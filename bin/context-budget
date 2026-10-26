@@ -113,7 +113,7 @@ def encode_project(cwd: str) -> str:
 
 def latest_transcript(home: str, cwd: str) -> str | None:
     d = os.path.join(home, ".claude", "projects", encode_project(cwd))
-    files = [f for f in glob.glob(os.path.join(d, "*.jsonl")) if os.path.isfile(f)]
+    files = [f for f in glob.glob(os.path.join(glob.escape(d), "*.jsonl")) if os.path.isfile(f)]
     if not files:
         return None
     return max(files, key=lambda f: (os.path.getmtime(f), f))
@@ -355,6 +355,9 @@ def enabled_plugin_roots(home: str, cwd: str):
             if not (isinstance(p, str) and p and os.path.isdir(p)):
                 continue
             scope = entry.get("scope")
+            if scope is not None and not isinstance(scope, str):
+                ignored += 1
+                continue
             depth = -1
             if scope in rank:
                 pp = entry.get("projectPath")
@@ -417,9 +420,9 @@ def plugin_components(root: str):
     for sd in skill_dirs:
         if os.path.isfile(os.path.join(sd, "SKILL.md")):
             skills.append(os.path.join(sd, "SKILL.md"))
-        skills += glob.glob(os.path.join(sd, "*", "SKILL.md"))
+        skills += glob.glob(os.path.join(glob.escape(sd), "*", "SKILL.md"))
     a = paths("agents")
-    agents = glob.glob(os.path.join(root, "agents", "*.md")) if a is None else md_under(a)
+    agents = glob.glob(os.path.join(glob.escape(root), "agents", "*.md")) if a is None else md_under(a)
     c = paths("commands")
     commands = _walk_md(os.path.join(root, "commands")) if c is None else md_under(c)
     return skills, agents, commands, ignored
@@ -478,8 +481,8 @@ def from_disk(home: str, cwd: str):
     claude_dirs = [cl] + [os.path.dirname(rd) for rd in rule_dirs[1:]]
     skills, agents, commands = [], [], []
     for cd in claude_dirs:
-        skills += glob.glob(os.path.join(cd, "skills", "*", "SKILL.md"))
-        agents += glob.glob(os.path.join(cd, "agents", "*.md"))
+        skills += glob.glob(os.path.join(glob.escape(cd), "skills", "*", "SKILL.md"))
+        agents += glob.glob(os.path.join(glob.escape(cd), "agents", "*.md"))
         commands += _walk_md(os.path.join(cd, "commands"))
     plugin_roots, ignored = enabled_plugin_roots(home, cwd)
     for _, root in plugin_roots:

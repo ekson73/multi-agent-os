@@ -37,7 +37,8 @@ measurement; disk mode over-estimates listings because the harness truncates des
 - `skipped non-object records` counts transcript lines that are valid JSON but not an object
   (or an attachment that is not an object). Lines that are not JSON are dropped and not counted.
 - `ignored malformed plugin config records` (disk mode) counts plugin settings entries of the
-  wrong type; they are skipped, not fatal.
+  wrong type, including non-string, non-null install scopes; they are skipped, not fatal.
+- Directory names in home, project and plugin discovery are literal, including `[]`, `*` and `?`.
 - Hook names and the executable basename are redacted: `*TOKEN*`, `*KEY*`, `*SECRET*`,
   `*PASSWORD*`, `*PASSWD*`, `*PASSPHRASE*`, `*PASSCODE*`, `*AUTHORIZATION*`, `*CREDENTIAL*`,
   `*COOKIE*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment

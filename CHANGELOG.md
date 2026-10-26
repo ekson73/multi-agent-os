@@ -23,10 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `projectPath` is cwd or an ancestor), and `.claude-plugin/plugin.json` component paths are
   honored (custom `skills` add to `skills/`; custom `commands`/`agents` replace the defaults;
   paths escaping the plugin root are ignored and counted).
+  Malformed non-string, non-null install scopes are skipped and counted; glob discovery treats
+  home, project and plugin directory names literally, including wildcard metacharacters.
   Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
   (cwd and ancestors), deduped by realpath.
 - **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
-  (62 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
+  (72 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
 - Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
