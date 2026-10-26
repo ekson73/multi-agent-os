@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `vek-db-password` allowlist for the literal redaction marker (v1.3.0 → v1.3.1)
+
+- `.gitleaks.toml` — the scheduled Supply-Chain Sentinel full-history scan was
+  failing on two `vek-db-password` findings whose extracted value is the
+  literal placeholder `<REDACTED>`. The rule-scoped allowlist now exempts a
+  value that **is** that marker (`regexTarget = "secret"`, anchored
+  `^<REDACTED[^>]*>$`), alongside the existing Secrets Manager reference-URI
+  exemption. A path or whole-file exemption is not used: the same document
+  still holds a real credential that must keep firing until it is rotated, and
+  that finding is not fingerprinted in `.gitleaksignore`. A value that merely
+  contains the marker stays detectable. Contract test covers the marker, the
+  historical `${…:<REDACTED>}` shape, and four near-miss real secrets.
+
 ### Changed — `ratchet-loop` 0.2.0 (C2 instrumented) + top-20 description redundancy cut
 
 - `skills/ratchet-loop/SKILL.md` 0.1.0 → 0.2.0. C2 ("premises refuted per round") claimed to be a counter but nothing recorded a refutation, so it read whatever the conductor remembered — the unmeasured claim its own `ANTI-THEATER` gate fails. Adds **§Phase 6 — the `REFUTACAO` marker**: a five-field `|`-separated line (`REFUTACAO|premise|who asserted|who refuted|the measurement`) written into the round's work-ledger item `decision` field in the **same** round, a copy-ready `jq` counting command over the item files, and the obligation to mutation-check that command before reading a `0` as a real `0` (a command returning 0 because nothing matched and one returning 0 because it is broken look identical). `|` over JSON because `decision` is free text with a 2,000-character ceiling that a human also reads: greppable with no parser, no schema registration, no escaping that breaks on a hand edit.
