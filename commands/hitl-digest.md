@@ -94,20 +94,25 @@ self-heal (erro → envelope de repair-request para um ai-harness).
 # Sem o passo 2 o comando quebra fora do repo: `git rev-parse --show-toplevel` num
 # diretório de trabalho qualquer devolve um caminho onde o motor não existe.
 FUSE=""
+# 1: o runtime de plugin ativo (CLAUDE_PLUGIN_ROOT) — a fonte autoritativa
+if [ -f "${CLAUDE_PLUGIN_ROOT:-}/skills/synopsis-panel/bin/synopsis-fuse.py" ]; then
+  FUSE="${CLAUDE_PLUGIN_ROOT}/skills/synopsis-panel/bin/synopsis-fuse.py"
+fi
 # 2: a árvore de onde este comando foi instalado (o motor ao lado do comando real)
-for link in "$HOME/.claude/commands/hitl-digest.md" \
-            "$HOME/.agents/commands/hitl-digest.md" \
-            "$HOME/.omp/agent/commands/hitl-digest.md"; do
-  [ -e "$link" ] || continue
-  real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$link" 2>/dev/null)"
-  [ -n "$real" ] || continue
-  cand="$(dirname "$(dirname "$real")")/skills/synopsis-panel/bin/synopsis-fuse.py"
-  if [ -f "$cand" ]; then FUSE="$cand"; break; fi
-done
-# 1, 3 e 4: os fallbacks, na ordem de precedência
 if [ -z "$FUSE" ]; then
-  for cand in "${CLAUDE_PLUGIN_ROOT:-}/skills/synopsis-panel/bin/synopsis-fuse.py" \
-              "${MAOS_DIR:-$HOME/Projects/multi-agent-os}/skills/synopsis-panel/bin/synopsis-fuse.py" \
+  for link in "$HOME/.claude/commands/hitl-digest.md" \
+              "$HOME/.agents/commands/hitl-digest.md" \
+              "$HOME/.omp/agent/commands/hitl-digest.md"; do
+    [ -e "$link" ] || continue
+    real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$link" 2>/dev/null)"
+    [ -n "$real" ] || continue
+    cand="$(dirname "$(dirname "$real")")/skills/synopsis-panel/bin/synopsis-fuse.py"
+    if [ -f "$cand" ]; then FUSE="$cand"; break; fi
+  done
+fi
+# 3 e 4: MAOS_DIR e a raiz do git do CWD
+if [ -z "$FUSE" ]; then
+  for cand in "${MAOS_DIR:-$HOME/Projects/multi-agent-os}/skills/synopsis-panel/bin/synopsis-fuse.py" \
               "$(git rev-parse --show-toplevel 2>/dev/null)/skills/synopsis-panel/bin/synopsis-fuse.py"; do
     [ -f "$cand" ] && { FUSE="$cand"; break; }
   done
