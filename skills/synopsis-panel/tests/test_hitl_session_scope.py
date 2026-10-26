@@ -248,6 +248,21 @@ def test_a_narrowed_scope_says_how_many_the_ledger_holds(script_path, tmp_path):
         "'0 shown' would read as 'nothing exists'")
 
 
+def test_an_unresolved_identity_claims_no_ownership_split(script_path, tmp_path):
+    """With an unresolved identity, "0 of N are this conversation's" is a claim we
+    cannot make: we do not know which conversation is ours. The warning says it
+    instead; the split line must not appear."""
+    ledger = _ledger(tmp_path)
+    out = subprocess.run(
+        [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
+         "--hitl-md", str(ledger), "--format", "tree"],
+        input="{}", capture_output=True, text=True, timeout=120, env=_clean_env()).stdout
+    assert "are this conversation's" not in out, (
+        "with an unresolved identity the render must not assert how the ledger splits "
+        "between conversations — it does not know which one is the caller's")
+    assert "NOT an empty queue" in out
+
+
 # ── 5: identity resolution and the untouched general panel ──────────────────────
 def test_identity_comes_from_the_harness_environment(script_path, tmp_path):
     ledger = _ledger(tmp_path)

@@ -456,7 +456,11 @@ def load_hitl(args) -> tuple[list[dict], dict]:
 
 
 def _with_sessions(items: list) -> list[dict]:
-    """Normalize the owning-session ids of every item to a list of lowercase ids."""
+    """Normalize the owning-session ids of every item to a list of exact ids.
+
+    The case is PRESERVED: a session id is an opaque token, so `A` and `a` are
+    different conversations and a casefold here would match the wrong one.
+    """
     out = []
     for it in items:
         if isinstance(it, dict):
@@ -636,7 +640,11 @@ def render_tree(fused: dict, title: str) -> str:
         ids = ", ".join(m.get("hitl_session_ids") or []) or "unresolved"
         out.append(f"> HITL scope: {m['hitl_scope']} ({ids}) — {m.get('hitl_scope_reason')}")
         total = m.get("hitl_ledger_total")
-        if isinstance(total, int) and total > m.get("hitl_count", 0):
+        # The ownership split is only claimable when the identity RESOLVED. With an
+        # unresolved identity "this conversation" is unknown, so counting what is not
+        # ours would assert a fact we do not have — the warning below says it instead.
+        if (m.get("hitl_session_resolved")
+                and isinstance(total, int) and total > m.get("hitl_count", 0)):
             out.append(f"> {m.get('hitl_count', 0)} of {total} ledger items are this "
                        f"conversation's — the other {total - m.get('hitl_count', 0)} belong "
                        f"to other conversations or carry no provenance. `--scope all` shows "
