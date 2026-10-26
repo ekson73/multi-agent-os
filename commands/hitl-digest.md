@@ -44,7 +44,7 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | `--scope` | `all` | recorte do panorama (repassado ao `work-compass` quando `--with-pendencies`) |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
-| `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca) |
+| `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca), que resolve a cópia do **working tree**. O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
 | `--title TEXT` | *(pt-BR default)* | rótulo do digest |
 
 ## Parte cognitiva (o agente decide antes de rodar o script)
@@ -86,6 +86,27 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 > na hora. O `--hitl-only` mantém só o ramo dos gates humanos (⏫ severidade · 👤 human-domain);
 > um HITL órfão (sem pendência casada) **nunca é descartado** — vai para o ramo próprio.
 > O caminho padrão deste command é o puro; use `--with-pendencies` apenas quando quiser a N-Tree junto.
+
+> **Leia o cabeçalho antes de citar a fila.** Todo digest nomeia o ledger que leu e avisa
+> quando ele divergir da versão rastreada:
+>
+> ```
+> > HITL ledger: `/Users/<you>/Projects/eko-engram/hitl/punch-list.md`
+> >
+> > ⚠ ledger read from the WORKING TREE and it diverges from the tracked version:
+> >   MODIFIED relative to HEAD; the repo is 21 commit(s) BEHIND its upstream.
+> ```
+>
+> Medido em 2026-10-26: com um vault 21 commits atrás e o ledger modificado, o digest
+> rendeu **16 abertos** — o mesmo total da versão rastreada, com três itens já fechados
+> aparecendo e três reais escondidos, um deles o mais grave da fila. **O total bater é o
+> que esconde o erro**, então o total nunca serve de prova de frescura. Se o aviso
+> aparecer, meça a versão rastreada antes de reportar:
+>
+> ```bash
+> git -C ~/Projects/eko-engram show '@{upstream}:hitl/punch-list.md' > /tmp/ledger.md
+> echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md /tmp/ledger.md --format tree
+> ```
 
 ## Examples
 
