@@ -514,10 +514,6 @@ def _with_sessions(items: list) -> list[dict]:
         if isinstance(it, dict):
             it = dict(it)
             it["session"] = _session_ids_of(it)
-        else:
-            # a malformed entry (not an object) has no provenance to read — it is
-            # legacy, and it must not crash the render with a type error
-            it = {"id": str(it), "session": []}
         out.append(it)
     return out
 
