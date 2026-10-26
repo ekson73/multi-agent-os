@@ -327,12 +327,12 @@ def _native_header(tmp_path, session_id, parent=None, **extra):
     return path
 
 
-@pytest.mark.parametrize("reference", ["id", "file", "missing-file"])
+@pytest.mark.parametrize("reference", ["id", "file", "missing-file", "missing-id"])
 def test_native_recovery_keeps_explicit_origin(script_path, tmp_path, reference):
     origin = _native_header(tmp_path, SESSION_A)
-    parent = SESSION_A if reference == "id" else str(origin)
+    parent = SESSION_A if reference in ("id", "missing-id") else str(origin)
     recovered = _native_header(tmp_path, SESSION_B, parent)
-    if reference == "missing-file":
+    if reference in ("missing-file", "missing-id"):
         origin.unlink()
     envelope = _run(script_path, _ledger(tmp_path),
                     env=_clean_env(PI_SESSION_FILE=str(recovered)))
@@ -341,6 +341,34 @@ def test_native_recovery_keeps_explicit_origin(script_path, tmp_path, reference)
     assert _ids(envelope) == ["H-0001", "H-0002"]
     assert envelope["meta"]["hitl_count"] == 2
     assert envelope["meta"]["hitl_ledger_total"] == 3
+
+
+@pytest.mark.parametrize("depth", [2, 5])
+def test_native_uuid_parent_chain_reaches_immutable_origin(script_path, tmp_path, depth):
+    ids = [f"{n:08x}-1111-4111-8111-{n:012x}" for n in range(1, depth + 1)]
+    ids.append(SESSION_A)
+    for index, session_id in enumerate(ids):
+        parent = ids[index + 1] if index + 1 < len(ids) else None
+        _native_header(tmp_path, session_id, parent)
+    current = tmp_path / f"2026-10-14T22-21-56-389Z_{ids[0]}.jsonl"
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(current)))
+    assert envelope["meta"]["hitl_session_ids"] == ids
+    assert envelope["meta"]["hitl_session_resolved"] is True
+    assert _ids(envelope) == ["H-0001"]
+
+
+def test_ambiguous_uuid_parent_files_fail_closed(script_path, tmp_path):
+    origin = _native_header(tmp_path, SESSION_A)
+    duplicate = tmp_path / f"2026-10-15T22-21-56-389Z_{SESSION_A}.jsonl"
+    duplicate.write_bytes(origin.read_bytes())
+    current = _native_header(tmp_path, SESSION_B, SESSION_A)
+    envelope = _run(script_path, _ledger(tmp_path),
+                    env=_clean_env(PI_SESSION_FILE=str(current)))
+    assert envelope["meta"]["hitl_session_resolved"] is False
+    assert envelope["meta"]["hitl_session_ids"] == []
+    assert envelope["meta"]["hitl_scope_unresolved"]
+    assert _ids(envelope) == []
 
 
 def test_native_worker_reads_the_adjacent_root_not_its_own_header(script_path, tmp_path):
@@ -363,10 +391,13 @@ def test_native_headers_do_not_use_the_prompt_cache_key(script_path, tmp_path):
     assert _ids(envelope) == ["H-0002"]
 
 
-def test_native_parent_cycle_fails_closed(script_path, tmp_path):
+@pytest.mark.parametrize("reference", ["file", "id"])
+def test_native_parent_cycle_fails_closed(script_path, tmp_path, reference):
     origin = _native_header(tmp_path, SESSION_A)
-    recovered = _native_header(tmp_path, SESSION_B, str(origin))
-    _native_header(tmp_path, SESSION_A, str(recovered))
+    recovered = _native_header(
+        tmp_path, SESSION_B, SESSION_A if reference == "id" else str(origin))
+    _native_header(tmp_path, SESSION_A,
+                   SESSION_B if reference == "id" else str(recovered))
     envelope = _run(script_path, _ledger(tmp_path),
                     env=_clean_env(PI_SESSION_FILE=str(recovered)))
     assert envelope["meta"]["hitl_session_resolved"] is False

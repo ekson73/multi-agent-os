@@ -151,9 +151,10 @@ uma conversa que tinha **2** gates seus.
 - **Continuidade nativa do OMP**: no fallback `PI_SESSION_FILE`, lê só o header da
   sessão e dos arquivos nativos explicitamente referidos por `parentSession`.
   Um worker usa o root JSONL adjacente; recuperação sob novo ID inclui o ID de origem
-  sem reescrever o ledger. Referência só por UUID (ou arquivo pai ausente) prova esse
-  pai, não ancestrais adicionais. Ciclo, conflito entre header e nome ou referência
-  ambígua falham fechado. Não usa `providerPromptCacheKey`, cwd, título ou varredura.
+  sem reescrever o ledger. Um UUID de pai resolve só o arquivo nativo de UUID exato na
+  mesma coleção; único candidato continua a cadeia, nenhum inclui esse pai e encerra,
+  múltiplos falham fechado. Ciclo, conflito de header/nome e referência ambígua também
+  falham fechado. Não usa `providerPromptCacheKey`, cwd, título ou outras coleções.
 - **Identidade ausente ⇒ falha fechado**: nada é mostrado e o motivo é dito. O render
   nunca cai no "tudo" e nunca afirma "não existem" — porque "não sei de quem é" não é
   "não existe".

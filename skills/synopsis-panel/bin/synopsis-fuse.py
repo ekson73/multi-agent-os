@@ -302,9 +302,20 @@ def _native_session_identity(raw_path: str) -> dict:
         if SESSION_ID_RE.fullmatch(parent):
             if parent in ids:
                 return unresolved("cycle in native parentSession references")
-            # An id-only reference proves the parent, not its own ancestors.
-            ids.append(parent)
-            break
+            # Resolve this exact UUID only inside the current native collection.
+            # Do not inspect bodies, sibling collections, cwd or prompt-cache keys.
+            parents = []
+            for candidate in path.parent.glob(f"*_{parent}.jsonl"):
+                match = OMP_SESSION_NAME_RE.fullmatch(candidate.stem)
+                if match and match.group(1) == parent:
+                    parents.append(candidate)
+            if len(parents) > 1:
+                return unresolved("ambiguous native files for parentSession id")
+            if not parents:
+                ids.append(parent)
+                break
+            current = (parents[0], parent)
+            continue
         parent_path = Path(parent).expanduser()
         if not parent_path.is_absolute():
             parent_path = path.parent / parent_path
