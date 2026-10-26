@@ -7,7 +7,7 @@ description: >-
   belongs to, loads only that surface's reference, researches the CURRENT official docs before any
   "how", and routes to the specialist tool; reimplements nothing. Guarded install for Claude Code
   MCP/plugin/marketplace only. Soul-name Cicerone. Successor of claude-code-concierge (kept as alias).
-allowed-tools: Read, Glob, Grep, Bash, WebFetch, WebSearch
+allowed-tools: Read, Glob, Grep, WebFetch, WebSearch
 evals:
   should_trigger:
     - "Should I do this in a claude.ai Project, the desktop app, or Claude Code?"
@@ -59,7 +59,7 @@ A non-safety nicety (verbose teaching, an optional dashboard panel) may be skipp
 
 ## Modes
 
-`--mode=explain` (default) teach the surface map · `compare` pick the right surface for an intent · `guide` intent → route + exact command/path · `research` cite current docs for a "how" · `install` guarded Claude Code install (code reference §install) · `doctor` read-only health-check (`--health-check`) or `--self-test` · `dashboard` local Claude Code state (code reference) · `anchor` surface a CANON decision and flag drift. `--format=md|json`.
+`--mode=explain` (default) teach the surface map · `compare` pick the right surface for an intent · `guide` intent → route + exact command/path · `research` cite current docs for a "how" · `install` guarded Claude Code install (CANON C6 confirm-gated sequence; shell commands are not pre-approved and prompt as usual) · `doctor` read-only health-check (`--health-check`) or `--self-test` · `dashboard` local Claude Code state (code reference) · `anchor` surface a CANON decision and flag drift. `--format=md|json`.
 
 ## Governance (binding)
 
@@ -75,5 +75,5 @@ Surface named · only its reference loaded · route given · every "how" carries
 
 ## Changelog
 
-- 2026-10-26 — v2.0.0 — Renamed and widened from `claude-code-concierge` (Claude Code only) to `claude-concierge` (all Claude product surfaces). Progressive disclosure: lean body + one reference per surface; the former AWARENESS-REGISTRY became `references/surfaces/code.md`. No slash-command wrapper (repo policy, PR #407: skills are already `/`-invokable). Six surfaces sourced from official docs on 2026-10-26; unsourced items (claude.ai "styles", skills in the Desktop chat) are marked NOT VERIFIED in their references.
+- 2026-10-26 — v2.0.0 — Renamed and widened from `claude-code-concierge` (Claude Code only) to `claude-concierge` (all Claude product surfaces). Progressive disclosure: lean body + one reference per surface; the former AWARENESS-REGISTRY became `references/surfaces/code.md`. No slash-command wrapper (repo policy, PR #407: skills are already `/`-invokable). Six surfaces sourced from official docs on 2026-10-26; unsourced items (claude.ai "styles", skills in the Desktop chat) are marked NOT VERIFIED in their references. Review round (same day): the plan/settings path for claude.ai skills, the Claude Code skills sync, the Duet product page and the Claude Code Projects beta were confirmed against official pages; "styles" (blog URL returns 404) and skills in the Desktop chat (support article names no app) stay NOT VERIFIED. The skill no longer pre-approves Bash.
 - 2026-06-13 — v1.0.0 — Bootstrap as `claude-code-concierge` (see git history).

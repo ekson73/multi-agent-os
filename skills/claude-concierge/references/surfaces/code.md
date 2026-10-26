@@ -1,7 +1,7 @@
-# AWARENESS-REGISTRY.md — Claude-Code platform landscape (the concierge payload)
+# Claude Code surface reference — platform landscape (claude-concierge payload)
 
-> **Companion to** `SKILL.md` (claude-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
-> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-06-13.
+> **Companion to** `../../SKILL.md` (claude-concierge). This is the `--mode=explain` + `--mode=guide` + `--mode=research` lookup table.
+> **Vendor-neutral** (MIT / AAIF cross-vendor). **Last verified**: 2026-10-26 (moved from claude-code-concierge/AWARENESS-REGISTRY.md).
 > **Convention**: this registry is *referenced*, not duplicated, by callers. Counts/paths are point-in-time — `--mode=doctor --health-check` re-derives from the live config and flags drift. The authoritative "how" is ALWAYS the current official docs (`--mode=research`), not this table — this orients; docs decide.
 
 ---
@@ -106,7 +106,7 @@ direct    (you author/place the file yourself)               ← you own the tru
 | `maos-concierge` | the MAOS framework (agents/skills/commands/protocols/governances) |
 | `walkthrough-concierge` | ASH (Agentic Session Harness — journals/decisions/drift) |
 | `openclaw-concierge` | OpenClaw (multi-channel personal-AI gateway, MIT) |
-| **`claude-code-concierge`** (this) | the **Claude-Code platform itself** (install/scope/source/docs-research) |
+| **`claude-concierge`** (this; `claude-code-concierge` = deprecated alias) | the **Claude-Code platform itself** (install/scope/source/docs-research) |
 
 ## Core concepts (vocabulary the concierge teaches)
 
@@ -129,5 +129,5 @@ direct    (you author/place the file yourself)               ← you own the tru
 ## Refs
 
 - Official: `code.claude.com/docs` · `docs.claude.com` · `github.com/anthropics/*`
-- Companions: `CANON.md` (canonical decisions) · `references/socratic-33q.md` (this concierge's spec) · `dashboard.html`
-- Sibling registries: `maos-concierge/AWARENESS-REGISTRY.md`
+- Companions: `../../CANON.md` (canonical decisions) · `../socratic-33q.md` (this concierge's spec) · `../../dashboard.html`
+- Sibling registries: `../../../maos-concierge/AWARENESS-REGISTRY.md`

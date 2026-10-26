@@ -23,7 +23,7 @@
 10. **Claude Code tools needed?** — `Read`, `Glob`, `Grep` (capability detection + health-check), `Bash` (`command -v claude`, `claude mcp list`, `claude plugin …`, `git worktree list`), `WebFetch`/`WebSearch` (official docs — the core research muscle). `Write` only for the on-request `dashboard.html` companion (it orients/researches; it does not mutate config except in confirm-gated `--mode=install`, which uses the `claude` CLI via Bash, not file edits).
 11. **External sources to consult?** — `code.claude.com/docs` (authoritative), `docs.claude.com`/`docs.anthropic.com`, `github.com/anthropics/*`, each tool's own docs (via `find-docs`/Context7/ref-tools), and the `claude-code-guide` agent for feature Q&A.
 12. **Patterns/conventions to follow?** — The concierge family template (Identity/DNA/Phase-0/Decision-Matrix/Modes/Governance/DoR/DoD/KPIs/Cross-refs); kebab-case; vendor-neutral MIT (layer purity — NO corporate content); ISO-8601 dates; soul-name display-only (envelope-safety).
-13. **Warm-start context?** — `AWARENESS-REGISTRY.md` (landscape) + `CANON.md` (canonical decisions) + Phase-0 capability detection of the current host/repo.
+13. **Warm-start context?** — `references/surfaces/*.md` (per-surface landscape) + `CANON.md` (canonical decisions) + Phase-0 capability detection of the current host/repo.
 14. **Autonomy level?** — **Consultative** for explain/onboard/guide/research/dashboard (orients/researches, caller executes); **read-only** for doctor/anchor (proposes, never mutates); **guarded-autonomous** for install (confirm-gated, capability-detected, verified). Never autonomous over irreversible/secret/cross-org/enterprise changes.
 
 ## Limits (15-21)
@@ -49,7 +49,7 @@
 27. **Who can invoke?** — Any human or agent in a Claude-Code (or AAIF) context (public/community — MIT).
 28. **Documents decisions how?** — `--mode=doctor`/`anchor` outputs carry evidence + criterion + fix; install emits an audit line (command + scope/source + revert); canonical decisions live in `CANON.md`; changelog in `SKILL.md`.
 29. **Success metrics (KPIs)?** — 0 reimplemented tools · 0 fabricated commands · 100% research recommendations cite a CURRENT official source · 100% installs confirm-gated + verified · 100% health-check findings with evidence+criterion+fix · graceful-degrade on missing surface.
-30. **Updates/evolves how?** — Docs-driven: `--mode=research`/`doctor` re-derive against current official docs and flag drift vs `AWARENESS-REGISTRY.md`; CANON entries sunset via DUED (qualitative) when the official mechanism changes.
+30. **Updates/evolves how?** — Docs-driven: `--mode=research`/`doctor` re-derive against current official docs and flag drift vs `references/surfaces/*.md`; CANON entries sunset via DUED (qualitative) when the official mechanism changes.
 
 ## Validation (31-33)
 
@@ -59,4 +59,4 @@
 
 ---
 
-> **Spec → SKILL mapping**: Q2/Q3 → 8 modes + What-I-do-NOT-do · Q4 → Identity (why it exists, the gap) · Q8-Q13 → Phase-0 + companions + AWARENESS-REGISTRY · Q14 → mode autonomy (consultative/read-only/guarded) · Q15-Q21 → governance layer + limits + C1-C8 · Q22-Q26 → Landscape Decision Matrix + Cross-refs · Q27-Q30 → governance + KPIs · Q31-Q33 → DoD + dogfooding.
+> **Spec → SKILL mapping**: Q2/Q3 → 8 modes + What-I-do-NOT-do · Q4 → Identity (why it exists, the gap) · Q8-Q13 → Phase-0 + companions + references/surfaces/ · Q14 → mode autonomy (consultative/read-only/guarded) · Q15-Q21 → governance layer + limits + C1-C8 · Q22-Q26 → Landscape Decision Matrix + Cross-refs · Q27-Q30 → governance + KPIs · Q31-Q33 → DoD + dogfooding.

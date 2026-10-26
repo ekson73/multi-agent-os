@@ -2,7 +2,7 @@
 
 > **Companion to** `SKILL.md` (claude-concierge; decisions C1–C9 are scoped to the Claude Code surface). This is the `--mode=anchor` source-of-truth.
 > **Why repo-local:** a fresh-amnesic agent or new teammate must re-find the binding platform rules instead of re-deriving (or contradicting) them.
-> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-06-13. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
+> **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-10-26. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
 > **How `--mode=anchor` uses this:** surface the relevant decision on demand; if a project artifact contradicts a decision here, emit `decision + contradiction + corrective pointer`.
 
 ---
@@ -57,5 +57,5 @@ This skill (and anything it places) carries frontmatter; dates are ISO-8601; con
 
 ## C9 — Refs + sunset
 - Canonical sources: `code.claude.com/docs` · `docs.claude.com` · `github.com/anthropics/*` · the repo's `README.md`/`AGENTS.md` · `docs/framework-consumption.md`.
-- Companion: `AWARENESS-REGISTRY.md` (landscape) · `references/socratic-33q.md` (this concierge's spec).
+- Companion: `references/surfaces/code.md` (Claude Code landscape; ex-AWARENESS-REGISTRY.md) · `references/socratic-33q.md` (this concierge's spec).
 - **Sunset (DUED, qualitative):** supersede an entry when the official docs change the mechanism (e.g. a new CLI verb, a changed scope model, a new plugin/marketplace primitive), or operator retraction. No counter-based expiry — `--mode=doctor`/`research` re-derives against current docs.

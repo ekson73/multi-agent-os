@@ -152,8 +152,8 @@ graph LR
     maos_concierge --> agent_select
     maos_concierge --> auto_pilot
     maos_concierge --> morning_briefing
-    claude_code_concierge --> maos_concierge
-    claude_code_concierge --> agentic_tool_forge
+    claude_concierge --> maos_concierge
+    claude_concierge --> agentic_tool_forge
     9router_concierge --> maos_concierge
     omniroute_concierge --> maos_concierge
   end

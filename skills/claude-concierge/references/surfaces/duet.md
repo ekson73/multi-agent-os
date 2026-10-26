@@ -1,9 +1,9 @@
 # Surface: Claude Duet
 
-> Load only when the intent is about Claude Duet. Verified 2026-10-26 from the support article; the product page came from search and was not opened.
+> Load only when the intent is about Claude Duet. Verified 2026-10-26 from the support article and the product page.
 
-- **What it is:** a research-preview app (iOS/Android) you use by text or voice, like messaging a person. It asks for approval before sending messages, making payments, signing documents or deleting anything.
-- **Access:** Pro and Max in the US, waitlist; not on Team/Enterprise yet.
+- **What it is:** a research-preview agent app for iPhone and Android that you message by typing or speaking; it acts in the apps you connect. It asks for approval before sending messages, making payments, signing documents or deleting anything.
+- **Access:** waitlist for Pro and Max users in the US only; not on Team/Enterprise.
 - **Customization:** connectors (Gmail, Drive, Slack…), memory, skills, plugins. The model is fixed and cannot be chosen.
 
 ## Routes
@@ -11,4 +11,4 @@
 
 ## Sources
 - https://support.claude.com/en/articles/17631495-get-started-with-claude-duet
-- https://claude.com/product/claude-duet (from search, not opened)
+- https://claude.com/product/claude-duet

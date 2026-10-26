@@ -26,7 +26,7 @@ evals:
     - "What does rig seat clear-attention need?"
   should_not_trigger:
     - "Change OpenRig's own source code or open a PR on mvschwarz/openrig"
-    - "Explain how Claude Code skills or plugins work (route to claude-concierge)"
+    - "Explain how Claude Code skills or plugins work (route to claude-code-guide; claude-concierge only for scope/placement/install)"
     - "Onboard me to the MAOS framework (route to maos-concierge)"
     - "Create a git worktree for this feature (route to worktree-policy)"
     - "Delegate this task to subagents (route to delegate-governance / auto-pilot)"
