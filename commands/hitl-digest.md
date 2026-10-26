@@ -202,6 +202,7 @@ python3 "$FUSE" --hitl-md "$LEDGER" --scope all --include pending --pending-only
 Garantias do contrato:
 - Fila vazia com escopo resolvido → `"ask_user_question": null` + `"no_decisions": true` e a linha `nenhuma decisão pendente — não abra AskUserQuestion`; não abra a ferramenta. Escopo não resolvido mantém `no_decisions: false`, payload nulo e o motivo explícito.
 - `machine` recebe exatamente os bytes de `--format json` (mesma saída, sem newline final).
+- Cards `human-live` continuam limitados à sessão também com `--with-pendencies`; só `--scope all` explícito amplia. Os consumidores `machine`/`human-deferred` mantêm o escopo e a saída dos renderers existentes.
 - Proveniência do ledger viaja no envelope (`hitl_source`, `hitl_source_kind`, `hitl_source_dirty`, `hitl_source_behind`, `hitl_warning`) e no `preamble` (≤80 colunas, avisos e metadados longos quebrados sem perda). O escopo e sua resolução também acompanham o payload; identidade ausente não é fila vazia.
 - Rótulos de opção são únicos mesmo após corte (sufixo ` (2)`); uma opção estruturada solitária ganha `Manter pendente`.
 

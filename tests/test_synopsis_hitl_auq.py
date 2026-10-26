@@ -27,12 +27,13 @@ SESSION_A = ARGS[1]
 SESSION_B = "0000000022222222ccccdddd"
 
 
-def run(*args, stdin="{}"):
+def run(*args, stdin="{}", hitl_only=True):
     env = dict(os.environ)
     for key in ("MAOS_SELF_SESSION_ID", "PI_SESSION_ID", "PI_SESSION_FILE",
                 "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CODEX_THREAD_ID"):
         env.pop(key, None)
-    p = subprocess.run([sys.executable, str(FUSE), "--hitl-only", "--compass-json", "-", *args],
+    mode = ["--hitl-only"] if hitl_only else []
+    p = subprocess.run([sys.executable, str(FUSE), *mode, "--compass-json", "-", *args],
                        input=stdin, capture_output=True, text=True, timeout=60, env=env)
     assert p.returncode == 0, p.stderr
     return p.stdout
@@ -145,11 +146,11 @@ def test_no_session_id_no_code(ledger, monkeypatch):
     assert d["code"] is None and d["preamble"][0] == "══ 🟠 HITL DIGEST ══"
 
 
-def _hj(tmp_path, items, *extra, compass="{}"):
+def _hj(tmp_path, items, *extra, compass="{}", hitl_only=True):
     hj = tmp_path / "h.json"
     hj.write_text(json.dumps([{"session_id": SESSION_A, **it} for it in items]), encoding="utf-8")
     return json.loads(run("--hitl-json", str(hj), "--format", "ask-user-question",
-                          *ARGS, *extra, stdin=compass))
+                          *ARGS, *extra, stdin=compass, hitl_only=hitl_only))
 
 
 def test_single_structured_option_padded(tmp_path):
@@ -309,3 +310,31 @@ def test_malformed_json_preserves_self_heal_error(tmp_path):
     error = json.loads(proc.stderr)
     assert error["synopsis_panel_error"] is True
     assert error["error_type"] == "JSONDecodeError"
+
+
+@pytest.mark.parametrize("scope, expected", [
+    (None, ["H-0821"]), ("repo", ["H-0821"]), ("all", ["H-0821", "H-0822"]),
+])
+def test_live_cards_with_pendencies_require_explicit_global_scope(tmp_path, scope, expected):
+    items = [{"id": "H-0821", "decidir": "SYNTHETIC_OWN", "session_id": SESSION_A},
+             {"id": "H-0822", "decidir": "SYNTHETIC_FOREIGN", "session_id": SESSION_B}]
+    extra = ["--scope", scope] if scope else []
+    d = _hj(tmp_path, items, *extra, hitl_only=False,
+            compass=json.dumps({"by_domain": {"test": [{"id": "H-0821", "title": "attached"}]}}))
+    assert [c["id"] for c in d["cards"]] == expected
+    if scope != "all":
+        assert "H-0822" not in json.dumps(d) and "SYNTHETIC_FOREIGN" not in json.dumps(d)
+        assert d["hitl_scope"] == "session"
+
+
+@pytest.mark.parametrize("consumer, fmt", [("machine", "json"), ("human-deferred", "tree")])
+def test_nonlive_consumers_preserve_general_panel_parity(tmp_path, consumer, fmt):
+    hj = tmp_path / "h.json"
+    hj.write_text(json.dumps([
+        {"id": "H-0823", "decidir": "SYNTHETIC_OWN", "session_id": SESSION_A},
+        {"id": "H-0824", "decidir": "SYNTHETIC_FOREIGN", "session_id": SESSION_B}]))
+    common = ["--hitl-json", str(hj), *ARGS]
+    out = run(*common, "--format", "ask-user-question", "--consumer", consumer, hitl_only=False)
+    baseline = run(*common, "--format", fmt, hitl_only=False)
+    assert normalize(out, tmp_path) == normalize(baseline, tmp_path)
+    assert "H-0823" in out and "H-0824" in out

@@ -1227,7 +1227,12 @@ def main(argv=None) -> int:
         # question nobody asked. The default in --hitl-only mode is THIS
         # conversation's items, and the filter runs before the counts, so every
         # number in the output describes the slice that was actually shown.
-        scope, scope_reason = resolve_hitl_scope(args)
+        # Live decision cards use digest scope even alongside a pendency tree.
+        # Deferred/machine consumers keep their existing renderer's scope.
+        scope_args = (argparse.Namespace(hitl_only=True, scope=args.scope)
+                      if args.format == AUQ_FORMAT and args.consumer == "human-live"
+                      else args)
+        scope, scope_reason = resolve_hitl_scope(scope_args)
         identity = resolve_session_identity(args.session_id)
         scope_info = {
             "scope": scope,
