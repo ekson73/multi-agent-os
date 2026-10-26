@@ -267,21 +267,30 @@ def resolve_session_identity(explicit: str | None, env: dict | None = None) -> d
         ids = _ids(explicit)
         if ids:
             return {"ids": ids, "source": "--session-id", "resolved": True, "note": None}
-        return {"ids": [], "source": "--session-id", "resolved": False,
-                "note": "--session-id was empty"}
+        # An EMPTY --session-id carries no identity claim: it must not shadow the
+        # environment (a caller that always passes the flag would otherwise get
+        # "unresolved" while the environment knows the answer).
+        explicit = None
     for var in ("MAOS_SELF_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID"):
         raw = (env.get(var) or "").strip()
         if raw and raw != "unknown":
             return {"ids": _ids(raw), "source": f"env:{var}", "resolved": True, "note": None}
     raw_path = (env.get("PI_SESSION_FILE") or "").strip()
     if raw_path:
-        name = Path(raw_path).name
-        m = SESSION_ID_RE.search(name)
-        if m:
-            return {"ids": [m.group(0)], "source": "env:PI_SESSION_FILE",
-                    "resolved": True, "note": None}
+        p = Path(raw_path)
+        # The uuid lives in the FILE name for a top-level session, and in the
+        # PARENT DIRECTORY name for a session the harness forked (the child file
+        # sits in a directory named after the conversation it belongs to) — the
+        # same convention scripts/corpus-firing-audit.py and
+        # scripts/ichnos-analytics.py already read.
+        for label, name in (("file", p.name), ("directory", p.parent.name)):
+            m = SESSION_ID_RE.search(name)
+            if m:
+                return {"ids": [m.group(0)], "source": f"env:PI_SESSION_FILE ({label})",
+                        "resolved": True, "note": None}
         return {"ids": [], "source": "env:PI_SESSION_FILE", "resolved": False,
-                "note": f"PI_SESSION_FILE carries no session id in its name ({name})"}
+                "note": (f"PI_SESSION_FILE carries no session id in its name "
+                         f"({p.name}) nor in its directory name ({p.parent.name})")}
     return {"ids": [], "source": None, "resolved": False,
             "note": ("no session identity available (--session-id, MAOS_SELF_SESSION_ID, "
                      "CLAUDE_CODE_SESSION_ID, CLAUDE_SESSION_ID, PI_SESSION_FILE)")}
@@ -363,6 +372,31 @@ def _session_col_index(header: list[str]) -> int:
     return -1
 
 
+def _base_col_index(header: list[str]) -> list[int] | None:
+    """Index of each base column in the header, or None when the header is not ours.
+
+    The base columns are the vault's fixed contract (OPEN_COLS), so the usual
+    case is the header listing them in order and the mapping being positional.
+    But the "Sessão" column may be written anywhere, and a positional zip would
+    then shift every base value by one — a silent corruption. So: when the header
+    names the base columns, they are located BY NAME; when it does not (a ledger
+    we do not know), the row is read positionally as before.
+    """
+    if not header:
+        return None
+    normalized = [_norm_col(name) for name in header]
+    wanted = [_norm_col(name) for name in HITL_OPEN_COLS]
+    if normalized[:len(wanted)] == wanted:
+        return list(range(len(wanted)))
+    index = []
+    for name in wanted:
+        try:
+            index.append(normalized.index(name))
+        except ValueError:
+            return None
+    return index
+
+
 def parse_hitl_md(path: Path) -> list[dict]:
     """Parse the OPEN table of the punch-list.md SSOT into dicts. READ-only.
 
@@ -373,12 +407,18 @@ def parse_hitl_md(path: Path) -> list[dict]:
     text = path.read_text(encoding="utf-8")
     body = _md_block(text, HITL_OPEN_MARK)
     rows = _md_rows(body, HITL_OPEN_COLS)
-    sess_idx = _session_col_index(_md_header(body))
+    header = _md_header(body)
+    sess_idx = _session_col_index(header)
+    base_idx = _base_col_index(header)
     items = []
     for r in rows:
         if len(r) < len(HITL_OPEN_COLS):
             continue  # malformed row -> skip (the engine's `check` command flags it)
-        d = dict(zip(HITL_OPEN_COLS, r))
+        if base_idx is None:
+            d = dict(zip(HITL_OPEN_COLS, r))
+        else:
+            d = {name: (r[i] if i < len(r) else "")
+                 for name, i in zip(HITL_OPEN_COLS, base_idx)}
         tipo = d.get("Tipo", "").split()[-1].lower() if d.get("Tipo") else ""
         # a row may carry MORE cells than the base columns (the Sessão column) or
         # exactly the base ones (a legacy ledger); both are valid

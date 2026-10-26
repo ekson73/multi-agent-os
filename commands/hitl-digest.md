@@ -46,7 +46,7 @@ operator-gated no próprio ledger (só o humano resolve; silêncio nunca é acei
 | `--session-id` | resolvido do ambiente | identidade da conversa que **invocou** o digest (aceita lista separada por vírgula; comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → o uuid no nome de `PI_SESSION_FILE`. **Sem identidade resolvida o digest não mostra nada e diz o motivo** — nunca mostra tudo, nunca afirma "não existem" |
 | `--format` | `tree` | `tree` (chat/terminal) · `mermaid` · `html` (página autônoma) · `json` (envelope p/ agente) |
 | `--with-pendencies` | off | inclui a N-Tree de pendências com os HITL anexados; **off = só o ramo HITL** (o digest puro) |
-| `--hitl-md PATH` | descobre | caminho do `punch-list.md` SSOT; omitido ⇒ o motor descobre o ledger automaticamente (via sua própria convenção de busca), que resolve a cópia do **working tree**. O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
+| `--hitl-md PATH` | o vault normal (`~/eko-engram/hitl/punch-list.md`) | caminho do `punch-list.md` SSOT. O digest passa esse caminho **explicitamente** — a descoberta padrão do motor resolve `~/Projects/eko-engram`, que é **outro clone** com outro conteúdo. Para ler outro ledger, passe o path explícito (ou defina `HITL_LEDGER`). O digest sempre diz **qual arquivo leu** e **avisa** quando ele divergir da versão rastreada — leia o aviso antes de citar a fila |
 | `--title TEXT` | *(pt-BR default)* | rótulo do digest |
 
 > **Por que o default é a sessão, e não o ledger inteiro.** O `punch-list.md` é UMA fila
@@ -119,29 +119,41 @@ if [ -z "$FUSE" ]; then
 fi
 [ -n "$FUSE" ] || { echo "hitl-digest: synopsis-fuse.py não encontrado" >&2; exit 2; }
 
+# LEDGER do digest: o vault NORMAL, passado EXPLICITAMENTE. A descoberta padrão do
+# motor (find_hitl_md) resolve ~/Projects/eko-engram — OUTRO clone, com outro
+# conteúdo; o digest tem de ler o vault normal (~/eko-engram), que é onde o
+# ledger é mantido. Para ler outro ledger, o operador passa --hitl-md <path>
+# explícito (o parâmetro já existe) ou define HITL_LEDGER.
+LEDGER="${HITL_LEDGER:-$HOME/eko-engram/hitl/punch-list.md}"
+
 # DIGEST PURO (default) — só os gates humanos, sem rodar o coletor de pendências.
 # O compass vazio ({} via stdin) curto-circuita a agregação: o digest HITL não
 # depende da N-Tree, então não há por que esperar o work-compass. Rápido e read-only.
 # Sem --scope, o motor mostra SÓ os itens desta conversa (escopo=session).
-echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format tree
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format tree
 
 # MESMO digest, com a identidade da conversa invocadora explicitada. Use quando o
-# comando roda num processo delegado (subagente), onde o ambiente do filho NÃO
-# carrega a identidade da conversa que pediu: sem isto, o digest falha fechado.
-echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --session-id "$SESSION_ID" --format tree
+# comando roda num processo delegado (subagente), onde o ambiente do filho resolve
+# a identidade do PRÓPRIO harness (o id do fork), não o da conversa que pediu:
+# aqui a identidade chega pelo caminho que o harness expõe — a variável de
+# sessão do runtime, ou o id que o delegador repassa. Sem isto, o digest falha
+# fechado (mostra 0 e diz o motivo), que é o comportamento correto e explícito.
+SESSION_ID="${HITL_SESSION_ID:-${MAOS_SELF_SESSION_ID:-${CLAUDE_SESSION_ID:-}}}"
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" \
+  ${SESSION_ID:+--session-id "$SESSION_ID"} --format tree
 
 # LEDGER INTEIRO (global, legados inclusive) — pedido explícito, nunca o default.
-echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --scope all --format tree
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --scope all --format tree
 
 # digest puro em página HTML autônoma (estilo hitl-digest, dark/light)
-echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --format html > hitl-digest.html
+echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format html > hitl-digest.html
 
 # DIGEST + PENDÊNCIAS (--with-pendencies): aí SIM o coletor roda (mais lento). Cada HITL é
 # anexado à pendência a que pertence. --pending-only mantém o foco HITL: só os nós que
 # carregam um HITL (ou flag) permanecem na árvore, então o resultado é o digest HITL com as
 # pendências a que os gates pertencem — NÃO o painel de sinopse completo.
 # Aqui --scope all é o recorte de PENDÊNCIAS (o work-compass), comportamento antigo e intacto.
-python3 "$FUSE" --scope all --include pending --pending-only --format tree
+python3 "$FUSE" --hitl-md "$LEDGER" --scope all --include pending --pending-only --format tree
 ```
 
 > **Por que o compass vazio no caminho puro** — medido na fonte: o `synopsis-fuse.py` sempre
@@ -155,7 +167,7 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 > quando ele divergir da versão rastreada:
 >
 > ```
-> > HITL ledger: `/Users/<you>/Projects/eko-engram/hitl/punch-list.md`
+> > HITL ledger: `/Users/<you>/eko-engram/hitl/punch-list.md`
 > >
 > > ⚠ ledger read from the WORKING TREE and it diverges from the tracked version:
 > >   MODIFIED relative to HEAD; the repo is 21 commit(s) BEHIND its upstream.
@@ -168,7 +180,7 @@ python3 "$FUSE" --scope all --include pending --pending-only --format tree
 > aparecer, meça a versão rastreada antes de reportar:
 >
 > ```bash
-> git -C ~/Projects/eko-engram show '@{upstream}:hitl/punch-list.md' > /tmp/ledger.md
+> git -C ~/eko-engram show '@{upstream}:hitl/punch-list.md' > /tmp/ledger.md
 > echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md /tmp/ledger.md --format tree
 > ```
 

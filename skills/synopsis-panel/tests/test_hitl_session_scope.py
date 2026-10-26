@@ -249,10 +249,18 @@ def test_a_narrowed_scope_says_how_many_the_ledger_holds(script_path, tmp_path):
 
 
 def test_an_unresolved_identity_claims_no_ownership_split(script_path, tmp_path):
-    """With an unresolved identity, "0 of N are this conversation's" is a claim we
-    cannot make: we do not know which conversation is ours. The warning says it
-    instead; the split line must not appear."""
+    """With an unresolved identity the engine cannot say which ledger items are
+    the caller's — so it must not present a per-conversation split. The metadata
+    is the contract: the scope is unresolved and no item is attributed."""
     ledger = _ledger(tmp_path)
+    env = _run(script_path, ledger, env=_clean_env())
+    meta = env["meta"]
+    assert meta["hitl_session_resolved"] is False
+    assert meta["hitl_session_ids"] == []
+    assert meta["hitl_count"] == 0
+    # the ledger's size is still reported — the DATA is not lost, only the claim
+    assert meta["hitl_ledger_total"] == 3
+    assert meta["hitl_scope_unresolved"]
     out = subprocess.run(
         [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
          "--hitl-md", str(ledger), "--format", "tree"],
@@ -269,6 +277,77 @@ def test_identity_comes_from_the_harness_environment(script_path, tmp_path):
     env = _run(script_path, ledger, env=_clean_env(CLAUDE_SESSION_ID=SESSION_B))
     assert _ids(env) == ["H-0002"]
     assert env["meta"]["hitl_session_source"] == "env:CLAUDE_SESSION_ID"
+
+
+# ── 4b: the identity comes from the harness's OWN session layout (P2) ───────────
+def test_the_identity_resolves_from_the_session_file_name(synopsis_fuse):
+    """The OMP layout: <timestamp>_<uuid>.jsonl — the uuid is in the file name."""
+    ident = synopsis_fuse.resolve_session_identity(
+        None, {"PI_SESSION_FILE": f"/x/2026-10-14T22-21-56-389Z_{SESSION_A}.jsonl"})
+    assert ident["resolved"] is True
+    assert ident["ids"] == [SESSION_A]
+
+
+def test_the_identity_resolves_from_the_forked_session_directory(synopsis_fuse):
+    """The OMP layout for a delegated run: <timestamp>_<uuid>/<worker>.jsonl — the
+    uuid is in the PARENT DIRECTORY name, the same convention the repo already
+    reads in scripts/corpus-firing-audit.py and scripts/ichnos-analytics.py."""
+    ident = synopsis_fuse.resolve_session_identity(
+        None, {"PI_SESSION_FILE": f"/x/2026-10-14T22-21-56-389Z_{SESSION_A}/Worker.jsonl"})
+    assert ident["resolved"] is True
+    assert ident["ids"] == [SESSION_A]
+
+
+def test_an_arbitrary_parent_directory_does_not_resolve_an_identity(synopsis_fuse):
+    """A directory whose name is not a session layout must not resolve anything."""
+    ident = synopsis_fuse.resolve_session_identity(
+        None, {"PI_SESSION_FILE": "/tmp/not-a-session-dir/Worker.jsonl"})
+    assert ident["resolved"] is False
+    assert ident["ids"] == []
+
+
+def test_the_process_scoped_session_id_is_not_the_conversation(synopsis_fuse):
+    """PI_SESSION_ID is per PROCESS: in a delegated run it is the fork's id, not the
+    conversation's. The engine must not read it."""
+    ident = synopsis_fuse.resolve_session_identity(
+        None, {"PI_SESSION_ID": "01a17992-43e8-772d-a304-7eb015417730"})
+    assert ident["resolved"] is False
+
+
+def test_an_empty_session_id_does_not_shadow_the_environment(synopsis_fuse):
+    """An empty --session-id carries no claim; the environment still answers."""
+    ident = synopsis_fuse.resolve_session_identity(
+        "", {"MAOS_SELF_SESSION_ID": SESSION_A})
+    assert ident["resolved"] is True
+    assert ident["ids"] == [SESSION_A]
+
+
+# ── 3b: the base columns are located by the header, not by position (P2) ────────
+def test_a_moved_session_column_does_not_shift_the_base_columns(synopsis_fuse, tmp_path):
+    """If the writer put "Sessão" anywhere but last, the base values must not move."""
+    body = LEDGER.replace(
+        "| ID | Sev | Tipo | R | Decidir | Pediu | Aberto | Idade | Prazo | Status | Link | Sessão |",
+        "| ID | Sessão | Sev | Tipo | R | Decidir | Pediu | Aberto | Idade | Prazo | Status | Link |")
+    body = body.replace(f"| {SESSION_A} |", f"| {SESSION_A} |", 1)
+    lines = []
+    for line in body.splitlines():
+        if line.startswith("| H-0001"):
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            # move the session cell from the end to the second position
+            sess = cells.pop()
+            cells.insert(1, sess)
+            line = "| " + " | ".join(cells) + " |"
+        lines.append(line)
+    ledger = tmp_path / "punch-list.md"
+    ledger.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    items = synopsis_fuse.parse_hitl_md(ledger)
+    item = next(i for i in items if i["id"] == "H-0001")
+    assert item["sev"].endswith("URGENTE"), "the severity must not be the session id"
+    assert item["tipo"] == "credencial"
+    assert item["risk"] == "R3"
+    assert item["decidir"] == "Gate da sessao A"
+    assert item["session"] == [SESSION_A]
+
 
 
 def test_explicit_session_id_beats_the_environment(script_path, tmp_path):
