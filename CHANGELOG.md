@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Disk mode counts user and project `.claude/rules/` (cwd and ancestors, nested dirs) and
   merges `enabledPlugins` user < project < local; secret-looking keys (incl. suffixed names
   like `*_PASSPHRASE`, `AUTHORIZATION`) are redacted.
+  Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
+  (cwd and ancestors), deduped by realpath.
 - **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
-  (51 assertions, fake `$HOME`, read-only check).
+  (54 assertions, fake `$HOME`, read-only check).
 - Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.

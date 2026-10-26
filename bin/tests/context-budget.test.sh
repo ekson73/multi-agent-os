@@ -221,6 +221,20 @@ printf '{"enabledPlugins":{"p1":false}}' > "$W5/.claude/settings.local.json"
 o="$("$CB" --mode disk --home "$H5" --cwd "$W5" --json)"
 eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: project/local enabledPlugins override user'
 
+# --- disk: project-scope skills/agents/commands (cwd and ancestors), deduped by realpath
+H6="$T/home6"; W6="$T/work6/proj/sub"
+mkdir -p "$H6/.claude/skills/u1" "$W6/.claude/skills/p1" "$W6/.claude/skills/dup" \
+         "$T/work6/proj/.claude/agents" "$W6/.claude/commands/nested"
+printf -- '---\nname: u1\ndescription: user\n---\n' > "$H6/.claude/skills/u1/SKILL.md"
+printf -- '---\nname: p1\ndescription: project\n---\n' > "$W6/.claude/skills/p1/SKILL.md"
+ln -s "$H6/.claude/skills/u1/SKILL.md" "$W6/.claude/skills/dup/SKILL.md"
+printf -- '---\nname: pa\ndescription: ancestor agent\n---\n' > "$T/work6/proj/.claude/agents/pa.md"
+printf -- '---\nname: pc\ndescription: project cmd\n---\n' > "$W6/.claude/commands/nested/pc.md"
+o="$("$CB" --mode disk --home "$H6" --cwd "$W6" --json)"
+eq 2 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="skills"][0]["count"]')" 'disk: project-scope skills counted, symlink dup deduped'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="agents"][0]["count"]')" 'disk: ancestor project-scope agents counted'
+eq 1 "$(printf '%s' "$o" | jq_ '[r for r in d["sources"] if r["category"]=="commands"][0]["count"]')" 'disk: project-scope commands counted (nested)'
+
 # --- text mode + fallbacks
 o="$("$CB" --mode transcript --transcript "$TR" --home /h --top 2)"
 case "$o" in *"TOTAL"*"top 2 sources"*) ok 'text: table + top-N';; *) no 'text: table + top-N' "$o";; esac

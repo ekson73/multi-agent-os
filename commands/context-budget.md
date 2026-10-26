@@ -39,7 +39,8 @@ measurement; disk mode over-estimates listings because the harness truncates des
 - `ignored malformed plugin config records` (disk mode) counts plugin settings entries of the
   wrong type; they are skipped, not fatal.
 - Hook names and the executable basename are redacted: `*TOKEN*`, `*KEY*`, `*SECRET*`,
-  `*PASSWORD*`, `*PASSWD*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment
+  `*PASSWORD*`, `*PASSWD*`, `*PASSPHRASE*`, `*PASSCODE*`, `*AUTHORIZATION*`, `*CREDENTIAL*`,
+  `*COOKIE*` assignments, and `PASS`/`PWD`/`AUTH` as a whole `_`/`-` segment
   (so `BYPASS=` stays), plus bearer tokens and URLs with userinfo or a query string.
 - Hook stdout and stderr are never counted or printed; only the text the harness injected into
   the model's context: `content`, or `response.hookSpecificOutput.additionalContext` for

@@ -400,9 +400,13 @@ def from_disk(home: str, cwd: str):
         rows.append(row(mem.replace(home, "~", 1), "memory_index", file_size(mem), "measured",
                         path=mem, note="full file; the harness may truncate"))
 
-    skills = glob.glob(os.path.join(cl, "skills", "*", "SKILL.md"))
-    agents = glob.glob(os.path.join(cl, "agents", "*.md"))
-    commands = _walk_md(os.path.join(cl, "commands"))
+    # user scope, then project scope (cwd and ancestors)
+    claude_dirs = [cl] + [os.path.dirname(rd) for rd in rule_dirs[1:]]
+    skills, agents, commands = [], [], []
+    for cd in claude_dirs:
+        skills += glob.glob(os.path.join(cd, "skills", "*", "SKILL.md"))
+        agents += glob.glob(os.path.join(cd, "agents", "*.md"))
+        commands += _walk_md(os.path.join(cd, "commands"))
     plugin_roots, ignored = enabled_plugin_roots(home, cwd)
     for _, root in plugin_roots:
         skills += glob.glob(os.path.join(root, "skills", "*", "SKILL.md"))
@@ -412,7 +416,10 @@ def from_disk(home: str, cwd: str):
         rows.append(row("ignored malformed plugin config records", "skipped", 0, "skipped",
                         count=ignored))
     for kind, paths in (("skills", skills), ("agents", agents), ("commands", commands)):
-        b, n = listing_bytes(sorted(set(paths)), kind)
+        uniq = {}
+        for p in sorted(paths):
+            uniq.setdefault(os.path.realpath(p), p)
+        b, n = listing_bytes(sorted(uniq.values()), kind)
         rows.append(row(kind + " listing (name+description)", kind, b, "estimated", count=n,
                         note="frontmatter only; harness formatting differs"))
 
