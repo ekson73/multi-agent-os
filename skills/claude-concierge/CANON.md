@@ -1,6 +1,6 @@
-# CANON.md — Canonical Claude-Code platform decisions (anchor-mode SSOT)
+# CANON.md — Canonical claude-concierge decisions (anchor-mode SSOT)
 
-> **Companion to** `SKILL.md` (claude-concierge; decisions C1–C9 are scoped to the Claude Code surface). This is the `--mode=anchor` source-of-truth.
+> **Companion to** `SKILL.md` (claude-concierge). This is the `--mode=anchor` source-of-truth for all six surfaces. C1, C4, C7, C8 and C9 apply on every surface. C2, C3, C5 and C6 cover Claude Code mechanics (scopes, plugin/marketplace install, the `claude` CLI) and apply only there; per-surface detail lives in `references/surfaces/`.
 > **Why repo-local:** a fresh-amnesic agent or new teammate must re-find the binding platform rules instead of re-deriving (or contradicting) them.
 > **Vendor-neutral** (MIT / AAIF). **Last verified**: 2026-10-26. Entries dated + sunsettable (DUED, qualitative — anti-drift applies to this file too; the authoritative "how" is always the CURRENT official docs).
 > **How `--mode=anchor` uses this:** surface the relevant decision on demand; if a project artifact contradicts a decision here, emit `decision + contradiction + corrective pointer`.
@@ -9,7 +9,7 @@
 
 ## C1 — Official-docs-first (anti-staleness)
 
-The authoritative "how to install/configure/use" is the **CURRENT official docs** — Claude-Code's (`code.claude.com/docs`) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
+The authoritative "how to install/configure/use" is the **CURRENT official docs** — the surface's (e.g. `code.claude.com/docs` for Claude Code, `support.claude.com` for claude.ai) AND the tool's own — never training memory. `--mode=research` MUST hit current docs and cite them before recommending a "how".
 
 **Drift flag:** an install/config "how" asserted from memory without a current-docs citation = contradiction (staleness risk).
 

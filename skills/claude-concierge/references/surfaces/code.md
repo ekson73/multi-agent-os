@@ -106,7 +106,7 @@ direct    (you author/place the file yourself)               ← you own the tru
 | `maos-concierge` | the MAOS framework (agents/skills/commands/protocols/governances) |
 | `walkthrough-concierge` | ASH (Agentic Session Harness — journals/decisions/drift) |
 | `openclaw-concierge` | OpenClaw (multi-channel personal-AI gateway, MIT) |
-| **`claude-concierge`** (this; `claude-code-concierge` = deprecated alias) | the **Claude-Code platform itself** (install/scope/source/docs-research) |
+| **`claude-concierge`** (this; `claude-code-concierge` = deprecated alias) | all six **Claude product surfaces** (claude.ai web · desktop · Claude Code · Projects · bots/agents · Duet): orient and route; for Claude Code also install/scope/source/docs-research |
 
 ## Core concepts (vocabulary the concierge teaches)
 
