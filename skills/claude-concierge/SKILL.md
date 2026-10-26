@@ -64,7 +64,7 @@ A non-safety nicety (verbose teaching, an optional dashboard panel) may be skipp
 ## Governance (binding)
 
 - Official-docs-first; cite current URLs (C1). An unverified surface is labelled NOT VERIFIED, never filled from memory.
-- Capability-detect, never fabricate a command or UI path (C5).
+- In Claude Code, capability-detect, never fabricate a command (C5). On other surfaces, never fabricate a UI path: cite current docs or mark NOT VERIFIED (C1).
 - Secrets never inline; managed/org settings are HUMAN_DOMAIN (C4, C2).
 - Trust-tier a marketplace/plugin before enable (C3).
 - Orient, don't reimplement (C7). Community repo: no organization-specific content (C8).
