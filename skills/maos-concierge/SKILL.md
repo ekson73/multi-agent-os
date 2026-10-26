@@ -158,7 +158,7 @@ Inspect the persisted hub profile (`mcp-tools/maos-mcp-hub/profile.yaml` / `$MAO
 - Companions: [`AWARENESS-REGISTRY.md`](./AWARENESS-REGISTRY.md) · [`CANON.md`](./CANON.md) · [`references/socratic-33q.md`](./references/socratic-33q.md) · [`dashboard.html`](./dashboard.html)
 - Framework tools (cross-ref, never reimplement): `orchestrator` · `forge` · `sentinel-monitor` · `audit` · `agentic-delegation` · `delegate-governance` · `anti-conflict` · `hierarchical-merge` · `worktree-policy` · `ttl-policy` · `status-map` · `converge` · `agent-select` · `context-prep` · `auto-pilot` · `morning-briefing` · `pulse` · `quiesce`
 - Protocols: `protocols/` · `sentinel/detection_rules.md` · `protocols/delegation/` · `docs/framework-consumption.md` · The Forge `agents/forge.md` (33Q)
-- Sibling concierges (cross-vendor pattern): `claude-code-concierge` (the Claude-Code platform) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
+- Sibling concierges (cross-vendor pattern): `claude-concierge` (the Claude product surfaces) · `walkthrough-concierge` (ASH) · `specdd-concierge` · `vek-concierge` (Vek layer) · `atlassian-concierge`
 
 ## Changelog
 - 2026-07-02 — v1.1.0 — T3 (WAVE 5, ADR-006/007): +2 modes `setup` (hub console — 6 registry views + conflict-checked, HITL-confirmed profile write via `lib/registry/console.py`) and `config` (profile SSOT inspect/validate). Composes T1 HubRegistry + T2 HubProfile; reimplements nothing.
