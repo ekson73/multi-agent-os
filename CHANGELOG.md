@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added — `context-budget`: measure the always-loaded context, source by source
+
+- **NEW `bin/context-budget`** (read-only, idempotent, `--json`): ranks each source of the context
+  Claude Code loads before the first reply — rules, CLAUDE.md chain, MEMORY.md, skill/agent
+  listings, deferred MCP tool names, MCP server instructions, hook injections — in bytes and
+  estimated tokens (`bytes/4`, labelled estimate). Two modes: `transcript` (measured from the
+  session `.jsonl` attachments before the first assistant record) and `disk` (files measured,
+  listings estimated, MCP/hooks `not_measured`). Hook stdout/stderr is never counted or printed;
+  only injected text (`content`, including newline-joined lists, or `additionalContext` of `async_hook_response`).
+  Disk mode counts user and project `.claude/rules/` (cwd and ancestors, nested dirs) and
+  merges `enabledPlugins` user < project < local; secret-looking keys (incl. suffixed names
+  like `*_PASSPHRASE`, `AUTHORIZATION`) are redacted.
+  Plugin installs are picked by scope (local > project > user, project/local only when
+  `projectPath` is cwd or an ancestor), and `.claude-plugin/plugin.json` component paths are
+  honored (custom `skills` add to `skills/`; custom `commands`/`agents` replace the defaults;
+  paths escaping the plugin root are ignored and counted).
+  Malformed non-string, non-null install scopes are skipped and counted; glob discovery treats
+  home, project and plugin directory names literally, including wildcard metacharacters.
+  Skill/agent/command listings also scan project-scope `.claude/{skills,agents,commands}`
+  (cwd and ancestors), deduped by realpath.
+  Agent/command estimates reuse the canonical entry classifier, excluding ALL-CAPS documents
+  and skill-owned sub-documents while retaining genuine nested commands.
+  Source labels abbreviate home only at a complete path boundary; original machine paths and byte counts stay unchanged.
+- **NEW `commands/context-budget.md`** thin wrapper; **NEW `bin/tests/context-budget.test.sh`**
+  (82 assertions, fake `$HOME`, read-only check); temporary-directory allocation fails closed before fixture setup.
+- Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
+  `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
+  budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
+
 ### Fixed — preserve HITL ownership across native OMP recovery
 
 - `synopsis-fuse.py` now follows only explicit `parentSession` references in native
@@ -82,6 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command wrapper was added (repo policy from #407: skills are already `/`-invokable).
 - Cross-references in sibling concierges, the lifecycle protocol and `skills/README.md` now name
   `claude-concierge`.
+
 ### Fixed — `synopsis-panel` now names the HITL ledger it read, and warns when that is not the tracked one
 
 - **The defect.** `find_hitl_md()` in `skills/synopsis-panel/bin/synopsis-fuse.py`
