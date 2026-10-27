@@ -31,6 +31,7 @@ tested IS the CLI's.
 
 import json
 import os
+import pathlib
 import subprocess
 import sys
 
@@ -38,6 +39,8 @@ import pytest
 
 SESSION_A = "01a13c82-0525-75a0-b620-c81e79c32830"
 SESSION_B = "01a16b0d-cd00-74c2-8c50-164ec90b27f6"
+# a conversation that owns NOTHING in the fixture ledger — the "0 of N" case
+SESSION_OTHER = "01a1ffff-0000-4000-8000-0000000000ff"
 
 # The writer's table shape: the 11 base columns plus the "Sessão" provenance
 # column. "-" is the writer's marker for "no provenance" (a legacy row).
@@ -84,6 +87,16 @@ def _ledger(tmp_path, body=LEDGER):
 def _run(script_path, ledger, *extra, env=None, compass="{}"):
     """Invoke the real CLI. The compass payload is stdin, so NO collector runs."""
     cmd = [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
+           "--hitl-md", str(ledger), "--format", "json", *extra]
+    proc = subprocess.run(cmd, input=compass, capture_output=True, text=True,
+                          timeout=120, env=env)
+    assert proc.returncode == 0, proc.stderr
+    return json.loads(proc.stdout)
+
+
+def _run_panel(script_path, ledger, *extra, env=None, compass="{}"):
+    """The GENERAL panel (no --hitl-only): the landscape, not the digest."""
+    cmd = [sys.executable, str(script_path), "--compass-json", "-",
            "--hitl-md", str(ledger), "--format", "json", *extra]
     proc = subprocess.run(cmd, input=compass, capture_output=True, text=True,
                           timeout=120, env=env)
@@ -597,3 +610,152 @@ def test_the_session_id_is_compared_exactly(script_path, tmp_path):
     assert _ids(env) == [], (
         "the ledger's id and the requested id must match exactly; a casefold would "
         "silently match a different conversation")
+
+
+# ── 8: `--this-session-only` is the ALIAS of `--scope session` ──────────────────
+# The operator's own spelling (`/maos:hitl-digest --this-session-only`) must be a
+# true alias: the same slice, in every mode, and never a widening.
+def test_the_alias_shows_the_same_slice_as_scope_session(script_path, tmp_path):
+    ledger = _ledger(tmp_path)
+    env = _clean_env(MAOS_SELF_SESSION_ID=SESSION_A)
+    aliased = _run(script_path, ledger, "--this-session-only", env=env)
+    explicit = _run(script_path, ledger, "--scope", "session", env=env)
+    assert _ids(aliased) == _ids(explicit) == ["H-0001"]
+    assert aliased["meta"]["hitl_scope"] == explicit["meta"]["hitl_scope"] == "session"
+    assert aliased["meta"]["hitl_count"] == explicit["meta"]["hitl_count"]
+    assert aliased["meta"]["hitl_ledger_total"] == explicit["meta"]["hitl_ledger_total"]
+
+
+def test_the_alias_narrows_the_general_panel_to_this_conversation(script_path, tmp_path):
+    """Outside --hitl-only the panel is a landscape — but an explicit "this
+    session only" narrows it there too, which is what makes the alias an alias."""
+    ledger = _ledger(tmp_path)
+    whole = _run_panel(script_path, ledger, env=_clean_env())
+    assert whole["meta"]["hitl_scope"] == "all", (
+        "the general panel keeps its historical behaviour: the whole ledger")
+    assert len(_ids(whole)) == 3
+
+    narrowed = _run_panel(script_path, ledger, "--this-session-only",
+                          env=_clean_env(MAOS_SELF_SESSION_ID=SESSION_A))
+    assert narrowed["meta"]["hitl_scope"] == "session"
+    assert _ids(narrowed) == ["H-0001"]
+    assert narrowed["meta"]["hitl_ledger_total"] == 3
+
+
+def test_an_explicit_scope_session_agrees_with_the_alias_in_the_general_panel(
+        script_path, tmp_path):
+    """The alias must not be a second spelling of something else: `--scope session`
+    narrows the same way, in the same mode."""
+    ledger = _ledger(tmp_path)
+    env = _clean_env(MAOS_SELF_SESSION_ID=SESSION_A)
+    aliased = _run_panel(script_path, ledger, "--this-session-only", env=env)
+    explicit = _run_panel(script_path, ledger, "--scope", "session", env=env)
+    assert _ids(aliased) == _ids(explicit) == ["H-0001"]
+    assert aliased["meta"]["hitl_scope"] == explicit["meta"]["hitl_scope"] == "session"
+
+
+def test_the_alias_refuses_to_run_with_scope_all(script_path, tmp_path):
+    """One narrows, the other widens: the contradiction is refused (usage error),
+    never resolved silently in favour of the widening."""
+    ledger = _ledger(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
+         "--hitl-md", str(ledger), "--this-session-only", "--scope", "all",
+         "--format", "tree"],
+        input="{}", capture_output=True, text=True, timeout=120, env=_clean_env())
+    assert proc.returncode == 2, proc.stderr
+    assert proc.stdout == ""
+    assert "--this-session-only contradicts --scope all" in proc.stderr
+
+
+# ── 9: a full ledger and a session that owns nothing — 0 shown, and WHY ────────
+# The ticket's measured failure: the digest returned 0 items while the ledger held
+# 14 open ones, and the 0 read as "there is nothing to decide".
+def test_a_full_ledger_and_no_item_of_this_session_says_why(script_path, tmp_path):
+    ledger = _ledger(tmp_path)
+    env = _clean_env(MAOS_SELF_SESSION_ID=SESSION_OTHER)
+    envelope = _run(script_path, ledger, env=env)
+    assert _ids(envelope) == [], "this session owns nothing in the fixture ledger"
+    meta = envelope["meta"]
+    assert meta["hitl_count"] == 0
+    assert meta["hitl_ledger_total"] == 3, (
+        "the ledger's size must survive the narrowing: '0 shown' must never read "
+        "as '0 exist'")
+    assert meta["hitl_session_resolved"] is True
+    assert not meta["hitl_scope_unresolved"], (
+        "the identity WAS resolved — the emptiness is a fact about the ledger, "
+        "not an unknown scope")
+
+
+def test_the_zero_of_n_case_states_the_reason_in_the_render(script_path, tmp_path):
+    ledger = _ledger(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
+         "--hitl-md", str(ledger), "--format", "tree"],
+        input="{}", capture_output=True, text=True, timeout=120,
+        env=_clean_env(MAOS_SELF_SESSION_ID=SESSION_OTHER))
+    assert proc.returncode == 0, proc.stderr
+    out = proc.stdout
+    assert "0 of 3 ledger items are this conversation's" in out, (
+        "0 shown out of a full ledger must say so, with the ledger's size")
+    assert "carry no provenance" in out or "belong to other conversations" in out, (
+        "the render must say WHY the other items are not shown")
+    assert "H-0001" not in out and "H-0002" not in out
+
+
+def test_the_zero_of_n_case_states_the_reason_in_the_json_envelope(script_path, tmp_path):
+    ledger = _ledger(tmp_path)
+    envelope = _run(script_path, ledger, env=_clean_env(MAOS_SELF_SESSION_ID=SESSION_OTHER))
+    meta = envelope["meta"]
+    assert meta["hitl_count"] == 0 and meta["hitl_ledger_total"] == 3
+    assert meta["hitl_scope"] == "session"
+    assert meta["hitl_scope_reason"], "the scope that produced the slice is named"
+
+
+# ── 10: the COMMAND contract (what the operator actually types) ─────────────────
+COMMAND = pathlib.Path(__file__).resolve().parents[3] / "commands" / "hitl-digest.md"
+
+
+def _command_text() -> str:
+    if not COMMAND.is_file():
+        pytest.skip("the command file is not part of this install")
+    return COMMAND.read_text(encoding="utf-8")
+
+
+def test_the_command_documents_the_alias():
+    text = _command_text()
+    assert "--this-session-only" in text, (
+        "the operator's spelling must be documented in the command")
+    assert "alias" in text.lower()
+
+
+def test_the_command_documents_the_session_default():
+    text = _command_text()
+    assert "| `--scope` | `session`" in text, (
+        "the parameters table must state the session default of --scope")
+    usage = text.split("## Usage", 1)[1].split("```", 2)[1]
+    assert "--this-session-only" in usage, "the usage block must list the alias"
+
+
+def test_the_zero_of_n_case_states_the_reason_in_the_ask_user_question_preamble(
+        script_path, tmp_path):
+    """The AUQ digest is the same digest: an empty slice of a full ledger must say
+    how many the ledger holds, or "nenhuma decisão pendente" reads as "nothing
+    pending" while 3 gates are open."""
+    ledger = _ledger(tmp_path)
+    proc = subprocess.run(
+        [sys.executable, str(script_path), "--hitl-only", "--compass-json", "-",
+         "--hitl-md", str(ledger), "--format", "ask-user-question",
+         "--consumer", "human-live", "--now", "1793030400"],
+        input="{}", capture_output=True, text=True, timeout=120,
+        env=_clean_env(MAOS_SELF_SESSION_ID=SESSION_OTHER))
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["ask_user_question"] is None
+    assert payload["no_decisions"] is True
+    visible = "".join("".join(payload["preamble"]).split())
+    assert "0of3ledgeritemsarethisconversation's" in visible, (
+        "the preamble must name the ledger's size: '0 shown' is not '0 exist'")
+    assert "nenhumadecisãopendente" in visible, (
+        "the spec-mandated line stays")
+    assert all(len(line) <= 80 for line in payload["preamble"])

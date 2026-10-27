@@ -13,14 +13,14 @@ description: |
   precisa de mim num só lugar", "árvore de pendências com os gates humanos marcados",
   "synopsis panel", "unified pendencies + HITL view". Read-only; o script nunca decide
   nem muta — só funde e desenha.
-prompt_version: "0.1.0"
+prompt_version: "0.2.0"
 type: skill
 spec: AAIF / agentskills.io
 applicable_hosts: [Claude Code, Cursor, GitHub Copilot, Aider, any AAIF-compliant agent]
 allowed-tools: [Bash, Read]
 cycles_completed: 0
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
   scope: AAIF cross-vendor
   family: work-landscape
   cross_link_slug: synopsis-panel
@@ -137,6 +137,7 @@ bin/synopsis-fuse.py --format json
 | `--format` | `tree` | `tree` · `mermaid` · `html` · `json` |
 | `--scope` | `all` (pendências) · `session` (ledger HITL, em `--hitl-only`) | `current\|session\|repo\|vault\|all`. Escopo de **pendência** (repassado ao work-compass) e, em `--hitl-only`, escopo do **ledger HITL**: sem `--scope` o digest mostra só os itens desta conversa; `--scope all` traz o ledger inteiro, legados inclusive; qualquer outro valor **nunca** amplia |
 | `--session-id ID[,ID]` | resolvido do ambiente | identidade da conversa que invocou o render (comparação **exata** — um id é opaco, `A` ≠ `a`). Ordem: `--session-id` → `MAOS_SELF_SESSION_ID` → `CLAUDE_CODE_SESSION_ID` → `CLAUDE_SESSION_ID` → headers nativos de `PI_SESSION_FILE` com ancestrais `parentSession` explícitos. `PI_SESSION_ID` é deliberadamente ignorado: é por *processo*. Overrides não expandem para ancestrais. Sem identidade resolvida o escopo de sessão **falha fechado** (nada mostrado + motivo) |
+| `--this-session-only` | off | **alias de `--scope session`** na fatia do ledger HITL: só os itens cuja proveniência nomeia esta conversa, **em qualquer modo** (inclusive no painel geral, onde o resto do ledger fica inteiro). Só restringe — nunca amplia — por isso **contradiz** `--scope all`: as duas juntas saem com erro de uso (exit 2), nunca resolvidas em silêncio |
 | `--include` | `pending` | `pending` (só não-resolvidas) · `all` |
 | `--hitl-only` | off | renderiza só o ramo HITL |
 | `--pending-only` | off | mantém nós flagged / com HITL |
@@ -153,6 +154,11 @@ uma conversa que tinha **2** gates seus.
 - **O default em `--hitl-only` é a sessão**: só os itens cuja proveniência (a coluna
   `Sessão` do próprio ledger) nomeia esta conversa.
 - **Só `--scope all` amplia** — pedido explícito, nunca inferido.
+- **`--this-session-only` é o alias de `--scope session`** — a mesma fatia, em qualquer
+  modo (inclusive no painel geral, onde o resto do ledger continua inteiro). Como só
+  restringe, ele **contradiz** `--scope all`: as duas juntas são recusadas com erro de
+  uso (exit 2), porque resolver a contradição em silêncio entregaria um ledger inteiro
+  a quem pediu "só esta conversa".
 - **Item sem proveniência é legado**: entra no escopo global e nunca no da sessão.
   Mencionar o ID de um item no chat não o torna seu; a prova é o ledger. Um ledger
   escrito antes da coluna existir é lido assim: todas as suas linhas são legadas.
@@ -253,6 +259,7 @@ fusões falso-positivas (E5). Dormente-por-design caso contrário.
 ## Changelog
 | Version | Date | Change |
 |---|---|---|
+| 0.2.0 | 2026-10-27 | **`--this-session-only`** — o alias de `--scope session` para a fatia do ledger HITL (ticket eko-backlog#231). Nova flag no motor: só os itens cuja proveniência (coluna `Sessão`) nomeia esta conversa, **em qualquer modo** (inclusive no painel geral, onde o resto do ledger continua inteiro). Como o alias só **restringe**, ele **contradiz** `--scope all` — as duas juntas saem com erro de uso (exit 2), nunca resolvidas em silêncio (resolver em favor da ampliação entregaria um ledger inteiro a quem pediu "só esta conversa"). `--scope session` passa a ter o mesmo efeito no painel geral (antes só no digest puro), para que o alias seja um alias de verdade e não uma segunda grafia de outra coisa. **Zero nunca é mudo**: a fatia vazia de uma fila cheia diz "0 de N ledger items are this conversation's" e por quê — "0 mostrados" não pode ser lido como "0 existem" (a mesma linha agora entra também no preâmbulo do `ask-user-question`, para que a linha da spec "nenhuma decisão pendente" nunca fique sozinha ao lado de um ledger cheio). Testes: `skills/synopsis-panel/tests/test_hitl_session_scope.py` (alias, contradição, o caso "0 de N"). |
 | 0.1.0 | 2026-10-21 | Bootstrap — a camada fina de **fusão + render** que faltava: funde a N-Tree de pendências (`work-compass --json`) + o ledger HITL (`punch-list.md`) num só modelo e renderiza tree/mermaid/HTML (humano) + JSON (agente). Net-new = só o modelo de fusão (anexa HITL à pendência por token de Link/ID; HITL órfão vira ramo próprio, nunca descartado) + os 4 renderers + self-heal. Reimplementa zero: agregação/Eisenhower ← work-compass (SSOT), ledger ← hitl-punch-list (SSOT), visual ← hitl-digest house-style. Nomeada via `anima` (`synopsis-panel`; rejeitado `confluence-panel` por colisão trademark Atlassian, `ntree-hitl-panel` por gloss-independence fraca). Forjada via pipeline MAOS (o DDR rodou EXPAND→FILTER→HARMONIZE). **forged-not-yet-dogfooded** (bounded: thin layer + PR, sem dogfood/merge). |
 
 ## License

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — `/hitl-digest`: alias `--this-session-only` e o escopo de sessão (eko-backlog#231)
+
+- `commands/hitl-digest.md`: the operator's own spelling `/maos:hitl-digest --this-session-only` is now a first-class flag, documented in the usage block, in the parameters table and in the deterministic execution block. It is an **alias of `--scope session`** for the HITL ledger slice: only the items whose provenance (the ledger's `Sessão` column) names the invoking conversation — in **every** mode, including the general panel with `--with-pendencies`.
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `--this-session-only` flag. It only ever narrows, so it **contradicts `--scope all`**: both flags together are refused with a usage error (exit 2) instead of being resolved silently in favour of the widening. `--scope session` now has the same effect in the general panel (it previously narrowed only the pure digest), so the alias is a real alias and not a second spelling of something else. The general panel keeps the whole ledger by default — the historical behaviour is unchanged.
+- The zero case stays honest: a session slice that shows nothing out of a full ledger says **how many** items the ledger holds and **why** none of them is this conversation's ("0 of N ledger items are this conversation's"), and an unresolved identity still says it is not an empty queue. "0 shown" can never be read as "0 exist". The same line now reaches the `ask-user-question` preamble, so the spec-mandated "nenhuma decisão pendente" line never stands alone next to a full ledger.
+- Regression tests in `skills/synopsis-panel/tests/test_hitl_session_scope.py`: the alias equals `--scope session` (pure digest and general panel), the contradiction is refused with exit 2, and the "N open in the ledger, 0 shown" case states the reason in the render and in the JSON envelope.
+
 ### Fixed — complete live HITL authorization context and local digest clock
 
 - AskUserQuestion questions now preserve the complete decision text, including trailing monetary limits and business conditions; only the durable preamble title remains clipped by display columns. Addresses the post-merge finding on #535 without changing approval gates, options, session ownership or machine/deferred output.
