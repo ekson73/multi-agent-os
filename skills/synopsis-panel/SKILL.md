@@ -85,6 +85,16 @@ HITL       → ┌────────────────────�
 > **lê** o punch-list. A única lógica nova é a fusão (juntar um item HITL à pendência
 > certa por token de Link/ID) + os renderers.
 
+
+## Modo AskUserQuestion (hitl-digest)
+
+Resolva `FUSE` e `LEDGER` conforme [`hitl-digest`](../../commands/hitl-digest.md) §O que o command executa.
+Então `echo '{}' | python3 "$FUSE" --hitl-only --compass-json - --hitl-md "$LEDGER" --format ask-user-question --consumer human-live`
+entrega os cards da sessão invocadora prontos para `AskUserQuestion`, só para consumidor
+`human-live` num harness que tem a ferramenta. `human-deferred` recebe o `tree` de sempre e
+`machine` o `json` de sempre. Contrato, fontes das opções e regra de recomendação:
+[`hitl-digest`](../../commands/hitl-digest.md) §Modo AskUserQuestion. Testes: [`test_synopsis_hitl_auq.py`](../../tests/test_synopsis_hitl_auq.py).
+
 ## Parte cognitiva (o que o agente decide antes de rodar o script)
 A skill é **híbrida**: antes do script determinístico, o agente interpreta —
 1. **Escopo / world** — o pedido é do panorama todo, da sessão, do repo atual, do vault?

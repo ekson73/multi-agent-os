@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed — `/hitl-digest` AskUserQuestion mode (bot review of #535)
+- Single structured option padded with `Manter pendente`; unknown `sev` no longer crashes the overflow line; option labels de-duplicated after clipping; empty queue emits `ask_user_question: null` + `no_decisions: true`; ledger provenance (dirty/behind/warning) carried into the envelope and preamble; SKILL example now pipes `--compass-json -`.
+- Follow-up review: decimal commas remain part of options; emitted labels remain unique even when a suffix collides; blank/non-text evidence cannot recommend; Unicode record titles use display columns; long warnings and harness metadata wrap without losing content. AUQ cards now use the already session-filtered raw ledger so attached gates survive `--hitl-only` without exposing other sessions.
+- Merged the upstream session-scope fix (#543/#544). Legacy-format goldens run with explicit `--scope all`; the JSON golden gains upstream scope metadata and tree/HTML goldens drop the misleading pendency `scope=all` on a pure HITL digest, exactly as upstream already does. Mermaid and all remaining bytes stay unchanged; AUQ does not change the existing renderers.
+- Local review follow-up: unresolved session scope keeps `no_decisions: false`; the tool payload remains null with an explicit reason. The skill uses a runnable consumer value and relative command links, expired questions explicitly select the deferred text consumer, and generic credential instructions name the approved store rather than a vendor.
+- Live AUQ cards retain digest/session scope even without `--hitl-only` (including the with-pendencies invocation); explicit `--scope all` alone widens. Deferred and machine consumers retain baseline panel scope and renderer parity.
+
+### Added — `/hitl-digest --format ask-user-question` (consumer-gated)
+
+- `skills/synopsis-panel/bin/synopsis-fuse.py`: new `ask-user-question` format with `--consumer human-live|human-deferred|machine`, `--session-id`, `--now`, `--harness`, `--repo`. For a `human-live` consumer it emits an AskUserQuestion-ready payload (≤3 questions, a 4th only for ⏫; header = `H-NNNN`; options from structured input, then the options the ledger row lists, then type dispositions; `(recomendado)` only with an evidence pointer) plus the durable text preamble (digest code, `aberta no AskUserQuestion` record lines, `⏭`, harness line). `human-deferred` gets the existing tree and `machine` the existing JSON envelope. Existing formats are unchanged (byte-identical goldens in `tests/test_synopsis_hitl_auq.py`).
 
 ### Added — `context-budget`: measure the always-loaded context, source by source
 
@@ -35,7 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Why: baseline for the context-reduction plan. Reuse check: `auto-shard` (CLAUDE.md >40KB only),
   `memory-curator-sweep.sh` (index cap only) and `claude-code-concierge` measure no per-source
   budget, so this is a new tool; it does not touch the `claude-concierge` work in flight.
-
 ### Fixed — preserve HITL ownership across native OMP recovery
 
 - `synopsis-fuse.py` now follows only explicit `parentSession` references in native

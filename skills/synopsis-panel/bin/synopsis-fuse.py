@@ -920,6 +920,251 @@ def render_json(fused: dict, title: str) -> str:
     return json.dumps(env, ensure_ascii=False, indent=2)
 
 
+# ── AskUserQuestion mode (hitl-digest, consumer-gated) ────────────────────────────
+# Renders the HITL digest cards as an AskUserQuestion-ready payload for a HUMAN-LIVE
+# consumer in a harness that has the tool (Claude Code or compatible). The CONSUMER
+# decision is the agent's (end-of-action-briefing-protocol §7.0): this script cannot
+# observe the tool or the reader, so the caller passes --consumer. Contract source:
+# hitl-digest spec §0 (one answer surface), §2 (code, header, count,
+# record line), §3 (A = recommendation only with an evidence pointer), §4 (≤3 cards,
+# a 4th only for ⏫). Deterministic: identical input + args ⇒ identical payload.
+AUQ_FORMAT = "ask-user-question"
+AUQ_SCHEMA = "hitl-digest/ask-user-question/v1"
+SEV_ORDER = {"URGENTE": 0, "ALTA": 1, "NORMAL": 2}
+SEV_URGENCY = {"URGENTE": "⏫ ALTA", "ALTA": "\U0001F53C MÉDIA", "NORMAL": "\U0001F53D BAIXA"}
+AUQ_HEADER_MAX = 12
+AUQ_LABEL_MAX = 60
+AUQ_RECORD_TITLE_MAX = 18   # keeps the record line within 80 columns (spec §2)
+TYPE_OPTIONS = {
+    "credencial": ("Fornecer ou rotacionar", "Voc\u00ea fornece ou rotaciona a credencial no cofre aprovado; o agente s\u00f3 usa a refer\u00eancia, nunca o valor.",
+                   "N\u00e3o fornecer", "O trabalho que depende da credencial fica bloqueado; o agente registra a recusa no ledger."),
+    "gasto": ("Autorizar o gasto", "O agente executa dentro do valor registrado e anota o custo real no ledger.",
+              "N\u00e3o autorizar", "Nenhum gasto; o agente procura uma alternativa sem custo ou encerra o item."),
+    "irreversivel": ("Executar", "A a\u00e7\u00e3o irrevers\u00edvel \u00e9 feita, com a refer\u00eancia de resgate verificada imediatamente antes.",
+                     "N\u00e3o executar", "Nada \u00e9 apagado nem alterado; o item \u00e9 fechado como recusado."),
+    "envio": ("Aprovar o envio", "A mensagem sai como est\u00e1 no rascunho; envio externo n\u00e3o se desfaz.",
+              "Pedir ajustes", "Nada \u00e9 enviado; o agente revisa o rascunho com o que voc\u00ea indicar em Other."),
+    "negocio": ("Aprovar", "O agente segue com a op\u00e7\u00e3o descrita no item e registra a decis\u00e3o.",
+                "Recusar", "O agente n\u00e3o segue; o item \u00e9 fechado como recusado no ledger."),
+    "": ("Aprovar", "O agente segue com o que o item descreve e registra a decis\u00e3o.",
+         "Recusar", "O agente n\u00e3o segue; o item \u00e9 fechado como recusado no ledger."),
+}
+AUQ_QUESTION_MAX = 240
+_OPCOES_RE = re.compile(r"op[çc][õo]es\s*:\s*(.+?)(?:[.;]\s|[.;]?$)", re.IGNORECASE)
+
+
+def _clip(text: str, n: int) -> str:
+    text = " ".join((text or "").split())
+    if len(text) <= n:
+        return text
+    cut = text[: n - 1].rsplit(" ", 1)[0] or text[: n - 1]
+    return cut.rstrip(" ,;:") + "…"
+
+
+def _ledger_options(decidir: str) -> list[str]:
+    """Options the ledger row itself lists ('opções: a, b, ou c'). Never invented."""
+    m = _OPCOES_RE.search(decidir or "")
+    if not m:
+        return []
+    parts = re.split(r"(?<!\d),\s*(?:ou\s+)?|,(?!\d)\s*(?:ou\s+)?|\s+ou\s+", m.group(1))
+    return [p.strip(" .") for p in parts if p.strip(" .")]
+
+
+def _dedupe_labels(opts: list[dict]) -> list[dict]:
+    """AskUserQuestion needs distinct labels; clipping can collide them."""
+    seen: set[str] = set()
+    for o in opts:
+        base = o["label"]
+        label, n = base, 1
+        while label in seen:
+            n += 1
+            suffix = f" ({n})"
+            label = _clip(base, AUQ_LABEL_MAX - len(suffix)) + suffix
+        o["label"] = label
+        seen.add(label)
+    return opts
+
+
+def _card_options(h: dict, raw: dict) -> tuple[list[dict], bool, str]:
+    """Return (options, has_recommendation, source). Recommended option first."""
+    structured = raw.get("options") if isinstance(raw.get("options"), list) else None
+    if structured:
+        opts, rec = [], None
+        for o in structured:
+            if not isinstance(o, dict) or not o.get("label"):
+                continue
+            item = {"label": _clip(str(o["label"]), AUQ_LABEL_MAX),
+                    "description": " ".join(str(o.get("description", "")).split())}
+            evidence = o.get("evidence")
+            evidence = evidence.strip() if isinstance(evidence, str) else ""
+            if o.get("recommended") and evidence and rec is None:
+                conf = o.get("confidence", "")
+                ptr = f"{conf} · {evidence}".strip(" ·")
+                item["label"] = _clip(str(o["label"]), AUQ_LABEL_MAX - 14) + " (recomendado)"
+                item["description"] = (item["description"] + f" Evidência: {ptr}.").strip()
+                rec = item
+            else:
+                opts.append(item)
+        opts = ([rec] if rec else []) + opts
+        if len(opts) == 1:
+            idade = raw.get("idade") or h.get("idade") or "?"
+            opts.append({"label": "Manter pendente",
+                         "description": f"Nada muda agora; o item segue aberto (idade {idade})."})
+        if len(opts) >= 2:
+            return _dedupe_labels(opts[:4]), rec is not None, "structured"
+    link = h.get("link") or "-"
+    listed = _ledger_options(h.get("decidir", ""))
+    if len(listed) >= 2:
+        return (_dedupe_labels([{"label": _clip(x, AUQ_LABEL_MAX),
+                  "description": f"Opção registrada no ledger; a consequência não foi registrada (ver {link})."}
+                 for x in listed[:4]]), False, "ledger-text")
+    # Fallback: dispositions intrinsic to the HITL TYPE (the 5 SSOT types), never
+    # item-specific inventions. Free-form decisions go through the tool's auto "Other".
+    idade = raw.get("idade") or h.get("idade") or "?"
+    yes, yes_d, no, no_d = TYPE_OPTIONS.get(h.get("tipo", ""), TYPE_OPTIONS[""])
+    return ([{"label": yes, "description": yes_d},
+             {"label": no, "description": no_d},
+             {"label": "Manter pendente",
+              "description": f"Nada muda agora; o item segue aberto (idade {idade}) e continua travando o que depende dele."}],
+            False, "type-generic")
+
+
+def _cols(text: str) -> int:
+    return sum(0 if unicodedata.combining(c) else
+               2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def _wrap_cols(text: str, n: int = 80) -> list[str]:
+    """Wrap without dropping content, including long paths and wide glyphs."""
+    lines, line = [], ""
+    for c in " ".join(text.split()):
+        if line and _cols(line + c) > n:
+            lines.append(line)
+            line = ""
+        line += c
+    if line:
+        lines.append(line)
+    return lines
+
+
+def _clip_cols(text: str, n: int) -> str:
+    text = " ".join(text.split())
+    if _cols(text) <= n:
+        return text
+    return _wrap_cols(text, n - _cols("…"))[0].rstrip() + "…"
+
+
+def _overflow_line(overflow: list[dict]) -> str:
+    """⏭ line within 80 columns (spec §2); ids that do not fit are counted, never dropped."""
+    prefix = "\u23ED pr\u00f3ximo digest (sem n\u00famero, n\u00e3o respond\u00edvel agora): "
+    toks = [f"{(SEV_URGENCY.get(h.get('sev'), '') or '?').split()[0]} {h.get('id', '')}" for h in overflow]
+    shown = []
+    for i, t in enumerate(toks):
+        rest = len(toks) - i - 1
+        cand = prefix + ", ".join(shown + [t]) + (f" +{rest}" if rest else "")
+        if _cols(cand) > 80:
+            break
+        shown.append(t)
+    hidden = len(toks) - len(shown)
+    return prefix + ", ".join(shown) + (f" +{hidden}" if hidden else "")
+
+
+def _digest_code(now: int | None, session_id: str | None) -> str | None:
+    if not session_id or len(session_id) < 8:
+        return None  # spec §2: root session id unknown ⇒ no code (AUQ binds the answer)
+    t = dt.datetime.fromtimestamp(now if now is not None else dt.datetime.now(dt.timezone.utc).timestamp(),
+                                  tz=dt.timezone.utc)
+    return f"K{t.strftime('%y%m%d-%H%M')}-{session_id[-8:]}"
+
+
+def render_ask_user_question(fused: dict, title: str, raw_hitl: list[dict], *,
+                             consumer: str, now: int | None, session_id: str | None,
+                             harness: str | None, repo: str | None) -> str:
+    # §7.0 consumer gate: only human-live gets the AskUserQuestion payload.
+    if consumer == "machine":
+        return render_json(fused, title)   # never a text digest for a machine consumer
+    if consumer == "human-deferred":
+        return render_tree(fused, title)   # existing text digest stays the default
+    raw_by_id = {r.get("id", ""): r for r in raw_hitl}
+    # main passes ONLY the post-session-filter ledger slice. Fused domains may
+    # hide attached items in --hitl-only mode; raw preserves every selected gate.
+    items = [_hitl_norm(r) for r in raw_hitl]
+    seen, uniq = set(), []
+    for h in items:
+        if h.get("id") not in seen:
+            seen.add(h.get("id"))
+            uniq.append(h)
+    uniq.sort(key=lambda h: (SEV_ORDER.get(h.get("sev"), 9),
+                             raw_by_id.get(h.get("id", ""), {}).get("aberto", "") or "9999",
+                             h.get("id", "")))
+    urgent = sum(1 for h in uniq if h.get("sev") == "URGENTE")
+    ncards = 4 if urgent > 3 else 3
+    cards, overflow = uniq[:ncards], uniq[ncards:]
+    code = _digest_code(now, session_id)
+    questions, card_meta, record = [], [], []
+    for i, h in enumerate(cards, 1):
+        raw = raw_by_id.get(h.get("id", ""), {})
+        opts, has_rec, source = _card_options(h, raw)
+        urg = SEV_URGENCY.get(h.get("sev"), SEV_URGENCY["NORMAL"])
+        questions.append({
+            "question": f"{_clip(h.get('decidir', ''), AUQ_QUESTION_MAX)} — como decide?",
+            "header": (h.get("id") or f"item-{i}")[:AUQ_HEADER_MAX],
+            "multiSelect": False,
+            "options": opts,
+        })
+        card_meta.append({"n": i, "id": h.get("id", ""), "sev": h.get("sev", ""),
+                          "has_recommendation": has_rec, "options_source": source,
+                          "link": h.get("link", "")})
+        prefix = f"· {urg} · \U0001F464 SÓ VOCÊ — {h.get('id', '')} "
+        suffix = " · aberta no AskUserQuestion"
+        budget = min(AUQ_RECORD_TITLE_MAX, 80 - _cols(prefix + suffix))
+        line = prefix + _clip_cols(h.get("decidir", ""), budget) + suffix
+        record.append(line)
+        if not has_rec:
+            record.append("    sem recomendação: falta ponteiro de evidência")
+    head = f"══ \U0001F7E0 HITL DIGEST · {code} ══" if code else \
+        "══ \U0001F7E0 HITL DIGEST ══"
+    count = f"{len(cards)} + 0 estac." + (f" + {len(overflow)} próximo digest" if overflow else "")
+    pre = [head, count, *record]
+    meta = fused.get("meta", {})
+    if meta.get("hitl_scope") == "session":
+        pre.extend(_wrap_cols(f"HITL scope: session — {meta.get('hitl_scope_reason')}"))
+    if meta.get("hitl_scope_unresolved"):
+        pre.extend(_wrap_cols(f"⚠ session scope unresolved: {meta['hitl_scope_unresolved']}"))
+    elif not cards:
+        pre.append("nenhuma decisão pendente — não abra AskUserQuestion")
+    if meta.get("hitl_source"):
+        pre.extend(_wrap_cols(f"HITL ledger: {meta['hitl_source']}"))
+    if meta.get("hitl_warning"):
+        pre.extend(_wrap_cols(f"\u26a0 {meta['hitl_warning']}"))
+    if overflow:
+        pre.append(_overflow_line(overflow))
+    tail = [f"harness: {harness}" if harness else None, f"repo: {repo}" if repo else None,
+            f"sessão: {session_id[-8:]}" if code else None]
+    tail = [t for t in tail if t]
+    if tail:
+        pre.extend(_wrap_cols(" · ".join(tail)))
+    env = {
+        "artifact": "hitl-digest",
+        "schema": AUQ_SCHEMA,
+        "consumer": consumer,
+        "code": code,
+        "preamble": pre,
+        "ask_user_question": {"questions": questions} if questions else None,
+        "no_decisions": not questions and not meta.get("hitl_scope_unresolved"),
+        "cards": card_meta,
+        "overflow": [h.get("id", "") for h in overflow],
+        "hitl_source": meta.get("hitl_source"),
+        "hitl_source_kind": meta.get("hitl_source_kind"),
+        "hitl_source_dirty": meta.get("hitl_source_dirty"),
+        "hitl_source_behind": meta.get("hitl_source_behind"),
+        "hitl_warning": meta.get("hitl_warning"),
+        **{k: v for k, v in meta.items() if k.startswith("hitl_scope")
+           or k.startswith("hitl_session") or k == "hitl_ledger_total"},
+    }
+    return json.dumps(env, ensure_ascii=False, indent=2) + "\n"
+
+
 RENDERERS = {
     "tree": render_tree,
     "mermaid": render_mermaid,
@@ -949,7 +1194,12 @@ def main(argv=None) -> int:
     ap.add_argument("--compass-json", default=None, help="work-compass --json path, '-' for stdin, or omit to call the engine")
     ap.add_argument("--hitl-md", default=None, help="punch-list.md path (default: discover)")
     ap.add_argument("--hitl-json", default=None, help="pre-parsed HITL JSON array path or '-'")
-    ap.add_argument("--format", choices=list(RENDERERS), default="tree")
+    ap.add_argument("--format", choices=list(RENDERERS) + [AUQ_FORMAT], default="tree")
+    ap.add_argument("--consumer", choices=["human-live", "human-deferred", "machine"], default="human-live",
+                    help="ask-user-question only: §7.0 consumer class (the agent decides; human-live = tool available)")
+    ap.add_argument("--now", type=int, default=None, help="ask-user-question only: epoch seconds for the digest code (default: clock)")
+    ap.add_argument("--harness", default=None, help="ask-user-question only: harness name for the last preamble line")
+    ap.add_argument("--repo", default=None, help="ask-user-question only: repo name for the last preamble line")
     ap.add_argument("--scope", choices=["current", "session", "repo", "vault", "all"], default=None,
                     help="pendency scope forwarded to work-compass (default: all). In "
                          "--hitl-only mode it ALSO selects the HITL ledger scope: unspecified "
@@ -977,7 +1227,12 @@ def main(argv=None) -> int:
         # question nobody asked. The default in --hitl-only mode is THIS
         # conversation's items, and the filter runs before the counts, so every
         # number in the output describes the slice that was actually shown.
-        scope, scope_reason = resolve_hitl_scope(args)
+        # Live decision cards use digest scope even alongside a pendency tree.
+        # Deferred/machine consumers keep their existing renderer's scope.
+        scope_args = (argparse.Namespace(hitl_only=True, scope=args.scope)
+                      if args.format == AUQ_FORMAT and args.consumer == "human-live"
+                      else args)
+        scope, scope_reason = resolve_hitl_scope(scope_args)
         identity = resolve_session_identity(args.session_id)
         scope_info = {
             "scope": scope,
@@ -1000,7 +1255,13 @@ def main(argv=None) -> int:
         fused = fuse(compass, hitl, hitl_only=args.hitl_only,
                      pending_only=args.pending_only, hitl_prov=hitl_prov,
                      hitl_scope=scope_info)
-        sys.stdout.write(RENDERERS[args.format](fused, args.title))
+        if args.format == AUQ_FORMAT:
+            sid = identity["ids"][0] if len(identity["ids"]) == 1 else None
+            sys.stdout.write(render_ask_user_question(
+                fused, args.title, hitl, consumer=args.consumer, now=args.now,
+                session_id=sid, harness=args.harness, repo=args.repo))
+        else:
+            sys.stdout.write(RENDERERS[args.format](fused, args.title))
         return 0
     except Exception as exc:  # noqa: BLE001 — hybrid self-heal boundary
         if args.self_heal:
